@@ -151,26 +151,26 @@ class IndexedViewImpl : public internal::generic_xpr_base<IndexedView<XprType, R
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedViewImpl)
 
   template <typename T0, typename T1>
-  IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices)
+  EIGEN_DEVICE_FUNC IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices)
       : m_xpr(xpr), m_rowIndices(rowIndices), m_colIndices(colIndices) {}
 
   /** \returns number of rows */
-  Index rows() const { return IndexedViewHelper<RowIndices>::size(m_rowIndices); }
+  EIGEN_DEVICE_FUNC Index rows() const { return IndexedViewHelper<RowIndices>::size(m_rowIndices); }
 
   /** \returns number of columns */
-  Index cols() const { return IndexedViewHelper<ColIndices>::size(m_colIndices); }
+  EIGEN_DEVICE_FUNC Index cols() const { return IndexedViewHelper<ColIndices>::size(m_colIndices); }
 
   /** \returns the nested expression */
-  const internal::remove_all_t<XprType>& nestedExpression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC const internal::remove_all_t<XprType>& nestedExpression() const { return m_xpr; }
 
   /** \returns the nested expression */
-  std::remove_reference_t<XprType>& nestedExpression() { return m_xpr; }
+  EIGEN_DEVICE_FUNC std::remove_reference_t<XprType>& nestedExpression() { return m_xpr; }
 
   /** \returns a const reference to the object storing/generating the row indices */
-  const RowIndices& rowIndices() const { return m_rowIndices; }
+  EIGEN_DEVICE_FUNC const RowIndices& rowIndices() const { return m_rowIndices; }
 
   /** \returns a const reference to the object storing/generating the column indices */
-  const ColIndices& colIndices() const { return m_colIndices; }
+  EIGEN_DEVICE_FUNC const ColIndices& colIndices() const { return m_colIndices; }
 
   constexpr Scalar& coeffRef(Index rowId, Index colId) {
     return nestedExpression().coeffRef(m_rowIndices[rowId], m_colIndices[colId]);
