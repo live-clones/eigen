@@ -30,7 +30,7 @@ struct trsmKernelL {
   // (-size, 0]. Both origins are elements of the panel, so callers never form a pointer outside
   // the matrix they solve in. The AVX-512 specializations take both by the top-left element and
   // convert when they delegate here.
-  static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
+  EIGEN_DEVICE_FUNC static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
                      Index otherStride);
 };
 

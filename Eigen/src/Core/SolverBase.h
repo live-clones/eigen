@@ -103,14 +103,14 @@ class SolverBase : public EigenBase<Derived> {
   };
 
   /** Default constructor */
-  SolverBase() = default;
+  EIGEN_DEVICE_FUNC SolverBase() = default;
 
   using Base::derived;
 
   /** \returns an expression of the solution x of \f$ A x = b \f$ using the current decomposition of A.
    */
   template <typename Rhs>
-  inline Solve<Derived, Rhs> solve(const MatrixBase<Rhs>& b) const {
+  EIGEN_DEVICE_FUNC inline Solve<Derived, Rhs> solve(const MatrixBase<Rhs>& b) const {
     internal::solve_assertion<internal::remove_all_t<Derived>>::template run<false>(derived(), b);
     return Solve<Derived, Rhs>(derived(), b.derived());
   }

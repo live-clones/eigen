@@ -536,7 +536,7 @@ typename FullPivLU<MatrixType, PermutationIndex>::Scalar FullPivLU<MatrixType, P
  * i.e., it returns the product: \f$ P^{-1} L U Q^{-1} \f$.
  * This function is provided for debug purposes. */
 template <typename MatrixType, typename PermutationIndex>
-MatrixType FullPivLU<MatrixType, PermutationIndex>::reconstructedMatrix() const {
+EIGEN_DEVICE_FUNC MatrixType FullPivLU<MatrixType, PermutationIndex>::reconstructedMatrix() const {
   eigen_assert(m_isInitialized && "LU is not initialized.");
   const Index smalldim = (std::min)(m_lu.rows(), m_lu.cols());
   // LU

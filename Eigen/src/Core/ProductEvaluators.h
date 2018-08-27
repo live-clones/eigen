@@ -1117,7 +1117,7 @@ struct generic_product_impl<Lhs, Rhs, TriangularShape, DenseShape, ProductTag>
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     triangular_product_impl<Lhs::Mode, true, typename Lhs::MatrixType, false, Rhs, Rhs::ColsAtCompileTime == 1>::run(
         dst, lhs.nestedExpression(), rhs, alpha);
   }
@@ -1129,7 +1129,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, TriangularShape, ProductTag>
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     triangular_product_impl<Rhs::Mode, false, Lhs, Lhs::RowsAtCompileTime == 1, typename Rhs::MatrixType, false>::run(
         dst, lhs, rhs.nestedExpression(), alpha);
   }
@@ -1321,7 +1321,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, SelfAdjointShape, ProductTag>
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     selfadjoint_product_impl<Lhs, 0, Lhs::RowsAtCompileTime == 1, typename Rhs::MatrixType, Rhs::Mode, false>::run(
         dst, lhs, rhs.nestedExpression(), alpha);
   }
@@ -1464,13 +1464,13 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
 
  protected:
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, std::true_type) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, std::true_type) const {
     return internal::pmul(m_matImpl.template packet<LoadMode, PacketType>(row, col),
                           internal::pset1<PacketType>(m_diagImpl.coeff(id)));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, std::false_type) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, std::false_type) const {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(
@@ -1483,14 +1483,14 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
                                                      std::true_type) const {
     return internal::pmul(m_matImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
                           internal::pset1<PacketType>(m_diagImpl.coeff(id)));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
                                                      std::false_type) const {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
@@ -1533,20 +1533,20 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 
 #ifndef EIGEN_GPUCC
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
     return this->template packet_impl<LoadMode, PacketType>(row, col, row, IsRowMajor_t());
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet(Index idx) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index idx) const {
     return packet<LoadMode, PacketType>(int(StorageOrder) == ColMajor ? idx : 0,
                                         int(StorageOrder) == ColMajor ? 0 : idx);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
     return this->template packet_segment_impl<LoadMode, PacketType>(row, col, row, begin, count, IsRowMajor_t());
@@ -1591,17 +1591,17 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet(Index idx) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index idx) const {
     return packet<LoadMode, PacketType>(StorageOrder == ColMajor ? idx : 0, StorageOrder == ColMajor ? 0 : idx);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     return this->template packet_segment_impl<LoadMode, PacketType>(row, col, col, begin, count, IsColMajor_t());
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packetSegment(Index idx, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index idx, Index begin, Index count) const {
     return packetSegment<LoadMode, PacketType>(StorageOrder == ColMajor ? idx : 0, StorageOrder == ColMajor ? 0 : idx,
                                                begin, count);
   }
@@ -1760,10 +1760,10 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape> 
   using MatrixTypeCleaned = remove_all_t<MatrixType>;
 
   template <typename Dest, typename PermutationType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const PermutationType& perm,
-                                                        const ExpressionType& xpr) {
-    MatrixType mat(xpr);
-    const Index n = Side == OnTheLeft ? mat.rows() : mat.cols();
+static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const PermutationType& perm,
+                                                      const ExpressionType& xpr) {
+  MatrixType mat(xpr);
+  const Index n = Side == OnTheLeft ? mat.rows() : mat.cols();
     // FIXME we need an is_same for expression that is not sensitive to constness. For instance
     // is_same_xpr<Block<const Matrix>, Block<Matrix> >::value should be true.
     // if(std::is_same<MatrixTypeCleaned,Dest>::value && extract_data(dst) == extract_data(mat))
