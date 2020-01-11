@@ -242,6 +242,10 @@ operation, no computation is performed.
     // Another way, exactly as efficient as the previous one:
     Tensor<float, 3> result = ((t1 + t2) * 0.2f).exp();
 
+### Indexed Tensor Operations
+
+See [the indexed notation documentation](@ref TensorIndexed.h) (go to the "Detailed Description").
+
 ### Controlling When Expression are Evaluated
 
 There are several ways to control when expressions are evaluated:

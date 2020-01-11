@@ -233,6 +233,11 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
       return operator()(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
     }
 
+#   if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    //Einstein notation
+    using TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> >::operator();
+#   endif
+
     // normal indices
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator()(const array<Index, NumIndices>& indices)
     {
