@@ -179,7 +179,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
     }
 
 #   if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
-    //Einstein notation
+    // Einstein notation
     using TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> >::operator();
 #   endif
 

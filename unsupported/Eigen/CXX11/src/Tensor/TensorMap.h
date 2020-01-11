@@ -158,7 +158,7 @@ template<typename PlainObjectType, int Options_, template <class> class MakePoin
     }
 
 #   if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
-    //Einstein notation
+    // Einstein notation
     using TensorBase<TensorMap<PlainObjectType, Options_, MakePointer_> >::operator();
 #   endif
 
