@@ -1131,7 +1131,7 @@ struct gebp_kernel {
     ResPacketSize = Traits::ResPacketSize
   };
 
-  EIGEN_DONT_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB, Index rows,
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB, Index rows,
                                     Index depth, Index cols, ResScalar alpha, Index strideA = -1, Index strideB = -1,
                                     Index offsetA = 0, Index offsetB = 0) const;
 };
@@ -1178,7 +1178,7 @@ struct last_row_process_16_packets<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   using SResPacket = typename SwappedTraits::ResPacket;
   using SAccPacket = typename SwappedTraits::AccPacket;
 
-  EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
                                       const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
                                       ResScalar alpha, SAccPacket& C0) const {
     using SResPacketQuarter = typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half;
