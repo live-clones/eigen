@@ -6,6 +6,20 @@
 
 #include "BenchUtil.h"
 
+namespace impl {
+template<typename LhsExpr, typename RhsExpr>
+const Eigen::CwiseBinaryOp<
+    Eigen::internal::scalar_typed_cmp_op<typename LhsExpr::Scalar, typename RhsExpr::Scalar, Eigen::internal::cmp_EQ>,
+    const LhsExpr,
+    const RhsExpr>
+equal(const LhsExpr& A, const RhsExpr& B) {
+    return Eigen::CwiseBinaryOp<
+        Eigen::internal::scalar_typed_cmp_op<typename LhsExpr::Scalar, typename RhsExpr::Scalar, Eigen::internal::cmp_EQ>,
+        const LhsExpr,
+        const RhsExpr>(A, B);
+}
+}  // namespace impl
+
 template <typename T>
 double BenchmarkSelect(int rows, int cols, int iterations) {
   typedef Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic> Array;
@@ -19,7 +33,7 @@ double BenchmarkSelect(int rows, int cols, int iterations) {
   timer.reset();
   timer.start();
   for (int i = 0; i < iterations; i++) {
-    Array result = (x == x_transpose).select(ones, zero);
+    Array result = impl::equal(x, x_transpose).select(ones, zero);
   }
   timer.stop();
 
