@@ -93,7 +93,8 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
     struct isOfNormalIndex{
       static const bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
       static const bool is_int = NumTraits<CustomIndices>::IsInteger;
-      static const bool value = is_array | is_int;
+      static const bool is_TensorIndex = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
+      static const bool value = is_array | is_int | !is_TensorIndex;
     };
 
   public:

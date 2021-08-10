@@ -13,7 +13,6 @@
 #include "TensorDimensions.h"
 
 #include <array>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -197,7 +196,7 @@ struct IndexedTensor
 };
 
 //! An IndexedTensor with no indices is a tensor of order zero, which is a scalar. 
-//! So, it can be assgned to a scalar instead of a tensor.
+//! So, it can be assigned to a scalar instead of a tensor.
 template<class TensorExpr>
 struct IndexedTensor<TensorExpr>
 {
@@ -205,7 +204,7 @@ struct IndexedTensor<TensorExpr>
   IndexedTensor(TensorExpr&& t) : tensor_expr(std::forward<TensorExpr>(t)){}
 
   using Scalar = typename TensorExpr::Scalar;
-  static const int DataLayout=internal::traits<TensorExpr>::Layout;
+  static const int DataLayout = internal::traits<TensorExpr>::Layout;
 
   operator Scalar() const
   {
