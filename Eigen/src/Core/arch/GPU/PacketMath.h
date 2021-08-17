@@ -33,7 +33,7 @@ namespace internal {
 // Make sure this is only available when targeting a GPU: we don't want to
 // introduce conflicts between these packet_traits definitions and the ones
 // we'll use on the host side (SSE, AVX, ...)
-#if defined(EIGEN_GPUCC) && defined(EIGEN_USE_GPU)
+#if defined(EIGEN_GPU_COMPILE_PHASE)
 
 template <>
 struct is_arithmetic<float4> : std::true_type {};
