@@ -178,6 +178,38 @@ static void test_slicing()
 }
 
 template<int DataLayout>
+static void test_slicing2()
+{
+  // fixed size
+  {
+    TensorFixedSize<float, Sizes<3, 4, 5>, DataLayout> mat1;
+    mat1.setRandom();
+
+    TensorFixedSize<float, Sizes<5>, DataLayout> result;
+    result(i) = mat1(0, 2, i);
+    
+    for (int ii = 0; ii < result.dimension(0); ++ii) {
+      VERIFY_IS_APPROX(result(ii), mat1(0, 2, ii));
+    }
+  }
+  
+  // dynamic size
+  {
+    Tensor<float, 3, DataLayout> mat1(3, 4, 5);
+    Tensor<float, 3, DataLayout> mat2(3, 4, 5);
+    mat1.setRandom();
+    mat2.setRandom();
+
+    Tensor<float, 1, DataLayout> result(5);
+    result(i) = mat1(0, 2, i);
+    
+    for (int ii = 0; ii < result.dimension(0); ++ii) {
+      VERIFY_IS_APPROX(result(ii), mat1(0, 2, ii));
+    }
+  }
+}
+
+template<int DataLayout>
 static void test_contraction()
 {
   // fixed size
@@ -699,16 +731,18 @@ EIGEN_DECLARE_TEST(test_cxx14_indexed_tensor)
   CALL_SUBTEST_2(test_shuffling<RowMajor>());
   CALL_SUBTEST_3(test_shuffling_map<ColMajor>());
   CALL_SUBTEST_3(test_shuffling_map<RowMajor>());
-  CALL_SUBTEST_4(test_slicing<ColMajor>());
-  CALL_SUBTEST_4(test_slicing<RowMajor>());
-  CALL_SUBTEST_5(test_tensor_product<ColMajor>());
-  CALL_SUBTEST_5(test_tensor_product<RowMajor>());
-  CALL_SUBTEST_6(test_contraction<ColMajor>());
-  CALL_SUBTEST_6(test_contraction<RowMajor>());
-  CALL_SUBTEST_7(test_addition<ColMajor>());
-  CALL_SUBTEST_7(test_addition<RowMajor>());
-  CALL_SUBTEST_8(test_substraction<ColMajor>());
-  CALL_SUBTEST_8(test_substraction<RowMajor>());
-  CALL_SUBTEST_9(test_combo<ColMajor>());
-  CALL_SUBTEST_9(test_combo<RowMajor>());
+  CALL_SUBTEST_5(test_slicing<ColMajor>());
+  CALL_SUBTEST_5(test_slicing<RowMajor>());
+  CALL_SUBTEST_6(test_slicing2<ColMajor>());
+  CALL_SUBTEST_6(test_slicing2<RowMajor>());
+  CALL_SUBTEST_7(test_tensor_product<ColMajor>());
+  CALL_SUBTEST_7(test_tensor_product<RowMajor>());
+  CALL_SUBTEST_8(test_contraction<ColMajor>());
+  CALL_SUBTEST_8(test_contraction<RowMajor>());
+  CALL_SUBTEST_9(test_addition<ColMajor>());
+  CALL_SUBTEST_9(test_addition<RowMajor>());
+  CALL_SUBTEST_10(test_substraction<ColMajor>());
+  CALL_SUBTEST_10(test_substraction<RowMajor>());
+  CALL_SUBTEST_11(test_combo<ColMajor>());
+  CALL_SUBTEST_11(test_combo<RowMajor>());
 }
