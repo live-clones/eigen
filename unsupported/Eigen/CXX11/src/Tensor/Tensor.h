@@ -90,11 +90,12 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
     TensorStorage<Scalar, Dimensions, Options> m_storage;
 
     template<typename CustomIndices>
-    struct isOfNormalIndex{
+    struct isOfNormalIndex 
+    {
       static const bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
       static const bool is_int = NumTraits<CustomIndices>::IsInteger;
-      static const bool is_TensorIndex_array = internal::is_base_of<array<TensorIndexBase, NumIndices>, CustomIndices>::value;
-      static const bool value = is_array | is_int | !is_TensorIndex_array;
+      static const bool is_TensorIndex = internal::is_base_of<TensorIndexBase, CustomIndices>::value;
+      static const bool value = is_array | is_int | is_TensorIndex;
     };
 
   public:
