@@ -119,7 +119,7 @@ struct hermitian_prod_impl {
 } // namespace internal
 
 /** \class Hermitian
-  * \ingroup Core_Module
+  * \ingroup HermitianMatrix_Module
   *
   * \brief Represents a hermitian matrix with its storage
   *
