@@ -285,28 +285,14 @@ ei_add_test(cxx11_tensor_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(cxx11_tensor_trace)
 ei_add_test(cxx11_tensor_volume_patch)
 #  ei_add_test(cxx11_tensor_symmetry)
-ei_add_test(cxx14_indexed_tensor)
 if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # This test requires __uint128_t which is only available on 64bit systems
   ei_add_test(cxx11_tensor_uint128)
-endif()
 
 if(True)
   set(CMAKE_CXX_STANDARD 14)
   ei_add_test(cxx14_indexed_tensor)
 endif()
-
-if(True)
-  set(CMAKE_CXX_STANDARD 14)
-  ei_add_test(cxx14_indexed_tensor)
-endif()
-
-# TODO: Remove this later
-# if(EIGEN_TEST_CXX14)
-#   set(CMAKE_CXX_STANDARD 14)
-
-#   ei_add_test(cxx14_indexed_tensor)
-# endif()
 
 # These tests needs nvcc
 find_package(CUDA 7.0)
