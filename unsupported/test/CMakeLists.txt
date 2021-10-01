@@ -290,7 +290,7 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MS
   ei_add_test(cxx11_tensor_uint128)
 endif()
 
-if(EIGEN_TEST_CXX14)
+if(True)
   set(CMAKE_CXX_STANDARD 14)
   ei_add_test(cxx14_indexed_tensor)
 endif()

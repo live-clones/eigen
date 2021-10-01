@@ -89,14 +89,17 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   protected:
     TensorStorage<Scalar, Dimensions, Options> m_storage;
 
-    template<typename CustomIndices>
-    struct isOfNormalIndex 
-    {
-      static const bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
-      static const bool is_int = NumTraits<CustomIndices>::IsInteger;
-      static const bool is_TensorIndex = internal::is_base_of<TensorIndexBase, CustomIndices>::value;
-      static const bool value = is_array | is_int | is_TensorIndex;
-    };
+  #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+  template<typename CustomIndices>
+  struct isOfNormalIndex 
+  {
+    static const bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
+    static const bool is_int = NumTraits<CustomIndices>::IsInteger;
+    static const bool is_TensorIndex = internal::is_base_of<TensorIndexBase, 
+                                                            typename internal::remove_all<CustomIndices>::type>::value;
+    static const bool value = is_array | is_int | is_TensorIndex;
+  };
+  #endif
 
   public:
     // Metadata

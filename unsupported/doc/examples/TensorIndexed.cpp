@@ -27,10 +27,10 @@ int main()
   //To write clearer expressions, one can use an indexed expression, which is an extension of the Einstein notation. 
   //This way, the above expression can be equivalently rewritten as :
   {
-    using namespace Eigen::TensorIndices;
+    using namespace Eigen::tensor_indices;
     R1(i,j,k)=A(j,l)*B(l,i,1,k)+C(k,i,j);
   }
-  //A bunch of single letter indices can be imported with `using namespace Eigen::TensorIndices;`
+  //A bunch of single letter indices can be imported with `using namespace Eigen::tensor_indices;`
   //or one can defined his own indices with `TensorIndex<some_letter_or_number> some_index_name;`.
   {
     Eigen::TensorIndex<'i'> i;

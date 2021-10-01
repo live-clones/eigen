@@ -13,7 +13,7 @@
 
 using Eigen::TensorFixedSize;
 using Eigen::Sizes;
-using namespace Eigen::TensorIndices;
+using namespace Eigen::tensor_indices;
 
 template<int DataLayout>
 static void test_indexed_expression()

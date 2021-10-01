@@ -1007,13 +1007,13 @@ class TensorBase<Derived, ReadOnlyAccessors>
 
     #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
     // Einstein notation
-    template<typename... IndexTypes, class=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
+    template<typename... IndexTypes, typename=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
     inline auto operator()(IndexTypes... indices){
-      return make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
-    template<typename... IndexTypes, class=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
+    template<typename... IndexTypes, typename=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
     inline auto operator()(IndexTypes... indices)const{
-      return make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
     #endif
 
@@ -1213,13 +1213,13 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 
     #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
     // Einstein notation
-    template<typename... IndexTypes, class=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
+    template<typename... IndexTypes, typename=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
     inline auto operator()(IndexTypes... indices){
-      return make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
-    template<typename... IndexTypes, class=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
+    template<typename... IndexTypes, typename=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
     inline auto operator()(IndexTypes... indices)const{
-      return make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
     #endif
 
