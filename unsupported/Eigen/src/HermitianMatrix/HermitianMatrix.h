@@ -11,6 +11,30 @@
 #define EIGEN_HERMITIANMATRIX_H
 
 namespace Eigen {
+
+
+template<typename Lhs, typename Rhs, int Option>
+class ProductImpl<Lhs,Rhs,Option,HermitianShape>
+  : public internal::hermitian_product_base<Lhs,Rhs,Option>
+{
+  private:
+    typedef typename Lhs::NestedExpression NestedExpression;
+
+  public:
+    typedef typename internal::hermitian_product_base<Lhs, Rhs, Option> Base;
+
+    EIGEN_DEVICE_FUNC
+    inline const NestedExpression nestedExpression() const 
+    {
+      // In the case of a product we just want a brand new nested expression
+      NestedExpression nested;
+      return nested;
+    }
+
+ 
+};
+
+
 namespace internal {
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN

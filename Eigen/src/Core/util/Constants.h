@@ -522,6 +522,12 @@ struct PermutationStorage {};
 /** The type used to identify a permutation storage. */
 struct TranspositionsStorage {};
 
+/** The type used to identify a hermitian storage */
+struct HermitianStorage {};
+
+/** The type used to identify a hermitian expression */
+struct HermitianXpr {};
+
 /** The type used to identify a matrix expression */
 struct MatrixXpr {};
 
@@ -534,6 +540,7 @@ struct SolverShape            { static std::string debugName() { return "SolverS
 struct HomogeneousShape       { static std::string debugName() { return "HomogeneousShape"; } };
 struct DiagonalShape          { static std::string debugName() { return "DiagonalShape"; } };
 struct BandShape              { static std::string debugName() { return "BandShape"; } };
+struct HermitianShape         { static std::string debugName() { return "HermitianShape"; } };
 struct TriangularShape        { static std::string debugName() { return "TriangularShape"; } };
 struct SelfAdjointShape       { static std::string debugName() { return "SelfAdjointShape"; } };
 struct PermutationShape       { static std::string debugName() { return "PermutationShape"; } };

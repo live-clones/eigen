@@ -11,6 +11,8 @@
 #define EIGEN_HERMITIANBASE_H
 namespace Eigen {
 
+  
+
 template<typename Derived>
 class HermitianBase : public EigenBase<Derived>
 {
