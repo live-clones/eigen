@@ -39,7 +39,7 @@ endif()
 
 foreach(target IN LISTS EIGEN_BLAS_TARGETS)
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-      target_link_libraries(${target} ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
+      target_link_libraries(${target} PUBLIC ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
   endif()
 
   add_dependencies(blas ${target})

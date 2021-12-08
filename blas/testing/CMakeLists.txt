@@ -7,7 +7,6 @@ macro(ei_add_blas_test testname)
   add_executable(${targetname} ${filename})
 
   target_link_libraries(${targetname} eigen_blas)
-  target_link_libraries(${targetname} EigenTestDeps)
 
   add_test(${testname} "${Eigen_SOURCE_DIR}/blas/testing/runblastest.sh" "${testname}" "${Eigen_SOURCE_DIR}/blas/testing/${testname}.dat")
   add_dependencies(buildtests ${targetname})

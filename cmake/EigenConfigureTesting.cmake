@@ -52,16 +52,63 @@ ei_init_testing()
 option(EIGEN_NO_ASSERTION_CHECKING "Disable checking of assertions using exceptions" OFF)
 option(EIGEN_DEBUG_ASSERTS "Enable advanced debugging of assertions" OFF)
 
+
+# Add a target that gathers the common flags and dependencies for compiling tests
+add_library(EigenTestDeps INTERFACE)
+if(EIGEN_NO_ASSERTION_CHECKING)
+  target_compile_definitions(EigenTestDeps INTERFACE EIGEN_NO_ASSERTION_CHECKING=1)
+else()
+  if(EIGEN_DEBUG_ASSERTS)
+    target_compile_definitions(EigenTestDeps INTERFACE EIGEN_DEBUG_ASSERTS=1)
+  endif()
+endif()
+target_compile_definitions(EigenTestDeps INTERFACE EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE})
+
+if(MSVC)
+  target_compile_options(EigenTestDeps INTERFACE "/bigobj")
+endif()
+
+if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
+  target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
+endif()
+
+if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
+  target_compile_options(EigenTestDeps INTERFACE "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
+endif()
+
+if(EIGEN_TEST_CUSTOM_LINKER_FLAGS)
+  target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
+endif()
+
+
 if(CMAKE_COMPILER_IS_GNUCXX)
   option(EIGEN_COVERAGE_TESTING "Enable/disable gcov" OFF)
   if(EIGEN_COVERAGE_TESTING)
     set(COVERAGE_FLAGS "-fprofile-arcs -ftest-coverage")
     set(CTEST_CUSTOM_COVERAGE_EXCLUDE "/test/")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_FLAGS}")
+    target_compile_options(EigenTestDeps ${COVERAGE_FLAGS})
   endif()
   
 elseif(MSVC)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS")
+  target_compile_definitions(EigenTestDeps _CRT_SECURE_NO_WARNINGS _SCL_SECURE_NO_WARNINGS)
 endif()
 
+option(EIGEN_TEST_EXTERNAL_BLAS "Use external BLAS library for testsuite" OFF)
+if(EIGEN_TEST_EXTERNAL_BLAS)
+  find_package(BLAS REQUIRED)
+  message(STATUS "BLAS_COMPILER_FLAGS: ${BLAS_COMPILER_FLAGS}")
+  # TODO recent versions of CMake provide an imported target for BLAS. Use that if available.
+  # these are currently shadowed by Eigens of FindBLAS script
+  target_link_libraries(EigenTestDeps INTERFACE ${BLAS_LIBRARIES})
+  target_compile_options(EigenTestDeps INTERFACE ${BLAS_COMPILER_FLAGS})
+  target_compile_definitions(EigenTestDeps INTERFACE -DEIGEN_USE_BLAS)
+endif()
+
+option(EIGEN_TEST_EXTERNAL_LAPACKE "Use external LAPACKE library for testsuite" OFF)
+if(EIGEN_TEST_EXTERNAL_LAPACKE)
+  # I'm not sure on how many platforms that works. However, having lapacke testing
+  # on some platforms should be better than having no lapacke testing at all.
+  find_library(LAPACKE_LIBRARY lapacke)
+  target_link_libraries(EigenTestDeps INTERFACE ${LAPACKE_LIBRARY})
+endif()
 
