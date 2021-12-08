@@ -156,52 +156,10 @@ endif()
 
 set(EIGEN_TEST_MAX_SIZE "320" CACHE STRING "Maximal matrix/vector size, default is 320")
 
+include(cmake/EigenWarnings.cmake)
+
 if(NOT MSVC)
   # We assume that other compilers are partly compatible with GNUCC
-
-  # clang outputs some warnings for unknown flags that are not caught by check_cxx_compiler_flag
-  # adding -Werror turns such warnings into errors
-  check_cxx_compiler_flag("-Werror" COMPILER_SUPPORT_WERROR)
-  if(COMPILER_SUPPORT_WERROR)
-    set(CMAKE_REQUIRED_FLAGS "-Werror")
-  endif()
-  ei_add_cxx_compiler_flag("-pedantic")
-  ei_add_cxx_compiler_flag("-Wall")
-  ei_add_cxx_compiler_flag("-Wextra")
-  #ei_add_cxx_compiler_flag("-Weverything")              # clang
-
-  ei_add_cxx_compiler_flag("-Wundef")
-  ei_add_cxx_compiler_flag("-Wcast-align")
-  ei_add_cxx_compiler_flag("-Wchar-subscripts")
-  ei_add_cxx_compiler_flag("-Wnon-virtual-dtor")
-  ei_add_cxx_compiler_flag("-Wunused-local-typedefs")
-  ei_add_cxx_compiler_flag("-Wpointer-arith")
-  ei_add_cxx_compiler_flag("-Wwrite-strings")
-  ei_add_cxx_compiler_flag("-Wformat-security")
-  ei_add_cxx_compiler_flag("-Wshorten-64-to-32")
-  ei_add_cxx_compiler_flag("-Wlogical-op")
-  ei_add_cxx_compiler_flag("-Wenum-conversion")
-  ei_add_cxx_compiler_flag("-Wc++11-extensions")
-  ei_add_cxx_compiler_flag("-Wdouble-promotion")
-#  ei_add_cxx_compiler_flag("-Wconversion")
-
-  ei_add_cxx_compiler_flag("-Wshadow")
-
-  ei_add_cxx_compiler_flag("-Wno-psabi")
-  ei_add_cxx_compiler_flag("-Wno-variadic-macros")
-  ei_add_cxx_compiler_flag("-Wno-long-long")
-
-  ei_add_cxx_compiler_flag("-fno-check-new")
-  ei_add_cxx_compiler_flag("-fno-common")
-  ei_add_cxx_compiler_flag("-fstrict-aliasing")
-  ei_add_cxx_compiler_flag("-wd981")                    # disable ICC's "operands are evaluated in unspecified order" remark
-  ei_add_cxx_compiler_flag("-wd2304")                   # disable ICC's "warning #2304: non-explicit constructor with single argument may cause implicit type conversion" produced by -Wnon-virtual-dtor
-
-  if(ANDROID_NDK)
-    ei_add_cxx_compiler_flag("-pie")
-    ei_add_cxx_compiler_flag("-fPIE")
-  endif()
-
   set(CMAKE_REQUIRED_FLAGS "")
 
   option(EIGEN_TEST_SSE2 "Enable/Disable SSE2 in tests/examples" OFF)
@@ -327,16 +285,6 @@ if(NOT MSVC)
   endif()
 
 else()
-
-  # C4127 - conditional expression is constant
-  # C4714 - marked as __forceinline not inlined (I failed to deactivate it selectively)
-  #         We can disable this warning in the unit tests since it is clear that it occurs
-  #         because we are oftentimes returning objects that have a destructor or may
-  #         throw exceptions - in particular in the unit tests we are throwing extra many
-  #         exceptions to cover indexing errors.
-  # C4505 - unreferenced local function has been removed (impossible to deactivate selectively)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /wd4127 /wd4505 /wd4714")
-
   # replace all /Wx by /W4
   string(REGEX REPLACE "/W[0-9]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 

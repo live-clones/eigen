@@ -111,5 +111,5 @@ if(EIGEN_TEST_EXTERNAL_LAPACKE)
   target_link_libraries(EigenTestDeps INTERFACE ${LAPACKE_LIBRARY})
 endif()
 
-target_link_libraries(EigenTestDeps INTERFACE Eigen3::Eigen)
+target_link_libraries(EigenTestDeps INTERFACE Eigen3::Eigen EigenWarnings)
 target_include_directories(EigenTestDeps INTERFACE ${Eigen3_SOURCE_DIR}/test)

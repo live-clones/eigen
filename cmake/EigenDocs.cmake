@@ -52,7 +52,7 @@ endfunction()
 # Add a target that gathers the common flags and dependencies for examples and snippets
 add_library(EigenDocDeps INTERFACE)
 target_compile_definitions(EigenDocDeps INTERFACE EIGEN_MAKING_DOCS)
-target_link_libraries(EigenDocDeps INTERFACE Eigen3::Eigen)
+target_link_libraries(EigenDocDeps INTERFACE Eigen3::Eigen EigenWarnings)
 if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
   target_link_libraries(EigenDocDeps INTERFACE ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
 endif()
