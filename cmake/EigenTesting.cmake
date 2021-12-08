@@ -8,6 +8,33 @@ macro(ei_add_property prop value)
   endif()
 endmacro()
 
+add_library(EigenTestDeps INTERFACE)
+if(EIGEN_NO_ASSERTION_CHECKING)
+  target_compile_definitions(EigenTestDeps INTERFACE EIGEN_NO_ASSERTION_CHECKING=1)
+else()
+  if(EIGEN_DEBUG_ASSERTS)
+    target_compile_definitions(EigenTestDeps INTERFACE EIGEN_DEBUG_ASSERTS=1)
+  endif()
+endif()
+target_compile_definitions(EigenTestDeps INTERFACE EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE})
+
+if(MSVC)
+  target_compile_options(EigenTestDeps INTERFACE "/bigobj")
+endif()
+
+if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
+  target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
+endif()
+
+if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
+  target_compile_options(EigenTestDeps INTERFACE "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
+endif()
+
+if(EIGEN_TEST_CUSTOM_LINKER_FLAGS)
+  target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
+endif()
+
+
 #internal. See documentation of ei_add_test for details.
 macro(ei_add_test_internal testname testname_with_suffix)
   set(targetname ${testname_with_suffix})
@@ -59,37 +86,11 @@ macro(ei_add_test_internal testname testname_with_suffix)
     add_dependencies(buildtests_gpu ${targetname})
   endif()
 
-  if(EIGEN_NO_ASSERTION_CHECKING)
-    target_compile_definitions(${targetname} PRIVATE EIGEN_NO_ASSERTION_CHECKING=1)
-  else()
-    if(EIGEN_DEBUG_ASSERTS)
-      target_compile_definitions(${targetname} PRIVATE EIGEN_DEBUG_ASSERTS=1)
-    endif()
-  endif()
-
-  target_compile_definitions(${targetname} PRIVATE EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE})
-
-  if(MSVC)
-    target_compile_options(${targetname} PRIVATE "/bigobj")
-  endif()
+  target_link_libraries(${targetname} EigenTestDeps)
 
   # let the user pass flags.
   if(${ARGC} GREATER 2)
     target_compile_options(${targetname} PRIVATE ${ARGV2})
-  endif()
-
-  if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
-    target_compile_options(${targetname} PRIVATE ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
-  endif()
-
-  if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-    target_link_libraries(${targetname} ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
-  endif()
-  if(EXTERNAL_LIBS)
-    target_link_libraries(${targetname} ${EXTERNAL_LIBS})
-  endif()
-  if(EIGEN_TEST_CUSTOM_LINKER_FLAGS)
-    target_link_libraries(${targetname} ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
   endif()
 
   if(${ARGC} GREATER 3)

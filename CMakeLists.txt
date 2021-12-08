@@ -14,6 +14,11 @@ if (POLICY CMP0090)
   endif (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
 endif (POLICY CMP0090)
 
+if (POLICY CMP0079)
+  # target_link_libraries looks up linked libraries in calling scope instead of original target scope
+  cmake_policy (SET CMP0079 NEW)
+endif()
+
 project(Eigen3)
 
 # Remove this block after bumping CMake to v3.21.0
