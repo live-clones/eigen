@@ -112,6 +112,7 @@ ei_add_test(special_packetmath "-DEIGEN_FAST_MATH=1")
 if(EIGEN_TEST_SYCL)
   set(EIGEN_SYCL ON)
   # Forward CMake options as preprocessor definitions
+  # TODO is there a reason for these being cmake options in the first place?
   if(EIGEN_SYCL_USE_DEFAULT_SELECTOR)
     add_definitions(-DEIGEN_SYCL_USE_DEFAULT_SELECTOR=${EIGEN_SYCL_USE_DEFAULT_SELECTOR})
   endif()
