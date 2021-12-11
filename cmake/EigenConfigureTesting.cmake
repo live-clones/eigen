@@ -98,7 +98,6 @@ if(EIGEN_TEST_EXTERNAL_BLAS)
   find_package(BLAS REQUIRED)
   message(STATUS "BLAS_COMPILER_FLAGS: ${BLAS_COMPILER_FLAGS}")
   # TODO recent versions of CMake provide an imported target for BLAS. Use that if available.
-  # these are currently shadowed by Eigens of FindBLAS script
   target_link_libraries(EigenTestDeps INTERFACE ${BLAS_LIBRARIES})
   target_compile_options(EigenTestDeps INTERFACE ${BLAS_COMPILER_FLAGS})
   target_compile_definitions(EigenTestDeps INTERFACE -DEIGEN_USE_BLAS)
@@ -112,3 +111,5 @@ if(EIGEN_TEST_EXTERNAL_LAPACKE)
   target_link_libraries(EigenTestDeps INTERFACE ${LAPACKE_LIBRARY})
 endif()
 
+target_link_libraries(EigenTestDeps INTERFACE Eigen3::Eigen)
+target_include_directories(EigenTestDeps INTERFACE ${Eigen3_SOURCE_DIR}/test)

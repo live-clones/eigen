@@ -6,8 +6,7 @@ function(ei_make_example_targets RootTarget ExampleGlob)
   foreach (example_src ${ExampleList})
     get_filename_component(example ${example_src} NAME_WE)
     add_executable(example_${example} ${example_src})
-    target_link_libraries(example_${example} PRIVATE EigenTestDeps)
-    target_compile_definitions(example_${example} PRIVATE EIGEN_MAKING_DOCS)
+    target_link_libraries(example_${example} PRIVATE EigenDocDeps)
     add_custom_command(
             TARGET example_${example}
             POST_BUILD
@@ -36,7 +35,7 @@ function(ei_make_snippet_targets RootTarget SnippetGlob)
             ${CMAKE_CURRENT_BINARY_DIR}/${compile_snippet_src})
     add_executable(${compile_snippet_target}
             ${CMAKE_CURRENT_BINARY_DIR}/${compile_snippet_src})
-    target_link_libraries(${compile_snippet_target} PRIVATE EigenTestDeps)
+    target_link_libraries(${compile_snippet_target} PRIVATE EigenDocDeps)
     add_custom_command(
             TARGET ${compile_snippet_target}
             POST_BUILD
@@ -47,6 +46,13 @@ function(ei_make_snippet_targets RootTarget SnippetGlob)
     set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/${compile_snippet_src}
             PROPERTIES OBJECT_DEPENDS ${snippet_src})
   endforeach (snippet_src)
-
 endfunction()
 
+
+# Add a target that gathers the common flags and dependencies for examples and snippets
+add_library(EigenDocDeps INTERFACE)
+target_compile_definitions(EigenDocDeps INTERFACE EIGEN_MAKING_DOCS)
+target_link_libraries(EigenDocDeps INTERFACE Eigen3::Eigen)
+if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
+  target_link_libraries(EigenDocDeps INTERFACE ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
+endif()
