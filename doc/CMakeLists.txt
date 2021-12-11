@@ -72,12 +72,9 @@ configure_file(
 set(examples_targets "")
 set(snippets_targets "")
 
-add_definitions("-DEIGEN_MAKING_DOCS")
-add_custom_target(all_examples)
-
-add_subdirectory(examples)
+ei_make_example_targets(all_examples "examples/*.cpp")
 add_subdirectory(special_examples)
-add_subdirectory(snippets)
+ei_make_snippet_targets(all_snippets "snippets/*.cpp")
 
 add_custom_target(
   doc-eigen-prerequisites
