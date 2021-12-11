@@ -19,14 +19,3 @@ if(QT4_FOUND)
 
   add_dependencies(all_examples Tutorial_sparse_example)
 endif()
-
-add_executable(random_cpp11 random_cpp11.cpp)
-target_link_libraries(random_cpp11 PRIVATE EigenTestDeps)
-add_dependencies(all_examples random_cpp11)
-
-add_custom_command(
-  TARGET random_cpp11
-  POST_BUILD
-  COMMAND random_cpp11
-  ARGS >${CMAKE_CURRENT_BINARY_DIR}/random_cpp11.out
-)
