@@ -1115,23 +1115,12 @@ namespace Eigen {
 #define EIGEN_PREDICT_TRUE(x) (x)
 #endif
 
-// the expression type of a standard coefficient wise binary operation
-#define EIGEN_CWISE_BINARY_RETURN_TYPE(LHS,RHS,OPNAME) \
-    CwiseBinaryOp< \
-      EIGEN_CAT(EIGEN_CAT(internal::scalar_,OPNAME),_op)< \
-          typename internal::traits<LHS>::Scalar, \
-          typename internal::traits<RHS>::Scalar \
-      >, \
-      const LHS, \
-      const RHS \
-    >
-
-#define EIGEN_MAKE_CWISE_BINARY_OP(METHOD,OPNAME) \
+#define EIGEN_MAKE_CWISE_BINARY_OP(METHOD,OPTYPE) \
   template<typename OtherDerived> \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME) \
-  (METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,OPTYPE> \
+  (METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const \
   { \
-    return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME)(derived(), other.derived()); \
+    return internal::cwise_binary_return_t<Derived,OtherDerived,OPTYPE>(derived(), other.derived()); \
   }
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD,OPTYPE) \

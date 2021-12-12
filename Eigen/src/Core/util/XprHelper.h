@@ -879,12 +879,27 @@ namespace internal
   template<typename... Args>
   using plain_constant_t = typename internal::plain_constant_type<Args...>::type;
 
+  /**
+   * \internal Type for applying the binary operation `OP` to an expression and a scalar, with the scalar on the right.
+   */
+  template<typename LHS, typename RHS, template<typename, typename> class OP>
+  using cwise_binary_return_t = CwiseBinaryOp<OP<trait_scalar_t<LHS>, trait_scalar_t<RHS>>, const LHS, const RHS>;
+
+  /**
+   * \internal Type for applying the binary operation `OP` to an expression and a scalar, with the scalar on the right.
+   */
   template<typename Expr, typename Scalar, template<typename, typename> class OP>
   using cwise_binary_scalar_right_t = CwiseBinaryOp<OP<trait_scalar_t<Expr>, Scalar>, const Expr, const plain_constant_t<Expr,Scalar>>;
 
+  /**
+   * \internal Type for applying the binary operation `OP` to a scalar and an expression, with the scalar on the left.
+   */
   template<typename Scalar, typename Expr, template<typename, typename> class OP>
   using cwise_binary_scalar_left_t = CwiseBinaryOp<OP<Scalar, trait_scalar_t<Expr>>, const plain_constant_t<Expr,Scalar>, const Expr>;
 
+  /**
+   * \internal This is true is the Scalars of `A` and `B` are compatible for the binary operation `OP`.
+   */
   template<typename A, typename B, template<typename, typename> class OP>
   constexpr bool scalar_binary_supported_v = Eigen::internal::has_ReturnType<Eigen::ScalarBinaryOpTraits<A, B, OP<A,B>>>::value;
 

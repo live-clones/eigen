@@ -91,7 +91,7 @@ class DiagonalBase : public EigenBase<Derived>
     #ifdef EIGEN_PARSED_BY_DOXYGEN
     inline unspecified_expression_type
     #else
-    inline const DiagonalWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(DiagonalVectorType,typename OtherDerived::DiagonalVectorType,sum) >
+    inline const DiagonalWrapper<const internal::cwise_binary_return_t<DiagonalVectorType,typename OtherDerived::DiagonalVectorType,internal::scalar_sum_op> >
     #endif
     operator+(const DiagonalBase<OtherDerived>& other) const
     {
@@ -103,7 +103,7 @@ class DiagonalBase : public EigenBase<Derived>
     #ifdef EIGEN_PARSED_BY_DOXYGEN
     inline unspecified_expression_type
     #else
-    inline const DiagonalWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(DiagonalVectorType,typename OtherDerived::DiagonalVectorType,difference) >
+    inline const DiagonalWrapper<const internal::cwise_binary_return_t<DiagonalVectorType,typename OtherDerived::DiagonalVectorType, internal::scalar_difference_op> >
     #endif
     operator-(const DiagonalBase<OtherDerived>& other) const
     {

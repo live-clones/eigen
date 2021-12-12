@@ -5,10 +5,10 @@
   */
 template<typename OtherDerived>
 EIGEN_DEVICE_FUNC
-EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,product)
+EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_product_op>
 operator*(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
-  return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,product)(derived(), other.derived());
+  return internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_product_op>(derived(), other.derived());
 }
 
 /** \returns an expression of the coefficient wise quotient of \c *this and \a other
@@ -106,7 +106,7 @@ max
   *
   * \sa absolute_difference()
   */
-EIGEN_MAKE_CWISE_BINARY_OP(absolute_difference,absolute_difference)
+EIGEN_MAKE_CWISE_BINARY_OP(absolute_difference,internal::scalar_absolute_difference_op)
 
 /** \returns an expression of the coefficient-wise absolute_difference of \c *this and scalar \a other
   *
@@ -132,7 +132,7 @@ absolute_difference
   * Example: \include Cwise_array_power_array.cpp
   * Output: \verbinclude Cwise_array_power_array.out
   */
-EIGEN_MAKE_CWISE_BINARY_OP(pow,pow)
+EIGEN_MAKE_CWISE_BINARY_OP(pow,internal::scalar_pow_op)
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(pow, internal::scalar_pow_op)
