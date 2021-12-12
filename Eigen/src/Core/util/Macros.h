@@ -1120,7 +1120,7 @@ namespace Eigen {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,OPTYPE> \
   (METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const \
   { \
-    return internal::cwise_binary_return_t<Derived,OtherDerived,OPTYPE>(derived(), other.derived()); \
+    return {derived(), other.derived()}; \
   }
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD,OPTYPE) \
@@ -1128,8 +1128,7 @@ namespace Eigen {
   internal::cwise_binary_scalar_right_t<Derived,internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>, OPTYPE> \
   (METHOD)(const T& scalar) const {                                      \
     using PromotedT = internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>;    \
-    return internal::cwise_binary_scalar_right_t<Derived,PromotedT,OPTYPE>(derived(), \
-           typename internal::plain_constant_type<Derived,PromotedT>::type(derived().rows(), derived().cols(), internal::scalar_constant_op<PromotedT>(scalar))); \
+    return {derived(), typename internal::plain_constant_type<Derived,PromotedT>::type(derived().rows(), derived().cols(), internal::scalar_constant_op<PromotedT>(scalar))}; \
   }
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD,OPTYPE) \
@@ -1137,8 +1136,7 @@ namespace Eigen {
   const internal::cwise_binary_scalar_left_t<internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>, Derived, OPTYPE> \
   (METHOD)(const T& scalar, const StorageBaseType& matrix) { \
     using PromotedT = internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>;    \
-    return internal::cwise_binary_scalar_left_t<PromotedT, Derived, OPTYPE>(       \
-           typename internal::plain_constant_type<Derived,PromotedT>::type(matrix.derived().rows(), matrix.derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)), matrix.derived()); \
+    return {typename internal::plain_constant_type<Derived,PromotedT>::type(matrix.derived().rows(), matrix.derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)), matrix.derived()}; \
   }
 
 

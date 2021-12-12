@@ -77,13 +77,13 @@ class DiagonalBase : public EigenBase<Derived>
     inline const DiagonalWrapper<const internal::cwise_binary_scalar_right_t<DiagonalVectorType,Scalar,internal::scalar_product_op> >
     operator*(const Scalar& scalar) const
     {
-      return DiagonalWrapper<const internal::cwise_binary_scalar_right_t<DiagonalVectorType,Scalar,internal::scalar_product_op> >(diagonal() * scalar);
+      return diagonal() * scalar;
     }
     EIGEN_DEVICE_FUNC
     friend inline const DiagonalWrapper<const internal::cwise_binary_scalar_left_t<Scalar,DiagonalVectorType,internal::scalar_product_op> >
     operator*(const Scalar& scalar, const DiagonalBase& other)
     {
-      return DiagonalWrapper<const internal::cwise_binary_scalar_left_t<Scalar,DiagonalVectorType,internal::scalar_product_op> >(scalar * other.diagonal());
+      return scalar * other.diagonal();
     }
 
     template<typename OtherDerived>
