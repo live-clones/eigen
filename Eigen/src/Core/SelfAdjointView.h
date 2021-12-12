@@ -134,7 +134,7 @@ template<typename MatrixType_, unsigned int UpLo> class SelfAdjointView
     }
 
     friend EIGEN_DEVICE_FUNC
-    const SelfAdjointView<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar,MatrixType,product),UpLo>
+    const SelfAdjointView<const internal::cwise_binary_scalar_left_t<Scalar,MatrixType,internal::scalar_product_op>,UpLo>
     operator*(const Scalar& s, const SelfAdjointView& mat)
     {
       return (s*mat.nestedExpression()).template selfadjointView<UpLo>();

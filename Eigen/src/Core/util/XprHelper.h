@@ -870,6 +870,28 @@ struct ScalarBinaryOpTraits<void,void,BinaryOp>
   EIGEN_STATIC_ASSERT((Eigen::internal::has_ReturnType<ScalarBinaryOpTraits<LHS, RHS,BINOP> >::value), \
     YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
+// Alias templates to simplify coding
+namespace internal
+{
+  template<typename T>
+  using trait_scalar_t = typename traits<T>::Scalar;
+
+  template<typename... Args>
+  using plain_constant_t = typename internal::plain_constant_type<Args...>::type;
+
+  template<typename Expr, typename Scalar, template<typename, typename> class OP>
+  using cwise_binary_scalar_right_t = CwiseBinaryOp<OP<trait_scalar_t<Expr>, Scalar>, const Expr, const plain_constant_t<Expr,Scalar>>;
+
+  template<typename Scalar, typename Expr, template<typename, typename> class OP>
+  using cwise_binary_scalar_left_t = CwiseBinaryOp<OP<Scalar, trait_scalar_t<Expr>>, const plain_constant_t<Expr,Scalar>, const Expr>;
+
+  template<typename A, typename B, template<typename, typename> class OP>
+  constexpr bool scalar_binary_supported_v = Eigen::internal::has_ReturnType<Eigen::ScalarBinaryOpTraits<A, B, OP<A,B>>>::value;
+
+  template<typename Scalar, typename Expr, template<typename, typename> class OP>
+  using cwise_binary_promoted_arg_t = typename promote_scalar_arg<Scalar, Expr, scalar_binary_supported_v<Scalar, Expr, OP>>::type;
+}
+
 } // end namespace Eigen
 
 #endif // EIGEN_XPRHELPER_H

@@ -135,7 +135,7 @@ absolute_difference
 EIGEN_MAKE_CWISE_BINARY_OP(pow,pow)
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(pow,pow)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(pow, internal::scalar_pow_op)
 #else
 /** \returns an expression of the coefficients of \c *this rasied to the constant power \a exponent
   *
@@ -262,7 +262,8 @@ EIGEN_MAKE_CWISE_COMP_OP(operator!=, NEQ)
 
 // scalar addition
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP(operator+,sum)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator+,internal::scalar_sum_op)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator+,internal::scalar_sum_op)
 #else
 /** \returns an expression of \c *this with each coeff incremented by the constant \a scalar
   *
@@ -284,7 +285,8 @@ const CwiseBinaryOp<internal::scalar_sum_op<T,Scalar>,Constant<T>,Derived> opera
 #endif
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP(operator-,difference)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator-,internal::scalar_difference_op)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator-,internal::scalar_difference_op)
 #else
 /** \returns an expression of \c *this with each coeff decremented by the constant \a scalar
   *
@@ -307,7 +309,7 @@ const CwiseBinaryOp<internal::scalar_difference_op<T,Scalar>,Constant<T>,Derived
 
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/,quotient)
+  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/, internal::scalar_quotient_op)
 #else
   /**
     * \brief Component-wise division of the scalar \a s by array elements of \a a.
