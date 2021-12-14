@@ -1115,14 +1115,6 @@ namespace Eigen {
 #define EIGEN_PREDICT_TRUE(x) (x)
 #endif
 
-#define EIGEN_MAKE_CWISE_BINARY_OP(METHOD,OPTYPE) \
-  template<typename OtherDerived> \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,OPTYPE> \
-  (METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const \
-  { \
-    return {derived(), other.derived()}; \
-  }
-
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD,OPTYPE) \
   template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const      \
   internal::cwise_binary_scalar_right_t<Derived,internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>, OPTYPE> \

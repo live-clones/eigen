@@ -1601,7 +1601,6 @@ PREDEFINED             = EIGEN_EMPTY_STRUCT \
                          EIGEN_STRONG_INLINE=inline \
                          EIGEN_DEVICE_FUNC= \
                          EIGEN_HAS_CXX11_MATH=1 \
-                         "EIGEN_MAKE_CWISE_BINARY_OP(METHOD,FUNCTOR)=template<typename OtherDerived> const CwiseBinaryOp<FUNCTOR<Scalar>, const Derived, const OtherDerived> METHOD(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const;" \
                          "EIGEN_CAT2(a,b)= a ## b"\
                          "EIGEN_CAT(a,b)=EIGEN_CAT2(a,b)"\
                          "EIGEN_ALIGN_TO_BOUNDARY(x)="\

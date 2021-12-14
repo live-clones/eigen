@@ -16,7 +16,12 @@
   *
   * \sa class CwiseBinaryOp, operator-=()
   */
-EIGEN_MAKE_CWISE_BINARY_OP(operator-,internal::scalar_difference_op)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_difference_op>
+operator-(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 /** \returns an expression of the sum of \c *this and \a other
   *
@@ -24,7 +29,12 @@ EIGEN_MAKE_CWISE_BINARY_OP(operator-,internal::scalar_difference_op)
   *
   * \sa class CwiseBinaryOp, operator+=()
   */
-EIGEN_MAKE_CWISE_BINARY_OP(operator+,internal::scalar_sum_op)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_sum_op>
+operator+(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 /** \returns an expression of a custom coefficient-wise operator \a func of *this and \a other
   *

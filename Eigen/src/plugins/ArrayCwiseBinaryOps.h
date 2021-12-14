@@ -106,7 +106,12 @@ max
   *
   * \sa absolute_difference()
   */
-EIGEN_MAKE_CWISE_BINARY_OP(absolute_difference,internal::scalar_absolute_difference_op)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_absolute_difference_op>
+(absolute_difference)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 /** \returns an expression of the coefficient-wise absolute_difference of \c *this and scalar \a other
   *
@@ -132,7 +137,12 @@ absolute_difference
   * Example: \include Cwise_array_power_array.cpp
   * Output: \verbinclude Cwise_array_power_array.out
   */
-EIGEN_MAKE_CWISE_BINARY_OP(pow,internal::scalar_pow_op)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_pow_op>
+(pow)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(pow, internal::scalar_pow_op)
