@@ -120,8 +120,7 @@ namespace Eigen
   pow(const Eigen::ArrayBase<Derived>& x, const ScalarExponent& exponent)
   {
     typedef internal::cwise_binary_promoted_arg_t<typename Derived::Scalar, ScalarExponent, internal::scalar_pow_op> PromotedExponent;
-    return internal::cwise_binary_scalar_right_t<Derived, PromotedExponent, internal::scalar_pow_op>(x.derived(),
-           typename internal::plain_constant_type<Derived,PromotedExponent>::type(x.derived().rows(), x.derived().cols(), internal::scalar_constant_op<PromotedExponent>(exponent)));
+    return {x.derived(), internal::broadcast_scalar(x, PromotedExponent(exponent))};
   }
 #endif
 
@@ -170,7 +169,7 @@ namespace Eigen
   pow(const Scalar& x, const Eigen::ArrayBase<Derived>& exponents) {
     typedef typename internal::promote_scalar_arg<typename Derived::Scalar,Scalar,
             (internal::scalar_binary_supported_v<Scalar, typename Derived::Scalar, internal::scalar_pow_op>)>::type PromotedScalar;
-    return {typename internal::plain_constant_type<Derived,PromotedScalar>::type(exponents.derived().rows(), exponents.derived().cols(), internal::scalar_constant_op<PromotedScalar>(x)), exponents.derived()};
+    return {internal::broadcast_scalar(exponents, PromotedScalar(x)), exponents.derived()};
   }
 #endif
 

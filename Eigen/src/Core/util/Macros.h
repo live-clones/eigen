@@ -1128,7 +1128,7 @@ namespace Eigen {
   internal::cwise_binary_scalar_right_t<Derived,internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>, OPTYPE> \
   (METHOD)(const T& scalar) const {                                      \
     using PromotedT = internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>;    \
-    return {derived(), typename internal::plain_constant_type<Derived,PromotedT>::type(derived().rows(), derived().cols(), internal::scalar_constant_op<PromotedT>(scalar))}; \
+    return {derived(), internal::broadcast_scalar(derived(), PromotedT(scalar))}; \
   }
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD,OPTYPE) \
@@ -1136,7 +1136,7 @@ namespace Eigen {
   const internal::cwise_binary_scalar_left_t<internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>, Derived, OPTYPE> \
   (METHOD)(const T& scalar, const StorageBaseType& matrix) { \
     using PromotedT = internal::cwise_binary_promoted_arg_t<Scalar, T, OPTYPE>;    \
-    return {typename internal::plain_constant_type<Derived,PromotedT>::type(matrix.derived().rows(), matrix.derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)), matrix.derived()}; \
+    return {internal::broadcast_scalar(matrix, PromotedT(scalar)), matrix.derived()}; \
   }
 
 
