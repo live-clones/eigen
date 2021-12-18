@@ -68,10 +68,6 @@ if(MSVC)
   target_compile_options(EigenTestDeps INTERFACE "/bigobj")
 endif()
 
-if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-  target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
-endif()
-
 set(EIGEN_TEST_CUSTOM_CXX_FLAGS     "" CACHE STRING "Additional compiler flags when compiling unit tests.")
 # convert space separated argument into CMake lists for downstream consumption
 separate_arguments(EIGEN_TEST_CUSTOM_CXX_FLAGS NATIVE_COMMAND ${EIGEN_TEST_CUSTOM_CXX_FLAGS})

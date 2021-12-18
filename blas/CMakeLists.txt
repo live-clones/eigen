@@ -38,10 +38,7 @@ if (EIGEN_BUILD_SHARED_LIBS)
 endif()
 
 foreach(target IN LISTS EIGEN_BLAS_TARGETS)
-  if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-      target_link_libraries(${target} PUBLIC ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
-  endif()
-
+  target_link_libraries(${target} PUBLIC Eigen3::Eigen)
   add_dependencies(blas ${target})
   install(TARGETS ${target}
           RUNTIME DESTINATION bin

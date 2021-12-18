@@ -98,31 +98,6 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 # Determine if we should build shared libraries on this platform.
 get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
 
-#############################################################################
-# find how to link to the standard libraries                                #
-#############################################################################
-
-find_package(StandardMathLibrary)
-
-set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "")
-
-if(NOT STANDARD_MATH_LIBRARY_FOUND)
-  message(FATAL_ERROR
-    "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
-else()
-  if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-    set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO} ${STANDARD_MATH_LIBRARY}")
-  else()
-    set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${STANDARD_MATH_LIBRARY}")
-  endif()
-endif()
-
-if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-  message(STATUS "Standard libraries to link to explicitly: ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO}")
-else()
-  message(STATUS "Standard libraries to link to explicitly: none")
-endif()
-
 option(EIGEN_BUILD_BTL "Build benchmark suite" OFF)
 
 # Disable pkgconfig only for native Windows builds
@@ -333,6 +308,19 @@ target_include_directories (eigen INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>
 )
+
+
+#############################################################################
+# find how to link to the standard libraries                                #
+#############################################################################
+find_package(StandardMathLibrary)
+if(NOT STANDARD_MATH_LIBRARY_FOUND)
+  message(FATAL_ERROR
+          "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
+else()
+  # Don't add the math library for the installed version, there it might be different
+  target_link_libraries(eigen INTERFACE $<BUILD_INTERFACE:${STANDARD_MATH_LIBRARY}>)
+endif()
 
 # Export as title case Eigen
 set_target_properties (eigen PROPERTIES EXPORT_NAME Eigen)
