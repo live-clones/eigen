@@ -72,10 +72,14 @@ if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
   target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
 endif()
 
+set(EIGEN_TEST_CUSTOM_CXX_FLAGS     "" CACHE STRING "Additional compiler flags when compiling unit tests.")
+# convert space separated argument into CMake lists for downstream consumption
+separate_arguments(EIGEN_TEST_CUSTOM_CXX_FLAGS NATIVE_COMMAND ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
 if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
   target_compile_options(EigenTestDeps INTERFACE "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
 endif()
 
+set(EIGEN_TEST_CUSTOM_LINKER_FLAGS  "" CACHE STRING "Additional linker flags when linking unit tests.")
 if(EIGEN_TEST_CUSTOM_LINKER_FLAGS)
   target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
 endif()
@@ -229,32 +233,11 @@ if(NOT MSVC)
     target_compile_options(EigenTestDeps INTERFACE -march=z14 -mzvector)
     message(STATUS "Enabling S390X(zEC13) ZVECTOR in tests/examples")
   endif()
-
-  # TODO Use FindOpenMP CMake module
-  check_cxx_compiler_flag("-fopenmp" COMPILER_SUPPORT_OPENMP)
-  if(COMPILER_SUPPORT_OPENMP)
-    option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
-    if(EIGEN_TEST_OPENMP)
-      target_compile_options(EigenTestDeps INTERFACE -fopenmp)
-      message(STATUS "Enabling OpenMP in tests/examples")
-    endif()
-  endif()
-
 else()
   # TODO what is this doing, and should it be doing that?
   # TODO In modern CMAKE, CMAKE_CXX_FLAGS should be mostly left along
   # replace all /Wx by /W4
   string(REGEX REPLACE "/W[0-9]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
-  # TODO Use FindOpenMP CMake module
-  check_cxx_compiler_flag("/openmp" COMPILER_SUPPORT_OPENMP)
-  if(COMPILER_SUPPORT_OPENMP)
-    option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
-    if(EIGEN_TEST_OPENMP)
-      target_compile_options(EigenTestDeps INTERFACE /openmp)
-      message(STATUS "Enabling OpenMP in tests/examples")
-    endif()
-  endif()
 
   option(EIGEN_TEST_SSE2 "Enable/Disable SSE2 in tests/examples" OFF)
   if(EIGEN_TEST_SSE2)
@@ -276,5 +259,86 @@ else()
     # TODO what happens with EIGEN_TEST_FMA and EIGEN_TEST_NEON?
     target_compile_options(EigenTestDeps INTERFACE /arch:AVX2)
     message(STATUS "Enabling FMA/AVX2 in tests/examples")
+  endif()
+endif()
+
+find_package(OpenMP)
+if(COMPILER_SUPPORT_OPENMP)
+  option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
+  if(EIGEN_TEST_OPENMP)
+    target_link_libraries(EigenTestDeps INTERFACE OpenMP::OpenMP_CXX)
+    message(STATUS "Enabling OpenMP in tests/examples")
+  endif()
+endif()
+
+
+option(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION "Disable explicit vectorization in tests/examples" OFF)
+option(EIGEN_TEST_X87 "Force using X87 instructions. Implies no vectorization." OFF)
+option(EIGEN_TEST_32BIT "Force generating 32bit code." OFF)
+option(EIGEN_TEST_NO_EXPLICIT_ALIGNMENT "Disable explicit alignment (hence vectorization) in tests/examples" OFF)
+
+if(EIGEN_TEST_X87)
+  set(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION ON)
+  if(CMAKE_COMPILER_IS_GNUCXX)
+    target_compile_options(EigenTestDeps INTERFACE -mfpmath=387)
+    message(STATUS "Forcing use of x87 instructions in tests/examples")
+  else()
+    message(STATUS "EIGEN_TEST_X87 ignored on your compiler")
+  endif()
+endif()
+
+if(EIGEN_TEST_32BIT)
+  if(CMAKE_COMPILER_IS_GNUCXX)
+    target_compile_options(EigenTestDeps INTERFACE -m32)
+    message(STATUS "Forcing generation of 32-bit code in tests/examples")
+  else()
+    message(STATUS "EIGEN_TEST_32BIT ignored on your compiler")
+  endif()
+endif()
+
+if(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION)
+  target_compile_definitions(EigenTestDeps INTERFACE EIGEN_DONT_VECTORIZE=1)
+  message(STATUS "Disabling vectorization in tests/examples")
+endif()
+
+if(EIGEN_TEST_NO_EXPLICIT_ALIGNMENT)
+  target_compile_definitions(EigenTestDeps INTERFACE EIGEN_DONT_ALIGN=1)
+  message(STATUS "Disabling alignment in tests/examples")
+endif()
+
+option(EIGEN_TEST_NO_EXCEPTIONS "Disables C++ exceptions" OFF)
+if(EIGEN_TEST_NO_EXCEPTIONS)
+  # TODO is this compatible with msvc?
+  target_compile_options(EigenTestDeps INTERFACE -fno-exceptions)
+  message(STATUS "Disabling exceptions in tests/examples")
+endif()
+
+# add SYCL
+option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
+option(EIGEN_SYCL_TRISYCL "Use the triSYCL Sycl implementation (ComputeCPP by default)." OFF)
+if(EIGEN_TEST_SYCL)
+  # TODO why do we modify that path here?
+  set (CMAKE_MODULE_PATH "${CMAKE_ROOT}/Modules" "cmake/Modules/" "${CMAKE_MODULE_PATH}")
+  find_package(Threads REQUIRED)
+  if(EIGEN_SYCL_TRISYCL)
+    message(STATUS "Using triSYCL")
+    include(FindTriSYCL)
+  else()
+    message(STATUS "Using ComputeCPP SYCL")
+    include(FindComputeCpp)
+    set(COMPUTECPP_DRIVER_DEFAULT_VALUE OFF)
+    if (NOT MSVC)
+      set(COMPUTECPP_DRIVER_DEFAULT_VALUE ON)
+    endif()
+    option(COMPUTECPP_USE_COMPILER_DRIVER
+            "Use ComputeCpp driver instead of a 2 steps compilation"
+            ${COMPUTECPP_DRIVER_DEFAULT_VALUE}
+            )
+  endif(EIGEN_SYCL_TRISYCL)
+  option(EIGEN_DONT_VECTORIZE_SYCL "Don't use vectorisation in the SYCL tests." OFF)
+  if(EIGEN_DONT_VECTORIZE_SYCL)
+    message(STATUS "Disabling SYCL vectorization in tests/examples")
+    # When disabling SYCL vectorization, also disable Eigen default vectorization
+    target_compile_definitions(EigenTestDeps INTERFACE EIGEN_DONT_VECTORIZE=1 EIGEN_DONT_VECTORIZE_SYCL=1)
   endif()
 endif()

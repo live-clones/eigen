@@ -93,15 +93,6 @@ include(CMakeDependentOption)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-macro(ei_add_cxx_compiler_flag FLAG)
-  string(REGEX REPLACE "-" "" SFLAG1 ${FLAG})
-  string(REGEX REPLACE "\\+" "p" SFLAG ${SFLAG1})
-  check_cxx_compiler_flag(${FLAG} COMPILER_SUPPORT_${SFLAG})
-  if(COMPILER_SUPPORT_${SFLAG})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FLAG}")
-  endif()
-endmacro()
-
 # Determine if we should build shared libraries on this platform.
 get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
 
@@ -111,19 +102,11 @@ get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
 
 find_package(StandardMathLibrary)
 
-
-set(EIGEN_TEST_CUSTOM_LINKER_FLAGS  "" CACHE STRING "Additional linker flags when linking unit tests.")
-set(EIGEN_TEST_CUSTOM_CXX_FLAGS     "" CACHE STRING "Additional compiler flags when compiling unit tests.")
-# convert space separated argument into CMake lists for downstream consumption
-separate_arguments(EIGEN_TEST_CUSTOM_CXX_FLAGS NATIVE_COMMAND ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
-
 set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "")
 
 if(NOT STANDARD_MATH_LIBRARY_FOUND)
-
   message(FATAL_ERROR
     "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
-
 else()
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
     set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO} ${STANDARD_MATH_LIBRARY}")
@@ -157,46 +140,6 @@ endif()
 set(EIGEN_TEST_MAX_SIZE "320" CACHE STRING "Maximal matrix/vector size, default is 320")
 
 include(cmake/EigenWarnings.cmake)
-
-option(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION "Disable explicit vectorization in tests/examples" OFF)
-option(EIGEN_TEST_X87 "Force using X87 instructions. Implies no vectorization." OFF)
-option(EIGEN_TEST_32BIT "Force generating 32bit code." OFF)
-
-if(EIGEN_TEST_X87)
-  set(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION ON)
-  if(CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpmath=387")
-    message(STATUS "Forcing use of x87 instructions in tests/examples")
-  else()
-    message(STATUS "EIGEN_TEST_X87 ignored on your compiler")
-  endif()
-endif()
-
-if(EIGEN_TEST_32BIT)
-  if(CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
-    message(STATUS "Forcing generation of 32-bit code in tests/examples")
-  else()
-    message(STATUS "EIGEN_TEST_32BIT ignored on your compiler")
-  endif()
-endif()
-
-if(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION)
-  add_definitions(-DEIGEN_DONT_VECTORIZE=1)
-  message(STATUS "Disabling vectorization in tests/examples")
-endif()
-
-option(EIGEN_TEST_NO_EXPLICIT_ALIGNMENT "Disable explicit alignment (hence vectorization) in tests/examples" OFF)
-if(EIGEN_TEST_NO_EXPLICIT_ALIGNMENT)
-  add_definitions(-DEIGEN_DONT_ALIGN=1)
-  message(STATUS "Disabling alignment in tests/examples")
-endif()
-
-option(EIGEN_TEST_NO_EXCEPTIONS "Disables C++ exceptions" OFF)
-if(EIGEN_TEST_NO_EXCEPTIONS)
-  ei_add_cxx_compiler_flag("-fno-exceptions")
-  message(STATUS "Disabling exceptions in tests/examples")
-endif()
 
 set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
 set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
@@ -274,36 +217,6 @@ if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
 else()
   add_subdirectory(blas EXCLUDE_FROM_ALL)
   add_subdirectory(lapack EXCLUDE_FROM_ALL)
-endif()
-
-# add SYCL
-option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
-option(EIGEN_SYCL_TRISYCL "Use the triSYCL Sycl implementation (ComputeCPP by default)." OFF)
-if(EIGEN_TEST_SYCL)
-  set (CMAKE_MODULE_PATH "${CMAKE_ROOT}/Modules" "cmake/Modules/" "${CMAKE_MODULE_PATH}")
-  find_package(Threads REQUIRED)
-  if(EIGEN_SYCL_TRISYCL)
-    message(STATUS "Using triSYCL")
-    include(FindTriSYCL)
-  else()
-    message(STATUS "Using ComputeCPP SYCL")
-    include(FindComputeCpp)
-    set(COMPUTECPP_DRIVER_DEFAULT_VALUE OFF)
-    if (NOT MSVC)
-      set(COMPUTECPP_DRIVER_DEFAULT_VALUE ON)
-    endif()
-    option(COMPUTECPP_USE_COMPILER_DRIVER
-      "Use ComputeCpp driver instead of a 2 steps compilation"
-      ${COMPUTECPP_DRIVER_DEFAULT_VALUE}
-    )
-  endif(EIGEN_SYCL_TRISYCL)
-  option(EIGEN_DONT_VECTORIZE_SYCL "Don't use vectorisation in the SYCL tests." OFF)
-  if(EIGEN_DONT_VECTORIZE_SYCL)
-    message(STATUS "Disabling SYCL vectorization in tests/examples")
-    # When disabling SYCL vectorization, also disable Eigen default vectorization
-    add_definitions(-DEIGEN_DONT_VECTORIZE=1)
-    add_definitions(-DEIGEN_DONT_VECTORIZE_SYCL=1)
-  endif()
 endif()
 
 add_subdirectory(unsupported)
