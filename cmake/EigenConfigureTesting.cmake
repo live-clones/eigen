@@ -51,6 +51,13 @@ ei_init_testing()
 # configure Eigen related testing options
 option(EIGEN_NO_ASSERTION_CHECKING "Disable checking of assertions using exceptions" OFF)
 option(EIGEN_DEBUG_ASSERTS "Enable advanced debugging of assertions" OFF)
+option(EIGEN_SPLIT_LARGE_TESTS "Split large tests into smaller executables" ON)
+set(EIGEN_TEST_MAX_SIZE "320" CACHE STRING "Maximal matrix/vector size, default is 320")
+set(EIGEN_TEST_CUSTOM_LINKER_FLAGS  "" CACHE STRING "Additional linker flags when linking unit tests.")
+set(EIGEN_TEST_CUSTOM_CXX_FLAGS     "" CACHE STRING "Additional compiler flags when compiling unit tests.")
+
+# convert space separated argument into CMake lists for downstream consumption
+separate_arguments(EIGEN_TEST_CUSTOM_CXX_FLAGS NATIVE_COMMAND ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
 
 
 # Add a target that gathers the common flags and dependencies for compiling tests
@@ -68,14 +75,10 @@ if(MSVC)
   target_compile_options(EigenTestDeps INTERFACE "/bigobj")
 endif()
 
-set(EIGEN_TEST_CUSTOM_CXX_FLAGS     "" CACHE STRING "Additional compiler flags when compiling unit tests.")
-# convert space separated argument into CMake lists for downstream consumption
-separate_arguments(EIGEN_TEST_CUSTOM_CXX_FLAGS NATIVE_COMMAND ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
 if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
   target_compile_options(EigenTestDeps INTERFACE "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
 endif()
 
-set(EIGEN_TEST_CUSTOM_LINKER_FLAGS  "" CACHE STRING "Additional linker flags when linking unit tests.")
 if(EIGEN_TEST_CUSTOM_LINKER_FLAGS)
   target_link_libraries(EigenTestDeps INTERFACE ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
 endif()
@@ -349,5 +352,15 @@ if(EIGEN_TEST_CUDA)
     target_link_libraries(EigenTestDeps INTERFACE c++)
   else()
     target_compile_options(EigenTestDeps INTERFACE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-Xcudafe;--display_error_number>)
+  endif()
+
+  set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
+  # CMAKE_CUDA_ARCHITECTURES only exists for CMake >= 3.18; for older versions, manually add the compile options
+  if(CMAKE_VERSION VERSION_LESS 3.18.0)
+    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
+      target_compile_options(EigenTestDeps INTERFACE $<$<COMPILE_LANGUAGE:CUDA>:--generate-code=arch=compute_${ARCH},code=[compute_${ARCH},sm_${ARCH}]>)
+    endforeach()
+  else()
+    set(CMAKE_CUDA_ARCHITECTURES ${EIGEN_CUDA_COMPUTE_ARCH})
   endif()
 endif()

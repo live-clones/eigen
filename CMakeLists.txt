@@ -31,28 +31,36 @@ if(CMAKE_VERSION VERSION_LESS 3.21.0)
   endif()
 endif()
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING "Default C++ standard")
-set(CMAKE_CUDA_STANDARD 14 CACHE STRING "Default C++ standard for CUDA compilation")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Require C++ standard")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Allow C++ extensions")
 
 # guard against in-source builds
-
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. You may need to remove CMakeCache.txt. ")
 endif()
 
 
 # Alias Eigen_*_DIR to Eigen3_*_DIR:
-
+# TODO do we need this?
 set(Eigen_SOURCE_DIR ${Eigen3_SOURCE_DIR})
 set(Eigen_BINARY_DIR ${Eigen3_BINARY_DIR})
 
 # guard against bad build-type strings
-
+# TODO do we need this?
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
+
+#############################################################################
+# Setting up CMake utilities                                                #
+#############################################################################
+
+include(CheckCXXCompilerFlag)
+include(CheckLanguage)
+include(GNUInstallDirs)
+include(CMakeDependentOption)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+include(EigenUtils)
 
 
 #############################################################################
@@ -60,40 +68,16 @@ endif()
 #############################################################################
 
 # automatically parse the version number
-file(READ "${PROJECT_SOURCE_DIR}/Eigen/src/Core/util/Macros.h" _eigen_version_header)
-string(REGEX MATCH "define[ \t]+EIGEN_WORLD_VERSION[ \t]+([0-9]+)" _eigen_world_version_match "${_eigen_version_header}")
-set(EIGEN_WORLD_VERSION "${CMAKE_MATCH_1}")
-string(REGEX MATCH "define[ \t]+EIGEN_MAJOR_VERSION[ \t]+([0-9]+)" _eigen_major_version_match "${_eigen_version_header}")
-set(EIGEN_MAJOR_VERSION "${CMAKE_MATCH_1}")
-string(REGEX MATCH "define[ \t]+EIGEN_MINOR_VERSION[ \t]+([0-9]+)" _eigen_minor_version_match "${_eigen_version_header}")
-set(EIGEN_MINOR_VERSION "${CMAKE_MATCH_1}")
+extract_eigen_version("${PROJECT_SOURCE_DIR}/Eigen/src/Core/util/Macros.h")
+extract_git_version("${CMAKE_SOURCE_DIR}")
+
 set(EIGEN_VERSION_NUMBER ${EIGEN_WORLD_VERSION}.${EIGEN_MAJOR_VERSION}.${EIGEN_MINOR_VERSION})
-
-# if we are not in a git clone
-if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/.git)
-  # if the git program is absent or this will leave the EIGEN_GIT_REVNUM string empty,
-  # but won't stop CMake.
-  execute_process(COMMAND git ls-remote --refs -q ${CMAKE_SOURCE_DIR} HEAD OUTPUT_VARIABLE EIGEN_GIT_OUTPUT)
-endif()
-
-# extract the git rev number from the git output...
-if(EIGEN_GIT_OUTPUT)
-string(REGEX MATCH "^([0-9;a-f]+).*" EIGEN_GIT_CHANGESET_MATCH "${EIGEN_GIT_OUTPUT}")
-set(EIGEN_GIT_REVNUM "${CMAKE_MATCH_1}")
-endif()
-#...and show it next to the version number
+# if we have a git revision, show it as part of the version number
 if(EIGEN_GIT_REVNUM)
   set(EIGEN_VERSION "${EIGEN_VERSION_NUMBER} (git rev ${EIGEN_GIT_REVNUM})")
 else()
   set(EIGEN_VERSION "${EIGEN_VERSION_NUMBER}")
 endif()
-
-include(CheckCXXCompilerFlag)
-include(CheckLanguage)
-include(GNUInstallDirs)
-include(CMakeDependentOption)
-
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Determine if we should build shared libraries on this platform.
 get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
@@ -107,21 +91,15 @@ endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR OFF)
 
-option(EIGEN_SPLIT_LARGE_TESTS "Split large tests into smaller executables" ON)
-
 option(EIGEN_DEFAULT_TO_ROW_MAJOR "Use row-major as default matrix storage order" OFF)
 if(EIGEN_DEFAULT_TO_ROW_MAJOR)
   add_definitions("-DEIGEN_DEFAULT_TO_ROW_MAJOR")
 endif()
 
-set(EIGEN_TEST_MAX_SIZE "320" CACHE STRING "Maximal matrix/vector size, default is 320")
-
 include(cmake/EigenWarnings.cmake)
 
-set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
-
 # Backward compatibility support for EIGEN_INCLUDE_INSTALL_DIR
+# TODO is this still needed?
 if(EIGEN_INCLUDE_INSTALL_DIR)
   message(WARNING "EIGEN_INCLUDE_INSTALL_DIR is deprecated. Use INCLUDE_INSTALL_DIR instead.")
 endif()
@@ -170,15 +148,16 @@ option(EIGEN_BUILD_TESTING "Enable creation of Eigen tests." ${BUILD_TESTING})
 if(EIGEN_BUILD_TESTING)
   option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
   if(EIGEN_TEST_CUDA)
-    set(CMAKE_CUDA_ARCHITECTURES ${EIGEN_CUDA_COMPUTE_ARCH})
     # TODO this was necessary on my system, because otherwise errors about unsupported float128 popped up
     # a related problem: https://stackoverflow.com/questions/43316533/float128-is-not-supported-on-this-target
     if(CMAKE_CUDA_COMPILER MATCHES "clang")
       # TODO should we do this in the CMakeLists.txt, or should this be the users responsibility to submit the correct
       # CUDAFLAGS for their preferred cuda compiler?
+      # NOTE: This needs to happen before the check_language call, because otherwise there will be clang errors and
+      # cmake will think cuda is not usable.
       set(CMAKE_CUDA_FLAGS "-stdlib=libc++")
-      message(STATUS "ITS CLANG")
     endif()
+      # enable language should be in the top-level file, https://cmake.org/cmake/help/latest/command/enable_language.html
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
       enable_language(CUDA)
@@ -189,14 +168,8 @@ if(EIGEN_BUILD_TESTING)
   endif()
   include(EigenConfigureTesting)
 
-  # enable language should be in the top-level file, https://cmake.org/cmake/help/latest/command/enable_language.html
-
-  if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
-    add_subdirectory(test) # can't do EXCLUDE_FROM_ALL here, breaks CTest
-  else()
-    add_subdirectory(test EXCLUDE_FROM_ALL)
-  endif()
-
+  # TODO what was the point of EXCLUDE_FROM_ALL here?
+  add_subdirectory(test)
   add_subdirectory(failtest)
 endif()
 
@@ -209,14 +182,8 @@ endif()
 include(CMakeDetermineFortranCompiler)
 option(EIGEN_BUILD_BLAS "Toggles the building of the Eigen Blas library" ${CMAKE_Fortran_COMPILER})
 option(EIGEN_BUILD_LAPACK "Toggles the building of the included Eigen LAPACK library" ${CMAKE_Fortran_COMPILER})
-if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
-  add_subdirectory(blas)
-  add_subdirectory(lapack)
-else()
-  add_subdirectory(blas EXCLUDE_FROM_ALL)
-  add_subdirectory(lapack EXCLUDE_FROM_ALL)
-endif()
-
+add_subdirectory(blas)
+add_subdirectory(lapack)
 add_subdirectory(unsupported)
 
 add_subdirectory(demos EXCLUDE_FROM_ALL)
@@ -293,6 +260,7 @@ if(PROJECT_IS_TOP_LEVEL)
   message(STATUS "")
 endif()
 
+# TODO why do we need both sets of variables?
 set ( EIGEN_VERSION_STRING ${EIGEN_VERSION_NUMBER} )
 set ( EIGEN_VERSION_MAJOR  ${EIGEN_WORLD_VERSION} )
 set ( EIGEN_VERSION_MINOR  ${EIGEN_MAJOR_VERSION} )
