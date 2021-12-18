@@ -345,11 +345,13 @@ endif()
 
 # CUDA configuration
 if(EIGEN_TEST_CUDA)
-  set(CMAKE_CUDA_ARCHITECTURES ${EIGEN_CUDA_COMPUTE_ARCH})
-  if(EIGEN_TEST_CUDA_CLANG)
-    # TODO
+  # add cuda specific flags for all cuda language files
+  # make sure we don't add the flags for clang, since they are not supported.
+  # the  $<CUDA_COMPILER_ID:compiler_ids> expression is only available in CMake 15, so we use regular ifs for now
+  if(CMAKE_CUDA_COMPILER MATCHES "clang")
+    # TODO on my system, this was required to get clang to link the examples
+    target_link_libraries(EigenTestDeps INTERFACE c++)
   else()
-    # add cuda specific flags for all cuda language files
     target_compile_options(EigenTestDeps INTERFACE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-Xcudafe;--display_error_number>)
   endif()
 endif()

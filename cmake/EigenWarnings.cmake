@@ -23,6 +23,11 @@ if(NOT MSVC)
         target_compile_options(EigenWarnings INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Werror>)
     endif()
 
+    # TODO the old code added all of them, and then manually mucked about in the CMAKE_CXX_FLAGS for cuda
+    # TODO Right now, all of these warnings are not set for CUDA. The old comment:
+    # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
+    # and -fno-check-new flags since they trigger thousands of compilation warnings
+    # in the CUDA runtime
     ei_add_warning_flag("-pedantic")        # not in CUDA
     ei_add_warning_flag("-Wall")
     ei_add_warning_flag("-Wextra")

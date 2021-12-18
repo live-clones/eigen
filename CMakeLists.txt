@@ -32,6 +32,7 @@ if(CMAKE_VERSION VERSION_LESS 3.21.0)
 endif()
 
 set(CMAKE_CXX_STANDARD 14 CACHE STRING "Default C++ standard")
+set(CMAKE_CUDA_STANDARD 14 CACHE STRING "Default C++ standard for CUDA compilation")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Require C++ standard")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Allow C++ extensions")
 
@@ -88,6 +89,7 @@ else()
 endif()
 
 include(CheckCXXCompilerFlag)
+include(CheckLanguage)
 include(GNUInstallDirs)
 include(CMakeDependentOption)
 
@@ -191,12 +193,28 @@ install(DIRECTORY Eigen DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
 cmake_dependent_option(BUILD_TESTING "Enable creation of tests." ON "PROJECT_IS_TOP_LEVEL" OFF)
 option(EIGEN_BUILD_TESTING "Enable creation of Eigen tests." ${BUILD_TESTING})
 if(EIGEN_BUILD_TESTING)
+  option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
+  if(EIGEN_TEST_CUDA)
+    set(CMAKE_CUDA_ARCHITECTURES ${EIGEN_CUDA_COMPUTE_ARCH})
+    # TODO this was necessary on my system, because otherwise errors about unsupported float128 popped up
+    # a related problem: https://stackoverflow.com/questions/43316533/float128-is-not-supported-on-this-target
+    if(CMAKE_CUDA_COMPILER MATCHES "clang")
+      # TODO should we do this in the CMakeLists.txt, or should this be the users responsibility to submit the correct
+      # CUDAFLAGS for their preferred cuda compiler?
+      set(CMAKE_CUDA_FLAGS "-stdlib=libc++")
+      message(STATUS "ITS CLANG")
+    endif()
+    check_language(CUDA)
+    if(CMAKE_CUDA_COMPILER)
+      enable_language(CUDA)
+    else()
+      message(WARNING "EIGEN_TEST_CUDA was set, but no CUDA compiler was found. Disabling CUDA tests")
+      set(EIGEN_TEST_CUDA OFF)
+    endif()
+  endif()
   include(EigenConfigureTesting)
 
   # enable language should be in the top-level file, https://cmake.org/cmake/help/latest/command/enable_language.html
-  if(EIGEN_TEST_CUDA)
-    enable_language(CUDA)
-  endif()
 
   if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
     add_subdirectory(test) # can't do EXCLUDE_FROM_ALL here, breaks CTest

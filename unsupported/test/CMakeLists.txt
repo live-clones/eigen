@@ -283,23 +283,6 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MS
 endif()
 
 if(EIGEN_TEST_CUDA)
-  # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
-  # and -fno-check-new flags since they trigger thousands of compilation warnings
-  # in the CUDA runtime
-  string(REPLACE "-pedantic" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wundef" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wnon-virtual-dtor" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-fno-check-new" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
-  if(EIGEN_TEST_CUDA_CLANG)
-    string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
-    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-        string(APPEND CMAKE_CXX_FLAGS " --cuda-gpu-arch=sm_${ARCH}")
-    endforeach()
-    string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
-  else()
-  endif()
-  
   set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
 
   ei_add_test(cxx11_tensor_complex_gpu)
