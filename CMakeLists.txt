@@ -193,6 +193,11 @@ option(EIGEN_BUILD_TESTING "Enable creation of Eigen tests." ${BUILD_TESTING})
 if(EIGEN_BUILD_TESTING)
   include(EigenConfigureTesting)
 
+  # enable language should be in the top-level file, https://cmake.org/cmake/help/latest/command/enable_language.html
+  if(EIGEN_TEST_CUDA)
+    enable_language(CUDA)
+  endif()
+
   if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
     add_subdirectory(test) # can't do EXCLUDE_FROM_ALL here, breaks CTest
   else()
@@ -304,6 +309,7 @@ include (CMakePackageConfigHelpers)
 
 # Imported target support
 add_library (eigen INTERFACE)
+target_compile_features(eigen INTERFACE cxx_std_14)
 add_library (Eigen3::Eigen ALIAS eigen)
 target_include_directories (eigen INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

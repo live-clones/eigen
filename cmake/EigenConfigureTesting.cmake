@@ -342,3 +342,14 @@ if(EIGEN_TEST_SYCL)
     target_compile_definitions(EigenTestDeps INTERFACE EIGEN_DONT_VECTORIZE=1 EIGEN_DONT_VECTORIZE_SYCL=1)
   endif()
 endif()
+
+# CUDA configuration
+if(EIGEN_TEST_CUDA)
+  set(CMAKE_CUDA_ARCHITECTURES ${EIGEN_CUDA_COMPUTE_ARCH})
+  if(EIGEN_TEST_CUDA_CLANG)
+    # TODO
+  else()
+    # add cuda specific flags for all cuda language files
+    target_compile_options(EigenTestDeps INTERFACE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-Xcudafe;--display_error_number>)
+  endif()
+endif()

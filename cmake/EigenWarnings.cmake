@@ -8,7 +8,7 @@ function(ei_add_warning_flag FLAG)
     string(REGEX REPLACE "\\+" "p" SFLAG ${SFLAG1})
     check_cxx_compiler_flag(${FLAG} COMPILER_SUPPORT_${SFLAG})
     if(COMPILER_SUPPORT_${SFLAG})
-        target_compile_options(EigenWarnings INTERFACE ${FLAG})
+        target_compile_options(EigenWarnings INTERFACE $<$<COMPILE_LANGUAGE:CXX>:${FLAG}>)
     endif()
 endfunction()
 
@@ -19,17 +19,19 @@ if(NOT MSVC)
     # adding -Werror turns such warnings into errors
     check_cxx_compiler_flag("-Werror" COMPILER_SUPPORT_WERROR)
     if(COMPILER_SUPPORT_WERROR)
-        target_compile_options(EigenWarnings INTERFACE -Werror)
+        # TODO for CUDA -Werror seems to require an argument
+        target_compile_options(EigenWarnings INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Werror>)
     endif()
-    ei_add_warning_flag("-pedantic")
+
+    ei_add_warning_flag("-pedantic")        # not in CUDA
     ei_add_warning_flag("-Wall")
     ei_add_warning_flag("-Wextra")
     #ei_add_warning_flag("-Weverything")              # clang
 
-    ei_add_warning_flag("-Wundef")
+    ei_add_warning_flag("-Wundef")          # not in CUDA
     ei_add_warning_flag("-Wcast-align")
     ei_add_warning_flag("-Wchar-subscripts")
-    ei_add_warning_flag("-Wnon-virtual-dtor")
+    ei_add_warning_flag("-Wnon-virtual-dtor")  # not in CUDA
     ei_add_warning_flag("-Wunused-local-typedefs")
     ei_add_warning_flag("-Wpointer-arith")
     ei_add_warning_flag("-Wwrite-strings")
@@ -47,7 +49,7 @@ if(NOT MSVC)
     ei_add_warning_flag("-Wno-variadic-macros")
     ei_add_warning_flag("-Wno-long-long")
 
-    ei_add_warning_flag("-fno-check-new")
+    ei_add_warning_flag("-fno-check-new")            # not in CUDA
     ei_add_warning_flag("-fno-common")
     ei_add_warning_flag("-fstrict-aliasing")
     ei_add_warning_flag("-wd981")                    # disable ICC's "operands are evaluated in unspecified order" remark
