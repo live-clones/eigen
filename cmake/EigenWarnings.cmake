@@ -6,6 +6,13 @@ function(ei_add_warning_flag FLAG)
     # generate a valid CMake variable name from FLAG to store the result of the test
     string(REGEX REPLACE "-" "" SFLAG1 ${FLAG})
     string(REGEX REPLACE "\\+" "p" SFLAG ${SFLAG1})
+
+    # clang outputs some warnings for unknown flags that are not caught by check_cxx_compiler_flag
+    # adding -Werror turns such warnings into errors
+    check_cxx_compiler_flag("-Werror" COMPILER_SUPPORT_WERROR)
+    if(COMPILER_SUPPORT_WERROR)
+        set(CMAKE_REQUIRED_FLAGS "-Werror")
+    endif()
     check_cxx_compiler_flag(${FLAG} COMPILER_SUPPORT_${SFLAG})
     if(COMPILER_SUPPORT_${SFLAG})
         target_compile_options(EigenWarnings INTERFACE $<$<COMPILE_LANGUAGE:CXX>:${FLAG}>)
@@ -14,14 +21,7 @@ endfunction()
 
 if(NOT MSVC)
     # We assume that other compilers are partly compatible with GNUCC
-
-    # clang outputs some warnings for unknown flags that are not caught by check_cxx_compiler_flag
-    # adding -Werror turns such warnings into errors
-    check_cxx_compiler_flag("-Werror" COMPILER_SUPPORT_WERROR)
-    if(COMPILER_SUPPORT_WERROR)
-        # TODO for CUDA -Werror seems to require an argument
-        target_compile_options(EigenWarnings INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Werror>)
-    endif()
+    ei_add_warning_flag("-Werror")
 
     # TODO the old code added all of them, and then manually mucked about in the CMAKE_CXX_FLAGS for cuda
     # TODO Right now, all of these warnings are not set for CUDA. The old comment:
@@ -43,7 +43,7 @@ if(NOT MSVC)
     ei_add_warning_flag("-Wformat-security")
     ei_add_warning_flag("-Wshorten-64-to-32")
     ei_add_warning_flag("-Wlogical-op")
-    ei_add_warning_flag("-Wenum-conversion")
+    # ei_add_warning_flag("-Wenum-conversion")  # GCC complains that this is not valid for C++
     ei_add_warning_flag("-Wc++11-extensions")
     ei_add_warning_flag("-Wdouble-promotion")
     #  ei_add_warning_flag("-Wconversion")
