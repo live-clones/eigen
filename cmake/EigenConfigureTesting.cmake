@@ -113,3 +113,168 @@ endif()
 
 target_link_libraries(EigenTestDeps INTERFACE Eigen3::Eigen EigenWarnings)
 target_include_directories(EigenTestDeps INTERFACE ${Eigen3_SOURCE_DIR}/test)
+
+if(NOT MSVC)
+  # We assume that other compilers are partly compatible with GNUCC
+  option(EIGEN_TEST_SSE2 "Enable/Disable SSE2 in tests/examples" OFF)
+  if(EIGEN_TEST_SSE2)
+    target_compile_options(EigenTestDeps INTERFACE -msse2)
+    message(STATUS "Enabling SSE2 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_SSE3 "Enable/Disable SSE3 in tests/examples" OFF)
+  if(EIGEN_TEST_SSE3)
+    target_compile_options(EigenTestDeps INTERFACE -msse3)
+    message(STATUS "Enabling SSE3 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_SSSE3 "Enable/Disable SSSE3 in tests/examples" OFF)
+  if(EIGEN_TEST_SSSE3)
+    target_compile_options(EigenTestDeps INTERFACE -mssse3)
+    message(STATUS "Enabling SSSE3 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_SSE4_1 "Enable/Disable SSE4.1 in tests/examples" OFF)
+  if(EIGEN_TEST_SSE4_1)
+    target_compile_options(EigenTestDeps INTERFACE -msse4.1)
+    message(STATUS "Enabling SSE4.1 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_SSE4_2 "Enable/Disable SSE4.2 in tests/examples" OFF)
+  if(EIGEN_TEST_SSE4_2)
+    target_compile_options(EigenTestDeps INTERFACE -msse4.2)
+    message(STATUS "Enabling SSE4.2 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_AVX "Enable/Disable AVX in tests/examples" OFF)
+  if(EIGEN_TEST_AVX)
+    target_compile_options(EigenTestDeps INTERFACE -mavx)
+    message(STATUS "Enabling AVX in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_FMA "Enable/Disable FMA in tests/examples" OFF)
+  if(EIGEN_TEST_FMA AND NOT EIGEN_TEST_NEON)
+    # The combination of NEON and FMA is handled separately below
+    target_compile_options(EigenTestDeps INTERFACE -mfma)
+    message(STATUS "Enabling FMA in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_AVX2 "Enable/Disable AVX2 in tests/examples" OFF)
+  if(EIGEN_TEST_AVX2)
+    target_compile_options(EigenTestDeps INTERFACE -mavx2 -mfma)
+    message(STATUS "Enabling AVX2 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_AVX512 "Enable/Disable AVX512 in tests/examples" OFF)
+  if(EIGEN_TEST_AVX512)
+    target_compile_options(EigenTestDeps INTERFACE -mavx512f -mfma)
+    message(STATUS "Enabling AVX512 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_AVX512DQ "Enable/Disable AVX512DQ in tests/examples" OFF)
+  if(EIGEN_TEST_AVX512DQ)
+    target_compile_options(EigenTestDeps INTERFACE -mavx512dq -mfma)
+    message(STATUS "Enabling AVX512DQ in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_F16C "Enable/Disable F16C in tests/examples" OFF)
+  if(EIGEN_TEST_F16C)
+    target_compile_options(EigenTestDeps INTERFACE -mf16c)
+    message(STATUS "Enabling F16C in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_ALTIVEC "Enable/Disable AltiVec in tests/examples" OFF)
+  if(EIGEN_TEST_ALTIVEC)
+    target_compile_options(EigenTestDeps INTERFACE -maltivec -mabi=altivec)
+    message(STATUS "Enabling AltiVec in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_VSX "Enable/Disable VSX in tests/examples" OFF)
+  if(EIGEN_TEST_VSX)
+    target_compile_options(EigenTestDeps INTERFACE -m64 -mvsx)
+    message(STATUS "Enabling VSX in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_MSA "Enable/Disable MSA in tests/examples" OFF)
+  if(EIGEN_TEST_MSA)
+    target_compile_options(EigenTestDeps INTERFACE -mmsa)
+    message(STATUS "Enabling MSA in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_NEON "Enable/Disable Neon in tests/examples" OFF)
+  if(EIGEN_TEST_NEON)
+    if(EIGEN_TEST_FMA)
+      target_compile_options(EigenTestDeps INTERFACE -mfpu=neon-vfpv4)
+    else()
+      target_compile_options(EigenTestDeps INTERFACE -mfpu=neon)
+    endif()
+    target_compile_options(EigenTestDeps INTERFACE -mfloat-abi=hard)
+    message(STATUS "Enabling NEON in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_NEON64 "Enable/Disable Neon in tests/examples" OFF)
+  if(EIGEN_TEST_NEON64)
+    # TODO this is just leaving flags as before????
+    message(STATUS "Enabling NEON in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_Z13 "Enable/Disable S390X(zEC13) ZVECTOR in tests/examples" OFF)
+  if(EIGEN_TEST_Z13)
+    target_compile_options(EigenTestDeps INTERFACE -march=z13 -mzvector)
+    message(STATUS "Enabling S390X(zEC13) ZVECTOR in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_Z14 "Enable/Disable S390X(zEC14) ZVECTOR in tests/examples" OFF)
+  if(EIGEN_TEST_Z14)
+    target_compile_options(EigenTestDeps INTERFACE -march=z14 -mzvector)
+    message(STATUS "Enabling S390X(zEC13) ZVECTOR in tests/examples")
+  endif()
+
+  # TODO Use FindOpenMP CMake module
+  check_cxx_compiler_flag("-fopenmp" COMPILER_SUPPORT_OPENMP)
+  if(COMPILER_SUPPORT_OPENMP)
+    option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
+    if(EIGEN_TEST_OPENMP)
+      target_compile_options(EigenTestDeps INTERFACE -fopenmp)
+      message(STATUS "Enabling OpenMP in tests/examples")
+    endif()
+  endif()
+
+else()
+  # TODO what is this doing, and should it be doing that?
+  # TODO In modern CMAKE, CMAKE_CXX_FLAGS should be mostly left along
+  # replace all /Wx by /W4
+  string(REGEX REPLACE "/W[0-9]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
+  # TODO Use FindOpenMP CMake module
+  check_cxx_compiler_flag("/openmp" COMPILER_SUPPORT_OPENMP)
+  if(COMPILER_SUPPORT_OPENMP)
+    option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
+    if(EIGEN_TEST_OPENMP)
+      target_compile_options(EigenTestDeps INTERFACE /openmp)
+      message(STATUS "Enabling OpenMP in tests/examples")
+    endif()
+  endif()
+
+  option(EIGEN_TEST_SSE2 "Enable/Disable SSE2 in tests/examples" OFF)
+  if(EIGEN_TEST_SSE2)
+    if(NOT CMAKE_CL_64)
+      # arch is not supported on 64 bit systems, SSE is enabled automatically.
+      target_compile_options(EigenTestDeps INTERFACE /arch:SSE2)
+    endif()
+    message(STATUS "Enabling SSE2 in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_AVX "Enable/Disable AVX in tests/examples" OFF)
+  if(EIGEN_TEST_AVX)
+    target_compile_options(EigenTestDeps INTERFACE /arch:AVX)
+    message(STATUS "Enabling AVX in tests/examples")
+  endif()
+
+  option(EIGEN_TEST_FMA "Enable/Disable FMA/AVX2 in tests/examples" OFF)
+  if(EIGEN_TEST_FMA AND NOT EIGEN_TEST_NEON)
+    # TODO what happens with EIGEN_TEST_FMA and EIGEN_TEST_NEON?
+    target_compile_options(EigenTestDeps INTERFACE /arch:AVX2)
+    message(STATUS "Enabling FMA/AVX2 in tests/examples")
+  endif()
+endif()
