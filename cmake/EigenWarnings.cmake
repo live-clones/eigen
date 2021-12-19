@@ -21,7 +21,8 @@ endfunction()
 
 if(NOT MSVC)
     # We assume that other compilers are partly compatible with GNUCC
-    ei_add_warning_flag("-Werror")
+    # TODO cannot currently enable Werror because we have same warnings in Clang
+    # ei_add_warning_flag("-Werror")
 
     # TODO the old code added all of them, and then manually mucked about in the CMAKE_CXX_FLAGS for cuda
     # TODO Right now, all of these warnings are not set for CUDA. The old comment:
