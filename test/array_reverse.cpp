@@ -126,8 +126,8 @@ template<typename MatrixType> void reverse(const MatrixType& m)
 template<int>
 void array_reverse_extra()
 {
-  Vector4f x; x << 1, 2, 3, 4;
-  Vector4f y; y << 4, 3, 2, 1;
+  Vector4i x; x << 1, 2, 3, 4;
+  Vector4i y; y << 4, 3, 2, 1;
   VERIFY(x.reverse()[1] == 3);
   VERIFY(x.reverse() == y);
 }
