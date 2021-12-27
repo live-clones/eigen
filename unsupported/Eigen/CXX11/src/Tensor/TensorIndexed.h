@@ -106,7 +106,7 @@ namespace internal {
   template<int... SmallerIndexIds, int IndexId, int... IndexIds, 
            DimensionIndex... PrevBoundDims, DimensionIndex BoundDim, DimensionIndex... BoundDims, 
            int NewIndexId, DimensionIndex NewBoundDim, 
-           typename=typename internal::enable_if<(NewIndexId <= IndexId)>::type>
+           typename EnableIf=typename internal::enable_if<(NewIndexId <= IndexId)>::type>
   auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
               sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, 
                                BoundTensorIndex<IndexIds, BoundDims>...>,

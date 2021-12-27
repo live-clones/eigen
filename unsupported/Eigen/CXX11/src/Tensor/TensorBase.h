@@ -1213,11 +1213,11 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 
     #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
     // Einstein notation
-    template<typename... IndexTypes, typename EnableIf=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
+    template<typename... IndexTypes, typename EnableIf=typename internal::enable_if<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>::type>
     inline auto operator()(IndexTypes... indices){
       return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
-    template<typename... IndexTypes, typename EnableIf=typename internal::enable_if<internal::static_or(std::is_base_of<TensorIndexBase,IndexTypes>::value...)>::type>
+    template<typename... IndexTypes, typename EnableIf=typename internal::enable_if<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>::type>
     inline auto operator()(IndexTypes... indices)const{
       return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
