@@ -280,7 +280,6 @@ void IndexedTensor<TensorExpr, BoundIndices...>::operator=(IndexedTensor<OtherTe
 }
 
 namespace internal {
-
   // contraction, tensor product - done with the operator*
 
   //! Calculates new dimension indices after a contraction
@@ -289,11 +288,11 @@ namespace internal {
   //! BoundIndices are {i:0,j:1,k:2} for A and {j:0} for B, but after contration,
   //! BoundIndices are {i:0,k:1} for A and {} for B, and those need to be computed
   //! This function takes the RemovedDims {1} for A or {0} for B, and one 
-  //! remaining_dim at a time, and it returns the updated dimension index 
-  template<DimensionIndex... RemovedDims>
-  constexpr DimensionIndex update_dim_index(DimensionIndex remaining_dim)
+  //! remaining_dim at a time, and it returns the updated dimension index.
+  template<DimensionIndex RemainingDim, DimensionIndex... RemovedDims>
+  constexpr DimensionIndex update_dim_index()
   {
-    return remaining_dim - internal::static_count((remaining_dim > RemovedDims)...);
+    return RemainingDim - internal::reduce_count<(RemainingDim > RemovedDims)...>::value;
   }
 
   template<DimensionIndex... Ints>
@@ -321,8 +320,8 @@ namespace internal {
       std::array<Eigen::IndexPair<int>, sizeof...(ContractedBoundDims1)>{
         {Eigen::IndexPair<int>{static_cast<int>(ContractedBoundDims1), static_cast<int>(ContractedBoundDims2)}...}},
         sorted_indices_merge(
-          internal::sorted_indices_t<BoundTensorIndex<UncontractedIndexIds1, update_dim_index<ContractedBoundDims1...>(UncontractedBoundDims1)>...>{},
-           internal::sorted_indices_t<BoundTensorIndex<UncontractedIndexIds2, update_dim_index<ContractedBoundDims2...>(UncontractedBoundDims2) + sizeof...(UncontractedBoundDims1)>...>{})
+          internal::sorted_indices_t<BoundTensorIndex<UncontractedIndexIds1, update_dim_index<UncontractedBoundDims1, ContractedBoundDims1...>()>...>{},
+           internal::sorted_indices_t<BoundTensorIndex<UncontractedIndexIds2, update_dim_index<UncontractedBoundDims2, ContractedBoundDims2...>() + sizeof...(UncontractedBoundDims1)>...>{})
       );
   }
   //! If all dimensions from one operand have been treated, there is nothing left to be contracted,
