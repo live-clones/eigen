@@ -57,29 +57,6 @@ template<int id, DimensionIndex dim>
 struct BoundTensorIndex{};
 
 namespace internal {
-
-  //! compute an "or" at compile time
-  constexpr bool static_or()
-  {
-	  return false;
-  }
-  template<typename BoolT, typename... BoolTs>
-  constexpr bool static_or(BoolT b, BoolTs... bools)
-  {
-	  return b || static_or(bools...);
-  }
-
-  // // template<bool... values>
-  // // using static_or = internal::reduce_any<values...>::value;
-  // template<bool... values>
-  // constexpr bool static_or(bool... values)
-  // // template<typename BoolT, typename... BoolTs>
-  // // constexpr bool static_or(BoolT, BoolTs...)
-  // {
-  //   // return internal::reduce_any<BoolT, BoolTs...>::value;
-  //   return internal::reduce_any<values...>::value;
-  // }
-
   //! counts the number of arguments which are true, at compile time if possible
   constexpr unsigned static_count()
   {
