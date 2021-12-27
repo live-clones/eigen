@@ -1218,7 +1218,7 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
       return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
     template<typename... IndexTypes, typename EnableIf=typename internal::enable_if<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>::type>
-    inline auto operator()(IndexTypes... indices)const{
+    inline auto operator()(IndexTypes... indices) const {
       return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
     }
     #endif
