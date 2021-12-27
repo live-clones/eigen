@@ -57,17 +57,6 @@ template<int id, DimensionIndex dim>
 struct BoundTensorIndex{};
 
 namespace internal {
-  //! counts the number of arguments which are true, at compile time if possible
-  constexpr unsigned static_count()
-  {
-	  return 0;
-  }
-  template<typename BoolT, typename... BoolTs>
-  constexpr unsigned static_count(BoolT b, BoolTs... bools)
-  {
-	  return (b ? 1 : 0) + static_count(bools...);
-  }
-
   //! A tool to keep a list of indices sorted at compile time
   template<typename... Indices>
   struct sorted_indices_t 
