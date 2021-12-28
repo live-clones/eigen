@@ -30,13 +30,16 @@ namespace Eigen {
   *
   */
 
-//! Base class of all TensorIndex
+/** Base class of all TensorIndex. */
 struct TensorIndexBase{};
-//! In a tensor expression such as "A(i,j)*B(j,k)", i,j,k are each a TensorIndex with unique id_
+/** In a tensor expression such as "A(i,j)*B(j,k)", i,j,k are each a 
+ *  TensorIndex with unique id_.
+ */
 template<int id_>
 struct TensorIndex:TensorIndexBase{};
 
-// We define some common indices which can be imported with "using namespace Eigen::tensor_indices;"
+// We define some common indices which can be imported with "using namespace 
+// Eigen::tensor_indices;"
 namespace tensor_indices {
   EIGEN_UNUSED static const TensorIndex<'i'> i;
   EIGEN_UNUSED static const TensorIndex<'j'> j;
@@ -52,12 +55,14 @@ namespace tensor_indices {
 
 using DimensionIndex = unsigned;
 
-//! BoundTensorIndex<id,dim> links TensorIndex<id> to the dim-th dimension of a Tensor
+/** BoundTensorIndex<id,dim> links TensorIndex<id> to the dim-th dimension of 
+  * a Tensor 
+  */
 template<int id, DimensionIndex dim>
 struct BoundTensorIndex{};
 
 namespace internal {
-  //! A tool to keep a list of indices sorted at compile time
+  // A tool to keep a list of indices sorted at compile time
   template<typename... Indices>
   struct sorted_indices_t 
   {
@@ -68,7 +73,7 @@ namespace internal {
     }
   };
 
-  //linear insert, todo: dichotomic insert, there probably is an implementation of this somewhere
+  // linear insert
   template<int... SmallerIndexIds, int IndexId, int... IndexIds, 
            DimensionIndex... PrevBoundDims, DimensionIndex BoundDim, DimensionIndex... BoundDims, 
            int NewIndexId, DimensionIndex NewBoundDim, 
@@ -124,7 +129,7 @@ namespace internal {
                                 b.insert(BoundTensorIndex<IndexId, BoundDim>{}));
   }
 
-  //! Transforms any T const& to T& and leaves anything else unchanged
+  // Transforms any T const& to T& and leaves anything else unchanged
   template<typename T>
   struct const_ref_to_ref
   {
@@ -139,15 +144,20 @@ namespace internal {
   using const_ref_to_ref_t = typename const_ref_to_ref<T>::type;
 }
 
-//! \brief This class stores any indexed tensor expression such as my_tensor_expression(i,k,j) or A(i,j)*B(j,k)+C(i,k).
-//!
-//! If TensorExpr is an actual tensor, a reference to it is stored to allow assignment.
-//! If TensorExpr is an expression, a copy of it is stored because the expression might be a temporary object.
-//! In any case, BoundIndices keep track of which TensorIndex is linked to which dimension of the TensorExpr.
-//! BoundIndices are always kept sorted by the ids of their TensorIndex.
-//! For example, the expression A(i,k,j) will have {i:0,j:2,k:1} as BoundIndices
-//! The fact that they are sorted makes it easy to ensure that operands of = or + operations share the same set of indices
-//! It also makes it easy to shuffle the dimensions of those operands before calling the underlying operations
+/** \brief This class stores any indexed tensor expression such as 
+  * my_tensor_expression(i,k,j) or A(i,j)*B(j,k)+C(i,k).
+  * 
+  * If TensorExpr is an actual tensor, a reference to it is stored to allow 
+  * assignment. If TensorExpr is an expression, a copy of it is stored because 
+  * the expression might be a temporary object. In any case, BoundIndices keep 
+  * track of which TensorIndex is linked to which dimension of the TensorExpr.
+  * BoundIndices are always kept sorted by the ids of their TensorIndex. For 
+  * example, the expression A(i,k,j) will have {i:0,j:2,k:1} as BoundIndices
+  * The fact that they are sorted makes it easy to ensure that operands of 
+  * = or + operations share the same set of indices. It also makes it easy 
+  * to shuffle the dimensions of those operands before calling the underlying 
+  * operations.
+  */
 template<typename TensorExpr, typename... BoundIndices>
 class IndexedTensor
 {
@@ -176,8 +186,9 @@ class IndexedTensor
   _TensorExpr m_tensor_expr;
 };
 
-//! An IndexedTensor with no indices is a tensor of order zero, which is a scalar. 
-//! So, it can be assigned to a scalar instead of a tensor.
+/** An IndexedTensor with no indices is a tensor of order zero, which is a 
+  * scalar. So, it can be assigned to a scalar instead of a tensor.
+  */
 template<typename TensorExpr>
 class IndexedTensor<TensorExpr>
 {
@@ -203,10 +214,12 @@ namespace internal {
 
   // chipping - done with the operator()
 
-  //! \brief A helper function to TensorBase::operator()->TensorIndexed.
-  //!
-  //! This is the exit point of make_indexed_tensor(), which is called by TensorBase::operator().
-  //! All dimensions are either chipped or linked to a TensorIndex, so we can constructs the IndexedTensor
+  /** \brief A helper function to TensorBase::operator()->TensorIndexed.
+    * 
+    * This is the exit point of make_indexed_tensor(), which is called by 
+    * TensorBase::operator(). All dimensions are either chipped or linked to 
+    * a TensorIndex, so we can constructs the IndexedTensor.
+    */ 
   template<typename TensorExpr, int... IndexIds, DimensionIndex... BoundDims> 
   auto make_indexed_tensor(TensorExpr&& tensor_expr, 
                            internal::sorted_indices_t<BoundTensorIndex<IndexIds, BoundDims>...>)
@@ -214,8 +227,10 @@ namespace internal {
     return IndexedTensor<typename std::remove_reference<TensorExpr>::type, 
                          BoundTensorIndex<IndexIds, BoundDims>...>(std::forward<TensorExpr>(tensor_expr));
   }
-  //! Some dimensions remain to be chipped or linked to a TensorIndex.
-  //! If the current_index is a number, we chip the tensor_expr immediately, and continue to iterate over the remaining dimensions
+  /** Some dimensions remain to be chipped or linked to a TensorIndex. If the 
+    * current_index is a number, we chip the tensor_expr immediately, and 
+    * continue to iterate over the remaining dimensions.
+    */
   template<typename TensorExpr, typename... PrevIndices, typename... Indices> inline 
   auto make_indexed_tensor(TensorExpr&& tensor_expr,
                            internal::sorted_indices_t<PrevIndices...> prev_indices, 
@@ -224,8 +239,10 @@ namespace internal {
     return make_indexed_tensor(tensor_expr.chip(current_index, sizeof...(PrevIndices)), 
                                prev_indices, indices...);
   }
-  //! Some dimensions remain to be chipped or linked to a TensorIndex.
-  //! If the current_index is a TensorIndex, we link it to the current dimension and continue to iterate over the remaining dimensions
+  /** Some dimensions remain to be chipped or linked to a TensorIndex. If the 
+    * current_index is a TensorIndex, we link it to the current dimension and 
+    * continue to iterate over the remaining dimensions.
+    */
   template<typename TensorExpr, typename... PrevIndices, typename... Indices, int id> inline 
   auto make_indexed_tensor(TensorExpr&& tensor_expr, 
                            internal::sorted_indices_t<PrevIndices...> prev_indices, 
@@ -238,17 +255,17 @@ namespace internal {
 
   // transposing, assignment - done with the operator=
 
-  //! \brief A helper function to IndexedTensor::operator=.
-  //!
-  //! BoundTensorIndex's are used to shuffle operands in a specific order (sorted by the ids of the TensorIndex's),
-  //! then a simple tensor assignment is made.
+  /** \brief A helper function to IndexedTensor::operator=.
+    * 
+    * BoundTensorIndex's are used to shuffle operands in a specific order 
+    * (sorted by the ids of the TensorIndex's), then a simple tensor 
+    * assignment is made.
+    */
   template<typename TensorExpr, int... IndexIds, DimensionIndex... BoundDims, 
            typename OtherTensorExpr, /*same IndexIds*/ DimensionIndex... OtherBoundDims> 
   void indexed_tensor_assign(IndexedTensor<TensorExpr, BoundTensorIndex<IndexIds, BoundDims>...>* this_, 
                              IndexedTensor<OtherTensorExpr, BoundTensorIndex<IndexIds, OtherBoundDims>...> const& other)
   {
-    // this_->tensor_expr.shuffle(internal::make_array(static_cast<int>(BoundDims)...))
-    //   = other.tensor_expr.shuffle(internal::make_array(static_cast<int>(OtherBoundDims)...));
     this_->expression().shuffle(internal::make_array(static_cast<int>(BoundDims)...))
       = other.expression().shuffle(internal::make_array(static_cast<int>(OtherBoundDims)...));
   }
@@ -271,13 +288,15 @@ void IndexedTensor<TensorExpr, BoundIndices...>::operator=(IndexedTensor<OtherTe
 namespace internal {
   // contraction, tensor product - done with the operator*
 
-  //! Calculates new dimension indices after a contraction
-  //! During a contraction, some dimensions disappear.
-  //! For example A(i,j,k)*B(j) contracts the dimension j.
-  //! BoundIndices are {i:0,j:1,k:2} for A and {j:0} for B, but after contration,
-  //! BoundIndices are {i:0,k:1} for A and {} for B, and those need to be computed
-  //! This function takes the RemovedDims {1} for A or {0} for B, and one 
-  //! remaining_dim at a time, and it returns the updated dimension index.
+  /** \brief Calculates new dimension indices after a contraction.
+    * 
+    * During a contraction, some dimensions disappear. For example 
+    * A(i,j,k)*B(j) contracts the dimension j. BoundIndices are {i:0,j:1,k:2} 
+    * for A and {j:0} for B, but after contration, BoundIndices are {i:0,k:1} 
+    * for A and {} for B, and those need to be computed. This function takes 
+    * the RemovedDims {1} for A or {0} for B, and one remaining_dim at a time, 
+    * and it returns the updated dimension index.
+    */
   template<DimensionIndex RemainingDim, DimensionIndex... RemovedDims>
   constexpr DimensionIndex update_dim_index()
   {
@@ -289,12 +308,13 @@ namespace internal {
   template<int... Ints>
   using TensorIndexIds = std::integer_sequence<int, Ints...>;
 
-  //! \brief A helper function to IndexedTensor::operator*.
-  //!
-  //! This is the exit point of make_contraction_indices().
-  //! It returns the list of pairs of dimensions to be contracted,
-  //! and the BoundIndices of the resulting expression.
-  //! Indices remaining from the first operand are put first.
+  /** \brief A helper function to IndexedTensor::operator*.
+    *
+    * This is the exit point of make_contraction_indices(). It returns the 
+    * list of pairs of dimensions to be contracted, and the BoundIndices of 
+    * the resulting expression. Indices remaining from the first operand are 
+    * put first.
+    */
   template<int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
            int... UncontractedIndexIds2, DimensionIndex... UncontractedBoundDims2,
            DimensionIndex... ContractedBoundDims1,
@@ -313,8 +333,10 @@ namespace internal {
            internal::sorted_indices_t<BoundTensorIndex<UncontractedIndexIds2, update_dim_index<UncontractedBoundDims2, ContractedBoundDims2...>() + sizeof...(UncontractedBoundDims1)>...>{})
       );
   }
-  //! If all dimensions from one operand have been treated, there is nothing left to be contracted,
-  //! so we put all remaing indices from the other operand as uncontracted indices
+  /** If all dimensions from one operand have been treated, there is nothing 
+    * left to be contracted, so we put all remaing indices from the other 
+    * operand as uncontracted indices.
+    */
   template<int... IndexIds1, DimensionIndex... BoundDims1,
            int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
            int... UncontractedIndexIds2, DimensionIndex... UncontractedBoundDims2,
@@ -334,8 +356,10 @@ namespace internal {
         DimensionIds<ContractedBoundDims1...>{}, 
         DimensionIds<ContractedBoundDims2...>{});
   }
-  //! If all dimensions from one operand have been treated, there is nothing left to be contracted,
-  //! so we put all remaing indices from the other operand as uncontracted indices
+  /** If all dimensions from one operand have been treated, there is nothing 
+    * left to be contracted, so we put all remaing indices from the other 
+    * operand as uncontracted indices.
+    */
   template<int... IndexIds2, DimensionIndex... BoundDims2,
            int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
            int... UncontractedIndexIds2, DimensionIndex... UncontractedBoundDims2,
@@ -381,9 +405,10 @@ namespace internal {
                                 TensorIndexIds<UncontractedIndexIds1...>, DimensionIds<UncontractedBoundDims1...>, 
                                 TensorIndexIds<UncontractedIndexIds2...>, DimensionIds<UncontractedBoundDims2...>,
                                 DimensionIds<ContractedBoundDims1...>, DimensionIds<ContractedBoundDims2...>);
-  //! We iterate over all operand indices from the smallest to the biggest.
-  //! Here, IndexId1 is the smallest and is also present in the other operand,
-  //! so we put it as a contracted TensorIndex and continue
+  /** We iterate over all operand indices from the smallest to the biggest. 
+    * Here, IndexId1 is the smallest and is also present in the other operand,
+    * so we put it as a contracted TensorIndex and continue.
+    */
   template<int IndexId1, int... IndexIds1, DimensionIndex BoundDim1, DimensionIndex... BoundDims1, 
            int IndexId2, int... IndexIds2, DimensionIndex BoundDim2, DimensionIndex... BoundDims2,
            int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
@@ -405,9 +430,10 @@ namespace internal {
         DimensionIds<BoundDim1, ContractedBoundDims1...>{}, 
         DimensionIds<BoundDim2, ContractedBoundDims2...>{});
   }
-  //! We iterate over all operand indices from the smallest to the biggest.
-  //! Here, IndexId1 is the smallest and is not present in the other operand,
-  //! so we put it as an uncontracted TensorIndex and continue
+  /** We iterate over all operand indices from the smallest to the biggest.
+    * Here, IndexId1 is the smallest and is not present in the other operand,
+    * so we put it as an uncontracted TensorIndex and continue.
+    */
   template<int IndexId1, int... IndexIds1, DimensionIndex BoundDim1, DimensionIndex... BoundDims1, 
            int IndexId2, int... IndexIds2, DimensionIndex BoundDim2, DimensionIndex... BoundDims2,
            int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
@@ -429,9 +455,10 @@ namespace internal {
         DimensionIds<ContractedBoundDims1...>{}, 
         DimensionIds<ContractedBoundDims2...>{});
   }
-  //! We iterate over all operand indices from the smallest to the biggest.
-  //! Here, IndexId2 is the smallest and is not present in the other operand,
-  //! so we put it as an uncontracted TensorIndex and continue
+  /** We iterate over all operand indices from the smallest to the biggest.
+    * Here, IndexId2 is the smallest and is not present in the other operand,
+    * so we put it as an uncontracted TensorIndex and continue.
+    */
   template<int IndexId1, int... IndexIds1, DimensionIndex BoundDim1, DimensionIndex... BoundDims1, 
            int IndexId2, int... IndexIds2, DimensionIndex BoundDim2, DimensionIndex... BoundDims2,
            int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
@@ -456,9 +483,10 @@ namespace internal {
 
 } // namespace internal
 
-//! \brief This is the operator* between two indexed tensors.
-//!
-//! It can be any combination of tensor contractions and tensor products.
+/** \brief This is the operator* between two indexed tensors.
+  *
+  * It can be any combination of tensor contractions and tensor products.
+  */
 template<typename Expr1, typename Expr2, 
          int... IndexIds1, DimensionIndex... BoundDims1, 
          int... IndexIds2, DimensionIndex... BoundDims2>
@@ -475,7 +503,6 @@ auto operator*(IndexedTensor<Expr1, BoundTensorIndex<IndexIds1, BoundDims1>...> 
     internal::DimensionIds<>{}, internal::DimensionIds<>{});
   auto contracted_indices = contraction_indices.first;
   auto remaining_indices = contraction_indices.second;
-  // return internal::make_indexed_tensor(a.tensor_expr.contract(b.tensor_expr, contracted_indices), remaining_indices);
   return internal::make_indexed_tensor(a.expression().contract(b.expression(), contracted_indices), remaining_indices);
 }
 
@@ -483,18 +510,17 @@ namespace internal {
 
   // operator+
 
-  //! \brief A helper function to IndexedTensor::operator+.
-  //!
-  //! BoundTensorIndex's are used to shuffle operands in a specific order (sorted by the ids of the TensorIndex's),
-  //! then a simple tensor addition is made.
+  /** \brief A helper function to IndexedTensor::operator+.
+    *
+    * BoundTensorIndex's are used to shuffle operands in a specific order 
+    * (sorted by the ids of the TensorIndex's), then a simple tensor addition 
+    * is made.
+    */
   template<typename Expr1, typename Expr2, int... IndexIds, DimensionIndex... BoundDimsA, DimensionIndex... BoundDimsB, size_t... Is>
   auto indexed_tensor_add(IndexedTensor<Expr1, BoundTensorIndex<IndexIds, BoundDimsA>...> const& a, 
                           IndexedTensor<Expr2, BoundTensorIndex<IndexIds, BoundDimsB>...> const& b,
                           std::index_sequence<Is...>)
   {
-    // return internal::make_indexed_tensor(a.tensor_expr.shuffle(internal::make_array(static_cast<int>(BoundDimsA)...))
-    //   + b.tensor_expr.shuffle(internal::make_array(static_cast<int>(BoundDimsB)...)), 
-    //                           internal::sorted_indices_t<BoundTensorIndex<IndexIds, static_cast<DimensionIndex>(Is)>...>{});
     return internal::make_indexed_tensor(a.expression().shuffle(internal::make_array(static_cast<int>(BoundDimsA)...))
       + b.expression().shuffle(internal::make_array(static_cast<int>(BoundDimsB)...)), 
                          internal::sorted_indices_t<BoundTensorIndex<IndexIds, static_cast<DimensionIndex>(Is)>...>{});
@@ -502,7 +528,7 @@ namespace internal {
 
 } // namespace internal
 
-//! This is the operator+ for indexed tensor notation.
+/** This is the operator+ for indexed tensor notation. */
 template<typename Expr1, typename Expr2, typename... BoundTensorIndices1, typename... BoundTensorIndices2>
 auto operator+(IndexedTensor<Expr1, BoundTensorIndices1...> const& a, 
                IndexedTensor<Expr2, BoundTensorIndices2...> const& b)
@@ -512,15 +538,14 @@ auto operator+(IndexedTensor<Expr1, BoundTensorIndices1...> const& a,
 
 // operator-
 
-//! This is the unary operator- for indexed tensor notation.
+/** This is the unary operator- for indexed tensor notation. */
 template<typename Expr1, int... IndexIds, DimensionIndex... BoundDims>
 auto operator-(IndexedTensor<Expr1, BoundTensorIndex<IndexIds, BoundDims>...> const& a)
 {
-  // return internal::make_indexed_tensor(-a.tensor_expr, internal::sorted_indices_t<BoundTensorIndex<IndexIds, BoundDims>...>{});
   return internal::make_indexed_tensor(-a.expression(), internal::sorted_indices_t<BoundTensorIndex<IndexIds, BoundDims>...>{});
 }
 
-//! This is the binary operator- for indexed tensor notation.
+/** This is the binary operator- for indexed tensor notation. */
 template<typename Expr1, typename Expr2, typename... BoundTensorIndices1, typename... BoundTensorIndices2>
 auto operator-(IndexedTensor<Expr1, BoundTensorIndices1...> const& a, 
                IndexedTensor<Expr2, BoundTensorIndices2...> const& b)
@@ -528,7 +553,7 @@ auto operator-(IndexedTensor<Expr1, BoundTensorIndices1...> const& a,
   return a + (-b);
 }
 
-//operator += and -=
+/** operator += and -= */
 template<typename TensorExpr, typename... BoundIndices> template<typename OtherTensorExpr, typename... OtherBoundIndices>
 void IndexedTensor<TensorExpr, BoundIndices...>::operator+=(IndexedTensor<OtherTensorExpr, OtherBoundIndices...> const& other)
 {
