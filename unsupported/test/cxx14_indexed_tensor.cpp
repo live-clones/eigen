@@ -728,26 +728,54 @@ static void test_assign_scalar()
 {
   // fixed size
   {
-    TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
-    result.setRandom();
-    result(0, 0) = 3.;
+    // TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
+    // result.setRandom();
     // result(1, i) = 2.; // not yet
-    VERIFY_IS_APPROX(result(0, 0), float(3.));
+    // VERIFY_IS_APPROX(result(0, 0), float(3.));
 
-    float value = result(0, 0);
-    VERIFY_IS_APPROX(value, float(3.));
+    // float value = result(0, 0);
+    // VERIFY_IS_APPROX(value, float(3.));
+
+    TensorFixedSize<float, Sizes<2, 3>, DataLayout> A;
+    TensorFixedSize<float, Sizes<2, 3>, DataLayout> B;
+    A.setRandom();
+    B.setRandom();
+
+    float result1 = A(i, j) * B(i, j);
+    float result2 = 0.0f;
+    for (int ii = 0; ii < A.dimension(0); ++ii) {
+      for (int jj = 0; jj < A.dimension(1); ++jj) {
+        result2 += A(ii, jj) * B(ii, jj);
+      }
+    }
+
+    VERIFY_IS_APPROX(result1, result2);
   }
 
   // dynamic size
   {
-    Tensor<float, 2, DataLayout> result(2, 3);
-    result.setRandom();
-    result(0, 0) = 3.;
+    // Tensor<float, 2, DataLayout> result(2, 3);
+    // result.setRandom();
     // result(1, i) = 2.; // not yet
-    VERIFY_IS_APPROX(result(0, 0), float(3.));
+    // VERIFY_IS_APPROX(result(0, 0), float(3.));
 
-    float value = result(0, 0);
-    VERIFY_IS_APPROX(value, float(3.));
+    // float value = result(0, 0);
+    // VERIFY_IS_APPROX(value, float(3.));
+
+    Tensor<float, 2, DataLayout> A(2, 3);
+    Tensor<float, 2, DataLayout> B(2, 3);
+    A.setRandom();
+    B.setRandom();
+
+    float result1 = A(i, j) * B(i, j);
+    float result2 = 0.0f;
+    for (int ii = 0; ii < A.dimension(0); ++ii) {
+      for (int jj = 0; jj < A.dimension(1); ++jj) {
+        result2 += A(ii, jj) * B(ii, jj);
+      }
+    }
+
+    VERIFY_IS_APPROX(result1, result2);
   }
 }
 
