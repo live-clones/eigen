@@ -283,19 +283,4 @@ template<std::size_t I_, class T, std::size_t N> constexpr inline T const& array
 
 #endif
 
-namespace Eigen {
-namespace internal {
-
-#if EIGEN_HAS_VARIADIC_TEMPLATES && EIGEN_HAS_CXX14_RETURN_TYPE_DEDUCTION
-//! A convenient function to make an Eigen::array without specifying the type of the elements nor their number 
-template<typename... Ts>
-auto make_array(Ts&&... args)
-{
-  return array<typename std::common_type<Ts...>::type, sizeof...(Ts)>({{std::forward<Ts>(args)...}});
-}
-#endif
-
-}  // end namespace internal
-}  // end namespace Eigen
-
 #endif  // EIGEN_EMULATE_ARRAY_H
