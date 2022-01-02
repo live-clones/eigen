@@ -10,7 +10,10 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_INDEXED_H
 #define EIGEN_CXX11_TENSOR_TENSOR_INDEXED_H 
 
+#include "./InternalHeaderCheck.h"
+
 #include "TensorDimensions.h"
+#include "TensorIndexList.h"
 
 #include <array>
 #include <type_traits>
@@ -32,7 +35,7 @@ namespace Eigen {
 
 /** Base class of all TensorIndex. */
 struct TensorIndexBase{};
-/** In a tensor expression such as "A(i,j)*B(j,k)", i,j,k are each a 
+/** In a tensor expression such as "A(i, j) * B(j, k)", i, j, k are each a 
  *  TensorIndex with unique id_.
  */
 template<int id_>
@@ -73,11 +76,11 @@ namespace internal {
     }
   };
 
-  // linear insert
+  // Linear insert a new BoundTensorIndex.
   template<int... SmallerIndexIds, int IndexId, int... IndexIds, 
            DimensionIndex... PrevBoundDims, DimensionIndex BoundDim, DimensionIndex... BoundDims, 
            int NewIndexId, DimensionIndex NewBoundDim, 
-           typename EnableIf=typename internal::enable_if<(NewIndexId <= IndexId)>::type>
+           typename EnableIf=typename internal::enable_if<(NewIndexId <= IndexId), bool>::type>
   auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
               sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, 
                                BoundTensorIndex<IndexIds, BoundDims>...>,
@@ -114,6 +117,7 @@ namespace internal {
                             BoundTensorIndex<NewIndexId, NewBoundDim>>{};
   }
 
+  // Merge two sorted_indices_t.
   template<int... IndexIds2, DimensionIndex... BoundDims2>
   auto sorted_indices_merge(sorted_indices_t<>, sorted_indices_t<BoundTensorIndex<IndexIds2, BoundDims2>...> b)
   {
@@ -129,7 +133,7 @@ namespace internal {
                                 b.insert(BoundTensorIndex<IndexId, BoundDim>{}));
   }
 
-  // Transforms any T const& to T& and leaves anything else unchanged
+  // Transforms any T const& to T& and leaves anything else unchanged.
   template<typename T>
   struct const_ref_to_ref
   {
@@ -266,8 +270,8 @@ namespace internal {
   void indexed_tensor_assign(IndexedTensor<TensorExpr, BoundTensorIndex<IndexIds, BoundDims>...>* this_, 
                              IndexedTensor<OtherTensorExpr, BoundTensorIndex<IndexIds, OtherBoundDims>...> const& other)
   {
-    this_->expression().shuffle(internal::make_array(static_cast<int>(BoundDims)...))
-      = other.expression().shuffle(internal::make_array(static_cast<int>(OtherBoundDims)...));
+    this_->expression().shuffle(Eigen::IndexList<Eigen::type2index<BoundDims>...>{})
+      = other.expression().shuffle(Eigen::IndexList<Eigen::type2index<OtherBoundDims>...>{});
   }
 
 } // namespace internal
@@ -521,8 +525,8 @@ namespace internal {
                           IndexedTensor<Expr2, BoundTensorIndex<IndexIds, BoundDimsB>...> const& b,
                           std::index_sequence<Is...>)
   {
-    return internal::make_indexed_tensor(a.expression().shuffle(internal::make_array(static_cast<int>(BoundDimsA)...))
-      + b.expression().shuffle(internal::make_array(static_cast<int>(BoundDimsB)...)), 
+    return internal::make_indexed_tensor(a.expression().shuffle(Eigen::IndexList<Eigen::type2index<BoundDimsA>...>{})
+      + b.expression().shuffle(Eigen::IndexList<Eigen::type2index<BoundDimsB>...>{}), 
                          internal::sorted_indices_t<BoundTensorIndex<IndexIds, static_cast<DimensionIndex>(Is)>...>{});
   }
 
