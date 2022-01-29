@@ -195,7 +195,7 @@ struct find_best_packet_helper<Size,PacketType,false>
 template<typename T, int Size>
 struct find_best_packet
 {
-  typedef typename find_best_packet_helper<Size,typename packet_traits<T>::type>::type type;
+  typedef typename find_best_packet_helper<Size,packet_full_t<T>>::type type;
 };
 
 #if EIGEN_MAX_STATIC_ALIGN_BYTES>0

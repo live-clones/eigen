@@ -983,7 +983,7 @@ struct evaluator<Map<PlainObjectType, MapOptions, StrideType> >
   typedef Map<PlainObjectType, MapOptions, StrideType> XprType;
   typedef typename XprType::Scalar Scalar;
   // TODO: should check for smaller packet types once we can handle multi-sized packet types
-  typedef typename packet_traits<Scalar>::type PacketScalar;
+  typedef packet_full_t<Scalar> PacketScalar;
 
   enum {
     InnerStrideAtCompileTime = StrideType::InnerStrideAtCompileTime == 0
@@ -1040,7 +1040,7 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel> >
   typedef Block<ArgType, BlockRows, BlockCols, InnerPanel> XprType;
   typedef typename XprType::Scalar Scalar;
   // TODO: should check for smaller packet types once we can handle multi-sized packet types
-  typedef typename packet_traits<Scalar>::type PacketScalar;
+  typedef packet_full_t<Scalar> PacketScalar;
 
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost,

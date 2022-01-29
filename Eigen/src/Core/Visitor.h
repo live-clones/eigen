@@ -88,7 +88,7 @@ template<typename Visitor, typename Derived, int UnrollSize>
 struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true>
 {
   typedef typename Derived::Scalar Scalar;
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
 
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor)
@@ -221,14 +221,14 @@ struct coeff_visitor
 
 template<typename Scalar, int NaNPropagation, bool is_min=true>
 struct minmax_compare {
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
   static EIGEN_DEVICE_FUNC inline bool compare(Scalar a, Scalar b) { return a < b; }
   static EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& p) { return predux_min<NaNPropagation>(p);}
 };
 
 template<typename Scalar, int NaNPropagation>
 struct minmax_compare<Scalar, NaNPropagation, false> {
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
   static EIGEN_DEVICE_FUNC inline bool compare(Scalar a, Scalar b) { return a > b; }
   static EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& p) { return predux_max<NaNPropagation>(p);}
 };
@@ -237,7 +237,7 @@ template <typename Derived, bool is_min, int NaNPropagation>
 struct minmax_coeff_visitor : coeff_visitor<Derived>
 {
   using Scalar = typename Derived::Scalar;
-  using Packet = typename packet_traits<Scalar>::type;
+  using Packet = packet_full_t<Scalar>;
   using Comparator = minmax_compare<Scalar, NaNPropagation, is_min>;
 
   EIGEN_DEVICE_FUNC inline
@@ -271,7 +271,7 @@ template <typename Derived, bool is_min>
 struct minmax_coeff_visitor<Derived, is_min, PropagateNumbers> : coeff_visitor<Derived>
 {
   typedef typename Derived::Scalar Scalar;
-  using Packet = typename packet_traits<Scalar>::type;
+  using Packet = packet_full_t<Scalar>;
   using Comparator = minmax_compare<Scalar, PropagateNumbers, is_min>;
 
   EIGEN_DEVICE_FUNC inline
@@ -307,7 +307,7 @@ template <typename Derived, bool is_min>
 struct minmax_coeff_visitor<Derived, is_min, PropagateNaN> : coeff_visitor<Derived>
 {
   typedef typename Derived::Scalar Scalar;
-  using Packet = typename packet_traits<Scalar>::type;
+  using Packet = packet_full_t<Scalar>;
   using Comparator = minmax_compare<Scalar, PropagateNaN, is_min>;
 
   EIGEN_DEVICE_FUNC inline

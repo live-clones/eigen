@@ -29,7 +29,7 @@ void sparselu_gemm(Index m, Index n, Index d, const Scalar* A, Index lda, const 
 {
   using namespace Eigen::internal;
   
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
   enum {
     NumberOfRegisters = EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS,
     PacketSize = packet_traits<Scalar>::size,

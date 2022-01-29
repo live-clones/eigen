@@ -44,13 +44,35 @@ template<typename S>
 using packet_full_t = typename packet_traits<S>::type;
 
 //! Given a scalar type `S`, gets the corresponding half-size packet, if it exists
-template<typename T>
-using packet_half_t = typename packet_traits<T>::half;
+template<typename S>
+using packet_half_t = typename packet_traits<S>::half;
 
 //! Given a scalar type `S`, gets the quarter-sized packet by applying half twice.
 template<typename T>
 using packet_quarter_t = packet_half_t<packet_half_t<T>>;
-}
-}
 
+enum class PacketFraction {
+    Full,
+    Half,
+    Quarter
+};
+
+template <PacketFraction Choice, typename Full, typename Half, typename Quarter>
+struct packet_conditional;
+
+template <typename Full, typename Half, typename Quarter>
+struct packet_conditional<PacketFraction::Full, Full, Half, Quarter> { typedef Full type; };
+
+template <typename Full, typename Half, typename Quarter>
+struct packet_conditional<PacketFraction::Half, Full, Half, Quarter> { typedef Half type; };
+
+template <typename Full, typename Half, typename Quarter>
+struct packet_conditional<PacketFraction::Quarter, Full, Half, Quarter> { typedef Quarter type; };
+
+/// This template alias allows to select either a full, half, or quarter packet for the given `Scalar` based on the first argument.
+template<PacketFraction Choice, typename Scalar>
+using packet_conditional_t = typename packet_conditional<Choice, packet_full_t<Scalar>, packet_half_t<Scalar>, packet_quarter_t<Scalar>>::type;
+
+}   // namespace internal
+}   // namespace Eigen
 #endif //EIGEN_PACKET_HELPERS_H

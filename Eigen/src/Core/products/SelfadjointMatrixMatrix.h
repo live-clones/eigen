@@ -47,9 +47,8 @@ struct symm_pack_lhs
   }
   void operator()(Scalar* blockA, const Scalar* _lhs, Index lhsStride, Index cols, Index rows)
   {
-    // TODO this can be simplified?
-    typedef unpacket_half_t<typename packet_traits<Scalar>::type> HalfPacket;
-    typedef unpacket_quarter_t<typename packet_traits<Scalar>::type> QuarterPacket;
+    typedef packet_half_t<Scalar> HalfPacket;
+    typedef packet_quarter_t<Scalar> QuarterPacket;
     enum { PacketSize = packet_traits<Scalar>::size,
            HalfPacketSize = unpacket_traits<HalfPacket>::size,
            QuarterPacketSize = unpacket_traits<QuarterPacket>::size,

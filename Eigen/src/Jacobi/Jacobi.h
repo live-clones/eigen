@@ -348,8 +348,8 @@ struct apply_rotation_in_the_plane_selector<Scalar,OtherScalar,SizeAtCompileTime
       PacketSize = packet_traits<Scalar>::size,
       OtherPacketSize = packet_traits<OtherScalar>::size
     };
-    typedef typename packet_traits<Scalar>::type Packet;
-    typedef typename packet_traits<OtherScalar>::type OtherPacket;
+    typedef packet_full_t<Scalar> Packet;
+    typedef packet_full_t<OtherScalar> OtherPacket;
 
     /*** dynamic-size vectorized paths ***/
     if(SizeAtCompileTime == Dynamic && ((incrx==1 && incry==1) || PacketSize == 1))

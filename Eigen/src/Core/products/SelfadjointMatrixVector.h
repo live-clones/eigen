@@ -47,7 +47,7 @@ void selfadjoint_matrix_vector_product<Scalar,Index,StorageOrder,UpLo,ConjugateL
   Scalar* res,
   Scalar alpha)
 {
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
   typedef typename NumTraits<Scalar>::Real RealScalar;
   const Index PacketSize = sizeof(Packet)/sizeof(Scalar);
 

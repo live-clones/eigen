@@ -497,7 +497,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
 template<typename Scalar, typename Index>
 EIGEN_DEVICE_FUNC inline Index first_default_aligned(const Scalar* array, Index size)
 {
-  typedef typename packet_traits<Scalar>::type DefaultPacketType;
+  typedef packet_full_t<Scalar> DefaultPacketType;
   return first_aligned<unpacket_traits<DefaultPacketType>::alignment>(array, size);
 }
 

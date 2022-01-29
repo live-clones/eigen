@@ -652,7 +652,7 @@ template<typename Derived>
 static inline Index first_default_aligned(const DenseBase<Derived>& m)
 {
   typedef typename Derived::Scalar Scalar;
-  typedef typename packet_traits<Scalar>::type DefaultPacketType;
+  typedef packet_full_t<Scalar> DefaultPacketType;
   return internal::first_aligned<int(unpacket_traits<DefaultPacketType>::alignment),Derived>(m);
 }
 

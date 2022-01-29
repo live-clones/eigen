@@ -66,9 +66,9 @@ namespace internal {
 template<typename Scalar>
 struct quad_traits
 {
-  typedef typename packet_traits<Scalar>::type    vectortype;
-  typedef PacketBlock<vectortype,4>                     type;
-  typedef vectortype                                 rhstype;
+  typedef packet_full_t<Scalar>           vectortype;
+  typedef PacketBlock<vectortype,4>             type;
+  typedef vectortype                         rhstype;
   enum
   {
     vectorsize = packet_traits<Scalar>::size,
