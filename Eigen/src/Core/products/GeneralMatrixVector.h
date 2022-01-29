@@ -40,7 +40,7 @@ class gemv_traits
   typedef typename gemv_packet_cond<packet_size,                                  \
                                     typename packet_traits<name ## Scalar>::type, \
                                     typename packet_traits<name ## Scalar>::half, \
-                                    typename unpacket_traits<typename packet_traits<name ## Scalar>::half>::half>::type \
+                                    unpacket_half_t<typename packet_traits<name ## Scalar>::half>>::type \
   name ## Packet ## postfix
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);

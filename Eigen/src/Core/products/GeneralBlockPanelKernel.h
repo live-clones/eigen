@@ -382,28 +382,28 @@ struct packet_conditional<GEBPPacketHalf, T1, T2, T3> { typedef T2 type; };
   typedef typename packet_conditional<packet_size,                 \
                                       typename packet_traits<name ## Scalar>::type, \
                                       typename packet_traits<name ## Scalar>::half, \
-                                      typename unpacket_traits<typename packet_traits<name ## Scalar>::half>::half>::type \
+                                      unpacket_half_t<typename packet_traits<name ## Scalar>::half>>::type \
   name ## Packet ## postfix
 
 #define PACKET_DECL_COND(name, packet_size)                        \
   typedef typename packet_conditional<packet_size,                 \
                                       typename packet_traits<name ## Scalar>::type, \
                                       typename packet_traits<name ## Scalar>::half, \
-                                      typename unpacket_traits<typename packet_traits<name ## Scalar>::half>::half>::type \
+                                      unpacket_half_t<typename packet_traits<name ## Scalar>::half>>::type \
   name ## Packet
 
 #define PACKET_DECL_COND_SCALAR_POSTFIX(postfix, packet_size)      \
   typedef typename packet_conditional<packet_size,                 \
                                       typename packet_traits<Scalar>::type, \
                                       typename packet_traits<Scalar>::half, \
-                                      typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type \
+                                      unpacket_half_t<typename packet_traits<Scalar>::half>>::type \
   ScalarPacket ## postfix
 
 #define PACKET_DECL_COND_SCALAR(packet_size)                       \
   typedef typename packet_conditional<packet_size,                 \
                                       typename packet_traits<Scalar>::type, \
                                       typename packet_traits<Scalar>::half, \
-                                      typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type \
+                                      unpacket_half_t<typename packet_traits<Scalar>::half>>::type \
   ScalarPacket
 
 /* Vectorization logic
@@ -709,13 +709,13 @@ predux_half_dowto4(const DoublePacket<Packet> &a,
 }
 
 template<typename Packet>
-DoublePacket<typename unpacket_traits<Packet>::half>
+DoublePacket<unpacket_half_t<Packet>>
 predux_half_dowto4(const DoublePacket<Packet> &a,
                    std::enable_if_t<unpacket_traits<Packet>::size==16>* = 0)
 {
   // yes, that's pretty hackish :(
-  DoublePacket<typename unpacket_traits<Packet>::half> res;
-  typedef std::complex<typename unpacket_traits<Packet>::type> Cplx;
+  DoublePacket<unpacket_half_t<Packet>> res;
+  typedef std::complex<unpacket_underlying_t<Packet>> Cplx;
   typedef typename packet_traits<Cplx>::type CplxPacket;
   res.first  = predux_half_dowto4(CplxPacket(a.first)).v;
   res.second = predux_half_dowto4(CplxPacket(a.second)).v;
@@ -745,7 +745,7 @@ void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
 
 
 template<typename Packet> struct unpacket_traits<DoublePacket<Packet> > {
-  typedef DoublePacket<typename unpacket_traits<Packet>::half> half;
+  typedef DoublePacket<unpacket_half_t<Packet>> half;
 };
 // template<typename Packet>
 // DoublePacket<Packet> pmadd(const DoublePacket<Packet> &a, const DoublePacket<Packet> &b)
@@ -857,13 +857,13 @@ public:
   // nothing special here
   EIGEN_STRONG_INLINE void loadLhs(const LhsScalar* a, LhsPacket& dest) const
   {
-    dest = pload<LhsPacket>((const typename unpacket_traits<LhsPacket>::type*)(a));
+    dest = pload<LhsPacket>((const unpacket_underlying_t<LhsPacket>*)(a));
   }
 
   template<typename LhsPacketType>
   EIGEN_STRONG_INLINE void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const
   {
-    dest = ploadu<LhsPacketType>((const typename unpacket_traits<LhsPacketType>::type*)(a));
+    dest = ploadu<LhsPacketType>((const unpacket_underlying_t<LhsPacketType>*)(a));
   }
 
   template<typename LhsPacketType, typename RhsPacketType, typename ResPacketType, typename TmpType, typename LaneIdType>
@@ -1154,10 +1154,10 @@ struct last_row_process_16_packets<LhsScalar, RhsScalar, Index, DataMapper,  mr,
                   const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
                   ResScalar alpha, SAccPacket &C0)
   {
-    typedef typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half SResPacketQuarter;
-    typedef typename unpacket_traits<typename unpacket_traits<SLhsPacket>::half>::half SLhsPacketQuarter;
-    typedef typename unpacket_traits<typename unpacket_traits<SRhsPacket>::half>::half SRhsPacketQuarter;
-    typedef typename unpacket_traits<typename unpacket_traits<SAccPacket>::half>::half SAccPacketQuarter;
+    typedef unpacket_quarter_t<SResPacket> SResPacketQuarter;
+    typedef unpacket_quarter_t<SLhsPacket> SLhsPacketQuarter;
+    typedef unpacket_quarter_t<SRhsPacket> SRhsPacketQuarter;
+    typedef unpacket_quarter_t<SAccPacket> SAccPacketQuarter;
 
     SResPacketQuarter R = res.template gatherPacket<SResPacketQuarter>(i, j2);
     SResPacketQuarter alphav = pset1<SResPacketQuarter>(alpha);
@@ -1919,8 +1919,8 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
           // If LhsProgress is 8 or 16, it assumes that there is a
           // half or quarter packet, respectively, of the same size as
           // nr (which is currently 4) for the return type.
-          const int SResPacketHalfSize = unpacket_traits<typename unpacket_traits<SResPacket>::half>::size;
-          const int SResPacketQuarterSize = unpacket_traits<typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half>::size;
+          const int SResPacketHalfSize = unpacket_traits<unpacket_half_t<SResPacket>>::size;
+          const int SResPacketQuarterSize = unpacket_traits<unpacket_quarter_t<SResPacket>>::size;
           if ((SwappedTraits::LhsProgress % 4) == 0 &&
               (SwappedTraits::LhsProgress<=16) &&
               (SwappedTraits::LhsProgress!=8  || SResPacketHalfSize==nr) &&
@@ -1976,10 +1976,10 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
             if(SwappedTraits::LhsProgress==8)
             {
               // Special case where we have to first reduce the accumulation register C0
-              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,typename unpacket_traits<SResPacket>::half,SResPacket> SResPacketHalf;
-              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,typename unpacket_traits<SLhsPacket>::half,SLhsPacket> SLhsPacketHalf;
-              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,typename unpacket_traits<SRhsPacket>::half,SRhsPacket> SRhsPacketHalf;
-              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,typename unpacket_traits<SAccPacket>::half,SAccPacket> SAccPacketHalf;
+              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,unpacket_half_t<SResPacket>,SResPacket> SResPacketHalf;
+              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,unpacket_half_t<SLhsPacket>,SLhsPacket> SLhsPacketHalf;
+              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,unpacket_half_t<SRhsPacket>,SRhsPacket> SRhsPacketHalf;
+              typedef std::conditional_t<SwappedTraits::LhsProgress>=8,unpacket_half_t<SAccPacket>,SAccPacket> SAccPacketHalf;
 
               SResPacketHalf R = res.template gatherPacket<SResPacketHalf>(i, j2);
               SResPacketHalf alphav = pset1<SResPacketHalf>(alpha);
@@ -2098,8 +2098,8 @@ template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pa
 EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
   ::operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
-  typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
+  typedef unpacket_half_t<Packet> HalfPacket;
+  typedef unpacket_quarter_t<Packet> QuarterPacket;
   enum { PacketSize = unpacket_traits<Packet>::size,
          HalfPacketSize = unpacket_traits<HalfPacket>::size,
          QuarterPacketSize = unpacket_traits<QuarterPacket>::size,
@@ -2254,8 +2254,8 @@ template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pa
 EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
   ::operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
-  typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
+  typedef unpacket_half_t<Packet> HalfPacket;
+  typedef unpacket_quarter_t<Packet> QuarterPacket;
   enum { PacketSize = unpacket_traits<Packet>::size,
          HalfPacketSize = unpacket_traits<HalfPacket>::size,
          QuarterPacketSize = unpacket_traits<QuarterPacket>::size,
@@ -2503,8 +2503,8 @@ template<typename Scalar, typename Index, typename DataMapper, int nr, bool Conj
 struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
 {
   typedef typename packet_traits<Scalar>::type Packet;
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
-  typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
+  typedef unpacket_half_t<Packet> HalfPacket;
+  typedef unpacket_quarter_t<Packet> QuarterPacket;
   typedef typename DataMapper::LinearMapper LinearMapper;
   enum { PacketSize = packet_traits<Scalar>::size,
          HalfPacketSize = unpacket_traits<HalfPacket>::size,

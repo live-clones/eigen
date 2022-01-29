@@ -57,7 +57,7 @@ struct packetwise_redux_traits
 template<typename PacketType,typename Func>
 EIGEN_DEVICE_FUNC
 PacketType packetwise_redux_empty_value(const Func& ) {
-  const typename unpacket_traits<PacketType>::type zero(0);
+  const unpacket_underlying_t<PacketType> zero(0);
   return pset1<PacketType>(zero);
 }
 

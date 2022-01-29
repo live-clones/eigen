@@ -97,8 +97,8 @@ struct pcast_array;
 
 template <typename SrcPacket, typename TgtPacket, int TgtCoeffRatio>
 struct pcast_array<SrcPacket, TgtPacket, 1, TgtCoeffRatio> {
-  typedef typename internal::unpacket_traits<SrcPacket>::type SrcScalar;
-  typedef typename internal::unpacket_traits<TgtPacket>::type TgtScalar;
+  typedef internal::unpacket_underlying_t<SrcPacket> SrcScalar;
+  typedef internal::unpacket_underlying_t<TgtPacket> TgtScalar;
   static void cast(const SrcScalar* src, size_t size, TgtScalar* dst) {
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
     static const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
@@ -115,8 +115,8 @@ struct pcast_array<SrcPacket, TgtPacket, 1, TgtCoeffRatio> {
 
 template <typename SrcPacket, typename TgtPacket>
 struct pcast_array<SrcPacket, TgtPacket, 2, 1> {
-  static void cast(const typename internal::unpacket_traits<SrcPacket>::type* src, size_t size,
-                   typename internal::unpacket_traits<TgtPacket>::type* dst) {
+  static void cast(const internal::unpacket_underlying_t<SrcPacket>* src, size_t size,
+                   internal::unpacket_underlying_t<TgtPacket>* dst) {
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
     static const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
     for (size_t i = 0; i < size; i += TgtPacketSize) {
@@ -129,8 +129,8 @@ struct pcast_array<SrcPacket, TgtPacket, 2, 1> {
 
 template <typename SrcPacket, typename TgtPacket>
 struct pcast_array<SrcPacket, TgtPacket, 4, 1> {
-  static void cast(const typename internal::unpacket_traits<SrcPacket>::type* src, size_t size,
-                   typename internal::unpacket_traits<TgtPacket>::type* dst) {
+  static void cast(const internal::unpacket_underlying_t<SrcPacket>* src, size_t size,
+                   internal::unpacket_underlying_t<TgtPacket>* dst) {
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
     static const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
     for (size_t i = 0; i < size; i += TgtPacketSize) {
@@ -145,8 +145,8 @@ struct pcast_array<SrcPacket, TgtPacket, 4, 1> {
 
 template <typename SrcPacket, typename TgtPacket>
 struct pcast_array<SrcPacket, TgtPacket, 8, 1> {
-  static void cast(const typename internal::unpacket_traits<SrcPacket>::type* src, size_t size,
-                   typename internal::unpacket_traits<TgtPacket>::type* dst) {
+  static void cast(const internal::unpacket_underlying_t<SrcPacket>* src, size_t size,
+                   internal::unpacket_underlying_t<TgtPacket>* dst) {
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
     static const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
     for (size_t i = 0; i < size; i += TgtPacketSize) {
@@ -174,8 +174,8 @@ struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, fals
 template <typename SrcPacket, typename TgtPacket, int SrcCoeffRatio, int TgtCoeffRatio>
 struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, true> {
   static void run() {
-    typedef typename internal::unpacket_traits<SrcPacket>::type SrcScalar;
-    typedef typename internal::unpacket_traits<TgtPacket>::type TgtScalar;
+    typedef internal::unpacket_underlying_t<SrcPacket> SrcScalar;
+    typedef internal::unpacket_underlying_t<TgtPacket> TgtScalar;
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
     static const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
     static const int BlockSize = SrcPacketSize * SrcCoeffRatio;
@@ -204,8 +204,8 @@ struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, true
 template <typename SrcPacket, typename TgtPacket>
 struct test_cast {
   static void run() {
-    typedef typename internal::unpacket_traits<SrcPacket>::type SrcScalar;
-    typedef typename internal::unpacket_traits<TgtPacket>::type TgtScalar;
+    typedef internal::unpacket_underlying_t<SrcPacket> SrcScalar;
+    typedef internal::unpacket_underlying_t<TgtPacket> TgtScalar;
     typedef typename internal::type_casting_traits<SrcScalar, TgtScalar> TypeCastingTraits;
     static const int SrcCoeffRatio = TypeCastingTraits::SrcCoeffRatio;
     static const int TgtCoeffRatio = TypeCastingTraits::TgtCoeffRatio;
@@ -221,7 +221,7 @@ struct test_cast {
 template <typename SrcPacket, typename TgtScalar,
           typename TgtPacket = typename internal::packet_traits<TgtScalar>::type,
           bool Vectorized = internal::packet_traits<TgtScalar>::Vectorizable,
-          bool HasHalf = !internal::is_same<typename internal::unpacket_traits<TgtPacket>::half, TgtPacket>::value>
+          bool HasHalf = !internal::is_same<internal::unpacket_half_t<TgtPacket>, TgtPacket>::value>
 struct test_cast_runner;
 
 template <typename SrcPacket, typename TgtScalar, typename TgtPacket>
@@ -233,7 +233,7 @@ template <typename SrcPacket, typename TgtScalar, typename TgtPacket>
 struct test_cast_runner<SrcPacket, TgtScalar, TgtPacket, true, true> {
   static void run() {
     test_cast<SrcPacket, TgtPacket>::run();
-    test_cast_runner<SrcPacket, TgtScalar, typename internal::unpacket_traits<TgtPacket>::half>::run();
+    test_cast_runner<SrcPacket, TgtScalar, internal::unpacket_half_t<TgtPacket>>::run();
   }
 };
 
@@ -410,7 +410,7 @@ struct eigen_optimization_barrier_test<Packet, std::enable_if_t<
     !internal::is_same<Packet, Eigen::bfloat16>::value
   >> {
   static void run() {
-    typedef typename internal::unpacket_traits<Packet>::type Scalar;
+    typedef internal::unpacket_underlying_t<Packet> Scalar;
     Scalar s = internal::random<Scalar>();
     Packet barrier = internal::pset1<Packet>(s);
     EIGEN_OPTIMIZATION_BARRIER(barrier);
@@ -550,7 +550,7 @@ void packetmath() {
   for (int i = 0; i < PacketSize; ++i) ref[0] += data1[i];
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
 
-  if (!internal::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
+  if (!internal::is_same<Packet, internal::unpacket_half_t<Packet>>::value) {
     int HalfPacketSize = PacketSize > 4 ? PacketSize / 2 : PacketSize;
     for (int i = 0; i < HalfPacketSize; ++i) ref[i] = Scalar(0);
     for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] += data1[i];

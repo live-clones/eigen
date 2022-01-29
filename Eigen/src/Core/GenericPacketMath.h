@@ -132,10 +132,16 @@ template<typename T> struct packet_traits : default_packet_traits
 
 template<typename T> struct packet_traits<const T> : packet_traits<T> { };
 
+// TODO improve documentation for `half` types to specify what should happen
+// if such a type is not available.
+/**
+ * \internal Given a packet type `T`, this traits class gives information about the
+ * packet and the underlying type.
+ */
 template<typename T> struct unpacket_traits
 {
-  typedef T type;
-  typedef T half;
+  typedef T type;     //!< The underlying type of the packet.
+  typedef T half;     //!< A packet with half the size of the original packet, if available.
   enum
   {
     size = 1,
@@ -179,7 +185,7 @@ struct eigen_packet_wrapper
  */
 template<typename Packet>
 struct is_scalar {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   enum {
     value = internal::is_same<Packet, Scalar>::value
   };
@@ -608,11 +614,11 @@ pabsdiff(const Packet& a, const Packet& b) { return pselect(pcmp_lt(a, b), psub(
 
 /** \internal \returns a packet version of \a *from, from must be 16 bytes aligned */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-pload(const typename unpacket_traits<Packet>::type* from) { return *from; }
+pload(const unpacket_underlying_t<Packet>* from) { return *from; }
 
 /** \internal \returns a packet version of \a *from, (un-aligned load) */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
+ploadu(const unpacket_underlying_t<Packet>* from) { return *from; }
 
 /** \internal \returns a packet version of \a *from, (un-aligned masked load)
  * There is no generic implementation. We only have implementations for specialized
@@ -620,11 +626,11 @@ ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
  */
 template<typename Packet> EIGEN_DEVICE_FUNC inline
 std::enable_if_t<unpacket_traits<Packet>::masked_load_available, Packet>
-ploadu(const typename unpacket_traits<Packet>::type* from, typename unpacket_traits<Packet>::mask_t umask);
+ploadu(const unpacket_underlying_t<Packet>* from, typename unpacket_traits<Packet>::mask_t umask);
 
 /** \internal \returns a packet with constant coefficients \a a, e.g.: (a,a,a,a) */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-pset1(const typename unpacket_traits<Packet>::type& a) { return a; }
+pset1(const unpacket_underlying_t<Packet>& a) { return a; }
 
 /** \internal \returns a packet with constant coefficients set from bits */
 template<typename Packet,typename BitsType> EIGEN_DEVICE_FUNC inline Packet
@@ -632,7 +638,7 @@ pset1frombits(BitsType a);
 
 /** \internal \returns a packet with constant coefficients \a a[0], e.g.: (a[0],a[0],a[0],a[0]) */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-pload1(const typename unpacket_traits<Packet>::type  *a) { return pset1<Packet>(*a); }
+pload1(const unpacket_underlying_t<Packet>  *a) { return pset1<Packet>(*a); }
 
 /** \internal \returns a packet with elements of \a *from duplicated.
   * For instance, for a packet of 8 elements, 4 scalars will be read from \a *from and
@@ -640,7 +646,7 @@ pload1(const typename unpacket_traits<Packet>::type  *a) { return pset1<Packet>(
   * Currently, this function is only used for scalar * complex products.
   */
 template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet
-ploaddup(const typename unpacket_traits<Packet>::type* from) { return *from; }
+ploaddup(const unpacket_underlying_t<Packet>* from) { return *from; }
 
 /** \internal \returns a packet with elements of \a *from quadrupled.
   * For instance, for a packet of 8 elements, 2 scalars will be read from \a *from and
@@ -649,7 +655,7 @@ ploaddup(const typename unpacket_traits<Packet>::type* from) { return *from; }
   * For packet-size smaller or equal to 4, this function is equivalent to pload1
   */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-ploadquad(const typename unpacket_traits<Packet>::type* from)
+ploadquad(const unpacket_underlying_t<Packet>* from)
 { return pload1<Packet>(from); }
 
 /** \internal equivalent to
@@ -662,7 +668,7 @@ ploadquad(const typename unpacket_traits<Packet>::type* from)
   * \sa pset1, pload1, ploaddup, pbroadcast2
   */
 template<typename Packet> EIGEN_DEVICE_FUNC
-inline void pbroadcast4(const typename unpacket_traits<Packet>::type *a,
+inline void pbroadcast4(const unpacket_underlying_t<Packet> *a,
                         Packet& a0, Packet& a1, Packet& a2, Packet& a3)
 {
   a0 = pload1<Packet>(a+0);
@@ -679,7 +685,7 @@ inline void pbroadcast4(const typename unpacket_traits<Packet>::type *a,
   * \sa pset1, pload1, ploaddup, pbroadcast4
   */
 template<typename Packet> EIGEN_DEVICE_FUNC
-inline void pbroadcast2(const typename unpacket_traits<Packet>::type *a,
+inline void pbroadcast2(const unpacket_underlying_t<Packet> *a,
                         Packet& a0, Packet& a1)
 {
   a0 = pload1<Packet>(a+0);
@@ -688,13 +694,13 @@ inline void pbroadcast2(const typename unpacket_traits<Packet>::type *a,
 
 /** \internal \brief Returns a packet with coefficients (a,a+1,...,a+packet_size-1). */
 template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet
-plset(const typename unpacket_traits<Packet>::type& a) { return a; }
+plset(const unpacket_underlying_t<Packet>& a) { return a; }
 
 /** \internal \returns a packet with constant coefficients \a a, e.g.: (x, 0, x, 0),
      where x is the value of all 1-bits. */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 peven_mask(const Packet& /*a*/) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   const size_t n = unpacket_traits<Packet>::size;
   EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar elements[n];
   for(size_t i = 0; i < n; ++i) {
@@ -818,7 +824,7 @@ Packet plog10(const Packet& a) { EIGEN_USING_STD(log10); return log10(a); }
 /** \internal \returns the log10 of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet plog2(const Packet& a) {
-  typedef typename internal::unpacket_traits<Packet>::type Scalar;
+  typedef internal::unpacket_underlying_t<Packet> Scalar;
   return pmul(pset1<Packet>(Scalar(EIGEN_LOG2E)), plog(a));
 }
 
@@ -845,7 +851,7 @@ Packet pceil(const Packet& a) { using numext::ceil; return ceil(a); }
 
 /** \internal \returns the first element of a packet */
 template<typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet>
 pfirst(const Packet& a)
 { return a; }
 
@@ -854,15 +860,15 @@ pfirst(const Packet& a)
   * For packet-size smaller or equal to 4, this boils down to a noop.
   */
 template<typename Packet>
-EIGEN_DEVICE_FUNC inline std::conditional_t<(unpacket_traits<Packet>::size%8)==0,typename unpacket_traits<Packet>::half,Packet>
+EIGEN_DEVICE_FUNC inline std::conditional_t<(unpacket_traits<Packet>::size%8)==0,unpacket_half_t<Packet>,Packet>
 predux_half_dowto4(const Packet& a)
 { return a; }
 
 // Slow generic implementation of Packet reduction.
 template <typename Packet, typename Op>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet>
 predux_helper(const Packet& a, Op op) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   const size_t n = unpacket_traits<Packet>::size;
   EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar elements[n];
   pstoreu<Scalar>(elements, a);
@@ -876,7 +882,7 @@ predux_helper(const Packet& a, Op op) {
 
 /** \internal \returns the sum of the elements of \a a*/
 template<typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet>
 predux(const Packet& a)
 {
   return a;
@@ -884,39 +890,39 @@ predux(const Packet& a)
 
 /** \internal \returns the product of the elements of \a a */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_mul(
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet> predux_mul(
     const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmul<Scalar>)));
 }
 
 /** \internal \returns the min of the elements of \a a */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_min(
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet> predux_min(
     const Packet &a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmin<PropagateFast, Scalar>)));
 }
 
 template <int NaNPropagation, typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_min(
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet> predux_min(
     const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmin<NaNPropagation, Scalar>)));
 }
 
 /** \internal \returns the min of the elements of \a a */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_max(
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet> predux_max(
     const Packet &a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmax<PropagateFast, Scalar>)));
 }
 
 template <int NaNPropagation, typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_max(
+EIGEN_DEVICE_FUNC inline unpacket_underlying_t<Packet> predux_max(
     const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmax<NaNPropagation, Scalar>)));
 }
 
@@ -940,7 +946,7 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline bool predux_any(const Packet&
   //  - bits full of ones (NaN for floats),
   //  - or first bit equals to 1 (1 for ints, smallest denormal for floats).
   // For all these cases, taking the sum is just fine, and this boils down to a no-op for scalars.
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   return numext::not_equal_strict(predux(a), Scalar(0));
 }
 
@@ -980,7 +986,7 @@ EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b,
 /** \internal copy a packet with constant coefficient \a a (e.g., [a,a,a,a]) to \a *to. \a to must be 16 bytes aligned */
 // NOTE: this function must really be templated on the packet type (think about different packet types for the same scalar type)
 template<typename Packet>
-inline void pstore1(typename unpacket_traits<Packet>::type* to, const typename unpacket_traits<Packet>::type& a)
+inline void pstore1(unpacket_underlying_t<Packet>* to, const unpacket_underlying_t<Packet>& a)
 {
   pstore(to, pset1<Packet>(a));
 }
@@ -988,7 +994,7 @@ inline void pstore1(typename unpacket_traits<Packet>::type* to, const typename u
 /** \internal \returns a packet version of \a *from.
   * The pointer \a from must be aligned on a \a Alignment bytes boundary. */
 template<typename Packet, int Alignment>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_traits<Packet>::type* from)
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const unpacket_underlying_t<Packet>* from)
 {
   if(Alignment >= unpacket_traits<Packet>::alignment)
     return pload<Packet>(from);
@@ -1013,7 +1019,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& fro
   * by the current computation.
   */
 template<typename Packet, int LoadMode>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_ro(const typename unpacket_traits<Packet>::type* from)
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_ro(const unpacket_underlying_t<Packet>* from)
 {
   return ploadt<Packet, LoadMode>(from);
 }
@@ -1063,7 +1069,7 @@ pblend(const Selector<unpacket_traits<Packet>::size>& ifPacket, const Packet& th
 /** \internal \returns 1 / a (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet preciprocal(const Packet& a) {
-  using Scalar = typename unpacket_traits<Packet>::type;
+  using Scalar = unpacket_underlying_t<Packet>;
   return pdiv(pset1<Packet>(Scalar(1)), a);
 }
 

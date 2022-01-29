@@ -48,7 +48,7 @@ struct bessel_i0e_retval {
   typedef Scalar type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_i0e {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -216,7 +216,7 @@ struct bessel_i0_retval {
   typedef Scalar type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_i0 {
   EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE T run(const T& x) {
@@ -239,7 +239,7 @@ struct bessel_i1e_retval {
   typedef Scalar type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type >
+template <typename T, typename ScalarType = unpacket_underlying_t<T> >
 struct generic_i1e {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -411,7 +411,7 @@ struct bessel_i1_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_i1 {
   EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE T run(const T& x) {
@@ -434,7 +434,7 @@ struct bessel_k0e_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_k0e {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -597,7 +597,7 @@ struct bessel_k0_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_k0 {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -769,7 +769,7 @@ struct bessel_k1e_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_k1e {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -925,7 +925,7 @@ struct bessel_k1_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_k1 {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -1091,7 +1091,7 @@ struct bessel_j0_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_j0 {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -1291,7 +1291,7 @@ struct bessel_y0_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_y0 {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -1489,7 +1489,7 @@ struct bessel_j1_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_j1 {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)
@@ -1680,7 +1680,7 @@ struct bessel_y1_retval {
   typedef T type;
 };
 
-template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
+template <typename T, typename ScalarType = unpacket_underlying_t<T>>
 struct generic_y1 {
   EIGEN_STATIC_ASSERT((internal::is_same<T, T>::value == false),
                       THIS_TYPE_IS_NOT_SUPPORTED)

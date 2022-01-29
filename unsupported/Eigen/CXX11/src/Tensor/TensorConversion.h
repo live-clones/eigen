@@ -156,10 +156,10 @@ struct PacketConverter<TensorEvaluator, SrcPacket, TgtPacket, 1, TgtCoeffRatio> 
       return internal::pcast<SrcPacket, TgtPacket>(m_impl.template packet<Unaligned>(index));
     } else {
       const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
-      typedef typename internal::unpacket_traits<SrcPacket>::type SrcType;
-      typedef typename internal::unpacket_traits<TgtPacket>::type TgtType;
+      typedef internal::unpacket_underlying_t<SrcPacket> SrcType;
+      typedef internal::unpacket_underlying_t<TgtPacket> TgtType;
       internal::scalar_cast_op<SrcType, TgtType> converter;
-      EIGEN_ALIGN_MAX typename internal::unpacket_traits<TgtPacket>::type values[TgtPacketSize];
+      EIGEN_ALIGN_MAX internal::unpacket_underlying_t<TgtPacket> values[TgtPacketSize];
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < TgtPacketSize; ++i) {
         values[i] = converter(m_impl.coeff(index+i));
@@ -249,8 +249,8 @@ struct CoeffConv<SrcType, TargetType, true> {
 
 template <typename SrcPacket, typename TargetPacket, int LoadMode, bool ActuallyVectorize, bool IsSameT>
 struct PacketConv {
-  typedef typename internal::unpacket_traits<SrcPacket>::type SrcType;
-  typedef typename internal::unpacket_traits<TargetPacket>::type TargetType;
+  typedef internal::unpacket_underlying_t<SrcPacket> SrcType;
+  typedef internal::unpacket_underlying_t<TargetPacket> TargetType;
 
   static const int PacketSize = internal::unpacket_traits<TargetPacket>::size;
 
@@ -269,8 +269,8 @@ struct PacketConv {
 
 template <typename SrcPacket, typename TargetPacket, int LoadMode, bool IsSameT>
 struct PacketConv<SrcPacket, TargetPacket, LoadMode, true, IsSameT> {
-  typedef typename internal::unpacket_traits<SrcPacket>::type SrcType;
-  typedef typename internal::unpacket_traits<TargetPacket>::type TargetType;
+  typedef internal::unpacket_underlying_t<SrcPacket> SrcType;
+  typedef internal::unpacket_underlying_t<TargetPacket> TargetType;
 
   template <typename ArgType, typename Device>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TargetPacket run(const TensorEvaluator<ArgType, Device>& impl, Index index) {
@@ -284,7 +284,7 @@ struct PacketConv<SrcPacket, TargetPacket, LoadMode, true, IsSameT> {
 
 template <typename SrcPacket, typename TargetPacket, int LoadMode>
 struct PacketConv<SrcPacket, TargetPacket, LoadMode, /*ActuallyVectorize=*/false, /*IsSameT=*/true> {
-  typedef typename internal::unpacket_traits<TargetPacket>::type TargetType;
+  typedef internal::unpacket_underlying_t<TargetPacket> TargetType;
   static const int PacketSize = internal::unpacket_traits<TargetPacket>::size;
 
   template <typename ArgType, typename Device>

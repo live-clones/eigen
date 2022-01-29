@@ -30,7 +30,7 @@ template<> struct make_integer<bfloat16> { typedef numext::int16_t type; };
 
 template<typename Packet> EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC
 Packet pfrexp_generic_get_biased_exponent(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   static constexpr int mantissa_bits = numext::numeric_limits<Scalar>::digits - 1;
   return pcast<PacketI, Packet>(plogical_shift_right<mantissa_bits>(preinterpret<PacketI>(pabs(a))));
@@ -40,7 +40,7 @@ Packet pfrexp_generic_get_biased_exponent(const Packet& a) {
 // Assumes IEEE floating point format.
 template<typename Packet> EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC
 Packet pfrexp_generic(const Packet& a, Packet& exponent) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   typedef typename make_unsigned<typename make_integer<Scalar>::type>::type ScalarUI;
   static constexpr int
     TotalBits = sizeof(Scalar) * CHAR_BIT,
@@ -107,8 +107,8 @@ Packet pldexp_generic(const Packet& a, const Packet& exponent) {
   // This will avoid any intermediate overflows and correctly handle 0, inf,
   // NaN cases.
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  typedef unpacket_underlying_t<Packet> Scalar;
+  typedef unpacket_underlying_t<PacketI> ScalarI;
   static constexpr int
     TotalBits = sizeof(Scalar) * CHAR_BIT,
     MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
@@ -138,8 +138,8 @@ Packet pldexp_generic(const Packet& a, const Packet& exponent) {
 template<typename Packet>
 struct pldexp_fast_impl {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  typedef unpacket_underlying_t<Packet> Scalar;
+  typedef unpacket_underlying_t<PacketI> ScalarI;
   static constexpr int
     TotalBits = sizeof(Scalar) * CHAR_BIT,
     MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
@@ -358,7 +358,7 @@ Packet plog2_double(const Packet _x)
 template<typename Packet>
 Packet generic_plog1p(const Packet& x)
 {
-  typedef typename unpacket_traits<Packet>::type ScalarType;
+  typedef unpacket_underlying_t<Packet> ScalarType;
   const Packet one = pset1<Packet>(ScalarType(1));
   Packet xp1 = padd(x, one);
   Packet small_mask = pcmp_eq(xp1, one);
@@ -374,7 +374,7 @@ Packet generic_plog1p(const Packet& x)
 template<typename Packet>
 Packet generic_expm1(const Packet& x)
 {
-  typedef typename unpacket_traits<Packet>::type ScalarType;
+  typedef unpacket_underlying_t<Packet> ScalarType;
   const Packet one = pset1<Packet>(ScalarType(1));
   const Packet neg_one = pset1<Packet>(ScalarType(-1));
   Packet u = pexp(x);
@@ -743,7 +743,7 @@ Packet pdiv_complex(const Packet& x, const Packet& y) {
 template<typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet psqrt_complex(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   typedef typename Scalar::value_type RealScalar;
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
 
@@ -899,7 +899,7 @@ void twoprod(const Packet& x, const Packet& y,
 template<typename Packet>
 EIGEN_STRONG_INLINE
 void veltkamp_splitting(const Packet& x, Packet& x_hi, Packet& x_lo) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   EIGEN_CONSTEXPR int shift = (NumTraits<Scalar>::digits() + 1) / 2;
   const Scalar shift_scale = Scalar(uint64_t(1) << shift);  // Scalar constructor not necessarily constexpr.
   const Packet gamma = pmul(pset1<Packet>(shift_scale + Scalar(1)), x);
@@ -1025,7 +1025,7 @@ void twoprod(const Packet& x_hi, const Packet& x_lo,
 // with extra precision and returns the result as a double word.
 template <typename Packet>
 void doubleword_reciprocal(const Packet& x, Packet& recip_hi, Packet& recip_lo) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   // 1. Approximate the reciprocal as the reciprocal of the high order element.
   Packet approx_recip = prsqrt(x);
   approx_recip = pmul(approx_recip, approx_recip);
@@ -1377,7 +1377,7 @@ struct fast_accurate_exp2<double> {
 // easier to specialize or turn off for specific types and/or backends.x
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, const Packet& y) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
   // Split x into exponent e_x and mantissa m_x.
   Packet e_x;
   Packet m_x = pfrexp(x, e_x);
@@ -1427,7 +1427,7 @@ EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, const Packet& y) {
 template<typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet generic_pow(const Packet& x, const Packet& y) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef unpacket_underlying_t<Packet> Scalar;
 
   const Packet cst_pos_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
   const Packet cst_zero = pset1<Packet>(Scalar(0));
@@ -1538,7 +1538,7 @@ Packet generic_pow(const Packet& x, const Packet& y) {
  */
 template <typename Packet, int N>
 struct ppolevl {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const typename unpacket_traits<Packet>::type coeff[]) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const unpacket_underlying_t<Packet> coeff[]) {
     EIGEN_STATIC_ASSERT((N > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
     return pmadd(ppolevl<Packet, N-1>::run(x, coeff), x, pset1<Packet>(coeff[N]));
   }
@@ -1546,7 +1546,7 @@ struct ppolevl {
 
 template <typename Packet>
 struct ppolevl<Packet, 0> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const typename unpacket_traits<Packet>::type coeff[]) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const unpacket_underlying_t<Packet> coeff[]) {
     EIGEN_UNUSED_VARIABLE(x);
     return pset1<Packet>(coeff[0]);
   }
@@ -1607,8 +1607,8 @@ struct ppolevl<Packet, 0> {
 template <typename Packet, int N>
 struct pchebevl {
   EIGEN_DEVICE_FUNC
-  static EIGEN_STRONG_INLINE Packet run(Packet x, const typename unpacket_traits<Packet>::type coef[]) {
-    typedef typename unpacket_traits<Packet>::type Scalar;
+  static EIGEN_STRONG_INLINE Packet run(Packet x, const unpacket_underlying_t<Packet> coef[]) {
+    typedef unpacket_underlying_t<Packet> Scalar;
     Packet b0 = pset1<Packet>(coef[0]);
     Packet b1 = pset1<Packet>(static_cast<Scalar>(0.f));
     Packet b2;

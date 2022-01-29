@@ -246,7 +246,7 @@ template<
   typename Scalar,
   typename PacketType = typename internal::packet_traits<Scalar>::type,
   bool Vectorized = internal::packet_traits<Scalar>::Vectorizable,
-  bool HasHalf = !internal::is_same<typename internal::unpacket_traits<PacketType>::half,PacketType>::value >
+  bool HasHalf = !internal::is_same<internal::unpacket_half_t<PacketType>,PacketType>::value >
 struct runner;
 
 template<typename Scalar,typename PacketType>
@@ -254,7 +254,7 @@ struct runner<Scalar,PacketType,true,true>
 {
   static void run() {
     runall<Scalar,PacketType>::run();
-    runner<Scalar,typename internal::unpacket_traits<PacketType>::half>::run();
+    runner<Scalar,internal::unpacket_half_t<PacketType>>::run();
   }
 };
 

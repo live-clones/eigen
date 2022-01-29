@@ -111,7 +111,7 @@ struct vectorization_logic
   typedef internal::packet_traits<Scalar> PacketTraits;
   
   typedef typename internal::packet_traits<Scalar>::type PacketType;
-  typedef typename internal::unpacket_traits<PacketType>::half HalfPacketType;
+  typedef internal::unpacket_half_t<PacketType> HalfPacketType;
   enum {
     PacketSize = internal::unpacket_traits<PacketType>::size,
     HalfPacketSize = internal::unpacket_traits<HalfPacketType>::size
@@ -264,12 +264,12 @@ template<typename Scalar> struct vectorization_logic<Scalar,false>
   static void run() {}
 };
 
-template<typename Scalar, bool Enable = !internal::is_same<typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half,
+template<typename Scalar, bool Enable = !internal::is_same<internal::unpacket_half_t<typename internal::packet_traits<Scalar>::type>,
                                                            typename internal::packet_traits<Scalar>::type>::value >
 struct vectorization_logic_half
 {
   typedef internal::packet_traits<Scalar> PacketTraits;
-  typedef typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half PacketType;
+  typedef internal::unpacket_half_t<typename internal::packet_traits<Scalar>::type> PacketType;
   enum {
     PacketSize = internal::unpacket_traits<PacketType>::size
   };
