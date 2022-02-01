@@ -10,7 +10,7 @@
 #ifndef EIGEN_CONDITIONESTIMATOR_H
 #define EIGEN_CONDITIONESTIMATOR_H
 
-//#include "./InternalHeaderCheck.h"
+#include "./InternalHeaderCheck.h"
 
 namespace Eigen {
 
@@ -19,47 +19,39 @@ namespace internal {
 // compute parallel columns of matrix, where all entries are +/-1
 // for any pair of parallel columns, at least one is returned as being parallel
 inline VectorX<bool> rcond_get_parallel_cols(const MatrixXi &m) {
-  const Index rows{m.rows()};
+  const Index rows = m.rows();
   const MatrixXi m_T_m{(m.transpose() * m).triangularView<StrictlyLower>()};
 
   // fails for some reason:
-  // const ArrayXi norms{m_T_m.colwise().lpNorm<Infinity>()};
+  // const ArrayXi norms=m_T_m.colwise().lpNorm<Infinity>();
   // workaround:
-  const Index cols{m.cols()};
-  ArrayXi norms{ArrayXi(cols)};
-  for (Index i{0}; i < cols; ++i) norms[i] = m_T_m.col(i).cwiseAbs().maxCoeff();
-
-  const VectorX<bool> parallel_cols{
-      norms.unaryExpr([&](const ArrayXi::Scalar &x) { return x == rows ? true : false; })};
-
+  const Index cols = m.cols();
+  ArrayXi norms = ArrayXi(cols);
+  for (Index i = 0; i < cols; ++i) norms[i] = m_T_m.col(i).cwiseAbs().maxCoeff();
+  const VectorX<bool> parallel_cols = (norms == rows);
   return parallel_cols;
 }
 
 // compute columns of m1 with parallel column in m2
 // entries of m1 and m2 are all +/-1
 inline VectorX<bool> rcond_get_parallel_cols(const MatrixXi &m1, const MatrixXi &m2) {
-  const Index rows{m1.rows()};
+  const Index rows = m1.rows();
   const MatrixXi m2_T_m1 = (m2.transpose() * m1);
 
   // fails for some reason:
   // const ArrayXi norms{m2_T_m1.colwise().template lpNorm<Infinity>()};
   // workaround:
-  const Index cols{m1.cols()};
+  const Index cols = m1.cols();
   ArrayXi norms{ArrayXi(cols)};
-  for (Index i{0}; i < cols; ++i) norms[i] = m2_T_m1.col(i).cwiseAbs().maxCoeff();
-
-  const ArrayX<bool> parallel_cols{norms.unaryExpr([&](const ArrayXi::Scalar &x) { return x == rows ? true : false; })};
-
+  for (Index i = 0; i < cols; ++i) norms[i] = m2_T_m1.col(i).cwiseAbs().maxCoeff();
+  const VectorX<bool> parallel_cols = (norms == rows);
   return parallel_cols;
 }
 
 // return sorted indices of v in descending order
 template <typename Vector>
 VectorX<Index> rcond_argsort(const Vector &v) {
-  Index i{0};
-  VectorX<Index> idxs(v.rows());
-  std::generate(std::begin(idxs), std::end(idxs), [&] { return i++; });
-
+  VectorX<Index> idxs = VectorX<Index>::LinSpaced(v.rows(), 0, v.rows() - 1);
   std::sort(std::begin(idxs), std::end(idxs), [&](Index i1, Index i2) { return v[i1] > v[i2]; });
 
   return idxs;
@@ -105,63 +97,49 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
   MatrixXi S{MatrixXi(n, t)};
 
   Scalar old_est{0.};
-
   Index ind_best{0};
 
   Index k{0};
   for (;;) {
     ++k;
 
-    MatrixType Y{dec.solve(X)};
-
+    MatrixType Y = dec.solve(X);
     Index max_idx;
-    Scalar est{Y.colwise().template lpNorm<1>().maxCoeff(&max_idx)};
-
+    Scalar est = Y.colwise().template lpNorm<1>().maxCoeff(&max_idx);
     if (est > old_est || k == 2) ind_best = max_idx;
 
     // (1)
     if (k >= 2 && est <= old_est) break;
-
     old_est = est;
     const MatrixXi S_old{S};
-
     if (k > it_max) return est;
-
-    S = Y.array().unaryExpr([](const Scalar &x) { return x >= 0 ? 1 : -1; });
+    S = 2 * MatrixX<bool>(Y.array() >= 0).cast<int>() - MatrixXi::Ones(n, t);
 
     // (2)
-    const VectorX<bool> parallel_cols_S{internal::rcond_get_parallel_cols(S)};
-
+    const VectorX<bool> parallel_cols_S = internal::rcond_get_parallel_cols(S);
     Index col_ctr{0};
-
     for (bool el : parallel_cols_S) col_ctr += el;
     if (col_ctr == t) return est;
     if (t > 1) {
       const ArrayX<bool> parallel_cols_S_S_old{internal::rcond_get_parallel_cols(S, S_old)};
-      for (Index i{0}; i < t; ++i)
-        if (parallel_cols_S[i] || parallel_cols_S_S_old[i])
-        // fails for some reason:
-        // S.col(i) = VectorXi::Random(n).unaryExpr([](const VectorXi::value_type &x) { return x >= 0 ? 1 : -1; });
-        // workaround:
-        {
-          VectorXi random_integers{VectorXi::Random(n)};
-          for (Index row{0}; row < n; ++row) S(row, i) = random_integers[row] >= 0 ? 1 : -1;
+      for (Index i = 0; i < t; ++i)
+        if (parallel_cols_S[i] || parallel_cols_S_S_old[i]) {
+          S.col(i) = 2 * VectorX<bool>(ArrayX<bool>::Random(n)).cast<int>() - VectorX<int>::Ones(n);
         }
     }
 
     // (3)
-    const MatrixType Z{dec.adjoint().solve(S.cast<Scalar>())};
-    const Vector h{Z.rowwise().template lpNorm<Infinity>()};
+    const MatrixType Z = dec.adjoint().solve(S.cast<Scalar>());
+    const Vector h = Z.rowwise().template lpNorm<Infinity>();
 
     // (4)
-    VectorX<Index> sorted_ind{internal::rcond_argsort<Vector>(h)};
+    VectorX<Index> sorted_ind = internal::rcond_argsort<Vector>(h);
     if (k >= 2 && sorted_ind[0] == ind_best) return est;
 
     // (5)
     if (t > 1) {
       Index ind_in_hist_ctr{0};
-      for (Index i{0}; i < t; ++i) ind_in_hist_ctr += ind_hist[sorted_ind[i]];
-
+      for (Index i = 0; i < t; ++i) ind_in_hist_ctr += ind_hist[sorted_ind[i]];
       if (ind_in_hist_ctr == t) return est;
     }
     X = MatrixType::Zero(n, t);
@@ -169,10 +147,9 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
     Index col_ind{0};
     for (Index i{0}; i < n; ++i) {
       if (!ind_hist[sorted_ind[i]]) {
-        X(sorted_ind[i], col_ind++) = 1.;
+        X(sorted_ind[i], col_ind++) = Scalar(1);
         ind_hist[sorted_ind[i]] = true;
       }
-
       if (col_ind == t) break;
     }
   }
@@ -198,10 +175,10 @@ typename Decomposition::RealScalar rcond_estimate_helper(typename Decomposition:
   typedef typename Decomposition::RealScalar RealScalar;
   eigen_assert(dec.rows() == dec.cols());
   if (dec.rows() == 0) return NumTraits<RealScalar>::infinity();
-  if (matrix_norm == RealScalar(0)) return RealScalar(0);
+  if (is_exactly_zero(matrix_norm)) return RealScalar(0);
   if (dec.rows() == 1) return RealScalar(1);
   const RealScalar inverse_matrix_norm = rcond_invmatrix_L1_norm_estimate(dec);
-  return (inverse_matrix_norm == RealScalar(0) ? RealScalar(0) : (RealScalar(1) / inverse_matrix_norm) / matrix_norm);
+  return (is_exactly_zero(inverse_matrix_norm) ? RealScalar(0) : (RealScalar(1) / inverse_matrix_norm) / matrix_norm);
 }
 
 }  // namespace internal
