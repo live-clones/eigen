@@ -124,7 +124,8 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
       const ArrayX<bool> parallel_cols_S_S_old{internal::rcond_get_parallel_cols(S, S_old)};
       for (Index i = 0; i < t; ++i)
         if (parallel_cols_S[i] || parallel_cols_S_S_old[i]) {
-          S.col(i) = 2 * VectorX<bool>(ArrayX<bool>::Random(n)).cast<int>() - VectorX<int>::Ones(n);
+          //S.col(i) = 2 * VectorX<bool>(ArrayX<bool>::Random(n)).cast<int>() - VectorX<int>::Ones(n);
+          S.col(i) = 2 * VectorX<bool>(VectorX<bool>::Random(n)).cast<int>() - VectorX<int>::Ones(n);
         }
     }
 
