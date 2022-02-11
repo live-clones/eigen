@@ -85,9 +85,10 @@ class CwiseNullaryOp : public internal::dense_xpr_base< CwiseNullaryOp<NullaryOp
     EIGEN_DEVICE_FUNC
     const NullaryOp& functor() const { return m_functor; }
 
+    // FIXME: AutoDiffScalar::make_coherent_expression needs to override these
+    internal::variable_if_dynamic<Index, RowsAtCompileTime> m_rows;
+    internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols;
   protected:
-    const internal::variable_if_dynamic<Index, RowsAtCompileTime> m_rows;
-    const internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols;
     const NullaryOp m_functor;
 };
 

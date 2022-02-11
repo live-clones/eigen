@@ -363,6 +363,64 @@ double bug_1281() {
   return (y1+y2+y3).value();
 }
 
+// error: call to 'min' is ambiguous ()
+void ambiguous_min() {
+  typedef AutoDiffScalar<VectorXd> AD;
+  AD m;
+  m = min EIGEN_TEST_SPACE (0.5 * m, m);
+}
+
+// Assertion failed: (aLhs.rows() == aRhs.rows() && aLhs.cols() == aRhs.cols()), function CwiseBinaryOp
+void bug_1437() {
+  typedef AutoDiffScalar<VectorXd> AD;
+
+  AD noDer(1.0); // no (unsized) .derivatives()
+  AD hasDer(1.0, 5, 0);
+  AD r = (2.0 * noDer - hasDer);
+  VERIFY_IS_EQUAL(r.derivatives().size(), 5);
+}
+
+// Assertion failed: (aLhs.rows() == aRhs.rows() && aLhs.cols() == aRhs.cols()), function CwiseBinaryOp
+void test_Lhs_CwiseUnaryOp_DynamicSize_Rhs_CwiseUnaryOp_FixedSize() {
+  typedef AutoDiffScalar<VectorXd> ADDyn;
+  typedef AutoDiffScalar<Vector2d> ADFix;
+  const double scalar = 2.0;
+  const ADFix fixed = 7.0;
+  const ADDyn dynamic = -3.55;
+  ADDyn result = scalar * dynamic - scalar * fixed;
+  VERIFY_IS_EQUAL(result.derivatives().size(), 2);
+}
+
+// Assertion failed: (aLhs.rows() == aRhs.rows() && aLhs.cols() == aRhs.cols()), function CwiseBinaryOp
+void test_Lhs_CwiseUnaryOp_FixedSize_Rhs_CwiseUnaryOp_DynamicSize() {
+  typedef AutoDiffScalar<VectorXd> ADDyn;
+  typedef AutoDiffScalar<Vector2d> ADFix;
+  const double scalar = 2.0;
+  const ADFix fixed = 7.0;
+  const ADDyn dynamic = -3.55;
+  ADDyn result = scalar * fixed - scalar * dynamic;
+  VERIFY_IS_EQUAL(result.derivatives().size(), 2);
+}
+
+// Assertion failed: (aLhs.rows() == aRhs.rows() && aLhs.cols() == aRhs.cols()), function CwiseBinaryOp
+void test_Lhs_CwiseBinaryOp_DynamicSize_Rhs_CwiseBinaryOp_FixedSize() {
+  typedef AutoDiffScalar<VectorXd> ADDyn;
+  typedef AutoDiffScalar<Vector2d> ADFix;
+  const ADFix fixed = 7.0;
+  const ADDyn dynamic = -3.55;
+  ADDyn result = (dynamic + dynamic) - (fixed + fixed);
+  VERIFY_IS_EQUAL(result.derivatives().size(), 2);
+}
+
+// Assertion failed: (aLhs.rows() == aRhs.rows() && aLhs.cols() == aRhs.cols()), function CwiseBinaryOp
+void test_Lhs_CwiseBinaryOp_FixedSize_Rhs_CwiseBinaryOp_DynamicSize() {
+  typedef AutoDiffScalar<VectorXd> ADDyn;
+  typedef AutoDiffScalar<Vector2d> ADFix;
+  const ADFix fixed = 7.0;
+  const ADDyn dynamic = -3.55;
+  ADDyn result = (fixed + fixed) - (dynamic + dynamic);
+  VERIFY_IS_EQUAL(result.derivatives().size(), 2);
+}
 #endif
 
 EIGEN_DECLARE_TEST(autodiff)
@@ -379,5 +437,11 @@ EIGEN_DECLARE_TEST(autodiff)
   CALL_SUBTEST_5( bug_1260() );
   CALL_SUBTEST_5( bug_1261() );
   CALL_SUBTEST_5( bug_1281() );
+  CALL_SUBTEST_5( ambiguous_min() );
+  CALL_SUBTEST_5( bug_1437() );
+  CALL_SUBTEST_5( test_Lhs_CwiseUnaryOp_DynamicSize_Rhs_CwiseUnaryOp_FixedSize() );
+  CALL_SUBTEST_5( test_Lhs_CwiseUnaryOp_FixedSize_Rhs_CwiseUnaryOp_DynamicSize() );
+  CALL_SUBTEST_5( test_Lhs_CwiseBinaryOp_DynamicSize_Rhs_CwiseBinaryOp_FixedSize() );
+  CALL_SUBTEST_5( test_Lhs_CwiseBinaryOp_FixedSize_Rhs_CwiseBinaryOp_DynamicSize() );
 }
 

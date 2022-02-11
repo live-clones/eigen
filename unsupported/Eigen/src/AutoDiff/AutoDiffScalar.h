@@ -17,11 +17,9 @@ namespace Eigen {
 namespace internal {
 
 template<typename A, typename B>
-struct make_coherent_impl {
-  static void run(A&, B&) {}
-};
+struct make_coherent_impl;
 
-// resize a to match b is a.size()==0, and conversely.
+// resize a to match b if a.size()==0, and conversely.
 template<typename A, typename B>
 void make_coherent(const A& a, const B&b)
 {
@@ -150,8 +148,11 @@ class AutoDiffScalar
       return *this;
     }
 
-//     inline operator const Scalar& () const { return m_value; }
-//     inline operator Scalar& () { return m_value; }
+#if EIGEN_HAS_CXX11
+    // make conversion operator for Scalar available, but only explicitly, so we don't accidentally drop derivatives
+    inline explicit operator const Scalar& () const { return m_value; }
+    inline explicit operator Scalar& () { return m_value; }
+#endif
 
     inline const Scalar& value() const { return m_value; }
     inline Scalar& value() { return m_value; }
@@ -456,7 +457,7 @@ struct auto_diff_special_op<DerivativeType, false>
 };
 
 template<typename BinOp, typename A, typename B, typename RefType>
-void make_coherent_expression(CwiseBinaryOp<BinOp,A,B> xpr, const RefType &ref)
+void make_coherent_expression(CwiseBinaryOp<BinOp,A,B> &xpr, const RefType &ref)
 {
   make_coherent(xpr.const_cast_derived().lhs(), ref);
   make_coherent(xpr.const_cast_derived().rhs(), ref);
@@ -468,10 +469,18 @@ void make_coherent_expression(const CwiseUnaryOp<UnaryOp,A> &xpr, const RefType 
   make_coherent(xpr.nestedExpression().const_cast_derived(), ref);
 }
 
-// needed for compilation only
-template<typename UnaryOp, typename A, typename RefType>
-void make_coherent_expression(const CwiseNullaryOp<UnaryOp,A> &, const RefType &)
-{}
+template<typename NullaryOp, typename A, typename RefType>
+void make_coherent_expression(CwiseNullaryOp<NullaryOp,A> &xpr, const RefType &ref)
+{
+  if(A::RowsAtCompileTime==Dynamic && xpr.m_rows.value() == 0)
+  { // need to fix up the expression's size
+    xpr.m_rows.setValue(ref.rows());
+  }
+  else if(A::ColsAtCompileTime==Dynamic && xpr.m_cols.value() == 0)
+  { // need to fix up the expression's size
+    xpr.m_cols.setValue(ref.cols());
+  }
+}
 
 template<typename A_Scalar, int A_Rows, int A_Cols, int A_Options, int A_MaxRows, int A_MaxCols, typename B>
 struct make_coherent_impl<Matrix<A_Scalar, A_Rows, A_Cols, A_Options, A_MaxRows, A_MaxCols>, B> {
@@ -479,8 +488,7 @@ struct make_coherent_impl<Matrix<A_Scalar, A_Rows, A_Cols, A_Options, A_MaxRows,
   static void run(A& a, B& b) {
     if((A_Rows==Dynamic || A_Cols==Dynamic) && (a.size()==0))
     {
-      a.resize(b.size());
-      a.setZero();
+      a.setZero(b.size());
     }
     else if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
     {
@@ -495,8 +503,7 @@ struct make_coherent_impl<A, Matrix<B_Scalar, B_Rows, B_Cols, B_Options, B_MaxRo
   static void run(A& a, B& b) {
     if((B_Rows==Dynamic || B_Cols==Dynamic) && (b.size()==0))
     {
-      b.resize(a.size());
-      b.setZero();
+      b.setZero(a.size());
     }
     else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
     {
@@ -514,13 +521,173 @@ struct make_coherent_impl<Matrix<A_Scalar, A_Rows, A_Cols, A_Options, A_MaxRows,
   static void run(A& a, B& b) {
     if((A_Rows==Dynamic || A_Cols==Dynamic) && (a.size()==0))
     {
-      a.resize(b.size());
-      a.setZero();
+      a.setZero(b.size());
     }
     else if((B_Rows==Dynamic || B_Cols==Dynamic) && (b.size()==0))
     {
-      b.resize(a.size());
-      b.setZero();
+      b.setZero(a.size());
+    }
+  }
+};
+
+template<class NullaryOpA, class PlainObjectTypeA, class NullaryOpB, class PlainObjectTypeB>
+struct make_coherent_impl<CwiseNullaryOp<NullaryOpA, PlainObjectTypeA>, CwiseNullaryOp<NullaryOpB, PlainObjectTypeB> >
+{
+  typedef CwiseNullaryOp<NullaryOpA, PlainObjectTypeA> A;
+  typedef CwiseNullaryOp<NullaryOpB, PlainObjectTypeB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<class NullaryOpA, class PlainObjectTypeA, class UnaryOpB, class XprTypeB>
+struct make_coherent_impl<CwiseNullaryOp<NullaryOpA, PlainObjectTypeA>, CwiseUnaryOp<UnaryOpB, XprTypeB> >
+{
+  typedef CwiseNullaryOp<NullaryOpA, PlainObjectTypeA> A;
+  typedef CwiseUnaryOp<UnaryOpB, XprTypeB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<typename NullaryOpA, typename PlainObjectTypeA, typename BinaryOpB, typename LhsB, typename RhsB>
+struct make_coherent_impl<CwiseNullaryOp<NullaryOpA, PlainObjectTypeA>, CwiseBinaryOp<BinaryOpB, LhsB, RhsB> >
+{
+  typedef CwiseNullaryOp<NullaryOpA, PlainObjectTypeA> A;
+  typedef CwiseBinaryOp<BinaryOpB, LhsB, RhsB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<class UnaryOpA, class XprTypeA, class NullaryOpB, class PlainObjectTypeB>
+struct make_coherent_impl<CwiseUnaryOp<UnaryOpA, XprTypeA>, CwiseNullaryOp<NullaryOpB, PlainObjectTypeB> >
+{
+  typedef CwiseUnaryOp<UnaryOpA, XprTypeA> A;
+  typedef CwiseNullaryOp<NullaryOpB, PlainObjectTypeB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<class UnaryOpA, class XprTypeA, class UnaryOpB, class XprTypeB>
+struct make_coherent_impl<CwiseUnaryOp<UnaryOpA, XprTypeA>, CwiseUnaryOp<UnaryOpB, XprTypeB> >
+{
+  typedef CwiseUnaryOp<UnaryOpA, XprTypeA> A;
+  typedef CwiseUnaryOp<UnaryOpB, XprTypeB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<typename UnaryOpA, typename XprTypeA, typename BinaryOpB, typename LhsB, typename RhsB>
+struct make_coherent_impl<CwiseUnaryOp<UnaryOpA, XprTypeA>, CwiseBinaryOp<BinaryOpB, LhsB, RhsB> >
+{
+  typedef CwiseUnaryOp<UnaryOpA, XprTypeA> A;
+  typedef CwiseBinaryOp<BinaryOpB, LhsB, RhsB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<typename BinaryOpA, typename LhsA, typename RhsA, typename NullaryOpB, typename PlainObjectTypeB>
+struct make_coherent_impl<CwiseBinaryOp<BinaryOpA, LhsA, RhsA>, CwiseNullaryOp<NullaryOpB, PlainObjectTypeB> >
+{
+  typedef CwiseBinaryOp<BinaryOpA, LhsA, RhsA> A;
+  typedef CwiseNullaryOp<NullaryOpB, PlainObjectTypeB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<typename BinaryOpA, typename LhsA, typename RhsA, typename UnaryOpB, typename XprTypeB>
+struct make_coherent_impl<CwiseBinaryOp<BinaryOpA, LhsA, RhsA>, CwiseUnaryOp<UnaryOpB, XprTypeB> >
+{
+  typedef CwiseBinaryOp<BinaryOpA, LhsA, RhsA> A;
+  typedef CwiseUnaryOp<UnaryOpB, XprTypeB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
+    }
+  }
+};
+
+template<typename BinaryOpA, typename LhsA, typename RhsA, typename BinaryOpB, typename LhsB, typename RhsB>
+struct make_coherent_impl<CwiseBinaryOp<BinaryOpA, LhsA, RhsA>, CwiseBinaryOp<BinaryOpB, LhsB, RhsB> >
+{
+  typedef CwiseBinaryOp<BinaryOpA, LhsA, RhsA> A;
+  typedef CwiseBinaryOp<BinaryOpB, LhsB, RhsB> B;
+  static void run(A& a, B& b)
+  {
+    if (B::SizeAtCompileTime==Dynamic && a.size()!=0 && b.size()==0)
+    {
+      make_coherent_expression(b,a);
+    }
+    else if (A::SizeAtCompileTime==Dynamic && b.size()!=0 && a.size()==0)
+    {
+      make_coherent_expression(a,b);
     }
   }
 };
@@ -578,33 +745,50 @@ template<typename DerType>
 inline const AutoDiffScalar<DerType>& real(const AutoDiffScalar<DerType>& x)  { return x; }
 template<typename DerType>
 inline typename DerType::Scalar imag(const AutoDiffScalar<DerType>&)    { return 0.; }
+
 template<typename DerType, typename T>
-inline typename CleanedUpDerType<DerType>::type (min)(const AutoDiffScalar<DerType>& x, const T& y) {
+inline typename internal::enable_if<internal::is_convertible<T, typename AutoDiffScalar<DerType>::Scalar>::value,typename CleanedUpDerType<DerType>::type>::type
+(min)(const AutoDiffScalar<DerType>& x, const T& y) {
   typedef typename CleanedUpDerType<DerType>::type ADS;
-  return (x <= y ? ADS(x) : ADS(y));
+  return (y < x) ? ADS(y) : ADS(x);
 }
 template<typename DerType, typename T>
-inline typename CleanedUpDerType<DerType>::type (max)(const AutoDiffScalar<DerType>& x, const T& y) {
+inline typename internal::enable_if<internal::is_convertible<T, typename AutoDiffScalar<DerType>::Scalar>::value,typename CleanedUpDerType<DerType>::type>::type
+(max)(const AutoDiffScalar<DerType>& x, const T& y) {
   typedef typename CleanedUpDerType<DerType>::type ADS;
-  return (x >= y ? ADS(x) : ADS(y));
+  return (x < y) ? ADS(y) : ADS(x);
 }
 template<typename DerType, typename T>
-inline typename CleanedUpDerType<DerType>::type (min)(const T& x, const AutoDiffScalar<DerType>& y) {
+inline typename internal::enable_if<internal::is_convertible<T, typename AutoDiffScalar<DerType>::Scalar>::value,typename CleanedUpDerType<DerType>::type>::type
+(min)(const T& x, const AutoDiffScalar<DerType>& y) {
   typedef typename CleanedUpDerType<DerType>::type ADS;
-  return (x < y ? ADS(x) : ADS(y));
+  return (y < x) ? ADS(y) : ADS(x);
 }
 template<typename DerType, typename T>
-inline typename CleanedUpDerType<DerType>::type (max)(const T& x, const AutoDiffScalar<DerType>& y) {
+inline typename internal::enable_if<internal::is_convertible<T, typename AutoDiffScalar<DerType>::Scalar>::value,typename CleanedUpDerType<DerType>::type>::type
+(max)(const T& x, const AutoDiffScalar<DerType>& y) {
   typedef typename CleanedUpDerType<DerType>::type ADS;
-  return (x > y ? ADS(x) : ADS(y));
+  return (x < y) ? ADS(y) : ADS(x);
 }
 template<typename DerType>
-inline typename CleanedUpDerType<DerType>::type (min)(const AutoDiffScalar<DerType>& x, const AutoDiffScalar<DerType>& y) {
-  return (x.value() < y.value() ? x : y);
+inline const AutoDiffScalar<DerType>& (min)(const AutoDiffScalar<DerType>& x, const AutoDiffScalar<DerType>& y) {
+  return (y.value() < x.value()) ? y : x;
 }
 template<typename DerType>
-inline typename CleanedUpDerType<DerType>::type (max)(const AutoDiffScalar<DerType>& x, const AutoDiffScalar<DerType>& y) {
-  return (x.value() >= y.value() ? x : y);
+inline const AutoDiffScalar<DerType>& (max)(const AutoDiffScalar<DerType>& x, const AutoDiffScalar<DerType>& y) {
+  return (x.value() < y.value()) ? y : x;
+}
+template<typename DerType, typename DerType2>
+inline typename internal::enable_if<internal::is_same<typename CleanedUpDerType<DerType>::type, typename CleanedUpDerType<DerType2>::type>::value,typename CleanedUpDerType<DerType>::type>::type
+(min)(const AutoDiffScalar<DerType>& x, const AutoDiffScalar<DerType2>& y) {
+  typedef typename CleanedUpDerType<DerType>::type ADS;
+  return (y.value() < x.value()) ? ADS(y) : ADS(x);
+}
+template<typename DerType, typename DerType2>
+inline typename internal::enable_if<internal::is_same<typename CleanedUpDerType<DerType>::type, typename CleanedUpDerType<DerType2>::type>::value,typename CleanedUpDerType<DerType>::type>::type
+(max)(const AutoDiffScalar<DerType>& x, const AutoDiffScalar<DerType2>& y) {
+  typedef typename CleanedUpDerType<DerType>::type ADS;
+  return (x.value() < y.value()) ? ADS(y) : ADS(x);
 }
 
 
