@@ -20,7 +20,7 @@ namespace internal {
 // for any pair of parallel columns, at least one is returned as being parallel
 inline VectorX<bool> rcond_get_parallel_cols(const MatrixXi &m) {
   const Index rows = m.rows();
-  const MatrixXi m_T_m{(m.transpose() * m).triangularView<StrictlyLower>()};
+  const MatrixXi m_T_m = (m.transpose() * m).triangularView<StrictlyLower>();
 
   // fails for some reason:
   // const ArrayXi norms=m_T_m.colwise().lpNorm<Infinity>();
@@ -42,7 +42,7 @@ inline VectorX<bool> rcond_get_parallel_cols(const MatrixXi &m1, const MatrixXi 
   // const ArrayXi norms{m2_T_m1.colwise().template lpNorm<Infinity>()};
   // workaround:
   const Index cols = m1.cols();
-  ArrayXi norms{ArrayXi(cols)};
+  ArrayXi norms = ArrayXi(cols);
   for (Index i = 0; i < cols; ++i) norms[i] = m2_T_m1.col(i).cwiseAbs().maxCoeff();
   const VectorX<bool> parallel_cols = (norms == rows);
   return parallel_cols;
@@ -88,18 +88,18 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
   eigen_assert(1 <= t && t <= n);
 
   // starting matrix with unit vector columns
-  MatrixType X{MatrixType::Identity(n, t)};
+  MatrixType X = MatrixType::Identity(n, t);
 
   // vector recording indices of used unit vectors
-  VectorX<bool> ind_hist{VectorX<bool>::Constant(n, false)};
+  VectorX<bool> ind_hist = VectorX<bool>::Constant(n, false);
   for (Index i{0}; i < t; ++i) ind_hist[i] = true;
 
-  MatrixXi S{MatrixXi(n, t)};
+  MatrixXi S = MatrixXi(n, t);
 
-  Scalar old_est{0.};
-  Index ind_best{0};
+  Scalar old_est = 0.;
+  Index ind_best = 0;
 
-  Index k{0};
+  Index k = 0;
   for (;;) {
     ++k;
 
@@ -111,14 +111,13 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
     // (1)
     if (k >= 2 && est <= old_est) break;
     old_est = est;
-    const MatrixXi S_old{S};
+    const MatrixXi S_old = S;
     if (k > it_max) return est;
     S = 2 * MatrixX<bool>(Y.array() >= 0).cast<int>() - MatrixXi::Ones(n, t);
 
     // (2)
     const VectorX<bool> parallel_cols_S = internal::rcond_get_parallel_cols(S);
-    Index col_ctr{0};
-    for (bool el : parallel_cols_S) col_ctr += el;
+    Index col_ctr = parallel_cols_S.cast<Index>().sum();
     if (col_ctr == t) return est;
     if (t > 1) {
       const ArrayX<bool> parallel_cols_S_S_old{internal::rcond_get_parallel_cols(S, S_old)};
@@ -138,14 +137,14 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
 
     // (5)
     if (t > 1) {
-      Index ind_in_hist_ctr{0};
+      Index ind_in_hist_ctr = 0;
       for (Index i = 0; i < t; ++i) ind_in_hist_ctr += ind_hist[sorted_ind[i]];
       if (ind_in_hist_ctr == t) return est;
     }
     X = MatrixType::Zero(n, t);
 
-    Index col_ind{0};
-    for (Index i{0}; i < n; ++i) {
+    Index col_ind = 0;
+    for (Index i = 0; i < n; ++i) {
       if (!ind_hist[sorted_ind[i]]) {
         X(sorted_ind[i], col_ind++) = Scalar(1);
         ind_hist[sorted_ind[i]] = true;
