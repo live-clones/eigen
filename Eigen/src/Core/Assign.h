@@ -46,7 +46,7 @@ EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator=(const DenseBase<Other
 
 template<typename Derived>
 EIGEN_DEVICE_FUNC
-EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator=(const DenseBase& other)
+EIGEN_STRONG_INLINE DenseBase<Derived>& DenseBase<Derived>::operator=(const DenseBase& other)
 {
   internal::call_assignment(derived(), other.derived());
   return derived();
@@ -54,7 +54,7 @@ EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator=(const DenseBase& othe
 
 template<typename Derived>
 EIGEN_DEVICE_FUNC
-EIGEN_STRONG_INLINE Derived& MatrixBase<Derived>::operator=(const MatrixBase& other)
+EIGEN_STRONG_INLINE MatrixBase<Derived>& MatrixBase<Derived>::operator=(const MatrixBase& other)
 {
   internal::call_assignment(derived(), other.derived());
   return derived();

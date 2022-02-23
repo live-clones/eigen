@@ -106,7 +106,7 @@ template<typename Derived> class ArrayBase
       * from generating a default operator= (issue hit with g++ 4.1)
       */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    Derived& operator=(const ArrayBase& other)
+    ArrayBase& operator=(const ArrayBase& other)
     {
       internal::call_assignment(derived(), other.derived());
       return derived();

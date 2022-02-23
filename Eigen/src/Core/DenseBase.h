@@ -272,7 +272,7 @@ template<typename Derived> class DenseBase
       * from generating a default operator= (issue hit with g++ 4.1)
       */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    Derived& operator=(const DenseBase& other);
+    DenseBase& operator=(const DenseBase& other);
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC

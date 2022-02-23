@@ -458,7 +458,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       * prevent a default operator= from hiding the templated operator=.
       */
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Derived& operator=(const PlainObjectBase& other)
+    EIGEN_STRONG_INLINE PlainObjectBase& operator=(const PlainObjectBase& other)
     {
       return _set(other);
     }

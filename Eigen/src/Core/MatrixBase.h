@@ -138,7 +138,7 @@ template<typename Derived> class MatrixBase
       * from generating a default operator= (issue hit with g++ 4.1)
       */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    Derived& operator=(const MatrixBase& other);
+    MatrixBase& operator=(const MatrixBase& other);
 
     // We cannot inherit here via Base::operator= since it is causing
     // trouble with MSVC.
