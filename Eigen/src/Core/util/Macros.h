@@ -709,6 +709,20 @@
 
 #define EIGEN_CONSTEXPR constexpr
 
+#if EIGEN_COMP_CXXVER >= 20
+#define EIGEN_CONSTEXPR20 constexpr
+namespace Eigen::internal {
+  constexpr bool is_constant_evaluated() { return std::is_constant_evaluated(); }
+}
+#else
+#define EIGEN_CONSTEXPR20
+namespace Eigen {
+  namespace internal {
+    constexpr bool is_constant_evaluated() { return false; }
+  }
+}
+#endif
+
 // Does the compiler support C++11 math?
 // Let's be conservative and enable the default C++11 implementation only if we are sure it exists
 #ifndef EIGEN_HAS_CXX11_MATH
