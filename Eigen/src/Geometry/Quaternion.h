@@ -149,14 +149,14 @@ class QuaternionBase : public RotationBase<Derived, 3>
   template<typename Derived1, typename Derived2>
   EIGEN_DEVICE_FUNC Derived& setFromTwoVectors(const MatrixBase<Derived1>& a, const MatrixBase<Derived2>& b);
 
-  template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Quaternion<Scalar> operator* (const QuaternionBase<OtherDerived>& q) const;
+  template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20 Quaternion<Scalar> operator* (const QuaternionBase<OtherDerived>& q) const;
   template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*= (const QuaternionBase<OtherDerived>& q);
 
   /** \returns the quaternion describing the inverse rotation */
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Quaternion<Scalar> inverse() const;
 
   /** \returns the conjugated quaternion */
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Quaternion<Scalar> conjugate() const;
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20 Quaternion<Scalar> conjugate() const;
 
   template<class OtherDerived> EIGEN_DEVICE_FUNC Quaternion<Scalar> slerp(const Scalar& t, const QuaternionBase<OtherDerived>& other) const;
 
@@ -498,12 +498,16 @@ template<int Arch, class Derived1, class Derived2, typename Scalar> struct quat_
 /** \returns the concatenation of two rotations as a quaternion-quaternion product */
 template <class Derived>
 template <class OtherDerived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Quaternion<typename internal::traits<Derived>::Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20 Quaternion<typename internal::traits<Derived>::Scalar>
 QuaternionBase<Derived>::operator* (const QuaternionBase<OtherDerived>& other) const
 {
   EIGEN_STATIC_ASSERT((internal::is_same<typename Derived::Scalar, typename OtherDerived::Scalar>::value),
    YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-  return internal::quat_product<Architecture::Target, Derived, OtherDerived,
+  if (internal::is_constant_evaluated())
+    return internal::quat_product<Architecture::Generic, Derived, OtherDerived,
+                         typename internal::traits<Derived>::Scalar>::run(*this, other);
+  else
+    return internal::quat_product<Architecture::Target, Derived, OtherDerived,
                          typename internal::traits<Derived>::Scalar>::run(*this, other);
 }
 
@@ -744,12 +748,15 @@ template<int Arch, class Derived, typename Scalar> struct quat_conj
   * \sa Quaternion2::inverse()
   */
 template <class Derived>
-EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Quaternion<typename internal::traits<Derived>::Scalar>
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20 inline Quaternion<typename internal::traits<Derived>::Scalar>
 QuaternionBase<Derived>::conjugate() const
 {
-  return internal::quat_conj<Architecture::Target, Derived,
+  if (internal::is_constant_evaluated())
+    return internal::quat_conj<Architecture::Generic, Derived,
                          typename internal::traits<Derived>::Scalar>::run(*this);
-                         
+  else
+    return internal::quat_conj<Architecture::Target, Derived,
+                         typename internal::traits<Derived>::Scalar>::run(*this);
 }
 
 /** \returns the angle (in radian) between two rotations

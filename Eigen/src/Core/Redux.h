@@ -231,7 +231,7 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, NoUnrolling>
   typedef typename Evaluator::Scalar Scalar;
   typedef typename redux_traits<Func, Evaluator>::PacketType PacketScalar;
 
-  template<typename XprType> EIGEN_CONSTEXPR
+  template<typename XprType> EIGEN_CONSTEXPR20
   static Scalar run(const Evaluator &eval, const Func& func, const XprType& xpr)
   {
     const Index size = xpr.size();
@@ -242,43 +242,47 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, NoUnrolling>
       alignment0 = (bool(Evaluator::Flags & DirectAccessBit) && bool(packet_traits<Scalar>::AlignedOnScalar)) ? int(packetAlignment) : int(Unaligned),
       alignment = plain_enum_max(alignment0, Evaluator::Alignment)
     };
-    const Index alignedStart = internal::first_default_aligned(xpr);
-    const Index alignedSize2 = ((size-alignedStart)/(2*packetSize))*(2*packetSize);
-    const Index alignedSize = ((size-alignedStart)/(packetSize))*(packetSize);
-    const Index alignedEnd2 = alignedStart + alignedSize2;
-    const Index alignedEnd  = alignedStart + alignedSize;
-    Scalar res;
-    if(alignedSize)
-    {
-      PacketScalar packet_res0 = eval.template packet<alignment,PacketScalar>(alignedStart);
-      if(alignedSize>packetSize) // we have at least two packets to partly unroll the loop
+    if (!internal::is_constant_evaluated()) {
+      // Try vectorized evaluation.
+      const Index alignedStart = internal::first_default_aligned(xpr);
+      const Index alignedSize2 = ((size-alignedStart)/(2*packetSize))*(2*packetSize);
+      const Index alignedSize = ((size-alignedStart)/(packetSize))*(packetSize);
+      const Index alignedEnd2 = alignedStart + alignedSize2;
+      const Index alignedEnd  = alignedStart + alignedSize;
+
+      if(alignedSize)
       {
-        PacketScalar packet_res1 = eval.template packet<alignment,PacketScalar>(alignedStart+packetSize);
-        for(Index index = alignedStart + 2*packetSize; index < alignedEnd2; index += 2*packetSize)
+        PacketScalar packet_res0 = eval.template packet<alignment,PacketScalar>(alignedStart);
+        if(alignedSize>packetSize) // we have at least two packets to partly unroll the loop
         {
-          packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment,PacketScalar>(index));
-          packet_res1 = func.packetOp(packet_res1, eval.template packet<alignment,PacketScalar>(index+packetSize));
+          PacketScalar packet_res1 = eval.template packet<alignment,PacketScalar>(alignedStart+packetSize);
+          for(Index index = alignedStart + 2*packetSize; index < alignedEnd2; index += 2*packetSize)
+          {
+            packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment,PacketScalar>(index));
+            packet_res1 = func.packetOp(packet_res1, eval.template packet<alignment,PacketScalar>(index+packetSize));
+          }
+
+          packet_res0 = func.packetOp(packet_res0,packet_res1);
+          if(alignedEnd>alignedEnd2)
+            packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment,PacketScalar>(alignedEnd2));
         }
+        Scalar res = func.predux(packet_res0);
 
-        packet_res0 = func.packetOp(packet_res0,packet_res1);
-        if(alignedEnd>alignedEnd2)
-          packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment,PacketScalar>(alignedEnd2));
+        for(Index index = 0; index < alignedStart; ++index)
+          res = func(res,eval.coeff(index));
+
+        for(Index index = alignedEnd; index < size; ++index)
+          res = func(res,eval.coeff(index));
+
+        return res;
       }
-      res = func.predux(packet_res0);
-
-      for(Index index = 0; index < alignedStart; ++index)
-        res = func(res,eval.coeff(index));
-
-      for(Index index = alignedEnd; index < size; ++index)
-        res = func(res,eval.coeff(index));
     }
-    else // too small to vectorize anything.
-         // since this is dynamic-size hence inefficient anyway for such small sizes, don't try to optimize.
-    {
-      res = eval.coeff(0);
-      for(Index index = 1; index < size; ++index)
-        res = func(res,eval.coeff(index));
-    }
+
+    // consteval or too small to vectorize anything.
+    // since this is dynamic-size hence inefficient anyway for such small sizes, don't try to optimize.
+    Scalar res = eval.coeff(0);
+    for(Index index = 1; index < size; ++index)
+      res = func(res,eval.coeff(index));
 
     return res;
   }
@@ -337,12 +341,12 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, CompleteUnrolling>
   };
 
   template<typename XprType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20
   Scalar run(const Evaluator &eval, const Func& func, const XprType &xpr)
   {
     EIGEN_ONLY_USED_FOR_DEBUG(xpr)
     eigen_assert(xpr.rows()>0 && xpr.cols()>0 && "you are using an empty matrix");
-    if (VectorizedSize > 0) {
+    if (!internal::is_constant_evaluated() && VectorizedSize > 0) {
       Scalar res = func.predux(redux_vec_unroller<Func, Evaluator, 0, Size / PacketSize>::template run<PacketType>(eval,func));
       if (VectorizedSize != Size)
         res = func(res,redux_novec_unroller<Func, Evaluator, VectorizedSize, Size-VectorizedSize>::run(eval,func));

@@ -767,7 +767,7 @@ void resize_if_allowed(DstXprType &dst, const SrcXprType& src, const internal::a
 }
 
 template<typename DstXprType, typename SrcXprType, typename Functor>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_dense_assignment_loop(DstXprType& dst, const SrcXprType& src, const Functor &func)
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20 void call_dense_assignment_loop(DstXprType& dst, const SrcXprType& src, const Functor &func)
 {
   typedef evaluator<DstXprType> DstEvaluatorType;
   typedef evaluator<SrcXprType> SrcEvaluatorType;
@@ -776,14 +776,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_dense_assignment_loop(DstXprType
 
   // NOTE To properly handle A = (A*A.transpose())/s with A rectangular,
   // we need to resize the destination after the source evaluator has been created.
-  resize_if_allowed(dst, src, func);
+  // Template arguments are made explicit to work around a bug (?) in gcc 11.
+  resize_if_allowed<DstXprType,SrcXprType,Functor>(dst, src, func);
 
   DstEvaluatorType dstEvaluator(dst);
 
   typedef generic_dense_assignment_kernel<DstEvaluatorType,SrcEvaluatorType,Functor> Kernel;
   Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
 
-  dense_assignment_loop<Kernel>::run(kernel);
+  if (internal::is_constant_evaluated()) {
+    dense_assignment_loop<Kernel, DefaultTraversal, NoUnrolling>::run(kernel);
+  } else {
+    dense_assignment_loop<Kernel>::run(kernel);
+  }
 }
 
 // Specialization for filling the destination with a constant value.
