@@ -1150,6 +1150,27 @@ inline int queryTopLevelCacheSize()
   return (std::max)(l2,l3);
 }
 
+
+
+/** \internal
+ * This wraps C++20's std::construct_at, using placement new if it not available.
+ */
+
+#if EIGEN_COMP_CXXVER >= 20
+template<class T, class... Args>
+constexpr T* construct_at( T* p, Args&&... args )
+{
+  return std::construct_at<T>(p, std::forward<Args>(args)...);
+}
+#else
+template<class T, class... Args>
+T* construct_at( T* p, Args&&... args )
+{
+  return ::new (const_cast<void*>(static_cast<const volatile void*>(p)))
+    T(std::forward<Args>(args)...);
+}
+#endif
+
 } // end namespace internal
 
 } // end namespace Eigen
