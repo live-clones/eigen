@@ -27,7 +27,7 @@ namespace internal {
 struct constructor_without_unaligned_array_assert {};
 
 template<typename T, int Size>
-EIGEN_DEVICE_FUNC
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
 void check_static_allocation_size()
 {
   // if EIGEN_STACK_ALLOCATION_LIMIT is defined to 0, then no limit
@@ -47,7 +47,7 @@ struct plain_array
 {
   T array[Size];
 
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20
   plain_array()
   {
     check_static_allocation_size<T,Size>();
@@ -86,7 +86,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 8>
 {
   EIGEN_ALIGN_TO_BOUNDARY(8) T array[Size];
 
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   plain_array()
   {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(7);
@@ -105,7 +105,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 16>
 {
   EIGEN_ALIGN_TO_BOUNDARY(16) T array[Size];
 
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   plain_array()
   {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(15);
@@ -124,7 +124,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 32>
 {
   EIGEN_ALIGN_TO_BOUNDARY(32) T array[Size];
 
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   plain_array()
   {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(31);
@@ -143,7 +143,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 64>
 {
   EIGEN_ALIGN_TO_BOUNDARY(64) T array[Size];
 
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   plain_array()
   {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(63);
@@ -161,7 +161,7 @@ template <typename T, int MatrixOrArrayOptions, int Alignment>
 struct plain_array<T, 0, MatrixOrArrayOptions, Alignment>
 {
   T array[1];
-  EIGEN_DEVICE_FUNC plain_array() {}
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR plain_array() {}
   EIGEN_DEVICE_FUNC plain_array(constructor_without_unaligned_array_assert) {}
 };
 
@@ -210,19 +210,19 @@ template<typename T, int Size, int Rows_, int Cols_, int Options_> class DenseSt
 {
     internal::plain_array<T,Size,Options_> m_data;
   public:
-    EIGEN_DEVICE_FUNC DenseStorage() {
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR DenseStorage() {
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN(Index size = Size)
     }
     EIGEN_DEVICE_FUNC
     explicit DenseStorage(internal::constructor_without_unaligned_array_assert)
       : m_data(internal::constructor_without_unaligned_array_assert()) {}
 #if defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20
     DenseStorage(const DenseStorage& other) : m_data(other.m_data) {
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN(Index size = Size)
     }
 #else
-    EIGEN_DEVICE_FUNC DenseStorage(const DenseStorage&) = default;
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20 DenseStorage(const DenseStorage&) = default;
 #endif
     EIGEN_DEVICE_FUNC DenseStorage& operator=(const DenseStorage&) = default;
     EIGEN_DEVICE_FUNC DenseStorage(DenseStorage&&) = default;
@@ -240,27 +240,27 @@ template<typename T, int Size, int Rows_, int Cols_, int Options_> class DenseSt
     EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR Index rows(void) EIGEN_NOEXCEPT {return Rows_;}
     EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR Index cols(void) EIGEN_NOEXCEPT {return Cols_;}
     EIGEN_DEVICE_FUNC void conservativeResize(Index,Index,Index) {}
-    EIGEN_DEVICE_FUNC void resize(Index,Index,Index) {}
-    EIGEN_DEVICE_FUNC const T *data() const { return m_data.array; }
-    EIGEN_DEVICE_FUNC T *data() { return m_data.array; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void resize(Index,Index,Index) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR const T *data() const { return m_data.array; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR T *data() { return m_data.array; }
 };
 
 // null matrix
 template<typename T, int Rows_, int Cols_, int Options_> class DenseStorage<T, 0, Rows_, Cols_, Options_>
 {
   public:
-    EIGEN_DEVICE_FUNC DenseStorage() {}
-    EIGEN_DEVICE_FUNC explicit DenseStorage(internal::constructor_without_unaligned_array_assert) {}
-    EIGEN_DEVICE_FUNC DenseStorage(const DenseStorage&) {}
-    EIGEN_DEVICE_FUNC DenseStorage& operator=(const DenseStorage&) { return *this; }
-    EIGEN_DEVICE_FUNC DenseStorage(Index,Index,Index) {}
-    EIGEN_DEVICE_FUNC void swap(DenseStorage& ) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR DenseStorage() {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR explicit DenseStorage(internal::constructor_without_unaligned_array_assert) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR DenseStorage(const DenseStorage&) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR DenseStorage& operator=(const DenseStorage&) { return *this; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR DenseStorage(Index,Index,Index) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void swap(DenseStorage& ) {}
     EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR Index rows(void) EIGEN_NOEXCEPT {return Rows_;}
     EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR Index cols(void) EIGEN_NOEXCEPT {return Cols_;}
-    EIGEN_DEVICE_FUNC void conservativeResize(Index,Index,Index) {}
-    EIGEN_DEVICE_FUNC void resize(Index,Index,Index) {}
-    EIGEN_DEVICE_FUNC const T *data() const { return 0; }
-    EIGEN_DEVICE_FUNC T *data() { return 0; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void conservativeResize(Index,Index,Index) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void resize(Index,Index,Index) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR const T *data() const { return 0; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR T *data() { return 0; }
 };
 
 // more specializations for null matrices; these are necessary to resolve ambiguities
@@ -319,10 +319,10 @@ template<typename T, int Size, int Cols_, int Options_> class DenseStorage<T, Si
     internal::plain_array<T,Size,Options_> m_data;
     Index m_rows;
   public:
-    EIGEN_DEVICE_FUNC DenseStorage() : m_rows(0) {}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR DenseStorage() : m_rows(0) {}
     EIGEN_DEVICE_FUNC explicit DenseStorage(internal::constructor_without_unaligned_array_assert)
       : m_data(internal::constructor_without_unaligned_array_assert()), m_rows(0) {}
-    EIGEN_DEVICE_FUNC DenseStorage(const DenseStorage& other)
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR DenseStorage(const DenseStorage& other)
       : m_data(internal::constructor_without_unaligned_array_assert()), m_rows(other.m_rows)
     {
       internal::plain_array_helper::copy(other.m_data, m_rows * Cols_, m_data);
@@ -343,12 +343,12 @@ template<typename T, int Size, int Cols_, int Options_> class DenseStorage<T, Si
       internal::plain_array_helper::swap(m_data, m_rows * Cols_, other.m_data, other.m_rows * Cols_);
       numext::swap(m_rows, other.m_rows);
     }
-    EIGEN_DEVICE_FUNC Index rows(void) const EIGEN_NOEXCEPT {return m_rows;}
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index rows(void) const EIGEN_NOEXCEPT {return m_rows;}
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index cols(void) const EIGEN_NOEXCEPT {return Cols_;}
-    EIGEN_DEVICE_FUNC void conservativeResize(Index, Index rows, Index) { m_rows = rows; }
-    EIGEN_DEVICE_FUNC void resize(Index, Index rows, Index) { m_rows = rows; }
-    EIGEN_DEVICE_FUNC const T *data() const { return m_data.array; }
-    EIGEN_DEVICE_FUNC T *data() { return m_data.array; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void conservativeResize(Index, Index rows, Index) { m_rows = rows; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void resize(Index, Index rows, Index) { m_rows = rows; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR const T *data() const { return m_data.array; }
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR T *data() { return m_data.array; }
 };
 
 // dynamic-size matrix with fixed-size storage and fixed height

@@ -82,7 +82,7 @@ public:
          : this->rows();
   }
 
-  EIGEN_DEVICE_FUNC RefBase()
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR RefBase()
     : Base(0,RowsAtCompileTime==Dynamic?0:RowsAtCompileTime,ColsAtCompileTime==Dynamic?0:ColsAtCompileTime),
       // Stride<> does not allow default ctor for Dynamic strides, so let' initialize it with dummy values:
       m_stride(StrideType::OuterStrideAtCompileTime==Dynamic?0:StrideType::OuterStrideAtCompileTime,
@@ -108,7 +108,7 @@ protected:
   // Returns true if construction is valid, false if there is a stride mismatch,
   // and fails if there is a size mismatch.
   template<typename Expression>
-  EIGEN_DEVICE_FUNC bool construct(Expression& expr)
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool construct(Expression& expr)
   {
     // Check matrix sizes.  If this is a compile-time vector, we do allow
     // implicitly transposing.
@@ -199,10 +199,11 @@ protected:
       return false;
     }
 
-    ::new (static_cast<Base*>(this)) Base(expr.data(), rows, cols);
-    ::new (&m_stride) StrideBase(
+    internal::construct_at<Base>(this, expr.data(), rows, cols);
+    internal::construct_at(&m_stride,
       (StrideType::OuterStrideAtCompileTime == 0) ? 0 : outer_stride,
       (StrideType::InnerStrideAtCompileTime == 0) ? 0 : inner_stride );
+
     return true;
   }
 
@@ -338,7 +339,7 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
     EIGEN_DENSE_PUBLIC_INTERFACE(Ref)
 
     template<typename Derived>
-    EIGEN_DEVICE_FUNC inline Ref(const DenseBase<Derived>& expr,
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Ref(const DenseBase<Derived>& expr,
                                  typename internal::enable_if<bool(Traits::template match<Derived>::ScalarTypeMatch),Derived>::type* = 0)
     {
 //      std::cout << match_helper<Derived>::HasDirectAccess << "," << match_helper<Derived>::OuterStrideMatch << "," << match_helper<Derived>::InnerStrideMatch << "\n";
@@ -347,19 +348,19 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
       construct(expr.derived(), typename Traits::template match<Derived>::type());
     }
 
-    EIGEN_DEVICE_FUNC inline Ref(const Ref& other) : Base(other) {
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20 Ref(const Ref& other) : Base(other) {
       // copy constructor shall not copy the m_object, to avoid unnecessary malloc and copy
     }
 
     template<typename OtherRef>
-    EIGEN_DEVICE_FUNC inline Ref(const RefBase<OtherRef>& other) {
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20 Ref(const RefBase<OtherRef>& other) {
       construct(other.derived(), typename Traits::template match<OtherRef>::type());
     }
 
   protected:
 
     template<typename Expression>
-    EIGEN_DEVICE_FUNC void construct(const Expression& expr,internal::true_type)
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void construct(const Expression& expr,internal::true_type)
     {
       // Check if we can use the underlying expr's storage directly, otherwise call the copy version.
       if (!Base::construct(expr)) {
@@ -368,7 +369,7 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
     }
 
     template<typename Expression>
-    EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::false_type)
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR void construct(const Expression& expr, internal::false_type)
     {
       internal::call_assignment_no_alias(m_object,expr,internal::assign_op<Scalar,Scalar>());
       Base::construct(m_object);

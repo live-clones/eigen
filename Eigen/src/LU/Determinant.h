@@ -17,7 +17,7 @@ namespace Eigen {
 namespace internal {
 
 template<typename Derived>
-EIGEN_DEVICE_FUNC
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
 inline const typename Derived::Scalar bruteforce_det3_helper
 (const MatrixBase<Derived>& matrix, int a, int b, int c)
 {
@@ -39,7 +39,7 @@ template<typename Derived,
 
 template<typename Derived> struct determinant_impl<Derived, 1>
 {
-  static inline EIGEN_DEVICE_FUNC
+  static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   typename traits<Derived>::Scalar run(const Derived& m)
   {
     return m.coeff(0,0);
@@ -48,7 +48,7 @@ template<typename Derived> struct determinant_impl<Derived, 1>
 
 template<typename Derived> struct determinant_impl<Derived, 2>
 {
-  static inline EIGEN_DEVICE_FUNC
+  static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   typename traits<Derived>::Scalar run(const Derived& m)
   {
     return m.coeff(0,0) * m.coeff(1,1) - m.coeff(1,0) * m.coeff(0,1);
@@ -57,7 +57,7 @@ template<typename Derived> struct determinant_impl<Derived, 2>
 
 template<typename Derived> struct determinant_impl<Derived, 3>
 {
-  static inline EIGEN_DEVICE_FUNC
+  static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   typename traits<Derived>::Scalar run(const Derived& m)
   {
     return bruteforce_det3_helper(m,0,1,2)
@@ -69,7 +69,7 @@ template<typename Derived> struct determinant_impl<Derived, 3>
 template<typename Derived> struct determinant_impl<Derived, 4>
 {
   typedef typename traits<Derived>::Scalar Scalar;
-  static EIGEN_DEVICE_FUNC
+  static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   Scalar run(const Derived& m)
   {
     Scalar d2_01 = det2(m, 0, 1);
@@ -86,13 +86,13 @@ template<typename Derived> struct determinant_impl<Derived, 4>
            internal::pmadd(static_cast<Scalar>(-m(2,3)),d3_2, static_cast<Scalar>(m(3,3)*d3_3));
   }
 protected:
-  static EIGEN_DEVICE_FUNC
+  static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   Scalar det2(const Derived& m, Index i0, Index i1)
   {
     return m(i0,0) * m(i1,1) - m(i1,0) * m(i0,1);
   }
 
-  static EIGEN_DEVICE_FUNC
+  static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   Scalar det3(const Derived& m, Index i0, const Scalar& d0, Index i1, const Scalar& d1, Index i2, const Scalar& d2)
   {
     return internal::pmadd(m(i0,2), d0, internal::pmadd(static_cast<Scalar>(-m(i1,2)), d1, static_cast<Scalar>(m(i2,2)*d2)));
@@ -106,7 +106,7 @@ protected:
   * \returns the determinant of this matrix
   */
 template<typename Derived>
-EIGEN_DEVICE_FUNC
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
 inline typename internal::traits<Derived>::Scalar MatrixBase<Derived>::determinant() const
 {
   eigen_assert(rows() == cols());
