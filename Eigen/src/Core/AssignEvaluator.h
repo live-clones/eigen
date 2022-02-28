@@ -776,8 +776,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20 void call_dense_assignme
 
   // NOTE To properly handle A = (A*A.transpose())/s with A rectangular,
   // we need to resize the destination after the source evaluator has been created.
-  // Template arguments are made explicit to work around a bug (?) in gcc 11.
-  resize_if_allowed<DstXprType,SrcXprType,Functor>(dst, src, func);
+  resize_if_allowed(dst, src, func);
 
   DstEvaluatorType dstEvaluator(dst);
 
