@@ -784,9 +784,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20 void call_dense_assignme
   typedef generic_dense_assignment_kernel<DstEvaluatorType,SrcEvaluatorType,Functor> Kernel;
   Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
 
-  if (internal::is_constant_evaluated()) {
+#if EIGEN_COMP_CXXVER >= 20
+  if constexpr (internal::is_constant_evaluated()) {
     dense_assignment_loop<Kernel, DefaultTraversal, NoUnrolling>::run(kernel);
-  } else {
+  } else
+#endif
+  {
     dense_assignment_loop<Kernel>::run(kernel);
   }
 }
