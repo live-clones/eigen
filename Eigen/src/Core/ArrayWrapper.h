@@ -59,7 +59,7 @@ class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> >
 
     using Base::coeffRef;
 
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     explicit EIGEN_STRONG_INLINE ArrayWrapper(ExpressionType& matrix) : m_expression(matrix) {}
 
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
@@ -89,10 +89,10 @@ class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> >
     }
 
     template<typename Dest>
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     inline void evalTo(Dest& dst) const { dst = m_expression; }
 
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     const typename internal::remove_all<NestedExpressionType>::type&
     nestedExpression() const
     {
@@ -157,13 +157,13 @@ class MatrixWrapper : public MatrixBase<MatrixWrapper<ExpressionType> >
 
     using Base::coeffRef;
 
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     explicit inline MatrixWrapper(ExpressionType& matrix) : m_expression(matrix) {}
 
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
-    inline Index rows() const EIGEN_NOEXCEPT { return m_expression.rows(); }
+    Index rows() const EIGEN_NOEXCEPT { return m_expression.rows(); }
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
-    inline Index cols() const EIGEN_NOEXCEPT { return m_expression.cols(); }
+    Index cols() const EIGEN_NOEXCEPT { return m_expression.cols(); }
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     inline Index outerStride() const EIGEN_NOEXCEPT { return m_expression.outerStride(); }
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
@@ -186,7 +186,7 @@ class MatrixWrapper : public MatrixBase<MatrixWrapper<ExpressionType> >
       return m_expression.coeffRef(index);
     }
 
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     const typename internal::remove_all<NestedExpressionType>::type&
     nestedExpression() const
     {

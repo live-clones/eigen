@@ -214,21 +214,21 @@ EIGEN_DEVICE_FUNC inline Target
 preinterpret(const Packet& a); /* { return reinterpret_cast<const Target&>(a); } */
 
 /** \internal \returns a + b (coeff-wise) */
-template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet
 padd(const Packet& a, const Packet& b) { return a+b; }
 // Avoid compiler warning for boolean algebra.
-template<> EIGEN_DEVICE_FUNC inline bool
+template<> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool
 padd(const bool& a, const bool& b) { return a || b; }
 
 /** \internal \returns a - b (coeff-wise) */
-template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet
 psub(const Packet& a, const Packet& b) { return a-b; }
 
 /** \internal \returns -a (coeff-wise) */
-template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet
 pnegate(const Packet& a) { return -a; }
 
-template<> EIGEN_DEVICE_FUNC inline bool
+template<> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool
 pnegate(const bool& a) { return !a; }
 
 /** \internal \returns conj(a) (coeff-wise) */
@@ -236,14 +236,14 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pconj(const Packet& a) { return numext::conj(a); }
 
 /** \internal \returns a * b (coeff-wise) */
-template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet
 pmul(const Packet& a, const Packet& b) { return a*b; }
 // Avoid compiler warning for boolean algebra.
-template<> EIGEN_DEVICE_FUNC inline bool
+template<> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool
 pmul(const bool& a, const bool& b) { return a && b; }
 
 /** \internal \returns a / b (coeff-wise) */
-template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet
 pdiv(const Packet& a, const Packet& b) { return a/b; }
 
 // In the generic case, memset to all one bits.
@@ -466,7 +466,7 @@ template<> EIGEN_DEVICE_FUNC inline bool pselect<bool>(
 template<int NaNPropagation>
 struct pminmax_impl {
   template <typename Packet, typename Op>
-  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
+  static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet run(const Packet& a, const Packet& b, Op op) {
     return op(a,b);
   }
 };
@@ -511,25 +511,25 @@ struct pminmax_impl<PropagateNumbers> {
 
 /** \internal \returns the min of \a a and \a b  (coeff-wise).
     If \a a or \b b is NaN, the return value is implementation defined. */
-template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet
 pmin(const Packet& a, const Packet& b) { return numext::mini(a,b); }
 
 /** \internal \returns the min of \a a and \a b  (coeff-wise).
     NaNPropagation determines the NaN propagation semantics. */
 template <int NaNPropagation, typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pmin(const Packet& a, const Packet& b) {
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet pmin(const Packet& a, const Packet& b) {
   return pminmax_impl<NaNPropagation>::run(a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmin<Packet>)));
 }
 
 /** \internal \returns the max of \a a and \a b  (coeff-wise)
     If \a a or \b b is NaN, the return value is implementation defined. */
-template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet
 pmax(const Packet& a, const Packet& b) { return numext::maxi(a, b); }
 
 /** \internal \returns the max of \a a and \a b  (coeff-wise).
     NaNPropagation determines the NaN propagation semantics. */
 template <int NaNPropagation, typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pmax(const Packet& a, const Packet& b) {
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet pmax(const Packet& a, const Packet& b) {
   return pminmax_impl<NaNPropagation>::run(a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet,(pmax<Packet>)));
 }
 
@@ -942,28 +942,28 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline bool predux_any(const Packet&
 // FMA instructions.
 /** \internal \returns a * b + c (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pmadd(const Packet& a, const Packet& b,
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet pmadd(const Packet& a, const Packet& b,
                                       const Packet& c) {
   return padd(pmul(a, b), c);
 }
 
 /** \internal \returns a * b - c (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pmsub(const Packet& a, const Packet& b,
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet pmsub(const Packet& a, const Packet& b,
                                       const Packet& c) {
   return psub(pmul(a, b), c);
 }
 
 /** \internal \returns -(a * b) + c (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b,
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet pnmadd(const Packet& a, const Packet& b,
                                        const Packet& c) {
   return padd(pnegate(pmul(a, b)), c);
 }
 
 /** \internal \returns -(a * b) - c (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b,
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Packet pnmsub(const Packet& a, const Packet& b,
                                        const Packet& c) {
   return psub(pnegate(pmul(a, b)), c);
 }

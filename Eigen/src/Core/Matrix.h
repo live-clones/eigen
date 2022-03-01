@@ -221,7 +221,7 @@ class Matrix
       * remain row-vectors and vectors remain vectors.
       */
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     EIGEN_STRONG_INLINE Matrix& operator=(const DenseBase<OtherDerived>& other)
     {
       return Base::_set(other);
@@ -234,14 +234,14 @@ class Matrix
       * \copydetails DenseBase::operator=(const EigenBase<OtherDerived> &other)
       */
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     EIGEN_STRONG_INLINE Matrix& operator=(const EigenBase<OtherDerived> &other)
     {
       return Base::operator=(other);
     }
 
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     EIGEN_STRONG_INLINE Matrix& operator=(const ReturnByValue<OtherDerived>& func)
     {
       return Base::operator=(func);
@@ -257,7 +257,7 @@ class Matrix
       *
       * \sa resize(Index,Index)
       */
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
     Matrix() : Base()
     {
       EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED
@@ -269,7 +269,7 @@ class Matrix
       : Base(internal::constructor_without_unaligned_array_assert())
     { EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED }
 
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
     Matrix(Matrix&& other) EIGEN_NOEXCEPT_IF(std::is_nothrow_move_constructible<Scalar>::value)
       : Base(std::move(other)) {}
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
@@ -287,7 +287,7 @@ class Matrix
      * \sa Matrix(const std::initializer_list<std::initializer_list<Scalar>>&)
      */
     template <typename... ArgTypes>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
     Matrix(const Scalar& a0, const Scalar& a1, const Scalar& a2,  const Scalar& a3, const ArgTypes&... args)
       : Base(a0, a1, a2, a3, args...) {}
 
@@ -312,21 +312,21 @@ class Matrix
       *
       * \sa Matrix(const Scalar& a0, const Scalar& a1, const Scalar& a2,  const Scalar& a3, const ArgTypes&... args)
       */
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     explicit EIGEN_STRONG_INLINE Matrix(const std::initializer_list<std::initializer_list<Scalar>>& list) : Base(list) {}
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 
     // This constructor is for both 1x1 matrices and dynamic vectors
     template<typename T>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20
     explicit Matrix(const T& x)
     {
       Base::template _init1<T>(x);
     }
 
     template<typename T0, typename T1>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20
     Matrix(const T0& x, const T1& y)
     {
       Base::template _init2<T0,T1>(x, y);
@@ -377,7 +377,7 @@ class Matrix
     /** \brief Constructs an initialized 3D vector with given coefficients
       * \sa Matrix(const Scalar&, const Scalar&, const Scalar&,  const Scalar&, const ArgTypes&...)
       */
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20
     EIGEN_STRONG_INLINE Matrix(const Scalar& x, const Scalar& y, const Scalar& z)
     {
       EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Matrix, 3)
@@ -388,7 +388,7 @@ class Matrix
     /** \brief Constructs an initialized 4D vector with given coefficients
       * \sa Matrix(const Scalar&, const Scalar&, const Scalar&,  const Scalar&, const ArgTypes&...)
       */
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR20
     EIGEN_STRONG_INLINE Matrix(const Scalar& x, const Scalar& y, const Scalar& z, const Scalar& w)
     {
       EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Matrix, 4)
@@ -400,7 +400,7 @@ class Matrix
 
 
     /** \brief Copy constructor */
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     EIGEN_STRONG_INLINE Matrix(const Matrix& other) : Base(other)
     { }
 
@@ -408,7 +408,7 @@ class Matrix
       * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
       */
     template<typename OtherDerived>
-    EIGEN_DEVICE_FUNC
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     EIGEN_STRONG_INLINE Matrix(const EigenBase<OtherDerived> &other)
       : Base(other.derived())
     { }

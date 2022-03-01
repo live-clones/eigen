@@ -23,7 +23,7 @@ namespace internal {
   */
 template<typename Scalar> struct scalar_opposite_op {
   EIGEN_EMPTY_STRUCT_CTOR(scalar_opposite_op)
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { return -a; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR const Scalar operator() (const Scalar& a) const { return -a; }
   template<typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const
   { return internal::pnegate(a); }
@@ -93,7 +93,7 @@ template<typename Scalar> struct abs_knowing_score<Scalar, typename scalar_score
 template<typename Scalar> struct scalar_abs2_op {
   EIGEN_EMPTY_STRUCT_CTOR(scalar_abs2_op)
   typedef typename NumTraits<Scalar>::Real result_type;
-  EIGEN_DEVICE_FUNC
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   EIGEN_STRONG_INLINE const result_type operator() (const Scalar& a) const { return numext::abs2(a); }
   template<typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const
@@ -162,7 +162,7 @@ template<typename Scalar, typename NewType>
 struct scalar_cast_op {
   EIGEN_EMPTY_STRUCT_CTOR(scalar_cast_op)
   typedef NewType result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const NewType operator() (const Scalar& a) const { return cast<Scalar, NewType>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR const NewType operator() (const Scalar& a) const { return cast<Scalar, NewType>(a); }
 };
 template<typename Scalar, typename NewType>
 struct functor_traits<scalar_cast_op<Scalar,NewType> >

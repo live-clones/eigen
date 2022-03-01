@@ -709,6 +709,20 @@
 
 #define EIGEN_CONSTEXPR constexpr
 
+#if EIGEN_COMP_CXXVER >= 20
+#define EIGEN_CONSTEXPR20 constexpr
+namespace Eigen::internal {
+  constexpr bool is_constant_evaluated() { return std::is_constant_evaluated(); }
+}
+#else
+#define EIGEN_CONSTEXPR20
+namespace Eigen {
+  namespace internal {
+    constexpr bool is_constant_evaluated() { return false; }
+  }
+}
+#endif
+
 // Does the compiler support C++11 math?
 // Let's be conservative and enable the default C++11 implementation only if we are sure it exists
 #ifndef EIGEN_HAS_CXX11_MATH
@@ -864,7 +878,6 @@
 # endif
 #endif
 
-// eigen_plain_assert is where we implement the workaround for the assert() bug in GCC <= 4.3, see bug 89
 #ifdef EIGEN_NO_DEBUG
   #ifdef SYCL_DEVICE_ONLY // used to silence the warning on SYCL device
     #define eigen_plain_assert(x) EIGEN_UNUSED_VARIABLE(x)
@@ -872,11 +885,6 @@
     #define eigen_plain_assert(x)
   #endif
 #else
-    namespace Eigen {
-    namespace internal {
-    inline bool copy_bool(bool b) { return b; }
-    }
-    }
     #define eigen_plain_assert(x) assert(x)
 #endif
 
@@ -918,7 +926,7 @@
 // Suppresses 'unused variable' warnings.
 namespace Eigen {
   namespace internal {
-    template<typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ignore_unused_variable(const T&) {}
+    template<typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void ignore_unused_variable(const T&) {}
   }
 }
 #define EIGEN_UNUSED_VARIABLE(var) Eigen::internal::ignore_unused_variable(var);
@@ -1053,13 +1061,13 @@ namespace Eigen {
 #elif EIGEN_COMP_CLANG // workaround clang bug (see http://forum.kde.org/viewtopic.php?f=74&t=102653)
   #define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived) \
     using Base::operator =; \
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { Base::operator=(other); return *this; } \
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Derived& operator=(const Derived& other) { Base::operator=(other); return *this; } \
     template <typename OtherDerived> \
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const DenseBase<OtherDerived>& other) { Base::operator=(other.derived()); return *this; }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE  EIGEN_CONSTEXPR Derived& operator=(const DenseBase<OtherDerived>& other) { Base::operator=(other.derived()); return *this; }
 #else
   #define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived) \
     using Base::operator =; \
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) \
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Derived& operator=(const Derived& other) \
     { \
       Base::operator=(other); \
       return *this; \
@@ -1092,11 +1100,14 @@ namespace Eigen {
  *
  * Hiding the default destructor lead to problems in C++03 mode together with boost::multiprecision
  */
+#if EIGEN_COMP_NVCC
 #define EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(Derived)  \
-    EIGEN_DEVICE_FUNC Derived() = default; \
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Derived() = default; \
     EIGEN_DEVICE_FUNC ~Derived() = default;
-
-
+#else
+#define EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(Derived)  \
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Derived() = default;
+#endif
 
 
 
@@ -1153,7 +1164,7 @@ namespace Eigen {
 
 #define EIGEN_MAKE_CWISE_BINARY_OP(METHOD,OPNAME) \
   template<typename OtherDerived> \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME) \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME) \
   (METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const \
   { \
     return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME)(derived(), other.derived()); \
@@ -1171,7 +1182,7 @@ namespace Eigen {
                 const typename internal::plain_constant_type<EXPR,SCALAR>::type, const EXPR>
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD,OPNAME) \
-  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE \
+  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR \
   const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived,typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,Scalar,T)>::type,OPNAME)\
   (METHOD)(const T& scalar) const { \
     typedef typename internal::promote_scalar_arg<Scalar,T,EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,Scalar,T)>::type PromotedT; \
@@ -1180,7 +1191,7 @@ namespace Eigen {
   }
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD,OPNAME) \
-  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend \
+  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR friend \
   const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,T,Scalar)>::type,Derived,OPNAME) \
   (METHOD)(const T& scalar, const StorageBaseType& matrix) { \
     typedef typename internal::promote_scalar_arg<Scalar,T,EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,T,Scalar)>::type PromotedT; \

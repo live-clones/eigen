@@ -22,7 +22,7 @@ namespace internal {
   */
 template<typename DstScalar,typename SrcScalar> struct assign_op {
 
-  EIGEN_EMPTY_STRUCT_CTOR(assign_op)
+  EIGEN_EMPTY_STRUCT_CTOR(assign_op) EIGEN_CONSTEXPR
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(DstScalar& a, const SrcScalar& b) const { a = b; }
   
   template<int Alignment, typename Packet>
@@ -48,8 +48,8 @@ struct functor_traits<assign_op<DstScalar,SrcScalar> > {
 template<typename DstScalar,typename SrcScalar> struct add_assign_op {
 
   EIGEN_EMPTY_STRUCT_CTOR(add_assign_op)
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(DstScalar& a, const SrcScalar& b) const { a += b; }
-  
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void assignCoeff(DstScalar& a, const SrcScalar& b) const { a += b; }
+
   template<int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const
   { internal::pstoret<DstScalar,Packet,Alignment>(a,internal::padd(internal::ploadt<Packet,Alignment>(a),b)); }
@@ -144,7 +144,7 @@ struct functor_traits<div_assign_op<DstScalar,SrcScalar> > {
 template<typename Scalar> struct swap_assign_op {
 
   EIGEN_EMPTY_STRUCT_CTOR(swap_assign_op)
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(Scalar& a, const Scalar& b) const
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void assignCoeff(Scalar& a, const Scalar& b) const
   {
 #ifdef EIGEN_GPUCC
     // FIXME is there some kind of cuda::swap?
