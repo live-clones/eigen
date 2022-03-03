@@ -800,8 +800,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
                                m_d.rhsImpl.template packet<LoadMode,PacketType>(index));
   }
 
-//protected:
-public:
+protected:
 
   // this helper permits to completely eliminate the functor if it is empty
   struct Data
