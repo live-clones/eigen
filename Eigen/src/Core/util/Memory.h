@@ -1153,7 +1153,7 @@ inline int queryTopLevelCacheSize()
 
 
 /** \internal
- * This wraps C++20's std::construct_at, using placement new if it not available.
+ * This wraps C++20's std::construct_at, using placement new instead if it is not available.
  */
 
 #if EIGEN_COMP_CXXVER >= 20
