@@ -158,14 +158,9 @@ template<typename Scalar> class plainobjectbase_evaluator_data<Scalar,Dynamic> {
 public:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
   plainobjectbase_evaluator_data() {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR20
-  plainobjectbase_evaluator_data(const Scalar* ptr, Index outerStride) {
-    init(ptr, outerStride);
-  }
-  EIGEN_CONSTEXPR void init(const Scalar* ptr, Index outerStride) {
-    data = ptr;
-    m_outerStride = outerStride;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
+  plainobjectbase_evaluator_data(const Scalar* ptr, Index outerStride)
+    : data(ptr), m_outerStride(outerStride) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
   Index outerStride() const { return m_outerStride; }
   const Scalar *data;
