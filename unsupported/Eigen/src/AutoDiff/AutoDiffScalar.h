@@ -148,11 +148,9 @@ class AutoDiffScalar
       return *this;
     }
 
-#if EIGEN_HAS_CXX11
     // make conversion operator for Scalar available, but only explicitly, so we don't accidentally drop derivatives
     inline explicit operator const Scalar& () const { return m_value; }
     inline explicit operator Scalar& () { return m_value; }
-#endif
 
     inline const Scalar& value() const { return m_value; }
     inline Scalar& value() { return m_value; }
