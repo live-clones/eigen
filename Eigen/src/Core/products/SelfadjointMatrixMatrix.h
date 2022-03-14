@@ -517,17 +517,17 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,RhsMode,false>
     Scalar actualAlpha = alpha * LhsBlasTraits::extractScalarFactor(a_lhs)
                                * RhsBlasTraits::extractScalarFactor(a_rhs);
 
-    typedef internal::gemm_blocking_space<(Dest::Flags&RowMajorBit) ? RowMajor : ColMajor,Scalar,Scalar,
+    typedef internal::gemm_blocking_space<get_storage_order(Dest::Flags), Scalar,Scalar,
               Lhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime, Lhs::MaxColsAtCompileTime,1> BlockingType;
 
     BlockingType blocking(lhs.rows(), rhs.cols(), lhs.cols(), 1, false);
 
     internal::product_selfadjoint_matrix<Scalar, Index,
-      internal::logical_xor(LhsIsUpper, internal::traits<Lhs>::Flags &RowMajorBit) ? RowMajor : ColMajor, LhsIsSelfAdjoint,
+      internal::logical_xor(LhsIsUpper, is_row_major(internal::traits<Lhs>::Flags)) ? RowMajor : ColMajor, LhsIsSelfAdjoint,
       NumTraits<Scalar>::IsComplex && internal::logical_xor(LhsIsUpper, bool(LhsBlasTraits::NeedToConjugate)),
-      internal::logical_xor(RhsIsUpper, internal::traits<Rhs>::Flags &RowMajorBit) ? RowMajor : ColMajor, RhsIsSelfAdjoint,
+      internal::logical_xor(RhsIsUpper, is_row_major(internal::traits<Rhs>::Flags)) ? RowMajor : ColMajor, RhsIsSelfAdjoint,
       NumTraits<Scalar>::IsComplex && internal::logical_xor(RhsIsUpper, bool(RhsBlasTraits::NeedToConjugate)),
-      internal::traits<Dest>::Flags&RowMajorBit  ? RowMajor : ColMajor,
+      get_storage_order(internal::traits<Dest>::Flags),
       Dest::InnerStrideAtCompileTime>
       ::run(
         lhs.rows(), rhs.cols(),                 // sizes

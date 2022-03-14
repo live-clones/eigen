@@ -674,7 +674,7 @@ public:
 
     template<typename OtherDerived>
             inline SkylineMatrix & operator=(const SkylineMatrixBase<OtherDerived>& other) {
-        const bool needToTranspose = (Flags & RowMajorBit) != (OtherDerived::Flags & RowMajorBit);
+        const bool needToTranspose = get_storage_order(Flags) != get_storage_order(OtherDerived::Flags);
         if (needToTranspose) {
             //         TODO
             //            return *this;

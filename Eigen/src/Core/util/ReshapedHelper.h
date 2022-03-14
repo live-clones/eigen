@@ -43,7 +43,7 @@ inline Index get_runtime_reshape_size(AutoSize_t /*size*/, Index other, Index to
 
 template<int Flags, int Order>
 struct get_compiletime_reshape_order {
-  enum { value = Order == AutoOrder ? Flags & RowMajorBit : Order };
+  enum { value = Order == AutoOrder ? storage_order_flag(Flags) : Order };
 };
 
 }

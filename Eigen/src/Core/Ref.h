@@ -32,7 +32,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
     enum {
       IsVectorAtCompileTime = PlainObjectType::IsVectorAtCompileTime || Derived::IsVectorAtCompileTime,
       HasDirectAccess = internal::has_direct_access<Derived>::ret,
-      StorageOrderMatch = IsVectorAtCompileTime || ((PlainObjectType::Flags&RowMajorBit)==(Derived::Flags&RowMajorBit)),
+      StorageOrderMatch = IsVectorAtCompileTime || has_same_storage_order(PlainObjectType::Flags, Derived::Flags),
       InnerStrideMatch = int(StrideType::InnerStrideAtCompileTime)==int(Dynamic)
                       || int(StrideType::InnerStrideAtCompileTime)==int(Derived::InnerStrideAtCompileTime)
                       || (int(StrideType::InnerStrideAtCompileTime)==0 && int(Derived::InnerStrideAtCompileTime)==1),
@@ -78,7 +78,7 @@ public:
   {
     return StrideType::OuterStrideAtCompileTime != 0 ? m_stride.outer()
          : IsVectorAtCompileTime ? this->size()
-         : int(Flags)&RowMajorBit ? this->cols()
+         : is_row_major(Flags) ? this->cols()
          : this->rows();
   }
 
@@ -150,9 +150,9 @@ protected:
     // If this is a vector, we might be transposing, which means that stride should swap.
     const bool transpose = PlainObjectType::IsVectorAtCompileTime && (rows != expr.rows());
     // If the storage format differs, we also need to swap the stride.
-    const bool row_major = ((PlainObjectType::Flags)&RowMajorBit) != 0;
-    const bool expr_row_major = (Expression::Flags&RowMajorBit) != 0;
-    const bool storage_differs =  (row_major != expr_row_major);
+    constexpr bool row_major = is_row_major(PlainObjectType::Flags);
+    constexpr bool expr_row_major = is_row_major(Expression::Flags);
+    constexpr bool storage_differs =  (row_major != expr_row_major);
 
     const bool swap_stride = (transpose != storage_differs);
 

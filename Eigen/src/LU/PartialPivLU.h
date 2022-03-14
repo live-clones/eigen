@@ -24,7 +24,7 @@ template<typename MatrixType_> struct traits<PartialPivLU<MatrixType_> >
   typedef int StorageIndex;
   typedef traits<MatrixType_> BaseTraits;
   enum {
-    Flags = BaseTraits::Flags & RowMajorBit,
+    Flags = storage_order_flag(BaseTraits::Flags),
     CoeffReadCost = Dynamic
   };
 };
@@ -512,7 +512,7 @@ void partial_lu_inplace(MatrixType& lu, TranspositionType& row_transpositions, t
   eigen_assert(row_transpositions.size() < 2 || (&row_transpositions.coeffRef(1)-&row_transpositions.coeffRef(0)) == 1);
 
   partial_lu_impl
-    < typename MatrixType::Scalar, MatrixType::Flags&RowMajorBit?RowMajor:ColMajor,
+    < typename MatrixType::Scalar, get_storage_order(MatrixType::Flags),
       typename TranspositionType::StorageIndex,
       internal::min_size_prefer_fixed(MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime)>
     ::blocked_lu(lu.rows(), lu.cols(), &lu.coeffRef(0,0), lu.outerStride(), &row_transpositions.coeffRef(0), nb_transpositions);

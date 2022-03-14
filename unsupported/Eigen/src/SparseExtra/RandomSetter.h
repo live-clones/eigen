@@ -174,7 +174,7 @@ class RandomSetter
     static constexpr int OuterPacketMask = (1 << OuterPacketBits) - 1;
     enum {
       SwapStorage = 1 - MapTraits<ScalarWrapper>::IsSorted,
-      TargetRowMajor = (SparseMatrixType::Flags & RowMajorBit) ? 1 : 0,
+      TargetRowMajor = is_row_major(SparseMatrixType::Flags),
       SetterRowMajor = SwapStorage ? 1-TargetRowMajor : TargetRowMajor
     };
 

@@ -132,9 +132,9 @@ template<class Source, int Order>
 using WithStorageOrder = SparseMatrix<typename Source::Scalar, Order, typename Source::StorageIndex>;
 
 template<typename Lhs, typename Rhs, typename ResultType,
-  int LhsStorageOrder = (traits<Lhs>::Flags&RowMajorBit) ? RowMajor : ColMajor,
-  int RhsStorageOrder = (traits<Rhs>::Flags&RowMajorBit) ? RowMajor : ColMajor,
-  int ResStorageOrder = (traits<ResultType>::Flags&RowMajorBit) ? RowMajor : ColMajor>
+  int LhsStorageOrder = get_storage_order(traits<Lhs>::Flags),
+  int RhsStorageOrder = get_storage_order(traits<Rhs>::Flags),
+  int ResStorageOrder = get_storage_order(traits<ResultType>::Flags)>
 struct conservative_sparse_sparse_product_selector;
 
 template<typename Lhs, typename Rhs, typename ResultType>
@@ -306,8 +306,8 @@ static void sparse_sparse_to_dense_product_impl(const Lhs& lhs, const Rhs& rhs, 
 namespace internal {
 
 template<typename Lhs, typename Rhs, typename ResultType,
-  int LhsStorageOrder = (traits<Lhs>::Flags&RowMajorBit) ? RowMajor : ColMajor,
-  int RhsStorageOrder = (traits<Rhs>::Flags&RowMajorBit) ? RowMajor : ColMajor>
+  int LhsStorageOrder = get_storage_order(traits<Lhs>::Flags),
+  int RhsStorageOrder = get_storage_order(traits<Rhs>::Flags)>
 struct sparse_sparse_to_dense_product_selector;
 
 template<typename Lhs, typename Rhs, typename ResultType>

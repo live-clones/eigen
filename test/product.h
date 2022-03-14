@@ -38,8 +38,7 @@ template<typename MatrixType> void product(const MatrixType& m)
   typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, 1> ColVectorType;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> RowSquareMatrixType;
   typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime> ColSquareMatrixType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
-                         MatrixType::Flags&RowMajorBit?ColMajor:RowMajor> OtherMajorMatrixType;
+  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, storage_order_flag(MatrixType::Flags)> OtherMajorMatrixType;
 
   Index rows = m.rows();
   Index cols = m.cols();

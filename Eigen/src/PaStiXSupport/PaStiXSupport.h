@@ -369,7 +369,7 @@ template<typename Rhs,typename Dest>
 bool PastixBase<Base>::_solve_impl(const MatrixBase<Rhs> &b, MatrixBase<Dest> &x) const
 {
   eigen_assert(m_isInitialized && "The matrix should be factorized first");
-  EIGEN_STATIC_ASSERT((Dest::Flags&RowMajorBit)==0,
+  EIGEN_STATIC_ASSERT(is_col_major(Dest::Flags),
                      THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
   int rhs = 1;
   

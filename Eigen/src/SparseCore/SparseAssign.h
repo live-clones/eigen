@@ -78,8 +78,8 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src)
 
   SrcEvaluatorType srcEvaluator(src);
 
-  const bool transpose = (DstEvaluatorType::Flags & RowMajorBit) != (SrcEvaluatorType::Flags & RowMajorBit);
-  const Index outerEvaluationSize = (SrcEvaluatorType::Flags&RowMajorBit) ? src.rows() : src.cols();
+  const bool transpose = get_storage_order(DstEvaluatorType::Flags) != get_storage_order(SrcEvaluatorType::Flags);
+  const Index outerEvaluationSize = is_row_major(SrcEvaluatorType::Flags) ? src.rows() : src.cols();
   if ((!transpose) && src.isRValue())
   {
     // eval without temporary
@@ -101,10 +101,10 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src)
   {
     // eval through a temporary
     eigen_assert(( ((internal::traits<DstXprType>::SupportedAccessPatterns & OuterRandomAccessPattern)==OuterRandomAccessPattern) ||
-              (!((DstEvaluatorType::Flags & RowMajorBit) != (SrcEvaluatorType::Flags & RowMajorBit)))) &&
+              (!(get_storage_order(DstEvaluatorType::Flags) != get_storage_order(SrcEvaluatorType::Flags)))) &&
               "the transpose operation is supposed to be handled in SparseMatrix::operator=");
 
-    enum { Flip = (DstEvaluatorType::Flags & RowMajorBit) != (SrcEvaluatorType::Flags & RowMajorBit) };
+    enum { Flip = get_storage_order(DstEvaluatorType::Flags) != get_storage_order(SrcEvaluatorType::Flags) };
 
     
     DstXprType temp(src.rows(), src.cols());
@@ -148,7 +148,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, Sparse2Dense, Weak>
     resize_if_allowed(dst, src, func);
     internal::evaluator<DstXprType> dstEval(dst);
     
-    const Index outerEvaluationSize = (internal::evaluator<SrcXprType>::Flags&RowMajorBit) ? src.rows() : src.cols();
+    const Index outerEvaluationSize = is_row_major(internal::evaluator<SrcXprType>::Flags) ? src.rows() : src.cols();
     for (Index j=0; j<outerEvaluationSize; ++j)
       for (typename internal::evaluator<SrcXprType>::InnerIterator i(srcEval,j); i; ++i)
         func.assignCoeff(dstEval.coeffRef(i.row(),i.col()), i.value());

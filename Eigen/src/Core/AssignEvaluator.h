@@ -48,10 +48,10 @@ public:
 private:
   enum {
     InnerSize = int(Dst::IsVectorAtCompileTime) ? int(Dst::SizeAtCompileTime)
-              : int(DstFlags)&RowMajorBit ? int(Dst::ColsAtCompileTime)
+              : is_row_major(DstFlags) ? int(Dst::ColsAtCompileTime)
               : int(Dst::RowsAtCompileTime),
     InnerMaxSize = int(Dst::IsVectorAtCompileTime) ? int(Dst::MaxSizeAtCompileTime)
-              : int(DstFlags)&RowMajorBit ? int(Dst::MaxColsAtCompileTime)
+              : is_row_major(DstFlags) ? int(Dst::MaxColsAtCompileTime)
               : int(Dst::MaxRowsAtCompileTime),
     RestrictedInnerSize = min_size_prefer_fixed(InnerSize, MaxPacketSize),
     RestrictedLinearSize = min_size_prefer_fixed(Dst::SizeAtCompileTime, MaxPacketSize),
@@ -76,9 +76,7 @@ public:
 
 private:
   enum {
-    DstIsRowMajor = DstFlags&RowMajorBit,
-    SrcIsRowMajor = SrcFlags&RowMajorBit,
-    StorageOrdersAgree = (int(DstIsRowMajor) == int(SrcIsRowMajor)),
+    StorageOrdersAgree = get_storage_order(DstFlags) == get_storage_order(SrcFlags),
     MightVectorize = bool(StorageOrdersAgree)
                   && (int(DstFlags) & int(SrcFlags) & ActualPacketAccessBit)
                   && bool(functor_traits<AssignFunc>::PacketAccess),
@@ -704,7 +702,7 @@ public:
     typedef typename DstEvaluatorType::ExpressionTraits Traits;
     return int(Traits::ColsAtCompileTime) == 1 ? 0
       : int(Traits::RowsAtCompileTime) == 1 ? inner
-      : int(DstEvaluatorType::Flags)&RowMajorBit ? inner
+      : is_row_major(DstEvaluatorType::Flags) ? inner
       : outer;
   }
 

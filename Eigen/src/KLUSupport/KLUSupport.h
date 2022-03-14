@@ -345,7 +345,7 @@ template<typename BDerived,typename XDerived>
 bool KLU<MatrixType>::_solve_impl(const MatrixBase<BDerived> &b, MatrixBase<XDerived> &x) const
 {
   Index rhsCols = b.cols();
-  EIGEN_STATIC_ASSERT((XDerived::Flags&RowMajorBit)==0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
+  EIGEN_STATIC_ASSERT(is_col_major(XDerived::Flags), THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
   eigen_assert(m_factorizationIsOk && "The decomposition is not in a valid state for solving, you must first call either compute() or analyzePattern()/factorize()");
 
   x = b;

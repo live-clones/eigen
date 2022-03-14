@@ -541,7 +541,7 @@ ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag
     while (start>0 && !numext::is_exactly_zero(subdiag[start - 1]))
       start--;
 
-    internal::tridiagonal_qr_step<MatrixType::Flags&RowMajorBit ? RowMajor : ColMajor>(diag.data(), subdiag.data(), start, end, computeEigenvectors ? eivec.data() : (Scalar*)0, n);
+    internal::tridiagonal_qr_step<get_storage_order(MatrixType::Flags)>(diag.data(), subdiag.data(), start, end, computeEigenvectors ? eivec.data() : (Scalar*)0, n);
   }
   if (iter <= maxIterations * n)
     info = Success;

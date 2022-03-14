@@ -237,7 +237,7 @@ struct traits<KroneckerProductSparse<Lhs_,Rhs_> >
     MaxRowsAtCompileTime = size_at_compile_time(traits<Lhs>::MaxRowsAtCompileTime, traits<Rhs>::MaxRowsAtCompileTime),
     MaxColsAtCompileTime = size_at_compile_time(traits<Lhs>::MaxColsAtCompileTime, traits<Rhs>::MaxColsAtCompileTime),
 
-    EvalToRowMajor = (int(LhsFlags) & int(RhsFlags) & RowMajorBit),
+    EvalToRowMajor = is_row_major(unsigned(LhsFlags) & unsigned(RhsFlags)),
     RemovedBits = ~(EvalToRowMajor ? 0 : RowMajorBit),
 
     Flags = ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & RemovedBits)

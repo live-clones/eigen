@@ -19,8 +19,8 @@ namespace internal {
 template<typename VectorType, int Size>
 struct traits<VectorBlock<VectorType, Size> >
   : public traits<Block<VectorType,
-                     traits<VectorType>::Flags & RowMajorBit ? 1 : Size,
-                     traits<VectorType>::Flags & RowMajorBit ? Size : 1> >
+        is_row_major(traits<VectorType>::Flags) ? 1 : Size,
+        is_row_major(traits<VectorType>::Flags) ? Size : 1> >
 {
 };
 }
@@ -57,14 +57,14 @@ struct traits<VectorBlock<VectorType, Size> >
   */
 template<typename VectorType, int Size> class VectorBlock
   : public Block<VectorType,
-                     internal::traits<VectorType>::Flags & RowMajorBit ? 1 : Size,
-                     internal::traits<VectorType>::Flags & RowMajorBit ? Size : 1>
+          is_row_major(internal::traits<VectorType>::Flags) ? 1 : Size,
+          is_row_major(internal::traits<VectorType>::Flags) ? Size : 1>
 {
     typedef Block<VectorType,
-                     internal::traits<VectorType>::Flags & RowMajorBit ? 1 : Size,
-                     internal::traits<VectorType>::Flags & RowMajorBit ? Size : 1> Base;
+            is_row_major(internal::traits<VectorType>::Flags) ? 1 : Size,
+            is_row_major(internal::traits<VectorType>::Flags) ? Size : 1> Base;
     enum {
-      IsColVector = !(internal::traits<VectorType>::Flags & RowMajorBit)
+      IsColVector = !is_row_major(internal::traits<VectorType>::Flags)
     };
   public:
     EIGEN_DENSE_PUBLIC_INTERFACE(VectorBlock)

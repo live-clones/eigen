@@ -26,7 +26,7 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices> >
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
 
-    XprTypeIsRowMajor = (int(traits<XprType>::Flags)&RowMajorBit) != 0,
+    XprTypeIsRowMajor = is_row_major(traits<XprType>::Flags),
     IsRowMajor = (MaxRowsAtCompileTime==1&&MaxColsAtCompileTime!=1) ? 1
                : (MaxColsAtCompileTime==1&&MaxRowsAtCompileTime!=1) ? 0
                : XprTypeIsRowMajor,

@@ -490,22 +490,22 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct>
 
     Scalar actualAlpha = combine_scalar_factors(alpha, a_lhs, a_rhs);
 
-    typedef internal::gemm_blocking_space<(Dest::Flags&RowMajorBit) ? RowMajor : ColMajor,LhsScalar,RhsScalar,
+    typedef internal::gemm_blocking_space<get_storage_order(Dest::Flags),LhsScalar,RhsScalar,
             Dest::MaxRowsAtCompileTime,Dest::MaxColsAtCompileTime,MaxDepthAtCompileTime> BlockingType;
 
     typedef internal::gemm_functor<
       Scalar, Index,
       internal::general_matrix_matrix_product<
         Index,
-        LhsScalar, (ActualLhsTypeCleaned::Flags&RowMajorBit) ? RowMajor : ColMajor, bool(LhsBlasTraits::NeedToConjugate),
-        RhsScalar, (ActualRhsTypeCleaned::Flags&RowMajorBit) ? RowMajor : ColMajor, bool(RhsBlasTraits::NeedToConjugate),
-        (Dest::Flags&RowMajorBit) ? RowMajor : ColMajor,
+        LhsScalar, get_storage_order(ActualLhsTypeCleaned::Flags), bool(LhsBlasTraits::NeedToConjugate),
+        RhsScalar, get_storage_order(ActualRhsTypeCleaned::Flags), bool(RhsBlasTraits::NeedToConjugate),
+        get_storage_order(Dest::Flags),
         Dest::InnerStrideAtCompileTime>,
       ActualLhsTypeCleaned, ActualRhsTypeCleaned, Dest, BlockingType> GemmFunctor;
 
     BlockingType blocking(dst.rows(), dst.cols(), lhs.cols(), 1, true);
     internal::parallelize_gemm<(Dest::MaxRowsAtCompileTime>32 || Dest::MaxRowsAtCompileTime==Dynamic)>
-        (GemmFunctor(lhs, rhs, dst, actualAlpha, blocking), a_lhs.rows(), a_rhs.cols(), a_lhs.cols(), Dest::Flags&RowMajorBit);
+        (GemmFunctor(lhs, rhs, dst, actualAlpha, blocking), a_lhs.rows(), a_rhs.cols(), a_lhs.cols(), is_row_major(Dest::Flags));
   }
 };
 

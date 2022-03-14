@@ -36,7 +36,7 @@ struct traits<Replicate<MatrixType,RowFactor,ColFactor> >
     MaxColsAtCompileTime = ColsAtCompileTime,
     IsRowMajor = MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1 ? 1
                : MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1 ? 0
-               : (MatrixType::Flags & RowMajorBit) ? 1 : 0,
+               : is_row_major(MatrixType::Flags) ? 1 : 0,
 
     // FIXME enable DirectAccess with negative strides?
     Flags = IsRowMajor ? RowMajorBit : 0

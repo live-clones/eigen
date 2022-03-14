@@ -36,7 +36,7 @@ struct traits<Block<XprType, BlockRows, BlockCols, InnerPanel> > : traits<XprTyp
                          : ColsAtCompileTime != Dynamic ? int(ColsAtCompileTime)
                          : int(traits<XprType>::MaxColsAtCompileTime),
 
-    XprTypeIsRowMajor = (int(traits<XprType>::Flags)&RowMajorBit) != 0,
+    XprTypeIsRowMajor = is_row_major(traits<XprType>::Flags),
     IsRowMajor = (MaxRowsAtCompileTime==1&&MaxColsAtCompileTime!=1) ? 1
                : (MaxColsAtCompileTime==1&&MaxRowsAtCompileTime!=1) ? 0
                : XprTypeIsRowMajor,
@@ -334,7 +334,7 @@ class BlockImpl_dense<XprType,BlockRows,BlockCols, InnerPanel,true>
     typedef Block<XprType, BlockRows, BlockCols, InnerPanel> BlockType;
     typedef typename internal::ref_selector<XprType>::non_const_type XprTypeNested;
     enum {
-      XprTypeIsRowMajor = (int(traits<XprType>::Flags)&RowMajorBit) != 0
+      XprTypeIsRowMajor = is_row_major(traits<XprType>::Flags)
     };
   public:
 

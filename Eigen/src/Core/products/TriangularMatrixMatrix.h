@@ -426,7 +426,7 @@ struct triangular_product_impl<Mode,LhsIsTriangular,Lhs,false,Rhs,false>
     RhsScalar rhs_alpha = RhsBlasTraits::extractScalarFactor(a_rhs);
     Scalar actualAlpha = alpha * lhs_alpha * rhs_alpha;
 
-    typedef internal::gemm_blocking_space<(Dest::Flags&RowMajorBit) ? RowMajor : ColMajor,Scalar,Scalar,
+    typedef internal::gemm_blocking_space<get_storage_order(Dest::Flags),Scalar,Scalar,
               Lhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime, Lhs::MaxColsAtCompileTime,4> BlockingType;
 
     enum { IsLower = (Mode&Lower) == Lower };
@@ -439,9 +439,9 @@ struct triangular_product_impl<Mode,LhsIsTriangular,Lhs,false,Rhs,false>
 
     internal::product_triangular_matrix_matrix<Scalar, Index,
       Mode, LhsIsTriangular,
-      (internal::traits<ActualLhsTypeCleaned>::Flags&RowMajorBit) ? RowMajor : ColMajor, LhsBlasTraits::NeedToConjugate,
-      (internal::traits<ActualRhsTypeCleaned>::Flags&RowMajorBit) ? RowMajor : ColMajor, RhsBlasTraits::NeedToConjugate,
-      (internal::traits<Dest          >::Flags&RowMajorBit) ? RowMajor : ColMajor, Dest::InnerStrideAtCompileTime>
+      get_storage_order(internal::traits<ActualLhsTypeCleaned>::Flags), LhsBlasTraits::NeedToConjugate,
+      get_storage_order(internal::traits<ActualRhsTypeCleaned>::Flags), RhsBlasTraits::NeedToConjugate,
+      get_storage_order(internal::traits<Dest>::Flags), Dest::InnerStrideAtCompileTime>
       ::run(
         stripedRows, stripedCols, stripedDepth,   // sizes
         &lhs.coeffRef(0,0), lhs.outerStride(),    // lhs info

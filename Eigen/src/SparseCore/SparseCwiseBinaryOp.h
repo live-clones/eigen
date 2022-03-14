@@ -45,7 +45,7 @@ class CwiseBinaryOpImpl<BinaryOp, Lhs, Rhs, Sparse>
     EIGEN_STATIC_ASSERT((
               (!internal::is_same<typename internal::traits<Lhs>::StorageKind,
                                   typename internal::traits<Rhs>::StorageKind>::value)
-          ||  ((internal::evaluator<Lhs>::Flags&RowMajorBit) == (internal::evaluator<Rhs>::Flags&RowMajorBit))),
+          ||  has_same_storage_order(internal::evaluator<Lhs>::Flags, internal::evaluator<Rhs>::Flags)),
           THE_STORAGE_ORDER_OF_BOTH_SIDES_MUST_MATCH)
 };
 
@@ -162,7 +162,7 @@ public:
 
   class InnerIterator
   {
-    enum { IsRowMajor = (int(Rhs::Flags)&RowMajorBit)==RowMajorBit };
+    enum { IsRowMajor = is_row_major(Rhs::Flags) };
   public:
 
     EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
@@ -249,7 +249,7 @@ public:
 
   class InnerIterator
   {
-    enum { IsRowMajor = (int(Lhs::Flags)&RowMajorBit)==RowMajorBit };
+    enum { IsRowMajor = is_row_major(Lhs::Flags) };
   public:
 
     EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
@@ -496,7 +496,7 @@ public:
 
   class InnerIterator
   {
-    enum { IsRowMajor = (int(RhsArg::Flags)&RowMajorBit)==RowMajorBit };
+    enum { IsRowMajor = is_row_major(RhsArg::Flags) };
 
   public:
     
@@ -569,7 +569,7 @@ public:
 
   class InnerIterator
   {
-    enum { IsRowMajor = (int(LhsArg::Flags)&RowMajorBit)==RowMajorBit };
+    enum { IsRowMajor = is_row_major(LhsArg::Flags) };
 
   public:
     

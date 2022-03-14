@@ -80,9 +80,9 @@ static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& r
 }
 
 template<typename Lhs, typename Rhs, typename ResultType,
-  int LhsStorageOrder = traits<Lhs>::Flags&RowMajorBit,
-  int RhsStorageOrder = traits<Rhs>::Flags&RowMajorBit,
-  int ResStorageOrder = traits<ResultType>::Flags&RowMajorBit>
+  int LhsStorageOrder = get_storage_order(traits<Lhs>::Flags),
+  int RhsStorageOrder = get_storage_order(traits<Rhs>::Flags),
+  int ResStorageOrder = get_storage_order(traits<ResultType>::Flags)>
 struct sparse_sparse_product_with_pruning_selector;
 
 template<typename Lhs, typename Rhs, typename ResultType>

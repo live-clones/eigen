@@ -69,7 +69,7 @@ template<typename MatrixType_> class HouseholderQR
       MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
       MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
     };
-    typedef Matrix<Scalar, RowsAtCompileTime, RowsAtCompileTime, (MatrixType::Flags&RowMajorBit) ? RowMajor : ColMajor, MaxRowsAtCompileTime, MaxRowsAtCompileTime> MatrixQType;
+    typedef Matrix<Scalar, RowsAtCompileTime, RowsAtCompileTime, storage_order_flag(MatrixType::Flags), MaxRowsAtCompileTime, MaxRowsAtCompileTime> MatrixQType;
     typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
     typedef typename internal::plain_row_type<MatrixType>::type RowVectorType;
     typedef HouseholderSequence<MatrixType,internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>> HouseholderSequenceType;

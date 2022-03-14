@@ -228,7 +228,7 @@ struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,true>
       mat.template triangularView<UpLo>().setZero();
 
     enum {
-      StorageOrder = (internal::traits<MatrixType>::Flags&RowMajorBit) ? RowMajor : ColMajor,
+      StorageOrder = get_storage_order(internal::traits<MatrixType>::Flags),
       UseLhsDirectly = ActualLhs_::InnerStrideAtCompileTime==1,
       UseRhsDirectly = ActualRhs_::InnerStrideAtCompileTime==1
     };
@@ -274,9 +274,9 @@ struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,false>
       mat.template triangularView<UpLo>().setZero();
 
     enum {
-      IsRowMajor = (internal::traits<MatrixType>::Flags&RowMajorBit) ? 1 : 0,
-      LhsIsRowMajor = ActualLhs_::Flags&RowMajorBit ? 1 : 0,
-      RhsIsRowMajor = ActualRhs_::Flags&RowMajorBit ? 1 : 0,
+      IsRowMajor = is_row_major(internal::traits<MatrixType>::Flags),
+      LhsIsRowMajor = is_row_major(ActualLhs_::Flags),
+      RhsIsRowMajor = is_row_major(ActualRhs_::Flags),
       SkipDiag = (UpLo&(UnitDiag|ZeroDiag))!=0
     };
 

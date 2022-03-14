@@ -28,7 +28,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
     typedef typename MatrixTypeCleaned::StorageIndex StorageIndex;
 
     enum {
-      SrcStorageOrder = MatrixTypeCleaned::Flags&RowMajorBit ? RowMajor : ColMajor,
+      SrcStorageOrder = get_storage_order(MatrixTypeCleaned::Flags),
       MoveOuter = SrcStorageOrder==RowMajor ? Side==OnTheLeft : Side==OnTheRight
     };
     

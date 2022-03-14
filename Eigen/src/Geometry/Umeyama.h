@@ -44,7 +44,7 @@ struct umeyama_transform_matrix_type
   typedef Matrix<typename traits<MatrixType>::Scalar,
     HomogeneousDimension,
     HomogeneousDimension,
-    AutoAlign | (traits<MatrixType>::Flags & RowMajorBit ? RowMajor : ColMajor),
+    AutoAlign | storage_order_flag(traits<MatrixType>::Flags),
     HomogeneousDimension,
     HomogeneousDimension
   > type;

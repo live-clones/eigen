@@ -38,23 +38,23 @@ struct sparse_diagonal_product_evaluator;
 
 template<typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, DiagonalShape, SparseShape>
-  : public sparse_diagonal_product_evaluator<Rhs, typename Lhs::DiagonalVectorType, Rhs::Flags&RowMajorBit?SDP_AsScalarProduct:SDP_AsCwiseProduct>
+  : public sparse_diagonal_product_evaluator<Rhs, typename Lhs::DiagonalVectorType, is_row_major(Rhs::Flags)?SDP_AsScalarProduct:SDP_AsCwiseProduct>
 {
   typedef Product<Lhs, Rhs, DefaultProduct> XprType;
-  enum { CoeffReadCost = HugeCost, Flags = Rhs::Flags&RowMajorBit, Alignment = 0 }; // FIXME CoeffReadCost & Flags
+  enum { CoeffReadCost = HugeCost, Flags = storage_order_flag(Rhs::Flags), Alignment = 0 }; // FIXME CoeffReadCost & Flags
   
-  typedef sparse_diagonal_product_evaluator<Rhs, typename Lhs::DiagonalVectorType, Rhs::Flags&RowMajorBit?SDP_AsScalarProduct:SDP_AsCwiseProduct> Base;
+  typedef sparse_diagonal_product_evaluator<Rhs, typename Lhs::DiagonalVectorType, is_row_major(Rhs::Flags)?SDP_AsScalarProduct:SDP_AsCwiseProduct> Base;
   explicit product_evaluator(const XprType& xpr) : Base(xpr.rhs(), xpr.lhs().diagonal()) {}
 };
 
 template<typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseShape, DiagonalShape>
-  : public sparse_diagonal_product_evaluator<Lhs, Transpose<const typename Rhs::DiagonalVectorType>, Lhs::Flags&RowMajorBit?SDP_AsCwiseProduct:SDP_AsScalarProduct>
+  : public sparse_diagonal_product_evaluator<Lhs, Transpose<const typename Rhs::DiagonalVectorType>, is_row_major(Lhs::Flags)?SDP_AsCwiseProduct:SDP_AsScalarProduct>
 {
   typedef Product<Lhs, Rhs, DefaultProduct> XprType;
-  enum { CoeffReadCost = HugeCost, Flags = Lhs::Flags&RowMajorBit, Alignment = 0 }; // FIXME CoeffReadCost & Flags
+  enum { CoeffReadCost = HugeCost, Flags = storage_order_flag(Lhs::Flags), Alignment = 0 }; // FIXME CoeffReadCost & Flags
   
-  typedef sparse_diagonal_product_evaluator<Lhs, Transpose<const typename Rhs::DiagonalVectorType>, Lhs::Flags&RowMajorBit?SDP_AsCwiseProduct:SDP_AsScalarProduct> Base;
+  typedef sparse_diagonal_product_evaluator<Lhs, Transpose<const typename Rhs::DiagonalVectorType>, is_row_major(Lhs::Flags)?SDP_AsCwiseProduct:SDP_AsScalarProduct> Base;
   explicit product_evaluator(const XprType& xpr) : Base(xpr.lhs(), xpr.rhs().diagonal().transpose()) {}
 };
 

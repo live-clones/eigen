@@ -36,7 +36,7 @@ struct traits<SparseVector<Scalar_, Options_, StorageIndex_> >
   typedef Sparse StorageKind;
   typedef MatrixXpr XprKind;
   enum {
-    IsColVector = (Options_ & RowMajorBit) ? 0 : 1,
+    IsColVector = is_col_major(Options_),
 
     RowsAtCompileTime = IsColVector ? Dynamic : 1,
     ColsAtCompileTime = IsColVector ? 1 : Dynamic,

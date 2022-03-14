@@ -59,7 +59,7 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
     ColsAtCompileTime = Cols,
     MaxRowsAtCompileTime = Rows,
     MaxColsAtCompileTime = Cols,
-    XpxStorageOrder = ((int(traits<XprType>::Flags) & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor,
+    XpxStorageOrder = get_storage_order(traits<XprType>::Flags),
     ReshapedStorageOrder = (RowsAtCompileTime == 1 && ColsAtCompileTime != 1) ? RowMajor
                          : (ColsAtCompileTime == 1 && RowsAtCompileTime != 1) ? ColMajor
                          : XpxStorageOrder,
@@ -251,7 +251,7 @@ class ReshapedImpl_dense<XprType, Rows, Cols, Order, true>
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     inline Index outerStride() const
     {
-      return ((Flags&RowMajorBit)==RowMajorBit) ? this->cols() : this->rows();
+      return is_row_major(Flags) ? this->cols() : this->rows();
     }
 
   protected:

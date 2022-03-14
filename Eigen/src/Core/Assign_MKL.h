@@ -49,10 +49,10 @@ class vml_assign_traits
       SrcHasDirectAccess = Src::Flags & DirectAccessBit,
       StorageOrdersAgree = (int(Dst::IsRowMajor) == int(Src::IsRowMajor)),
       InnerSize = int(Dst::IsVectorAtCompileTime) ? int(Dst::SizeAtCompileTime)
-                : int(Dst::Flags)&RowMajorBit ? int(Dst::ColsAtCompileTime)
+                : is_row_major(Dst::Flags) ? int(Dst::ColsAtCompileTime)
                 : int(Dst::RowsAtCompileTime),
       InnerMaxSize  = int(Dst::IsVectorAtCompileTime) ? int(Dst::MaxSizeAtCompileTime)
-                    : int(Dst::Flags)&RowMajorBit ? int(Dst::MaxColsAtCompileTime)
+                    : is_row_mahor(Dst::Flags) ? int(Dst::MaxColsAtCompileTime)
                     : int(Dst::MaxRowsAtCompileTime),
       MaxSizeAtCompileTime = Dst::SizeAtCompileTime,
 

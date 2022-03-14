@@ -68,7 +68,7 @@ class DenseCoeffsBase<Derived,ReadOnlyAccessors> : public EigenBase<Derived>
     {
       return int(Derived::RowsAtCompileTime) == 1 ? 0
           : int(Derived::ColsAtCompileTime) == 1 ? inner
-          : int(Derived::Flags)&RowMajorBit ? outer
+          : is_row_major(Derived::Flags) ? outer
           : inner;
     }
 
@@ -77,7 +77,7 @@ class DenseCoeffsBase<Derived,ReadOnlyAccessors> : public EigenBase<Derived>
     {
       return int(Derived::ColsAtCompileTime) == 1 ? 0
           : int(Derived::RowsAtCompileTime) == 1 ? inner
-          : int(Derived::Flags)&RowMajorBit ? inner
+          : is_row_major(Derived::Flags) ? inner
           : outer;
     }
 

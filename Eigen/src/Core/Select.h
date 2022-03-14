@@ -45,7 +45,7 @@ struct traits<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
     ColsAtCompileTime = ConditionMatrixType::ColsAtCompileTime,
     MaxRowsAtCompileTime = ConditionMatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = ConditionMatrixType::MaxColsAtCompileTime,
-    Flags = (unsigned int)ThenMatrixType::Flags & ElseMatrixType::Flags & RowMajorBit
+    Flags = storage_order_flag((unsigned int)ThenMatrixType::Flags & ElseMatrixType::Flags)
   };
 };
 }

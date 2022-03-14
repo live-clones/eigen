@@ -75,7 +75,7 @@ EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType,UpLo>& SelfAdjointView<MatrixType,U
   // If MatrixType is row major, then we use the routine for lower triangular in the upper triangular case and
   // vice versa, and take the complex conjugate of all coefficients and vector entries.
 
-  enum { IsRowMajor = (internal::traits<MatrixType>::Flags&RowMajorBit) ? 1 : 0 };
+  enum { IsRowMajor = is_row_major(internal::traits<MatrixType>::Flags) };
   Scalar actualAlpha = alpha * UBlasTraits::extractScalarFactor(u.derived())
                              * numext::conj(VBlasTraits::extractScalarFactor(v.derived()));
   if (IsRowMajor)

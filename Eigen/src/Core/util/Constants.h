@@ -327,6 +327,26 @@ enum StorageOptions {
   DontAlign = 0x2
 };
 
+constexpr bool is_row_major(int flags) {
+  return flags & RowMajorBit;
+}
+
+constexpr bool is_col_major(int flags) {
+  return !is_row_major(flags);
+}
+
+constexpr StorageOptions get_storage_order(int flags) {
+  return is_row_major(flags) ? RowMajor : ColMajor;
+}
+
+constexpr bool has_same_storage_order(int flags_a, int flags_b) {
+  return get_storage_order(flags_a) == get_storage_order(flags_b);
+}
+
+constexpr unsigned int storage_order_flag(unsigned int flags) {
+  return flags & RowMajorBit;
+}
+
 /** \ingroup enums
   * Enum for specifying whether to apply or solve on the left or right. */
 enum SideType {

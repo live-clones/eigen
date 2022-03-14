@@ -141,7 +141,7 @@ template<typename Scalar, int Flags_>
 void GpuHelper::multMatrix(const Matrix<Scalar,4,4, Flags_, 4,4>& mat, GLenum matrixTarget)
 {
     setMatrixTarget(matrixTarget);
-    GlMatrixHelper<Flags_&Eigen::RowMajorBit, Flags_>::multMatrix(mat);
+    GlMatrixHelper<is_row_major(Flags_), Flags_>::multMatrix(mat);
 }
 
 template<typename Scalar, typename Derived>
@@ -157,7 +157,7 @@ template<typename Scalar, int Flags_>
 void GpuHelper::loadMatrix(const Eigen::Matrix<Scalar,4,4, Flags_, 4,4>& mat, GLenum matrixTarget)
 {
     setMatrixTarget(matrixTarget);
-    GlMatrixHelper<(Flags_&Eigen::RowMajorBit)!=0, Flags_>::loadMatrix(mat);
+    GlMatrixHelper<is_row_major(Flags_), Flags_>::loadMatrix(mat);
 }
 
 inline void GpuHelper::pushMatrix(GLenum matrixTarget)
@@ -170,7 +170,7 @@ template<typename Scalar, int Flags_>
 inline void GpuHelper::pushMatrix(const Matrix<Scalar,4,4, Flags_, 4,4>& mat, GLenum matrixTarget)
 {
     pushMatrix(matrixTarget);
-    GlMatrixHelper<Flags_&Eigen::RowMajorBit,Flags_>::loadMatrix(mat);
+    GlMatrixHelper<is_row_major(Flags_),Flags_>::loadMatrix(mat);
 }
 
 template<typename Scalar, typename Derived>

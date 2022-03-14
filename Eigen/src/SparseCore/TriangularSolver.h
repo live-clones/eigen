@@ -22,7 +22,7 @@ template<typename Lhs, typename Rhs, int Mode,
            : (Mode & Upper)
            ? Upper
            : -1,
-  int StorageOrder = int(traits<Lhs>::Flags) & RowMajorBit>
+  int StorageOrder = get_storage_order(traits<Lhs>::Flags)>
 struct sparse_solve_triangular_selector;
 
 // forward substitution, row-major
@@ -182,7 +182,7 @@ void TriangularViewImpl<ExpressionType,Mode,Sparse>::solveInPlace(MatrixBase<Oth
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper|Lower)));
 
-  enum { copy = internal::traits<OtherDerived>::Flags & RowMajorBit };
+  enum { copy = is_row_major(internal::traits<OtherDerived>::Flags) };
 
   typedef std::conditional_t<copy,
     typename internal::plain_matrix_type_column_major<OtherDerived>::type, OtherDerived&> OtherCopy;
@@ -205,7 +205,7 @@ template<typename Lhs, typename Rhs, int Mode,
            : (Mode & Upper)
            ? Upper
            : -1,
-  int StorageOrder = int(Lhs::Flags) & (RowMajorBit)>
+  int StorageOrder = get_storage_order(Lhs::Flags)>
 struct sparse_solve_triangular_sparse_selector;
 
 // forward substitution, col-major
@@ -299,7 +299,7 @@ void TriangularViewImpl<ExpressionType,Mode,Sparse>::solveInPlace(SparseMatrixBa
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert( (!(Mode & ZeroDiag)) && bool(Mode & (Upper|Lower)));
 
-//   enum { copy = internal::traits<OtherDerived>::Flags & RowMajorBit };
+//   enum { copy = is_row_major(internal::traits<OtherDerived>::Flags) };
 
 //   typedef std::conditional_t<copy,
 //     typename internal::plain_matrix_type_column_major<OtherDerived>::type, OtherDerived&> OtherCopy;

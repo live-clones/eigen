@@ -19,7 +19,7 @@ template<typename NullaryOp, typename PlainObjectType>
 struct traits<CwiseNullaryOp<NullaryOp, PlainObjectType> > : traits<PlainObjectType>
 {
   enum {
-    Flags = traits<PlainObjectType>::Flags & RowMajorBit
+    Flags = storage_order_flag(traits<PlainObjectType>::Flags)
   };
 };
 

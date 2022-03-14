@@ -163,7 +163,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const Scalar& coeff(Index rowId, Index colId) const
     {
-      if(Flags & RowMajorBit)
+      if(is_row_major(Flags))
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -186,7 +186,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Scalar& coeffRef(Index rowId, Index colId)
     {
-      if(Flags & RowMajorBit)
+      if(is_row_major(Flags))
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -207,7 +207,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const Scalar& coeffRef(Index rowId, Index colId) const
     {
-      if(Flags & RowMajorBit)
+      if(is_row_major(Flags))
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -226,7 +226,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_STRONG_INLINE PacketScalar packet(Index rowId, Index colId) const
     {
       return internal::ploadt<PacketScalar, LoadMode>
-               (m_storage.data() + (Flags & RowMajorBit
+               (m_storage.data() + (is_row_major(Flags)
                                    ? colId + rowId * m_storage.cols()
                                    : rowId + colId * m_storage.rows()));
     }
@@ -243,7 +243,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_STRONG_INLINE void writePacket(Index rowId, Index colId, const PacketScalar& val)
     {
       internal::pstoret<Scalar, PacketScalar, StoreMode>
-              (m_storage.data() + (Flags & RowMajorBit
+              (m_storage.data() + (is_row_major(Flags)
                                    ? colId + rowId * m_storage.cols()
                                    : rowId + colId * m_storage.rows()), val);
     }

@@ -127,8 +127,9 @@ cholmod_sparse viewAsCholmod(const SparseSelfAdjointView<const SparseMatrix<Scal
   if(UpLo==Upper) res.stype =  1;
   if(UpLo==Lower) res.stype = -1;
   // swap stype for rowmajor matrices (only works for real matrices)
-  EIGEN_STATIC_ASSERT((Options_ & RowMajorBit) == 0 || NumTraits<Scalar_>::IsComplex == 0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
-  if(Options_ & RowMajorBit) res.stype *=-1;
+  // TODO what exactly is going on here? The static assert message seems to disagree with the static assert
+  EIGEN_STATIC_ASSERT(!is_row_major(Options_) || NumTraits<Scalar_>::IsComplex == 0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
+  if(is_row_major(Options_)) res.stype *=-1;
 
   return res;
 }
@@ -138,7 +139,7 @@ cholmod_sparse viewAsCholmod(const SparseSelfAdjointView<const SparseMatrix<Scal
 template<typename Derived>
 cholmod_dense viewAsCholmod(MatrixBase<Derived>& mat)
 {
-  EIGEN_STATIC_ASSERT((internal::traits<Derived>::Flags&RowMajorBit)==0,THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
+  EIGEN_STATIC_ASSERT(is_col_major(internal::traits<Derived>::Flags),THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
   typedef typename Derived::Scalar Scalar;
 
   cholmod_dense res;

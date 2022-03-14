@@ -226,7 +226,7 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,0,true>
     }
       
       
-    internal::selfadjoint_matrix_vector_product<Scalar, Index, (internal::traits<ActualLhsTypeCleaned>::Flags&RowMajorBit) ? RowMajor : ColMajor,
+    internal::selfadjoint_matrix_vector_product<Scalar, Index, get_storage_order(internal::traits<ActualLhsTypeCleaned>::Flags),
                                                 int(LhsUpLo), bool(LhsBlasTraits::NeedToConjugate), bool(RhsBlasTraits::NeedToConjugate)>::run
       (
         lhs.rows(),                             // size

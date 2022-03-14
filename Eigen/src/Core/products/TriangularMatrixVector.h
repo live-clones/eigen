@@ -179,7 +179,7 @@ struct triangular_product_impl<Mode,true,Lhs,false,Rhs,true>
   {
     eigen_assert(dst.rows()==lhs.rows() && dst.cols()==rhs.cols());
   
-    internal::trmv_selector<Mode,(int(internal::traits<Lhs>::Flags)&RowMajorBit) ? RowMajor : ColMajor>::run(lhs, rhs, dst, alpha);
+    internal::trmv_selector<Mode,get_storage_order(internal::traits<Lhs>::Flags)>::run(lhs, rhs, dst, alpha);
   }
 };
 
@@ -192,7 +192,7 @@ struct triangular_product_impl<Mode,false,Lhs,true,Rhs,false>
 
     Transpose<Dest> dstT(dst);
     internal::trmv_selector<(Mode & (UnitDiag|ZeroDiag)) | ((Mode & Lower) ? Upper : Lower),
-                            (int(internal::traits<Rhs>::Flags)&RowMajorBit) ? ColMajor : RowMajor>
+                            is_row_major(internal::traits<Rhs>::Flags) ? ColMajor : RowMajor>
             ::run(rhs.transpose(),lhs.transpose(), dstT, alpha);
   }
 };

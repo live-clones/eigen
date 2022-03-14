@@ -63,7 +63,7 @@ struct selfadjoint_product_selector<MatrixType,OtherType,UpLo,true>
     Scalar actualAlpha = alpha * OtherBlasTraits::extractScalarFactor(other.derived());
 
     enum {
-      StorageOrder = (internal::traits<MatrixType>::Flags&RowMajorBit) ? RowMajor : ColMajor,
+      StorageOrder = get_storage_order(internal::traits<MatrixType>::Flags&RowMajorBit),
       UseOtherDirectly = ActualOtherType_::InnerStrideAtCompileTime==1
     };
     internal::gemv_static_vector_if<Scalar,OtherType::SizeAtCompileTime,OtherType::MaxSizeAtCompileTime,!UseOtherDirectly> static_other;
@@ -95,8 +95,8 @@ struct selfadjoint_product_selector<MatrixType,OtherType,UpLo,false>
     Scalar actualAlpha = alpha * OtherBlasTraits::extractScalarFactor(other.derived());
 
     enum {
-      IsRowMajor = (internal::traits<MatrixType>::Flags&RowMajorBit) ? 1 : 0,
-      OtherIsRowMajor = ActualOtherType_::Flags&RowMajorBit ? 1 : 0
+      IsRowMajor = is_row_major(internal::traits<MatrixType>::Flags),
+      OtherIsRowMajor = is_row_major(ActualOtherType_::Flags)
     };
 
     Index size = mat.cols();

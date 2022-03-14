@@ -48,7 +48,7 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
   {
     MatrixAlignment = traits<MatrixType>::Alignment,
     ResultAlignment = traits<ResultType>::Alignment,
-    StorageOrdersMatch = (MatrixType::Flags & RowMajorBit) == (ResultType::Flags & RowMajorBit)
+    StorageOrdersMatch = get_storage_order(MatrixType::Flags) == get_storage_order(ResultType::Flags)
   };
   typedef std::conditional_t<(MatrixType::Flags & LinearAccessBit), MatrixType const &, typename MatrixType::PlainObject> ActualMatrixType;
 
@@ -173,7 +173,7 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
   {
     MatrixAlignment = traits<MatrixType>::Alignment,
     ResultAlignment = traits<ResultType>::Alignment,
-    StorageOrdersMatch = (MatrixType::Flags & RowMajorBit) == (ResultType::Flags & RowMajorBit)
+    StorageOrdersMatch = get_storage_order(MatrixType::Flags) == get_storage_order(ResultType::Flags)
   };
   typedef std::conditional_t<(MatrixType::Flags & LinearAccessBit),
                          MatrixType const &,

@@ -251,7 +251,7 @@ template<typename Scalar_, int Rows_, int Cols_,
 };
 
 constexpr inline unsigned compute_matrix_flags(int Options) {
-  unsigned row_major_bit = Options&RowMajor ? RowMajorBit : 0;
+  unsigned row_major_bit = storage_order_flag(Options);
   // FIXME currently we still have to handle DirectAccessBit at the expression level to handle DenseCoeffsBase<>
   // and then propagate this information to the evaluator's flags.
   // However, I (Gael) think that DirectAccessBit should only matter at the evaluation stage.
@@ -287,7 +287,7 @@ template<typename T, int Flags> struct plain_matrix_type_dense<T,MatrixXpr,Flags
   typedef Matrix<typename traits<T>::Scalar,
                 traits<T>::RowsAtCompileTime,
                 traits<T>::ColsAtCompileTime,
-                AutoAlign | (Flags&RowMajorBit ? RowMajor : ColMajor),
+                AutoAlign | storage_order_flag(Flags),
                 traits<T>::MaxRowsAtCompileTime,
                 traits<T>::MaxColsAtCompileTime
           > type;
@@ -298,7 +298,7 @@ template<typename T, int Flags> struct plain_matrix_type_dense<T,ArrayXpr,Flags>
   typedef Array<typename traits<T>::Scalar,
                 traits<T>::RowsAtCompileTime,
                 traits<T>::ColsAtCompileTime,
-                AutoAlign | (Flags&RowMajorBit ? RowMajor : ColMajor),
+                AutoAlign | storage_order_flag(Flags),
                 traits<T>::MaxRowsAtCompileTime,
                 traits<T>::MaxColsAtCompileTime
           > type;
@@ -624,7 +624,7 @@ struct plain_diag_type
 template<typename Expr,typename Scalar = typename Expr::Scalar>
 struct plain_constant_type
 {
-  enum { Options = (traits<Expr>::Flags&RowMajorBit)?RowMajor:0 };
+  enum { Options = storage_order_flag(traits<Expr>::Flags) };
 
   typedef Array<Scalar,  traits<Expr>::RowsAtCompileTime,   traits<Expr>::ColsAtCompileTime,
                 Options, traits<Expr>::MaxRowsAtCompileTime,traits<Expr>::MaxColsAtCompileTime> array_type;
@@ -726,7 +726,7 @@ std::string demangle_unrolling(int t)
 std::string demangle_flags(int f)
 {
   std::string res;
-  if(f&RowMajorBit)                 res += " | RowMajor";
+  if(is_row_major(f))               res += " | RowMajor";
   if(f&PacketAccessBit)             res += " | Packet";
   if(f&LinearAccessBit)             res += " | Linear";
   if(f&LvalueBit)                   res += " | Lvalue";

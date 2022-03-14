@@ -97,7 +97,7 @@ template<typename Derived> class SparseMatrixBase
           * constructed from this one. See the \ref flags "list of flags".
           */
 
-      IsRowMajor = Flags&RowMajorBit ? 1 : 0,
+      IsRowMajor = is_row_major(Flags) ? 1 : 0,
       
       InnerSizeAtCompileTime = int(IsVectorAtCompileTime) ? int(SizeAtCompileTime)
                              : int(IsRowMajor) ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
@@ -116,7 +116,7 @@ template<typename Derived> class SparseMatrixBase
     typedef std::add_const_t<Transpose<const Derived> > ConstTransposeReturnType;
 
     // FIXME storage order do not match evaluator storage order
-    typedef SparseMatrix<Scalar, Flags&RowMajorBit ? RowMajor : ColMajor, StorageIndex> PlainObject;
+    typedef SparseMatrix<Scalar, storage_order_flag(Flags), StorageIndex> PlainObject;
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
     /** This is the "real scalar" type; if the \a Scalar type is already real numbers
@@ -186,10 +186,10 @@ template<typename Derived> class SparseMatrixBase
     inline bool isVector() const { return rows()==1 || cols()==1; }
     /** \returns the size of the storage major dimension,
       * i.e., the number of columns for a columns major matrix, and the number of rows otherwise */
-    Index outerSize() const { return (int(Flags)&RowMajorBit) ? this->rows() : this->cols(); }
+    Index outerSize() const { return is_row_major(Flags) ? this->rows() : this->cols(); }
     /** \returns the size of the inner dimension according to the storage order,
       * i.e., the number of rows for a columns major matrix, and the number of cols otherwise */
-    Index innerSize() const { return (int(Flags)&RowMajorBit) ? this->cols() : this->rows(); }
+    Index innerSize() const { return is_row_major(Flags) ? this->cols() : this->rows(); }
 
     bool isRValue() const { return m_isRValue; }
     Derived& markAsRValue() { m_isRValue = true; return derived(); }
@@ -220,7 +220,7 @@ template<typename Derived> class SparseMatrixBase
       typedef typename Derived::Nested Nested;
       typedef internal::remove_all_t<Nested> NestedCleaned;
 
-      if (Flags&RowMajorBit)
+      if (is_row_major(Flags))
       {
         Nested nm(m.derived());
         internal::evaluator<NestedCleaned> thisEval(nm);

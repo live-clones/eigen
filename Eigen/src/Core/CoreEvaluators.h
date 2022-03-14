@@ -647,7 +647,7 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
     Arg2Flags = evaluator<Arg2>::Flags,
     Arg3Flags = evaluator<Arg3>::Flags,
     SameType = is_same<typename Arg1::Scalar,typename Arg2::Scalar>::value && is_same<typename Arg1::Scalar,typename Arg3::Scalar>::value,
-    StorageOrdersAgree = (int(Arg1Flags)&RowMajorBit)==(int(Arg2Flags)&RowMajorBit) && (int(Arg1Flags)&RowMajorBit)==(int(Arg3Flags)&RowMajorBit),
+    StorageOrdersAgree = (get_storage_order(Arg1Flags)==get_storage_order(Arg2Flags)) && (get_storage_order(Arg1Flags)==get_storage_order(Arg3Flags)),
     Flags0 = (int(Arg1Flags) | int(Arg2Flags) | int(Arg3Flags)) & (
         HereditaryBits
         | (int(Arg1Flags) & int(Arg2Flags) & int(Arg3Flags) &
@@ -743,7 +743,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
     LhsFlags = evaluator<Lhs>::Flags,
     RhsFlags = evaluator<Rhs>::Flags,
     SameType = is_same<typename Lhs::Scalar,typename Rhs::Scalar>::value,
-    StorageOrdersAgree = (int(LhsFlags)&RowMajorBit)==(int(RhsFlags)&RowMajorBit),
+    StorageOrdersAgree = has_same_storage_order(LhsFlags, RhsFlags),
     Flags0 = (int(LhsFlags) | int(RhsFlags)) & (
         HereditaryBits
       | (int(LhsFlags) & int(RhsFlags) &
@@ -1050,7 +1050,7 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel> >
     MaxRowsAtCompileTime = traits<XprType>::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = traits<XprType>::MaxColsAtCompileTime,
 
-    ArgTypeIsRowMajor = (int(evaluator<ArgType>::Flags)&RowMajorBit) != 0,
+    ArgTypeIsRowMajor = is_row_major(evaluator<ArgType>::Flags),
     IsRowMajor = (MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1) ? 1
                : (MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1) ? 0
                : ArgTypeIsRowMajor,
@@ -1065,7 +1065,7 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel> >
     MaskPacketAccessBit = (InnerStrideAtCompileTime == 1 || HasSameStorageOrderAsArgType) ? PacketAccessBit : 0,
 
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1 || (InnerPanel && (evaluator<ArgType>::Flags&LinearAccessBit))) ? LinearAccessBit : 0,
-    FlagsRowMajorBit = XprType::Flags&RowMajorBit,
+    FlagsRowMajorBit = storage_order_flag(XprType::Flags),
     Flags0 = evaluator<ArgType>::Flags & ( (HereditaryBits & ~RowMajorBit) |
                                            DirectAccessBit |
                                            MaskPacketAccessBit),

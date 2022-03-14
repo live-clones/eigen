@@ -34,7 +34,7 @@ struct traits<Ref<SparseMatrix<MatScalar,MatOptions,MatIndex>, Options_, StrideT
 
   template<typename Derived> struct match {
     enum {
-      StorageOrderMatch = PlainObjectType::IsVectorAtCompileTime || Derived::IsVectorAtCompileTime || ((PlainObjectType::Flags&RowMajorBit)==(Derived::Flags&RowMajorBit)),
+      StorageOrderMatch = PlainObjectType::IsVectorAtCompileTime || Derived::IsVectorAtCompileTime || has_same_storage_order(PlainObjectType::Flags, Derived::Flags),
       MatchAtCompileTime = (Derived::Flags&CompressedAccessBit) && StorageOrderMatch
     };
     typedef std::conditional_t<MatchAtCompileTime,internal::true_type,internal::false_type> type;

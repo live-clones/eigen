@@ -385,7 +385,7 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemvProduct>
     LhsNested actual_lhs(lhs);
     RhsNested actual_rhs(rhs);
     internal::gemv_dense_selector<Side,
-                            (int(MatrixType::Flags)&RowMajorBit) ? RowMajor : ColMajor,
+                            get_storage_order(MatrixType::Flags),
                             bool(internal::blas_traits<MatrixType>::HasUsableDirectAccess)
                            >::run(actual_lhs, actual_rhs, dst, alpha);
   }
@@ -559,8 +559,8 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
     LhsFlags = LhsEtorType::Flags,
     RhsFlags = RhsEtorType::Flags,
 
-    LhsRowMajor = LhsFlags & RowMajorBit,
-    RhsRowMajor = RhsFlags & RowMajorBit,
+    LhsRowMajor = is_row_major(LhsFlags),
+    RhsRowMajor = is_row_major(RhsFlags),
 
     LhsVecPacketSize = unpacket_traits<LhsVecPacketType>::size,
     RhsVecPacketSize = unpacket_traits<RhsVecPacketType>::size,
@@ -625,7 +625,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   const PacketType packet(Index row, Index col) const
   {
     PacketType res;
-    typedef etor_product_packet_impl<bool(int(Flags)&RowMajorBit) ? RowMajor : ColMajor,
+    typedef etor_product_packet_impl<get_storage_order(Flags),
                                      Unroll ? int(InnerSize) : Dynamic,
                                      LhsEtorType, RhsEtorType, PacketType, LoadMode> PacketImpl;
     PacketImpl::run(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res);
@@ -840,8 +840,8 @@ public:
 
     StorageOrder_ = (Derived::MaxRowsAtCompileTime==1 && Derived::MaxColsAtCompileTime!=1) ? RowMajor
                   : (Derived::MaxColsAtCompileTime==1 && Derived::MaxRowsAtCompileTime!=1) ? ColMajor
-                  : MatrixFlags & RowMajorBit ? RowMajor : ColMajor,
-    SameStorageOrder_ = StorageOrder_ == (MatrixFlags & RowMajorBit ? RowMajor : ColMajor),
+                  : get_storage_order(MatrixFlags),
+    SameStorageOrder_ = StorageOrder_ == get_storage_order(MatrixFlags),
 
     ScalarAccessOnDiag_ =  !((int(StorageOrder_) == ColMajor && int(ProductOrder) == OnTheLeft)
                            ||(int(StorageOrder_) == RowMajor && int(ProductOrder) == OnTheRight)),
@@ -888,7 +888,7 @@ protected:
   EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, internal::false_type) const
   {
     enum {
-      InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
+      InnerSize = is_row_major(MatrixType::Flags) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(LoadMode,((InnerSize%16) == 0) ? int(Aligned16) : int(evaluator<DiagonalType>::Alignment)) // FIXME hardcoded 16!!
     };
     return internal::pmul(m_matImpl.template packet<LoadMode,PacketType>(row, col),

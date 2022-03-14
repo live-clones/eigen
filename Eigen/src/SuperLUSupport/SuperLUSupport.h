@@ -177,7 +177,8 @@ struct SluMatrix : SuperMatrix
   static SluMatrix Map(MatrixBase<MatrixType>& _mat)
   {
     MatrixType& mat(_mat.derived());
-    eigen_assert( ((MatrixType::Flags&RowMajorBit)!=RowMajorBit) && "row-major dense matrices are not supported by SuperLU");
+    /// TODO this should be a static assert, I think
+    eigen_assert(is_col_major(MatrixType::Flags)) && "row-major dense matrices are not supported by SuperLU");
     SluMatrix res;
     res.setStorageType(SLU_DN);
     res.setScalarType<typename MatrixType::Scalar>();
@@ -196,7 +197,7 @@ struct SluMatrix : SuperMatrix
   {
     MatrixType &mat(a_mat.derived());
     SluMatrix res;
-    if ((MatrixType::Flags&RowMajorBit)==RowMajorBit)
+    if (is_row_major(MatrixType::Flags))
     {
       res.setStorageType(SLU_NR);
       res.nrow      = internal::convert_index<int>(mat.cols());
@@ -255,7 +256,7 @@ struct SluMatrixMapHelper<SparseMatrixBase<Derived> >
   typedef Derived MatrixType;
   static void run(MatrixType& mat, SluMatrix& res)
   {
-    if ((MatrixType::Flags&RowMajorBit)==RowMajorBit)
+    if (is_row_major(MatrixType::Flags))
     {
       res.setStorageType(SLU_NR);
       res.nrow      = mat.cols();

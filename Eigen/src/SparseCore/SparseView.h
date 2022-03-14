@@ -23,7 +23,7 @@ struct traits<SparseView<MatrixType> > : traits<MatrixType>
   typedef typename MatrixType::StorageIndex StorageIndex;
   typedef Sparse StorageKind;
   enum {
-    Flags = int(traits<MatrixType>::Flags) & (RowMajorBit)
+    Flags = storage_order_flag(traits<MatrixType>::Flags)
   };
 };
 
@@ -143,7 +143,7 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased>
   public:
     typedef SparseView<ArgType> XprType;
   protected:
-    enum { IsRowMajor = (XprType::Flags&RowMajorBit)==RowMajorBit };
+    enum { IsRowMajor = is_row_major(XprType::Flags) };
     typedef typename XprType::Scalar Scalar;
     typedef typename XprType::StorageIndex StorageIndex;
   public:
