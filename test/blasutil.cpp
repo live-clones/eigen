@@ -17,8 +17,8 @@
     #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif
 
-#define GET(i,j) (StorageOrder == RowMajor ? (i)*stride + (j) : (i) + (j)*stride)
-#define SCATTER(i,j,k) (StorageOrder == RowMajor ? ((i)+(k))*stride + (j) : (i) + ((j)+(k))*stride)
+#define GET(i,j) (is_row_major(StorageOrder_) ? (i)*stride + (j) : (i) + (j)*stride)
+#define SCATTER(i,j,k) (is_row_major(StorageOrder_) ? ((i)+(k))*stride + (j) : (i) + ((j)+(k))*stride)
 
 template<typename Scalar, typename Packet>
 void compare(const Packet& a, const Packet& b)
@@ -39,7 +39,7 @@ void compare(const Packet& a, const Packet& b)
     delete[] buffB;
 }
 
-template<typename Scalar, int StorageOrder, int n>
+template<typename Scalar, StorageOrder StorageOrder_, int n>
 struct PacketBlockSet
 {
     typedef typename internal::packet_traits<Scalar>::type Packet;
@@ -62,16 +62,16 @@ struct PacketBlockSet
     }
 };
 
-template<typename Scalar, int StorageOrder, int BlockSize>
+template<typename Scalar, StorageOrder StorageOrder_, int BlockSize>
 void run_bdmp_spec_1()
 {
-    typedef internal::blas_data_mapper<Scalar, int, StorageOrder> BlasDataMapper;
+    typedef internal::blas_data_mapper<Scalar, int, StorageOrder_> BlasDataMapper;
     int packetSize = internal::packet_traits<Scalar>::size;
     int minSize = std::max<int>(packetSize, BlockSize);
     typedef typename internal::packet_traits<Scalar>::type Packet;
 
     int szm = internal::random<int>(minSize,500), szn = internal::random<int>(minSize,500);
-    int stride = StorageOrder == RowMajor ? szn : szm;
+    int stride = is_row_major(StorageOrder_) ? szn : szm;
     Scalar *d = new Scalar[szn*szm];
 
     // Initializing with random entries
@@ -155,7 +155,7 @@ void run_bdmp_spec_1()
     //Testing storePacketBlock
     internal::PacketBlock<Packet, BlockSize> block;
 
-    PacketBlockSet<Scalar, StorageOrder, BlockSize> pbs;
+    PacketBlockSet<Scalar, StorageOrder_, BlockSize> pbs;
     pbs.setPacketBlock(block, static_cast<Scalar>(2));
 
     for(int i = 0; i < szm - minSize; i++)
@@ -174,16 +174,16 @@ void run_bdmp_spec_1()
 template<typename Scalar>
 void run_test()
 {
-    run_bdmp_spec_1<Scalar, RowMajor, 1>();
-    run_bdmp_spec_1<Scalar, ColMajor, 1>();
-    run_bdmp_spec_1<Scalar, RowMajor, 2>();
-    run_bdmp_spec_1<Scalar, ColMajor, 2>();
-    run_bdmp_spec_1<Scalar, RowMajor, 4>();
-    run_bdmp_spec_1<Scalar, ColMajor, 4>();
-    run_bdmp_spec_1<Scalar, RowMajor, 8>();
-    run_bdmp_spec_1<Scalar, ColMajor, 8>();
-    run_bdmp_spec_1<Scalar, RowMajor, 16>();
-    run_bdmp_spec_1<Scalar, ColMajor, 16>();
+    run_bdmp_spec_1<Scalar, StorageOrder::RowMajor, 1>();
+    run_bdmp_spec_1<Scalar, StorageOrder::ColMajor, 1>();
+    run_bdmp_spec_1<Scalar, StorageOrder::RowMajor, 2>();
+    run_bdmp_spec_1<Scalar, StorageOrder::ColMajor, 2>();
+    run_bdmp_spec_1<Scalar, StorageOrder::RowMajor, 4>();
+    run_bdmp_spec_1<Scalar, StorageOrder::ColMajor, 4>();
+    run_bdmp_spec_1<Scalar, StorageOrder::RowMajor, 8>();
+    run_bdmp_spec_1<Scalar, StorageOrder::ColMajor, 8>();
+    run_bdmp_spec_1<Scalar, StorageOrder::RowMajor, 16>();
+    run_bdmp_spec_1<Scalar, StorageOrder::ColMajor, 16>();
 }
 
 EIGEN_DECLARE_TEST(blasutil)

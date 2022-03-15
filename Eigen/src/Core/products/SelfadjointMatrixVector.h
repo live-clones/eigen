@@ -22,10 +22,10 @@ namespace internal {
  * the instruction dependency.
  */
 
-template<typename Scalar, typename Index, int StorageOrder, int UpLo, bool ConjugateLhs, bool ConjugateRhs, int Version=Specialized>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int UpLo, bool ConjugateLhs, bool ConjugateRhs, int Version=Specialized>
 struct selfadjoint_matrix_vector_product;
 
-template<typename Scalar, typename Index, int StorageOrder, int UpLo, bool ConjugateLhs, bool ConjugateRhs, int Version>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int UpLo, bool ConjugateLhs, bool ConjugateRhs, int Version>
 struct selfadjoint_matrix_vector_product
 
 {
@@ -38,9 +38,9 @@ void run(
   Scalar alpha);
 };
 
-template<typename Scalar, typename Index, int StorageOrder, int UpLo, bool ConjugateLhs, bool ConjugateRhs, int Version>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int UpLo, bool ConjugateLhs, bool ConjugateRhs, int Version>
 EIGEN_DONT_INLINE EIGEN_DEVICE_FUNC
-void selfadjoint_matrix_vector_product<Scalar,Index,StorageOrder,UpLo,ConjugateLhs,ConjugateRhs,Version>::run(
+void selfadjoint_matrix_vector_product<Scalar,Index,StorageOrder_,UpLo,ConjugateLhs,ConjugateRhs,Version>::run(
   Index size,
   const Scalar*  lhs, Index lhsStride,
   const Scalar*  rhs,
@@ -52,7 +52,7 @@ void selfadjoint_matrix_vector_product<Scalar,Index,StorageOrder,UpLo,ConjugateL
   const Index PacketSize = sizeof(Packet)/sizeof(Scalar);
 
   enum {
-    IsRowMajor = StorageOrder==RowMajor ? 1 : 0,
+    IsRowMajor = is_row_major(StorageOrder_),
     IsLower = UpLo == Lower ? 1 : 0,
     FirstTriangular = IsRowMajor == IsLower
   };

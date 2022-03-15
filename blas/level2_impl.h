@@ -9,16 +9,16 @@
 
 #include "common.h"
 
-template<typename Index, typename Scalar, int StorageOrder, bool ConjugateLhs, bool ConjugateRhs>
+template<typename Index, typename Scalar, StorageOrder StorageOrder_, bool ConjugateLhs, bool ConjugateRhs>
 struct general_matrix_vector_product_wrapper
 {
   static void run(Index rows, Index cols,const Scalar *lhs, Index lhsStride, const Scalar *rhs, Index rhsIncr, Scalar* res, Index resIncr, Scalar alpha)
   {
-    typedef internal::const_blas_data_mapper<Scalar,Index,StorageOrder> LhsMapper;
-    typedef internal::const_blas_data_mapper<Scalar,Index,RowMajor> RhsMapper;
+    typedef internal::const_blas_data_mapper<Scalar,Index,StorageOrder_> LhsMapper;
+    typedef internal::const_blas_data_mapper<Scalar,Index,StorageOrder::RowMajor> RhsMapper;
     
     internal::general_matrix_vector_product
-        <Index,Scalar,LhsMapper,StorageOrder,ConjugateLhs,Scalar,RhsMapper,ConjugateRhs>::run(
+        <Index,Scalar,LhsMapper,StorageOrder_,ConjugateLhs,Scalar,RhsMapper,ConjugateRhs>::run(
         rows, cols, LhsMapper(lhs, lhsStride), RhsMapper(rhs, rhsIncr), res, resIncr, alpha);
   }
 };
@@ -29,11 +29,11 @@ int EIGEN_BLAS_FUNC(gemv)(const char *opa, const int *m, const int *n, const Rea
   typedef void (*functype)(int, int, const Scalar *, int, const Scalar *, int , Scalar *, int, Scalar);
   static const functype func[4] = {
     // array index: NOTR
-    (general_matrix_vector_product_wrapper<int,Scalar,ColMajor,false,false>::run),
+    (general_matrix_vector_product_wrapper<int,Scalar,StorageOrder::ColMajor,false,false>::run),
     // array index: TR  
-    (general_matrix_vector_product_wrapper<int,Scalar,RowMajor,false,false>::run),
+    (general_matrix_vector_product_wrapper<int,Scalar,StorageOrder::RowMajor,false,false>::run),
     // array index: ADJ 
-    (general_matrix_vector_product_wrapper<int,Scalar,RowMajor,Conj ,false>::run),
+    (general_matrix_vector_product_wrapper<int,Scalar,StorageOrder::RowMajor,Conj ,false>::run),
     0
   };
 
@@ -88,32 +88,32 @@ int EIGEN_BLAS_FUNC(trsv)(const char *uplo, const char *opa, const char *diag, c
   typedef void (*functype)(int, const Scalar *, int, Scalar *);
   static const functype func[16] = {
     // array index: NOTR  | (UP << 2) | (NUNIT << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|0,       false,ColMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|0,       false,StorageOrder::ColMajor>::run),
     // array index: TR    | (UP << 2) | (NUNIT << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|0,       false,RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|0,       false,StorageOrder::RowMajor>::run),
     // array index: ADJ   | (UP << 2) | (NUNIT << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|0,       Conj, RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|0,       Conj, StorageOrder::RowMajor>::run),
     0,
     // array index: NOTR  | (LO << 2) | (NUNIT << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|0,       false,ColMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|0,       false,StorageOrder::ColMajor>::run),
     // array index: TR    | (LO << 2) | (NUNIT << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|0,       false,RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|0,       false,StorageOrder::RowMajor>::run),
     // array index: ADJ   | (LO << 2) | (NUNIT << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|0,       Conj, RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|0,       Conj, StorageOrder::RowMajor>::run),
     0,
     // array index: NOTR  | (UP << 2) | (UNIT  << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|UnitDiag,false,ColMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|UnitDiag,false,StorageOrder::ColMajor>::run),
     // array index: TR    | (UP << 2) | (UNIT  << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|UnitDiag,false,RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|UnitDiag,false,StorageOrder::RowMajor>::run),
     // array index: ADJ   | (UP << 2) | (UNIT  << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|UnitDiag,Conj, RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|UnitDiag,Conj, StorageOrder::RowMajor>::run),
     0,
     // array index: NOTR  | (LO << 2) | (UNIT  << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|UnitDiag,false,ColMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Lower|UnitDiag,false,StorageOrder::ColMajor>::run),
     // array index: TR    | (LO << 2) | (UNIT  << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|UnitDiag,false,RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|UnitDiag,false,StorageOrder::RowMajor>::run),
     // array index: ADJ   | (LO << 2) | (UNIT  << 3)
-    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|UnitDiag,Conj, RowMajor>::run),
+    (internal::triangular_solve_vector<Scalar,Scalar,int,OnTheLeft, Upper|UnitDiag,Conj, StorageOrder::RowMajor>::run),
     0
   };
 

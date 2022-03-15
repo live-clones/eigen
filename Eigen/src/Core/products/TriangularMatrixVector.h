@@ -53,8 +53,8 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
     typedef Map<Matrix<ResScalar,Dynamic,1> > ResMap;
     ResMap res(_res,rows);
 
-    typedef const_blas_data_mapper<LhsScalar,Index,ColMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar,Index,RowMajor> RhsMapper;
+    typedef const_blas_data_mapper<LhsScalar,Index,StorageOrder::ColMajor> LhsMapper;
+    typedef const_blas_data_mapper<RhsScalar,Index,StorageOrder::RowMajor> RhsMapper;
 
     for (Index pi=0; pi<size; pi+=PanelWidth)
     {
@@ -73,7 +73,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
       if (r>0)
       {
         Index s = IsLower ? pi+actualPanelWidth : 0;
-        general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs,BuiltIn>::run(
+        general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs,BuiltIn>::run(
             r, actualPanelWidth,
             LhsMapper(&lhs.coeffRef(s,pi), lhsStride),
             RhsMapper(&rhs.coeffRef(pi), rhsIncr),
@@ -82,7 +82,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
     }
     if((!IsLower) && cols>size)
     {
-      general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs>::run(
+      general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs>::run(
           rows, cols-size,
           LhsMapper(&lhs.coeffRef(0,size), lhsStride),
           RhsMapper(&rhs.coeffRef(size), rhsIncr),
@@ -124,8 +124,8 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
     typedef Map<Matrix<ResScalar,Dynamic,1>, 0, InnerStride<> > ResMap;
     ResMap res(_res,rows,InnerStride<>(resIncr));
 
-    typedef const_blas_data_mapper<LhsScalar,Index,RowMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar,Index,RowMajor> RhsMapper;
+    typedef const_blas_data_mapper<LhsScalar,Index,StorageOrder::RowMajor> LhsMapper;
+    typedef const_blas_data_mapper<RhsScalar,Index,StorageOrder::RowMajor> RhsMapper;
 
     for (Index pi=0; pi<diagSize; pi+=PanelWidth)
     {
@@ -144,7 +144,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
       if (r>0)
       {
         Index s = IsLower ? 0 : pi + actualPanelWidth;
-        general_matrix_vector_product<Index,LhsScalar,LhsMapper,RowMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs,BuiltIn>::run(
+        general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::RowMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs,BuiltIn>::run(
             actualPanelWidth, r,
             LhsMapper(&lhs.coeffRef(pi,s), lhsStride),
             RhsMapper(&rhs.coeffRef(s), rhsIncr),
@@ -153,7 +153,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
     }
     if(IsLower && rows>diagSize)
     {
-      general_matrix_vector_product<Index,LhsScalar,LhsMapper,RowMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs>::run(
+      general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::RowMajor,ConjLhs,RhsScalar,RhsMapper,ConjRhs>::run(
             rows-diagSize, cols,
             LhsMapper(&lhs.coeffRef(diagSize,0), lhsStride),
             RhsMapper(&rhs.coeffRef(0), rhsIncr),
@@ -165,7 +165,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
 * Wrapper to product_triangular_vector
 ***************************************************************************/
 
-template<int Mode,int StorageOrder>
+template<int Mode,StorageOrder StorageOrder>
 struct trmv_selector;
 
 } // end namespace internal
@@ -192,7 +192,7 @@ struct triangular_product_impl<Mode,false,Lhs,true,Rhs,false>
 
     Transpose<Dest> dstT(dst);
     internal::trmv_selector<(Mode & (UnitDiag|ZeroDiag)) | ((Mode & Lower) ? Upper : Lower),
-                            is_row_major(internal::traits<Rhs>::Flags) ? ColMajor : RowMajor>
+                            transposed(get_storage_order(internal::traits<Rhs>::Flags))>
             ::run(rhs.transpose(),lhs.transpose(), dstT, alpha);
   }
 };
@@ -203,7 +203,7 @@ namespace internal {
 
 // TODO: find a way to factorize this piece of code with gemv_selector since the logic is exactly the same.
   
-template<int Mode> struct trmv_selector<Mode,ColMajor>
+template<int Mode> struct trmv_selector<Mode,StorageOrder::ColMajor>
 {
   template<typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)
@@ -285,7 +285,7 @@ template<int Mode> struct trmv_selector<Mode,ColMajor>
   }
 };
 
-template<int Mode> struct trmv_selector<Mode,RowMajor>
+template<int Mode> struct trmv_selector<Mode,StorageOrder::RowMajor>
 {
   template<typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)

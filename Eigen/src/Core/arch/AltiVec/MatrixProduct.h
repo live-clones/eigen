@@ -2243,13 +2243,13 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
  * ppc64le template specializations *
  * **********************************/
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   void operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
     dhs_pack<double, Index, DataMapper, Packet2d, ColMajor, PanelMode, true> pack;
@@ -2263,7 +2263,7 @@ struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, 
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
     dhs_pack<double, Index, DataMapper, Packet2d, RowMajor, PanelMode, true> pack;

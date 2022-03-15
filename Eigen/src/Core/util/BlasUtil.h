@@ -23,21 +23,21 @@ namespace internal {
 template<typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs=false, bool ConjugateRhs=false>
 struct gebp_kernel;
 
-template<typename Scalar, typename Index, typename DataMapper, int nr, int StorageOrder, bool Conjugate = false, bool PanelMode=false>
+template<typename Scalar, typename Index, typename DataMapper, int nr, StorageOrder StorageOrder_, bool Conjugate = false, bool PanelMode=false>
 struct gemm_pack_rhs;
 
-template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, int StorageOrder, bool Conjugate = false, bool PanelMode = false>
+template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, StorageOrder StorageOrder_, bool Conjugate = false, bool PanelMode = false>
 struct gemm_pack_lhs;
 
 template<
   typename Index,
-  typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
-  typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
-  int ResStorageOrder, int ResInnerStride>
+  typename LhsScalar, StorageOrder LhsStorageOrder, bool ConjugateLhs,
+  typename RhsScalar, StorageOrder RhsStorageOrder, bool ConjugateRhs,
+  StorageOrder ResStorageOrder, int ResInnerStride>
 struct general_matrix_matrix_product;
 
 template<typename Index,
-         typename LhsScalar, typename LhsMapper, int LhsStorageOrder, bool ConjugateLhs,
+         typename LhsScalar, typename LhsMapper, StorageOrder LhsStorageOrder, bool ConjugateLhs,
          typename RhsScalar, typename RhsMapper, bool ConjugateRhs, int Version=Specialized>
 struct general_matrix_vector_product;
 
@@ -115,17 +115,17 @@ protected:
 };
 
 // Lightweight helper class to access matrix coefficients.
-template<typename Scalar, typename Index, int StorageOrder, int AlignmentType = Unaligned, int Incr = 1>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int AlignmentType = Unaligned, int Incr = 1>
 class blas_data_mapper;
 
 // TMP to help PacketBlock store implementation.
 // There's currently no known use case for PacketBlock load.
 // The default implementation assumes ColMajor order.
 // It always store each packet sequentially one `stride` apart.
-template<typename Index, typename Scalar, typename Packet, int n, int idx, int StorageOrder>
+template<typename Index, typename Scalar, typename Packet, int n, int idx, StorageOrder StorageOrder_>
 struct PacketBlockManagement
 {
-  PacketBlockManagement<Index, Scalar, Packet, n, idx - 1, StorageOrder> pbm;
+  PacketBlockManagement<Index, Scalar, Packet, n, idx - 1, StorageOrder_> pbm;
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(Scalar *to, const Index stride, Index i, Index j, const PacketBlock<Packet, n> &block) const {
     pbm.store(to, stride, i, j, block);
     pstoreu<Scalar>(to + i + (j + idx)*stride, block.packet[idx]);
@@ -134,17 +134,17 @@ struct PacketBlockManagement
 
 // PacketBlockManagement specialization to take care of RowMajor order without ifs.
 template<typename Index, typename Scalar, typename Packet, int n, int idx>
-struct PacketBlockManagement<Index, Scalar, Packet, n, idx, RowMajor>
+struct PacketBlockManagement<Index, Scalar, Packet, n, idx, StorageOrder::RowMajor>
 {
-  PacketBlockManagement<Index, Scalar, Packet, n, idx - 1, RowMajor> pbm;
+  PacketBlockManagement<Index, Scalar, Packet, n, idx - 1, StorageOrder::RowMajor> pbm;
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(Scalar *to, const Index stride, Index i, Index j, const PacketBlock<Packet, n> &block) const {
     pbm.store(to, stride, i, j, block);
     pstoreu<Scalar>(to + j + (i + idx)*stride, block.packet[idx]);
   }
 };
 
-template<typename Index, typename Scalar, typename Packet, int n, int StorageOrder>
-struct PacketBlockManagement<Index, Scalar, Packet, n, -1, StorageOrder>
+template<typename Index, typename Scalar, typename Packet, int n, StorageOrder StorageOrder_>
+struct PacketBlockManagement<Index, Scalar, Packet, n, -1, StorageOrder_>
 {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(Scalar *to, const Index stride, Index i, Index j, const PacketBlock<Packet, n> &block) const {
     EIGEN_UNUSED_VARIABLE(to);
@@ -156,7 +156,7 @@ struct PacketBlockManagement<Index, Scalar, Packet, n, -1, StorageOrder>
 };
 
 template<typename Index, typename Scalar, typename Packet, int n>
-struct PacketBlockManagement<Index, Scalar, Packet, n, -1, RowMajor>
+struct PacketBlockManagement<Index, Scalar, Packet, n, -1, StorageOrder::RowMajor>
 {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(Scalar *to, const Index stride, Index i, Index j, const PacketBlock<Packet, n> &block) const {
     EIGEN_UNUSED_VARIABLE(to);
@@ -167,8 +167,8 @@ struct PacketBlockManagement<Index, Scalar, Packet, n, -1, RowMajor>
   }
 };
 
-template<typename Scalar, typename Index, int StorageOrder, int AlignmentType>
-class blas_data_mapper<Scalar,Index,StorageOrder,AlignmentType,1>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int AlignmentType>
+class blas_data_mapper<Scalar,Index,StorageOrder_,AlignmentType,1>
 {
 public:
   typedef BlasLinearMapper<Scalar, Index, AlignmentType> LinearMapper;
@@ -181,9 +181,9 @@ public:
     eigen_assert(incr==1);
   }
 
-  EIGEN_DEVICE_FUNC  EIGEN_ALWAYS_INLINE blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType>
+  EIGEN_DEVICE_FUNC  EIGEN_ALWAYS_INLINE blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType>
   getSubMapper(Index i, Index j) const {
-    return blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType>(&operator()(i, j), m_stride);
+    return blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType>(&operator()(i, j), m_stride);
   }
 
   EIGEN_DEVICE_FUNC  EIGEN_ALWAYS_INLINE LinearMapper getLinearMapper(Index i, Index j) const {
@@ -200,7 +200,7 @@ public:
 
   EIGEN_DEVICE_FUNC
   EIGEN_ALWAYS_INLINE Scalar& operator()(Index i, Index j) const {
-    return m_data[StorageOrder==RowMajor ? j + i*m_stride : i + j*m_stride];
+    return m_data[is_row_major(StorageOrder_) ? j + i*m_stride : i + j*m_stride];
   }
 
   template<typename PacketType>
@@ -235,7 +235,7 @@ public:
 
   template<typename SubPacket, int n>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void storePacketBlock(Index i, Index j, const PacketBlock<SubPacket, n> &block) const {
-    PacketBlockManagement<Index, Scalar, SubPacket, n, n-1, StorageOrder> pbm;
+    PacketBlockManagement<Index, Scalar, SubPacket, n, n-1, StorageOrder_> pbm;
     pbm.store(m_data, m_stride, i, j, block);
   }
 protected:
@@ -275,7 +275,7 @@ protected:
   const internal::variable_if_dynamic<Index,Incr> m_incr;
 };
 
-template<typename Scalar, typename Index, int StorageOrder, int AlignmentType,int Incr>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int AlignmentType,int Incr>
 class blas_data_mapper
 {
 public:
@@ -298,7 +298,7 @@ public:
 
   EIGEN_DEVICE_FUNC
   EIGEN_ALWAYS_INLINE Scalar& operator()(Index i, Index j) const {
-    return m_data[StorageOrder==RowMajor ? j*m_incr.value() + i*m_stride : i*m_incr.value() + j*m_stride];
+    return m_data[is_row_major(StorageOrder_) ? j*m_incr.value() + i*m_stride : i*m_incr.value() + j*m_stride];
   }
 
   template<typename PacketType>
@@ -326,7 +326,7 @@ public:
   struct storePacketBlock_helper
   {
     storePacketBlock_helper<SubPacket, Scalar_, n, idx-1> spbh;
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, Incr>* sup, Index i, Index j, const PacketBlock<SubPacket, n>& block) const {
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType, Incr>* sup, Index i, Index j, const PacketBlock<SubPacket, n>& block) const {
       spbh.store(sup, i,j,block);
       for(int l = 0; l < unpacket_traits<SubPacket>::size; l++)
       {
@@ -340,7 +340,7 @@ public:
   struct storePacketBlock_helper<SubPacket, std::complex<float>, n, idx>
   {
     storePacketBlock_helper<SubPacket, std::complex<float>, n, idx-1> spbh;
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, Incr>* sup, Index i, Index j, const PacketBlock<SubPacket, n>& block) const {
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType, Incr>* sup, Index i, Index j, const PacketBlock<SubPacket, n>& block) const {
       spbh.store(sup,i,j,block);
       for(int l = 0; l < unpacket_traits<SubPacket>::size; l++)
       {
@@ -355,7 +355,7 @@ public:
   struct storePacketBlock_helper<SubPacket, std::complex<double>, n, idx>
   {
     storePacketBlock_helper<SubPacket, std::complex<double>, n, idx-1> spbh;
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, Incr>* sup, Index i, Index j, const PacketBlock<SubPacket, n>& block) const {
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType, Incr>* sup, Index i, Index j, const PacketBlock<SubPacket, n>& block) const {
       spbh.store(sup,i,j,block);
       for(int l = 0; l < unpacket_traits<SubPacket>::size; l++)
       {
@@ -369,21 +369,21 @@ public:
   template<typename SubPacket, typename Scalar_, int n>
   struct storePacketBlock_helper<SubPacket, Scalar_, n, -1>
   {
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, Incr>*, Index, Index, const PacketBlock<SubPacket, n>& ) const {
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType, Incr>*, Index, Index, const PacketBlock<SubPacket, n>& ) const {
     }
   };
 
   template<typename SubPacket, int n>
   struct storePacketBlock_helper<SubPacket, std::complex<float>, n, -1>
   {
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, Incr>*, Index, Index, const PacketBlock<SubPacket, n>& ) const {
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType, Incr>*, Index, Index, const PacketBlock<SubPacket, n>& ) const {
     }
   };
 
   template<typename SubPacket, int n>
   struct storePacketBlock_helper<SubPacket, std::complex<double>, n, -1>
   {
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, Incr>*, Index, Index, const PacketBlock<SubPacket, n>& ) const {
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder_, AlignmentType, Incr>*, Index, Index, const PacketBlock<SubPacket, n>& ) const {
     }
   };
   // This function stores a PacketBlock on m_data, this approach is really quite slow compare to Incr=1 and should be avoided when possible.
@@ -399,13 +399,13 @@ protected:
 };
 
 // lightweight helper class to access matrix coefficients (const version)
-template<typename Scalar, typename Index, int StorageOrder>
-class const_blas_data_mapper : public blas_data_mapper<const Scalar, Index, StorageOrder> {
+template<typename Scalar, typename Index, StorageOrder StorageOrder_>
+class const_blas_data_mapper : public blas_data_mapper<const Scalar, Index, StorageOrder_> {
   public:
-  EIGEN_ALWAYS_INLINE const_blas_data_mapper(const Scalar *data, Index stride) : blas_data_mapper<const Scalar, Index, StorageOrder>(data, stride) {}
+  EIGEN_ALWAYS_INLINE const_blas_data_mapper(const Scalar *data, Index stride) : blas_data_mapper<const Scalar, Index, StorageOrder_>(data, stride) {}
 
-  EIGEN_ALWAYS_INLINE const_blas_data_mapper<Scalar, Index, StorageOrder> getSubMapper(Index i, Index j) const {
-    return const_blas_data_mapper<Scalar, Index, StorageOrder>(&(this->operator()(i, j)), this->m_stride);
+  EIGEN_ALWAYS_INLINE const_blas_data_mapper<Scalar, Index, StorageOrder_> getSubMapper(Index i, Index j) const {
+    return const_blas_data_mapper<Scalar, Index, StorageOrder_>(&(this->operator()(i, j)), this->m_stride);
   }
 };
 

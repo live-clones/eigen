@@ -486,7 +486,7 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,LazyCoeffBasedProductM
 template<int Traversal, int UnrollingIndex, typename Lhs, typename Rhs, typename RetScalar>
 struct etor_product_coeff_impl;
 
-template<int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
+template<StorageOrder StorageOrder_, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl;
 
 template<typename Lhs, typename Rhs, int ProductTag>
@@ -673,27 +673,27 @@ struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, LazyCoeffBasedProduc
 ****************************************/
 
 template<int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<RowMajor, UnrollingIndex, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::RowMajor, UnrollingIndex, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet &res)
   {
-    etor_product_packet_impl<RowMajor, UnrollingIndex-1, Lhs, Rhs, Packet, LoadMode>::run(row, col, lhs, rhs, innerDim, res);
+    etor_product_packet_impl<StorageOrder::RowMajor, UnrollingIndex-1, Lhs, Rhs, Packet, LoadMode>::run(row, col, lhs, rhs, innerDim, res);
     res =  pmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex-1))), rhs.template packet<LoadMode,Packet>(Index(UnrollingIndex-1), col), res);
   }
 };
 
 template<int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<ColMajor, UnrollingIndex, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::ColMajor, UnrollingIndex, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet &res)
   {
-    etor_product_packet_impl<ColMajor, UnrollingIndex-1, Lhs, Rhs, Packet, LoadMode>::run(row, col, lhs, rhs, innerDim, res);
+    etor_product_packet_impl<StorageOrder::ColMajor, UnrollingIndex-1, Lhs, Rhs, Packet, LoadMode>::run(row, col, lhs, rhs, innerDim, res);
     res =  pmadd(lhs.template packet<LoadMode,Packet>(row, Index(UnrollingIndex-1)), pset1<Packet>(rhs.coeff(Index(UnrollingIndex-1), col)), res);
   }
 };
 
 template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<RowMajor, 1, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::RowMajor, 1, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index /*innerDim*/, Packet &res)
   {
@@ -702,7 +702,7 @@ struct etor_product_packet_impl<RowMajor, 1, Lhs, Rhs, Packet, LoadMode>
 };
 
 template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<ColMajor, 1, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::ColMajor, 1, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index /*innerDim*/, Packet &res)
   {
@@ -711,7 +711,7 @@ struct etor_product_packet_impl<ColMajor, 1, Lhs, Rhs, Packet, LoadMode>
 };
 
 template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<RowMajor, 0, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::RowMajor, 0, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res)
   {
@@ -720,7 +720,7 @@ struct etor_product_packet_impl<RowMajor, 0, Lhs, Rhs, Packet, LoadMode>
 };
 
 template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<ColMajor, 0, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::ColMajor, 0, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res)
   {
@@ -729,7 +729,7 @@ struct etor_product_packet_impl<ColMajor, 0, Lhs, Rhs, Packet, LoadMode>
 };
 
 template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<RowMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::RowMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res)
   {
@@ -740,7 +740,7 @@ struct etor_product_packet_impl<RowMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
 };
 
 template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
-struct etor_product_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
+struct etor_product_packet_impl<StorageOrder::ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res)
   {
@@ -832,19 +832,19 @@ struct diagonal_product_evaluator_base
 {
    typedef typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType Scalar;
 public:
+    static constexpr StorageOrder StorageOrder_ = (Derived::MaxRowsAtCompileTime==1 && Derived::MaxColsAtCompileTime!=1) ?
+            StorageOrder::RowMajor : (Derived::MaxColsAtCompileTime==1 && Derived::MaxRowsAtCompileTime!=1) ? StorageOrder::ColMajor :
+            get_storage_order(evaluator<MatrixType>::Flags);
   enum {
     CoeffReadCost = int(NumTraits<Scalar>::MulCost) + int(evaluator<MatrixType>::CoeffReadCost) + int(evaluator<DiagonalType>::CoeffReadCost),
 
     MatrixFlags = evaluator<MatrixType>::Flags,
     DiagFlags = evaluator<DiagonalType>::Flags,
 
-    StorageOrder_ = (Derived::MaxRowsAtCompileTime==1 && Derived::MaxColsAtCompileTime!=1) ? RowMajor
-                  : (Derived::MaxColsAtCompileTime==1 && Derived::MaxRowsAtCompileTime!=1) ? ColMajor
-                  : get_storage_order(MatrixFlags),
     SameStorageOrder_ = StorageOrder_ == get_storage_order(MatrixFlags),
 
-    ScalarAccessOnDiag_ =  !((int(StorageOrder_) == ColMajor && int(ProductOrder) == OnTheLeft)
-                           ||(int(StorageOrder_) == RowMajor && int(ProductOrder) == OnTheRight)),
+    ScalarAccessOnDiag_ =  !((is_col_major(StorageOrder_) && int(ProductOrder) == OnTheLeft)
+                           ||(is_row_major(StorageOrder_) && int(ProductOrder) == OnTheRight)),
     SameTypes_ = is_same<typename MatrixType::Scalar, typename DiagonalType::Scalar>::value,
     // FIXME currently we need same types, but in the future the next rule should be the one
     //Vectorizable_ = bool(int(MatrixFlags)&PacketAccessBit) && ((!_PacketOnDiag) || (SameTypes_ && bool(int(DiagFlags)&PacketAccessBit))),
@@ -914,8 +914,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   typedef typename XprType::PlainObject PlainObject;
   typedef typename Lhs::DiagonalVectorType DiagonalType;
 
-
-  enum { StorageOrder = Base::StorageOrder_ };
+  using Base::StorageOrder_;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
     : Base(xpr.rhs(), xpr.lhs().diagonal())
@@ -934,13 +933,13 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
     return this->template packet_impl<LoadMode,PacketType>(row,col, row,
-                                 std::conditional_t<int(StorageOrder)==RowMajor, internal::true_type, internal::false_type>());
+                                 std::conditional_t<is_row_major(StorageOrder_), internal::true_type, internal::false_type>());
   }
 
   template<int LoadMode,typename PacketType>
   EIGEN_STRONG_INLINE PacketType packet(Index idx) const
   {
-    return packet<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx);
+    return packet<LoadMode,PacketType>(is_col_major(StorageOrder_)?idx:0,is_col_major(StorageOrder_)?0:idx);
   }
 #endif
 };
@@ -959,7 +958,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   typedef Product<Lhs, Rhs, ProductKind> XprType;
   typedef typename XprType::PlainObject PlainObject;
 
-  enum { StorageOrder = Base::StorageOrder_ };
+  using Base::StorageOrder_;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
     : Base(xpr.lhs(), xpr.rhs().diagonal())
@@ -976,13 +975,13 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const
   {
     return this->template packet_impl<LoadMode,PacketType>(row,col, col,
-                                 std::conditional_t<int(StorageOrder)==ColMajor, internal::true_type, internal::false_type>());
+                                 std::conditional_t<is_col_major(StorageOrder_), internal::true_type, internal::false_type>());
   }
 
   template<int LoadMode,typename PacketType>
   EIGEN_STRONG_INLINE PacketType packet(Index idx) const
   {
-    return packet<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx);
+    return packet<LoadMode,PacketType>(is_col_major(StorageOrder_)?idx:0,is_col_major(StorageOrder_)?0:idx);
   }
 #endif
 };

@@ -18,10 +18,10 @@ namespace internal {
 
 // Forward declarations:
 // The following two routines are implemented in the products/TriangularSolver*.h files
-template<typename LhsScalar, typename RhsScalar, typename Index, int Side, int Mode, bool Conjugate, int StorageOrder>
+template<typename LhsScalar, typename RhsScalar, typename Index, int Side, int Mode, bool Conjugate, StorageOrder StorageOrder_>
 struct triangular_solve_vector;
 
-template <typename Scalar, typename Index, int Side, int Mode, bool Conjugate, int TriStorageOrder, int OtherStorageOrder, int OtherInnerStride>
+template <typename Scalar, typename Index, int Side, int Mode, bool Conjugate, StorageOrder TriStorageOrder, StorageOrder OtherStorageOrder, int OtherInnerStride>
 struct triangular_solve_matrix;
 
 // small helper struct extracting some traits on the underlying solver operation

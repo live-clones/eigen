@@ -16,9 +16,9 @@ int EIGEN_BLAS_FUNC(symv) (const char *uplo, const int *n, const RealScalar *pal
   typedef void (*functype)(int, const Scalar*, int, const Scalar*, Scalar*, Scalar);
   static const functype func[2] = {
     // array index: UP
-    (internal::selfadjoint_matrix_vector_product<Scalar,int,ColMajor,Upper,false,false>::run),
+    (internal::selfadjoint_matrix_vector_product<Scalar,int,StorageOrder::ColMajor,Upper,false,false>::run),
     // array index: LO
-    (internal::selfadjoint_matrix_vector_product<Scalar,int,ColMajor,Lower,false,false>::run),
+    (internal::selfadjoint_matrix_vector_product<Scalar,int,StorageOrder::ColMajor,Lower,false,false>::run),
   };
 
   const Scalar* a = reinterpret_cast<const Scalar*>(pa);
@@ -68,9 +68,9 @@ int EIGEN_BLAS_FUNC(syr)(const char *uplo, const int *n, const RealScalar *palph
   typedef void (*functype)(int, Scalar*, int, const Scalar*, const Scalar*, const Scalar&);
   static const functype func[2] = {
     // array index: UP
-    (selfadjoint_rank1_update<Scalar,int,ColMajor,Upper,false,Conj>::run),
+    (selfadjoint_rank1_update<Scalar,int,StorageOrder::ColMajor,Upper,false,Conj>::run),
     // array index: LO
-    (selfadjoint_rank1_update<Scalar,int,ColMajor,Lower,false,Conj>::run),
+    (selfadjoint_rank1_update<Scalar,int,StorageOrder::ColMajor,Lower,false,Conj>::run),
   };
 
   const Scalar* x = reinterpret_cast<const Scalar*>(px);

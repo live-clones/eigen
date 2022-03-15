@@ -406,7 +406,7 @@ namespace internal {
   * Implemented from Golub's "Matrix Computations", algorithm 8.3.2:
   * "implicit symmetric QR step with Wilkinson shift"
   */
-template<int StorageOrder,typename RealScalar, typename Scalar, typename Index>
+template<StorageOrder StorageOrder,typename RealScalar, typename Scalar, typename Index>
 EIGEN_DEVICE_FUNC
 static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index start, Index end, Scalar* matrixQ, Index n);
 }
@@ -830,7 +830,7 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>
 namespace internal {
 
 // Francis implicit QR step.
-template<int StorageOrder,typename RealScalar, typename Scalar, typename Index>
+template<StorageOrder StorageOrder_,typename RealScalar, typename Scalar, typename Index>
 EIGEN_DEVICE_FUNC
 static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index start, Index end, Scalar* matrixQ, Index n)
 {
@@ -887,7 +887,7 @@ static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index sta
     if (matrixQ)
     {
       // FIXME if StorageOrder == RowMajor this operation is not very efficient
-      Map<Matrix<Scalar,Dynamic,Dynamic,StorageOrder> > q(matrixQ,n,n);
+      Map<Matrix<Scalar,Dynamic,Dynamic, storage_order_flag(StorageOrder_)> > q(matrixQ,n,n);
       q.applyOnTheRight(k,k+1,rot);
     }
   }

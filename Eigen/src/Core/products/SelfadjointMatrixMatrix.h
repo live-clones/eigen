@@ -17,11 +17,11 @@ namespace Eigen {
 namespace internal {
 
 // pack a selfadjoint block diagonal for use with the gebp_kernel
-template<typename Scalar, typename Index, int Pack1, int Pack2_dummy, int StorageOrder>
+template<typename Scalar, typename Index, int Pack1, int Pack2_dummy, StorageOrder StorageOrder_>
 struct symm_pack_lhs
 {
   template<int BlockRows> inline
-  void pack(Scalar* blockA, const const_blas_data_mapper<Scalar,Index,StorageOrder>& lhs, Index cols, Index i, Index& count)
+  void pack(Scalar* blockA, const const_blas_data_mapper<Scalar,Index,StorageOrder_>& lhs, Index cols, Index i, Index& count)
   {
     // normal copy
     for(Index k=0; k<i; k++)
@@ -55,7 +55,7 @@ struct symm_pack_lhs
            HasHalf = (int)HalfPacketSize < (int)PacketSize,
            HasQuarter = (int)QuarterPacketSize < (int)HalfPacketSize};
 
-    const_blas_data_mapper<Scalar,Index,StorageOrder> lhs(_lhs,lhsStride);
+    const_blas_data_mapper<Scalar,Index,StorageOrder_> lhs(_lhs,lhsStride);
     Index count = 0;
     //Index peeled_mc3 = (rows/Pack1)*Pack1;
     
@@ -99,7 +99,7 @@ struct symm_pack_lhs
   }
 };
 
-template<typename Scalar, typename Index, int nr, int StorageOrder>
+template<typename Scalar, typename Index, int nr, StorageOrder StorageOrder_>
 struct symm_pack_rhs
 {
   enum { PacketSize = packet_traits<Scalar>::size };
@@ -107,7 +107,7 @@ struct symm_pack_rhs
   {
     Index end_k = k2 + rows;
     Index count = 0;
-    const_blas_data_mapper<Scalar,Index,StorageOrder> rhs(_rhs,rhsStride);
+    const_blas_data_mapper<Scalar,Index,StorageOrder_> rhs(_rhs,rhsStride);
     Index packet_cols8 = nr>=8 ? (cols/8) * 8 : 0;
     Index packet_cols4 = nr>=4 ? (cols/4) * 4 : 0;
 
@@ -294,16 +294,16 @@ struct symm_pack_rhs
  * the general matrix matrix product.
  */
 template <typename Scalar, typename Index,
-          int LhsStorageOrder, bool LhsSelfAdjoint, bool ConjugateLhs,
-          int RhsStorageOrder, bool RhsSelfAdjoint, bool ConjugateRhs,
-          int ResStorageOrder, int ResInnerStride>
+          StorageOrder LhsStorageOrder, bool LhsSelfAdjoint, bool ConjugateLhs,
+          StorageOrder RhsStorageOrder, bool RhsSelfAdjoint, bool ConjugateRhs,
+          StorageOrder ResStorageOrder, int ResInnerStride>
 struct product_selfadjoint_matrix;
 
 template <typename Scalar, typename Index,
-          int LhsStorageOrder, bool LhsSelfAdjoint, bool ConjugateLhs,
-          int RhsStorageOrder, bool RhsSelfAdjoint, bool ConjugateRhs,
+          StorageOrder LhsStorageOrder, bool LhsSelfAdjoint, bool ConjugateLhs,
+          StorageOrder RhsStorageOrder, bool RhsSelfAdjoint, bool ConjugateRhs,
           int ResInnerStride>
-struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,LhsSelfAdjoint,ConjugateLhs, RhsStorageOrder,RhsSelfAdjoint,ConjugateRhs,RowMajor,ResInnerStride>
+struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,LhsSelfAdjoint,ConjugateLhs, RhsStorageOrder,RhsSelfAdjoint,ConjugateRhs,StorageOrder::RowMajor,ResInnerStride>
 {
 
   static EIGEN_STRONG_INLINE void run(
@@ -314,20 +314,20 @@ struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,LhsSelfAdjoint,Co
     const Scalar& alpha, level3_blocking<Scalar,Scalar>& blocking)
   {
     product_selfadjoint_matrix<Scalar, Index,
-      logical_xor(RhsSelfAdjoint,RhsStorageOrder==RowMajor) ? ColMajor : RowMajor,
+      logical_xor(RhsSelfAdjoint, is_row_major(RhsStorageOrder)) ? StorageOrder::ColMajor : StorageOrder::RowMajor,
       RhsSelfAdjoint, NumTraits<Scalar>::IsComplex && logical_xor(RhsSelfAdjoint, ConjugateRhs),
-      logical_xor(LhsSelfAdjoint,LhsStorageOrder==RowMajor) ? ColMajor : RowMajor,
+      logical_xor(LhsSelfAdjoint, is_row_major(LhsStorageOrder)) ? StorageOrder::ColMajor : StorageOrder::RowMajor,
       LhsSelfAdjoint, NumTraits<Scalar>::IsComplex && logical_xor(LhsSelfAdjoint, ConjugateLhs),
-      ColMajor,ResInnerStride>
+      StorageOrder::ColMajor,ResInnerStride>
       ::run(cols, rows,  rhs, rhsStride,  lhs, lhsStride,  res, resIncr, resStride,  alpha, blocking);
   }
 };
 
 template <typename Scalar, typename Index,
-          int LhsStorageOrder, bool ConjugateLhs,
-          int RhsStorageOrder, bool ConjugateRhs,
+          StorageOrder LhsStorageOrder, bool ConjugateLhs,
+          StorageOrder RhsStorageOrder, bool ConjugateRhs,
           int ResInnerStride>
-struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,true,ConjugateLhs, RhsStorageOrder,false,ConjugateRhs,ColMajor,ResInnerStride>
+struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,true,ConjugateLhs, RhsStorageOrder,false,ConjugateRhs,StorageOrder::ColMajor,ResInnerStride>
 {
 
   static EIGEN_DONT_INLINE void run(
@@ -339,10 +339,10 @@ struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,true,ConjugateLhs
 };
 
 template <typename Scalar, typename Index,
-          int LhsStorageOrder, bool ConjugateLhs,
-          int RhsStorageOrder, bool ConjugateRhs,
+          StorageOrder LhsStorageOrder, bool ConjugateLhs,
+          StorageOrder RhsStorageOrder, bool ConjugateRhs,
           int ResInnerStride>
-EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,true,ConjugateLhs, RhsStorageOrder,false,ConjugateRhs,ColMajor,ResInnerStride>::run(
+EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,true,ConjugateLhs, RhsStorageOrder,false,ConjugateRhs,StorageOrder::ColMajor,ResInnerStride>::run(
     Index rows, Index cols,
     const Scalar* _lhs, Index lhsStride,
     const Scalar* _rhs, Index rhsStride,
@@ -354,9 +354,9 @@ EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,t
     typedef gebp_traits<Scalar,Scalar> Traits;
 
     typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
-    typedef const_blas_data_mapper<Scalar, Index, (LhsStorageOrder == RowMajor) ? ColMajor : RowMajor> LhsTransposeMapper;
+    typedef const_blas_data_mapper<Scalar, Index, transposed(LhsStorageOrder)> LhsTransposeMapper;
     typedef const_blas_data_mapper<Scalar, Index, RhsStorageOrder> RhsMapper;
-    typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+    typedef blas_data_mapper<typename Traits::ResScalar, Index, StorageOrder::ColMajor, Unaligned, ResInnerStride> ResMapper;
     LhsMapper lhs(_lhs,lhsStride);
     LhsTransposeMapper lhs_transpose(_lhs,lhsStride);
     RhsMapper rhs(_rhs,rhsStride);
@@ -374,7 +374,7 @@ EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,t
     gebp_kernel<Scalar, Scalar, Index, ResMapper, Traits::mr, Traits::nr, ConjugateLhs, ConjugateRhs> gebp_kernel;
     symm_pack_lhs<Scalar, Index, Traits::mr, Traits::LhsProgress, LhsStorageOrder> pack_lhs;
     gemm_pack_rhs<Scalar, Index, RhsMapper, Traits::nr,RhsStorageOrder> pack_rhs;
-    gemm_pack_lhs<Scalar, Index, LhsTransposeMapper, Traits::mr, Traits::LhsProgress, typename Traits::LhsPacket4Packing, LhsStorageOrder==RowMajor?ColMajor:RowMajor, true> pack_lhs_transposed;
+    gemm_pack_lhs<Scalar, Index, LhsTransposeMapper, Traits::mr, Traits::LhsProgress, typename Traits::LhsPacket4Packing, transposed(LhsStorageOrder), true> pack_lhs_transposed;
 
     for(Index k2=0; k2<size; k2+=kc)
     {
@@ -419,10 +419,10 @@ EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,t
 
 // matrix * selfadjoint product
 template <typename Scalar, typename Index,
-          int LhsStorageOrder, bool ConjugateLhs,
-          int RhsStorageOrder, bool ConjugateRhs,
+          StorageOrder LhsStorageOrder, bool ConjugateLhs,
+          StorageOrder RhsStorageOrder, bool ConjugateRhs,
           int ResInnerStride>
-struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLhs, RhsStorageOrder,true,ConjugateRhs,ColMajor,ResInnerStride>
+struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLhs, RhsStorageOrder,true,ConjugateRhs,StorageOrder::ColMajor,ResInnerStride>
 {
 
   static EIGEN_DONT_INLINE void run(
@@ -434,10 +434,10 @@ struct product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLh
 };
 
 template <typename Scalar, typename Index,
-          int LhsStorageOrder, bool ConjugateLhs,
-          int RhsStorageOrder, bool ConjugateRhs,
+          StorageOrder LhsStorageOrder, bool ConjugateLhs,
+          StorageOrder RhsStorageOrder, bool ConjugateRhs,
           int ResInnerStride>
-EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLhs, RhsStorageOrder,true,ConjugateRhs,ColMajor,ResInnerStride>::run(
+EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,false,ConjugateLhs, RhsStorageOrder,true,ConjugateRhs,StorageOrder::ColMajor,ResInnerStride>::run(
     Index rows, Index cols,
     const Scalar* _lhs, Index lhsStride,
     const Scalar* _rhs, Index rhsStride,
@@ -449,7 +449,7 @@ EIGEN_DONT_INLINE void product_selfadjoint_matrix<Scalar,Index,LhsStorageOrder,f
     typedef gebp_traits<Scalar,Scalar> Traits;
 
     typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
-    typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+    typedef blas_data_mapper<typename Traits::ResScalar, Index, StorageOrder::ColMajor, Unaligned, ResInnerStride> ResMapper;
     LhsMapper lhs(_lhs,lhsStride);
     ResMapper res(_res,resStride, resIncr);
 
@@ -523,9 +523,9 @@ struct selfadjoint_product_impl<Lhs,LhsMode,false,Rhs,RhsMode,false>
     BlockingType blocking(lhs.rows(), rhs.cols(), lhs.cols(), 1, false);
 
     internal::product_selfadjoint_matrix<Scalar, Index,
-      internal::logical_xor(LhsIsUpper, is_row_major(internal::traits<Lhs>::Flags)) ? RowMajor : ColMajor, LhsIsSelfAdjoint,
+      internal::logical_xor(LhsIsUpper, is_row_major(internal::traits<Lhs>::Flags)) ? StorageOrder::RowMajor : StorageOrder::ColMajor, LhsIsSelfAdjoint,
       NumTraits<Scalar>::IsComplex && internal::logical_xor(LhsIsUpper, bool(LhsBlasTraits::NeedToConjugate)),
-      internal::logical_xor(RhsIsUpper, is_row_major(internal::traits<Rhs>::Flags)) ? RowMajor : ColMajor, RhsIsSelfAdjoint,
+      internal::logical_xor(RhsIsUpper, is_row_major(internal::traits<Rhs>::Flags)) ? StorageOrder::RowMajor : StorageOrder::ColMajor, RhsIsSelfAdjoint,
       NumTraits<Scalar>::IsComplex && internal::logical_xor(RhsIsUpper, bool(RhsBlasTraits::NeedToConjugate)),
       get_storage_order(internal::traits<Dest>::Flags),
       Dest::InnerStrideAtCompileTime>

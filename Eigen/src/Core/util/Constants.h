@@ -327,16 +327,39 @@ enum StorageOptions {
   DontAlign = 0x2
 };
 
+enum class StorageOrder {
+    ColMajor = 0,
+    RowMajor = 1
+};
+
 constexpr bool is_row_major(int flags) {
   return flags & RowMajorBit;
+}
+
+constexpr bool is_row_major(StorageOrder order) {
+  return order == StorageOrder::RowMajor;
 }
 
 constexpr bool is_col_major(int flags) {
   return !is_row_major(flags);
 }
 
-constexpr StorageOptions get_storage_order(int flags) {
-  return is_row_major(flags) ? RowMajor : ColMajor;
+constexpr StorageOrder transposed(StorageOrder order) {
+  switch(order) {
+    case StorageOrder::RowMajor:
+      return StorageOrder::ColMajor;
+    case StorageOrder::ColMajor:
+      return StorageOrder::RowMajor;
+  }
+}
+
+constexpr bool is_col_major(StorageOrder order) {
+  return order == StorageOrder::ColMajor;
+}
+
+
+constexpr StorageOrder get_storage_order(int flags) {
+  return is_row_major(flags) ? StorageOrder::RowMajor : StorageOrder::ColMajor;
 }
 
 constexpr bool has_same_storage_order(int flags_a, int flags_b) {
@@ -345,6 +368,15 @@ constexpr bool has_same_storage_order(int flags_a, int flags_b) {
 
 constexpr unsigned int storage_order_flag(unsigned int flags) {
   return flags & RowMajorBit;
+}
+
+constexpr unsigned int storage_order_flag(StorageOrder order) {
+  switch(order) {
+    case StorageOrder::RowMajor:
+      return RowMajorBit;
+    case StorageOrder::ColMajor:
+      return 0;
+  }
 }
 
 /** \ingroup enums

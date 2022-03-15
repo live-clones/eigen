@@ -376,7 +376,7 @@ template<typename DataType, typename dev_Selector> void sycl_morphing_test_per_d
   test_strided_slice_write_sycl<DataType, RowMajor, int64_t>(sycl_device);
   test_strided_slice_as_rhs_sycl<DataType, ColMajor, int64_t>(sycl_device);
   test_strided_slice_as_rhs_sycl<DataType, RowMajor, int64_t>(sycl_device);
-  run_eigen<float, RowMajor, long, int>(sycl_device); 
+  run_eigen<float, RowMajor, long, int>(sycl_device);
 }
 EIGEN_DECLARE_TEST(cxx11_tensor_morphing_sycl)
 {

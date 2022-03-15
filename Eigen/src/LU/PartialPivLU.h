@@ -330,7 +330,7 @@ PartialPivLU<MatrixType>::PartialPivLU(EigenBase<InputType>& matrix)
 namespace internal {
 
 /** \internal This is the blocked version of fullpivlu_unblocked() */
-template<typename Scalar, int StorageOrder, typename PivIndex, int SizeAtCompileTime=Dynamic>
+template<typename Scalar, StorageOrder StorageOrder_, typename PivIndex, int SizeAtCompileTime=Dynamic>
 struct partial_lu_impl
 {
   static constexpr int UnBlockedBound = 16;
@@ -339,9 +339,9 @@ struct partial_lu_impl
   // Remaining rows and columns at compile-time:
   static constexpr int RRows = SizeAtCompileTime==2 ? 1 : Dynamic;
   static constexpr int RCols = SizeAtCompileTime==2 ? 1 : Dynamic;
-  typedef Matrix<Scalar, ActualSizeAtCompileTime, ActualSizeAtCompileTime, StorageOrder> MatrixType;
+  typedef Matrix<Scalar, ActualSizeAtCompileTime, ActualSizeAtCompileTime, storage_order_flag(StorageOrder_)> MatrixType;
   typedef Ref<MatrixType> MatrixTypeRef;
-  typedef Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder> > BlockType;
+  typedef Ref<Matrix<Scalar, Dynamic, Dynamic, storage_order_flag(StorageOrder_)> > BlockType;
   typedef typename MatrixType::RealScalar RealScalar;
 
   /** \internal performs the LU decomposition in-place of the matrix \a lu

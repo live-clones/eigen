@@ -52,6 +52,9 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
   typedef typename traits<XprType>::Scalar Scalar;
   typedef typename traits<XprType>::StorageKind StorageKind;
   typedef typename traits<XprType>::XprKind XprKind;
+  static constexpr StorageOrder XpxStorageOrder = get_storage_order(traits<XprType>::Flags);
+  static constexpr StorageOrder ReshapedStorageOrder = (Rows == 1 && Cols != 1) ? StorageOrder::RowMajor
+                                                        : (Cols == 1 && Rows != 1) ? StorageOrder::ColMajor : XpxStorageOrder;
   enum{
     MatrixRows = traits<XprType>::RowsAtCompileTime,
     MatrixCols = traits<XprType>::ColsAtCompileTime,
@@ -59,12 +62,8 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
     ColsAtCompileTime = Cols,
     MaxRowsAtCompileTime = Rows,
     MaxColsAtCompileTime = Cols,
-    XpxStorageOrder = get_storage_order(traits<XprType>::Flags),
-    ReshapedStorageOrder = (RowsAtCompileTime == 1 && ColsAtCompileTime != 1) ? RowMajor
-                         : (ColsAtCompileTime == 1 && RowsAtCompileTime != 1) ? ColMajor
-                         : XpxStorageOrder,
     HasSameStorageOrderAsXprType = (ReshapedStorageOrder == XpxStorageOrder),
-    InnerSize = (ReshapedStorageOrder==int(RowMajor)) ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
+    InnerSize = is_row_major(ReshapedStorageOrder) ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
     InnerStrideAtCompileTime = HasSameStorageOrderAsXprType
                              ? int(inner_stride_at_compile_time<XprType>::ret)
                              : Dynamic,
@@ -80,7 +79,7 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
     //MaskAlignedBit = ((OuterStrideAtCompileTime!=Dynamic) && (((OuterStrideAtCompileTime * int(sizeof(Scalar))) % 16) == 0)) ? AlignedBit : 0,
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1) ? LinearAccessBit : 0,
     FlagsLvalueBit = is_lvalue<XprType>::value ? LvalueBit : 0,
-    FlagsRowMajorBit = (ReshapedStorageOrder==int(RowMajor)) ? RowMajorBit : 0,
+    FlagsRowMajorBit = storage_order_flag(ReshapedStorageOrder),
     FlagsDirectAccessBit = HasDirectAccess ? DirectAccessBit : 0,
     Flags0 = traits<XprType>::Flags & ( (HereditaryBits & ~RowMajorBit) | MaskPacketAccessBit),
 
@@ -286,7 +285,7 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
 //     OuterStrideAtCompileTime = Dynamic,
 
     FlagsLinearAccessBit = (traits<XprType>::RowsAtCompileTime == 1 || traits<XprType>::ColsAtCompileTime == 1 || HasDirectAccess) ? LinearAccessBit : 0,
-    FlagsRowMajorBit = (traits<XprType>::ReshapedStorageOrder==int(RowMajor)) ? RowMajorBit : 0,
+    FlagsRowMajorBit = storage_order_flag(traits<XprType>::ReshapedStorageOrder),
     FlagsDirectAccessBit =  HasDirectAccess ? DirectAccessBit : 0,
     Flags0 = evaluator<ArgType>::Flags & (HereditaryBits & ~RowMajorBit),
     Flags = Flags0 | FlagsLinearAccessBit | FlagsRowMajorBit | FlagsDirectAccessBit,

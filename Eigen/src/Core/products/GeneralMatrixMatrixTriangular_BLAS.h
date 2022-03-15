@@ -39,7 +39,7 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Index, typename Scalar, int AStorageOrder, bool ConjugateA, int ResStorageOrder, int UpLo>
+template <typename Index, typename Scalar, StorageOrder AStorageOrder, bool ConjugateA, StorageOrder ResStorageOrder, int UpLo>
 struct general_matrix_matrix_rankupdate :
        general_matrix_matrix_triangular_product<
          Index,Scalar,AStorageOrder,ConjugateA,Scalar,AStorageOrder,ConjugateA,ResStorageOrder,1,UpLo,BuiltIn> {};
@@ -47,8 +47,8 @@ struct general_matrix_matrix_rankupdate :
 
 // try to go to BLAS specialization
 #define EIGEN_BLAS_RANKUPDATE_SPECIALIZE(Scalar) \
-template <typename Index, int LhsStorageOrder, bool ConjugateLhs, \
-                          int RhsStorageOrder, bool ConjugateRhs, int  UpLo> \
+template <typename Index, StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+                          StorageOrder RhsStorageOrder, bool ConjugateRhs, int  UpLo> \
 struct general_matrix_matrix_triangular_product<Index,Scalar,LhsStorageOrder,ConjugateLhs, \
                Scalar,RhsStorageOrder,ConjugateRhs,ColMajor,1,UpLo,Specialized> { \
   static EIGEN_STRONG_INLINE void run(Index size, Index depth,const Scalar* lhs, Index lhsStride, \

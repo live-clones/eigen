@@ -22,12 +22,12 @@ template<typename Lhs, typename Rhs, int Mode,
            : (Mode & Upper)
            ? Upper
            : -1,
-  int StorageOrder = get_storage_order(traits<Lhs>::Flags)>
+  StorageOrder StorageOrder_ = get_storage_order(traits<Lhs>::Flags)>
 struct sparse_solve_triangular_selector;
 
 // forward substitution, row-major
 template<typename Lhs, typename Rhs, int Mode>
-struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Lower,RowMajor>
+struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Lower,StorageOrder::RowMajor>
 {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
@@ -64,7 +64,7 @@ struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Lower,RowMajor>
 
 // backward substitution, row-major
 template<typename Lhs, typename Rhs, int Mode>
-struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Upper,RowMajor>
+struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Upper,StorageOrder::RowMajor>
 {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
@@ -103,7 +103,7 @@ struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Upper,RowMajor>
 
 // forward substitution, col-major
 template<typename Lhs, typename Rhs, int Mode>
-struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Lower,ColMajor>
+struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Lower,StorageOrder::ColMajor>
 {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
@@ -138,7 +138,7 @@ struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Lower,ColMajor>
 
 // backward substitution, col-major
 template<typename Lhs, typename Rhs, int Mode>
-struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Upper,ColMajor>
+struct sparse_solve_triangular_selector<Lhs,Rhs,Mode,Upper,StorageOrder::ColMajor>
 {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
@@ -205,12 +205,12 @@ template<typename Lhs, typename Rhs, int Mode,
            : (Mode & Upper)
            ? Upper
            : -1,
-  int StorageOrder = get_storage_order(Lhs::Flags)>
+  StorageOrder StorageOrder_ = get_storage_order(Lhs::Flags)>
 struct sparse_solve_triangular_sparse_selector;
 
 // forward substitution, col-major
 template<typename Lhs, typename Rhs, int Mode, int UpLo>
-struct sparse_solve_triangular_sparse_selector<Lhs,Rhs,Mode,UpLo,ColMajor>
+struct sparse_solve_triangular_sparse_selector<Lhs,Rhs,Mode,UpLo,StorageOrder::ColMajor>
 {
   typedef typename Rhs::Scalar Scalar;
   typedef typename promote_index_type<typename traits<Lhs>::StorageIndex,

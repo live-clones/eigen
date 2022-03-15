@@ -531,13 +531,14 @@ template <typename B, typename Functor>                   struct cwise_promote_s
 template <typename Functor>                               struct cwise_promote_storage_type<Sparse,Dense,Functor>                             { typedef Sparse ret; };
 template <typename Functor>                               struct cwise_promote_storage_type<Dense,Sparse,Functor>                             { typedef Sparse ret; };
 
-template <typename LhsKind, typename RhsKind, int LhsOrder, int RhsOrder> struct cwise_promote_storage_order {
-  enum { value = LhsOrder };
-};
-
-template <typename LhsKind, int LhsOrder, int RhsOrder>   struct cwise_promote_storage_order<LhsKind,Sparse,LhsOrder,RhsOrder>                { enum { value = RhsOrder }; };
-template <typename RhsKind, int LhsOrder, int RhsOrder>   struct cwise_promote_storage_order<Sparse,RhsKind,LhsOrder,RhsOrder>                { enum { value = LhsOrder }; };
-template <int Order>                                      struct cwise_promote_storage_order<Sparse,Sparse,Order,Order>                       { enum { value = Order }; };
+template <typename LhsKind, typename RhsKind, StorageOrder LhsOrder, StorageOrder RhsOrder>
+struct cwise_promote_storage_order                                    { static constexpr StorageOrder value = LhsOrder; };
+template <typename LhsKind, StorageOrder LhsOrder, StorageOrder RhsOrder>
+struct cwise_promote_storage_order<LhsKind,Sparse,LhsOrder,RhsOrder>  { static constexpr StorageOrder value = RhsOrder; };
+template <typename RhsKind, StorageOrder LhsOrder, StorageOrder RhsOrder>
+struct cwise_promote_storage_order<Sparse,RhsKind,LhsOrder,RhsOrder>  { static constexpr StorageOrder value = LhsOrder; };
+template <StorageOrder Order>
+struct cwise_promote_storage_order<Sparse,Sparse,Order,Order>         { static constexpr StorageOrder value = Order; };
 
 
 /** \internal Specify the "storage kind" of multiplying an expression of kind A with kind B.

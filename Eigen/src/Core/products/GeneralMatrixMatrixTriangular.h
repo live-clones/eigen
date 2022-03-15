@@ -14,7 +14,7 @@
 
 namespace Eigen { 
 
-template<typename Scalar, typename Index, int StorageOrder, int UpLo, bool ConjLhs, bool ConjRhs>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_rank1_update;
 
 namespace internal {
@@ -32,16 +32,16 @@ struct tribb_kernel;
   
 /* Optimized matrix-matrix product evaluating only one triangular half */
 template <typename Index,
-          typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
-          typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
-                              int ResStorageOrder, int ResInnerStride, int  UpLo, int Version = Specialized>
+          typename LhsScalar, StorageOrder LhsStorageOrder, bool ConjugateLhs,
+          typename RhsScalar, StorageOrder RhsStorageOrder, bool ConjugateRhs,
+                              StorageOrder ResStorageOrder, int ResInnerStride, int  UpLo, int Version = Specialized>
 struct general_matrix_matrix_triangular_product;
 
 // as usual if the result is row major => we transpose the product
-template <typename Index, typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
-                          typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
+template <typename Index, typename LhsScalar, StorageOrder LhsStorageOrder, bool ConjugateLhs,
+                          typename RhsScalar, StorageOrder RhsStorageOrder, bool ConjugateRhs,
                           int ResInnerStride, int  UpLo, int Version>
-struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,RowMajor,ResInnerStride,UpLo,Version>
+struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,StorageOrder::RowMajor,ResInnerStride,UpLo,Version>
 {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
   static EIGEN_STRONG_INLINE void run(Index size, Index depth,const LhsScalar* lhs, Index lhsStride,
@@ -49,17 +49,17 @@ struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,
                                       const ResScalar& alpha, level3_blocking<RhsScalar,LhsScalar>& blocking)
   {
     general_matrix_matrix_triangular_product<Index,
-        RhsScalar, RhsStorageOrder==RowMajor ? ColMajor : RowMajor, ConjugateRhs,
-        LhsScalar, LhsStorageOrder==RowMajor ? ColMajor : RowMajor, ConjugateLhs,
-        ColMajor, ResInnerStride, UpLo==Lower?Upper:Lower>
+        RhsScalar, transposed(RhsStorageOrder), ConjugateRhs,
+        LhsScalar, transposed(LhsStorageOrder), ConjugateLhs,
+        StorageOrder::ColMajor, ResInnerStride, UpLo==Lower?Upper:Lower>
       ::run(size,depth,rhs,rhsStride,lhs,lhsStride,res,resIncr,resStride,alpha,blocking);
   }
 };
 
-template <typename Index, typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
-                          typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
+template <typename Index, typename LhsScalar, StorageOrder LhsStorageOrder, bool ConjugateLhs,
+                          typename RhsScalar, StorageOrder RhsStorageOrder, bool ConjugateRhs,
                           int ResInnerStride, int  UpLo, int Version>
-struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,ColMajor,ResInnerStride,UpLo,Version>
+struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,StorageOrder::ColMajor,ResInnerStride,UpLo,Version>
 {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
   static EIGEN_STRONG_INLINE void run(Index size, Index depth,const LhsScalar* _lhs, Index lhsStride,
@@ -71,7 +71,7 @@ struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,
 
     typedef const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder> LhsMapper;
     typedef const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder> RhsMapper;
-    typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+    typedef blas_data_mapper<typename Traits::ResScalar, Index, StorageOrder::ColMajor, Unaligned, ResInnerStride> ResMapper;
     LhsMapper lhs(_lhs,lhsStride);
     RhsMapper rhs(_rhs,rhsStride);
     ResMapper res(_res, resStride, resIncr);
@@ -148,8 +148,8 @@ struct tribb_kernel
   };
   void operator()(ResScalar* _res, Index resIncr, Index resStride, const LhsScalar* blockA, const RhsScalar* blockB, Index size, Index depth, const ResScalar& alpha)
   {
-    typedef blas_data_mapper<ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
-    typedef blas_data_mapper<ResScalar, Index, ColMajor, Unaligned> BufferMapper;
+    typedef blas_data_mapper<ResScalar, Index, StorageOrder::ColMajor, Unaligned, ResInnerStride> ResMapper;
+    typedef blas_data_mapper<ResScalar, Index, StorageOrder::ColMajor, Unaligned> BufferMapper;
     ResMapper res(_res, resStride, resIncr);
     gebp_kernel<LhsScalar, RhsScalar, Index, ResMapper, mr, nr, ConjLhs, ConjRhs> gebp_kernel1;
     gebp_kernel<LhsScalar, RhsScalar, Index, BufferMapper, mr, nr, ConjLhs, ConjRhs> gebp_kernel2;
@@ -227,8 +227,8 @@ struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,true>
     if(!beta)
       mat.template triangularView<UpLo>().setZero();
 
+    constexpr StorageOrder StorageOrder_ = get_storage_order(internal::traits<MatrixType>::Flags);
     enum {
-      StorageOrder = get_storage_order(internal::traits<MatrixType>::Flags),
       UseLhsDirectly = ActualLhs_::InnerStrideAtCompileTime==1,
       UseRhsDirectly = ActualRhs_::InnerStrideAtCompileTime==1
     };
@@ -244,7 +244,7 @@ struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,true>
     if(!UseRhsDirectly) Map<typename ActualRhs_::PlainObject>(actualRhsPtr, actualRhs.size()) = actualRhs;
     
     
-    selfadjoint_rank1_update<Scalar,Index,StorageOrder,UpLo,
+    selfadjoint_rank1_update<Scalar,Index,StorageOrder_,UpLo,
                               LhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex,
                               RhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex>
           ::run(actualLhs.size(), mat.data(), mat.outerStride(), actualLhsPtr, actualRhsPtr, actualAlpha);
@@ -285,15 +285,15 @@ struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,false>
       size--;
     Index depth = actualLhs.cols();
 
-    typedef internal::gemm_blocking_space<IsRowMajor ? RowMajor : ColMajor,typename Lhs::Scalar,typename Rhs::Scalar,
+    typedef internal::gemm_blocking_space<IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor,typename Lhs::Scalar,typename Rhs::Scalar,
           MatrixType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime, ActualRhs_::MaxColsAtCompileTime> BlockingType;
 
     BlockingType blocking(size, size, depth, 1, false);
 
     internal::general_matrix_matrix_triangular_product<Index,
-      typename Lhs::Scalar, LhsIsRowMajor ? RowMajor : ColMajor, LhsBlasTraits::NeedToConjugate,
-      typename Rhs::Scalar, RhsIsRowMajor ? RowMajor : ColMajor, RhsBlasTraits::NeedToConjugate,
-      IsRowMajor ? RowMajor : ColMajor, MatrixType::InnerStrideAtCompileTime, UpLo&(Lower|Upper)>
+      typename Lhs::Scalar, LhsIsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor, LhsBlasTraits::NeedToConjugate,
+      typename Rhs::Scalar, RhsIsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor, RhsBlasTraits::NeedToConjugate,
+      IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor, MatrixType::InnerStrideAtCompileTime, UpLo&(Lower|Upper)>
       ::run(size, depth,
             &actualLhs.coeffRef(SkipDiag&&(UpLo&Lower)==Lower ? 1 : 0,0), actualLhs.outerStride(),
             &actualRhs.coeffRef(0,SkipDiag&&(UpLo&Upper)==Upper ? 1 : 0), actualRhs.outerStride(),

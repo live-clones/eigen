@@ -78,7 +78,7 @@ public:
  * The same reasoning apply for the transposed case.
  */
 template<typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar, typename RhsMapper, bool ConjugateRhs, int Version>
-struct general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>
+struct general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>
 {
   typedef gemv_traits<LhsScalar,RhsScalar> Traits;
   typedef gemv_traits<LhsScalar,RhsScalar,GEMVPacketHalf> HalfTraits;
@@ -107,7 +107,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(
 };
 
 template<typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar, typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>::run(
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>::run(
   Index rows, Index cols,
   const LhsMapper& alhs,
   const RhsMapper& rhs,
@@ -297,7 +297,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
  *  - no vectorization
  */
 template<typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar, typename RhsMapper, bool ConjugateRhs, int Version>
-struct general_matrix_vector_product<Index,LhsScalar,LhsMapper,RowMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>
+struct general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::RowMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>
 {
   typedef gemv_traits<LhsScalar,RhsScalar> Traits;
   typedef gemv_traits<LhsScalar,RhsScalar,GEMVPacketHalf> HalfTraits;
@@ -326,7 +326,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(
 };
 
 template<typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar, typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,LhsScalar,LhsMapper,RowMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>::run(
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::RowMajor,ConjugateLhs,RhsScalar,RhsMapper,ConjugateRhs,Version>::run(
   Index rows, Index cols,
   const LhsMapper& alhs,
   const RhsMapper& rhs,

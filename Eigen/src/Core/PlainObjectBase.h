@@ -136,15 +136,15 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     enum { NeedsToAlign = (SizeAtCompileTime != Dynamic) && (internal::traits<Derived>::Alignment>0) };
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(NeedsToAlign)
 
-    EIGEN_STATIC_ASSERT(internal::check_implication(MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1, (int(Options)&RowMajor)==RowMajor), INVALID_MATRIX_TEMPLATE_PARAMETERS)
-    EIGEN_STATIC_ASSERT(internal::check_implication(MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1, (int(Options)&RowMajor)==0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
+    EIGEN_STATIC_ASSERT(internal::check_implication(MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1, is_row_major(Options)), INVALID_MATRIX_TEMPLATE_PARAMETERS)
+    EIGEN_STATIC_ASSERT(internal::check_implication(MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1, is_col_major(Options)), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((RowsAtCompileTime == Dynamic) || (RowsAtCompileTime >= 0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((ColsAtCompileTime == Dynamic) || (ColsAtCompileTime >= 0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((MaxRowsAtCompileTime == Dynamic) || (MaxRowsAtCompileTime >= 0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((MaxColsAtCompileTime == Dynamic) || (MaxColsAtCompileTime >= 0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((MaxRowsAtCompileTime == RowsAtCompileTime || RowsAtCompileTime==Dynamic), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((MaxColsAtCompileTime == ColsAtCompileTime || ColsAtCompileTime==Dynamic), INVALID_MATRIX_TEMPLATE_PARAMETERS)
-    EIGEN_STATIC_ASSERT(((Options & (DontAlign|RowMajor)) == Options), INVALID_MATRIX_TEMPLATE_PARAMETERS)
+    EIGEN_STATIC_ASSERT(((Options & (DontAlign|RowMajorBit)) == Options), INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
     EIGEN_DEVICE_FUNC
     Base& base() { return *static_cast<Base*>(this); }

@@ -21,12 +21,12 @@ template <> struct product_promote_storage_type<Dense,Sparse, OuterProduct> { ty
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType,
          typename AlphaType,
-         int LhsStorageOrder = get_storage_order(SparseLhsType::Flags),
+         StorageOrder LhsStorageOrder = get_storage_order(SparseLhsType::Flags),
          bool ColPerCol = ((DenseRhsType::Flags&RowMajorBit)==0) || DenseRhsType::ColsAtCompileTime==1>
 struct sparse_time_dense_product_impl;
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, RowMajor, true>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, StorageOrder::RowMajor, true>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
@@ -93,7 +93,7 @@ struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, t
 // };
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType, typename AlphaType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, AlphaType, ColMajor, true>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, AlphaType, StorageOrder::ColMajor, true>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
@@ -117,7 +117,7 @@ struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, A
 };
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, RowMajor, false>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, StorageOrder::RowMajor, false>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
@@ -157,7 +157,7 @@ struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, t
 };
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, ColMajor, false>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, StorageOrder::ColMajor, false>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
