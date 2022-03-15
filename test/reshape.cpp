@@ -77,7 +77,7 @@ void reshape4x4(MatType m)
   internal::VariableAndFixedInt<MatType::SizeAtCompileTime==Dynamic?-1: 8>  v8( 8);
   internal::VariableAndFixedInt<MatType::SizeAtCompileTime==Dynamic?-1:16> v16(16);
 
-  if((MatType::Flags&RowMajorBit)==0)
+  if(is_col_major(MatType::Flags))
   {
     typedef Map<MatrixXi> MapMat;
     // dynamic
@@ -142,9 +142,9 @@ void reshape4x4(MatType m)
   check_auto_reshape4x4<ColMajor> (m.transpose());
   check_auto_reshape4x4<AutoOrder>(m.transpose());
 
-  check_direct_access_reshape4x4(m,fix<MatType::Flags&RowMajorBit>);
+  check_direct_access_reshape4x4(m,fix<storage_order_flag(MatType::Flags)>);
 
-  if((MatType::Flags&RowMajorBit)==0)
+  if(is_col_major(MatType::Flags))
   {
     VERIFY_IS_EQUAL(m.template reshaped<ColMajor>(2,8),m.reshaped(2,8));
     VERIFY_IS_EQUAL(m.template reshaped<ColMajor>(2,8),m.template reshaped<AutoOrder>(2,8));

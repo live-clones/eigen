@@ -22,7 +22,7 @@ template <> struct product_promote_storage_type<Dense,Sparse, OuterProduct> { ty
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType,
          typename AlphaType,
          StorageOrder LhsStorageOrder = get_storage_order(SparseLhsType::Flags),
-         bool ColPerCol = ((DenseRhsType::Flags&RowMajorBit)==0) || DenseRhsType::ColsAtCompileTime==1>
+         bool ColPerCol = is_col_major(DenseRhsType::Flags) || DenseRhsType::ColsAtCompileTime==1>
 struct sparse_time_dense_product_impl;
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType>

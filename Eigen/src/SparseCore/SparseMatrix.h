@@ -1168,7 +1168,7 @@ EIGEN_DONT_INLINE SparseMatrix<Scalar,Options_,StorageIndex_>& SparseMatrix<Scal
     EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN
   #endif
       
-  const bool needToTranspose = get_storage_order(Flags) != get_storage_order(internal::evaluator<OtherDerived>::Flags);
+  const bool needToTranspose = !has_same_storage_order(Flags, internal::evaluator<OtherDerived>::Flags);
   if (needToTranspose)
   {
     #ifdef EIGEN_SPARSE_TRANSPOSED_COPY_PLUGIN

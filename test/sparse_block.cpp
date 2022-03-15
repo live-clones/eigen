@@ -11,14 +11,14 @@
 #include "AnnoyingScalar.h"
 
 template<typename T>
-std::enable_if_t<(T::Flags&RowMajorBit)==RowMajorBit, typename T::RowXpr>
+std::enable_if_t<is_row_major(T::Flags), typename T::RowXpr>
 innervec(T& A, Index i)
 {
   return A.row(i);
 }
 
 template<typename T>
-std::enable_if_t<(T::Flags&RowMajorBit)==0, typename T::ColXpr>
+std::enable_if_t<is_col_major(T::Flags), typename T::ColXpr>
 innervec(T& A, Index i)
 {
   return A.col(i);

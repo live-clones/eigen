@@ -647,7 +647,7 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
     Arg2Flags = evaluator<Arg2>::Flags,
     Arg3Flags = evaluator<Arg3>::Flags,
     SameType = is_same<typename Arg1::Scalar,typename Arg2::Scalar>::value && is_same<typename Arg1::Scalar,typename Arg3::Scalar>::value,
-    StorageOrdersAgree = (get_storage_order(Arg1Flags)==get_storage_order(Arg2Flags)) && (get_storage_order(Arg1Flags)==get_storage_order(Arg3Flags)),
+    StorageOrdersAgree = has_same_storage_order(Arg1Flags, Arg2Flags) && has_same_storage_order(Arg1Flags, Arg3Flags),
     Flags0 = (int(Arg1Flags) | int(Arg2Flags) | int(Arg3Flags)) & (
         HereditaryBits
         | (int(Arg1Flags) & int(Arg2Flags) & int(Arg3Flags) &

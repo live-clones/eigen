@@ -37,7 +37,7 @@ bool is_sorted(const T& mat) {
 template<typename T>
 typename internal::nested_eval<T,1>::type eval(const T &xpr)
 {
-  VERIFY( int(internal::nested_eval<T,1>::type::Flags&RowMajorBit) == int(internal::evaluator<T>::Flags&RowMajorBit) );
+  VERIFY( has_same_storage_order(internal::nested_eval<T,1>::type::Flags, internal::evaluator<T>::Flags) );
   return xpr;
 }
 

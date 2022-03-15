@@ -693,7 +693,7 @@ public:
     typedef typename DstEvaluatorType::ExpressionTraits Traits;
     return int(Traits::RowsAtCompileTime) == 1 ? 0
       : int(Traits::ColsAtCompileTime) == 1 ? inner
-      : int(DstEvaluatorType::Flags)&RowMajorBit ? outer
+      : is_row_major(DstEvaluatorType::Flags) ? outer
       : inner;
   }
 

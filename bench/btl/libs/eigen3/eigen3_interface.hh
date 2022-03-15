@@ -130,7 +130,7 @@ public :
       // do the non-vectorizable part of the assignment
       for (int index = starti; index<alignedStart ; ++index)
       {
-        if(Dest::Flags&RowMajorBit)
+        if(is_row_major(Dest::Flags))
           dst.copyCoeff(j, index, src);
         else
           dst.copyCoeff(index, j, src);
@@ -139,7 +139,7 @@ public :
       // do the vectorizable part of the assignment
       for (int index = alignedStart; index<alignedEnd; index+=PacketSize)
       {
-        if(Dest::Flags&RowMajorBit)
+        if(is_row_major(Dest::Flags))
           dst.template copyPacket<Src, Aligned, Unaligned>(j, index, src);
         else
           dst.template copyPacket<Src, Aligned, Unaligned>(index, j, src);
@@ -148,7 +148,7 @@ public :
       // do the non-vectorizable part of the assignment
       for (int index = alignedEnd; index<size; ++index)
       {
-        if(Dest::Flags&RowMajorBit)
+        if(is_row_major(Dest::Flags))
           dst.copyCoeff(j, index, src);
         else
           dst.copyCoeff(index, j, src);

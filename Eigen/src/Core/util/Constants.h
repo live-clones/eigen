@@ -332,20 +332,29 @@ enum class StorageOrder {
     RowMajor = 1
 };
 
+/// Returns whether the bit-field represented by flags corresponds to row-major layout
 constexpr bool is_row_major(int flags) {
   return flags & RowMajorBit;
 }
 
+/// Returns whether the storage order is row-major.
 constexpr bool is_row_major(StorageOrder order) {
   return order == StorageOrder::RowMajor;
 }
 
+/// Returns whether the bit-field represented by flags corresponds to col-major layout
 constexpr bool is_col_major(int flags) {
   return !is_row_major(flags);
 }
 
+/// Returns whether the storage order is col-major.
+constexpr bool is_col_major(StorageOrder order) {
+  return order == StorageOrder::ColMajor;
+}
+
+/// Returns the transposed storage order
 constexpr StorageOrder transposed(StorageOrder order) {
-  switch(order) {
+  switch (order) {
     case StorageOrder::RowMajor:
       return StorageOrder::ColMajor;
     case StorageOrder::ColMajor:
@@ -353,25 +362,24 @@ constexpr StorageOrder transposed(StorageOrder order) {
   }
 }
 
-constexpr bool is_col_major(StorageOrder order) {
-  return order == StorageOrder::ColMajor;
-}
-
-
+/// Based on the bit-field `flags`, returns the storage order as a strong enum.
 constexpr StorageOrder get_storage_order(int flags) {
   return is_row_major(flags) ? StorageOrder::RowMajor : StorageOrder::ColMajor;
 }
 
+/// Returns whether the two bit-fields encode the same storage order
 constexpr bool has_same_storage_order(int flags_a, int flags_b) {
   return get_storage_order(flags_a) == get_storage_order(flags_b);
 }
 
+/// Extracts the storage-order part from the `flags` bit field
 constexpr unsigned int storage_order_flag(unsigned int flags) {
   return flags & RowMajorBit;
 }
 
+/// Returns the bit pattern corresponding to the storage order.
 constexpr unsigned int storage_order_flag(StorageOrder order) {
-  switch(order) {
+  switch (order) {
     case StorageOrder::RowMajor:
       return RowMajorBit;
     case StorageOrder::ColMajor:
