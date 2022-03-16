@@ -118,12 +118,11 @@ struct vectorization_logic
   };
   static void run()
   {
-    
     typedef Matrix<Scalar,PacketSize,1> Vector1;
     typedef Matrix<Scalar,Dynamic,1> VectorX;
     typedef Matrix<Scalar,Dynamic,Dynamic> MatrixXX;
     typedef Matrix<Scalar,PacketSize,PacketSize> Matrix11;
-    constexpr bool IsRowMajor = is_row_major(Matrix11::Flags);
+    constexpr bool IsRowMajor = internal::is_row_major(Matrix11::Flags);
     typedef Matrix<Scalar,IsRowMajor?8:2*PacketSize,IsRowMajor?2*PacketSize:8>   Matrix22;
     typedef Matrix<Scalar,IsRowMajor?16:4*PacketSize,IsRowMajor?4*PacketSize:16> Matrix44;
     typedef Matrix<Scalar,IsRowMajor?16:4*PacketSize,IsRowMajor?4*PacketSize:16,DontAlign|EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION> Matrix44u;
@@ -138,7 +137,7 @@ struct vectorization_logic
     typedef Matrix<Scalar,
         (PacketSize==16 ? 8 : PacketSize==8 ? 4 : PacketSize==4 ? 2 : PacketSize==2 ? 1 : /*PacketSize==1 ?*/ 1),
         (PacketSize==16 ? 2 : PacketSize==8 ? 2 : PacketSize==4 ? 2 : PacketSize==2 ? 2 : /*PacketSize==1 ?*/ 1),
-      DontAlign|storage_order_flag(Matrix1::Flags)> Matrix1u;
+      DontAlign|internal::storage_order_flag(Matrix1::Flags)> Matrix1u;
 
     // this type is made such that it can only be vectorized when viewed as a linear 1D vector
     typedef Matrix<Scalar,

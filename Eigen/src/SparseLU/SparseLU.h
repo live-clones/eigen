@@ -49,7 +49,7 @@ public:
   {
     Dest& X(X_base.derived());
     eigen_assert(m_sparseLU->info() == Success && "The matrix should be factorized first");
-    EIGEN_STATIC_ASSERT(is_col_major(Dest::Flags),
+    EIGEN_STATIC_ASSERT(internal::is_col_major(Dest::Flags),
                         THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
 
 
@@ -317,7 +317,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_,OrderingType_> >, 
     {
       Dest& X(X_base.derived());
       eigen_assert(m_factorizationIsOk && "The matrix should be factorized first");
-      EIGEN_STATIC_ASSERT(is_col_major(Dest::Flags),
+      EIGEN_STATIC_ASSERT(internal::is_col_major(Dest::Flags),
                         THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
       
       // Permute the right hand side to form X = Pr*B

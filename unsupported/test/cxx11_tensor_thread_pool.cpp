@@ -279,7 +279,7 @@ void test_multithread_contraction_agrees_with_singlethread() {
 struct SqrtOutputKernel {
   template <typename Index, typename Scalar>
   EIGEN_ALWAYS_INLINE void operator()(
-      const internal::blas_data_mapper<Scalar, Index, ColMajor>& output_mapper,
+      const internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor>& output_mapper,
       const TensorContractionParams&, Index, Index, Index num_rows,
       Index num_cols) const {
     for (int i = 0; i < num_rows; ++i) {

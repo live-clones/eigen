@@ -45,11 +45,11 @@ struct internal::traits<SkylineProduct<LhsNested, RhsNested, ProductMode> > {
         EvalToRowMajor = is_row_major(RhsFlags & LhsFlags),
         ResultIsSkyline = ProductMode == SkylineTimeSkylineProduct,
 
-        RemovedBits = ~((EvalToRowMajor ? 0 : RowMajorBit) | (ResultIsSkyline ? 0 : SkylineBit)),
+        RemovedBits = ~(ResultIsSkyline ? 0 : SkylineBit),
 
-        Flags = (int(LhsFlags | RhsFlags) & HereditaryBits & RemovedBits)
+        Flags = with_storage_order((int(LhsFlags | RhsFlags) & HereditaryBits & RemovedBits)
         | EvalBeforeAssigningBit
-        | EvalBeforeNestingBit,
+        | EvalBeforeNestingBit, EvalToRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor),
 
         CoeffReadCost = HugeCost
     };

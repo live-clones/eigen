@@ -48,8 +48,8 @@ struct traits<Homogeneous<MatrixType,Direction> >
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
     TmpFlags = MatrixTypeNested_::Flags & HereditaryBits,
-    Flags = ColsAtCompileTime==1 ? (TmpFlags & ~RowMajorBit)
-          : RowsAtCompileTime==1 ? (TmpFlags | RowMajorBit)
+    Flags = ColsAtCompileTime==1 ? with_storage_order(TmpFlags, StorageOrder::ColMajor)
+          : RowsAtCompileTime==1 ? with_storage_order(TmpFlags, StorageOrder::RowMajor)
           : TmpFlags
   };
 };

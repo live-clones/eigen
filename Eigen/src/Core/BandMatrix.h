@@ -311,9 +311,9 @@ class BandMatrixWrapper : public BandMatrixBase<BandMatrixWrapper<CoefficientsTy
   * \sa class BandMatrix
   */
 template<typename Scalar, int Size, int Options>
-class TridiagonalMatrix : public BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1,Options|RowMajorBit>
+class TridiagonalMatrix : public BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1, with_storage_order(Options, StorageOrder::RowMajor)>
 {
-    typedef BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1,Options|RowMajorBit> Base;
+    typedef BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1,with_storage_order(Options, StorageOrder::RowMajor)> Base;
     typedef typename Base::StorageIndex StorageIndex;
   public:
     explicit TridiagonalMatrix(Index size = Size) : Base(size,size,Options&SelfAdjoint?0:1,1) {}

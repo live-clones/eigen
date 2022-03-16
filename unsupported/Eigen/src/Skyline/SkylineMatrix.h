@@ -61,7 +61,7 @@ public:
 
 protected:
 
-    typedef SkylineMatrix<Scalar, (Flags&~RowMajorBit) | (IsRowMajor ? RowMajorBit : 0) > TransposedSkylineMatrix;
+    typedef SkylineMatrix<Scalar, with_storage_order(Flags, IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor) > TransposedSkylineMatrix;
 
     Index m_outerSize;
     Index m_innerSize;

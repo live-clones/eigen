@@ -128,8 +128,8 @@ cholmod_sparse viewAsCholmod(const SparseSelfAdjointView<const SparseMatrix<Scal
   if(UpLo==Lower) res.stype = -1;
   // swap stype for rowmajor matrices (only works for real matrices)
   // TODO what exactly is going on here? The static assert message seems to disagree with the static assert
-  EIGEN_STATIC_ASSERT(!is_row_major(Options_) || NumTraits<Scalar_>::IsComplex == 0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
-  if(is_row_major(Options_)) res.stype *=-1;
+  EIGEN_STATIC_ASSERT(!internal::is_row_major(Options_) || NumTraits<Scalar_>::IsComplex == 0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
+  if(internal::is_row_major(Options_)) res.stype *=-1;
 
   return res;
 }

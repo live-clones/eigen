@@ -42,7 +42,7 @@ struct traits<SparseVector<Scalar_, Options_, StorageIndex_> >
     ColsAtCompileTime = IsColVector ? 1 : Dynamic,
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
-    Flags = Options_ | NestByRefBit | LvalueBit | (IsColVector ? 0 : RowMajorBit) | CompressedAccessBit,
+    Flags = Options_ | NestByRefBit | LvalueBit | (IsColVector ? ColMajor : RowMajor) | CompressedAccessBit,
     SupportedAccessPatterns = InnerRandomAccessPattern
   };
 };

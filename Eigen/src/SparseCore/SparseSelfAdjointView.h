@@ -198,7 +198,7 @@ template<typename DerivedU>
 SparseSelfAdjointView<MatrixType,Mode>&
 SparseSelfAdjointView<MatrixType,Mode>::rankUpdate(const SparseMatrixBase<DerivedU>& u, const Scalar& alpha)
 {
-  SparseMatrix<Scalar,storage_order_flag(MatrixType::Flags)> tmp = u * u.adjoint();
+  SparseMatrix<Scalar,internal::storage_order_flag(MatrixType::Flags)> tmp = u * u.adjoint();
   if(alpha==Scalar(0))
     m_matrix = tmp.template triangularView<Mode>();
   else

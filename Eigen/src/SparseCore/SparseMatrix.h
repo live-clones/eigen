@@ -126,7 +126,9 @@ class SparseMatrix
     typedef typename Base::IndexVector IndexVector;
     typedef typename Base::ScalarVector ScalarVector;
   protected:
-    typedef SparseMatrix<Scalar,(Flags&~RowMajorBit)|(IsRowMajor?RowMajorBit:0),StorageIndex> TransposedSparseMatrix;
+    typedef SparseMatrix<Scalar,
+            internal::with_storage_order(Flags, IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor),
+            StorageIndex> TransposedSparseMatrix;
 
     Index m_outerSize;
     Index m_innerSize;
@@ -681,7 +683,7 @@ class SparseMatrix
     {
       EIGEN_STATIC_ASSERT((internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-      const bool needToTranspose = get_storage_order(Flags) != get_storage_order(internal::evaluator<OtherDerived>::Flags);
+      const bool needToTranspose = !internal::has_same_storage_order(Flags, internal::evaluator<OtherDerived>::Flags);
       if (needToTranspose)
         *this = other.derived();
       else

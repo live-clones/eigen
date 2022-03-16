@@ -78,7 +78,7 @@ public:
   {
     return StrideType::OuterStrideAtCompileTime != 0 ? m_stride.outer()
          : IsVectorAtCompileTime ? this->size()
-         : is_row_major(Flags) ? this->cols()
+         : internal::is_row_major(Flags) ? this->cols()
          : this->rows();
   }
 
@@ -150,8 +150,8 @@ protected:
     // If this is a vector, we might be transposing, which means that stride should swap.
     const bool transpose = PlainObjectType::IsVectorAtCompileTime && (rows != expr.rows());
     // If the storage format differs, we also need to swap the stride.
-    constexpr bool row_major = is_row_major(PlainObjectType::Flags);
-    constexpr bool expr_row_major = is_row_major(Expression::Flags);
+    constexpr bool row_major = internal::is_row_major(PlainObjectType::Flags);
+    constexpr bool expr_row_major = internal::is_row_major(Expression::Flags);
     constexpr bool storage_differs =  (row_major != expr_row_major);
 
     const bool swap_stride = (transpose != storage_differs);

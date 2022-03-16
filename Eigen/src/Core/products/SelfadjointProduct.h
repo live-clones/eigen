@@ -94,8 +94,8 @@ struct selfadjoint_product_selector<MatrixType,OtherType,UpLo,false>
 
     Scalar actualAlpha = alpha * OtherBlasTraits::extractScalarFactor(other.derived());
 
-    constexpr StorageOrder StorageOrder_ = get_storage_order(internal::traits<MatrixType>::Flags);
-    constexpr StorageOrder OtherStorageOrder_ = get_storage_order(ActualOtherType_::Flags);
+    constexpr StorageOrder StorageOrder_ = internal::get_storage_order(internal::traits<MatrixType>::Flags);
+    constexpr StorageOrder OtherStorageOrder_ = internal::get_storage_order(ActualOtherType_::Flags);
 
     Index size = mat.cols();
     Index depth = actualOther.cols();

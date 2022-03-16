@@ -362,7 +362,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Unaligned>
         RhsMapper;
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
 
     typedef internal::TensorContractionKernel<
         Scalar, LhsScalar, RhsScalar, Index, OutputMapper, LhsMapper, RhsMapper>
@@ -1290,7 +1290,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     }
 
     void applyOutputKernel() const {
-      typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+      typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
       evaluator->m_output_kernel(
           OutputMapper(result, m), evaluator->m_tensor_contraction_params,
           static_cast<Eigen::Index>(0), static_cast<Eigen::Index>(0), m, n);

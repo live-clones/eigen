@@ -118,7 +118,7 @@ template<typename PlainObjectType, int MapOptions, typename StrideType> class Ma
       return StrideType::OuterStrideAtCompileTime != 0 ? m_stride.outer()
            : internal::traits<Map>::OuterStrideAtCompileTime != Dynamic ? Index(internal::traits<Map>::OuterStrideAtCompileTime)
            : IsVectorAtCompileTime ? (this->size() * innerStride())
-           : is_row_major(Flags) ? (this->cols() * innerStride())
+           : internal::is_row_major(Flags) ? (this->cols() * innerStride())
            : (this->rows() * innerStride());
     }
 

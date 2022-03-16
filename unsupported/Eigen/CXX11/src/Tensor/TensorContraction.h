@@ -204,12 +204,12 @@ struct TensorContractionKernel {
 
   typedef internal::gemm_pack_lhs<
       LhsScalar, StorageIndex, typename LhsMapper::SubMapper, Traits::mr,
-      Traits::LhsProgress, typename Traits::LhsPacket4Packing, ColMajor>
+      Traits::LhsProgress, typename Traits::LhsPacket4Packing, StorageOrder::ColMajor>
       LhsPacker;
 
   typedef internal::gemm_pack_rhs<RhsScalar, StorageIndex,
                                   typename RhsMapper::SubMapper, Traits::nr,
-                                  ColMajor>
+                                  StorageOrder::ColMajor>
       RhsPacker;
 
   typedef internal::gebp_kernel<LhsScalar, RhsScalar, StorageIndex,
@@ -311,7 +311,7 @@ struct NoOpOutputKernel {
    */
   template <typename Index, typename Scalar>
   EIGEN_ALWAYS_INLINE void operator()(
-      const internal::blas_data_mapper<Scalar, Index, ColMajor>& output_mapper,
+      const internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor>& output_mapper,
       const TensorContractionParams& params, Index i,
       Index j, Index num_rows, Index num_cols) const {
     EIGEN_UNUSED_VARIABLE(output_mapper);
@@ -766,11 +766,11 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     // zero out the result buffer (which must be of size at least rows * sizeof(Scalar)
     m_device.fill(buffer, buffer + rows, Scalar(0));
 
-    internal::general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,false,RhsScalar,RhsMapper,false>::run(
+    internal::general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,false,RhsScalar,RhsMapper,false>::run(
         rows, cols, lhs, rhs,
         buffer, resIncr, alpha);
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
     m_output_kernel(OutputMapper(buffer, rows), m_tensor_contraction_params,
                     static_cast<Index>(0), static_cast<Index>(0), rows,
                     static_cast<Index>(1));
@@ -833,7 +833,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
                                                    rhs_inner_dim_contiguous,
                                                    rhs_inner_dim_reordered, Unaligned> RhsMapper;
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
 
     typedef internal::TensorContractionKernel<
         Scalar, LhsScalar, RhsScalar, Index, OutputMapper, LhsMapper, RhsMapper>

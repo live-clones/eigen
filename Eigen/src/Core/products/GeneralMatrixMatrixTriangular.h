@@ -275,8 +275,8 @@ struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,false>
 
     enum {
       IsRowMajor = is_row_major(internal::traits<MatrixType>::Flags),
-      LhsIsRowMajor = is_row_major(ActualLhs_::Flags),
-      RhsIsRowMajor = is_row_major(ActualRhs_::Flags),
+      LhsIsRowMajor = internal::is_row_major(ActualLhs_::Flags),
+      RhsIsRowMajor = internal::is_row_major(ActualRhs_::Flags),
       SkipDiag = (UpLo&(UnitDiag|ZeroDiag))!=0
     };
 

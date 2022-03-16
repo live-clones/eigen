@@ -53,10 +53,10 @@ void check_auto_reshape4x4(MatType m)
 }
 
 template <typename MatType>
-void check_direct_access_reshape4x4(MatType , internal::FixedInt<RowMajorBit>) {}
+void check_direct_access_reshape4x4(MatType , internal::FixedInt<RowMajor>) {}
 
 template <typename MatType>
-void check_direct_access_reshape4x4(MatType m, internal::FixedInt<0>) {
+void check_direct_access_reshape4x4(MatType m, internal::FixedInt<ColMajor>) {
   VERIFY_IS_EQUAL(m.reshaped( 1, 16).data(), m.data());
   VERIFY_IS_EQUAL(m.reshaped( 1, 16).innerStride(), 1);
 
@@ -77,7 +77,7 @@ void reshape4x4(MatType m)
   internal::VariableAndFixedInt<MatType::SizeAtCompileTime==Dynamic?-1: 8>  v8( 8);
   internal::VariableAndFixedInt<MatType::SizeAtCompileTime==Dynamic?-1:16> v16(16);
 
-  if(is_col_major(MatType::Flags))
+  if(internal::is_col_major(MatType::Flags))
   {
     typedef Map<MatrixXi> MapMat;
     // dynamic
@@ -142,9 +142,9 @@ void reshape4x4(MatType m)
   check_auto_reshape4x4<ColMajor> (m.transpose());
   check_auto_reshape4x4<AutoOrder>(m.transpose());
 
-  check_direct_access_reshape4x4(m,fix<storage_order_flag(MatType::Flags)>);
+  check_direct_access_reshape4x4(m,fix<internal::storage_order_flag(MatType::Flags)>);
 
-  if(is_col_major(MatType::Flags))
+  if(internal::is_col_major(MatType::Flags))
   {
     VERIFY_IS_EQUAL(m.template reshaped<ColMajor>(2,8),m.reshaped(2,8));
     VERIFY_IS_EQUAL(m.template reshaped<ColMajor>(2,8),m.template reshaped<AutoOrder>(2,8));

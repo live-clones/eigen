@@ -611,8 +611,8 @@ template<typename BDerived,typename XDerived>
 bool UmfPackLU<MatrixType>::_solve_impl(const MatrixBase<BDerived> &b, MatrixBase<XDerived> &x) const
 {
   Index rhsCols = b.cols();
-  eigen_assert(is_col_major(BDerived::Flags) && "UmfPackLU backend does not support non col-major rhs yet");
-  eigen_assert(is_col_major(XDerived::Flags) && "UmfPackLU backend does not support non col-major result yet");
+  eigen_assert(internal::is_col_major(BDerived::Flags) && "UmfPackLU backend does not support non col-major rhs yet");
+  eigen_assert(internal::is_col_major(XDerived::Flags) && "UmfPackLU backend does not support non col-major result yet");
   eigen_assert(b.derived().data() != x.derived().data() && " Umfpack does not support inplace solve");
 
   Scalar* x_ptr = 0;

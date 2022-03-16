@@ -1383,7 +1383,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                                                    rhs_inner_dim_contiguous,
                                                    rhs_inner_dim_reordered, Unaligned> RhsMapper;
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
 
 
     // initialize data mappers

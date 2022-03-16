@@ -254,7 +254,7 @@ protected:
   
 public:
   enum {
-    Flags = NeedToTranspose ? RowMajorBit : 0,
+    Flags = NeedToTranspose ? RowMajor : ColMajor,
     CoeffReadCost = HugeCost
   };
   

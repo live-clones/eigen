@@ -161,10 +161,8 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
                   && (Direction==int(Vertical) ? is_row_major(ArgFlags_) : is_col_major(ArgFlags_))
                   && (TraversalSize!=0),
                   
-    Flags = storage_order_flag(traits<XprType>::Flags)
-          | (evaluator<ArgType>::Flags&(HereditaryBits&(~RowMajorBit)))
-          | (Vectorizable_ ? PacketAccessBit : 0)
-          | LinearAccessBit,
+    Flags = with_storage_order((evaluator<ArgType>::Flags&HereditaryBits) | (Vectorizable_ ? PacketAccessBit : 0) | LinearAccessBit,
+                               get_storage_order(traits<XprType>::Flags)),
     
     Alignment = 0 // FIXME this will need to be improved once PartialReduxExpr is vectorized
   };

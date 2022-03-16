@@ -298,7 +298,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run(Dst& dst, const Lhs &lhs, cons
 template<typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,OuterProduct>
 {
-  template<typename T> struct is_row_major : std::conditional_t<(int(T::Flags)&RowMajorBit), internal::true_type, internal::false_type> {};
+  template<typename T> struct is_row_major : std::conditional_t<internal::is_row_major(T::Flags), internal::true_type, internal::false_type> {};
   typedef typename Product<Lhs,Rhs>::Scalar Scalar;
 
   // TODO it would be nice to be able to exploit our *_assign_op functors for that purpose
@@ -578,11 +578,11 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                     : (MaxColsAtCompileTime==1&&MaxRowsAtCompileTime!=1) ? 0
                     : (bool(RhsRowMajor) && !CanVectorizeLhs),
 
-    Flags = ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & ~RowMajorBit)
-          | (EvalToRowMajor ? RowMajorBit : 0)
+    Flags = with_storage_order(((int(LhsFlags) | int(RhsFlags)) & HereditaryBits)
           // TODO enable vectorization for mixed types
           | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0)
           | (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0),
+          EvalToRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor),
 
     LhsOuterStrideBytes = int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar)),
     RhsOuterStrideBytes = int(RhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename RhsNestedCleaned::Scalar)),

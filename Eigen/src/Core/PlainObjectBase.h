@@ -136,8 +136,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     enum { NeedsToAlign = (SizeAtCompileTime != Dynamic) && (internal::traits<Derived>::Alignment>0) };
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(NeedsToAlign)
 
-    EIGEN_STATIC_ASSERT(internal::check_implication(MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1, is_row_major(Options)), INVALID_MATRIX_TEMPLATE_PARAMETERS)
-    EIGEN_STATIC_ASSERT(internal::check_implication(MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1, is_col_major(Options)), INVALID_MATRIX_TEMPLATE_PARAMETERS)
+    EIGEN_STATIC_ASSERT(internal::check_implication(MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1, internal::is_row_major(Options)), INVALID_MATRIX_TEMPLATE_PARAMETERS)
+    EIGEN_STATIC_ASSERT(internal::check_implication(MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1, internal::is_col_major(Options)), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((RowsAtCompileTime == Dynamic) || (RowsAtCompileTime >= 0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((ColsAtCompileTime == Dynamic) || (ColsAtCompileTime >= 0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
     EIGEN_STATIC_ASSERT((MaxRowsAtCompileTime == Dynamic) || (MaxRowsAtCompileTime >= 0), INVALID_MATRIX_TEMPLATE_PARAMETERS)
@@ -163,7 +163,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const Scalar& coeff(Index rowId, Index colId) const
     {
-      if(is_row_major(Flags))
+      if(internal::is_row_major(Flags))
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -186,7 +186,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Scalar& coeffRef(Index rowId, Index colId)
     {
-      if(is_row_major(Flags))
+      if(internal::is_row_major(Flags))
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -207,7 +207,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const Scalar& coeffRef(Index rowId, Index colId) const
     {
-      if(is_row_major(Flags))
+      if(internal::is_row_major(Flags))
         return m_storage.data()[colId + rowId * m_storage.cols()];
       else // column-major
         return m_storage.data()[rowId + colId * m_storage.rows()];
@@ -226,7 +226,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_STRONG_INLINE PacketScalar packet(Index rowId, Index colId) const
     {
       return internal::ploadt<PacketScalar, LoadMode>
-               (m_storage.data() + (is_row_major(Flags)
+               (m_storage.data() + (internal::is_row_major(Flags)
                                    ? colId + rowId * m_storage.cols()
                                    : rowId + colId * m_storage.rows()));
     }
@@ -243,7 +243,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     EIGEN_STRONG_INLINE void writePacket(Index rowId, Index colId, const PacketScalar& val)
     {
       internal::pstoret<Scalar, PacketScalar, StoreMode>
-              (m_storage.data() + (is_row_major(Flags)
+              (m_storage.data() + (internal::is_row_major(Flags)
                                    ? colId + rowId * m_storage.cols()
                                    : rowId + colId * m_storage.rows()), val);
     }

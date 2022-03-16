@@ -35,7 +35,7 @@
   } timer.stop(); }
 
 typedef SparseMatrix<Scalar,UpperTriangular> EigenSparseTriMatrix;
-typedef SparseMatrix<Scalar,RowMajorBit|UpperTriangular> EigenSparseTriMatrixRow;
+typedef SparseMatrix<Scalar,RowMajor|UpperTriangular> EigenSparseTriMatrixRow;
 
 void fillMatrix(float density, int rows, int cols,  EigenSparseTriMatrix& dst)
 {
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
       densedone = true;
       std::cout << "Eigen Dense\t" << density*100 << "%\n";
       DenseMatrix m1(rows,cols);
-      Matrix<Scalar,Dynamic,Dynamic,Dynamic,Dynamic,RowMajorBit> m2(rows,cols);
+      Matrix<Scalar,Dynamic,Dynamic,Dynamic,Dynamic,RowMajor> m2(rows,cols);
       eiToDense(sm1, m1);
       m2 = m1;
 

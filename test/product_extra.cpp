@@ -14,7 +14,7 @@ template<typename MatrixType> void product_extra(const MatrixType& m)
   typedef typename MatrixType::Scalar Scalar;
   typedef Matrix<Scalar, 1, Dynamic> RowVectorType;
   typedef Matrix<Scalar, Dynamic, 1> ColVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, storage_order_flag(MatrixType::Flags)> OtherMajorMatrixType;
+  typedef Matrix<Scalar, Dynamic, Dynamic, internal::storage_order_flag(MatrixType::Flags)> OtherMajorMatrixType;
 
   Index rows = m.rows();
   Index cols = m.cols();

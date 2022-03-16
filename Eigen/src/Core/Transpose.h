@@ -29,7 +29,7 @@ struct traits<Transpose<MatrixType> > : public traits<MatrixType>
     FlagsLvalueBit = is_lvalue<MatrixType>::value ? LvalueBit : 0,
     Flags0 = traits<MatrixTypeNestedPlain>::Flags & ~(LvalueBit | NestByRefBit),
     Flags1 = Flags0 | FlagsLvalueBit,
-    Flags = Flags1 ^ RowMajorBit,
+    Flags = with_storage_order(Flags1, transposed(get_storage_order(traits<MatrixTypeNestedPlain>::Flags))),
     InnerStrideAtCompileTime = inner_stride_at_compile_time<MatrixType>::ret,
     OuterStrideAtCompileTime = outer_stride_at_compile_time<MatrixType>::ret
   };

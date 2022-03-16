@@ -79,11 +79,11 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
     //MaskAlignedBit = ((OuterStrideAtCompileTime!=Dynamic) && (((OuterStrideAtCompileTime * int(sizeof(Scalar))) % 16) == 0)) ? AlignedBit : 0,
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1) ? LinearAccessBit : 0,
     FlagsLvalueBit = is_lvalue<XprType>::value ? LvalueBit : 0,
-    FlagsRowMajorBit = storage_order_flag(ReshapedStorageOrder),
     FlagsDirectAccessBit = HasDirectAccess ? DirectAccessBit : 0,
-    Flags0 = traits<XprType>::Flags & ( (HereditaryBits & ~RowMajorBit) | MaskPacketAccessBit),
+    Flags0 = traits<XprType>::Flags & (HereditaryBits | MaskPacketAccessBit),
 
-    Flags = (Flags0 | FlagsLinearAccessBit | FlagsLvalueBit | FlagsRowMajorBit | FlagsDirectAccessBit)
+    Flags = with_storage_order(Flags0 | FlagsLinearAccessBit | FlagsLvalueBit | FlagsDirectAccessBit,
+                               ReshapedStorageOrder)
   };
 };
 
@@ -285,10 +285,9 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
 //     OuterStrideAtCompileTime = Dynamic,
 
     FlagsLinearAccessBit = (traits<XprType>::RowsAtCompileTime == 1 || traits<XprType>::ColsAtCompileTime == 1 || HasDirectAccess) ? LinearAccessBit : 0,
-    FlagsRowMajorBit = storage_order_flag(traits<XprType>::ReshapedStorageOrder),
     FlagsDirectAccessBit =  HasDirectAccess ? DirectAccessBit : 0,
-    Flags0 = evaluator<ArgType>::Flags & (HereditaryBits & ~RowMajorBit),
-    Flags = Flags0 | FlagsLinearAccessBit | FlagsRowMajorBit | FlagsDirectAccessBit,
+    Flags0 = evaluator<ArgType>::Flags & HereditaryBits,
+    Flags = with_storage_order(Flags0 | FlagsLinearAccessBit | FlagsDirectAccessBit, traits<XprType>::ReshapedStorageOrder),
 
     PacketAlignment = unpacket_traits<PacketScalar>::alignment,
     Alignment = evaluator<ArgType>::Alignment
