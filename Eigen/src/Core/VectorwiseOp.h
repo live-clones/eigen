@@ -350,7 +350,7 @@ template<typename ExpressionType, int Direction> class VectorwiseOp
     typedef typename ReturnType<internal::member_stableNorm,RealScalar>::Type StableNormReturnType;
     typedef typename ReturnType<internal::member_hypotNorm,RealScalar>::Type HypotNormReturnType;
     typedef typename ReturnType<internal::member_sum>::Type SumReturnType;
-    typedef EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(SumReturnType,Scalar,quotient) MeanReturnType;
+    typedef internal::cwise_binary_scalar_right_t<SumReturnType,Scalar,internal::scalar_quotient_op> MeanReturnType;
     typedef typename ReturnType<internal::member_all>::Type AllReturnType;
     typedef typename ReturnType<internal::member_any>::Type AnyReturnType;
     typedef PartialReduxExpr<ExpressionType, internal::member_count<Index,Scalar>, Direction> CountReturnType;

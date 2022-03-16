@@ -133,7 +133,7 @@ public:
 // NOTE this operator is defined in MatrixBase and not as a friend function
 // of UniformScaling to fix an internal crash of Intel's ICC
 template<typename Derived,typename Scalar>
-EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived,Scalar,product)
+internal::cwise_binary_scalar_right_t<Derived,Scalar,internal::scalar_product_op>
 operator*(const MatrixBase<Derived>& matrix, const UniformScaling<Scalar>& s)
 { return matrix.derived() * s.factor(); }
 

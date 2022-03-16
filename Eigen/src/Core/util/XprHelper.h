@@ -846,6 +846,56 @@ struct ScalarBinaryOpTraits<void,void,BinaryOp>
   EIGEN_STATIC_ASSERT((Eigen::internal::has_ReturnType<ScalarBinaryOpTraits<LHS, RHS,BINOP> >::value), \
     YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
+// Alias templates to simplify coding
+namespace internal
+{
+template<typename T>
+using trait_scalar_t = typename traits<T>::Scalar;
+
+template<typename... Args>
+using plain_constant_t = typename internal::plain_constant_type<Args...>::type;
+
+/**
+ * \internal Type for applying the binary operation `OP` to an expression and a scalar, with the scalar on the right.
+ */
+template<typename LHS, typename RHS, template<typename, typename> class OP>
+using cwise_binary_return_t = CwiseBinaryOp<OP<trait_scalar_t<LHS>, trait_scalar_t<RHS>>, const LHS, const RHS>;
+
+/**
+ * \internal Type for applying the binary operation `OP` to an expression and a scalar, with the scalar on the right.
+ */
+template<typename Expr, typename Scalar, template<typename, typename> class OP>
+using cwise_binary_scalar_right_t = CwiseBinaryOp<OP<trait_scalar_t<Expr>, Scalar>, const Expr, const plain_constant_t<Expr,Scalar>>;
+
+/**
+ * \internal Type for applying the binary operation `OP` to a scalar and an expression, with the scalar on the left.
+ */
+template<typename Scalar, typename Expr, template<typename, typename> class OP>
+using cwise_binary_scalar_left_t = CwiseBinaryOp<OP<Scalar, trait_scalar_t<Expr>>, const plain_constant_t<Expr,Scalar>, const Expr>;
+
+/**
+ * \internal This is true is the Scalars of `A` and `B` are compatible for the binary operation `OP`.
+ */
+template<typename A, typename B, template<typename, typename> class OP>
+constexpr bool scalar_binary_supported_v = Eigen::internal::has_ReturnType<Eigen::ScalarBinaryOpTraits<A, B, OP<A,B>>>::value;
+
+/**
+ * \internal Promotes the scalar types of `Scalar` and `Expr` when used with binary operation `OP`. If the types are not
+ * compatible, this will fail and can be used for SFINAE.
+ * \sa internal::promote_scalar_arg
+ */
+template<typename Scalar, typename Expr, template<typename, typename> class OP>
+using cwise_binary_promoted_arg_t = typename promote_scalar_arg<Scalar, Expr, scalar_binary_supported_v<Scalar, Expr, OP>>::type;
+
+/**
+ * Generates a constant OP of type `Scalar` with the given `value` that has the same shape as `reference`.
+ */
+template<typename Derived, typename Scalar>
+internal::plain_constant_t<Derived,Scalar> broadcast_scalar(const EigenBase<Derived>& reference, const Scalar& value) {
+  return internal::plain_constant_t<Derived,Scalar>(reference.derived().rows(), reference.derived().cols(), internal::scalar_constant_op<Scalar>(value));
+}
+}
+
 } // end namespace Eigen
 
 #endif // EIGEN_XPRHELPER_H

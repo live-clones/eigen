@@ -116,15 +116,11 @@ namespace Eigen
 #else
   template <typename Derived,typename ScalarExponent>
   EIGEN_DEVICE_FUNC inline
-    const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived,typename internal::promote_scalar_arg<typename Derived::Scalar
-                                                 EIGEN_COMMA ScalarExponent EIGEN_COMMA
-                                                 EIGEN_SCALAR_BINARY_SUPPORTED(pow,typename Derived::Scalar,ScalarExponent)>::type,pow)
+    const internal::cwise_binary_scalar_right_t<Derived, internal::cwise_binary_promoted_arg_t<typename Derived::Scalar, ScalarExponent, internal::scalar_pow_op>, internal::scalar_pow_op>
   pow(const Eigen::ArrayBase<Derived>& x, const ScalarExponent& exponent)
   {
-    typedef typename internal::promote_scalar_arg<typename Derived::Scalar,ScalarExponent,
-                                                  EIGEN_SCALAR_BINARY_SUPPORTED(pow,typename Derived::Scalar,ScalarExponent)>::type PromotedExponent;
-    return EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived,PromotedExponent,pow)(x.derived(),
-           typename internal::plain_constant_type<Derived,PromotedExponent>::type(x.derived().rows(), x.derived().cols(), internal::scalar_constant_op<PromotedExponent>(exponent)));
+    typedef internal::cwise_binary_promoted_arg_t<typename Derived::Scalar, ScalarExponent, internal::scalar_pow_op> PromotedExponent;
+    return {x.derived(), internal::broadcast_scalar(x, PromotedExponent(exponent))};
   }
 #endif
 
@@ -169,14 +165,11 @@ namespace Eigen
 #else
   template <typename Scalar, typename Derived>
   EIGEN_DEVICE_FUNC inline
-    const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(typename internal::promote_scalar_arg<typename Derived::Scalar
-                                                 EIGEN_COMMA Scalar EIGEN_COMMA
-                                                 EIGEN_SCALAR_BINARY_SUPPORTED(pow,Scalar,typename Derived::Scalar)>::type,Derived,pow)
+    const internal::cwise_binary_scalar_left_t<internal::cwise_binary_promoted_arg_t<typename Derived::Scalar, Scalar, internal::scalar_pow_op>, Derived, internal::scalar_pow_op>
   pow(const Scalar& x, const Eigen::ArrayBase<Derived>& exponents) {
     typedef typename internal::promote_scalar_arg<typename Derived::Scalar,Scalar,
-                                                  EIGEN_SCALAR_BINARY_SUPPORTED(pow,Scalar,typename Derived::Scalar)>::type PromotedScalar;
-    return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedScalar,Derived,pow)(
-           typename internal::plain_constant_type<Derived,PromotedScalar>::type(exponents.derived().rows(), exponents.derived().cols(), internal::scalar_constant_op<PromotedScalar>(x)), exponents.derived());
+            (internal::scalar_binary_supported_v<Scalar, typename Derived::Scalar, internal::scalar_pow_op>)>::type PromotedScalar;
+    return {internal::broadcast_scalar(exponents, PromotedScalar(x)), exponents.derived()};
   }
 #endif
 

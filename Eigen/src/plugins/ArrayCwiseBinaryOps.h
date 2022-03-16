@@ -5,10 +5,10 @@
   */
 template<typename OtherDerived>
 EIGEN_DEVICE_FUNC
-EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,product)
+EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_product_op>
 operator*(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
-  return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,product)(derived(), other.derived());
+  return internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_product_op>(derived(), other.derived());
 }
 
 /** \returns an expression of the coefficient wise quotient of \c *this and \a other
@@ -106,7 +106,12 @@ max
   *
   * \sa absolute_difference()
   */
-EIGEN_MAKE_CWISE_BINARY_OP(absolute_difference,absolute_difference)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_absolute_difference_op>
+(absolute_difference)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 /** \returns an expression of the coefficient-wise absolute_difference of \c *this and scalar \a other
   *
@@ -132,10 +137,15 @@ absolute_difference
   * Example: \include Cwise_array_power_array.cpp
   * Output: \verbinclude Cwise_array_power_array.out
   */
-EIGEN_MAKE_CWISE_BINARY_OP(pow,pow)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_pow_op>
+(pow)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(pow,pow)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(pow, internal::scalar_pow_op)
 #else
 /** \returns an expression of the coefficients of \c *this rasied to the constant power \a exponent
   *
@@ -262,7 +272,8 @@ EIGEN_MAKE_CWISE_COMP_OP(operator!=, NEQ)
 
 // scalar addition
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP(operator+,sum)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator+,internal::scalar_sum_op)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator+,internal::scalar_sum_op)
 #else
 /** \returns an expression of \c *this with each coeff incremented by the constant \a scalar
   *
@@ -284,7 +295,8 @@ const CwiseBinaryOp<internal::scalar_sum_op<T,Scalar>,Constant<T>,Derived> opera
 #endif
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP(operator-,difference)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator-,internal::scalar_difference_op)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator-,internal::scalar_difference_op)
 #else
 /** \returns an expression of \c *this with each coeff decremented by the constant \a scalar
   *
@@ -307,7 +319,7 @@ const CwiseBinaryOp<internal::scalar_difference_op<T,Scalar>,Constant<T>,Derived
 
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/,quotient)
+  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/, internal::scalar_quotient_op)
 #else
   /**
     * \brief Component-wise division of the scalar \a s by array elements of \a a.

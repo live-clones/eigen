@@ -16,7 +16,12 @@
   *
   * \sa class CwiseBinaryOp, operator-=()
   */
-EIGEN_MAKE_CWISE_BINARY_OP(operator-,difference)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_difference_op>
+operator-(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 /** \returns an expression of the sum of \c *this and \a other
   *
@@ -24,7 +29,12 @@ EIGEN_MAKE_CWISE_BINARY_OP(operator-,difference)
   *
   * \sa class CwiseBinaryOp, operator+=()
   */
-EIGEN_MAKE_CWISE_BINARY_OP(operator+,sum)
+template<typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::cwise_binary_return_t<Derived,OtherDerived,internal::scalar_sum_op>
+operator+(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
+{
+  return {derived(), other.derived()};
+}
 
 /** \returns an expression of a custom coefficient-wise operator \a func of *this and \a other
   *
@@ -47,7 +57,8 @@ binaryExpr(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other, const Cu
 
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP(operator*,product)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator*,internal::scalar_product_op)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator*,internal::scalar_product_op)
 #else
 /** \returns an expression of \c *this scaled by the scalar factor \a scalar
   *
@@ -66,7 +77,7 @@ const CwiseBinaryOp<internal::scalar_product_op<T,Scalar>,Constant<T>,Derived> o
 
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator/,quotient)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator/, internal::scalar_quotient_op)
 #else
 /** \returns an expression of \c *this divided by the scalar value \a scalar
   *

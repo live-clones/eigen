@@ -74,16 +74,16 @@ class DiagonalBase : public EigenBase<Derived>
     }
     
     EIGEN_DEVICE_FUNC
-    inline const DiagonalWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(DiagonalVectorType,Scalar,product) >
+    inline const DiagonalWrapper<const internal::cwise_binary_scalar_right_t<DiagonalVectorType,Scalar,internal::scalar_product_op> >
     operator*(const Scalar& scalar) const
     {
-      return DiagonalWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(DiagonalVectorType,Scalar,product) >(diagonal() * scalar);
+      return DiagonalWrapper<const internal::cwise_binary_scalar_right_t<DiagonalVectorType,Scalar,internal::scalar_product_op>>(diagonal() * scalar);
     }
     EIGEN_DEVICE_FUNC
-    friend inline const DiagonalWrapper<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar,DiagonalVectorType,product) >
+    friend inline const DiagonalWrapper<const internal::cwise_binary_scalar_left_t<Scalar,DiagonalVectorType,internal::scalar_product_op> >
     operator*(const Scalar& scalar, const DiagonalBase& other)
     {
-      return DiagonalWrapper<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar,DiagonalVectorType,product) >(scalar * other.diagonal());
+      return DiagonalWrapper<const internal::cwise_binary_scalar_left_t<Scalar,DiagonalVectorType,internal::scalar_product_op>>(scalar * other.diagonal());
     }
 
     template<typename OtherDerived>
@@ -91,7 +91,7 @@ class DiagonalBase : public EigenBase<Derived>
     #ifdef EIGEN_PARSED_BY_DOXYGEN
     inline unspecified_expression_type
     #else
-    inline const DiagonalWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(DiagonalVectorType,typename OtherDerived::DiagonalVectorType,sum) >
+    inline const DiagonalWrapper<const internal::cwise_binary_return_t<DiagonalVectorType,typename OtherDerived::DiagonalVectorType,internal::scalar_sum_op> >
     #endif
     operator+(const DiagonalBase<OtherDerived>& other) const
     {
@@ -103,7 +103,7 @@ class DiagonalBase : public EigenBase<Derived>
     #ifdef EIGEN_PARSED_BY_DOXYGEN
     inline unspecified_expression_type
     #else
-    inline const DiagonalWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(DiagonalVectorType,typename OtherDerived::DiagonalVectorType,difference) >
+    inline const DiagonalWrapper<const internal::cwise_binary_return_t<DiagonalVectorType,typename OtherDerived::DiagonalVectorType, internal::scalar_difference_op> >
     #endif
     operator-(const DiagonalBase<OtherDerived>& other) const
     {
