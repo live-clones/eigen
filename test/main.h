@@ -567,10 +567,23 @@ T test_relative_error(const AngleAxis<T> &a, const AngleAxis<T> &b)
   return (std::max)(test_relative_error(a.angle(), b.angle()), test_relative_error(a.axis(), b.axis()));
 }
 
+template<typename ExpressionType, template <typename> class StorageBase> class NoAlias;
+template<typename T1, typename T2>
+typename T1::Scalar test_relative_error(const NoAlias<T1, MatrixBase> &a, const T2 &b)
+{
+  return test_relative_error(a.expression(), b);
+}
+
 template<typename Type1, typename Type2>
 inline bool test_isApprox(const Type1& a, const Type2& b, typename Type1::Scalar* = 0) // Enabled for Eigen's type only
 {
   return a.isApprox(b, test_precision<typename Type1::Scalar>());
+}
+
+template<typename Type1, typename Type2>
+inline bool test_isApprox(const NoAlias<Type1, MatrixBase>& a, const Type2& b, typename Type1::Scalar* = 0) // Enabled for Eigen's type only
+{
+  return a.expression().isApprox(b, test_precision<typename Type1::Scalar>());
 }
 
 // get_test_precision is a small wrapper to test_precision allowing to return the scalar precision for either scalars or expressions

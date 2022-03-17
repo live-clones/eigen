@@ -577,12 +577,13 @@ template<typename ExpressionType, int Direction> class VectorwiseOp
     /** Copies the vector \a other to each subvector of \c *this */
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
-    ExpressionType& operator=(const DenseBase<OtherDerived>& other)
+    VectorwiseOp& operator=(const DenseBase<OtherDerived>& other)
     {
       EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
       EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
       //eigen_assert((m_matrix.isNull()) == (other.isNull())); FIXME
-      return m_matrix = extendedTo(other.derived());
+      m_matrix = extendedTo(other.derived());
+      return *this;
     }
 
     /** Adds the vector \a other to each subvector of \c *this */

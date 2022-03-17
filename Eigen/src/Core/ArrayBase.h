@@ -109,14 +109,19 @@ template<typename Derived> class ArrayBase
     ArrayBase& operator=(const ArrayBase& other)
     {
       internal::call_assignment(derived(), other.derived());
-      return derived();
+      return *this;
     }
     
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(ArrayBase)
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    ArrayBase& operator=(const DenseBase<Derived>& other) { Base::operator=(other); return *this; }
+
     /** Set all the entries to \a value.
       * \sa DenseBase::setConstant(), DenseBase::fill() */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    Derived& operator=(const Scalar &value)
-    { Base::setConstant(value); return derived(); }
+    ArrayBase& operator=(const Scalar &value)
+    { Base::setConstant(value); return *this; }
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator+=(const Scalar& scalar);

@@ -266,7 +266,7 @@ template<typename Derived> class DenseBase
     /** Copies \a other into *this. \returns a reference to *this. */
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    Derived& operator=(const DenseBase<OtherDerived>& other);
+    DenseBase& operator=(const DenseBase<OtherDerived>& other);
 
     /** Special case of the template operator=, in order to prevent the compiler
       * from generating a default operator= (issue hit with g++ 4.1)
@@ -276,7 +276,7 @@ template<typename Derived> class DenseBase
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
-    Derived& operator=(const EigenBase<OtherDerived> &other);
+    DenseBase& operator=(const EigenBase<OtherDerived> &other);
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
@@ -288,7 +288,7 @@ template<typename Derived> class DenseBase
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
-    Derived& operator=(const ReturnByValue<OtherDerived>& func);
+    DenseBase& operator=(const ReturnByValue<OtherDerived>& func);
 
     /** \internal
       * Copies \a other into *this without evaluating other. \returns a reference to *this. */

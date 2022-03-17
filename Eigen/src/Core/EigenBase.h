@@ -133,10 +133,10 @@ template<typename Derived> struct EigenBase
 template<typename Derived>
 template<typename OtherDerived>
 EIGEN_DEVICE_FUNC
-Derived& DenseBase<Derived>::operator=(const EigenBase<OtherDerived> &other)
+DenseBase<Derived>& DenseBase<Derived>::operator=(const EigenBase<OtherDerived> &other)
 {
   call_assignment(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>

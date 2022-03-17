@@ -324,6 +324,15 @@ template<typename PlainObjectType, int Options, typename StrideType> class Ref
     }
 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Ref)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Ref)
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    Ref& operator=(const Scalar &value)
+    {
+      EIGEN_STATIC_ASSERT_ARRAYXPR(PlainObjectType);
+      Base::operator=(value);
+      return *this;
+    }
 
 };
 

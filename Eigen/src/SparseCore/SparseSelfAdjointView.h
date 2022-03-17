@@ -141,7 +141,8 @@ template<typename MatrixType, unsigned int Mode_> class SparseSelfAdjointView
     SparseSelfAdjointView& operator=(const SparseSelfAdjointView& src)
     {
       PermutationMatrix<Dynamic,Dynamic,StorageIndex> pnull;
-      return *this = src.twistedBy(pnull);
+      *this = src.twistedBy(pnull);
+      return *this;
     }
 
     // Since we override the copy-assignment operator, we need to explicitly re-declare the copy-constructor
@@ -151,7 +152,8 @@ template<typename MatrixType, unsigned int Mode_> class SparseSelfAdjointView
     SparseSelfAdjointView& operator=(const SparseSelfAdjointView<SrcMatrixType,SrcMode>& src)
     {
       PermutationMatrix<Dynamic,Dynamic,StorageIndex> pnull;
-      return *this = src.twistedBy(pnull);
+      *this = src.twistedBy(pnull);
+      return *this;
     }
     
     void resize(Index rows, Index cols)

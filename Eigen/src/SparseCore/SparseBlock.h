@@ -119,7 +119,7 @@ public:
     {}
 
     template<typename OtherDerived>
-    inline BlockType& operator=(const SparseMatrixBase<OtherDerived>& other)
+    inline sparse_matrix_block_impl& operator=(const SparseMatrixBase<OtherDerived>& other)
     {
       typedef internal::remove_all_t<typename SparseMatrixType::Nested> NestedMatrixType_;
       NestedMatrixType_& matrix = m_matrix;
@@ -210,10 +210,10 @@ public:
         }
       }
 
-      return derived();
+      return *this;
     }
 
-    inline BlockType& operator=(const BlockType& other)
+    inline sparse_matrix_block_impl& operator=(const BlockType& other)
     {
       return operator=<BlockType>(other);
     }

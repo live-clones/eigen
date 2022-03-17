@@ -78,6 +78,7 @@ template<typename MatrixType, int DiagIndex_> class Diagonal
     }
 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Diagonal)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Diagonal)
 
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     inline Index rows() const

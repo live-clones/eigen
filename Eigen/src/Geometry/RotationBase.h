@@ -157,7 +157,8 @@ Matrix<Scalar_, Rows_, Cols_, Storage_, MaxRows_, MaxCols_>
 ::operator=(const RotationBase<OtherDerived,ColsAtCompileTime>& r)
 {
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Matrix,int(OtherDerived::Dim),int(OtherDerived::Dim))
-  return *this = r.toRotationMatrix();
+  *this = r.toRotationMatrix();
+  return *this;
 }
 
 namespace internal {

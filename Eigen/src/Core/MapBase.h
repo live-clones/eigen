@@ -291,10 +291,10 @@ template<typename Derived> class MapBase<Derived, WriteAccessors>
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR MapBase(PointerType dataPtr, Index rows, Index cols) : Base(dataPtr, rows, cols) {}
 
     EIGEN_DEVICE_FUNC
-    Derived& operator=(const MapBase& other)
+    MapBase& operator=(const MapBase& other)
     {
       ReadOnlyMapBase::Base::operator=(other);
-      return derived();
+      return *this;
     }
 
     // In theory we could simply refer to Base:Base::operator=, but MSVC does not like Base::Base,

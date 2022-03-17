@@ -653,7 +653,8 @@ template<typename OtherDerived>
 EIGEN_STRONG_INLINE Derived &
 SparseMatrixBase<Derived>::operator-=(const SparseMatrixBase<OtherDerived> &other)
 {
-  return derived() = derived() - other.derived();
+  derived() = derived() - other.derived();
+  return derived();
 }
 
 template<typename Derived>
@@ -661,7 +662,8 @@ template<typename OtherDerived>
 EIGEN_STRONG_INLINE Derived &
 SparseMatrixBase<Derived>::operator+=(const SparseMatrixBase<OtherDerived>& other)
 {
-  return derived() = derived() + other.derived();
+  derived() = derived() + other.derived();
+  return derived();
 }
 
 template<typename Derived>

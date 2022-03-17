@@ -474,10 +474,11 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Derived& operator=(const ReturnByValue<OtherDerived>& func)
+    EIGEN_STRONG_INLINE PlainObjectBase& operator=(const ReturnByValue<OtherDerived>& func)
     {
       resize(func.rows(), func.cols());
-      return Base::operator=(func);
+      Base::operator=(func);
+      return *this;
     }
 
     // Prevent user from trying to instantiate PlainObjectBase objects
@@ -620,11 +621,11 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       */
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
-    EIGEN_STRONG_INLINE Derived& operator=(const EigenBase<OtherDerived> &other)
+    EIGEN_STRONG_INLINE PlainObjectBase& operator=(const EigenBase<OtherDerived> &other)
     {
       _resize_to_match(other);
       Base::operator=(other.derived());
-      return this->derived();
+      return *this;
     }
 
     /** \name Map

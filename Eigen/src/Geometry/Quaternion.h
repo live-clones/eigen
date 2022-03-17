@@ -94,18 +94,18 @@ class QuaternionBase : public RotationBase<Derived, 3>
   /** \returns a vector expression of the coefficients (x,y,z,w) */
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline typename internal::traits<Derived>::Coefficients& coeffs() { return derived().coeffs(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase<Derived>& operator=(const QuaternionBase<Derived>& other);
-  template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const QuaternionBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase& operator=(const QuaternionBase<Derived>& other);
+  template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase& operator=(const QuaternionBase<OtherDerived>& other);
 
 // disabled this copy operator as it is giving very strange compilation errors when compiling
 // test_stdvector with GCC 4.4.2. This looks like a GCC bug though, so feel free to re-enable it if it's
 // useful; however notice that we already have the templated operator= above and e.g. in MatrixBase
 // we didn't have to add, in addition to templated operator=, such a non-templated copy operator.
-//  Derived& operator=(const QuaternionBase& other)
+//  QuaternionBase& operator=(const QuaternionBase& other)
 //  { return operator=<Derived>(other); }
 
-  EIGEN_DEVICE_FUNC Derived& operator=(const AngleAxisType& aa);
-  template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Derived& operator=(const MatrixBase<OtherDerived>& m);
+  EIGEN_DEVICE_FUNC QuaternionBase& operator=(const AngleAxisType& aa);
+  template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR QuaternionBase& operator=(const MatrixBase<OtherDerived>& m);
 
   /** \returns a quaternion representing an identity rotation
     * \sa MatrixBase::Identity()
@@ -228,6 +228,14 @@ protected:
   EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(QuaternionBase)
 };
 
+#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_QuaternionBase(Derived) \
+  template<class OtherDerived> \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const QuaternionBase<OtherDerived>& other)  { Base::operator=(other); return *this; } \
+  EIGEN_DEVICE_FUNC Derived& operator=(const AngleAxisType& aa)  { Base::operator=(aa); return *this; } \
+  template<class OtherDerived> \
+  EIGEN_DEVICE_FUNC Derived& operator=(const MatrixBase<OtherDerived>& m) { Base::operator=(m); return *this; }
+
+
 /***************************************************************************
 * Definition/implementation of Quaternion<Scalar>
 ***************************************************************************/
@@ -285,6 +293,8 @@ public:
 
   typedef typename internal::traits<Quaternion>::Coefficients Coefficients;
   typedef typename Base::AngleAxisType AngleAxisType;
+
+  EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_QuaternionBase(Quaternion)
 
   /** Default constructor leaving the quaternion uninitialized. */
   EIGEN_DEVICE_FUNC inline Quaternion() {}
@@ -409,6 +419,9 @@ class Map<const Quaternion<Scalar_>, Options_ >
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
     using Base::operator*=;
 
+    typedef typename Base::AngleAxisType AngleAxisType;
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_QuaternionBase(Map)
+
     /** Constructs a Mapped Quaternion object from the pointer \a coeffs
       *
       * The pointer \a coeffs must reference the four coefficients of Quaternion in the following order:
@@ -446,6 +459,9 @@ class Map<Quaternion<Scalar_>, Options_ >
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
     using Base::operator*=;
 
+    typedef typename Base::AngleAxisType AngleAxisType;
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_QuaternionBase(Map)
+
     /** Constructs a Mapped Quaternion object from the pointer \a coeffs
       *
       * The pointer \a coeffs must reference the four coefficients of Quaternion in the following order:
@@ -460,6 +476,8 @@ class Map<Quaternion<Scalar_>, Options_ >
   protected:
     Coefficients m_coeffs;
 };
+
+#undef EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_QuaternionBase
 
 /** \ingroup Geometry_Module
   * Map an unaligned array of single precision scalars as a quaternion */
@@ -541,28 +559,28 @@ template<class Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase<Derived>& QuaternionBase<Derived>::operator=(const QuaternionBase<Derived>& other)
 {
   coeffs() = other.coeffs();
-  return derived();
+  return *this;
 }
 
 template<class Derived>
 template<class OtherDerived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& QuaternionBase<Derived>::operator=(const QuaternionBase<OtherDerived>& other)
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase<Derived>& QuaternionBase<Derived>::operator=(const QuaternionBase<OtherDerived>& other)
 {
   coeffs() = other.coeffs();
-  return derived();
+  return *this;
 }
 
 /** Set \c *this from an angle-axis \a aa and returns a reference to \c *this
   */
 template<class Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& QuaternionBase<Derived>::operator=(const AngleAxisType& aa)
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase<Derived>& QuaternionBase<Derived>::operator=(const AngleAxisType& aa)
 {
   EIGEN_USING_STD(cos)
   EIGEN_USING_STD(sin)
   Scalar ha = Scalar(0.5)*aa.angle(); // Scalar(0.5) to suppress precision loss warnings
   this->w() = cos(ha);
   this->vec() = sin(ha) * aa.axis();
-  return derived();
+  return *this;
 }
 
 /** Set \c *this from the expression \a xpr:
@@ -573,12 +591,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& QuaternionBase<Derived>::operator
 
 template<class Derived>
 template<class MatrixDerived>
-EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Derived& QuaternionBase<Derived>::operator=(const MatrixBase<MatrixDerived>& xpr)
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline QuaternionBase<Derived>& QuaternionBase<Derived>::operator=(const MatrixBase<MatrixDerived>& xpr)
 {
   EIGEN_STATIC_ASSERT((internal::is_same<typename Derived::Scalar, typename MatrixDerived::Scalar>::value),
    YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
   internal::quaternionbase_assign_impl<MatrixDerived>::run(*this, xpr.derived());
-  return derived();
+  return *this;
 }
 
 /** Convert the quaternion to a 3x3 rotation matrix. The quaternion is required to

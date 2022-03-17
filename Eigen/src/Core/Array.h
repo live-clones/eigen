@@ -77,7 +77,8 @@ class Array
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Array& operator=(const EigenBase<OtherDerived> &other)
     {
-      return Base::operator=(other);
+      Base::operator=(other);
+      return *this;
     }
 
     /** Set all the entries to \a value.

@@ -145,15 +145,15 @@ template<typename Derived> class MatrixBase
 
     template <typename OtherDerived>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
-    Derived& operator=(const DenseBase<OtherDerived>& other);
+    MatrixBase& operator=(const DenseBase<OtherDerived>& other);
 
     template <typename OtherDerived>
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
-    Derived& operator=(const EigenBase<OtherDerived>& other);
+    MatrixBase& operator=(const EigenBase<OtherDerived>& other);
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
-    Derived& operator=(const ReturnByValue<OtherDerived>& other);
+    MatrixBase& operator=(const ReturnByValue<OtherDerived>& other);
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR

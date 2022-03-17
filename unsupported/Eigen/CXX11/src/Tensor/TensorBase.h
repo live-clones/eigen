@@ -1009,15 +1009,18 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
     }
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Derived& setConstant(const Scalar& val) {
-      return derived() = this->constant(val);
+      derived() = this->constant(val);
+      return derived();
     }
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Derived& setRandom() {
-      return derived() = this->random();
+      derived() = this->random();
+      return derived();
     }
     template <typename RandomGenerator> EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Derived& setRandom() {
-      return derived() = this->template random<RandomGenerator>();
+      derived() = this->template random<RandomGenerator>();
+      return derived();
     }
 
     EIGEN_DEVICE_FUNC
@@ -1030,19 +1033,23 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 
     template<typename OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator+=(const OtherDerived& other) {
-      return derived() = derived() + other.derived();
+      derived() = derived() + other.derived();
+      return derived();
     }
     template<typename OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator-=(const OtherDerived& other) {
-      return derived() = derived() - other.derived();
+      derived() = derived() - other.derived();
+      return derived();
     }
     template<typename OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator*=(const OtherDerived& other) {
-      return derived() = derived() * other.derived();
+      derived() = derived() * other.derived();
+      return derived();
     }
     template<typename OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator/=(const OtherDerived& other) {
-      return derived() = derived() / other.derived();
+      derived() = derived() / other.derived();
+      return derived();
     }
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
@@ -1178,12 +1185,12 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
     EIGEN_DEFAULT_COPY_CONSTRUCTOR(TensorBase)
 
     template<typename OtherDerived> EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Derived& operator=(const OtherDerived& other)
+    EIGEN_STRONG_INLINE TensorBase& operator=(const OtherDerived& other)
     {
       typedef TensorAssignOp<Derived, const OtherDerived> Assign;
       Assign assign(derived(), other.derived());
       internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
-      return derived();
+      return *this;
     }
 
     EIGEN_DEVICE_FUNC

@@ -32,10 +32,10 @@ class TranspositionsBase
 
     /** Copies the \a other transpositions into \c *this */
     template<typename OtherDerived>
-    Derived& operator=(const TranspositionsBase<OtherDerived>& other)
+    TranspositionsBase& operator=(const TranspositionsBase<OtherDerived>& other)
     {
       indices() = other.indices();
-      return derived();
+      return *this;
     }
 
     /** \returns the number of transpositions */
@@ -179,7 +179,8 @@ class Transpositions : public TranspositionsBase<Transpositions<SizeAtCompileTim
     template<typename OtherDerived>
     Transpositions& operator=(const TranspositionsBase<OtherDerived>& other)
     {
-      return Base::operator=(other);
+      Base::operator=(other);
+      return *this;
     }
 
     /** Constructs an uninitialized permutation matrix of given size.
@@ -234,7 +235,8 @@ class Map<Transpositions<SizeAtCompileTime,MaxSizeAtCompileTime,StorageIndex_>,P
     template<typename OtherDerived>
     Map& operator=(const TranspositionsBase<OtherDerived>& other)
     {
-      return Base::operator=(other);
+      Base::operator=(other);
+      return *this;
     }
 
     #ifndef EIGEN_PARSED_BY_DOXYGEN
@@ -289,7 +291,8 @@ class TranspositionsWrapper
     template<typename OtherDerived>
     TranspositionsWrapper& operator=(const TranspositionsBase<OtherDerived>& other)
     {
-      return Base::operator=(other);
+      Base::operator=(other);
+      return *this;
     }
 
     /** const version of indices(). */

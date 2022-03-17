@@ -103,6 +103,15 @@ template<typename XprType, int Rows, int Cols, int Order> class Reshaped
     typedef Impl Base;
     EIGEN_GENERIC_PUBLIC_INTERFACE(Reshaped)
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Reshaped)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Reshaped)
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    Reshaped& operator=(const Scalar &value)
+    {
+      EIGEN_STATIC_ASSERT_ARRAYXPR(XprType);
+      Base::operator=(value);
+      return *this;
+    }
 
     /** Fixed-size constructor
       */

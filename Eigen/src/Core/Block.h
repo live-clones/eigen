@@ -111,6 +111,15 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
     typedef Impl Base;
     EIGEN_GENERIC_PUBLIC_INTERFACE(Block)
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Block)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Block)
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    Block& operator=(const Scalar &value)
+    {
+      EIGEN_STATIC_ASSERT_ARRAYXPR(XprType);
+      Base::operator=(value);
+      return *this;
+    }
 
     typedef internal::remove_all_t<XprType> NestedExpression;
 

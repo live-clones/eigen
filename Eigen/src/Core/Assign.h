@@ -38,10 +38,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>
 template<typename Derived>
 template<typename OtherDerived>
 EIGEN_DEVICE_FUNC
-EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator=(const DenseBase<OtherDerived>& other)
+EIGEN_STRONG_INLINE DenseBase<Derived>& DenseBase<Derived>::operator=(const DenseBase<OtherDerived>& other)
 {
   internal::call_assignment(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
@@ -49,7 +49,7 @@ EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE DenseBase<Derived>& DenseBase<Derived>::operator=(const DenseBase& other)
 {
   internal::call_assignment(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
@@ -57,34 +57,34 @@ EIGEN_DEVICE_FUNC
 EIGEN_STRONG_INLINE MatrixBase<Derived>& MatrixBase<Derived>::operator=(const MatrixBase& other)
 {
   internal::call_assignment(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
 template <typename OtherDerived>
 EIGEN_DEVICE_FUNC
-EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Derived& MatrixBase<Derived>::operator=(const DenseBase<OtherDerived>& other)
+EIGEN_STRONG_INLINE EIGEN_CONSTEXPR MatrixBase<Derived>& MatrixBase<Derived>::operator=(const DenseBase<OtherDerived>& other)
 {
   internal::call_assignment(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
 template <typename OtherDerived>
 EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
-EIGEN_STRONG_INLINE Derived& MatrixBase<Derived>::operator=(const EigenBase<OtherDerived>& other)
+EIGEN_STRONG_INLINE MatrixBase<Derived>& MatrixBase<Derived>::operator=(const EigenBase<OtherDerived>& other)
 {
   internal::call_assignment(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
 template<typename OtherDerived>
 EIGEN_DEVICE_FUNC
-EIGEN_STRONG_INLINE Derived& MatrixBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other)
+EIGEN_STRONG_INLINE MatrixBase<Derived>& MatrixBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other)
 {
   other.derived().evalTo(derived());
-  return derived();
+  return *this;
 }
 
 } // end namespace Eigen

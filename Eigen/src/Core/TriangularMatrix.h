@@ -222,6 +222,24 @@ template<typename MatrixType_, unsigned int Mode_> class TriangularView
 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TriangularView)
 
+    /** Assigns a triangular matrix to a triangular part of a dense matrix */
+    template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
+    TriangularView& operator=(const TriangularBase<OtherDerived>& other)
+    {
+      Base::operator=(other);
+      return *this;
+    }
+
+    /** Shortcut for\code *this = other.other.triangularView<(*this)::Mode>() \endcode */
+    template<typename OtherDerived>
+    EIGEN_DEVICE_FUNC
+    TriangularView& operator=(const MatrixBase<OtherDerived>& other)
+    {
+      Base::operator=(other);
+      return *this;
+    }
+
     /** \copydoc EigenBase::rows() */
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     inline Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }
@@ -394,10 +412,16 @@ template<typename MatrixType_, unsigned int Mode_> class TriangularViewImpl<Matr
 
     /** \sa MatrixBase::operator*=() */
     EIGEN_DEVICE_FUNC
-    TriangularViewType&  operator*=(const typename internal::traits<MatrixType>::Scalar& other) { return *this = derived().nestedExpression() * other; }
+    TriangularViewType&  operator*=(const typename internal::traits<MatrixType>::Scalar& other) {
+      *this = derived().nestedExpression() * other;
+      return derived();
+    }
     /** \sa DenseBase::operator/=() */
     EIGEN_DEVICE_FUNC
-    TriangularViewType&  operator/=(const typename internal::traits<MatrixType>::Scalar& other) { return *this = derived().nestedExpression() / other; }
+    TriangularViewType&  operator/=(const typename internal::traits<MatrixType>::Scalar& other) {
+      *this = derived().nestedExpression() / other;
+      return derived();
+    }
 
     /** \sa MatrixBase::fill() */
     EIGEN_DEVICE_FUNC
@@ -405,7 +429,7 @@ template<typename MatrixType_, unsigned int Mode_> class TriangularViewImpl<Matr
     /** \sa MatrixBase::setConstant() */
     EIGEN_DEVICE_FUNC
     TriangularViewType& setConstant(const Scalar& value)
-    { return *this = MatrixType::Constant(derived().rows(), derived().cols(), value); }
+    { *this = MatrixType::Constant(derived().rows(), derived().cols(), value); return derived(); }
     /** \sa MatrixBase::setZero() */
     EIGEN_DEVICE_FUNC
     TriangularViewType& setZero() { return setConstant(Scalar(0)); }
@@ -437,17 +461,17 @@ template<typename MatrixType_, unsigned int Mode_> class TriangularViewImpl<Matr
     /** Assigns a triangular matrix to a triangular part of a dense matrix */
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
-    TriangularViewType& operator=(const TriangularBase<OtherDerived>& other);
+    TriangularViewImpl& operator=(const TriangularBase<OtherDerived>& other);
 
     /** Shortcut for\code *this = other.other.triangularView<(*this)::Mode>() \endcode */
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC
-    TriangularViewType& operator=(const MatrixBase<OtherDerived>& other);
+    TriangularViewImpl& operator=(const MatrixBase<OtherDerived>& other);
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
     EIGEN_DEVICE_FUNC
-    TriangularViewType& operator=(const TriangularViewImpl& other)
-    { return *this = other.derived().nestedExpression(); }
+    TriangularViewImpl& operator=(const TriangularViewImpl& other)
+    { *this = other.derived().nestedExpression(); return *this; }
 
     template<typename OtherDerived>
     /** \deprecated */
@@ -571,11 +595,11 @@ template<typename MatrixType_, unsigned int Mode_> class TriangularViewImpl<Matr
 // FIXME should we keep that possibility
 template<typename MatrixType, unsigned int Mode>
 template<typename OtherDerived>
-EIGEN_DEVICE_FUNC inline TriangularView<MatrixType, Mode>&
+EIGEN_DEVICE_FUNC inline TriangularViewImpl<MatrixType, Mode, Dense>&
 TriangularViewImpl<MatrixType, Mode, Dense>::operator=(const MatrixBase<OtherDerived>& other)
 {
   internal::call_assignment_no_alias(derived(), other.derived(), internal::assign_op<Scalar,typename OtherDerived::Scalar>());
-  return derived();
+  return *this;
 }
 
 // FIXME should we keep that possibility
@@ -590,12 +614,12 @@ EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType, Mode, Dense>::lazyAssign(c
 
 template<typename MatrixType, unsigned int Mode>
 template<typename OtherDerived>
-EIGEN_DEVICE_FUNC inline TriangularView<MatrixType, Mode>&
+EIGEN_DEVICE_FUNC inline TriangularViewImpl<MatrixType, Mode, Dense>&
 TriangularViewImpl<MatrixType, Mode, Dense>::operator=(const TriangularBase<OtherDerived>& other)
 {
   eigen_assert(Mode == int(OtherDerived::Mode));
   internal::call_assignment(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename MatrixType, unsigned int Mode>

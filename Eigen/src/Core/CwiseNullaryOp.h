@@ -346,7 +346,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void DenseBase<Derived>::f
 template<typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Derived& DenseBase<Derived>::setConstant(const Scalar& val)
 {
-  return derived() = Constant(rows(), cols(), val);
+  derived() = Constant(rows(), cols(), val);
+  return derived();
 }
 
 /** Resizes to the given \a size, and sets all coefficients in this expression to the given value \a val.
@@ -432,7 +433,8 @@ template<typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setLinSpaced(Index newSize, const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  return derived() = Derived::NullaryExpr(newSize, internal::linspaced_op<Scalar>(low,high,newSize));
+  derived() = Derived::NullaryExpr(newSize, internal::linspaced_op<Scalar>(low,high,newSize));
+  return derived();
 }
 
 /**
@@ -845,7 +847,8 @@ struct setIdentity_impl
   EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE Derived& run(Derived& m)
   {
-    return m = Derived::Identity(m.rows(), m.cols());
+    m = Derived::Identity(m.rows(), m.cols());
+    return m;
   }
 };
 
