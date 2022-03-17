@@ -75,12 +75,12 @@ EIGEN_BLAS_RANKUPDATE_SPECIALIZE(float)
 
 // SYRK for float/double
 #define EIGEN_BLAS_RANKUPDATE_R(EIGTYPE, BLASTYPE, BLASFUNC) \
-template <typename Index, int AStorageOrder, bool ConjugateA, int  UpLo> \
+template <typename Index, StorageOrder AStorageOrder, bool ConjugateA, int  UpLo> \
 struct general_matrix_matrix_rankupdate<Index,EIGTYPE,AStorageOrder,ConjugateA,ColMajor,UpLo> { \
   enum { \
     IsLower = (UpLo&Lower) == Lower, \
     LowUp = IsLower ? Lower : Upper, \
-    conjA = ((AStorageOrder==ColMajor) && ConjugateA) ? 1 : 0 \
+    conjA = (is_col_major(AStorageOrder) && ConjugateA) ? 1 : 0 \
   }; \
   static EIGEN_STRONG_INLINE void run(Index size, Index depth,const EIGTYPE* lhs, Index lhsStride, \
                           const EIGTYPE* /*rhs*/, Index /*rhsStride*/, EIGTYPE* res, Index resStride, EIGTYPE alpha, level3_blocking<EIGTYPE, EIGTYPE>& /*blocking*/) \
@@ -88,7 +88,7 @@ struct general_matrix_matrix_rankupdate<Index,EIGTYPE,AStorageOrder,ConjugateA,C
   /* typedef Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder> MatrixRhs;*/ \
 \
    BlasIndex lda=convert_index<BlasIndex>(lhsStride), ldc=convert_index<BlasIndex>(resStride), n=convert_index<BlasIndex>(size), k=convert_index<BlasIndex>(depth); \
-   char uplo=((IsLower) ? 'L' : 'U'), trans=((AStorageOrder==RowMajor) ? 'T':'N'); \
+   char uplo=((IsLower) ? 'L' : 'U'), trans=(is_row_major(AStorageOrder) ? 'T':'N'); \
    EIGTYPE beta(1); \
    BLASFUNC(&uplo, &trans, &n, &k, (const BLASTYPE*)&numext::real_ref(alpha), lhs, &lda, (const BLASTYPE*)&numext::real_ref(beta), res, &ldc); \
   } \
@@ -96,12 +96,12 @@ struct general_matrix_matrix_rankupdate<Index,EIGTYPE,AStorageOrder,ConjugateA,C
 
 // HERK for complex data
 #define EIGEN_BLAS_RANKUPDATE_C(EIGTYPE, BLASTYPE, RTYPE, BLASFUNC) \
-template <typename Index, int AStorageOrder, bool ConjugateA, int  UpLo> \
+template <typename Index, StorageOrder AStorageOrder, bool ConjugateA, int  UpLo> \
 struct general_matrix_matrix_rankupdate<Index,EIGTYPE,AStorageOrder,ConjugateA,ColMajor,UpLo> { \
   enum { \
     IsLower = (UpLo&Lower) == Lower, \
     LowUp = IsLower ? Lower : Upper, \
-    conjA = (((AStorageOrder==ColMajor) && ConjugateA) || ((AStorageOrder==RowMajor) && !ConjugateA)) ? 1 : 0 \
+    conjA = ((is_col_major(AStorageOrder) && ConjugateA) || (is_row_major(AStorageOrder) && !ConjugateA)) ? 1 : 0 \
   }; \
   static EIGEN_STRONG_INLINE void run(Index size, Index depth,const EIGTYPE* lhs, Index lhsStride, \
                           const EIGTYPE* /*rhs*/, Index /*rhsStride*/, EIGTYPE* res, Index resStride, EIGTYPE alpha, level3_blocking<EIGTYPE, EIGTYPE>& /*blocking*/) \
@@ -109,7 +109,7 @@ struct general_matrix_matrix_rankupdate<Index,EIGTYPE,AStorageOrder,ConjugateA,C
    typedef Matrix<EIGTYPE, Dynamic, Dynamic, AStorageOrder> MatrixType; \
 \
    BlasIndex lda=convert_index<BlasIndex>(lhsStride), ldc=convert_index<BlasIndex>(resStride), n=convert_index<BlasIndex>(size), k=convert_index<BlasIndex>(depth); \
-   char uplo=((IsLower) ? 'L' : 'U'), trans=((AStorageOrder==RowMajor) ? 'C':'N'); \
+   char uplo=((IsLower) ? 'L' : 'U'), trans=(is_row_major(AStorageOrder) ? 'C':'N'); \
    RTYPE alpha_, beta_; \
    const EIGTYPE* a_ptr; \
 \

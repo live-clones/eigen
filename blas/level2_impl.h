@@ -147,32 +147,32 @@ int EIGEN_BLAS_FUNC(trmv)(const char *uplo, const char *opa, const char *diag, c
   typedef void (*functype)(int, int, const Scalar *, int, const Scalar *, int, Scalar *, int, const Scalar&);
   static const functype func[16] = {
     // array index: NOTR  | (UP << 2) | (NUNIT << 3)
-    (internal::triangular_matrix_vector_product<int,Upper|0,       Scalar,false,Scalar,false,ColMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Upper|0,       Scalar,false,Scalar,false, StorageOrder::ColMajor>::run),
     // array index: TR    | (UP << 2) | (NUNIT << 3)
-    (internal::triangular_matrix_vector_product<int,Lower|0,       Scalar,false,Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Lower|0,       Scalar,false,Scalar,false, StorageOrder::RowMajor>::run),
     // array index: ADJ   | (UP << 2) | (NUNIT << 3)
-    (internal::triangular_matrix_vector_product<int,Lower|0,       Scalar,Conj, Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Lower|0,       Scalar,Conj, Scalar,false, StorageOrder::RowMajor>::run),
     0,
     // array index: NOTR  | (LO << 2) | (NUNIT << 3)
-    (internal::triangular_matrix_vector_product<int,Lower|0,       Scalar,false,Scalar,false,ColMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Lower|0,       Scalar,false,Scalar,false, StorageOrder::ColMajor>::run),
     // array index: TR    | (LO << 2) | (NUNIT << 3)
-    (internal::triangular_matrix_vector_product<int,Upper|0,       Scalar,false,Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Upper|0,       Scalar,false,Scalar,false, StorageOrder::RowMajor>::run),
     // array index: ADJ   | (LO << 2) | (NUNIT << 3)
-    (internal::triangular_matrix_vector_product<int,Upper|0,       Scalar,Conj, Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Upper|0,       Scalar,Conj, Scalar,false, StorageOrder::RowMajor>::run),
     0,
     // array index: NOTR  | (UP << 2) | (UNIT  << 3)
-    (internal::triangular_matrix_vector_product<int,Upper|UnitDiag,Scalar,false,Scalar,false,ColMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Upper|UnitDiag,Scalar,false,Scalar,false, StorageOrder::ColMajor>::run),
     // array index: TR    | (UP << 2) | (UNIT  << 3)
-    (internal::triangular_matrix_vector_product<int,Lower|UnitDiag,Scalar,false,Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Lower|UnitDiag,Scalar,false,Scalar,false, StorageOrder::RowMajor>::run),
     // array index: ADJ   | (UP << 2) | (UNIT  << 3)
-    (internal::triangular_matrix_vector_product<int,Lower|UnitDiag,Scalar,Conj, Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Lower|UnitDiag,Scalar,Conj, Scalar,false, StorageOrder::RowMajor>::run),
     0,
     // array index: NOTR  | (LO << 2) | (UNIT  << 3)
-    (internal::triangular_matrix_vector_product<int,Lower|UnitDiag,Scalar,false,Scalar,false,ColMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Lower|UnitDiag,Scalar,false,Scalar,false, StorageOrder::ColMajor>::run),
     // array index: TR    | (LO << 2) | (UNIT  << 3)
-    (internal::triangular_matrix_vector_product<int,Upper|UnitDiag,Scalar,false,Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Upper|UnitDiag,Scalar,false,Scalar,false, StorageOrder::RowMajor>::run),
     // array index: ADJ   | (LO << 2) | (UNIT  << 3)
-    (internal::triangular_matrix_vector_product<int,Upper|UnitDiag,Scalar,Conj, Scalar,false,RowMajor>::run),
+    (internal::triangular_matrix_vector_product<int,Upper|UnitDiag,Scalar,Conj, Scalar,false, StorageOrder::RowMajor>::run),
     0
   };
 

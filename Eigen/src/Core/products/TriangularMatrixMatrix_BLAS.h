@@ -145,7 +145,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,true, \
    n = convert_index<BlasIndex>(cols); \
 \
 /* Set trans */ \
-   transa = (LhsStorageOrder==RowMajor) ? ((ConjugateLhs) ? 'C' : 'T') : 'N'; \
+   transa = is_row_major(LhsStorageOrder) ? ((ConjugateLhs) ? 'C' : 'T') : 'N'; \
 \
 /* Set b, ldb */ \
    Map<const MatrixRhs, 0, OuterStride<> > rhs(_rhs,depth,cols,OuterStride<>(rhsStride)); \
@@ -157,7 +157,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,true, \
 \
 /* Set uplo */ \
    uplo = IsLower ? 'L' : 'U'; \
-   if (LhsStorageOrder==RowMajor) uplo = (uplo == 'L') ? 'U' : 'L'; \
+   if (is_row_major(LhsStorageOrder)) uplo = (uplo == 'L') ? 'U' : 'L'; \
 /* Set a, lda */ \
    Map<const MatrixLhs, 0, OuterStride<> > lhs(_lhs,rows,depth,OuterStride<>(lhsStride)); \
    MatrixLhs a_tmp; \
@@ -262,7 +262,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,false, \
    n = convert_index<BlasIndex>(diagSize); \
 \
 /* Set trans */ \
-   transa = (RhsStorageOrder==RowMajor) ? ((ConjugateRhs) ? 'C' : 'T') : 'N'; \
+   transa = is_row_major(RhsStorageOrder) ? ((ConjugateRhs) ? 'C' : 'T') : 'N'; \
 \
 /* Set b, ldb */ \
    Map<const MatrixLhs, 0, OuterStride<> > lhs(_lhs,rows,depth,OuterStride<>(lhsStride)); \
@@ -274,7 +274,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,false, \
 \
 /* Set uplo */ \
    uplo = IsLower ? 'L' : 'U'; \
-   if (RhsStorageOrder==RowMajor) uplo = (uplo == 'L') ? 'U' : 'L'; \
+   if (is_row_major(RhsStorageOrder)) uplo = (uplo == 'L') ? 'U' : 'L'; \
 /* Set a, lda */ \
    Map<const MatrixRhs, 0, OuterStride<> > rhs(_rhs,depth,cols, OuterStride<>(rhsStride)); \
    MatrixRhs a_tmp; \

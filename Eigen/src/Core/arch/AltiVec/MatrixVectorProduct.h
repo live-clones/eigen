@@ -2077,11 +2077,11 @@ EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(PResPacket& a0, PRe
   if (GEMV_GETN_COMPLEX(N) > iter) { \
     if (GEMV_IS_COMPLEX_FLOAT) { \
       PLhsPacket a##iter = GEMV_LOADPACKET_ROW_COMPLEX(iter); \
-      gemv_mult_complex_MMA<ScalarPacket, LhsScalar, PLhsPacket, PLhsPacket, RhsScalar, RhsPacket, ResPacket, ConjugateLhs, ConjugateRhs, RowMajor>(a##iter, b, &e0##iter); \
+      gemv_mult_complex_MMA<ScalarPacket, LhsScalar, PLhsPacket, PLhsPacket, RhsScalar, RhsPacket, ResPacket, ConjugateLhs, ConjugateRhs, StorageOrder::RowMajor>(a##iter, b, &e0##iter); \
     } else { \
       __vector_pair a##iter; \
       GEMV_LOADPAIR_ROW_COMPLEX_MMA(iter, iter << 1) \
-      gemv_mult_complex_MMA<ScalarPacket, LhsScalar, PLhsPacket, __vector_pair, RhsScalar, RhsPacket, ResPacket, ConjugateLhs, ConjugateRhs, RowMajor>(a##iter, b, &e0##iter); \
+      gemv_mult_complex_MMA<ScalarPacket, LhsScalar, PLhsPacket, __vector_pair, RhsScalar, RhsPacket, ResPacket, ConjugateLhs, ConjugateRhs, StorageOrder::RowMajor>(a##iter, b, &e0##iter); \
     } \
   }
 
@@ -2111,7 +2111,7 @@ EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(PResPacket& a0, PRe
 #define GEMV_WORK_ROW_COMPLEX(iter, N) \
   if (N > iter) { \
     PLhsPacket a##iter = GEMV_LOADPACKET_ROW_COMPLEX(iter); \
-    gemv_mult_complex<ScalarPacket, PLhsPacket, RhsScalar, RhsPacket, PResPacket, ResPacket, ConjugateLhs, ConjugateRhs, RowMajor>(a##iter, b, c0##iter, c1##iter); \
+    gemv_mult_complex<ScalarPacket, PLhsPacket, RhsScalar, RhsPacket, PResPacket, ResPacket, ConjugateLhs, ConjugateRhs, StorageOrder::RowMajor>(a##iter, b, c0##iter, c1##iter); \
   }
 
 #define GEMV_PREDUX4_COMPLEX(iter1, iter2, iter3, N) \

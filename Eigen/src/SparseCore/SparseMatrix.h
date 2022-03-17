@@ -1008,7 +1008,7 @@ protected:
 
 private:
   EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
-  EIGEN_STATIC_ASSERT((Options&(ColMajor|RowMajor))==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS)
+  EIGEN_STATIC_ASSERT(internal::storage_order_flag(Options)==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
   struct default_prunning_func {
     default_prunning_func(const Scalar& ref, const RealScalar& eps) : reference(ref), epsilon(eps) {}

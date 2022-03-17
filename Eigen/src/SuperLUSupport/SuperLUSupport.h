@@ -237,7 +237,7 @@ struct SluMatrixMapHelper<Matrix<Scalar,Rows,Cols,Options,MRows,MCols> >
   typedef Matrix<Scalar,Rows,Cols,Options,MRows,MCols> MatrixType;
   static void run(MatrixType& mat, SluMatrix& res)
   {
-    eigen_assert( ((Options&RowMajor)!=RowMajor) && "row-major dense matrices is not supported by SuperLU");
+    eigen_assert( internal::is_col_major(Options)) && "row-major dense matrices is not supported by SuperLU");
     res.setStorageType(SLU_DN);
     res.setScalarType<Scalar>();
     res.Mtype     = SLU_GE;
@@ -300,10 +300,10 @@ SluMatrix asSluMatrix(MatrixType& mat)
 template<typename Scalar, int Flags, typename Index>
 Map<SparseMatrix<Scalar,Flags,Index> > map_superlu(SluMatrix& sluMat)
 {
-  eigen_assert(((Flags&RowMajor)==RowMajor && sluMat.Stype == SLU_NR)
+  eigen_assert(internal::is_row_major(Flags) && sluMat.Stype == SLU_NR)
          || ((Flags&ColMajor)==ColMajor && sluMat.Stype == SLU_NC));
 
-  Index outerSize = (Flags&RowMajor)==RowMajor ? sluMat.ncol : sluMat.nrow;
+  Index outerSize = internal::is_row_major(Flags) ? sluMat.ncol : sluMat.nrow;
 
   return Map<SparseMatrix<Scalar,Flags,Index> >(
     sluMat.nrow, sluMat.ncol, sluMat.storage.outerInd[outerSize],

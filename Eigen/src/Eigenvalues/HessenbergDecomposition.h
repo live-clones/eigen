@@ -81,7 +81,7 @@ template<typename MatrixType_> class HessenbergDecomposition
       * vector is one less than the size of #MatrixType, if it is a fixed-side
       * type.
       */
-    typedef Matrix<Scalar, SizeMinusOne, 1, Options & ~RowMajor, MaxSizeMinusOne, 1> CoeffVectorType;
+    typedef Matrix<Scalar, SizeMinusOne, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxSizeMinusOne, 1> CoeffVectorType;
 
     /** \brief Return type of matrixQ() */
     typedef HouseholderSequence<MatrixType,internal::remove_all_t<typename CoeffVectorType::ConjugateReturnType>> HouseholderSequenceType;
@@ -269,7 +269,7 @@ template<typename MatrixType_> class HessenbergDecomposition
 
   private:
 
-    typedef Matrix<Scalar, 1, Size, int(Options) | int(RowMajor), 1, MaxSize> VectorType;
+    typedef Matrix<Scalar, 1, Size, with_storage_order(Options, StorageOrder::RowMajor), 1, MaxSize> VectorType;
     typedef typename NumTraits<Scalar>::Real RealScalar;
     static void _compute(MatrixType& matA, CoeffVectorType& hCoeffs, VectorType& temp);
 

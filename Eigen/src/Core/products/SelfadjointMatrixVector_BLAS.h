@@ -74,7 +74,7 @@ EIGEN_BLAS_SYMV_SPECIALIZE(dcomplex)
 EIGEN_BLAS_SYMV_SPECIALIZE(scomplex)
 
 #define EIGEN_BLAS_SYMV_SPECIALIZATION(EIGTYPE,BLASTYPE,BLASFUNC) \
-template<typename Index, int StorageOrder, int UpLo, bool ConjugateLhs, bool ConjugateRhs> \
+template<typename Index, StorageOrder StorageOrder_, int UpLo, bool ConjugateLhs, bool ConjugateRhs> \
 struct selfadjoint_matrix_vector_product_symv<EIGTYPE,Index,StorageOrder,UpLo,ConjugateLhs,ConjugateRhs> \
 { \
 typedef Matrix<EIGTYPE,Dynamic,1,ColMajor> SYMVVector;\
@@ -82,11 +82,9 @@ typedef Matrix<EIGTYPE,Dynamic,1,ColMajor> SYMVVector;\
 static void run( \
 Index size, const EIGTYPE*  lhs, Index lhsStride, \
 const EIGTYPE* _rhs, EIGTYPE* res, EIGTYPE alpha) \
-{ \
-  enum {\
-    IsRowMajor = StorageOrder==RowMajor ? 1 : 0, \
-    IsLower = UpLo == Lower ? 1 : 0 \
-  }; \
+{                                                 \
+  constexpr bool IsRowMajor = is_row_major(StorageOrder_);        \
+  constexpr bool IsLower = UpLo == Lower                          \
   BlasIndex n=convert_index<BlasIndex>(size), lda=convert_index<BlasIndex>(lhsStride), incx=1, incy=1; \
   EIGTYPE beta(1); \
   const EIGTYPE *x_ptr; \

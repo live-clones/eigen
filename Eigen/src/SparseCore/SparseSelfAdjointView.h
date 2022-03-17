@@ -509,22 +509,21 @@ void permute_symm_to_fullsymm(const MatrixType& mat, SparseMatrix<typename Matri
   }
 }
 
-template<int SrcMode_,int DstMode_,typename MatrixType,int DstOrder>
-void permute_symm_to_symm(const MatrixType& mat, SparseMatrix<typename MatrixType::Scalar,DstOrder,typename MatrixType::StorageIndex>& _dest, const typename MatrixType::StorageIndex* perm)
+template<int SrcMode_,int DstMode_,typename MatrixType, int DstOrder_>
+void permute_symm_to_symm(const MatrixType& mat, SparseMatrix<typename MatrixType::Scalar, DstOrder_, typename MatrixType::StorageIndex>& _dest, const typename MatrixType::StorageIndex* perm)
 {
   typedef typename MatrixType::StorageIndex StorageIndex;
   typedef typename MatrixType::Scalar Scalar;
-  SparseMatrix<Scalar,DstOrder,StorageIndex>& dest(_dest.derived());
+  SparseMatrix<Scalar,DstOrder_,StorageIndex>& dest(_dest.derived());
   typedef Matrix<StorageIndex,Dynamic,1> VectorI;
   typedef evaluator<MatrixType> MatEval;
   typedef typename evaluator<MatrixType>::InnerIterator MatIterator;
 
-  enum {
-    SrcOrder = MatrixType::IsRowMajor ? RowMajor : ColMajor,
-    StorageOrderMatch = int(SrcOrder) == int(DstOrder),
-    DstMode = DstOrder==RowMajor ? (DstMode_==Upper ? Lower : Upper) : DstMode_,
-    SrcMode = SrcOrder==RowMajor ? (SrcMode_==Upper ? Lower : Upper) : SrcMode_
-  };
+  constexpr StorageOrder SrcOrder = MatrixType::IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor;
+  constexpr StorageOrder DstOrder = get_storage_order(DstOrder_);
+  constexpr bool StorageOrderMatch = SrcOrder == DstOrder;
+  constexpr int DstMode = is_row_major(DstOrder) ? (DstMode_ == Upper ? Lower : Upper) : DstMode_;
+  constexpr int SrcMode = is_row_major(SrcOrder) ? (SrcMode_==Upper ? Lower : Upper) : SrcMode_;
 
   MatEval matEval(mat);
   
@@ -623,7 +622,7 @@ class SparseSymmetricPermutationProduct
 };
 
 namespace internal {
-  
+
 template<typename DstXprType, typename MatrixType, int Mode, typename Scalar>
 struct Assignment<DstXprType, SparseSymmetricPermutationProduct<MatrixType,Mode>, internal::assign_op<Scalar,typename MatrixType::Scalar>, Sparse2Sparse>
 {
@@ -633,7 +632,7 @@ struct Assignment<DstXprType, SparseSymmetricPermutationProduct<MatrixType,Mode>
   static void run(SparseMatrix<Scalar,Options,DstIndex> &dst, const SrcXprType &src, const internal::assign_op<Scalar,typename MatrixType::Scalar> &)
   {
     // internal::permute_symm_to_fullsymm<Mode>(m_matrix,_dest,m_perm.indices().data());
-    SparseMatrix<Scalar,(Options&RowMajor)==RowMajor ? ColMajor : RowMajor, DstIndex> tmp;
+    SparseMatrix<Scalar,storage_order_flag(transposed(get_storage_order(Options))), DstIndex> tmp;
     internal::permute_symm_to_fullsymm<Mode>(src.matrix(),tmp,src.perm().indices().data());
     dst = tmp;
   }

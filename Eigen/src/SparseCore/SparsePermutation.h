@@ -62,7 +62,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
       }
       else
       {
-        SparseMatrix<Scalar,int(SrcStorageOrder)==RowMajor?ColMajor:RowMajor,StorageIndex> tmp(mat.rows(), mat.cols());
+        SparseMatrix<Scalar,storage_order_flag(transposed(SrcStorageOrder)),StorageIndex> tmp(mat.rows(), mat.cols());
         Matrix<StorageIndex,Dynamic,1> sizes(tmp.outerSize());
         sizes.setZero();
         PermutationMatrix<Dynamic,Dynamic,StorageIndex> perm_cpy;

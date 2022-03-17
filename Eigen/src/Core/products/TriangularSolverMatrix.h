@@ -17,7 +17,7 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder,int OtherInnerStride>
+template <typename Scalar, typename Index, int Mode, bool Conjugate, StorageOrder TriStorageOrder, int OtherInnerStride>
 struct trsm_kernels {
   // Generic Implementation of triangular solve for triangular matrix on left and multiple rhs.
   // Handles non-packed matrices.
@@ -34,14 +34,14 @@ struct trsm_kernels {
     Scalar* _other, Index otherIncr, Index otherStride);
 };
 
-template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder,int OtherInnerStride>
+template <typename Scalar, typename Index, int Mode, bool Conjugate, StorageOrder TriStorageOrder, int OtherInnerStride>
 EIGEN_STRONG_INLINE void trsm_kernels<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride>::trsmKernelL(
     Index size, Index otherSize,
     const Scalar* _tri, Index triStride,
     Scalar* _other, Index otherIncr, Index otherStride)
   {
     typedef const_blas_data_mapper<Scalar, Index, TriStorageOrder> TriMapper;
-    typedef blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride> OtherMapper;
+    typedef blas_data_mapper<Scalar, Index, StorageOrder::ColMajor, Unaligned, OtherInnerStride> OtherMapper;
     TriMapper tri(_tri, triStride);
     OtherMapper other(_other, otherStride, otherIncr);
 
@@ -54,13 +54,13 @@ EIGEN_STRONG_INLINE void trsm_kernels<Scalar, Index, Mode, Conjugate, TriStorage
       // TODO write a small kernel handling this (can be shared with trsv)
       Index i  = IsLower ? k : -k-1;
       Index rs = size - k - 1; // remaining size
-      Index s  = TriStorageOrder==RowMajor ? (IsLower ? 0 : i+1)
+      Index s  = is_row_major(TriStorageOrder) ? (IsLower ? 0 : i+1)
         :  IsLower ? i+1 : i-rs;
 
       Scalar a = (Mode & UnitDiag) ? Scalar(1) : Scalar(1)/conj(tri(i,i));
       for (Index j=0; j<otherSize; ++j)
       {
-        if (TriStorageOrder==RowMajor)
+        if (is_row_major(TriStorageOrder))
         {
           Scalar b(0);
           const Scalar* l = &tri(i,s);
@@ -85,22 +85,19 @@ EIGEN_STRONG_INLINE void trsm_kernels<Scalar, Index, Mode, Conjugate, TriStorage
   }
 
 
-template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride>
+template <typename Scalar, typename Index, int Mode, bool Conjugate, StorageOrder TriStorageOrder, int OtherInnerStride>
 EIGEN_STRONG_INLINE void trsm_kernels<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride>::trsmKernelR(
     Index size, Index otherSize,
     const Scalar* _tri, Index triStride,
     Scalar* _other, Index otherIncr, Index otherStride)
 {
   typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride> LhsMapper;
+  typedef blas_data_mapper<Scalar, Index, StorageOrder::ColMajor, Unaligned, OtherInnerStride> LhsMapper;
   typedef const_blas_data_mapper<Scalar, Index, TriStorageOrder> RhsMapper;
   LhsMapper lhs(_other, otherStride, otherIncr);
   RhsMapper rhs(_tri, triStride);
 
-  enum {
-    RhsStorageOrder   = TriStorageOrder,
-    IsLower = (Mode&Lower) == Lower
-  };
+  constexpr bool IsLower = (Mode&Lower) == Lower;
   conj_if<Conjugate> conj;
 
   for (Index k=0; k<size; ++k)

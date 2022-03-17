@@ -96,7 +96,7 @@ template<typename MatrixType_> class EigenSolver
       * This is a column vector with entries of type #ComplexScalar.
       * The length of the vector is the size of #MatrixType.
       */
-    typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> EigenvalueType;
+    typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxColsAtCompileTime, 1> EigenvalueType;
 
     /** \brief Type for matrix of eigenvectors as returned by eigenvectors(). 
       *
@@ -318,7 +318,7 @@ template<typename MatrixType_> class EigenSolver
     RealSchur<MatrixType> m_realSchur;
     MatrixType m_matT;
 
-    typedef Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> ColumnVectorType;
+    typedef Matrix<Scalar, ColsAtCompileTime, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxColsAtCompileTime, 1> ColumnVectorType;
     ColumnVectorType m_tmp;
 };
 

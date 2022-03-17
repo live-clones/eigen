@@ -16,11 +16,11 @@ namespace Eigen {
 
 namespace internal {
 
-template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int StorageOrder, int Version=Specialized>
+template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, StorageOrder StorageOrder_, int Version=Specialized>
 struct triangular_matrix_vector_product;
 
 template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int Version>
-struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,ColMajor,Version>
+struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,StorageOrder::ColMajor,Version>
 {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
   enum {
@@ -33,7 +33,7 @@ struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,C
 };
 
 template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int Version>
-EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,ColMajor,Version>
+EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,StorageOrder::ColMajor,Version>
   ::run(Index _rows, Index _cols, const LhsScalar* _lhs, Index lhsStride,
         const RhsScalar* _rhs, Index rhsIncr, ResScalar* _res, Index resIncr, const RhsScalar& alpha)
   {
@@ -91,7 +91,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,Con
   }
 
 template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs,int Version>
-struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,RowMajor,Version>
+struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,StorageOrder::RowMajor,Version>
 {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
   enum {
@@ -104,7 +104,7 @@ struct triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,C
 };
 
 template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs,int Version>
-EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,RowMajor,Version>
+EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,StorageOrder::RowMajor,Version>
   ::run(Index _rows, Index _cols, const LhsScalar* _lhs, Index lhsStride,
         const RhsScalar* _rhs, Index rhsIncr, ResScalar* _res, Index resIncr, const ResScalar& alpha)
   {
@@ -263,7 +263,7 @@ template<int Mode> struct trmv_selector<Mode,StorageOrder::ColMajor>
       <Index,Mode,
        LhsScalar, LhsBlasTraits::NeedToConjugate,
        RhsScalar, RhsBlasTraits::NeedToConjugate,
-       ColMajor>
+       StorageOrder::ColMajor>
       ::run(actualLhs.rows(),actualLhs.cols(),
             actualLhs.data(),actualLhs.outerStride(),
             actualRhs.data(),actualRhs.innerStride(),
@@ -329,7 +329,7 @@ template<int Mode> struct trmv_selector<Mode,StorageOrder::RowMajor>
       <Index,Mode,
        LhsScalar, LhsBlasTraits::NeedToConjugate,
        RhsScalar, RhsBlasTraits::NeedToConjugate,
-       RowMajor>
+       StorageOrder::RowMajor>
       ::run(actualLhs.rows(),actualLhs.cols(),
             actualLhs.data(),actualLhs.outerStride(),
             actualRhsPtr,1,

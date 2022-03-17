@@ -242,8 +242,8 @@ template<typename Scalar_, int Rows_, int Cols_,
     enum {
       IsColVector = Cols_==1 && Rows_!=1,
       IsRowVector = Rows_==1 && Cols_!=1,
-      Options = IsColVector ? (Options_ | ColMajor) & ~RowMajor
-              : IsRowVector ? (Options_ | RowMajor) & ~ColMajor
+      Options = IsColVector ? with_storage_order(Options_, StorageOrder::ColMajor)
+              : IsRowVector ? with_storage_order(Options_, StorageOrder::RowMajor)
               : Options_
     };
   public:
@@ -579,9 +579,9 @@ template<typename ExpressionType, typename Scalar = typename ExpressionType::Sca
 struct plain_row_type
 {
   typedef Matrix<Scalar, 1, ExpressionType::ColsAtCompileTime,
-                 int(ExpressionType::PlainObject::Options) | int(RowMajor), 1, ExpressionType::MaxColsAtCompileTime> MatrixRowType;
+                 with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::RowMajor), 1, ExpressionType::MaxColsAtCompileTime> MatrixRowType;
   typedef Array<Scalar, 1, ExpressionType::ColsAtCompileTime,
-                 int(ExpressionType::PlainObject::Options) | int(RowMajor), 1, ExpressionType::MaxColsAtCompileTime> ArrayRowType;
+                 with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::RowMajor), 1, ExpressionType::MaxColsAtCompileTime> ArrayRowType;
 
   typedef std::conditional_t<
     is_same< typename traits<ExpressionType>::XprKind, MatrixXpr >::value,
@@ -593,10 +593,9 @@ struct plain_row_type
 template<typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
 struct plain_col_type
 {
-  typedef Matrix<Scalar, ExpressionType::RowsAtCompileTime, 1,
-                 ExpressionType::PlainObject::Options & ~RowMajor, ExpressionType::MaxRowsAtCompileTime, 1> MatrixColType;
-  typedef Array<Scalar, ExpressionType::RowsAtCompileTime, 1,
-                 ExpressionType::PlainObject::Options & ~RowMajor, ExpressionType::MaxRowsAtCompileTime, 1> ArrayColType;
+  constexpr static int NewOptions = with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::ColMajor);
+  typedef Matrix<Scalar, ExpressionType::RowsAtCompileTime, 1, NewOptions, ExpressionType::MaxRowsAtCompileTime, 1> MatrixColType;
+  typedef Array<Scalar, ExpressionType::RowsAtCompileTime, 1, NewOptions, ExpressionType::MaxRowsAtCompileTime, 1> ArrayColType;
 
   typedef std::conditional_t<
     is_same< typename traits<ExpressionType>::XprKind, MatrixXpr >::value,
@@ -608,12 +607,13 @@ struct plain_col_type
 template<typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
 struct plain_diag_type
 {
+  constexpr static int NewOptions = with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::ColMajor);
   enum { diag_size = internal::min_size_prefer_dynamic(ExpressionType::RowsAtCompileTime, ExpressionType::ColsAtCompileTime),
          max_diag_size = min_size_prefer_fixed(ExpressionType::MaxRowsAtCompileTime,
                                                ExpressionType::MaxColsAtCompileTime)
   };
-  typedef Matrix<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1> MatrixDiagType;
-  typedef Array<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1> ArrayDiagType;
+  typedef Matrix<Scalar, diag_size, 1, NewOptions, max_diag_size, 1> MatrixDiagType;
+  typedef Array<Scalar, diag_size, 1, NewOptions, max_diag_size, 1> ArrayDiagType;
 
   typedef std::conditional_t<
     is_same< typename traits<ExpressionType>::XprKind, MatrixXpr >::value,

@@ -45,24 +45,24 @@ namespace internal {
 
 // trmv/hemv specialization
 
-template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int StorageOrder>
+template<typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, StorageOrder StorageOrder_>
 struct triangular_matrix_vector_product_trmv :
-  triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,StorageOrder,BuiltIn> {};
+  triangular_matrix_vector_product<Index,Mode,LhsScalar,ConjLhs,RhsScalar,ConjRhs,StorageOrder_,BuiltIn> {};
 
 #define EIGEN_BLAS_TRMV_SPECIALIZE(Scalar) \
 template<typename Index, int Mode, bool ConjLhs, bool ConjRhs> \
-struct triangular_matrix_vector_product<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,ColMajor,Specialized> { \
+struct triangular_matrix_vector_product<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,StorageOrder::ColMajor,Specialized> { \
  static void run(Index _rows, Index _cols, const Scalar* _lhs, Index lhsStride, \
                                      const Scalar* _rhs, Index rhsIncr, Scalar* _res, Index resIncr, Scalar alpha) { \
-      triangular_matrix_vector_product_trmv<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,ColMajor>::run( \
+      triangular_matrix_vector_product_trmv<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,StorageOrder::ColMajor>::run( \
         _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
   } \
 }; \
 template<typename Index, int Mode, bool ConjLhs, bool ConjRhs> \
-struct triangular_matrix_vector_product<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,RowMajor,Specialized> { \
+struct triangular_matrix_vector_product<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,StorageOrder::RowMajor,Specialized> { \
  static void run(Index _rows, Index _cols, const Scalar* _lhs, Index lhsStride, \
                                      const Scalar* _rhs, Index rhsIncr, Scalar* _res, Index resIncr, Scalar alpha) { \
-      triangular_matrix_vector_product_trmv<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,RowMajor>::run( \
+      triangular_matrix_vector_product_trmv<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,StorageOrder::RowMajor>::run( \
         _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
   } \
 };
@@ -75,7 +75,7 @@ EIGEN_BLAS_TRMV_SPECIALIZE(scomplex)
 // implements col-major: res += alpha * op(triangular) * vector
 #define EIGEN_BLAS_TRMV_CM(EIGTYPE, BLASTYPE, EIGPREFIX, BLASPREFIX, BLASPOSTFIX) \
 template<typename Index, int Mode, bool ConjLhs, bool ConjRhs> \
-struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,ColMajor> { \
+struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,StorageOrder::ColMajor> { \
   enum { \
     IsLower = (Mode&Lower) == Lower, \
     SetDiag = (Mode&(ZeroDiag|UnitDiag)) ? 0 : 1, \
@@ -87,7 +87,7 @@ struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,
                  const EIGTYPE* _rhs, Index rhsIncr, EIGTYPE* _res, Index resIncr, EIGTYPE alpha) \
  { \
    if (ConjLhs || IsZeroDiag) { \
-     triangular_matrix_vector_product<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,ColMajor,BuiltIn>::run( \
+     triangular_matrix_vector_product<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,StorageOrder::ColMajor,BuiltIn>::run( \
        _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
      return; \
    }\
@@ -164,7 +164,7 @@ EIGEN_BLAS_TRMV_CM(scomplex, float,  cf, c, _)
 // implements row-major: res += alpha * op(triangular) * vector
 #define EIGEN_BLAS_TRMV_RM(EIGTYPE, BLASTYPE, EIGPREFIX, BLASPREFIX, BLASPOSTFIX) \
 template<typename Index, int Mode, bool ConjLhs, bool ConjRhs> \
-struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,RowMajor> { \
+struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,StorageOrder::RowMajor> { \
   enum { \
     IsLower = (Mode&Lower) == Lower, \
     SetDiag = (Mode&(ZeroDiag|UnitDiag)) ? 0 : 1, \
@@ -176,7 +176,7 @@ struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,
                  const EIGTYPE* _rhs, Index rhsIncr, EIGTYPE* _res, Index resIncr, EIGTYPE alpha) \
  { \
    if (IsZeroDiag) { \
-     triangular_matrix_vector_product<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,RowMajor,BuiltIn>::run( \
+     triangular_matrix_vector_product<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,StorageOrder::RowMajor,BuiltIn>::run( \
        _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
      return; \
    }\

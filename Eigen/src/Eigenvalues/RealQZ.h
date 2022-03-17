@@ -71,8 +71,8 @@ namespace Eigen {
       typedef std::complex<typename NumTraits<Scalar>::Real> ComplexScalar;
       typedef Eigen::Index Index; ///< \deprecated since Eigen 3.3
 
-      typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> EigenvalueType;
-      typedef Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> ColumnVectorType;
+      typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxColsAtCompileTime, 1> EigenvalueType;
+      typedef Matrix<Scalar, ColsAtCompileTime, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxColsAtCompileTime, 1> ColumnVectorType;
 
       /** \brief Default constructor.
        *

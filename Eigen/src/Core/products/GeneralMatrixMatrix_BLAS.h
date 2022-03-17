@@ -51,8 +51,8 @@ namespace internal {
 #define GEMM_SPECIALIZATION(EIGTYPE, EIGPREFIX, BLASTYPE, BLASFUNC) \
 template< \
   typename Index, \
-  int LhsStorageOrder, bool ConjugateLhs, \
-  int RhsStorageOrder, bool ConjugateRhs> \
+  StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+  StorageOrder RhsStorageOrder, bool ConjugateRhs> \
 struct general_matrix_matrix_product<Index,EIGTYPE,LhsStorageOrder,ConjugateLhs,EIGTYPE,RhsStorageOrder,ConjugateRhs,ColMajor,1> \
 { \
 typedef gebp_traits<EIGTYPE,EIGTYPE> Traits; \
@@ -76,8 +76,8 @@ static void run(Index rows, Index cols, Index depth, \
   MatrixX##EIGPREFIX a_tmp, b_tmp; \
 \
 /* Set transpose options */ \
-  transa = (LhsStorageOrder==RowMajor) ? ((ConjugateLhs) ? 'C' : 'T') : 'N'; \
-  transb = (RhsStorageOrder==RowMajor) ? ((ConjugateRhs) ? 'C' : 'T') : 'N'; \
+  transa = is_row_major(LhsStorageOrder) ? ((ConjugateLhs) ? 'C' : 'T') : 'N'; \
+  transb = is_row_major(RhsStorageOrder) ? ((ConjugateRhs) ? 'C' : 'T') : 'N'; \
 \
 /* Set m, n, k */ \
   m = convert_index<BlasIndex>(rows);  \
