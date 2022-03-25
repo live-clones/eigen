@@ -32,7 +32,7 @@ struct traits<TensorConversionOp<TargetType, XprType> >
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
-  static constexpr int Layout = traits<XprType>::Layout;
+  static constexpr StorageOrder Layout = traits<XprType>::Layout;
   enum { Flags = 0 };
   typedef typename TypeConversion<Scalar, typename traits<XprType>::PointerType>::type PointerType;
 };
@@ -336,7 +336,7 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device>
     RawAccess         = false
   };
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//

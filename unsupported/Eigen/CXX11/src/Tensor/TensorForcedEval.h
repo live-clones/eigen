@@ -33,7 +33,7 @@ struct traits<TensorForcedEvalOp<XprType> >
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 
   enum {
@@ -125,7 +125,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device>
     RawAccess         = true
   };
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   static constexpr int NumDims = internal::traits<ArgType>::NumDimensions;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//

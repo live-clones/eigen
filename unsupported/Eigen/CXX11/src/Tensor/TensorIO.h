@@ -105,15 +105,15 @@ struct TensorIOFormat {
   bool legacy_bit = false;
 };
 
-template <typename T, int Layout, int rank>
+template <typename T, StorageOrder Layout, int rank>
 class TensorWithFormat;
 // specialize for Layout=ColMajor, Layout=RowMajor and rank=0.
 template <typename T, int rank>
-class TensorWithFormat<T, RowMajor, rank> {
+class TensorWithFormat<T, StorageOrder::RowMajor, rank> {
  public:
   TensorWithFormat(const T& tensor, const TensorIOFormat& format) : t_tensor(tensor), t_format(format) {}
 
-  friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, RowMajor, rank>& wf) {
+  friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, StorageOrder::RowMajor, rank>& wf) {
     // Evaluate the expression if needed
     typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
     TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
@@ -131,11 +131,11 @@ class TensorWithFormat<T, RowMajor, rank> {
 };
 
 template <typename T, int rank>
-class TensorWithFormat<T, ColMajor, rank> {
+class TensorWithFormat<T, StorageOrder::ColMajor, rank> {
  public:
   TensorWithFormat(const T& tensor, const TensorIOFormat& format) : t_tensor(tensor), t_format(format) {}
 
-  friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, ColMajor, rank>& wf) {
+  friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, StorageOrder::ColMajor, rank>& wf) {
     // Switch to RowMajor storage and print afterwards
     typedef typename T::Index IndexType;
     std::array<IndexType, rank> shuffle;
@@ -161,11 +161,11 @@ class TensorWithFormat<T, ColMajor, rank> {
 };
 
 template <typename T>
-class TensorWithFormat<T, ColMajor, 0> {
+class TensorWithFormat<T, StorageOrder::ColMajor, 0> {
  public:
   TensorWithFormat(const T& tensor, const TensorIOFormat& format) : t_tensor(tensor), t_format(format) {}
 
-  friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, ColMajor, 0>& wf) {
+  friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, StorageOrder::ColMajor, 0>& wf) {
     // Evaluate the expression if needed
     typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
     TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
@@ -188,21 +188,22 @@ struct TensorPrinter {
   static void run(std::ostream& s, const Tensor& _t, const TensorIOFormat& fmt) {
     typedef std::remove_const_t<typename Tensor::Scalar> Scalar;
     typedef typename Tensor::Index IndexType;
-    static const int layout = Tensor::Layout;
+    constexpr StorageOrder layout = Tensor::Layout;
     // backwards compatibility case: print tensor after reshaping to matrix of size dim(0) x
     // (dim(1)*dim(2)*...*dim(rank-1)).
     if (fmt.legacy_bit) {
       const IndexType total_size = internal::array_prod(_t.dimensions());
       if (total_size > 0) {
         const IndexType first_dim = Eigen::internal::array_get<0>(_t.dimensions());
-        Map<const Array<Scalar, Dynamic, Dynamic, layout> > matrix(_t.data(), first_dim,
+        Map<const Array<Scalar, Dynamic, Dynamic, storage_order_flag(layout)> > matrix(_t.data(), first_dim,
                                                                    total_size / first_dim);
         s << matrix;
         return;
       }
     }
 
-    assert(layout == RowMajor);
+    // TODO static_assert?
+    assert(is_row_major(layout));
     typedef std::conditional_t<is_same<Scalar, char>::value || is_same<Scalar, unsigned char>::value ||
                              is_same<Scalar, numext::int8_t>::value || is_same<Scalar, numext::uint8_t>::value,
                           int,

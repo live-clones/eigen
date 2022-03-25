@@ -43,7 +43,7 @@ struct TensorEvaluator
   // NumDimensions is -1 for variable dim tensors
   static constexpr int NumCoords = internal::traits<Derived>::NumDimensions > 0 ?
                                    internal::traits<Derived>::NumDimensions : 0;
-  static constexpr int Layout = Derived::Layout;
+  static constexpr StorageOrder Layout = Derived::Layout;
 
   enum {
     IsAligned          = Derived::IsAligned,
@@ -129,7 +129,7 @@ struct TensorEvaluator
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(const array<DenseIndex, NumCoords>& coords) const {
     eigen_assert(m_data != NULL);
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       return m_data[m_dims.IndexOfColMajor(coords)];
     } else {
       return m_data[m_dims.IndexOfRowMajor(coords)];
@@ -139,7 +139,7 @@ struct TensorEvaluator
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType&
   coeffRef(const array<DenseIndex, NumCoords>& coords) {
     eigen_assert(m_data != NULL);
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       return m_data[m_dims.IndexOfColMajor(coords)];
     } else {
       return m_data[m_dims.IndexOfRowMajor(coords)];
@@ -243,7 +243,7 @@ struct TensorEvaluator<const Derived, Device>
   static constexpr int NumCoords = internal::traits<Derived>::NumDimensions > 0 ?
                                    internal::traits<Derived>::NumDimensions : 0;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  static constexpr int Layout = Derived::Layout;
+  static constexpr StorageOrder Layout = Derived::Layout;
 
   enum {
     IsAligned         = Derived::IsAligned,
@@ -313,7 +313,7 @@ struct TensorEvaluator<const Derived, Device>
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(const array<DenseIndex, NumCoords>& coords) const {
     eigen_assert(m_data != NULL);
-    const Index index = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? m_dims.IndexOfColMajor(coords)
+    const Index index = (is_col_major(Layout)) ? m_dims.IndexOfColMajor(coords)
                         : m_dims.IndexOfRowMajor(coords);
     return internal::loadConstant(m_data+index);
   }
@@ -371,7 +371,7 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device>
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = true,
     PacketAccess = internal::functor_traits<NullaryOp>::PacketAccess
@@ -444,7 +444,7 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device>
 {
   typedef TensorCwiseUnaryOp<UnaryOp, ArgType> XprType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned          = TensorEvaluator<ArgType, Device>::IsAligned,
     PacketAccess       = int(TensorEvaluator<ArgType, Device>::PacketAccess) &
@@ -556,7 +556,7 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
 {
   typedef TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArgType> XprType;
 
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned         = int(TensorEvaluator<LeftArgType, Device>::IsAligned) &
                         int(TensorEvaluator<RightArgType, Device>::IsAligned),
@@ -694,7 +694,7 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
 {
   typedef TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type, Arg3Type> XprType;
 
-  static constexpr int Layout = TensorEvaluator<Arg1Type, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<Arg1Type, Device>::Layout;
   enum {
     IsAligned = TensorEvaluator<Arg1Type, Device>::IsAligned & TensorEvaluator<Arg2Type, Device>::IsAligned & TensorEvaluator<Arg3Type, Device>::IsAligned,
     PacketAccess      = TensorEvaluator<Arg1Type, Device>::PacketAccess &&
@@ -812,7 +812,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   typedef TensorSelectOp<IfArgType, ThenArgType, ElseArgType> XprType;
   typedef typename XprType::Scalar Scalar;
 
-    static constexpr int Layout = TensorEvaluator<IfArgType, Device>::Layout;
+    static constexpr StorageOrder Layout = TensorEvaluator<IfArgType, Device>::Layout;
   enum {
     IsAligned         = TensorEvaluator<ThenArgType, Device>::IsAligned &
                         TensorEvaluator<ElseArgType, Device>::IsAligned,

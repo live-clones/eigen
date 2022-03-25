@@ -15,7 +15,7 @@ namespace internal {
 
 // -------------------------------------------------------------------------- //
 // Forward declarations for templates defined below.
-template <typename Scalar, typename IndexType, int NumDims, int Layout>
+template <typename Scalar, typename IndexType, int NumDims, StorageOrder Layout>
 class TensorBlockIO;
 
 // -------------------------------------------------------------------------- //
@@ -24,7 +24,7 @@ class TensorBlockIO;
 
 // TODO(ezhulenev): We compute strides 1000 times in different evaluators, use
 // this function instead everywhere.
-template <int Layout, typename IndexType, int NumDims>
+template <StorageOrder Layout, typename IndexType, int NumDims>
 EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(
     const DSizes<IndexType, NumDims>& dimensions) {
   DSizes<IndexType, NumDims> strides;
@@ -32,7 +32,7 @@ EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(
 
   // TODO(ezhulenev): Use templates to unroll this loop (similar to
   // h_array_reduce in CXX11meta.h)? Benchmark it.
-  if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+  if (is_col_major(Layout)) {
     strides[0] = 1;
     for (int i = 1; i < NumDims; ++i) {
       strides[i] = strides[i - 1] * dimensions[i - 1];
@@ -47,13 +47,13 @@ EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(
   return strides;
 }
 
-template <int Layout, typename IndexType, size_t NumDims>
+template <StorageOrder Layout, typename IndexType, size_t NumDims>
 EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(
     const Eigen::array<IndexType, NumDims>& dimensions) {
   return strides<Layout>(DSizes<IndexType, NumDims>(dimensions));
 }
 
-template <int Layout, std::ptrdiff_t... Indices>
+template <StorageOrder Layout, std::ptrdiff_t... Indices>
 EIGEN_STRONG_INLINE DSizes<std::ptrdiff_t, sizeof...(Indices)> strides(
     const Sizes<Indices...>& sizes) {
   return strides<Layout>(DSizes<std::ptrdiff_t, sizeof...(Indices)>(sizes));
@@ -256,13 +256,13 @@ class TensorBlockDescriptor {
           m_strides(strides),
           m_kind(kind) {}
 
-    template <int Layout, typename Scalar>
+    template <StorageOrder Layout, typename Scalar>
     static DestinationBuffer make(const TensorBlockDescriptor& desc,
                                   Scalar* data, const Dimensions& strides) {
       return DestinationBuffer(data, strides, kind<Layout>(desc, strides));
     }
 
-    template <int Layout>
+    template <StorageOrder Layout>
     static DestinationBufferKind kind(const TensorBlockDescriptor& desc,
                                       const Dimensions& strides) {
       const Dimensions& desc_dims = desc.dimensions();
@@ -304,14 +304,14 @@ class TensorBlockDescriptor {
 
   const DestinationBuffer& destination() const { return m_destination; }
 
-  template <int Layout, typename Scalar>
+  template <StorageOrder Layout, typename Scalar>
   void AddDestinationBuffer(Scalar* dst_base, const Dimensions& dst_strides) {
     eigen_assert(dst_base != NULL);
     m_destination =
         DestinationBuffer::template make<Layout>(*this, dst_base, dst_strides);
   }
 
-  template <int Layout, typename Scalar, typename DstStridesIndexType>
+  template <StorageOrder Layout, typename Scalar, typename DstStridesIndexType>
   void AddDestinationBuffer(
       Scalar* dst_base,
       const DSizes<DstStridesIndexType, NumDims>& dst_strides) {
@@ -345,7 +345,7 @@ class TensorBlockDescriptor {
 // -------------------------------------------------------------------------- //
 // TensorBlockMapper is responsible for iterating over the blocks of a tensor.
 
-template <int NumDims, int Layout, typename IndexType = Eigen::Index>
+template <int NumDims, StorageOrder Layout, typename IndexType = Eigen::Index>
 class TensorBlockMapper {
   typedef TensorBlockDescriptor<NumDims, IndexType> BlockDescriptor;
 
@@ -375,7 +375,7 @@ class TensorBlockMapper {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE BlockDescriptor
   blockDescriptor(IndexType block_index) const {
-    static const bool isColMajor = Layout == static_cast<int>(ColMajor);
+    constexpr bool isColMajor = is_col_major(Layout);
 
     IndexType offset = 0;
     DSizes<IndexType, NumDims> dimensions;
@@ -432,7 +432,7 @@ class TensorBlockMapper {
       return;
     }
 
-    static const bool isColMajor = Layout == static_cast<int>(ColMajor);
+    constexpr bool isColMajor = is_col_major(Layout);
 
     // Block shape skewed towards inner dimension.
     if (shape_type == TensorBlockShapeType::kSkewedInnerDims) {
@@ -653,12 +653,12 @@ struct XprScalar<void> {
 // be invalid, and should never be used in block assignment or any other tensor
 // expression.
 
-template <typename Scalar, int NumDims, int Layout,
+template <typename Scalar, int NumDims, StorageOrder Layout,
           typename IndexType = Eigen::Index>
 class TensorMaterializedBlock {
  public:
   typedef DSizes<IndexType, NumDims> Dimensions;
-  typedef TensorMap<const Tensor<Scalar, NumDims, Layout> > XprType;
+  typedef TensorMap<const Tensor<Scalar, NumDims, storage_order_flag(Layout)> > XprType;
 
   TensorMaterializedBlock(TensorBlockKind kind, const Scalar* data,
                           const Dimensions& dimensions, bool valid_expr = true)
@@ -776,12 +776,12 @@ class TensorMaterializedBlock {
     //
     // In this case we can construct a TensorBlock starting at
     // `data + desc.offset()`, with a `desc.dimensions()` block sizes.
-    static const bool is_col_major = Layout == ColMajor;
+    static const bool is_ColMajor = is_col_major(Layout);
 
     // Find out how many inner dimensions have a matching size.
     int num_matching_inner_dims = 0;
     for (int i = 0; i < NumDims; ++i) {
-      int dim = is_col_major ? i : NumDims - i - 1;
+      int dim = is_ColMajor ? i : NumDims - i - 1;
       if (data_dims[dim] != desc.dimensions()[dim]) break;
       ++num_matching_inner_dims;
     }
@@ -790,7 +790,7 @@ class TensorMaterializedBlock {
     // before the matching inner dimension (`3` in the example above).
     bool can_use_direct_access = true;
     for (int i = num_matching_inner_dims + 1; i < NumDims; ++i) {
-      int dim = is_col_major ? i : NumDims - i - 1;
+      int dim = is_ColMajor ? i : NumDims - i - 1;
       if (desc.dimension(dim) != 1) {
         can_use_direct_access = false;
         break;
@@ -1141,9 +1141,9 @@ class StridedLinearBufferCopy {
 // Dimensions of `dst` specify how many elements have to be copied, for the
 // `src` we need to know only stride to navigate through source memory buffer.
 
-template <typename Scalar, typename IndexType, int NumDims, int Layout>
+template <typename Scalar, typename IndexType, int NumDims, StorageOrder Layout>
 class TensorBlockIO {
-  static constexpr bool IsColMajor = (Layout == ColMajor);
+  static constexpr bool IsColMajor = is_col_major(Layout);
 
   typedef StridedLinearBufferCopy<Scalar, IndexType> LinCopy;
 
@@ -1473,12 +1473,11 @@ class TensorBlockAssignment {
     // Tensor block expression dimension should match destination dimensions.
     eigen_assert(dimensions_match(target.dims, eval.dimensions()));
 
-    static const int Layout = TensorBlockEvaluator::Layout;
-    static const bool is_col_major = Layout == ColMajor;
+    constexpr bool is_ColMajor = is_col_major(TensorBlockEvaluator::Layout);
 
     // Initialize output inner dimension size based on a layout.
     const IndexType output_size = NumDims == 0 ? 1 : target.dims.TotalSize();
-    const int inner_dim_idx = is_col_major ? 0 : NumDims - 1;
+    const int inner_dim_idx = is_ColMajor ? 0 : NumDims - 1;
     IndexType output_inner_dim_size = target.dims[inner_dim_idx];
 
     // Target inner dimension stride must be '1'.
@@ -1487,7 +1486,7 @@ class TensorBlockAssignment {
     // Squeeze multiple inner dims into one if they are contiguous in `target`.
     IndexType num_squeezed_dims = 0;
     for (Index i = 1; i < NumDims; ++i) {
-      const Index dim = is_col_major ? i : NumDims - i - 1;
+      const Index dim = is_ColMajor ? i : NumDims - i - 1;
       const IndexType target_stride = target.strides[dim];
 
       if (output_inner_dim_size == target_stride) {
@@ -1504,7 +1503,7 @@ class TensorBlockAssignment {
 
     int idx = 0;  // currently initialized iterator state index
     for (Index i = num_squeezed_dims; i < NumDims - 1; ++i) {
-      const Index dim = is_col_major ? i + 1 : NumDims - i - 2;
+      const Index dim = is_ColMajor ? i + 1 : NumDims - i - 2;
 
       it[idx].count = 0;
       it[idx].size = target.dims[dim];

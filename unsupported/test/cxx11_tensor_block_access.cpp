@@ -24,8 +24,8 @@ using Eigen::internal::TensorBlockShapeType;
 static TensorOpCost zeroCost() { return {0, 0, 0}; }
 
 template<typename T>
-static const T& choose(int layout, const T& col, const T& row) {
-  return layout == ColMajor ? col : row;
+static const T& choose(StorageOrder layout, const T& col, const T& row) {
+  return is_col_major(layout) ? col : row;
 }
 
 static TensorBlockShapeType RandomShape() {
@@ -65,7 +65,7 @@ static void Debug(DSizes<Index, NumDims> dims) {
   std::cout << std::endl;
 }
 
-template <int Layout>
+template <StorageOrder Layout>
 static void test_block_mapper_sanity()
 {
   typedef internal::TensorBlockMapper<2, Layout> TensorBlockMapper;
@@ -99,7 +99,7 @@ static void test_block_mapper_sanity()
 
 // Given a TensorBlock "visit" every element accessible though it, and a keep an
 // index in the visited set. Verify that every coeff accessed only once.
-template<int NumDims, int Layout>
+template<int NumDims, StorageOrder Layout>
 static void UpdateCoeffSet(
     const DSizes<Index, NumDims>& tensor_strides,
     const internal::TensorBlockDescriptor<NumDims>& block,
@@ -120,7 +120,7 @@ static void UpdateCoeffSet(
   }
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_block_mapper_maps_every_element() {
   typedef internal::TensorBlockMapper<NumDims, Layout> TensorBlockMapper;
 
@@ -225,7 +225,7 @@ public:
     }
 };
 
-template <int Layout>
+template <StorageOrder Layout>
 static void test_uniform_block_shape()
 {
   typedef internal::TensorBlockDescriptor<5> TensorBlock;
@@ -246,7 +246,7 @@ static void test_uniform_block_shape()
 
   // Test shape 'UniformAllDims' with larger 'max_coeff count' which spills
   // partially into first inner-most dimension.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(11, 5, 6, 17, 7);
     const Index max_coeff_count = 7 * 5 * 5 * 5 * 5;
     TensorBlockMapper block_mapper(dims, {TensorBlockShapeType::kUniformAllDims,
@@ -272,7 +272,7 @@ static void test_uniform_block_shape()
 
   // Test shape 'UniformAllDims' with larger 'max_coeff count' which spills
   // fully into first inner-most dimension.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(11, 5, 6, 17, 7);
     const Index max_coeff_count = 11 * 5 * 5 * 5 * 5;
     TensorBlockMapper block_mapper(dims, {TensorBlockShapeType::kUniformAllDims,
@@ -298,7 +298,7 @@ static void test_uniform_block_shape()
 
   // Test shape 'UniformAllDims' with larger 'max_coeff count' which spills
   // fully into first few inner-most dimensions.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(7, 5, 6, 17, 7);
     const Index max_coeff_count = 7 * 5 * 6 * 7 * 5;
     TensorBlockMapper block_mapper(dims, {TensorBlockShapeType::kUniformAllDims,
@@ -325,7 +325,7 @@ static void test_uniform_block_shape()
   }
 
   // Test shape 'UniformAllDims' with full allocation to all dims.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(7, 5, 6, 17, 7);
     const Index max_coeff_count = 7 * 5 * 6 * 17 * 7;
     TensorBlockMapper block_mapper(dims, {TensorBlockShapeType::kUniformAllDims,
@@ -352,14 +352,14 @@ static void test_uniform_block_shape()
   }
 }
 
-template <int Layout>
+template <StorageOrder Layout>
 static void test_skewed_inner_dim_block_shape()
 {
   typedef internal::TensorBlockDescriptor<5> TensorBlock;
   typedef internal::TensorBlockMapper<5, Layout> TensorBlockMapper;
 
   // Test shape 'SkewedInnerDims' with partial allocation to inner-most dim.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(11, 5, 6, 17, 7);
     const Index max_coeff_count = 10 * 1 * 1 * 1 * 1;
     TensorBlockMapper block_mapper(
@@ -386,7 +386,7 @@ static void test_skewed_inner_dim_block_shape()
   }
 
   // Test shape 'SkewedInnerDims' with full allocation to inner-most dim.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(11, 5, 6, 17, 7);
     const Index max_coeff_count = 11 * 1 * 1 * 1 * 1;
     TensorBlockMapper block_mapper(
@@ -414,7 +414,7 @@ static void test_skewed_inner_dim_block_shape()
 
   // Test shape 'SkewedInnerDims' with full allocation to inner-most dim,
   // and partial allocation to second inner-dim.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(11, 5, 6, 17, 7);
     const Index max_coeff_count = 11 * 3 * 1 * 1 * 1;
     TensorBlockMapper block_mapper(
@@ -444,7 +444,7 @@ static void test_skewed_inner_dim_block_shape()
 
   // Test shape 'SkewedInnerDims' with full allocation to inner-most dim,
   // and partial allocation to third inner-dim.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(11, 5, 6, 17, 7);
     const Index max_coeff_count = 11 * 5 * 5 * 1 * 1;
     TensorBlockMapper block_mapper(
@@ -475,7 +475,7 @@ static void test_skewed_inner_dim_block_shape()
   }
 
   // Test shape 'SkewedInnerDims' with full allocation to all dims.
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     DSizes<Index, 5> dims(11, 5, 6, 17, 7);
     const Index max_coeff_count = 11 * 5 * 6 * 17 * 7;
     TensorBlockMapper block_mapper(
@@ -504,7 +504,7 @@ static void test_skewed_inner_dim_block_shape()
   }
 }
 
-template <int Layout>
+template <StorageOrder Layout>
 static void test_empty_dims(const internal::TensorBlockShapeType block_shape)
 {
   // Test blocking of tensors with zero dimensions:
@@ -544,24 +544,24 @@ static void test_empty_dims(const internal::TensorBlockShapeType block_shape)
 }
 
 #define TEST_LAYOUTS(NAME) \
-  CALL_SUBTEST(NAME<ColMajor>()); \
-  CALL_SUBTEST(NAME<RowMajor>())
+  CALL_SUBTEST(NAME<StorageOrder::ColMajor>()); \
+  CALL_SUBTEST(NAME<StorageOrder::RowMajor>())
 
 #define TEST_LAYOUTS_AND_DIMS(TYPE, NAME)    \
-  CALL_SUBTEST((NAME<TYPE, 1, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 1, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 2, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 2, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 3, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 3, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 4, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 4, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 5, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 5, RowMajor>()))
+  CALL_SUBTEST((NAME<TYPE, 1, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 1, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 2, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 2, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 3, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 3, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 4, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 5, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<TYPE, 5, StorageOrder::RowMajor>()))
 
 #define TEST_LAYOUTS_WITH_ARG(NAME, ARG) \
-  CALL_SUBTEST(NAME<ColMajor>(ARG)); \
-  CALL_SUBTEST(NAME<RowMajor>(ARG))
+  CALL_SUBTEST(NAME<StorageOrder::ColMajor>(ARG)); \
+  CALL_SUBTEST(NAME<StorageOrder::RowMajor>(ARG))
 
 EIGEN_DECLARE_TEST(cxx11_tensor_block_access) {
   TEST_LAYOUTS(test_block_mapper_sanity);

@@ -44,7 +44,7 @@ namespace internal {
   typedef typename XprTraits::Index Index;
   typedef typename XprType::Nested Nested;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 
   template <class T> struct MakePointer {
@@ -99,24 +99,24 @@ template <> struct DimInitializer<Sizes<> > {
 };
 
 
-template <typename ReducedDims, int NumTensorDims, int Layout>
+template <typename ReducedDims, int NumTensorDims, StorageOrder Layout>
 struct are_inner_most_dims {
   static const bool value = false;
 };
-template <typename ReducedDims, int NumTensorDims, int Layout>
+template <typename ReducedDims, int NumTensorDims, StorageOrder Layout>
 struct preserve_inner_most_dims {
   static const bool value = false;
 };
 
 template <typename ReducedDims, int NumTensorDims>
-struct are_inner_most_dims<ReducedDims, NumTensorDims, ColMajor>{
+struct are_inner_most_dims<ReducedDims, NumTensorDims, StorageOrder::ColMajor>{
   static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
   static const bool tmp2 = index_statically_eq<ReducedDims>(0, 0);
   static const bool tmp3 = index_statically_eq<ReducedDims>(array_size<ReducedDims>::value-1, array_size<ReducedDims>::value-1);
   static const bool value = tmp1 & tmp2 & tmp3;
 };
 template <typename ReducedDims, int NumTensorDims>
-struct are_inner_most_dims<ReducedDims, NumTensorDims, RowMajor>{
+struct are_inner_most_dims<ReducedDims, NumTensorDims, StorageOrder::RowMajor>{
   static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
   static const bool tmp2 = index_statically_eq<ReducedDims>(0, NumTensorDims - array_size<ReducedDims>::value);
   static const bool tmp3 = index_statically_eq<ReducedDims>(array_size<ReducedDims>::value - 1, NumTensorDims - 1);
@@ -124,14 +124,14 @@ struct are_inner_most_dims<ReducedDims, NumTensorDims, RowMajor>{
 
 };
 template <typename ReducedDims, int NumTensorDims>
-struct preserve_inner_most_dims<ReducedDims, NumTensorDims, ColMajor>{
+struct preserve_inner_most_dims<ReducedDims, NumTensorDims, StorageOrder::ColMajor>{
   static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
   static const bool tmp2 = index_statically_gt<ReducedDims>(0, 0);
   static const bool value = tmp1 & tmp2;
 
 };
 template <typename ReducedDims, int NumTensorDims>
-struct preserve_inner_most_dims<ReducedDims, NumTensorDims, RowMajor>{
+struct preserve_inner_most_dims<ReducedDims, NumTensorDims, StorageOrder::RowMajor>{
   static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
   static const bool tmp2 = index_statically_lt<ReducedDims>(array_size<ReducedDims>::value - 1, NumTensorDims - 1);
   static const bool value = tmp1 & tmp2;
@@ -582,7 +582,7 @@ static constexpr bool RunningOnGPU = false;
   static constexpr bool RunningOnSycl = false;
 #endif
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = Self::InputPacketAccess && ReducerTraits::PacketAccess,
@@ -624,7 +624,7 @@ static constexpr bool RunningOnGPU = false;
 
     // Precompute output strides.
     if (NumOutputDims > 0) {
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         m_outputStrides[0] = 1;
         for (int i = 1; i < NumOutputDims; ++i) {
           m_outputStrides[i] = m_outputStrides[i - 1] * m_dimensions[i - 1];
@@ -642,7 +642,7 @@ static constexpr bool RunningOnGPU = false;
     // Precompute input strides.
     if (NumInputDims > 0) {
       array<Index, NumInputDims> input_strides;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         input_strides[0] = 1;
         for (int i = 1; i < NumInputDims; ++i) {
           input_strides[i] = input_strides[i-1] * input_dims[i-1];
@@ -676,7 +676,7 @@ static constexpr bool RunningOnGPU = false;
     m_numValuesToReduce =
         NumOutputDims == 0
             ? internal::array_prod(input_dims)
-            : (static_cast<int>(Layout) == static_cast<int>(ColMajor))
+            : (is_col_major(Layout))
                   ? m_preservedStrides[0]
                   : m_preservedStrides[static_cast<size_t>(NumOutputDims - 1)];
   }
@@ -705,7 +705,7 @@ static constexpr bool RunningOnGPU = false;
     else if ((RunningOnGPU && (m_device.majorDeviceVersion() >= 3)) || (RunningOnSycl)) {
       bool reducing_inner_dims = true;
       for (int i = 0; i < NumReducedDims; ++i) {
-        if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        if (is_col_major(Layout)) {
           reducing_inner_dims &= m_reduced[i];
         } else {
           reducing_inner_dims &= m_reduced[NumInputDims - 1 - i];
@@ -739,7 +739,7 @@ static constexpr bool RunningOnGPU = false;
 
       bool preserving_inner_dims = true;
       for (int i = 0; i < NumReducedDims; ++i) {
-        if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        if (is_col_major(Layout)) {
           preserving_inner_dims &= m_reduced[NumInputDims - 1 - i];
         } else {
           preserving_inner_dims &= m_reduced[i];
@@ -823,7 +823,7 @@ static constexpr bool RunningOnGPU = false;
     Op reducer(m_reducer);
     if (ReducingInnerMostDims || RunningFullReduction) {
       const Index num_values_to_reduce =
-        (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? m_preservedStrides[0] : m_preservedStrides[NumPreservedStrides - 1];
+        (is_col_major(Layout)) ? m_preservedStrides[0] : m_preservedStrides[NumPreservedStrides - 1];
       return internal::InnerMostDimReducer<Self, Op>::reduce(*this, firstInput(index),
                                                              num_values_to_reduce, reducer);
     } else {
@@ -846,7 +846,7 @@ static constexpr bool RunningOnGPU = false;
     EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
     if (ReducingInnerMostDims) {
       const Index num_values_to_reduce =
-        (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? m_preservedStrides[0] : m_preservedStrides[NumPreservedStrides - 1];
+        (is_col_major(Layout)) ? m_preservedStrides[0] : m_preservedStrides[NumPreservedStrides - 1];
       const Index firstIndex = firstInput(index);
       for (Index i = 0; i < PacketSize; ++i) {
         Op reducer(m_reducer);
@@ -855,7 +855,7 @@ static constexpr bool RunningOnGPU = false;
       }
     } else if (PreservingInnerMostDims) {
       const Index firstIndex = firstInput(index);
-      const int innermost_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumOutputDims - 1;
+      const int innermost_dim = (is_col_major(Layout)) ? 0 : NumOutputDims - 1;
       // TBD: extend this the the n innermost dimensions that we preserve.
       if (((firstIndex % m_dimensions[innermost_dim]) + PacketSize - 1) < m_dimensions[innermost_dim]) {
         Op reducer(m_reducer);
@@ -938,7 +938,7 @@ static constexpr bool RunningOnGPU = false;
   // used to compute the reduction at output index "index".
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
     if (ReducingInnerMostDims) {
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         return index * m_preservedStrides[0];
       } else {
         return index * m_preservedStrides[NumPreservedStrides - 1];
@@ -946,7 +946,7 @@ static constexpr bool RunningOnGPU = false;
     }
     // TBD: optimize the case where we preserve the innermost dimensions.
     Index startInput = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumOutputDims - 1; i > 0; --i) {
         // This is index_i in the output tensor.
         const Index idx = index / m_outputStrides[i];

@@ -23,7 +23,7 @@ namespace Eigen {
   */
 namespace internal {
 
-template <typename Index, typename InputDims, int NumKernelDims, int Layout>
+template <typename Index, typename InputDims, int NumKernelDims, StorageOrder Layout>
 class IndexMapper {
  public:
   IndexMapper(const InputDims& input_dims, const array<Index, NumKernelDims>& kernel_dims,
@@ -40,7 +40,7 @@ class IndexMapper {
 
     array<Index, NumDims> inputStrides;
     array<Index, NumDims> outputStrides;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       inputStrides[0] = 1;
       outputStrides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
@@ -60,7 +60,7 @@ class IndexMapper {
     array<Index, NumDims> gpuOutputDimensions;
     array<Index, NumDims> tmp = dimensions;
     array<Index, NumDims> ordering;
-    const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor)
+    const size_t offset = is_col_major(Layout)
                               ? 0
                               : NumDims - NumKernelDims;
     for (int i = 0; i < NumKernelDims; ++i) {
@@ -71,7 +71,7 @@ class IndexMapper {
       gpuOutputDimensions[index] = dimensions[indices[i]];
     }
 
-    int written = static_cast<int>(Layout) == static_cast<int>(ColMajor)
+    int written = is_col_major(Layout)
                       ? NumKernelDims
                       : 0;
     for (int i = 0; i < NumDims; ++i) {
@@ -88,7 +88,7 @@ class IndexMapper {
       m_outputStrides[i] = outputStrides[ordering[i]];
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = 0; i < NumDims; ++i) {
         if (i > NumKernelDims) {
           m_gpuInputStrides[i] =
@@ -117,7 +117,7 @@ class IndexMapper {
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputPlaneToTensorInputOffset(Index p) const {
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int d = NumDims - 1; d > NumKernelDims; --d) {
         const Index idx = p / m_gpuInputStrides[d];
         inputIndex += idx * m_inputStrides[d];
@@ -141,7 +141,7 @@ class IndexMapper {
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputPlaneToTensorOutputOffset(Index p) const {
     Index outputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int d = NumDims - 1; d > NumKernelDims; --d) {
         const Index idx = p / m_gpuOutputStrides[d];
         outputIndex += idx * m_outputStrides[d];
@@ -164,45 +164,33 @@ class IndexMapper {
   }
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputKernelToTensorInputOffset(Index i) const {
-    const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor)
-                              ? 0
-                              : NumDims - NumKernelDims;
+    const size_t offset = is_col_major(Layout) ? 0 : NumDims - NumKernelDims;
     return i * m_inputStrides[offset];
   }
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputKernelToTensorOutputOffset(Index i) const {
-    const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor)
-                              ? 0
-                              : NumDims - NumKernelDims;
+    const size_t offset = is_col_major(Layout) ? 0 : NumDims - NumKernelDims;
     return i * m_outputStrides[offset];
   }
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputKernelToTensorInputOffset(Index i, Index j) const {
-    const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor)
-                              ? 0
-                              : NumDims - NumKernelDims;
+    const size_t offset = is_col_major(Layout) ? 0 : NumDims - NumKernelDims;
     return i * m_inputStrides[offset] + j * m_inputStrides[offset + 1];
   }
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputKernelToTensorOutputOffset(Index i, Index j) const {
-    const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor)
-                              ? 0
-                              : NumDims - NumKernelDims;
+    const size_t offset = is_col_major(Layout) ? 0 : NumDims - NumKernelDims;
     return i * m_outputStrides[offset] + j * m_outputStrides[offset + 1];
   }
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputKernelToTensorInputOffset(Index i, Index j, Index k) const {
-    const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor)
-                              ? 0
-                              : NumDims - NumKernelDims;
+    const size_t offset = is_col_major(Layout) ? 0 : NumDims - NumKernelDims;
     return i * m_inputStrides[offset] + j * m_inputStrides[offset + 1] +
            k * m_inputStrides[offset + 2];
   }
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputKernelToTensorOutputOffset(Index i, Index j, Index k) const {
-    const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor)
-                              ? 0
-                              : NumDims - NumKernelDims;
+    const size_t offset = is_col_major(Layout) ? 0 : NumDims - NumKernelDims;
     return i * m_outputStrides[offset] + j * m_outputStrides[offset + 1] +
            k * m_outputStrides[offset + 2];
   }
@@ -232,7 +220,7 @@ struct traits<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType> >
   typedef std::remove_reference_t<LhsNested> LhsNested_;
   typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr int NumDimensions = traits<InputXprType>::NumDimensions;
-  static constexpr int Layout = traits<InputXprType>::Layout;
+  static constexpr StorageOrder Layout = traits<InputXprType>::Layout;
   typedef std::conditional_t<Pointer_type_promotion<typename InputXprType::Scalar, Scalar>::val,
   typename traits<InputXprType>::PointerType, typename traits<KernelXprType>::PointerType> PointerType;
 
@@ -308,7 +296,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   typedef StorageMemory<Scalar, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<InputArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<InputArgType, Device>::Layout;
   enum {
     IsAligned = int(TensorEvaluator<InputArgType, Device>::IsAligned) & int(TensorEvaluator<KernelArgType, Device>::IsAligned),
     PacketAccess = int(TensorEvaluator<InputArgType, Device>::PacketAccess) & int(TensorEvaluator<KernelArgType, Device>::PacketAccess),
@@ -330,7 +318,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     const typename TensorEvaluator<InputArgType, Device>::Dimensions& input_dims = m_inputImpl.dimensions();
     const typename TensorEvaluator<KernelArgType, Device>::Dimensions& kernel_dims = m_kernelImpl.dimensions();
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_inputStride[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
         m_inputStride[i] = m_inputStride[i - 1] * input_dims[i - 1];
@@ -343,7 +331,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
 
     m_dimensions = m_inputImpl.dimensions();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = 0; i < NumKernelDims; ++i) {
         const Index index = op.indices()[i];
         const Index input_dim = input_dims[index];
@@ -420,7 +408,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   {
     Index indices[2] = {index, index+PacketSize-1};
     Index startInputs[2] = {0, 0};
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx0 = indices[0] / m_outputStride[i];
         const Index idx1 = indices[1] / m_outputStride[i];
@@ -482,7 +470,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
  private:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
     Index startInput = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_outputStride[i];
         startInput += idx * m_inputStride[i];
@@ -785,7 +773,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   typedef DSizes<Index, NumDims> Dimensions;
   typedef typename TensorEvaluator<KernelArgType, GpuDevice>::Dimensions KernelDimensions;
 
-  static constexpr int Layout = TensorEvaluator<InputArgType, GpuDevice>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<InputArgType, GpuDevice>::Layout;
   enum {
     IsAligned = TensorEvaluator<InputArgType, GpuDevice>::IsAligned & TensorEvaluator<KernelArgType, GpuDevice>::IsAligned,
     PacketAccess = false,
@@ -897,7 +885,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         dim3 block_size;
 
         const int single_stride_dim =
-            static_cast<int>(Layout) == static_cast<int>(ColMajor)
+            is_col_major(Layout)
                 ? 0
                 : m_inputImpl.dimensions().rank() - 1;
         if (m_indices[0] == single_stride_dim) {
@@ -952,9 +940,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
       case 2: {
         const int idxX =
-            static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : 1;
+            is_col_major(Layout) ? 0 : 1;
         const int idxY =
-            static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 1 : 0;
+            is_col_major(Layout) ? 1 : 0;
         const int kernel_size_x = m_kernelImpl.dimensions()[idxX];
         const int kernel_size_y = m_kernelImpl.dimensions()[idxY];
 
@@ -1029,12 +1017,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
       }
 
       case 3: {
-        const int idxX =
-            static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : 2;
-        const int idxY =
-            static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 1 : 1;
-        const int idxZ =
-            static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 2 : 0;
+        const int idxX = is_col_major(Layout) ? 0 : 2;
+        const int idxY = is_col_major(Layout) ? 1 : 1;
+        const int idxZ = is_col_major(Layout) ? 2 : 0;
 
         const int kernel_size_x = m_kernelImpl.dimensions()[idxX];
         const int kernel_size_y = m_kernelImpl.dimensions()[idxY];

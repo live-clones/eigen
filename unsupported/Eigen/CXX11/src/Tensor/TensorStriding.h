@@ -32,7 +32,7 @@ struct traits<TensorStridingOp<Strides, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -97,7 +97,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -120,7 +120,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
     }
 
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_outputStrides[0] = 1;
       m_inputStrides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
@@ -165,7 +165,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
 
     Index inputIndices[] = {0, 0};
     Index indices[] = {index, index + PacketSize - 1};
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx0 = indices[0] / m_outputStrides[i];
@@ -215,7 +215,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
     if (vectorized) {
       compute_cost *= 2;  // packet() computes two indices
     }
-    const int innerDim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : (NumDims - 1);
+    const int innerDim = (is_col_major(Layout)) ? 0 : (NumDims - 1);
     return m_impl.costPerCoeff(vectorized && m_inputStrides[innerDim] == 1) +
         // Computation is not vectorized per se, but it is done once per packet.
         TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
@@ -233,7 +233,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const
   {
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_outputStrides[i];
@@ -270,7 +270,7 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   //  typedef DSizes<Index, NumDims> Dimensions;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -301,7 +301,7 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
 
     Index inputIndices[] = {0, 0};
     Index indices[] = {index, index + PacketSize - 1};
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx0 = indices[0] / this->m_outputStrides[i];

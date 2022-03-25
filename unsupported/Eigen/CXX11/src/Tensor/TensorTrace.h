@@ -34,7 +34,7 @@ struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
 };
 
 template<typename Dims, typename XprType>
@@ -96,7 +96,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device>
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -165,7 +165,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device>
 
     // Compute the output strides
     if (NumOutputDims > 0) {
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         m_outputStrides[0] = 1;
         for (int i = 1; i < NumOutputDims; ++i) {
           m_outputStrides[i] = m_outputStrides[i - 1] * m_dimensions[i - 1];
@@ -182,7 +182,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device>
     // Compute the input strides
     if (NumInputDims > 0) {
       array<Index, NumInputDims> input_strides;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         input_strides[0] = 1;
         for (int i = 1; i < NumInputDims; ++i) {
           input_strides[i] = input_strides[i - 1] * input_dims[i - 1];
@@ -267,7 +267,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device>
   // Given the output index, finds the first index in the input tensor used to compute the trace
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
     Index startInput = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumOutputDims - 1; i > 0; --i) {
         const Index idx = index / m_outputStrides[i];
         startInput += idx * m_preservedStrides[i];

@@ -32,7 +32,7 @@ struct traits<TensorReshapingOp<NewDimensions, XprType> > : public traits<XprTyp
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = array_size<NewDimensions>::value;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -114,7 +114,7 @@ struct TensorEvaluator<const TensorReshapingOp<NewDimensions, ArgType>, Device>
       : Runtime;
   // clang-format on
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned         = TensorEvaluator<ArgType, Device>::IsAligned,
     PacketAccess      = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -243,7 +243,7 @@ template<typename NewDimensions, typename ArgType, typename Device>
   typedef TensorReshapingOp<NewDimensions, ArgType> XprType;
   typedef NewDimensions Dimensions;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned         = TensorEvaluator<ArgType, Device>::IsAligned,
     PacketAccess      = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -315,7 +315,7 @@ struct traits<TensorSlicingOp<StartIndices, Sizes, XprType> > : public traits<Xp
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = array_size<StartIndices>::value;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -417,7 +417,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
   typedef StorageMemory<std::remove_const_t<CoeffReturnType>, Device> ConstCastStorage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     // Alignment can't be guaranteed at compile time since it depends on the
     // slice offsets and sizes.
@@ -460,7 +460,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
 
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
     const Sizes& output_dims = op.sizes();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_inputStrides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
         m_inputStrides[i] = m_inputStrides[i-1] * input_dims[i-1];
@@ -494,7 +494,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
     if (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization
         && data && m_impl.data()) {
       Index contiguous_values = 1;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         for (int i = 0; i < NumDims; ++i) {
           contiguous_values *= dimensions()[i];
           if (dimensions()[i] != m_impl.dimensions()[i]) {
@@ -557,7 +557,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
 
     Index inputIndices[] = {0, 0};
     Index indices[] = {index, index + packetSize - 1};
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx0 = indices[0] / m_fastOutputStrides[i];
@@ -624,7 +624,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
     typename Storage::Type result = constCast(m_impl.data());
     if (result) {
       Index offset = 0;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         for (int i = 0; i < NumDims; ++i) {
           if (m_dimensions[i] != m_impl.dimensions()[i]) {
             offset += m_offsets[i] * m_inputStrides[i];
@@ -666,7 +666,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const
   {
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_fastOutputStrides[i];
@@ -712,7 +712,7 @@ struct TensorEvaluator<TensorSlicingOp<StartIndices, Sizes, ArgType>, Device>
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef Sizes Dimensions;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -753,7 +753,7 @@ struct TensorEvaluator<TensorSlicingOp<StartIndices, Sizes, ArgType>, Device>
     const int packetSize = PacketType<CoeffReturnType, Device>::size;
     Index inputIndices[] = {0, 0};
     Index indices[] = {index, index + packetSize - 1};
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx0 = indices[0] / this->m_fastOutputStrides[i];
@@ -812,7 +812,7 @@ struct traits<TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprTyp
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = array_size<StartIndices>::value;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -882,7 +882,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   typedef typename Storage::Type EvaluatorPointerType;
   typedef Strides Dimensions;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     // Alignment can't be guaranteed at compile time since it depends on the
     // slice offsets and sizes.
@@ -942,7 +942,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
 
     Strides output_dims = m_dimensions;
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_inputStrides[0] = m_strides[0];
       m_offsets[0] = startIndicesClamped[0];
       Index previousDimProduct = 1;
@@ -1014,7 +1014,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const
   {
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i >= 0; --i) {
         const Index idx = index / m_fastOutputStrides[i];
@@ -1060,7 +1060,7 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
   typedef TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, Strides, ArgType>, Device> Base;
   typedef TensorStridingSlicingOp<StartIndices, StopIndices, Strides, ArgType> XprType;
   static constexpr int NumDims = internal::array_size<Strides>::value;
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
 
   enum {
     IsAligned = false,

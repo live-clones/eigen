@@ -40,7 +40,7 @@ struct traits<TensorImagePatchOp<Rows, Cols, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions + 1;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -230,7 +230,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device>
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -254,7 +254,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device>
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
 
     // Caches a few variables.
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_inputDepth = input_dims[0];
       m_inputRows = input_dims[1];
       m_inputCols = input_dims[2];
@@ -326,7 +326,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device>
     eigen_assert(m_outputCols > 0);
 
     // Dimensions for result of extraction.
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       // ColMajor
       // 0: depth
       // 1: patch_rows
@@ -357,7 +357,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device>
     }
 
     // Strides for moving the patch in various dimensions.
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_colStride = m_dimensions[1];
       m_patchStride = m_colStride * m_dimensions[2] * m_dimensions[0];
       m_otherStride = m_patchStride * m_dimensions[3];
@@ -382,7 +382,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device>
 
     // Number of patches in the width dimension.
     m_fastOutputRows = internal::TensorIntDivisor<Index>(m_outputRows);
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_fastOutputDepth = internal::TensorIntDivisor<Index>(m_dimensions[0]);
     } else {
       m_fastOutputDepth = internal::TensorIntDivisor<Index>(m_dimensions[NumDims-1]);
@@ -439,7 +439,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device>
       return Scalar(m_paddingValue);
     }
 
-    const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+    const int depth_index = is_col_major(Layout) ? 0 : NumDims - 1;
     const Index depth = index - (index / m_fastOutputDepth) * m_dimensions[depth_index];
 
     const Index inputIndex = depth + origInputRow * m_rowInputStride + origInputCol * m_colInputStride + otherIndex * m_patchInputStride;
@@ -494,7 +494,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device>
 
       if (inputRows[0] >= 0 && inputRows[1] < m_inputRows) {
         // no padding
-        const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+        const int depth_index = is_col_major(Layout) ? 0 : NumDims - 1;
         const Index depth = index - (index / m_fastOutputDepth) * m_dimensions[depth_index];
         const Index inputIndex = depth + inputRows[0] * m_rowInputStride + inputCols[0] * m_colInputStride + otherIndex * m_patchInputStride;
         return m_impl.template packet<Unaligned>(inputIndex);

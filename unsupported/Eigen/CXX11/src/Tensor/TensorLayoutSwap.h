@@ -47,7 +47,7 @@ struct traits<TensorLayoutSwapOp<XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
-  static constexpr int Layout = (traits<XprType>::Layout == ColMajor) ? RowMajor : ColMajor;
+  static constexpr StorageOrder Layout = transposed(traits<XprType>::Layout);
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -101,7 +101,7 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device>
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   typedef DSizes<Index, NumDims> Dimensions;
 
-  static constexpr int Layout = (TensorEvaluator<ArgType, Device>::Layout == static_cast<int>(ColMajor)) ? RowMajor : ColMajor;
+  static constexpr StorageOrder Layout = transposed(TensorEvaluator<ArgType, Device>::Layout);
   enum {
     IsAligned = TensorEvaluator<ArgType, Device>::IsAligned,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -180,7 +180,7 @@ template<typename ArgType, typename Device>
   typedef TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> Base;
   typedef TensorLayoutSwapOp<ArgType> XprType;
 
-  static constexpr int Layout = (TensorEvaluator<ArgType, Device>::Layout == static_cast<int>(ColMajor)) ? RowMajor : ColMajor;
+  static constexpr StorageOrder Layout = transposed(TensorEvaluator<ArgType, Device>::Layout);
   enum {
     IsAligned = TensorEvaluator<ArgType, Device>::IsAligned,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,

@@ -32,7 +32,7 @@ struct traits<TensorGeneratorOp<Generator, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -92,7 +92,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device>
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = (PacketType<CoeffReturnType, Device>::size > 1),
@@ -119,7 +119,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device>
     TensorEvaluator<ArgType, Device> argImpl(op.expression(), device);
     m_dimensions = argImpl.dimensions();
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_strides[0] = 1;
       EIGEN_UNROLL_LOOP
       for (int i = 1; i < NumDims; ++i) {
@@ -183,8 +183,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock
   block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
           bool /*root_of_expr_ast*/ = false) const {
-    static const bool is_col_major =
-        static_cast<int>(Layout) == static_cast<int>(ColMajor);
+    constexpr bool is_ColMajor = is_col_major(Layout);
 
     // Compute spatial coordinates for the first block element.
     array<Index, NumDims> coords;
@@ -198,7 +197,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device>
     // always in inner_most -> outer_most order (col major layout).
     array<BlockIteratorState, NumDims> it;
     for (int i = 0; i < NumDims; ++i) {
-      const int dim = is_col_major ? i : NumDims - 1 - i;
+      const int dim = is_ColMajor ? i : NumDims - 1 - i;
       it[i].size = desc.dimension(dim);
       it[i].stride = i == 0 ? 1 : (it[i - 1].size * it[i - 1].stride);
       it[i].span = it[i].stride * (it[i].size - 1);
@@ -214,7 +213,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device>
 
     static const int packet_size = PacketType<CoeffReturnType, Device>::size;
 
-    static const int inner_dim = is_col_major ? 0 : NumDims - 1;
+    static const int inner_dim = is_ColMajor ? 0 : NumDims - 1;
     const Index inner_dim_size = it[0].size;
     const Index inner_dim_vectorized = inner_dim_size - packet_size;
 
@@ -243,12 +242,12 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device>
       for (i = 1; i < NumDims; ++i) {
         if (++it[i].count < it[i].size) {
           offset += it[i].stride;
-          coords[is_col_major ? i : NumDims - 1 - i]++;
+          coords[is_ColMajor ? i : NumDims - 1 - i]++;
           break;
         }
         if (i != NumDims - 1) it[i].count = 0;
-        coords[is_col_major ? i : NumDims - 1 - i] =
-            initial_coords[is_col_major ? i : NumDims - 1 - i];
+        coords[is_ColMajor ? i : NumDims - 1 - i] =
+            initial_coords[is_ColMajor ? i : NumDims - 1 - i];
         offset -= it[i].span;
       }
     }
@@ -274,7 +273,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device>
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   void extract_coordinates(Index index, array<Index, NumDims>& coords) const {
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_fast_strides[i];
         index -= idx * m_strides[i];
