@@ -426,8 +426,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
         m_device(device),
         m_output_kernel(op.outputKernel()),
         m_result(NULL) {
-    EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
-         static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout)),
+    EIGEN_STATIC_ASSERT((TensorEvaluator<LeftArgType, Device>::Layout == TensorEvaluator<RightArgType, Device>::Layout),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
 
 
@@ -587,7 +586,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     }
 
     // If the layout is RowMajor, we need to reverse the m_dimensions
-    if (static_cast<int>(Layout) == static_cast<int>(RowMajor)) {
+    if (is_row_major(Layout)) {
       for (int i = 0, j = NumDims - 1; i < j; i++, j--) {
         numext::swap(m_dimensions[i], m_dimensions[j]);
       }
@@ -597,7 +596,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     // tensor dimensions (i, j) into the original tensor dimensions.
     // TODO(ezhulenev): Add parameters required to infer output tensor index for
     // more complex contractions than 2x2 on internal dimension.
-    m_tensor_contraction_params.swapped_arguments = static_cast<int>(Layout) == RowMajor;
+    m_tensor_contraction_params.swapped_arguments = is_row_major(Layout);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }

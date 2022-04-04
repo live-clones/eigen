@@ -131,8 +131,8 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device>
       m_rightImpl(op.rhsExpression(), device)
   {
     EIGEN_STATIC_ASSERT(
-        (static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
-         static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout)),
+        (TensorEvaluator<LeftArgType, Device>::Layout ==
+         TensorEvaluator<RightArgType, Device>::Layout),
         YOU_MADE_A_PROGRAMMING_MISTAKE);
   }
 

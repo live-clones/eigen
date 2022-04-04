@@ -316,8 +316,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         m_kernel(NULL),
         m_local_kernel(false),
         m_device(device) {
-    EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout) ==
-                         static_cast<int>(TensorEvaluator<KernelArgType, Eigen::SyclDevice>::Layout)),
+    EIGEN_STATIC_ASSERT((TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout ==
+                         TensorEvaluator<KernelArgType, Eigen::SyclDevice>::Layout),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
 
     const typename TensorEvaluator<InputArgType, Eigen::SyclDevice>::Dimensions &input_dims = m_inputImpl.dimensions();
