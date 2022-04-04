@@ -11,7 +11,7 @@ public:
   typedef Eigen::Matrix<typename ArgType::Scalar,
                  RowIndexType::SizeAtCompileTime,
                  ColIndexType::SizeAtCompileTime,
-                 Eigen::storage_order_flag(ArgType::Flags),
+                 Eigen::internal::storage_order_flag(ArgType::Flags),
                  RowIndexType::MaxSizeAtCompileTime,
                  ColIndexType::MaxSizeAtCompileTime> MatrixType;
 
