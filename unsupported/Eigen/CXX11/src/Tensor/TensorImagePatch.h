@@ -76,7 +76,7 @@ struct ImagePatchCopyOp<Self, true> {
   typedef typename Self::Index Index;
   typedef typename Self::Scalar Scalar;
   typedef typename Self::Impl Impl;
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void Run(
       const Self& self, const Index num_coeff_to_copy, const Index dst_index,
       Scalar* dst_data, const Index src_index) {
@@ -98,7 +98,7 @@ template <typename Self>
 struct ImagePatchPaddingOp {
   typedef typename Self::Index Index;
   typedef typename Self::Scalar Scalar;
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void Run(
       const Index num_coeff_to_pad, const Scalar padding_value,
       const Index dst_index, Scalar* dst_data) {

@@ -1598,9 +1598,9 @@ EIGEN_STRONG_INLINE void gemv_complex_col(
     typedef typename Traits::RhsPacket RhsPacket;
     typedef typename Traits::ResPacket ResPacket;
 
-    typedef typename packet_traits<Scalar>::type ScalarPacket;
-    typedef typename packet_traits<LhsScalar>::type PLhsPacket;
-    typedef typename packet_traits<ResScalar>::type PResPacket;
+    typedef packet_full_t<Scalar>   ScalarPacket;
+    typedef packet_full_t<LhsScalar>  PLhsPacket;
+    typedef packet_full_t<ResScalar>  PResPacket;
     typedef gemv_traits<ResPacket, ResPacket> PTraits;
 
     EIGEN_UNUSED_VARIABLE(resIncr);
@@ -2258,9 +2258,9 @@ EIGEN_STRONG_INLINE void gemv_complex_row(
     typedef typename Traits::RhsPacket RhsPacket;
     typedef typename Traits::ResPacket ResPacket;
 
-    typedef typename packet_traits<Scalar>::type ScalarPacket;
-    typedef typename packet_traits<LhsScalar>::type PLhsPacket;
-    typedef typename packet_traits<ResScalar>::type PResPacket;
+    typedef packet_full_t<Scalar>   ScalarPacket;
+    typedef packet_full_t<LhsScalar>  PLhsPacket;
+    typedef packet_full_t<ResScalar>  PResPacket;
     typedef gemv_traits<ResPacket, ResPacket> PTraits;
 
     // The following copy tells the compiler that lhs's attributes are not modified outside this function

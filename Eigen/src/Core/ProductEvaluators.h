@@ -715,7 +715,7 @@ struct etor_product_packet_impl<RowMajor, 0, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pset1<Packet>(unpacket_underlying_t<Packet>(0));
   }
 };
 
@@ -724,7 +724,7 @@ struct etor_product_packet_impl<ColMajor, 0, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pset1<Packet>(unpacket_underlying_t<Packet>(0));
   }
 };
 
@@ -733,7 +733,7 @@ struct etor_product_packet_impl<RowMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pset1<Packet>(unpacket_underlying_t<Packet>(0));
     for(Index i = 0; i < innerDim; ++i)
       res =  pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template packet<LoadMode,Packet>(i, col), res);
   }
@@ -744,7 +744,7 @@ struct etor_product_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pset1<Packet>(unpacket_underlying_t<Packet>(0));
     for(Index i = 0; i < innerDim; ++i)
       res =  pmadd(lhs.template packet<LoadMode,Packet>(row, i), pset1<Packet>(rhs.coeff(i, col)), res);
   }

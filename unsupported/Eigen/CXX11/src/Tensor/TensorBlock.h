@@ -993,7 +993,7 @@ class TensorTernaryExprBlock {
 
 template <typename Scalar, typename IndexType>
 class StridedLinearBufferCopy {
-  typedef typename packet_traits<Scalar>::type Packet;
+  typedef packet_full_t<Scalar> Packet;
   enum {
     Vectorizable = packet_traits<Scalar>::Vectorizable,
     PacketSize = packet_traits<Scalar>::size
@@ -1408,7 +1408,7 @@ class TensorBlockAssignment {
     EIGEN_ALWAYS_INLINE static void Run(Scalar* target, IndexType count,
                                         const Evaluator& eval,
                                         IndexType eval_offset) {
-      typedef typename packet_traits<Scalar>::type Packet;
+      typedef packet_full_t<Scalar> Packet;
 
       const IndexType unrolled_size = count - 4 * PacketSize;
       const IndexType vectorized_size = count - PacketSize;

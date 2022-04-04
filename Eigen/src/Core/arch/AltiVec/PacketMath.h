@@ -73,7 +73,7 @@ typedef eigen_packet_wrapper<__vector unsigned short int,0> Packet8bf;
 
 #define DST_CHAN 1
 #define DST_CTRL(size, count, stride) (((size) << 24) | ((count) << 16) | (stride))
-#define __UNPACK_TYPE__(PACKETNAME) typename unpacket_traits<PACKETNAME>::type 
+#define __UNPACK_TYPE__(PACKETNAME) unpacket_underlying_t<PACKETNAME>
 
 // These constants are endian-agnostic
 static EIGEN_DECLARE_CONST_FAST_Packet4f(ZERO, 0); //{ 0.0, 0.0, 0.0, 0.0}

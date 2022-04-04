@@ -269,7 +269,7 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
   typedef Reshaped<ArgType, Rows, Cols, Order> XprType;
   typedef typename XprType::Scalar Scalar;
   // TODO: should check for smaller packet types
-  typedef typename packet_traits<Scalar>::type PacketScalar;
+  typedef packet_full_t<Scalar> PacketScalar;
 
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost,

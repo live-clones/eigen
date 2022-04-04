@@ -412,7 +412,7 @@ class TensorBase<Derived, ReadOnlyAccessors>
 
     template <int NanPropagation=PropagateFast>
     EIGEN_DEVICE_FUNC
-        EIGEN_STRONG_INLINE const TensorCwiseBinaryOp<internal::scalar_min_op<Scalar,Scalar,NanPropagation>, const Derived, const TensorCwiseNullaryOp<internal::scalar_constant_op<Scalar>, const Derived> >
+    EIGEN_STRONG_INLINE const TensorCwiseBinaryOp<internal::scalar_min_op<Scalar,Scalar,NanPropagation>, const Derived, const TensorCwiseNullaryOp<internal::scalar_constant_op<Scalar>, const Derived> >
     cwiseMin(Scalar threshold) const {
       return cwiseMin<NanPropagation>(constant(threshold));
     }

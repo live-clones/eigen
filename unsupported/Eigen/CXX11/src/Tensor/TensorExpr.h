@@ -171,7 +171,7 @@ struct traits<TensorCwiseBinaryOp<BinaryOp, LhsXprType, RhsXprType> >
                                   std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                                                       typename traits<LhsXprType>::PointerType,
                                                       typename traits<RhsXprType>::PointerType>
-                                  >::type 
+                                  >::type
                                   PointerType;
   enum {
     Flags = 0

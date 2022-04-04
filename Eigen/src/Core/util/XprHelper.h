@@ -176,12 +176,8 @@ template<typename T> struct functor_traits
   };
 };
 
-template<typename T> struct packet_traits;
-
-template<typename T> struct unpacket_traits;
-
 template<int Size, typename PacketType,
-         bool Stop = Size==Dynamic || (Size%unpacket_traits<PacketType>::size)==0 || is_same<PacketType,typename unpacket_traits<PacketType>::half>::value>
+         bool Stop = Size==Dynamic || (Size%unpacket_traits<PacketType>::size)==0 || is_same<PacketType,unpacket_half_t<PacketType>>::value>
 struct find_best_packet_helper;
 
 template< int Size, typename PacketType>
@@ -193,13 +189,13 @@ struct find_best_packet_helper<Size,PacketType,true>
 template<int Size, typename PacketType>
 struct find_best_packet_helper<Size,PacketType,false>
 {
-  typedef typename find_best_packet_helper<Size,typename unpacket_traits<PacketType>::half>::type type;
+  typedef typename find_best_packet_helper<Size,unpacket_half_t<PacketType>>::type type;
 };
 
 template<typename T, int Size>
 struct find_best_packet
 {
-  typedef typename find_best_packet_helper<Size,typename packet_traits<T>::type>::type type;
+  typedef typename find_best_packet_helper<Size,packet_full_t<T>>::type type;
 };
 
 #if EIGEN_MAX_STATIC_ALIGN_BYTES>0

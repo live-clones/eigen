@@ -246,7 +246,7 @@ template <typename Self,
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitKernelHalfFloat(Reducer reducer, const Self input, Index num_coeffs, half* output) {
   const Index thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   const Index num_threads = blockDim.x * gridDim.x;
-  typedef typename packet_traits<Eigen::half>::type PacketType;
+  typedef packet_full_t<Eigen::half> PacketType;
 
   const Index num_packets =
       num_coeffs / Index(unpacket_traits<PacketType>::size);
@@ -266,7 +266,7 @@ template <int BlockSize, int NumPerThread, typename Self,
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernelHalfFloat(
     Reducer reducer, const Self input, Index num_coeffs,
     half* output, half* scratch) {
-  typedef typename packet_traits<Eigen::half>::type PacketType;
+  typedef packet_full_t<Eigen::half> PacketType;
   const int packet_width = unpacket_traits<PacketType>::size;
   eigen_assert(NumPerThread % packet_width == 0);
   const Index first_index =
@@ -576,7 +576,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernelHalfFloat(Reduc
   eigen_assert(gridDim.y == 1);
   eigen_assert(gridDim.z == 1);
 
-  typedef typename packet_traits<Eigen::half>::type PacketType;
+  typedef packet_full_t<Eigen::half> PacketType;
   const int packet_width = unpacket_traits<PacketType>::size;
   const int unroll_times = 16 / packet_width;
   eigen_assert(NumPerThread % unroll_times == 0);
