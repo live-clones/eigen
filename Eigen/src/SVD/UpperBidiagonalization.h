@@ -156,20 +156,20 @@ void upperbidiagonalization_blocked_helper(MatrixType& A,
                                            typename MatrixType::RealScalar *upper_diagonal,
                                            Index bs,
                                            Ref<Matrix<typename MatrixType::Scalar, Dynamic, Dynamic,
-                                                      traits<MatrixType>::Flags & RowMajorBit> > X,
+                                                      storage_order_flag(traits<MatrixType>::Flags)> > X,
                                            Ref<Matrix<typename MatrixType::Scalar, Dynamic, Dynamic,
-                                                      traits<MatrixType>::Flags & RowMajorBit> > Y)
+                                                      storage_order_flag(traits<MatrixType>::Flags)> > Y)
 {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   typedef typename NumTraits<RealScalar>::Literal Literal;
-  static constexpr int StorageOrder = (traits<MatrixType>::Flags & RowMajorBit) ? RowMajor : ColMajor;
-  typedef InnerStride<StorageOrder == ColMajor ? 1 : Dynamic> ColInnerStride;
-  typedef InnerStride<StorageOrder == ColMajor ? Dynamic : 1> RowInnerStride;
-  typedef Ref<Matrix<Scalar, Dynamic, 1>, 0, ColInnerStride>    SubColumnType;
-  typedef Ref<Matrix<Scalar, 1, Dynamic>, 0, RowInnerStride>    SubRowType;
-  typedef Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder > > SubMatType;
-
+  constexpr unsigned StorageOrderFlags = storage_order_flag(traits<MatrixType>::Flags);
+  typedef InnerStride<is_col_major(StorageOrderFlags) ? 1 : Dynamic> ColInnerStride;
+  typedef InnerStride<is_col_major(StorageOrderFlags) ? Dynamic : 1> RowInnerStride;
+  typedef Ref<Matrix<Scalar, Dynamic, 1>, 0, ColInnerStride>         SubColumnType;
+  typedef Ref<Matrix<Scalar, 1, Dynamic>, 0, RowInnerStride>         SubRowType;
+  typedef Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrderFlags > > SubMatType;
+  
   Index brows = A.rows();
   Index bcols = A.cols();
 
@@ -295,16 +295,16 @@ void upperbidiagonalization_inplace_blocked(MatrixType& A, BidiagType& bidiagona
   Index size = (std::min)(rows, cols);
 
   // X and Y are work space
-  static constexpr int StorageOrder = (traits<MatrixType>::Flags & RowMajorBit) ? RowMajor : ColMajor;
+  constexpr unsigned StorageOrderFlags = storage_order_flag(traits<MatrixType>::Flags);
   Matrix<Scalar,
          MatrixType::RowsAtCompileTime,
          Dynamic,
-         StorageOrder,
+         StorageOrderFlags,
          MatrixType::MaxRowsAtCompileTime> X(rows,maxBlockSize);
   Matrix<Scalar,
          MatrixType::ColsAtCompileTime,
          Dynamic,
-         StorageOrder,
+         StorageOrderFlags,
          MatrixType::MaxColsAtCompileTime> Y(cols,maxBlockSize);
   Index blockSize = (std::min)(maxBlockSize,size);
 

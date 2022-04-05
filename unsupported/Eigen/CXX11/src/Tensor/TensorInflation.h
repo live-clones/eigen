@@ -32,7 +32,7 @@ struct traits<TensorInflationOp<Strides, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -91,7 +91,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device>
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/ false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -120,7 +120,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device>
     }
 
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_outputStrides[0] = 1;
       m_inputStrides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
@@ -153,7 +153,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device>
   {
     eigen_assert(index < dimensions().TotalSize());
     *inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_outputStrides[i];

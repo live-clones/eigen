@@ -55,7 +55,7 @@ int main(int argc, char **args)
   n = A.cols();
   // ====== TESTS FOR SPARSE TUTORIAL ======
 //   cout<< "OuterSize " << A.outerSize() << " inner " << A.innerSize() << endl; 
-//   SparseMatrix<double, RowMajor> mat1(A); 
+//   SparseMatrix<double, RowMajor> mat1(A);
 //   SparseMatrix<double, RowMajor> mat2;
 //   cout << " norm of A " << mat1.norm() << endl; ;
 //   PermutationMatrix<Dynamic, Dynamic, int> perm(n);

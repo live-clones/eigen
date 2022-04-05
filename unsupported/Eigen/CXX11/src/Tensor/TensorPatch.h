@@ -32,7 +32,7 @@ struct traits<TensorPatchOp<PatchDim, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions + 1;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -94,7 +94,7 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device>
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -114,7 +114,7 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device>
     Index num_patches = 1;
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
     const PatchDim& patch_dims = op.patch_dims();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = 0; i < NumDims-1; ++i) {
         m_dimensions[i] = patch_dims[i];
         num_patches *= (input_dims[i] - patch_dims[i] + 1);
@@ -164,13 +164,13 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device>
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const
   {
-    Index output_stride_index = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? NumDims - 1 : 0;
+    Index output_stride_index = (is_col_major(Layout)) ? NumDims - 1 : 0;
     // Find the location of the first element of the patch.
     Index patchIndex = index / m_outputStrides[output_stride_index];
     // Find the offset of the element wrt the location of the first element.
     Index patchOffset = index - patchIndex * m_outputStrides[output_stride_index];
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 2; i > 0; --i) {
         const Index patchIdx = patchIndex / m_patchStrides[i];
@@ -198,7 +198,7 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device>
   {
     eigen_assert(index+PacketSize-1 < dimensions().TotalSize());
 
-    Index output_stride_index = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? NumDims - 1 : 0;
+    Index output_stride_index = (is_col_major(Layout)) ? NumDims - 1 : 0;
     Index indices[2] = {index, index + PacketSize - 1};
     Index patchIndices[2] = {indices[0] / m_outputStrides[output_stride_index],
                              indices[1] / m_outputStrides[output_stride_index]};
@@ -206,7 +206,7 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device>
                              indices[1] - patchIndices[1] * m_outputStrides[output_stride_index]};
 
     Index inputIndices[2] = {0, 0};
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 2; i > 0; --i) {
         const Index patchIdx[2] = {patchIndices[0] / m_patchStrides[i],

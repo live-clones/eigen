@@ -35,7 +35,7 @@ struct traits<TensorVolumePatchOp<Planes, Rows, Cols, XprType> > : public traits
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions + 1;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 
 };
@@ -182,7 +182,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -206,7 +206,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
 
     // Cache a few variables.
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_inputDepth = input_dims[0];
       m_inputPlanes = input_dims[1];
       m_inputRows = input_dims[2];
@@ -277,7 +277,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     eigen_assert(m_outputPlanes > 0);
 
     // Dimensions for result of extraction.
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       // ColMajor
       // 0: depth
       // 1: patch_planes
@@ -312,7 +312,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     }
 
     // Strides for the output tensor.
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_rowStride = m_dimensions[1];
       m_colStride = m_dimensions[2] * m_rowStride;
       m_patchStride = m_colStride * m_dimensions[3] * m_dimensions[0];
@@ -345,7 +345,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     m_fastOutputPlanes = internal::TensorIntDivisor<Index>(m_outputPlanes);
     m_fastOutputPlanesRows = internal::TensorIntDivisor<Index>(m_outputPlanesRows);
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_fastOutputDepth = internal::TensorIntDivisor<Index>(m_dimensions[0]);
     } else {
       m_fastOutputDepth = internal::TensorIntDivisor<Index>(m_dimensions[NumDims-1]);
@@ -406,7 +406,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       return Scalar(m_paddingValue);
     }
 
-    const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+    const int depth_index = is_col_major(Layout) ? 0 : NumDims - 1;
     const Index depth = index - (index / m_fastOutputDepth) * m_dimensions[depth_index];
 
     const Index inputIndex = depth +
@@ -493,7 +493,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
 
     if (inputPlanes[0] >= 0 && inputPlanes[1] < m_inputPlanes) {
       // no padding
-      const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+      const int depth_index = is_col_major(Layout) ? 0 : NumDims - 1;
       const Index depth = index - (index / m_fastOutputDepth) * m_dimensions[depth_index];
       const Index inputIndex = depth +
           inputRows[0] * m_rowInputStride +

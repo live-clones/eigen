@@ -123,7 +123,7 @@ class BlockSparseMatrixView : public SparseMatrixBase<BlockSparseMatrixT>
 
     Index outerSize() const
     {
-      return (Flags&RowMajorBit) == 1 ? this->rows() : this->cols();
+      return is_row_major(Flags) ? this->rows() : this->cols();
     }
     Index cols() const
     {
@@ -300,7 +300,7 @@ class BlockSparseMatrix : public SparseMatrixBase<BlockSparseMatrix<Scalar_,_Blo
       MaxRowsAtCompileTime = Dynamic,
       MaxColsAtCompileTime = Dynamic,
       IsVectorAtCompileTime = 0,
-      IsColMajor = Flags&RowMajorBit ? 0 : 1
+      IsColMajor = is_col_major(Flags) ? 0 : 1
     };
     typedef Matrix<Scalar, _BlockAtCompileTime, _BlockAtCompileTime,IsColMajor ? ColMajor : RowMajor> BlockScalar;
     typedef Matrix<RealScalar, _BlockAtCompileTime, _BlockAtCompileTime,IsColMajor ? ColMajor : RowMajor> BlockRealScalar;
@@ -408,7 +408,7 @@ class BlockSparseMatrix : public SparseMatrixBase<BlockSparseMatrix<Scalar_,_Blo
     {
       eigen_assert((m_innerBSize != 0 && m_outerBSize != 0)
                    && "Trying to assign to a zero-size matrix, call resize() first");
-      eigen_assert(((MatrixType::Options&RowMajorBit) != IsColMajor) && "Wrong storage order");
+      eigen_assert((is_col_major(MatrixType::Options) == IsColMajor) && "Wrong storage order");
       typedef SparseMatrix<bool,MatrixType::Options,typename MatrixType::Index> MatrixPatternType;
       MatrixPatternType  blockPattern(blockRows(), blockCols());
       m_nonzeros = 0;

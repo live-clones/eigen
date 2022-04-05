@@ -44,8 +44,8 @@ namespace internal {
 
 #define EIGEN_BLAS_SYMM_L(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC) \
 template <typename Index, \
-          int LhsStorageOrder, bool ConjugateLhs, \
-          int RhsStorageOrder, bool ConjugateRhs> \
+          StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+          StorageOrder RhsStorageOrder, bool ConjugateRhs> \
 struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,true,ConjugateLhs,RhsStorageOrder,false,ConjugateRhs,ColMajor,1> \
 {\
 \
@@ -75,10 +75,10 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,true,ConjugateLh
     ldc = convert_index<BlasIndex>(resStride); \
 \
 /* Set a, b, c */ \
-    if (LhsStorageOrder==RowMajor) uplo='U'; \
+    if (is_row_major(LhsStorageOrder)) uplo='U'; \
     a = _lhs; \
 \
-    if (RhsStorageOrder==RowMajor) { \
+    if (is_row_major(RhsStorageOrder)) { \
       Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > rhs(_rhs,n,m,OuterStride<>(rhsStride)); \
       b_tmp = rhs.adjoint(); \
       b = b_tmp.data(); \
@@ -93,9 +93,9 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,true,ConjugateLh
 
 #define EIGEN_BLAS_HEMM_L(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC) \
 template <typename Index, \
-          int LhsStorageOrder, bool ConjugateLhs, \
-          int RhsStorageOrder, bool ConjugateRhs> \
-struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,true,ConjugateLhs,RhsStorageOrder,false,ConjugateRhs,ColMajor,1> \
+          StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+          StorageOrder RhsStorageOrder, bool ConjugateRhs> \
+struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,true,ConjugateLhs,RhsStorageOrder,false,ConjugateRhs,StorageOrder::ColMajor,1> \
 {\
   static void run( \
     Index rows, Index cols, \
@@ -111,7 +111,7 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,true,ConjugateLh
     const EIGTYPE *a, *b; \
     EIGTYPE beta(1); \
     MatrixX##EIGPREFIX b_tmp; \
-    Matrix<EIGTYPE, Dynamic, Dynamic, LhsStorageOrder> a_tmp; \
+    Matrix<EIGTYPE, Dynamic, Dynamic, storage_order_flag(LhsStorageOrder)> a_tmp; \
 \
 /* Set transpose options */ \
 /* Set m, n, k */ \
@@ -124,18 +124,18 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,true,ConjugateLh
     ldc = convert_index<BlasIndex>(resStride); \
 \
 /* Set a, b, c */ \
-    if (((LhsStorageOrder==ColMajor) && ConjugateLhs) || ((LhsStorageOrder==RowMajor) && (!ConjugateLhs))) { \
-      Map<const Matrix<EIGTYPE, Dynamic, Dynamic, LhsStorageOrder>, 0, OuterStride<> > lhs(_lhs,m,m,OuterStride<>(lhsStride)); \
+    if ((is_col_major(LhsStorageOrder) && ConjugateLhs) || (is_row_major(LhsStorageOrder) && (!ConjugateLhs))) { \
+      Map<const Matrix<EIGTYPE, Dynamic, Dynamic, storage_order_flag(LhsStorageOrder)>, 0, OuterStride<> > lhs(_lhs,m,m,OuterStride<>(lhsStride)); \
       a_tmp = lhs.conjugate(); \
       a = a_tmp.data(); \
       lda = convert_index<BlasIndex>(a_tmp.outerStride()); \
     } else a = _lhs; \
-    if (LhsStorageOrder==RowMajor) uplo='U'; \
+    if (is_row_major(LhsStorageOrder) uplo='U'; \
 \
-    if (RhsStorageOrder==ColMajor && (!ConjugateRhs)) { \
+    if (is_col_major(RhsStorageOrder) && (!ConjugateRhs)) { \
        b = _rhs; } \
     else { \
-      if (RhsStorageOrder==ColMajor && ConjugateRhs) { \
+      if (is_row_major(RhsStorageOrder) && ConjugateRhs) { \
         Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > rhs(_rhs,m,n,OuterStride<>(rhsStride)); \
         b_tmp = rhs.conjugate(); \
       } else \
@@ -171,9 +171,9 @@ EIGEN_BLAS_HEMM_L(scomplex, float, cf, chemm_)
 
 #define EIGEN_BLAS_SYMM_R(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC) \
 template <typename Index, \
-          int LhsStorageOrder, bool ConjugateLhs, \
-          int RhsStorageOrder, bool ConjugateRhs> \
-struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateLhs,RhsStorageOrder,true,ConjugateRhs,ColMajor,1> \
+          StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+          StorageOrder RhsStorageOrder, bool ConjugateRhs> \
+struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateLhs,RhsStorageOrder,true,ConjugateRhs,StorageOrder::ColMajor,1> \
 {\
 \
   static void run( \
@@ -201,10 +201,10 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateL
     ldc = convert_index<BlasIndex>(resStride); \
 \
 /* Set a, b, c */ \
-    if (RhsStorageOrder==RowMajor) uplo='U'; \
+    if (is_row_major(RhsStorageOrder)) uplo='U'; \
     a = _rhs; \
 \
-    if (LhsStorageOrder==RowMajor) { \
+    if (is_row_major(LhsStorageOrder)) { \
       Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > lhs(_lhs,n,m,OuterStride<>(rhsStride)); \
       b_tmp = lhs.adjoint(); \
       b = b_tmp.data(); \
@@ -219,9 +219,9 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateL
 
 #define EIGEN_BLAS_HEMM_R(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC) \
 template <typename Index, \
-          int LhsStorageOrder, bool ConjugateLhs, \
-          int RhsStorageOrder, bool ConjugateRhs> \
-struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateLhs,RhsStorageOrder,true,ConjugateRhs,ColMajor,1> \
+          StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+          StorageOrder RhsStorageOrder, bool ConjugateRhs> \
+struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateLhs,RhsStorageOrder,true,ConjugateRhs,StorageOrder::ColMajor,1> \
 {\
   static void run( \
     Index rows, Index cols, \
@@ -237,7 +237,7 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateL
     const EIGTYPE *a, *b; \
     EIGTYPE beta(1); \
     MatrixX##EIGPREFIX b_tmp; \
-    Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder> a_tmp; \
+    Matrix<EIGTYPE, Dynamic, Dynamic, storage_order_flag(RhsStorageOrder)> a_tmp; \
 \
 /* Set m, n, k */ \
     m = convert_index<BlasIndex>(rows); \
@@ -249,18 +249,18 @@ struct product_selfadjoint_matrix<EIGTYPE,Index,LhsStorageOrder,false,ConjugateL
     ldc = convert_index<BlasIndex>(resStride); \
 \
 /* Set a, b, c */ \
-    if (((RhsStorageOrder==ColMajor) && ConjugateRhs) || ((RhsStorageOrder==RowMajor) && (!ConjugateRhs))) { \
-      Map<const Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder>, 0, OuterStride<> > rhs(_rhs,n,n,OuterStride<>(rhsStride)); \
+    if ((is_col_major(RhsStorageOrder) && ConjugateRhs) || (is_row_major(RhsStorageOrder) && (!ConjugateRhs))) { \
+      Map<const Matrix<EIGTYPE, Dynamic, Dynamic, storage_order_flag(RhsStorageOrder)>, 0, OuterStride<> > rhs(_rhs,n,n,OuterStride<>(rhsStride)); \
       a_tmp = rhs.conjugate(); \
       a = a_tmp.data(); \
       lda = convert_index<BlasIndex>(a_tmp.outerStride()); \
     } else a = _rhs; \
-    if (RhsStorageOrder==RowMajor) uplo='U'; \
+    if (is_row_major(RhsStorageOrder)) uplo='U'; \
 \
-    if (LhsStorageOrder==ColMajor && (!ConjugateLhs)) { \
+    if (is_col_major(LhsStorageOrder) && (!ConjugateLhs)) { \
        b = _lhs; } \
     else { \
-      if (LhsStorageOrder==ColMajor && ConjugateLhs) { \
+      if (is_col_major(LhsStorageOrder) && ConjugateLhs) { \
         Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > lhs(_lhs,m,n,OuterStride<>(lhsStride)); \
         b_tmp = lhs.conjugate(); \
       } else \

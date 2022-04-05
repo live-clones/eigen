@@ -32,7 +32,7 @@ struct traits<TensorBroadcastingOp<Broadcast, XprType> > : public traits<XprType
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -120,7 +120,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
     PreferBlockAccess = true,
     RawAccess         = false
   };
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
 
   typedef std::remove_const_t<Scalar> ScalarNoConst;
 
@@ -159,7 +159,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
       }
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_inputStrides[0] = 1;
       m_outputStrides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
@@ -235,7 +235,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
       return m_impl.coeff(0);
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       if (isCopy) {
         return m_impl.coeff(index);
       } else {
@@ -328,7 +328,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
       return internal::pset1<PacketReturnType>(m_impl.coeff(0));
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       if (isCopy) {
         #ifdef EIGEN_GPU_COMPILE_PHASE
         // See PR 437: on NVIDIA P100 and K20m we observed a x3-4 speed up by enforcing
@@ -376,7 +376,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
     Index startDim, endDim;
     Index inputIndex, outputOffset, batchedIndex;
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       startDim = NumDims - 1;
       endDim = 1;
     } else {
@@ -418,8 +418,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
     eigen_assert(index+PacketSize-1 < dimensions().TotalSize());
 
     // Size of flattened tensor.
-    const Index M = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ?
-                      m_inputStrides[NumDims - 1] : m_inputStrides[0];
+    const Index M = is_col_major(Layout) ?
+                    m_inputStrides[NumDims - 1] : m_inputStrides[0];
     Index inputIndex = index % M;
     if (inputIndex + PacketSize <= M) {
       return m_impl.template packet<Unaligned>(inputIndex);
@@ -445,7 +445,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
     // with dim == 0 for col-major, dim == NumDims - 1 for row-major.
     eigen_assert(index + PacketSize-1 < dimensions().TotalSize());
 
-    const Index M = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ?
+    const Index M = is_col_major(Layout) ?
                       m_broadcast[0] : m_broadcast[NumDims - 1];
 
     Index inputIndex   = index / M;
@@ -695,8 +695,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
   }
 #endif
  private:
-  static constexpr bool IsColMajor =
-      static_cast<int>(Layout) == static_cast<int>(ColMajor);
+  static constexpr bool IsColMajor = is_col_major(Layout);
 
   // We will build a general case block broadcasting on top of broadcasting
   // primitive that will do broadcasting only for the inner dimension(s) along

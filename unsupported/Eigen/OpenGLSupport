@@ -53,7 +53,7 @@ namespace internal {                                                            
             int Cols = XprType::ColsAtCompileTime,                                                                  \
             bool IsGLCompatible = bool(internal::evaluator<XprType>::Flags&LinearAccessBit)                         \
                               && bool(XprType::Flags&DirectAccessBit)                                               \
-                              && (XprType::IsVectorAtCompileTime || (XprType::Flags&RowMajorBit)==0)>               \
+                              && (XprType::IsVectorAtCompileTime || is_col_major(XprType::Flags))>                  \
   struct EIGEN_CAT(EIGEN_CAT(gl_,FUNC),_impl);                                                                      \
                                                                                                                     \
   template<typename XprType, typename Scalar, int Rows, int Cols>                                                   \
@@ -205,7 +205,7 @@ namespace internal {                                                            
             int Cols = XprType::ColsAtCompileTime,                                                                              \
             bool IsGLCompatible = bool(internal::evaluator<XprType>::Flags&LinearAccessBit)                                     \
                               && bool(XprType::Flags&DirectAccessBit)                                                           \
-                              && (XprType::IsVectorAtCompileTime || (XprType::Flags&RowMajorBit)==0)>                           \
+                              && (XprType::IsVectorAtCompileTime || is_col_major(XprType::Flags))>                              \
   struct EIGEN_CAT(EIGEN_CAT(gl_,FUNC),_impl);                                                                                  \
                                                                                                                                 \
   template<typename XprType, typename Scalar, int Rows, int Cols>                                                               \

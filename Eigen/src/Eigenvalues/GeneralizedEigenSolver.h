@@ -90,14 +90,14 @@ template<typename MatrixType_> class GeneralizedEigenSolver
       * This is a column vector with entries of type #Scalar.
       * The length of the vector is the size of #MatrixType.
       */
-    typedef Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> VectorType;
+    typedef Matrix<Scalar, ColsAtCompileTime, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxColsAtCompileTime, 1> VectorType;
 
     /** \brief Type for vector of complex scalar values eigenvalues as returned by alphas().
       *
       * This is a column vector with entries of type #ComplexScalar.
       * The length of the vector is the size of #MatrixType.
       */
-    typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> ComplexVectorType;
+    typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxColsAtCompileTime, 1> ComplexVectorType;
 
     /** \brief Expression type for the eigenvalues as returned by eigenvalues().
       */

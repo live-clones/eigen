@@ -32,7 +32,7 @@ struct traits<TensorReverseOp<ReverseDimensions,
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -99,7 +99,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -133,7 +133,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
 
     // Compute strides
     m_dimensions = m_impl.dimensions();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_strides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
         m_strides[i] = m_strides[i-1] * m_dimensions[i-1];
@@ -172,7 +172,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
       Index index) const {
     eigen_assert(index < dimensions().TotalSize());
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         Index idx = index / m_fastStrides[i];
@@ -249,8 +249,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
     //     TensorEvaluator<ArgType, Device>::BlockAccess &&
     //     TensorEvaluator<ArgType, Device>::PreferBlockAccess;
 
-    static const bool isColMajor =
-        static_cast<int>(Layout) == static_cast<int>(ColMajor);
+    constexpr bool isColMajor = is_col_major(Layout);
 
     static const Index inner_dim_idx = isColMajor ? 0 : NumDims - 1;
     const bool inner_dim_reversed = m_reverse[inner_dim_idx];
@@ -417,7 +416,7 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   static constexpr int NumDims = internal::array_size<ReverseDimensions>::value;
   typedef DSizes<Index, NumDims> Dimensions;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,

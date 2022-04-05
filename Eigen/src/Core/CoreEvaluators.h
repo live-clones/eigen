@@ -647,7 +647,7 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
     Arg2Flags = evaluator<Arg2>::Flags,
     Arg3Flags = evaluator<Arg3>::Flags,
     SameType = is_same<typename Arg1::Scalar,typename Arg2::Scalar>::value && is_same<typename Arg1::Scalar,typename Arg3::Scalar>::value,
-    StorageOrdersAgree = (int(Arg1Flags)&RowMajorBit)==(int(Arg2Flags)&RowMajorBit) && (int(Arg1Flags)&RowMajorBit)==(int(Arg3Flags)&RowMajorBit),
+    StorageOrdersAgree = has_same_storage_order(Arg1Flags, Arg2Flags) && has_same_storage_order(Arg1Flags, Arg3Flags),
     Flags0 = (int(Arg1Flags) | int(Arg2Flags) | int(Arg3Flags)) & (
         HereditaryBits
         | (int(Arg1Flags) & int(Arg2Flags) & int(Arg3Flags) &
@@ -656,7 +656,7 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
            )
         )
      ),
-    Flags = (Flags0 & ~RowMajorBit) | (Arg1Flags & RowMajorBit),
+    Flags = with_storage_order(Flags0 , get_storage_order(Arg1Flags)),
     Alignment = plain_enum_min(
             plain_enum_min(evaluator<Arg1>::Alignment, evaluator<Arg2>::Alignment),
             evaluator<Arg3>::Alignment)
@@ -743,7 +743,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
     LhsFlags = evaluator<Lhs>::Flags,
     RhsFlags = evaluator<Rhs>::Flags,
     SameType = is_same<typename Lhs::Scalar,typename Rhs::Scalar>::value,
-    StorageOrdersAgree = (int(LhsFlags)&RowMajorBit)==(int(RhsFlags)&RowMajorBit),
+    StorageOrdersAgree = has_same_storage_order(LhsFlags, RhsFlags),
     Flags0 = (int(LhsFlags) | int(RhsFlags)) & (
         HereditaryBits
       | (int(LhsFlags) & int(RhsFlags) &
@@ -752,7 +752,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
            )
         )
      ),
-    Flags = (Flags0 & ~RowMajorBit) | (LhsFlags & RowMajorBit),
+    Flags = with_storage_order(Flags0, get_storage_order(LhsFlags)),
     Alignment = plain_enum_min(evaluator<Lhs>::Alignment, evaluator<Rhs>::Alignment)
   };
 
@@ -1050,7 +1050,7 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel> >
     MaxRowsAtCompileTime = traits<XprType>::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = traits<XprType>::MaxColsAtCompileTime,
 
-    ArgTypeIsRowMajor = (int(evaluator<ArgType>::Flags)&RowMajorBit) != 0,
+    ArgTypeIsRowMajor = is_row_major(evaluator<ArgType>::Flags),
     IsRowMajor = (MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1) ? 1
                : (MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1) ? 0
                : ArgTypeIsRowMajor,
@@ -1065,11 +1065,8 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel> >
     MaskPacketAccessBit = (InnerStrideAtCompileTime == 1 || HasSameStorageOrderAsArgType) ? PacketAccessBit : 0,
 
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1 || (InnerPanel && (evaluator<ArgType>::Flags&LinearAccessBit))) ? LinearAccessBit : 0,
-    FlagsRowMajorBit = XprType::Flags&RowMajorBit,
-    Flags0 = evaluator<ArgType>::Flags & ( (HereditaryBits & ~RowMajorBit) |
-                                           DirectAccessBit |
-                                           MaskPacketAccessBit),
-    Flags = Flags0 | FlagsLinearAccessBit | FlagsRowMajorBit,
+    Flags0 = evaluator<ArgType>::Flags & ( HereditaryBits | DirectAccessBit | MaskPacketAccessBit),
+    Flags = with_storage_order(Flags0 | FlagsLinearAccessBit, get_storage_order(XprType::Flags)),
 
     PacketAlignment = unpacket_traits<PacketScalar>::alignment,
     Alignment0 = (InnerPanel && (OuterStrideAtCompileTime!=Dynamic)
@@ -1303,7 +1300,8 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor> >
   enum {
     CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost,
     LinearAccessMask = XprType::IsVectorAtCompileTime ? LinearAccessBit : 0,
-    Flags = (evaluator<ArgTypeNestedCleaned>::Flags & (HereditaryBits|LinearAccessMask) & ~RowMajorBit) | (traits<XprType>::Flags & RowMajorBit),
+    Flags = with_storage_order(evaluator<ArgTypeNestedCleaned>::Flags & LinearAccessMask,
+                               get_storage_order(traits<XprType>::Flags)),
 
     Alignment = evaluator<ArgTypeNestedCleaned>::Alignment
   };
@@ -1615,7 +1613,8 @@ struct evaluator<Diagonal<ArgType, DiagIndex> >
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
 
-    Flags = (unsigned int)(evaluator<ArgType>::Flags & (HereditaryBits | DirectAccessBit) & ~RowMajorBit) | LinearAccessBit,
+    Flags = with_storage_order((unsigned int)(evaluator<ArgType>::Flags & (HereditaryBits | DirectAccessBit)) | LinearAccessBit,
+                               StorageOrder::ColMajor),
 
     Alignment = 0
   };

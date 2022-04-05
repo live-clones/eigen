@@ -118,14 +118,14 @@ struct vectorization_logic
   };
   static void run()
   {
-    
     typedef Matrix<Scalar,PacketSize,1> Vector1;
     typedef Matrix<Scalar,Dynamic,1> VectorX;
     typedef Matrix<Scalar,Dynamic,Dynamic> MatrixXX;
     typedef Matrix<Scalar,PacketSize,PacketSize> Matrix11;
-    typedef Matrix<Scalar,(Matrix11::Flags&RowMajorBit)?8:2*PacketSize,(Matrix11::Flags&RowMajorBit)?2*PacketSize:8>   Matrix22;
-    typedef Matrix<Scalar,(Matrix11::Flags&RowMajorBit)?16:4*PacketSize,(Matrix11::Flags&RowMajorBit)?4*PacketSize:16> Matrix44;
-    typedef Matrix<Scalar,(Matrix11::Flags&RowMajorBit)?16:4*PacketSize,(Matrix11::Flags&RowMajorBit)?4*PacketSize:16,DontAlign|EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION> Matrix44u;
+    constexpr bool IsRowMajor = internal::is_row_major(Matrix11::Flags);
+    typedef Matrix<Scalar,IsRowMajor?8:2*PacketSize,IsRowMajor?2*PacketSize:8>   Matrix22;
+    typedef Matrix<Scalar,IsRowMajor?16:4*PacketSize,IsRowMajor?4*PacketSize:16> Matrix44;
+    typedef Matrix<Scalar,IsRowMajor?16:4*PacketSize,IsRowMajor?4*PacketSize:16,DontAlign|EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION> Matrix44u;
     typedef Matrix<Scalar,4*PacketSize,4*PacketSize,ColMajor> Matrix44c;
     typedef Matrix<Scalar,4*PacketSize,4*PacketSize,RowMajor> Matrix44r;
 
@@ -137,12 +137,12 @@ struct vectorization_logic
     typedef Matrix<Scalar,
         (PacketSize==16 ? 8 : PacketSize==8 ? 4 : PacketSize==4 ? 2 : PacketSize==2 ? 1 : /*PacketSize==1 ?*/ 1),
         (PacketSize==16 ? 2 : PacketSize==8 ? 2 : PacketSize==4 ? 2 : PacketSize==2 ? 2 : /*PacketSize==1 ?*/ 1),
-      DontAlign|((Matrix1::Flags&RowMajorBit)?RowMajor:ColMajor)> Matrix1u;
+      DontAlign|internal::storage_order_flag(Matrix1::Flags)> Matrix1u;
 
     // this type is made such that it can only be vectorized when viewed as a linear 1D vector
     typedef Matrix<Scalar,
-        (PacketSize==16 ?  4 : PacketSize==8 ? 4 : PacketSize==4 ? 6 : PacketSize==2 ? ((Matrix11::Flags&RowMajorBit)?2:3) : /*PacketSize==1 ?*/ 1),
-        (PacketSize==16 ? 12 : PacketSize==8 ? 6 : PacketSize==4 ? 2 : PacketSize==2 ? ((Matrix11::Flags&RowMajorBit)?3:2) : /*PacketSize==1 ?*/ 3)
+        (PacketSize==16 ?  4 : PacketSize==8 ? 4 : PacketSize==4 ? 6 : PacketSize==2 ? (IsRowMajor?2:3) : /*PacketSize==1 ?*/ 1),
+        (PacketSize==16 ? 12 : PacketSize==8 ? 6 : PacketSize==4 ? 2 : PacketSize==2 ? (IsRowMajor?3:2) : /*PacketSize==1 ?*/ 3)
       > Matrix3;
     
     #if !EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT
@@ -224,10 +224,10 @@ struct vectorization_logic
       LinearVectorizedTraversal,NoUnrolling));
 
     if(PacketSize>1) {
-      VERIFY(test_redux(Matrix44().template block<(Matrix1::Flags&RowMajorBit)?4:PacketSize,(Matrix1::Flags&RowMajorBit)?PacketSize:4>(1,2),
+      VERIFY(test_redux(Matrix44().template block<IsRowMajor?4:PacketSize,IsRowMajor?PacketSize:4>(1,2),
         SliceVectorizedTraversal,CompleteUnrolling));
 
-      VERIFY(test_redux(Matrix44().template block<(Matrix1::Flags&RowMajorBit)?2:PacketSize,(Matrix1::Flags&RowMajorBit)?PacketSize:2>(1,2),
+      VERIFY(test_redux(Matrix44().template block<IsRowMajor?2:PacketSize,IsRowMajor?PacketSize:2>(1,2),
         DefaultTraversal,CompleteUnrolling));
     }
 
@@ -298,12 +298,12 @@ struct vectorization_logic_half
     typedef Matrix<Scalar,
         (PacketSize==16 ? 8 : PacketSize==8 ? 4 : PacketSize==4 ? 2 : PacketSize==2 ? 1 : /*PacketSize==1 ?*/ 1),
         (PacketSize==16 ? 2 : PacketSize==8 ? 2 : PacketSize==4 ? 2 : PacketSize==2 ? 2 : /*PacketSize==1 ?*/ 1),
-      DontAlign|((Matrix1::Flags&RowMajorBit)?RowMajor:ColMajor)> Matrix1u;
+      DontAlign|storage_order_flag(Matrix1::Flags)> Matrix1u;
 
     // this type is made such that it can only be vectorized when viewed as a linear 1D vector
     typedef Matrix<Scalar,
-        (MinVSize==16 ?  4 : MinVSize==8 ? 4 : MinVSize==4 ? 6 : MinVSize==2 ? ((Matrix11::Flags&RowMajorBit)?2:3) : /*PacketSize==1 ?*/ 1),
-        (MinVSize==16 ? 12 : MinVSize==8 ? 6 : MinVSize==4 ? 2 : MinVSize==2 ? ((Matrix11::Flags&RowMajorBit)?3:2) : /*PacketSize==1 ?*/ 3)
+        (MinVSize==16 ?  4 : MinVSize==8 ? 4 : MinVSize==4 ? 6 : MinVSize==2 ? (is_row_major(Matrix11::Flags)?2:3) : /*PacketSize==1 ?*/ 1),
+        (MinVSize==16 ? 12 : MinVSize==8 ? 6 : MinVSize==4 ? 2 : MinVSize==2 ? (is_row_major(Matrix11::Flags)?3:2) : /*PacketSize==1 ?*/ 3)
       > Matrix3;
     
 #if !EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT

@@ -27,8 +27,8 @@ namespace Eigen {
 template<typename MatrixType, unsigned int Mode> class TriangularViewImpl<MatrixType,Mode,Sparse>
   : public SparseMatrixBase<TriangularView<MatrixType,Mode> >
 {
-    enum { SkipFirst = ((Mode&Lower) && !(MatrixType::Flags&RowMajorBit))
-                    || ((Mode&Upper) &&  (MatrixType::Flags&RowMajorBit)),
+    enum { SkipFirst = ((Mode&Lower) && internal::is_col_major(MatrixType::Flags))
+                    || ((Mode&Upper) && internal::is_row_major(MatrixType::Flags)),
            SkipLast = !SkipFirst,
            SkipDiag = (Mode&ZeroDiag) ? 1 : 0,
            HasUnitDiag = (Mode&UnitDiag) ? 1 : 0
@@ -79,8 +79,8 @@ protected:
   typedef typename XprType::StorageIndex StorageIndex;
   typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
   
-  enum { SkipFirst = ((Mode&Lower) && !(ArgType::Flags&RowMajorBit))
-                    || ((Mode&Upper) &&  (ArgType::Flags&RowMajorBit)),
+  enum { SkipFirst = ((Mode&Lower) && is_col_major(ArgType::Flags))
+                    || ((Mode&Upper) &&  is_row_major(ArgType::Flags)),
          SkipLast = !SkipFirst,
          SkipDiag = (Mode&ZeroDiag) ? 1 : 0,
          HasUnitDiag = (Mode&UnitDiag) ? 1 : 0
@@ -151,8 +151,8 @@ public:
         }
       }
 
-//       inline Index row() const { return (ArgType::Flags&RowMajorBit ? Base::outer() : this->index()); }
-//       inline Index col() const { return (ArgType::Flags&RowMajorBit ? this->index() : Base::outer()); }
+//       inline Index row() const { return is_row_major(ArgType::Flags) ? Base::outer() : this->index(); }
+//       inline Index col() const { return is_row_major(ArgType::Flags) ? this->index() : Base::outer(); }
       inline StorageIndex index() const
       {
         if(HasUnitDiag && m_returnOne)  return internal::convert_index<StorageIndex>(Base::outer());

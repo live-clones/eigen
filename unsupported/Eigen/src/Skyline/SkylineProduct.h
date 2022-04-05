@@ -42,14 +42,14 @@ struct internal::traits<SkylineProduct<LhsNested, RhsNested, ProductMode> > {
         MaxRowsAtCompileTime = LhsNested_::MaxRowsAtCompileTime,
         MaxColsAtCompileTime = RhsNested_::MaxColsAtCompileTime,
 
-        EvalToRowMajor = (RhsFlags & LhsFlags & RowMajorBit),
+        EvalToRowMajor = is_row_major(RhsFlags & LhsFlags),
         ResultIsSkyline = ProductMode == SkylineTimeSkylineProduct,
 
-        RemovedBits = ~((EvalToRowMajor ? 0 : RowMajorBit) | (ResultIsSkyline ? 0 : SkylineBit)),
+        RemovedBits = ~(ResultIsSkyline ? 0 : SkylineBit),
 
-        Flags = (int(LhsFlags | RhsFlags) & HereditaryBits & RemovedBits)
+        Flags = with_storage_order((int(LhsFlags | RhsFlags) & HereditaryBits & RemovedBits)
         | EvalBeforeAssigningBit
-        | EvalBeforeNestingBit,
+        | EvalBeforeNestingBit, EvalToRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor),
 
         CoeffReadCost = HugeCost
     };
@@ -127,7 +127,7 @@ EIGEN_DONT_INLINE void skyline_row_major_time_dense_product(const Lhs& lhs, cons
     typedef typename traits<Lhs>::Scalar Scalar;
 
     enum {
-        LhsIsRowMajor = (Lhs_::Flags & RowMajorBit) == RowMajorBit,
+        LhsIsRowMajor = is_row_major(Lhs_::Flags),
         LhsIsSelfAdjoint = (Lhs_::Flags & SelfAdjointBit) == SelfAdjointBit,
         ProcessFirstHalf = LhsIsSelfAdjoint
         && (((Lhs_::Flags & (UpperTriangularBit | LowerTriangularBit)) == 0)
@@ -190,7 +190,7 @@ EIGEN_DONT_INLINE void skyline_col_major_time_dense_product(const Lhs& lhs, cons
     typedef typename traits<Lhs>::Scalar Scalar;
 
     enum {
-        LhsIsRowMajor = (Lhs_::Flags & RowMajorBit) == RowMajorBit,
+        LhsIsRowMajor = is_row_major(Lhs_::Flags),
         LhsIsSelfAdjoint = (Lhs_::Flags & SelfAdjointBit) == SelfAdjointBit,
         ProcessFirstHalf = LhsIsSelfAdjoint
         && (((Lhs_::Flags & (UpperTriangularBit | LowerTriangularBit)) == 0)
@@ -248,7 +248,7 @@ EIGEN_DONT_INLINE void skyline_col_major_time_dense_product(const Lhs& lhs, cons
 }
 
 template<typename Lhs, typename Rhs, typename ResultType,
-        int LhsStorageOrder = traits<Lhs>::Flags&RowMajorBit>
+        int LhsStorageOrder = get_storage_order(traits<Lhs>::Flags)>
         struct skyline_product_selector;
 
 template<typename Lhs, typename Rhs, typename ResultType>

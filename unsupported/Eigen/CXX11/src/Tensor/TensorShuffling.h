@@ -32,7 +32,7 @@ struct traits<TensorShufflingOp<Shuffle, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -99,7 +99,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device>
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = (PacketType<CoeffReturnType, Device>::size > 1),
@@ -136,7 +136,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device>
       }
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       m_unshuffledInputStrides[0] = 1;
       m_outputStrides[0] = 1;
 
@@ -233,8 +233,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device>
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   internal::TensorBlockResourceRequirements getResourceRequirements() const {
-    static const int inner_dim =
-        Layout == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+    static const int inner_dim = is_col_major(Layout) ? 0 : NumDims - 1;
 
     const size_t target_size = m_device.firstLevelCacheSize();
     const bool inner_dim_shuffled = m_shuffle[inner_dim] != inner_dim;
@@ -303,7 +302,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device>
       const DSizes<Index, NumDims>& output_block_strides,
       const DSizes<internal::TensorIntDivisor<Index>, NumDims>& fast_input_block_strides) const {
     Index output_index = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = input_index / fast_input_block_strides[i];
         output_index += idx * output_block_strides[m_inverseShuffle[i]];
@@ -324,7 +323,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device>
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const {
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_fastOutputStrides[i];
         inputIndex += idx * m_inputStrides[i];
@@ -370,7 +369,7 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
 
   enum {
     IsAligned         = false,

@@ -71,7 +71,7 @@ template<typename PlainObjectType, int Options_, template <class> class MakePoin
     static constexpr Index NumIndices = PlainObjectType::NumIndices;
     typedef typename PlainObjectType::Dimensions Dimensions;
 
-    static constexpr int Layout = PlainObjectType::Layout;
+    static constexpr StorageOrder Layout = PlainObjectType::Layout;
     enum {
       IsAligned = ((int(Options_)&Aligned)==Aligned),
       CoordAccess = true,

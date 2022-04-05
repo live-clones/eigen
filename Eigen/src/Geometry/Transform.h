@@ -225,9 +225,9 @@ public:
   /** type of the matrix used to represent the linear part of the transformation */
   typedef Matrix<Scalar,Dim,Dim,Options> LinearMatrixType;
   /** type of read/write reference to the linear part of the transformation */
-  typedef Block<MatrixType,Dim,Dim,int(Mode)==(AffineCompact) && (int(Options)&RowMajor)==0> LinearPart;
+  typedef Block<MatrixType,Dim,Dim,int(Mode)==(AffineCompact) && internal::is_col_major(Options)> LinearPart;
   /** type of read reference to the linear part of the transformation */
-  typedef const Block<ConstMatrixType,Dim,Dim,int(Mode)==(AffineCompact) && (int(Options)&RowMajor)==0> ConstLinearPart;
+  typedef const Block<ConstMatrixType,Dim,Dim,int(Mode)==(AffineCompact) && internal::is_col_major(Options)> ConstLinearPart;
   /** type of read/write reference to the affine part of the transformation */
   typedef std::conditional_t<int(Mode)==int(AffineCompact),
                               MatrixType&,
@@ -239,9 +239,9 @@ public:
   /** type of a vector */
   typedef Matrix<Scalar,Dim,1> VectorType;
   /** type of a read/write reference to the translation part of the rotation */
-  typedef Block<MatrixType,Dim,1,!(internal::traits<MatrixType>::Flags & RowMajorBit)> TranslationPart;
+  typedef Block<MatrixType,Dim,1,is_col_major(internal::traits<MatrixType>::Flags)> TranslationPart;
   /** type of a read reference to the translation part of the rotation */
-  typedef const Block<ConstMatrixType,Dim,1,!(internal::traits<MatrixType>::Flags & RowMajorBit)> ConstTranslationPart;
+  typedef const Block<ConstMatrixType,Dim,1,is_col_major(internal::traits<MatrixType>::Flags)> ConstTranslationPart;
   /** corresponding translation type */
   typedef Translation<Scalar,Dim> TranslationType;
 

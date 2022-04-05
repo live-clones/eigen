@@ -33,13 +33,13 @@ static size_t RandomTargetBlockSize(const DSizes<Index, NumDims>& dims) {
   return internal::random<size_t>(1, dims.TotalSize());
 }
 
-template <int Layout, int NumDims>
+template <StorageOrder Layout, int NumDims>
 static Index GetInputIndex(Index output_index,
                            const array<Index, NumDims>& output_to_input_dim_map,
                            const array<Index, NumDims>& input_strides,
                            const array<Index, NumDims>& output_strides) {
   int input_index = 0;
-  if (Layout == ColMajor) {
+  if (is_col_major(Layout)) {
     for (int i = NumDims - 1; i > 0; --i) {
       const Index idx = output_index / output_strides[i];
       input_index += idx * input_strides[output_to_input_dim_map[i]];
@@ -58,7 +58,7 @@ static Index GetInputIndex(Index output_index,
   }
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_block_io_copy_data_from_source_to_target() {
   using TensorBlockIO = internal::TensorBlockIO<T, Index, NumDims, Layout>;
   using IODst = typename TensorBlockIO::Dst;
@@ -66,11 +66,11 @@ static void test_block_io_copy_data_from_source_to_target() {
 
   // Generate a random input Tensor.
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 30);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   // Write data to an output Tensor.
-  Tensor<T, NumDims, Layout> output(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> output(dims);
 
   // Construct a tensor block mapper.
   using TensorBlockMapper =
@@ -79,7 +79,7 @@ static void test_block_io_copy_data_from_source_to_target() {
       dims, {RandomBlockShape(), RandomTargetBlockSize(dims), {0, 0, 0}});
 
   // We will copy data from input to output through this buffer.
-  Tensor<T, NumDims, Layout> block(block_mapper.blockDimensions());
+  Tensor<T, NumDims, storage_order_flag(Layout)> block(block_mapper.blockDimensions());
 
   // Precompute strides for TensorBlockIO::Copy.
   auto input_strides = internal::strides<Layout>(dims);
@@ -117,11 +117,11 @@ static void test_block_io_copy_data_from_source_to_target() {
   }
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_block_io_copy_using_reordered_dimensions() {
   // Generate a random input Tensor.
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 30);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   // Create a random dimension re-ordering/shuffle.
@@ -140,7 +140,7 @@ static void test_block_io_copy_using_reordered_dimensions() {
   }
 
   // Write data to an output Tensor.
-  Tensor<T, NumDims, Layout> output(output_tensor_dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> output(output_tensor_dims);
 
   // Construct a tensor block mapper.
   // NOTE: Tensor block mapper works with shuffled dimensions.
@@ -152,7 +152,7 @@ static void test_block_io_copy_using_reordered_dimensions() {
                                   {0, 0, 0}});
 
   // We will copy data from input to output through this buffer.
-  Tensor<T, NumDims, Layout> block(block_mapper.blockDimensions());
+  Tensor<T, NumDims, storage_order_flag(Layout)> block(block_mapper.blockDimensions());
 
   // Precompute strides for TensorBlockIO::Copy.
   auto input_strides = internal::strides<Layout>(dims);
@@ -217,7 +217,7 @@ static void test_block_io_copy_using_reordered_dimensions() {
 // This is the special case for reading data with reordering, when dimensions
 // before/after reordering are the same. Squeezing reads along inner dimensions
 // in this case is illegal, because we reorder innermost dimension.
-template <int Layout>
+template <StorageOrder Layout>
 static void test_block_io_copy_using_reordered_dimensions_do_not_squeeze() {
   DSizes<Index, 3> tensor_dims(7, 9, 7);
   DSizes<Index, 3> block_dims = tensor_dims;
@@ -230,8 +230,8 @@ static void test_block_io_copy_using_reordered_dimensions_do_not_squeeze() {
   auto tensor_strides = internal::strides<Layout>(tensor_dims);
   auto block_strides = internal::strides<Layout>(block_dims);
 
-  Tensor<float, 3, Layout> block(block_dims);
-  Tensor<float, 3, Layout> tensor(tensor_dims);
+  Tensor<float, 3, storage_order_flag(Layout)> block(block_dims);
+  Tensor<float, 3, storage_order_flag(Layout)> tensor(tensor_dims);
   tensor.setRandom();
 
   float* tensor_data = tensor.data();
@@ -247,8 +247,8 @@ static void test_block_io_copy_using_reordered_dimensions_do_not_squeeze() {
 
   TensorBlockIO::Copy(dst, src, /*dst_to_src_dim_map=*/block_to_tensor_dim);
 
-  TensorMap<Tensor<float, 3, Layout> > block_tensor(block_data, block_dims);
-  TensorMap<Tensor<float, 3, Layout> > tensor_tensor(tensor_data, tensor_dims);
+  TensorMap<Tensor<float, 3, storage_order_flag(Layout)> > block_tensor(block_data, block_dims);
+  TensorMap<Tensor<float, 3, storage_order_flag(Layout)> > tensor_tensor(tensor_data, tensor_dims);
 
   for (Index d0 = 0; d0 < tensor_dims[0]; ++d0) {
     for (Index d1 = 0; d1 < tensor_dims[1]; ++d1) {
@@ -264,7 +264,7 @@ static void test_block_io_copy_using_reordered_dimensions_do_not_squeeze() {
 // This is the special case for reading data with reordering, when dimensions
 // before/after reordering are the same. Squeezing reads in this case is allowed
 // because we reorder outer dimensions.
-template <int Layout>
+template <StorageOrder Layout>
 static void test_block_io_copy_using_reordered_dimensions_squeeze() {
   DSizes<Index, 4> tensor_dims(7, 5, 9, 9);
   DSizes<Index, 4> block_dims = tensor_dims;
@@ -278,8 +278,8 @@ static void test_block_io_copy_using_reordered_dimensions_squeeze() {
   auto tensor_strides = internal::strides<Layout>(tensor_dims);
   auto block_strides = internal::strides<Layout>(block_dims);
 
-  Tensor<float, 4, Layout> block(block_dims);
-  Tensor<float, 4, Layout> tensor(tensor_dims);
+  Tensor<float, 4, storage_order_flag(Layout)> block(block_dims);
+  Tensor<float, 4, storage_order_flag(Layout)> tensor(tensor_dims);
   tensor.setRandom();
 
   float* tensor_data = tensor.data();
@@ -295,8 +295,8 @@ static void test_block_io_copy_using_reordered_dimensions_squeeze() {
 
   TensorBlockIO::Copy(dst, src, /*dst_to_src_dim_map=*/block_to_tensor_dim);
 
-  TensorMap<Tensor<float, 4, Layout> > block_tensor(block_data, block_dims);
-  TensorMap<Tensor<float, 4, Layout> > tensor_tensor(tensor_data, tensor_dims);
+  TensorMap<Tensor<float, 4, storage_order_flag(Layout)> > block_tensor(block_data, block_dims);
+  TensorMap<Tensor<float, 4, storage_order_flag(Layout)> > tensor_tensor(tensor_data, tensor_dims);
 
   for (Index d0 = 0; d0 < tensor_dims[0]; ++d0) {
     for (Index d1 = 0; d1 < tensor_dims[1]; ++d1) {
@@ -311,7 +311,7 @@ static void test_block_io_copy_using_reordered_dimensions_squeeze() {
   }
 }
 
-template <int Layout>
+template <StorageOrder Layout>
 static void test_block_io_zero_stride() {
   DSizes<Index, 5> rnd_dims = RandomDims<5>(1, 30);
 
@@ -320,7 +320,7 @@ static void test_block_io_zero_stride() {
   input_tensor_dims[2] = 1;
   input_tensor_dims[4] = 1;
 
-  Tensor<float, 5, Layout> input(input_tensor_dims);
+  Tensor<float, 5, storage_order_flag(Layout)> input(input_tensor_dims);
   input.setRandom();
 
   DSizes<Index, 5> output_tensor_dims = rnd_dims;
@@ -333,7 +333,7 @@ static void test_block_io_zero_stride() {
   input_tensor_strides_with_zeros[2] = 0;
   input_tensor_strides_with_zeros[4] = 0;
 
-  Tensor<float, 5, Layout> output(output_tensor_dims);
+  Tensor<float, 5, storage_order_flag(Layout)> output(output_tensor_dims);
   output.setRandom();
 
   using TensorBlockIO = internal::TensorBlockIO<float, Index, 5, Layout>;
@@ -360,7 +360,7 @@ static void test_block_io_zero_stride() {
   }
 }
 
-template <int Layout>
+template <StorageOrder Layout>
 static void test_block_io_squeeze_ones() {
   using TensorBlockIO = internal::TensorBlockIO<float, Index, 5, Layout>;
   using IODst = typename TensorBlockIO::Dst;
@@ -408,38 +408,38 @@ static void test_block_io_squeeze_ones() {
 }
 
 #define CALL_SUBTESTS(NAME)                   \
-  CALL_SUBTEST((NAME<float, 1, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 2, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 4, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 5, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 1, ColMajor>())); \
-  CALL_SUBTEST((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST((NAME<float, 5, ColMajor>())); \
-  CALL_SUBTEST((NAME<bool, 1, RowMajor>())); \
-  CALL_SUBTEST((NAME<bool, 2, RowMajor>())); \
-  CALL_SUBTEST((NAME<bool, 4, RowMajor>())); \
-  CALL_SUBTEST((NAME<bool, 5, RowMajor>())); \
-  CALL_SUBTEST((NAME<bool, 1, ColMajor>())); \
-  CALL_SUBTEST((NAME<bool, 2, ColMajor>())); \
-  CALL_SUBTEST((NAME<bool, 4, ColMajor>())); \
-  CALL_SUBTEST((NAME<bool, 5, ColMajor>()))
+  CALL_SUBTEST((NAME<float, 1, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<float, 2, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<float, 4, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<float, 5, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<float, 1, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<float, 2, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<float, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<float, 5, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<bool, 1, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<bool, 2, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<bool, 4, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<bool, 5, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST((NAME<bool, 1, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<bool, 2, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<bool, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST((NAME<bool, 5, StorageOrder::ColMajor>()))
 
 EIGEN_DECLARE_TEST(cxx11_tensor_block_io) {
   // clang-format off
   CALL_SUBTESTS(test_block_io_copy_data_from_source_to_target);
   CALL_SUBTESTS(test_block_io_copy_using_reordered_dimensions);
 
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_do_not_squeeze<RowMajor>());
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_do_not_squeeze<ColMajor>());
+  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_do_not_squeeze<StorageOrder::RowMajor>());
+  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_do_not_squeeze<StorageOrder::ColMajor>());
 
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_squeeze<RowMajor>());
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_squeeze<ColMajor>());
+  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_squeeze<StorageOrder::RowMajor>());
+  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_squeeze<StorageOrder::ColMajor>());
 
-  CALL_SUBTEST(test_block_io_zero_stride<RowMajor>());
-  CALL_SUBTEST(test_block_io_zero_stride<ColMajor>());
+  CALL_SUBTEST(test_block_io_zero_stride<StorageOrder::RowMajor>());
+  CALL_SUBTEST(test_block_io_zero_stride<StorageOrder::ColMajor>());
 
-  CALL_SUBTEST(test_block_io_squeeze_ones<RowMajor>());
-  CALL_SUBTEST(test_block_io_squeeze_ones<ColMajor>());
+  CALL_SUBTEST(test_block_io_squeeze_ones<StorageOrder::RowMajor>());
+  CALL_SUBTEST(test_block_io_squeeze_ones<StorageOrder::ColMajor>());
   // clang-format on
 }

@@ -48,7 +48,7 @@ struct traits<PartialReduxExpr<MatrixType, MemberOp, Direction> >
     ColsAtCompileTime = Direction==Horizontal ? 1 : MatrixType::ColsAtCompileTime,
     MaxRowsAtCompileTime = Direction==Vertical   ? 1 : MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = Direction==Horizontal ? 1 : MatrixType::MaxColsAtCompileTime,
-    Flags = RowsAtCompileTime == 1 ? RowMajorBit : 0,
+    Flags = RowsAtCompileTime == 1 ? RowMajor : ColMajor,
     TraversalSize = Direction==Vertical ? MatrixType::RowsAtCompileTime :  MatrixType::ColsAtCompileTime
   };
 };

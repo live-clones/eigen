@@ -21,12 +21,12 @@ template <> struct product_promote_storage_type<Dense,Sparse, OuterProduct> { ty
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType,
          typename AlphaType,
-         int LhsStorageOrder = ((SparseLhsType::Flags&RowMajorBit)==RowMajorBit) ? RowMajor : ColMajor,
-         bool ColPerCol = ((DenseRhsType::Flags&RowMajorBit)==0) || DenseRhsType::ColsAtCompileTime==1>
+         StorageOrder LhsStorageOrder = get_storage_order(SparseLhsType::Flags),
+         bool ColPerCol = is_col_major(DenseRhsType::Flags) || DenseRhsType::ColsAtCompileTime==1>
 struct sparse_time_dense_product_impl;
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, RowMajor, true>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, StorageOrder::RowMajor, true>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
@@ -93,7 +93,7 @@ struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, t
 // };
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType, typename AlphaType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, AlphaType, ColMajor, true>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, AlphaType, StorageOrder::ColMajor, true>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
@@ -117,7 +117,7 @@ struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, A
 };
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, RowMajor, false>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, StorageOrder::RowMajor, false>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
@@ -157,7 +157,7 @@ struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, t
 };
 
 template<typename SparseLhsType, typename DenseRhsType, typename DenseResType>
-struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, ColMajor, false>
+struct sparse_time_dense_product_impl<SparseLhsType,DenseRhsType,DenseResType, typename DenseResType::Scalar, StorageOrder::ColMajor, false>
 {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
   typedef internal::remove_all_t<DenseRhsType> Rhs;
@@ -194,8 +194,8 @@ struct generic_product_impl<Lhs, Rhs, SparseShape, DenseShape, ProductType>
   template<typename Dest>
   static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha)
   {
-    typedef typename nested_eval<Lhs,((Rhs::Flags&RowMajorBit)==0) ? 1 : Rhs::ColsAtCompileTime>::type LhsNested;
-    typedef typename nested_eval<Rhs,((Lhs::Flags&RowMajorBit)==0) ? 1 : Dynamic>::type RhsNested;
+    typedef typename nested_eval<Lhs,is_col_major(Rhs::Flags) ? 1 : Rhs::ColsAtCompileTime>::type LhsNested;
+    typedef typename nested_eval<Rhs,is_col_major(Lhs::Flags) ? 1 : Dynamic>::type RhsNested;
     LhsNested lhsNested(lhs);
     RhsNested rhsNested(rhs);
     internal::sparse_time_dense_product(lhsNested, rhsNested, dst, alpha);
@@ -216,8 +216,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, SparseShape, ProductType>
   template<typename Dst>
   static void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha)
   {
-    typedef typename nested_eval<Lhs,((Rhs::Flags&RowMajorBit)==0) ? Dynamic : 1>::type LhsNested;
-    typedef typename nested_eval<Rhs,((Lhs::Flags&RowMajorBit)==RowMajorBit) ? 1 : Lhs::RowsAtCompileTime>::type RhsNested;
+    typedef typename nested_eval<Lhs,is_col_major(Rhs::Flags) ? Dynamic : 1>::type LhsNested;
+    typedef typename nested_eval<Rhs,is_col_major(Lhs::Flags) ? 1 : Lhs::RowsAtCompileTime>::type RhsNested;
     LhsNested lhsNested(lhs);
     RhsNested rhsNested(rhs);
     
@@ -254,7 +254,7 @@ protected:
   
 public:
   enum {
-    Flags = NeedToTranspose ? RowMajorBit : 0,
+    Flags = NeedToTranspose ? RowMajor : ColMajor,
     CoeffReadCost = HugeCost
   };
   

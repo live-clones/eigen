@@ -69,7 +69,7 @@ class BandMatrixBase : public EigenBase<Derived>
       * \warning the internal storage must be column major. */
     inline Block<CoefficientsType,Dynamic,1> col(Index i)
     {
-      EIGEN_STATIC_ASSERT((int(Options) & int(RowMajor)) == 0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
+      EIGEN_STATIC_ASSERT(is_col_major(Options), THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
       Index start = 0;
       Index len = coeffs().rows();
       if (i<=supers())
@@ -194,7 +194,7 @@ struct traits<BandMatrix<Scalar_,Rows_,Cols_,Supers_,Subs_,Options_> >
     Options = Options_,
     DataRowsAtCompileTime = ((Supers!=Dynamic) && (Subs!=Dynamic)) ? 1 + Supers + Subs : Dynamic
   };
-  typedef Matrix<Scalar, DataRowsAtCompileTime, ColsAtCompileTime, int(Options) & int(RowMajor) ? RowMajor : ColMajor> CoefficientsType;
+  typedef Matrix<Scalar, DataRowsAtCompileTime, ColsAtCompileTime, storage_order_flag(Options)> CoefficientsType;
 };
 
 template<typename Scalar_, int Rows, int Cols, int Supers, int Subs, int Options>
@@ -311,9 +311,9 @@ class BandMatrixWrapper : public BandMatrixBase<BandMatrixWrapper<CoefficientsTy
   * \sa class BandMatrix
   */
 template<typename Scalar, int Size, int Options>
-class TridiagonalMatrix : public BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1,Options|RowMajor>
+class TridiagonalMatrix : public BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1, with_storage_order(Options, StorageOrder::RowMajor)>
 {
-    typedef BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1,Options|RowMajor> Base;
+    typedef BandMatrix<Scalar,Size,Size,Options&SelfAdjoint?0:1,1,with_storage_order(Options, StorageOrder::RowMajor)> Base;
     typedef typename Base::StorageIndex StorageIndex;
   public:
     explicit TridiagonalMatrix(Index size = Size) : Base(size,size,Options&SelfAdjoint?0:1,1) {}

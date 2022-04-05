@@ -34,7 +34,7 @@ struct TensorBlockParams {
   TensorBlockDescriptor<NumDims, Index> desc;
 };
 
-template <int Layout, int NumDims>
+template <StorageOrder Layout, int NumDims>
 static TensorBlockParams<NumDims> RandomBlock(DSizes<Index, NumDims> dims,
                                               Index min, Index max) {
   // Choose random offsets and sizes along all tensor dimensions.
@@ -58,7 +58,7 @@ static TensorBlockParams<NumDims> RandomBlock(DSizes<Index, NumDims> dims,
 
 // Generate block with block sizes skewed towards inner dimensions. This type of
 // block is required for evaluating broadcast expressions.
-template <int Layout, int NumDims>
+template <StorageOrder Layout, int NumDims>
 static TensorBlockParams<NumDims> SkewedInnerBlock(
     DSizes<Index, NumDims> dims) {
   using BlockMapper = internal::TensorBlockMapper<NumDims, Layout, Index>;
@@ -77,7 +77,7 @@ static TensorBlockParams<NumDims> SkewedInnerBlock(
 
   // Compute offsets for the first block coefficient.
   Index index = block.offset();
-  if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+  if (is_col_major(Layout)) {
     for (int i = NumDims - 1; i > 0; --i) {
       const Index idx = index / strides[i];
       index -= idx * strides[i];
@@ -119,7 +119,7 @@ inline Eigen::IndexList<Eigen::type2index<1>, Index> OneByM(Index m) {
 // Verify that block expression evaluation produces the same result as a
 // TensorSliceOp (reading a tensor block is same to taking a tensor slice).
 
-template <typename T, int NumDims, int Layout, typename Expression,
+template <typename T, int NumDims, StorageOrder Layout, typename Expression,
           typename GenBlockParams>
 static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
   using Device = DefaultDevice;
@@ -137,7 +137,7 @@ static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
   TensorBlockParams<NumDims> block_params = gen_block();
 
   // Evaluate TensorBlock expression into a tensor.
-  Tensor<T, NumDims, Layout> block(block_params.desc.dimensions());
+  Tensor<T, NumDims, storage_order_flag(Layout)> block(block_params.desc.dimensions());
 
   // Dimensions for the potential destination buffer.
   DSizes<Index, NumDims> dst_dims;
@@ -151,7 +151,7 @@ static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
   }
 
   // Maybe use this tensor as a block desc destination.
-  Tensor<T, NumDims, Layout> dst(dst_dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> dst(dst_dims);
   dst.setZero();
   if (internal::random<bool>()) {
     block_params.desc.template AddDestinationBuffer<Layout>(
@@ -187,7 +187,7 @@ static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
   tensor_block.cleanup();
 
   // Compute a Tensor slice corresponding to a Tensor block.
-  Tensor<T, NumDims, Layout> slice(block_params.desc.dimensions());
+  Tensor<T, NumDims, storage_order_flag(Layout)> slice(block_params.desc.dimensions());
   auto s_expr = expr.slice(block_params.offsets, block_params.sizes);
 
   // Explicitly use coefficient assignment to evaluate slice expression.
@@ -204,10 +204,10 @@ static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
 
 // -------------------------------------------------------------------------- //
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_block() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   // Identity tensor expression transformation.
@@ -215,20 +215,20 @@ static void test_eval_tensor_block() {
       input, [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_unary_expr_block() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   VerifyBlockEvaluator<T, NumDims, Layout>(
       input.abs(), [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_binary_expr_block() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> lhs(dims), rhs(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> lhs(dims), rhs(dims);
   lhs.setRandom();
   rhs.setRandom();
 
@@ -236,10 +236,10 @@ static void test_eval_tensor_binary_expr_block() {
       lhs * rhs, [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_binary_with_unary_expr_block() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> lhs(dims), rhs(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> lhs(dims), rhs(dims);
   lhs.setRandom();
   rhs.setRandom();
 
@@ -248,10 +248,10 @@ static void test_eval_tensor_binary_with_unary_expr_block() {
       [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_broadcast() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 10);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   DSizes<Index, NumDims> bcast = RandomDims<NumDims>(1, 5);
@@ -278,14 +278,14 @@ static void test_eval_tensor_broadcast() {
       [&bcasted_dims]() { return SkewedInnerBlock<Layout>(bcasted_dims); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_reshape() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 10);
 
   DSizes<Index, NumDims> shuffled = dims;
   std::shuffle(&shuffled[0], &shuffled[NumDims - 1], std::mt19937(g_seed));
 
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   VerifyBlockEvaluator<T, NumDims, Layout>(
@@ -297,10 +297,10 @@ static void test_eval_tensor_reshape() {
       [&shuffled]() { return SkewedInnerBlock<Layout>(shuffled); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_cast() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   VerifyBlockEvaluator<T, NumDims, Layout>(
@@ -308,12 +308,12 @@ static void test_eval_tensor_cast() {
       [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_select() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> lhs(dims);
-  Tensor<T, NumDims, Layout> rhs(dims);
-  Tensor<bool, NumDims, Layout> cond(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> lhs(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> rhs(dims);
+  Tensor<bool, NumDims, storage_order_flag(Layout)> cond(dims);
   lhs.setRandom();
   rhs.setRandom();
   cond.setRandom();
@@ -323,12 +323,12 @@ static void test_eval_tensor_select() {
   });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_padding() {
-  const int inner_dim = Layout == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+  const int inner_dim = is_col_major(Layout) ? 0 : NumDims - 1;
 
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   DSizes<Index, NumDims> pad_before = RandomDims<NumDims>(0, 4);
@@ -363,10 +363,10 @@ static void test_eval_tensor_padding() {
       [&padded_dims]() { return SkewedInnerBlock<Layout>(padded_dims); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_chipping() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   Index chip_dim = internal::random<int>(0, NumDims - 1);
@@ -424,10 +424,10 @@ struct SimpleTensorGenerator<bool, NumDims> {
 };
 
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_generator() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   auto generator = SimpleTensorGenerator<T, NumDims>();
@@ -440,10 +440,10 @@ static void test_eval_tensor_generator() {
       [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_reverse() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   // Randomly reverse dimensions.
@@ -458,10 +458,10 @@ static void test_eval_tensor_reverse() {
   });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_slice() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   // Pick a random slice of an input tensor.
@@ -483,10 +483,10 @@ static void test_eval_tensor_slice() {
       [&slice_size]() { return RandomBlock<Layout>(slice_size, 1, 10); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_eval_tensor_shuffle() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
-  Tensor<T, NumDims, Layout> input(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> input(dims);
   input.setRandom();
 
   DSizes<Index, NumDims> shuffle;
@@ -510,12 +510,12 @@ static void test_eval_tensor_shuffle() {
   } while (std::next_permutation(&shuffle[0], &shuffle[0] + NumDims));
 }
 
-template <typename T, int Layout>
+template <typename T, StorageOrder Layout>
 static void test_eval_tensor_reshape_with_bcast() {
   Index dim = internal::random<Index>(1, 100);
 
-  Tensor<T, 2, Layout> lhs(1, dim);
-  Tensor<T, 2, Layout> rhs(dim, 1);
+  Tensor<T, 2, storage_order_flag(Layout)> lhs(1, dim);
+  Tensor<T, 2, storage_order_flag(Layout)> rhs(dim, 1);
   lhs.setRandom();
   rhs.setRandom();
 
@@ -533,12 +533,12 @@ static void test_eval_tensor_reshape_with_bcast() {
       [dims]() { return SkewedInnerBlock<Layout, 2>(dims); });
 }
 
-template <typename T, int Layout>
+template <typename T, StorageOrder Layout>
 static void test_eval_tensor_forced_eval() {
   Index dim = internal::random<Index>(1, 100);
 
-  Tensor<T, 2, Layout> lhs(dim, 1);
-  Tensor<T, 2, Layout> rhs(1, dim);
+  Tensor<T, 2, storage_order_flag(Layout)> lhs(dim, 1);
+  Tensor<T, 2, storage_order_flag(Layout)> rhs(1, dim);
   lhs.setRandom();
   rhs.setRandom();
 
@@ -556,15 +556,15 @@ static void test_eval_tensor_forced_eval() {
       [dims]() { return RandomBlock<Layout, 2>(dims, 1, 50); });
 }
 
-template <typename T, int Layout>
+template <typename T, StorageOrder Layout>
 static void test_eval_tensor_chipping_of_bcast() {
-  if (Layout != static_cast<int>(RowMajor)) return;
+  if (is_col_major(Layout)) return;
 
   Index dim0 = internal::random<Index>(1, 10);
   Index dim1 = internal::random<Index>(1, 10);
   Index dim2 = internal::random<Index>(1, 10);
 
-  Tensor<T, 3, Layout> input(1, dim1, dim2);
+  Tensor<T, 3, storage_order_flag(Layout)> input(1, dim1, dim2);
   input.setRandom();
 
   Eigen::array<Index, 3> bcast = {{dim0, 1, 1}};
@@ -588,9 +588,9 @@ static void test_eval_tensor_chipping_of_bcast() {
 // as an assignment to TensorSliceOp (writing a block is is identical to
 // assigning one tensor to a slice of another tensor).
 
-template <typename T, int NumDims, int Layout, int NumExprDims = NumDims,
+template <typename T, int NumDims, StorageOrder Layout, int NumExprDims = NumDims,
           typename Expression, typename GenBlockParams>
-static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor,
+static void VerifyBlockAssignment(Tensor<T, NumDims, storage_order_flag(Layout)>& tensor,
                                   Expression expr, GenBlockParams gen_block) {
   using Device = DefaultDevice;
   auto d = Device();
@@ -602,7 +602,7 @@ static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor,
   TensorBlockParams<NumExprDims> block_params = gen_block();
 
   // Generate random data of the selected block size.
-  Tensor<T, NumExprDims, Layout> block(block_params.desc.dimensions());
+  Tensor<T, NumExprDims, storage_order_flag(Layout)> block(block_params.desc.dimensions());
   block.setRandom();
 
   // ************************************************************************ //
@@ -619,7 +619,7 @@ static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor,
   eval.writeBlock(block_params.desc, blk);
 
   // Make a copy of the result after assignment.
-  Tensor<T, NumDims, Layout> block_assigned = tensor;
+  Tensor<T, NumDims, storage_order_flag(Layout)> block_assigned = tensor;
 
   // ************************************************************************ //
   // (2) Assignment to a slice
@@ -637,7 +637,7 @@ static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor,
   SliceExecutor::run(SliceAssign(s_expr, block), d);
 
   // Make a copy of the result after assignment.
-  Tensor<T, NumDims, Layout> slice_assigned = tensor;
+  Tensor<T, NumDims, storage_order_flag(Layout)> slice_assigned = tensor;
 
   for (Index i = 0; i < tensor.dimensions().TotalSize(); ++i) {
     VERIFY_IS_EQUAL(block_assigned.coeff(i), slice_assigned.coeff(i));
@@ -646,12 +646,12 @@ static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor,
 
 // -------------------------------------------------------------------------- //
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_assign_to_tensor() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> tensor(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> tensor(dims);
 
-  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+  TensorMap<Tensor<T, NumDims, storage_order_flag(Layout)>> map(tensor.data(), dims);
 
   VerifyBlockAssignment<T, NumDims, Layout>(
       tensor, map, [&dims]() { return RandomBlock<Layout>(dims, 10, 20); });
@@ -659,12 +659,12 @@ static void test_assign_to_tensor() {
       tensor, map, [&dims]() { return FixedSizeBlock(dims); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_assign_to_tensor_reshape() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> tensor(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> tensor(dims);
 
-  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+  TensorMap<Tensor<T, NumDims, storage_order_flag(Layout)>> map(tensor.data(), dims);
 
   DSizes<Index, NumDims> shuffled = dims;
   std::shuffle(&shuffled[0], &shuffled[NumDims - 1], std::mt19937(g_seed));
@@ -682,10 +682,10 @@ static void test_assign_to_tensor_reshape() {
       [&shuffled]() { return FixedSizeBlock(shuffled); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_assign_to_tensor_chipping() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> tensor(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> tensor(dims);
 
   Index chip_dim = internal::random<int>(0, NumDims - 1);
   Index chip_offset = internal::random<Index>(0, dims[chip_dim] - 2);
@@ -698,7 +698,7 @@ static void test_assign_to_tensor_chipping() {
     chipped_dims[i - 1] = dims[i];
   }
 
-  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+  TensorMap<Tensor<T, NumDims, storage_order_flag(Layout)>> map(tensor.data(), dims);
 
   VerifyBlockAssignment<T, NumDims, Layout, NumDims - 1>(
       tensor, map.chip(chip_offset, chip_dim),
@@ -713,10 +713,10 @@ static void test_assign_to_tensor_chipping() {
       [&chipped_dims]() { return FixedSizeBlock(chipped_dims); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_assign_to_tensor_slice() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
-  Tensor<T, NumDims, Layout> tensor(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> tensor(dims);
 
   // Pick a random slice of tensor.
   DSizes<Index, NumDims> slice_start = RandomDims<NumDims>(5, 10);
@@ -728,7 +728,7 @@ static void test_assign_to_tensor_slice() {
     slice_size[i] = numext::mini(slice_size[i], dims[i] - slice_start[i]);
   }
 
-  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+  TensorMap<Tensor<T, NumDims, storage_order_flag(Layout)>> map(tensor.data(), dims);
 
   VerifyBlockAssignment<T, NumDims, Layout>(
       tensor, map.slice(slice_start, slice_size),
@@ -743,15 +743,15 @@ static void test_assign_to_tensor_slice() {
       [&slice_size]() { return FixedSizeBlock(slice_size); });
 }
 
-template <typename T, int NumDims, int Layout>
+template <typename T, int NumDims, StorageOrder Layout>
 static void test_assign_to_tensor_shuffle() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
-  Tensor<T, NumDims, Layout> tensor(dims);
+  Tensor<T, NumDims, storage_order_flag(Layout)> tensor(dims);
 
   DSizes<Index, NumDims> shuffle;
   for (int i = 0; i < NumDims; ++i) shuffle[i] = i;
 
-  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+  TensorMap<Tensor<T, NumDims, storage_order_flag(Layout)>> map(tensor.data(), dims);
 
   do {
     DSizes<Index, NumDims> shuffled_dims;
@@ -775,54 +775,54 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_##PART
 
 #define CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(PART, NAME)           \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 3, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 1, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 2, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 3, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 5, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 1, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 5, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 1, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 2, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 3, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 5, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 1, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 5, ColMajor>()))
+  CALL_SUBTEST_PART(PART)((NAME<float, 1, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 2, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 3, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 4, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 5, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 1, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 2, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 5, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 1, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 2, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 3, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 4, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 5, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 1, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 2, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<int, 5, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 1, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 2, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 3, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 4, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 5, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 1, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 2, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 5, StorageOrder::ColMajor>()))
 
 #define CALL_SUBTESTS_DIMS_LAYOUTS(PART, NAME)     \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 3, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>()))
+  CALL_SUBTEST_PART(PART)((NAME<float, 1, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 2, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 3, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 4, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 5, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 1, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 2, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 4, StorageOrder::ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 5, StorageOrder::ColMajor>()))
 
 #define CALL_SUBTESTS_LAYOUTS_TYPES(PART, NAME)       \
-  CALL_SUBTEST_PART(PART)((NAME<float, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, ColMajor>()))
+  CALL_SUBTEST_PART(PART)((NAME<float, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, StorageOrder::ColMajor>()));  \
+  CALL_SUBTEST_PART(PART)((NAME<bool, StorageOrder::RowMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<bool, StorageOrder::ColMajor>()))
 
 EIGEN_DECLARE_TEST(cxx11_tensor_block_eval) {
   // clang-format off

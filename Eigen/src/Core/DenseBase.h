@@ -160,7 +160,7 @@ template<typename Derived> class DenseBase
           * constructed from this one. See the \ref flags "list of flags".
           */
 
-      IsRowMajor = int(Flags) & RowMajorBit, /**< True if this expression has row-major storage order. */
+      IsRowMajor = is_row_major(Flags), /**< True if this expression has row-major storage order. */
 
       InnerSizeAtCompileTime = int(IsVectorAtCompileTime) ? int(SizeAtCompileTime)
                              : int(IsRowMajor) ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
@@ -178,7 +178,7 @@ template<typename Derived> class DenseBase
     typedef Matrix<typename internal::traits<Derived>::Scalar,
                 internal::traits<Derived>::RowsAtCompileTime,
                 internal::traits<Derived>::ColsAtCompileTime,
-                AutoAlign | (internal::traits<Derived>::Flags&RowMajorBit ? RowMajor : ColMajor),
+                AutoAlign | storage_order_flag(internal::traits<Derived>::Flags),
                 internal::traits<Derived>::MaxRowsAtCompileTime,
                 internal::traits<Derived>::MaxColsAtCompileTime
           > PlainMatrix;
@@ -188,7 +188,7 @@ template<typename Derived> class DenseBase
     typedef Array<typename internal::traits<Derived>::Scalar,
                 internal::traits<Derived>::RowsAtCompileTime,
                 internal::traits<Derived>::ColsAtCompileTime,
-                AutoAlign | (internal::traits<Derived>::Flags&RowMajorBit ? RowMajor : ColMajor),
+                AutoAlign | storage_order_flag(internal::traits<Derived>::Flags),
                 internal::traits<Derived>::MaxRowsAtCompileTime,
                 internal::traits<Derived>::MaxColsAtCompileTime
           > PlainArray;

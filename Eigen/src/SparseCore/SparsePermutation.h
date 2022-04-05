@@ -27,14 +27,14 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
     typedef typename MatrixTypeCleaned::Scalar Scalar;
     typedef typename MatrixTypeCleaned::StorageIndex StorageIndex;
 
+    static constexpr StorageOrder SrcStorageOrder = get_storage_order(MatrixTypeCleaned::Flags);
     enum {
-      SrcStorageOrder = MatrixTypeCleaned::Flags&RowMajorBit ? RowMajor : ColMajor,
-      MoveOuter = SrcStorageOrder==RowMajor ? Side==OnTheLeft : Side==OnTheRight
+      MoveOuter = is_row_major(SrcStorageOrder) ? Side==OnTheLeft : Side==OnTheRight
     };
     
     typedef std::conditional_t<MoveOuter,
-        SparseMatrix<Scalar,SrcStorageOrder,StorageIndex>,
-        SparseMatrix<Scalar,int(SrcStorageOrder)==RowMajor?ColMajor:RowMajor,StorageIndex> > ReturnType;
+        SparseMatrix<Scalar, storage_order_flag(SrcStorageOrder),StorageIndex>,
+        SparseMatrix<Scalar,storage_order_flag(transposed(SrcStorageOrder)),StorageIndex> > ReturnType;
 
     template<typename Dest,typename PermutationType>
     static inline void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr)
@@ -42,7 +42,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
       MatrixType mat(xpr);
       if(MoveOuter)
       {
-        SparseMatrix<Scalar,SrcStorageOrder,StorageIndex> tmp(mat.rows(), mat.cols());
+        SparseMatrix<Scalar, storage_order_flag(SrcStorageOrder),StorageIndex> tmp(mat.rows(), mat.cols());
         Matrix<StorageIndex,Dynamic,1> sizes(mat.outerSize());
         for(Index j=0; j<mat.outerSize(); ++j)
         {
@@ -62,7 +62,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
       }
       else
       {
-        SparseMatrix<Scalar,int(SrcStorageOrder)==RowMajor?ColMajor:RowMajor,StorageIndex> tmp(mat.rows(), mat.cols());
+        SparseMatrix<Scalar,storage_order_flag(transposed(SrcStorageOrder)),StorageIndex> tmp(mat.rows(), mat.cols());
         Matrix<StorageIndex,Dynamic,1> sizes(tmp.outerSize());
         sizes.setZero();
         PermutationMatrix<Dynamic,Dynamic,StorageIndex> perm_cpy;

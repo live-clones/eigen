@@ -16,21 +16,21 @@ namespace Eigen {
 
 namespace internal {
 
-template<typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate, int StorageOrder>
-struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheRight, Mode, Conjugate, StorageOrder>
+template<typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate, StorageOrder StorageOrder_>
+struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheRight, Mode, Conjugate, StorageOrder_>
 {
   static void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs)
   {
     triangular_solve_vector<LhsScalar,RhsScalar,Index,OnTheLeft,
         ((Mode&Upper)==Upper ? Lower : Upper) | (Mode&UnitDiag),
-        Conjugate,StorageOrder==RowMajor?ColMajor:RowMajor
+        Conjugate,transposed(StorageOrder_)
       >::run(size, _lhs, lhsStride, rhs);
   }
 };
 
 // forward and backward substitution, row-major, rhs is a vector
 template<typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate>
-struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, RowMajor>
+struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, StorageOrder::RowMajor>
 {
   enum {
     IsLower = ((Mode&Lower)==Lower)
@@ -40,8 +40,8 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
     typedef Map<const Matrix<LhsScalar,Dynamic,Dynamic,RowMajor>, 0, OuterStride<> > LhsMap;
     const LhsMap lhs(_lhs,size,size,OuterStride<>(lhsStride));
 
-    typedef const_blas_data_mapper<LhsScalar,Index,RowMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar,Index,ColMajor> RhsMapper;
+    typedef const_blas_data_mapper<LhsScalar,Index,StorageOrder::RowMajor> LhsMapper;
+    typedef const_blas_data_mapper<RhsScalar,Index,StorageOrder::ColMajor> RhsMapper;
 
     std::conditional_t<
                   Conjugate,
@@ -63,7 +63,7 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
         Index startRow = IsLower ? pi : pi-actualPanelWidth;
         Index startCol = IsLower ? 0 : pi;
 
-        general_matrix_vector_product<Index,LhsScalar,LhsMapper,RowMajor,Conjugate,RhsScalar,RhsMapper,false>::run(
+        general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::RowMajor,Conjugate,RhsScalar,RhsMapper,false>::run(
           actualPanelWidth, r,
           LhsMapper(&lhs.coeffRef(startRow,startCol), lhsStride),
           RhsMapper(rhs + startCol, 1),
@@ -87,7 +87,7 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
 
 // forward and backward substitution, column-major, rhs is a vector
 template<typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate>
-struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, ColMajor>
+struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, StorageOrder::ColMajor>
 {
   enum {
     IsLower = ((Mode&Lower)==Lower)
@@ -96,8 +96,8 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
   {
     typedef Map<const Matrix<LhsScalar,Dynamic,Dynamic,ColMajor>, 0, OuterStride<> > LhsMap;
     const LhsMap lhs(_lhs,size,size,OuterStride<>(lhsStride));
-    typedef const_blas_data_mapper<LhsScalar,Index,ColMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar,Index,ColMajor> RhsMapper;
+    typedef const_blas_data_mapper<LhsScalar,Index,StorageOrder::ColMajor> LhsMapper;
+    typedef const_blas_data_mapper<RhsScalar,Index,StorageOrder::ColMajor> RhsMapper;
     std::conditional_t<Conjugate,
                             const CwiseUnaryOp<typename internal::scalar_conjugate_op<LhsScalar>,LhsMap>,
                             const LhsMap&
@@ -132,7 +132,7 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
         // let's directly call the low level product function because:
         // 1 - it is faster to compile
         // 2 - it is slightly faster at runtime
-        general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,Conjugate,RhsScalar,RhsMapper,false>::run(
+        general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,Conjugate,RhsScalar,RhsMapper,false>::run(
             r, actualPanelWidth,
             LhsMapper(&lhs.coeffRef(endBlock,startBlock), lhsStride),
             RhsMapper(rhs+startBlock, 1),

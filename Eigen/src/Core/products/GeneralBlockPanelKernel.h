@@ -2088,14 +2088,14 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
 //  32 33 34 35 ...
 //  36 36 38 39 ...
 template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   typedef typename DataMapper::LinearMapper LinearMapper;
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
   typedef typename unpacket_traits<Packet>::half HalfPacket;
@@ -2244,14 +2244,14 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
 }
 
 template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   typedef typename DataMapper::LinearMapper LinearMapper;
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
   typedef typename unpacket_traits<Packet>::half HalfPacket;
@@ -2376,7 +2376,7 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
 //  8  9 10 11   20 21 22 23   26 29
 //  .  .  .  .    .  .  .  .    .  .
 template<typename Scalar, typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   typedef typename packet_traits<Scalar>::type Packet;
   typedef typename DataMapper::LinearMapper LinearMapper;
@@ -2385,7 +2385,7 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMo
 };
 
 template<typename Scalar, typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
   EIGEN_ASM_COMMENT("EIGEN PRODUCT PACK RHS COLMAJOR");
@@ -2500,7 +2500,7 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
 
 // this version is optimized for row major matrices
 template<typename Scalar, typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   typedef typename packet_traits<Scalar>::type Packet;
   typedef typename unpacket_traits<Packet>::half HalfPacket;

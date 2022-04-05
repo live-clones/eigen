@@ -18,10 +18,10 @@ namespace internal {
 
 // Forward declarations:
 // The following two routines are implemented in the products/TriangularSolver*.h files
-template<typename LhsScalar, typename RhsScalar, typename Index, int Side, int Mode, bool Conjugate, int StorageOrder>
+template<typename LhsScalar, typename RhsScalar, typename Index, int Side, int Mode, bool Conjugate, StorageOrder StorageOrder_>
 struct triangular_solve_vector;
 
-template <typename Scalar, typename Index, int Side, int Mode, bool Conjugate, int TriStorageOrder, int OtherStorageOrder, int OtherInnerStride>
+template <typename Scalar, typename Index, int Side, int Mode, bool Conjugate, StorageOrder TriStorageOrder, StorageOrder OtherStorageOrder, int OtherInnerStride>
 struct triangular_solve_matrix;
 
 // small helper struct extracting some traits on the underlying solver operation
@@ -71,7 +71,7 @@ struct triangular_solver_selector<Lhs,Rhs,Side,Mode,NoUnrolling,1>
       MappedRhs(actualRhs,rhs.size()) = rhs;
 
     triangular_solve_vector<LhsScalar, RhsScalar, Index, Side, Mode, LhsProductTraits::NeedToConjugate,
-                            (int(Lhs::Flags) & RowMajorBit) ? RowMajor : ColMajor>
+                            get_storage_order(Lhs::Flags)>
       ::run(actualLhs.cols(), actualLhs.data(), actualLhs.outerStride(), actualRhs);
 
     if(!useRhsDirectly)
@@ -94,13 +94,13 @@ struct triangular_solver_selector<Lhs,Rhs,Side,Mode,NoUnrolling,Dynamic>
     const Index size = lhs.rows();
     const Index othersize = Side==OnTheLeft? rhs.cols() : rhs.rows();
 
-    typedef internal::gemm_blocking_space<(Rhs::Flags&RowMajorBit) ? RowMajor : ColMajor,Scalar,Scalar,
+    typedef internal::gemm_blocking_space<get_storage_order(Rhs::Flags),Scalar,Scalar,
               Rhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime, Lhs::MaxRowsAtCompileTime,4> BlockingType;
 
     BlockingType blocking(rhs.rows(), rhs.cols(), size, 1, false);
 
-    triangular_solve_matrix<Scalar,Index,Side,Mode,LhsProductTraits::NeedToConjugate,(int(Lhs::Flags) & RowMajorBit) ? RowMajor : ColMajor,
-                               (Rhs::Flags&RowMajorBit) ? RowMajor : ColMajor, Rhs::InnerStrideAtCompileTime>
+    triangular_solve_matrix<Scalar,Index,Side,Mode,LhsProductTraits::NeedToConjugate, get_storage_order(Lhs::Flags),
+                               get_storage_order(Rhs::Flags), Rhs::InnerStrideAtCompileTime>
       ::run(size, othersize, &actualLhs.coeffRef(0,0), actualLhs.outerStride(), &rhs.coeffRef(0,0), rhs.innerStride(), rhs.outerStride(), blocking);
   }
 };
@@ -175,7 +175,7 @@ EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType,Mode,Dense>::solveInPlace(c
   if (derived().cols() == 0)
     return;
 
-  enum { copy = (internal::traits<OtherDerived>::Flags & RowMajorBit)  && OtherDerived::IsVectorAtCompileTime && OtherDerived::SizeAtCompileTime!=1};
+  enum { copy = is_row_major(internal::traits<OtherDerived>::Flags)  && OtherDerived::IsVectorAtCompileTime && OtherDerived::SizeAtCompileTime!=1};
   typedef std::conditional_t<copy,
     typename internal::plain_matrix_type_column_major<OtherDerived>::type, OtherDerived&> OtherCopy;
   OtherCopy otherCopy(other);

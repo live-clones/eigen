@@ -126,7 +126,9 @@ class SparseMatrix
     typedef typename Base::IndexVector IndexVector;
     typedef typename Base::ScalarVector ScalarVector;
   protected:
-    typedef SparseMatrix<Scalar,(Flags&~RowMajorBit)|(IsRowMajor?RowMajorBit:0),StorageIndex> TransposedSparseMatrix;
+    typedef SparseMatrix<Scalar,
+            internal::with_storage_order(Flags, IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor),
+            StorageIndex> TransposedSparseMatrix;
 
     Index m_outerSize;
     Index m_innerSize;
@@ -681,7 +683,7 @@ class SparseMatrix
     {
       EIGEN_STATIC_ASSERT((internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-      const bool needToTranspose = (Flags & RowMajorBit) != (internal::evaluator<OtherDerived>::Flags & RowMajorBit);
+      const bool needToTranspose = !internal::has_same_storage_order(Flags, internal::evaluator<OtherDerived>::Flags);
       if (needToTranspose)
         *this = other.derived();
       else
@@ -1006,7 +1008,7 @@ protected:
 
 private:
   EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
-  EIGEN_STATIC_ASSERT((Options&(ColMajor|RowMajor))==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS)
+  EIGEN_STATIC_ASSERT(internal::storage_order_flag(Options)==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
   struct default_prunning_func {
     default_prunning_func(const Scalar& ref, const RealScalar& eps) : reference(ref), epsilon(eps) {}
@@ -1168,7 +1170,7 @@ EIGEN_DONT_INLINE SparseMatrix<Scalar,Options_,StorageIndex_>& SparseMatrix<Scal
     EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN
   #endif
       
-  const bool needToTranspose = (Flags & RowMajorBit) != (internal::evaluator<OtherDerived>::Flags & RowMajorBit);
+  const bool needToTranspose = !has_same_storage_order(Flags, internal::evaluator<OtherDerived>::Flags);
   if (needToTranspose)
   {
     #ifdef EIGEN_SPARSE_TRANSPOSED_COPY_PLUGIN

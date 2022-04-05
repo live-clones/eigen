@@ -26,7 +26,7 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices> >
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
 
-    XprTypeIsRowMajor = (int(traits<XprType>::Flags)&RowMajorBit) != 0,
+    XprTypeIsRowMajor = is_row_major(traits<XprType>::Flags),
     IsRowMajor = (MaxRowsAtCompileTime==1&&MaxColsAtCompileTime!=1) ? 1
                : (MaxColsAtCompileTime==1&&MaxRowsAtCompileTime!=1) ? 0
                : XprTypeIsRowMajor,
@@ -54,10 +54,10 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices> >
     // FIXME we deal with compile-time strides if and only if we have DirectAccessBit flag,
     // but this is too strict regarding negative strides...
     DirectAccessMask = (int(InnerIncr)!=UndefinedIncr && int(OuterIncr)!=UndefinedIncr && InnerIncr>=0 && OuterIncr>=0) ? DirectAccessBit : 0,
-    FlagsRowMajorBit = IsRowMajor ? RowMajorBit : 0,
     FlagsLvalueBit = is_lvalue<XprType>::value ? LvalueBit : 0,
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1) ? LinearAccessBit : 0,
-    Flags = (traits<XprType>::Flags & (HereditaryBits | DirectAccessMask )) | FlagsLvalueBit | FlagsRowMajorBit | FlagsLinearAccessBit
+    Flags = with_storage_order((traits<XprType>::Flags & (HereditaryBits | DirectAccessMask )) | FlagsLvalueBit | FlagsLinearAccessBit,
+                               IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor)
   };
 
   typedef Block<XprType,RowsAtCompileTime,ColsAtCompileTime,IsInnerPannel> BlockType;
@@ -173,9 +173,8 @@ struct unary_evaluator<IndexedView<ArgType, RowIndices, ColIndices>, IndexBased>
 
     FlagsLinearAccessBit = (traits<XprType>::RowsAtCompileTime == 1 || traits<XprType>::ColsAtCompileTime == 1) ? LinearAccessBit : 0,
 
-    FlagsRowMajorBit = traits<XprType>::FlagsRowMajorBit, 
-
-    Flags = (evaluator<ArgType>::Flags & (HereditaryBits & ~RowMajorBit /*| LinearAccessBit | DirectAccessBit*/)) | FlagsLinearAccessBit | FlagsRowMajorBit,
+    Flags = with_storage_order((evaluator<ArgType>::Flags & (HereditaryBits /*| LinearAccessBit | DirectAccessBit*/)) | FlagsLinearAccessBit,
+                               get_storage_order(traits<XprType>::Flags)),
 
     Alignment = 0
   };

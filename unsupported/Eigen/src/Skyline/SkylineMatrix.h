@@ -61,7 +61,7 @@ public:
 
 protected:
 
-    typedef SkylineMatrix<Scalar, (Flags&~RowMajorBit) | (IsRowMajor ? RowMajorBit : 0) > TransposedSkylineMatrix;
+    typedef SkylineMatrix<Scalar, with_storage_order(Flags, IsRowMajor ? StorageOrder::RowMajor : StorageOrder::ColMajor) > TransposedSkylineMatrix;
 
     Index m_outerSize;
     Index m_innerSize;
@@ -674,7 +674,7 @@ public:
 
     template<typename OtherDerived>
             inline SkylineMatrix & operator=(const SkylineMatrixBase<OtherDerived>& other) {
-        const bool needToTranspose = (Flags & RowMajorBit) != (OtherDerived::Flags & RowMajorBit);
+        const bool needToTranspose = get_storage_order(Flags) != get_storage_order(OtherDerived::Flags);
         if (needToTranspose) {
             //         TODO
             //            return *this;
@@ -739,9 +739,9 @@ public:
 
     InnerUpperIterator(const SkylineMatrix& mat, Index outer)
     : m_matrix(mat), m_outer(outer),
-    m_id(Options_ == RowMajor ? mat.m_colStartIndex[outer] : mat.m_rowStartIndex[outer] + 1),
+    m_id(internal::is_row_major(Options_) ? mat.m_colStartIndex[outer] : mat.m_rowStartIndex[outer] + 1),
     m_start(m_id),
-    m_end(Options_ == RowMajor ? mat.m_colStartIndex[outer + 1] : mat.m_rowStartIndex[outer + 1] + 1) {
+    m_end(internal::is_row_major(Options_) ? mat.m_colStartIndex[outer + 1] : mat.m_rowStartIndex[outer + 1] + 1) {
     }
 
     inline InnerUpperIterator & operator++() {
@@ -802,9 +802,9 @@ public:
     InnerLowerIterator(const SkylineMatrix& mat, Index outer)
     : m_matrix(mat),
     m_outer(outer),
-    m_id(Options_ == RowMajor ? mat.m_rowStartIndex[outer] : mat.m_colStartIndex[outer] + 1),
+    m_id(internal::is_row_major(Options_) ? mat.m_rowStartIndex[outer] : mat.m_colStartIndex[outer] + 1),
     m_start(m_id),
-    m_end(Options_ == RowMajor ? mat.m_rowStartIndex[outer + 1] : mat.m_colStartIndex[outer + 1] + 1) {
+    m_end(internal::is_row_major(Options_) ? mat.m_rowStartIndex[outer + 1] : mat.m_colStartIndex[outer + 1] + 1) {
     }
 
     inline InnerLowerIterator & operator++() {

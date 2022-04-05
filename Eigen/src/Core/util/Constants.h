@@ -208,19 +208,19 @@ const unsigned int HereditaryBits = RowMajorBit
   * MatrixBase::selfadjointView() and MatrixBase::triangularView(), and selfadjoint solvers. */
 enum UpLoType {
   /** View matrix as a lower triangular matrix. */
-  Lower=0x1,                      
+  Lower=0x1,
   /** View matrix as an upper triangular matrix. */
-  Upper=0x2,                      
+  Upper=0x2,
   /** %Matrix has ones on the diagonal; to be used in combination with #Lower or #Upper. */
-  UnitDiag=0x4, 
+  UnitDiag=0x4,
   /** %Matrix has zeros on the diagonal; to be used in combination with #Lower or #Upper. */
   ZeroDiag=0x8,
   /** View matrix as a lower triangular matrix with ones on the diagonal. */
-  UnitLower=UnitDiag|Lower, 
+  UnitLower=UnitDiag|Lower,
   /** View matrix as an upper triangular matrix with ones on the diagonal. */
   UnitUpper=UnitDiag|Upper,
   /** View matrix as a lower triangular matrix with zeros on the diagonal. */
-  StrictlyLower=ZeroDiag|Lower, 
+  StrictlyLower=ZeroDiag|Lower,
   /** View matrix as an upper triangular matrix with zeros on the diagonal. */
   StrictlyUpper=ZeroDiag|Upper,
   /** Used in BandMatrix and SelfAdjointView to indicate that the matrix is self-adjoint. */
@@ -260,16 +260,16 @@ enum AlignmentType {
 /** \ingroup enums
   * Enum containing possible values for the \p Direction parameter of
   * Reverse, PartialReduxExpr and VectorwiseOp. */
-enum DirectionType { 
-  /** For Reverse, all columns are reversed; 
+enum DirectionType {
+  /** For Reverse, all columns are reversed;
     * for PartialReduxExpr and VectorwiseOp, act on columns. */
-  Vertical, 
-  /** For Reverse, all rows are reversed; 
+  Vertical,
+  /** For Reverse, all rows are reversed;
     * for PartialReduxExpr and VectorwiseOp, act on rows. */
-  Horizontal, 
-  /** For Reverse, both rows and columns are reversed; 
+  Horizontal,
+  /** For Reverse, both rows and columns are reversed;
     * not used for PartialReduxExpr and VectorwiseOp. */
-  BothDirections 
+  BothDirections
 };
 
 /** \internal \ingroup enums
@@ -301,7 +301,7 @@ enum UnrollingType {
   NoUnrolling,
   /** \internal Unroll only the inner loop, but not the outer loop. */
   InnerUnrolling,
-  /** \internal Unroll both the inner and the outer loop. If there is only one loop, 
+  /** \internal Unroll both the inner and the outer loop. If there is only one loop,
     * because linear traversal is used, then unroll that loop. */
   CompleteUnrolling
 };

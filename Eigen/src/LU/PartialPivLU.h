@@ -24,7 +24,7 @@ template<typename MatrixType_> struct traits<PartialPivLU<MatrixType_> >
   typedef int StorageIndex;
   typedef traits<MatrixType_> BaseTraits;
   enum {
-    Flags = BaseTraits::Flags & RowMajorBit,
+    Flags = storage_order_flag(BaseTraits::Flags),
     CoeffReadCost = Dynamic
   };
 };
@@ -330,7 +330,7 @@ PartialPivLU<MatrixType>::PartialPivLU(EigenBase<InputType>& matrix)
 namespace internal {
 
 /** \internal This is the blocked version of fullpivlu_unblocked() */
-template<typename Scalar, int StorageOrder, typename PivIndex, int SizeAtCompileTime=Dynamic>
+template<typename Scalar, StorageOrder StorageOrder_, typename PivIndex, int SizeAtCompileTime=Dynamic>
 struct partial_lu_impl
 {
   static constexpr int UnBlockedBound = 16;
@@ -339,9 +339,9 @@ struct partial_lu_impl
   // Remaining rows and columns at compile-time:
   static constexpr int RRows = SizeAtCompileTime==2 ? 1 : Dynamic;
   static constexpr int RCols = SizeAtCompileTime==2 ? 1 : Dynamic;
-  typedef Matrix<Scalar, ActualSizeAtCompileTime, ActualSizeAtCompileTime, StorageOrder> MatrixType;
+  typedef Matrix<Scalar, ActualSizeAtCompileTime, ActualSizeAtCompileTime, storage_order_flag(StorageOrder_)> MatrixType;
   typedef Ref<MatrixType> MatrixTypeRef;
-  typedef Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder> > BlockType;
+  typedef Ref<Matrix<Scalar, Dynamic, Dynamic, storage_order_flag(StorageOrder_)> > BlockType;
   typedef typename MatrixType::RealScalar RealScalar;
 
   /** \internal performs the LU decomposition in-place of the matrix \a lu
@@ -512,7 +512,7 @@ void partial_lu_inplace(MatrixType& lu, TranspositionType& row_transpositions, t
   eigen_assert(row_transpositions.size() < 2 || (&row_transpositions.coeffRef(1)-&row_transpositions.coeffRef(0)) == 1);
 
   partial_lu_impl
-    < typename MatrixType::Scalar, MatrixType::Flags&RowMajorBit?RowMajor:ColMajor,
+    < typename MatrixType::Scalar, get_storage_order(MatrixType::Flags),
       typename TranspositionType::StorageIndex,
       internal::min_size_prefer_fixed(MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime)>
     ::blocked_lu(lu.rows(), lu.cols(), &lu.coeffRef(0,0), lu.outerStride(), &row_transpositions.coeffRef(0), nb_transpositions);

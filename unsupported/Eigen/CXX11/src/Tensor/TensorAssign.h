@@ -35,7 +35,7 @@ struct traits<TensorAssignOp<LhsXprType, RhsXprType> >
   typedef std::remove_reference_t<LhsNested> LhsNested_;
   typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr std::size_t NumDimensions = internal::traits<LhsXprType>::NumDimensions;
-  static constexpr int Layout = internal::traits<LhsXprType>::Layout;
+  static constexpr StorageOrder Layout = internal::traits<LhsXprType>::Layout;
   typedef typename traits<LhsXprType>::PointerType PointerType;
 
   enum {
@@ -104,7 +104,7 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device>
 
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   static constexpr int NumDims = XprType::NumDims;
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
 
   enum {
     IsAligned         = int(TensorEvaluator<LeftArgType, Device>::IsAligned) &
@@ -131,8 +131,8 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device>
       m_rightImpl(op.rhsExpression(), device)
   {
     EIGEN_STATIC_ASSERT(
-        (static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
-         static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout)),
+        (TensorEvaluator<LeftArgType, Device>::Layout ==
+         TensorEvaluator<RightArgType, Device>::Layout),
         YOU_MADE_A_PROGRAMMING_MISTAKE);
   }
 

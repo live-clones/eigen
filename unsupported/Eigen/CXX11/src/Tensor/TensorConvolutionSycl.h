@@ -292,7 +292,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   typedef typename Storage::Type EvaluatorPointerType;
   typedef StorageMemory<const CoeffReturnType, Eigen::SyclDevice> KernelStorage;
 
-  static constexpr int Layout = TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout;
   enum {
     IsAligned = TensorEvaluator<InputArgType, Eigen::SyclDevice>::IsAligned &
                 TensorEvaluator<KernelArgType, Eigen::SyclDevice>::IsAligned,
@@ -316,8 +316,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         m_kernel(NULL),
         m_local_kernel(false),
         m_device(device) {
-    EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout) ==
-                         static_cast<int>(TensorEvaluator<KernelArgType, Eigen::SyclDevice>::Layout)),
+    EIGEN_STATIC_ASSERT((TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout ==
+                         TensorEvaluator<KernelArgType, Eigen::SyclDevice>::Layout),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
 
     const typename TensorEvaluator<InputArgType, Eigen::SyclDevice>::Dimensions &input_dims = m_inputImpl.dimensions();
@@ -416,8 +416,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
       }
 
       case 2: {
-        auto kernel_index = std::array<size_t, 2>{static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : 1,
-                                                  static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 1 : 0};
+        auto kernel_index = std::array<size_t, 2>{is_col_major(Layout) ? 0 : 1,
+                                                  is_col_major(Layout) ? 1 : 0};
         auto kernel_size = cl::sycl::range<2>{(size_t)m_kernelImpl.dimensions()[kernel_index[0]],
                                               (size_t)m_kernelImpl.dimensions()[kernel_index[1]]};
         const size_t numX = dimensions()[m_indices[kernel_index[0]]];
@@ -447,9 +447,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
       }
 
       case 3: {
-        auto kernel_index = std::array<size_t, 3>{static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : 2,
-                                                  static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 1 : 1,
-                                                  static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 2 : 0};
+        auto kernel_index = std::array<size_t, 3>{is_col_major(Layout) ? 0 : 2,
+                                                  is_col_major(Layout) ? 1 : 1,
+                                                  is_col_major(Layout) ? 2 : 0};
 
         auto kernel_size = cl::sycl::range<3>{(size_t)m_kernelImpl.dimensions()[kernel_index[0]],
                                               (size_t)m_kernelImpl.dimensions()[kernel_index[1]],

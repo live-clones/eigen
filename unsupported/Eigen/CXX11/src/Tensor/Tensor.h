@@ -81,7 +81,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
       RawAccess = true
     };
 
-    static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
+    static constexpr StorageOrder Layout = internal::get_storage_order(Options_);
     static constexpr int Options = Options_;
     static constexpr int NumIndices = NumIndices_;
     typedef DSizes<Index, NumIndices_> Dimensions;

@@ -36,13 +36,14 @@ struct traits<SparseVector<Scalar_, Options_, StorageIndex_> >
   typedef Sparse StorageKind;
   typedef MatrixXpr XprKind;
   enum {
-    IsColVector = (Options_ & RowMajorBit) ? 0 : 1,
+    IsColVector = is_col_major(Options_),
 
     RowsAtCompileTime = IsColVector ? Dynamic : 1,
     ColsAtCompileTime = IsColVector ? 1 : Dynamic,
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
-    Flags = Options_ | NestByRefBit | LvalueBit | (IsColVector ? 0 : RowMajorBit) | CompressedAccessBit,
+    Flags = with_storage_order(Options_ | NestByRefBit | LvalueBit | CompressedAccessBit,
+                               IsColVector ? StorageOrder::ColMajor : StorageOrder::RowMajor),
     SupportedAccessPatterns = InnerRandomAccessPattern
   };
 };
@@ -418,7 +419,7 @@ class SparseVector
 
 protected:
     EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
-    EIGEN_STATIC_ASSERT((Options_&(ColMajor|RowMajor))==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS)
+    EIGEN_STATIC_ASSERT(internal::storage_order_flag(Options_)==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
     Storage m_data;
     Index m_size;

@@ -39,7 +39,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
     typedef typename Base::CoeffReturnType CoeffReturnType;
 
     static constexpr int Options = Options_;
-    static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
+    static constexpr StorageOrder Layout = internal::get_storage_order(Options_);
 
     enum {
       IsAligned = bool(EIGEN_MAX_ALIGN_BYTES>0),

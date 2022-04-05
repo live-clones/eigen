@@ -20,7 +20,7 @@ template<typename Derived, int UnrollCount, int InnerSize>
 struct all_unroller
 {
   enum {
-    IsRowMajor = (int(Derived::Flags) & int(RowMajor)),
+    IsRowMajor = is_row_major(Derived::Flags),
     i = (UnrollCount-1) / InnerSize,
     j = (UnrollCount-1) % InnerSize
   };
@@ -47,7 +47,7 @@ template<typename Derived, int UnrollCount, int InnerSize>
 struct any_unroller
 {
   enum {
-    IsRowMajor = (int(Derived::Flags) & int(RowMajor)),
+    IsRowMajor = is_row_major(Derived::Flags),
     i = (UnrollCount-1) / InnerSize,
     j = (UnrollCount-1) % InnerSize
   };

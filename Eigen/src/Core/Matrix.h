@@ -23,7 +23,7 @@ private:
   constexpr static int size = internal::size_at_compile_time(Rows_,Cols_);
   typedef typename find_best_packet<Scalar_,size>::type PacketScalar;
   enum {
-      row_major_bit = Options_&RowMajor ? RowMajorBit : 0,
+      row_major_bit = storage_order_flag(Options_),
       is_dynamic_size_storage = MaxRows_==Dynamic || MaxCols_==Dynamic,
       max_size = is_dynamic_size_storage ? Dynamic : MaxRows_*MaxCols_,
       default_alignment = compute_default_alignment<Scalar_,max_size>::value,
@@ -45,7 +45,7 @@ public:
     Flags = compute_matrix_flags(Options_),
     Options = Options_,
     InnerStrideAtCompileTime = 1,
-    OuterStrideAtCompileTime = (Options&RowMajor) ? ColsAtCompileTime : RowsAtCompileTime,
+    OuterStrideAtCompileTime = is_row_major(Options) ? ColsAtCompileTime : RowsAtCompileTime,
 
     // FIXME, the following flag in only used to define NeedsToAlign in PlainObjectBase
     EvaluatorFlags = LinearAccessBit | DirectAccessBit | packet_access_bit | row_major_bit,

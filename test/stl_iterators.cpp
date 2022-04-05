@@ -518,3 +518,4 @@ EIGEN_DECLARE_TEST(stl_iterators)
   CALL_SUBTEST_1(( test_stl_container_detection<float,1,1>() ));
   CALL_SUBTEST_1(( test_stl_container_detection<float,5,5>() ));
 }
+

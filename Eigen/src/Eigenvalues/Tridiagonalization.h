@@ -82,9 +82,9 @@ template<typename MatrixType_> class Tridiagonalization
       MaxSizeMinusOne = MaxSize == Dynamic ? Dynamic : (MaxSize > 1 ? MaxSize - 1 : 1)
     };
 
-    typedef Matrix<Scalar, SizeMinusOne, 1, Options & ~RowMajor, MaxSizeMinusOne, 1> CoeffVectorType;
+    typedef Matrix<Scalar, SizeMinusOne, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxSizeMinusOne, 1> CoeffVectorType;
     typedef typename internal::plain_col_type<MatrixType, RealScalar>::type DiagonalType;
-    typedef Matrix<RealScalar, SizeMinusOne, 1, Options & ~RowMajor, MaxSizeMinusOne, 1> SubDiagonalType;
+    typedef Matrix<RealScalar, SizeMinusOne, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxSizeMinusOne, 1> SubDiagonalType;
     typedef internal::remove_all_t<typename MatrixType::RealReturnType> MatrixTypeRealView;
     typedef internal::TridiagonalizationMatrixTReturnType<MatrixTypeRealView> MatrixTReturnType;
 

@@ -52,7 +52,7 @@ struct traits<Solve<Decomposition, RhsType> >
   typedef typename promote_index_type<typename Decomposition::StorageIndex, typename RhsType::StorageIndex>::type StorageIndex;
   typedef traits<PlainObject> BaseTraits;
   enum {
-    Flags = BaseTraits::Flags & RowMajorBit,
+    Flags = storage_order_flag(BaseTraits::Flags),
     CoeffReadCost = HugeCost
   };
 };

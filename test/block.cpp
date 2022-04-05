@@ -37,14 +37,14 @@ is_same_block(const T1& a, const T2& b)
 }
 
 template <typename MatrixType>
-std::enable_if_t<((MatrixType::Flags&RowMajorBit)==0),void>
+std::enable_if_t<internal::is_col_major(MatrixType::Flags),void>
 check_left_top(const MatrixType& m, Index r, Index c,
                Index rows, Index /*unused*/) {
   VERIFY_IS_EQUAL(m.leftCols(c).coeff(r+c*rows), m(r,c));
 }
 
 template <typename MatrixType>
-std::enable_if_t<((MatrixType::Flags&RowMajorBit)!=0),void>
+std::enable_if_t<internal::is_row_major(MatrixType::Flags),void>
 check_left_top(const MatrixType& m,  Index r, Index c,
                Index /*unused*/, Index cols) {
   VERIFY_IS_EQUAL(m.topRows(r).coeff(c+r*cols), m(r,c));
@@ -281,7 +281,7 @@ compare_using_data_and_stride(const MatrixType& m)
 
   for(int j=0;j<cols;++j)
     for(int i=0;i<rows;++i)
-      VERIFY(m.coeff(i,j) == data[(MatrixType::Flags&RowMajorBit)
+      VERIFY(m.coeff(i,j) == data[internal::is_row_major(MatrixType::Flags)
                                   ? i*outerStride + j*innerStride
                                   : j*outerStride + i*innerStride]);
 }

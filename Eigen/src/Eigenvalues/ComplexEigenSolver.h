@@ -77,7 +77,7 @@ template<typename MatrixType_> class ComplexEigenSolver
       * This is a column vector with entries of type #ComplexScalar.
       * The length of the vector is the size of #MatrixType.
       */
-    typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, Options&(~RowMajor), MaxColsAtCompileTime, 1> EigenvalueType;
+    typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, with_storage_order(Options, StorageOrder::ColMajor), MaxColsAtCompileTime, 1> EigenvalueType;
 
     /** \brief Type for matrix of eigenvectors as returned by eigenvectors().
       *

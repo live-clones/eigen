@@ -41,7 +41,7 @@ struct traits<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKern
 
   // From NumDims below.
   static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions + traits<RhsXprType>::NumDimensions - 2 * array_size<Dimensions>::value;
-  static constexpr int Layout = traits<LhsXprType>::Layout;
+  static constexpr StorageOrder Layout = traits<LhsXprType>::Layout;
   typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                         typename traits<LhsXprType>::PointerType,
                         typename traits<RhsXprType>::PointerType>
@@ -204,12 +204,12 @@ struct TensorContractionKernel {
 
   typedef internal::gemm_pack_lhs<
       LhsScalar, StorageIndex, typename LhsMapper::SubMapper, Traits::mr,
-      Traits::LhsProgress, typename Traits::LhsPacket4Packing, ColMajor>
+      Traits::LhsProgress, typename Traits::LhsPacket4Packing, StorageOrder::ColMajor>
       LhsPacker;
 
   typedef internal::gemm_pack_rhs<RhsScalar, StorageIndex,
                                   typename RhsMapper::SubMapper, Traits::nr,
-                                  ColMajor>
+                                  StorageOrder::ColMajor>
       RhsPacker;
 
   typedef internal::gebp_kernel<LhsScalar, RhsScalar, StorageIndex,
@@ -311,7 +311,7 @@ struct NoOpOutputKernel {
    */
   template <typename Index, typename Scalar>
   EIGEN_ALWAYS_INLINE void operator()(
-      const internal::blas_data_mapper<Scalar, Index, ColMajor>& output_mapper,
+      const internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor>& output_mapper,
       const TensorContractionParams& params, Index i,
       Index j, Index num_rows, Index num_cols) const {
     EIGEN_UNUSED_VARIABLE(output_mapper);
@@ -380,7 +380,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
   typedef StorageMemory<Scalar, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned         = true,
     PacketAccess      = (PacketType<CoeffReturnType, Device>::size > 1),
@@ -398,10 +398,8 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef std::conditional_t<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
-  typedef std::conditional_t<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
+  typedef std::conditional_t<is_col_major(Layout), LeftArgType, RightArgType> EvalLeftArgType;
+  typedef std::conditional_t<is_col_major(Layout), RightArgType, LeftArgType> EvalRightArgType;
 
   typedef TensorEvaluator<EvalLeftArgType, Device> LeftEvaluatorType;
   typedef TensorEvaluator<EvalRightArgType, Device> RightEvaluatorType;
@@ -421,22 +419,21 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
 
   EIGEN_STRONG_INLINE
   TensorContractionEvaluatorBase(const XprType& op, const Device& device)
-      : m_leftImpl(choose(Cond<static_cast<int>(Layout) == static_cast<int>(ColMajor)>(),
+      : m_leftImpl(choose(Cond<is_col_major(Layout)>(),
                           op.lhsExpression(), op.rhsExpression()), device),
-        m_rightImpl(choose(Cond<static_cast<int>(Layout) == static_cast<int>(ColMajor)>(),
+        m_rightImpl(choose(Cond<is_col_major(Layout)>(),
                            op.rhsExpression(), op.lhsExpression()), device),
         m_device(device),
         m_output_kernel(op.outputKernel()),
         m_result(NULL) {
-    EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
-         static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout)),
+    EIGEN_STATIC_ASSERT((TensorEvaluator<LeftArgType, Device>::Layout == TensorEvaluator<RightArgType, Device>::Layout),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
 
 
     DSizes<Index, LDims> eval_left_dims;
     DSizes<Index, RDims> eval_right_dims;
     array<IndexPair<Index>, ContractDims> eval_op_indices;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       // For ColMajor, we keep using the existing dimensions
       for (int i = 0; i < LDims; i++) {
         eval_left_dims[i] = m_leftImpl.dimensions()[i];
@@ -589,7 +586,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     }
 
     // If the layout is RowMajor, we need to reverse the m_dimensions
-    if (static_cast<int>(Layout) == static_cast<int>(RowMajor)) {
+    if (is_row_major(Layout)) {
       for (int i = 0, j = NumDims - 1; i < j; i++, j--) {
         numext::swap(m_dimensions[i], m_dimensions[j]);
       }
@@ -599,7 +596,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     // tensor dimensions (i, j) into the original tensor dimensions.
     // TODO(ezhulenev): Add parameters required to infer output tensor index for
     // more complex contractions than 2x2 on internal dimension.
-    m_tensor_contraction_params.swapped_arguments = static_cast<int>(Layout) == RowMajor;
+    m_tensor_contraction_params.swapped_arguments = is_row_major(Layout);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
@@ -766,11 +763,11 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     // zero out the result buffer (which must be of size at least rows * sizeof(Scalar)
     m_device.fill(buffer, buffer + rows, Scalar(0));
 
-    internal::general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,false,RhsScalar,RhsMapper,false>::run(
+    internal::general_matrix_vector_product<Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,false,RhsScalar,RhsMapper,false>::run(
         rows, cols, lhs, rhs,
         buffer, resIncr, alpha);
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
     m_output_kernel(OutputMapper(buffer, rows), m_tensor_contraction_params,
                     static_cast<Index>(0), static_cast<Index>(0), rows,
                     static_cast<Index>(1));
@@ -833,7 +830,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
                                                    rhs_inner_dim_contiguous,
                                                    rhs_inner_dim_reordered, Unaligned> RhsMapper;
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
 
     typedef internal::TensorContractionKernel<
         Scalar, LhsScalar, RhsScalar, Index, OutputMapper, LhsMapper, RhsMapper>
@@ -983,14 +980,14 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
 
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
 
   // Most of the code is assuming that both input tensors are ColMajor. If the
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
-  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
+  typedef std::conditional_t<is_col_major(Layout), LeftArgType, RightArgType> EvalLeftArgType;
+  typedef std::conditional_t<is_col_major(Layout), RightArgType, LeftArgType> EvalRightArgType;
 
   static constexpr int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;

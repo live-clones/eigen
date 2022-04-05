@@ -1310,7 +1310,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     BlockAccess = false,
   };
 
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   static constexpr int LDims = Base::LDims;
   static constexpr int RDims = Base::RDims;
   static constexpr int ContractDims = Base::ContractDims;

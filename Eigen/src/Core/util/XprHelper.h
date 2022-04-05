@@ -242,8 +242,8 @@ template<typename Scalar_, int Rows_, int Cols_,
     enum {
       IsColVector = Cols_==1 && Rows_!=1,
       IsRowVector = Rows_==1 && Cols_!=1,
-      Options = IsColVector ? (Options_ | ColMajor) & ~RowMajor
-              : IsRowVector ? (Options_ | RowMajor) & ~ColMajor
+      Options = IsColVector ? with_storage_order(Options_, StorageOrder::ColMajor)
+              : IsRowVector ? with_storage_order(Options_, StorageOrder::RowMajor)
               : Options_
     };
   public:
@@ -251,7 +251,7 @@ template<typename Scalar_, int Rows_, int Cols_,
 };
 
 constexpr inline unsigned compute_matrix_flags(int Options) {
-  unsigned row_major_bit = Options&RowMajor ? RowMajorBit : 0;
+  unsigned row_major_bit = storage_order_flag(Options);
   // FIXME currently we still have to handle DirectAccessBit at the expression level to handle DenseCoeffsBase<>
   // and then propagate this information to the evaluator's flags.
   // However, I (Gael) think that DirectAccessBit should only matter at the evaluation stage.
@@ -287,7 +287,7 @@ template<typename T, int Flags> struct plain_matrix_type_dense<T,MatrixXpr,Flags
   typedef Matrix<typename traits<T>::Scalar,
                 traits<T>::RowsAtCompileTime,
                 traits<T>::ColsAtCompileTime,
-                AutoAlign | (Flags&RowMajorBit ? RowMajor : ColMajor),
+                AutoAlign | storage_order_flag(Flags),
                 traits<T>::MaxRowsAtCompileTime,
                 traits<T>::MaxColsAtCompileTime
           > type;
@@ -298,7 +298,7 @@ template<typename T, int Flags> struct plain_matrix_type_dense<T,ArrayXpr,Flags>
   typedef Array<typename traits<T>::Scalar,
                 traits<T>::RowsAtCompileTime,
                 traits<T>::ColsAtCompileTime,
-                AutoAlign | (Flags&RowMajorBit ? RowMajor : ColMajor),
+                AutoAlign | storage_order_flag(Flags),
                 traits<T>::MaxRowsAtCompileTime,
                 traits<T>::MaxColsAtCompileTime
           > type;
@@ -531,13 +531,14 @@ template <typename B, typename Functor>                   struct cwise_promote_s
 template <typename Functor>                               struct cwise_promote_storage_type<Sparse,Dense,Functor>                             { typedef Sparse ret; };
 template <typename Functor>                               struct cwise_promote_storage_type<Dense,Sparse,Functor>                             { typedef Sparse ret; };
 
-template <typename LhsKind, typename RhsKind, int LhsOrder, int RhsOrder> struct cwise_promote_storage_order {
-  enum { value = LhsOrder };
-};
-
-template <typename LhsKind, int LhsOrder, int RhsOrder>   struct cwise_promote_storage_order<LhsKind,Sparse,LhsOrder,RhsOrder>                { enum { value = RhsOrder }; };
-template <typename RhsKind, int LhsOrder, int RhsOrder>   struct cwise_promote_storage_order<Sparse,RhsKind,LhsOrder,RhsOrder>                { enum { value = LhsOrder }; };
-template <int Order>                                      struct cwise_promote_storage_order<Sparse,Sparse,Order,Order>                       { enum { value = Order }; };
+template <typename LhsKind, typename RhsKind, StorageOrder LhsOrder, StorageOrder RhsOrder>
+struct cwise_promote_storage_order                                    { static constexpr StorageOrder value = LhsOrder; };
+template <typename LhsKind, StorageOrder LhsOrder, StorageOrder RhsOrder>
+struct cwise_promote_storage_order<LhsKind,Sparse,LhsOrder,RhsOrder>  { static constexpr StorageOrder value = RhsOrder; };
+template <typename RhsKind, StorageOrder LhsOrder, StorageOrder RhsOrder>
+struct cwise_promote_storage_order<Sparse,RhsKind,LhsOrder,RhsOrder>  { static constexpr StorageOrder value = LhsOrder; };
+template <StorageOrder Order>
+struct cwise_promote_storage_order<Sparse,Sparse,Order,Order>         { static constexpr StorageOrder value = Order; };
 
 
 /** \internal Specify the "storage kind" of multiplying an expression of kind A with kind B.
@@ -578,9 +579,9 @@ template<typename ExpressionType, typename Scalar = typename ExpressionType::Sca
 struct plain_row_type
 {
   typedef Matrix<Scalar, 1, ExpressionType::ColsAtCompileTime,
-                 int(ExpressionType::PlainObject::Options) | int(RowMajor), 1, ExpressionType::MaxColsAtCompileTime> MatrixRowType;
+                 with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::RowMajor), 1, ExpressionType::MaxColsAtCompileTime> MatrixRowType;
   typedef Array<Scalar, 1, ExpressionType::ColsAtCompileTime,
-                 int(ExpressionType::PlainObject::Options) | int(RowMajor), 1, ExpressionType::MaxColsAtCompileTime> ArrayRowType;
+                 with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::RowMajor), 1, ExpressionType::MaxColsAtCompileTime> ArrayRowType;
 
   typedef std::conditional_t<
     is_same< typename traits<ExpressionType>::XprKind, MatrixXpr >::value,
@@ -592,10 +593,9 @@ struct plain_row_type
 template<typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
 struct plain_col_type
 {
-  typedef Matrix<Scalar, ExpressionType::RowsAtCompileTime, 1,
-                 ExpressionType::PlainObject::Options & ~RowMajor, ExpressionType::MaxRowsAtCompileTime, 1> MatrixColType;
-  typedef Array<Scalar, ExpressionType::RowsAtCompileTime, 1,
-                 ExpressionType::PlainObject::Options & ~RowMajor, ExpressionType::MaxRowsAtCompileTime, 1> ArrayColType;
+  constexpr static int NewOptions = with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::ColMajor);
+  typedef Matrix<Scalar, ExpressionType::RowsAtCompileTime, 1, NewOptions, ExpressionType::MaxRowsAtCompileTime, 1> MatrixColType;
+  typedef Array<Scalar, ExpressionType::RowsAtCompileTime, 1, NewOptions, ExpressionType::MaxRowsAtCompileTime, 1> ArrayColType;
 
   typedef std::conditional_t<
     is_same< typename traits<ExpressionType>::XprKind, MatrixXpr >::value,
@@ -607,12 +607,13 @@ struct plain_col_type
 template<typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
 struct plain_diag_type
 {
+  constexpr static int NewOptions = with_storage_order(ExpressionType::PlainObject::Options, StorageOrder::ColMajor);
   enum { diag_size = internal::min_size_prefer_dynamic(ExpressionType::RowsAtCompileTime, ExpressionType::ColsAtCompileTime),
          max_diag_size = min_size_prefer_fixed(ExpressionType::MaxRowsAtCompileTime,
                                                ExpressionType::MaxColsAtCompileTime)
   };
-  typedef Matrix<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1> MatrixDiagType;
-  typedef Array<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1> ArrayDiagType;
+  typedef Matrix<Scalar, diag_size, 1, NewOptions, max_diag_size, 1> MatrixDiagType;
+  typedef Array<Scalar, diag_size, 1, NewOptions, max_diag_size, 1> ArrayDiagType;
 
   typedef std::conditional_t<
     is_same< typename traits<ExpressionType>::XprKind, MatrixXpr >::value,
@@ -624,7 +625,7 @@ struct plain_diag_type
 template<typename Expr,typename Scalar = typename Expr::Scalar>
 struct plain_constant_type
 {
-  enum { Options = (traits<Expr>::Flags&RowMajorBit)?RowMajor:0 };
+  enum { Options = storage_order_flag(traits<Expr>::Flags) };
 
   typedef Array<Scalar,  traits<Expr>::RowsAtCompileTime,   traits<Expr>::ColsAtCompileTime,
                 Options, traits<Expr>::MaxRowsAtCompileTime,traits<Expr>::MaxColsAtCompileTime> array_type;
@@ -726,7 +727,7 @@ std::string demangle_unrolling(int t)
 std::string demangle_flags(int f)
 {
   std::string res;
-  if(f&RowMajorBit)                 res += " | RowMajor";
+  if(is_row_major(f))               res += " | RowMajor";
   if(f&PacketAccessBit)             res += " | Packet";
   if(f&LinearAccessBit)             res += " | Linear";
   if(f&LvalueBit)                   res += " | Lvalue";

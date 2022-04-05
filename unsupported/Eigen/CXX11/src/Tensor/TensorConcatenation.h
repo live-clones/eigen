@@ -37,7 +37,7 @@ struct traits<TensorConcatenationOp<Axis, LhsXprType, RhsXprType> >
   typedef std::remove_reference_t<LhsNested> LhsNested_;
   typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions;
-  static constexpr int Layout = traits<LhsXprType>::Layout;
+  static constexpr StorageOrder Layout = traits<LhsXprType>::Layout;
   enum { Flags = 0 };
   typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                         typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType> PointerType;
@@ -106,7 +106,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = TensorEvaluator<LeftArgType, Device>::PacketAccess &&
@@ -124,7 +124,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
     : m_leftImpl(op.lhsExpression(), device), m_rightImpl(op.rhsExpression(), device), m_axis(op.axis())
   {
-    EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) == static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout) || NumDims == 1), YOU_MADE_A_PROGRAMMING_MISTAKE);
+    EIGEN_STATIC_ASSERT((TensorEvaluator<LeftArgType, Device>::Layout == TensorEvaluator<RightArgType, Device>::Layout || NumDims == 1), YOU_MADE_A_PROGRAMMING_MISTAKE);
     EIGEN_STATIC_ASSERT((NumDims == RightNumDims), YOU_MADE_A_PROGRAMMING_MISTAKE);
     EIGEN_STATIC_ASSERT((NumDims > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
 
@@ -148,7 +148,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
       }
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout) ) {
       m_leftStrides[0] = 1;
       m_rightStrides[0] = 1;
       m_outputStrides[0] = 1;
@@ -193,7 +193,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   {
     // Collect dimension-wise indices (subs).
     array<Index, NumDims> subs;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = NumDims - 1; i > 0; --i) {
         subs[i] = index / m_outputStrides[i];
         index -= subs[i] * m_outputStrides[i];
@@ -210,7 +210,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     const Dimensions& left_dims = m_leftImpl.dimensions();
     if (subs[m_axis] < left_dims[m_axis]) {
       Index left_index;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         left_index = subs[0];
         EIGEN_UNROLL_LOOP
         for (int i = 1; i < NumDims; ++i) {
@@ -228,7 +228,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
       subs[m_axis] -= left_dims[m_axis];
       const Dimensions& right_dims = m_rightImpl.dimensions();
       Index right_index;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (is_col_major(Layout)) {
         right_index = subs[0];
         EIGEN_UNROLL_LOOP
         for (int i = 1; i < NumDims; ++i) {
@@ -305,7 +305,7 @@ template<typename Axis, typename LeftArgType, typename RightArgType, typename De
   typedef TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device> Base;
   typedef TensorConcatenationOp<Axis, LeftArgType, RightArgType> XprType;
   typedef typename Base::Dimensions Dimensions;
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = TensorEvaluator<LeftArgType, Device>::PacketAccess &&
@@ -323,7 +323,7 @@ template<typename Axis, typename LeftArgType, typename RightArgType, typename De
   EIGEN_STRONG_INLINE TensorEvaluator(XprType& op, const Device& device)
     : Base(op, device)
   {
-    EIGEN_STATIC_ASSERT((static_cast<int>(Layout) == static_cast<int>(ColMajor)), YOU_MADE_A_PROGRAMMING_MISTAKE);
+    EIGEN_STATIC_ASSERT((is_col_major(Layout)), YOU_MADE_A_PROGRAMMING_MISTAKE);
   }
 
   typedef typename XprType::Index Index;

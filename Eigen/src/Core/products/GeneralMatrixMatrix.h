@@ -21,10 +21,10 @@ template<typename LhsScalar_, typename RhsScalar_> class level3_blocking;
 /* Specialization for a row-major destination matrix => simple transposition of the product */
 template<
   typename Index,
-  typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
-  typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
+  typename LhsScalar, StorageOrder LhsStorageOrder, bool ConjugateLhs,
+  typename RhsScalar, StorageOrder RhsStorageOrder, bool ConjugateRhs,
   int ResInnerStride>
-struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,RowMajor,ResInnerStride>
+struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,StorageOrder::RowMajor,ResInnerStride>
 {
   typedef gebp_traits<RhsScalar,LhsScalar> Traits;
 
@@ -40,9 +40,9 @@ struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLh
   {
     // transpose the product such that the result is column major
     general_matrix_matrix_product<Index,
-      RhsScalar, RhsStorageOrder==RowMajor ? ColMajor : RowMajor, ConjugateRhs,
-      LhsScalar, LhsStorageOrder==RowMajor ? ColMajor : RowMajor, ConjugateLhs,
-      ColMajor,ResInnerStride>
+      RhsScalar, transposed(RhsStorageOrder), ConjugateRhs,
+      LhsScalar, transposed(LhsStorageOrder), ConjugateLhs,
+      StorageOrder::ColMajor,ResInnerStride>
     ::run(cols,rows,depth,rhs,rhsStride,lhs,lhsStride,res,resIncr,resStride,alpha,blocking,info);
   }
 };
@@ -51,10 +51,10 @@ struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLh
  *    => Blocking algorithm following Goto's paper */
 template<
   typename Index,
-  typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs,
-  typename RhsScalar, int RhsStorageOrder, bool ConjugateRhs,
+  typename LhsScalar, StorageOrder LhsStorageOrder, bool ConjugateLhs,
+  typename RhsScalar, StorageOrder RhsStorageOrder, bool ConjugateRhs,
   int ResInnerStride>
-struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,ColMajor,ResInnerStride>
+struct general_matrix_matrix_product<Index,LhsScalar,LhsStorageOrder,ConjugateLhs,RhsScalar,RhsStorageOrder,ConjugateRhs,StorageOrder::ColMajor,ResInnerStride>
 {
 
 typedef gebp_traits<LhsScalar,RhsScalar> Traits;
@@ -70,7 +70,7 @@ static void run(Index rows, Index cols, Index depth,
 {
   typedef const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder> LhsMapper;
   typedef const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder> RhsMapper;
-  typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor,Unaligned,ResInnerStride> ResMapper;
+  typedef blas_data_mapper<typename Traits::ResScalar, Index, StorageOrder::ColMajor,Unaligned,ResInnerStride> ResMapper;
   LhsMapper lhs(_lhs, lhsStride);
   RhsMapper rhs(_rhs, rhsStride);
   ResMapper res(_res, resStride, resIncr);
@@ -243,7 +243,7 @@ struct gemm_functor
     BlockingType& m_blocking;
 };
 
-template<int StorageOrder, typename LhsScalar, typename RhsScalar, int MaxRows, int MaxCols, int MaxDepth, int KcFactor=1,
+template<StorageOrder StorageOrder_, typename LhsScalar, typename RhsScalar, int MaxRows, int MaxCols, int MaxDepth, int KcFactor=1,
 bool FiniteAtCompileTime = MaxRows!=Dynamic && MaxCols!=Dynamic && MaxDepth != Dynamic> class gemm_blocking_space;
 
 template<typename LhsScalar_, typename RhsScalar_>
@@ -274,14 +274,14 @@ class level3_blocking
     inline RhsScalar* blockB() { return m_blockB; }
 };
 
-template<int StorageOrder, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
-class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, MaxDepth, KcFactor, true /* == FiniteAtCompileTime */>
+template<StorageOrder StorageOrder_, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
+class gemm_blocking_space<StorageOrder_,LhsScalar_,RhsScalar_,MaxRows, MaxCols, MaxDepth, KcFactor, true /* == FiniteAtCompileTime */>
   : public level3_blocking<
-      std::conditional_t<StorageOrder==RowMajor,RhsScalar_,LhsScalar_>,
-      std::conditional_t<StorageOrder==RowMajor,LhsScalar_,RhsScalar_>>
+      std::conditional_t<is_row_major(StorageOrder_),RhsScalar_,LhsScalar_>,
+      std::conditional_t<is_row_major(StorageOrder_),LhsScalar_,RhsScalar_>>
 {
     enum {
-      Transpose = StorageOrder==RowMajor,
+      Transpose = is_row_major(StorageOrder_),
       ActualRows = Transpose ? MaxCols : MaxRows,
       ActualCols = Transpose ? MaxRows : MaxCols
     };
@@ -325,14 +325,14 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
     inline void allocateAll() {}
 };
 
-template<int StorageOrder, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
-class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, MaxDepth, KcFactor, false>
+template<StorageOrder StorageOrder_, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
+class gemm_blocking_space<StorageOrder_,LhsScalar_,RhsScalar_,MaxRows, MaxCols, MaxDepth, KcFactor, false>
   : public level3_blocking<
-      std::conditional_t<StorageOrder==RowMajor,RhsScalar_,LhsScalar_>,
-      std::conditional_t<StorageOrder==RowMajor,LhsScalar_,RhsScalar_>>
+      std::conditional_t<StorageOrder_==StorageOrder::RowMajor,RhsScalar_,LhsScalar_>,
+      std::conditional_t<StorageOrder_==StorageOrder::RowMajor,LhsScalar_,RhsScalar_>>
 {
     enum {
-      Transpose = StorageOrder==RowMajor
+      Transpose = StorageOrder_==StorageOrder::RowMajor
     };
     typedef std::conditional_t<Transpose,RhsScalar_,LhsScalar_> LhsScalar;
     typedef std::conditional_t<Transpose,LhsScalar_,RhsScalar_> RhsScalar;
@@ -490,22 +490,22 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct>
 
     Scalar actualAlpha = combine_scalar_factors(alpha, a_lhs, a_rhs);
 
-    typedef internal::gemm_blocking_space<(Dest::Flags&RowMajorBit) ? RowMajor : ColMajor,LhsScalar,RhsScalar,
+    typedef internal::gemm_blocking_space<get_storage_order(Dest::Flags),LhsScalar,RhsScalar,
             Dest::MaxRowsAtCompileTime,Dest::MaxColsAtCompileTime,MaxDepthAtCompileTime> BlockingType;
 
     typedef internal::gemm_functor<
       Scalar, Index,
       internal::general_matrix_matrix_product<
         Index,
-        LhsScalar, (ActualLhsTypeCleaned::Flags&RowMajorBit) ? RowMajor : ColMajor, bool(LhsBlasTraits::NeedToConjugate),
-        RhsScalar, (ActualRhsTypeCleaned::Flags&RowMajorBit) ? RowMajor : ColMajor, bool(RhsBlasTraits::NeedToConjugate),
-        (Dest::Flags&RowMajorBit) ? RowMajor : ColMajor,
+        LhsScalar, get_storage_order(ActualLhsTypeCleaned::Flags), bool(LhsBlasTraits::NeedToConjugate),
+        RhsScalar, get_storage_order(ActualRhsTypeCleaned::Flags), bool(RhsBlasTraits::NeedToConjugate),
+        get_storage_order(Dest::Flags),
         Dest::InnerStrideAtCompileTime>,
       ActualLhsTypeCleaned, ActualRhsTypeCleaned, Dest, BlockingType> GemmFunctor;
 
     BlockingType blocking(dst.rows(), dst.cols(), lhs.cols(), 1, true);
     internal::parallelize_gemm<(Dest::MaxRowsAtCompileTime>32 || Dest::MaxRowsAtCompileTime==Dynamic)>
-        (GemmFunctor(lhs, rhs, dst, actualAlpha, blocking), a_lhs.rows(), a_rhs.cols(), a_lhs.cols(), Dest::Flags&RowMajorBit);
+        (GemmFunctor(lhs, rhs, dst, actualAlpha, blocking), a_lhs.rows(), a_rhs.cols(), a_lhs.cols(), is_row_major(Dest::Flags));
   }
 };
 

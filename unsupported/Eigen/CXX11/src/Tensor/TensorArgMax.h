@@ -33,7 +33,7 @@ struct traits<TensorIndexPairOp<XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
 };
 
 template<typename XprType>
@@ -95,7 +95,7 @@ struct TensorEvaluator<const TensorIndexPairOp<ArgType>, Device>
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
   typedef internal::TensorBlockNotImplemented TensorBlock;
@@ -156,7 +156,7 @@ struct traits<TensorPairReducerOp<ReduceOp, Dims, XprType> > : public traits<Xpr
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
 };
 
 template<typename ReduceOp, typename Dims, typename XprType>
@@ -236,7 +236,7 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
     CoordAccess       = false,  // to be implemented
     RawAccess         = false
   };
-  static constexpr int Layout = TensorEvaluator<const TensorReductionOp<ReduceOp, Dims, const TensorIndexPairOp<ArgType>>, Device>::Layout;
+  static constexpr internal::StorageOrder Layout = TensorEvaluator<const TensorReductionOp<ReduceOp, Dims, const TensorIndexPairOp<ArgType>>, Device>::Layout;
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
@@ -247,7 +247,7 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
         m_return_dim(op.return_dim())
   {
     gen_strides(m_orig_impl.dimensions(), m_strides);
-    if (Layout == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       const Index total_size = internal::array_prod(m_orig_impl.dimensions());
       m_stride_mod = (m_return_dim < NumDims - 1) ? m_strides[m_return_dim + 1] : total_size;
     } else {
@@ -303,7 +303,7 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
 
     // Calculate m_stride_div and m_stride_mod, which are used to
     // calculate the value of an index w.r.t. the m_return_dim.
-    if (Layout == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       strides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
         strides[i] = strides[i-1] * dims[i-1];

@@ -42,9 +42,9 @@ namespace internal {
 
 template <typename Scalar, typename Index,
           int Mode, bool LhsIsTriangular,
-          int LhsStorageOrder, bool ConjugateLhs,
-          int RhsStorageOrder, bool ConjugateRhs,
-          int ResStorageOrder>
+          StorageOrder LhsStorageOrder, bool ConjugateLhs,
+          StorageOrder RhsStorageOrder, bool ConjugateRhs,
+          StorageOrder ResStorageOrder>
 struct product_triangular_matrix_matrix_trmm :
        product_triangular_matrix_matrix<Scalar,Index,Mode,
           LhsIsTriangular,LhsStorageOrder,ConjugateLhs,
@@ -54,8 +54,8 @@ struct product_triangular_matrix_matrix_trmm :
 // try to go to BLAS specialization
 #define EIGEN_BLAS_TRMM_SPECIALIZE(Scalar, LhsIsTriangular) \
 template <typename Index, int Mode, \
-          int LhsStorageOrder, bool ConjugateLhs, \
-          int RhsStorageOrder, bool ConjugateRhs> \
+          StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+          StorageOrder RhsStorageOrder, bool ConjugateRhs> \
 struct product_triangular_matrix_matrix<Scalar,Index, Mode, LhsIsTriangular, \
            LhsStorageOrder,ConjugateLhs, RhsStorageOrder,ConjugateRhs,ColMajor,1,Specialized> { \
   static inline void run(Index _rows, Index _cols, Index _depth, const Scalar* _lhs, Index lhsStride,\
@@ -81,10 +81,10 @@ EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, false)
 // implements col-major += alpha * op(triangular) * op(general)
 #define EIGEN_BLAS_TRMM_L(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC) \
 template <typename Index, int Mode, \
-          int LhsStorageOrder, bool ConjugateLhs, \
-          int RhsStorageOrder, bool ConjugateRhs> \
+          StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+          StorageOrder RhsStorageOrder, bool ConjugateRhs> \
 struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,true, \
-         LhsStorageOrder,ConjugateLhs,RhsStorageOrder,ConjugateRhs,ColMajor> \
+         LhsStorageOrder,ConjugateLhs,RhsStorageOrder,ConjugateRhs,StorageOrder::ColMajor> \
 { \
   enum { \
     IsLower = (Mode&Lower) == Lower, \
@@ -145,7 +145,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,true, \
    n = convert_index<BlasIndex>(cols); \
 \
 /* Set trans */ \
-   transa = (LhsStorageOrder==RowMajor) ? ((ConjugateLhs) ? 'C' : 'T') : 'N'; \
+   transa = is_row_major(LhsStorageOrder) ? ((ConjugateLhs) ? 'C' : 'T') : 'N'; \
 \
 /* Set b, ldb */ \
    Map<const MatrixRhs, 0, OuterStride<> > rhs(_rhs,depth,cols,OuterStride<>(rhsStride)); \
@@ -157,7 +157,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,true, \
 \
 /* Set uplo */ \
    uplo = IsLower ? 'L' : 'U'; \
-   if (LhsStorageOrder==RowMajor) uplo = (uplo == 'L') ? 'U' : 'L'; \
+   if (is_row_major(LhsStorageOrder)) uplo = (uplo == 'L') ? 'U' : 'L'; \
 /* Set a, lda */ \
    Map<const MatrixLhs, 0, OuterStride<> > lhs(_lhs,rows,depth,OuterStride<>(lhsStride)); \
    MatrixLhs a_tmp; \
@@ -199,10 +199,10 @@ EIGEN_BLAS_TRMM_L(scomplex, float, cf, ctrmm_)
 // implements col-major += alpha * op(general) * op(triangular)
 #define EIGEN_BLAS_TRMM_R(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC) \
 template <typename Index, int Mode, \
-          int LhsStorageOrder, bool ConjugateLhs, \
-          int RhsStorageOrder, bool ConjugateRhs> \
+          StorageOrder LhsStorageOrder, bool ConjugateLhs, \
+          StorageOrder RhsStorageOrder, bool ConjugateRhs> \
 struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,false, \
-         LhsStorageOrder,ConjugateLhs,RhsStorageOrder,ConjugateRhs,ColMajor> \
+         LhsStorageOrder,ConjugateLhs,RhsStorageOrder,ConjugateRhs,StorageOrder::ColMajor> \
 { \
   enum { \
     IsLower = (Mode&Lower) == Lower, \
@@ -262,7 +262,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,false, \
    n = convert_index<BlasIndex>(diagSize); \
 \
 /* Set trans */ \
-   transa = (RhsStorageOrder==RowMajor) ? ((ConjugateRhs) ? 'C' : 'T') : 'N'; \
+   transa = is_row_major(RhsStorageOrder) ? ((ConjugateRhs) ? 'C' : 'T') : 'N'; \
 \
 /* Set b, ldb */ \
    Map<const MatrixLhs, 0, OuterStride<> > lhs(_lhs,rows,depth,OuterStride<>(lhsStride)); \
@@ -274,7 +274,7 @@ struct product_triangular_matrix_matrix_trmm<EIGTYPE,Index,Mode,false, \
 \
 /* Set uplo */ \
    uplo = IsLower ? 'L' : 'U'; \
-   if (RhsStorageOrder==RowMajor) uplo = (uplo == 'L') ? 'U' : 'L'; \
+   if (is_row_major(RhsStorageOrder)) uplo = (uplo == 'L') ? 'U' : 'L'; \
 /* Set a, lda */ \
    Map<const MatrixRhs, 0, OuterStride<> > rhs(_rhs,depth,cols, OuterStride<>(rhsStride)); \
    MatrixRhs a_tmp; \

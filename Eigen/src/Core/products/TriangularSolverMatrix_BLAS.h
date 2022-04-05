@@ -41,7 +41,7 @@ namespace internal {
 
 // implements LeftSide op(triangular)^-1 * general
 #define EIGEN_BLAS_TRSM_L(EIGTYPE, BLASTYPE, BLASFUNC) \
-template <typename Index, int Mode, bool Conjugate, int TriStorageOrder> \
+template <typename Index, int Mode, bool Conjugate, StorageOrder TriStorageOrder> \
 struct triangular_solve_matrix<EIGTYPE,Index,OnTheLeft,Mode,Conjugate,TriStorageOrder,ColMajor,1> \
 { \
   enum { \
@@ -65,10 +65,10 @@ struct triangular_solve_matrix<EIGTYPE,Index,OnTheLeft,Mode,Conjugate,TriStorage
 \
    const EIGTYPE *a; \
 /* Set trans */ \
-   transa = (TriStorageOrder==RowMajor) ? ((Conjugate) ? 'C' : 'T') : 'N'; \
+   transa = is_row_major(TriStorageOrder) ? ((Conjugate) ? 'C' : 'T') : 'N'; \
 /* Set uplo */ \
    uplo = IsLower ? 'L' : 'U'; \
-   if (TriStorageOrder==RowMajor) uplo = (uplo == 'L') ? 'U' : 'L'; \
+   if (is_row_major(TriStorageOrder)) uplo = (uplo == 'L') ? 'U' : 'L'; \
 /* Set a, lda */ \
    typedef Matrix<EIGTYPE, Dynamic, Dynamic, TriStorageOrder> MatrixTri; \
    Map<const MatrixTri, 0, OuterStride<> > tri(_tri,size,size,OuterStride<>(triStride)); \
@@ -102,8 +102,8 @@ EIGEN_BLAS_TRSM_L(scomplex, float,  ctrsm_)
 
 // implements RightSide general * op(triangular)^-1
 #define EIGEN_BLAS_TRSM_R(EIGTYPE, BLASTYPE, BLASFUNC) \
-template <typename Index, int Mode, bool Conjugate, int TriStorageOrder> \
-struct triangular_solve_matrix<EIGTYPE,Index,OnTheRight,Mode,Conjugate,TriStorageOrder,ColMajor,1> \
+template <typename Index, int Mode, bool Conjugate, StorageOrder TriStorageOrder> \
+struct triangular_solve_matrix<EIGTYPE,Index,OnTheRight,Mode,Conjugate,TriStorageOrder,StorageOrder::ColMajor,1> \
 { \
   enum { \
     IsLower = (Mode&Lower) == Lower, \
@@ -126,12 +126,12 @@ struct triangular_solve_matrix<EIGTYPE,Index,OnTheRight,Mode,Conjugate,TriStorag
 \
    const EIGTYPE *a; \
 /* Set trans */ \
-   transa = (TriStorageOrder==RowMajor) ? ((Conjugate) ? 'C' : 'T') : 'N'; \
+   transa = (is_row_major(TriStorageOrder)) ? ((Conjugate) ? 'C' : 'T') : 'N'; \
 /* Set uplo */ \
    uplo = IsLower ? 'L' : 'U'; \
-   if (TriStorageOrder==RowMajor) uplo = (uplo == 'L') ? 'U' : 'L'; \
+   if (is_row_major(TriStorageOrder)) uplo = (uplo == 'L') ? 'U' : 'L'; \
 /* Set a, lda */ \
-   typedef Matrix<EIGTYPE, Dynamic, Dynamic, TriStorageOrder> MatrixTri; \
+   typedef Matrix<EIGTYPE, Dynamic, Dynamic, storage_order_flag(TriStorageOrder)> MatrixTri; \
    Map<const MatrixTri, 0, OuterStride<> > tri(_tri,size,size,OuterStride<>(triStride)); \
    MatrixTri a_tmp; \
 \

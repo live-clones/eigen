@@ -153,7 +153,7 @@ template<>              struct product_type_selector<Large,Large,Small>  { enum 
  */
 namespace internal {
 
-template<int Side, int StorageOrder, bool BlasCompatible>
+template<int Side, StorageOrder StorageOrder_, bool BlasCompatible>
 struct gemv_dense_selector;
 
 } // end namespace internal
@@ -198,20 +198,20 @@ struct gemv_static_vector_if<Scalar,Size,MaxSize,true>
 };
 
 // The vector is on the left => transposition
-template<int StorageOrder, bool BlasCompatible>
-struct gemv_dense_selector<OnTheLeft,StorageOrder,BlasCompatible>
+template<StorageOrder StorageOrder_, bool BlasCompatible>
+struct gemv_dense_selector<OnTheLeft,StorageOrder_,BlasCompatible>
 {
   template<typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)
   {
     Transpose<Dest> destT(dest);
-    enum { OtherStorageOrder = StorageOrder == RowMajor ? ColMajor : RowMajor };
+    static constexpr StorageOrder OtherStorageOrder = transposed(StorageOrder_);
     gemv_dense_selector<OnTheRight,OtherStorageOrder,BlasCompatible>
       ::run(rhs.transpose(), lhs.transpose(), destT, alpha);
   }
 };
 
-template<> struct gemv_dense_selector<OnTheRight,ColMajor,true>
+template<> struct gemv_dense_selector<OnTheRight,StorageOrder::ColMajor,true>
 {
   template<typename Lhs, typename Rhs, typename Dest>
   static inline void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)
@@ -243,8 +243,8 @@ template<> struct gemv_dense_selector<OnTheRight,ColMajor,true>
       MightCannotUseDest = ((!EvalToDestAtCompileTime) || ComplexByReal) && (ActualDest::MaxSizeAtCompileTime!=0)
     };
 
-    typedef const_blas_data_mapper<LhsScalar,Index,ColMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar,Index,RowMajor> RhsMapper;
+    typedef const_blas_data_mapper<LhsScalar,Index,StorageOrder::ColMajor> LhsMapper;
+    typedef const_blas_data_mapper<RhsScalar,Index,StorageOrder::RowMajor> RhsMapper;
     RhsScalar compatibleAlpha = get_factor<ResScalar,RhsScalar>::run(actualAlpha);
 
     if(!MightCannotUseDest)
@@ -252,7 +252,7 @@ template<> struct gemv_dense_selector<OnTheRight,ColMajor,true>
       // shortcut if we are sure to be able to use dest directly,
       // this ease the compiler to generate cleaner and more optimzized code for most common cases
       general_matrix_vector_product
-          <Index,LhsScalar,LhsMapper,ColMajor,LhsBlasTraits::NeedToConjugate,RhsScalar,RhsMapper,RhsBlasTraits::NeedToConjugate>::run(
+          <Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,LhsBlasTraits::NeedToConjugate,RhsScalar,RhsMapper,RhsBlasTraits::NeedToConjugate>::run(
           actualLhs.rows(), actualLhs.cols(),
           LhsMapper(actualLhs.data(), actualLhs.outerStride()),
           RhsMapper(actualRhs.data(), actualRhs.innerStride()),
@@ -285,7 +285,7 @@ template<> struct gemv_dense_selector<OnTheRight,ColMajor,true>
       }
 
       general_matrix_vector_product
-          <Index,LhsScalar,LhsMapper,ColMajor,LhsBlasTraits::NeedToConjugate,RhsScalar,RhsMapper,RhsBlasTraits::NeedToConjugate>::run(
+          <Index,LhsScalar,LhsMapper,StorageOrder::ColMajor,LhsBlasTraits::NeedToConjugate,RhsScalar,RhsMapper,RhsBlasTraits::NeedToConjugate>::run(
           actualLhs.rows(), actualLhs.cols(),
           LhsMapper(actualLhs.data(), actualLhs.outerStride()),
           RhsMapper(actualRhs.data(), actualRhs.innerStride()),
@@ -303,7 +303,7 @@ template<> struct gemv_dense_selector<OnTheRight,ColMajor,true>
   }
 };
 
-template<> struct gemv_dense_selector<OnTheRight,RowMajor,true>
+template<> struct gemv_dense_selector<OnTheRight,StorageOrder::RowMajor,true>
 {
   template<typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)
@@ -343,10 +343,10 @@ template<> struct gemv_dense_selector<OnTheRight,RowMajor,true>
       Map<typename ActualRhsTypeCleaned::PlainObject>(actualRhsPtr, actualRhs.size()) = actualRhs;
     }
 
-    typedef const_blas_data_mapper<LhsScalar,Index,RowMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar,Index,ColMajor> RhsMapper;
+    typedef const_blas_data_mapper<LhsScalar,Index,StorageOrder::RowMajor> LhsMapper;
+    typedef const_blas_data_mapper<RhsScalar,Index,StorageOrder::ColMajor> RhsMapper;
     general_matrix_vector_product
-        <Index,LhsScalar,LhsMapper,RowMajor,LhsBlasTraits::NeedToConjugate,RhsScalar,RhsMapper,RhsBlasTraits::NeedToConjugate>::run(
+        <Index,LhsScalar,LhsMapper,StorageOrder::RowMajor,LhsBlasTraits::NeedToConjugate,RhsScalar,RhsMapper,RhsBlasTraits::NeedToConjugate>::run(
         actualLhs.rows(), actualLhs.cols(),
         LhsMapper(actualLhs.data(), actualLhs.outerStride()),
         RhsMapper(actualRhsPtr, 1),
@@ -355,7 +355,7 @@ template<> struct gemv_dense_selector<OnTheRight,RowMajor,true>
   }
 };
 
-template<> struct gemv_dense_selector<OnTheRight,ColMajor,false>
+template<> struct gemv_dense_selector<OnTheRight,StorageOrder::ColMajor,false>
 {
   template<typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)
@@ -369,7 +369,7 @@ template<> struct gemv_dense_selector<OnTheRight,ColMajor,false>
   }
 };
 
-template<> struct gemv_dense_selector<OnTheRight,RowMajor,false>
+template<> struct gemv_dense_selector<OnTheRight,StorageOrder::RowMajor,false>
 {
   template<typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs &lhs, const Rhs &rhs, Dest& dest, const typename Dest::Scalar& alpha)

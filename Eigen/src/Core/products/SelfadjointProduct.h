@@ -22,7 +22,7 @@ namespace Eigen {
 
 
 template<typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
-struct selfadjoint_rank1_update<Scalar,Index,ColMajor,UpLo,ConjLhs,ConjRhs>
+struct selfadjoint_rank1_update<Scalar,Index,StorageOrder::ColMajor,UpLo,ConjLhs,ConjRhs>
 {
   static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha)
   {
@@ -38,11 +38,11 @@ struct selfadjoint_rank1_update<Scalar,Index,ColMajor,UpLo,ConjLhs,ConjRhs>
 };
 
 template<typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
-struct selfadjoint_rank1_update<Scalar,Index,RowMajor,UpLo,ConjLhs,ConjRhs>
+struct selfadjoint_rank1_update<Scalar,Index,StorageOrder::RowMajor,UpLo,ConjLhs,ConjRhs>
 {
   static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha)
   {
-    selfadjoint_rank1_update<Scalar,Index,ColMajor,UpLo==Lower?Upper:Lower,ConjRhs,ConjLhs>::run(size,mat,stride,vecY,vecX,alpha);
+    selfadjoint_rank1_update<Scalar,Index,StorageOrder::ColMajor,UpLo==Lower?Upper:Lower,ConjRhs,ConjLhs>::run(size,mat,stride,vecY,vecX,alpha);
   }
 };
 
@@ -62,8 +62,8 @@ struct selfadjoint_product_selector<MatrixType,OtherType,UpLo,true>
 
     Scalar actualAlpha = alpha * OtherBlasTraits::extractScalarFactor(other.derived());
 
+    constexpr StorageOrder StorageOrder_ = get_storage_order(internal::traits<MatrixType>::Flags);
     enum {
-      StorageOrder = (internal::traits<MatrixType>::Flags&RowMajorBit) ? RowMajor : ColMajor,
       UseOtherDirectly = ActualOtherType_::InnerStrideAtCompileTime==1
     };
     internal::gemv_static_vector_if<Scalar,OtherType::SizeAtCompileTime,OtherType::MaxSizeAtCompileTime,!UseOtherDirectly> static_other;
@@ -74,7 +74,7 @@ struct selfadjoint_product_selector<MatrixType,OtherType,UpLo,true>
     if(!UseOtherDirectly)
       Map<typename ActualOtherType_::PlainObject>(actualOtherPtr, actualOther.size()) = actualOther;
     
-    selfadjoint_rank1_update<Scalar,Index,StorageOrder,UpLo,
+    selfadjoint_rank1_update<Scalar,Index,StorageOrder_,UpLo,
                               OtherBlasTraits::NeedToConjugate  && NumTraits<Scalar>::IsComplex,
                             (!OtherBlasTraits::NeedToConjugate) && NumTraits<Scalar>::IsComplex>
           ::run(other.size(), mat.data(), mat.outerStride(), actualOtherPtr, actualOtherPtr, actualAlpha);
@@ -94,24 +94,22 @@ struct selfadjoint_product_selector<MatrixType,OtherType,UpLo,false>
 
     Scalar actualAlpha = alpha * OtherBlasTraits::extractScalarFactor(other.derived());
 
-    enum {
-      IsRowMajor = (internal::traits<MatrixType>::Flags&RowMajorBit) ? 1 : 0,
-      OtherIsRowMajor = ActualOtherType_::Flags&RowMajorBit ? 1 : 0
-    };
+    constexpr StorageOrder StorageOrder_ = internal::get_storage_order(internal::traits<MatrixType>::Flags);
+    constexpr StorageOrder OtherStorageOrder_ = internal::get_storage_order(ActualOtherType_::Flags);
 
     Index size = mat.cols();
     Index depth = actualOther.cols();
 
-    typedef internal::gemm_blocking_space<IsRowMajor ? RowMajor : ColMajor,Scalar,Scalar,
+    typedef internal::gemm_blocking_space<StorageOrder_,Scalar,Scalar,
               MatrixType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime, ActualOtherType_::MaxColsAtCompileTime> BlockingType;
 
     BlockingType blocking(size, size, depth, 1, false);
 
 
     internal::general_matrix_matrix_triangular_product<Index,
-      Scalar, OtherIsRowMajor ? RowMajor : ColMajor,   OtherBlasTraits::NeedToConjugate  && NumTraits<Scalar>::IsComplex,
-      Scalar, OtherIsRowMajor ? ColMajor : RowMajor, (!OtherBlasTraits::NeedToConjugate) && NumTraits<Scalar>::IsComplex,
-      IsRowMajor ? RowMajor : ColMajor, MatrixType::InnerStrideAtCompileTime, UpLo>
+      Scalar, OtherStorageOrder_,   OtherBlasTraits::NeedToConjugate  && NumTraits<Scalar>::IsComplex,
+      Scalar, transposed(OtherStorageOrder_), (!OtherBlasTraits::NeedToConjugate) && NumTraits<Scalar>::IsComplex,
+      StorageOrder_, MatrixType::InnerStrideAtCompileTime, UpLo>
       ::run(size, depth,
             actualOther.data(), actualOther.outerStride(), actualOther.data(), actualOther.outerStride(),
             mat.data(), mat.innerStride(), mat.outerStride(), actualAlpha, blocking);

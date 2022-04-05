@@ -32,16 +32,14 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
 
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LeftArgType, Device>::Layout;
 
   // Most of the code is assuming that both input tensors are ColMajor. If the
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef std::conditional_t<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
-  typedef std::conditional_t<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
+  typedef std::conditional_t<is_col_major(Layout), LeftArgType, RightArgType> EvalLeftArgType;
+  typedef std::conditional_t<is_col_major(Layout), RightArgType, LeftArgType> EvalRightArgType;
 
   static constexpr int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;
@@ -362,7 +360,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Unaligned>
         RhsMapper;
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
 
     typedef internal::TensorContractionKernel<
         Scalar, LhsScalar, RhsScalar, Index, OutputMapper, LhsMapper, RhsMapper>
@@ -1290,7 +1288,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     }
 
     void applyOutputKernel() const {
-      typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+      typedef internal::blas_data_mapper<Scalar, Index, StorageOrder::ColMajor> OutputMapper;
       evaluator->m_output_kernel(
           OutputMapper(result, m), evaluator->m_tensor_contraction_params,
           static_cast<Eigen::Index>(0), static_cast<Eigen::Index>(0), m, n);

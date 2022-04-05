@@ -33,7 +33,7 @@ struct traits<TensorChippingOp<DimId, XprType> > : public traits<XprType>
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions - 1;
-  static constexpr int Layout = XprTraits::Layout;
+  static constexpr StorageOrder Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -127,7 +127,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device>
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
 
   enum {
     // Alignment can't be guaranteed at compile time since it depends on the
@@ -137,11 +137,11 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device>
     BlockAccess       = TensorEvaluator<ArgType, Device>::BlockAccess,
     // Chipping of outer-most dimension is a trivial operation, because we can
     // read and write directly from the underlying tensor using single offset.
-    IsOuterChipping   = (Layout == ColMajor && DimId == NumInputDims - 1) ||
-                        (Layout == RowMajor && DimId == 0),
+    IsOuterChipping   = (is_col_major(Layout) && DimId == NumInputDims - 1) ||
+                        (is_row_major(Layout) && DimId == 0),
     // Chipping inner-most dimension.
-    IsInnerChipping   = (Layout == ColMajor && DimId == 0) ||
-                        (Layout == RowMajor && DimId == NumInputDims - 1),
+    IsInnerChipping   = (is_col_major(Layout) && DimId == 0) ||
+                        (is_row_major(Layout) && DimId == NumInputDims - 1),
     // Prefer block access if the underlying expression prefers it, otherwise
     // only if chipping is not trivial.
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess ||
@@ -185,7 +185,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device>
 
     m_stride = 1;
     m_inputStride = 1;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    if (is_col_major(Layout)) {
       for (int i = 0; i < m_dim.actualDim(); ++i) {
         m_stride *= input_dims[i];
         m_inputStride *= input_dims[i];
@@ -260,15 +260,11 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost
   costPerCoeff(bool vectorized) const {
     double cost = 0;
-    if ((static_cast<int>(Layout) == static_cast<int>(ColMajor) &&
-         m_dim.actualDim() == 0) ||
-        (static_cast<int>(Layout) == static_cast<int>(RowMajor) &&
-         m_dim.actualDim() == NumInputDims - 1)) {
+    if ((is_col_major(Layout) && m_dim.actualDim() == 0) ||
+        (is_row_major(Layout) && m_dim.actualDim() == NumInputDims - 1)) {
       cost += TensorOpCost::MulCost<Index>() + TensorOpCost::AddCost<Index>();
-    } else if ((static_cast<int>(Layout) == static_cast<int>(ColMajor) &&
-                m_dim.actualDim() == NumInputDims - 1) ||
-               (static_cast<int>(Layout) == static_cast<int>(RowMajor) &&
-                m_dim.actualDim() == 0)) {
+    } else if ((is_col_major(Layout) && m_dim.actualDim() == NumInputDims - 1) ||
+               (is_row_major(Layout) && m_dim.actualDim() == 0)) {
       cost += TensorOpCost::AddCost<Index>();
     } else {
       cost += 3 * TensorOpCost::MulCost<Index>() + TensorOpCost::DivCost<Index>() +
@@ -386,14 +382,14 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device>
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool isInnerChipping() const {
     return IsInnerChipping ||
-           (static_cast<int>(Layout) == ColMajor && m_dim.actualDim() == 0) ||
-           (static_cast<int>(Layout) == RowMajor && m_dim.actualDim() == NumInputDims - 1);
+           (is_col_major(Layout) && m_dim.actualDim() == 0) ||
+           (is_row_major(Layout) && m_dim.actualDim() == NumInputDims - 1);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool isOuterChipping() const {
     return IsOuterChipping ||
-           (static_cast<int>(Layout) == ColMajor && m_dim.actualDim() == NumInputDims-1) ||
-           (static_cast<int>(Layout) == RowMajor && m_dim.actualDim() == 0);
+           (is_col_major(Layout) && m_dim.actualDim() == NumInputDims-1) ||
+           (is_row_major(Layout) && m_dim.actualDim() == 0);
   }
 
   Dimensions m_dimensions;
@@ -421,12 +417,12 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
+  static constexpr StorageOrder Layout = TensorEvaluator<ArgType, Device>::Layout;
 
   enum {
     IsAligned     = false,
     PacketAccess  = TensorEvaluator<ArgType, Device>::PacketAccess,
     BlockAccess   = TensorEvaluator<ArgType, Device>::RawAccess,
-    Layout        = TensorEvaluator<ArgType, Device>::Layout,
     RawAccess     = false
   };
 

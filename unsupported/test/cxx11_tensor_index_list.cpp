@@ -65,17 +65,17 @@ static void test_type2index_list()
   EIGEN_STATIC_ASSERT((internal::indices_statically_known_to_increase<Dims4>() == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
 #endif
 
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims0, 1, ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims1, 2, ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims2, 3, ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims3, 4, ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims4, 5, ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims0, 1, StorageOrder::ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims1, 2, StorageOrder::ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims2, 3, StorageOrder::ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims3, 4, StorageOrder::ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims4, 5, StorageOrder::ColMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
 
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims0, 1, RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims1, 2, RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims2, 3, RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims3, 4, RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims4, 5, RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims0, 1, StorageOrder::RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims1, 2, StorageOrder::RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims2, 3, StorageOrder::RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims3, 4, StorageOrder::RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::are_inner_most_dims<Dims4, 5, StorageOrder::RowMajor>::value == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
 
   const Dims0 reduction_axis0;
   Tensor<float, 4> result0 = tensor.sum(reduction_axis0);

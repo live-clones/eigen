@@ -46,7 +46,7 @@ struct traits<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3> > {
   typedef std::remove_reference_t<Arg1Nested> Arg1Nested_;
   typedef std::remove_reference_t<Arg2Nested> Arg2Nested_;
   typedef std::remove_reference_t<Arg3Nested> Arg3Nested_;
-  enum { Flags = Arg1Nested_::Flags & RowMajorBit };
+  enum { Flags = storage_order_flag(Arg1Nested_::Flags) };
 };
 }  // end namespace internal
 

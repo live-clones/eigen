@@ -129,8 +129,8 @@ const static Packet16uc p16uc_GETIMAG64 = {  8,  9, 10, 11, 12, 13, 14, 15,
  * reason why packing for complex is broken down into several different parts, also the reason why we endup having a
  * float32/64 and complex float32/64 version.
  **/
-template<typename Scalar, typename Index, int StorageOrder>
-EIGEN_ALWAYS_INLINE std::complex<Scalar> getAdjointVal(Index i, Index j, const_blas_data_mapper<std::complex<Scalar>, Index, StorageOrder>& dt)
+template<typename Scalar, typename Index, StorageOrder StorageOrder_>
+EIGEN_ALWAYS_INLINE std::complex<Scalar> getAdjointVal(Index i, Index j, const_blas_data_mapper<std::complex<Scalar>, Index, StorageOrder_>& dt)
 {
   std::complex<Scalar> v;
   if(i < j)
@@ -148,11 +148,11 @@ EIGEN_ALWAYS_INLINE std::complex<Scalar> getAdjointVal(Index i, Index j, const_b
   return v;
 }
 
-template<typename Scalar, typename Index, int StorageOrder, int N>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int N>
 EIGEN_STRONG_INLINE void symm_pack_complex_rhs_helper(std::complex<Scalar>* blockB, const std::complex<Scalar>* _rhs, Index rhsStride, Index rows, Index cols, Index k2)
 {
   const Index depth = k2 + rows;
-  const_blas_data_mapper<std::complex<Scalar>, Index, StorageOrder> rhs(_rhs, rhsStride);
+  const_blas_data_mapper<std::complex<Scalar>, Index, StorageOrder_> rhs(_rhs, rhsStride);
   const Index vectorSize = N*quad_traits<Scalar>::vectorsize;
   const Index vectorDelta = vectorSize * rows;
   Scalar* blockBf = reinterpret_cast<Scalar *>(blockB);
@@ -166,7 +166,7 @@ EIGEN_STRONG_INLINE void symm_pack_complex_rhs_helper(std::complex<Scalar>* bloc
     {
       for(Index k = 0; k < vectorSize; k++)
       {
-        std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder>(i, j + k, rhs);
+        std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder_>(i, j + k, rhs);
 
         blockBf[rir + k] = v.real();
         blockBf[rii + k] = v.imag();
@@ -184,7 +184,7 @@ EIGEN_STRONG_INLINE void symm_pack_complex_rhs_helper(std::complex<Scalar>* bloc
 
     for(Index i = k2; i < depth; i++)
     {
-      std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder>(i, j, rhs);
+      std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder_>(i, j, rhs);
 
       blockBf[rir] = v.real();
       blockBf[rii] = v.imag();
@@ -197,11 +197,11 @@ EIGEN_STRONG_INLINE void symm_pack_complex_rhs_helper(std::complex<Scalar>* bloc
   }
 }
 
-template<typename Scalar, typename Index, int StorageOrder>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_>
 EIGEN_STRONG_INLINE void symm_pack_complex_lhs_helper(std::complex<Scalar>* blockA, const std::complex<Scalar>* _lhs, Index lhsStride, Index cols, Index rows)
 {
   const Index depth = cols;
-  const_blas_data_mapper<std::complex<Scalar>, Index, StorageOrder> lhs(_lhs, lhsStride);
+  const_blas_data_mapper<std::complex<Scalar>, Index, StorageOrder_> lhs(_lhs, lhsStride);
   const Index vectorSize = quad_traits<Scalar>::vectorsize;
   const Index vectorDelta = vectorSize * depth;
   Scalar* blockAf = reinterpret_cast<Scalar *>(blockA);
@@ -215,7 +215,7 @@ EIGEN_STRONG_INLINE void symm_pack_complex_lhs_helper(std::complex<Scalar>* bloc
     {
       for(Index k = 0; k < vectorSize; k++)
       {
-        std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder>(j+k, i, lhs);
+        std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder_>(j+k, i, lhs);
 
         blockAf[rir + k] = v.real();
         blockAf[rii + k] = v.imag();
@@ -236,7 +236,7 @@ EIGEN_STRONG_INLINE void symm_pack_complex_lhs_helper(std::complex<Scalar>* bloc
       Index k = j;
       for(; k < rows; k++)
       {
-        std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder>(k, i, lhs);
+        std::complex<Scalar> v = getAdjointVal<Scalar, Index, StorageOrder_>(k, i, lhs);
 
         blockAf[rir] = v.real();
         blockAf[rii] = v.imag();
@@ -248,11 +248,11 @@ EIGEN_STRONG_INLINE void symm_pack_complex_lhs_helper(std::complex<Scalar>* bloc
   }
 }
 
-template<typename Scalar, typename Index, int StorageOrder, int N>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_, int N>
 EIGEN_STRONG_INLINE void symm_pack_rhs_helper(Scalar* blockB, const Scalar* _rhs, Index rhsStride, Index rows, Index cols, Index k2)
 {
   const Index depth = k2 + rows;
-  const_blas_data_mapper<Scalar, Index, StorageOrder> rhs(_rhs, rhsStride);
+  const_blas_data_mapper<Scalar, Index, StorageOrder_> rhs(_rhs, rhsStride);
   const Index vectorSize = quad_traits<Scalar>::vectorsize;
 
   Index ri = 0, j = 0;
@@ -285,11 +285,11 @@ EIGEN_STRONG_INLINE void symm_pack_rhs_helper(Scalar* blockB, const Scalar* _rhs
   }
 }
 
-template<typename Scalar, typename Index, int StorageOrder>
+template<typename Scalar, typename Index, StorageOrder StorageOrder_>
 EIGEN_STRONG_INLINE void symm_pack_lhs_helper(Scalar* blockA, const Scalar* _lhs, Index lhsStride, Index cols, Index rows)
 {
   const Index depth = cols;
-  const_blas_data_mapper<Scalar, Index, StorageOrder> lhs(_lhs, lhsStride);
+  const_blas_data_mapper<Scalar, Index, StorageOrder_> lhs(_lhs, lhsStride);
   const Index vectorSize = quad_traits<Scalar>::vectorsize;
 
   Index ri = 0, j = 0;
@@ -327,79 +327,79 @@ EIGEN_STRONG_INLINE void symm_pack_lhs_helper(Scalar* blockA, const Scalar* _lhs
   }
 }
 
-template<typename Index, int nr, int StorageOrder>
-struct symm_pack_rhs<std::complex<float>, Index, nr, StorageOrder>
+template<typename Index, int nr, StorageOrder StorageOrder_>
+struct symm_pack_rhs<std::complex<float>, Index, nr, StorageOrder_>
 {
   void operator()(std::complex<float>* blockB, const std::complex<float>* _rhs, Index rhsStride, Index rows, Index cols, Index k2)
   {
-    symm_pack_complex_rhs_helper<float, Index, StorageOrder, 1>(blockB, _rhs, rhsStride, rows, cols, k2);
+    symm_pack_complex_rhs_helper<float, Index, StorageOrder_, 1>(blockB, _rhs, rhsStride, rows, cols, k2);
   }
 };
 
-template<typename Index, int Pack1, int Pack2_dummy, int StorageOrder>
-struct symm_pack_lhs<std::complex<float>, Index, Pack1, Pack2_dummy, StorageOrder>
+template<typename Index, int Pack1, int Pack2_dummy, StorageOrder StorageOrder_>
+struct symm_pack_lhs<std::complex<float>, Index, Pack1, Pack2_dummy, StorageOrder_>
 {
   void operator()(std::complex<float>* blockA, const std::complex<float>* _lhs, Index lhsStride, Index cols, Index rows)
   {
-    symm_pack_complex_lhs_helper<float, Index, StorageOrder>(blockA, _lhs, lhsStride, cols, rows);
+    symm_pack_complex_lhs_helper<float, Index, StorageOrder_>(blockA, _lhs, lhsStride, cols, rows);
   }
 };
 
 // *********** symm_pack std::complex<float64> ***********
 
-template<typename Index, int nr, int StorageOrder>
-struct symm_pack_rhs<std::complex<double>, Index, nr, StorageOrder>
+template<typename Index, int nr, StorageOrder StorageOrder_>
+struct symm_pack_rhs<std::complex<double>, Index, nr, StorageOrder_>
 {
   void operator()(std::complex<double>* blockB, const std::complex<double>* _rhs, Index rhsStride, Index rows, Index cols, Index k2)
   {
-    symm_pack_complex_rhs_helper<double, Index, StorageOrder, 2>(blockB, _rhs, rhsStride, rows, cols, k2);
+    symm_pack_complex_rhs_helper<double, Index, StorageOrder_, 2>(blockB, _rhs, rhsStride, rows, cols, k2);
   }
 };
 
-template<typename Index, int Pack1, int Pack2_dummy, int StorageOrder>
-struct symm_pack_lhs<std::complex<double>, Index, Pack1, Pack2_dummy, StorageOrder>
+template<typename Index, int Pack1, int Pack2_dummy, StorageOrder StorageOrder_>
+struct symm_pack_lhs<std::complex<double>, Index, Pack1, Pack2_dummy, StorageOrder_>
 {
   void operator()(std::complex<double>* blockA, const std::complex<double>* _lhs, Index lhsStride, Index cols, Index rows)
   {
-    symm_pack_complex_lhs_helper<double, Index, StorageOrder>(blockA, _lhs, lhsStride, cols, rows);
+    symm_pack_complex_lhs_helper<double, Index, StorageOrder_>(blockA, _lhs, lhsStride, cols, rows);
   }
 };
 
 // *********** symm_pack float32 ***********
-template<typename Index, int nr, int StorageOrder>
-struct symm_pack_rhs<float, Index, nr, StorageOrder>
+template<typename Index, int nr, StorageOrder StorageOrder_>
+struct symm_pack_rhs<float, Index, nr, StorageOrder_>
 {
   void operator()(float* blockB, const float* _rhs, Index rhsStride, Index rows, Index cols, Index k2)
   {
-    symm_pack_rhs_helper<float, Index, StorageOrder, 1>(blockB, _rhs, rhsStride, rows, cols, k2);
+    symm_pack_rhs_helper<float, Index, StorageOrder_, 1>(blockB, _rhs, rhsStride, rows, cols, k2);
   }
 };
 
-template<typename Index, int Pack1, int Pack2_dummy, int StorageOrder>
-struct symm_pack_lhs<float, Index, Pack1, Pack2_dummy, StorageOrder>
+template<typename Index, int Pack1, int Pack2_dummy, StorageOrder StorageOrder_>
+struct symm_pack_lhs<float, Index, Pack1, Pack2_dummy, StorageOrder_>
 {
   void operator()(float* blockA, const float* _lhs, Index lhsStride, Index cols, Index rows)
   {
-    symm_pack_lhs_helper<float, Index, StorageOrder>(blockA, _lhs, lhsStride, cols, rows);
+    symm_pack_lhs_helper<float, Index, StorageOrder_>(blockA, _lhs, lhsStride, cols, rows);
   }
 };
 
 // *********** symm_pack float64 ***********
-template<typename Index, int nr, int StorageOrder>
-struct symm_pack_rhs<double, Index, nr, StorageOrder>
+template<typename Index, int nr, StorageOrder StorageOrder_>
+struct symm_pack_rhs<double, Index, nr, StorageOrder_>
 {
   void operator()(double* blockB, const double* _rhs, Index rhsStride, Index rows, Index cols, Index k2)
   {
-    symm_pack_rhs_helper<double, Index, StorageOrder, 2>(blockB, _rhs, rhsStride, rows, cols, k2);
+    symm_pack_rhs_helper<double, Index, StorageOrder_, 2>(blockB, _rhs, rhsStride, rows, cols, k2);
   }
 };
 
-template<typename Index, int Pack1, int Pack2_dummy, int StorageOrder>
-struct symm_pack_lhs<double, Index, Pack1, Pack2_dummy, StorageOrder>
+template<typename Index, int Pack1, int Pack2_dummy, StorageOrder StorageOrder_>
+struct symm_pack_lhs<double, Index, Pack1, Pack2_dummy, StorageOrder_>
 {
   void operator()(double* blockA, const double* _lhs, Index lhsStride, Index cols, Index rows)
   {
-    symm_pack_lhs_helper<double, Index, StorageOrder>(blockA, _lhs, lhsStride, cols, rows);
+    symm_pack_lhs_helper<double, Index, StorageOrder_>(blockA, _lhs, lhsStride, cols, rows);
   }
 };
 
@@ -429,7 +429,7 @@ EIGEN_ALWAYS_INLINE void storeBlock(Scalar* to, PacketBlock<Packet,N>& block)
 }
 
 // General template for lhs & rhs complex packing.
-template<typename Scalar, typename Index, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode, bool UseLhs>
+template<typename Scalar, typename Index, typename DataMapper, typename Packet, typename PacketC, StorageOrder StorageOrder_, bool Conjugate, bool PanelMode, bool UseLhs>
 struct dhs_cpack {
   EIGEN_STRONG_INLINE void operator()(std::complex<Scalar>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
@@ -451,9 +451,9 @@ struct dhs_cpack {
         PacketBlock<PacketC,8> cblock;
 
         if (UseLhs) {
-          bload<DataMapper, PacketC, Index, 2, StorageOrder, true, 4>(cblock, lhs, j, i);
+          bload<DataMapper, PacketC, Index, 2, StorageOrder_, true, 4>(cblock, lhs, j, i);
         } else {
-          bload<DataMapper, PacketC, Index, 2, StorageOrder, true, 4>(cblock, lhs, i, j);
+          bload<DataMapper, PacketC, Index, 2, StorageOrder_, true, 4>(cblock, lhs, i, j);
         }
 
         blockr.packet[0] = vec_perm(cblock.packet[0].v, cblock.packet[4].v, p16uc_GETREAL32);
@@ -474,7 +474,7 @@ struct dhs_cpack {
           blocki.packet[3] = -blocki.packet[3];
         }
 
-        if(((StorageOrder == RowMajor) && UseLhs) || (((StorageOrder == ColMajor) && !UseLhs)))
+        if((is_row_major(StorageOrder_) && UseLhs) || ((is_row_major(StorageOrder_) && !UseLhs)))
         {
           ptranspose(blockr);
           ptranspose(blocki);
@@ -491,7 +491,7 @@ struct dhs_cpack {
         PacketBlock<Packet,1> blockr, blocki;
         PacketBlock<PacketC,2> cblock;
 
-        if(((StorageOrder == ColMajor) && UseLhs) || (((StorageOrder == RowMajor) && !UseLhs)))
+        if((is_col_major(StorageOrder_) && UseLhs) || ((is_col_major(StorageOrder_) && !UseLhs)))
         {
           if (UseLhs) {
             cblock.packet[0] = lhs.template loadPacket<PacketC>(j + 0, i);
@@ -579,7 +579,7 @@ struct dhs_cpack {
 };
 
 // General template for lhs & rhs packing.
-template<typename Scalar, typename Index, typename DataMapper, typename Packet, int StorageOrder, bool PanelMode, bool UseLhs>
+template<typename Scalar, typename Index, typename DataMapper, typename Packet, StorageOrder StorageOrder_, bool PanelMode, bool UseLhs>
 struct dhs_pack{
   EIGEN_STRONG_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
@@ -597,11 +597,11 @@ struct dhs_pack{
         PacketBlock<Packet,4> block;
 
         if (UseLhs) {
-          bload<DataMapper, Packet, Index, 4, StorageOrder, false, 4>(block, lhs, j, i);
+          bload<DataMapper, Packet, Index, 4, StorageOrder_, false, 4>(block, lhs, j, i);
         } else {
-          bload<DataMapper, Packet, Index, 4, StorageOrder, false, 4>(block, lhs, i, j);
+          bload<DataMapper, Packet, Index, 4, StorageOrder_, false, 4>(block, lhs, i, j);
         }
-        if(((StorageOrder == RowMajor) && UseLhs) || ((StorageOrder == ColMajor) && !UseLhs))
+        if((is_row_major(StorageOrder_) && UseLhs) || (is_col_major(StorageOrder_) && !UseLhs))
         {
           ptranspose(block);
         }
@@ -612,7 +612,7 @@ struct dhs_pack{
       }
       for(; i < depth; i++)
       {
-        if(((StorageOrder == RowMajor) && UseLhs) || ((StorageOrder == ColMajor) && !UseLhs))
+        if((is_row_major(StorageOrder_) && UseLhs) || (is_col_major(StorageOrder_) && !UseLhs))
         {
           if (UseLhs) {
             blockA[ri+0] = lhs(j+0, i);
@@ -675,8 +675,8 @@ struct dhs_pack{
 };
 
 // General template for lhs packing, float64 specialization.
-template<typename Index, typename DataMapper, int StorageOrder, bool PanelMode>
-struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, true>
+template<typename Index, typename DataMapper, StorageOrder StorageOrder_, bool PanelMode>
+struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder_, PanelMode, true>
 {
   EIGEN_STRONG_INLINE void operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
@@ -692,7 +692,7 @@ struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, tr
       for(; i + vectorSize <= depth; i+=vectorSize)
       {
         PacketBlock<Packet2d,2> block;
-        if(StorageOrder == RowMajor)
+        if(is_row_major(StorageOrder_))
         {
           block.packet[0] = lhs.template loadPacket<Packet2d>(j + 0, i);
           block.packet[1] = lhs.template loadPacket<Packet2d>(j + 1, i);
@@ -709,7 +709,7 @@ struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, tr
       }
       for(; i < depth; i++)
       {
-        if(StorageOrder == RowMajor)
+        if(is_row_major(StorageOrder_))
         {
           blockA[ri+0] = lhs(j+0, i);
           blockA[ri+1] = lhs(j+1, i);
@@ -742,8 +742,8 @@ struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, tr
 };
 
 // General template for rhs packing, float64 specialization.
-template<typename Index, typename DataMapper, int StorageOrder, bool PanelMode>
-struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, false>
+template<typename Index, typename DataMapper, StorageOrder StorageOrder_, bool PanelMode>
+struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder_, PanelMode, false>
 {
   EIGEN_STRONG_INLINE void operator()(double* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
   {
@@ -759,7 +759,7 @@ struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, fa
       for(; i + vectorSize <= depth; i+=vectorSize)
       {
         PacketBlock<Packet2d,4> block;
-        if(StorageOrder == ColMajor)
+        if(is_col_major(StorageOrder_))
         {
           PacketBlock<Packet2d,2> block1, block2;
           block1.packet[0] = rhs.template loadPacket<Packet2d>(i, j + 0);
@@ -787,7 +787,7 @@ struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, fa
       }
       for(; i < depth; i++)
       {
-        if(StorageOrder == ColMajor)
+        if(is_col_major(StorageOrder_))
         {
           blockB[ri+0] = rhs(i, j+0);
           blockB[ri+1] = rhs(i, j+1);
@@ -827,8 +827,8 @@ struct dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder, PanelMode, fa
 };
 
 // General template for lhs complex packing, float64 specialization.
-template<typename Index, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
-struct dhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, true>
+template<typename Index, typename DataMapper, typename Packet, typename PacketC, StorageOrder StorageOrder_, bool Conjugate, bool PanelMode>
+struct dhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder_, Conjugate, PanelMode, true>
 {
   EIGEN_STRONG_INLINE void operator()(std::complex<double>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
@@ -849,7 +849,7 @@ struct dhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder, Conju
         PacketBlock<Packet,2> blockr, blocki;
         PacketBlock<PacketC,4> cblock;
 
-        if(StorageOrder == ColMajor)
+        if(is_col_major(StorageOrder_))
         {
           cblock.packet[0] = lhs.template loadPacket<PacketC>(j, i + 0); //[a1 a1i]
           cblock.packet[1] = lhs.template loadPacket<PacketC>(j, i + 1); //[b1 b1i]
@@ -940,8 +940,8 @@ struct dhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder, Conju
 };
 
 // General template for rhs complex packing, float64 specialization.
-template<typename Index, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
-struct dhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, false>
+template<typename Index, typename DataMapper, typename Packet, typename PacketC, StorageOrder StorageOrder_, bool Conjugate, bool PanelMode>
+struct dhs_cpack<double, Index, DataMapper, Packet, PacketC, StorageOrder_, Conjugate, PanelMode, false>
 {
   EIGEN_STRONG_INLINE void operator()(std::complex<double>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
   {
@@ -1222,10 +1222,10 @@ EIGEN_ALWAYS_INLINE void bscalec(PacketBlock<Packet,N>& aReal, PacketBlock<Packe
 }
 
 // Load a PacketBlock, the N parameters make tunning gemm easier so we can add more accumulators as needed.
-template<typename DataMapper, typename Packet, typename Index, const Index accCols, int StorageOrder, bool Complex, int N>
+template<typename DataMapper, typename Packet, typename Index, const Index accCols, StorageOrder StorageOrder_, bool Complex, int N>
 EIGEN_ALWAYS_INLINE void bload(PacketBlock<Packet,N*(Complex?2:1)>& acc, const DataMapper& res, Index row, Index col)
 {
-  if (StorageOrder == RowMajor) {
+  if (is_row_major(StorageOrder_)) {
     acc.packet[0] = res.template loadPacket<Packet>(row + 0, col);
     if (N > 1) {
       acc.packet[1] = res.template loadPacket<Packet>(row + 1, col);
@@ -2243,13 +2243,13 @@ EIGEN_STRONG_INLINE void gemm_complex(const DataMapper& res, const LhsScalar* bl
  * ppc64le template specializations *
  * **********************************/
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   void operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
     dhs_pack<double, Index, DataMapper, Packet2d, ColMajor, PanelMode, true> pack;
@@ -2257,16 +2257,16 @@ void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Co
 }
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<double, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-    dhs_pack<double, Index, DataMapper, Packet2d, RowMajor, PanelMode, true> pack;
+    dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder::RowMajor, PanelMode, true> pack;
     pack(blockA, lhs, depth, rows, stride, offset);
 }
 
@@ -2278,7 +2278,7 @@ struct gemm_pack_rhs<double, Index, DataMapper, nr, ColMajor, Conjugate, PanelMo
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<double, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<double, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(double* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
   dhs_pack<double, Index, DataMapper, Packet2d, ColMajor, PanelMode, false> pack;
@@ -2286,31 +2286,31 @@ void gemm_pack_rhs<double, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode
 }
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<double, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<double, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(double* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<double, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<double, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(double* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_pack<double, Index, DataMapper, Packet2d, RowMajor, PanelMode, false> pack;
+  dhs_pack<double, Index, DataMapper, Packet2d, StorageOrder::RowMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 #endif
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(float* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(float* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_pack<float, Index, DataMapper, Packet4f, RowMajor, PanelMode, true> pack;
+  dhs_pack<float, Index, DataMapper, Packet4f, StorageOrder::RowMajor, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 
@@ -2321,7 +2321,7 @@ struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, C
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(float* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
   dhs_pack<float, Index, DataMapper, Packet4f, ColMajor, PanelMode, true> pack;
@@ -2329,27 +2329,27 @@ void gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Con
 }
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<float>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(std::complex<float>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_cpack<float, Index, DataMapper, Packet4f, Packet2cf, RowMajor, Conjugate, PanelMode, true> pack;
+  dhs_cpack<float, Index, DataMapper, Packet4f, Packet2cf, StorageOrder::RowMajor, Conjugate, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<float>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(std::complex<float>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
   dhs_cpack<float, Index, DataMapper, Packet4f, Packet2cf, ColMajor, Conjugate, PanelMode, true> pack;
@@ -2358,13 +2358,13 @@ void gemm_pack_lhs<std::complex<float>, Index, DataMapper, Pack1, Pack2, Packet,
 
 #if EIGEN_ALTIVEC_USE_CUSTOM_PACK
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<float, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<float, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   void operator()(float* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<float, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<float, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(float* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
   dhs_pack<float, Index, DataMapper, Packet4f, ColMajor, PanelMode, false> pack;
@@ -2372,101 +2372,101 @@ void gemm_pack_rhs<float, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
 }
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<float, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<float, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(float* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<float, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<float, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(float* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_pack<float, Index, DataMapper, Packet4f, RowMajor, PanelMode, false> pack;
+  dhs_pack<float, Index, DataMapper, Packet4f, StorageOrder::RowMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 #endif
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<float>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(std::complex<float>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_cpack<float, Index, DataMapper, Packet4f, Packet2cf, ColMajor, Conjugate, PanelMode, false> pack;
+  dhs_cpack<float, Index, DataMapper, Packet4f, Packet2cf, StorageOrder::ColMajor, Conjugate, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<float>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<std::complex<float>, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(std::complex<float>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_cpack<float, Index, DataMapper, Packet4f, Packet2cf, RowMajor, Conjugate, PanelMode, false> pack;
+  dhs_cpack<float, Index, DataMapper, Packet4f, Packet2cf, StorageOrder::RowMajor, Conjugate, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<double>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(std::complex<double>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, RowMajor, Conjugate, PanelMode, true> pack;
+  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, StorageOrder::RowMajor, Conjugate, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<double>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-void gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
+void gemm_pack_lhs<std::complex<double>, Index, DataMapper, Pack1, Pack2, Packet, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(std::complex<double>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, ColMajor, Conjugate, PanelMode, true> pack;
+  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, StorageOrder::ColMajor, Conjugate, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<double>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, StorageOrder::ColMajor, Conjugate, PanelMode>
   ::operator()(std::complex<double>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, ColMajor, Conjugate, PanelMode, false> pack;
+  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, StorageOrder::ColMajor, Conjugate, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+struct gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
 {
   void operator()(std::complex<double>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
 };
 
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-void gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+void gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, StorageOrder::RowMajor, Conjugate, PanelMode>
   ::operator()(std::complex<double>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, RowMajor, Conjugate, PanelMode, false> pack;
+  dhs_cpack<double, Index, DataMapper, Packet2d, Packet1cd, StorageOrder::RowMajor, Conjugate, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 

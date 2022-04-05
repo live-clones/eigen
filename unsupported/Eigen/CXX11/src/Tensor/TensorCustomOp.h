@@ -31,7 +31,7 @@ struct traits<TensorCustomUnaryOp<CustomUnaryFunc, XprType> >
   typedef typename XprType::Nested Nested;
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
-  static constexpr int Layout = traits<XprType>::Layout;
+  static constexpr StorageOrder Layout = traits<XprType>::Layout;
   typedef typename traits<XprType>::PointerType PointerType;
 };
 
@@ -94,7 +94,7 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<XprType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<XprType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
@@ -160,7 +160,7 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
 
  protected:
   void evalTo(EvaluatorPointerType data) {
-    TensorMap<Tensor<CoeffReturnType, NumDims, Layout, Index> > result(m_device.get(data), m_dimensions);
+    TensorMap<Tensor<CoeffReturnType, NumDims, storage_order_flag(Layout), Index> > result(m_device.get(data), m_dimensions);
     m_op.func().eval(m_op.expression(), result, m_device);
   }
 
@@ -196,7 +196,7 @@ struct traits<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> >
   typedef std::remove_reference_t<LhsNested> LhsNested_;
   typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions;
-  static constexpr int Layout = traits<LhsXprType>::Layout;
+  static constexpr StorageOrder Layout = traits<LhsXprType>::Layout;
   typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                         typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType> PointerType;
 };
@@ -267,7 +267,7 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<LhsXprType, Device>::Layout;
+  static constexpr StorageOrder Layout = TensorEvaluator<LhsXprType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
@@ -333,7 +333,7 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
 
  protected:
   void evalTo(EvaluatorPointerType data) {
-    TensorMap<Tensor<CoeffReturnType, NumDims, Layout> > result(m_device.get(data), m_dimensions);
+    TensorMap<Tensor<CoeffReturnType, NumDims, storage_order_flag(Layout)> > result(m_device.get(data), m_dimensions);
     m_op.func().eval(m_op.lhsExpression(), m_op.rhsExpression(), result, m_device);
   }
 

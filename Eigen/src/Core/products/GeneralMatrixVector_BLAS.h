@@ -48,36 +48,36 @@ namespace internal {
 
 // gemv specialization
 
-template<typename Index, typename LhsScalar, int StorageOrder, bool ConjugateLhs, typename RhsScalar, bool ConjugateRhs>
+template<typename Index, typename LhsScalar, StorageOrder StorageOrder_, bool ConjugateLhs, typename RhsScalar, bool ConjugateRhs>
 struct general_matrix_vector_product_gemv;
 
 #define EIGEN_BLAS_GEMV_SPECIALIZE(Scalar) \
 template<typename Index, bool ConjugateLhs, bool ConjugateRhs> \
-struct general_matrix_vector_product<Index,Scalar,const_blas_data_mapper<Scalar,Index,ColMajor>,ColMajor,ConjugateLhs,Scalar,const_blas_data_mapper<Scalar,Index,RowMajor>,ConjugateRhs,Specialized> { \
+struct general_matrix_vector_product<Index,Scalar,const_blas_data_mapper<Scalar,Index,StorageOrder::ColMajor>,StorageOrder::ColMajor,ConjugateLhs,Scalar,const_blas_data_mapper<Scalar,Index,StorageOrder::RowMajor>,ConjugateRhs,Specialized> { \
 static void run( \
   Index rows, Index cols, \
-  const const_blas_data_mapper<Scalar,Index,ColMajor> &lhs, \
-  const const_blas_data_mapper<Scalar,Index,RowMajor> &rhs, \
+  const const_blas_data_mapper<Scalar,Index,StorageOrder::ColMajor> &lhs, \
+  const const_blas_data_mapper<Scalar,Index,StorageOrder::RowMajor> &rhs, \
   Scalar* res, Index resIncr, Scalar alpha) \
 { \
   if (ConjugateLhs) { \
-    general_matrix_vector_product<Index,Scalar,const_blas_data_mapper<Scalar,Index,ColMajor>,ColMajor,ConjugateLhs,Scalar,const_blas_data_mapper<Scalar,Index,RowMajor>,ConjugateRhs,BuiltIn>::run( \
+    general_matrix_vector_product<Index,Scalar,const_blas_data_mapper<Scalar,Index,StorageOrder::ColMajor>,StorageOrder::ColMajor,ConjugateLhs,Scalar,const_blas_data_mapper<Scalar,Index,StorageOrder::RowMajor>,ConjugateRhs,BuiltIn>::run( \
       rows, cols, lhs, rhs, res, resIncr, alpha); \
   } else { \
-    general_matrix_vector_product_gemv<Index,Scalar,ColMajor,ConjugateLhs,Scalar,ConjugateRhs>::run( \
+    general_matrix_vector_product_gemv<Index,Scalar,StorageOrder::ColMajor,ConjugateLhs,Scalar,ConjugateRhs>::run( \
       rows, cols, lhs.data(), lhs.stride(), rhs.data(), rhs.stride(), res, resIncr, alpha); \
   } \
 } \
 }; \
 template<typename Index, bool ConjugateLhs, bool ConjugateRhs> \
-struct general_matrix_vector_product<Index,Scalar,const_blas_data_mapper<Scalar,Index,RowMajor>,RowMajor,ConjugateLhs,Scalar,const_blas_data_mapper<Scalar,Index,ColMajor>,ConjugateRhs,Specialized> { \
+struct general_matrix_vector_product<Index,Scalar,const_blas_data_mapper<Scalar,Index,StorageOrder::RowMajor>,StorageOrder::RowMajor,ConjugateLhs,Scalar,const_blas_data_mapper<Scalar,Index,StorageOrder::ColMajor>,ConjugateRhs,Specialized> { \
 static void run( \
   Index rows, Index cols, \
-  const const_blas_data_mapper<Scalar,Index,RowMajor> &lhs, \
-  const const_blas_data_mapper<Scalar,Index,ColMajor> &rhs, \
+  const const_blas_data_mapper<Scalar,Index,StorageOrder::RowMajor> &lhs, \
+  const const_blas_data_mapper<Scalar,Index,StorageOrder::ColMajor> &rhs, \
   Scalar* res, Index resIncr, Scalar alpha) \
 { \
-    general_matrix_vector_product_gemv<Index,Scalar,RowMajor,ConjugateLhs,Scalar,ConjugateRhs>::run( \
+    general_matrix_vector_product_gemv<Index,Scalar,StorageOrder::RowMajor,ConjugateLhs,Scalar,ConjugateRhs>::run( \
       rows, cols, lhs.data(), lhs.stride(), rhs.data(), rhs.stride(), res, resIncr, alpha); \
 } \
 }; \
@@ -88,10 +88,10 @@ EIGEN_BLAS_GEMV_SPECIALIZE(dcomplex)
 EIGEN_BLAS_GEMV_SPECIALIZE(scomplex)
 
 #define EIGEN_BLAS_GEMV_SPECIALIZATION(EIGTYPE,BLASTYPE,BLASFUNC) \
-template<typename Index, int LhsStorageOrder, bool ConjugateLhs, bool ConjugateRhs> \
+template<typename Index, StorageOrder LhsStorageOrder, bool ConjugateLhs, bool ConjugateRhs> \
 struct general_matrix_vector_product_gemv<Index,EIGTYPE,LhsStorageOrder,ConjugateLhs,EIGTYPE,ConjugateRhs> \
 { \
-typedef Matrix<EIGTYPE,Dynamic,1,ColMajor> GEMVVector;\
+typedef Matrix<EIGTYPE,Dynamic,1,StorageOrder::ColMajor> GEMVVector;\
 \
 static void run( \
   Index rows, Index cols, \
@@ -104,7 +104,7 @@ static void run( \
   const EIGTYPE beta(1); \
   const EIGTYPE *x_ptr; \
   char trans=(LhsStorageOrder==ColMajor) ? 'N' : (ConjugateLhs) ? 'C' : 'T'; \
-  if (LhsStorageOrder==RowMajor) { \
+  if (is_row_major(LhsStorageOrder)) { \
     m = convert_index<BlasIndex>(cols); \
     n = convert_index<BlasIndex>(rows); \
   }\
