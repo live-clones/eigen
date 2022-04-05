@@ -41,10 +41,9 @@ inline Index get_runtime_reshape_size(AutoSize_t /*size*/, Index other, Index to
   return total/other;
 }
 
-template<int Flags, int Order>
-struct get_compiletime_reshape_order {
-  enum { value = Order == AutoOrder ? storage_order_flag(Flags) : Order };
-};
+inline constexpr StorageOrder get_compiletime_reshape_order(int Flags, int Order) {
+  return internal::get_storage_order(Order == AutoOrder ? storage_order_flag(Flags) : Order);
+}
 
 }
 

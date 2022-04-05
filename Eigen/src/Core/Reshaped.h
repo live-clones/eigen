@@ -46,7 +46,7 @@ namespace Eigen {
 
 namespace internal {
 
-template<typename XprType, int Rows, int Cols, int Order>
+template<typename XprType, int Rows, int Cols, StorageOrder Order>
 struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
 {
   typedef typename traits<XprType>::Scalar Scalar;
@@ -70,7 +70,7 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
     OuterStrideAtCompileTime = Dynamic,
 
     HasDirectAccess = internal::has_direct_access<XprType>::ret
-                    && (Order==int(XpxStorageOrder))
+                    && (Order==XpxStorageOrder)
                     && ((evaluator<XprType>::Flags&LinearAccessBit)==LinearAccessBit),
 
     MaskPacketAccessBit = (InnerSize == Dynamic || (InnerSize % packet_traits<Scalar>::size) == 0)
@@ -87,13 +87,13 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType>
   };
 };
 
-template<typename XprType, int Rows, int Cols, int Order, bool HasDirectAccess> class ReshapedImpl_dense;
+template<typename XprType, int Rows, int Cols, StorageOrder Order, bool HasDirectAccess> class ReshapedImpl_dense;
 
 } // end namespace internal
 
-template<typename XprType, int Rows, int Cols, int Order, typename StorageKind> class ReshapedImpl;
+template<typename XprType, int Rows, int Cols, StorageOrder Order, typename StorageKind> class ReshapedImpl;
 
-template<typename XprType, int Rows, int Cols, int Order> class Reshaped
+template<typename XprType, int Rows, int Cols, StorageOrder Order> class Reshaped
   : public ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind>
 {
     typedef ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind> Impl;
@@ -128,7 +128,7 @@ template<typename XprType, int Rows, int Cols, int Order> class Reshaped
 
 // The generic default implementation for dense reshape simply forward to the internal::ReshapedImpl_dense
 // that must be specialized for direct and non-direct access...
-template<typename XprType, int Rows, int Cols, int Order>
+template<typename XprType, int Rows, int Cols, StorageOrder Order>
 class ReshapedImpl<XprType, Rows, Cols, Order, Dense>
   : public internal::ReshapedImpl_dense<XprType, Rows, Cols, Order,internal::traits<Reshaped<XprType,Rows,Cols,Order> >::HasDirectAccess>
 {
@@ -144,7 +144,7 @@ class ReshapedImpl<XprType, Rows, Cols, Order, Dense>
 namespace internal {
 
 /** \internal Internal implementation of dense Reshaped in the general case. */
-template<typename XprType, int Rows, int Cols, int Order>
+template<typename XprType, int Rows, int Cols, StorageOrder Order>
 class ReshapedImpl_dense<XprType,Rows,Cols,Order,false>
   : public internal::dense_xpr_base<Reshaped<XprType, Rows, Cols, Order> >::type
 {
@@ -203,7 +203,7 @@ class ReshapedImpl_dense<XprType,Rows,Cols,Order,false>
 
 
 /** \internal Internal implementation of dense Reshaped in the direct access case. */
-template<typename XprType, int Rows, int Cols, int Order>
+template<typename XprType, int Rows, int Cols, StorageOrder Order>
 class ReshapedImpl_dense<XprType, Rows, Cols, Order, true>
   : public MapBase<Reshaped<XprType, Rows, Cols, Order> >
 {
@@ -259,9 +259,9 @@ class ReshapedImpl_dense<XprType, Rows, Cols, Order, true>
 };
 
 // Evaluators
-template<typename ArgType, int Rows, int Cols, int Order, bool HasDirectAccess> struct reshaped_evaluator;
+template<typename ArgType, int Rows, int Cols, StorageOrder Order, bool HasDirectAccess> struct reshaped_evaluator;
 
-template<typename ArgType, int Rows, int Cols, int Order>
+template<typename ArgType, int Rows, int Cols, StorageOrder Order>
 struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
   : reshaped_evaluator<ArgType, Rows, Cols, Order, traits<Reshaped<ArgType,Rows,Cols,Order> >::HasDirectAccess>
 {
@@ -299,7 +299,7 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
   }
 };
 
-template<typename ArgType, int Rows, int Cols, int Order>
+template<typename ArgType, int Rows, int Cols, StorageOrder Order>
 struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ false>
   : evaluator_base<Reshaped<ArgType, Rows, Cols, Order> >
 {
@@ -325,7 +325,7 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
 
   inline RowCol index_remap(Index rowId, Index colId) const
   {
-    if(Order==ColMajor)
+    if(is_col_major(Order))
     {
       const Index nth_elem_idx = colId * m_xpr.rows() + rowId;
       return RowCol(nth_elem_idx % m_xpr.nestedExpression().rows(),
@@ -430,7 +430,7 @@ protected:
 
 };
 
-template<typename ArgType, int Rows, int Cols, int Order>
+template<typename ArgType, int Rows, int Cols, StorageOrder Order>
 struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ true>
 : mapbase_evaluator<Reshaped<ArgType, Rows, Cols, Order>,
                       typename Reshaped<ArgType, Rows, Cols, Order>::PlainObject>
