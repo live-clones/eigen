@@ -89,6 +89,19 @@ template<typename MatrixType> void adjoint(const MatrixType& m)
   Scalar s1 = internal::random<Scalar>(),
          s2 = internal::random<Scalar>();
 
+  // limit integer sizes to avoid signed integer overflow.
+  if (NumTraits<Scalar>::IsInteger) {
+    auto mod100 = [](const Scalar x) { return x % 100; };
+    m1 = m1.unaryExpr(mod100);
+    m2 = m2.unaryExpr(mod100);
+    square = square.unaryExpr(mod100);
+    v1 = v1.unaryExpr(mod100);
+    v2 = v2.unaryExpr(mod100);
+    v3 = v3.unaryExpr(mod100);
+    s1 = s1 % 100;
+    s2 = s2 % 100;
+  }
+
   // check basic compatibility of adjoint, transpose, conjugate
   VERIFY_IS_APPROX(m1.transpose().conjugate().adjoint(),    m1);
   VERIFY_IS_APPROX(m1.adjoint().conjugate().transpose(),    m1);
@@ -139,6 +152,11 @@ template<typename MatrixType> void adjoint(const MatrixType& m)
   // check mixed dot product
   typedef Matrix<RealScalar, MatrixType::RowsAtCompileTime, 1> RealVectorType;
   RealVectorType rv1 = RealVectorType::Random(rows);
+  if (NumTraits<RealScalar>::IsInteger) {
+    auto mod100 = [](const Scalar x) { return x % 100; };
+    rv1 = rv1.unaryExpr(mod100);
+  }
+  
   VERIFY_IS_APPROX(v1.dot(rv1.template cast<Scalar>()), v1.dot(rv1));
   VERIFY_IS_APPROX(rv1.template cast<Scalar>().dot(v1), rv1.dot(v1));
 
