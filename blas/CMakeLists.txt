@@ -38,10 +38,7 @@ if (EIGEN_BUILD_SHARED_LIBS)
 endif()
 
 foreach(target IN LISTS EIGEN_BLAS_TARGETS)
-  if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-      target_link_libraries(${target} ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
-  endif()
-
+  target_link_libraries(${target} PUBLIC Eigen3::Eigen)
   add_dependencies(blas ${target})
   install(TARGETS ${target}
           RUNTIME DESTINATION bin
@@ -52,11 +49,7 @@ endforeach()
 if(EIGEN_Fortran_COMPILER_WORKS)
 
 if(EIGEN_BUILD_TESTING)
-  if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
-    add_subdirectory(testing) # can't do EXCLUDE_FROM_ALL here, breaks CTest
-  else()
-    add_subdirectory(testing EXCLUDE_FROM_ALL)
-  endif()
+  add_subdirectory(testing)
 endif()
 
 endif()

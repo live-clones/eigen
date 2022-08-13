@@ -16,15 +16,6 @@ else()
   find_package(LAPACK QUIET)
 endif()
 
-# TODO do the same for EXTERNAL_LAPACK
-option(EIGEN_TEST_EXTERNAL_BLAS "Use external BLAS library for testsuite" OFF)
-if(EIGEN_TEST_EXTERNAL_BLAS)
-  find_package(BLAS REQUIRED)
-  message(STATUS "BLAS_COMPILER_FLAGS: ${BLAS_COMPILER_FLAGS}")
-  add_definitions("-DEIGEN_USE_BLAS") # is adding  ${BLAS_COMPILER_FLAGS} necessary?
-  list(APPEND EXTERNAL_LIBS "${BLAS_LIBRARIES}")
-endif()
-
 # configure blas/lapack (use Eigen's ones)
 set(EIGEN_BLAS_LIBRARIES eigen_blas)
 set(EIGEN_LAPACK_LIBRARIES eigen_lapack)
@@ -392,57 +383,13 @@ else()
 endif()
 
 
-# CUDA unit tests
-option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
-option(EIGEN_TEST_CUDA_CLANG "Use clang instead of nvcc to compile the CUDA tests" OFF)
-
-if(EIGEN_TEST_CUDA_CLANG AND NOT CMAKE_CXX_COMPILER MATCHES "clang")
-  message(WARNING "EIGEN_TEST_CUDA_CLANG is set, but CMAKE_CXX_COMPILER does not appear to be clang.")
-endif()
-
-find_package(CUDA 9.0)
-if(CUDA_FOUND AND EIGEN_TEST_CUDA)
-  # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
-  # and -fno-check-new flags since they trigger thousands of compilation warnings
-  # in the CUDA runtime
-  string(REPLACE "-pedantic" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wundef" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wnon-virtual-dtor" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-fno-check-new" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")  
-
-  if(EIGEN_TEST_CUDA_CLANG)
-    string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
-    foreach(GPU IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND CMAKE_CXX_FLAGS " --cuda-gpu-arch=sm_${GPU}")
-    endforeach()
-    string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
-  else()
-    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(NVCC_ARCH_FLAGS)
-    # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
-    # those in the arch list for -gencode, the kernels will fail to run with
-    #    cudaErrorNoKernelImageForDevice
-    # This can happen with newer cards (e.g. sm_75) and compiling with older
-    # versions of nvcc (e.g. 9.2) that do not support their specific arch.
-    list(LENGTH EIGEN_CUDA_COMPUTE_ARCH EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-    if(EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-      list(GET EIGEN_CUDA_COMPUTE_ARCH 0 EIGEN_CUDA_COMPUTE_DEFAULT)
-      set(NVCC_ARCH_FLAGS " -arch=sm_${EIGEN_CUDA_COMPUTE_DEFAULT}")
-    endif()
-    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND NVCC_ARCH_FLAGS " -gencode arch=compute_${ARCH},code=sm_${ARCH}")
-    endforeach()
-    set(CUDA_NVCC_FLAGS  "--expt-relaxed-constexpr -Xcudafe \"--display_error_number\" ${NVCC_ARCH_FLAGS} ${CUDA_NVCC_FLAGS} ${EIGEN_CUDA_CXX_FLAGS}")
-    cuda_include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}/include")
-  endif()
-  
+if(EIGEN_TEST_CUDA)
   set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
-  
+
   ei_add_test(gpu_example)
   ei_add_test(gpu_basic)
-  
-  unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 
+  unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 endif()
 
 

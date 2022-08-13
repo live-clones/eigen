@@ -14,6 +14,11 @@ if (POLICY CMP0090)
   endif (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
 endif (POLICY CMP0090)
 
+if (POLICY CMP0079)
+  # target_link_libraries looks up linked libraries in calling scope instead of original target scope
+  cmake_policy (SET CMP0079 NEW)
+endif()
+
 project(Eigen3)
 
 # Remove this block after bumping CMake to v3.21.0
@@ -26,27 +31,36 @@ if(CMAKE_VERSION VERSION_LESS 3.21.0)
   endif()
 endif()
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING "Default C++ standard")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Require C++ standard")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Allow C++ extensions")
 
 # guard against in-source builds
-
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. You may need to remove CMakeCache.txt. ")
 endif()
 
 
 # Alias Eigen_*_DIR to Eigen3_*_DIR:
-
+# TODO do we need this?
 set(Eigen_SOURCE_DIR ${Eigen3_SOURCE_DIR})
 set(Eigen_BINARY_DIR ${Eigen3_BINARY_DIR})
 
 # guard against bad build-type strings
-
+# TODO do we need this?
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
+
+#############################################################################
+# Setting up CMake utilities                                                #
+#############################################################################
+
+include(CheckCXXCompilerFlag)
+include(CheckLanguage)
+include(GNUInstallDirs)
+include(CMakeDependentOption)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+include(EigenUtils)
 
 
 #############################################################################
@@ -54,84 +68,19 @@ endif()
 #############################################################################
 
 # automatically parse the version number
-file(READ "${PROJECT_SOURCE_DIR}/Eigen/src/Core/util/Macros.h" _eigen_version_header)
-string(REGEX MATCH "define[ \t]+EIGEN_WORLD_VERSION[ \t]+([0-9]+)" _eigen_world_version_match "${_eigen_version_header}")
-set(EIGEN_WORLD_VERSION "${CMAKE_MATCH_1}")
-string(REGEX MATCH "define[ \t]+EIGEN_MAJOR_VERSION[ \t]+([0-9]+)" _eigen_major_version_match "${_eigen_version_header}")
-set(EIGEN_MAJOR_VERSION "${CMAKE_MATCH_1}")
-string(REGEX MATCH "define[ \t]+EIGEN_MINOR_VERSION[ \t]+([0-9]+)" _eigen_minor_version_match "${_eigen_version_header}")
-set(EIGEN_MINOR_VERSION "${CMAKE_MATCH_1}")
+extract_eigen_version("${PROJECT_SOURCE_DIR}/Eigen/src/Core/util/Macros.h")
+extract_git_version("${CMAKE_SOURCE_DIR}")
+
 set(EIGEN_VERSION_NUMBER ${EIGEN_WORLD_VERSION}.${EIGEN_MAJOR_VERSION}.${EIGEN_MINOR_VERSION})
-
-# if we are not in a git clone
-if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/.git)
-  # if the git program is absent or this will leave the EIGEN_GIT_REVNUM string empty,
-  # but won't stop CMake.
-  execute_process(COMMAND git ls-remote --refs -q ${CMAKE_SOURCE_DIR} HEAD OUTPUT_VARIABLE EIGEN_GIT_OUTPUT)
-endif()
-
-# extract the git rev number from the git output...
-if(EIGEN_GIT_OUTPUT)
-string(REGEX MATCH "^([0-9;a-f]+).*" EIGEN_GIT_CHANGESET_MATCH "${EIGEN_GIT_OUTPUT}")
-set(EIGEN_GIT_REVNUM "${CMAKE_MATCH_1}")
-endif()
-#...and show it next to the version number
+# if we have a git revision, show it as part of the version number
 if(EIGEN_GIT_REVNUM)
   set(EIGEN_VERSION "${EIGEN_VERSION_NUMBER} (git rev ${EIGEN_GIT_REVNUM})")
 else()
   set(EIGEN_VERSION "${EIGEN_VERSION_NUMBER}")
 endif()
 
-include(CheckCXXCompilerFlag)
-include(GNUInstallDirs)
-include(CMakeDependentOption)
-
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-
-macro(ei_add_cxx_compiler_flag FLAG)
-  string(REGEX REPLACE "-" "" SFLAG1 ${FLAG})
-  string(REGEX REPLACE "\\+" "p" SFLAG ${SFLAG1})
-  check_cxx_compiler_flag(${FLAG} COMPILER_SUPPORT_${SFLAG})
-  if(COMPILER_SUPPORT_${SFLAG})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FLAG}")
-  endif()
-endmacro()
-
 # Determine if we should build shared libraries on this platform.
 get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
-
-#############################################################################
-# find how to link to the standard libraries                                #
-#############################################################################
-
-find_package(StandardMathLibrary)
-
-
-set(EIGEN_TEST_CUSTOM_LINKER_FLAGS  "" CACHE STRING "Additional linker flags when linking unit tests.")
-set(EIGEN_TEST_CUSTOM_CXX_FLAGS     "" CACHE STRING "Additional compiler flags when compiling unit tests.")
-# convert space separated argument into CMake lists for downstream consumption
-separate_arguments(EIGEN_TEST_CUSTOM_CXX_FLAGS NATIVE_COMMAND ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
-
-set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "")
-
-if(NOT STANDARD_MATH_LIBRARY_FOUND)
-
-  message(FATAL_ERROR
-    "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
-
-else()
-  if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-    set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO} ${STANDARD_MATH_LIBRARY}")
-  else()
-    set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${STANDARD_MATH_LIBRARY}")
-  endif()
-endif()
-
-if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-  message(STATUS "Standard libraries to link to explicitly: ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO}")
-else()
-  message(STATUS "Standard libraries to link to explicitly: none")
-endif()
 
 option(EIGEN_BUILD_BTL "Build benchmark suite" OFF)
 
@@ -142,285 +91,15 @@ endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR OFF)
 
-option(EIGEN_SPLIT_LARGE_TESTS "Split large tests into smaller executables" ON)
-
 option(EIGEN_DEFAULT_TO_ROW_MAJOR "Use row-major as default matrix storage order" OFF)
 if(EIGEN_DEFAULT_TO_ROW_MAJOR)
   add_definitions("-DEIGEN_DEFAULT_TO_ROW_MAJOR")
 endif()
 
-set(EIGEN_TEST_MAX_SIZE "320" CACHE STRING "Maximal matrix/vector size, default is 320")
-
-if(NOT MSVC)
-  # We assume that other compilers are partly compatible with GNUCC
-
-  # clang outputs some warnings for unknown flags that are not caught by check_cxx_compiler_flag
-  # adding -Werror turns such warnings into errors
-  check_cxx_compiler_flag("-Werror" COMPILER_SUPPORT_WERROR)
-  if(COMPILER_SUPPORT_WERROR)
-    set(CMAKE_REQUIRED_FLAGS "-Werror")
-  endif()
-  ei_add_cxx_compiler_flag("-pedantic")
-  ei_add_cxx_compiler_flag("-Wall")
-  ei_add_cxx_compiler_flag("-Wextra")
-  #ei_add_cxx_compiler_flag("-Weverything")              # clang
-
-  ei_add_cxx_compiler_flag("-Wundef")
-  ei_add_cxx_compiler_flag("-Wcast-align")
-  ei_add_cxx_compiler_flag("-Wchar-subscripts")
-  ei_add_cxx_compiler_flag("-Wnon-virtual-dtor")
-  ei_add_cxx_compiler_flag("-Wunused-local-typedefs")
-  ei_add_cxx_compiler_flag("-Wpointer-arith")
-  ei_add_cxx_compiler_flag("-Wwrite-strings")
-  ei_add_cxx_compiler_flag("-Wformat-security")
-  ei_add_cxx_compiler_flag("-Wshorten-64-to-32")
-  ei_add_cxx_compiler_flag("-Wlogical-op")
-  ei_add_cxx_compiler_flag("-Wenum-conversion")
-  ei_add_cxx_compiler_flag("-Wc++11-extensions")
-  ei_add_cxx_compiler_flag("-Wdouble-promotion")
-#  ei_add_cxx_compiler_flag("-Wconversion")
-
-  ei_add_cxx_compiler_flag("-Wshadow")
-
-  ei_add_cxx_compiler_flag("-Wno-psabi")
-  ei_add_cxx_compiler_flag("-Wno-variadic-macros")
-  ei_add_cxx_compiler_flag("-Wno-long-long")
-
-  ei_add_cxx_compiler_flag("-fno-check-new")
-  ei_add_cxx_compiler_flag("-fno-common")
-  ei_add_cxx_compiler_flag("-fstrict-aliasing")
-  ei_add_cxx_compiler_flag("-wd981")                    # disable ICC's "operands are evaluated in unspecified order" remark
-  ei_add_cxx_compiler_flag("-wd2304")                   # disable ICC's "warning #2304: non-explicit constructor with single argument may cause implicit type conversion" produced by -Wnon-virtual-dtor
-
-  if(ANDROID_NDK)
-    ei_add_cxx_compiler_flag("-pie")
-    ei_add_cxx_compiler_flag("-fPIE")
-  endif()
-
-  set(CMAKE_REQUIRED_FLAGS "")
-
-  option(EIGEN_TEST_SSE2 "Enable/Disable SSE2 in tests/examples" OFF)
-  if(EIGEN_TEST_SSE2)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2")
-    message(STATUS "Enabling SSE2 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_SSE3 "Enable/Disable SSE3 in tests/examples" OFF)
-  if(EIGEN_TEST_SSE3)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse3")
-    message(STATUS "Enabling SSE3 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_SSSE3 "Enable/Disable SSSE3 in tests/examples" OFF)
-  if(EIGEN_TEST_SSSE3)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mssse3")
-    message(STATUS "Enabling SSSE3 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_SSE4_1 "Enable/Disable SSE4.1 in tests/examples" OFF)
-  if(EIGEN_TEST_SSE4_1)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.1")
-    message(STATUS "Enabling SSE4.1 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_SSE4_2 "Enable/Disable SSE4.2 in tests/examples" OFF)
-  if(EIGEN_TEST_SSE4_2)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2")
-    message(STATUS "Enabling SSE4.2 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_AVX "Enable/Disable AVX in tests/examples" OFF)
-  if(EIGEN_TEST_AVX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
-    message(STATUS "Enabling AVX in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_FMA "Enable/Disable FMA in tests/examples" OFF)
-  if(EIGEN_TEST_FMA AND NOT EIGEN_TEST_NEON)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma")
-    message(STATUS "Enabling FMA in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_AVX2 "Enable/Disable AVX2 in tests/examples" OFF)
-  if(EIGEN_TEST_AVX2)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mfma")
-    message(STATUS "Enabling AVX2 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_AVX512 "Enable/Disable AVX512 in tests/examples" OFF)
-  if(EIGEN_TEST_AVX512)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512f -mfma")
-    message(STATUS "Enabling AVX512 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_AVX512DQ "Enable/Disable AVX512DQ in tests/examples" OFF)
-  if(EIGEN_TEST_AVX512DQ)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512dq -mfma")
-    message(STATUS "Enabling AVX512DQ in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_F16C "Enable/Disable F16C in tests/examples" OFF)
-  if(EIGEN_TEST_F16C)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mf16c")
-    message(STATUS "Enabling F16C in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_ALTIVEC "Enable/Disable AltiVec in tests/examples" OFF)
-  if(EIGEN_TEST_ALTIVEC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -maltivec -mabi=altivec")
-    message(STATUS "Enabling AltiVec in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_VSX "Enable/Disable VSX in tests/examples" OFF)
-  if(EIGEN_TEST_VSX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -mvsx")
-    message(STATUS "Enabling VSX in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_MSA "Enable/Disable MSA in tests/examples" OFF)
-  if(EIGEN_TEST_MSA)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmsa")
-    message(STATUS "Enabling MSA in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_NEON "Enable/Disable Neon in tests/examples" OFF)
-  if(EIGEN_TEST_NEON)
-    if(EIGEN_TEST_FMA)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon-vfpv4")
-    else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon")
-    endif()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfloat-abi=hard")
-    message(STATUS "Enabling NEON in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_NEON64 "Enable/Disable Neon in tests/examples" OFF)
-  if(EIGEN_TEST_NEON64)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    message(STATUS "Enabling NEON in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_Z13 "Enable/Disable S390X(zEC13) ZVECTOR in tests/examples" OFF)
-  if(EIGEN_TEST_Z13)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=z13 -mzvector")
-    message(STATUS "Enabling S390X(zEC13) ZVECTOR in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_Z14 "Enable/Disable S390X(zEC14) ZVECTOR in tests/examples" OFF)
-  if(EIGEN_TEST_Z14)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=z14 -mzvector")
-    message(STATUS "Enabling S390X(zEC13) ZVECTOR in tests/examples")
-  endif()
-
-  check_cxx_compiler_flag("-fopenmp" COMPILER_SUPPORT_OPENMP)
-  if(COMPILER_SUPPORT_OPENMP)
-    option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
-    if(EIGEN_TEST_OPENMP)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-      message(STATUS "Enabling OpenMP in tests/examples")
-    endif()
-  endif()
-
-else()
-
-  # C4127 - conditional expression is constant
-  # C4714 - marked as __forceinline not inlined (I failed to deactivate it selectively)
-  #         We can disable this warning in the unit tests since it is clear that it occurs
-  #         because we are oftentimes returning objects that have a destructor or may
-  #         throw exceptions - in particular in the unit tests we are throwing extra many
-  #         exceptions to cover indexing errors.
-  # C4505 - unreferenced local function has been removed (impossible to deactivate selectively)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /wd4127 /wd4505 /wd4714")
-
-  # replace all /Wx by /W4
-  string(REGEX REPLACE "/W[0-9]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
-  check_cxx_compiler_flag("/openmp" COMPILER_SUPPORT_OPENMP)
-  if(COMPILER_SUPPORT_OPENMP)
-    option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
-    if(EIGEN_TEST_OPENMP)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
-      message(STATUS "Enabling OpenMP in tests/examples")
-    endif()
-  endif()
-
-  option(EIGEN_TEST_SSE2 "Enable/Disable SSE2 in tests/examples" OFF)
-  if(EIGEN_TEST_SSE2)
-    if(NOT CMAKE_CL_64)
-      # arch is not supported on 64 bit systems, SSE is enabled automatically.
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:SSE2")
-    endif()
-    message(STATUS "Enabling SSE2 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_AVX "Enable/Disable AVX in tests/examples" OFF)
-  if(EIGEN_TEST_AVX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
-    message(STATUS "Enabling AVX in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_FMA "Enable/Disable FMA/AVX2 in tests/examples" OFF)
-  option(EIGEN_TEST_AVX2 "Enable/Disable FMA/AVX2 in tests/examples" OFF)
-  if((EIGEN_TEST_FMA AND NOT EIGEN_TEST_NEON) OR EIGEN_TEST_AVX2)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
-    message(STATUS "Enabling FMA/AVX2 in tests/examples")
-  endif()
-
-  option(EIGEN_TEST_AVX512 "Enable/Disable AVX512 in tests/examples" OFF)
-  option(EIGEN_TEST_AVX512DQ "Enable/Disable AVX512DQ in tests/examples" OFF)
-  if(EIGEN_TEST_AVX512 OR EIGEN_TEST_AVX512DQ)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX512")
-    message(STATUS "Enabling AVX512 in tests/examples")
-  endif()
-
-endif()
-
-option(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION "Disable explicit vectorization in tests/examples" OFF)
-option(EIGEN_TEST_X87 "Force using X87 instructions. Implies no vectorization." OFF)
-option(EIGEN_TEST_32BIT "Force generating 32bit code." OFF)
-
-if(EIGEN_TEST_X87)
-  set(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION ON)
-  if(CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpmath=387")
-    message(STATUS "Forcing use of x87 instructions in tests/examples")
-  else()
-    message(STATUS "EIGEN_TEST_X87 ignored on your compiler")
-  endif()
-endif()
-
-if(EIGEN_TEST_32BIT)
-  if(CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
-    message(STATUS "Forcing generation of 32-bit code in tests/examples")
-  else()
-    message(STATUS "EIGEN_TEST_32BIT ignored on your compiler")
-  endif()
-endif()
-
-if(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION)
-  add_definitions(-DEIGEN_DONT_VECTORIZE=1)
-  message(STATUS "Disabling vectorization in tests/examples")
-endif()
-
-option(EIGEN_TEST_NO_EXPLICIT_ALIGNMENT "Disable explicit alignment (hence vectorization) in tests/examples" OFF)
-if(EIGEN_TEST_NO_EXPLICIT_ALIGNMENT)
-  add_definitions(-DEIGEN_DONT_ALIGN=1)
-  message(STATUS "Disabling alignment in tests/examples")
-endif()
-
-option(EIGEN_TEST_NO_EXCEPTIONS "Disables C++ exceptions" OFF)
-if(EIGEN_TEST_NO_EXCEPTIONS)
-  ei_add_cxx_compiler_flag("-fno-exceptions")
-  message(STATUS "Disabling exceptions in tests/examples")
-endif()
-
-set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include(cmake/EigenWarnings.cmake)
 
 # Backward compatibility support for EIGEN_INCLUDE_INSTALL_DIR
+# TODO is this still needed?
 if(EIGEN_INCLUDE_INSTALL_DIR)
   message(WARNING "EIGEN_INCLUDE_INSTALL_DIR is deprecated. Use INCLUDE_INSTALL_DIR instead.")
 endif()
@@ -464,68 +143,47 @@ endif()
 
 install(DIRECTORY Eigen DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
 
-
-option(EIGEN_BUILD_DOC "Enable creation of Eigen documentation" ON)
-if(EIGEN_BUILD_DOC)
-  add_subdirectory(doc EXCLUDE_FROM_ALL)
-endif()
-
-
 cmake_dependent_option(BUILD_TESTING "Enable creation of tests." ON "PROJECT_IS_TOP_LEVEL" OFF)
 option(EIGEN_BUILD_TESTING "Enable creation of Eigen tests." ${BUILD_TESTING})
 if(EIGEN_BUILD_TESTING)
+  option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
+  if(EIGEN_TEST_CUDA)
+    # TODO this was necessary on my system, because otherwise errors about unsupported float128 popped up
+    # a related problem: https://stackoverflow.com/questions/43316533/float128-is-not-supported-on-this-target
+    if(CMAKE_CUDA_COMPILER MATCHES "clang")
+      # TODO should we do this in the CMakeLists.txt, or should this be the users responsibility to submit the correct
+      # CUDAFLAGS for their preferred cuda compiler?
+      # NOTE: This needs to happen before the check_language call, because otherwise there will be clang errors and
+      # cmake will think cuda is not usable.
+      set(CMAKE_CUDA_FLAGS "-stdlib=libc++")
+    endif()
+      # enable language should be in the top-level file, https://cmake.org/cmake/help/latest/command/enable_language.html
+    check_language(CUDA)
+    if(CMAKE_CUDA_COMPILER)
+      enable_language(CUDA)
+    else()
+      message(WARNING "EIGEN_TEST_CUDA was set, but no CUDA compiler was found. Disabling CUDA tests")
+      set(EIGEN_TEST_CUDA OFF)
+    endif()
+  endif()
   include(EigenConfigureTesting)
 
-  if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
-    add_subdirectory(test) # can't do EXCLUDE_FROM_ALL here, breaks CTest
-  else()
-    add_subdirectory(test EXCLUDE_FROM_ALL)
-  endif()
-
+  # TODO what was the point of EXCLUDE_FROM_ALL here?
+  add_subdirectory(test)
   add_subdirectory(failtest)
+endif()
+
+option(EIGEN_BUILD_DOC "Enable creation of Eigen documentation" ON)
+if(EIGEN_BUILD_DOC)
+  include(EigenDocs)
+  add_subdirectory(doc EXCLUDE_FROM_ALL)
 endif()
 
 include(CMakeDetermineFortranCompiler)
 option(EIGEN_BUILD_BLAS "Toggles the building of the Eigen Blas library" ${CMAKE_Fortran_COMPILER})
 option(EIGEN_BUILD_LAPACK "Toggles the building of the included Eigen LAPACK library" ${CMAKE_Fortran_COMPILER})
-if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
-  add_subdirectory(blas)
-  add_subdirectory(lapack)
-else()
-  add_subdirectory(blas EXCLUDE_FROM_ALL)
-  add_subdirectory(lapack EXCLUDE_FROM_ALL)
-endif()
-
-# add SYCL
-option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
-option(EIGEN_SYCL_TRISYCL "Use the triSYCL Sycl implementation (ComputeCPP by default)." OFF)
-if(EIGEN_TEST_SYCL)
-  set (CMAKE_MODULE_PATH "${CMAKE_ROOT}/Modules" "cmake/Modules/" "${CMAKE_MODULE_PATH}")
-  find_package(Threads REQUIRED)
-  if(EIGEN_SYCL_TRISYCL)
-    message(STATUS "Using triSYCL")
-    include(FindTriSYCL)
-  else()
-    message(STATUS "Using ComputeCPP SYCL")
-    include(FindComputeCpp)
-    set(COMPUTECPP_DRIVER_DEFAULT_VALUE OFF)
-    if (NOT MSVC)
-      set(COMPUTECPP_DRIVER_DEFAULT_VALUE ON)
-    endif()
-    option(COMPUTECPP_USE_COMPILER_DRIVER
-      "Use ComputeCpp driver instead of a 2 steps compilation"
-      ${COMPUTECPP_DRIVER_DEFAULT_VALUE}
-    )
-  endif(EIGEN_SYCL_TRISYCL)
-  option(EIGEN_DONT_VECTORIZE_SYCL "Don't use vectorisation in the SYCL tests." OFF)
-  if(EIGEN_DONT_VECTORIZE_SYCL)
-    message(STATUS "Disabling SYCL vectorization in tests/examples")
-    # When disabling SYCL vectorization, also disable Eigen default vectorization
-    add_definitions(-DEIGEN_DONT_VECTORIZE=1)
-    add_definitions(-DEIGEN_DONT_VECTORIZE_SYCL=1)
-  endif()
-endif()
-
+add_subdirectory(blas)
+add_subdirectory(lapack)
 add_subdirectory(unsupported)
 
 add_subdirectory(demos EXCLUDE_FROM_ALL)
@@ -602,6 +260,7 @@ if(PROJECT_IS_TOP_LEVEL)
   message(STATUS "")
 endif()
 
+# TODO why do we need both sets of variables?
 set ( EIGEN_VERSION_STRING ${EIGEN_VERSION_NUMBER} )
 set ( EIGEN_VERSION_MAJOR  ${EIGEN_WORLD_VERSION} )
 set ( EIGEN_VERSION_MINOR  ${EIGEN_MAJOR_VERSION} )
@@ -611,11 +270,25 @@ include (CMakePackageConfigHelpers)
 
 # Imported target support
 add_library (eigen INTERFACE)
+target_compile_features(eigen INTERFACE cxx_std_14)
 add_library (Eigen3::Eigen ALIAS eigen)
 target_include_directories (eigen INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>
 )
+
+
+#############################################################################
+# find how to link to the standard libraries                                #
+#############################################################################
+find_package(StandardMathLibrary)
+if(NOT STANDARD_MATH_LIBRARY_FOUND)
+  message(FATAL_ERROR
+          "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
+else()
+  # Don't add the math library for the installed version, there it might be different
+  target_link_libraries(eigen INTERFACE $<BUILD_INTERFACE:${STANDARD_MATH_LIBRARY}>)
+endif()
 
 # Export as title case Eigen
 set_target_properties (eigen PROPERTIES EXPORT_NAME Eigen)
