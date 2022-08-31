@@ -236,7 +236,6 @@ struct imag_ref_retval
   typedef typename NumTraits<Scalar>::Real & type;
 };
 
-
 /****************************************************************************
 * Implementation of sign                                                 *
 ****************************************************************************/
@@ -818,6 +817,7 @@ struct random_default_impl<Scalar, false, false>
   #ifdef EIGEN_USE_SYCL
   SYCL_EXTERNAL 
   #endif
+<<<<<<< HEAD
   static inline Scalar run(const Scalar& x, const Scalar& y)
   {
     #ifdef EIGEN_USE_SYCL
@@ -829,7 +829,14 @@ struct random_default_impl<Scalar, false, false>
     #else
     return x + (y-x) * Scalar(std::rand()) / Scalar(RAND_MAX);
     #endif
+=======
+  static inline Scalar run(const Scalar& x, const Scalar& y)  {
+    #ifdef EIGEN_USE_SYCL
+    return x + (y-x) * Scalar((214013*(int)x + 2531011) % 2147483647) / Scalar(RAND_MAX);
+    #else
+>>>>>>> 8f72c321d (Patch for Eigen SYCL)
     return x + (y-x) * Scalar(std::rand()) / Scalar(RAND_MAX);
+    #endif
   }
   static inline Scalar run()
   {
@@ -1282,13 +1289,6 @@ EIGEN_DEVICE_FUNC
 inline EIGEN_MATHFUNC_RETVAL(conj, Scalar) conj(const Scalar& x)
 {
   return EIGEN_MATHFUNC_IMPL(conj, Scalar)::run(x);
-}
-
-template<typename Scalar>
-EIGEN_DEVICE_FUNC
-inline EIGEN_MATHFUNC_RETVAL(sign, Scalar) sign(const Scalar& x)
-{
-  return EIGEN_MATHFUNC_IMPL(sign, Scalar)::run(x);
 }
 
 template<typename Scalar>
