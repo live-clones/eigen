@@ -236,6 +236,52 @@ struct imag_ref_retval
   typedef typename NumTraits<Scalar>::Real & type;
 };
 
+
+/****************************************************************************
+* Implementation of sign                                                 *
+****************************************************************************/
+template<typename Scalar, bool IsComplex = (NumTraits<Scalar>::IsComplex!=0),
+    bool IsInteger = (NumTraits<Scalar>::IsInteger!=0)>
+struct sign_impl
+{
+  EIGEN_DEVICE_FUNC
+  static inline Scalar run(const Scalar& a)
+  {
+    return Scalar( (a>Scalar(0)) - (a<Scalar(0)) );
+  }
+};
+
+template<typename Scalar>
+struct sign_impl<Scalar, false, false>
+{
+  EIGEN_DEVICE_FUNC
+  static inline Scalar run(const Scalar& a)
+  {
+    return (std::isnan)(a) ? a : Scalar( (a>Scalar(0)) - (a<Scalar(0)) );
+  }
+};
+
+template<typename Scalar, bool IsInteger>
+struct sign_impl<Scalar, true, IsInteger>
+{
+  EIGEN_DEVICE_FUNC
+  static inline Scalar run(const Scalar& a)
+  {
+    using real_type = typename NumTraits<Scalar>::Real;
+    real_type aa = std::abs(a);
+    if (aa==real_type(0))
+      return Scalar(0);
+    aa = real_type(1)/aa;
+    return Scalar(a.real()*aa, a.imag()*aa );
+  }
+};
+
+template<typename Scalar>
+struct sign_retval
+{
+  typedef Scalar type;
+};
+
 /****************************************************************************
 * Implementation of sign                                                 *
 ****************************************************************************/
@@ -817,7 +863,6 @@ struct random_default_impl<Scalar, false, false>
   #ifdef EIGEN_USE_SYCL
   SYCL_EXTERNAL 
   #endif
-<<<<<<< HEAD
   static inline Scalar run(const Scalar& x, const Scalar& y)
   {
     #ifdef EIGEN_USE_SYCL
@@ -827,14 +872,6 @@ struct random_default_impl<Scalar, false, false>
     auto res = distr(engine);
     return x + (y-x) * Scalar(res) / Scalar(RAND_MAX);
     #else
-    return x + (y-x) * Scalar(std::rand()) / Scalar(RAND_MAX);
-    #endif
-=======
-  static inline Scalar run(const Scalar& x, const Scalar& y)  {
-    #ifdef EIGEN_USE_SYCL
-    return x + (y-x) * Scalar((214013*(int)x + 2531011) % 2147483647) / Scalar(RAND_MAX);
-    #else
->>>>>>> 8f72c321d (Patch for Eigen SYCL)
     return x + (y-x) * Scalar(std::rand()) / Scalar(RAND_MAX);
     #endif
   }
@@ -1289,6 +1326,13 @@ EIGEN_DEVICE_FUNC
 inline EIGEN_MATHFUNC_RETVAL(conj, Scalar) conj(const Scalar& x)
 {
   return EIGEN_MATHFUNC_IMPL(conj, Scalar)::run(x);
+}
+
+template<typename Scalar>
+EIGEN_DEVICE_FUNC
+inline EIGEN_MATHFUNC_RETVAL(sign, Scalar) sign(const Scalar& x)
+{
+  return EIGEN_MATHFUNC_IMPL(sign, Scalar)::run(x);
 }
 
 template<typename Scalar>
