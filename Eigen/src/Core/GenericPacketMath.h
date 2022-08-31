@@ -59,7 +59,6 @@ struct default_packet_traits
     HasMax       = 1,
     HasConj      = 1,
     HasSetLinear = 1,
-    HasSign      = 1,
     HasBlend     = 0,
     // This flag is used to indicate whether packet comparison is supported.
     // pcmp_eq, pcmp_lt and pcmp_le should be defined for it to be true.
@@ -102,7 +101,8 @@ struct default_packet_traits
     HasRound  = 0,
     HasRint   = 0,
     HasFloor  = 0,
-    HasCeil   = 0
+    HasCeil   = 0,
+    HasSign   = 0
   };
 };
 
@@ -179,7 +179,7 @@ struct eigen_packet_wrapper
  */
 template<typename Packet>
 struct is_scalar {
-  using Scalar = typename unpacket_traits<Packet>::type;
+  typedef typename unpacket_traits<Packet>::type Scalar;
   enum {
     value = internal::is_same<Packet, Scalar>::value
   };
@@ -737,8 +737,13 @@ peven_mask(const Packet& /*a*/) {
 
 
 /** \internal copy the packet \a from to \a *to, \a to must be properly aligned */
+#ifdef EIGEN_USE_SYCL
+template<typename Scalar, typename Packet> SYCL_EXTERNAL EIGEN_DEVICE_FUNC inline void pstore(Scalar* to, const Packet& from)
+{  (*to) = from[0]; }
+#else
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(Scalar* to, const Packet& from)
 { (*to) = from; }
+#endif
 
 /** \internal copy n elements of the packet \a from to \a *to, \a to must be properly aligned
  * offset indicates the starting element in which to store and
@@ -755,8 +760,13 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store) */
+#ifdef EIGEN_USE_SYCL
+template<typename Scalar, typename Packet> SYCL_EXTERNAL EIGEN_DEVICE_FUNC inline void pstoreu(Scalar* to, const Packet& from)
+{  (*to) = from[0]; }
+#else
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu(Scalar* to, const Packet& from)
 {  (*to) = from; }
+#endif
 
 /** \internal copy n elements of the packet \a from to \a *to, (un-aligned store) */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n)

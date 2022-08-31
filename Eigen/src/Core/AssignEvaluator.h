@@ -767,6 +767,9 @@ void resize_if_allowed(DstXprType &dst, const SrcXprType& src, const internal::a
 }
 
 template<typename DstXprType, typename SrcXprType, typename Functor>
+#ifdef EIGEN_USE_SYCL
+SYCL_EXTERNAL
+#endif
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment_loop(DstXprType& dst, const SrcXprType& src, const Functor &func)
 {
   typedef evaluator<DstXprType> DstEvaluatorType;
