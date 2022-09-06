@@ -11,25 +11,22 @@
 #include "../../test/sparse_solver.h"
 #include <Eigen/HermitianMatrix>
 
-template<class HermitianMatrix>
-void test_assignment(int size = HermitianMatrix::ColsAtCompileTime){
+template <class HermitianMatrix>
+void test_assignment(int size = HermitianMatrix::ColsAtCompileTime)
+{
   using DenseType = typename HermitianMatrix::DenseType;
 
-  DenseType A=DenseType::Random(size,size);
-  DenseType B=A+A.tranpose();
+  DenseType A = DenseType::Random(size, size);
+  DenseType B = A + A.transpose();
 
-  HermitianMatrix H= B;
-  DenseType C = H; 
+  HermitianMatrix H = B;
+  DenseType C = H;
   VERIFY_IS_APPROX(C, B);
-
 }
-
-
 
 EIGEN_DECLARE_TEST(hermitianMatrix)
 {
-CALL_SUBTEST_1(test_assignment<HermitianMatrix<double>>(100));
-CALL_SUBTEST_1(test_assignment<HermitianMatrix<float>>(100));
-CALL_SUBTEST_1(test_assignment<HermitianMatrix<std::complex<double>>>(100));
-
+  CALL_SUBTEST_1(test_assignment<HermitianMatrix<double, Eigen::Dynamic>>(100));
+  CALL_SUBTEST_1(test_assignment<HermitianMatrix<float, Eigen::Dynamic>>(100));
+  CALL_SUBTEST_1(test_assignment<HermitianMatrix<std::complex<double>, Eigen::Dynamic>>(100));
 }
