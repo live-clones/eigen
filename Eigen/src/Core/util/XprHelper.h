@@ -270,6 +270,11 @@ template<typename T> struct plain_matrix_type<T,DiagonalShape>
   typedef typename T::PlainObject type;
 };
 
+template<typename T> struct plain_matrix_type<T, HermitianShape>
+{
+  typedef typename internal::traits<T>::PlainObject type;
+};
+
 template<typename T, int Flags> struct plain_matrix_type_dense<T,MatrixXpr,Flags>
 {
   typedef Matrix<typename traits<T>::Scalar,
@@ -312,6 +317,11 @@ template<typename T> struct eval<T,Dense>
 };
 
 template<typename T> struct eval<T,DiagonalShape>
+{
+  typedef typename plain_matrix_type<T>::type type;
+};
+
+template<typename T> struct eval<T, HermitianShape>
 {
   typedef typename plain_matrix_type<T>::type type;
 };
@@ -464,8 +474,25 @@ struct dense_xpr_base<Derived, ArrayXpr>
   typedef ArrayBase<Derived> type;
 };
 
+// Hermitian
+template<typename Derived, typename XprKind = typename traits<Derived>::XprKind>
+struct hermitian_xpr_base {};
+
+template<typename Derived>
+struct hermitian_xpr_base<Derived, HermitianXpr>
+{
+  typedef HermitianBase<Derived> type;
+};
+
 template<typename Derived, typename XprKind = typename traits<Derived>::XprKind, typename StorageKind = typename traits<Derived>::StorageKind>
 struct generic_xpr_base;
+
+template<typename Derived, typename XprKind>
+struct generic_xpr_base<Derived, XprKind, HermitianShape>
+{
+  typedef typename hermitian_xpr_base<Derived, XprKind>::type type;
+};
+
 
 template<typename Derived, typename XprKind>
 struct generic_xpr_base<Derived, XprKind, Dense>
@@ -558,6 +585,8 @@ template <typename A, int ProductTag> struct product_promote_storage_type<A,    
 template <typename B, int ProductTag> struct product_promote_storage_type<PermutationStorage, B,                  ProductTag> { typedef B ret; };
 template <int ProductTag>             struct product_promote_storage_type<Dense,              PermutationStorage, ProductTag> { typedef Dense ret; };
 template <int ProductTag>             struct product_promote_storage_type<PermutationStorage, Dense,              ProductTag> { typedef Dense ret; };
+
+template <int ProductTag>             struct product_promote_storage_type<HermitianShape,     HermitianShape,     ProductTag> { typedef Dense ret; };
 
 /** \internal gives the plain matrix or array type to store a row/column/diagonal of a matrix type.
   * \tparam Scalar optional parameter allowing to pass a different scalar type than the one of the MatrixType.

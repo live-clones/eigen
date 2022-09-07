@@ -292,6 +292,14 @@ template<typename Derived> class MatrixLogarithmReturnValue;
 template<typename Derived> class MatrixPowerReturnValue;
 template<typename Derived> class MatrixComplexPowerReturnValue;
 
+// Hermitian Matrix module
+template<typename Derived> class HermitianBase;
+template<typename _Scalar, int _Dimension, unsigned int _UpLo = Upper, 
+         int _Storage = EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION,
+         int _MaxDimension = _Dimension, int _Remainder = _Dimension % 2> class HermitianMatrix;
+template<typename Scalar, class NestedExpression,
+         bool ScalarIsComplexType = NumTraits<Scalar>::IsComplex> struct HermitianMatrixCoeffReturnHelper;
+
 namespace internal {
 template <typename Scalar>
 struct stem_function
