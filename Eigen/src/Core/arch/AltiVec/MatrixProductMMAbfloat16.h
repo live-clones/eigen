@@ -105,7 +105,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
   const bfloat16* indexB;
 
   step = rhsExtraCols ? 1 : (num_acc * 4); //each accumulator has 4 elements
-  irhsExtraColsndexB = rhsExtraCols ? blockB : (blockB + 4*offsetB + strideB*col);
+  indexB = rhsExtraCols ? blockB : (blockB + 4*offsetB + strideB*col);
 
   while(col + step <= cols){
     Index k = 0;
