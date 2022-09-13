@@ -5,82 +5,6 @@ namespace Eigen {
 
 namespace internal {
 
-EIGEN_ALWAYS_INLINE void pgerMMAbfloat16(__vector_quad* acc, const Packet8bf& a, const Packet8bf& b, Index maskX, Index maskY)
-{
-#if 0
-  switch(maskX){
-    case 15:
-      switch(maskY){
-        case 0b1111:
-          __builtin_mma_xvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val));
-          break;
-        case 0b0011:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b1111, 0b11, 0b11);
-          break;
-        case 0b0001:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b1111, 0b1, 0b11);
-          break;
-        case 0b0111:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b1111, 0b111, 0b11);
-          break;
-      }
-      break;
-    case 3:
-      switch(maskY){
-        case 0b1111:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b11, 0b1111, 0b11);
-          break;
-        case 0b0011:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b11, 0b11, 0b11);
-          break;
-        case 0b0001:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b11, 0b1, 0b11);
-          break;
-        case 0b0111:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b11, 0b111, 0b11);
-          break;
-      }
-      break;
-    case 1:
-      switch(maskY){
-        case 0b1111:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b1, 0b1111, 0b11);
-          break;
-        case 0b0011:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b1, 0b11, 0b11);
-          break;
-        case 0b0001:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b1, 0b1, 0b11);
-          break;
-        case 0b0111:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b1, 0b111, 0b11);
-          break;
-      }
-      break;
-    case 0b0111:
-      switch(maskY){
-        case 0b1111:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b111, 0b1111, 0b11);
-          break;
-        case 0b0011:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b111, 0b11, 0b11);
-          break;
-        case 0b0001:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b111, 0b1, 0b11);
-          break;
-        case 0b0111:
-          __builtin_mma_pmxvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val), 0b111, 0b111, 0b11);
-          break;
-      }
-      break;
-  }
-#else
-  EIGEN_UNUSED_VARIABLE(maskX);
-  EIGEN_UNUSED_VARIABLE(maskY);
-  __builtin_mma_xvbf16ger2pp(acc, reinterpret_cast<Packet16uc>(a.m_val), reinterpret_cast<Packet16uc>(b.m_val));
-#endif
-}
-
 EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, float* acc, const Packet4f& pAlpha)
 {
   Packet4f result_block = ploadu<Packet4f>(result);
@@ -105,12 +29,10 @@ template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index strideA, Index row, Index extra_rows)
 {
   EIGEN_ALIGN16 bfloat16 lhs_array[8] = { Eigen::bfloat16(0) };
-  Index count = 0;
   const bfloat16* idxA = indexA + row*strideA;
-  for(Index row_count = 0; row_count < extra_rows; row_count++){
-    lhs_array[count++] = *idxA;
-    if(!zero) lhs_array[count] = *(idxA+1);
-    count++;
+  for(Index row_count = 0; row_count < extra_rows*2; row_count += 2){
+    lhs_array[row_count] = *idxA;
+    if(!zero) lhs_array[row_count+1] = *(idxA+1);
     idxA += strideA;
   }
   return pload<Packet8bf>(lhs_array);
@@ -138,15 +60,15 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, I
 {
   EIGEN_ALIGN16 bfloat16 rhs_vector[8] = { Eigen::bfloat16(0) };
   const bfloat16* indexB = blockB + ((col+4*i)*strideB)+k+offsetB;
-  for(Index c = 0; c < extra_cols; c++){
-    rhs_vector[2*c] = *indexB;
-    if(!zero) rhs_vector[2*c+1] = *(indexB+1);
+  for(Index c = 0; c < extra_cols*2; c += 2){
+    rhs_vector[c] = *indexB;
+    if(!zero) rhs_vector[c+1] = *(indexB+1);
     indexB += strideB;
   }
   return pload<Packet8bf>(rhs_vector);
 }
 
-template<typename Index, Index num_acc, Index num_packets, bool zero, bool rhs_extra_cols, bool lhs_extra_rows>
+template<Index num_acc, Index num_packets, bool zero, bool rhs_extra_cols, bool lhs_extra_rows>
 EIGEN_STRONG_INLINE void KLoop
 (
   const bfloat16* indexA,
@@ -159,9 +81,7 @@ EIGEN_STRONG_INLINE void KLoop
   Index row,
   Index col,
   Index extra_rows,
-  Index extra_cols,
-  Index mask_rows = 0xF,
-  Index mask_cols = 0xF
+  Index extra_cols
 )
 {
   Packet8bf lhs;
@@ -174,12 +94,12 @@ EIGEN_STRONG_INLINE void KLoop
     else{
       rhs[i] = loadRhsBfloat16ExtraCols<zero>(indexB, strideB, offsetB, col, i, k, extra_cols);
     }
-    pgerMMAbfloat16(&(quad_acc[i]), rhs[i], lhs, mask_cols, mask_rows);
+    __builtin_mma_xvbf16ger2pp(&(quad_acc[i]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs.m_val));
   }
 }
 
-template<typename Index, const Index num_acc, const Index standard_block_size, const Index num_packets, bool rhsExtraCols = false, bool lhsExtraRows = false>
-void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0, Index mask_cols = 0xF, Index mask_rows = 0xF)
+template<const Index num_acc, const Index standard_block_size, const Index num_packets, bool rhsExtraCols = false, bool lhsExtraRows = false>
+void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
 {
   Index count;
   Index max, step;
@@ -207,11 +127,11 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       __builtin_mma_xxsetaccz(&(quad_acc[i]));
 
     if(depth%2 != 0){
-      KLoop<Index, num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols, mask_rows, mask_cols);
+      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
       k = 1;
     }
     for(; k + 2 <= depth; k += 2){
-      KLoop<Index, num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols, mask_rows, mask_cols);
+      KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
     }
     for(Index i = 0; i < num_acc; i++){
       __builtin_mma_disassemble_acc((void*)acc[i], &(quad_acc[i]));
@@ -282,19 +202,17 @@ __asm__("# Start asm!\n\t");
     indexA += 2*8*offsetA;
     for(Index offset_row = 0; offset_row < standard_block_size; offset_row += 4){ //This block size has 16 rows maximum
       col = 0;
-      colLoopBody<Index, 7, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 6, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 5, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 4, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 3, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 2, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 1, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<7, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<6, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<5, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<4, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<3, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<2, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<1, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
       if(cols > col){
         Index extra_cols= cols-col;
-        Index shift = (4-extra_cols>= 0) ? 4-extra_cols: 0;
-        Index mask_cols= 0xF >> shift;
         //Remember: It doesnt make sense use multiple acc to extra_cols as we are unrolling col loop
-        colLoopBody<Index, 1, 16, 2, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result, extra_cols, 4, mask_cols, 0xF);
+        colLoopBody<1, 16, 2, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
       }
     }
     row += 16;
@@ -305,21 +223,19 @@ __asm__("# Start asm!\n\t");
     indexA += 1*8*offsetA + 2*8*offsetA;
     for(Index offset_row = 0; offset_row < 8; offset_row += 4){
       col = 0;
-      colLoopBody<Index, 7, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 6, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 5, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 4, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 3, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 2, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<Index, 1, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<7, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<6, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<5, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<4, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<3, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<2, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<1, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
     }
     if(cols > col){
       Index extra_cols= cols-col;
-      Index shift = (4-extra_cols>= 0) ? 4-extra_cols: 0;
-      Index mask_cols= 0xF >> shift;
 
       for(Index offset_row = 0; offset_row < 8; offset_row += 4){
-        colLoopBody<Index, 1, 8, 1, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result, extra_cols, 4, mask_cols, 0xF);
+        colLoopBody<1, 8, 1, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
       }
     } //end extra cols
     row += 8;
@@ -327,27 +243,23 @@ __asm__("# Start asm!\n\t");
   //extra rows
   while(row < rows){
     Index extra_rows = rows-row;
-    Index shift = (4-extra_rows >= 0) ? 4-extra_rows : 0;
-    Index mask_rows = 0xF >> shift;
     Index extra_rows_or_four = (extra_rows <= 4) ? extra_rows : 4;
 
     //This index is the beginning of remaining block. 
     //This last block for LHS is organized as RowMajor
     col = 0;
-    colLoopBody<Index, 7, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
-    colLoopBody<Index, 6, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
-    colLoopBody<Index, 5, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
-    colLoopBody<Index, 4, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
-    colLoopBody<Index, 3, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
-    colLoopBody<Index, 2, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
-    colLoopBody<Index, 1, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
+    colLoopBody<7, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
+    colLoopBody<6, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
+    colLoopBody<5, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
+    colLoopBody<4, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
+    colLoopBody<3, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
+    colLoopBody<2, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
+    colLoopBody<1, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
     if(cols > col){
       Index extra_cols= cols-col;
-      Index shift = (4-extra_cols>= 0) ? 4-extra_cols: 0;
-      Index mask_cols= 0xF >> shift;
       Index extra_cols_or_four = (extra_cols <= 4) ? extra_cols : 4;
 
-      colLoopBody<Index, 1, 8, 1, true, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, extra_cols_or_four, extra_rows_or_four, mask_cols, mask_rows);
+      colLoopBody<1, 8, 1, true, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, extra_cols_or_four, extra_rows_or_four);
     }
     row += extra_rows_or_four;
   }
