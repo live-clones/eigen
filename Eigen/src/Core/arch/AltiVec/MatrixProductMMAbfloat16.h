@@ -182,11 +182,8 @@ template<typename Index, const Index num_acc, const Index standard_block_size, c
 void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0, Index mask_cols = 0xF, Index mask_rows = 0xF)
 {
   Index count;
-  Index max, step, bound;
+  Index max, step;
   const bfloat16* indexB;
-
-  if(num_acc == 1) bound = 0;
-  else bound = 1;
 
   if(rhsExtraCols){
     count = 0;
@@ -197,11 +194,11 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
   else{
     count = col;
     step = num_acc * 4; //each accumulator has 4 elements
-    max = cols/step;
+    max = cols;
     indexB = blockB + 4*offsetB + strideB*col;
   }
 
-  while(count/step + bound < max){
+  while(count + step <= max){
     Index k = 0;
     EIGEN_ALIGN16 float acc[num_acc][4][4];
     __vector_quad quad_acc[num_acc];
@@ -213,7 +210,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       KLoop<Index, num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols, mask_rows, mask_cols);
       k = 1;
     }
-    for(; k/2 < depth/2; k += 2){ 
+    for(; k + 2 <= depth; k += 2){
       KLoop<Index, num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols, mask_rows, mask_cols);
     }
     for(Index i = 0; i < num_acc; i++){
@@ -238,11 +235,10 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
         }
       }
     }
+    if(rhsExtraCols) break;
     count += step;
-    if(!rhsExtraCols) {
-      indexB += strideB*step;
-      col += step;
-    }
+    indexB += strideB*step;
+    col += step;
   }
 }
 
@@ -286,6 +282,7 @@ __asm__("# Start asm!\n\t");
     indexA += 2*8*offsetA;
     for(Index offset_row = 0; offset_row < standard_block_size; offset_row += 4){ //This block size has 16 rows maximum
       col = 0;
+      colLoopBody<Index, 7, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
       colLoopBody<Index, 6, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
       colLoopBody<Index, 5, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
       colLoopBody<Index, 4, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
@@ -308,6 +305,7 @@ __asm__("# Start asm!\n\t");
     indexA += 1*8*offsetA + 2*8*offsetA;
     for(Index offset_row = 0; offset_row < 8; offset_row += 4){
       col = 0;
+      colLoopBody<Index, 7, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
       colLoopBody<Index, 6, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
       colLoopBody<Index, 5, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
       colLoopBody<Index, 4, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
@@ -336,6 +334,7 @@ __asm__("# Start asm!\n\t");
     //This index is the beginning of remaining block. 
     //This last block for LHS is organized as RowMajor
     col = 0;
+    colLoopBody<Index, 7, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
     colLoopBody<Index, 6, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
     colLoopBody<Index, 5, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
     colLoopBody<Index, 4, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four, 0xF, mask_rows);
@@ -354,9 +353,9 @@ __asm__("# Start asm!\n\t");
   }
 
   //Convert back to bfloat16
-  for(col = 0; col/4 < cols/4; col += 4){
+  for(col = 0; col + 4 <= cols; col += 4){
     Index row;
-    for(row = 0; row/8 < rows/8; row += 8){
+    for(row = 0; row + 8 <= rows; row += 8){
       //get and save block
       PacketBlock<Packet8bf,4> block;
       for(Index j = 0; j < 4; j++){
