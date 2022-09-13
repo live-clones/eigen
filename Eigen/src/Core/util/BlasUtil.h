@@ -379,11 +379,7 @@ public:
     storePacketBlock_helper<SubPacket, Scalar_, n, idx-1> spbh;
     EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void store(const blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, Incr>* sup, Index i, Index j, const PacketBlock<SubPacket, n>& block) const {
       spbh.store(sup, i,j,block);
-      for(int l = 0; l < unpacket_traits<SubPacket>::size; l++)
-      {
-        Scalar_ *v = &sup->operator()(i+l, j+idx);
-        *v = block.packet[idx][l];
-      }
+      sup->template storePacket<SubPacket>(i, j+idx, block.packet[idx]);
     }
   };
 

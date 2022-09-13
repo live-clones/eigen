@@ -28,6 +28,16 @@
 
 #include "../../InternalHeaderCheck.h"
 
+#define TEST_VERBOSE   // Report timings and gemm type, MMA, rows, depth and cols
+
+#ifdef TEST_VERBOSE
+#include <cstdio>
+#include <iostream>
+#include <sys/platform/ppc.h>
+#endif
+
+#include "MatrixProductMMAbfloat16.h"
+
 namespace Eigen {
 
 namespace internal {
@@ -430,6 +440,10 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
+#ifdef TEST_VERBOSE
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
       const Index remaining_rows = rows % accCols;
 
       if( strideA == -1 ) strideA = depth;
@@ -450,6 +464,10 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
       {
         gemm_extra_cols<Scalar, Packet, DataMapper, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlpha, pMask);
       }
+#ifdef TEST_VERBOSE
+  end = __ppc_get_timebase();
+  printf("gemm MMA time = %16ld\n", end - start);
+#endif
 }
 
 #define advanceRows ((LhsIsReal) ? 1 : 2)
