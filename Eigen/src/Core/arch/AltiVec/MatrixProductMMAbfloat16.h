@@ -101,24 +101,13 @@ EIGEN_STRONG_INLINE void KLoop
 template<const Index num_acc, const Index standard_block_size, const Index num_packets, bool rhsExtraCols = false, bool lhsExtraRows = false>
 void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
 {
-  Index count;
-  Index max, step;
+  Index step;
   const bfloat16* indexB;
 
-  if(rhsExtraCols){
-    count = 0;
-    max = 1;
-    step = 1;
-    indexB = blockB;
-  }
-  else{
-    count = col;
-    step = num_acc * 4; //each accumulator has 4 elements
-    max = cols;
-    indexB = blockB + 4*offsetB + strideB*col;
-  }
+  step = rhsExtraCols ? 1 : (num_acc * 4); //each accumulator has 4 elements
+  irhsExtraColsndexB = rhsExtraCols ? blockB : (blockB + 4*offsetB + strideB*col);
 
-  while(count + step <= max){
+  while(col + step <= cols){
     Index k = 0;
     EIGEN_ALIGN16 float acc[num_acc][4][4];
     __vector_quad quad_acc[num_acc];
@@ -156,7 +145,6 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       }
     }
     if(rhsExtraCols) break;
-    count += step;
     indexB += strideB*step;
     col += step;
   }
