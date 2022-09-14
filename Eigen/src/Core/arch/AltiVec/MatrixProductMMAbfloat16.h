@@ -26,16 +26,30 @@ EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16(const bfloat16* indexA)
 }
 
 template<bool zero>
+EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index strideA, Index extra_rows)
+{
+  Index row_count = 0;
+  if (zero) {
+    EIGEN_ALIGN16 bfloat16 lhs_array[6] = { Eigen::bfloat16(0) };
+    do{
+      lhs_array[row_count] = *indexA;
+      indexA += strideA;
+    } while ((row_count += 2) < extra_rows*2);
+    return pload_partial<Packet8bf>(lhs_array, extra_rows*2);
+  } else {
+    EIGEN_ALIGN16 int lhs_array[3];
+    do{
+      lhs_array[row_count] = *reinterpret_cast<const int *>(indexA);
+      indexA += strideA;
+    } while ((row_count += 1) < extra_rows);
+    return reinterpret_cast<Packet8us>(pload_partial<Packet4i>(lhs_array, extra_rows));
+  }
+}
+
+template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index strideA, Index row, Index extra_rows)
 {
-  EIGEN_ALIGN16 bfloat16 lhs_array[8] = { Eigen::bfloat16(0) };
-  const bfloat16* idxA = indexA + row*strideA;
-  for(Index row_count = 0; row_count < extra_rows*2; row_count += 2){
-    lhs_array[row_count] = *idxA;
-    if(!zero) lhs_array[row_count+1] = *(idxA+1);
-    idxA += strideA;
-  }
-  return pload<Packet8bf>(lhs_array);
+  return loadBfloat16Extra<zero>(indexA + row*strideA, strideA, extra_rows);
 }
 
 template<bool zero>
@@ -58,14 +72,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* baseB, Index strid
 template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, Index strideB, Index offsetB, Index col, Index i, Index k, Index extra_cols)
 {
-  EIGEN_ALIGN16 bfloat16 rhs_vector[8] = { Eigen::bfloat16(0) };
-  const bfloat16* indexB = blockB + ((col+4*i)*strideB)+k+offsetB;
-  for(Index c = 0; c < extra_cols*2; c += 2){
-    rhs_vector[c] = *indexB;
-    if(!zero) rhs_vector[c+1] = *(indexB+1);
-    indexB += strideB;
-  }
-  return pload<Packet8bf>(rhs_vector);
+  return loadBfloat16Extra<zero>(blockB + ((col+4*i)*strideB)+k+offsetB, strideB, extra_cols);
 }
 
 template<Index num_acc, Index num_packets, bool zero, bool rhs_extra_cols, bool lhs_extra_rows>
@@ -144,7 +151,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
         }
       }
     }
-    if(rhsExtraCols) break;
+    if(rhsExtraCols) return;
     indexB += strideB*step;
     col += step;
   }
