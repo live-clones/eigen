@@ -254,9 +254,8 @@ __asm__("# Start asm!\n\t");
     colLoopBody<1, 8, 1, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
     if(cols > col){
       Index extra_cols= cols-col;
-      Index extra_cols_or_four = (extra_cols <= 4) ? extra_cols : 4;
 
-      colLoopBody<1, 8, 1, true, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, extra_cols_or_four, extra_rows_or_four);
+      colLoopBody<1, 8, 1, true, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, extra_cols, extra_rows_or_four);
     }
     row += extra_rows_or_four;
   }
