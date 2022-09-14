@@ -5,10 +5,10 @@ namespace Eigen {
 
 namespace internal {
 
-EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, float* acc, const Packet4f& pAlpha)
+EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, Packet4f& acc, const Packet4f& pAlpha)
 {
   Packet4f result_block = ploadu<Packet4f>(result);
-  Packet4f packet_pmadd = pmadd(pload<Packet4f>(acc), pAlpha, result_block);
+  Packet4f packet_pmadd = pmadd(acc, pAlpha, result_block);
   pstoreu(result, packet_pmadd);
 }
 
@@ -116,7 +116,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
 
   while(col + step <= cols){
     Index k = 0;
-    EIGEN_ALIGN16 float acc[num_acc][4][4];
+    Packet4f acc[num_acc][4];
     __vector_quad quad_acc[num_acc];
  
     for(Index i = 0; i < num_acc; i++)
@@ -132,10 +132,11 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     for(Index i = 0; i < num_acc; i++){
       __builtin_mma_disassemble_acc((void*)acc[i], &(quad_acc[i]));
       if(lhsExtraRows){
-        for(Index x = 0; x < extra_cols; x++){
-          for(Index y = 0; y < extra_rows; y++){
-            result[((col+i*4)+x)*rows + row + y] += acc[i][x][y]*(pAlpha[0]);
-          }
+        float *r = result + (col+i*4)*rows + row;
+        for(Index x = 0; x < extra_cols; x++, r += rows){
+          Packet4f result_block = pload_partial<Packet4f>(r, extra_rows);
+          result_block = pmadd(acc[i][x], pAlpha, result_block);
+          pstore_partial<float>(r, result_block, extra_rows, 0);
         }
       }
       else{
