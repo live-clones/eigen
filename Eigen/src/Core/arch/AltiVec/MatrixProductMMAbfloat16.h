@@ -134,9 +134,9 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       if(lhsExtraRows){
         float *r = result + (col+i*4)*rows + row;
         for(Index x = 0; x < extra_cols; x++, r += rows){
-          Packet4f result_block = pload_partial<Packet4f>(r, extra_rows);
+          Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
           result_block = pmadd(acc[i][x], pAlpha, result_block);
-          pstore_partial<float>(r, result_block, extra_rows, 0);
+          pstoreu_partial<float>(r, result_block, extra_rows);
         }
       }
       else{
@@ -172,8 +172,9 @@ __asm__("# Start asm!\n\t");
   ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
 
   for(Index j = 0; j < cols; j++){
+    const DataMapper res2 = res.getSubMapper(0, j);
     for(Index i = 0; i < rows; i++){
-      result[j*rows + i] = res(i,j);
+      result[j*rows + i] = res2(i,0);
     }
   }
 
@@ -262,6 +263,7 @@ __asm__("# Start asm!\n\t");
 
   //Convert back to bfloat16
   for(col = 0; col + 4 <= cols; col += 4){
+    const DataMapper res2 = res.getSubMapper(0, col);
     Index row;
     for(row = 0; row + 8 <= rows; row += 8){
       //get and save block
@@ -272,12 +274,12 @@ __asm__("# Start asm!\n\t");
         block.packet[j].m_val = vec_pack(reinterpret_cast<Packet4ui>(fp16_0), reinterpret_cast<Packet4ui>(fp16_1));
       }
 
-      res.template storePacketBlock<Packet8bf,4>(row, col, block);
+      res2.template storePacketBlock<Packet8bf,4>(row, 0, block);
     }
     //extra rows
     while(row < rows){
       for(Index col_off = 0; col_off < 4; col_off++){
-        res(row, col+col_off) = Eigen::bfloat16(result[(col+col_off)*rows+row]);
+        res2(row, col_off) = Eigen::bfloat16(result[(col+col_off)*rows+row]);
       }
       row++;
     }
@@ -285,8 +287,9 @@ __asm__("# Start asm!\n\t");
   }
   //extra cols
   while(col < cols){
+    const DataMapper res2 = res.getSubMapper(0, col);
     for(Index r= 0; r< rows; r++){
-      res(r, col) = Eigen::bfloat16(result[col*rows + r]);
+      res2(r, 0) = Eigen::bfloat16(result[col*rows + r]);
     }
     col++;
   }
