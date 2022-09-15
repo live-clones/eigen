@@ -8,8 +8,8 @@ namespace internal {
 EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, Packet4f& acc, const Packet4f& pAlpha)
 {
   Packet4f result_block = ploadu<Packet4f>(result);
-  Packet4f packet_pmadd = pmadd(acc, pAlpha, result_block);
-  pstoreu(result, packet_pmadd);
+  result_block = pmadd(acc, pAlpha, result_block);
+  pstoreu(result, result_block);
 }
 
 template<Index num_packets, bool zero>
@@ -129,8 +129,11 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     for(; k + 2 <= depth; k += 2){
       KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
     }
-    for(Index i = 0; i < num_acc; i++){
+
+    for(Index i = 0; i < num_acc; i++)
       __builtin_mma_disassemble_acc((void*)acc[i], &(quad_acc[i]));
+
+    for(Index i = 0; i < num_acc; i++){
       if(lhsExtraRows){
         float *r = result + (col+i*4)*rows + row;
         for(Index x = 0; x < extra_cols; x++, r += rows){
@@ -141,13 +144,15 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       }
       else{
         if(rhsExtraCols){
-          for(Index x = 0; x < cols-col; x++){
-            scaleAndStore(result + ((col+i*4)+x)*rows + row + offset_row,acc[i][x], pAlpha);
+          float *r = result + (col+i*4)*rows + row + offset_row;
+          for(Index x = 0; x < cols-col; x++, r += rows){
+            scaleAndStore(r,acc[i][x], pAlpha);
           }
         }
         else{
-          for(Index x = 0; x < 4; x++){
-            scaleAndStore(result + ((col+i*4)+x)*rows + (block_index*16) + offset_row,acc[i][x], pAlpha);
+          float *r = result + (col+i*4)*rows + (block_index*16) + offset_row;
+          for(Index x = 0; x < 4; x++, r += rows){
+            scaleAndStore(r,acc[i][x], pAlpha);
           }
         }
       }
