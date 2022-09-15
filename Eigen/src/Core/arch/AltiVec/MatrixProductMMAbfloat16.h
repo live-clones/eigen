@@ -30,14 +30,14 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index st
 {
   Index row_count = 0;
   if (zero) {
-    EIGEN_ALIGN16 bfloat16 lhs_array[6] = { Eigen::bfloat16(0) };
+    EIGEN_ALIGN16 bfloat16 lhs_array[8] = { Eigen::bfloat16(0) };
     do{
       lhs_array[row_count] = *indexA;
       indexA += strideA;
     } while ((row_count += 2) < extra_rows*2);
     return pload_partial<Packet8bf>(lhs_array, extra_rows*2);
   } else {
-    EIGEN_ALIGN16 int lhs_array[3];
+    EIGEN_ALIGN16 int lhs_array[4];
     do{
       lhs_array[row_count] = *reinterpret_cast<const int *>(indexA);
       indexA += strideA;
