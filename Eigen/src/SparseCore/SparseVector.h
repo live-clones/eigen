@@ -349,7 +349,8 @@ class SparseVector
     template<typename Lhs, typename Rhs>
     inline SparseVector& operator=(const SparseSparseProduct<Lhs,Rhs>& product)
     {
-      return Base::operator=(product);
+      Base::operator=(product);
+      return *this;
     }
     #endif
 

@@ -149,9 +149,9 @@ public:
         /* TODO check flags */
     }
 
-    inline Derived & operator=(const Derived& other) {
+    inline SkylineMatrixBase & operator=(const Derived& other) {
         this->operator=<Derived > (other);
-        return derived();
+        return *this;
     }
 
     template<typename OtherDerived>
@@ -166,12 +166,12 @@ public:
     }
 
     template<typename OtherDerived>
-            inline Derived & operator=(const SkylineMatrixBase<OtherDerived>& other) {
+            inline SkylineMatrixBase & operator=(const SkylineMatrixBase<OtherDerived>& other) {
         //TODO
     }
 
     template<typename Lhs, typename Rhs>
-            inline Derived & operator=(const SkylineProduct<Lhs, Rhs, SkylineTimeSkylineProduct>& product);
+            inline SkylineMatrixBase & operator=(const SkylineProduct<Lhs, Rhs, SkylineTimeSkylineProduct>& product);
 
     friend std::ostream & operator <<(std::ostream & s, const SkylineMatrixBase& m) {
         s << m.derived();

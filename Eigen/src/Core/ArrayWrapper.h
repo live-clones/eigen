@@ -47,6 +47,14 @@ class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> >
     typedef ArrayBase<ArrayWrapper> Base;
     EIGEN_DENSE_PUBLIC_INTERFACE(ArrayWrapper)
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ArrayWrapper)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(ArrayWrapper)
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    ArrayWrapper& operator=(const ArrayBase<ExpressionType>& other) { Base::operator=(other); return *this; }
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    ArrayWrapper& operator=(const Scalar &value) { Base::operator=(value); return *this; }
+
     typedef internal::remove_all_t<ExpressionType> NestedExpression;
 
     typedef std::conditional_t<
@@ -145,6 +153,7 @@ class MatrixWrapper : public MatrixBase<MatrixWrapper<ExpressionType> >
     typedef MatrixBase<MatrixWrapper<ExpressionType> > Base;
     EIGEN_DENSE_PUBLIC_INTERFACE(MatrixWrapper)
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(MatrixWrapper)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(MatrixWrapper)
     typedef internal::remove_all_t<ExpressionType> NestedExpression;
 
     typedef std::conditional_t<

@@ -73,20 +73,20 @@ class PermutationBase : public EigenBase<Derived>
 
     /** Copies the other permutation into *this */
     template<typename OtherDerived>
-    Derived& operator=(const PermutationBase<OtherDerived>& other)
+    PermutationBase& operator=(const PermutationBase<OtherDerived>& other)
     {
       indices() = other.indices();
-      return derived();
+      return *this;
     }
 
     /** Assignment from the Transpositions \a tr */
     template<typename OtherDerived>
-    Derived& operator=(const TranspositionsBase<OtherDerived>& tr)
+    PermutationBase& operator=(const TranspositionsBase<OtherDerived>& tr)
     {
       setIdentity(tr.size());
       for(Index k=size()-1; k>=0; --k)
         applyTranspositionOnTheRight(k,tr.coeff(k));
-      return derived();
+      return *this;
     }
 
     /** \returns the number of rows */
@@ -355,7 +355,8 @@ class PermutationMatrix : public PermutationBase<PermutationMatrix<SizeAtCompile
     template<typename Other>
     PermutationMatrix& operator=(const TranspositionsBase<Other>& tr)
     {
-      return Base::operator=(tr.derived());
+      Base::operator=(tr.derived());
+      return *this;
     }
 
     /** const version of indices(). */
@@ -426,12 +427,12 @@ class Map<PermutationMatrix<SizeAtCompileTime, MaxSizeAtCompileTime, StorageInde
     /** Copies the other permutation into *this */
     template<typename Other>
     Map& operator=(const PermutationBase<Other>& other)
-    { return Base::operator=(other.derived()); }
+    { Base::operator=(other.derived()); return *this; }
 
     /** Assignment from the Transpositions \a tr */
     template<typename Other>
     Map& operator=(const TranspositionsBase<Other>& tr)
-    { return Base::operator=(tr.derived()); }
+    { Base::operator=(tr.derived()); return *this; }
 
     #ifndef EIGEN_PARSED_BY_DOXYGEN
     /** This is a special case of the templated operator=. Its purpose is to

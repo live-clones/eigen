@@ -1077,6 +1077,21 @@ namespace Eigen {
     }
 #endif
 
+#if EIGEN_COMP_CLANG
+#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Type) \
+  template<typename OtherDerived> \
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Type& operator=(const EigenBase<OtherDerived> &other)  { Base::operator=(other); return *this; } \
+  template<typename OtherDerived> \
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Type& operator=(const ReturnByValue<OtherDerived>& other)  { Base::operator=(other); return *this; }
+#else
+#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Type) \
+  template<typename OtherDerived> \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Type& operator=(const DenseBase<OtherDerived>& other) { Base::operator=(other); return *this; } \
+  template<typename OtherDerived> \
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Type& operator=(const EigenBase<OtherDerived> &other)  { Base::operator=(other); return *this; } \
+  template<typename OtherDerived> \
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Type& operator=(const ReturnByValue<OtherDerived>& other)  { Base::operator=(other); return *this; }
+#endif
 
 /**
  * \internal

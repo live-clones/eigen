@@ -159,6 +159,15 @@ template<typename PlainObjectType, int MapOptions, typename StrideType> class Ma
     }
 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Map)
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    Map& operator=(const Scalar &value)
+    {
+      EIGEN_STATIC_ASSERT_ARRAYXPR(PlainObjectType);
+      Base::operator=(value);
+      return *this;
+    }
 
   protected:
     StrideType m_stride;

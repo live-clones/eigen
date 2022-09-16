@@ -200,7 +200,8 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const MatrixBa
 {
   // Since a direct conversion would not be really faster,
   // let's use the robust Quaternion implementation:
-  return *this = QuaternionType(mat);
+  *this = QuaternionType(mat);
+  return *this;
 }
 
 /**
@@ -210,7 +211,8 @@ template<typename Scalar>
 template<typename Derived>
 EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const MatrixBase<Derived>& mat)
 {
-  return *this = QuaternionType(mat);
+  *this = QuaternionType(mat);
+  return *this;
 }
 
 /** Constructs and \returns an equivalent 3x3 rotation matrix.

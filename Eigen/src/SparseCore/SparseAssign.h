@@ -16,36 +16,36 @@ namespace Eigen {
 
 template<typename Derived>    
 template<typename OtherDerived>
-Derived& SparseMatrixBase<Derived>::operator=(const EigenBase<OtherDerived> &other)
+SparseMatrixBase<Derived>& SparseMatrixBase<Derived>::operator=(const EigenBase<OtherDerived> &other)
 {
   internal::call_assignment_no_alias(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
 template<typename OtherDerived>
-Derived& SparseMatrixBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other)
+SparseMatrixBase<Derived>& SparseMatrixBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other)
 {
   // TODO use the evaluator mechanism
   other.evalTo(derived());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
 template<typename OtherDerived>
-inline Derived& SparseMatrixBase<Derived>::operator=(const SparseMatrixBase<OtherDerived>& other)
+inline SparseMatrixBase<Derived>& SparseMatrixBase<Derived>::operator=(const SparseMatrixBase<OtherDerived>& other)
 {
   // by default sparse evaluation do not alias, so we can safely bypass the generic call_assignment routine
   internal::Assignment<Derived,OtherDerived,internal::assign_op<Scalar,typename OtherDerived::Scalar> >
           ::run(derived(), other.derived(), internal::assign_op<Scalar,typename OtherDerived::Scalar>());
-  return derived();
+  return *this;
 }
 
 template<typename Derived>
-inline Derived& SparseMatrixBase<Derived>::operator=(const Derived& other)
+inline SparseMatrixBase<Derived>& SparseMatrixBase<Derived>::operator=(const Derived& other)
 {
   internal::call_assignment_no_alias(derived(), other.derived());
-  return derived();
+  return *this;
 }
 
 namespace internal {

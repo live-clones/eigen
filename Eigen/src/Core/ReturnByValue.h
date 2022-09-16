@@ -83,10 +83,10 @@ template<typename Derived> class ReturnByValue
 
 template<typename Derived>
 template<typename OtherDerived>
-EIGEN_DEVICE_FUNC Derived& DenseBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other)
+EIGEN_DEVICE_FUNC DenseBase<Derived>& DenseBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other)
 {
   other.evalTo(derived());
-  return derived();
+  return *this;
 }
 
 namespace internal {

@@ -75,6 +75,15 @@ class CwiseUnaryView : public CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
       : m_matrix(mat), m_functor(func) {}
 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryView)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(CwiseUnaryView)
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    CwiseUnaryView& operator=(const Scalar &value)
+    {
+      EIGEN_STATIC_ASSERT_ARRAYXPR(MatrixType);
+      Base::operator=(value);
+      return *this;
+    }
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR
     Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }

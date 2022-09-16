@@ -90,6 +90,7 @@ template<typename MatrixType, int Direction> class Reverse
     EIGEN_DEVICE_FUNC explicit inline Reverse(const MatrixType& matrix) : m_matrix(matrix) { }
 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Reverse)
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(Reverse)
 
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     inline Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }

@@ -96,7 +96,7 @@ class TensorStorage<T, DSizes<IndexType, NumIndices_>, Options_>
     {
       internal::smart_copy(other.m_data, other.m_data+internal::array_prod(other.m_dimensions), m_data);
     }
-    EIGEN_DEVICE_FUNC Self& operator=(const Self& other)
+    EIGEN_DEVICE_FUNC TensorStorage& operator=(const Self& other)
     {
       if (this != &other) {
         Self tmp(other);
@@ -110,7 +110,7 @@ class TensorStorage<T, DSizes<IndexType, NumIndices_>, Options_>
       *this = std::move(other);
     }
     
-    EIGEN_DEVICE_FUNC Self& operator=(Self&& other)
+    EIGEN_DEVICE_FUNC TensorStorage& operator=(Self&& other)
     {
       numext::swap(m_data, other.m_data);
       numext::swap(m_dimensions, other.m_dimensions);

@@ -62,7 +62,7 @@ namespace Eigen {
     inline operator T& () { return *static_cast<T*>(this); }
     inline operator const T& () const { return *static_cast<const T*>(this); }
     template<typename OtherT>
-    inline T& operator=(const OtherT& other)
+    inline workaround_msvc_stl_support& operator=(const OtherT& other)
     { T::operator=(other); return *this; }
     inline workaround_msvc_stl_support& operator=(const workaround_msvc_stl_support& other)
     { T::operator=(other); return *this; }

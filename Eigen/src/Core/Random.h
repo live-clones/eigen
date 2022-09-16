@@ -131,7 +131,8 @@ DenseBase<Derived>::Random()
 template<typename Derived>
 EIGEN_DEVICE_FUNC inline Derived& DenseBase<Derived>::setRandom()
 {
-  return *this = Random(rows(), cols());
+  *this = Random(rows(), cols());
+  return derived();
 }
 
 /** Resizes to the given \a newSize, and sets all coefficients in this expression to random values.

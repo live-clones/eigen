@@ -485,7 +485,7 @@ public:
   }
 
   template<typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline Transform& operator*=(const EigenBase<OtherDerived>& other) { return *this = *this * other; }
+  EIGEN_DEVICE_FUNC inline Transform& operator*=(const EigenBase<OtherDerived>& other) { *this = *this * other; return *this; }
 
   /** Concatenates two transformations */
   EIGEN_DEVICE_FUNC inline const Transform operator * (const Transform& other) const

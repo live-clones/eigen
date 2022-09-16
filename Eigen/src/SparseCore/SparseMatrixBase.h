@@ -54,7 +54,7 @@ template<typename Derived> class SparseMatrixBase
     typedef Matrix<Scalar,Dynamic,1> ScalarVector;
     
     template<typename OtherDerived>
-    Derived& operator=(const EigenBase<OtherDerived> &other);
+    SparseMatrixBase& operator=(const EigenBase<OtherDerived> &other);
 
     enum {
 
@@ -198,12 +198,12 @@ template<typename Derived> class SparseMatrixBase
 
     
     template<typename OtherDerived>
-    Derived& operator=(const ReturnByValue<OtherDerived>& other);
+    SparseMatrixBase& operator=(const ReturnByValue<OtherDerived>& other);
 
     template<typename OtherDerived>
-    inline Derived& operator=(const SparseMatrixBase<OtherDerived>& other);
+    inline SparseMatrixBase& operator=(const SparseMatrixBase<OtherDerived>& other);
 
-    inline Derived& operator=(const Derived& other);
+    inline SparseMatrixBase& operator=(const Derived& other);
 
   protected:
 

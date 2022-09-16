@@ -71,6 +71,7 @@ template<typename VectorType, int Size> class VectorBlock
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(VectorBlock)
 
     using Base::operator=;
+    EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR_DenseBase(VectorBlock)
 
     /** Dynamic-size constructor
       */

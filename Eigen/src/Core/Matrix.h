@@ -237,14 +237,16 @@ class Matrix
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     EIGEN_STRONG_INLINE Matrix& operator=(const EigenBase<OtherDerived> &other)
     {
-      return Base::operator=(other);
+      Base::operator=(other);
+      return *this;
     }
 
     template<typename OtherDerived>
     EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
     EIGEN_STRONG_INLINE Matrix& operator=(const ReturnByValue<OtherDerived>& func)
     {
-      return Base::operator=(func);
+      Base::operator=(func);
+      return *this;
     }
 
     /** \brief Default constructor.

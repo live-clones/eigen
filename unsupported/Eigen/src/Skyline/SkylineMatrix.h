@@ -680,7 +680,8 @@ public:
             //            return *this;
         } else {
             // there is no special optimization
-            return SkylineMatrixBase<SkylineMatrix>::operator=(other.derived());
+            SkylineMatrixBase<SkylineMatrix>::operator=(other.derived());
+            return *this;
         }
     }
 
