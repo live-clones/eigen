@@ -7,6 +7,25 @@
 #ifndef EIGEN_LIBDIVIDESUPPORT_MODULE_H
 #define EIGEN_LIBDIVIDESUPPORT_MODULE_H
 
+namespace Eigen {
+namespace internal {
+#define IS_LIBDIVIDE_TYPE(T)(                      \
+   Eigen::internal::is_same<T, uint16_t>::value || \
+   Eigen::internal::is_same<T,  int16_t>::value || \
+   Eigen::internal::is_same<T, uint32_t>::value || \
+   Eigen::internal::is_same<T,  int32_t>::value || \
+   Eigen::internal::is_same<T, uint64_t>::value || \
+   Eigen::internal::is_same<T,  int64_t>::value)
+
+#define SRC_IS_REPRESENTABLE_AS_DST(SRC, DST)                                        \
+   ( Eigen::NumTraits<SRC>::IsInteger && Eigen::NumTraits<DST>::IsInteger) && \
+   (!Eigen::NumTraits<SRC>::IsSigned  || Eigen::NumTraits<DST>::IsSigned)  && \
+   ( Eigen::NumTraits<SRC>::digits()  <= Eigen::NumTraits<DST>::digits())
+
+#define IS_LIBDIVIDE_COMPATIBLE(NUM, DEN) (IS_LIBDIVIDE_TYPE(NUM)) && (SRC_IS_REPRESENTABLE_AS_DST(DEN, NUM))
+}  // namespace internal
+}  // namespace Eigen
+
 #include "Core"
 #include "src/LibdivideSupport/LibdivideSupport.h"
 

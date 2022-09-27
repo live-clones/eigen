@@ -381,7 +381,7 @@ template<typename Derived> class DenseBase
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator*=(const Scalar& other);
-    #ifndef EIGEN_LIBDIVIDESUPPORT_H
+    #ifndef EIGEN_LIBDIVIDESUPPORT_MODULE_H
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator/=(const Scalar& other);
     #else
