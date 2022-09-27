@@ -381,9 +381,14 @@ template<typename Derived> class DenseBase
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator*=(const Scalar& other);
+    #ifndef EIGEN_LIBDIVIDESUPPORT_H
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     Derived& operator/=(const Scalar& other);
-
+    #else
+    template<typename DivisorScalar>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+    Derived& operator/=(const DivisorScalar& other);
+    #endif // !EIGEN_LIBDIVIDESUPPORT_H
     typedef internal::add_const_on_value_type_t<typename internal::eval<Derived>::type> EvalReturnType;
     /** \returns the matrix or vector obtained by evaluating this expression.
       *
