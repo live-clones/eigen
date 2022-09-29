@@ -31,16 +31,10 @@ namespace internal {
 
     template <typename SrcScalar, typename DstScalar>
     struct integer_is_representable {
-        static constexpr bool SrcIsInteger = Eigen::NumTraits<SrcScalar>::IsInteger;
-        static constexpr bool SrcIsSigned =  Eigen::NumTraits<SrcScalar>::IsSigned;
-        static constexpr int  SrcDigits =    Eigen::NumTraits<SrcScalar>::digits();
-        static constexpr bool DstIsInteger = Eigen::NumTraits<DstScalar>::IsInteger;
-        static constexpr bool DstIsSigned =  Eigen::NumTraits<DstScalar>::IsSigned;
-        static constexpr int  DstDigits =    Eigen::NumTraits<DstScalar>::digits();
         static constexpr bool value =        
-            (SrcIsInteger && DstIsInteger) &&
-            (!SrcIsSigned || DstIsSigned) &&
-            (SrcDigits <= DstDigits);
+            ( Eigen::NumTraits<SrcScalar>::IsInteger && Eigen::NumTraits<DstScalar>::IsInteger) &&
+            (!Eigen::NumTraits<SrcScalar>::IsSigned  || Eigen::NumTraits<DstScalar>::IsSigned ) &&
+            ( Eigen::NumTraits<SrcScalar>::digits()  <= Eigen::NumTraits<DstScalar>::digits() );
     };
 
     template <typename SrcScalar, typename DstScalar>
@@ -80,22 +74,23 @@ namespace internal {
     static constexpr bool is_libdivide_type_v = is_libdivide_type<Scalar>::value;
 
     template <typename Scalar, typename DivisorScalar>
-    static constexpr bool is_valid_libdivide_op = is_libdivide_type_v<Scalar> && integer_is_representable_v<DivisorScalar, Scalar>;
+    static constexpr bool is_valid_libdivide_op =
+        is_libdivide_type_v<Scalar> && integer_is_representable_v<DivisorScalar, Scalar>;
 
-template <typename Scalar, typename DivisorScalar>
+    template <typename Scalar, typename DivisorScalar>
     struct scalar_libdivide_op {
-      EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE scalar_libdivide_op(const DivisorScalar& divisor)
+      EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      scalar_libdivide_op(const DivisorScalar& divisor)
           : m_divisor(static_cast<Scalar>(divisor)) {
         EIGEN_STATIC_ASSERT((is_valid_libdivide_op<Scalar, DivisorScalar>),
                             SCALAR_MUST_BE_LIBDIVIDE_TYPE_AND_DIVISOR_MUST_BE_REPRESENTABLE_AS_SCALAR);
         eigen_assert(divisor != 0);
       }
-      EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const { return m_divisor.divide(a); }
+      EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      Scalar operator()(const Scalar& a) const { return m_divisor.divide(a); }
       template <typename Packet>
-      EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-        return m_divisor.divide(a);
-      }
-
+      EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      Packet packetOp  (const Packet& a) const { return m_divisor.divide(a); }
      protected:
       const libdivide::divider<Scalar> m_divisor;
     };
@@ -104,33 +99,31 @@ template <typename Scalar, typename DivisorScalar>
     struct functor_traits<scalar_libdivide_op<Scalar, DivisorScalar>> {
       enum {
         PacketAccess = !is_same<typename packet_traits<Scalar>::type, Scalar>::value,
-        Cost = scalar_div_cost<Scalar, PacketAccess>::value
+        Cost = scalar_div_cost<Scalar, PacketAccess>::value / 2
       };
     };
 }  // namespace internal
 
-template <typename Scalar, typename DivisorScalar>
-using LibdivideOp = internal::scalar_libdivide_op<Scalar, DivisorScalar>;
-
 template <typename Derived, typename DivisorScalar>
 using CwiseLibdivideReturnType = std::enable_if_t<internal::is_valid_libdivide_op<typename Derived::Scalar, DivisorScalar>,
-                                                  CwiseUnaryOp<LibdivideOp<typename Derived::Scalar, DivisorScalar>, const Derived>>;
+                                                  CwiseUnaryOp<internal::scalar_libdivide_op<typename Derived::Scalar, DivisorScalar>, const Derived>>;
 
 template <typename Derived, typename DivisorScalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 CwiseLibdivideReturnType<Derived, DivisorScalar> libdivideQuotient(const DenseBase<Derived>& lhs, const DivisorScalar& rhs) {
-    typedef typename Derived::Scalar Scalar;
-    return CwiseLibdivideReturnType<Derived, DivisorScalar>(lhs.derived(), LibdivideOp<Scalar, DivisorScalar>(rhs));
+    const internal::scalar_libdivide_op<typename Derived::Scalar, DivisorScalar> libdivideOp(rhs);
+    const CwiseLibdivideReturnType<Derived, DivisorScalar> libdivideExpr(lhs.derived(), libdivideOp);
+    return libdivideExpr;
 }
 template <typename Derived, typename DivisorScalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 CwiseLibdivideReturnType<Derived, DivisorScalar> operator/(const ArrayBase<Derived>& lhs, const DivisorScalar& rhs) {
-    return libdivideQuotient(lhs, rhs);
+    return libdivideQuotient(lhs.derived(), rhs);
 }
 template <typename Derived, typename DivisorScalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 CwiseLibdivideReturnType<Derived, DivisorScalar> operator/(const MatrixBase<Derived>& lhs, const DivisorScalar& rhs) {
-    return libdivideQuotient(lhs, rhs);
+    return libdivideQuotient(lhs.derived(), rhs);
 }
 
 }  // namespace Eigen

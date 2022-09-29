@@ -49,12 +49,11 @@ struct quotient_helper
 {
 	// Derived::Scalar is not a libdivide type and/or DivisorScalar is not representable as one
 	typedef typename Derived::Scalar Scalar;
-	typedef typename Derived::PlainObject PlainObject;
 	static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& run(Derived& lhs, const DivisorScalar& other)
 	{
 		// preserve current behavior for non-libdivide expressions : implicit conversion of DivisorScalar to Scalar
 		// todo: investigate impact of fixing current behavior, the root cause of which is PlainObject::Constant
-		internal::call_assignment(lhs.derived(), PlainObject::Constant(lhs.rows(), lhs.cols(), static_cast<Scalar>(other)), internal::div_assign_op<Scalar, Scalar>());
+		internal::call_assignment(lhs.derived(), typename Derived::PlainObject::Constant(lhs.rows(), lhs.cols(), static_cast<Scalar>(other)), internal::div_assign_op<Scalar, Scalar>());
 		return lhs.derived();
 	}
 };
@@ -62,13 +61,12 @@ template<typename Derived, typename DivisorScalar>
 struct quotient_helper<Derived,DivisorScalar,true>
 {
 	// Derived::Scalar is a libdivide type and DivisorScalar can be represented as one
-	typedef typename Derived::Scalar Scalar;
-	typedef internal::scalar_libdivide_op<Scalar, DivisorScalar> LibdivideOp;
-	typedef CwiseUnaryOp<LibdivideOp, const Derived> CwiseLibdivideReturnType;
+	typedef internal::scalar_libdivide_op<typename Derived::Scalar, DivisorScalar> LibdivideOp;
 	static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& run(Derived& lhs, const DivisorScalar& other)
 	{
-		// todo: is it necessary to define assignment ops?
-		internal::call_assignment(lhs.derived(), CwiseLibdivideReturnType(lhs.derived(), LibdivideOp(other)));
+		const LibdivideOp libdivideOp(other);
+		const CwiseUnaryOp<LibdivideOp, const Derived> libdivideExpr(lhs.derived(), libdivideOp);
+		internal::call_assignment(lhs.derived(), libdivideExpr);
 		return lhs.derived();
 	}
 };
