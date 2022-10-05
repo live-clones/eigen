@@ -49,13 +49,12 @@ template <typename Derived, typename DivisorScalar,
 struct quotient_helper {
   // Derived::Scalar is not a libdivide type and/or DivisorScalar is not representable as one
   typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::PlainObject::Constant ConstScalarExpr;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& run(Derived& lhs, const DivisorScalar& other) {
     // preserve current behavior for non-libdivide expressions : implicit conversion of DivisorScalar to Scalar
     // todo: investigate impact of fixing current behavior, the root cause of which is PlainObject::Constant
     internal::call_assignment(
         lhs.derived(), 
-        ConstScalarExpr(lhs.rows(), lhs.cols(), static_cast<Scalar>(other)),
+        Derived::PlainObject::Constant(lhs.rows(), lhs.cols(), static_cast<Scalar>(other)),
         internal::div_assign_op<Scalar, Scalar>());
     return lhs.derived();
   }
