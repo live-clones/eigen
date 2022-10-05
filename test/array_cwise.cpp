@@ -639,6 +639,15 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   m1 += ArrayType::Constant(rows,cols,Scalar(tiny));
   VERIFY_IS_CWISE_APPROX(s1/m1, s1 * m1.inverse());
 
+  #ifdef EIGEN_LIBDIVIDESUPPORT_MODULE_H
+  if (IS_LIBDIVIDE_TYPE(Scalar))
+  {
+      //force scalar_libdivide_op and scalar_constant_op paths
+      Scalar divisor = Scalar(2);
+      VERIFY_IS_CWISE_APPROX(m1.unaryExpr(internal::scalar_libdivide_op<Scalar, Scalar>(divisor)), m1.cwiseQuotient(m1.Constant(rows,cols,divisor)));
+  }
+  #endif
+
   // check inplace transpose
   m3 = m1;
   m3.transposeInPlace();

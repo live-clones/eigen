@@ -869,3 +869,7 @@ int main(int argc, char *argv[])
 #endif
 
 #include "gpu_test_helper.h"
+
+#ifndef EIGEN_LIBDIVIDESUPPORT_MODULE_H
+#include <Eigen/LibdivideSupport>
+#endif
