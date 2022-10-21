@@ -128,16 +128,16 @@ class SparseCompressedBase
       * \sa valuePtr(), isCompressed() */
     Map<Array<Scalar,Dynamic,1> > coeffs() { eigen_assert(isCompressed()); return Array<Scalar,Dynamic,1>::Map(valuePtr(),nonZeros()); }
 
-    /** sorts the inner vectors of a compressed matrix with respect to a comparator `Comp` (default: non-descending order).  
+    /** sorts the inner vectors with respect to a comparator `Comp` (default: non-descending order).  
       * \sa innerIndicesAreSorted() */
     template<class Comp = std::less<>>
     inline void sortInnerIndices(Index start, Index end)
     {
         // can do these in parallel
-        for (Index j = start; j < end; j++)
+        for (Index outer = start; outer < end; outer++)
         {
-            Index start_offset = outerIndexPtr()[j];
-            Index end_offset = isCompressed() ? outerIndexPtr()[j+1] : start_offset + innerNonZeroPtr()[j];
+            Index start_offset = outerIndexPtr()[outer];
+            Index end_offset = isCompressed() ? outerIndexPtr()[outer+1] : start_offset + innerNonZeroPtr()[outer];
             InnerSortIterator start_it(start_offset, innerIndexPtr(), valuePtr());
             InnerSortIterator end_it(end_offset, innerIndexPtr(), valuePtr());
             std::sort(start_it, end_it, Comp());
@@ -149,15 +149,15 @@ class SparseCompressedBase
     template<class Comp = std::less<>>
     inline Index innerIndicesAreSorted(Index start, Index end) const
     {
-        for (Index j = start; j < end; j++)
+        for (Index outer = start; outer < end; outer++)
         {
-            Index start_offset = outerIndexPtr()[j];
-            Index end_offset = isCompressed() ? outerIndexPtr()[j + 1] : start_offset + innerNonZeroPtr()[j];
+            Index start_offset = outerIndexPtr()[outer];
+            Index end_offset = isCompressed() ? outerIndexPtr()[outer + 1] : start_offset + innerNonZeroPtr()[outer];
             const StorageIndex* start_it = innerIndexPtr() + start_offset;
             const StorageIndex* end_it = innerIndexPtr() + end_offset;
             bool is_sorted = std::is_sorted(start_it, end_it, Comp());
             if (!is_sorted)
-                return j;
+                return outer;
         }
         return end;
     }
