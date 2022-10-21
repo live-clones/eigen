@@ -158,8 +158,8 @@ class SparseCompressedBase
         // can do these in parallel
         for (Index j = start; j < end; j++)
         {
-            StorageIndex* start_it = innerIndexPtr() + outerIndexPtr()[j];
-            StorageIndex* end_it = innerIndexPtr() + outerIndexPtr()[j+1];
+            const StorageIndex* start_it = innerIndexPtr() + outerIndexPtr()[j];
+            const StorageIndex* end_it = innerIndexPtr() + outerIndexPtr()[j+1];
             bool is_sorted = std::is_sorted(start_it, end_it, Comp());
             if (!is_sorted)
                 return false;
