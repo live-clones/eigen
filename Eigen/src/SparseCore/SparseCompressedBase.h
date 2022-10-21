@@ -128,58 +128,54 @@ class SparseCompressedBase
       * \sa valuePtr(), isCompressed() */
     Map<Array<Scalar,Dynamic,1> > coeffs() { eigen_assert(isCompressed()); return Array<Scalar,Dynamic,1>::Map(valuePtr(),nonZeros()); }
 
-    /** \sorts the inner vectors of a compressed matrix with respect to a comparator Comp (default: non-descending order).  
-      * 
-      * \This function only works on compressed matrices, and will do nothing and return false otherwise. 
-      *
-      * isCompressed() */
+    /** sorts the inner vectors of a compressed matrix with respect to a comparator `Comp` (default: non-descending order).  
+      * \sa innerIndicesAreSorted() */
     template<class Comp = std::less<>>
-    inline bool sortInnerIndices(Index start, Index end)
+    inline void sortInnerIndices(Index start, Index end)
     {
-        // Sorts innerIndexPtr() and valuePtr() in parallel without auxillary storage
-        // TODO: can we also sort non-compressed vectors?
-        if (!isCompressed())
-            return false;
         // can do these in parallel
         for (Index j = start; j < end; j++)
         {
-            InnerSortIterator start_it(outerIndexPtr()[j], innerIndexPtr(), valuePtr());
-            InnerSortIterator end_it(outerIndexPtr()[j+1], innerIndexPtr(), valuePtr());
+            Index start_offset = outerIndexPtr()[j];
+            Index end_offset = isCompressed() ? outerIndexPtr()[j+1] : start_offset + innerNonZeroPtr()[j];
+            InnerSortIterator start_it(start_offset, innerIndexPtr(), valuePtr());
+            InnerSortIterator end_it(end_offset, innerIndexPtr(), valuePtr());
             std::sort(start_it, end_it, Comp());
         }
-        return true;
     }
 
+    /** \returns the index of the first inner vector that is not sorted with respect to `Comp`, or `end` if the range is fully sorted
+      * \sa sortInnerIndices() */
     template<class Comp = std::less<>>
-    inline bool isSorted(Index start, Index end) const
+    inline Index innerIndicesAreSorted(Index start, Index end) const
     {
-        if (!isCompressed())
-            return false;
-        // can do these in parallel
         for (Index j = start; j < end; j++)
         {
-            const StorageIndex* start_it = innerIndexPtr() + outerIndexPtr()[j];
-            const StorageIndex* end_it = innerIndexPtr() + outerIndexPtr()[j+1];
+            Index start_offset = outerIndexPtr()[j];
+            Index end_offset = isCompressed() ? outerIndexPtr()[j + 1] : start_offset + innerNonZeroPtr()[j];
+            const StorageIndex* start_it = innerIndexPtr() + start_offset;
+            const StorageIndex* end_it = innerIndexPtr() + end_offset;
             bool is_sorted = std::is_sorted(start_it, end_it, Comp());
             if (!is_sorted)
-                return false;
+                return j;
         }
-        return true;
+        return end;
+    }
+        
+    template<class Comp = std::less<>>
+    inline void sortInnerIndices()
+    {
+        Index start = 0;
+        Index end = derived().outerSize();
+        sortInnerIndices<Comp>(start, end);
     }
 
     template<class Comp = std::less<>>
-    inline bool sortInnerIndices()
+    inline Index innerIndicesAreSorted() const
     {
         Index start = 0;
         Index end = derived().outerSize();
-        return sortInnerIndices<Comp>(start, end);
-    }
-    template<class Comp = std::less<>>
-    inline bool isSorted() const
-    {
-        Index start = 0;
-        Index end = derived().outerSize();
-        return isSorted<Comp>(start, end);
+        return innerIndicesAreSorted<Comp>(start, end);
     }
 
   protected:
