@@ -127,7 +127,7 @@ class SparseCompressedBase
       * \sa valuePtr(), isCompressed() */
     Map<Array<Scalar,Dynamic,1> > coeffs() { eigen_assert(isCompressed()); return Array<Scalar,Dynamic,1>::Map(valuePtr(),nonZeros()); }
     
-    /** sorts the inner vectors in the range [begin,end) with respect to a comparator `Comp` (default: non-descending order).  
+    /** sorts the inner vectors in the range [begin,end) with respect to `Comp`  
       * \sa innerIndicesAreSorted() */
     template <class Comp = std::less<>>
     inline void sortInnerIndices(Index begin, Index end) { sortInnerIndices_impl<Comp>(begin, end); }
@@ -137,7 +137,7 @@ class SparseCompressedBase
     template<class Comp = std::less<>>
     inline Index innerIndicesAreSorted(Index begin, Index end) const { return innerIndicesAreSorted_impl<Comp>(begin, end); }
 
-    /** sorts the inner vectors in the range [0,outerSize) with respect to a comparator `Comp` (default: non-descending order).
+    /** sorts the inner vectors in the range [0,outerSize) with respect to `Comp`
       * \sa innerIndicesAreSorted() */
     template <class Comp = std::less<>>
     inline void sortInnerIndices() { sortInnerIndices_impl<Comp>(0, derived().outerSize()); }
