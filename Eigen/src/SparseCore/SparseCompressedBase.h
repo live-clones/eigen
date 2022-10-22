@@ -133,11 +133,12 @@ class SparseCompressedBase
     template<class Comp = std::less<>>
     inline void sortInnerIndices(Index start, Index end)
     {
+        const bool is_compressed = isCompressed();
         // can do these in parallel
         for (Index outer = start; outer < end; outer++)
         {
             Index start_offset = outerIndexPtr()[outer];
-            Index end_offset = isCompressed() ? outerIndexPtr()[outer+1] : start_offset + innerNonZeroPtr()[outer];
+            Index end_offset = is_compressed ? outerIndexPtr()[outer+1] : start_offset + innerNonZeroPtr()[outer];
             InnerSortIterator start_it(start_offset, innerIndexPtr(), valuePtr());
             InnerSortIterator end_it(end_offset, innerIndexPtr(), valuePtr());
             std::sort(start_it, end_it, Comp());
@@ -149,10 +150,12 @@ class SparseCompressedBase
     template<class Comp = std::less<>>
     inline Index innerIndicesAreSorted(Index start, Index end) const
     {
+        const bool is_compressed = isCompressed();
+
         for (Index outer = start; outer < end; outer++)
         {
             Index start_offset = outerIndexPtr()[outer];
-            Index end_offset = isCompressed() ? outerIndexPtr()[outer + 1] : start_offset + innerNonZeroPtr()[outer];
+            Index end_offset = is_compressed ? outerIndexPtr()[outer + 1] : start_offset + innerNonZeroPtr()[outer];
             const StorageIndex* start_it = innerIndexPtr() + start_offset;
             const StorageIndex* end_it = innerIndexPtr() + end_offset;
             bool is_sorted = std::is_sorted(start_it, end_it, Comp());
@@ -363,9 +366,10 @@ public:
     using Scalar = typename Derived::Scalar;
     using StorageIndex = typename Derived::StorageIndex;
     using InnerSortVal = std::pair<StorageIndex, Scalar>;
-
-    inline InnerSortRef(StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
-    inline InnerSortRef(const InnerSortRef& other) : m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
+        
+    InnerSortRef() = delete;
+    InnerSortRef(StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
+    InnerSortRef(const InnerSortRef& other) : m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
 
     inline InnerSortRef& operator=(InnerSortRef&& other)
     {
@@ -414,36 +418,22 @@ public:
     using pointer = value_type*;
     using reference = InnerSortRef<Derived>;
 
-    inline InnerSortIterator(Index index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
+    InnerSortIterator() = delete;
+    InnerSortIterator(Index index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
+    InnerSortIterator(const InnerSortIterator& other) : m_index(other.m_index), m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
 
     inline bool operator==(const InnerSortIterator& other) const { return m_index == other.m_index; }
     inline bool operator!=(const InnerSortIterator& other) const { return m_index != other.m_index; }
-
-    inline InnerSortIterator operator+(difference_type offset) const { return { m_index + offset, m_innerIndexPtr, m_valuePtr }; }
-    inline InnerSortIterator operator-(difference_type offset) const { return { m_index - offset, m_innerIndexPtr, m_valuePtr }; }
-
-    inline difference_type operator-(const InnerSortIterator& other) const
-    {
-        return difference_type(m_index) - difference_type(other.m_index);
-    }
-
-    inline InnerSortIterator& operator++()
-    {
-        ++m_index;
-        return *this;
-    }
-    inline InnerSortIterator& operator--()
-    {
-        --m_index;
-        return *this;
-    }
-
-    inline bool operator<(const InnerSortIterator& other) const { return m_index < other.m_index; }
-
+    inline bool operator< (const InnerSortIterator& other) const { return m_index <  other.m_index; }
+    inline InnerSortIterator operator+(difference_type offset) const { return InnerSortIterator(m_index + offset, m_innerIndexPtr, m_valuePtr); }
+    inline InnerSortIterator operator-(difference_type offset) const { return InnerSortIterator(m_index - offset, m_innerIndexPtr, m_valuePtr); }
+    inline difference_type operator-(const InnerSortIterator& other) const { return m_index - other.m_index; }
+    inline InnerSortIterator& operator++() { ++m_index; return *this; }
+    inline InnerSortIterator& operator--() { --m_index; return *this; }
     inline reference operator*() const { return reference(m_innerIndexPtr + m_index, m_valuePtr + m_index); }
 
 protected:
-    Index m_index;
+    difference_type m_index;
     StorageIndex* m_innerIndexPtr;
     Scalar* m_valuePtr;
 };
