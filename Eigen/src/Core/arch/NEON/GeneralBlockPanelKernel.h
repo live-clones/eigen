@@ -183,7 +183,7 @@ struct gebp_traits <double,double,false,false,Architecture::NEON>
   }
 };
 
-#if EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+#if EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC && EIGEN_COMP_CLANG
 
 template<>
 struct gebp_traits <half,half,false,false,Architecture::NEON>
@@ -240,19 +240,13 @@ struct gebp_traits <half,half,false,false,Architecture::NEON>
   template<int LaneID>
   EIGEN_STRONG_INLINE void madd_helper(const LhsPacket& a, const RhsPacketx4& b, AccPacket& c) const
   {
-    #if EIGEN_COMP_GNUC_STRICT
-    // 1. vfmaq_lane_f16 is implemented through a costly dup
-    // 2. workaround the gcc register split problem on arm64-neon
-         if(LaneID==0)  asm("fmla %0.8h, %1.8h, %2.h[0]\n" : "+w" (c) : "w" (a), "w" (b) :  );
-    else if(LaneID==1)  asm("fmla %0.8h, %1.8h, %2.h[1]\n" : "+w" (c) : "w" (a), "w" (b) :  );
-    else if(LaneID==2)  asm("fmla %0.8h, %1.8h, %2.h[2]\n" : "+w" (c) : "w" (a), "w" (b) :  );
-    else if(LaneID==3)  asm("fmla %0.8h, %1.8h, %2.h[3]\n" : "+w" (c) : "w" (a), "w" (b) :  );
-    #else
+    // The register at operand 3 of fmla for data type half must be v0~v15,
+    // inline assembly can't be used here to advoid the bug that vfmaq_lane_f16
+    // is implemented through a costly dup in gcc compiler.
     c = vfmaq_lane_f16(c, a, b, LaneID);
-    #endif
   }
 };
-#endif // EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+#endif // EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC && EIGEN_COMP_CLANG
 #endif // EIGEN_ARCH_ARM64
 
 }  // namespace internal
