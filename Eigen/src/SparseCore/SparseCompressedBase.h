@@ -366,7 +366,7 @@ public:
     #define MAKE_REF_COMP_VAL(OP) inline friend bool operator OP(const InnerSortRef& a, const InnerSortVal& b) { return key(a) OP key(b); };
     #define MAKE_VAL_COMP_REF(OP) inline friend bool operator OP(const InnerSortVal& a, const InnerSortRef& b) { return key(a) OP key(b); };
     #define MAKE_COMPS(OP) MAKE_REF_COMP_REF(OP) MAKE_REF_COMP_VAL(OP) MAKE_VAL_COMP_REF(OP)
-    MAKE_COMPS(<); MAKE_COMPS(>); MAKE_COMPS(<=); MAKE_COMPS(>=); MAKE_COMPS(==); MAKE_COMPS(!=);
+    MAKE_COMPS(<) MAKE_COMPS(>) MAKE_COMPS(<=) MAKE_COMPS(>=) MAKE_COMPS(==) MAKE_COMPS(!=)
 
 protected:
     StorageIndex* m_innerIndexPtr;
@@ -407,7 +407,7 @@ template <typename Derived, class Comp, bool IsVector>
 struct inner_sort_impl {
   typedef typename Derived::Scalar Scalar;
   typedef typename Derived::StorageIndex StorageIndex;
-  typedef InnerSortIterator<Scalar, StorageIndex> InnerSortIterator;
+  using InnerSortIterator = InnerSortIterator<Scalar, StorageIndex>;
   static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
     eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
     const bool is_compressed = obj.isCompressed();
@@ -437,7 +437,7 @@ template <typename Derived, class Comp>
 struct inner_sort_impl<Derived, Comp, true> {
   typedef typename Derived::Scalar Scalar;
   typedef typename Derived::StorageIndex StorageIndex;
-  typedef InnerSortIterator<Scalar, StorageIndex> InnerSortIterator;
+  using InnerSortIterator = InnerSortIterator<Scalar, StorageIndex>;
   static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
     eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
     EIGEN_UNUSED_VARIABLE(begin)
