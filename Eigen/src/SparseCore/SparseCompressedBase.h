@@ -129,23 +129,33 @@ class SparseCompressedBase
     
     /** sorts the inner vectors in the range [begin,end) with respect to `Comp`  
       * \sa innerIndicesAreSorted() */
-    template <class Comp = std::less<>>
-    inline void sortInnerIndices(Index begin, Index end) { sortInnerIndices_impl<Comp>(begin, end); }
+    template <class Comp = std::less<>, bool IsVector = IsVectorAtCompileTime>
+    inline std::enable_if_t<!IsVector,void> sortInnerIndices(Index begin, Index end) { sort_matrix_impl<Comp>(begin, end); }
     
     /** \returns the index of the first inner vector in the range [begin,end) that is not sorted with respect to `Comp`, or `end` if the range is fully sorted
       * \sa sortInnerIndices() */
-    template<class Comp = std::less<>>
-    inline Index innerIndicesAreSorted(Index begin, Index end) const { return innerIndicesAreSorted_impl<Comp>(begin, end); }
+    template<class Comp = std::less<>, bool IsVector = IsVectorAtCompileTime>
+    inline std::enable_if_t<!IsVector, Index> innerIndicesAreSorted(Index begin, Index end) const { return is_matrix_sorted_impl<Comp>(begin, end); }
 
     /** sorts the inner vectors in the range [0,outerSize) with respect to `Comp`
       * \sa innerIndicesAreSorted() */
-    template <class Comp = std::less<>>
-    inline void sortInnerIndices() { sortInnerIndices_impl<Comp>(0, derived().outerSize()); }
+    template <class Comp = std::less<>, bool IsVector = IsVectorAtCompileTime>
+    inline std::enable_if_t<!IsVector, void> sortInnerIndices() { sort_matrix_impl<Comp>(0, derived().outerSize()); }
 
-    /** \returns the index of the first inner vector in the range [0,outerSize) that is not sorted with respect to `Comp`, or `outerSize` if the range is fully sorted
+    /** \returns the index of the first inner vector in the range [0,outerSize) that is not sorted with respect to `Comp`, or `end` if the range is fully sorted
       * \sa sortInnerIndices() */
-    template<class Comp = std::less<>>
-    inline Index innerIndicesAreSorted() const { return innerIndicesAreSorted_impl<Comp>(0, derived().outerSize()); }
+    template<class Comp = std::less<>, bool IsVector = IsVectorAtCompileTime>
+    inline std::enable_if_t<!IsVector, Index> innerIndicesAreSorted() const { return is_matrix_sorted_impl<Comp>(0, derived().outerSize()); }
+
+    /** sorts the inner indices with respect to `Comp`
+      * \sa innerIndicesAreSorted() */
+    template <class Comp = std::less<>, bool IsVector = IsVectorAtCompileTime>
+    inline std::enable_if_t<IsVector, void> sortInnerIndices() { sort_vector_impl<Comp>(); }
+
+    /** \returns 1 if the inner indices are sorted with respect to 'Comp', and 0 otherwise
+      * \sa sortInnerIndices() */
+    template<class Comp = std::less<>, bool IsVector = IsVectorAtCompileTime>
+    inline std::enable_if_t<IsVector, Index> innerIndicesAreSorted() const { return is_vector_sorted_impl<Comp>(); }
 
   protected:
     /** Default constructor. Do nothing. */
@@ -174,8 +184,10 @@ class SparseCompressedBase
 
   private:
     template<typename OtherDerived> explicit SparseCompressedBase(const SparseCompressedBase<OtherDerived>&);
-    template<class Comp> inline void sortInnerIndices_impl(Index begin, Index end);
-    template<class Comp> inline Index innerIndicesAreSorted_impl(Index begin, Index end) const;
+    template<class Comp> inline void sort_matrix_impl(Index begin, Index end);
+    template<class Comp> inline Index is_matrix_sorted_impl(Index begin, Index end) const;
+    template<class Comp> inline void sort_vector_impl();
+    template<class Comp> inline Index is_vector_sorted_impl() const;
 };
 
 template<typename Derived>
@@ -402,43 +414,52 @@ protected:
     Scalar* m_valuePtr;
 };;
 
-template<typename Derived> template<class Comp>
-inline void SparseCompressedBase<Derived>::sortInnerIndices_impl(Index begin, Index end)
-{
+template <typename Derived>
+template <class Comp>
+inline void SparseCompressedBase<Derived>::sort_matrix_impl(Index begin, Index end) {
   typedef InnerSortIterator<Scalar, StorageIndex> InnerSortIterator;
   eigen_assert(begin >= 0 && end <= derived().outerSize());
-
-  const bool is_vector = derived().outerSize() == 1;
   const bool is_compressed = isCompressed();
-
   for (Index outer = begin; outer < end; outer++) {
-      Index begin_offset = is_vector ? 0 : outerIndexPtr()[outer];
-      Index end_offset = is_vector ? derived().nonZeros() : (is_compressed ? outerIndexPtr()[outer + 1] : (begin_offset + innerNonZeroPtr()[outer]));
-      InnerSortIterator begin_it(begin_offset, innerIndexPtr(), valuePtr());
-      InnerSortIterator end_it(end_offset, innerIndexPtr(), valuePtr());
-      std::sort(begin_it, end_it, Comp());
+    Index begin_offset = outerIndexPtr()[outer];
+    Index end_offset = is_compressed ? outerIndexPtr()[outer + 1] : (begin_offset + innerNonZeroPtr()[outer]);
+    InnerSortIterator begin_it(begin_offset, innerIndexPtr(), valuePtr());
+    InnerSortIterator end_it(end_offset, innerIndexPtr(), valuePtr());
+    std::sort(begin_it, end_it, Comp());
   }
 }
 
-template<typename Derived> template<class Comp>
-inline Index SparseCompressedBase<Derived>::innerIndicesAreSorted_impl(Index begin, Index end) const
-{
+template <typename Derived>
+template <class Comp>
+inline Index SparseCompressedBase<Derived>::is_matrix_sorted_impl(Index begin, Index end) const {
   eigen_assert(begin >= 0 && end <= derived().outerSize());
-
-  const bool is_vector = derived().outerSize() == 1;
   const bool is_compressed = isCompressed();
-
   for (Index outer = begin; outer < end; outer++) {
-    Index begin_offset = is_vector ? 0 : outerIndexPtr()[outer];
-    Index end_offset = (is_vector ? derived().nonZeros() :
-                       (is_compressed ? outerIndexPtr()[outer+1] : 
-                       (begin_offset + innerNonZeroPtr()[outer])));
+    Index begin_offset = outerIndexPtr()[outer];
+    Index end_offset = is_compressed ? outerIndexPtr()[outer + 1] : (begin_offset + innerNonZeroPtr()[outer]);
     const StorageIndex* begin_it = innerIndexPtr() + begin_offset;
     const StorageIndex* end_it = innerIndexPtr() + end_offset;
     bool is_sorted = std::is_sorted(begin_it, end_it, Comp());
     if (!is_sorted) return outer;
   }
   return end;
+}
+
+template <typename Derived>
+template <class Comp>
+inline void SparseCompressedBase<Derived>::sort_vector_impl() {
+  typedef InnerSortIterator<Scalar, StorageIndex> InnerSortIterator;
+  InnerSortIterator begin_it(0, innerIndexPtr(), valuePtr());
+  InnerSortIterator end_it(derived().nonZeros(), innerIndexPtr(), valuePtr());
+  std::sort(begin_it, end_it, Comp());
+}
+
+template <typename Derived>
+template <class Comp>
+inline Index SparseCompressedBase<Derived>::is_vector_sorted_impl() const {
+  const StorageIndex* begin_it = innerIndexPtr();
+  const StorageIndex* end_it = innerIndexPtr() + derived().nonZeros();
+  return std::is_sorted(begin_it, end_it, Comp()) ? 1 : 0;
 }
 
 namespace internal {
