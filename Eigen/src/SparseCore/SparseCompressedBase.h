@@ -401,21 +401,20 @@ protected:
     difference_type m_index;
     StorageIndex* m_innerIndexPtr;
     Scalar* m_valuePtr;
-};;
+};
 
 template <typename Derived, class Comp, bool IsVector>
 struct inner_sort_impl {
   typedef typename Derived::Scalar Scalar;
   typedef typename Derived::StorageIndex StorageIndex;
-  using InnerSortIterator = InnerSortIterator<Scalar, StorageIndex>;
   static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
     eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
     const bool is_compressed = obj.isCompressed();
     for (Index outer = begin; outer < end; outer++) {
       Index begin_offset = obj.outerIndexPtr()[outer];
       Index end_offset = is_compressed ? obj.outerIndexPtr()[outer + 1] : (begin_offset + obj.innerNonZeroPtr()[outer]);
-      InnerSortIterator begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
-      InnerSortIterator end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
+      InnerSortIterator<Scalar, StorageIndex> begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
+      InnerSortIterator<Scalar, StorageIndex> end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
       std::sort(begin_it, end_it, Comp());
     }
   }
@@ -437,15 +436,14 @@ template <typename Derived, class Comp>
 struct inner_sort_impl<Derived, Comp, true> {
   typedef typename Derived::Scalar Scalar;
   typedef typename Derived::StorageIndex StorageIndex;
-  using InnerSortIterator = InnerSortIterator<Scalar, StorageIndex>;
   static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
     eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
     EIGEN_UNUSED_VARIABLE(begin)
     EIGEN_UNUSED_VARIABLE(end)
     Index begin_offset = 0;
     Index end_offset = obj.derived().nonZeros();
-    InnerSortIterator begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
-    InnerSortIterator end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
+    InnerSortIterator<Scalar, StorageIndex> begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
+    InnerSortIterator<Scalar, StorageIndex> end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
     std::sort(begin_it, end_it, Comp());
   }
   static inline Index check(const SparseCompressedBase<Derived>& obj, Index begin, Index end) {
