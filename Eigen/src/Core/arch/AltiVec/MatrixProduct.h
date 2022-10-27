@@ -15,6 +15,10 @@
 #define EIGEN_ALTIVEC_USE_CUSTOM_PACK    1
 #endif
 
+#ifndef EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16
+#define EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16    1
+#endif
+
 #include "MatrixProductCommon.h"
 
 #if !defined(EIGEN_ALTIVEC_DISABLE_MMA)
@@ -840,6 +844,93 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
     }
   }
 };
+
+#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16
+// General template for rhs packing, bfloat16 specialization.
+template<typename DataMapper, int StorageOrder, bool PanelMode>
+struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
+{
+  EIGEN_STRONG_INLINE void operator()(bfloat16* blockA, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
+  {
+    const Index vectorSize = quad_traits<bfloat16>::vectorsize;
+    Index ri = 0, j = 0;
+    const Packet16uc c = {0x0u, 0x1u, 0x8u, 0x9u, 0x2u, 0x3u, 0xAu, 0xB, 0x4, 0x5, 0xCu, 0xDu, 0x6u, 0x7u, 0xEu, 0xFu};
+
+    for(; j + 4 <= cols; j+=4)
+    {
+      const DataMapper rhs2 = rhs.getSubMapper(0, j);
+      Index i = 0;
+
+      if(PanelMode) ri += 4*offset;
+
+      for(; i + vectorSize <= depth; i+=vectorSize)
+      {
+        PacketBlock<Packet8bf,4> block;
+
+        bload<DataMapper, Packet8bf, 4, StorageOrder, false, 4>(block, rhs2, i, 0);
+
+        if(StorageOrder == ColMajor)
+        {
+          ptranspose(block);
+        }
+
+        block.packet[0] = vec_perm(block.packet[0].m_val, block.packet[0].m_val, c);
+        block.packet[1] = vec_perm(block.packet[1].m_val, block.packet[1].m_val, c);
+        block.packet[2] = vec_perm(block.packet[2].m_val, block.packet[2].m_val, c);
+        block.packet[3] = vec_perm(block.packet[3].m_val, block.packet[3].m_val, c);
+
+        storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
+
+        ri += 4*vectorSize;
+      }
+      for (; i + 2 <= depth; i += 2) {
+        if(StorageOrder == ColMajor)
+        {
+          blockA[ri+0] = rhs2(i + 0, 0);
+          blockA[ri+1] = rhs2(i + 1, 0);
+          blockA[ri+2] = rhs2(i + 0, 1);
+          blockA[ri+3] = rhs2(i + 1, 1);
+          blockA[ri+4] = rhs2(i + 0, 2);
+          blockA[ri+5] = rhs2(i + 1, 2);
+          blockA[ri+6] = rhs2(i + 0, 3);
+          blockA[ri+7] = rhs2(i + 1, 3);
+        } else {
+          Packet8bf rhs1 = rhs2.template loadPacket<Packet8bf>(i, 0);
+          rhs1 = vec_perm(rhs1.m_val, rhs1.m_val, c);
+          pstore<bfloat16>(blockA + ri, rhs1);
+        }
+
+        ri += 4*2;
+      }
+      if (depth & 1)
+      {
+        blockA[ri+0] = rhs2(i, 0);
+        blockA[ri+1] = rhs2(i, 1);
+        blockA[ri+2] = rhs2(i, 2);
+        blockA[ri+3] = rhs2(i, 3);
+
+        ri += 4;
+      }
+
+      if(PanelMode) ri += 4*(stride - offset - depth);
+    }
+
+    if(PanelMode) ri += offset;
+
+    for(; j < cols; j++)
+    {
+      const DataMapper rhs2 = rhs.getSubMapper(0, j);
+      for(Index i = 0; i < depth; i++)
+      {
+        blockA[ri] = rhs2(i, 0);
+        ri += 1;
+      }
+
+      if(PanelMode) ri += stride - depth;
+    }
+  }
+};
+#endif
 
 // General template for lhs complex packing, float64 specialization.
 template<typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
@@ -2318,6 +2409,36 @@ void gemm_pack_rhs<double, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode
   ::operator()(double* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
   dhs_pack<double, DataMapper, Packet2d, RowMajor, PanelMode, false> pack;
+  pack(blockB, rhs, depth, cols, stride, offset);
+}
+#endif
+
+#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16
+template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
+struct gemm_pack_rhs<bfloat16, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+{
+  void operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
+};
+
+template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
+void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
+  ::operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
+{
+  dhs_pack<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, false> pack;
+  pack(blockB, rhs, depth, cols, stride, offset);
+}
+
+template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
+struct gemm_pack_rhs<bfloat16, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+{
+  void operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride=0, Index offset=0);
+};
+
+template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
+void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
+  ::operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
+{
+  dhs_pack<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 #endif
