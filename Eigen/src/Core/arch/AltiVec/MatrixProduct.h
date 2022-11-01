@@ -855,7 +855,6 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
   {
     const Index vectorSize = quad_traits<bfloat16>::vectorsize;
     Index ri = 0, j = 0;
-    const Packet16uc c = {0x0u, 0x1u, 0x8u, 0x9u, 0x2u, 0x3u, 0xAu, 0xB, 0x4, 0x5, 0xCu, 0xDu, 0x6u, 0x7u, 0xEu, 0xFu};
 
     for(; j + 4 <= cols; j+=4)
     {
@@ -872,12 +871,15 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 
           bload<DataMapper, Packet8bf, 4, StorageOrder, false, 4>(block, rhs2, i, 0);
 
-          ptranspose(block);
-
-          block.packet[0] = vec_perm(block.packet[0].m_val, block.packet[0].m_val, c);
-          block.packet[1] = vec_perm(block.packet[1].m_val, block.packet[1].m_val, c);
-          block.packet[2] = vec_perm(block.packet[2].m_val, block.packet[2].m_val, c);
-          block.packet[3] = vec_perm(block.packet[3].m_val, block.packet[3].m_val, c);
+          Packet2ul t0, t1, t2, t3;
+          t0 = reinterpret_cast<Packet2ul>(vec_mergeh(reinterpret_cast<Packet4ui>(block.packet[0].m_val), reinterpret_cast<Packet4ui>(block.packet[1].m_val)));
+          t1 = reinterpret_cast<Packet2ul>(vec_mergeh(reinterpret_cast<Packet4ui>(block.packet[2].m_val), reinterpret_cast<Packet4ui>(block.packet[3].m_val)));
+          t2 = reinterpret_cast<Packet2ul>(vec_mergel(reinterpret_cast<Packet4ui>(block.packet[0].m_val), reinterpret_cast<Packet4ui>(block.packet[1].m_val)));
+          t3 = reinterpret_cast<Packet2ul>(vec_mergel(reinterpret_cast<Packet4ui>(block.packet[2].m_val), reinterpret_cast<Packet4ui>(block.packet[3].m_val)));
+          block.packet[0] = reinterpret_cast<Packet8us>(vec_mergeh(t0, t1));
+          block.packet[1] = reinterpret_cast<Packet8us>(vec_mergel(t0, t1));
+          block.packet[2] = reinterpret_cast<Packet8us>(vec_mergeh(t2, t3));
+          block.packet[3] = reinterpret_cast<Packet8us>(vec_mergel(t2, t3));
 
           storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
         } else {
