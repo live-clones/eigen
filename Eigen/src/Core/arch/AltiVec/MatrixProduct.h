@@ -846,6 +846,7 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
 };
 
 #if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16
+#ifdef __MMA__
 // General template for rhs packing, bfloat16 specialization.
 template<typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
@@ -865,21 +866,38 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 
       for(; i + vectorSize <= depth; i+=vectorSize)
       {
-        PacketBlock<Packet8bf,4> block;
-
-        bload<DataMapper, Packet8bf, 4, StorageOrder, false, 4>(block, rhs2, i, 0);
-
         if(StorageOrder == ColMajor)
         {
+          PacketBlock<Packet8bf,4> block;
+
+          bload<DataMapper, Packet8bf, 4, StorageOrder, false, 4>(block, rhs2, i, 0);
+
           ptranspose(block);
+
+          block.packet[0] = vec_perm(block.packet[0].m_val, block.packet[0].m_val, c);
+          block.packet[1] = vec_perm(block.packet[1].m_val, block.packet[1].m_val, c);
+          block.packet[2] = vec_perm(block.packet[2].m_val, block.packet[2].m_val, c);
+          block.packet[3] = vec_perm(block.packet[3].m_val, block.packet[3].m_val, c);
+
+          storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
+        } else {
+          PacketBlock<Packet8bf,8> block;
+
+          for (int M = 0; M < 8; M++) {
+            block.packet[M] = rhs2.template loadPacketPartial<Packet8bf>(i + M, 0, 4);
+          }
+
+          block.packet[0] = vec_mergeh(block.packet[0].m_val, block.packet[1].m_val);
+          block.packet[1] = vec_mergeh(block.packet[2].m_val, block.packet[3].m_val);
+          block.packet[2] = vec_mergeh(block.packet[4].m_val, block.packet[5].m_val);
+          block.packet[3] = vec_mergeh(block.packet[6].m_val, block.packet[7].m_val);
+
+          const Index size = 16 / sizeof(bfloat16);
+
+          for (int M = 0; M < 4; M++) {
+            pstore<bfloat16>(blockA + ri + (M * size), block.packet[M]);
+          }
         }
-
-        block.packet[0] = vec_perm(block.packet[0].m_val, block.packet[0].m_val, c);
-        block.packet[1] = vec_perm(block.packet[1].m_val, block.packet[1].m_val, c);
-        block.packet[2] = vec_perm(block.packet[2].m_val, block.packet[2].m_val, c);
-        block.packet[3] = vec_perm(block.packet[3].m_val, block.packet[3].m_val, c);
-
-        storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
 
         ri += 4*vectorSize;
       }
@@ -895,9 +913,15 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
           blockA[ri+6] = rhs2(i + 0, 3);
           blockA[ri+7] = rhs2(i + 1, 3);
         } else {
-          Packet8bf rhs1 = rhs2.template loadPacket<Packet8bf>(i, 0);
-          rhs1 = vec_perm(rhs1.m_val, rhs1.m_val, c);
-          pstore<bfloat16>(blockA + ri, rhs1);
+          PacketBlock<Packet8bf,2> block;
+
+          for (int M = 0; M < 2; M++) {
+            block.packet[M] = rhs2.template loadPacketPartial<Packet8bf>(i + M, 0, 4);
+          }
+
+          block.packet[0] = vec_mergeh(block.packet[0].m_val, block.packet[1].m_val);
+
+          pstore<bfloat16>(blockA + ri, block.packet[0]);
         }
 
         ri += 4*2;
@@ -930,6 +954,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
     }
   }
 };
+#endif
 #endif
 
 // General template for lhs complex packing, float64 specialization.
@@ -2414,6 +2439,7 @@ void gemm_pack_rhs<double, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode
 #endif
 
 #if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16
+#ifdef __MMA__
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<bfloat16, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
 {
@@ -2441,6 +2467,7 @@ void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
   dhs_pack<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
+#endif
 #endif
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
