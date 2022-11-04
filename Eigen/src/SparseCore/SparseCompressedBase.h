@@ -22,10 +22,10 @@ template<typename Derived>
 struct traits<SparseCompressedBase<Derived> > : traits<Derived>
 {};
 
-} // end namespace internal
-
 template <typename Derived, class Comp, bool IsVector>
 struct inner_sort_impl;
+
+} // end namespace internal
 
 /** \ingroup SparseCore_Module
   * \class SparseCompressedBase
@@ -133,22 +133,28 @@ class SparseCompressedBase
     /** sorts the inner vectors in the range [begin,end) with respect to `Comp`  
       * \sa innerIndicesAreSorted() */
     template <class Comp = std::less<>>
-    inline void sortInnerIndices(Index begin, Index end) { inner_sort_impl<Derived, Comp, IsVectorAtCompileTime>::run(*this, begin, end); }
+    inline void sortInnerIndices(Index begin, Index end) {
+      eigen_assert(begin >= 0 && end <= derived().outerSize());
+      internal::inner_sort_impl<Derived, Comp, IsVectorAtCompileTime>::run(*this, begin, end);
+    }
     
     /** \returns the index of the first inner vector in the range [begin,end) that is not sorted with respect to `Comp`, or `end` if the range is fully sorted
       * \sa sortInnerIndices() */
-    template<class Comp = std::less<>>
-    inline Index innerIndicesAreSorted(Index begin, Index end) const { return inner_sort_impl<Derived, Comp, IsVectorAtCompileTime>::check(*this, begin, end); }
+    template <class Comp = std::less<>>
+    inline Index innerIndicesAreSorted(Index begin, Index end) const {
+      eigen_assert(begin >= 0 && end <= derived().outerSize());
+      return internal::inner_sort_impl<Derived, Comp, IsVectorAtCompileTime>::check(*this, begin, end);
+    }
 
     /** sorts the inner vectors in the range [0,outerSize) with respect to `Comp`
       * \sa innerIndicesAreSorted() */
     template <class Comp = std::less<>>
-    inline void sortInnerIndices() { inner_sort_impl<Derived, Comp, IsVectorAtCompileTime>::run(*this, 0, derived().outerSize()); }
+    inline void sortInnerIndices() { sortInnerIndices<Comp>(0, derived().outerSize()); }
 
     /** \returns the index of the first inner vector in the range [0,outerSize) that is not sorted with respect to `Comp`, or `outerSize` if the range is fully sorted
       * \sa sortInnerIndices() */
     template<class Comp = std::less<>>
-    inline Index innerIndicesAreSorted() const { return inner_sort_impl<Derived, Comp, IsVectorAtCompileTime>::check(*this, 0, derived().outerSize()); }
+    inline Index innerIndicesAreSorted() const { return innerIndicesAreSorted<Comp>(0, derived().outerSize()); }
 
   protected:
     /** Default constructor. Do nothing. */
@@ -327,80 +333,74 @@ class SparseCompressedBase<Derived>::ReverseInnerIterator
     Index m_id;
 };
 
+namespace internal {
+
 // modified from https://artificial-mind.net/blog/2020/11/28/std-sort-multiple-ranges
-template<typename Scalar, typename StorageIndex>
-class InnerSortRef
+template <typename Scalar, typename StorageIndex>
+class StorageRef 
 {
 public:
-    using InnerSortVal = std::pair<StorageIndex, Scalar>;
-        
-    InnerSortRef() = delete;
-    InnerSortRef(StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
-    InnerSortRef(const InnerSortRef& other) : m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
+  using StorageVal = std::pair<StorageIndex, Scalar>;
 
-    inline InnerSortRef& operator=(InnerSortRef&& other)
-    {
-        m_innerIndexPtr[0] = std::move(other.m_innerIndexPtr[0]);
-        m_valuePtr[0] = std::move(other.m_valuePtr[0]);
-        return *this;
-    }
+  StorageRef() = delete;
+  StorageRef(Index offset, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_innerIndexPtr(innerIndexPtr + offset), m_valuePtr(valuePtr + offset) {}
+  StorageRef(const StorageRef& other) : m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
 
-    inline InnerSortRef& operator=(InnerSortVal&& other)
-    {
-        m_innerIndexPtr[0] = std::move(other.first);
-        m_valuePtr[0] = std::move(other.second);
-        return *this;
-    }
+  inline StorageRef& operator=(StorageRef&& other) {
+    std::tie(m_innerIndexPtr[0], m_valuePtr[0]) = std::tie(other.m_innerIndexPtr[0], other.m_valuePtr[0]);
+    return *this;
+  }
+  inline StorageRef& operator=(StorageVal&& other) {
+    std::tie(m_innerIndexPtr[0], m_valuePtr[0]) = other;
+    return *this;
+  }
+  inline operator StorageVal()&& { return std::make_pair(m_innerIndexPtr[0], m_valuePtr[0]); }
+  inline friend void swap(StorageRef a, StorageRef b) {
+    std::swap(a.m_innerIndexPtr[0], b.m_innerIndexPtr[0]);
+    std::swap(a.m_valuePtr[0], b.m_valuePtr[0]);
+  }
 
-    inline operator InnerSortVal()&& { return std::make_pair(std::move(m_innerIndexPtr[0]), std::move(m_valuePtr[0])); }
-
-    inline friend void swap(InnerSortRef a, InnerSortRef b)
-    {
-        std::swap(a.m_innerIndexPtr[0], b.m_innerIndexPtr[0]);
-        std::swap(a.m_valuePtr[0], b.m_valuePtr[0]);
-    }
-
-    inline static const StorageIndex& key(const InnerSortRef& a) { return a.m_innerIndexPtr[0]; }
-    inline static const StorageIndex& key(const InnerSortVal& a) { return a.first; }
-    #define MAKE_REF_COMP_REF(OP) inline friend bool operator OP(const InnerSortRef& a, const InnerSortRef& b) { return key(a) OP key(b); };
-    #define MAKE_REF_COMP_VAL(OP) inline friend bool operator OP(const InnerSortRef& a, const InnerSortVal& b) { return key(a) OP key(b); };
-    #define MAKE_VAL_COMP_REF(OP) inline friend bool operator OP(const InnerSortVal& a, const InnerSortRef& b) { return key(a) OP key(b); };
-    #define MAKE_COMPS(OP) MAKE_REF_COMP_REF(OP) MAKE_REF_COMP_VAL(OP) MAKE_VAL_COMP_REF(OP)
-    MAKE_COMPS(<) MAKE_COMPS(>) MAKE_COMPS(<=) MAKE_COMPS(>=) MAKE_COMPS(==) MAKE_COMPS(!=)
+  inline static const StorageIndex& key(const StorageRef& a) { return a.m_innerIndexPtr[0]; }
+  inline static const StorageIndex& key(const StorageVal& a) { return a.first; }
+  #define REF_COMP_REF(OP) inline friend bool operator OP(const StorageRef& a, const StorageRef& b) { return key(a) OP key(b); };
+  #define REF_COMP_VAL(OP) inline friend bool operator OP(const StorageRef& a, const StorageVal& b) { return key(a) OP key(b); };
+  #define VAL_COMP_REF(OP) inline friend bool operator OP(const StorageVal& a, const StorageRef& b) { return key(a) OP key(b); };
+  #define MAKE_COMPS(OP) REF_COMP_REF(OP) REF_COMP_VAL(OP) VAL_COMP_REF(OP)
+  MAKE_COMPS(<) MAKE_COMPS(>) MAKE_COMPS(<=) MAKE_COMPS(>=) MAKE_COMPS(==) MAKE_COMPS(!=)
 
 protected:
-    StorageIndex* m_innerIndexPtr;
-    Scalar* m_valuePtr;
+  StorageIndex* m_innerIndexPtr;
+  Scalar* m_valuePtr;
 };
 
 template<typename Scalar, typename StorageIndex>
-class InnerSortIterator
+class CompressedStorageIterator
 {
 public:
-    using iterator_category = std::random_access_iterator_tag;
-    using difference_type = Index;
-    using value_type = std::pair<StorageIndex, Scalar>;
-    using pointer = value_type*;
-    using reference = InnerSortRef<Scalar, StorageIndex>;
+  using iterator_category = std::random_access_iterator_tag;
+  using difference_type = Index;
+  using value_type = std::pair<StorageIndex, Scalar>;
+  using pointer = value_type*;
+  using reference = StorageRef<Scalar, StorageIndex>;
 
-    InnerSortIterator() = delete;
-    InnerSortIterator(Index index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
-    InnerSortIterator(const InnerSortIterator& other) : m_index(other.m_index), m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
+  CompressedStorageIterator() = delete;
+  CompressedStorageIterator(Index index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
+  CompressedStorageIterator(const CompressedStorageIterator& other) : m_index(other.m_index), m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
 
-    inline bool operator==(const InnerSortIterator& other) const { return m_index == other.m_index; }
-    inline bool operator!=(const InnerSortIterator& other) const { return m_index != other.m_index; }
-    inline bool operator< (const InnerSortIterator& other) const { return m_index <  other.m_index; }
-    inline InnerSortIterator operator+(difference_type offset) const { return InnerSortIterator(m_index + offset, m_innerIndexPtr, m_valuePtr); }
-    inline InnerSortIterator operator-(difference_type offset) const { return InnerSortIterator(m_index - offset, m_innerIndexPtr, m_valuePtr); }
-    inline difference_type operator-(const InnerSortIterator& other) const { return m_index - other.m_index; }
-    inline InnerSortIterator& operator++() { ++m_index; return *this; }
-    inline InnerSortIterator& operator--() { --m_index; return *this; }
-    inline reference operator*() const { return reference(m_innerIndexPtr + m_index, m_valuePtr + m_index); }
+  inline bool operator==(const CompressedStorageIterator& other) const { return m_index == other.m_index; }
+  inline bool operator!=(const CompressedStorageIterator& other) const { return m_index != other.m_index; }
+  inline bool operator< (const CompressedStorageIterator& other) const { return m_index <  other.m_index; }
+  inline CompressedStorageIterator operator+(difference_type offset) const { return CompressedStorageIterator(m_index + offset, m_innerIndexPtr, m_valuePtr); }
+  inline CompressedStorageIterator operator-(difference_type offset) const { return CompressedStorageIterator(m_index - offset, m_innerIndexPtr, m_valuePtr); }
+  inline difference_type operator-(const CompressedStorageIterator& other) const { return m_index - other.m_index; }
+  inline CompressedStorageIterator& operator++() { ++m_index; return *this; }
+  inline CompressedStorageIterator& operator--() { --m_index; return *this; }
+  inline reference operator*() const { return reference(m_index, m_innerIndexPtr, m_valuePtr); }
 
 protected:
-    difference_type m_index;
-    StorageIndex* m_innerIndexPtr;
-    Scalar* m_valuePtr;
+  difference_type m_index;
+  StorageIndex* m_innerIndexPtr;
+  Scalar* m_valuePtr;
 };
 
 template <typename Derived, class Comp, bool IsVector>
@@ -408,18 +408,16 @@ struct inner_sort_impl {
   typedef typename Derived::Scalar Scalar;
   typedef typename Derived::StorageIndex StorageIndex;
   static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
-    eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
     const bool is_compressed = obj.isCompressed();
     for (Index outer = begin; outer < end; outer++) {
       Index begin_offset = obj.outerIndexPtr()[outer];
       Index end_offset = is_compressed ? obj.outerIndexPtr()[outer + 1] : (begin_offset + obj.innerNonZeroPtr()[outer]);
-      InnerSortIterator<Scalar, StorageIndex> begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
-      InnerSortIterator<Scalar, StorageIndex> end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
+      CompressedStorageIterator<Scalar, StorageIndex> begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
+      CompressedStorageIterator<Scalar, StorageIndex> end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
       std::sort(begin_it, end_it, Comp());
     }
   }
   static inline Index check(const SparseCompressedBase<Derived>& obj, Index begin, Index end) {
-    eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
     const bool is_compressed = obj.isCompressed();
     for (Index outer = begin; outer < end; outer++) {
       Index begin_offset = obj.outerIndexPtr()[outer];
@@ -436,20 +434,14 @@ template <typename Derived, class Comp>
 struct inner_sort_impl<Derived, Comp, true> {
   typedef typename Derived::Scalar Scalar;
   typedef typename Derived::StorageIndex StorageIndex;
-  static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
-    eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
-    EIGEN_UNUSED_VARIABLE(begin)
-    EIGEN_UNUSED_VARIABLE(end)
+  static inline void run(SparseCompressedBase<Derived>& obj, Index, Index) {
     Index begin_offset = 0;
     Index end_offset = obj.derived().nonZeros();
-    InnerSortIterator<Scalar, StorageIndex> begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
-    InnerSortIterator<Scalar, StorageIndex> end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
+    CompressedStorageIterator<Scalar, StorageIndex> begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
+    CompressedStorageIterator<Scalar, StorageIndex> end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
     std::sort(begin_it, end_it, Comp());
   }
-  static inline Index check(const SparseCompressedBase<Derived>& obj, Index begin, Index end) {
-    eigen_assert(begin >= 0 && end <= obj.derived().outerSize());
-    EIGEN_UNUSED_VARIABLE(begin)
-    EIGEN_UNUSED_VARIABLE(end)
+  static inline Index check(const SparseCompressedBase<Derived>& obj, Index, Index) {
     Index begin_offset = 0;
     Index end_offset = obj.derived().nonZeros();
     const StorageIndex* begin_it = obj.innerIndexPtr() + begin_offset;
@@ -457,8 +449,6 @@ struct inner_sort_impl<Derived, Comp, true> {
     return std::is_sorted(begin_it, end_it, Comp()) ? 1 : 0;
   }
 };
-
-namespace internal {
 
 template<typename Derived>
 struct evaluator<SparseCompressedBase<Derived> >
