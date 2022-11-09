@@ -159,7 +159,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
         Index nzj = internal::random<Index>(2, (rows * cols) / 2);
         for (Index k = 0; k < nzj; k++) {
           Index i = internal::random<Index>(0, rows - 1);
-          m2.insert(i, j) = m1(i, j) = internal::random<Scalar>()
+          m2.insert(i, j) = m1(i, j) = internal::random<Scalar>();
         }
       }
 
