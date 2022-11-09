@@ -151,23 +151,18 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     }
 
     // test sort
-    for (int mode = 0; mode < 4; ++mode)
     {
         DenseMatrix m1(rows, cols);
         m1.setZero();
         SparseMatrixType m2(rows, cols);
-        VectorXi r(VectorXi::Constant(m2.outerSize(), ((mode % 2) == 0) ? int(m2.innerSize()) : std::max<int>(1, int(m2.innerSize()) / 8)));
-        // need a minimum of two nonzeros to test sort
-        r = r.array().max(2);
-        m2.reserve(r);
-        for (Index k = 0; k < rows * cols; ++k)
+        for (Index j = 0; j < cols; j++)
         {
-            Index i = internal::random<Index>(0, rows - 1);
-            Index j = internal::random<Index>(0, cols - 1);
-            if (m1.coeff(i, j) == Scalar(0))
-                m2.insert(i, j) = m1(i, j) = internal::random<Scalar>();
-            if (mode == 3)
-                m2.reserve(r);
+            Index nzj = internal::random<Index>(2, (rows*cols)/2);
+            for (Index k = 0; k < nzj; k++)
+            {
+                Index i = internal::random<Index>(0, rows - 1);
+                m2.insert(i, j) = m1(i, j) = internal::random<Scalar>()
+            }
         }
 
         VERIFY_IS_APPROX(m2, m1);
