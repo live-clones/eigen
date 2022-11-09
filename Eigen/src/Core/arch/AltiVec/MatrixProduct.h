@@ -851,7 +851,7 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
 template<typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 {
-  EIGEN_STRONG_INLINE void operator()(bfloat16* blockA, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
+  EIGEN_STRONG_INLINE void operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
   {
     const Index vectorSize = quad_traits<bfloat16>::vectorsize;
     Index ri = 0, j = 0;
@@ -881,7 +881,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
           block.packet[2] = reinterpret_cast<Packet8us>(vec_mergeh(t2, t3));
           block.packet[3] = reinterpret_cast<Packet8us>(vec_mergel(t2, t3));
 
-          storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
+          storeBlock<bfloat16, Packet8bf, 4>(blockB + ri, block);
         } else {
           PacketBlock<Packet8bf,8> block;
 
@@ -897,7 +897,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
           const Index size = 16 / sizeof(bfloat16);
 
           for (int M = 0; M < 4; M++) {
-            pstore<bfloat16>(blockA + ri + (M * size), block.packet[M]);
+            pstore<bfloat16>(blockB + ri + (M * size), block.packet[M]);
           }
         }
 
@@ -906,14 +906,14 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
       for (; i + 2 <= depth; i += 2) {
         if(StorageOrder == ColMajor)
         {
-          blockA[ri+0] = rhs2(i + 0, 0);
-          blockA[ri+1] = rhs2(i + 1, 0);
-          blockA[ri+2] = rhs2(i + 0, 1);
-          blockA[ri+3] = rhs2(i + 1, 1);
-          blockA[ri+4] = rhs2(i + 0, 2);
-          blockA[ri+5] = rhs2(i + 1, 2);
-          blockA[ri+6] = rhs2(i + 0, 3);
-          blockA[ri+7] = rhs2(i + 1, 3);
+          blockB[ri+0] = rhs2(i + 0, 0);
+          blockB[ri+1] = rhs2(i + 1, 0);
+          blockB[ri+2] = rhs2(i + 0, 1);
+          blockB[ri+3] = rhs2(i + 1, 1);
+          blockB[ri+4] = rhs2(i + 0, 2);
+          blockB[ri+5] = rhs2(i + 1, 2);
+          blockB[ri+6] = rhs2(i + 0, 3);
+          blockB[ri+7] = rhs2(i + 1, 3);
         } else {
           PacketBlock<Packet8bf,2> block;
 
@@ -923,17 +923,17 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 
           block.packet[0] = vec_mergeh(block.packet[0].m_val, block.packet[1].m_val);
 
-          pstore<bfloat16>(blockA + ri, block.packet[0]);
+          pstore<bfloat16>(blockB + ri, block.packet[0]);
         }
 
         ri += 4*2;
       }
       if (depth & 1)
       {
-        blockA[ri+0] = rhs2(i, 0);
-        blockA[ri+1] = rhs2(i, 1);
-        blockA[ri+2] = rhs2(i, 2);
-        blockA[ri+3] = rhs2(i, 3);
+        blockB[ri+0] = rhs2(i, 0);
+        blockB[ri+1] = rhs2(i, 1);
+        blockB[ri+2] = rhs2(i, 2);
+        blockB[ri+3] = rhs2(i, 3);
 
         ri += 4;
       }
@@ -948,7 +948,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
       const DataMapper rhs2 = rhs.getSubMapper(0, j);
       for(Index i = 0; i < depth; i++)
       {
-        blockA[ri] = rhs2(i, 0);
+        blockB[ri] = rhs2(i, 0);
         ri += 1;
       }
 
@@ -2947,7 +2947,6 @@ void gebp_kernel<double, std::complex<double>, Index, DataMapper, mr, nr, Conjug
   }
 
 #if defined(__MMA__)
-//#if 0
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<bfloat16, bfloat16, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>
 {

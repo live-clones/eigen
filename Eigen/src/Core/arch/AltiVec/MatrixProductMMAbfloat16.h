@@ -68,7 +68,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* baseB, Index strid
   //Let v be the concatenation of a and b.
   //Each byte of r selected by using the least-significant 5 bits of the corresponding byte of c as an index into v
   //We need this elements from rhs: 0, 4, 1, 5, 2, 6, 3, 7
-  Packet16uc c = {0x0u, 0x1u, 0x8u, 0x9u, 0x2u, 0x3u, 0xAu, 0xB, 0x4, 0x5, 0xCu, 0xDu, 0x6u, 0x7u, 0xEu, 0xFu};
+  const Packet16uc c = {0x0u, 0x1u, 0x8u, 0x9u, 0x2u, 0x3u, 0xAu, 0xB, 0x4, 0x5, 0xCu, 0xDu, 0x6u, 0x7u, 0xEu, 0xFu};
   return vec_perm(rhs1.m_val, rhs1.m_val, c);
 #endif
 }
@@ -176,7 +176,9 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
 __asm__("# Start asm!\n\t");
 
   if(rows == 0 || cols == 0 || depth == 0) return;
-  const Packet4f pAlpha = pset1<Packet4f>(Eigen::bfloat16_impl::bfloat16_to_float(alpha));
+  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
+  if (falpha == float(0)) return;
+  const Packet4f pAlpha = pset1<Packet4f>(falpha);
   ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
 
   for(Index j = 0; j < cols; j++){
