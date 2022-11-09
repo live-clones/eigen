@@ -143,6 +143,22 @@ template<typename Scalar,typename StorageIndex> void sparse_vector(int rows, int
     }
   }
 
+  // test sort
+  {
+      SparseVectorType vec1(rows);
+      DenseVector refVec1 = DenseVector::Zero(rows);
+      initSparse<Scalar>(densityVec, refVec1, vec1);
+
+      vec1.sortInnerIndices<std::greater<>>();
+      VERIFY_IS_APPROX(vec1, refVec1);
+      VERIFY(vec1.innerIndicesAreSorted<std::greater<>>() == 1);
+      VERIFY(vec1.innerIndicesAreSorted<std::less<>>() == 0);
+      vec1.sortInnerIndices<std::less<>>();
+      VERIFY_IS_APPROX(vec1, refVec1);
+      VERIFY(vec1.innerIndicesAreSorted<std::greater<>>() == 0);
+      VERIFY(vec1.innerIndicesAreSorted<std::less<>>() == 1);
+  }
+
 }
 void test_pruning() {
     using SparseVectorType = SparseVector<double, 0, int>;
