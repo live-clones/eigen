@@ -1084,6 +1084,14 @@ namespace Eigen {
   #define EIGEN_USING_STD(FUNC) using std::FUNC;
 #endif
 
+#if (defined(EIGEN_USE_SYCL))
+  #define EIGEN_USING_STD_MATH(FUNC) using sycl::FUNC;
+#elif (defined(EIGEN_CUDA_ARCH) && defined(__NVCC__)) || defined(EIGEN_HIP_DEVICE_COMPILE)
+  #define EIGEN_USING_STD_MATH(FUNC) using ::FUNC;
+#else
+  #define EIGEN_USING_STD_MATH(FUNC) using std::FUNC;
+#endif
+
 #if EIGEN_COMP_MSVC_STRICT && EIGEN_COMP_NVCC
   // Wwhen compiling with NVCC, using the base operator is necessary,
   //   otherwise we get duplicate definition errors
