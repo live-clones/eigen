@@ -202,7 +202,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       // sort wrt less
       m2.template sortInnerIndices<std::less<>>();
       // verify that all inner vectors are sorted wrt less
-      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::less<>>(), = m2.outerSize());
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::less<>>(), m2.outerSize());
       // verify that all inner vectors are not sorted wrt greater
       VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::greater<>>(), 0);
       // verify that sort does not change evaluation
