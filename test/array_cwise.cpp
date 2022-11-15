@@ -33,10 +33,10 @@ template<typename Scalar>
 void special_value_pairs(Array<Scalar, Dynamic, Dynamic>& x,
                          Array<Scalar, Dynamic, Dynamic>& y) {
   std::vector<Scalar> abs_vals = special_values<Scalar>();
-  const int abs_cases = abs_vals.size();
-  const int num_cases = 2*abs_cases * 2*abs_cases;
+  const size_t abs_cases = abs_vals.size();
+  const size_t num_cases = 2*abs_cases * 2*abs_cases;
   // ensure both vectorized and non-vectorized paths taken
-  const int num_repeats = 2 * internal::packet_traits<Scalar>::size + 1;
+  const size_t num_repeats = 2 * internal::packet_traits<Scalar>::size + 1;
   x.resize(num_repeats, num_cases);
   y.resize(num_repeats, num_cases);
   int count = 0;
@@ -98,7 +98,7 @@ void pow_scalar_exponent_test() {
   const Scalar tol = test_precision<Scalar>();
 
   std::vector<Scalar> abs_vals = special_values<Scalar>();
-  const int num_vals = abs_vals.size();
+  const size_t num_vals = abs_vals.size();
   Map<Array<Scalar, Dynamic, 1>> bases(abs_vals.data(), num_vals);
 
   bool all_pass = true;
