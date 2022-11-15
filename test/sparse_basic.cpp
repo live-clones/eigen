@@ -28,8 +28,8 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
   
   const Index rows = ref.rows();
   const Index cols = ref.cols();
-  //const Index inner = ref.innerSize();
-  //const Index outer = ref.outerSize();
+  const Index inner = ref.innerSize();
+  const Index outer = ref.outerSize();
 
   typedef typename SparseMatrixType::Scalar Scalar;
   typedef typename SparseMatrixType::RealScalar RealScalar;
@@ -151,33 +151,42 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     }
 
     // test sort
-    {
+    if (inner > 1) {
+      bool StorageOrdersMatch = DenseMatrix::IsRowMajor != SparseMatrixType::IsRowMajor;
       DenseMatrix m1(rows, cols);
       m1.setZero();
       SparseMatrixType m2(rows, cols);
-      for (Index j = 0; j < cols; j++) {
-        Index nzj = internal::random<Index>(2, (rows * cols) / 2);
+      // generate random inner indices with no repeats
+      Vector<Index, Dynamic> innerIndices(inner);
+      innerIndices.setLinSpaced(inner, 0, inner - 1);
+      for (Index j = 0; j < outer; j++) {
+        std::random_shuffle(innerIndices.begin(), innerIndices.end());
+        Index nzj = internal::random<Index>(2, inner / 2);
         for (Index k = 0; k < nzj; k++) {
-          Index i = internal::random<Index>(0, rows - 1);
-          m2.insert(i, j) = m1(i, j) = internal::random<Scalar>();
+          Index i = innerIndices[k];
+          Scalar val = internal::random<Scalar>();
+          m1.coeffRefByOuterInner(StorageOrdersMatch ? j : i, StorageOrdersMatch ? i : j) = val;
+          m2.insertByOuterInner(j, i) = val;
         }
       }
+
+      VERIFY_IS_EQUAL(0, 1); // should fail
 
       VERIFY_IS_APPROX(m2, m1);
       // sort wrt greater
       m2.template sortInnerIndices<std::greater<>>();
       // verify that all inner vectors are not sorted wrt less
-      VERIFY(m2.template innerIndicesAreSorted<std::less<>>() == 0);
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::less<>>(), 0);
       // verify that all inner vectors are sorted wrt greater
-      VERIFY(m2.template innerIndicesAreSorted<std::greater<>>() == m2.outerSize());
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::greater<>>(), m2.outerSize());
       // verify that sort does not change evaluation
       VERIFY_IS_APPROX(m2, m1);
       // sort wrt less
       m2.template sortInnerIndices<std::less<>>();
       // verify that all inner vectors are sorted wrt less
-      VERIFY(m2.template innerIndicesAreSorted<std::less<>>() == m2.outerSize());
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::less<>>(), m2.outerSize());
       // verify that all inner vectors are not sorted wrt greater
-      VERIFY(m2.template innerIndicesAreSorted<std::greater<>>() == 0);
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::greater<>>(), 0);
       // verify that sort does not change evaluation
       VERIFY_IS_APPROX(m2, m1);
 
@@ -185,17 +194,17 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       // sort wrt greater
       m2.template sortInnerIndices<std::greater<>>();
       // verify that all inner vectors are not sorted wrt less
-      VERIFY(m2.template innerIndicesAreSorted<std::less<>>() == 0);
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::less<>>(), 0);
       // verify that all inner vectors are sorted wrt greater
-      VERIFY(m2.template innerIndicesAreSorted<std::greater<>>() == m2.outerSize());
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::greater<>>(), m2.outerSize());
       // verify that sort does not change evaluation
       VERIFY_IS_APPROX(m2, m1);
       // sort wrt less
       m2.template sortInnerIndices<std::less<>>();
       // verify that all inner vectors are sorted wrt less
-      VERIFY(m2.template innerIndicesAreSorted<std::less<>>() == m2.outerSize());
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::less<>>(), = m2.outerSize());
       // verify that all inner vectors are not sorted wrt greater
-      VERIFY(m2.template innerIndicesAreSorted<std::greater<>>() == 0);
+      VERIFY_IS_EQUAL(m2.template innerIndicesAreSorted<std::greater<>>(), 0);
       // verify that sort does not change evaluation
       VERIFY_IS_APPROX(m2, m1);
     }

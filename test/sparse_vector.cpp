@@ -144,19 +144,30 @@ template<typename Scalar,typename StorageIndex> void sparse_vector(int rows, int
   }
 
   // test sort
+  if(rows > 1)
   {
     SparseVectorType vec1(rows);
     DenseVector refVec1 = DenseVector::Zero(rows);
-    initSparse<Scalar>(densityVec, refVec1, vec1);
+    DenseVector innerIndices(rows);
+    innerIndices.setLinSpaced(0, rows - 1);
+    std::random_shuffle(innerIndices.begin(), innerIndices.end());
+    Index nz = internal::random<Index>(2, rows / 2);
+    for (Index k = 0; k < nz; k++)
+    {
+        Index i = innerIndices[k];
+        Scalar val = internal::random<Scalar>();
+        refVec1.coeffRef(i) = val;
+        vec1.insert(i) = val;
+    }
 
     vec1.template sortInnerIndices<std::greater<>>();
     VERIFY_IS_APPROX(vec1, refVec1);
-    VERIFY(vec1.template innerIndicesAreSorted<std::greater<>>() == 1);
-    VERIFY(vec1.template innerIndicesAreSorted<std::less<>>() == 0);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::greater<>>(), 1);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::less<>>(), 0);
     vec1.template sortInnerIndices<std::less<>>();
     VERIFY_IS_APPROX(vec1, refVec1);
-    VERIFY(vec1.template innerIndicesAreSorted<std::greater<>>() == 0);
-    VERIFY(vec1.template innerIndicesAreSorted<std::less<>>() == 1);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::greater<>>(), 0);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::less<>>(), 1);
   }
 
 }
