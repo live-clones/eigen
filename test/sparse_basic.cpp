@@ -170,8 +170,6 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
         }
       }
 
-      VERIFY_IS_EQUAL(0, 1); // should fail
-
       VERIFY_IS_APPROX(m2, m1);
       // sort wrt greater
       m2.template sortInnerIndices<std::greater<>>();
