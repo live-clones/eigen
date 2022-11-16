@@ -788,7 +788,7 @@ EIGEN_DECLARE_TEST(sparse_basic)
     CALL_SUBTEST_1(( sparse_basic(SparseMatrix<double>(8, 8)) ));
     CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c)) ));
     CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c)) ));
-    CALL_SUBTEST_1(( sparse_basic(SparseMatrix<double>(r, c)) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double>(r, c)) ));
     CALL_SUBTEST_5(( sparse_basic(SparseMatrix<double,ColMajor,long int>(r, c)) ));
     CALL_SUBTEST_5(( sparse_basic(SparseMatrix<double,RowMajor,long int>(r, c)) ));
     
