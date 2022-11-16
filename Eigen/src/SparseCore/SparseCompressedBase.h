@@ -345,6 +345,9 @@ namespace internal {
 
 // modified from https://artificial-mind.net/blog/2020/11/28/std-sort-multiple-ranges
 template <typename Scalar, typename StorageIndex>
+class CompressedStorageIterator;
+
+template <typename Scalar, typename StorageIndex>
 class StorageRef 
 {
 public:
@@ -361,21 +364,21 @@ public:
   ~StorageRef() {}
 
   inline StorageRef& operator=(StorageRef&& other) {
-    m_innerIndexPtr[0] = other.m_innerIndexPtr[0];
-    m_valuePtr[0] = other.m_valuePtr[0];
+    *m_innerIndexPtr = *other.m_innerIndexPtr;
+    *m_valuePtr = *other.m_valuePtr;
     return *this;
   }
   inline StorageRef& operator=(value_type&& other) {
-    std::tie(m_innerIndexPtr[0], m_valuePtr[0]) = other;
+    std::tie(*m_innerIndexPtr, *m_valuePtr) = other;
     return *this;
   }
-  inline operator value_type() && { return std::make_pair(m_innerIndexPtr[0], m_valuePtr[0]); }
+  inline operator value_type() && { return std::make_pair(*m_innerIndexPtr, *m_valuePtr); }
   inline friend void swap(StorageRef a, StorageRef b) {
-    std::swap(a.m_innerIndexPtr[0], b.m_innerIndexPtr[0]);
-    std::swap(a.m_valuePtr[0], b.m_valuePtr[0]);
+    std::iter_swap(a.m_innerIndexPtr, b.m_innerIndexPtr);
+    std::iter_swap(a.m_valuePtr, b.m_valuePtr);
   }
 
-  inline static const StorageIndex& key(const StorageRef& a) { return a.m_innerIndexPtr[0]; }
+  inline static const StorageIndex& key(const StorageRef& a) { return *a.m_innerIndexPtr; }
   inline static const StorageIndex& key(const value_type& a) { return a.first; }
   #define REF_COMP_REF(OP) inline friend bool operator OP(const StorageRef& a, const StorageRef& b) { return key(a) OP key(b); };
   #define REF_COMP_VAL(OP) inline friend bool operator OP(const StorageRef& a, const value_type& b) { return key(a) OP key(b); };
@@ -386,6 +389,8 @@ public:
 protected:
   StorageIndex* m_innerIndexPtr;
   Scalar* m_valuePtr;
+
+  friend class CompressedStorageIterator<Scalar, StorageIndex>;
 };
 
 template<typename Scalar, typename StorageIndex>
@@ -399,30 +404,29 @@ public:
   using pointer = value_type*;
 
   CompressedStorageIterator() = delete;
-  CompressedStorageIterator(difference_type index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
-  CompressedStorageIterator(const CompressedStorageIterator& other) : m_index(other.m_index), m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
+  CompressedStorageIterator(difference_type index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_data(innerIndexPtr, valuePtr) {}
+  CompressedStorageIterator(difference_type index, reference data) : m_index(index), m_data(data) {}
+  CompressedStorageIterator(const CompressedStorageIterator& other) : m_index(other.m_index), m_data(other.m_data) {}
   CompressedStorageIterator& operator=(const CompressedStorageIterator& other) {
-    m_index = other.m_index;
-    m_innerIndexPtr = other.m_innerIndexPtr;
-    m_valuePtr = other.m_valuePtr;
-    return *this;
+      m_index = other.m_index;
+      m_data = other.m_data;
+      return *this;
   }
   ~CompressedStorageIterator() {}
 
   inline bool operator==(const CompressedStorageIterator& other) const { return m_index == other.m_index; }
   inline bool operator!=(const CompressedStorageIterator& other) const { return m_index != other.m_index; }
   inline bool operator< (const CompressedStorageIterator& other) const { return m_index <  other.m_index; }
-  inline CompressedStorageIterator operator+(difference_type offset) const { return CompressedStorageIterator(m_index + offset, m_innerIndexPtr, m_valuePtr); }
-  inline CompressedStorageIterator operator-(difference_type offset) const { return CompressedStorageIterator(m_index - offset, m_innerIndexPtr, m_valuePtr); }
+  inline CompressedStorageIterator operator+(difference_type offset) const { return CompressedStorageIterator(m_index + offset, m_data); }
+  inline CompressedStorageIterator operator-(difference_type offset) const { return CompressedStorageIterator(m_index - offset, m_data); }
   inline difference_type operator-(const CompressedStorageIterator& other) const { return m_index - other.m_index; }
   inline CompressedStorageIterator& operator++() { ++m_index; return *this; }
   inline CompressedStorageIterator& operator--() { --m_index; return *this; }
-  inline reference operator*() const { return reference(m_innerIndexPtr + m_index, m_valuePtr + m_index); }
+  inline reference operator*() const { return reference(m_data.m_innerIndexPtr + m_index, m_data.m_valuePtr + m_index); }
 
 protected:
   difference_type m_index;
-  StorageIndex* m_innerIndexPtr;
-  Scalar* m_valuePtr;
+  reference m_data;
 };
 
 template <typename Derived, class Comp, bool IsVector>
