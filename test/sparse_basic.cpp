@@ -784,13 +784,13 @@ EIGEN_DECLARE_TEST(sparse_basic)
       r = c; // check square matrices in 25% of tries
     }
     EIGEN_UNUSED_VARIABLE(r+c);
-    CALL_SUBTEST_1(( sparse_basic(SparseMatrix<double>(1, 1)) ));
-    CALL_SUBTEST_1(( sparse_basic(SparseMatrix<double>(8, 8)) ));
-    CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c)) ));
-    CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c)) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double>(1, 1)) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double>(8, 8)) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c)) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c)) ));
     CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double>(r, c)) ));
-    CALL_SUBTEST_5(( sparse_basic(SparseMatrix<double,ColMajor,long int>(r, c)) ));
-    CALL_SUBTEST_5(( sparse_basic(SparseMatrix<double,RowMajor,long int>(r, c)) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double,ColMajor,long int>(r, c)) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double,RowMajor,long int>(r, c)) ));
     
     r = Eigen::internal::random<int>(1,100);
     c = Eigen::internal::random<int>(1,100);
@@ -798,14 +798,14 @@ EIGEN_DECLARE_TEST(sparse_basic)
       r = c; // check square matrices in 25% of tries
     }
     
-    CALL_SUBTEST_6(( sparse_basic(SparseMatrix<double,ColMajor,short int>(short(r), short(c))) ));
-    CALL_SUBTEST_6(( sparse_basic(SparseMatrix<double,RowMajor,short int>(short(r), short(c))) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double,ColMajor,short int>(short(r), short(c))) ));
+    CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double,RowMajor,short int>(short(r), short(c))) ));
   }
 
   // Regression test for bug 900: (manually insert higher values here, if you have enough RAM):
   CALL_SUBTEST_3((big_sparse_triplet<SparseMatrix<float, RowMajor, int> >(10000, 10000, 0.125)));
-  CALL_SUBTEST_4((big_sparse_triplet<SparseMatrix<double, ColMajor, long int> >(10000, 10000, 0.125)));
+  CALL_SUBTEST_3((big_sparse_triplet<SparseMatrix<double, ColMajor, long int> >(10000, 10000, 0.125)));
 
-  CALL_SUBTEST_7( bug1105<0>() );
+  CALL_SUBTEST_3( bug1105<0>() );
 }
 #endif
