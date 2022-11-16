@@ -152,7 +152,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
 
     // test sort
     if (inner > 1) {
-      bool StorageOrdersMatch = DenseMatrix::IsRowMajor != SparseMatrixType::IsRowMajor;
+      bool StorageOrdersMatch = DenseMatrix::IsRowMajor == SparseMatrixType::IsRowMajor;
       DenseMatrix m1(rows, cols);
       m1.setZero();
       SparseMatrixType m2(rows, cols);

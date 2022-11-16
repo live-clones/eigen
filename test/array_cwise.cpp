@@ -43,20 +43,20 @@ template<typename Scalar>
 void special_value_pairs(Array<Scalar, Dynamic, Dynamic>& x,
                          Array<Scalar, Dynamic, Dynamic>& y) {
   std::vector<Scalar> abs_vals = special_values<Scalar>();
-  const size_t abs_cases = abs_vals.size();
-  const size_t num_cases = 2*abs_cases * 2*abs_cases;
+  const Index abs_cases = (Index)abs_vals.size();
+  const Index num_cases = 2*abs_cases * 2*abs_cases;
   // ensure both vectorized and non-vectorized paths taken
-  const size_t num_repeats = 2 * internal::packet_traits<Scalar>::size + 1;
+  const Index num_repeats = 2 * (Index)internal::packet_traits<Scalar>::size + 1;
   x.resize(num_repeats, num_cases);
   y.resize(num_repeats, num_cases);
   int count = 0;
-  for (size_t i = 0; i < abs_cases; ++i) {
+  for (Index i = 0; i < abs_cases; ++i) {
     const Scalar abs_x = abs_vals[i];
-    for (int sign_x = 0; sign_x < 2; ++sign_x) {
+    for (Index sign_x = 0; sign_x < 2; ++sign_x) {
       Scalar x_case = sign_x == 0 ? -abs_x : abs_x;
-      for (size_t j = 0; j < abs_cases; ++j) {
+      for (Index j = 0; j < abs_cases; ++j) {
         const Scalar abs_y = abs_vals[j];
-        for (int sign_y = 0; sign_y < 2; ++sign_y) {
+        for (Index sign_y = 0; sign_y < 2; ++sign_y) {
           Scalar y_case = sign_y == 0 ? -abs_y : abs_y;
           for (size_t repeat = 0; repeat < num_repeats; ++repeat) {
             x(repeat, count) = x_case;
@@ -78,8 +78,8 @@ void binary_op_test(std::string name, Fn fun, RefFn ref) {
 
   Array<Scalar, Dynamic, Dynamic> actual = fun(x, y);
   bool all_pass = true;
-  for (size_t i = 0; i < x.rows(); ++i) {
-    for (size_t j = 0; j < x.cols(); ++j) {
+  for (Index i = 0; i < x.rows(); ++i) {
+    for (Index j = 0; j < x.cols(); ++j) {
       Scalar e = static_cast<Scalar>(ref(x(i,j), y(i,j)));
       Scalar a = actual(i, j);
       bool success = (a==e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) || ((numext::isnan)(a) && (numext::isnan)(e));
@@ -108,7 +108,7 @@ void pow_scalar_exponent_test() {
   const Scalar tol = test_precision<Scalar>();
 
   std::vector<Scalar> abs_vals = special_values<Scalar>();
-  const size_t num_vals = abs_vals.size();
+  const Index num_vals = (Index)abs_vals.size();
   Map<Array<Scalar, Dynamic, 1>> bases(abs_vals.data(), num_vals);
 
   bool all_pass = true;
@@ -120,7 +120,7 @@ void pow_scalar_exponent_test() {
       if (exponent_is_integer) {
         Int_t exponent_as_int = static_cast<Int_t>(exponent);
         Array<Scalar, Dynamic, 1> eigenPow = bases.pow(exponent_as_int);
-        for (size_t j = 0; j < num_vals; j++) {
+        for (Index j = 0; j < num_vals; j++) {
           Scalar e = static_cast<Scalar>(std::pow(bases(j), exponent));
           Scalar a = eigenPow(j);
           bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
@@ -133,7 +133,7 @@ void pow_scalar_exponent_test() {
       } else {
         // test floating point exponent code path
         Array<Scalar, Dynamic, 1> eigenPow = bases.pow(exponent);
-        for (size_t j = 0; j < num_vals; j++) {
+        for (Index j = 0; j < num_vals; j++) {
           Scalar e = static_cast<Scalar>(std::pow(bases(j), exponent));
           Scalar a = eigenPow(j);
           bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
