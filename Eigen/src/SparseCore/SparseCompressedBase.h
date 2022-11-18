@@ -383,14 +383,14 @@ protected:
   Scalar* m_valueIterator;
 private:
   StorageRef() = delete;
-  // these constructors are only called by the CompressedStorageIterator constructors for convenience
-  StorageRef(StorageIndex* innerIndexIt, Scalar* valueIt) : m_innerIndexIterator(innerIndexIt), m_valueIterator(valueIt) {}
+  // these constructors are only called by the CompressedStorageIterator constructors for convenience only
+  StorageRef(StorageIndex* innerIndexIterator, Scalar* valueIterator) : m_innerIndexIterator(innerIndexIterator), m_valueIterator(valueIterator) {}
   StorageRef(const StorageRef& other) : m_innerIndexIterator(other.m_innerIndexIterator), m_valueIterator(other.m_valueIterator) {}
 
   friend class CompressedStorageIterator<Scalar, StorageIndex>;
 };
 
-// STL-compatible iterator class that operations on inner indices and values in parallel
+// STL-compatible iterator class that operates on inner indices and values
 template<typename Scalar, typename StorageIndex>
 class CompressedStorageIterator
 {
@@ -405,6 +405,11 @@ public:
   CompressedStorageIterator(difference_type index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_data(innerIndexPtr, valuePtr) {}
   CompressedStorageIterator(difference_type index, reference data) : m_index(index), m_data(data) {}
   CompressedStorageIterator(const CompressedStorageIterator& other) : m_index(other.m_index), m_data(other.m_data) {}
+  inline CompressedStorageIterator& operator=(const CompressedStorageIterator& other) {
+    m_index = other.m_index;
+    m_data = other.m_data;
+    return *this;
+  }
 
   inline bool operator==(const CompressedStorageIterator& other) const { return m_index == other.m_index; }
   inline bool operator!=(const CompressedStorageIterator& other) const { return m_index != other.m_index; }
