@@ -347,38 +347,30 @@ namespace internal {
 template <typename Scalar, typename StorageIndex>
 class CompressedStorageIterator;
 
+// wrapper class analogous to std::pair<StorageIndex&, Scalar&>
+// used to define assignment, swap, and comparison operators for CompressedStorageIterator
 template <typename Scalar, typename StorageIndex>
 class StorageRef 
 {
 public:
   using value_type = std::pair<StorageIndex, Scalar>;
 
-  StorageRef() = delete;
-  StorageRef(StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_innerIndexPtr(innerIndexPtr), m_valuePtr(valuePtr) {}
-  StorageRef(const StorageRef& other) : m_innerIndexPtr(other.m_innerIndexPtr), m_valuePtr(other.m_valuePtr) {}
-  StorageRef& operator=(const StorageRef& other) {
-    m_innerIndexPtr = other.m_innerIndexPtr;
-    m_valuePtr = other.m_valuePtr;
+  inline StorageRef& operator=(const StorageRef& other) {
+    *m_innerIndexIterator = *other.m_innerIndexIterator;
+    *m_valueIterator = *other.m_valueIterator;
     return *this;
   }
-  ~StorageRef() {}
-
-  inline StorageRef& operator=(StorageRef&& other) {
-    *m_innerIndexPtr = *other.m_innerIndexPtr;
-    *m_valuePtr = *other.m_valuePtr;
+  inline StorageRef& operator=(const value_type& other) {
+    std::tie(*m_innerIndexIterator, *m_valueIterator) = other;
     return *this;
   }
-  inline StorageRef& operator=(value_type&& other) {
-    std::tie(*m_innerIndexPtr, *m_valuePtr) = other;
-    return *this;
-  }
-  inline operator value_type() && { return std::make_pair(*m_innerIndexPtr, *m_valuePtr); }
-  inline friend void swap(StorageRef a, StorageRef b) {
-    std::iter_swap(a.m_innerIndexPtr, b.m_innerIndexPtr);
-    std::iter_swap(a.m_valuePtr, b.m_valuePtr);
+  inline operator value_type() const { return std::make_pair(*m_innerIndexIterator, *m_valueIterator); }
+  inline friend void swap(const StorageRef& a, const StorageRef& b) {
+    std::iter_swap(a.m_innerIndexIterator, b.m_innerIndexIterator);
+    std::iter_swap(a.m_valueIterator, b.m_valueIterator);
   }
 
-  inline static const StorageIndex& key(const StorageRef& a) { return *a.m_innerIndexPtr; }
+  inline static const StorageIndex& key(const StorageRef& a) { return *a.m_innerIndexIterator; }
   inline static const StorageIndex& key(const value_type& a) { return a.first; }
   #define REF_COMP_REF(OP) inline friend bool operator OP(const StorageRef& a, const StorageRef& b) { return key(a) OP key(b); };
   #define REF_COMP_VAL(OP) inline friend bool operator OP(const StorageRef& a, const value_type& b) { return key(a) OP key(b); };
@@ -387,12 +379,18 @@ public:
   MAKE_COMPS(<) MAKE_COMPS(>) MAKE_COMPS(<=) MAKE_COMPS(>=) MAKE_COMPS(==) MAKE_COMPS(!=)
 
 protected:
-  StorageIndex* m_innerIndexPtr;
-  Scalar* m_valuePtr;
+  StorageIndex* m_innerIndexIterator;
+  Scalar* m_valueIterator;
+private:
+  StorageRef() = delete;
+  // these constructors are only called by the CompressedStorageIterator constructors for convenience
+  StorageRef(StorageIndex* innerIndexIt, Scalar* valueIt) : m_innerIndexIterator(innerIndexIt), m_valueIterator(valueIt) {}
+  StorageRef(const StorageRef& other) : m_innerIndexIterator(other.m_innerIndexIterator), m_valueIterator(other.m_valueIterator) {}
 
   friend class CompressedStorageIterator<Scalar, StorageIndex>;
 };
 
+// STL-compatible iterator class that operations on inner indices and values in parallel
 template<typename Scalar, typename StorageIndex>
 class CompressedStorageIterator
 {
@@ -407,12 +405,6 @@ public:
   CompressedStorageIterator(difference_type index, StorageIndex* innerIndexPtr, Scalar* valuePtr) : m_index(index), m_data(innerIndexPtr, valuePtr) {}
   CompressedStorageIterator(difference_type index, reference data) : m_index(index), m_data(data) {}
   CompressedStorageIterator(const CompressedStorageIterator& other) : m_index(other.m_index), m_data(other.m_data) {}
-  CompressedStorageIterator& operator=(const CompressedStorageIterator& other) {
-      m_index = other.m_index;
-      m_data = other.m_data;
-      return *this;
-  }
-  ~CompressedStorageIterator() {}
 
   inline bool operator==(const CompressedStorageIterator& other) const { return m_index == other.m_index; }
   inline bool operator!=(const CompressedStorageIterator& other) const { return m_index != other.m_index; }
@@ -422,7 +414,7 @@ public:
   inline difference_type operator-(const CompressedStorageIterator& other) const { return m_index - other.m_index; }
   inline CompressedStorageIterator& operator++() { ++m_index; return *this; }
   inline CompressedStorageIterator& operator--() { --m_index; return *this; }
-  inline reference operator*() const { return reference(m_data.m_innerIndexPtr + m_index, m_data.m_valuePtr + m_index); }
+  inline reference operator*() const { return reference(m_data.m_innerIndexIterator + m_index, m_data.m_valueIterator + m_index); }
 
 protected:
   difference_type m_index;
