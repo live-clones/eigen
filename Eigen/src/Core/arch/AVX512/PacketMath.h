@@ -346,11 +346,13 @@ EIGEN_STRONG_INLINE Packet16i psub<Packet16i>(const Packet16i& a,
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pnegate(const Packet16f& a) {
-  return _mm512_sub_ps(_mm512_set1_ps(0.0), a);
+  const __m512i mask = _mm512_set1_epi32(0x80000000);
+  return _mm512_castsi512_ps(_mm512_xor_epi32(_mm512_castps_si512(a), mask));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pnegate(const Packet8d& a) {
-  return _mm512_sub_pd(_mm512_set1_pd(0.0), a);
+  const __m512i mask = _mm512_set1_epi64(0x8000000000000000ULL);
+  return _mm512_castsi512_pd(_mm512_xor_epi64(_mm512_castpd_si512(a), mask));
 }
 template <>
 EIGEN_STRONG_INLINE Packet16i pnegate(const Packet16i& a) {
@@ -1126,6 +1128,11 @@ template<> EIGEN_STRONG_INLINE Packet16i pabs(const Packet16i& a)
 {
   return _mm512_abs_epi32(a);
 }
+
+template<> EIGEN_STRONG_INLINE Packet16h  psignbit(const Packet16h&  a) { return _mm256_srai_epi16(a, 15); }
+template<> EIGEN_STRONG_INLINE Packet16bf psignbit(const Packet16bf& a) { return _mm256_srai_epi16(a, 15); }
+template<> EIGEN_STRONG_INLINE Packet16f  psignbit(const Packet16f&  a) { return _mm512_castsi512_ps(_mm512_srai_epi32(_mm512_castps_si512(a), 31)); }
+template<> EIGEN_STRONG_INLINE Packet8d   psignbit(const Packet8d&   a) { return _mm512_castsi512_pd(_mm512_srai_epi64(_mm512_castpd_si512(a), 63)); }
 
 template<>
 EIGEN_STRONG_INLINE Packet16f pfrexp<Packet16f>(const Packet16f& a, Packet16f& exponent){
