@@ -91,8 +91,12 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
         for (Index k=0; k<nnz; ++k)
         {
           Index i = internal::random<Index>(0,rows-1);
-          if (m1.coeff(i,j)==Scalar(0))
-            m2.insert(i,j) = m1(i,j) = internal::random<Scalar>();
+          if (m1.coeff(i, j) == Scalar(0)) {
+            Scalar v = internal::random<Scalar>();
+            if (v == Scalar(0)) v = Scalar(1);
+            m1(i, j) = v;
+            m2.insert(i, j) = v;
+          }
         }
       }
       
@@ -116,13 +120,18 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       {
         Index i = internal::random<Index>(0,rows-1);
         Index j = internal::random<Index>(0,cols-1);
-        if ((m1.coeff(i,j)==Scalar(0)) && (internal::random<int>()%2))
-          m2.insert(i,j) = m1(i,j) = internal::random<Scalar>();
+        if ((m1.coeff(i, j) == Scalar(0)) && (internal::random<int>() % 2)) {
+          Scalar v = internal::random<Scalar>();
+          if (v == Scalar(0)) v = Scalar(1);
+          m1(i, j) = v;
+          m2.insert(i, j) = v;
+        }
         else
         {
           Scalar v = internal::random<Scalar>();
-          m2.coeffRef(i,j) += v;
-          m1(i,j) += v;
+          if (v == Scalar(0)) v = Scalar(1);
+          m1(i, j) = v;
+          m2.insert(i, j) = v;
         }
       }
       VERIFY_IS_APPROX(m2,m1);
@@ -140,8 +149,12 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       {
         Index i = internal::random<Index>(0,rows-1);
         Index j = internal::random<Index>(0,cols-1);
-        if (m1.coeff(i,j)==Scalar(0))
-          m2.insert(i,j) = m1(i,j) = internal::random<Scalar>();
+        if (m1.coeff(i, j) == Scalar(0)) {
+          Scalar v = internal::random<Scalar>();
+          if (v == Scalar(0)) v = Scalar(1);
+          m1(i, j) = v;
+          m2.insert(i, j) = v;
+        }
         if(mode==3)
           m2.reserve(r);
       }
