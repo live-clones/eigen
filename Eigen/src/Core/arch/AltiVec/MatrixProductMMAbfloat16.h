@@ -1,5 +1,7 @@
- #ifndef EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
- #define EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
+#ifndef EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
+#define EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
+
+#define LHS_PACK   1
 
 namespace Eigen {
 
@@ -17,12 +19,18 @@ EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16(const bfloat16* indexA)
 {
   Packet8bf lhs1 = ploadu<Packet8bf>(indexA);
   Packet8bf lhs2;
-  const Index packet_size = 8; //We fit 8 bfloat16 on a 128 register
   if(zero){
     lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
+    return vec_mergeh(lhs1.m_val, lhs2.m_val);
+  } else {
+#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16 && LHS_PACK
+    return lhs1;
+#else
+    const Index packet_size = 8; //We fit 8 bfloat16 on a 128 register
+    lhs2 = ploadu<Packet8bf>(indexA + num_packets*packet_size);
+    return vec_mergeh(lhs1.m_val, lhs2.m_val);
+#endif
   }
-  else lhs2 = ploadu<Packet8bf>(indexA + num_packets*packet_size);
-  return vec_mergeh(lhs1.m_val, lhs2.m_val);
 }
 
 template<bool zero>
@@ -130,7 +138,11 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
     }
     if(depth&1){
+#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16 && LHS_PACK
+      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-offset_row, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
+#else
       KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
+#endif
     }
 
     for(Index i = 0; i < num_acc; i++)
@@ -204,22 +216,27 @@ __asm__("# Start asm!\n\t");
   const Index standard_blocks_quantity = rows/standard_block_size; //Number of standard blocks
   Index bigSuffix = (2*8) * (strideA-offsetA-depth);
   const bfloat16* indexA = blockA;
+#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16 && LHS_PACK
+  const Index offset_factor = 2;
+#else
+  const Index offset_factor = 1;
+#endif
   Index block_index;
   for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
     indexA += 2*8*offsetA;
     for(Index offset_row = 0; offset_row < standard_block_size; offset_row += 4){ //This block size has 16 rows maximum
       col = 0;
-      colLoopBody<7, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<6, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<5, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<4, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<3, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<2, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<1, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<7, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<6, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<5, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<4, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<3, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<2, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<1, 16, 2>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
       if(cols > col){
         Index extra_cols= cols-col;
         //Remember: It doesnt make sense use multiple acc to extra_cols as we are unrolling col loop
-        colLoopBody<1, 16, 2, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
+        colLoopBody<1, 16, 2, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
       }
     }
     row += 16;
@@ -230,19 +247,19 @@ __asm__("# Start asm!\n\t");
     indexA += 1*8*offsetA + 2*8*offsetA;
     for(Index offset_row = 0; offset_row < 8; offset_row += 4){
       col = 0;
-      colLoopBody<7, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<6, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<5, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<4, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<3, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<2, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
-      colLoopBody<1, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<7, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<6, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<5, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<4, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<3, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<2, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
+      colLoopBody<1, 8, 1>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
     }
     if(cols > col){
       Index extra_cols= cols-col;
 
       for(Index offset_row = 0; offset_row < 8; offset_row += 4){
-        colLoopBody<1, 8, 1, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
+        colLoopBody<1, 8, 1, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
       }
     } //end extra cols
     row += 8;
