@@ -709,16 +709,6 @@
 
 #define EIGEN_CONSTEXPR constexpr
 
-// Does the compiler support C++11 math?
-// Let's be conservative and enable the default C++11 implementation only if we are sure it exists
-#ifndef EIGEN_HAS_CXX11_MATH
-  #if (EIGEN_ARCH_i386_OR_x86_64 && (EIGEN_OS_GNULINUX || EIGEN_OS_WIN_STRICT || EIGEN_OS_MAC))
-    #define EIGEN_HAS_CXX11_MATH 1
-  #else
-    #define EIGEN_HAS_CXX11_MATH 0
-  #endif
-#endif
-
 // NOTE: the required Apple's clang version is very conservative
 //       and it could be that XCode 9 works just fine.
 // NOTE: the MSVC version is based on https://en.cppreference.com/w/cpp/compiler_support
@@ -1064,13 +1054,13 @@ namespace Eigen {
 #elif EIGEN_COMP_CLANG // workaround clang bug (see http://forum.kde.org/viewtopic.php?f=74&t=102653)
   #define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived) \
     using Base::operator =; \
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Derived& operator=(const Derived& other) { Base::operator=(other); return *this; } \
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { Base::operator=(other); return *this; } \
     template <typename OtherDerived> \
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Derived& operator=(const DenseBase<OtherDerived>& other) { Base::operator=(other.derived()); return *this; }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const DenseBase<OtherDerived>& other) { Base::operator=(other.derived()); return *this; }
 #else
   #define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived) \
     using Base::operator =; \
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Derived& operator=(const Derived& other) \
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) \
     { \
       Base::operator=(other); \
       return *this; \
@@ -1103,14 +1093,11 @@ namespace Eigen {
  *
  * Hiding the default destructor lead to problems in C++03 mode together with boost::multiprecision
  */
-#if defined(EIGEN_GPUCC)
 #define EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(Derived)  \
-    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Derived() = default; \
+    EIGEN_DEVICE_FUNC Derived() = default; \
     EIGEN_DEVICE_FUNC ~Derived() = default;
-#else
-#define EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(Derived)  \
-    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Derived() = default;
-#endif
+
+
 
 
 
@@ -1167,7 +1154,7 @@ namespace Eigen {
 
 #define EIGEN_MAKE_CWISE_BINARY_OP(METHOD,OPNAME) \
   template<typename OtherDerived> \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME) \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME) \
   (METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const \
   { \
     return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived,OtherDerived,OPNAME)(derived(), other.derived()); \
@@ -1185,7 +1172,7 @@ namespace Eigen {
                 const typename internal::plain_constant_type<EXPR,SCALAR>::type, const EXPR>
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD,OPNAME) \
-  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR \
+  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE \
   const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived,typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,Scalar,T)>::type,OPNAME)\
   (METHOD)(const T& scalar) const { \
     typedef typename internal::promote_scalar_arg<Scalar,T,EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,Scalar,T)>::type PromotedT; \
@@ -1194,7 +1181,7 @@ namespace Eigen {
   }
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD,OPNAME) \
-  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR friend \
+  template <typename T> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend \
   const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,T,Scalar)>::type,Derived,OPNAME) \
   (METHOD)(const T& scalar, const StorageBaseType& matrix) { \
     typedef typename internal::promote_scalar_arg<Scalar,T,EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME,T,Scalar)>::type PromotedT; \
@@ -1264,6 +1251,14 @@ bool all(T t, Ts ... ts){ return t && all(ts...); }
   #endif
 #else
   #define EIGEN_UNROLL_LOOP
+#endif
+
+// Notice: Use this macro with caution. The code in the if body should still
+// compile with C++14.
+#if defined(EIGEN_HAS_CXX17_IFCONSTEXPR)
+#define EIGEN_IF_CONSTEXPR(X) if constexpr (X)
+#else
+#define EIGEN_IF_CONSTEXPR(X) if (X)
 #endif
 
 #endif // EIGEN_MACROS_H

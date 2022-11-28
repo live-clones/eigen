@@ -161,6 +161,7 @@ template<> struct packet_traits<double> : default_packet_traits
     HasSqrt = EIGEN_FAST_MATH,
     HasRsqrt = EIGEN_FAST_MATH,
 #endif
+    HasATan = 1,
     HasCmp  = 1,
     HasDiv = 1,
     HasRound = 1,
@@ -178,6 +179,7 @@ template<> struct packet_traits<int> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     HasCmp = 1,
+    HasDiv = 1,
     size=16
   };
 };
@@ -344,11 +346,13 @@ EIGEN_STRONG_INLINE Packet16i psub<Packet16i>(const Packet16i& a,
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pnegate(const Packet16f& a) {
-  return _mm512_sub_ps(_mm512_set1_ps(0.0), a);
+  const __m512i mask = _mm512_set1_epi32(0x80000000);
+  return _mm512_castsi512_ps(_mm512_xor_epi32(_mm512_castps_si512(a), mask));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pnegate(const Packet8d& a) {
-  return _mm512_sub_pd(_mm512_set1_pd(0.0), a);
+  const __m512i mask = _mm512_set1_epi64(0x8000000000000000ULL);
+  return _mm512_castsi512_pd(_mm512_xor_epi64(_mm512_castpd_si512(a), mask));
 }
 template <>
 EIGEN_STRONG_INLINE Packet16i pnegate(const Packet16i& a) {
@@ -389,10 +393,19 @@ EIGEN_STRONG_INLINE Packet16f pdiv<Packet16f>(const Packet16f& a,
                                               const Packet16f& b) {
   return _mm512_div_ps(a, b);
 }
+
 template <>
 EIGEN_STRONG_INLINE Packet8d pdiv<Packet8d>(const Packet8d& a,
                                             const Packet8d& b) {
   return _mm512_div_pd(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16i pdiv<Packet16i>(const Packet16i& a,
+                                              const Packet16i& b) {
+  Packet8i q_lo = pdiv<Packet8i>(_mm512_extracti64x4_epi64(a, 0), _mm512_extracti64x4_epi64(b,0));
+  Packet8i q_hi = pdiv<Packet8i>(_mm512_extracti64x4_epi64(a, 1), _mm512_extracti64x4_epi64(b, 1));
+  return _mm512_inserti64x4(_mm512_castsi256_si512(q_lo), q_hi, 1);
 }
 
 #ifdef EIGEN_VECTORIZE_FMA
@@ -1116,6 +1129,11 @@ template<> EIGEN_STRONG_INLINE Packet16i pabs(const Packet16i& a)
   return _mm512_abs_epi32(a);
 }
 
+template<> EIGEN_STRONG_INLINE Packet16h  psignbit(const Packet16h&  a) { return _mm256_srai_epi16(a, 15); }
+template<> EIGEN_STRONG_INLINE Packet16bf psignbit(const Packet16bf& a) { return _mm256_srai_epi16(a, 15); }
+template<> EIGEN_STRONG_INLINE Packet16f  psignbit(const Packet16f&  a) { return _mm512_castsi512_ps(_mm512_srai_epi32(_mm512_castps_si512(a), 31)); }
+template<> EIGEN_STRONG_INLINE Packet8d   psignbit(const Packet8d&   a) { return _mm512_castsi512_pd(_mm512_srai_epi64(_mm512_castpd_si512(a), 63)); }
+
 template<>
 EIGEN_STRONG_INLINE Packet16f pfrexp<Packet16f>(const Packet16f& a, Packet16f& exponent){
   return pfrexp_generic(a, exponent);
@@ -1378,7 +1396,11 @@ template<> EIGEN_STRONG_INLINE bool predux_any(const Packet16f& x)
   return !_mm512_kortestz(tmp,tmp);
 }
 
-
+template<> EIGEN_STRONG_INLINE bool predux_any(const Packet16i& x)
+{
+  __mmask16 tmp = _mm512_test_epi32_mask(x,x);
+  return !_mm512_kortestz(tmp,tmp);
+}
 
 #define PACK_OUTPUT(OUTPUT, INPUT, INDEX, STRIDE) \
   EIGEN_INSERT_8f_INTO_16f(OUTPUT[INDEX], INPUT[INDEX], INPUT[INDEX + STRIDE]);
@@ -1821,7 +1843,7 @@ template <>
 EIGEN_STRONG_INLINE Packet16f pblend(const Selector<16>& /*ifPacket*/,
                                      const Packet16f& /*thenPacket*/,
                                      const Packet16f& /*elsePacket*/) {
-  assert(false && "To be implemented");
+  eigen_assert(false && "To be implemented");
   return Packet16f();
 }
 template <>

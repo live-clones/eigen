@@ -1460,11 +1460,6 @@ template<typename Packet> EIGEN_ALWAYS_INLINE void pstoreu_partial_common(__UNPA
   if (i < n2) {
     *reinterpret_cast<uint8_t *>(to2 + i) = *reinterpret_cast<uint8_t *>(store2 + i);
   }
-
-  LOAD_STORE_UNROLL_16
-  for (Index i = 0; i < n; i++) {
-    to[i] = from[i];
-  }
 #endif
 }
 
@@ -1574,6 +1569,9 @@ template<> EIGEN_STRONG_INLINE Packet8bf  pabs(const Packet8bf& a) {
   EIGEN_DECLARE_CONST_FAST_Packet8us(abs_mask,0x7FFF);
   return pand<Packet8us>(p8us_abs_mask, a);
 }
+
+template<> EIGEN_STRONG_INLINE Packet8bf psignbit(const Packet8bf& a) { return vec_sra(a.m_val, vec_splat_u16(15)); }
+template<> EIGEN_STRONG_INLINE Packet4f  psignbit(const Packet4f&  a) { return  (Packet4f)vec_sra((Packet4i)a, vec_splats((unsigned int)(31))); }
 
 template<int N> EIGEN_STRONG_INLINE Packet4i parithmetic_shift_right(const Packet4i& a)
 { return vec_sra(a,reinterpret_cast<Packet4ui>(pset1<Packet4i>(N))); }
@@ -2708,6 +2706,7 @@ template<> struct packet_traits<double> : default_packet_traits
     HasAbs  = 1,
     HasSin  = 0,
     HasCos  = 0,
+    HasATan = 0,
     HasLog  = 0,
     HasExp  = 1,
     HasSqrt = 1,
@@ -2927,7 +2926,7 @@ template<> EIGEN_STRONG_INLINE Packet2d preverse(const Packet2d& a)
   return vec_sld(a, a, 8);
 }
 template<> EIGEN_STRONG_INLINE Packet2d pabs(const Packet2d& a) { return vec_abs(a); }
-
+template<> EIGEN_STRONG_INLINE Packet2d psignbit(const Packet2d&  a) { return (Packet2d)vec_sra((Packet2l)a, vec_splats((unsigned long long)(63))); }
 // VSX support varies between different compilers and even different
 // versions of the same compiler.  For gcc version >= 4.9.3, we can use
 // vec_cts to efficiently convert Packet2d to Packet2l.  Otherwise, use

@@ -22,7 +22,7 @@ namespace internal {
   * \sa class CwiseUnaryOp, MatrixBase::operator-
   */
 template<typename Scalar> struct scalar_opposite_op {
-  EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { return -a; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { return -a; }
   template<typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const
   { return internal::pnegate(a); }
@@ -88,7 +88,7 @@ template<typename Scalar> struct abs_knowing_score<Scalar, typename scalar_score
   */
 template<typename Scalar> struct scalar_abs2_op {
   typedef typename NumTraits<Scalar>::Real result_type;
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
+  EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE const result_type operator() (const Scalar& a) const { return numext::abs2(a); }
   template<typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const
@@ -154,7 +154,7 @@ struct functor_traits<scalar_arg_op<Scalar> >
 template<typename Scalar, typename NewType>
 struct scalar_cast_op {
   typedef NewType result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR const NewType operator() (const Scalar& a) const { return cast<Scalar, NewType>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const NewType operator() (const Scalar& a) const { return cast<Scalar, NewType>(a); }
 };
 template<typename Scalar, typename NewType>
 struct functor_traits<scalar_cast_op<Scalar,NewType> >
@@ -593,7 +593,6 @@ struct functor_traits<scalar_tanh_op<Scalar> > {
   };
 };
 
-#if EIGEN_HAS_CXX11_MATH
 /** \internal
   * \brief Template functor to compute the atanh of a scalar
   * \sa class CwiseUnaryOp, ArrayBase::atanh()
@@ -607,7 +606,6 @@ template <typename Scalar>
 struct functor_traits<scalar_atanh_op<Scalar> > {
   enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
 };
-#endif
 
 /** \internal
   * \brief Template functor to compute the sinh of a scalar
@@ -627,7 +625,6 @@ struct functor_traits<scalar_sinh_op<Scalar> >
   };
 };
 
-#if EIGEN_HAS_CXX11_MATH
 /** \internal
   * \brief Template functor to compute the asinh of a scalar
   * \sa class CwiseUnaryOp, ArrayBase::asinh()
@@ -641,7 +638,6 @@ template <typename Scalar>
 struct functor_traits<scalar_asinh_op<Scalar> > {
   enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
 };
-#endif
 
 /** \internal
   * \brief Template functor to compute the cosh of a scalar
@@ -661,7 +657,6 @@ struct functor_traits<scalar_cosh_op<Scalar> >
   };
 };
 
-#if EIGEN_HAS_CXX11_MATH
 /** \internal
   * \brief Template functor to compute the acosh of a scalar
   * \sa class CwiseUnaryOp, ArrayBase::acosh()
@@ -675,7 +670,6 @@ template <typename Scalar>
 struct functor_traits<scalar_acosh_op<Scalar> > {
   enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
 };
-#endif
 
 /** \internal
   * \brief Template functor to compute the inverse of a scalar
@@ -936,7 +930,7 @@ struct functor_traits<scalar_sign_op<Scalar> >
         NumTraits<Scalar>::IsComplex
         ? ( 8*NumTraits<Scalar>::MulCost  ) // roughly
         : ( 3*NumTraits<Scalar>::AddCost),
-    PacketAccess = packet_traits<Scalar>::HasSign
+    PacketAccess = packet_traits<Scalar>::HasSign && packet_traits<Scalar>::Vectorizable
   };
 };
 
