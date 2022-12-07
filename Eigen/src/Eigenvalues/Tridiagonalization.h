@@ -470,7 +470,7 @@ struct tridiagonalization_inplace_selector<MatrixType,3,false>
   template<typename DiagonalType, typename SubDiagonalType, typename CoeffVectorType>
   static void run(MatrixType& mat, DiagonalType& diag, SubDiagonalType& subdiag, CoeffVectorType&, bool extractQ)
   {
-    using std::sqrt;
+    EIGEN_USING_STD_MATH(sqrt);
     const RealScalar tol = (std::numeric_limits<RealScalar>::min)();
     diag[0] = mat(0,0);
     RealScalar v1norm2 = numext::abs2(mat(2,0));

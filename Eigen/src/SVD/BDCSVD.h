@@ -329,7 +329,7 @@ BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(const Mat
 #ifdef EIGEN_BDCSVD_DEBUG_VERBOSE
   std::cout << "\n\n\n======================================================================================================================\n\n\n";
 #endif
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
 
   allocate(matrix.rows(), matrix.cols(), computationOptions);
 
@@ -525,8 +525,8 @@ void BDCSVD<MatrixType, Options>::divide(Index firstCol, Index lastCol, Index fi
                                          Index firstColW, Index shift) {
   // requires rows = cols + 1;
   using std::pow;
-  using std::sqrt;
-  using std::abs;
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
   const Index n = lastCol - firstCol + 1;
   const Index k = n/2;
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();
@@ -702,7 +702,7 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::computeSVDofM(Index firstCol, Index n, MatrixXr& U,
                                                 VectorType& singVals, MatrixXr& V) {
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   ArrayRef col0 = m_computed.col(firstCol).segment(firstCol, n);
   m_workspace.head(n) =  m_computed.block(firstCol, firstCol, n, n).diagonal();
   ArrayRef diag = m_workspace.head(n);
@@ -848,9 +848,9 @@ typename BDCSVD<MatrixType, Options>::RealScalar BDCSVD<MatrixType, Options>::se
 template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::computeSingVals(const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm,
                                                   VectorType& singVals, ArrayRef shifts, ArrayRef mus) {
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   using std::swap;
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(sqrt);
 
   Index n = col0.size();
   Index actual_n = n;
@@ -1098,7 +1098,7 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::perturbCol0(const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm,
                                               const VectorType& singVals, const ArrayRef& shifts, const ArrayRef& mus,
                                               ArrayRef zhat) {
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(sqrt);
   Index n = col0.size();
   Index m = perm.size();
   if(m==0)
@@ -1227,8 +1227,8 @@ void BDCSVD<MatrixType, Options>::computeSingVecs(const ArrayRef& zhat, const Ar
 template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::deflation43(Index firstCol, Index shift, Index i,
                                               Index size) {
-  using std::abs;
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(abs);
+  EIGEN_USING_STD_MATH(sqrt);
   using std::pow;
   Index start = firstCol + shift;
   RealScalar c = m_computed(start, start);
@@ -1256,8 +1256,8 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::deflation44(Index firstColu, Index firstColm, Index firstRowW,
                                               Index firstColW, Index i, Index j,
                                               Index size) {
-  using std::abs;
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(abs);
+  EIGEN_USING_STD_MATH(sqrt);
   using std::conj;
   using std::pow;
   RealScalar c = m_computed(firstColm+i, firstColm);
@@ -1295,8 +1295,8 @@ void BDCSVD<MatrixType, Options>::deflation44(Index firstColu, Index firstColm, 
 template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::deflation(Index firstCol, Index lastCol, Index k,
                                             Index firstRowW, Index firstColW, Index shift) {
-  using std::sqrt;
-  using std::abs;
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
   const Index length = lastCol + 1 - firstCol;
 
   Block<MatrixXr,Dynamic,1> col0(m_computed, firstCol+shift, firstCol+shift, length, 1);

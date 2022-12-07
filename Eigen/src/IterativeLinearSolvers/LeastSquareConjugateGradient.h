@@ -31,8 +31,8 @@ void least_square_conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest
                                      const Preconditioner& precond, Index& iters,
                                      typename Dest::RealScalar& tol_error)
 {
-  using std::sqrt;
-  using std::abs;
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
   typedef Matrix<Scalar,Dynamic,1> VectorType;

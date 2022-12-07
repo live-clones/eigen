@@ -298,7 +298,7 @@ class AmbiVector<Scalar_,StorageIndex_>::Iterator
     explicit Iterator(const AmbiVector& vec, const RealScalar& epsilon = 0)
       : m_vector(vec)
     {
-      using std::abs;
+      EIGEN_USING_STD_MATH(abs);
       m_epsilon = epsilon;
       m_isDense = m_vector.m_mode==IsDense;
       if (m_isDense)
@@ -334,7 +334,7 @@ class AmbiVector<Scalar_,StorageIndex_>::Iterator
 
     Iterator& operator++()
     {
-      using std::abs;
+      EIGEN_USING_STD_MATH(abs);
       if (m_isDense)
       {
         do {

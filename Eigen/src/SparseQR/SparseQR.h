@@ -362,7 +362,7 @@ void SparseQR<MatrixType,OrderingType>::analyzePattern(const MatrixType& mat)
 template <typename MatrixType, typename OrderingType>
 void SparseQR<MatrixType,OrderingType>::factorize(const MatrixType& mat)
 {
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   
   eigen_assert(m_analysisIsok && "analyzePattern() should be called before this step");
   StorageIndex m = StorageIndex(mat.rows());
@@ -534,7 +534,7 @@ void SparseQR<MatrixType,OrderingType>::factorize(const MatrixType& mat)
       }
       else
       {
-        using std::sqrt;
+        EIGEN_USING_STD_MATH(sqrt);
         beta = sqrt(numext::abs2(c0) + sqrNorm);
         if(numext::real(c0) >= RealScalar(0))
           beta = -beta;

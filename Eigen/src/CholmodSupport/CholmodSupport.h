@@ -399,7 +399,7 @@ class CholmodBase : public SparseSolverBase<Derived>
     /** \returns the log determinant of the underlying matrix from the current factorization */
     Scalar logDeterminant() const
     {
-      using std::log;
+      EIGEN_USING_STD_MATH(log);
       using numext::real;
       eigen_assert(m_factorizationIsOk && "The decomposition is not in a valid state for solving, you must first call either compute() or symbolic()/numeric()");
 

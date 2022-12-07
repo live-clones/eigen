@@ -267,8 +267,9 @@ struct sign_impl<Scalar, true, IsInteger>
   EIGEN_DEVICE_FUNC
   static inline Scalar run(const Scalar& a)
   {
+    EIGEN_USING_STD_MATH(abs);
     using real_type = typename NumTraits<Scalar>::Real;
-    real_type aa = std::abs(a);
+    real_type aa = abs(a);
     if (aa==real_type(0))
       return Scalar(0);
     aa = real_type(1)/aa;
@@ -1508,7 +1509,7 @@ inline int log2(int x)
 /** \returns the square root of \a x.
   *
   * It is essentially equivalent to
-  * \code using std::sqrt; return sqrt(x); \endcode
+  * \code EIGEN_USING_STD_MATH(sqrt); return sqrt(x); \endcode
   * but slightly faster for float/double and some compilers (e.g., gcc), thanks to
   * specializations when SSE is enabled.
   *
