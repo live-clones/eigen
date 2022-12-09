@@ -239,7 +239,7 @@ DenseBase<Derived>::Constant(const Scalar& value)
   * When size is set to 1, a vector of length 1 containing 'low' is returned.
   * If the template parameter 'FastMode' is `true`, the spacing is always equal,
   * which can lead to unintended results for integer types. `FastMode` is `true` by default for floating point types
-  * types and false for integer types, but is appropriate (and preferable) for integer types when `size-1` is an exact
+  * types and `false` for integer types, but is appropriate (and preferable) for integer types when `size-1` is an exact
   * multiple of `high-low`.
   *
   * \only_for_vectors
@@ -257,7 +257,7 @@ DenseBase<Derived>::Constant(const Scalar& value)
   * \sa setLinSpaced(Index,const Scalar&,const Scalar&), CwiseNullaryOp
   */
 template<typename Derived> template<bool FastMode>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DenseBase<Derived>::RandomAccessLinSpacedReturnType<FastMode>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename const DenseBase<Derived>::RandomAccessLinSpacedReturnType<FastMode>
 DenseBase<Derived>::LinSpaced(Index size, const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
@@ -270,7 +270,7 @@ DenseBase<Derived>::LinSpaced(Index size, const Scalar& low, const Scalar& high)
   * Special version for fixed size types which does not require the size parameter.
   */
 template<typename Derived> template<bool FastMode>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DenseBase<Derived>::RandomAccessLinSpacedReturnType<FastMode>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename const DenseBase<Derived>::RandomAccessLinSpacedReturnType<FastMode>
 DenseBase<Derived>::LinSpaced(const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)

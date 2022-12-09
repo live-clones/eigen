@@ -38,11 +38,11 @@ template<typename Scalar> struct scalar_identity_op {
 template <typename Scalar, bool FastMode>
 struct linspaced_op_impl {
   // this specialization is intended (though not required) for situations where (high-low) is a multiple of (num_steps-1)
-  // for example, VectorXi::Linspaced(n,1,n) -> {1, 2 ... n}
+  // for example, VectorXi::LinSpaced(n,1,n) -> {1, 2 ... n}
   // this specialization does not require vectorized division
   // default for floating point types
   EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
-      : m_low(low), m_multiplier(num_steps <= 1 ? 1 : (high - low) / (num_steps - Scalar(1))) {}
+      : m_low(low), m_multiplier(num_steps <= Scalar(1) ? Scalar(1) : (high - low) / (num_steps - Scalar(1))) {}
 
   template <typename IndexType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(IndexType i) const {
@@ -65,11 +65,11 @@ template <typename Scalar>
 struct linspaced_op_impl<Scalar, false> {
   // this specialization better handles several cases,
   // particularly where Scalar is an integer and (high-low) is NOT a multiple of (num_steps-1)
-  // FastMode == false : VectorXi::Linspaced(10,1,7) -> {1 1 2 3 3 4 5 5 6 7}
-  // FastMode == true :  VectorXi::Linspaced(10,1,7) -> {1 1 1 1 1 1 1 1 1 1}
+  // FastMode == false : VectorXi::LinSpaced(10,1,7) -> {1 1 2 3 3 4 5 5 6 7}
+  // FastMode == true :  VectorXi::LinSpaced(10,1,7) -> {1 1 1 1 1 1 1 1 1 1}
   // default for integer types
   EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
-      : m_low(low), m_delta(high - low), m_countm1(num_steps <= 1 ? 1 : num_steps - Scalar(1)) {}
+      : m_low(low), m_delta(high - low), m_countm1(num_steps <= Scalar(1) ? Scalar(1) : num_steps - Scalar(1)) {}
 
   template <typename IndexType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(IndexType i) const {
