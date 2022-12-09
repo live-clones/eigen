@@ -382,14 +382,11 @@ EigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix, bool comput
 {
   check_template_parameters();
   
-  #ifdef EIGEN_USE_SYCL
-  using sycl::sqrt;
-  using sycl::abs;
-  #else
-  using std::sqrt;
-  using std::abs;
-  #endif
   using numext::isfinite;
+
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
+  
   eigen_assert(matrix.cols() == matrix.rows());
 
   // Reduce to real Schur form.
