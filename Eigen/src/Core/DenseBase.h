@@ -254,10 +254,8 @@ template<typename Derived> class DenseBase
 #ifndef EIGEN_PARSED_BY_DOXYGEN
     /** \internal Represents a matrix with all coefficients equal to one another*/
     typedef CwiseNullaryOp<internal::scalar_constant_op<Scalar>,PlainObject> ConstantReturnType;
-    /** \internal \deprecated Represents a vector with linearly spaced coefficients that allows sequential access only. */
-    EIGEN_DEPRECATED typedef CwiseNullaryOp<internal::linspaced_op<Scalar>,PlainObject> SequentialLinSpacedReturnType;
     /** \internal Represents a vector with linearly spaced coefficients that allows random access. */
-    typedef CwiseNullaryOp<internal::linspaced_op<Scalar>,PlainObject> RandomAccessLinSpacedReturnType;
+    template<bool FastMode> using RandomAccessLinSpacedReturnType = CwiseNullaryOp<internal::linspaced_op<Scalar, FastMode>, PlainObject>;
     /** \internal the return type of MatrixBase::eigenvalues() */
     typedef Matrix<typename NumTraits<typename internal::traits<Derived>::Scalar>::Real, internal::traits<Derived>::ColsAtCompileTime, 1> EigenvaluesReturnType;
 
@@ -326,14 +324,9 @@ template<typename Derived> class DenseBase
     EIGEN_DEVICE_FUNC static const ConstantReturnType
     Constant(const Scalar& value);
 
-    EIGEN_DEPRECATED EIGEN_DEVICE_FUNC static const RandomAccessLinSpacedReturnType
-    LinSpaced(Sequential_t, Index size, const Scalar& low, const Scalar& high);
-    EIGEN_DEPRECATED EIGEN_DEVICE_FUNC static const RandomAccessLinSpacedReturnType
-    LinSpaced(Sequential_t, const Scalar& low, const Scalar& high);
-
-    EIGEN_DEVICE_FUNC static const RandomAccessLinSpacedReturnType
+    template<bool FastMode = !NumTraits<Scalar>::IsInteger> EIGEN_DEVICE_FUNC static const RandomAccessLinSpacedReturnType<FastMode>
     LinSpaced(Index size, const Scalar& low, const Scalar& high);
-    EIGEN_DEVICE_FUNC static const RandomAccessLinSpacedReturnType
+    template<bool FastMode = !NumTraits<Scalar>::IsInteger> EIGEN_DEVICE_FUNC static const RandomAccessLinSpacedReturnType<FastMode>
     LinSpaced(const Scalar& low, const Scalar& high);
 
     template<typename CustomNullaryOp> EIGEN_DEVICE_FUNC
@@ -355,8 +348,8 @@ template<typename Derived> class DenseBase
 
     EIGEN_DEVICE_FUNC void fill(const Scalar& value);
     EIGEN_DEVICE_FUNC Derived& setConstant(const Scalar& value);
-    EIGEN_DEVICE_FUNC Derived& setLinSpaced(Index size, const Scalar& low, const Scalar& high);
-    EIGEN_DEVICE_FUNC Derived& setLinSpaced(const Scalar& low, const Scalar& high);
+    template<bool FastMode = !NumTraits<Scalar>::IsInteger> EIGEN_DEVICE_FUNC Derived& setLinSpaced(Index size, const Scalar& low, const Scalar& high);
+    template<bool FastMode = !NumTraits<Scalar>::IsInteger> EIGEN_DEVICE_FUNC Derived& setLinSpaced(const Scalar& low, const Scalar& high);
     EIGEN_DEVICE_FUNC Derived& setZero();
     EIGEN_DEVICE_FUNC Derived& setOnes();
     EIGEN_DEVICE_FUNC Derived& setRandom();
