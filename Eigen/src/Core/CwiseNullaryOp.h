@@ -257,12 +257,13 @@ DenseBase<Derived>::Constant(const Scalar& value)
   * \sa setLinSpaced(Index,const Scalar&,const Scalar&), CwiseNullaryOp
   */
 template<typename Derived> template<bool FastMode>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename const DenseBase<Derived>::RandomAccessLinSpacedReturnType<FastMode>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const CwiseNullaryOp<internal::linspaced_op<typename DenseBase<Derived>::Scalar, FastMode>, typename DenseBase<Derived>::PlainObject>
 DenseBase<Derived>::LinSpaced(Index size, const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   eigen_assert(low <= high && size >= 0);
-  return DenseBase<Derived>::NullaryExpr(size, internal::linspaced_op<Scalar, FastMode>(low,high,size));
+  using Op = internal::linspaced_op<Scalar, FastMode>;
+  return CwiseNullaryOp<Op, PlainObject>(size, 1, Op(low,high,size));
 }
 
 /**
@@ -270,13 +271,14 @@ DenseBase<Derived>::LinSpaced(Index size, const Scalar& low, const Scalar& high)
   * Special version for fixed size types which does not require the size parameter.
   */
 template<typename Derived> template<bool FastMode>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename const DenseBase<Derived>::RandomAccessLinSpacedReturnType<FastMode>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const CwiseNullaryOp<internal::linspaced_op<typename DenseBase<Derived>::Scalar, FastMode>, typename DenseBase<Derived>::PlainObject>
 DenseBase<Derived>::LinSpaced(const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   EIGEN_STATIC_ASSERT_FIXED_SIZE(Derived)
   eigen_assert(low <= high);
-  return DenseBase<Derived>::NullaryExpr(Derived::SizeAtCompileTime, internal::linspaced_op<Scalar, FastMode>(low,high,Derived::SizeAtCompileTime));
+  using Op = internal::linspaced_op<Scalar, FastMode>;
+  return CwiseNullaryOp<Op, PlainObject>(Derived::SizeAtCompileTime, 1, Op(low, high, Derived::SizeAtCompileTime));
 }
 
 /** \returns true if all coefficients in this matrix are approximately equal to \a val, to within precision \a prec */

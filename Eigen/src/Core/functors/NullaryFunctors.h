@@ -42,7 +42,7 @@ struct linspaced_op_impl {
   // this specialization does not require vectorized division
   // default for floating point types
   EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
-      : m_low(low), m_multiplier(num_steps <= Scalar(1) ? Scalar(1) : (high - low) / (num_steps - Scalar(1))) {}
+      : m_low(low), m_multiplier(num_steps <= 1 ? Scalar(1) : (high - low) / Scalar(num_steps - 1)) {}
 
   template <typename IndexType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(IndexType i) const {
@@ -69,7 +69,7 @@ struct linspaced_op_impl<Scalar, false> {
   // FastMode == true :  VectorXi::LinSpaced(10,1,7) -> {1 1 1 1 1 1 1 1 1 1}
   // default for integer types
   EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
-      : m_low(low), m_delta(high - low), m_countm1(num_steps <= Scalar(1) ? Scalar(1) : num_steps - Scalar(1)) {}
+      : m_low(low), m_delta(high - low), m_countm1(num_steps <= 1 ? Scalar(1) : Scalar(num_steps - 1)) {}
 
   template <typename IndexType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(IndexType i) const {
