@@ -84,14 +84,6 @@ namespace Eigen {
 
 namespace internal {
 
-#ifdef EIGEN_USE_SYCL
-SYCL_EXTERNAL 
-inline void* sycl_new(std::size_t) //_GLIBCXX_THROW (std::bad_alloc)
- {
-    __attribute__((__externally_visible__));
- }
-#endif 
-
 EIGEN_DEVICE_FUNC
 inline void throw_std_bad_alloc()
 {
@@ -99,11 +91,7 @@ inline void throw_std_bad_alloc()
     throw std::bad_alloc();
   #else
     std::size_t huge = static_cast<std::size_t>(-1);
-    #ifdef EIGEN_USE_SYCL
-      void* unused = sycl_new(huge); 
-      EIGEN_UNUSED_VARIABLE(unused);
-    #else
-      #if defined(EIGEN_HIPCC)
+    #if defined(EIGEN_HIPCC)
     //
     // calls to "::operator new" are to be treated as opaque function calls (i.e no inlining),
     // and as a consequence the code in the #else block triggers the hipcc warning :
@@ -113,11 +101,10 @@ inline void throw_std_bad_alloc()
     // the same on "operator new"
     // Reverting code back to the old version in this #if block for the hipcc compiler
     //
-      new int[huge];
-      #else 
-      void* unused = ::operator new(huge);
-      EIGEN_UNUSED_VARIABLE(unused);
-      #endif
+    new int[huge];
+    #else
+    void* unused = ::operator new(huge);
+    EIGEN_UNUSED_VARIABLE(unused);
     #endif
   #endif
 }
