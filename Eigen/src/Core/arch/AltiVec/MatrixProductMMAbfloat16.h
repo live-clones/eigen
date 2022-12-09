@@ -189,10 +189,11 @@ __asm__("# Start asm!\n\t");
   const Packet4f pAlpha = pset1<Packet4f>(falpha);
   ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
 
+  typedef typename DataMapper::LinearMapper LinearMapper;
   for(Index j = 0; j < cols; j++){
-    const DataMapper res2 = res.getSubMapper(0, j);
+    const LinearMapper res2 = res.getLinearMapper(0, j);
     for(Index i = 0; i < rows; i++){
-      result[j*rows + i] = res2(i,0);
+      result[j*rows + i] = res2(i);
     }
   }
 
@@ -309,9 +310,9 @@ __asm__("# Start asm!\n\t");
   }
   //extra cols
   while(col < cols){
-    const DataMapper res2 = res.getSubMapper(0, col);
+    const LinearMapper res2 = res.getLinearMapper(0, col);
     for(Index r= 0; r< rows; r++){
-      res2(r, 0) = Eigen::bfloat16(result[col*rows + r]);
+      res2(r) = Eigen::bfloat16(result[col*rows + r]);
     }
     col++;
   }
