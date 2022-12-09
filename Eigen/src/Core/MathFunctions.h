@@ -1509,7 +1509,7 @@ inline int log2(int x)
 /** \returns the square root of \a x.
   *
   * It is essentially equivalent to
-  * \code EIGEN_USING_STD_MATH(sqrt); return sqrt(x); \endcode
+  * \code using std::sqrt; return sqrt(x); \endcode
   * but slightly faster for float/double and some compilers (e.g., gcc), thanks to
   * specializations when SSE is enabled.
   *
