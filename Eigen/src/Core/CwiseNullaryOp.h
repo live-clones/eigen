@@ -232,15 +232,41 @@ DenseBase<Derived>::Constant(const Scalar& value)
   return DenseBase<Derived>::NullaryExpr(RowsAtCompileTime, ColsAtCompileTime, internal::scalar_constant_op<Scalar>(value));
 }
 
+/** \deprecated because of accuracy loss. In Eigen 3.3, it is an alias for LinSpaced(Index,const Scalar&,const Scalar&)
+  *
+  * \only_for_vectors
+  *
+  * Example: \include DenseBase_LinSpaced_seq_deprecated.cpp
+  * Output: \verbinclude DenseBase_LinSpaced_seq_deprecated.out
+  *
+  * \sa LinSpaced(Index,const Scalar&, const Scalar&), setLinSpaced(Index,const Scalar&,const Scalar&)
+  */
+template<typename Derived>
+EIGEN_DEPRECATED EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::RandomAccessLinSpacedReturnType
+DenseBase<Derived>::LinSpaced(Sequential_t, Index size, const Scalar& low, const Scalar& high)
+{
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
+  return DenseBase<Derived>::NullaryExpr(size, internal::linspaced_op<Scalar>(low,high,size));
+}
+
+/** \deprecated because of accuracy loss. In Eigen 3.3, it is an alias for LinSpaced(const Scalar&,const Scalar&)
+  *
+  * \sa LinSpaced(const Scalar&, const Scalar&)
+  */
+template<typename Derived>
+EIGEN_DEPRECATED EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::RandomAccessLinSpacedReturnType
+DenseBase<Derived>::LinSpaced(Sequential_t, const Scalar& low, const Scalar& high)
+{
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
+  EIGEN_STATIC_ASSERT_FIXED_SIZE(Derived)
+  return DenseBase<Derived>::NullaryExpr(Derived::SizeAtCompileTime, internal::linspaced_op<Scalar>(low,high,Derived::SizeAtCompileTime));
+}
+
 /**
   * \brief Sets a linearly spaced vector.
   *
   * The function generates 'size' equally spaced values in the closed interval [low,high].
-  * When size is set to 1, a vector of length 1 containing 'low' is returned.
-  * If the template parameter 'FastMode' is `true`, the spacing is always equal,
-  * which can lead to unintended results for integer types. `FastMode` is `true` by default for floating point types
-  * types and `false` for integer types, but is appropriate (and preferable) for integer types when `size-1` is an exact
-  * multiple of `high-low`.
+  * When size is set to 1, a vector of length 1 containing 'high' is returned.
   *
   * \only_for_vectors
   *
@@ -248,7 +274,10 @@ DenseBase<Derived>::Constant(const Scalar& value)
   * Output: \verbinclude DenseBase_LinSpaced.out
   *
   * For integer scalar types, an even spacing is possible if and only if the length of the range,
-  * i.e., \c high-low is a scalar multiple of \c size-1.
+  * i.e., \c high-low is a scalar multiple of \c size-1, or if \c size is a scalar multiple of the
+  * number of values \c high-low+1 (meaning each value can be repeated the same number of time).
+  * If one of these two considions is not satisfied, then \c high is lowered to the largest value
+  * satisfying one of this constraint.
   * Here are some examples:
   *
   * Example: \include DenseBase_LinSpacedInt.cpp
@@ -256,29 +285,39 @@ DenseBase<Derived>::Constant(const Scalar& value)
   *
   * \sa setLinSpaced(Index,const Scalar&,const Scalar&), CwiseNullaryOp
   */
-template<typename Derived> template<bool FastMode>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const CwiseNullaryOp<internal::linspaced_op<typename DenseBase<Derived>::Scalar, FastMode>, typename DenseBase<Derived>::PlainObject>
+template<typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::RandomAccessLinSpacedReturnType
 DenseBase<Derived>::LinSpaced(Index size, const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  eigen_assert(low <= high && size >= 0);
-  using Op = internal::linspaced_op<Scalar, FastMode>;
-  return CwiseNullaryOp<Op, PlainObject>(size, 1, Op(low,high,size));
+  return DenseBase<Derived>::NullaryExpr(size, internal::linspaced_op<Scalar>(low,high,size));
 }
 
 /**
   * \copydoc DenseBase::LinSpaced(Index, const Scalar&, const Scalar&)
   * Special version for fixed size types which does not require the size parameter.
   */
-template<typename Derived> template<bool FastMode>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const CwiseNullaryOp<internal::linspaced_op<typename DenseBase<Derived>::Scalar, FastMode>, typename DenseBase<Derived>::PlainObject>
+template<typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::RandomAccessLinSpacedReturnType
 DenseBase<Derived>::LinSpaced(const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   EIGEN_STATIC_ASSERT_FIXED_SIZE(Derived)
-  eigen_assert(low <= high);
-  using Op = internal::linspaced_op<Scalar, FastMode>;
-  return CwiseNullaryOp<Op, PlainObject>(Derived::SizeAtCompileTime, 1, Op(low, high, Derived::SizeAtCompileTime));
+  return DenseBase<Derived>::NullaryExpr(Derived::SizeAtCompileTime, internal::linspaced_op<Scalar>(low,high,Derived::SizeAtCompileTime));
+}
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::RandomAccessEqualSpacedReturnType
+DenseBase<Derived>::EqualSpaced(Index size, const Scalar& low, const Scalar& step) {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
+  return DenseBase<Derived>::NullaryExpr(size, internal::equalspaced_op<Scalar>(low, step));
+}
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::RandomAccessEqualSpacedReturnType
+DenseBase<Derived>::EqualSpaced(const Scalar& low, const Scalar& step) {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
+  return DenseBase<Derived>::NullaryExpr(Derived::SizeAtCompileTime, internal::equalspaced_op<Scalar>(low, step));
 }
 
 /** \returns true if all coefficients in this matrix are approximately equal to \a val, to within precision \a prec */
@@ -403,12 +442,11 @@ PlainObjectBase<Derived>::setConstant(Index rows, NoChange_t, const Scalar& val)
   *
   * \sa LinSpaced(Index,const Scalar&,const Scalar&), CwiseNullaryOp
   */
-template<typename Derived> template<bool FastMode>
+template<typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setLinSpaced(Index newSize, const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  eigen_assert(low <= high && newSize >= 0);
-  return derived() = Derived::NullaryExpr(newSize, internal::linspaced_op<Scalar, FastMode>(low,high,newSize));
+  return derived() = Derived::NullaryExpr(newSize, internal::linspaced_op<Scalar>(low,high,newSize));
 }
 
 /**
@@ -424,12 +462,24 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setLinSpaced(
   *
   * \sa LinSpaced(Index,const Scalar&,const Scalar&), setLinSpaced(Index, const Scalar&, const Scalar&), CwiseNullaryOp
   */
-template<typename Derived> template<bool FastMode>
+template<typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setLinSpaced(const Scalar& low, const Scalar& high)
 {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  eigen_assert(low <= high);
-  return setLinSpaced<FastMode>(size(), low, high);
+  return setLinSpaced(size(), low, high);
+}
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setEqualSpaced(Index newSize, const Scalar& low,
+                                                                                  const Scalar& step) {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
+  return derived() = Derived::NullaryExpr(newSize, internal::equalspaced_op<Scalar>(low, step));
+}
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setEqualSpaced(const Scalar& low,
+                                                                                  const Scalar& step) {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
+  return setEqualSpaced(size(), low, step);
 }
 
 // zero:

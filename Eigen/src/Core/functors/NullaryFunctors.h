@@ -34,60 +34,82 @@ template<typename Scalar> struct scalar_identity_op {
   template<typename IndexType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (IndexType row, IndexType col) const { return row==col ? Scalar(1) : Scalar(0); }
 };
+template<typename Scalar>
+struct functor_traits<scalar_identity_op<Scalar> >
+{ enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = false, IsRepeatable = true }; };
 
-template <typename Scalar, bool FastMode>
-struct linspaced_op_impl {
-  // this specialization is intended (though not required) for situations where (high-low) is a multiple of (num_steps-1)
-  // for example, VectorXi::LinSpaced(n,1,n) -> {1, 2 ... n}
-  // this specialization does not require vectorized division
-  // default for floating point types
-  EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
-      : m_low(low), m_multiplier(num_steps <= 1 ? Scalar(1) : (high - low) / Scalar(num_steps - 1)) {}
+template <typename Scalar, bool IsInteger> struct linspaced_op_impl;
 
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(IndexType i) const {
-    return m_low + (m_multiplier * convert_index<Scalar>(i));
+template <typename Scalar>
+struct linspaced_op_impl<Scalar,/*IsInteger*/false>
+{
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps) :
+    m_low(low), m_high(high), m_size1(num_steps==1 ? 1 : num_steps-1), m_step(num_steps==1 ? Scalar() : Scalar((high-low)/RealScalar(num_steps-1))),
+    m_flip(numext::abs(high)<numext::abs(low))
+  {}
+
+  template<typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (IndexType i) const {
+    if(m_flip)
+      return (i==0)? m_low : Scalar(m_high - RealScalar(m_size1-i)*m_step);
+    else
+      return (i==m_size1)? m_high : Scalar(m_low + RealScalar(i)*m_step);
   }
 
-  template <typename Packet, typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(IndexType i) const {
-    const Packet plow = pset1<Packet>(m_low);
-    const Packet pmult = pset1<Packet>(m_multiplier);
-    Packet pi = plset<Packet>(convert_index<Scalar>(i));
-    return pmadd(pmult, pi, plow);
+  template<typename Packet, typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(IndexType i) const
+  {
+    // Principle:
+    // [low, ..., low] + ( [step, ..., step] * ( [i, ..., i] + [0, ..., size] ) )
+    if(m_flip)
+    {
+      Packet pi = plset<Packet>(Scalar(i-m_size1));
+      Packet res = padd(pset1<Packet>(m_high), pmul(pset1<Packet>(m_step), pi));
+      if (EIGEN_PREDICT_TRUE(i != 0)) return res;
+      Packet mask = pcmp_lt(pset1<Packet>(0), plset<Packet>(0));
+      return pselect<Packet>(mask, res, pset1<Packet>(m_low));
+    }
+    else
+    {
+      Packet pi = plset<Packet>(Scalar(i));
+      Packet res = padd(pset1<Packet>(m_low), pmul(pset1<Packet>(m_step), pi));
+      if(EIGEN_PREDICT_TRUE(i != m_size1-unpacket_traits<Packet>::size+1)) return res;
+      Packet mask = pcmp_lt(plset<Packet>(0), pset1<Packet>(unpacket_traits<Packet>::size-1));
+      return pselect<Packet>(mask, res, pset1<Packet>(m_high));
+    }
   }
 
-  const Scalar m_multiplier;
   const Scalar m_low;
+  const Scalar m_high;
+  const Index m_size1;
+  const Scalar m_step;
+  const bool m_flip;
 };
 
 template <typename Scalar>
-struct linspaced_op_impl<Scalar, false> {
-  // this specialization better handles several cases,
-  // particularly where Scalar is an integer and (high-low) is NOT a multiple of (num_steps-1)
-  // FastMode == false : VectorXi::LinSpaced(10,1,7) -> {1 1 2 3 3 4 5 5 6 7}
-  // FastMode == true :  VectorXi::LinSpaced(10,1,7) -> {1 1 1 1 1 1 1 1 1 1}
-  // default for integer types
-  EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
-      : m_low(low), m_delta(high - low), m_countm1(num_steps <= 1 ? Scalar(1) : Scalar(num_steps - 1)) {}
+struct linspaced_op_impl<Scalar,/*IsInteger*/true>
+{
+  EIGEN_DEVICE_FUNC linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps) :
+    m_low(low),
+    m_multiplier((high-low)/convert_index<Scalar>(num_steps<=1 ? 1 : num_steps-1)),
+    m_divisor(convert_index<Scalar>((high>=low?num_steps:-num_steps)+(high-low))/((numext::abs(high-low)+1)==0?1:(numext::abs(high-low)+1))),
+    m_use_divisor(num_steps>1 && (numext::abs(high-low)+1)<num_steps)
+  {}
 
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(IndexType i) const {
-    return ((m_delta * convert_index<Scalar>(i)) / m_countm1) + m_low;
+  template<typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+  const Scalar operator() (IndexType i) const
+  {
+    if(m_use_divisor) return m_low + convert_index<Scalar>(i)/m_divisor;
+    else              return m_low + convert_index<Scalar>(i)*m_multiplier;
   }
 
-  template <typename Packet, typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(IndexType i) const {
-    const Packet plow = pset1<Packet>(m_low);
-    const Packet pdelta = pset1<Packet>(m_delta);
-    const Packet pcountm1 = pset1<Packet>(m_countm1);
-    Packet pi = plset<Packet>(convert_index<Scalar>(i));
-    return padd(pdiv(pmul(pdelta, pi), pcountm1), plow);
-  }
-
-  const Scalar m_delta;
-  const Scalar m_countm1;
   const Scalar m_low;
+  const Scalar m_multiplier;
+  const Scalar m_divisor;
+  const bool m_use_divisor;
 };
 
 // ----- Linspace functor ----------------------------------------------------------------
@@ -95,41 +117,63 @@ struct linspaced_op_impl<Scalar, false> {
 // Forward declaration (we default to random access which does not really give
 // us a speed gain when using packet access but it allows to use the functor in
 // nested expressions).
-template <typename Scalar, bool FastMode>
-struct linspaced_op;
-template <typename Scalar, bool FastMode>
-struct functor_traits<linspaced_op<Scalar, FastMode> > {
-    enum {
-        Cost = 1,
-        PacketAccess =
-        packet_traits<Scalar>::HasSetLinear && packet_traits<Scalar>::HasAdd && packet_traits<Scalar>::HasMul,
-        IsRepeatable = true
-    };
-};
-template <typename Scalar>
-struct functor_traits<linspaced_op<Scalar, false> > {
-    enum {
-        Cost = 1,
-        PacketAccess = packet_traits<Scalar>::HasSetLinear && packet_traits<Scalar>::HasAdd &&
-        packet_traits<Scalar>::HasMul && packet_traits<Scalar>::HasDiv,
-        IsRepeatable = true
-    };
-};
-template <typename Scalar, bool FastMode> struct linspaced_op
+template <typename Scalar> struct linspaced_op;
+template <typename Scalar> struct functor_traits< linspaced_op<Scalar> >
 {
-    EIGEN_DEVICE_FUNC linspaced_op(const Scalar& low, const Scalar& high, Index num_steps)
-        : impl(low, high, num_steps)
-    {}
+  enum
+  {
+    Cost = 1,
+    PacketAccess =   (!NumTraits<Scalar>::IsInteger) && packet_traits<Scalar>::HasSetLinear && packet_traits<Scalar>::HasBlend,
+                  /*&& ((!NumTraits<Scalar>::IsInteger) || packet_traits<Scalar>::HasDiv),*/ // <- vectorization for integer is currently disabled
+    IsRepeatable = true
+  };
+};
+template <typename Scalar> struct linspaced_op
+{
+  EIGEN_DEVICE_FUNC linspaced_op(const Scalar& low, const Scalar& high, Index num_steps)
+    : impl((num_steps==1 ? high : low),high,num_steps)
+  {}
 
-    template<typename IndexType>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (IndexType i) const { return impl(i); }
+  template<typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (IndexType i) const { return impl(i); }
 
-    template<typename Packet, typename IndexType>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(IndexType i) const { return impl.template packetOp<Packet>(i); }
+  template<typename Packet,typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(IndexType i) const { return impl.template packetOp<Packet>(i); }
 
-    // This proxy object handles the actual required temporaries and the different
-    // implementations (integer vs. floating point).
-    const linspaced_op_impl<Scalar, FastMode> impl;
+  // This proxy object handles the actual required temporaries and the different
+  // implementations (integer vs. floating point).
+  const linspaced_op_impl<Scalar,NumTraits<Scalar>::IsInteger> impl;
+};
+
+template <typename Scalar>
+struct equalspaced_op
+{
+    typedef typename NumTraits<Scalar>::Real RealScalar;
+
+    EIGEN_DEVICE_FUNC equalspaced_op(const Scalar& low, const Scalar& step) : m_low(low), m_step(step) {}
+    template <typename IndexType>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(IndexType i) const {
+        return m_low + m_step * Scalar(convert_index<RealScalar>(i));
+    }
+    template <typename Packet, typename IndexType>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(IndexType i) const {
+        const Packet plow = pset1<Packet>(m_low);
+        const Packet pstep = pset1<Packet>(m_step);
+        Packet pi = plset<Packet>(Scalar(convert_index<RealScalar>(i)));
+        return pmadd(pstep, pi, plow);
+    }
+    const Scalar m_low;
+    const Scalar m_step;
+};
+
+template <typename Scalar> struct functor_traits< equalspaced_op<Scalar> >
+{
+    enum
+    {
+        Cost = NumTraits<Scalar>::AddCost + NumTraits<Scalar>::MulCost,
+        PacketAccess = packet_traits<Scalar>::HasSetLinear && packet_traits<Scalar>::HasMul && packet_traits<Scalar>::HasAdd,
+        IsRepeatable = true
+    };
 };
 
 // Linear access is automatically determined from the operator() prototypes available for the given functor.
