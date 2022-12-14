@@ -59,7 +59,7 @@
 // Compiler identification, EIGEN_COMP_*
 //------------------------------------------------------------------------------------------
 
-/// \internal EIGEN_COMP_GNUC set to 1 for all compilers compatible with GCC
+/// \internal EIGEN_COMP_GNUC set to major+minor version (e.g., 95 for GCC 9.5) for all compilers compatible with GCC
 #ifdef __GNUC__
   #define EIGEN_COMP_GNUC (__GNUC__*10+__GNUC_MINOR__)
 #else
@@ -251,22 +251,24 @@
 #endif
 
 
-/// \internal EIGEN_GNUC_STRICT set to 1 if the compiler is really GCC and not a compatible compiler (e.g., ICC, clang, mingw, etc.)
+/// \internal EIGEN_COMP_GNUC_STRICT set to 1 if the compiler is really GCC and not a compatible compiler (e.g., ICC, clang, mingw, etc.)
 #if EIGEN_COMP_GNUC && !(EIGEN_COMP_CLANG || EIGEN_COMP_ICC || EIGEN_COMP_CLANGICC || EIGEN_COMP_MINGW || EIGEN_COMP_PGI || EIGEN_COMP_IBM || EIGEN_COMP_ARM || EIGEN_COMP_EMSCRIPTEN || EIGEN_COMP_FCC || EIGEN_COMP_CLANGFCC || EIGEN_COMP_CPE || EIGEN_COMP_CLANGCPE || EIGEN_COMP_LCC)
   #define EIGEN_COMP_GNUC_STRICT 1
 #else
   #define EIGEN_COMP_GNUC_STRICT 0
 #endif
 
-
-#if EIGEN_COMP_GNUC
-  #define EIGEN_GNUC_AT_LEAST(x,y) ((__GNUC__==x && __GNUC_MINOR__>=y) || __GNUC__>x)
-  #define EIGEN_GNUC_AT_MOST(x,y)  ((__GNUC__==x && __GNUC_MINOR__<=y) || __GNUC__<x)
-  #define EIGEN_GNUC_AT(x,y)       ( __GNUC__==x && __GNUC_MINOR__==y )
+// GCC, and compilers that pretend to be it, have different version schemes, so this only makes sense to use with the real GCC.
+#if EIGEN_COMP_GNUC_STRICT
+  #define EIGEN_GNUC_STRICT_AT_LEAST(x,y,z)  ((__GNUC__ > x) || \
+                                              (__GNUC__ == x && __GNUC_MINOR__ > y) || \
+                                              (__GNUC__ == x && __GNUC_MINOR__ == y && __GNUC_PATCH__ >= z))
+  #define EIGEN_GNUC_STRICT_LESS_THAN(x,y,z) ((__GNUC__ < x) || \
+                                              (__GNUC__ == x && __GNUC_MINOR__ < y) || \
+                                              (__GNUC__ == x && __GNUC_MINOR__ == y && __GNUC_PATCH__ < z))
 #else
-  #define EIGEN_GNUC_AT_LEAST(x,y) 0
-  #define EIGEN_GNUC_AT_MOST(x,y)  0
-  #define EIGEN_GNUC_AT(x,y)       0
+  #define EIGEN_GNUC_STRICT_AT_LEAST(x,y,z)  0
+  #define EIGEN_GNUC_STRICT_LESS_THAN(x,y,z) 0
 #endif
 
 
@@ -729,7 +731,7 @@
 #ifndef EIGEN_HAS_CXX17_OVERALIGN
 #if EIGEN_MAX_CPP_VER>=17 && EIGEN_COMP_CXXVER>=17 && (                 \
            (EIGEN_COMP_MSVC >= 1912)                                    \
-        || (EIGEN_GNUC_AT_LEAST(7,0))                                   \
+        || (EIGEN_GNUC_STRICT_AT_LEAST(7,0,0))                          \
         || (!EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANG >= 500)          \
         || (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE >= 10000000) \
       ) && !EIGEN_COMP_ICC

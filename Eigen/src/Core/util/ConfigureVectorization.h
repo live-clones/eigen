@@ -186,14 +186,14 @@
     #define EIGEN_SSE2_ON_MSVC_2008_OR_LATER
   #endif
 #else
-  #if (defined __SSE2__) && ( (!EIGEN_COMP_GNUC) || EIGEN_COMP_ICC || EIGEN_COMP_GNUC )
-    #define EIGEN_SSE2_ON_NON_MSVC_BUT_NOT_OLD_GCC
+  #if defined(__SSE2__)
+    #define EIGEN_SSE2_ON_NON_MSVC
   #endif
 #endif
 
 #if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC))
 
-  #if defined (EIGEN_SSE2_ON_NON_MSVC_BUT_NOT_OLD_GCC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
+  #if defined (EIGEN_SSE2_ON_NON_MSVC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
 
     // Defines symbols for compile-time detection of which instructions are
     // used.
