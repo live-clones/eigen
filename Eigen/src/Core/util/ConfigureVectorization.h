@@ -285,7 +285,7 @@
     #endif
 
     // Disable AVX support on broken xcode versions
-    #if defined(__apple_build_version__) && (__apple_build_version__ == 11000033 ) && ( __MAC_OS_X_VERSION_MIN_REQUIRED == 101500 )
+    #if ( EIGEN_COMP_CLANGAPPLE == 11000033 ) && ( __MAC_OS_X_VERSION_MIN_REQUIRED == 101500 )
       // A nasty bug in the clang compiler shipped with xcode in a common compilation situation
       // when XCode 11.0 and Mac deployment target macOS 10.15 is https://trac.macports.org/ticket/58776#no1
       #ifdef EIGEN_VECTORIZE_AVX

@@ -73,6 +73,13 @@
   #define EIGEN_COMP_CLANG 0
 #endif
 
+/// \internal EIGEN_COMP_CLANGAPPLE set to the version number (e.g. 9000000 for AppleClang 9.0) if the compiler is AppleClang
+#if defined(__clang__) && defined(__apple_build_version__)
+  #define EIGEN_COMP_CLANGAPPLE __apple_build_version__
+#else
+  #define EIGEN_COMP_CLANGAPPLE 0
+#endif
+
 /// \internal EIGEN_COMP_CASTXML set to 1 if being preprocessed by CastXML
 #if defined(__castxml__)
   #define EIGEN_COMP_CASTXML 1
@@ -667,10 +674,13 @@
 // but in practice we should not rely on them but rather on the availability of
 // individual features as defined later.
 // This is why there is no EIGEN_HAS_CXX17.
-#if EIGEN_MAX_CPP_VER<14 || EIGEN_COMP_CXXVER<14 || (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1900) || \
-  (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1500) || (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 80000) ||     \
-  (EIGEN_COMP_CLANG && ((EIGEN_COMP_CLANG<309) || (defined(__apple_build_version__) && (__apple_build_version__ < 9000000)))) || \
-  (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC<51)
+#if EIGEN_MAX_CPP_VER < 14 || EIGEN_COMP_CXXVER < 14 || \
+  (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1900) || \
+  (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1500) || \
+  (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 80000) || \
+  (EIGEN_COMP_CLANG && EIGEN_COMP_CLANG < 309) || \
+  (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 9000000) || \
+  (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 51)
 #error This compiler appears to be too old to be supported by Eigen
 #endif
 
@@ -717,11 +727,11 @@
 //       for over-aligned data, but not in a manner that is compatible with Eigen.
 //       See https://gitlab.com/libeigen/eigen/-/issues/2575
 #ifndef EIGEN_HAS_CXX17_OVERALIGN
-#if EIGEN_MAX_CPP_VER>=17 && EIGEN_COMP_CXXVER>=17 && (                                 \
-           (EIGEN_COMP_MSVC >= 1912)                                                    \
-        || (EIGEN_GNUC_AT_LEAST(7,0))                                                   \
-        || ((!defined(__apple_build_version__)) && (EIGEN_COMP_CLANG>=500))             \
-        || (( defined(__apple_build_version__)) && (__apple_build_version__>=10000000)) \
+#if EIGEN_MAX_CPP_VER>=17 && EIGEN_COMP_CXXVER>=17 && (                 \
+           (EIGEN_COMP_MSVC >= 1912)                                    \
+        || (EIGEN_GNUC_AT_LEAST(7,0))                                   \
+        || (!EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANG >= 500)          \
+        || (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE >= 10000000) \
       ) && !EIGEN_COMP_ICC
 #define EIGEN_HAS_CXX17_OVERALIGN 1
 #else
