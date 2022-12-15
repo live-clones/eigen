@@ -86,8 +86,8 @@ EIGEN_DECLARE_TEST(meta)
     VERIFY(( check_is_convertible(A*B, A) ));
   }
 
-  #if (EIGEN_COMP_GNUC_STRICT  && EIGEN_COMP_GNUC  <=   99) \
-   || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <=  909) \
+  #if (EIGEN_COMP_GNUC_STRICT  && EIGEN_COMP_GNUC  <=  990) \
+   || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <=  990) \
    || (EIGEN_COMP_MSVC         && EIGEN_COMP_MSVC  <= 1914)
   // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1752,
   // basically, a fix in the c++ standard breaks our c++98 implementation

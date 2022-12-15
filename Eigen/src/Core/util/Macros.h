@@ -59,16 +59,16 @@
 // Compiler identification, EIGEN_COMP_*
 //------------------------------------------------------------------------------------------
 
-/// \internal EIGEN_COMP_GNUC set to major+minor version (e.g., 95 for GCC 9.5) for all compilers compatible with GCC
+/// \internal EIGEN_COMP_GNUC set to version (e.g., 951 for GCC 9.5.1) for all compilers compatible with GCC
 #ifdef __GNUC__
-  #define EIGEN_COMP_GNUC (__GNUC__*10+__GNUC_MINOR__)
+  #define EIGEN_COMP_GNUC (__GNUC__*100+__GNUC_MINOR__*10+__GNUC_PATCH__)
 #else
   #define EIGEN_COMP_GNUC 0
 #endif
 
-/// \internal EIGEN_COMP_CLANG set to major+minor version (e.g., 307 for clang 3.7) if the compiler is clang
+/// \internal EIGEN_COMP_CLANG set to version (e.g., 372 for clang 3.7.2) if the compiler is clang
 #if defined(__clang__)
-  #define EIGEN_COMP_CLANG (__clang_major__*100+__clang_minor__)
+  #define EIGEN_COMP_CLANG (__clang_major__*100+__clang_minor__*10+__clang_patchlevel__)
 #else
   #define EIGEN_COMP_CLANG 0
 #endif
@@ -701,9 +701,9 @@
   (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1900) || \
   (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1500) || \
   (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 80000) || \
-  (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 309) || \
+  (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 390) || \
   (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 9000000) || \
-  (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 51)
+  (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 510)
 #error This compiler appears to be too old to be supported by Eigen
 #endif
 
