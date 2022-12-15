@@ -272,6 +272,27 @@
 #endif
 
 
+
+/// \internal EIGEN_COMP_CLANG_STRICT set to 1 if the compiler is really Clang and not a compatible compiler (e.g., AppleClang, etc.)
+#if EIGEN_COMP_CLANG && !(EIGEN_COMP_CLANGAPPLE || EIGEN_COMP_CLANGICC || EIGEN_COMP_CLANGFCC || EIGEN_COMP_CLANGCPE)
+  #define EIGEN_COMP_CLANG_STRICT 1
+#else
+  #define EIGEN_COMP_CLANG_STRICT 0
+#endif
+
+// Clang, and compilers forked from it, have different version schemes, so this only makes sense to use with the real Clang.
+#if EIGEN_COMP_CLANG_STRICT
+  #define EIGEN_CLANG_STRICT_AT_LEAST(x,y,z)  ((__clang_major__ > x) || \
+                                               (__clang_major__ == x && __clang_minor__ > y) || \
+                                               (__clang_major__ == x && __clang_minor__ == y && __clang_patchlevel__ >= z))
+  #define EIGEN_CLANG_STRICT_LESS_THAN(x,y,z) ((__clang_major__ < x) || \
+                                               (__clang_major__ == x && __clang_minor__ < y) || \
+                                               (__clang_major__ == x && __clang_minor__ == y && __clang_patchlevel__ < z))
+#else
+  #define EIGEN_CLANG_STRICT_AT_LEAST(x,y,z)  0
+  #define EIGEN_CLANG_STRICT_LESS_THAN(x,y,z) 0
+#endif
+
 //------------------------------------------------------------------------------------------
 // Architecture identification, EIGEN_ARCH_*
 //------------------------------------------------------------------------------------------
@@ -680,7 +701,7 @@
   (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1900) || \
   (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1500) || \
   (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 80000) || \
-  (EIGEN_COMP_CLANG && EIGEN_COMP_CLANG < 309) || \
+  (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 309) || \
   (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 9000000) || \
   (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 51)
 #error This compiler appears to be too old to be supported by Eigen
@@ -732,7 +753,7 @@
 #if EIGEN_MAX_CPP_VER>=17 && EIGEN_COMP_CXXVER>=17 && (                 \
            (EIGEN_COMP_MSVC >= 1912)                                    \
         || (EIGEN_GNUC_STRICT_AT_LEAST(7,0,0))                          \
-        || (!EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANG >= 500)          \
+        || (EIGEN_CLANG_STRICT_AT_LEAST(5,0,0))                         \
         || (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE >= 10000000) \
       ) && !EIGEN_COMP_ICC
 #define EIGEN_HAS_CXX17_OVERALIGN 1
