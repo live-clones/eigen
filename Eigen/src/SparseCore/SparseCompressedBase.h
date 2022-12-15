@@ -52,8 +52,8 @@ class SparseCompressedBase
     
   protected:
     typedef typename Base::IndexVector IndexVector;
-    Eigen::Map<IndexVector> innerNonZeros() { return Eigen::Map<IndexVector>(innerNonZeroPtr(), isCompressed()?0:derived().outerSize()); }
-    const  Eigen::Map<const IndexVector> innerNonZeros() const { return Eigen::Map<const IndexVector>(innerNonZeroPtr(), isCompressed()?0:derived().outerSize()); }
+    inline typename IndexVector::AlignedMapType innerNonZeros() { return typename IndexVector::AlignedMapType(innerNonZeroPtr(), isCompressed() ? 0 : derived().outerSize()); }
+    inline typename IndexVector::ConstAlignedMapType innerNonZeros() const { return typename IndexVector::ConstAlignedMapType(innerNonZeroPtr(), isCompressed() ? 0 : derived().outerSize()); }
         
   public:
     
@@ -116,7 +116,7 @@ class SparseCompressedBase
       * \warning this method is for \b compressed \b storage \b only, and it will trigger an assertion otherwise.
       *
       * \sa valuePtr(), isCompressed() */
-    const Map<const Array<Scalar,Dynamic,1> > coeffs() const { eigen_assert(isCompressed()); return Array<Scalar,Dynamic,1>::Map(valuePtr(),nonZeros()); }
+    inline typename ArrayX<Scalar>::ConstAlignedMapType coeffs() const { eigen_assert(isCompressed()); return typename ArrayX<Scalar>::ConstAlignedMapType(valuePtr(),nonZeros()); }
 
     /** \returns a read-write view of the stored coefficients as a 1D array expression
       *
@@ -128,7 +128,7 @@ class SparseCompressedBase
       * \include SparseMatrix_coeffs.out
       *
       * \sa valuePtr(), isCompressed() */
-    Map<Array<Scalar,Dynamic,1> > coeffs() { eigen_assert(isCompressed()); return Array<Scalar,Dynamic,1>::Map(valuePtr(),nonZeros()); }
+    inline typename ArrayX<Scalar>::AlignedMapType coeffs() { eigen_assert(isCompressed()); return typename ArrayX<Scalar>::AlignedMapType(valuePtr(),nonZeros()); }
     
     /** sorts the inner vectors in the range [begin,end) with respect to `Comp`  
       * \sa innerIndicesAreSorted() */
