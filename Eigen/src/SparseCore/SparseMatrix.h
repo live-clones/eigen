@@ -11,6 +11,7 @@
 #define EIGEN_SPARSEMATRIX_H
 
 #include "./InternalHeaderCheck.h"
+#include <iostream>
 
 namespace Eigen { 
 
@@ -469,22 +470,19 @@ class SparseMatrix
       
       eigen_internal_assert(m_outerIndex!=0 && m_outerSize>0);
       
-      Index oldStart = m_outerIndex[1];
+      Index start = m_outerIndex[1];
       m_outerIndex[1] = m_innerNonZeros[0];
       for(Index j=1; j<m_outerSize; ++j)
       {
-        Index nextOldStart = m_outerIndex[j+1];
-        Index offset = oldStart - m_outerIndex[j];
-        if(offset>0)
+        Index end = start + m_innerNonZeros[j];
+        Index target = m_outerIndex[j];
+        if (start != target)
         {
-          for(Index k=0; k<m_innerNonZeros[j]; ++k)
-          {
-            m_data.index(m_outerIndex[j]+k) = m_data.index(oldStart+k);
-            m_data.value(m_outerIndex[j]+k) = m_data.value(oldStart+k);
-          }
+          internal::smart_memmove(innerIndexPtr() + start, innerIndexPtr() + end, innerIndexPtr() + target);
+          internal::smart_memmove(valuePtr() + start, valuePtr() + end, valuePtr() + target);
         }
-        m_outerIndex[j+1] = m_outerIndex[j] + m_innerNonZeros[j];
-        oldStart = nextOldStart;
+        start = m_outerIndex[j + 1];
+        m_outerIndex[j + 1] = m_outerIndex[j] + m_innerNonZeros[j];
       }
       internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
       m_innerNonZeros = 0;
@@ -498,10 +496,10 @@ class SparseMatrix
       if(m_innerNonZeros != 0)
         return; 
       m_innerNonZeros = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize);
-      for (Index i = 0; i < m_outerSize; i++)
-      {
-        m_innerNonZeros[i] = m_outerIndex[i+1] - m_outerIndex[i]; 
-      }
+      typename IndexVector::AlignedMapType innerNonZeroMap(m_innerNonZeros, m_outerSize);
+      typename IndexVector::ConstAlignedMapType outerIndexMap(m_outerIndex, m_outerSize);
+      typename IndexVector::ConstMapType nextOuterIndexMap(m_outerIndex + 1, m_outerSize);
+      innerNonZeroMap = nextOuterIndexMap - outerIndexMap;
     }
 
     /** Suppresses all nonzeros which are \b much \b smaller \b than \a reference under the tolerance \a epsilon */
@@ -520,6 +518,7 @@ class SparseMatrix
     template<typename KeepFunc>
     void prune(const KeepFunc& keep = KeepFunc())
     {
+        // use 
       // TODO optimize the uncompressed mode to avoid moving and allocating the data twice
       makeCompressed();
 
@@ -551,64 +550,44 @@ class SparseMatrix
       *
       * \sa reserve(), setZero(), makeCompressed()
       */
-    void conservativeResize(Index rows, Index cols) 
-    {
-      // No change
-      if (this->rows() == rows && this->cols() == cols) return;
-      
-      // If one dimension is null, then there is nothing to be preserved
-      if(rows==0 || cols==0) return resize(rows,cols);
+    void conservativeResize(Index rows, Index cols) {
 
-      Index innerChange = IsRowMajor ? cols - this->cols() : rows - this->rows();
-      Index outerChange = IsRowMajor ? rows - this->rows() : cols - this->cols();
+      // If one dimension is null, then there is nothing to be preserved
+      if (rows == 0 || cols == 0) return resize(rows, cols);
+
+      StorageIndex newOuterSize = convert_index(IsRowMajor ? rows : cols);
       StorageIndex newInnerSize = convert_index(IsRowMajor ? cols : rows);
 
-      // Deals with inner non zeros
-      if (m_innerNonZeros)
-      {
-        // Resize m_innerNonZeros
-        m_innerNonZeros = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(
-              m_innerNonZeros, m_outerSize + outerChange, m_outerSize);
-        
-        for(Index i=m_outerSize; i<m_outerSize+outerChange; i++)          
-          m_innerNonZeros[i] = 0;
-      } 
-      else if (innerChange < 0) 
-      {
-        // Inner size decreased: allocate a new m_innerNonZeros
-        m_innerNonZeros = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize + outerChange);
-        for(Index i = 0; i < m_outerSize + (std::min)(outerChange, Index(0)); i++)
-          m_innerNonZeros[i] = m_outerIndex[i+1] - m_outerIndex[i];
-        for(Index i = m_outerSize; i < m_outerSize + outerChange; i++)
-          m_innerNonZeros[i] = 0;
-      }
-      
-      // Change the m_innerNonZeros in case of a decrease of inner size
-      if (m_innerNonZeros && innerChange < 0)
-      {
-        for(Index i = 0; i < m_outerSize + (std::min)(outerChange, Index(0)); i++)
-        {
-          StorageIndex &n = m_innerNonZeros[i];
-          StorageIndex start = m_outerIndex[i];
-          while (n > 0 && m_data.index(start+n-1) >= newInnerSize) --n; 
+      Index innerChange = newInnerSize - m_innerSize;
+      Index outerChange = newOuterSize - m_outerSize;
+
+      if (outerChange != 0) {
+        m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(
+            m_outerIndex, newOuterSize + 1, m_outerSize + 1);
+
+        if (!isCompressed())
+          m_innerNonZeros = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(
+              m_innerNonZeros, newOuterSize, m_outerSize);
+
+        if (outerChange > 0) {
+          StorageIndex lastIdx = m_outerSize == 0 ? StorageIndex(0) : m_outerIndex[m_outerSize];
+          std::fill_n(m_outerIndex + m_outerSize, outerChange + 1, lastIdx);
+
+          if (!isCompressed()) std::fill_n(m_innerNonZeros + m_outerSize, outerChange, StorageIndex(0));
         }
       }
-      
-      m_innerSize = newInnerSize;
+      m_outerSize = newOuterSize;
 
-      // Re-allocate outer index structure if necessary
-      if (outerChange == 0)
-        return;
-          
-      m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(
-          m_outerIndex, m_outerSize + outerChange + 1, m_outerSize + 1);
-      if (outerChange > 0)
-      {
-        StorageIndex lastIdx = m_outerSize == 0 ? 0 : m_outerIndex[m_outerSize];
-        for(Index i=m_outerSize; i<m_outerSize+outerChange+1; i++)          
-          m_outerIndex[i] = lastIdx; 
+      if (innerChange < 0) {
+        uncompress();
+        for (Index j = 0; j < m_outerSize; j++) {
+          Index start = m_outerIndex[j];
+          Index end = start + m_innerNonZeros[j];
+          Index lb = data().searchLowerIndex(start, end, newInnerSize);
+          if (lb != end) m_innerNonZeros[j] = convert_index(lb - start);
+        }
       }
-      m_outerSize += outerChange;
+      m_innerSize = newInnerSize;
     }
     
     /** Resizes the matrix to a \a rows x \a cols matrix and initializes it to zero.
@@ -740,10 +719,10 @@ class SparseMatrix
     inline void setIdentity()
     {
       eigen_assert(rows() == cols() && "ONLY FOR SQUARED MATRICES");
-      this->m_data.resize(rows());
-      Eigen::Map<IndexVector>(this->m_data.indexPtr(), rows()).setLinSpaced(0, StorageIndex(rows()-1));
-      Eigen::Map<ScalarVector>(this->m_data.valuePtr(), rows()).setOnes();
-      Eigen::Map<IndexVector>(this->m_outerIndex, rows()+1).setLinSpaced(0, StorageIndex(rows()));
+      m_data.resize(rows());
+      std::iota(outerIndexPtr(), outerIndexPtr() + rows() + 1, StorageIndex(0));
+      std::iota(innerIndexPtr(), innerIndexPtr() + rows(),     StorageIndex(0));
+      std::fill(valuePtr(),      valuePtr()      + rows(),     Scalar(1));
       internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
       m_innerNonZeros = 0;
     }
@@ -935,14 +914,13 @@ protected:
 
       if(m_data.size()==0 || overwrite)
       {
-        typedef Array<StorageIndex,Dynamic,1> ArrayXI;  
-        this->makeCompressed();
-        this->resizeNonZeros(n);
-        Eigen::Map<ArrayXI>(this->innerIndexPtr(), n).setLinSpaced(0,StorageIndex(n)-1);
-        Eigen::Map<ArrayXI>(this->outerIndexPtr(), n+1).setLinSpaced(0,StorageIndex(n));
-        Eigen::Map<Array<Scalar,Dynamic,1> > values = this->coeffs();
-        values.setZero();
-        internal::call_assignment_no_alias(values, diagXpr, assignFunc);
+        makeCompressed();
+        resizeNonZeros(n);
+        std::iota(outerIndexPtr(), outerIndexPtr() + n + 1, StorageIndex(0));
+        std::iota(innerIndexPtr(), innerIndexPtr() + n,     StorageIndex(0));
+        std::fill(valuePtr(),      valuePtr()      + n,     Scalar(0));
+        typename ScalarVector::AlignedMapType valueMap(valuePtr(), n);
+        internal::call_assignment_no_alias(valueMap, diagXpr, assignFunc);
       }
       else
       {
@@ -972,7 +950,7 @@ protected:
           else
           {
             // defer insertion
-            newEntries.push_back(IndexPosPair(i,p));
+            newEntries.emplace_back(i,p);
           }
         }
         // 2 - insert deferred entries
@@ -1026,36 +1004,145 @@ private:
 
 namespace internal {
 
-template<typename InputIterator, typename SparseMatrixType, typename DupFunctor>
-void set_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat, DupFunctor dup_func)
-{
+template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
+void set_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
+                       DupFunctor dup_func) {
+  // unsorted triplets
+  // requires uncompressed matrix to handle duplicates
+  // inner indices and values are sorted upon insertion
+
   enum { IsRowMajor = SparseMatrixType::IsRowMajor };
   typedef typename SparseMatrixType::Scalar Scalar;
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  SparseMatrix<Scalar,IsRowMajor?ColMajor:RowMajor,StorageIndex> trMat(mat.rows(),mat.cols());
+  typedef typename VectorX<StorageIndex>::MapType IndexMap;
+  typedef typename VectorX<Scalar>::AlignedMapType ValueMap;
 
-  if(begin!=end)
-  {
-    // pass 1: count the nnz per inner-vector
-    typename SparseMatrixType::IndexVector wi(trMat.outerSize());
-    wi.setZero();
-    for(InputIterator it(begin); it!=end; ++it)
-    {
-      eigen_assert(it->row()>=0 && it->row()<mat.rows() && it->col()>=0 && it->col()<mat.cols());
-      wi(IsRowMajor ? it->col() : it->row())++;
+  constexpr StorageIndex EmptyIndexValue = StorageIndex(-1);
+
+  if (begin != end) {
+    IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
+    outerIndexMap.setZero();
+
+    // scan triplets to construct outer indices
+    for (InputIterator it(begin); it != end; ++it) {
+      eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
+      StorageIndex j = IsRowMajor ? it->row() : it->col();
+      outerIndexMap.coeffRef(j + 1)++;
     }
 
-    // pass 2: insert all the elements into trMat
-    trMat.reserve(wi);
-    for(InputIterator it(begin); it!=end; ++it)
-      trMat.insertBackUncompressed(it->row(),it->col()) = it->value();
+    // allocate memory
+    Index nonZeros = outerIndexMap.sum();
+    mat.resizeNonZeros(nonZeros);
+    // need innerNonZeros to track duplicate insertions
+    mat.uncompress();
 
-    // pass 3:
-    trMat.collapseDuplicates(dup_func);
+    IndexMap innerNonZerosMap(mat.innerNonZeroPtr(), mat.outerSize());
+    IndexMap innerIndexMap(mat.innerIndexPtr(), nonZeros);
+    ValueMap valueMap(mat.valuePtr(), nonZeros);
+
+    innerNonZerosMap.setZero();
+    // initialize inner indices with placeholder value that won't confound binary search
+    innerIndexMap.setConstant(EmptyIndexValue);
+    // finalize outer indices
+    std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
+
+    for (InputIterator it(begin); it != end; ++it) {
+      StorageIndex i = IsRowMajor ? it->col() : it->row();
+      StorageIndex j = IsRowMajor ? it->row() : it->col();
+
+      StorageIndex first = outerIndexMap.coeff(j);
+      StorageIndex back = first + innerNonZerosMap.coeff(j);
+      // determine where to insert nonzero
+      StorageIndex dst = convert_index<StorageIndex,Index>(mat.data().searchLowerIndex(first, back, i));
+
+      // check if entry at i,j is present
+      bool duplicate = innerIndexMap.coeff(dst) == i;
+      if (duplicate) {
+        valueMap.coeffRef(dst) = dup_func(valueMap.coeff(dst), it->value());
+      } else {
+        // if necessary, prepare array for sorted insertion
+        if (dst != back) {
+          std::rotate(mat.innerIndexPtr() + dst, mat.innerIndexPtr() + back, mat.innerIndexPtr() + back + 1);
+          std::rotate(mat.valuePtr() + dst, mat.valuePtr() + back, mat.valuePtr() + back + 1);
+        }
+        // insert value at dst
+        innerIndexMap.coeffRef(dst) = i;
+        valueMap.coeffRef(dst) = it->value();
+        innerNonZerosMap.coeffRef(j)++;
+      }
+    }
+
+    // finalize matrix
+    mat.makeCompressed();
   }
+}
 
-  // pass 4: transposed copy -> implicit sorting
-  mat = trMat;
+template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
+void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
+                              DupFunctor dup_func) {
+  // sorted triplets
+  // works on compressed matrices
+  // linear insertion of all entries
+
+  enum { IsRowMajor = SparseMatrixType::IsRowMajor };
+  typedef typename SparseMatrixType::Scalar Scalar;
+  typedef typename SparseMatrixType::StorageIndex StorageIndex;
+  typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
+  typedef typename VectorX<Scalar>::AlignedMapType ValueMap;
+
+  constexpr StorageIndex EmptyIndexValue = StorageIndex(-1);
+
+  if (begin != end) {
+    IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
+    outerIndexMap.setZero();
+
+    StorageIndex previous_i = EmptyIndexValue;
+    StorageIndex previous_j = EmptyIndexValue;
+
+    // scan triplets to construct outer indices
+    for (InputIterator it(begin); it != end; ++it) {
+      eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
+      StorageIndex i = IsRowMajor ? it->col() : it->row();
+      StorageIndex j = IsRowMajor ? it->row() : it->col();
+      // identify duplicates by examining previous entry
+      bool duplicate = (previous_i == i) && (previous_j == j);
+      if (!duplicate) outerIndexMap.coeffRef(j + 1)++;
+      previous_i = i;
+      previous_j = j;
+    }
+
+    // allocate memory
+    Index nonZeros = outerIndexMap.sum();
+    mat.resizeNonZeros(nonZeros);
+    // deallocate inner nonzeros (if present)
+    mat.makeCompressed();
+
+    IndexMap innerIndexMap(mat.innerIndexPtr(), nonZeros);
+    ValueMap valueMap(mat.valuePtr(), nonZeros);
+    // finalize outer indices
+    std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
+
+    previous_i = EmptyIndexValue;
+    previous_j = EmptyIndexValue;
+    StorageIndex back = StorageIndex(0);
+
+    for (InputIterator it(begin); it != end; ++it) {
+      StorageIndex i = IsRowMajor ? it->col() : it->row();
+      StorageIndex j = IsRowMajor ? it->row() : it->col();
+      // identify duplicates by examining previous entry
+      bool duplicate = (previous_i == i) && (previous_j == j);
+      if (duplicate) {
+        valueMap.coeffRef(back) = dup_func(valueMap.coeff(back), it->value());
+      } else {
+        // no 
+        innerIndexMap.coeffRef(back) = i;
+        valueMap.coeffRef(back) = it->value();
+        previous_i = i;
+        previous_j = j;
+        back++;
+      }
+    }
+  }
 }
 
 }
@@ -1253,21 +1340,17 @@ typename SparseMatrix<Scalar_,Options_,StorageIndex_>::Scalar& SparseMatrix<Scal
       
       // turn the matrix into non-compressed mode
       m_innerNonZeros = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize);
-      
-      std::fill(m_innerNonZeros, m_innerNonZeros + m_outerSize, StorageIndex(0));
+
+      std::fill_n(m_innerNonZeros, m_outerSize, StorageIndex(0));
       
       // pack all inner-vectors to the end of the pre-allocated space
       // and allocate the entire free-space to the first inner-vector
       StorageIndex end = convert_index(m_data.allocatedSize());
-      for(Index j=1; j<=m_outerSize; ++j)
-        m_outerIndex[j] = end;
+      std::fill_n(m_outerIndex+1, m_outerSize, end);
     }
     else
     {
-      // turn the matrix into non-compressed mode
-      m_innerNonZeros = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize);
-      for(Index j=0; j<m_outerSize; ++j)
-        m_innerNonZeros[j] = m_outerIndex[j+1]-m_outerIndex[j];
+      uncompress();
     }
   }
   
