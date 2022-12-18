@@ -12,8 +12,7 @@
 #include <Eigen/HermitianMatrix>
 
 template <class HermitianMatrix>
-void test_assignment(int size = HermitianMatrix::ColsAtCompileTime)
-{
+void test_assignment(int size = HermitianMatrix::ColsAtCompileTime) {
   using DenseType = typename HermitianMatrix::DenseType;
 
   DenseType A = DenseType::Random(size, size);
@@ -24,8 +23,7 @@ void test_assignment(int size = HermitianMatrix::ColsAtCompileTime)
   VERIFY_IS_APPROX(C, B);
 }
 
-EIGEN_DECLARE_TEST(hermitianMatrix)
-{
+EIGEN_DECLARE_TEST(hermitianMatrix) {
   CALL_SUBTEST_1(test_assignment<HermitianMatrix<double, Eigen::Dynamic>>(100));
   CALL_SUBTEST_1(test_assignment<HermitianMatrix<float, Eigen::Dynamic>>(100));
   CALL_SUBTEST_1(test_assignment<HermitianMatrix<std::complex<double>, Eigen::Dynamic>>(100));

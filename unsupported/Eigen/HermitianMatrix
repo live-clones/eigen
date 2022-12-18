@@ -27,7 +27,7 @@
 
 
 #include "src/HermitianMatrix/HermitianBase.h"
-
+#include "src/HermitianMatrix/Evaluators.h"
 #include "src/HermitianMatrix/HermitianMatrix.h"
 
 
