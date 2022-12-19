@@ -19,7 +19,7 @@
 
 #include "./InternalHeaderCheck.h"
 
-#ifdef EIGEN_USE_SYCL
+#ifdef EIGEN_USE_SYCL && EIGEN_USE_ONEDPL_RANDOM
 //need since std::rand() is not suppoerted inside SYCL kernel
 //so methods from this library are used instead
 //https://github.com/oneapi-src/oneDPL or already included in oneAPI
