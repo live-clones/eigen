@@ -2490,7 +2490,13 @@ void gebp_kernel<LhsScalar,RhsScalar,Index,DataMapper,mr,nr,ConjugateLhs,Conjuga
           // nr (which is currently 4) for the return type.
           const int SResPacketHalfSize = unpacket_traits<typename unpacket_traits<SResPacket>::half>::size;
           const int SResPacketQuarterSize = unpacket_traits<typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half>::size;
-          if ((SwappedTraits::LhsProgress % 4) == 0 &&
+          // The following code assumes we can load SRhsPacket in such a way that
+          // it multiplies blocks of 4 elements in SLhsPacket.  This is not the
+          // case for some customized kernels (i.e. NEON fp16).  If the assumption
+          // fails, drop down to the scalar path.
+          constexpr bool kCanLoadSRhsQuad = (unpacket_traits<SLhsPacket>::size < 4) || (unpacket_traits<SRhsPacket>::size % (unpacket_traits<SLhsPacket>::size / 4)) == 0;
+          if (kCanLoadSRhsQuad && 
+              (SwappedTraits::LhsProgress % 4) == 0 &&
               (SwappedTraits::LhsProgress<=16) &&
               (SwappedTraits::LhsProgress!=8  || SResPacketHalfSize==nr) &&
               (SwappedTraits::LhsProgress!=16 || SResPacketQuarterSize==nr))
