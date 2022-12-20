@@ -485,45 +485,27 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     VERIFY_IS_APPROX(m, refMat_prod);
     m.setFromTriplets(triplets.begin(), triplets.end(), [] (Scalar,Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
-  }
 
-  // test setFromSortedTriplets
-  {
-      typedef Triplet<Scalar, StorageIndex> TripletType;
+    // test setFromSortedTriplets
 
-      std::vector<TripletType> triplets;
-      Index ntriplets = rows * cols;
-      triplets.reserve(ntriplets);
-      DenseMatrix refMat_sum = DenseMatrix::Zero(rows, cols);
-      DenseMatrix refMat_prod = DenseMatrix::Zero(rows, cols);
-
-      for (Index i = 0; i < ntriplets; ++i)
-      {
-          StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
-          StorageIndex c = internal::random<StorageIndex>(0, StorageIndex(cols - 1));
-          Scalar v = internal::random<Scalar>();
-          triplets.push_back(TripletType(r, c, v));
-          refMat_sum(r, c) += v;
-          if (std::abs(refMat_prod(r, c)) == 0)
-              refMat_prod(r, c) = v;
-          else
-              refMat_prod(r, c) *= v;
+    struct triplet_comp {
+      inline bool operator()(const TripletType& a, const TripletType& b) {
+        return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
+                                            : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
       }
+    };
 
-      struct triplet_lt {
-        inline bool operator()(const TripletType& a, const TripletType& b) {
-          return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
-                                              : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
-        }
-      };
-      std::sort(triplets.begin(), triplets.end(), triplet_lt());
+    // stable sort is only necessary for refMat_last (dependent on order of duplicates)
+    std::stable_sort(triplets.begin(), triplets.end(), triplet_comp());
 
-      SparseMatrixType m(rows, cols);
+    m.setZero();
+    m.setFromSortedTriplets(triplets.begin(), triplets.end());
+    VERIFY_IS_APPROX(m, refMat_sum);
 
-      m.setFromSortedTriplets(triplets.begin(), triplets.end());
-      VERIFY_IS_APPROX(m, refMat_sum);
-      m.setFromSortedTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
-      VERIFY_IS_APPROX(m, refMat_prod);
+    m.setFromSortedTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
+    VERIFY_IS_APPROX(m, refMat_prod);
+    m.setFromTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
+    VERIFY_IS_APPROX(m, refMat_last);
   }
   
   // test Map

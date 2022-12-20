@@ -211,20 +211,17 @@ class SparseMatrix
     inline Scalar& coeffRef(Index row, Index col)
     {
       eigen_assert(row>=0 && row<rows() && col>=0 && col<cols());
-      
       const Index outer = IsRowMajor ? row : col;
       const Index inner = IsRowMajor ? col : row;
-
       Index start = m_outerIndex[outer];
-      Index end = m_innerNonZeros ? m_outerIndex[outer] + m_innerNonZeros[outer] : m_outerIndex[outer+1];
-      eigen_assert(end>=start && "you probably called coeffRef on a non finalized matrix");
-      if(end<=start)
-        return insert(row,col);
-      const Index p = m_data.searchLowerIndex(start,end-1,StorageIndex(inner));
-      if((p<end) && (m_data.index(p)==inner))
-        return m_data.value(p);
+      Index end = m_innerNonZeros ? m_outerIndex[outer] + m_innerNonZeros[outer] : m_outerIndex[outer + 1];
+      eigen_assert(end >= start && "you probably called coeffRef on a non finalized matrix");
+      if (end <= start) return insertAt(outer, inner, start);
+      const Index dst = m_data.searchLowerIndex(start, end, inner);
+      if ((dst < end) && (m_data.index(dst) == inner))
+        return m_data.value(dst);
       else
-        return insert(row,col);
+        return insertAt(outer, inner, dst);
     }
 
     /** \returns a reference to a novel non zero coefficient with coordinates \a row x \a col.
@@ -242,7 +239,7 @@ class SparseMatrix
       * if the elements of each inner vector are inserted in increasing inner index order, and in O(nnz_j) for a random insertion.
       *
       */
-    Scalar& insert(Index row, Index col);
+    inline Scalar& insert(Index row, Index col);
 
   public:
 
@@ -325,11 +322,6 @@ class SparseMatrix
           Index target = newOuterIndex[j];
           internal::smart_memmove(innerIndexPtr() + begin, innerIndexPtr() + end, innerIndexPtr() + target);
           internal::smart_memmove(valuePtr() + begin, valuePtr() + end, valuePtr() + target);
-          //for(Index i=innerNNZ-1; i>=0; --i)
-          //{
-          //  m_data.index(newOuterIndex[j]+i) = m_data.index(m_outerIndex[j]+i);
-          //  m_data.value(newOuterIndex[j]+i) = m_data.value(m_outerIndex[j]+i);
-          //}
           previousOuterIndex = m_outerIndex[j];
           m_outerIndex[j] = newOuterIndex[j];
           m_innerNonZeros[j] = innerNNZ;
@@ -360,11 +352,11 @@ class SparseMatrix
           if(offset>0)
           {
             StorageIndex innerNNZ = m_innerNonZeros[j];
-            for(Index i=innerNNZ-1; i>=0; --i)
-            {
-              m_data.index(newOuterIndex[j]+i) = m_data.index(m_outerIndex[j]+i);
-              m_data.value(newOuterIndex[j]+i) = m_data.value(m_outerIndex[j]+i);
-            }
+            Index begin = m_outerIndex[j];
+            Index end = begin + innerNNZ;
+            Index target = newOuterIndex[j];
+            internal::smart_memmove(innerIndexPtr() + begin, innerIndexPtr() + end, innerIndexPtr() + target);
+            internal::smart_memmove(valuePtr() + begin, valuePtr() + end, valuePtr() + target);
           }
         }
         
@@ -458,11 +450,6 @@ class SparseMatrix
     template<typename InputIterators, typename DupFunctor>
     void setFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func);
 
-    void sumupDuplicates() { collapseDuplicates(internal::scalar_sum_op<Scalar,Scalar>()); }
-
-    template<typename DupFunctor>
-    void collapseDuplicates(DupFunctor dup_func = DupFunctor());
-
     //---
     
     /** \internal
@@ -529,7 +516,31 @@ class SparseMatrix
     template<typename KeepFunc>
     void prune(const KeepFunc& keep = KeepFunc())
     {
-        // use 
+        //if (isCompressed())
+        //{
+        //StorageIndex k = 0;
+        //for (Index j = 0; j < m_outerSize; ++j) {
+        //  Index previousStart = m_outerIndex[j];
+        //  m_outerIndex[j] = k;
+        //  Index end = m_outerIndex[j + 1];
+        //  for (Index i = previousStart; i < end; ++i) {
+        //    if (keep(IsRowMajor ? j : m_data.index(i), IsRowMajor ? m_data.index(i) : j, m_data.value(i))) {
+        //      m_data.value(k) = m_data.value(i);
+        //      m_data.index(k) = m_data.index(i);
+        //      ++k;
+        //    }
+        //  }
+        //}
+        //m_outerIndex[m_outerSize] = k;
+        //m_data.resize(k, 0);
+        //}
+        //else
+        //{
+        //    for (Index j = 0; j < m_outerSize; ++j) {
+        //        Index start = m_outerIndex[j];
+        //        Index end = start + m_innerNonZeros[j];
+        //    }
+        //}
       // TODO optimize the uncompressed mode to avoid moving and allocating the data twice
       makeCompressed();
 
@@ -569,38 +580,33 @@ class SparseMatrix
       StorageIndex newOuterSize = convert_index(IsRowMajor ? rows : cols);
       StorageIndex newInnerSize = convert_index(IsRowMajor ? cols : rows);
 
-      Index innerChange = newInnerSize - m_innerSize;
-      Index outerChange = newOuterSize - m_outerSize;
+      Index innerChange = newInnerSize - innerSize();
+      Index outerChange = newOuterSize - outerSize();
 
       if (outerChange != 0) {
         m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(
-            m_outerIndex, newOuterSize + 1, m_outerSize + 1);
+            outerIndexPtr(), newOuterSize + 1, outerSize() + 1);
 
         if (!isCompressed())
           m_innerNonZeros = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(
-              m_innerNonZeros, newOuterSize, m_outerSize);
+              innerNonZeroPtr(), newOuterSize, outerSize());
 
         if (outerChange > 0) {
-          StorageIndex lastIdx = m_outerSize == 0 ? StorageIndex(0) : m_outerIndex[m_outerSize];
-          std::fill_n(m_outerIndex + m_outerSize, outerChange + 1, lastIdx);
+          StorageIndex lastIdx = outerSize() == 0 ? StorageIndex(0) : outerIndexPtr()[outerSize()];
+          std::fill_n(outerIndexPtr() + outerSize(), outerChange + 1, lastIdx);
 
-          if (!isCompressed()) std::fill_n(m_innerNonZeros + m_outerSize, outerChange, StorageIndex(0));
+          if (!isCompressed()) std::fill_n(innerNonZeroPtr() + outerSize(), outerChange, StorageIndex(0));
         }
       }
       m_outerSize = newOuterSize;
 
       if (innerChange < 0) {
-        // it is not strictly necessary to make the matrix uncompressed
-        // the data can be shifted in a similar manner to makeCompressed() without an allocation
-        // however, this leaves no room for subsequent insertions and requires more work
-        // tradeoff: uncompress (+ less work, + flexibility for insertions, - allocate innerNonZeros)
-        // matrix can always be compressed later
         uncompress();
-        for (Index j = 0; j < m_outerSize; j++) {
-          Index start = m_outerIndex[j];
-          Index end = start + m_innerNonZeros[j];
+        for (Index j = 0; j < outerSize(); j++) {
+          Index start = outerIndexPtr()[j];
+          Index end = start + innerNonZeroPtr()[j];
           Index lb = data().searchLowerIndex(start, end, newInnerSize);
-          if (lb != end) m_innerNonZeros[j] = convert_index(lb - start);
+          if (lb != end) innerNonZeroPtr()[j] = StorageIndex(lb - start);
         }
       }
       m_innerSize = newInnerSize;
@@ -860,7 +866,7 @@ protected:
 
     /** \internal
       * \sa insert(Index,Index) */
-    EIGEN_DONT_INLINE Scalar& insertCompressed(Index row, Index col);
+    EIGEN_DEPRECATED inline Scalar& insertCompressed(Index row, Index col);
 
     /** \internal
       * A vector object that is equal to 0 everywhere but v at the position i */
@@ -879,12 +885,12 @@ protected:
 
     /** \internal
       * \sa insert(Index,Index) */
-    EIGEN_DONT_INLINE Scalar& insertUncompressed(Index row, Index col);
+    EIGEN_DEPRECATED inline Scalar& insertUncompressed(Index row, Index col);
 
 public:
     /** \internal
       * \sa insert(Index,Index) */
-    EIGEN_STRONG_INLINE Scalar& insertBackUncompressed(Index row, Index col)
+    inline Scalar& insertBackUncompressed(Index row, Index col)
     {
       const Index outer = IsRowMajor ? row : col;
       const Index inner = IsRowMajor ? col : row;
@@ -1002,6 +1008,13 @@ protected:
         }
       }
     }
+
+    /* provides a consistent reserve and reallocation strategy for insertCompressed and insertUncompressed */
+    inline void checkAllocatedSpaceAndMaybeExpand();
+    /* These functions are used to avoid a redundant binary search operation in functions such as coeffRef() and assume `dst` is the appropriate sorted insertion point */
+    inline Scalar& insertAt(Index outer, Index inner, Index dst);
+    Scalar& insertCompressedAt(Index outer, Index inner, Index dst);
+    Scalar& insertUncompressedAt(Index outer, Index inner, Index dst);
 
 private:
   EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
@@ -1210,22 +1223,13 @@ void SparseMatrix<Scalar,Options_,StorageIndex_>::setFromTriplets(const InputIte
   internal::set_from_triplets<InputIterators, SparseMatrix<Scalar,Options_,StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar,Scalar>());
 }
 
-/** The same as setFromTriplets but when duplicates are met the functor \a dup_func is applied:
+/** The same as setFromTriplets but triplets are assumed to be pre-sorted. This is faster and requires less temporary storage. 
+  * Two triplets `a` and `b` are appropriately ordered if:
   * \code
-  * value = dup_func(OldValue, NewValue)
-  * \endcode 
-  * Here is a C++11 example keeping the latest entry only:
-  * \code
-  * mat.setFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
+  * ColMajor: ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row())
+  * RowMajor: ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col())
   * \endcode
   */
-template<typename Scalar, int Options_, typename StorageIndex_>
-template<typename InputIterators,typename DupFunctor>
-void SparseMatrix<Scalar,Options_,StorageIndex_>::setFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
-{
-  internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar,Options_,StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
-}
-
 template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const InputIterators& begin, const InputIterators& end)
@@ -1233,6 +1237,15 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const 
     internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
 }
 
+/** The same as setFromTriplets but when duplicates are met the functor \a dup_func is applied:
+  * \code
+  * value = dup_func(OldValue, NewValue)
+  * \endcode
+  * Here is a C++11 example keeping the latest entry only:
+  * \code
+  * mat.setFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
+  * \endcode
+  */
 template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators, typename DupFunctor>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
@@ -1240,47 +1253,23 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputI
     internal::set_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
 
-/** \internal */
+/** The same as setFromSortedTriplets but when duplicates are met the functor \a dup_func is applied:
+  * \code
+  * value = dup_func(OldValue, NewValue)
+  * \endcode
+  * Here is a C++11 example keeping the latest entry only:
+  * \code
+  * mat.setFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
+  * \endcode
+  */
 template<typename Scalar, int Options_, typename StorageIndex_>
-template<typename DupFunctor>
-void SparseMatrix<Scalar,Options_,StorageIndex_>::collapseDuplicates(DupFunctor dup_func)
+template<typename InputIterators, typename DupFunctor>
+void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
 {
-  eigen_assert(!isCompressed());
-  // TODO, in practice we should be able to use m_innerNonZeros for that task
-  IndexVector wi(innerSize());
-  wi.fill(-1);
-  StorageIndex count = 0;
-  // for each inner-vector, wi[inner_index] will hold the position of first element into the index/value buffers
-  for(Index j=0; j<outerSize(); ++j)
-  {
-    StorageIndex start   = count;
-    Index oldEnd  = m_outerIndex[j]+m_innerNonZeros[j];
-    for(Index k=m_outerIndex[j]; k<oldEnd; ++k)
-    {
-      Index i = m_data.index(k);
-      if(wi(i)>=start)
-      {
-        // we already meet this entry => accumulate it
-        m_data.value(wi(i)) = dup_func(m_data.value(wi(i)), m_data.value(k));
-      }
-      else
-      {
-        m_data.value(count) = m_data.value(k);
-        m_data.index(count) = m_data.index(k);
-        wi(i) = count;
-        ++count;
-      }
-    }
-    m_outerIndex[j] = start;
-  }
-  m_outerIndex[m_outerSize] = count;
-
-  // turn the matrix into compressed form
-  internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-  m_innerNonZeros = 0;
-  m_data.resize(m_outerIndex[m_outerSize]);
+    internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
 
+/** \internal */
 template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename OtherDerived>
 EIGEN_DONT_INLINE SparseMatrix<Scalar,Options_,StorageIndex_>& SparseMatrix<Scalar,Options_,StorageIndex_>::operator=(const SparseMatrixBase<OtherDerived>& other)
@@ -1355,86 +1344,73 @@ EIGEN_DONT_INLINE SparseMatrix<Scalar,Options_,StorageIndex_>& SparseMatrix<Scal
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
-typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar& SparseMatrix<Scalar_, Options_, StorageIndex_>::insert(
+inline typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar& SparseMatrix<Scalar_, Options_, StorageIndex_>::insert(
     Index row, Index col) {
-  if (isCompressed())
-    return insertCompressed(row, col);
-  else
-    return insertUncompressed(row, col);
-}
-    
-template <typename Scalar_, int Options_, typename StorageIndex_>
-EIGEN_DONT_INLINE typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
-SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressed(Index row, Index col) {
-  eigen_assert(!isCompressed());
-
-  const Index outer = IsRowMajor ? row : col;
-  const Index inner = IsRowMajor ? col : row;
-
-  Index start = outerIndexPtr()[outer];
-  Index end = start + innerNonZeroPtr()[outer];
-  const Index dst = data().searchLowerIndex(start, end, inner);
-  eigen_assert((dst == end || data().index(dst) != inner) &&
-               "you cannot insert an element that already exists, you must call coeffRef to this end");
-
-  // find closest outer vector with capacity, if any
-  Index target = outer;
-  for (; target < outerSize(); target++) {
-    start = outerIndexPtr()[target];
-    end = start + innerNonZeroPtr()[target];
-    Index last = outerIndexPtr()[target + 1];
-    if (end < last) {
-      // `target` has room for insertion
-      Index chunkSize = end - dst;
-      // shift data to right if necessary
-      data().moveChunk(dst, dst + 1, chunkSize);
-      break;
-    }
-  }
-  if (target == outerSize()) {
-    // no room for interior insertion, must append to back
-    // ensure matrix has room for at least 1 insertion
-    if (data().allocatedSize() <= data().size()) {
-      Index minReserve = 32;
-      Index reserveSize = numext::maxi(minReserve, data().allocatedSize());
-      data().reserve(reserveSize);
-    }
-    eigen_assert(data().allocatedSize() > data().size());
-    data().resize(data().size() + 1);
-    // shift the existing data to the right if necessary
-    Index chunkSize = outerIndexPtr()[outerSize()] - dst;
-    data().moveChunk(dst, dst + 1, chunkSize);
-  }
-  // update nonzero counts
-  innerNonZeroPtr()[outer]++;
-  for (target--; target >= outer; target--) outerIndexPtr()[target + 1]++;
-  // initialize the coefficient
-  data().index(dst) = inner;
-  data().value(dst) = Scalar(0);
-  // return a reference to the coefficient
-  return data().value(dst);
-}
-
-template <typename Scalar_, int Options_, typename StorageIndex_>
-EIGEN_DONT_INLINE typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
-SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressed(Index row, Index col) {
-  eigen_assert(isCompressed());
-
   Index outer = IsRowMajor ? row : col;
   Index inner = IsRowMajor ? col : row;
+  Index start = outerIndexPtr()[outer];
+  Index end = isCompressed() ? outerIndexPtr()[outer + 1] : start + innerNonZeroPtr()[outer];
+  Index dst = data().searchLowerIndex(start, end, inner);
+  eigen_assert((dst == end || data().index(dst) != inner) &&
+      "you cannot insert an element that already exists, you must call coeffRef to this end");
+  return insertAt(outer, inner, dst);
+}
 
-  // ensure matrix has room for at least 1 insertion
-  if (data().allocatedSize() <= data().size()) {
-    Index minReserve = 32;
-    Index reserveSize = numext::maxi(minReserve, data().allocatedSize());
-    data().reserve(reserveSize);
-  }
-  eigen_assert(data().allocatedSize() > data().size());
+template <typename Scalar_, int Options_, typename StorageIndex_>
+inline typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertAt(Index outer, Index inner, Index dst) {
+  if (isCompressed())
+    return insertCompressedAt(outer, inner, dst);
+  else
+    return insertUncompressedAt(outer, inner, dst);
+}
+
+template <typename Scalar_, int Options_, typename StorageIndex_>
+EIGEN_DEPRECATED inline typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressed(Index row, Index col) {
+  eigen_assert(!isCompressed());
+  Index outer = IsRowMajor ? row : col;
+  Index inner = IsRowMajor ? col : row;
+  Index start = outerIndexPtr()[outer];
+  Index end = start + innerNonZeroPtr()[outer];
+  Index dst = data().searchLowerIndex(start, end, inner);
+  eigen_assert((dst == end || data().index(dst) != inner) &&
+               "you cannot insert an element that already exists, you must call coeffRef to this end");
+  return insertUncompressedAt(outer, inner, dst);
+}
+
+template <typename Scalar_, int Options_, typename StorageIndex_>
+EIGEN_DEPRECATED inline typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressed(Index row, Index col) {
+  eigen_assert(isCompressed());
+  Index outer = IsRowMajor ? row : col;
+  Index inner = IsRowMajor ? col : row;
   Index start = outerIndexPtr()[outer];
   Index end = outerIndexPtr()[outer + 1];
   Index dst = data().searchLowerIndex(start, end, inner);
   eigen_assert((dst == end || data().index(dst) != inner) &&
                "you cannot insert an element that already exists, you must call coeffRef to this end");
+  return insertCompressedAt(outer, inner, dst);
+}
+
+template <typename Scalar_, int Options_, typename StorageIndex_>
+inline void SparseMatrix<Scalar_, Options_, StorageIndex_>::checkAllocatedSpaceAndMaybeExpand() {
+  // if there is no capacity for a single insertion, double the capacity
+  if (data().allocatedSize() <= data().size()) {
+    // increase capacity by a mininum of 32
+    Index minReserve = 32;
+    Index reserveSize = numext::maxi(minReserve, data().allocatedSize());
+    data().reserve(reserveSize);
+  }
+  eigen_assert(data().allocatedSize() > data().size());
+}
+
+template <typename Scalar_, int Options_, typename StorageIndex_>
+typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAt(Index outer, Index inner, Index dst) {
+  eigen_assert(isCompressed());
+  // compressed insertion always requires expanding the buffer
+  checkAllocatedSpaceAndMaybeExpand();
   data().resize(data().size() + 1);
   Index chunkSize = outerIndexPtr()[outerSize()] - dst;
   // shift the existing data to the right if necessary
@@ -1448,17 +1424,52 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressed(Index row, Inde
   return data().value(dst);
 }
 
+template <typename Scalar_, int Options_, typename StorageIndex_>
+typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAt(Index outer, Index inner, Index dst) {
+  eigen_assert(!isCompressed());
+  // find nearest outer vector to the right with capacity (if any) to minimize copy size
+  Index target = outer;
+  for (; target < outerSize(); target++) {
+    Index start = outerIndexPtr()[target];
+    Index end = start + innerNonZeroPtr()[target];
+    Index last = outerIndexPtr()[target + 1];
+    if (end < last) {
+      // `target` has room for interior insertion
+      Index chunkSize = end - dst;
+      // shift the existing data to the right if necessary
+      data().moveChunk(dst, dst + 1, chunkSize);
+      break;
+    }
+  }
+  if (target == outerSize()) {
+    // no room for interior insertion, must expand storage
+    checkAllocatedSpaceAndMaybeExpand();
+    data().resize(data().size() + 1);
+    // shift the existing data to the right if necessary
+    Index chunkSize = outerIndexPtr()[outerSize()] - dst;
+    data().moveChunk(dst, dst + 1, chunkSize);
+  }
+  // update nonzero counts
+  innerNonZeroPtr()[outer]++;
+  for (; outer < target; outer++) outerIndexPtr()[outer + 1]++;
+  // initialize the coefficient
+  data().index(dst) = inner;
+  data().value(dst) = Scalar(0);
+  // return a reference to the coefficient
+  return data().value(dst);
+}
+
 namespace internal {
 
-template<typename Scalar_, int Options_, typename StorageIndex_>
-struct evaluator<SparseMatrix<Scalar_,Options_,StorageIndex_> >
-  : evaluator<SparseCompressedBase<SparseMatrix<Scalar_,Options_,StorageIndex_> > >
-{
-  typedef evaluator<SparseCompressedBase<SparseMatrix<Scalar_,Options_,StorageIndex_> > > Base;
-  typedef SparseMatrix<Scalar_,Options_,StorageIndex_> SparseMatrixType;
-  evaluator() : Base() {}
-  explicit evaluator(const SparseMatrixType &mat) : Base(mat) {}
-};
+    template <typename Scalar_, int Options_, typename StorageIndex_>
+    struct evaluator<SparseMatrix<Scalar_, Options_, StorageIndex_>>
+        : evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> {
+      typedef evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> Base;
+      typedef SparseMatrix<Scalar_, Options_, StorageIndex_> SparseMatrixType;
+      evaluator() : Base() {}
+      explicit evaluator(const SparseMatrixType& mat) : Base(mat) {}
+    };
 
 }
 
