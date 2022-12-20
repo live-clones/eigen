@@ -188,7 +188,7 @@ struct packet_traits<float> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0,
 
     HasDiv   = 1,
@@ -237,7 +237,7 @@ struct packet_traits<int8_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0
   };
 };
@@ -267,7 +267,7 @@ struct packet_traits<uint8_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0,
 
     HasSqrt = 1
@@ -298,7 +298,7 @@ struct packet_traits<int16_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0
   };
 };
@@ -327,7 +327,7 @@ struct packet_traits<uint16_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0,
     HasSqrt = 1
   };
@@ -357,7 +357,7 @@ struct packet_traits<int32_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0
   };
 };
@@ -386,7 +386,7 @@ struct packet_traits<uint32_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0,
 
     HasSqrt = 1
@@ -418,7 +418,7 @@ struct packet_traits<int64_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0
   };
 };
@@ -448,7 +448,7 @@ struct packet_traits<uint64_t> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0
   };
 };
@@ -3406,7 +3406,7 @@ template<> struct packet_traits<bfloat16> : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0,
     HasDiv       = 1,
     HasFloor     = 1,
@@ -3763,7 +3763,7 @@ template<> struct packet_traits<double>  : default_packet_traits
     HasMin       = 1,
     HasMax       = 1,
     HasConj      = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend     = 0,
 
     HasDiv   = 1,
@@ -4007,7 +4007,7 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
-    HasSetLinear = 0,
+    HasSetLinear = 1,
     HasBlend = 0,
     HasInsert = 1,
     HasReduxp = 1,
