@@ -1056,18 +1056,18 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
     for (InputIterator it(begin); it != end; ++it) {
       StorageIndex j = IsRowMajor ? it->row() : it->col();
       StorageIndex i = IsRowMajor ? it->col() : it->row();
-      Index begin = outerIndexMap.coeff(j);
-      Index end = begin + innerNonZerosMap.coeff(j);
+      Index begin_idx = outerIndexMap.coeff(j);
+      Index end_idx = begin_idx + innerNonZerosMap.coeff(j);
       // determine dst with binary search
-      Index dst = mat.data().searchLowerIndex(begin, end, i);
+      Index dst = mat.data().searchLowerIndex(begin_idx, end_idx, i);
       bool duplicate = innerIndexMap.coeff(dst) == i;
       if (duplicate) {
         valueMap.coeffRef(dst) = dup_func(valueMap.coeff(dst), it->value());
       } else {
         // if necessary, prepare array for sorted insertion by shifting data to the right
-        if (dst != end) {
-          smart_memmove(mat.innerIndexPtr() + dst, mat.innerIndexPtr() + end, mat.innerIndexPtr() + dst + 1);
-          smart_memmove(mat.valuePtr()      + dst, mat.valuePtr()      + end, mat.valuePtr()      + dst + 1);
+        if (dst != end_idx) {
+          smart_memmove(mat.innerIndexPtr() + dst, mat.innerIndexPtr() + end_idx, mat.innerIndexPtr() + dst + 1);
+          smart_memmove(mat.valuePtr()      + dst, mat.valuePtr()      + end_idx, mat.valuePtr()      + dst + 1);
         }
         // insert value at dst
         innerIndexMap.coeffRef(dst) = i;
@@ -1392,7 +1392,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAt(Index outer, 
   // update nonzero counts
   for (; outer < outerSize(); outer++) outerIndexPtr()[outer + 1]++;
   // initialize the coefficient
-  data().index(dst) = inner;
+  data().index(dst) = StorageIndex(inner);
   data().value(dst) = Scalar(0);
   // return a reference to the coefficient
   return data().value(dst);
@@ -1428,7 +1428,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAt(Index outer
   innerNonZeroPtr()[outer]++;
   for (; outer < target; outer++) outerIndexPtr()[outer + 1]++;
   // initialize the coefficient
-  data().index(dst) = inner;
+  data().index(dst) = StorageIndex(inner);
   data().value(dst) = Scalar(0);
   // return a reference to the coefficient
   return data().value(dst);
