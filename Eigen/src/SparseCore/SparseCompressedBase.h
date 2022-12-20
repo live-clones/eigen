@@ -52,8 +52,8 @@ class SparseCompressedBase
     
   protected:
     typedef typename Base::IndexVector IndexVector;
-    inline typename IndexVector::MapType innerNonZeros() { return typename IndexVector::MapType(innerNonZeroPtr(), isCompressed() ? 0 : derived().outerSize()); }
-    inline typename IndexVector::ConstMapType innerNonZeros() const { return typename IndexVector::ConstMapType(innerNonZeroPtr(), isCompressed() ? 0 : derived().outerSize()); }
+    Eigen::Map<IndexVector> innerNonZeros() { return Eigen::Map<IndexVector>(innerNonZeroPtr(), isCompressed()?0:derived().outerSize()); }
+    const  Eigen::Map<const IndexVector> innerNonZeros() const { return Eigen::Map<const IndexVector>(innerNonZeroPtr(), isCompressed()?0:derived().outerSize()); }
         
   public:
     
@@ -116,7 +116,7 @@ class SparseCompressedBase
       * \warning this method is for \b compressed \b storage \b only, and it will trigger an assertion otherwise.
       *
       * \sa valuePtr(), isCompressed() */
-    inline typename ArrayX<Scalar>::ConstMapType coeffs() const { eigen_assert(isCompressed()); return typename ArrayX<Scalar>::ConstMapType(valuePtr(),nonZeros()); }
+    const Map<const Array<Scalar,Dynamic,1> > coeffs() const { eigen_assert(isCompressed()); return Array<Scalar,Dynamic,1>::Map(valuePtr(),nonZeros()); }
 
     /** \returns a read-write view of the stored coefficients as a 1D array expression
       *
@@ -128,7 +128,7 @@ class SparseCompressedBase
       * \include SparseMatrix_coeffs.out
       *
       * \sa valuePtr(), isCompressed() */
-    inline typename ArrayX<Scalar>::MapType coeffs() { eigen_assert(isCompressed()); return typename ArrayX<Scalar>::MapType(valuePtr(),nonZeros()); }
+    Map<Array<Scalar,Dynamic,1> > coeffs() { eigen_assert(isCompressed()); return Array<Scalar,Dynamic,1>::Map(valuePtr(),nonZeros()); }
     
     /** sorts the inner vectors in the range [begin,end) with respect to `Comp`  
       * \sa innerIndicesAreSorted() */
@@ -411,15 +411,17 @@ public:
     return *this;
   }
 
-  inline bool operator==(const CompressedStorageIterator& other) const { return m_index == other.m_index; }
-  inline bool operator!=(const CompressedStorageIterator& other) const { return m_index != other.m_index; }
-  inline bool operator< (const CompressedStorageIterator& other) const { return m_index <  other.m_index; }
   inline CompressedStorageIterator operator+(difference_type offset) const { return CompressedStorageIterator(m_index + offset, m_data); }
   inline CompressedStorageIterator operator-(difference_type offset) const { return CompressedStorageIterator(m_index - offset, m_data); }
   inline difference_type operator-(const CompressedStorageIterator& other) const { return m_index - other.m_index; }
   inline CompressedStorageIterator& operator++() { ++m_index; return *this; }
   inline CompressedStorageIterator& operator--() { --m_index; return *this; }
+  inline CompressedStorageIterator& operator+=(difference_type offset) { m_index += offset; return *this; }
+  inline CompressedStorageIterator& operator-=(difference_type offset) { m_index -= offset; return *this; }
   inline reference operator*() const { return reference(m_data.m_innerIndexIterator + m_index, m_data.m_valueIterator + m_index); }
+
+  #define MAKE_COMP(OP) inline bool operator OP(const CompressedStorageIterator& other) const { return m_index OP other.m_index; }
+  MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)
 
 protected:
   difference_type m_index;
