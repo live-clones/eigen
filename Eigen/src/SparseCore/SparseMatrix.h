@@ -584,6 +584,11 @@ class SparseMatrix
         }
       }
       m_innerSize = newInnerSize;
+
+      Index newSize = isCompressed() ? outerIndexPtr()[outerSize()]
+                                     : outerIndexPtr()[outerSize() - 1] + innerNonZeroPtr()[outerSize() - 1];
+      eigen_assert(newSize <= m_data.size());
+      m_data.resize(newSize);
     }
     
     /** Resizes the matrix to a \a rows x \a cols matrix and initializes it to zero.
