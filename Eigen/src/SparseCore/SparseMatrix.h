@@ -11,7 +11,6 @@
 #define EIGEN_SPARSEMATRIX_H
 
 #include "./InternalHeaderCheck.h"
-#include <iostream>
 
 namespace Eigen { 
 
@@ -516,31 +515,6 @@ class SparseMatrix
     template<typename KeepFunc>
     void prune(const KeepFunc& keep = KeepFunc())
     {
-        //if (isCompressed())
-        //{
-        //StorageIndex k = 0;
-        //for (Index j = 0; j < m_outerSize; ++j) {
-        //  Index previousStart = m_outerIndex[j];
-        //  m_outerIndex[j] = k;
-        //  Index end = m_outerIndex[j + 1];
-        //  for (Index i = previousStart; i < end; ++i) {
-        //    if (keep(IsRowMajor ? j : m_data.index(i), IsRowMajor ? m_data.index(i) : j, m_data.value(i))) {
-        //      m_data.value(k) = m_data.value(i);
-        //      m_data.index(k) = m_data.index(i);
-        //      ++k;
-        //    }
-        //  }
-        //}
-        //m_outerIndex[m_outerSize] = k;
-        //m_data.resize(k, 0);
-        //}
-        //else
-        //{
-        //    for (Index j = 0; j < m_outerSize; ++j) {
-        //        Index start = m_outerIndex[j];
-        //        Index end = start + m_innerNonZeros[j];
-        //    }
-        //}
       // TODO optimize the uncompressed mode to avoid moving and allocating the data twice
       makeCompressed();
 
