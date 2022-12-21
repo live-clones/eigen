@@ -1398,7 +1398,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAt(Index outer, 
   data().resize(data().size() + 1);
   Index chunkSize = outerIndexPtr()[outerSize()] - dst;
   // shift the existing data to the right if necessary
-  data().moveChunk(dst, dst + 1, chunkSize);
+  if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
   // update nonzero counts
   for (; outer < outerSize(); outer++) outerIndexPtr()[outer + 1]++;
   // initialize the coefficient
@@ -1422,7 +1422,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAt(Index outer
       // `target` has room for interior insertion
       Index chunkSize = end - dst;
       // shift the existing data to the right if necessary
-      data().moveChunk(dst, dst + 1, chunkSize);
+      if(chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
       break;
     }
   }
@@ -1432,7 +1432,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAt(Index outer
     data().resize(data().size() + 1);
     // shift the existing data to the right if necessary
     Index chunkSize = outerIndexPtr()[outerSize()] - dst;
-    data().moveChunk(dst, dst + 1, chunkSize);
+    if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
   }
   // update nonzero counts
   innerNonZeroPtr()[outer]++;
