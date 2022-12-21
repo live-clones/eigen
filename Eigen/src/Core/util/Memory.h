@@ -220,6 +220,8 @@ EIGEN_DEVICE_FUNC inline void* aligned_malloc(std::size_t size)
 /** \internal Frees memory allocated with aligned_malloc. */
 EIGEN_DEVICE_FUNC inline void aligned_free(void *ptr)
 {
+  check_that_malloc_is_allowed();
+
   #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
 
     EIGEN_USING_STD(free)
