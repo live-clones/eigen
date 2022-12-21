@@ -239,6 +239,8 @@ EIGEN_DEVICE_FUNC inline void aligned_free(void *ptr)
   */
 EIGEN_DEVICE_FUNC inline void* aligned_realloc(void *ptr, std::size_t new_size, std::size_t old_size)
 {
+  check_that_malloc_is_allowed();
+
   if (ptr == 0) return aligned_malloc(new_size);
   void *result;
 #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
@@ -250,11 +252,6 @@ EIGEN_DEVICE_FUNC inline void* aligned_realloc(void *ptr, std::size_t new_size, 
 
   if (!result && new_size)
     throw_std_bad_alloc();
-
-#ifdef EIGEN_RUNTIME_NO_MALLOC
-  if (result != ptr)
-    check_that_malloc_is_allowed();
-#endif
 
   return result;
 }
@@ -301,7 +298,7 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc(
 
 template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(void* ptr, std::size_t new_size, std::size_t old_size)
 {
-  return std::realloc(ptr, new_size);
+  return aligned_realloc(ptr, new_size, old_size);
 }
 
 /*****************************************************************************
