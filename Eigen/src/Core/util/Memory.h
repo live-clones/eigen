@@ -422,9 +422,11 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline T* conditional_aligned
   */
 template<typename T> EIGEN_DEVICE_FUNC inline void aligned_delete(T *ptr, std::size_t size)
 {
-  destruct_elements_of_array<T>(ptr, size);
   if(size)
-    aligned_free(ptr);
+    check_that_malloc_is_allowed();
+
+  destruct_elements_of_array<T>(ptr, size);
+  aligned_free(ptr);
 }
 
 /** \internal Deletes objects constructed with conditional_aligned_new
@@ -432,9 +434,11 @@ template<typename T> EIGEN_DEVICE_FUNC inline void aligned_delete(T *ptr, std::s
   */
 template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_aligned_delete(T *ptr, std::size_t size)
 {
-  destruct_elements_of_array<T>(ptr, size);
   if(size)
-    conditional_aligned_free<Align>(ptr);
+    check_that_malloc_is_allowed();
+
+  destruct_elements_of_array<T>(ptr, size);
+  conditional_aligned_free<Align>(ptr);
 }
 
 template<typename T, bool Align> EIGEN_DEVICE_FUNC inline T* conditional_aligned_realloc_new(T* pts, std::size_t new_size, std::size_t old_size)
@@ -506,10 +510,12 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline T* conditional_aligned
 
 template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_aligned_delete_auto(T *ptr, std::size_t size)
 {
+  if(size)
+    check_that_malloc_is_allowed();
+
   if(NumTraits<T>::RequireInitialization)
     destruct_elements_of_array<T>(ptr, size);
-  if(size)
-    conditional_aligned_free<Align>(ptr);
+  conditional_aligned_free<Align>(ptr);
 }
 
 /****************************************************************************/
