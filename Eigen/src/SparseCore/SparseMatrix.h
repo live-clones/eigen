@@ -515,27 +515,32 @@ class SparseMatrix
     template<typename KeepFunc>
     void prune(const KeepFunc& keep = KeepFunc())
     {
-      // TODO optimize the uncompressed mode to avoid moving and allocating the data twice
-      makeCompressed();
-
       StorageIndex k = 0;
       for(Index j=0; j<m_outerSize; ++j)
       {
         Index previousStart = m_outerIndex[j];
-        m_outerIndex[j] = k;
-        Index end = m_outerIndex[j+1];
+        if (isCompressed())
+          m_outerIndex[j] = k;
+        else
+          k = m_outerIndex[j];
+        Index end = isCompressed() ? m_outerIndex[j+1] : previousStart + m_innerNonZeros[j];
         for(Index i=previousStart; i<end; ++i)
         {
-          if(keep(IsRowMajor?j:m_data.index(i), IsRowMajor?m_data.index(i):j, m_data.value(i)))
-          {
+          Index row = IsRowMajor ? j : m_data.index(i);
+          Index col = IsRowMajor ? m_data.index(i) : j;
+          bool keepEntry = keep(row, col, m_data.value(i));
+          if (keepEntry) {
             m_data.value(k) = m_data.value(i);
             m_data.index(k) = m_data.index(i);
             ++k;
-          }
+          } else if (!isCompressed())
+            m_innerNonZeros[j]--;
         }
       }
-      m_outerIndex[m_outerSize] = k;
-      m_data.resize(k,0);
+      if (isCompressed()) {
+        m_outerIndex[m_outerSize] = k;
+        m_data.resize(k, 0);
+      }
     }
 
     /** Resizes the matrix to a \a rows x \a cols matrix leaving old values untouched.
