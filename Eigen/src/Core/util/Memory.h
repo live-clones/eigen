@@ -196,7 +196,7 @@ EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
   */
 EIGEN_DEVICE_FUNC inline void* aligned_malloc(std::size_t size)
 {
-  if(size)
+  if(size > 0)
     check_that_malloc_is_allowed();
 
   void *result;
@@ -270,7 +270,7 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void* conditional_aligned_malloc(s
 
 template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_malloc<false>(std::size_t size)
 {
-  if(size)
+  if(size > 0)
     check_that_malloc_is_allowed();
 
   EIGEN_USING_STD(malloc)
@@ -423,7 +423,7 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline T* conditional_aligned
   */
 template<typename T> EIGEN_DEVICE_FUNC inline void aligned_delete(T *ptr, std::size_t size)
 {
-  if(size)
+  if(size > 0)
     check_that_malloc_is_allowed();
 
   destruct_elements_of_array<T>(ptr, size);
@@ -435,7 +435,7 @@ template<typename T> EIGEN_DEVICE_FUNC inline void aligned_delete(T *ptr, std::s
   */
 template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_aligned_delete(T *ptr, std::size_t size)
 {
-  if(size)
+  if(size > 0)
     check_that_malloc_is_allowed();
 
   destruct_elements_of_array<T>(ptr, size);
@@ -511,7 +511,7 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline T* conditional_aligned
 
 template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_aligned_delete_auto(T *ptr, std::size_t size)
 {
-  if(size)
+  if(size > 0)
     check_that_malloc_is_allowed();
 
   if(NumTraits<T>::RequireInitialization)
