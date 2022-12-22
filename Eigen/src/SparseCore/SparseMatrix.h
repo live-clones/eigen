@@ -580,18 +580,19 @@ class SparseMatrix
       m_outerSize = newOuterSize;
 
       if (innerChange < 0) {
-        uncompress();
         for (Index j = 0; j < outerSize(); j++) {
           Index start = outerIndexPtr()[j];
-          Index end = start + innerNonZeroPtr()[j];
+          Index end = isCompressed() ? outerIndexPtr()[j + 1] : start + innerNonZeroPtr()[j];
           Index lb = data().searchLowerIndex(start, end, newInnerSize);
-          if (lb != end) innerNonZeroPtr()[j] = StorageIndex(lb - start);
+          if (lb != end) {
+            uncompress();
+            innerNonZeroPtr()[j] = StorageIndex(lb - start);
+          }
         }
       }
       m_innerSize = newInnerSize;
 
-      Index newSize = isCompressed() ? outerIndexPtr()[outerSize()]
-                                     : outerIndexPtr()[outerSize() - 1] + innerNonZeroPtr()[outerSize() - 1];
+      Index newSize = outerIndexPtr()[outerSize()];
       eigen_assert(newSize <= m_data.size());
       m_data.resize(newSize);
     }
