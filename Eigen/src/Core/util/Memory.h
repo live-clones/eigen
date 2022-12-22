@@ -300,7 +300,7 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc(
 
 template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(void* ptr, std::size_t new_size, std::size_t)
 {
-  return aligned_realloc(ptr, new_size, old_size);
+  return std::realloc(ptr, new_size);
 }
 
 /*****************************************************************************
