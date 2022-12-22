@@ -289,7 +289,8 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void conditional_aligned_free(void
 
 template<> EIGEN_DEVICE_FUNC inline void conditional_aligned_free<false>(void *ptr)
 {
-  aligned_free(ptr);
+  EIGEN_USING_STD(free)
+  free(ptr);
 }
 
 template<bool Align> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc(void* ptr, std::size_t new_size, std::size_t old_size)
@@ -297,7 +298,7 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc(
   return aligned_realloc(ptr, new_size, old_size);
 }
 
-template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(void* ptr, std::size_t new_size, std::size_t old_size)
+template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(void* ptr, std::size_t new_size, std::size_t)
 {
   return aligned_realloc(ptr, new_size, old_size);
 }
