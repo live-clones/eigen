@@ -215,12 +215,12 @@ class SparseMatrix
       Index start = m_outerIndex[outer];
       Index end = m_innerNonZeros ? m_outerIndex[outer] + m_innerNonZeros[outer] : m_outerIndex[outer + 1];
       eigen_assert(end >= start && "you probably called coeffRef on a non finalized matrix");
-      if (end <= start) return insertAt(outer, inner, start);
+      if (end <= start) return insertAtByOuterInner(outer, inner, start);
       const Index dst = m_data.searchLowerIndex(start, end, inner);
       if ((dst < end) && (m_data.index(dst) == inner))
         return m_data.value(dst);
       else
-        return insertAt(outer, inner, dst);
+        return insertAtByOuterInner(outer, inner, dst);
     }
 
     /** \returns a reference to a novel non zero coefficient with coordinates \a row x \a col.
@@ -997,9 +997,9 @@ protected:
     /* provides a consistent reserve and reallocation strategy for insertCompressed and insertUncompressed */
     inline void checkAllocatedSpaceAndMaybeExpand();
     /* These functions are used to avoid a redundant binary search operation in functions such as coeffRef() and assume `dst` is the appropriate sorted insertion point */
-    inline Scalar& insertAt(Index outer, Index inner, Index dst);
-    Scalar& insertCompressedAt(Index outer, Index inner, Index dst);
-    Scalar& insertUncompressedAt(Index outer, Index inner, Index dst);
+    inline Scalar& insertAtByOuterInner(Index outer, Index inner, Index dst);
+    Scalar& insertCompressedAtByOuterInner(Index outer, Index inner, Index dst);
+    Scalar& insertUncompressedAtByOuterInner(Index outer, Index inner, Index dst);
 
 private:
   EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
@@ -1108,9 +1108,10 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   constexpr StorageIndex EmptyIndexValue = StorageIndex(-1);
 
   if (begin != end) {
+    // deallocate inner nonzeros if present and zero outerIndexPtr
+    mat.resize(mat.rows(), mat.cols());
     // use outer indices to count non zero entries (excluding duplicate entries)
     IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
-    outerIndexMap.setZero();
 
     StorageIndex previous_j = EmptyIndexValue;
     StorageIndex previous_i = EmptyIndexValue;
@@ -1133,8 +1134,6 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
 
     // allocate memory for inner indices and values if necessary
     mat.resizeNonZeros(nonZeros);
-    // deallocate inner nonzeros (if present)
-    mat.makeCompressed();
 
     IndexMap innerIndexMap(mat.innerIndexPtr(), nonZeros);
     ValueMap valueMap(mat.valuePtr(), nonZeros);    
@@ -1338,16 +1337,16 @@ inline typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar& SparseMa
   Index dst = data().searchLowerIndex(start, end, inner);
   eigen_assert((dst == end || data().index(dst) != inner) &&
       "you cannot insert an element that already exists, you must call coeffRef to this end");
-  return insertAt(outer, inner, dst);
+  return insertAtByOuterInner(outer, inner, dst);
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
 inline typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
-SparseMatrix<Scalar_, Options_, StorageIndex_>::insertAt(Index outer, Index inner, Index dst) {
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertAtByOuterInner(Index outer, Index inner, Index dst) {
   if (isCompressed())
-    return insertCompressedAt(outer, inner, dst);
+    return insertCompressedAtByOuterInner(outer, inner, dst);
   else
-    return insertUncompressedAt(outer, inner, dst);
+    return insertUncompressedAtByOuterInner(outer, inner, dst);
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
@@ -1361,7 +1360,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressed(Index row, In
   Index dst = data().searchLowerIndex(start, end, inner);
   eigen_assert((dst == end || data().index(dst) != inner) &&
                "you cannot insert an element that already exists, you must call coeffRef to this end");
-  return insertUncompressedAt(outer, inner, dst);
+  return insertUncompressedAtByOuterInner(outer, inner, dst);
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
@@ -1375,7 +1374,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressed(Index row, Inde
   Index dst = data().searchLowerIndex(start, end, inner);
   eigen_assert((dst == end || data().index(dst) != inner) &&
                "you cannot insert an element that already exists, you must call coeffRef to this end");
-  return insertCompressedAt(outer, inner, dst);
+  return insertCompressedAtByOuterInner(outer, inner, dst);
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
@@ -1392,7 +1391,7 @@ inline void SparseMatrix<Scalar_, Options_, StorageIndex_>::checkAllocatedSpaceA
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
 typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
-SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAt(Index outer, Index inner, Index dst) {
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAtByOuterInner(Index outer, Index inner, Index dst) {
   eigen_assert(isCompressed());
   // compressed insertion always requires expanding the buffer
   checkAllocatedSpaceAndMaybeExpand();
@@ -1411,7 +1410,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAt(Index outer, 
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
 typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
-SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAt(Index outer, Index inner, Index dst) {
+SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner(Index outer, Index inner, Index dst) {
   eigen_assert(!isCompressed());
   // find nearest outer vector to the right with capacity (if any) to minimize copy size
   Index target = outer;
