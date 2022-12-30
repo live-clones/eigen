@@ -6,7 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
+#include <iostream>
 #ifndef EIGEN_SPARSEMATRIX_H
 #define EIGEN_SPARSEMATRIX_H
 
@@ -442,6 +442,9 @@ class SparseMatrix
 
     template<typename InputIterators,typename DupFunctor>
     void setFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func);
+
+    template<typename Derived, typename DupFunctor>
+    void collapseDuplicates(DenseBase<Derived>& wi, DupFunctor dup_func = DupFunctor());
 
     template<typename InputIterators>
     void setFromSortedTriplets(const InputIterators& begin, const InputIterators& end);
@@ -1026,70 +1029,45 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   // if matrix is uncompressed, inner non zero array is used for this purpose
   // otherwise, matrix is temporarily converted to uncompressed storage
   // inner indices and values are sorted upon insertion
-
-  enum { IsRowMajor = SparseMatrixType::IsRowMajor };
+  constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
   typedef typename SparseMatrixType::Scalar Scalar;
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef typename VectorX<StorageIndex>::MapType IndexMap;
+  typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
   typedef typename VectorX<Scalar>::AlignedMapType ValueMap;
 
-  constexpr StorageIndex EmptyIndexValue = StorageIndex(-1);
+  if (begin == end) return;
 
-  if (begin != end) {
-    // use outer indices to count non zero entries (including duplicate entries)
-    IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
-    outerIndexMap.setZero();
-
-    // scan triplets to determine allocation size before constructing matrix
-    for (InputIterator it(begin); it != end; ++it) {
-      eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
-      StorageIndex j = IsRowMajor ? it->row() : it->col();
-      outerIndexMap.coeffRef(j + 1)++;
-    }
-
-    // convert non zero count to outer indices with cumulative sum
-    std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-    Index nonZeros = outerIndexMap.coeff(mat.outerSize());
-
-    // allocate memory for inner indices and values if necessary
-    mat.resizeNonZeros(nonZeros);
-    // allocate innerNonZeros to track duplicate insertions (if not already present)
-    mat.uncompress();
-
-    IndexMap innerNonZerosMap(mat.innerNonZeroPtr(), mat.outerSize());
-    IndexMap innerIndexMap(mat.innerIndexPtr(), nonZeros);
-    ValueMap valueMap(mat.valuePtr(), nonZeros);
-
-    innerNonZerosMap.setZero();
-    // initialize inner indices with placeholder value that won't confound binary search
-    innerIndexMap.setConstant(EmptyIndexValue);
-
-    for (InputIterator it(begin); it != end; ++it) {
-      StorageIndex j = IsRowMajor ? it->row() : it->col();
-      StorageIndex i = IsRowMajor ? it->col() : it->row();
-      Index begin_idx = outerIndexMap.coeff(j);
-      Index end_idx = begin_idx + innerNonZerosMap.coeff(j);
-      // determine dst with binary search
-      Index dst = mat.data().searchLowerIndex(begin_idx, end_idx, i);
-      bool duplicate = innerIndexMap.coeff(dst) == i;
-      if (duplicate) {
-        valueMap.coeffRef(dst) = dup_func(valueMap.coeff(dst), it->value());
-      } else {
-        // if necessary, prepare array for sorted insertion by shifting data to the right
-        if (dst != end_idx) {
-          smart_memmove(mat.innerIndexPtr() + dst, mat.innerIndexPtr() + end_idx, mat.innerIndexPtr() + dst + 1);
-          smart_memmove(mat.valuePtr()      + dst, mat.valuePtr()      + end_idx, mat.valuePtr()      + dst + 1);
-        }
-        // insert value at dst
-        innerIndexMap.coeffRef(dst) = i;
-        valueMap.coeffRef(dst) = it->value();
-        innerNonZerosMap.coeffRef(j)++;
-      }
-    }
-
-    // finalize matrix
-    mat.makeCompressed();
+  const StorageIndex EmptyIndexValue(-1);
+  // deallocate inner nonzeros if present and zero outerIndexPtr
+  mat.resize(mat.rows(), mat.cols());
+  // allocate temporary storage for nonzero insertion (outer size) and duplicate removal (inner size)
+  ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, numext::maxi(mat.innerSize(), mat.outerSize()), 0);
+  // use outer indices to count non zero entries (including duplicate entries)
+  IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
+  // scan triplets to determine allocation size before constructing matrix
+  for (InputIterator it(begin); it != end; ++it) {
+    eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
+    StorageIndex j = IsRowMajor ? it->row() : it->col();
+    outerIndexMap.coeffRef(j + 1)++;
   }
+  // convert non zero count to outer indices with cumulative sum
+  std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
+  mat.resizeNonZeros(outerIndexMap.coeff(mat.outerSize()));
+  // use tmp to track nonzero insertions
+  IndexMap innerNonZerosMap(tmp, mat.outerSize());
+  innerNonZerosMap.setZero();
+  // push triplets to back of each inner vector
+  for (InputIterator it(begin); it != end; ++it) {
+    StorageIndex j = IsRowMajor ? it->row() : it->col();
+    StorageIndex i = IsRowMajor ? it->col() : it->row();
+    StorageIndex back = outerIndexMap.coeff(j) + innerNonZerosMap.coeff(j);
+    mat.data().index(back) = i;
+    mat.data().value(back) = it->value();
+    innerNonZerosMap.coeffRef(j)++;
+  }
+  // use tmp to collapse duplicates
+  IndexMap wi(tmp, mat.innerSize());
+  mat.collapseDuplicates(wi, dup_func);
 }
 
 template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
@@ -1098,66 +1076,64 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   // creates compressed sparse matrix from sorted triplets
   // initial scan determines final memory requirements
   // all entries are inserted in a linear order
-
-  enum { IsRowMajor = SparseMatrixType::IsRowMajor };
+  constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
   typedef typename SparseMatrixType::Scalar Scalar;
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
   typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
   typedef typename VectorX<Scalar>::AlignedMapType ValueMap;
 
-  constexpr StorageIndex EmptyIndexValue = StorageIndex(-1);
+  if (begin == end) return;
 
-  if (begin != end) {
-    // deallocate inner nonzeros if present and zero outerIndexPtr
-    mat.resize(mat.rows(), mat.cols());
-    // use outer indices to count non zero entries (excluding duplicate entries)
-    IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
+  const StorageIndex EmptyIndexValue(-1);
+  // deallocate inner nonzeros if present and zero outerIndexPtr
+  mat.resize(mat.rows(), mat.cols());
+  // use outer indices to count non zero entries (excluding duplicate entries)
+  IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
 
-    StorageIndex previous_j = EmptyIndexValue;
-    StorageIndex previous_i = EmptyIndexValue;
-    // scan triplets to determine allocation size before constructing matrix
-    for (InputIterator it(begin); it != end; ++it) {
-      eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
-      StorageIndex j = IsRowMajor ? it->row() : it->col();
-      StorageIndex i = IsRowMajor ? it->col() : it->row();
-      eigen_assert(j > previous_j || (j == previous_j && i >= previous_i));
-      // identify duplicates by examining previous location
-      bool duplicate = (previous_j == j) && (previous_i == i);
-      if (!duplicate) outerIndexMap.coeffRef(j + 1)++;
+  StorageIndex previous_j = EmptyIndexValue;
+  StorageIndex previous_i = EmptyIndexValue;
+  // scan triplets to determine allocation size before constructing matrix
+  for (InputIterator it(begin); it != end; ++it) {
+    eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
+    StorageIndex j = IsRowMajor ? it->row() : it->col();
+    StorageIndex i = IsRowMajor ? it->col() : it->row();
+    eigen_assert(j > previous_j || (j == previous_j && i >= previous_i));
+    // identify duplicates by examining previous location
+    bool duplicate = (previous_j == j) && (previous_i == i);
+    if (!duplicate) outerIndexMap.coeffRef(j + 1)++;
+    previous_j = j;
+    previous_i = i;
+  }
+
+  // finalize outer indices and count non zeros
+  std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
+  Index nonZeros = outerIndexMap.coeff(mat.outerSize());
+
+  // allocate memory for inner indices and values if necessary
+  mat.resizeNonZeros(nonZeros);
+
+  IndexMap innerIndexMap(mat.innerIndexPtr(), nonZeros);
+  ValueMap valueMap(mat.valuePtr(), nonZeros);
+
+  Index dst = 0;
+  previous_i = EmptyIndexValue;
+  previous_j = EmptyIndexValue;
+  for (InputIterator it(begin); it != end; ++it) {
+    StorageIndex j = IsRowMajor ? it->row() : it->col();
+    StorageIndex i = IsRowMajor ? it->col() : it->row();
+    bool duplicate = (previous_j == j) && (previous_i == i);
+    if (duplicate) {
+      valueMap.coeffRef(dst - 1) = dup_func(valueMap.coeff(dst - 1), it->value());
+    } else {
+      // insert value at dst
+      innerIndexMap.coeffRef(dst) = i;
+      valueMap.coeffRef(dst) = it->value();
       previous_j = j;
       previous_i = i;
+      dst++;
     }
-
-    // finalize outer indices and count non zeros
-    std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-    Index nonZeros = outerIndexMap.coeff(mat.outerSize());
-
-    // allocate memory for inner indices and values if necessary
-    mat.resizeNonZeros(nonZeros);
-
-    IndexMap innerIndexMap(mat.innerIndexPtr(), nonZeros);
-    ValueMap valueMap(mat.valuePtr(), nonZeros);    
-
-    Index dst = 0;
-    previous_i = EmptyIndexValue;
-    previous_j = EmptyIndexValue;
-    for (InputIterator it(begin); it != end; ++it) {
-      StorageIndex j = IsRowMajor ? it->row() : it->col();
-      StorageIndex i = IsRowMajor ? it->col() : it->row();
-      bool duplicate = (previous_j == j) && (previous_i == i);
-      if (duplicate) {
-        valueMap.coeffRef(dst - 1) = dup_func(valueMap.coeff(dst - 1), it->value());
-      } else {
-        // insert value at dst
-        innerIndexMap.coeffRef(dst) = i;
-        valueMap.coeffRef(dst) = it->value();
-        previous_j = j;
-        previous_i = i;
-        dst++;
-      }
-    }
-    // matrix is finalized
   }
+  // matrix is finalized
 }
 
 }
@@ -1252,6 +1228,44 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const 
 {
     internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
+
+/** \internal */
+template<typename Scalar, int Options_, typename StorageIndex_>
+template<typename Derived, typename DupFunctor>
+void SparseMatrix<Scalar, Options_, StorageIndex_>::collapseDuplicates(DenseBase<Derived>& wi, DupFunctor dup_func)
+{
+  eigen_assert(wi.size() >= m_innerSize)
+  const StorageIndex_ EmptyIndexValue(-1);
+  wi.setConstant(EmptyIndexValue);
+  StorageIndex count = 0;
+  // for each inner-vector, wi[inner_index] will hold the position of first element into the index/value buffers
+  for (Index j = 0; j < m_outerSize; ++j) {
+    StorageIndex start = count;
+    Index oldEnd = m_outerIndex[j + 1];
+    for (Index k = m_outerIndex[j]; k < oldEnd; ++k) {
+      Index i = m_data.index(k);
+      if (wi(i) >= start) {
+        // we already meet this entry => accumulate it
+        m_data.value(wi(i)) = dup_func(m_data.value(wi(i)), m_data.value(k));
+      } else {
+        m_data.value(count) = m_data.value(k);
+        m_data.index(count) = m_data.index(k);
+        wi(i) = count;
+        ++count;
+      }
+    }
+    m_outerIndex[j] = start;
+  }
+  m_outerIndex[m_outerSize] = count;
+  // turn the matrix into compressed form
+  if (m_innerNonZeros) {
+    internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+    m_innerNonZeros = 0;
+  }
+  m_data.resize(m_outerIndex[m_outerSize]);
+}
+
+
 
 /** \internal */
 template<typename Scalar, int Options_, typename StorageIndex_>
