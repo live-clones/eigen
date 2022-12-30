@@ -1063,6 +1063,7 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   // use tmp to collapse duplicates
   IndexMap wi(tmp, mat.innerSize());
   mat.collapseDuplicates(wi, dup_func);
+  mat.sortInnerIndices();
 }
 
 template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
@@ -1219,7 +1220,7 @@ template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename Derived, typename DupFunctor>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::collapseDuplicates(DenseBase<Derived>& wi, DupFunctor dup_func)
 {
-  eigen_assert(wi.size() >= m_innerSize)
+  eigen_assert(wi.size() >= m_innerSize);
   const StorageIndex_ EmptyIndexValue(-1);
   wi.setConstant(EmptyIndexValue);
   StorageIndex count = 0;

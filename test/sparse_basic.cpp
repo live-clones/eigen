@@ -480,11 +480,14 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     SparseMatrixType m(rows,cols);
     m.setFromTriplets(triplets.begin(), triplets.end());
     VERIFY_IS_APPROX(m, refMat_sum);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     m.setFromTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
     m.setFromTriplets(triplets.begin(), triplets.end(), [] (Scalar,Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     // test setFromSortedTriplets
 
@@ -501,11 +504,14 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     m.setZero();
     m.setFromSortedTriplets(triplets.begin(), triplets.end());
     VERIFY_IS_APPROX(m, refMat_sum);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     m.setFromSortedTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
     m.setFromSortedTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
   }
   
   // test Map
