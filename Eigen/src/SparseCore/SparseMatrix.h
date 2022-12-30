@@ -1026,44 +1026,39 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
                        DupFunctor dup_func) {
   // creates compressed sparse matrix from unsorted triplets
   // requires temporary storage to handle duplicate entries
-  // if matrix is uncompressed, inner non zero array is used for this purpose
-  // otherwise, matrix is temporarily converted to uncompressed storage
-  // inner indices and values are sorted upon insertion
+
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
-  typedef typename SparseMatrixType::Scalar Scalar;
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
   typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
-  typedef typename VectorX<Scalar>::AlignedMapType ValueMap;
-
   if (begin == end) return;
 
-  const StorageIndex EmptyIndexValue(-1);
-  // deallocate inner nonzeros if present and zero outerIndexPtr
+  // free innerNonZeroPtr (if present) and zero outerIndexPtr
   mat.resize(mat.rows(), mat.cols());
   // allocate temporary storage for nonzero insertion (outer size) and duplicate removal (inner size)
   ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, numext::maxi(mat.innerSize(), mat.outerSize()), 0);
   // use outer indices to count non zero entries (including duplicate entries)
-  IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
   // scan triplets to determine allocation size before constructing matrix
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
     StorageIndex j = IsRowMajor ? it->row() : it->col();
-    outerIndexMap.coeffRef(j + 1)++;
+    mat.outerIndexPtr()[j + 1]++;
   }
-  // convert non zero count to outer indices with cumulative sum
+
+  // finalize outer indices and allocate memory
   std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-  mat.resizeNonZeros(outerIndexMap.coeff(mat.outerSize()));
+  Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
+  mat.resizeNonZeros(nonZeros);
+
   // use tmp to track nonzero insertions
-  IndexMap innerNonZerosMap(tmp, mat.outerSize());
-  innerNonZerosMap.setZero();
+  std::fill_n(tmp, mat.outerSize(), StorageIndex(0));
   // push triplets to back of each inner vector
   for (InputIterator it(begin); it != end; ++it) {
     StorageIndex j = IsRowMajor ? it->row() : it->col();
     StorageIndex i = IsRowMajor ? it->col() : it->row();
-    StorageIndex back = outerIndexMap.coeff(j) + innerNonZerosMap.coeff(j);
+    StorageIndex back = mat.outerIndexPtr()[j] + tmp[j];
     mat.data().index(back) = i;
     mat.data().value(back) = it->value();
-    innerNonZerosMap.coeffRef(j)++;
+    tmp[j]++;
   }
   // use tmp to collapse duplicates
   IndexMap wi(tmp, mat.innerSize());
@@ -1077,10 +1072,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   // initial scan determines final memory requirements
   // all entries are inserted in a linear order
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
-  typedef typename SparseMatrixType::Scalar Scalar;
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
-  typedef typename VectorX<Scalar>::AlignedMapType ValueMap;
 
   if (begin == end) return;
 
@@ -1088,8 +1080,6 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   // deallocate inner nonzeros if present and zero outerIndexPtr
   mat.resize(mat.rows(), mat.cols());
   // use outer indices to count non zero entries (excluding duplicate entries)
-  IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
-
   StorageIndex previous_j = EmptyIndexValue;
   StorageIndex previous_i = EmptyIndexValue;
   // scan triplets to determine allocation size before constructing matrix
@@ -1100,20 +1090,15 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
     eigen_assert(j > previous_j || (j == previous_j && i >= previous_i));
     // identify duplicates by examining previous location
     bool duplicate = (previous_j == j) && (previous_i == i);
-    if (!duplicate) outerIndexMap.coeffRef(j + 1)++;
+    if (!duplicate) mat.outerIndexPtr()[j + 1]++;
     previous_j = j;
     previous_i = i;
   }
 
-  // finalize outer indices and count non zeros
+  // finalize outer indices and allocate memory
   std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-  Index nonZeros = outerIndexMap.coeff(mat.outerSize());
-
-  // allocate memory for inner indices and values if necessary
+  Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
   mat.resizeNonZeros(nonZeros);
-
-  IndexMap innerIndexMap(mat.innerIndexPtr(), nonZeros);
-  ValueMap valueMap(mat.valuePtr(), nonZeros);
 
   Index dst = 0;
   previous_i = EmptyIndexValue;
@@ -1123,11 +1108,11 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
     StorageIndex i = IsRowMajor ? it->col() : it->row();
     bool duplicate = (previous_j == j) && (previous_i == i);
     if (duplicate) {
-      valueMap.coeffRef(dst - 1) = dup_func(valueMap.coeff(dst - 1), it->value());
+      mat.data().value(dst - 1) = dup_func(mat.data().value(dst - 1), it->value());
     } else {
       // insert value at dst
-      innerIndexMap.coeffRef(dst) = i;
-      valueMap.coeffRef(dst) = it->value();
+      mat.data().index(dst) = i;
+      mat.data().value(dst) = it->value();
       previous_j = j;
       previous_i = i;
       dst++;
