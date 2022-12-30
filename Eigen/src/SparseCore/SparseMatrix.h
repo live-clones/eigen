@@ -1045,7 +1045,7 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   }
 
   // finalize outer indices and allocate memory
-  std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
+  std::partial_sum(mat.outerIndexPtr(), mat.outerIndexPtr() + mat.outerSize() + 1, mat.outerIndexPtr());
   Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
   mat.resizeNonZeros(nonZeros);
 
@@ -1096,7 +1096,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   }
 
   // finalize outer indices and allocate memory
-  std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
+  std::partial_sum(mat.outerIndexPtr(), mat.outerIndexPtr() + mat.outerSize() + 1, mat.outerIndexPtr());
   Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
   mat.resizeNonZeros(nonZeros);
 
