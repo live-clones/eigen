@@ -352,7 +352,7 @@
       #endif
     } // end extern "C"
 
-  #elif defined __VSX__
+  #elif defined __VSX__ && !defined __APPLE__
 
     #define EIGEN_VECTORIZE
     #define EIGEN_VECTORIZE_VSX

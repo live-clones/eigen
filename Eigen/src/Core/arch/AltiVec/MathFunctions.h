@@ -60,7 +60,7 @@ Packet4f patan<Packet4f>(const Packet4f& _x)
   return patan_float(_x);
 }
 
-#ifdef __VSX__
+#if defined(__VSX__) && !defined(__APPLE__)
 #ifndef EIGEN_COMP_CLANG
 template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet4f prsqrt<Packet4f>(const Packet4f& x)
