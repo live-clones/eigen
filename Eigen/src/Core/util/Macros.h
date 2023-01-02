@@ -371,7 +371,7 @@
 #endif
 
 /// \internal EIGEN_ARCH_PPC set to 1 if the architecture is PowerPC
-#if defined(__powerpc__) || defined(__ppc__) || defined(_M_PPC)
+#if defined(__powerpc__) || defined(__ppc__) || defined(_M_PPC) || defined(__POWERPC__)
   #define EIGEN_ARCH_PPC 1
 #else
   #define EIGEN_ARCH_PPC 0
