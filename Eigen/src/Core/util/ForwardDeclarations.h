@@ -258,9 +258,9 @@ namespace internal {
 template<typename MatrixType> struct inverse_impl;
 }
 template<typename MatrixType> class HouseholderQR;
-template<typename MatrixType> class ColPivHouseholderQR;
-template<typename MatrixType> class FullPivHouseholderQR;
-template<typename MatrixType> class CompleteOrthogonalDecomposition;
+template<typename MatrixType, typename StorageIndex = int> class ColPivHouseholderQR;
+template<typename MatrixType, typename StorageIndex = int> class FullPivHouseholderQR;
+template<typename MatrixType, typename StorageIndex = int> class CompleteOrthogonalDecomposition;
 template<typename MatrixType> class SVDBase;
 template<typename MatrixType, int Options = 0> class JacobiSVD;
 template<typename MatrixType, int Options = 0> class BDCSVD;
