@@ -257,7 +257,6 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   //Convert back to bfloat16
   for(col = 0; col + 4 <= cols; col += 4){
     const DataMapper res2 = res.getSubMapper(0, col);
-    Index row;
     for(row = 0; row + 8 <= rows; row += 8){
       //get and save block
       PacketBlock<Packet8bf,4> block;
