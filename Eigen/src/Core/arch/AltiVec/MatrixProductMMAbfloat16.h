@@ -1,8 +1,6 @@
 #ifndef EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
 #define EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
 
-#define LHS_PACK   1
-
 namespace Eigen {
 
 namespace internal {
@@ -23,12 +21,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16(const bfloat16* indexA)
     lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
     return vec_mergeh(lhs1.m_val, lhs2.m_val);
   } else {
-#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16 && LHS_PACK
     return lhs1;
-#else
-    lhs2 = ploadu<Packet8bf>(indexA + num_packets);
-    return vec_mergeh(lhs1.m_val, lhs2.m_val);
-#endif
   }
 }
 
@@ -68,16 +61,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* baseB, Index strid
     Packet8bf rhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
     return vec_mergeh(rhs1.m_val, rhs2.m_val);
   }
-#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16
   return rhs1;
-#else
-  //r = vec_perm (a, b, c)
-  //Let v be the concatenation of a and b.
-  //Each byte of r selected by using the least-significant 5 bits of the corresponding byte of c as an index into v
-  //We need this elements from rhs: 0, 4, 1, 5, 2, 6, 3, 7
-  const Packet16uc c = {0x0u, 0x1u, 0x8u, 0x9u, 0x2u, 0x3u, 0xAu, 0xB, 0x4, 0x5, 0xCu, 0xDu, 0x6u, 0x7u, 0xEu, 0xFu};
-  return vec_perm(rhs1.m_val, rhs1.m_val, c);
-#endif
 }
 
 template<bool zero>
@@ -134,11 +118,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
     }
     if(depth&1){
-#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16 && LHS_PACK
       KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-offset_row, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
-#else
-      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
-#endif
     }
 
     for(Index i = 0; i < num_acc; i++)
@@ -177,12 +157,6 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
 template<typename Index, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
-__asm__("# Start asm!\n\t");
-
   if(rows == 0 || cols == 0 || depth == 0) return;
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
   if (falpha == float(0)) return;
@@ -213,11 +187,7 @@ __asm__("# Start asm!\n\t");
   const Index standard_blocks_quantity = rows/standard_block_size; //Number of standard blocks
   Index bigSuffix = (2*8) * (strideA-offsetA-depth);
   const bfloat16* indexA = blockA;
-#if EIGEN_ALTIVEC_USE_CUSTOM_PACK_BFLOAT16 && LHS_PACK
   const Index offset_factor = 2;
-#else
-  const Index offset_factor = 1;
-#endif
   Index block_index;
   for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
     indexA += 2*8*offsetA;
@@ -316,11 +286,6 @@ __asm__("# Start asm!\n\t");
     }
     col++;
   }
-__asm__("# End asm!\n\t");
-#ifdef TEST_VERBOSE
-  end = __ppc_get_timebase();
-  printf("gemm bfloat16 MMA time = %16ld\n", end - start);
-#endif
 }
 
 

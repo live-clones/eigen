@@ -12,14 +12,6 @@
 
 #include "../InternalHeaderCheck.h"
 
-//#define USE_VERBOSE // Report timings and gemm type, MMA, rows, depth and cols
-
-#ifdef USE_VERBOSE
-#include <cstdio>
-#include <iostream>
-#include <sys/platform/ppc.h>
-#endif
-
 namespace Eigen {
 
 namespace internal {
@@ -140,15 +132,7 @@ static void run(Index rows, Index cols, Index depth,
           }
         }
 
-#ifdef USE_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
         gebp(res.getSubMapper(info[i].lhs_start, 0), blockA+info[i].lhs_start*actual_kc, blockB, info[i].lhs_length, actual_kc, nc, alpha);
-#ifdef USE_VERBOSE
-  end = __ppc_get_timebase();
-  printf("%s time = %16ld\n", (sizeof(ResScalar) == sizeof(float)) ? "float32" : "float64", end - start);
-#endif
       }
 
       // Then keep going as usual with the remaining B'
@@ -160,15 +144,7 @@ static void run(Index rows, Index cols, Index depth,
         pack_rhs(blockB, rhs.getSubMapper(k,j), actual_kc, actual_nc);
 
         // C_j += A' * B'
-#ifdef USE_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
         gebp(res.getSubMapper(0, j), blockA, blockB, rows, actual_kc, actual_nc, alpha);
-#ifdef USE_VERBOSE
-  end = __ppc_get_timebase();
-  printf("%s time = %16ld\n", (sizeof(ResScalar) == sizeof(float)) ? "float32" : "float64", end - start);
-#endif
       }
 
       // Release all the sub blocks A'_i of A' for the current thread,
@@ -218,15 +194,7 @@ static void run(Index rows, Index cols, Index depth,
             pack_rhs(blockB, rhs.getSubMapper(k2,j2), actual_kc, actual_nc);
 
           // Everything is packed, we can now call the panel * block kernel:
-#ifdef USE_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
           gebp(res.getSubMapper(i2, j2), blockA, blockB, actual_mc, actual_kc, actual_nc, alpha);
-#ifdef USE_VERBOSE
-  end = __ppc_get_timebase();
-  printf("%s time = %16ld\n", (sizeof(ResScalar) == sizeof(float)) ? "float32" : "float64", end - start);
-#endif
         }
       }
     }
