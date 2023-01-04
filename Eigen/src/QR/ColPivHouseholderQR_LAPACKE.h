@@ -42,8 +42,8 @@ namespace Eigen {
 
 #define EIGEN_LAPACKE_QR_COLPIV(EIGTYPE, LAPACKE_TYPE, LAPACKE_PREFIX, EIGCOLROW, LAPACKE_COLROW) \
 template<> template<typename InputType> inline \
-ColPivHouseholderQR<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic> >& \
-ColPivHouseholderQR<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic> >::compute( \
+ColPivHouseholderQR<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, lapack_int>& \
+ColPivHouseholderQR<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, lapack_int>::compute( \
               const EigenBase<InputType>& matrix) \
 \
 { \
@@ -68,7 +68,7 @@ ColPivHouseholderQR<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynami
   lapack_int lda = internal::convert_index<lapack_int,Index>(m_qr.outerStride()); \
   lapack_int matrix_order = LAPACKE_COLROW; \
   LAPACKE_##LAPACKE_PREFIX##geqp3( matrix_order, internal::convert_index<lapack_int,Index>(rows), internal::convert_index<lapack_int,Index>(cols), \
-                              (LAPACKE_TYPE*)m_qr.data(), lda, (lapack_int*)m_colsPermutation.indices().data(), (LAPACKE_TYPE*)m_hCoeffs.data()); \
+                              (LAPACKE_TYPE*)m_qr.data(), lda, m_colsPermutation.indices().data(), (LAPACKE_TYPE*)m_hCoeffs.data()); \
   m_isInitialized = true; \
   m_maxpivot=m_qr.diagonal().cwiseAbs().maxCoeff(); \
   m_hCoeffs.adjointInPlace(); \
