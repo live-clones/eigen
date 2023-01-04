@@ -92,9 +92,7 @@ class qr_preconditioner_impl<MatrixType, Options, FullPivHouseholderQRPreconditi
   }
 
 private:
-  // TODO: make StorageIndex a template
-  typedef int StorageIndex;
-  typedef FullPivHouseholderQR<MatrixType, StorageIndex> QRType;
+  typedef FullPivHouseholderQR<MatrixType> QRType;
   QRType m_qr;
   WorkspaceType m_workspace;
 };
@@ -142,9 +140,7 @@ class qr_preconditioner_impl<MatrixType, Options, FullPivHouseholderQRPreconditi
   }
 
 private:
-  // TODO: make StorageIndex a template
-  typedef int StorageIndex;
-  typedef FullPivHouseholderQR<TransposeTypeWithSameStorageOrder, StorageIndex> QRType;
+  typedef FullPivHouseholderQR<TransposeTypeWithSameStorageOrder> QRType;
   QRType m_qr;
   TransposeTypeWithSameStorageOrder m_adjoint;
   typename plain_row_type<MatrixType>::type m_workspace;
@@ -194,7 +190,7 @@ class qr_preconditioner_impl<MatrixType, Options, ColPivHouseholderQRPreconditio
   }
 
 private:
-  typedef ColPivHouseholderQR<MatrixType, int> QRType;
+  typedef ColPivHouseholderQR<MatrixType> QRType;
   QRType m_qr;
   WorkspaceType m_workspace;
 };
@@ -253,7 +249,7 @@ class qr_preconditioner_impl<MatrixType, Options, ColPivHouseholderQRPreconditio
   }
 
 private:
-  typedef ColPivHouseholderQR<TransposeTypeWithSameStorageOrder, int> QRType;
+  typedef ColPivHouseholderQR<TransposeTypeWithSameStorageOrder> QRType;
   QRType m_qr;
   TransposeTypeWithSameStorageOrder m_adjoint;
   WorkspaceType m_workspace;
