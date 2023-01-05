@@ -42,27 +42,18 @@ namespace Eigen {
 
     template<typename Scalar>
     inline lapack_int call_geqp3(int matrix_layout, lapack_int m, lapack_int n, Scalar* a, lapack_int lda, lapack_int* jpvt, Scalar* tau);
-
     template<>
     inline lapack_int call_geqp3(int matrix_layout, lapack_int m, lapack_int n, float* a, lapack_int lda, lapack_int* jpvt, float* tau)
-    {
-        return LAPACKE_sgeqp3(matrix_layout, m, n, a, lda, jpvt, tau);
-    }
+    { return LAPACKE_sgeqp3(matrix_layout, m, n, a, lda, jpvt, tau); }
     template<>
     inline lapack_int call_geqp3(int matrix_layout, lapack_int m, lapack_int n, double* a, lapack_int lda, lapack_int* jpvt, double* tau)
-    {
-        return LAPACKE_dgeqp3(matrix_layout, m, n, a, lda, jpvt, tau);
-    }
+    { return LAPACKE_dgeqp3(matrix_layout, m, n, a, lda, jpvt, tau); }
     template<>
     inline lapack_int call_geqp3(int matrix_layout, lapack_int m, lapack_int n, lapack_complex_float* a, lapack_int lda, lapack_int* jpvt, lapack_complex_float* tau)
-    {
-        return LAPACKE_cgeqp3(matrix_layout, m, n, a, lda, jpvt, tau);
-    }
+    { return LAPACKE_cgeqp3(matrix_layout, m, n, a, lda, jpvt, tau); }
     template<>
     inline lapack_int call_geqp3(int matrix_layout, lapack_int m, lapack_int n, lapack_complex_double* a, lapack_int lda, lapack_int* jpvt, lapack_complex_double* tau)
-    {
-        return LAPACKE_zgeqp3(matrix_layout, m, n, a, lda, jpvt, tau);
-    }
+    { return LAPACKE_zgeqp3(matrix_layout, m, n, a, lda, jpvt, tau); }
 
     template <typename MatrixType>
     struct ColPivHouseholderQR_LAPACKE_impl {
@@ -79,7 +70,8 @@ namespace Eigen {
                       IntRowVectorType& colsTranspositions, Index& nonzero_pivots, RealScalar& maxpivot,
                       bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p, bool& isInitialized) {
         using std::abs;
-
+        
+        isInitialized = false;
         hCoeffs.resize(qr.diagonalSize());
         colsTranspositions.resize(qr.cols());
         nonzero_pivots = 0;
