@@ -1,6 +1,12 @@
 #ifndef EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
 #define EIGEN_MATRIX_PRODUCT_MMA_BFLOAT16_ALTIVEC_H
 
+#if EIGEN_COMP_LLVM
+#define BFLOAT16_UNROLL _Pragma("unroll 8")
+#else
+#define BFLOAT16_UNROLL _Pragma("GCC unroll(8)")
+#endif
+
 namespace Eigen {
 
 namespace internal {
@@ -16,9 +22,8 @@ template<Index num_packets, bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16(const bfloat16* indexA)
 {
   Packet8bf lhs1 = ploadu<Packet8bf>(indexA);
-  Packet8bf lhs2;
   if(zero){
-    lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
+    Packet8bf lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
     return vec_mergeh(lhs1.m_val, lhs2.m_val);
   } else {
     return lhs1;
@@ -90,6 +95,7 @@ EIGEN_STRONG_INLINE void KLoop
   Packet8bf rhs[num_acc];
   if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k, strideA, row, extra_rows);
   else lhs = loadLhsBfloat16<num_packets, zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
+  BFLOAT16_UNROLL
   for(Index i = 0; i < num_acc; i++){
     if(!rhs_extra_cols)
       rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
@@ -111,6 +117,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     Packet4f acc[num_acc][4];
     __vector_quad quad_acc[num_acc];
  
+    BFLOAT16_UNROLL
     for(Index i = 0; i < num_acc; i++)
       __builtin_mma_xxsetaccz(&(quad_acc[i]));
 
@@ -121,6 +128,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-offset_row, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
     }
 
+    BFLOAT16_UNROLL
     for(Index i = 0; i < num_acc; i++)
       __builtin_mma_disassemble_acc((void*)acc[i], &(quad_acc[i]));
 
