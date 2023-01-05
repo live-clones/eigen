@@ -91,14 +91,12 @@ namespace Eigen {
 
         maxpivot = qr.diagonal().cwiseAbs().maxCoeff();
         hCoeffs.adjointInPlace();
-        RealScalar defaultThreshold = NumTraits<Scalar>::epsilon() * RealScalar(qr.diagonalSize());
+        RealScalar defaultThreshold = NumTraits<RealScalar>::epsilon() * RealScalar(qr.diagonalSize());
         RealScalar threshold = usePrescribedThreshold ? prescribedThreshold : defaultThreshold;
         RealScalar premultiplied_threshold = abs(maxpivot) * threshold;
-        for (Index i = 0; i < qr.diagonalSize(); i++)
-          if (abs(qr.coeff(i, i)) > premultiplied_threshold) nonzero_pivots++;
+        nonzero_pivots = (qr.diagonal().cwiseAbs().array() > premultiplied_threshold).count();
         colsPermutation.indices().array() -= lapack_int(1);
         det_p = colsPermutation.determinant();
-
         isInitialized = true;
       };
     };
