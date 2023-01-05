@@ -100,7 +100,7 @@ template<typename MatrixType_, typename StorageIndex_> class ColPivHouseholderQR
     ColPivHouseholderQR(Index rows, Index cols)
       : m_qr(rows, cols),
         m_hCoeffs((std::min)(rows,cols)),
-        m_colsPermutation(StorageIndex(cols)),
+        m_colsPermutation(cols),
         m_colsTranspositions(cols),
         m_temp(cols),
         m_colNormsUpdated(cols),
@@ -124,7 +124,7 @@ template<typename MatrixType_, typename StorageIndex_> class ColPivHouseholderQR
     explicit ColPivHouseholderQR(const EigenBase<InputType>& matrix)
       : m_qr(matrix.rows(), matrix.cols()),
         m_hCoeffs((std::min)(matrix.rows(),matrix.cols())),
-        m_colsPermutation(StorageIndex(matrix.cols())),
+        m_colsPermutation(matrix.cols()),
         m_colsTranspositions(matrix.cols()),
         m_temp(matrix.cols()),
         m_colNormsUpdated(matrix.cols()),
@@ -145,7 +145,7 @@ template<typename MatrixType_, typename StorageIndex_> class ColPivHouseholderQR
     explicit ColPivHouseholderQR(EigenBase<InputType>& matrix)
       : m_qr(matrix.derived()),
         m_hCoeffs((std::min)(matrix.rows(),matrix.cols())),
-        m_colsPermutation(StorageIndex(matrix.cols())),
+        m_colsPermutation(matrix.cols()),
         m_colsTranspositions(matrix.cols()),
         m_temp(matrix.cols()),
         m_colNormsUpdated(matrix.cols()),
@@ -591,9 +591,9 @@ void ColPivHouseholderQR<MatrixType, StorageIndex>::computeInPlace()
     }
   }
 
-  m_colsPermutation.setIdentity(StorageIndex(cols));
-  for(StorageIndex k = 0; k < size/*m_nonzero_pivots*/; ++k)
-    m_colsPermutation.applyTranspositionOnTheRight(k, StorageIndex(m_colsTranspositions.coeff(k)));
+  m_colsPermutation.setIdentity(cols);
+  for(Index k = 0; k < size/*m_nonzero_pivots*/; ++k)
+    m_colsPermutation.applyTranspositionOnTheRight(k, m_colsTranspositions.coeff(k));
 
   m_det_p = (number_of_transpositions%2) ? -1 : 1;
   m_isInitialized = true;
