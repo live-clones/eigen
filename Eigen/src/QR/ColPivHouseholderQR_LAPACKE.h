@@ -64,53 +64,51 @@ namespace Eigen {
         return LAPACKE_zgeqp3(matrix_layout, m, n, a, lda, jpvt, tau);
     }
 
-    template<typename MatrixType>
-    struct ColPivHouseholderQR_LAPACKE_impl
-    {
-        typedef typename MatrixType::Scalar Scalar;
-        typedef typename MatrixType::RealScalar RealScalar;
-        typedef typename internal::lapacke_helpers::translate_type_imp<Scalar>::type LapackeType;
-        static constexpr lapack_int LapackeStorage = MatrixType::IsRowMajor ? LAPACK_ROW_MAJOR : LAPACK_COL_MAJOR;
+    template <typename MatrixType>
+    struct ColPivHouseholderQR_LAPACKE_impl {
+      typedef typename MatrixType::Scalar Scalar;
+      typedef typename MatrixType::RealScalar RealScalar;
+      typedef typename internal::lapacke_helpers::translate_type_imp<Scalar>::type LapackeType;
+      static constexpr lapack_int LapackeStorage = MatrixType::IsRowMajor ? LAPACK_ROW_MAJOR : LAPACK_COL_MAJOR;
 
-        typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-        typedef PermutationMatrix<Dynamic, Dynamic, lapack_int> PermutationType;
-        typedef typename internal::plain_row_type<MatrixType, Index>::type IntRowVectorType;
+      typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
+      typedef PermutationMatrix<Dynamic, Dynamic, lapack_int> PermutationType;
+      typedef typename internal::plain_row_type<MatrixType, Index>::type IntRowVectorType;
 
-        static void run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
-                        IntRowVectorType& colsTranspositions, Index& nonzero_pivots, RealScalar& maxpivot,
-                        bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p,
-                        bool& isInitialized)
-        {
-          using std::abs;
+      static void run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
+                      IntRowVectorType& colsTranspositions, Index& nonzero_pivots, RealScalar& maxpivot,
+                      bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p, bool& isInitialized) {
+        using std::abs;
 
-          hCoeffs.resize(qr.diagonalSize());
-          colsTranspositions.resize(qr.cols());
-          nonzero_pivots = 0;
-          maxpivot = RealScalar(0);
-          colsPermutation.resize(qr.cols());
-          colsPermutation.indices().setZero();
+        hCoeffs.resize(qr.diagonalSize());
+        colsTranspositions.resize(qr.cols());
+        nonzero_pivots = 0;
+        maxpivot = RealScalar(0);
+        colsPermutation.resize(qr.cols());
+        colsPermutation.indices().setZero();
 
-          lapack_int rows = internal::convert_index<lapack_int, Index>(qr.rows());
-          lapack_int cols = internal::convert_index<lapack_int, Index>(qr.cols());
-          LapackeType* qr_data = (LapackeType*)(qr.data());
-          lapack_int lda = internal::convert_index<lapack_int, Index>(qr.outerStride());
-          lapack_int* perm_data = colsPermutation.indices().data();
-          LapackeType* hCoeffs_data = (LapackeType*)(hCoeffs.data());
+        lapack_int rows = internal::convert_index<lapack_int, Index>(qr.rows());
+        lapack_int cols = internal::convert_index<lapack_int, Index>(qr.cols());
+        LapackeType* qr_data = (LapackeType*)(qr.data());
+        lapack_int lda = internal::convert_index<lapack_int, Index>(qr.outerStride());
+        lapack_int* perm_data = colsPermutation.indices().data();
+        LapackeType* hCoeffs_data = (LapackeType*)(hCoeffs.data());
 
-          lapack_int info = call_geqp3(LapackeStorage, rows, cols, qr_data, lda, perm_data, hCoeffs_data);
+        lapack_int info = call_geqp3(LapackeStorage, rows, cols, qr_data, lda, perm_data, hCoeffs_data);
+        if (info != 0) return;
 
-          if (info != 0) return;
+        maxpivot = qr.diagonal().cwiseAbs().maxCoeff();
+        hCoeffs.adjointInPlace();
+        RealScalar defaultThreshold = NumTraits<Scalar>::epsilon() * RealScalar(qr.diagonalSize());
+        RealScalar threshold = usePrescribedThreshold ? prescribedThreshold : defaultThreshold;
+        RealScalar premultiplied_threshold = abs(maxpivot) * threshold;
+        for (Index i = 0; i < qr.diagonalSize(); i++)
+          if (abs(qr.coeff(i, i)) > premultiplied_threshold) nonzero_pivots++;
+        colsPermutation.indices().array() -= lapack_int(1);
+        det_p = colsPermutation.determinant();
 
-          maxpivot = qr.diagonal().cwiseAbs().maxCoeff();
-          hCoeffs.adjointInPlace();
-          RealScalar threshold = usePrescribedThreshold ? prescribedThreshold : NumTraits<Scalar>::epsilon() * RealScalar(qr.diagonalSize());
-          RealScalar premultiplied_threshold = abs(maxpivot) * threshold;
-          for (Index i = 0; i < qr.diagonalSize(); i++) nonzero_pivots += Index(abs(qr.coeff(i, i)) > premultiplied_threshold);
-          colsPermutation.indices().array() -= lapack_int(1);
-          det_p = colsPermutation.determinant();
-
-          isInitialized = true;
-        };
+        isInitialized = true;
+      };
     };
 
     #define EIGEN_LAPACKE_QR_COLPIV(Scalar, StorageOrder)                                                       \

@@ -324,7 +324,7 @@ template<typename MatrixType, typename StorageIndex> void cod_verify_assert()
 
 EIGEN_DECLARE_TEST(qr_colpivoting)
 {
-  #if defined(lapack_int)
+  #if defined(EIGEN_USE_LAPACKE)
   typedef lapack_int StorageIndex;
   #else
   typedef int StorageIndex;

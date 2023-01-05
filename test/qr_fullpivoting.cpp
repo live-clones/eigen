@@ -130,6 +130,7 @@ template<typename MatrixType, typename StorageIndex> void qr_verify_assert()
 EIGEN_DECLARE_TEST(qr_fullpivoting)
 {
   typedef int StorageIndex;
+
   for(int i = 0; i < 1; i++) {
     CALL_SUBTEST_5( (qr<Matrix3f, StorageIndex>()) );
     CALL_SUBTEST_6( (qr<Matrix3d, StorageIndex>()) );
