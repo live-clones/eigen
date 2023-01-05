@@ -60,7 +60,7 @@ namespace Eigen {
       typedef typename MatrixType::Scalar Scalar;
       typedef typename MatrixType::RealScalar RealScalar;
       typedef typename internal::lapacke_helpers::translate_type_imp<Scalar>::type LapackeType;
-      static constexpr lapack_int LapackeStorage = MatrixType::IsRowMajor ? LAPACK_ROW_MAJOR : LAPACK_COL_MAJOR;
+      static constexpr int LapackeStorage = MatrixType::IsRowMajor ? LAPACK_ROW_MAJOR : LAPACK_COL_MAJOR;
 
       typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
       typedef PermutationMatrix<Dynamic, Dynamic, lapack_int> PermutationType;
@@ -79,10 +79,10 @@ namespace Eigen {
         colsPermutation.resize(qr.cols());
         colsPermutation.indices().setZero();
 
-        lapack_int rows = internal::convert_index<lapack_int, Index>(qr.rows());
-        lapack_int cols = internal::convert_index<lapack_int, Index>(qr.cols());
+        lapack_int rows = internal::lapacke_helpers::to_lapack(qr.rows());
+        lapack_int cols = internal::lapacke_helpers::to_lapack(qr.cols());
         LapackeType* qr_data = (LapackeType*)(qr.data());
-        lapack_int lda = internal::convert_index<lapack_int, Index>(qr.outerStride());
+        lapack_int lda = internal::lapacke_helpers::to_lapack(qr.outerStride());
         lapack_int* perm_data = colsPermutation.indices().data();
         LapackeType* hCoeffs_data = (LapackeType*)(hCoeffs.data());
 
