@@ -320,9 +320,16 @@ template<typename MatrixType, typename StorageIndex> void cod_verify_assert()
   VERIFY_RAISES_ASSERT(cod.logAbsDeterminant())
 }
 
+
+
 EIGEN_DECLARE_TEST(qr_colpivoting)
 {
-  typedef int64_t StorageIndex;
+  #if defined(lapack_int)
+  typedef lapack_int StorageIndex;
+  #else
+  typedef int StorageIndex;
+  #endif
+
   for(int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1( (qr<MatrixXf, StorageIndex>)() );
     CALL_SUBTEST_2( (qr<MatrixXf, StorageIndex>)() );
