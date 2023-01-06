@@ -912,19 +912,15 @@ protected:
       *   1 - if *this is overwritten (Func==assign_op) or *this is empty, then we can work treat *this as a dense vector expression.
       *   2 - otherwise, for each diagonal coeff,
       *     2.a - if it already exists, then we update it,
-      *     2.b - otherwise, if *this is uncompressed and that the current inner-vector has empty room for at least 1 element, then we perform an in-place insertion.
-      *     2.c - otherwise, we'll have to reallocate and copy everything, so instead of doing so for each new element, it is recorded in a std::vector.
-      *   3 - at the end, if some entries failed to be inserted in-place, then we alloc a new buffer, copy each chunk at the right position, and insert the new elements.
-      * 
-      * TODO: some piece of code could be isolated and reused for a general in-place update strategy.
-      * TODO: if we start to defer the insertion of some elements (i.e., case 2.c executed once),
-      *       then it *might* be better to disable case 2.b since they will have to be copied anyway.
+      *     2.b - if the correct position is at the end of the vector, and there is capacity, push to back
+      *     2.b - otherwise, the insertion requires a data move, record insertion locations and handle in a second pass
+      *   3 - at the end, if some entries failed to be updated in-place, then we alloc a new buffer, copy each chunk at the right position, and insert the new elements.
       */
     template<typename DiagXpr, typename Func>
     void assignDiagonal(const DiagXpr diagXpr, const Func& assignFunc)
     {
       
-      static constexpr StorageIndex kEmptyIndexVal(-1);
+      constexpr StorageIndex kEmptyIndexVal(-1);
       typedef typename IndexVector::AlignedMapType IndexMap;
       typedef typename ScalarVector::AlignedMapType ValueMap;
 
@@ -954,65 +950,74 @@ protected:
       }
       else
       {
-        internal::evaluator<DiagXpr> diaEval(diagXpr);
+          internal::evaluator<DiagXpr> diaEval(diagXpr);
 
-        ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, n, 0);
-        typename IndexVector::AlignedMapType insertionLocations(tmp, n);
-        insertionLocations.setConstant(kEmptyIndexVal);
+          ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, n, 0);
+          typename IndexVector::AlignedMapType insertionLocations(tmp, n);
+          insertionLocations.setConstant(kEmptyIndexVal);
 
-        StorageIndex deferredInsertions = 0;
+          StorageIndex deferredInsertions = 0;
+          StorageIndex shift = 0;
 
-        for (Index j = 0; j < n; j++) {
-          Index begin = outerIndexPtr()[j];
-          Index end = isCompressed() ? outerIndexPtr()[j + 1] : begin + innerNonZeroPtr()[j];
-          Index capacity = outerIndexPtr()[j + 1] - end;
-          Index dst = data().searchLowerIndex(begin, end, j);
-          if (dst != end && innerIndexPtr()[dst] == j)
-            // entry exists, update it now
-            assignFunc.assignCoeff(data().value(dst), diaEval.coeff(j));
-          else if (capacity > 0)
-            // there is capacity for an insertion, insert it now
-            // TODO: [dst,end) is moved twice. figure out how to defer insertion
-            assignFunc.assignCoeff(insertAtByOuterInner(j, j, dst), diaEval.coeff(j));
-          else {
-            // insert in second pass
-            insertionLocations.coeffRef(j) = dst;
-            deferredInsertions++;
-          }
-        }
-
-        if (deferredInsertions > 0) {
-          data().resize(data().size() + deferredInsertions);
-          Index copyEnd = isCompressed() ? outerIndexPtr()[outerSize()]
-                                         : outerIndexPtr()[outerSize() - 1] + innerNonZeroPtr()[outerSize() - 1];
-          for (Index j = outerSize() - 1; deferredInsertions > 0; j--) {
+          for (Index j = 0; j < n; j++) {
             Index begin = outerIndexPtr()[j];
             Index end = isCompressed() ? outerIndexPtr()[j + 1] : begin + innerNonZeroPtr()[j];
             Index capacity = outerIndexPtr()[j + 1] - end;
-
-            outerIndexPtr()[j + 1] += deferredInsertions;
-            bool performInsertion = insertionLocations(j) >= 0;
-
-            if (performInsertion) {
-              Index copyBegin = insertionLocations(j);
-              Index chunkSize = copyEnd - copyBegin;
-              if (chunkSize > 0) data().moveChunk(copyBegin, copyBegin + deferredInsertions, chunkSize);
-              Index dst = copyBegin + deferredInsertions - 1;
-              data().index(dst) = StorageIndex(j);
-              assignFunc.assignCoeff(data().value(dst) = Scalar(0), diaEval.coeff(j));
-              if (!isCompressed()) innerNonZeroPtr()[j]++;
-              deferredInsertions--;
-              copyEnd = copyBegin;
+            Index dst = data().searchLowerIndex(begin, end, j);
+            // the entry exists: update it now
+            if (dst != end && data().index(dst) == j) assignFunc.assignCoeff(data().value(dst), diaEval.coeff(j));
+            // the entry belongs at the back of the vector: push to back
+            else if (dst == end && capacity > 0)
+              assignFunc.assignCoeff(insertBackUncompressed(j, j), diaEval.coeff(j));
+            // the insertion requires a data move, record insertion location and handle in second pass
+            else {
+              insertionLocations.coeffRef(j) = dst;
+              deferredInsertions++;
+              // if there is no capacity, all vectors to the right of this are shifted
+              if (capacity == 0) shift++;
             }
-            // optional: don't copy the inactive nonzeros
-            // TODO: capacity > threshold ?
-            if (capacity > 0) {
-              Index chunkSize = copyEnd - begin;
-              if (chunkSize > 0) data().moveChunk(begin, begin + deferredInsertions, chunkSize);
-              copyEnd = outerIndexPtr()[j - 1] + innerNonZeroPtr()[j - 1];
+          }
+          
+          if (deferredInsertions > 0) {
+
+            data().resize(data().size() + shift);
+            Index copyEnd = isCompressed() ? outerIndexPtr()[outerSize()]
+                                           : outerIndexPtr()[outerSize() - 1] + innerNonZeroPtr()[outerSize() - 1];
+            for (Index j = outerSize() - 1; deferredInsertions > 0; j--) {
+              Index begin = outerIndexPtr()[j];
+              Index end = isCompressed() ? outerIndexPtr()[j + 1] : begin + innerNonZeroPtr()[j];
+              Index capacity = outerIndexPtr()[j + 1] - end;
+
+              // dont copy the inactive nonzeros
+              if (capacity > 0) {
+                Index copyBegin = outerIndexPtr()[j + 1];
+                Index to = copyBegin + shift;
+                Index chunkSize = copyEnd - copyBegin;
+                if (chunkSize > 0) data().moveChunk(copyBegin, to, chunkSize);
+                copyEnd = end;
+              }
+
+              outerIndexPtr()[j + 1] += shift;
+              bool performInsertion = insertionLocations(j) >= 0;
+
+              if (performInsertion) {
+                // if there is capacity, shift into the inactive nonzeros
+                if (capacity > 0) shift++;
+                Index copyBegin = insertionLocations(j);
+                Index to = copyBegin + shift;
+                Index chunkSize = copyEnd - copyBegin;
+                if (chunkSize > 0) data().moveChunk(copyBegin, to, chunkSize);
+                Index dst = to - 1;
+                data().index(dst) = StorageIndex(j);
+                assignFunc.assignCoeff(data().value(dst) = Scalar(0), diaEval.coeff(j));
+                if (!isCompressed()) innerNonZeroPtr()[j]++;
+                shift--;
+                deferredInsertions--;
+                copyEnd = copyBegin;
+              }
             }
-          }                   
-        }
+          }     
+          eigen_assert(shift == 0 && deferredInsertions == 0);
       }
     }
 
