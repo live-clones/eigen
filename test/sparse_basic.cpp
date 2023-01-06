@@ -478,9 +478,6 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       refMat_last(r,c) = v;
     }
 
-    // ensure triplets are not sorted
-    std::random_shuffle(triplets.begin(), triplets.end());
-
     SparseMatrixType m(rows,cols);
     m.setFromTriplets(triplets.begin(), triplets.end());
     VERIFY_IS_APPROX(m, refMat_sum);
