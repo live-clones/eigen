@@ -477,6 +477,10 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
         refMat_prod(r,c) *= v;
       refMat_last(r,c) = v;
     }
+
+    // ensure triplets are not sorted
+    std::random_shuffle(triplets.begin(), triplets.end());
+
     SparseMatrixType m(rows,cols);
     m.setFromTriplets(triplets.begin(), triplets.end());
     VERIFY_IS_APPROX(m, refMat_sum);
@@ -498,7 +502,9 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       }
     };
 
-    // stable sort is only necessary for refMat_last (dependent on order of duplicates)
+    // stable_sort is only necessary when the reduction functor is dependent on the order of the triplets
+    // this is the case with refMat_last
+    // for most cases, std::sort is sufficient and preferred
     std::stable_sort(triplets.begin(), triplets.end(), triplet_comp());
 
     m.setZero();
@@ -509,6 +515,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     m.setFromSortedTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
     m.setFromSortedTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
