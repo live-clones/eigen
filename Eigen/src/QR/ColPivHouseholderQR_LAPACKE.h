@@ -95,7 +95,7 @@ namespace Eigen {
         RealScalar threshold = usePrescribedThreshold ? prescribedThreshold : defaultThreshold;
         RealScalar premultiplied_threshold = abs(maxpivot) * threshold;
         nonzero_pivots = (qr.diagonal().cwiseAbs().array() > premultiplied_threshold).count();
-        colsPermutation.indices().array() -= lapack_int(1);
+        colsPermutation.indices().array() -= 1;
         det_p = colsPermutation.determinant();
         isInitialized = true;
       };
