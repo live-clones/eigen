@@ -956,8 +956,8 @@ protected:
           typename IndexVector::AlignedMapType insertionLocations(tmp, n);
           insertionLocations.setConstant(kEmptyIndexVal);
 
-          StorageIndex deferredInsertions = 0;
-          StorageIndex shift = 0;
+          Index deferredInsertions = 0;
+          Index shift = 0;
 
           for (Index j = 0; j < n; j++) {
             Index begin = outerIndexPtr()[j];
@@ -988,8 +988,13 @@ protected:
               Index end = isCompressed() ? outerIndexPtr()[j + 1] : begin + innerNonZeroPtr()[j];
               Index capacity = outerIndexPtr()[j + 1] - end;
 
-              // dont copy the inactive nonzeros
-              if (capacity > 0) {
+              bool doInsertion = insertionLocations(j) >= 0;
+              bool breakUpCopy = doInsertion && (capacity > 0);
+              // break up copy for sorted insertion into inactive nonzeros
+              // optionally, add another criterium, i.e. 'breakUpCopy || (capacity > threhsold)'
+              // where `threshold >= 0` to skip inactive nonzeros in each vector
+              // this reduces the total number of copied elements, but requires more moveChunk calls
+              if (breakUpCopy) {
                 Index copyBegin = outerIndexPtr()[j + 1];
                 Index to = copyBegin + shift;
                 Index chunkSize = copyEnd - copyBegin;
@@ -998,9 +1003,8 @@ protected:
               }
 
               outerIndexPtr()[j + 1] += shift;
-              bool performInsertion = insertionLocations(j) >= 0;
-
-              if (performInsertion) {
+              
+              if (doInsertion) {
                 // if there is capacity, shift into the inactive nonzeros
                 if (capacity > 0) shift++;
                 Index copyBegin = insertionLocations(j);
@@ -1017,7 +1021,7 @@ protected:
               }
             }
           }     
-          eigen_assert(shift == 0 && deferredInsertions == 0);
+          eigen_assert((shift == 0) && (deferredInsertions == 0));
       }
     }
 
