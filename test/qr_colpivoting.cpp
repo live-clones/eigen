@@ -325,53 +325,53 @@ template<typename MatrixType, typename StorageIndex> void cod_verify_assert()
 EIGEN_DECLARE_TEST(qr_colpivoting)
 {
   #if defined(EIGEN_USE_LAPACKE)
-  typedef lapack_int StorageIndex;
+  typedef lapack_int PermutationIndex;
   #else
   typedef int StorageIndex;
   #endif
 
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( (qr<MatrixXf, StorageIndex>)() );
-    CALL_SUBTEST_2( (qr<MatrixXf, StorageIndex>)() );
-    CALL_SUBTEST_3( (qr<MatrixXf, StorageIndex>)() );
-    CALL_SUBTEST_4(( (qr_fixedsize<Matrix<float,3,5>, StorageIndex, 4>)() ));
-    CALL_SUBTEST_5(( (qr_fixedsize<Matrix<double,6,2>, StorageIndex, 3>)() ));
-    CALL_SUBTEST_5(( (qr_fixedsize<Matrix<double,1,1>, StorageIndex, 1>)() ));
+    CALL_SUBTEST_1( (qr<MatrixXf, PermutationIndex>)() );
+    CALL_SUBTEST_2( (qr<MatrixXf, PermutationIndex>)() );
+    CALL_SUBTEST_3( (qr<MatrixXf, PermutationIndex>)() );
+    CALL_SUBTEST_4(( (qr_fixedsize<Matrix<float,3,5>, PermutationIndex, 4>)() ));
+    CALL_SUBTEST_5(( (qr_fixedsize<Matrix<double,6,2>, PermutationIndex, 3>)() ));
+    CALL_SUBTEST_5(( (qr_fixedsize<Matrix<double,1,1>, PermutationIndex, 1>)() ));
   }
 
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( (cod<MatrixXf, StorageIndex>)() );
-    CALL_SUBTEST_2( (cod<MatrixXf, StorageIndex>)() );
-    CALL_SUBTEST_3( (cod<MatrixXf, StorageIndex>)() );
-    CALL_SUBTEST_4(( (cod_fixedsize<Matrix<float,3,5>, StorageIndex, 4>)() ));
-    CALL_SUBTEST_5(( (cod_fixedsize<Matrix<double,6,2>, StorageIndex, 3>)() ));
-    CALL_SUBTEST_5(( (cod_fixedsize<Matrix<double,1,1>, StorageIndex, 1>)() ));
+    CALL_SUBTEST_1( (cod<MatrixXf, PermutationIndex>)() );
+    CALL_SUBTEST_2( (cod<MatrixXf, PermutationIndex>)() );
+    CALL_SUBTEST_3( (cod<MatrixXf, PermutationIndex>)() );
+    CALL_SUBTEST_4(( (cod_fixedsize<Matrix<float,3,5>, PermutationIndex, 4>)() ));
+    CALL_SUBTEST_5(( (cod_fixedsize<Matrix<double,6,2>, PermutationIndex, 3>)() ));
+    CALL_SUBTEST_5(( (cod_fixedsize<Matrix<double,1,1>, PermutationIndex, 1>)() ));
   }
 
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( (qr_invertible<MatrixXf, StorageIndex>)() );
-    CALL_SUBTEST_2( (qr_invertible<MatrixXd, StorageIndex>)() );
-    CALL_SUBTEST_6( (qr_invertible<MatrixXcf, StorageIndex>)() );
-    CALL_SUBTEST_3( (qr_invertible<MatrixXcd, StorageIndex>)() );
+    CALL_SUBTEST_1( (qr_invertible<MatrixXf, PermutationIndex>)() );
+    CALL_SUBTEST_2( (qr_invertible<MatrixXd, PermutationIndex>)() );
+    CALL_SUBTEST_6( (qr_invertible<MatrixXcf, PermutationIndex>)() );
+    CALL_SUBTEST_3( (qr_invertible<MatrixXcd, PermutationIndex>)() );
   }
 
-  CALL_SUBTEST_7( (qr_verify_assert<Matrix3f, StorageIndex>) ());
-  CALL_SUBTEST_8( (qr_verify_assert<Matrix3d, StorageIndex>)());
-  CALL_SUBTEST_1( (qr_verify_assert<MatrixXf, StorageIndex>)());
-  CALL_SUBTEST_2( (qr_verify_assert<MatrixXd, StorageIndex>)());
-  CALL_SUBTEST_6( (qr_verify_assert<MatrixXcf, StorageIndex>)());
-  CALL_SUBTEST_3( (qr_verify_assert<MatrixXcd, StorageIndex>)());
+  CALL_SUBTEST_7( (qr_verify_assert<Matrix3f, PermutationIndex>) ());
+  CALL_SUBTEST_8( (qr_verify_assert<Matrix3d, PermutationIndex>)());
+  CALL_SUBTEST_1( (qr_verify_assert<MatrixXf, PermutationIndex>)());
+  CALL_SUBTEST_2( (qr_verify_assert<MatrixXd, PermutationIndex>)());
+  CALL_SUBTEST_6( (qr_verify_assert<MatrixXcf, PermutationIndex>)());
+  CALL_SUBTEST_3( (qr_verify_assert<MatrixXcd, PermutationIndex>)());
 
-  CALL_SUBTEST_7( (cod_verify_assert<Matrix3f, StorageIndex>)());
-  CALL_SUBTEST_8( (cod_verify_assert<Matrix3d, StorageIndex>)());
-  CALL_SUBTEST_1( (cod_verify_assert<MatrixXf, StorageIndex>)());
-  CALL_SUBTEST_2( (cod_verify_assert<MatrixXd, StorageIndex>)());
-  CALL_SUBTEST_6( (cod_verify_assert<MatrixXcf, StorageIndex>)());
-  CALL_SUBTEST_3( (cod_verify_assert<MatrixXcd, StorageIndex>)());
+  CALL_SUBTEST_7( (cod_verify_assert<Matrix3f, PermutationIndex>)());
+  CALL_SUBTEST_8( (cod_verify_assert<Matrix3d, PermutationIndex>)());
+  CALL_SUBTEST_1( (cod_verify_assert<MatrixXf, PermutationIndex>)());
+  CALL_SUBTEST_2( (cod_verify_assert<MatrixXd, PermutationIndex>)());
+  CALL_SUBTEST_6( (cod_verify_assert<MatrixXcf, PermutationIndex>)());
+  CALL_SUBTEST_3( (cod_verify_assert<MatrixXcd, PermutationIndex>)());
 
   // Test problem size constructors
-  CALL_SUBTEST_9((ColPivHouseholderQR<MatrixXf, StorageIndex>(10, 20)));
+  CALL_SUBTEST_9((ColPivHouseholderQR<MatrixXf, PermutationIndex>(10, 20)));
 
-  CALL_SUBTEST_1( (qr_kahan_matrix<MatrixXf, StorageIndex>)() );
-  CALL_SUBTEST_2( (qr_kahan_matrix<MatrixXd, StorageIndex>)() );
+  CALL_SUBTEST_1( (qr_kahan_matrix<MatrixXf, PermutationIndex>)() );
+  CALL_SUBTEST_2( (qr_kahan_matrix<MatrixXd, PermutationIndex>)() );
 }
