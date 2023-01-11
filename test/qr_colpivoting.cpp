@@ -13,7 +13,7 @@
 #include <Eigen/SVD>
 #include "solverbase.h"
 
-template <typename MatrixType, typename StorageIndex>
+template <typename MatrixType, typename PermutationIndex>
 void cod() {
 
   Index rows = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
@@ -27,7 +27,7 @@ void cod() {
       MatrixQType;
   MatrixType matrix;
   createRandomPIMatrixOfRank(rank, rows, cols, matrix);
-  CompleteOrthogonalDecomposition<MatrixType, StorageIndex> cod(matrix);
+  CompleteOrthogonalDecomposition<MatrixType, PermutationIndex> cod(matrix);
   VERIFY(rank == cod.rank());
   VERIFY(cols - cod.rank() == cod.dimensionOfKernel());
   VERIFY(!cod.isInjective());
@@ -62,14 +62,14 @@ void cod() {
   VERIFY_IS_APPROX(cod_solution, pinv * rhs);
 }
 
-template <typename MatrixType, typename StorageIndex, int Cols2>
+template <typename MatrixType, typename PermutationIndex, int Cols2>
 void cod_fixedsize() {
   enum {
     Rows = MatrixType::RowsAtCompileTime,
     Cols = MatrixType::ColsAtCompileTime
   };
   typedef typename MatrixType::Scalar Scalar;
-  typedef CompleteOrthogonalDecomposition<Matrix<Scalar, Rows, Cols>, StorageIndex> COD;
+  typedef CompleteOrthogonalDecomposition<Matrix<Scalar, Rows, Cols>, PermutationIndex> COD;
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
   Matrix<Scalar, Rows, Cols> matrix;
   createRandomPIMatrixOfRank(rank, Rows, Cols, matrix);
@@ -95,7 +95,7 @@ void cod_fixedsize() {
   VERIFY_IS_APPROX(cod_solution, pinv * rhs);
 }
 
-template<typename MatrixType, typename StorageIndex> void qr()
+template<typename MatrixType, typename PermutationIndex> void qr()
 {
   using std::sqrt;
 
@@ -107,7 +107,7 @@ template<typename MatrixType, typename StorageIndex> void qr()
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
   MatrixType m1;
   createRandomPIMatrixOfRank(rank,rows,cols,m1);
-  ColPivHouseholderQR<MatrixType, StorageIndex> qr(m1);
+  ColPivHouseholderQR<MatrixType, PermutationIndex> qr(m1);
   VERIFY_IS_EQUAL(rank, qr.rank());
   VERIFY_IS_EQUAL(cols - qr.rank(), qr.dimensionOfKernel());
   VERIFY(!qr.isInjective());
@@ -155,7 +155,7 @@ template<typename MatrixType, typename StorageIndex> void qr()
   }
 }
 
-template<typename MatrixType, typename StorageIndex, int Cols2> void qr_fixedsize()
+template<typename MatrixType, typename PermutationIndex, int Cols2> void qr_fixedsize()
 {
   using std::sqrt;
   using std::abs;
@@ -165,7 +165,7 @@ template<typename MatrixType, typename StorageIndex, int Cols2> void qr_fixedsiz
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols))-1);
   Matrix<Scalar,Rows,Cols> m1;
   createRandomPIMatrixOfRank(rank,Rows,Cols,m1);
-  ColPivHouseholderQR<Matrix<Scalar,Rows,Cols>, StorageIndex> qr(m1);
+  ColPivHouseholderQR<Matrix<Scalar,Rows,Cols>, PermutationIndex> qr(m1);
   VERIFY_IS_EQUAL(rank, qr.rank());
   VERIFY_IS_EQUAL(Cols - qr.rank(), qr.dimensionOfKernel());
   VERIFY_IS_EQUAL(qr.isInjective(), (rank == Rows));
@@ -204,7 +204,7 @@ template<typename MatrixType, typename StorageIndex, int Cols2> void qr_fixedsiz
 // for rank-revealing QR. See
 // http://www.netlib.org/lapack/lawnspdf/lawn176.pdf
 // page 3 for more detail.
-template<typename MatrixType, typename StorageIndex> void qr_kahan_matrix()
+template<typename MatrixType, typename PermutationIndex> void qr_kahan_matrix()
 {
   using std::sqrt;
   using std::abs;
@@ -224,7 +224,7 @@ template<typename MatrixType, typename StorageIndex> void qr_kahan_matrix()
     pow_s_i *= s;
   }
   m1 = (m1 + m1.transpose()).eval();
-  ColPivHouseholderQR<MatrixType, StorageIndex> qr(m1);
+  ColPivHouseholderQR<MatrixType, PermutationIndex> qr(m1);
   MatrixType r = qr.matrixQR().template triangularView<Upper>();
 
   RealScalar threshold =
@@ -244,7 +244,7 @@ template<typename MatrixType, typename StorageIndex> void qr_kahan_matrix()
   }
 }
 
-template<typename MatrixType, typename StorageIndex> void qr_invertible()
+template<typename MatrixType, typename PermutationIndex> void qr_invertible()
 {
   using std::log;
   using std::abs;
@@ -263,7 +263,7 @@ template<typename MatrixType, typename StorageIndex> void qr_invertible()
     m1 += a * a.adjoint();
   }
 
-  ColPivHouseholderQR<MatrixType, StorageIndex> qr(m1);
+  ColPivHouseholderQR<MatrixType, PermutationIndex> qr(m1);
 
   check_solverbase<MatrixType, MatrixType>(m1, qr, size, size, size);
 
@@ -280,11 +280,11 @@ template<typename MatrixType, typename StorageIndex> void qr_invertible()
   VERIFY_IS_APPROX(log(absdet), qr.logAbsDeterminant());
 }
 
-template<typename MatrixType, typename StorageIndex> void qr_verify_assert()
+template<typename MatrixType, typename PermutationIndex> void qr_verify_assert()
 {
   MatrixType tmp;
 
-  ColPivHouseholderQR<MatrixType, StorageIndex> qr;
+  ColPivHouseholderQR<MatrixType, PermutationIndex> qr;
   VERIFY_RAISES_ASSERT(qr.matrixQR())
   VERIFY_RAISES_ASSERT(qr.solve(tmp))
   VERIFY_RAISES_ASSERT(qr.transpose().solve(tmp))
@@ -300,11 +300,11 @@ template<typename MatrixType, typename StorageIndex> void qr_verify_assert()
   VERIFY_RAISES_ASSERT(qr.logAbsDeterminant())
 }
 
-template<typename MatrixType, typename StorageIndex> void cod_verify_assert()
+template<typename MatrixType, typename PermutationIndex> void cod_verify_assert()
 {
   MatrixType tmp;
 
-  CompleteOrthogonalDecomposition<MatrixType, StorageIndex> cod;
+  CompleteOrthogonalDecomposition<MatrixType, PermutationIndex> cod;
   VERIFY_RAISES_ASSERT(cod.matrixQTZ())
   VERIFY_RAISES_ASSERT(cod.solve(tmp))
   VERIFY_RAISES_ASSERT(cod.transpose().solve(tmp))
@@ -327,7 +327,7 @@ EIGEN_DECLARE_TEST(qr_colpivoting)
   #if defined(EIGEN_USE_LAPACKE)
   typedef lapack_int PermutationIndex;
   #else
-  typedef int StorageIndex;
+  typedef int PermutationIndex;
   #endif
 
   for(int i = 0; i < g_repeat; i++) {
