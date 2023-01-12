@@ -68,8 +68,7 @@ namespace Eigen {
       static void run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation, Index& nonzero_pivots,
                       RealScalar& maxpivot, bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p,
                       bool& isInitialized) {
-        EIGEN_USING_STD(abs);
-        
+
         isInitialized = false;
         hCoeffs.resize(qr.diagonalSize());
         nonzero_pivots = 0;
@@ -91,15 +90,15 @@ namespace Eigen {
         hCoeffs.adjointInPlace();
         RealScalar defaultThreshold = NumTraits<RealScalar>::epsilon() * RealScalar(qr.diagonalSize());
         RealScalar threshold = usePrescribedThreshold ? prescribedThreshold : defaultThreshold;
-        RealScalar premultiplied_threshold = abs(maxpivot) * threshold;
+        RealScalar premultiplied_threshold = numext::abs(maxpivot) * threshold;
         nonzero_pivots = (qr.diagonal().cwiseAbs().array() > premultiplied_threshold).count();
         colsPermutation.indices().array() -= 1;
         det_p = colsPermutation.determinant();
         isInitialized = true;
       };
 
-      static void init_rowcol(Index rows, Index cols, MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
-                       bool& usePrescribedThreshold, bool& isInitialized) {
+      static void init_rowcol(Index rows, Index cols, MatrixType& qr, HCoeffsType& hCoeffs,
+                              PermutationType& colsPermutation, bool& usePrescribedThreshold, bool& isInitialized) {
         Index diag = numext::mini(rows, cols);
         qr = MatrixType(rows, cols);
         hCoeffs = HCoeffsType(diag);
@@ -108,28 +107,28 @@ namespace Eigen {
         isInitialized = false;
       }
       template <typename InputType>
-      static void init_const_ref(const EigenBase<InputType>& matrix, MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
-          bool& usePrescribedThreshold, bool& isInitialized) {
-          Index rows = matrix.rows();
-          Index cols = matrix.cols();
-          Index diag = numext::mini(rows, cols);
-          qr = MatrixType(rows, cols);
-          hCoeffs = HCoeffsType(diag);
-          colsPermutation = PermutationType(cols);
-          usePrescribedThreshold = false;
-          isInitialized = false;
+      static void init_const_ref(const EigenBase<InputType>& matrix, MatrixType& qr, HCoeffsType& hCoeffs,
+                                 PermutationType& colsPermutation, bool& usePrescribedThreshold, bool& isInitialized) {
+        Index rows = matrix.rows();
+        Index cols = matrix.cols();
+        Index diag = numext::mini(rows, cols);
+        qr = MatrixType(rows, cols);
+        hCoeffs = HCoeffsType(diag);
+        colsPermutation = PermutationType(cols);
+        usePrescribedThreshold = false;
+        isInitialized = false;
       }
       template <typename InputType>
-      static void init_ref(const EigenBase<InputType>& matrix, MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
-          bool& usePrescribedThreshold, bool& isInitialized) {
-          Index rows = matrix.rows();
-          Index cols = matrix.cols();
-          Index diag = numext::mini(rows, cols);
-          qr = matrix.derived();
-          hCoeffs = HCoeffsType(diag);
-          colsPermutation = PermutationType(cols);
-          usePrescribedThreshold = false;
-          isInitialized = false;
+      static void init_ref(const EigenBase<InputType>& matrix, MatrixType& qr, HCoeffsType& hCoeffs,
+                           PermutationType& colsPermutation, bool& usePrescribedThreshold, bool& isInitialized) {
+        Index rows = matrix.rows();
+        Index cols = matrix.cols();
+        Index diag = numext::mini(rows, cols);
+        qr = matrix.derived();
+        hCoeffs = HCoeffsType(diag);
+        colsPermutation = PermutationType(cols);
+        usePrescribedThreshold = false;
+        isInitialized = false;
       }
     };
 

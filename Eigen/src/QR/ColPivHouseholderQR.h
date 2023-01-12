@@ -87,31 +87,31 @@ private:
     }
     template<typename InputType>
     void init(const EigenBase<InputType>& matrix) {
-        Index rows = matrix.rows();
-        Index cols = matrix.cols();
-        m_qr = MatrixType(rows, cols);
-        m_hCoeffs = HCoeffsType((std::min)(rows, cols));
-        m_colsPermutation = PermutationType(cols);
-        m_colsTranspositions = IntRowVectorType(cols);
-        m_temp = RealRowVectorType(cols);
-        m_colNormsUpdated = RealRowVectorType(cols);
-        m_colNormsDirect = RealRowVectorType(cols);
-        m_isInitialized = false;
-        m_usePrescribedThreshold = false;
+      Index rows = matrix.rows();
+      Index cols = matrix.cols();
+      m_qr = MatrixType(rows, cols);
+      m_hCoeffs = HCoeffsType((std::min)(rows, cols));
+      m_colsPermutation = PermutationType(cols);
+      m_colsTranspositions = IntRowVectorType(cols);
+      m_temp = RealRowVectorType(cols);
+      m_colNormsUpdated = RealRowVectorType(cols);
+      m_colNormsDirect = RealRowVectorType(cols);
+      m_isInitialized = false;
+      m_usePrescribedThreshold = false;
     }
     template<typename InputType>
     void init(EigenBase<InputType>& matrix) {
-        Index rows = matrix.rows();
-        Index cols = matrix.cols();
-        m_qr = matrix.derived();
-        m_hCoeffs = HCoeffsType((std::min)(rows, cols));
-        m_colsPermutation = PermutationType(cols);
-        m_colsTranspositions = IntRowVectorType(cols);
-        m_temp = RealRowVectorType(cols);
-        m_colNormsUpdated = RealRowVectorType(cols);
-        m_colNormsDirect = RealRowVectorType(cols);
-        m_isInitialized = false;
-        m_usePrescribedThreshold = false;
+      Index rows = matrix.rows();
+      Index cols = matrix.cols();
+      m_qr = matrix.derived();
+      m_hCoeffs = HCoeffsType((std::min)(rows, cols));
+      m_colsPermutation = PermutationType(cols);
+      m_colsTranspositions = IntRowVectorType(cols);
+      m_temp = RealRowVectorType(cols);
+      m_colNormsUpdated = RealRowVectorType(cols);
+      m_colNormsDirect = RealRowVectorType(cols);
+      m_isInitialized = false;
+      m_usePrescribedThreshold = false;
     }
 
   public:
