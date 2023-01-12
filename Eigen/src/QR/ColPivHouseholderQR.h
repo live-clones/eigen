@@ -560,7 +560,7 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace()
       m_nonzero_pivots = k;
 
     // apply the transposition to the columns
-    m_colsTranspositions.coeffRef(k) = (PermutationIndex)biggest_col_index;
+    m_colsTranspositions.coeffRef(k) = static_cast<PermutationIndex>(biggest_col_index);
     if(k != biggest_col_index) {
       m_qr.col(k).swap(m_qr.col(biggest_col_index));
       std::swap(m_colNormsUpdated.coeffRef(k), m_colNormsUpdated.coeffRef(biggest_col_index));
@@ -608,7 +608,7 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace()
 
   m_colsPermutation.setIdentity(cols);
   for(Index k = 0; k < size/*m_nonzero_pivots*/; ++k)
-    m_colsPermutation.applyTranspositionOnTheRight(k, (Index)m_colsTranspositions.coeff(k));
+    m_colsPermutation.applyTranspositionOnTheRight(k, static_cast<Index>(m_colsTranspositions.coeff(k)));
 
   m_det_p = (number_of_transpositions%2) ? -1 : 1;
   m_isInitialized = true;
