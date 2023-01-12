@@ -64,16 +64,14 @@ namespace Eigen {
 
       typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
       typedef PermutationMatrix<Dynamic, Dynamic, lapack_int> PermutationType;
-      typedef typename internal::plain_row_type<MatrixType, Index>::type IntRowVectorType;
 
-      static void run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
-                      IntRowVectorType& colsTranspositions, Index& nonzero_pivots, RealScalar& maxpivot,
-                      bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p, bool& isInitialized) {
-        using std::abs;
+      static void run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation, Index& nonzero_pivots,
+                      RealScalar& maxpivot, bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p,
+                      bool& isInitialized) {
+        EIGEN_USING_STD(abs);
         
         isInitialized = false;
         hCoeffs.resize(qr.diagonalSize());
-        colsTranspositions.resize(qr.cols());
         nonzero_pivots = 0;
         maxpivot = RealScalar(0);
         colsPermutation.resize(qr.cols());
@@ -101,43 +99,66 @@ namespace Eigen {
       };
     };
 
-    typedef Matrix<float, Dynamic, Dynamic, RowMajor> MatrixXfR;
-    typedef Matrix<double, Dynamic, Dynamic, RowMajor> MatrixXdR;
+    typedef Matrix<float,    Dynamic, Dynamic, RowMajor> MatrixXfR;
+    typedef Matrix<double,   Dynamic, Dynamic, RowMajor> MatrixXdR;
     typedef Matrix<scomplex, Dynamic, Dynamic, RowMajor> MatrixXcfR;
     typedef Matrix<dcomplex, Dynamic, Dynamic, RowMajor> MatrixXcdR;
 
-    template <> inline void ColPivHouseholderQR<MatrixXf, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
-    template <> inline void ColPivHouseholderQR<MatrixXd, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
-    template <> inline void ColPivHouseholderQR<MatrixXcf, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
-    template <> inline void ColPivHouseholderQR<MatrixXcd, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
-    template <> inline void ColPivHouseholderQR<MatrixXfR, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
-    template <> inline void ColPivHouseholderQR<MatrixXdR, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
-    template <> inline void ColPivHouseholderQR<MatrixXcfR, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
-    template <> inline void ColPivHouseholderQR<MatrixXcdR, lapack_int>::computeInPlace() {
-      ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_colsTranspositions,
-                                                        m_nonzero_pivots, m_maxpivot, m_usePrescribedThreshold,
-                                                        m_prescribedThreshold, m_det_p, m_isInitialized); }
+    #define COLPIVQR_LAPACKE_COMPUTEINPLACE(EIGTYPE)                                                               \
+    template <>                                                                                                    \
+    inline void ColPivHouseholderQR<EIGTYPE, lapack_int>::computeInPlace() {                                       \
+    ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_nonzero_pivots,        \
+                                                      m_maxpivot, m_usePrescribedThreshold, m_prescribedThreshold, \
+                                                      m_det_p, m_isInitialized); }                                 \
+
+    #define COLPIVQR_LAPACKE_INIT_ROWCOL(EIGTYPE)                                         \
+    template <>                                                                           \
+    inline void ColPivHouseholderQR<EIGTYPE, lapack_int>::init(Index rows, Index cols) {  \
+      m_qr = MatrixType(rows, cols);                                                      \
+      m_hCoeffs = HCoeffsType((std::min)(rows, cols));                                    \
+      m_colsPermutation = PermutationType(cols);                                          \
+      m_isInitialized = false;                                                            \
+      m_usePrescribedThreshold = false; }                                                 \
+
+    #define COLPIVQR_LAPACKE_INIT_CONSTREF(EIGTYPE)                                                   \
+    template <>                                                                                       \
+    template <typename InputType>                                                                     \
+    inline void ColPivHouseholderQR<EIGTYPE, lapack_int>::init(const EigenBase<InputType>& matrix) {  \
+      Index rows = matrix.rows();                                                                     \
+      Index cols = matrix.cols();                                                                     \
+      m_qr = MatrixType(rows, cols);                                                                  \
+      m_hCoeffs = HCoeffsType((std::min)(rows, cols));                                                \
+      m_colsPermutation = PermutationType(cols);                                                      \
+      m_isInitialized = false;                                                                        \
+      m_usePrescribedThreshold = false; }                                                             \
+ 
+    #define COLPIVQR_LAPACKE_INIT_REF(EIGTYPE)                                                  \
+    template <>                                                                                 \
+    template <typename InputType>                                                               \
+    inline void ColPivHouseholderQR<EIGTYPE, lapack_int>::init(EigenBase<InputType>& matrix) {  \
+      Index rows = matrix.rows();                                                               \
+      Index cols = matrix.cols();                                                               \
+      m_qr = matrix.derived();                                                                  \
+      m_hCoeffs = HCoeffsType((std::min)(rows, cols));                                          \
+      m_colsPermutation = PermutationType(cols);                                                \
+      m_isInitialized = false;                                                                  \
+      m_usePrescribedThreshold = false; }                                                       \
+
+    #define COLPIVQR_LAPACKE(EIGTYPE)          \
+      COLPIVQR_LAPACKE_COMPUTEINPLACE(EIGTYPE) \
+      COLPIVQR_LAPACKE_INIT_ROWCOL(EIGTYPE)    \
+      COLPIVQR_LAPACKE_INIT_CONSTREF(EIGTYPE)  \
+      COLPIVQR_LAPACKE_INIT_REF(EIGTYPE)       \
+
+    COLPIVQR_LAPACKE(MatrixXf)
+    COLPIVQR_LAPACKE(MatrixXd)
+    COLPIVQR_LAPACKE(MatrixXcf)
+    COLPIVQR_LAPACKE(MatrixXcd)
+    COLPIVQR_LAPACKE(MatrixXfR)
+    COLPIVQR_LAPACKE(MatrixXdR)
+    COLPIVQR_LAPACKE(MatrixXcfR)
+    COLPIVQR_LAPACKE(MatrixXcdR)
+
 
 #endif
 }  // end namespace Eigen
