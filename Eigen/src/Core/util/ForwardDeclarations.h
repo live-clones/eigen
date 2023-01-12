@@ -266,7 +266,7 @@ template<typename MatrixType> struct inverse_impl;
 }
 template<typename MatrixType> class HouseholderQR;
 template<typename MatrixType, typename PermutationIndex = DefaultPermutationIndex> class ColPivHouseholderQR;
-template<typename MatrixType, typename PermutationIndex = int> class FullPivHouseholderQR;
+template<typename MatrixType, typename PermutationIndex = DefaultPermutationIndex> class FullPivHouseholderQR;
 template<typename MatrixType, typename PermutationIndex = DefaultPermutationIndex> class CompleteOrthogonalDecomposition;
 template<typename MatrixType> class SVDBase;
 template<typename MatrixType, int Options = 0> class JacobiSVD;

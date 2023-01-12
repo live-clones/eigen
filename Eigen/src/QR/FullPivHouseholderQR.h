@@ -74,7 +74,7 @@ template<typename MatrixType_, typename PermutationIndex_> class FullPivHousehol
       MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
       MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
     };
-    typedef internal::FullPivHouseholderQRMatrixQReturnType<MatrixType, PermutationIndex_> MatrixQReturnType;
+    typedef internal::FullPivHouseholderQRMatrixQReturnType<MatrixType, PermutationIndex> MatrixQReturnType;
     typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
     typedef Matrix<PermutationIndex, 1,
                    internal::min_size_prefer_dynamic(ColsAtCompileTime,RowsAtCompileTime), RowMajor, 1,

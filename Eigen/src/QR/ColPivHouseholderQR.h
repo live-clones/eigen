@@ -67,11 +67,52 @@ template<typename MatrixType_, typename PermutationIndex_> class ColPivHousehold
     };
     typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
     typedef PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex> PermutationType;
-    typedef typename internal::plain_row_type<MatrixType, Index>::type IntRowVectorType;
+    typedef typename internal::plain_row_type<MatrixType, PermutationIndex>::type IntRowVectorType;
     typedef typename internal::plain_row_type<MatrixType>::type RowVectorType;
     typedef typename internal::plain_row_type<MatrixType, RealScalar>::type RealRowVectorType;
     typedef HouseholderSequence<MatrixType,internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>> HouseholderSequenceType;
     typedef typename MatrixType::PlainObject PlainObject;
+
+private:
+    void init(Index rows, Index cols) {
+      m_qr = MatrixType(rows, cols);
+      m_hCoeffs = HCoeffsType((std::min)(rows, cols));
+      m_colsPermutation = PermutationType(cols);
+      m_colsTranspositions = IntRowVectorType(cols);
+      m_temp = RealRowVectorType(cols);
+      m_colNormsUpdated = RealRowVectorType(cols);
+      m_colNormsDirect = RealRowVectorType(cols);
+      m_isInitialized = false;
+      m_usePrescribedThreshold = false;
+    }
+    template<typename InputType>
+    void init(const EigenBase<InputType>& matrix) {
+        Index rows = matrix.rows();
+        Index cols = matrix.cols();
+        m_qr = MatrixType(rows, cols);
+        m_hCoeffs = HCoeffsType((std::min)(rows, cols));
+        m_colsPermutation = PermutationType(cols);
+        m_colsTranspositions = IntRowVectorType(cols);
+        m_temp = RealRowVectorType(cols);
+        m_colNormsUpdated = RealRowVectorType(cols);
+        m_colNormsDirect = RealRowVectorType(cols);
+        m_isInitialized = false;
+        m_usePrescribedThreshold = false;
+    }
+    template<typename InputType>
+    void init(EigenBase<InputType>& matrix) {
+        Index rows = matrix.rows();
+        Index cols = matrix.cols();
+        m_qr = matrix.derived();
+        m_hCoeffs = HCoeffsType((std::min)(rows, cols));
+        m_colsPermutation = PermutationType(cols);
+        m_colsTranspositions = IntRowVectorType(cols);
+        m_temp = RealRowVectorType(cols);
+        m_colNormsUpdated = RealRowVectorType(cols);
+        m_colNormsDirect = RealRowVectorType(cols);
+        m_isInitialized = false;
+        m_usePrescribedThreshold = false;
+    }
 
   public:
 
@@ -98,16 +139,7 @@ template<typename MatrixType_, typename PermutationIndex_> class ColPivHousehold
       * according to the specified problem \a size.
       * \sa ColPivHouseholderQR()
       */
-    ColPivHouseholderQR(Index rows, Index cols)
-      : m_qr(rows, cols),
-        m_hCoeffs((std::min)(rows,cols)),
-        m_colsPermutation(cols),
-        m_colsTranspositions(cols),
-        m_temp(cols),
-        m_colNormsUpdated(cols),
-        m_colNormsDirect(cols),
-        m_isInitialized(false),
-        m_usePrescribedThreshold(false) {}
+    ColPivHouseholderQR(Index rows, Index cols) { init(rows, cols); }
 
     /** \brief Constructs a QR factorization from a given matrix
       *
@@ -121,18 +153,9 @@ template<typename MatrixType_, typename PermutationIndex_> class ColPivHousehold
       *
       * \sa compute()
       */
-    template<typename InputType>
-    explicit ColPivHouseholderQR(const EigenBase<InputType>& matrix)
-      : m_qr(matrix.rows(), matrix.cols()),
-        m_hCoeffs((std::min)(matrix.rows(),matrix.cols())),
-        m_colsPermutation(matrix.cols()),
-        m_colsTranspositions(matrix.cols()),
-        m_temp(matrix.cols()),
-        m_colNormsUpdated(matrix.cols()),
-        m_colNormsDirect(matrix.cols()),
-        m_isInitialized(false),
-        m_usePrescribedThreshold(false)
-    {
+    template <typename InputType>
+    explicit ColPivHouseholderQR(const EigenBase<InputType>& matrix) {
+      init(matrix.derived());
       compute(matrix.derived());
     }
 
@@ -142,18 +165,9 @@ template<typename MatrixType_, typename PermutationIndex_> class ColPivHousehold
       *
       * \sa ColPivHouseholderQR(const EigenBase&)
       */
-    template<typename InputType>
-    explicit ColPivHouseholderQR(EigenBase<InputType>& matrix)
-      : m_qr(matrix.derived()),
-        m_hCoeffs((std::min)(matrix.rows(),matrix.cols())),
-        m_colsPermutation(matrix.cols()),
-        m_colsTranspositions(matrix.cols()),
-        m_temp(matrix.cols()),
-        m_colNormsUpdated(matrix.cols()),
-        m_colNormsDirect(matrix.cols()),
-        m_isInitialized(false),
-        m_usePrescribedThreshold(false)
-    {
+    template <typename InputType>
+    explicit ColPivHouseholderQR(EigenBase<InputType>& matrix) {
+      init(matrix.derived());
       computeInPlace();
     }
 
@@ -546,7 +560,7 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace()
       m_nonzero_pivots = k;
 
     // apply the transposition to the columns
-    m_colsTranspositions.coeffRef(k) = biggest_col_index;
+    m_colsTranspositions.coeffRef(k) = (PermutationIndex)biggest_col_index;
     if(k != biggest_col_index) {
       m_qr.col(k).swap(m_qr.col(biggest_col_index));
       std::swap(m_colNormsUpdated.coeffRef(k), m_colNormsUpdated.coeffRef(biggest_col_index));
@@ -594,7 +608,7 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace()
 
   m_colsPermutation.setIdentity(cols);
   for(Index k = 0; k < size/*m_nonzero_pivots*/; ++k)
-    m_colsPermutation.applyTranspositionOnTheRight(k, m_colsTranspositions.coeff(k));
+    m_colsPermutation.applyTranspositionOnTheRight(k, (Index)m_colsTranspositions.coeff(k));
 
   m_det_p = (number_of_transpositions%2) ? -1 : 1;
   m_isInitialized = true;
