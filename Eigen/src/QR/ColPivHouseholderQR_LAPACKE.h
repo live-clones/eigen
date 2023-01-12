@@ -100,8 +100,9 @@ namespace Eigen {
 
       static void init_rowcol(Index rows, Index cols, MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
                        bool& usePrescribedThreshold, bool& isInitialized) {
+        Index diag = numext::mini(rows, cols);
         qr = MatrixType(rows, cols);
-        hCoeffs = HCoeffsType((std::min)(rows, cols));
+        hCoeffs = HCoeffsType(diag);
         colsPermutation = PermutationType(cols);
         usePrescribedThreshold = false;
         isInitialized = false;
@@ -111,8 +112,9 @@ namespace Eigen {
           bool& usePrescribedThreshold, bool& isInitialized) {
           Index rows = matrix.rows();
           Index cols = matrix.cols();
+          Index diag = numext::mini(rows, cols);
           qr = MatrixType(rows, cols);
-          hCoeffs = HCoeffsType((std::min)(rows, cols));
+          hCoeffs = HCoeffsType(diag);
           colsPermutation = PermutationType(cols);
           usePrescribedThreshold = false;
           isInitialized = false;
@@ -122,8 +124,9 @@ namespace Eigen {
           bool& usePrescribedThreshold, bool& isInitialized) {
           Index rows = matrix.rows();
           Index cols = matrix.cols();
+          Index diag = numext::mini(rows, cols);
           qr = matrix.derived();
-          hCoeffs = HCoeffsType((std::min)(rows, cols));
+          hCoeffs = HCoeffsType(diag);
           colsPermutation = PermutationType(cols);
           usePrescribedThreshold = false;
           isInitialized = false;
