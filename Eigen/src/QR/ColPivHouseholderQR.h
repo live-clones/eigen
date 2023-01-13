@@ -75,36 +75,8 @@ template<typename MatrixType_, typename PermutationIndex_> class ColPivHousehold
 
 private:
     void init(Index rows, Index cols) {
-      m_qr = MatrixType(rows, cols);
-      m_hCoeffs = HCoeffsType((std::min)(rows, cols));
-      m_colsPermutation = PermutationType(cols);
-      m_colsTranspositions = IntRowVectorType(cols);
-      m_temp = RealRowVectorType(cols);
-      m_colNormsUpdated = RealRowVectorType(cols);
-      m_colNormsDirect = RealRowVectorType(cols);
-      m_isInitialized = false;
-      m_usePrescribedThreshold = false;
-    }
-    template<typename InputType>
-    void init(const EigenBase<InputType>& matrix) {
-      Index rows = matrix.rows();
-      Index cols = matrix.cols();
-      m_qr = MatrixType(rows, cols);
-      m_hCoeffs = HCoeffsType((std::min)(rows, cols));
-      m_colsPermutation = PermutationType(cols);
-      m_colsTranspositions = IntRowVectorType(cols);
-      m_temp = RealRowVectorType(cols);
-      m_colNormsUpdated = RealRowVectorType(cols);
-      m_colNormsDirect = RealRowVectorType(cols);
-      m_isInitialized = false;
-      m_usePrescribedThreshold = false;
-    }
-    template<typename InputType>
-    void init(EigenBase<InputType>& matrix) {
-      Index rows = matrix.rows();
-      Index cols = matrix.cols();
-      m_qr = matrix.derived();
-      m_hCoeffs = HCoeffsType((std::min)(rows, cols));
+      Index diag = numext::mini(rows, cols);
+      m_hCoeffs = HCoeffsType(diag);
       m_colsPermutation = PermutationType(cols);
       m_colsTranspositions = IntRowVectorType(cols);
       m_temp = RealRowVectorType(cols);
@@ -139,7 +111,7 @@ private:
       * according to the specified problem \a size.
       * \sa ColPivHouseholderQR()
       */
-    ColPivHouseholderQR(Index rows, Index cols) { init(rows, cols); }
+    ColPivHouseholderQR(Index rows, Index cols) : m_qr(rows, cols) { init(rows, cols); }
 
     /** \brief Constructs a QR factorization from a given matrix
       *
@@ -154,8 +126,8 @@ private:
       * \sa compute()
       */
     template <typename InputType>
-    explicit ColPivHouseholderQR(const EigenBase<InputType>& matrix) {
-      init(matrix.derived());
+    explicit ColPivHouseholderQR(const EigenBase<InputType>& matrix) : m_qr(matrix.rows(), matrix.cols()) {
+      init(matrix.rows(), matrix.cols());
       compute(matrix.derived());
     }
 
@@ -166,8 +138,8 @@ private:
       * \sa ColPivHouseholderQR(const EigenBase&)
       */
     template <typename InputType>
-    explicit ColPivHouseholderQR(EigenBase<InputType>& matrix) {
-      init(matrix.derived());
+    explicit ColPivHouseholderQR(EigenBase<InputType>& matrix) : m_qr(matrix.derived()) {
+      init(matrix.rows(), matrix.cols());
       computeInPlace();
     }
 
