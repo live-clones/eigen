@@ -63,7 +63,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
 
     // the actual "return type" is `Dest`. this is a temporary type
     typedef SparseMatrix<Scalar, MatrixTypeCleaned::IsRowMajor ? RowMajor : ColMajor, StorageIndex> ReturnType;
-    typedef XprHelper<ExpressionType, ReturnType> XprHelper;
+    typedef XprHelper<ExpressionType, ReturnType> TmpHelper;
 
     static constexpr bool OuterPermutation = ExpressionType::IsRowMajor ? Side == OnTheLeft : Side == OnTheRight;
     static constexpr bool InversePermutation = Transposed ? Side == OnTheLeft : Side == OnTheRight;
@@ -76,8 +76,8 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
       // if ExpressionType is not ReturnType, evaluate `xpr` (allocation)
       // otherwise, just reference `xpr`
       // TODO: handle trivial expressions such as CwiseBinaryOp without temporary
-      const XprHelper xprHelper(xpr);
-      const ReturnType& tmp = xprHelper.xpr();
+      const TmpHelper tmpHelper(xpr);
+      const ReturnType& tmp = tmpHelper.xpr();
 
       // if inverse permutation of inner indices is requested, calculate perm.inverse() (allocation)
       // otherwise, just reference `perm`
