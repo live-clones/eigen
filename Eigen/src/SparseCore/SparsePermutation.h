@@ -38,7 +38,7 @@ struct PermHelper
 {
     typedef typename PermDerived::IndicesType IndicesType;
     typedef typename IndicesType::Scalar StorageIndex;
-    typedef typename PermutationMatrix<IndicesType::SizeAtCompileTime, IndicesType::MaxSizeAtCompileTime, StorageIndex> type;
+    typedef PermutationMatrix<IndicesType::SizeAtCompileTime, IndicesType::MaxSizeAtCompileTime, StorageIndex> type;
     PermHelper(const PermDerived& perm) : m_perm(perm.derived().inverse()) {}
     inline const type& perm() const { return m_perm; }
     const type m_perm;
