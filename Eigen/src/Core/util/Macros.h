@@ -371,7 +371,7 @@
 #endif
 
 /// \internal EIGEN_ARCH_PPC set to 1 if the architecture is PowerPC
-#if defined(__powerpc__) || defined(__ppc__) || defined(_M_PPC)
+#if defined(__powerpc__) || defined(__ppc__) || defined(_M_PPC) || defined(__POWERPC__)
   #define EIGEN_ARCH_PPC 1
 #else
   #define EIGEN_ARCH_PPC 0
@@ -713,13 +713,16 @@
 //       and it could be that XCode 9 works just fine.
 // NOTE: the MSVC version is based on https://en.cppreference.com/w/cpp/compiler_support
 //       and not tested.
+// NOTE: Intel C++ Compiler Classic (icc) Version 19.0 and later supports dynamic allocation
+//       for over-aligned data, but not in a manner that is compatible with Eigen.
+//       See https://gitlab.com/libeigen/eigen/-/issues/2575
 #ifndef EIGEN_HAS_CXX17_OVERALIGN
 #if EIGEN_MAX_CPP_VER>=17 && EIGEN_COMP_CXXVER>=17 && (                                 \
            (EIGEN_COMP_MSVC >= 1912)                                                    \
         || (EIGEN_GNUC_AT_LEAST(7,0))                                                   \
         || ((!defined(__apple_build_version__)) && (EIGEN_COMP_CLANG>=500))             \
         || (( defined(__apple_build_version__)) && (__apple_build_version__>=10000000)) \
-      )
+      ) && !EIGEN_COMP_ICC
 #define EIGEN_HAS_CXX17_OVERALIGN 1
 #else
 #define EIGEN_HAS_CXX17_OVERALIGN 0
@@ -973,11 +976,16 @@ namespace Eigen {
     // directly for std::complex<T>, Eigen::half, Eigen::bfloat16. For these,
     // you will need to apply to the underlying POD type.
     #if EIGEN_ARCH_PPC && EIGEN_COMP_GNUC_STRICT
-      // This seems to be broken on clang.  Packet4f is loaded into a single
-      //   register rather than a vector, zeroing out some entries.  Integer
+      // This seems to be broken on clang. Packet4f is loaded into a single
+      //   register rather than a vector, zeroing out some entries. Integer
       //   types also generate a compile error.
-      // General, Altivec, VSX.
-      #define EIGEN_OPTIMIZATION_BARRIER(X)  __asm__  ("" : "+r,v,wa" (X));
+      #if EIGEN_OS_MAC
+        // General, Altivec for Apple (VSX were added in ISA v2.06):
+        #define EIGEN_OPTIMIZATION_BARRIER(X)  __asm__  ("" : "+r,v" (X));
+      #else
+        // General, Altivec, VSX otherwise:
+        #define EIGEN_OPTIMIZATION_BARRIER(X)  __asm__  ("" : "+r,v,wa" (X));
+      #endif
     #elif EIGEN_ARCH_ARM_OR_ARM64
       #ifdef __ARM_FP
         // General, VFP or NEON.

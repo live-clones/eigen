@@ -26,7 +26,7 @@ struct gebp_traits <float,float,false,false,Architecture::NEON,GEBPPacketFull>
 
   template <typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const Packet4f& a, const Packet4f& b,
-                                Packet4f& c, Packet4f& tmp,
+                                Packet4f& c, Packet4f&,
                                 const LaneIdType&) const {
     acc(a, b, c);
   }
@@ -216,7 +216,7 @@ struct gebp_traits <half,half,false,false,Architecture::NEON>
   EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const
   {}
 
-  EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const
+  EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar*, RhsPacket&) const
   {
     // If LHS is a Packet8h, we cannot correctly mimic a ploadquad of the RHS
     // using a single scalar value.
