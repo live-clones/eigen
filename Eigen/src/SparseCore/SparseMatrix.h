@@ -318,12 +318,12 @@ class SparseMatrix
     #endif // EIGEN_PARSED_BY_DOXYGEN
   protected:
     template<class SizesType>
-    inline void reserveInnerVectors(const SizesType& reserveSizes, bool keepOldReserved = true)
+    inline void reserveInnerVectors(const SizesType& reserveSizes)
     {
       if(isCompressed())
       {
-        Index totalReserveSize = 0;
-        for (Index j = 0; j < m_outerSize; ++j) totalReserveSize += reserveSizes[j];
+        StorageIndex totalReserveSize = 0;
+        for (Index j = 0; j < m_outerSize; ++j) totalReserveSize += static_cast<StorageIndex>(reserveSizes[j]);
 
         // if reserveSizes is empty, don't do anything!
         if (totalReserveSize == 0) return;
@@ -338,7 +338,8 @@ class SparseMatrix
         for(Index j=0; j<m_outerSize; ++j)
         {
           newOuterIndex[j] = count;
-          count += reserveSizes[j] + (m_outerIndex[j+1]-m_outerIndex[j]);
+          StorageIndex reserveSize = static_cast<StorageIndex>(reserveSizes[j]);
+          count += reserveSize + (m_outerIndex[j+1]-m_outerIndex[j]);
         }
 
         m_data.reserve(totalReserveSize);
@@ -364,34 +365,25 @@ class SparseMatrix
       {
         StorageIndex* newOuterIndex = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize + 1);
         
-        Index count = 0;
+        StorageIndex count = 0;
         for(Index j=0; j<m_outerSize; ++j)
         {
           newOuterIndex[j] = count;
           StorageIndex alreadyReserved = (m_outerIndex[j+1]-m_outerIndex[j]) - m_innerNonZeros[j];
-          //StorageIndex toReserve = std::max<StorageIndex>(reserveSizes[j], alreadyReserved);
-          StorageIndex toReserve = reserveSizes[j];
-          if (keepOldReserved) toReserve = numext::maxi(toReserve, alreadyReserved);
-          eigen_assert((count + (toReserve + m_innerNonZeros[j])) >= 0);
-          StorageIndex test = count;
+          StorageIndex reserveSize = static_cast<StorageIndex>(reserveSizes[j]);
+          StorageIndex toReserve = numext::maxi(reserveSize, alreadyReserved);
           count += toReserve + m_innerNonZeros[j];
-          eigen_assert(count >= 0);
         }
         newOuterIndex[m_outerSize] = count;
-        eigen_assert(count >= 0);
+
         m_data.resize(count);
         for(Index j=m_outerSize-1; j>=0; --j)
         {
-          StorageIndex offset = newOuterIndex[j] - m_outerIndex[j];
-          if(offset>0)
-          {
-            StorageIndex innerNNZ = m_innerNonZeros[j];
-            StorageIndex begin = m_outerIndex[j];
-            StorageIndex end = begin + innerNNZ;
-            StorageIndex target = newOuterIndex[j];
-            internal::smart_memmove(innerIndexPtr() + begin, innerIndexPtr() + end, innerIndexPtr() + target);
-            internal::smart_memmove(valuePtr() + begin, valuePtr() + end, valuePtr() + target);
-          }
+          StorageIndex innerNNZ = m_innerNonZeros[j];
+          StorageIndex begin = m_outerIndex[j];
+          StorageIndex end = begin + innerNNZ;
+          StorageIndex target = newOuterIndex[j];
+          data().moveChunk(begin, target, innerNNZ);
         }
         
         std::swap(m_outerIndex, newOuterIndex);
@@ -1490,7 +1482,7 @@ EIGEN_STRONG_INLINE void SparseMatrix<Scalar_, Options_, StorageIndex_>::redistr
       // reserve kReserveSizePerVector in each vector
       reserveInnerVectors(IndexVector::Constant(outerSize(), kReserveSizePerVector));
     } else {
-      // handle the edge case where StorageIndex is insufficient for default reservation
+      // handle the edge case where StorageIndex is insufficient for preferredReserveSize
       // distribute maxReserveSize in the interval [outer,outerSize)
       ReserveSizesXpr reserveSizesXpr(outerSize(), 1, ReserveSizesOp(outer, outerSize(), maxReserveSize));
       reserveInnerVectors(reserveSizesXpr);
