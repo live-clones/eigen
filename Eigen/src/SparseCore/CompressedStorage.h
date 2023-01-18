@@ -193,10 +193,9 @@ class CompressedStorage
     inline void moveChunk(Index from, Index to, Index chunkSize)
     {
       eigen_internal_assert(chunkSize >= 0 && to+chunkSize <= m_size);
-      if (chunkSize > 0) {
-        internal::smart_memmove(m_values + from, m_values + from + chunkSize, m_values + to);
-        internal::smart_memmove(m_indices + from, m_indices + from + chunkSize, m_indices + to);
-      }
+      if ((from == to) || (chunkSize == 0)) return;
+      internal::smart_memmove(m_values + from, m_values + from + chunkSize, m_values + to);
+      internal::smart_memmove(m_indices + from, m_indices + from + chunkSize, m_indices + to);
     }
 
   protected:

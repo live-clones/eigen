@@ -318,7 +318,7 @@ class SparseMatrix
     #endif // EIGEN_PARSED_BY_DOXYGEN
   protected:
     template<class SizesType>
-    inline void reserveInnerVectors(const SizesType& reserveSizes)
+    inline void reserveInnerVectors(const SizesType& reserveSizes, bool keepOldReserved = true)
     {
       if(isCompressed())
       {
@@ -364,16 +364,21 @@ class SparseMatrix
       {
         StorageIndex* newOuterIndex = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize + 1);
         
-        StorageIndex count = 0;
+        Index count = 0;
         for(Index j=0; j<m_outerSize; ++j)
         {
           newOuterIndex[j] = count;
           StorageIndex alreadyReserved = (m_outerIndex[j+1]-m_outerIndex[j]) - m_innerNonZeros[j];
-          StorageIndex toReserve = std::max<StorageIndex>(reserveSizes[j], alreadyReserved);
+          //StorageIndex toReserve = std::max<StorageIndex>(reserveSizes[j], alreadyReserved);
+          StorageIndex toReserve = reserveSizes[j];
+          if (keepOldReserved) toReserve = numext::maxi(toReserve, alreadyReserved);
+          eigen_assert((count + (toReserve + m_innerNonZeros[j])) >= 0);
+          StorageIndex test = count;
           count += toReserve + m_innerNonZeros[j];
+          eigen_assert(count >= 0);
         }
         newOuterIndex[m_outerSize] = count;
-        
+        eigen_assert(count >= 0);
         m_data.resize(count);
         for(Index j=m_outerSize-1; j>=0; --j)
         {
@@ -493,30 +498,43 @@ class SparseMatrix
 
     /** Turns the matrix into the \em compressed format.
       */
-    void makeCompressed()
+    void makeCompressed(bool dontSqueeze = false)
     {
       if (isCompressed()) return;
       
-      eigen_internal_assert(m_outerIndex!=0 && m_outerSize>0);
-      
-      StorageIndex start = m_outerIndex[1];
-      m_outerIndex[1] = m_innerNonZeros[0];
-      for(Index j=1; j<m_outerSize; ++j)
+      eigen_internal_assert(outerIndexPtr()!=0 && outerSize()>0);
+
+      StorageIndex start = outerIndexPtr()[1];
+      outerIndexPtr()[1] = innerNonZeroPtr()[0];
+      // try to move fewer, larger contiguous chunks
+      Index copyStart = start;
+      Index copyTarget = innerNonZeroPtr()[0];
+      for (Index j = 1; j < outerSize(); j++)
       {
-        StorageIndex end = start + m_innerNonZeros[j];
-        StorageIndex target = m_outerIndex[j];
-        if (start != target)
+        Index end = start + innerNonZeroPtr()[j];
+        Index nextStart = outerIndexPtr()[j + 1];
+        // dont forget to move the last chunk!
+        bool breakUpCopy = (end != nextStart) || (j == outerSize() - 1);
+        if (breakUpCopy)
         {
-          internal::smart_memmove(innerIndexPtr() + start, innerIndexPtr() + end, innerIndexPtr() + target);
-          internal::smart_memmove(valuePtr() + start, valuePtr() + end, valuePtr() + target);
+          Index chunkSize = end - copyStart;
+          data().moveChunk(copyStart, copyTarget, chunkSize);
+          copyStart = nextStart;
+          copyTarget += chunkSize;
         }
-        start = m_outerIndex[j + 1];
-        m_outerIndex[j + 1] = m_outerIndex[j] + m_innerNonZeros[j];
+        start = nextStart;
+        outerIndexPtr()[j + 1] = outerIndexPtr()[j] + innerNonZeroPtr()[j];
       }
-      internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-      m_innerNonZeros = 0;
-      m_data.resize(m_outerIndex[m_outerSize]);
-      m_data.squeeze();
+      data().resize(outerIndexPtr()[outerSize()]);
+      if (!dontSqueeze)
+      {
+          // release as much memory as possible
+          internal::conditional_aligned_delete_auto<StorageIndex, true>(innerNonZeroPtr(), outerSize());
+          m_innerNonZeros = 0;
+          data().squeeze();
+      }
+      // otherwise, keep the unused allocated memory
+      // m_innerNonZeros has not been modified and is still valid
     }
 
     /** Turns the matrix into the uncompressed mode */
@@ -640,17 +658,32 @@ class SparseMatrix
       const Index outerSize = IsRowMajor ? rows : cols;
       m_innerSize = IsRowMajor ? cols : rows;
       m_data.clear();
-      if (m_outerSize != outerSize || m_outerSize==0)
-      {
-        m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(m_outerIndex, outerSize + 1,
-            m_outerSize + 1);
-        m_outerSize = outerSize;
-      }
-      if(m_innerNonZeros)
+
+      if (m_innerNonZeros)
       {
         internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
         m_innerNonZeros = 0;
       }
+
+      if (outerSize == 0)
+      {
+        // don't allocate memory if outerSize == 0 !
+        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_outerIndex, m_outerSize + 1);
+        m_outerIndex = 0;
+        m_outerSize = 0;
+        return;
+      }
+
+      if (m_outerSize != outerSize)
+      {
+        if (m_outerIndex == 0)
+          m_outerIndex = internal::conditional_aligned_new_auto<StorageIndex, true>(outerSize + 1);
+        else
+          m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(m_outerIndex, outerSize + 1,
+                                                                                            m_outerSize + 1);
+        m_outerSize = outerSize;
+      }
+
       std::fill_n(m_outerIndex, m_outerSize + 1, StorageIndex(0));
     }
 
@@ -1023,7 +1056,7 @@ protected:
                 Index copyBegin = outerIndexPtr()[j + 1];
                 Index to = copyBegin + shift;
                 Index chunkSize = copyEnd - copyBegin;
-                if (chunkSize > 0) data().moveChunk(copyBegin, to, chunkSize);
+                data().moveChunk(copyBegin, to, chunkSize);
                 copyEnd = end;
               }
 
@@ -1035,7 +1068,7 @@ protected:
                 Index copyBegin = insertionLocations(j);
                 Index to = copyBegin + shift;
                 Index chunkSize = copyEnd - copyBegin;
-                if (chunkSize > 0) data().moveChunk(copyBegin, to, chunkSize);
+                data().moveChunk(copyBegin, to, chunkSize);
                 Index dst = to - 1;
                 data().index(dst) = StorageIndex(j);
                 assignFunc.assignCoeff(data().value(dst) = Scalar(0), diaEval.coeff(j));
@@ -1050,9 +1083,8 @@ protected:
       }
     }
 
-    /* Provides a consistent reserve and reallocation strategy for insertCompressed and insertUncompressed
-    If there is insufficient space for one insertion, the size of the memory buffer is doubled */
-    inline void checkAllocatedSpaceAndMaybeExpand();
+    // prepares an uncompressed sparse matrix buffers for insertion
+    inline void redistributeCapacity(Index outer);
     /* These functions are used to avoid a redundant binary search operation in functions such as coeffRef() and assume `dst` is the appropriate sorted insertion point */
     EIGEN_STRONG_INLINE Scalar& insertAtByOuterInner(Index outer, Index inner, Index dst);
     Scalar& insertCompressedAtByOuterInner(Index outer, Index inner, Index dst);
@@ -1431,13 +1463,38 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressed(Index row, Inde
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
-EIGEN_STRONG_INLINE void SparseMatrix<Scalar_, Options_, StorageIndex_>::checkAllocatedSpaceAndMaybeExpand() {
-  // if there is no capacity for a single insertion, double the capacity
-  if (data().allocatedSize() <= data().size()) {
-    // increase capacity by a mininum of 32
-    Index minReserve = 32;
-    Index reserveSize = numext::maxi(minReserve, data().allocatedSize());
-    data().reserve(reserveSize);
+EIGEN_STRONG_INLINE void SparseMatrix<Scalar_, Options_, StorageIndex_>::redistributeCapacity(Index outer) {
+  typedef internal::sparse_reserve_op<StorageIndex> ReserveSizesOp;
+  typedef CwiseNullaryOp<ReserveSizesOp, IndexVector> ReserveSizesXpr;
+  constexpr Index kReserveSizePerVector(2);
+  eigen_assert(!isCompressed());
+  // general strategy: utilize reserved memory before any allocation
+  // first, check if there is capacity at the end of the buffer
+  // if so, use this memory first
+  Index tailCapacity = data().allocatedSize() - data().size();
+  // otherwise, attempt to shift capacity from the inactive nonzeros (if any) to the end of the buffer
+  if (tailCapacity == 0) makeCompressed(true);
+  tailCapacity = data().allocatedSize() - data().size();
+  if (tailCapacity > 0) {
+    // there is unused allocated memory at the end of the buffer, use this first
+    // distribute tailCapacity in the range [outer,outerSize)
+    ReserveSizesXpr reserveSizesXpr(outerSize(), 1, ReserveSizesOp(outer, outerSize(), tailCapacity));
+    reserveInnerVectors(reserveSizesXpr);
+  } else {
+    // there is no memory available anywhere, must allocate additional storage
+    // check for integer overflow
+    Index maxReserveSize = static_cast<Index>(NumTraits<StorageIndex>::highest()) - data().allocatedSize();
+    eigen_assert(maxReserveSize > 0);
+    Index preferredReserveSize = kReserveSizePerVector * outerSize();
+    if (preferredReserveSize <= maxReserveSize) {
+      // reserve kReserveSizePerVector in each vector
+      reserveInnerVectors(IndexVector::Constant(outerSize(), kReserveSizePerVector));
+    } else {
+      // handle the edge case where StorageIndex is insufficient for default reservation
+      // distribute maxReserveSize in the interval [outer,outerSize)
+      ReserveSizesXpr reserveSizesXpr(outerSize(), 1, ReserveSizesOp(outer, outerSize(), maxReserveSize));
+      reserveInnerVectors(reserveSizesXpr);
+    }
   }
 }
 
@@ -1446,13 +1503,21 @@ typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
 SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAtByOuterInner(Index outer, Index inner, Index dst) {
   eigen_assert(isCompressed());
   // compressed insertion always requires expanding the buffer
-  checkAllocatedSpaceAndMaybeExpand();
+  // first, check if there is adequate allocated memory
+  if (data().allocatedSize() <= data().size()) {
+    // if there is no capacity for a single insertion, double the capacity
+    // increase capacity by a mininum of 32
+    Index minReserve = 32;
+    Index reserveSize = numext::maxi(minReserve, data().allocatedSize());
+    data().reserve(reserveSize);
+  }
   data().resize(data().size() + 1);
   Index chunkSize = outerIndexPtr()[outerSize()] - dst;
   // shift the existing data to the right if necessary
-  if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
+  data().moveChunk(dst, dst + 1, chunkSize);
   // update nonzero counts
   typename IndexVector::AlignedMapType outerIndexMap(outerIndexPtr(), outerSize() + 1);
+  // potentially O(outerSize) bottleneck!
   outerIndexMap.segment(outer + 1, outerSize() - outer).array() += 1;
   // initialize the coefficient
   data().index(dst) = StorageIndex(inner);
@@ -1463,6 +1528,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAtByOuterInner(I
 template <typename Scalar_, int Options_, typename StorageIndex_>
 typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
 SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner(Index outer, Index inner, Index dst) {
+
   eigen_assert(!isCompressed());
   // find nearest outer vector to the right with capacity (if any) to minimize copy size
   Index target = outer;
@@ -1474,36 +1540,20 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
       // `target` has room for interior insertion
       Index chunkSize = end - dst;
       // shift the existing data to the right if necessary
-      if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
+      data().moveChunk(dst, dst + 1, chunkSize);
       break;
     }
   }
   if (target == outerSize()) {
     // no room for interior insertion (to the right of `outer`)
-    target = outer;
-    Index dst_offset = dst - outerIndexPtr()[target];
-    Index totalCapacity = data().allocatedSize() - data().size();
-    eigen_assert(totalCapacity >= 0);
-    if (totalCapacity == 0) {
-      // there is no room left. we must reallocate. reserve space in each vector
-      constexpr StorageIndex kReserveSizePerVector(2);
-      reserveInnerVectors(IndexVector::Constant(outerSize(), kReserveSizePerVector));
-    } else {
-      // dont reallocate, but re-distribute the remaining capacity to the right of `outer`
-      // each vector in the range [outer,outerSize) will receive totalCapacity / (outerSize - outer) nonzero
-      // reservations each vector in the range [outer,remainder) will receive an additional nonzero reservation where
-      // remainder = totalCapacity % (outerSize - outer)
-      typedef internal::sparse_reserve_op<StorageIndex> ReserveSizesOp;
-      typedef CwiseNullaryOp<ReserveSizesOp, IndexVector> ReserveSizesXpr;
-      ReserveSizesXpr reserveSizesXpr(outerSize(), 1, ReserveSizesOp(target, outerSize(), totalCapacity));
-      eigen_assert(reserveSizesXpr.sum() == totalCapacity);
-      reserveInnerVectors(reserveSizesXpr);
-    }
-    Index start = outerIndexPtr()[target];
-    Index end = start + innerNonZeroPtr()[target];
+    Index dst_offset = dst - outerIndexPtr()[outer];
+    redistributeCapacity(outer);
+    Index start = outerIndexPtr()[outer];
+    Index end = start + innerNonZeroPtr()[outer];
     dst = start + dst_offset;
     Index chunkSize = end - dst;
-    if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
+    data().moveChunk(dst, dst + 1, chunkSize);
+    target = outer;
   }
   // update nonzero counts
   innerNonZeroPtr()[outer]++;
