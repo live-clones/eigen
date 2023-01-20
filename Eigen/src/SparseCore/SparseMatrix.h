@@ -36,7 +36,7 @@ namespace Eigen {
   *                 is ColMajor or RowMajor. The default is 0 which means column-major.
   * \tparam StorageIndex_ the type of the indices. It has to be a \b signed type (e.g., short, int, std::ptrdiff_t). Default is \c int.
   *
-  * \warning In %Eigen 3.2, the undocumented type \c SparseMatrix::Index was improperly defined as the storage incdex type (e.g., int),
+  * \warning In %Eigen 3.2, the undocumented type \c SparseMatrix::Index was improperly defined as the storage index type (e.g., int),
   *          whereas it is now (starting from %Eigen 3.3) deprecated and always defined as Eigen::Index.
   *          Codes making use of \c SparseMatrix::Index, might thus likely have to be changed to use \c SparseMatrix::StorageIndex instead.
   *
