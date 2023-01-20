@@ -1007,6 +1007,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
 
           Packet2ul v1[8];
 
+          // This is transposing and interleaving data
           v1[0] = reinterpret_cast<Packet2ul>(vec_mergeh(reinterpret_cast<Packet4ui>(block1.packet[0].m_val), reinterpret_cast<Packet4ui>(block1.packet[1].m_val)));
           v1[1] = reinterpret_cast<Packet2ul>(vec_mergel(reinterpret_cast<Packet4ui>(block1.packet[0].m_val), reinterpret_cast<Packet4ui>(block1.packet[1].m_val)));
           v1[2] = reinterpret_cast<Packet2ul>(vec_mergeh(reinterpret_cast<Packet4ui>(block1.packet[2].m_val), reinterpret_cast<Packet4ui>(block1.packet[3].m_val)));
@@ -1052,19 +1053,82 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
 
       if(PanelMode) ri += vectorSize*(stride - offset - depth);
     }
-
-    if(PanelMode) ri += offset;
-
-    for(; j < rows; j++)
+    if(j + 4 <= rows)
     {
       const DataMapper lhs2 = lhs.getSubMapper(j, 0);
-      for(Index i = 0; i < depth; i++)
+      Index i = 0;
+
+      if(PanelMode) ri += 4*offset;
+
+      for(; i + 2 <= depth; i+=2)
       {
-        blockA[ri] = lhs2(0, i);
-        ri += 1;
+        if(StorageOrder == ColMajor)
+        {
+          PacketBlock<Packet8bf,2> block;
+
+          block.packet[0] = lhs2.template loadPacketPartial<Packet8bf>(0, i + 0, 4);
+          block.packet[1] = lhs2.template loadPacketPartial<Packet8bf>(0, i + 1, 4);
+
+          block.packet[0] = vec_mergeh(block.packet[0].m_val, block.packet[1].m_val);
+
+          pstore<bfloat16>(blockA + ri, block.packet[0]);
+        } else {
+          blockA[ri+0] = lhs2(0, i + 0);
+          blockA[ri+1] = lhs2(0, i + 1);
+          blockA[ri+2] = lhs2(1, i + 0);
+          blockA[ri+3] = lhs2(1, i + 1);
+          blockA[ri+4] = lhs2(2, i + 0);
+          blockA[ri+5] = lhs2(2, i + 1);
+          blockA[ri+6] = lhs2(3, i + 0);
+          blockA[ri+7] = lhs2(3, i + 1);
+        }
+
+        ri += 2*4;
+      }
+      if (depth & 1)
+      {
+        if(StorageOrder == ColMajor)
+        {
+          Packet8bf lhsV = lhs2.template loadPacketPartial<Packet8bf>(0, i + 0, 4);
+
+          pstore_partial<bfloat16>(blockA + ri, lhsV, 4);
+        } else {
+          blockA[ri+0] = lhs2(0, i);
+          blockA[ri+1] = lhs2(1, i);
+          blockA[ri+2] = lhs2(2, i);
+          blockA[ri+3] = lhs2(3, i);
+        }
+
+        ri += 4;
       }
 
-      if(PanelMode) ri += stride - depth;
+      if(PanelMode) ri += 4*(stride - offset - depth);
+      j += 4;
+    }
+
+    if (j < rows)
+    {
+      if(PanelMode) ri += offset*(rows - j);
+
+      Index i = 0;
+      for(; i + 2 <= depth; i+=2)
+      {
+        Index k = j;
+        for(; k < rows; k++)
+        {
+          blockA[ri+0] = lhs(k, i + 0);
+          blockA[ri+1] = lhs(k, i + 1);
+          ri += 2;
+        }
+      }
+      if (depth & 1)
+      {
+        for(; j < rows; j++)
+        {
+          blockA[ri] = lhs(j, i);
+          ri += 1;
+        }
+      }
     }
   }
 };

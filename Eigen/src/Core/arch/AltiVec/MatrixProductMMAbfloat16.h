@@ -18,7 +18,7 @@ EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, Packet4f& acc, const Packe
   pstoreu(result, result_block);
 }
 
-template<Index num_packets, bool zero>
+template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16(const bfloat16* indexA)
 {
   Packet8bf lhs1 = ploadu<Packet8bf>(indexA);
@@ -54,7 +54,13 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index st
 template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index strideA, Index row, Index extra_rows)
 {
-  return loadBfloat16Extra<zero>(indexA + row*strideA, strideA, extra_rows);
+  if (zero) {
+    Packet8bf lhs1 = pload_partial<Packet8bf>(indexA + row*strideA, extra_rows);
+    Packet8bf lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
+    return vec_mergeh(lhs1.m_val, lhs2.m_val);
+  } else {
+    return reinterpret_cast<Packet8us>(pload_partial<Packet4i>(reinterpret_cast<const int *>(indexA + row*strideA), extra_rows));
+  }
 }
 
 template<bool zero>
@@ -93,8 +99,8 @@ EIGEN_STRONG_INLINE void KLoop
 {
   Packet8bf lhs;
   Packet8bf rhs[num_acc];
-  if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k, strideA, row, extra_rows);
-  else lhs = loadLhsBfloat16<num_packets, zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
+  if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k*extra_rows, strideA, row, extra_rows);
+  else lhs = loadLhsBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
   BFLOAT16_UNROLL
   for(Index i = 0; i < num_acc; i++){
     if(!rhs_extra_cols)
@@ -125,7 +131,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
     }
     if(depth&1){
-      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-offset_row, indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
+      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-(offset_row&(num_packets-1)), indexB, quad_acc, strideA, strideB, offsetB, k, row, col, extra_rows, extra_cols);
     }
 
     BFLOAT16_UNROLL
@@ -193,7 +199,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   //Loop for LHS standard block (8x16)
   const Index standard_block_size = 16;
   const Index standard_blocks_quantity = rows/standard_block_size; //Number of standard blocks
-  Index bigSuffix = (2*8) * (strideA-offsetA-depth);
+  Index bigSuffix = (2*8) * (strideA-offsetA);
   const bfloat16* indexA = blockA;
   const Index offset_factor = 2;
   Index block_index;
@@ -215,11 +221,11 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       }
     }
     row += 16;
-    indexA += bigSuffix + 2*8*depth;
+    indexA += bigSuffix;
   }
   //LHS (8x8) block
-  if(rows - standard_blocks_quantity*16 >= 8){
-    indexA += 1*8*offsetA + 2*8*offsetA;
+  if(rows & 8){
+    indexA += 1*8*offsetA;
     for(Index offset_row = 0; offset_row < 8; offset_row += 4){
       col = 0;
       colLoopBody<7, 8>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result);
@@ -238,14 +244,33 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       }
     } //end extra cols
     row += 8;
+    indexA += (bigSuffix >> 1);
+  }
+  //LHS (8x4) block
+  if(rows & 4){
+    Index offset_row = (rows & 8);
+    indexA += 1*4*offsetA;
+    col = 0;
+    colLoopBody<7, 4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
+    colLoopBody<6, 4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
+    colLoopBody<5, 4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
+    colLoopBody<4, 4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
+    colLoopBody<3, 4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
+    colLoopBody<2, 4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
+    colLoopBody<1, 4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
+    if(cols > col){
+      Index extra_cols= cols-col;
+
+      colLoopBody<1, 4, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
+    }
+    row += 4;
+    indexA += (bigSuffix >> 2);
   }
   //extra rows
-  while(row < rows){
-    Index extra_rows = rows-row;
-    Index extra_rows_or_four = (extra_rows <= 4) ? extra_rows : 4;
+  if(row < rows){
+    Index extra_rows_or_four = rows-row;
 
-    //This index is the beginning of remaining block. 
-    //This last block for LHS is organized as RowMajor
+    //This index is the beginning of remaining block.
     col = 0;
     colLoopBody<7, 8, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
     colLoopBody<6, 8, false, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
