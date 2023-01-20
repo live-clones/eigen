@@ -19,7 +19,7 @@ EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, Packet4f& acc, const Packe
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16(const bfloat16* indexA)
+EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16(const bfloat16* indexA)
 {
   Packet8bf lhs1 = ploadu<Packet8bf>(indexA);
   if(zero){
@@ -55,24 +55,18 @@ template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index strideA, Index row, Index extra_rows)
 {
   if (zero) {
-    Packet8bf lhs1 = pload_partial<Packet8bf>(indexA + row*strideA, extra_rows);
+    Packet8bf lhs1 = ploadu_partial<Packet8bf>(indexA + row*strideA, extra_rows);
     Packet8bf lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
     return vec_mergeh(lhs1.m_val, lhs2.m_val);
   } else {
-    return reinterpret_cast<Packet8us>(pload_partial<Packet4i>(reinterpret_cast<const int *>(indexA + row*strideA), extra_rows));
+    return reinterpret_cast<Packet8us>(ploadu_partial<Packet4i>(reinterpret_cast<const int *>(indexA + row*strideA), extra_rows));
   }
 }
 
 template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* baseB, Index strideB, Index i, Index k)
 {
-  const bfloat16* indexB = baseB + strideB*4*i + (k*4);
-  Packet8bf rhs1 = ploadu<Packet8bf>(indexB);
-  if(zero){
-    Packet8bf rhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
-    return vec_mergeh(rhs1.m_val, rhs2.m_val);
-  }
-  return rhs1;
+  return loadBfloat16<zero>(baseB + strideB*4*i + (k*4));
 }
 
 template<bool zero>
@@ -100,7 +94,7 @@ EIGEN_STRONG_INLINE void KLoop
   Packet8bf lhs;
   Packet8bf rhs[num_acc];
   if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k*extra_rows, strideA, row, extra_rows);
-  else lhs = loadLhsBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
+  else lhs = loadBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
   BFLOAT16_UNROLL
   for(Index i = 0; i < num_acc; i++){
     if(!rhs_extra_cols)
@@ -294,8 +288,8 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       //get and save block
       PacketBlock<Packet8bf,4> block;
       for(Index j = 0; j < 4; j++){
-        Packet16uc fp16_0 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(pload<Packet4f>(result + (col + j)*rows + row)));
-        Packet16uc fp16_1 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(pload<Packet4f>(result + (col + j)*rows + row + 4)));
+        Packet16uc fp16_0 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(result + (col + j)*rows + row)));
+        Packet16uc fp16_1 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(result + (col + j)*rows + row + 4)));
         block.packet[j].m_val = vec_pack(reinterpret_cast<Packet4ui>(fp16_0), reinterpret_cast<Packet4ui>(fp16_1));
       }
 
