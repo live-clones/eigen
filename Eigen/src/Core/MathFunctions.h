@@ -19,7 +19,7 @@
 
 #include "./InternalHeaderCheck.h"
 
-#ifdef EIGEN_USE_SYCL && EIGEN_USE_ONEDPL_RANDOM
+#if defined(EIGEN_USE_ONEDPL_RANDOM)
 //need since std::rand() is not suppoerted inside SYCL kernel
 //so methods from this library are used instead
 //https://github.com/oneapi-src/oneDPL or already included in oneAPI
@@ -267,54 +267,8 @@ struct sign_impl<Scalar, true, IsInteger>
   EIGEN_DEVICE_FUNC
   static inline Scalar run(const Scalar& a)
   {
-    EIGEN_USING_STD_MATH(abs);
     using real_type = typename NumTraits<Scalar>::Real;
-    real_type aa = abs(a);
-    if (aa==real_type(0))
-      return Scalar(0);
-    aa = real_type(1)/aa;
-    return Scalar(a.real()*aa, a.imag()*aa );
-  }
-};
-
-template<typename Scalar>
-struct sign_retval
-{
-  typedef Scalar type;
-};
-
-/****************************************************************************
-* Implementation of sign                                                 *
-****************************************************************************/
-template<typename Scalar, bool IsComplex = (NumTraits<Scalar>::IsComplex!=0),
-    bool IsInteger = (NumTraits<Scalar>::IsInteger!=0)>
-struct sign_impl
-{
-  EIGEN_DEVICE_FUNC
-  static inline Scalar run(const Scalar& a)
-  {
-    return Scalar( (a>Scalar(0)) - (a<Scalar(0)) );
-  }
-};
-
-template<typename Scalar>
-struct sign_impl<Scalar, false, false>
-{
-  EIGEN_DEVICE_FUNC
-  static inline Scalar run(const Scalar& a)
-  {
-    return (std::isnan)(a) ? a : Scalar( (a>Scalar(0)) - (a<Scalar(0)) );
-  }
-};
-
-template<typename Scalar, bool IsInteger>
-struct sign_impl<Scalar, true, IsInteger>
-{
-  EIGEN_DEVICE_FUNC
-  static inline Scalar run(const Scalar& a)
-  {
     EIGEN_USING_STD_MATH(abs);
-    using real_type = typename NumTraits<Scalar>::Real;
     real_type aa = abs(a);
     if (aa==real_type(0))
       return Scalar(0);
@@ -861,12 +815,9 @@ template<typename Scalar> inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
 template<typename Scalar>
 struct random_default_impl<Scalar, false, false>
 {
-  #ifdef EIGEN_USE_SYCL
-  SYCL_EXTERNAL 
-  #endif
   static inline Scalar run(const Scalar& x, const Scalar& y)
   {
-    #ifdef EIGEN_USE_SYCL
+    #if defined(EIGEN_USE_ONEDPL_RANDOM)
     //std::rand() is not suppoerted inside SYCL kernel
     oneapi::dpl::minstd_rand engine(777, 0);
     oneapi::dpl::uniform_real_distribution<float> distr;
