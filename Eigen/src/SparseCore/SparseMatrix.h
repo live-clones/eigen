@@ -247,7 +247,8 @@ class SparseMatrix
           // implies uncompressed: push to back of vector
           innerNonZeroPtr()[outer]++;
           data().index(end) = inner;
-          return data().value(end) = Scalar(0);
+          data().value(end) = Scalar(0);
+          return data().value(end);
         }
       }
       if ((dst < end) && (data().index(dst) == inner))
@@ -332,8 +333,8 @@ class SparseMatrix
     {
       if(isCompressed())
       {
-        StorageIndex totalReserveSize = 0;
-        for (Index j = 0; j < m_outerSize; ++j) totalReserveSize += internal::convert_index<StorageIndex>(reserveSizes[j]);
+        Index totalReserveSize = 0;
+        for (Index j = 0; j < m_outerSize; ++j) totalReserveSize += internal::convert_index<Index>(reserveSizes[j]);
 
         // if reserveSizes is empty, don't do anything!
         if (totalReserveSize == 0) return;
@@ -344,12 +345,12 @@ class SparseMatrix
         // temporarily use m_innerSizes to hold the new starting points.
         StorageIndex* newOuterIndex = m_innerNonZeros;
         
-        StorageIndex count = 0;
+        Index count = 0;
         for(Index j=0; j<m_outerSize; ++j)
         {
-          newOuterIndex[j] = count;
-          StorageIndex reserveSize = internal::convert_index<StorageIndex>(reserveSizes[j]);
-          count += reserveSize + (m_outerIndex[j+1]-m_outerIndex[j]);
+          newOuterIndex[j] = internal::convert_index<StorageIndex>(count);
+          Index reserveSize = internal::convert_index<Index>(reserveSizes[j]);
+          count += reserveSize + internal::convert_index<Index>(m_outerIndex[j+1]-m_outerIndex[j]);
         }
 
         m_data.reserve(totalReserveSize);
@@ -375,16 +376,16 @@ class SparseMatrix
       {
         StorageIndex* newOuterIndex = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize + 1);
         
-        StorageIndex count = 0;
+        Index count = 0;
         for(Index j=0; j<m_outerSize; ++j)
         {
           newOuterIndex[j] = count;
-          StorageIndex alreadyReserved = (m_outerIndex[j+1]-m_outerIndex[j]) - m_innerNonZeros[j];
-          StorageIndex reserveSize = internal::convert_index<StorageIndex>(reserveSizes[j]);
-          StorageIndex toReserve = numext::maxi(reserveSize, alreadyReserved);
+          Index alreadyReserved = internal::convert_index<Index>(m_outerIndex[j+1] - m_outerIndex[j] - m_innerNonZeros[j]);
+          Index reserveSize = internal::convert_index<Index>(reserveSizes[j]);
+          Index toReserve = numext::maxi(reserveSize, alreadyReserved);
           count += toReserve + m_innerNonZeros[j];
         }
-        newOuterIndex[m_outerSize] = count;
+        newOuterIndex[m_outerSize] = internal::convert_index<StorageIndex>(count);
 
         m_data.resize(count);
         for(Index j=m_outerSize-1; j>=0; --j)
@@ -504,7 +505,8 @@ class SparseMatrix
           // implies uncompressed: push to back of vector
           innerNonZeroPtr()[j]++;
           data().index(end) = i;
-          return data().value(end) = Scalar(0);
+          data().value(end) = Scalar(0);
+          return data().value(end);
         }
       }
       eigen_assert((dst == end || data().index(dst) != i) &&
@@ -965,7 +967,8 @@ public:
 
       Index p = m_outerIndex[outer] + m_innerNonZeros[outer]++;
       m_data.index(p) = convert_index(inner);
-      return (m_data.value(p) = Scalar(0));
+      m_data.value(p) = Scalar(0);
+      return m_data.value(p);
     }
 protected:
     struct IndexPosPair {
@@ -1077,7 +1080,8 @@ protected:
                 data().moveChunk(copyBegin, to, chunkSize);
                 Index dst = to - 1;
                 data().index(dst) = StorageIndex(j);
-                assignFunc.assignCoeff(data().value(dst) = Scalar(0), diaEval.coeff(j));
+                data().value(dst) = Scalar(0);
+                assignFunc.assignCoeff(data().value(dst), diaEval.coeff(j));
                 if (!isCompressed()) innerNonZeroPtr()[j]++;
                 shift--;
                 deferredInsertions--;
@@ -1447,7 +1451,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressed(Index row, In
       // implies uncompressed: push to back of vector
       innerNonZeroPtr()[outer]++;
       data().index(end) = inner;
-      return data().value(end) = Scalar(0);
+      data().value(end) = Scalar(0);
+      return data().value(end);
     }
   }
   eigen_assert((dst == end || data().index(dst) != inner) &&
@@ -1491,8 +1496,9 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAtByOuterInner(I
   for (Index j = outer; j < outerSize(); j++) outerIndexPtr()[j + 1]++;
   // initialize the coefficient
   data().index(dst) = StorageIndex(inner);
+  data().value(dst) = Scalar(0);
   // return a reference to the coefficient
-  return data().value(dst) = Scalar(0);
+  return data().value(dst);
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
@@ -1513,7 +1519,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
         innerNonZeroPtr()[outer]++;
         for (Index j = outer; j < rightTarget; j++) outerIndexPtr()[j + 1]++;
         data().index(dst) = StorageIndex(inner);
-        return data().value(dst) = Scalar(0);
+        data().value(dst) = Scalar(0);
+        return data().value(dst);
       }
       rightTarget++;
     }
@@ -1530,7 +1537,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
         innerNonZeroPtr()[outer]++;
         for (Index j = leftTarget; j < outer; j++) outerIndexPtr()[j + 1]--;
         data().index(dst - 1) = StorageIndex(inner);
-        return data().value(dst - 1) = Scalar(0);
+        data().value(dst - 1) = Scalar(0);
+        return data().value(dst - 1);
       }
       leftTarget--;
     }
@@ -1569,7 +1577,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
   if (chunkSize > 0) data().moveChunk(new_dst, new_dst + 1, chunkSize);
   innerNonZeroPtr()[outer]++;
   data().index(new_dst) = StorageIndex(inner);
-  return data().value(new_dst) = Scalar(0);
+  data().value(new_dst) = Scalar(0);
+  return data().value(new_dst);
 }
 
 namespace internal {
