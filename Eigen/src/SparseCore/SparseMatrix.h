@@ -249,7 +249,6 @@ class SparseMatrix
           m_data.index(end) = inner;
           m_data.value(end) = Scalar(0);
           return m_data.value(end);
-          insertBackUncompressed
         }
       }
       if ((dst < end) && (m_data.index(dst) == inner))
@@ -1132,7 +1131,7 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   // allocate temporary storage for nonzero insertion (outer size) and duplicate removal (inner size)
   ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, numext::maxi(mat.innerSize(), mat.outerSize()), 0);
   // scan triplets to determine allocation size before constructing matrix
-  IndexMap outerIndexMap(mat.m_outerIndex, mat.outerSize() + 1);
+  IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
     StorageIndex j = IsRowMajor ? it->row() : it->col();
@@ -1141,7 +1140,7 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
 
   // finalize outer indices and allocate memory
   std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-  Index nonZeros = mat.m_outerIndex[mat.outerSize()];
+  Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
   mat.resizeNonZeros(nonZeros);
 
   // use tmp to track nonzero insertions
@@ -1179,7 +1178,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   StorageIndex previous_j = kEmptyIndexValue;
   StorageIndex previous_i = kEmptyIndexValue;
   // scan triplets to determine allocation size before constructing matrix
-  IndexMap outerIndexMap(mat.m_outerIndex, mat.outerSize() + 1);
+  IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
     StorageIndex j = IsRowMajor ? it->row() : it->col();
@@ -1194,7 +1193,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   
   // finalize outer indices and allocate memory
   std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-  Index nonZeros = mat.m_outerIndex[mat.outerSize()];
+  Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
   mat.resizeNonZeros(nonZeros);
 
   previous_i = kEmptyIndexValue;
