@@ -18,7 +18,7 @@ This is a short guide on how to incorporate Eigen into to your own project with 
 
 The following is an easy and minimal example to get you started with CMake and Eigen. An explanation of the CMake commands used in this example can be found in the section afterwards. 
 
-Note that this is not neccessarily the best way to use Eigen with CMake. However, this is a good starting point for people that are new to CMake and Eigen. A slightly advanced example that makes use of Eigen's native CMake support can be found in the *An Advanced Example* section.
+<!-- Note that this is not neccessarily the best way to use Eigen with CMake. However, this is a good starting point for people that are new to CMake and Eigen. A slightly advanced example that makes use of Eigen's native CMake support can be found in the *An Advanced Example* section. -->
 
 In order to follow this example, create a folder *myproject* (you can actually name it however you want) and place the eigen header files there.
 
@@ -134,7 +134,7 @@ This section provides an explanation of the commands that we used in our small C
 4. add_executable (example example.cpp)
     - This command tells CMake to create an executable (named *example*) using the specified source code files.
 
-## An Advanced Example
+<!-- ## An Advanced Example
 
-Eigen provides native CMake support, by exporting a CMake target called Eigen3::Eigen. This CMake target can be imported via the *find_package* CMake command and used by calling *target_link_libraries*. Th
+Eigen provides native CMake support, by exporting a CMake target called Eigen3::Eigen. This CMake target can be imported via the *find_package* CMake command and used by calling *target_link_libraries*. Th -->
 
