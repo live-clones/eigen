@@ -61,7 +61,7 @@
 
 /// \internal EIGEN_COMP_GNUC set to version (e.g., 951 for GCC 9.5.1) for all compilers compatible with GCC
 #ifdef __GNUC__
-  #define EIGEN_COMP_GNUC (__GNUC__*100+__GNUC_MINOR__*10+__GNUC_PATCH__)
+  #define EIGEN_COMP_GNUC (__GNUC__*100+__GNUC_MINOR__*10+__GNUC_PATCHLEVEL__)
 #else
   #define EIGEN_COMP_GNUC 0
 #endif
@@ -262,10 +262,10 @@
 #if EIGEN_COMP_GNUC_STRICT
   #define EIGEN_GNUC_STRICT_AT_LEAST(x,y,z)  ((__GNUC__ > x) || \
                                               (__GNUC__ == x && __GNUC_MINOR__ > y) || \
-                                              (__GNUC__ == x && __GNUC_MINOR__ == y && __GNUC_PATCH__ >= z))
+                                              (__GNUC__ == x && __GNUC_MINOR__ == y && __GNUC_PATCHLEVEL__ >= z))
   #define EIGEN_GNUC_STRICT_LESS_THAN(x,y,z) ((__GNUC__ < x) || \
                                               (__GNUC__ == x && __GNUC_MINOR__ < y) || \
-                                              (__GNUC__ == x && __GNUC_MINOR__ == y && __GNUC_PATCH__ < z))
+                                              (__GNUC__ == x && __GNUC_MINOR__ == y && __GNUC_PATCHLEVEL__ < z))
 #else
   #define EIGEN_GNUC_STRICT_AT_LEAST(x,y,z)  0
   #define EIGEN_GNUC_STRICT_LESS_THAN(x,y,z) 0
