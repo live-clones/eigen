@@ -1227,18 +1227,29 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
       if(PanelMode) ri += 4*(stride - offset - depth);
     }
 
-    if(PanelMode) ri += offset;
-
-    for(; j < cols; j++)
+    if (j < cols)
     {
-      const DataMapper rhs2 = rhs.getSubMapper(0, j);
-      for(Index i = 0; i < depth; i++)
-      {
-        blockB[ri] = rhs2(i, 0);
-        ri += 1;
-      }
+      if(PanelMode) ri += offset*(cols - j);
 
-      if(PanelMode) ri += stride - depth;
+      Index i = 0;
+      for(; i + 2 <= depth; i+=2)
+      {
+        Index k = j;
+        for(; k < cols; k++)
+        {
+          blockB[ri+0] = rhs(i + 0, k);
+          blockB[ri+1] = rhs(i + 1, k);
+          ri += 2;
+        }
+      }
+      if (depth & 1)
+      {
+        for(; j < cols; j++)
+        {
+          blockB[ri] = rhs(i, j);
+          ri += 1;
+        }
+      }
     }
   }
 };
@@ -2726,6 +2737,7 @@ void gemm_pack_rhs<double, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode
 #endif
 
 #ifdef __MMA__
+#if EIGEN_ALTIVEC_USE_CUSTOM_PACK
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<bfloat16, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
 {
@@ -2753,6 +2765,7 @@ void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
   dhs_pack<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
+#endif
 
 template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
 struct gemm_pack_lhs<bfloat16, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>

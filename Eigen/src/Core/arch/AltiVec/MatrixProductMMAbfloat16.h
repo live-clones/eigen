@@ -31,36 +31,21 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16(const bfloat16* indexA)
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index strideA, Index extra_rows)
+EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index extra_rows)
 {
-  Index row_count = 0;
   if (zero) {
-    EIGEN_ALIGN16 bfloat16 lhs_array[8] = { Eigen::bfloat16(0) };
-    do{
-      lhs_array[row_count] = *indexA;
-      indexA += strideA;
-    } while ((row_count += 2) < extra_rows*2);
-    return pload_partial<Packet8bf>(lhs_array, extra_rows*2);
+    Packet8bf lhs1 = ploadu_partial<Packet8bf>(indexA, extra_rows);
+    Packet8bf lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
+    return vec_mergeh(lhs1.m_val, lhs2.m_val);
   } else {
-    EIGEN_ALIGN16 int lhs_array[4];
-    do{
-      lhs_array[row_count] = *reinterpret_cast<const int *>(indexA);
-      indexA += strideA;
-    } while ((row_count += 1) < extra_rows);
-    return reinterpret_cast<Packet8us>(pload_partial<Packet4i>(lhs_array, extra_rows));
+    return reinterpret_cast<Packet8us>(ploadu_partial<Packet4i>(reinterpret_cast<const int *>(indexA), extra_rows));
   }
 }
 
 template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index strideA, Index row, Index extra_rows)
 {
-  if (zero) {
-    Packet8bf lhs1 = ploadu_partial<Packet8bf>(indexA + row*strideA, extra_rows);
-    Packet8bf lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
-    return vec_mergeh(lhs1.m_val, lhs2.m_val);
-  } else {
-    return reinterpret_cast<Packet8us>(ploadu_partial<Packet4i>(reinterpret_cast<const int *>(indexA + row*strideA), extra_rows));
-  }
+  return loadBfloat16Extra<zero>(indexA + row*strideA, extra_rows);
 }
 
 template<bool zero>
@@ -72,7 +57,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* baseB, Index strid
 template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, Index strideB, Index offsetB, Index col, Index i, Index k, Index extra_cols)
 {
-  return loadBfloat16Extra<zero>(blockB + ((col+4*i)*strideB)+k+offsetB, strideB, extra_cols);
+  return loadBfloat16Extra<zero>(blockB + ((col+4*i)*strideB)+k*extra_cols+offsetB, extra_cols);
 }
 
 template<Index num_acc, Index num_packets, bool zero, bool rhs_extra_cols, bool lhs_extra_rows>
@@ -174,8 +159,10 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   typedef typename DataMapper::LinearMapper LinearMapper;
   for(Index j = 0; j < cols; j++){
     const LinearMapper res2 = res.getLinearMapper(0, j);
+    float *result2 = result + j*rows;
+    BFLOAT16_UNROLL
     for(Index i = 0; i < rows; i++){
-      result[j*rows + i] = res2(i);
+      result2[i] = res2(i);
     }
   }
 
@@ -185,10 +172,11 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   if( strideA == -1 ) strideA = depth;
   if( strideB == -1 ) strideB = depth;
   //Packing is done in blocks.
-  //There's 3 possible sizes of blocks
-  //Blocks of 8 columns with 16 elements (8x16) as col major
-  //Blocks of 8 columns with 8 elements (8x8) as col major. This happens when there's 16 > rows > 8 
-  //Blocks of 8 columns with <8 elements as row major. This happens when there's less than 8 remaining rows
+  //There's 4 possible sizes of blocks
+  //Blocks of 8 columns with 16 elements (8x16)
+  //Blocks of 8 columns with 8 elements (8x8). This happens when there's 16 > rows >= 8
+  //Blocks of 8 columns with 4 elements (8x4). This happens when there's 8 > rows >= 4
+  //Blocks of 8 columns with < 4 elements. This happens when there's less than 4 remaining rows
 
   //Loop for LHS standard block (8x16)
   const Index standard_block_size = 16;
