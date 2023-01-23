@@ -15,7 +15,6 @@
 
 template <typename MatrixType>
 void cod() {
-  STATIC_CHECK(( internal::is_same<typename CompleteOrthogonalDecomposition<MatrixType>::StorageIndex,int>::value ));
 
   Index rows = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
   Index cols = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
@@ -99,8 +98,6 @@ void cod_fixedsize() {
 template<typename MatrixType> void qr()
 {
   using std::sqrt;
-
-  STATIC_CHECK(( internal::is_same<typename ColPivHouseholderQR<MatrixType>::StorageIndex,int>::value ));
 
   Index rows = internal::random<Index>(2,EIGEN_TEST_MAX_SIZE), cols = internal::random<Index>(2,EIGEN_TEST_MAX_SIZE), cols2 = internal::random<Index>(2,EIGEN_TEST_MAX_SIZE);
   Index rank = internal::random<Index>(1, (std::min)(rows, cols)-1);

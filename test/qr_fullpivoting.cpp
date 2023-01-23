@@ -14,7 +14,6 @@
 
 template<typename MatrixType> void qr()
 {
-  STATIC_CHECK(( internal::is_same<typename FullPivHouseholderQR<MatrixType>::StorageIndex,int>::value ));
 
   static const int Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime;
   Index max_size = EIGEN_TEST_MAX_SIZE;
