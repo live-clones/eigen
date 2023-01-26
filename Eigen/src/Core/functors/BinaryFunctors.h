@@ -516,24 +516,25 @@ struct functor_traits<scalar_absolute_difference_op<LhsScalar,RhsScalar> > {
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_atan2_op {
   using Scalar = LhsScalar;
-  template <typename T>
-  using ReturnType = std::enable_if_t<
-      is_same<LhsScalar, RhsScalar>::value && !NumTraits<Scalar>::IsInteger && !NumTraits<Scalar>::IsComplex, T>;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ReturnType<Scalar> operator()(const Scalar& y, const Scalar& x) const {
+  static constexpr bool Enable = is_same<LhsScalar, RhsScalar>::value && !NumTraits<Scalar>::IsInteger && !NumTraits<Scalar>::IsComplex;
+
+  template<std::enable_if_t<Enable, int> = 0>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& y, const Scalar& x) const {
     return numext::atan2(y, x);
   }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ReturnType<Packet> packetOp(const Packet& y, const Packet& x) const {
+  template <typename Packet, std::enable_if_t<Enable, int> = 0>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& y, const Packet& x) const {
     return internal::patan2(y, x);
   }
 };
 
 template<typename LhsScalar,typename RhsScalar>
     struct functor_traits<scalar_atan2_op<LhsScalar, RhsScalar>> {
+  using Scalar = LhsScalar;
   enum {
-    PacketAccess = is_same<LhsScalar,RhsScalar>::value && packet_traits<LhsScalar>::HasATan && packet_traits<LhsScalar>::HasDiv && !NumTraits<LhsScalar>::IsInteger && !NumTraits<LhsScalar>::IsComplex,
-    Cost = scalar_div_cost<LhsScalar, PacketAccess>::value + functor_traits<scalar_atan_op<LhsScalar>>::Cost
+    PacketAccess = is_same<LhsScalar,RhsScalar>::value && packet_traits<Scalar>::HasATan && packet_traits<Scalar>::HasDiv && !NumTraits<Scalar>::IsInteger && !NumTraits<Scalar>::IsComplex,
+    Cost = scalar_div_cost<Scalar, PacketAccess>::value + functor_traits<scalar_atan_op<Scalar>>::Cost
   };
 };
 

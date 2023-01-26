@@ -1243,7 +1243,6 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan2(const Packet&
   const Packet abs_x = pabs(x);
   const Packet x_is_zero = pcmp_eq(abs_x, kZero);
   const Packet x_is_inf = pcmp_eq(abs_x, kInf);
-  const Packet x_signmask = pand(x, kSignMask);
   const Packet x_has_signbit = psignbit(x);
 
   const Packet abs_y = pabs(y);
@@ -1251,18 +1250,17 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan2(const Packet&
   const Packet y_is_inf = pcmp_eq(abs_y, kInf);
   const Packet y_signmask = pand(y, kSignMask);
 
-  const Packet arg_signmask = pxor(y_signmask, x_signmask);
+  const Packet arg_signmask = pand(pxor(x, y), kSignMask);
   const Packet shift = pxor(pand(x_has_signbit, kPi), y_signmask);
 
   // bend two rules:
   // 1) 0 / 0 == 0
-  // 2) inf / inf == 0
-  // otherwise, evaluate atan(y/x) as usual and shift to appropriate quadrant
+  // 2) inf / inf == 1
+  // otherwise, evaluate atan(y/x) as usual and shift to the appropriate quadrant
 
-  Packet arg = pdiv(abs_y, abs_x);
-  arg = pselect(pand(y_is_zero, x_is_zero), kZero, arg);
-  arg = pselect(pand(y_is_inf, x_is_inf), kOne, arg);
-  arg = pxor(arg, arg_signmask);
+  Packet arg = pdiv(y, x);
+  arg = pselect(pand(x_is_zero, y_is_zero), pxor(kZero, arg_signmask), arg);
+  arg = pselect(pand(x_is_inf, y_is_inf), pxor(kOne, arg_signmask), arg);
 
   Packet result = patan(arg);
   result = padd(result, shift);

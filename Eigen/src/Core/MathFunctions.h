@@ -1734,9 +1734,8 @@ T atan(const T &x) {
   return static_cast<T>(atan(x));
 }
 
-template<typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-T atan2(const T& y, const T& x) {
+template <typename T, std::enable_if_t<!NumTraits<T>::IsComplex, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T atan2(const T& y, const T& x) {
   EIGEN_USING_STD(atan2);
   return static_cast<T>(atan2(y, x));
 }
