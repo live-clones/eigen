@@ -1736,6 +1736,13 @@ T atan(const T &x) {
 
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
+T atan2(const T& y, const T& x) {
+  EIGEN_USING_STD(atan2);
+  return static_cast<T>(atan2(y, x));
+}
+
+template<typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T atanh(const T &x) {
   EIGEN_USING_STD(atanh);
   return static_cast<T>(atanh(x));
