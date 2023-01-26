@@ -518,12 +518,12 @@ struct scalar_atan2_op {
   using Scalar = LhsScalar;
 
   static constexpr bool Enable = is_same<LhsScalar, RhsScalar>::value && !NumTraits<Scalar>::IsInteger && !NumTraits<Scalar>::IsComplex;
+  EIGEN_STATIC_ASSERT(Enable, "LhsScalar and RhsScalar must be the same non-integer, non-complex type")
 
-  template<std::enable_if_t<Enable, int> = 0>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& y, const Scalar& x) const {
     return numext::atan2(y, x);
   }
-  template <typename Packet, std::enable_if_t<Enable, int> = 0>
+  template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& y, const Packet& x) const {
     return internal::patan2(y, x);
   }
