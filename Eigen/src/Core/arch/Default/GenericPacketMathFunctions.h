@@ -1760,7 +1760,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
   const Packet abs_x = pabs(x);
   // Predicates for sign and magnitude of x.
   const Packet abs_x_is_zero = pcmp_eq(abs_x, cst_zero);
-  const Packet x_has_signbit = pcmp_eq(por(pand(x, cst_neg_inf), cst_pos_inf), cst_neg_inf);
+  const Packet x_has_signbit = psignbit(x);
   const Packet x_is_neg = pandnot(x_has_signbit, abs_x_is_zero);
   const Packet x_is_neg_zero = pand(x_has_signbit, abs_x_is_zero);
   const Packet abs_x_is_inf = pcmp_eq(abs_x, cst_pos_inf);
@@ -2031,7 +2031,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_int_errors(con
   const Packet abs_x_is_one = pcmp_eq(abs_x, cst_pos_one);
   const Packet abs_x_is_inf = pcmp_eq(abs_x, cst_pos_inf);
 
-  const Packet x_has_signbit = pcmp_eq(por(pand(x, cst_neg_inf), cst_pos_inf), cst_neg_inf);
+  const Packet x_has_signbit = psignbit(x);
   const Packet x_is_neg = pandnot(x_has_signbit, abs_x_is_zero);
   const Packet x_is_neg_zero = pand(x_has_signbit, abs_x_is_zero);
 
@@ -2096,7 +2096,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
   const Packet abs_x_is_one = pcmp_eq(abs_x, cst_pos_one);
   const Packet abs_x_is_inf = pcmp_eq(abs_x, cst_pos_inf);
 
-  const Packet x_has_signbit = pcmp_eq(por(pand(x, cst_neg_inf), cst_pos_inf), cst_neg_inf);
+  const Packet x_has_signbit = psignbit(x);
   const Packet x_is_neg = pandnot(x_has_signbit, abs_x_is_zero);
 
   if (exponent_is_nan) {
