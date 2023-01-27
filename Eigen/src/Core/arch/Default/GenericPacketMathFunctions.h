@@ -740,8 +740,7 @@ Packet pacos_float(const Packet& x_in) {
   // function, by a 6'th order polynomial.
   // For x in [-1:0) we use that acos(-x) = pi - acos(x).
   const Packet neg_mask = psignbit(x_in);
-  Packet x = pabs(x_in);
-  const Packet invalid_mask = pcmp_lt(pset1<Packet>(1.0f), x);
+  const Packet abs_x = pabs(x_in);
 
   // Evaluate the polynomial using Horner's rule:
   //   P(x) = p0 + x * (p1 +  x * (p2 + ... (p5 + x * p6)) ... ) .
@@ -753,14 +752,13 @@ Packet pacos_float(const Packet& x_in) {
   p_even = pmadd(p_even, x2, p2);
   p_odd = pmadd(p_odd, x2, p1);
   p_even = pmadd(p_even, x2, p0);
-  Packet p = pmadd(p_odd, x, p_even);
+  Packet p = pmadd(p_odd, abs_x, p_even);
 
   // The polynomial approximates acos(x)/sqrt(1-x), so
   // multiply by sqrt(1-x) to get acos(x).
   // Conveniently returns NaN for arguments outside [-1:1].
-  Packet denom = psqrt(psub(cst_one, x));
+  Packet denom = psqrt(psub(cst_one, abs_x));
   Packet result = pmul(denom, p);
-
   // Undo mapping for negative arguments.
   return pselect(neg_mask, psub(cst_pi, result), result);
 }
