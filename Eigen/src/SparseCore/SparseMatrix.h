@@ -528,8 +528,8 @@ class SparseMatrix
       Index copyTarget = m_innerNonZeros[0];
       for (Index j = 1; j < m_outerSize; j++)
       {
-        Index end = start + m_innerNonZeros[j];
-        Index nextStart = m_outerIndex[j + 1];
+        StorageIndex end = start + m_innerNonZeros[j];
+        StorageIndex nextStart = m_outerIndex[j + 1];
         // dont forget to move the last chunk!
         bool breakUpCopy = (end != nextStart) || (j == m_outerSize - 1);
         if (breakUpCopy)
