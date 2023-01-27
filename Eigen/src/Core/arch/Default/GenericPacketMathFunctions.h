@@ -856,7 +856,8 @@ Packet patan_float(const Packet& x_in) {
 
   const Packet kSignMask = pset1<Packet>(-0.0f);
   const Packet cst_one = pset1<Packet>(1.0f);
-  const Packet cst_PiO2 = pset1<Packet>(float(EIGEN_PI / 2));
+  constexpr float kPiOverTwo = static_cast<float>(EIGEN_PI / 2);
+  const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
 
   //   "Large": For |x| > 1, use atan(1/x) = sign(x)*pi/2 - atan(x).
   //   "Small": For |x| <= 1, approximate atan(x) directly by a polynomial
@@ -868,7 +869,7 @@ Packet patan_float(const Packet& x_in) {
   const Packet x = pselect(large_mask, preciprocal(abs_x), abs_x);
   const Packet p = patan_reduced_float(x);
   // Apply transformations according to the range reduction masks.
-  Packet result = pselect(large_mask, psub(cst_PiO2, p), p);
+  Packet result = pselect(large_mask, psub(cst_pi_over_two, p), p);
   // Return correct sign
   return pxor(result, x_signmask);
 }
@@ -925,7 +926,7 @@ Packet patan_double(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
 
-  const Packet kSignMask = pset1<Packet>(-0.0f);
+  const Packet kSignMask = pset1<Packet>(-0.0);
   const Packet cst_one = pset1<Packet>(1.0);
   constexpr double kPiOverTwo = static_cast<double>(EIGEN_PI / 2);
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
