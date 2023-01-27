@@ -1258,12 +1258,11 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet patan2(const Packet& y, const Packe
   // 2) inf / inf == 1
   // otherwise, evaluate atan(y/x) as usual and shift to the appropriate quadrant
 
-  Packet arg = pdiv(abs_y, abs_x);
-  arg = pselect(pand(x_is_zero, y_is_zero), kZero, arg);
-  arg = pselect(pand(x_is_inf, y_is_inf), kOne, arg);
+  Packet arg = pdiv(y, x);
+  arg = pselect(pand(x_is_zero, y_is_zero), pxor(kZero, arg_signmask), arg);
+  arg = pselect(pand(x_is_inf, y_is_inf), pxor(kOne, arg_signmask), arg);
 
   Packet result = patan(arg);
-  result = pxor(result, arg_signmask);
   result = padd(result, shift);
 
   return result;

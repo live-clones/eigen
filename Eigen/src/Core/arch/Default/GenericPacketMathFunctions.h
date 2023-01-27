@@ -834,6 +834,8 @@ Packet patan_reduced_float(const Packet& x) {
   // We evaluate even and odd terms in x^2 in parallel
   // to take advantage of instruction level parallelism
   // and hardware with multiple FMA units.
+
+  // note: if x == -0, this returns +0
   const Packet x2 = pmul(x, x);
   const Packet x4 = pmul(x2, x2);
   Packet q_odd = pmadd(q14, x4, q10);
@@ -852,20 +854,23 @@ Packet patan_float(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
+  const Packet kSignMask = pset1<Packet>(-0.0f);
   const Packet cst_one = pset1<Packet>(1.0f);
-  constexpr float kPiOverTwo = static_cast<float>(EIGEN_PI/2);
+  const Packet cst_PiO2 = pset1<Packet>(float(EIGEN_PI / 2));
 
   //   "Large": For |x| > 1, use atan(1/x) = sign(x)*pi/2 - atan(x).
   //   "Small": For |x| <= 1, approximate atan(x) directly by a polynomial
   //            calculated using Sollya.
-  const Packet neg_mask = pcmp_lt(x_in, pzero(x_in));
-  const Packet large_mask = pcmp_lt(cst_one, pabs(x_in));
-  const Packet large_shift = pselect(neg_mask, pset1<Packet>(-kPiOverTwo), pset1<Packet>(kPiOverTwo));
-  const Packet x = pselect(large_mask, preciprocal(x_in), x_in);
+
+  const Packet abs_x = pabs(x_in);
+  const Packet x_signmask = pand(x_in, kSignMask);
+  const Packet large_mask = pcmp_lt(cst_one, abs_x);
+  const Packet x = pselect(large_mask, preciprocal(abs_x), abs_x);
   const Packet p = patan_reduced_float(x);
-  
   // Apply transformations according to the range reduction masks.
-  return pselect(large_mask, psub(large_shift, p), p);
+  Packet result = pselect(large_mask, psub(cst_PiO2, p), p);
+  // Return correct sign
+  return pxor(result, x_signmask);
 }
 
 // Computes elementwise atan(x) for x in [-tan(pi/8):tan(pi/8)]
@@ -920,6 +925,7 @@ Packet patan_double(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
 
+  const Packet kSignMask = pset1<Packet>(-0.0f);
   const Packet cst_one = pset1<Packet>(1.0);
   constexpr double kPiOverTwo = static_cast<double>(EIGEN_PI / 2);
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
@@ -928,8 +934,9 @@ Packet patan_double(const Packet& x_in) {
   const Packet cst_large = pset1<Packet>(2.4142135623730950488016887);  // tan(3*pi/8);
   const Packet cst_medium = pset1<Packet>(0.4142135623730950488016887);  // tan(pi/8);
 
-  const Packet neg_mask = pcmp_lt(x_in, pzero(x_in));
-  Packet x = pabs(x_in);
+  //const Packet neg_mask = pcmp_lt(x_in, pzero(x_in));
+  Packet abs_x = pabs(x_in);
+  const Packet x_signmask = pand(x_in, kSignMask);
 
   // Use the same range reduction strategy (to [0:tan(pi/8)]) as the
   // Cephes library:
@@ -938,19 +945,20 @@ Packet patan_double(const Packet& x_in) {
   //             use atan(x) = pi/4 + atan((x-1)/(x+1)).
   //   "Small": For x < tan(pi/8), approximate atan(x) directly by a polynomial
   //            calculated using Sollya.
-  const Packet large_mask = pcmp_lt(cst_large, x);
-  x = pselect(large_mask, preciprocal(x), x);
-  const Packet medium_mask = pandnot(pcmp_lt(cst_medium, x), large_mask);
-  x = pselect(medium_mask, pdiv(psub(x, cst_one), padd(x, cst_one)), x);
+  const Packet large_mask = pcmp_lt(cst_large, abs_x);
+  abs_x = pselect(large_mask, preciprocal(abs_x), abs_x);
+  const Packet medium_mask = pandnot(pcmp_lt(cst_medium, abs_x), large_mask);
+  abs_x = pselect(medium_mask, pdiv(psub(abs_x, cst_one), padd(abs_x, cst_one)), abs_x);
 
   // Compute approximation of p ~= atan(x') where x' is the argument reduced to
   // [0:tan(pi/8)].
-  Packet p = patan_reduced_double(x);
+  Packet p = patan_reduced_double(abs_x);
 
   // Apply transformations according to the range reduction masks.
   p = pselect(large_mask, psub(cst_pi_over_two, p), p);
   p = pselect(medium_mask, padd(cst_pi_over_four, p), p);
-  return pselect(neg_mask, pnegate(p), p);
+  // Return the correct sign
+  return pxor(p, x_signmask);
 }
 
 template<typename Packet>
