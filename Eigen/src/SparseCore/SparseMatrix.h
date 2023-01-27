@@ -672,29 +672,15 @@ class SparseMatrix
       m_innerSize = IsRowMajor ? cols : rows;
       m_data.clear();
 
-      if (m_innerNonZeros)
-      {
+      // this allocates a size-1 buffer if outerSize == 0. Very difficult to handle otherwise
+      if (m_outerSize != outerSize) {
+        m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(m_outerIndex, outerSize + 1, m_outerSize + 1);
+        m_outerSize = outerSize;
+      }
+
+      if (m_innerNonZeros) {
         internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
         m_innerNonZeros = 0;
-      }
-
-      if (outerSize == 0)
-      {
-        // don't allocate memory if outerSize == 0 !
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_outerIndex, m_outerSize + 1);
-        m_outerIndex = 0;
-        m_outerSize = 0;
-        return;
-      }
-
-      if (m_outerSize != outerSize)
-      {
-        if (m_outerIndex == 0)
-          m_outerIndex = internal::conditional_aligned_new_auto<StorageIndex, true>(outerSize + 1);
-        else
-          m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(m_outerIndex, outerSize + 1,
-                                                                                            m_outerSize + 1);
-        m_outerSize = outerSize;
       }
 
       std::fill_n(m_outerIndex, m_outerSize + 1, StorageIndex(0));
