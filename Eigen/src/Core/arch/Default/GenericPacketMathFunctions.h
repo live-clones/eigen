@@ -728,13 +728,13 @@ Packet pacos_float(const Packet& x_in) {
 
   const Packet cst_one = pset1<Packet>(Scalar(1));
   const Packet cst_pi = pset1<Packet>(Scalar(EIGEN_PI));
-  const Packet p6 = pset1<Packet>(Scalar(2.26911413483321666717529296875e-3));
-  const Packet p5 = pset1<Packet>(Scalar(-1.1063250713050365447998046875e-2));
-  const Packet p4 = pset1<Packet>(Scalar(2.680264413356781005859375e-2));
-  const Packet p3 = pset1<Packet>(Scalar(-4.87488098442554473876953125e-2));
-  const Packet p2 = pset1<Packet>(Scalar(8.874166011810302734375e-2));
-  const Packet p1 = pset1<Packet>(Scalar(-0.2145837843418121337890625));
-  const Packet p0 = pset1<Packet>(Scalar(1.57079613208770751953125)); // not quite Pi/2!
+  const Packet p6 = pset1<Packet>(Scalar(2.36423197202384471893310546875e-3));
+  const Packet p5 = pset1<Packet>(Scalar(-1.1368644423782825469970703125e-2));
+  const Packet p4 = pset1<Packet>(Scalar(2.717843465507030487060546875e-2));
+  const Packet p3 = pset1<Packet>(Scalar(-4.8969544470310211181640625e-2));
+  const Packet p2 = pset1<Packet>(Scalar(8.8804088532924652099609375e-2));
+  const Packet p1 = pset1<Packet>(Scalar(-0.214591205120086669921875));
+  const Packet p0 = pset1<Packet>(Scalar(1.57079637050628662109375));
 
   // For x in [0:1], we approximate acos(x)/sqrt(1-x), which is a smooth
   // function, by a 6'th order polynomial.
