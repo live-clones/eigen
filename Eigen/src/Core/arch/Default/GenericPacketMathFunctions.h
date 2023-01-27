@@ -854,9 +854,10 @@ Packet patan_float(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
+  constexpr float kPiOverTwo = static_cast<float>(EIGEN_PI / 2);
+
   const Packet cst_signmask = pset1<Packet>(-0.0f);
   const Packet cst_one = pset1<Packet>(1.0f);
-  constexpr float kPiOverTwo = static_cast<float>(EIGEN_PI / 2);
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
 
   //   "Large": For |x| > 1, use atan(1/x) = sign(x)*pi/2 - atan(x).
@@ -926,18 +927,17 @@ Packet patan_double(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
 
+  constexpr double kPiOverTwo = static_cast<double>(EIGEN_PI / 2);
+  constexpr double kPiOverFour = static_cast<double>(EIGEN_PI / 4);
+  constexpr double kTanPiOverEight = 0.4142135623730950488016887;
+  constexpr double kTan3PiOverEight = 2.4142135623730950488016887;
+
   const Packet cst_signmask = pset1<Packet>(-0.0);
   const Packet cst_one = pset1<Packet>(1.0);
-  constexpr double kPiOverTwo = static_cast<double>(EIGEN_PI / 2);
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
-  constexpr double kPiOverFour = static_cast<double>(EIGEN_PI / 4);
   const Packet cst_pi_over_four = pset1<Packet>(kPiOverFour);
-  const Packet cst_large = pset1<Packet>(2.4142135623730950488016887);  // tan(3*pi/8);
-  const Packet cst_medium = pset1<Packet>(0.4142135623730950488016887);  // tan(pi/8);
-
-  //const Packet neg_mask = pcmp_lt(x_in, pzero(x_in));
-  Packet abs_x = pabs(x_in);
-  const Packet x_signmask = pand(x_in, cst_signmask);
+  const Packet cst_large = pset1<Packet>(kTan3PiOverEight);
+  const Packet cst_medium = pset1<Packet>(kTanPiOverEight);
 
   // Use the same range reduction strategy (to [0:tan(pi/8)]) as the
   // Cephes library:
@@ -946,14 +946,19 @@ Packet patan_double(const Packet& x_in) {
   //             use atan(x) = pi/4 + atan((x-1)/(x+1)).
   //   "Small": For x < tan(pi/8), approximate atan(x) directly by a polynomial
   //            calculated using Sollya.
+
+  const Packet abs_x = pabs(x_in);
+  const Packet x_signmask = pand(x_in, cst_signmask);
   const Packet large_mask = pcmp_lt(cst_large, abs_x);
-  abs_x = pselect(large_mask, preciprocal(abs_x), abs_x);
   const Packet medium_mask = pandnot(pcmp_lt(cst_medium, abs_x), large_mask);
-  abs_x = pselect(medium_mask, pdiv(psub(abs_x, cst_one), padd(abs_x, cst_one)), abs_x);
+
+  Packet x = abs_x;
+  x = pselect(large_mask, preciprocal(abs_x), x);
+  x = pselect(medium_mask, pdiv(psub(abs_x, cst_one), padd(abs_x, cst_one)), x);
 
   // Compute approximation of p ~= atan(x') where x' is the argument reduced to
   // [0:tan(pi/8)].
-  Packet p = patan_reduced_double(abs_x);
+  Packet p = patan_reduced_double(x);
 
   // Apply transformations according to the range reduction masks.
   p = pselect(large_mask, psub(cst_pi_over_two, p), p);
