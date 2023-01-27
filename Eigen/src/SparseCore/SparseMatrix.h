@@ -705,7 +705,7 @@ class SparseMatrix
 
     /** Default constructor yielding an empty \c 0 \c x \c 0 matrix */
     inline SparseMatrix()
-      : m_outerSize(-1), m_innerSize(0), m_outerIndex(0), m_innerNonZeros(0)
+      : m_outerSize(0), m_innerSize(0), m_outerIndex(0), m_innerNonZeros(0)
     {
       resize(0, 0);
     }
