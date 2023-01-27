@@ -854,7 +854,7 @@ Packet patan_float(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
-  const Packet kSignMask = pset1<Packet>(-0.0f);
+  const Packet cst_signmask = pset1<Packet>(-0.0f);
   const Packet cst_one = pset1<Packet>(1.0f);
   constexpr float kPiOverTwo = static_cast<float>(EIGEN_PI / 2);
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
@@ -864,7 +864,7 @@ Packet patan_float(const Packet& x_in) {
   //            calculated using Sollya.
 
   const Packet abs_x = pabs(x_in);
-  const Packet x_signmask = pand(x_in, kSignMask);
+  const Packet x_signmask = pand(x_in, cst_signmask);
   const Packet large_mask = pcmp_lt(cst_one, abs_x);
   const Packet x = pselect(large_mask, preciprocal(abs_x), abs_x);
   const Packet p = patan_reduced_float(x);
@@ -926,7 +926,7 @@ Packet patan_double(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
 
-  const Packet kSignMask = pset1<Packet>(-0.0);
+  const Packet cst_signmask = pset1<Packet>(-0.0);
   const Packet cst_one = pset1<Packet>(1.0);
   constexpr double kPiOverTwo = static_cast<double>(EIGEN_PI / 2);
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
@@ -937,7 +937,7 @@ Packet patan_double(const Packet& x_in) {
 
   //const Packet neg_mask = pcmp_lt(x_in, pzero(x_in));
   Packet abs_x = pabs(x_in);
-  const Packet x_signmask = pand(x_in, kSignMask);
+  const Packet x_signmask = pand(x_in, cst_signmask);
 
   // Use the same range reduction strategy (to [0:tan(pi/8)]) as the
   // Cephes library:
