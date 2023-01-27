@@ -62,10 +62,10 @@ class SparseCompressedBase
     {
       if(Derived::IsVectorAtCompileTime && outerIndexPtr()==0)
         return derived().nonZeros();
+      else if (derived().outerSize() == 0)
+          return 0;
       else if(isCompressed())
         return outerIndexPtr()[derived().outerSize()]-outerIndexPtr()[0];
-      else if(derived().outerSize()==0)
-        return 0;
       else
         return innerNonZeros().sum();
     }
