@@ -734,12 +734,12 @@ Packet pacos_float(const Packet& x_in) {
   const Packet p3 = pset1<Packet>(Scalar(-4.87488098442554473876953125e-2));
   const Packet p2 = pset1<Packet>(Scalar(8.874166011810302734375e-2));
   const Packet p1 = pset1<Packet>(Scalar(-0.2145837843418121337890625));
-  const Packet p0 = pset1<Packet>(Scalar(1.57079613208770751953125));
+  const Packet p0 = pset1<Packet>(Scalar(1.57079613208770751953125)); // not quite Pi/2!
 
   // For x in [0:1], we approximate acos(x)/sqrt(1-x), which is a smooth
   // function, by a 6'th order polynomial.
   // For x in [-1:0) we use that acos(-x) = pi - acos(x).
-  const Packet neg_mask = pcmp_lt(x_in, pzero(x_in));
+  const Packet neg_mask = psignbit(x_in);
   Packet x = pabs(x_in);
   const Packet invalid_mask = pcmp_lt(pset1<Packet>(1.0f), x);
 
@@ -757,15 +757,12 @@ Packet pacos_float(const Packet& x_in) {
 
   // The polynomial approximates acos(x)/sqrt(1-x), so
   // multiply by sqrt(1-x) to get acos(x).
+  // Conveniently returns NaN for arguments outside [-1:1].
   Packet denom = psqrt(psub(cst_one, x));
   Packet result = pmul(denom, p);
 
   // Undo mapping for negative arguments.
-  result = pselect(neg_mask, psub(cst_pi, result), result);
-  // Return NaN for arguments outside [-1:1].
-  return pselect(invalid_mask,
-                 pset1<Packet>(std::numeric_limits<float>::quiet_NaN()),
-                 result);
+  return pselect(neg_mask, psub(cst_pi, result), result);
 }
 
 // Generic implementation of asin(x).
