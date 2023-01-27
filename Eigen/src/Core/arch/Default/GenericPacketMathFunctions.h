@@ -1799,19 +1799,21 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
   const Packet pow_is_inf = por(por(por(pand(abs_x_is_zero, y_is_neg), pand(abs_x_is_inf, y_is_pos)),
                                     pand(pand(abs_x_is_lt_one, abs_y_is_huge), y_is_neg)),
                                 pand(pand(abs_x_is_gt_one, abs_y_is_huge), y_is_pos));
+  const Packet pow_is_neg_zero = pand(pandnot(y_is_int, y_is_even),
+                                      por(pand(y_is_neg, pand(abs_x_is_inf, x_is_neg)), pand(y_is_pos, x_is_neg_zero)));
   const Packet inf_val =
       pselect(pandnot(pand(por(pand(abs_x_is_inf, x_is_neg), pand(x_is_neg_zero, y_is_neg)), y_is_int), y_is_even),
               cst_neg_inf, cst_pos_inf);
-
   // General computation of pow(x,y) for positive x or negative x and integer y.
   const Packet negate_pow_abs = pandnot(x_is_neg, y_is_even);
   const Packet pow_abs = generic_pow_impl(abs_x, y);
-  return pselect(
-      y_is_one, x,
-      pselect(pow_is_one, cst_one,
-              pselect(pow_is_nan, cst_nan,
-                      pselect(pow_is_inf, inf_val,
-                              pselect(pow_is_zero, cst_zero, pselect(negate_pow_abs, pnegate(pow_abs), pow_abs))))));
+  return pselect(y_is_one, x,
+                 pselect(pow_is_one, cst_one,
+                         pselect(pow_is_nan, cst_nan,
+                                 pselect(pow_is_inf, inf_val,
+                                         pselect(pow_is_neg_zero, pnegate(cst_zero),
+                                                 pselect(pow_is_zero, cst_zero,
+                                                         pselect(negate_pow_abs, pnegate(pow_abs), pow_abs)))))));
 }
 
 /* polevl (modified for Eigen)
