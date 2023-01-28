@@ -672,16 +672,13 @@ class SparseMatrix
       m_innerSize = IsRowMajor ? cols : rows;
       m_data.clear();
 
-      // this allocates a size-1 buffer if outerSize == 0. Very difficult to handle otherwise
-      if (m_outerSize != outerSize) {
+      if ((m_outerIndex == 0) || (m_outerSize != outerSize)) {
         m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(m_outerIndex, outerSize + 1, m_outerSize + 1);
         m_outerSize = outerSize;
       }
 
-      if (m_innerNonZeros) {
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-        m_innerNonZeros = 0;
-      }
+      internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+      m_innerNonZeros = 0;
 
       std::fill_n(m_outerIndex, m_outerSize + 1, StorageIndex(0));
     }
@@ -789,10 +786,8 @@ class SparseMatrix
     inline void setIdentity()
     {
       eigen_assert(m_outerSize == m_innerSize && "ONLY FOR SQUARED MATRICES");
-      if (m_innerNonZeros) {
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-        m_innerNonZeros = 0;
-      }
+      internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+      m_innerNonZeros = 0;
       m_data.resize(m_outerSize);
       // is it necessary to squeeze?
       m_data.squeeze();
@@ -909,11 +904,8 @@ protected:
     void initAssignment(const Other& other)
     {
       resize(other.rows(), other.cols());
-      if(m_innerNonZeros)
-      {
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-        m_innerNonZeros = 0;
-      }
+      internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+      m_innerNonZeros = 0;
     }
 
     /** \internal
@@ -989,10 +981,8 @@ protected:
 
       if(m_data.size()==0 || overwrite)
       {
-        if (!isCompressed()) {
-          internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-          m_innerNonZeros = 0;
-        }
+        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+        m_innerNonZeros = 0;
         resizeNonZeros(n);
         ValueMap valueMap(valuePtr(), n);
         std::iota(m_outerIndex, m_outerIndex + n + 1, StorageIndex(0));
@@ -1324,10 +1314,8 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::collapseDuplicates(DenseBase
   }
   m_outerIndex[m_outerSize] = count;
   // turn the matrix into compressed form
-  if (m_innerNonZeros) {
-    internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-    m_innerNonZeros = 0;
-  }
+  internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+  m_innerNonZeros = 0;
   m_data.resize(m_outerIndex[m_outerSize]);
 }
 
