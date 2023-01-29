@@ -14,9 +14,9 @@ This is a short guide on how to incorporate Eigen into to your own project with 
         git clone https://gitlab.com/libeigen/eigen.git
         ```
 
-Note that there are multiple ways of using Eigen with CMake. This guide provides two of them. The first one is a very straightforward and is targeted for people that are new to CMake and Eigen. The second one makes full use of Eigen's native CMake support and is therefore the recommended way. However, it is ever so slightly more difficult and requires the installation of Eigen. Both guides are written independently, if you want to follow the recommended way from the get go, feel free to do so. An explanation of all CMake commands that are used in this guide can be found at the end. 
+Note that there are multiple ways of using Eigen with CMake. This guide provides two of them. The first one is very straightforward and is targeted for people that are new to CMake and Eigen. The second one makes full use of Eigen's native CMake support and is therefore the recommended way. However, it is ever so slightly more difficult and requires the installation of Eigen. Both guides are written independently, if you want to follow the recommended way from the get go, feel free to do so. An explanation of all CMake commands that are used in this guide can be found at the end. 
 
-## A Minimal Example
+## The *Simple* Way
 
 The following is an easy and straightforward example to get you started with CMake and Eigen.
 
@@ -122,10 +122,11 @@ Eigen provides native CMake support, by exporting a CMake target called Eigen3::
 
 ### Installing Eigen
 
-In order to follow this example, you have to make sure that Eigen is installed first.
+In order to follow this example, you first have to make sure that Eigen is installed.
 
-Move to the directory where the Eigen source files are located. You should be able to locate a file called *INSTALL*, which includes instructions on how to install Eigen using CMake. In short (assuming you are in the source directory):
+Move to the directory where the Eigen source files are located. This directory should include a file called *INSTALL*, which provides instructions on how to install Eigen using CMake. Feel free to take a look at it, and if not, just execute the following commands. 
 
+Assuming you are in the Eigen source directory
 ```bash
 mkdir build
 cd build
@@ -227,32 +228,32 @@ You should now see the output
 
 ## Explanation of the CMake Commands
 
-This section provides an explanation of the commands that were used during this guide.
+The three following commands are used in both methods and are typically part of every CMakeLists.txt.
 
-### Common Commands
+**cmake_minimum_required** (VERSION 3.0)
+  - The top most command in any *CMakeLists.txt* must specify the minimum required CMake version.
+  - In Eigen's case the minimum required version is 3.0.
 
-These commands were used in both parts and are typically part of ever CMakeLists.txt.
+**project** (myproject)
+  - This command sets the name of the project and is also required.
+  - Typically it should be used right after *cmake_minimum_required*.
 
-1. cmake_minimum_required (VERSION 3.0)
-    - The top most command in any *CMakeLists.txt* must specify the minimum required CMake version.
-    - In Eigen's case the minimum required version is 3.0.
+**add_executable** (example example.cpp)
+  - This command tells CMake to create an executable (named *example*) using the specified source code files.
 
-2. project (myproject)
-    - This command sets the name of the project and is also required.
-    - Typically it should be used right after *cmake_minimum_required*.
+We used this command only in the first example.
 
-4. add_executable (example example.cpp)
-    - This command tells CMake to create an executable (named *example*) using the specified source code files.
+**include_directories** ("eigen")
+  - This command adds the specified directory to those that the compiler uses to search for include files.
+  - This has to point to the eigen header files, otherwise the compiler will not be able to find them.
+  - In our example, the eigen header files lie within the project directory in the eigen folder (.../myproject/eigen). If you placed them outside, make sure that the path to the eigen directory is correctly set in this command.
 
-### Minial Example
+We used these commands only in the second example.
 
-3. include_directories ("eigen")
-    - This command adds the specified directory to those that the compiler uses to search for include files.
-    - This has to point to the eigen header files, otherwise the compiler will not be able to find them.
-    - In our example, the eigen header files lie within the project directory in the eigen folder (.../myproject/eigen). If you placed them outside, make sure that the path to the eigen directory is correctly set in this command.
+**find_package** (Eigen3 3.3 REQUIRED NO_MODULE)
+  - This command is used to find *cmake-ready* external package on the system and make it available.
+  - In our example we are looking for the Eigen3 package in version 3.3 or higher.
 
-### Recommended Example
-
-3. find_package (Eigen3 3.3 REQUIRED NO_MODULE)
-
-5. target_link_libraries (example Eigen3::Eigen)
+**target_link_libraries** (example Eigen3::Eigen)
+  - Links the library into the target executable.
+  - In this case the Eigen3::Eigen target is linked to the example program.
