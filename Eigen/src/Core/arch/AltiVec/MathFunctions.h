@@ -61,7 +61,6 @@ Packet4f patan<Packet4f>(const Packet4f& _x)
 }
 
 #ifdef EIGEN_VECTORIZE_VSX
-
 template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet4f psqrt<Packet4f>(const Packet4f& x)
 {
@@ -78,7 +77,7 @@ Packet2d psqrt<Packet2d>(const Packet2d& x)
 template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet4f prsqrt<Packet4f>(const Packet4f& x)
 {
-  return pset1<Packet4f>(float(1.0)) / psqrt<Packet4f>(x);
+  return pset1<Packet4f>(1.0f) / psqrt<Packet4f>(x);
 //  vec_rsqrt returns different results from the generic version
 //  return  vec_rsqrt(x);
 }
