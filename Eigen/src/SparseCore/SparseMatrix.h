@@ -246,7 +246,7 @@ class SparseMatrix
         if (capacity > 0) {
           // implies uncompressed: push to back of vector
           m_innerNonZeros[outer]++;
-          m_data.index(end) = inner;
+          m_data.index(end) = StorageIndex(inner);
           m_data.value(end) = Scalar(0);
           return m_data.value(end);
         }
@@ -379,7 +379,7 @@ class SparseMatrix
         Index count = 0;
         for(Index j=0; j<m_outerSize; ++j)
         {
-          newOuterIndex[j] = count;
+          newOuterIndex[j] = internal::convert_index<StorageIndex>(count);
           Index alreadyReserved = internal::convert_index<Index>(m_outerIndex[j+1] - m_outerIndex[j] - m_innerNonZeros[j]);
           Index reserveSize = internal::convert_index<Index>(reserveSizes[j]);
           Index toReserve = numext::maxi(reserveSize, alreadyReserved);
@@ -392,7 +392,6 @@ class SparseMatrix
         {
           StorageIndex innerNNZ = m_innerNonZeros[j];
           StorageIndex begin = m_outerIndex[j];
-          StorageIndex end = begin + innerNNZ;
           StorageIndex target = newOuterIndex[j];
           m_data.moveChunk(begin, target, innerNNZ);
         }
@@ -504,7 +503,7 @@ class SparseMatrix
         if (capacity > 0) {
           // implies uncompressed: push to back of vector
           m_innerNonZeros[j]++;
-          m_data.index(end) = i;
+          m_data.index(end) = StorageIndex(i);
           m_data.value(end) = Scalar(0);
           return m_data.value(end);
         }
@@ -529,8 +528,8 @@ class SparseMatrix
       Index copyTarget = m_innerNonZeros[0];
       for (Index j = 1; j < m_outerSize; j++)
       {
-        Index end = start + m_innerNonZeros[j];
-        Index nextStart = m_outerIndex[j + 1];
+        StorageIndex end = start + m_innerNonZeros[j];
+        StorageIndex nextStart = m_outerIndex[j + 1];
         // dont forget to move the last chunk!
         bool breakUpCopy = (end != nextStart) || (j == m_outerSize - 1);
         if (breakUpCopy)
@@ -673,30 +672,13 @@ class SparseMatrix
       m_innerSize = IsRowMajor ? cols : rows;
       m_data.clear();
 
-      if (m_innerNonZeros)
-      {
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-        m_innerNonZeros = 0;
-      }
-
-      if (outerSize == 0)
-      {
-        // don't allocate memory if outerSize == 0 !
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_outerIndex, m_outerSize + 1);
-        m_outerIndex = 0;
-        m_outerSize = 0;
-        return;
-      }
-
-      if (m_outerSize != outerSize)
-      {
-        if (m_outerIndex == 0)
-          m_outerIndex = internal::conditional_aligned_new_auto<StorageIndex, true>(outerSize + 1);
-        else
-          m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(m_outerIndex, outerSize + 1,
-                                                                                            m_outerSize + 1);
+      if ((m_outerIndex == 0) || (m_outerSize != outerSize)) {
+        m_outerIndex = internal::conditional_aligned_realloc_new_auto<StorageIndex, true>(m_outerIndex, outerSize + 1, m_outerSize + 1);
         m_outerSize = outerSize;
       }
+
+      internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+      m_innerNonZeros = 0;
 
       std::fill_n(m_outerIndex, m_outerSize + 1, StorageIndex(0));
     }
@@ -719,7 +701,7 @@ class SparseMatrix
 
     /** Default constructor yielding an empty \c 0 \c x \c 0 matrix */
     inline SparseMatrix()
-      : m_outerSize(-1), m_innerSize(0), m_outerIndex(0), m_innerNonZeros(0)
+      : m_outerSize(0), m_innerSize(0), m_outerIndex(0), m_innerNonZeros(0)
     {
       resize(0, 0);
     }
@@ -804,10 +786,8 @@ class SparseMatrix
     inline void setIdentity()
     {
       eigen_assert(m_outerSize == m_innerSize && "ONLY FOR SQUARED MATRICES");
-      if (m_innerNonZeros) {
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-        m_innerNonZeros = 0;
-      }
+      internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+      m_innerNonZeros = 0;
       m_data.resize(m_outerSize);
       // is it necessary to squeeze?
       m_data.squeeze();
@@ -924,11 +904,8 @@ protected:
     void initAssignment(const Other& other)
     {
       resize(other.rows(), other.cols());
-      if(m_innerNonZeros)
-      {
-        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-        m_innerNonZeros = 0;
-      }
+      internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+      m_innerNonZeros = 0;
     }
 
     /** \internal
@@ -966,7 +943,7 @@ public:
       eigen_assert(m_innerNonZeros[outer]<=(m_outerIndex[outer+1] - m_outerIndex[outer]));
 
       Index p = m_outerIndex[outer] + m_innerNonZeros[outer]++;
-      m_data.index(p) = convert_index(inner);
+      m_data.index(p) = StorageIndex(inner);
       m_data.value(p) = Scalar(0);
       return m_data.value(p);
     }
@@ -1004,10 +981,8 @@ protected:
 
       if(m_data.size()==0 || overwrite)
       {
-        if (!isCompressed()) {
-          internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-          m_innerNonZeros = 0;
-        }
+        internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+        m_innerNonZeros = 0;
         resizeNonZeros(n);
         ValueMap valueMap(valuePtr(), n);
         std::iota(m_outerIndex, m_outerIndex + n + 1, StorageIndex(0));
@@ -1032,7 +1007,7 @@ protected:
             Index capacity = m_outerIndex[j + 1] - end;
             Index dst = m_data.searchLowerIndex(begin, end, j);
             // the entry exists: update it now
-            if (dst != end && m_data.index(dst) == j) assignFunc.assignCoeff(m_data.value(dst), diaEval.coeff(j));
+            if (dst != end && m_data.index(dst) == StorageIndex(j)) assignFunc.assignCoeff(m_data.value(dst), diaEval.coeff(j));
             // the entry belongs at the back of the vector: push to back
             else if (dst == end && capacity > 0)
               assignFunc.assignCoeff(insertBackUncompressed(j, j), diaEval.coeff(j));
@@ -1339,10 +1314,8 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::collapseDuplicates(DenseBase
   }
   m_outerIndex[m_outerSize] = count;
   // turn the matrix into compressed form
-  if (m_innerNonZeros) {
-    internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-    m_innerNonZeros = 0;
-  }
+  internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
+  m_innerNonZeros = 0;
   m_data.resize(m_outerIndex[m_outerSize]);
 }
 
@@ -1450,7 +1423,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressed(Index row, In
     if (capacity > 0) {
       // implies uncompressed: push to back of vector
       m_innerNonZeros[outer]++;
-      m_data.index(end) = inner;
+      m_data.index(end) = StorageIndex(inner);
       m_data.value(end) = Scalar(0);
       return m_data.value(end);
     }
