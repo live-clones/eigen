@@ -128,7 +128,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     for(Index i = 0; i < num_acc; i++){
       if(lhsExtraRows){
         float *r = result + (col+i*4)*rows + row;
-        for(Index x = 0; x < extra_cols; x++, r += rows){
+        for(Index x = 0; x < (rhsExtraCols ? extra_cols : 4); x++, r += rows){
           Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
           result_block = pmadd(acc[i][x], pAlpha, result_block);
           pstoreu_partial<float>(r, result_block, extra_rows);
@@ -219,7 +219,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     if(extra_cols){
       for(Index offset_row = 0; offset_row < standard_block_size; offset_row += 4){
         //Remember: It doesnt make sense use multiple acc to extra_cols as we are unrolling col loop
-        colLoopBody<1, 16, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
+        colLoopBody<1, 16, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result, extra_cols);
       }
     }
     row += 16;
@@ -234,7 +234,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     }
     if(extra_cols){
       for(Index offset_row = 0; offset_row < 8; offset_row += 4){
-        colLoopBody<1, 8, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
+        colLoopBody<1, 8, true>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*offset_factor, strideA, blockB, strideB, offsetB, result, extra_cols);
       }
     } //end extra cols
     row += 8;
@@ -247,7 +247,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     col = 0;
     colLoops<4>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result);
     if(extra_cols){
-      colLoopBody<1, 4, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, extra_cols, 4);
+      colLoopBody<1, 4, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, extra_cols);
     }
     row += 4;
     indexA += (bigSuffix >> 2);
@@ -257,7 +257,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   if(extra_rows_or_four){
     //This index is the beginning of remaining block.
     col = 0;
-    colLoops<8, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 4, extra_rows_or_four);
+    colLoops<8, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, 0, extra_rows_or_four);
     if(extra_cols){
       colLoopBody<1, 8, true, true>(col, row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, extra_cols, extra_rows_or_four);
     }
