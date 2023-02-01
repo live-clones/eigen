@@ -168,8 +168,6 @@ Packet plog_impl_float(const Packet _x)
 {
   const Packet cst_1              = pset1<Packet>(1.0f);
   const Packet cst_minus_inf      = pset1frombits<Packet>(static_cast<Eigen::numext::uint32_t>(0xff800000u));
-  const Packet cst_pos_inf        = pset1frombits<Packet>(static_cast<Eigen::numext::uint32_t>(0x7f800000u));
-
   const Packet cst_cephes_SQRTHF = pset1<Packet>(0.707106781186547524f);
   Packet e, x;
   // extract significant in the range [0.5,1) and exponent
@@ -203,26 +201,24 @@ Packet plog_impl_float(const Packet _x)
   Packet q = pmadd(x, cst_q3, cst_q2);
   q = pmadd(x, q, cst_q1);
   q = pmadd(x, q, cst_1);
-  x = pdiv(p, q);
+  Packet result = pdiv(p, q);
 
   // Add the logarithm of the exponent back to the result of the interpolation.
   if (base2) {
     const Packet cst_log2e = pset1<Packet>(static_cast<float>(EIGEN_LOG2E));
-    x = pmadd(x, cst_log2e, e);
+    result = pmadd(result, cst_log2e, e);
   } else {
     const Packet cst_ln2 = pset1<Packet>(static_cast<float>(EIGEN_LN2));
-    x = pmadd(e, cst_ln2, x);
+    result = pmadd(e, cst_ln2, result);
   }
 
-  Packet invalid_mask = pcmp_lt_or_nan(_x, pzero(_x));
-  Packet iszero_mask  = pcmp_eq(_x,pzero(_x));
-  Packet pos_inf_mask = pcmp_eq(_x,cst_pos_inf);
-  // Filter out invalid inputs, i.e.:
-  //  - negative arg will be NAN
-  //  - 0 will be -INF
-  //  - +INF will be +INF
-  return pselect(iszero_mask, cst_minus_inf,
-                              por(pselect(pos_inf_mask,cst_pos_inf,x), invalid_mask));
+  // if _x is +/- 0, return -INF
+  // otherwise, if _x is negative, return -NAN
+
+  Packet invalid_mask = psignbit(_x);
+  Packet iszero_mask = pcmp_eq(_x, pzero(_x));
+
+  return pselect(iszero_mask, cst_minus_inf, por(invalid_mask, result));
 }
 
 template <typename Packet>
