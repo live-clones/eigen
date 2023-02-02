@@ -69,7 +69,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, I
 }
 
 template<Index num_acc, Index num_packets, bool zero, bool rhs_extra_cols, bool lhs_extra_rows>
-EIGEN_STRONG_INLINE void KLoop
+EIGEN_ALWAYS_INLINE void KLoop
 (
   const bfloat16* indexA,
   const bfloat16* indexB,
@@ -87,13 +87,17 @@ EIGEN_STRONG_INLINE void KLoop
   Packet8bf rhs[num_acc];
   if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k*extra_rows, strideA, row, extra_rows);
   else lhs = loadBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
+  Index i = 0;
+  for(; i < (num_acc - 1); i++){
+    rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
+  }
+  if(!rhs_extra_cols) {
+    rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
+  } else {
+    rhs[i] = loadRhsBfloat16ExtraCols<zero>(indexB, strideB, col, i, k, extra_cols);
+  }
   BFLOAT16_UNROLL
-  for(Index i = 0; i < num_acc; i++){
-    if(!rhs_extra_cols)
-      rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
-    else{
-      rhs[i] = loadRhsBfloat16ExtraCols<zero>(indexB, strideB, col, i, k, extra_cols);
-    }
+  for (i = 0; i < num_acc; i++) {
     __builtin_mma_xvbf16ger2pp(&(quad_acc[i]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs.m_val));
   }
 }
@@ -107,12 +111,12 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
   const bfloat16* indexB = rhsExtraCols ? blockB + offsetB : (blockB + 4*offsetB + strideB*col);
 
   while(col + step <= cols){
-    Index k = 0;
+    Index k = 0, i;
     Packet4f acc[num_acc][4];
     __vector_quad quad_acc[num_acc];
  
     BFLOAT16_UNROLL
-    for(Index i = 0; i < num_acc; i++)
+    for(i = 0; i < num_acc; i++)
       __builtin_mma_xxsetaccz(&(quad_acc[i]));
 
     for(; k + 2 <= depth; k += 2){
@@ -123,23 +127,18 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     }
 
     BFLOAT16_UNROLL
-    for(Index i = 0; i < num_acc; i++)
+    for(i = 0; i < num_acc; i++)
       __builtin_mma_disassemble_acc((void*)acc[i], &(quad_acc[i]));
 
-    for(Index i = 0; i < num_acc; i++){
-      if(lhsExtraRows){
-        float *r = result + (col+i*4)*rows + row;
-        for(Index x = 0; x < (rhsExtraCols ? extra_cols : 4); x++, r += rows){
-          Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
-          result_block = pmadd(acc[i][x], pAlpha, result_block);
-          pstoreu_partial<float>(r, result_block, extra_rows);
-        }
-      }
-      else{
-        if(rhsExtraCols){
-          float *r = result + (col+i*4)*rows + row + offset_row;
-          for(Index x = 0; x < extra_cols; x++, r += rows){
-            scaleAndStore(r,acc[i][x], pAlpha);
+    i = 0;
+    if (!rhsExtraCols) {
+      for(; i < (num_acc - 1); i++){
+        if(lhsExtraRows){
+          float *r = result + (col+i*4)*rows + row;
+          for(Index x = 0; x < 4; x++, r += rows){
+            Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
+            result_block = pmadd(acc[i][x], pAlpha, result_block);
+            pstoreu_partial<float>(r, result_block, extra_rows);
           }
         }
         else{
@@ -150,6 +149,29 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
         }
       }
     }
+    if (lhsExtraRows) {
+      float *r = result + (col+i*4)*rows + row;
+      for(Index x = 0; x < (rhsExtraCols ? extra_cols : 4); x++, r += rows){
+        Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
+        result_block = pmadd(acc[i][x], pAlpha, result_block);
+        pstoreu_partial<float>(r, result_block, extra_rows);
+      }
+    }
+    else{
+      if(rhsExtraCols){
+        float *r = result + (col+i*4)*rows + row + offset_row;
+        for(Index x = 0; x < extra_cols; x++, r += rows){
+          scaleAndStore(r,acc[i][x], pAlpha);
+        }
+      }
+      else{
+        float *r = result + (col+i*4)*rows + (block_index*16) + offset_row;
+        for(Index x = 0; x < 4; x++, r += rows){
+          scaleAndStore(r,acc[i][x], pAlpha);
+        }
+      }
+    }
+
     if(rhsExtraCols) return;
     indexB += strideB*step;
     col += step;
