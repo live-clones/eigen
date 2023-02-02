@@ -46,11 +46,11 @@
 #include <stdlib.h>
 
 #ifndef lapack_int
-#ifdef LAPACK_ILP64
-#define lapack_int int64_t
-#else
-#define lapack_int int
-#endif
+  #ifdef LAPACK_ILP64
+    #define lapack_int int64_t
+  #else
+    #define lapack_int int
+  #endif
 #endif
 
 #ifndef lapack_logical
