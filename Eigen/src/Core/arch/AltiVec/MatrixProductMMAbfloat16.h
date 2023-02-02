@@ -63,9 +63,9 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* baseB, Index strid
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, Index strideB, Index col, Index i, Index k, Index extra_cols)
+EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, Index strideB, Index i, Index k, Index extra_cols)
 {
-  return loadBfloat16Extra<zero>(blockB + ((col+4*i)*strideB)+k*extra_cols, extra_cols);
+  return loadBfloat16Extra<zero>(blockB + strideB*4*i + (k*extra_cols), extra_cols);
 }
 
 template<Index num_acc, Index num_packets, bool zero, bool rhs_extra_cols, bool lhs_extra_rows>
@@ -76,9 +76,9 @@ EIGEN_ALWAYS_INLINE void KLoop
   __vector_quad *quad_acc,
   Index strideA,
   Index strideB,
+  Index offsetB,
   Index k,
   Index row,
-  Index col,
   Index extra_rows,
   Index extra_cols
 )
@@ -94,7 +94,7 @@ EIGEN_ALWAYS_INLINE void KLoop
   if(!rhs_extra_cols) {
     rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
   } else {
-    rhs[i] = loadRhsBfloat16ExtraCols<zero>(indexB, strideB, col, i, k, extra_cols);
+    rhs[i] = loadRhsBfloat16ExtraCols<zero>(indexB, strideB - (3*offsetB), i, k, extra_cols);
   }
   BFLOAT16_UNROLL
   for (i = 0; i < num_acc; i++) {
@@ -134,8 +134,8 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Inde
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols = false, bool lhsExtraRows = false>
 void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
 {
-  const Index step = rhsExtraCols ? 1 : (num_acc * 4); //each accumulator has 4 elements
-  const bfloat16* indexB = rhsExtraCols ? blockB + offsetB : (blockB + 4*offsetB + strideB*col);
+  const Index step = (num_acc * 4) - (rhsExtraCols ? 3 : 0); //each accumulator has 4 elements
+  const bfloat16* indexB = blockB + 4*offsetB + strideB*col;
 
   while(col + step <= cols){
     Index k = 0, i;
@@ -147,10 +147,10 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       __builtin_mma_xxsetaccz(&(quad_acc[i]));
 
     for(; k + 2 <= depth; k += 2){
-      KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, k, row, col, extra_rows, extra_cols);
+      KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, extra_rows, extra_cols);
     }
     if(depth&1){
-      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-(offset_row&(num_packets-1)), indexB, quad_acc, strideA, strideB, k, row, col, extra_rows, extra_cols);
+      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-(offset_row&(num_packets-1)), indexB, quad_acc, strideA, strideB, offsetB, k, row, extra_rows, extra_cols);
     }
 
     BFLOAT16_UNROLL
@@ -165,9 +165,9 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     }
     storeResults<num_packets, rhsExtraCols, lhsExtraRows>(acc[i], row, rows, offset_row, block_index, pAlpha, result + (col+i*4)*rows, extra_cols, extra_rows);
 
-    if(rhsExtraCols) return;
-    indexB += strideB*step;
     col += step;
+    if(rhsExtraCols || (num_acc != MAX_BFLOAT16_ACC)) return;
+    indexB += strideB*step;
   }
 }
 
