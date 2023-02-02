@@ -94,7 +94,6 @@ class TensorExecutor {
                 "You must #define EIGEN_USE_THREADS, EIGEN_USE_GPU or "
                 "EIGEN_USE_SYCL before including Eigen headers.");
 
-  EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE void run(const Expression& expr,
                                       const Device& device = Device()) {
     TensorEvaluator<Expression, Device> evaluator(expr, device);
@@ -126,7 +125,6 @@ class TensorExecutor<Expression, DefaultDevice, /*Vectorizable=*/true,
  public:
   typedef typename Expression::Index StorageIndex;
 
-  EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE void run(
       const Expression& expr, const DefaultDevice& device = DefaultDevice()) {
     TensorEvaluator<Expression, DefaultDevice> evaluator(expr, device);
