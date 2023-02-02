@@ -174,6 +174,13 @@ EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows
   }
 }
 
+EIGEN_ALWAYS_INLINE Packet8bf convertF16toF32(const float *res)
+{
+  Packet16uc fp16_0 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(res + 0)));
+  Packet16uc fp16_1 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(res + 4)));
+  return vec_pack(reinterpret_cast<Packet4ui>(fp16_0), reinterpret_cast<Packet4ui>(fp16_1));
+}
+
 template<typename Index, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
@@ -188,11 +195,27 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
 
   typedef typename DataMapper::LinearMapper LinearMapper;
+  Packet4f z = pset1<Packet4f>(float(0));
   for(Index j = 0; j < cols; j++){
     const LinearMapper res2 = res.getLinearMapper(0, j);
     float *result2 = result + j*rows;
+    Index i = 0;
+    for(; i + 32 <= rows; i+=32){
+      Packet4f r32_0 = reinterpret_cast<Packet4f>(res2.template loadPacket<Packet8bf>(i +  0).m_val);
+      Packet4f r32_1 = reinterpret_cast<Packet4f>(res2.template loadPacket<Packet8bf>(i +  8).m_val);
+      Packet4f r32_2 = reinterpret_cast<Packet4f>(res2.template loadPacket<Packet8bf>(i + 16).m_val);
+      Packet4f r32_3 = reinterpret_cast<Packet4f>(res2.template loadPacket<Packet8bf>(i + 24).m_val);
+      pstore<float>(result2 + i +  0, vec_mergeo(r32_0, z));
+      pstore<float>(result2 + i +  4, vec_mergee(r32_0, z));
+      pstore<float>(result2 + i +  8, vec_mergeo(r32_1, z));
+      pstore<float>(result2 + i + 12, vec_mergee(r32_1, z));
+      pstore<float>(result2 + i + 16, vec_mergeo(r32_2, z));
+      pstore<float>(result2 + i + 20, vec_mergee(r32_2, z));
+      pstore<float>(result2 + i + 24, vec_mergeo(r32_3, z));
+      pstore<float>(result2 + i + 28, vec_mergee(r32_3, z));
+    }
     BFLOAT16_UNROLL
-    for(Index i = 0; i < rows; i++){
+    for(; i < rows; i++){
       result2[i] = res2(i);
     }
   }
@@ -255,9 +278,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       //get and save block
       PacketBlock<Packet8bf,4> block;
       for(Index j = 0; j < 4; j++){
-        Packet16uc fp16_0 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(result + (col + j)*rows + row)));
-        Packet16uc fp16_1 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(result + (col + j)*rows + row + 4)));
-        block.packet[j].m_val = vec_pack(reinterpret_cast<Packet4ui>(fp16_0), reinterpret_cast<Packet4ui>(fp16_1));
+        block.packet[j].m_val = convertF16toF32(result + (col + j)*rows + row);
       }
 
       res2.template storePacketBlock<Packet8bf,4>(row, 0, block);
@@ -277,9 +298,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     float *result2 = result + col*rows;
     Index r = 0;
     for(; r + 8 <= rows; r += 8){
-      Packet16uc fp16_0 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(result2 + r)));
-      Packet16uc fp16_1 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(result2 + r + 4)));
-      Packet8bf fp16 = vec_pack(reinterpret_cast<Packet4ui>(fp16_0), reinterpret_cast<Packet4ui>(fp16_1));
+      Packet8bf fp16 = convertF16toF32(result2 + r);
       res2.template storePacket<Packet8bf>(r, fp16);
     }
     for(; r< rows; r++){
