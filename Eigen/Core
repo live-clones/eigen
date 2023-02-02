@@ -155,6 +155,20 @@ using std::ptrdiff_t;
   * \endcode
   */
 
+#ifdef EIGEN_USE_LAPACKE
+  #ifdef EIGEN_USE_MKL
+    #include "mkl_lapacke.h"
+  #else
+    #ifndef lapack_complex_float
+      #define lapack_complex_float std::complex<float>
+    #endif
+    #ifndef lapack_complex_double
+      #define lapack_complex_double std::complex<double>
+    #endif
+    #include "src/misc/lapacke.h"
+  #endif
+#endif
+
 #include "src/Core/util/Constants.h"
 #include "src/Core/util/Meta.h"
 #include "src/Core/util/Assert.h"

@@ -125,8 +125,8 @@ namespace Eigen {
 
     typedef Matrix<float, Dynamic, Dynamic, RowMajor> MatrixXfR;
     typedef Matrix<double, Dynamic, Dynamic, RowMajor> MatrixXdR;
-    typedef Matrix<scomplex, Dynamic, Dynamic, RowMajor> MatrixXcfR;
-    typedef Matrix<dcomplex, Dynamic, Dynamic, RowMajor> MatrixXcdR;
+    typedef Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor> MatrixXcfR;
+    typedef Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor> MatrixXcdR;
 
     COLPIVQR_LAPACKE(MatrixXf)
     COLPIVQR_LAPACKE(MatrixXd)
