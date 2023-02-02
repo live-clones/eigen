@@ -184,7 +184,7 @@ EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows
   colLoopBody<1, num_packets, false, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, 0, extra_rows);
   if (extra_cols) {
     //Remember: It doesnt make sense use multiple acc to extra_cols as we are unrolling col loop
-    colLoopBody<1, num_packets, true, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA+offset_row*2, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    colLoopBody<1, num_packets, true, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
   }
 }
 
