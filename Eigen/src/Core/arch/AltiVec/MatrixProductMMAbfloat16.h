@@ -73,7 +73,7 @@ EIGEN_ALWAYS_INLINE void KLoop
 (
   const bfloat16* indexA,
   const bfloat16* indexB,
-  __vector_quad (&quad_acc)[num_acc],
+  __vector_quad *quad_acc,
   Index strideA,
   Index strideB,
   Index k,
@@ -99,6 +99,33 @@ EIGEN_ALWAYS_INLINE void KLoop
   BFLOAT16_UNROLL
   for (i = 0; i < num_acc; i++) {
     __builtin_mma_xvbf16ger2pp(&(quad_acc[i]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs.m_val));
+  }
+}
+
+template <const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
+EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, float* result, Index extra_cols, Index extra_rows)
+{
+  if (lhsExtraRows) {
+    float *r = result + row;
+    for(Index x = 0; x < (rhsExtraCols ? extra_cols : 4); x++, r += rows){
+      Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
+      result_block = pmadd(acc[x], pAlpha, result_block);
+      pstoreu_partial<float>(r, result_block, extra_rows);
+    }
+  }
+  else{
+    if(rhsExtraCols){
+      float *r = result + row + (offset_row&(num_packets - 1));
+      for(Index x = 0; x < extra_cols; x++, r += rows){
+        scaleAndStore(r,acc[x], pAlpha);
+      }
+    }
+    else{
+      float *r = result + (block_index*16) + offset_row;
+      for(Index x = 0; x < 4; x++, r += rows){
+        scaleAndStore(r,acc[x], pAlpha);
+      }
+    }
   }
 }
 
@@ -133,44 +160,10 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     i = 0;
     if (!rhsExtraCols) {
       for(; i < (num_acc - 1); i++){
-        if(lhsExtraRows){
-          float *r = result + (col+i*4)*rows + row;
-          for(Index x = 0; x < 4; x++, r += rows){
-            Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
-            result_block = pmadd(acc[i][x], pAlpha, result_block);
-            pstoreu_partial<float>(r, result_block, extra_rows);
-          }
-        }
-        else{
-          float *r = result + (col+i*4)*rows + (block_index*16) + offset_row;
-          for(Index x = 0; x < 4; x++, r += rows){
-            scaleAndStore(r,acc[i][x], pAlpha);
-          }
-        }
+        storeResults<num_packets, false, lhsExtraRows>(acc[i], row, rows, offset_row, block_index, pAlpha, result + (col+i*4)*rows, extra_cols, extra_rows);
       }
     }
-    if (lhsExtraRows) {
-      float *r = result + (col+i*4)*rows + row;
-      for(Index x = 0; x < (rhsExtraCols ? extra_cols : 4); x++, r += rows){
-        Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
-        result_block = pmadd(acc[i][x], pAlpha, result_block);
-        pstoreu_partial<float>(r, result_block, extra_rows);
-      }
-    }
-    else{
-      if(rhsExtraCols){
-        float *r = result + (col+i*4)*rows + row + offset_row;
-        for(Index x = 0; x < extra_cols; x++, r += rows){
-          scaleAndStore(r,acc[i][x], pAlpha);
-        }
-      }
-      else{
-        float *r = result + (col+i*4)*rows + (block_index*16) + offset_row;
-        for(Index x = 0; x < 4; x++, r += rows){
-          scaleAndStore(r,acc[i][x], pAlpha);
-        }
-      }
-    }
+    storeResults<num_packets, rhsExtraCols, lhsExtraRows>(acc[i], row, rows, offset_row, block_index, pAlpha, result + (col+i*4)*rows, extra_cols, extra_rows);
 
     if(rhsExtraCols) return;
     indexB += strideB*step;
@@ -190,7 +183,6 @@ EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows
   colLoopBody<2, num_packets, false, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, 0, extra_rows);
   colLoopBody<1, num_packets, false, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, 0, extra_rows);
   if (extra_cols) {
-    offset_row &= (num_packets-1);
     //Remember: It doesnt make sense use multiple acc to extra_cols as we are unrolling col loop
     colLoopBody<1, num_packets, true, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA+offset_row*2, blockB, strideB, offsetB, result, extra_cols, extra_rows);
   }
