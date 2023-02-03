@@ -186,7 +186,7 @@ EIGEN_ALWAYS_INLINE void colLoopBody(Index& col, Index row, Index depth, Index c
 }
 
 template<const Index num_packets, bool lhsExtraRows = false>
-EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
+EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols, Index extra_rows = 0)
 {
   Index col = 0;
   colLoopBody<7, num_packets, false, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
