@@ -51,9 +51,9 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index ex
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index strideA, Index row, Index extra_rows)
+EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index strideA, Index extra_rows)
 {
-  return loadBfloat16Extra<zero>(indexA + row*strideA, extra_rows);
+  return loadBfloat16Extra<zero>(indexA, extra_rows);
 }
 
 template<bool zero>
@@ -78,14 +78,13 @@ EIGEN_ALWAYS_INLINE void KLoop
   Index strideB,
   Index offsetB,
   Index k,
-  Index row,
   Index extra_rows,
   Index extra_cols
 )
 {
   Packet8bf lhs;
   Packet8bf rhs[num_acc];
-  if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k*extra_rows, strideA, row, extra_rows);
+  if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k*extra_rows, strideA, extra_rows);
   else lhs = loadBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
   Index i = 0;
   for(; i < (num_acc - 1); i++){
@@ -151,10 +150,10 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
       __builtin_mma_xxsetaccz(&(quad_acc[i]));
 
     for(; k + 2 <= depth; k += 2){
-      KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, row, extra_rows, extra_cols);
+      KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideA, strideB, offsetB, k, extra_rows, extra_cols);
     }
     if(depth&1){
-      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-(offset_row&(num_packets-1)), indexB, quad_acc, strideA, strideB, offsetB, k, row, extra_rows, extra_cols);
+      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-(offset_row&(num_packets-1)), indexB, quad_acc, strideA, strideB, offsetB, k, extra_rows, extra_cols);
     }
 
     BFLOAT16_UNROLL
@@ -180,6 +179,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
 template<const Index num_packets, bool lhsExtraRows = false>
 EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
 {
+  if (lhsExtraRows) indexA += row*strideA;
   Index col = 0;
   colLoopBody<7, num_packets, false, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, 0, result, 0, extra_rows);
   if (extra_cols) {
