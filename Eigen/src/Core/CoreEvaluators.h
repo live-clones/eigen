@@ -1247,9 +1247,14 @@ struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
     ThenFlags = (unsigned int)evaluator<ThenMatrixType>::Flags,
     ElseFlags = (unsigned int)evaluator<ElseMatrixType>::Flags,
     CondFlags = (unsigned int)evaluator<ConditionMatrixType>::Flags,
+    ThenElseFlags = ThenFlags & ElseFlags,
+    AllFlags = ThenElseFlags & CondFlags,
     ConditionIsBool = is_same<typename ConditionMatrixType::Scalar, bool>::value,
-    UsefulBits = HereditaryBits | DirectAccessBit | LinearAccessBit | PacketAccessBit,
-    Flags = (ConditionIsBool ? (ThenFlags & ElseFlags) : (ThenFlags & ElseFlags & CondFlags)) & UsefulBits,
+    ThenElseSameType = is_same<typename ThenMatrixType::Scalar, typename ElseMatrixType::Scalar>::value,
+    AllSameType = ThenElseSameType && is_same<typename ElseMatrixType::Scalar, typename ConditionMatrixType::Scalar>::value,
+    ActualPacketAccessBit = (ConditionIsBool & ThenElseSameType) ? (ThenElseFlags & PacketAccessBit) : AllSameType ? (AllFlags & PacketAccessBit) : 0,
+    DefaultFlags = AllFlags & (HereditaryBits | DirectAccessBit | LinearAccessBit),
+    Flags = DefaultFlags | ActualPacketAccessBit,
     Alignment = plain_enum_min(evaluator<ThenMatrixType>::Alignment, evaluator<ElseMatrixType>::Alignment)
   };
 
