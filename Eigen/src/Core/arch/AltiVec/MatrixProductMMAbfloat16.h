@@ -19,7 +19,7 @@ namespace Eigen {
 
 namespace internal {
 
-EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, Packet4f& acc, const Packet4f& pAlpha)
+EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, Packet4f acc, const Packet4f pAlpha)
 {
   Packet4f result_block = ploadu<Packet4f>(result);
   result_block = pmadd(acc, pAlpha, result_block);
@@ -103,7 +103,7 @@ EIGEN_ALWAYS_INLINE void KLoop
 }
 
 template <const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, float* result, Index extra_cols, Index extra_rows)
+EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, float* result, Index extra_cols, Index extra_rows)
 {
   if (lhsExtraRows) {
     float *r = result + row;
@@ -132,7 +132,7 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Inde
 #define MAX_BFLOAT16_ACC   7
 
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols = false, bool lhsExtraRows = false>
-void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
+void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
 {
   const Index step = (num_acc * 4) - (rhsExtraCols ? 3 : 0); //each accumulator has 4 elements
   const bfloat16* indexB = blockB + strideB*col;
@@ -174,7 +174,7 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
 }
 
 template<const Index num_packets, bool lhsExtraRows = false>
-EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
+EIGEN_ALWAYS_INLINE void colLoops(Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
 {
   Index col = 0;
   colLoopBody<7, num_packets, false, lhsExtraRows>(col, row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, 0, result, 0, extra_rows);
@@ -288,10 +288,10 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     indexA += (bigSuffix >> 2);
   }
   //extra rows
-  Index extra_rows_or_four = rows & 3;
-  if(extra_rows_or_four){
+  Index extra_rows = rows & 3;
+  if(extra_rows){
     //This index is the beginning of remaining block.
-    colLoops<8, true>(row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, indexB, strideB, offsetB, result, extra_cols, extra_rows_or_four);
+    colLoops<8, true>(row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
   }
 
   //Convert back to bfloat16
