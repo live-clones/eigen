@@ -104,7 +104,7 @@ template <const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, float* result, Index extra_cols, Index extra_rows)
 {
   if (lhsExtraRows) {
-    float *r = result + row;
+    float *r = result;
     Index x = 0;
     do{
       Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
@@ -136,7 +136,7 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Inde
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
 void colLoopBody1(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols, Index extra_rows)
 {
-  const Index step = (num_acc * 4) - (rhsExtraCols ? 3 : 0); //each accumulator has 4 elements
+  const Index step = (num_acc * 4) - (rhsExtraCols ? 1 : 0); //each accumulator has 4 elements
   const bfloat16* indexB = blockB + strideB*col;
 
   do{
@@ -165,11 +165,7 @@ void colLoopBody1(Index& col, Index row, Index depth, Index cols, Index rows, In
     }
     storeResults<num_packets, rhsExtraCols, lhsExtraRows>(acc[i], row, rows, offset_row, block_index, pAlpha, result + (col+i*4)*rows, extra_cols, extra_rows);
 
-    if (rhsExtraCols) {
-      col = cols;
-    } else {
-      col += step;
-    }
+    col += step;
     if(rhsExtraCols || (num_acc != MAX_BFLOAT16_ACC)) return;
     indexB += strideB*step;
   } while(step <= cols - col);
@@ -303,7 +299,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   Index extra_rows = rows & 3;
   if(extra_rows){
     //This index is the beginning of remaining block.
-    colLoops<8, true>(row, depth, cols, rows, 0, block_index, pAlpha, blockA + row*strideA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
+    colLoops<8, true>(row, depth, cols, rows, 0, block_index, pAlpha, blockA + row*strideA, indexB, strideB, offsetB, result + row, extra_cols, extra_rows);
   }
 
   //Convert back to bfloat16
