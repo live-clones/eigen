@@ -1239,7 +1239,10 @@ template<typename ConditionMatrixType, typename ThenMatrixType, typename ElseMat
 struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
   : evaluator_base<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
 {
-  typedef Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> XprType;
+  using ThenScalar = typename ThenMatrixType::Scalar;
+  using ElseScalar = typename ElseMatrixType::Scalar;
+  using CondScalar = typename ConditionMatrixType::Scalar;
+  using XprType = Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType>;
   enum {
     CoeffReadCost = evaluator<ConditionMatrixType>::CoeffReadCost
                   + plain_enum_max(evaluator<ThenMatrixType>::CoeffReadCost,
@@ -1249,9 +1252,9 @@ struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
     CondFlags = (unsigned int)evaluator<ConditionMatrixType>::Flags,
     ThenElseFlags = ThenFlags & ElseFlags,
     AllFlags = ThenElseFlags & CondFlags,
-    ConditionIsBool = is_same<typename ConditionMatrixType::Scalar, bool>::value,
-    ThenElseSameType = is_same<typename ThenMatrixType::Scalar, typename ElseMatrixType::Scalar>::value,
-    AllSameType = ThenElseSameType && is_same<typename ElseMatrixType::Scalar, typename ConditionMatrixType::Scalar>::value,
+    ConditionIsBool = is_same<CondScalar, bool>::value,
+    ThenElseSameType = is_same<ThenScalar, ElseScalar>::value,
+    AllSameType = ThenElseSameType && is_same<ElseScalar, CondScalar>::value,
     ActualPacketAccessBit = (ConditionIsBool & ThenElseSameType) ? (ThenElseFlags & PacketAccessBit) : AllSameType ? (AllFlags & PacketAccessBit) : 0,
     DefaultFlags = AllFlags & (HereditaryBits | DirectAccessBit | LinearAccessBit),
     Flags = DefaultFlags | ActualPacketAccessBit,
@@ -1287,64 +1290,78 @@ struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
       return m_elseImpl.coeff(index);
   }
 
-  template<int LoadMode, typename PacketType>
+  template<int, typename Packet>
   EIGEN_STRONG_INLINE
-  std::enable_if_t<ConditionIsBool, PacketType> condition_mask_impl(Index index) const
+  std::enable_if_t<ConditionIsBool, Packet> condition_mask_impl(Index index) const
   {
     // m_conditionImpl is boolean
-    using Scalar = typename unpacket_traits<PacketType>::type;
-    constexpr Index Size = unpacket_traits<PacketType>::size;
-    Eigen::Array<Scalar, Size, 1> mask;
-    for (Index i = 0; i < Size; i++) mask[i] = static_cast<Scalar>(m_conditionImpl.coeff(index + i));
-    PacketType conditionPacket = pload<PacketType>(mask.data());
-    return pcmp_lt(pzero(conditionPacket), conditionPacket);
+    // load boolean conditional into a packet for evaluation
+    // prefer integer types as their conversion and comparison is faster than floats
+    constexpr Index Size = unpacket_traits<Packet>::size;
+    using Scalar = typename unpacket_traits<Packet>::type;
+    using IntegralScalar = typename make_integer<Scalar>::type;
+    using IntegralPacket = typename packet_traits<IntegralScalar>::type;
+    constexpr bool UseIntegralType = packet_traits<IntegralScalar>::size == Size;
+    using EvalScalar = typename conditional<UseIntegralType, IntegralScalar, Scalar>::type;
+    using EvalPacket = typename conditional<UseIntegralType, IntegralPacket, Packet>::type;
+    Array<EvalScalar, Size, 1> mask;
+    for (Index i = 0; i < Size; i++) mask[i] = static_cast<EvalScalar>(m_conditionImpl.coeff(index + i));
+    EvalPacket maskPacket = pload<EvalPacket>(mask.data());
+    maskPacket = pcmp_lt(pzero(maskPacket), maskPacket);
+    return preinterpret<Packet, EvalPacket>(maskPacket);
   }
-  template<int LoadMode, typename PacketType>
+  template<int LoadMode, typename Packet>
   EIGEN_STRONG_INLINE
-  std::enable_if_t<!ConditionIsBool, PacketType> condition_mask_impl(Index index) const
+  std::enable_if_t<!ConditionIsBool, Packet> condition_mask_impl(Index index) const
   {
     // m_conditionImpl is not boolean
-    return m_conditionImpl.template packet<LoadMode, PacketType>(index);
+    return m_conditionImpl.template packet<LoadMode, Packet>(index);
   }
-  template<int LoadMode, typename PacketType>
+  template<int LoadMode, typename Packet>
   EIGEN_STRONG_INLINE
-  PacketType packet(Index index) const
+  Packet packet(Index index) const
   {
-    PacketType conditionPacket = condition_mask_impl<LoadMode, PacketType>(index);
-    PacketType thenPacket = m_thenImpl.template packet<LoadMode, PacketType>(index);
-    PacketType elsePacket = m_elseImpl.template packet<LoadMode, PacketType>(index);
+    Packet conditionPacket = condition_mask_impl<LoadMode, Packet>(index);
+    Packet thenPacket = m_thenImpl.template packet<LoadMode, Packet>(index);
+    Packet elsePacket = m_elseImpl.template packet<LoadMode, Packet>(index);
     return pselect(conditionPacket, thenPacket, elsePacket);
   }
 
-  template<int LoadMode, typename PacketType>
+  template<int, typename Packet>
   EIGEN_STRONG_INLINE
-  std::enable_if_t<ConditionIsBool, PacketType> condition_mask_impl(Index row, Index col) const
+  std::enable_if_t<ConditionIsBool, Packet> condition_mask_impl(Index row, Index col) const
   {
     // m_conditionImpl is boolean
-    using Scalar = typename unpacket_traits<PacketType>::type;
-    constexpr Index Size = unpacket_traits<PacketType>::size;
+    // load boolean conditional into a packet for evaluation
+    // prefer integer types as their conversion and comparison is faster than floats
     constexpr bool RowMajor = CondFlags & RowMajorBit;
-
-    Eigen::Array<Scalar, Size, 1> mask;
-    for (Index i = 0; i < Size; i++)
-      mask[i] = static_cast<Scalar>(m_conditionImpl.coeff(RowMajor ? row : row + i, RowMajor ? col + i : col));
-    PacketType conditionPacket = pload<PacketType>(mask.data());
-    return pcmp_lt(pzero(conditionPacket), conditionPacket);
+    constexpr Index Size = unpacket_traits<Packet>::size;
+    using Scalar = typename unpacket_traits<Packet>::type;
+    using IntegralScalar = typename make_integer<Scalar>::type;
+    using IntegralPacket = typename packet_traits<IntegralScalar>::type;
+    constexpr bool UseIntegralType = packet_traits<IntegralScalar>::size == Size;
+    using EvalScalar = typename conditional<UseIntegralType, IntegralScalar, Scalar>::type;
+    using EvalPacket = typename conditional<UseIntegralType, IntegralPacket, Packet>::type;
+    Array<EvalScalar, Size, 1> mask;
+    for (Index i = 0; i < Size; i++) mask[i] = static_cast<EvalScalar>(m_conditionImpl.coeff(RowMajor ? row : row + i, RowMajor ? col + i : col));
+    EvalPacket maskPacket = pload<EvalPacket>(mask.data());
+    maskPacket = pcmp_lt(pzero(maskPacket), maskPacket);
+    return preinterpret<Packet, EvalPacket>(maskPacket);
   }
-  template<int LoadMode, typename PacketType>
+  template<int LoadMode, typename Packet>
   EIGEN_STRONG_INLINE
-  std::enable_if_t<!ConditionIsBool, PacketType> condition_mask_impl(Index row, Index col) const
+  std::enable_if_t<!ConditionIsBool, Packet> condition_mask_impl(Index row, Index col) const
   {
     // m_conditionImpl is not boolean
-    return m_conditionImpl.template packet<LoadMode, PacketType>(row, col);
+    return m_conditionImpl.template packet<LoadMode, Packet>(row, col);
   }
-  template<int LoadMode, typename PacketType>
+  template<int LoadMode, typename Packet>
   EIGEN_STRONG_INLINE
-  PacketType packet(Index row, Index col) const
+  Packet packet(Index row, Index col) const
   {
-    PacketType conditionPacket = condition_mask_impl<LoadMode, PacketType>(row, col);
-    PacketType thenPacket = m_thenImpl.template packet<LoadMode, PacketType>(row, col);
-    PacketType elsePacket = m_elseImpl.template packet<LoadMode, PacketType>(row, col);
+    Packet conditionPacket = condition_mask_impl<LoadMode, Packet>(row, col);
+    Packet thenPacket = m_thenImpl.template packet<LoadMode, Packet>(row, col);
+    Packet elsePacket = m_elseImpl.template packet<LoadMode, Packet>(row, col);
     return pselect(conditionPacket, thenPacket, elsePacket);
   }
 
