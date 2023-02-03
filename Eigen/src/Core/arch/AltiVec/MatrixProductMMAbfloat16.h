@@ -94,7 +94,7 @@ EIGEN_ALWAYS_INLINE void KLoop
   if(!rhs_extra_cols) {
     rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
   } else {
-    rhs[i] = loadRhsBfloat16ExtraCols<zero>(indexB, strideB - (3*offsetB), i, k, extra_cols);
+    rhs[i] = loadRhsBfloat16ExtraCols<zero>(indexB - (3*offsetB), strideB, i, k, extra_cols);
   }
   BFLOAT16_UNROLL
   for (i = 0; i < num_acc; i++) {
@@ -135,7 +135,7 @@ template<const Index num_acc, const Index num_packets, bool rhsExtraCols = false
 void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f& pAlpha, const bfloat16* indexA, Index strideA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols = 0, Index extra_rows = 0)
 {
   const Index step = (num_acc * 4) - (rhsExtraCols ? 3 : 0); //each accumulator has 4 elements
-  const bfloat16* indexB = blockB + 4*offsetB + strideB*col;
+  const bfloat16* indexB = blockB + strideB*col;
 
   while(col + step <= cols){
     Index k = 0, i;
@@ -251,12 +251,13 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   const Index standard_blocks_quantity = rows/standard_block_size; //Number of standard blocks
   Index bigSuffix = (2*8) * (strideA-offsetA);
   const bfloat16* indexA = blockA;
+  const bfloat16* indexB = blockB + 4*offsetB;
   const Index extra_cols = cols & 3;
   Index block_index;
   for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
     indexA += 2*8*offsetA;
     for(Index offset_row = 0; offset_row < standard_block_size; offset_row += 4){ //This block size has 16 rows maximum
-      colLoops<16>(row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*2, strideA, blockB, strideB, offsetB, result, extra_cols);
+      colLoops<16>(row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*2, strideA, indexB, strideB, offsetB, result, extra_cols);
     }
     row += 16;
     indexA += bigSuffix;
@@ -265,7 +266,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   if(rows & 8){
     indexA += 1*8*offsetA;
     for(Index offset_row = 0; offset_row < 8; offset_row += 4){
-      colLoops<8>(row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*2, strideA, blockB, strideB, offsetB, result, extra_cols);
+      colLoops<8>(row, depth, cols, rows, offset_row, block_index, pAlpha, indexA+offset_row*2, strideA, indexB, strideB, offsetB, result, extra_cols);
     }
     row += 8;
     indexA += (bigSuffix >> 1);
@@ -274,7 +275,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   if(rows & 4){
     Index offset_row = (rows & 8);
     indexA += 1*4*offsetA;
-    colLoops<4>(row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, blockB, strideB, offsetB, result, extra_cols);
+    colLoops<4>(row, depth, cols, rows, offset_row, block_index, pAlpha, indexA, strideA, indexB, strideB, offsetB, result, extra_cols);
     row += 4;
     indexA += (bigSuffix >> 2);
   }
@@ -282,7 +283,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   Index extra_rows_or_four = rows & 3;
   if(extra_rows_or_four){
     //This index is the beginning of remaining block.
-    colLoops<8, true>(row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, blockB, strideB, offsetB, result, extra_cols, extra_rows_or_four);
+    colLoops<8, true>(row, depth, cols, rows, 0, block_index, pAlpha, blockA, strideA, indexB, strideB, offsetB, result, extra_cols, extra_rows_or_four);
   }
 
   //Convert back to bfloat16
