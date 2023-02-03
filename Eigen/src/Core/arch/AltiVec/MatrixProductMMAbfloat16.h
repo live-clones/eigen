@@ -107,18 +107,22 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Inde
 {
   if (lhsExtraRows) {
     float *r = result + row;
-    for(Index x = 0; x < (rhsExtraCols ? extra_cols : 4); x++, r += rows){
+    Index x = 0;
+    do{
       Packet4f result_block = ploadu_partial<Packet4f>(r, extra_rows);
       result_block = pmadd(acc[x], pAlpha, result_block);
       pstoreu_partial<float>(r, result_block, extra_rows);
-    }
+      r += rows;
+    } while (++x < (rhsExtraCols ? extra_cols : 4));
   }
   else{
     if(rhsExtraCols){
       float *r = result + row + (offset_row&(num_packets - 1));
-      for(Index x = 0; x < extra_cols; x++, r += rows){
+      Index x = 0;
+      do{
         scaleAndStore(r,acc[x], pAlpha);
-      }
+        r += rows;
+      } while (++x < extra_cols);
     }
     else{
       float *r = result + (block_index*16) + offset_row;
