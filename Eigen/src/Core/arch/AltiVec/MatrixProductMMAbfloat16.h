@@ -136,7 +136,7 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index row, Index rows, Inde
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
 void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Index offset_row, Index block_index, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols, Index extra_rows)
 {
-  const Index step = (num_acc * 4) - (rhsExtraCols ? 1 : 0); //each accumulator has 4 elements
+  const Index step = (num_acc * 4); //each accumulator has 4 elements
   const bfloat16* indexB = blockB + strideB*col;
 
   do{
@@ -165,10 +165,9 @@ void colLoopBody(Index& col, Index row, Index depth, Index cols, Index rows, Ind
     }
     storeResults<num_packets, rhsExtraCols, lhsExtraRows>(acc[i], row, rows, offset_row, block_index, pAlpha, result + (col+i*4)*rows, extra_cols, extra_rows);
 
-    col += step;
     if(rhsExtraCols || (num_acc != MAX_BFLOAT16_ACC)) return;
     indexB += strideB*step;
-  } while(step <= cols - col);
+  } while(step <= cols - (col += step));
 }
 
 template<const Index num_packets, bool lhsExtraRows = false>
