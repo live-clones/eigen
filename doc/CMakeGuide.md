@@ -6,7 +6,7 @@ This is a short guide on how to incorporate Eigen into to your own project with 
 
 Before we start, you have to make sure that both CMake and Eigen are available on your system. 
 
-**CMake:** The required CMake version is 3.0 or higher. Run ```cmake --version``` to check which version is installed on your system. If the version is below 3.0 or CMake is not installed at all, make sure to update/install it before you continue. 
+**CMake:** The required CMake version is 3.10 or higher. Run ```cmake --version``` to check which version is installed on your system. If the version is below 3.10 or CMake is not installed at all, make sure to update/install it before you continue. Note that not all parts of this guide require CMake version 3.10. However, having CMake version 3.10 or higher ensures that everything in this guide can be followed.
 
 **Eigen:** There are multiple ways to make Eigen available on your system. Since Eigen is a pure template library, it is sufficient to download the header files to a local folder and access them from there. However, you can also install Eigen, which can be more convenient.
 
@@ -34,7 +34,7 @@ On debian based systems simply run:
 sudo apt install libeigen3-dev
 ```
 
-If Eigen is not provided by your package manager or you want to install it manually you first need to obtain the source files as described in *Obtaining the Source Files*. 
+If Eigen is not provided by your package manager or you want to install it manually, you first need to obtain the source files as described in *Obtaining the Source Files*. 
 
 Move to the directory where the Eigen source files are located. This directory should include a file called *INSTALL*, which provides instructions on how to install Eigen using CMake.
 
@@ -63,20 +63,20 @@ Now that Eigen is available on your system, create a folder *myproject* (whereve
 We will now create a simple program, which will make use of the Eigen library. Create a file named *example.cpp* with the following contents:
 
 ```C++
- 1 #include <iostream>
- 2 #include <Eigen/Dense>
- 3
- 4 using Eigen::MatrixXd;
- 5 
- 6 int main()
- 7 {
- 8   MatrixXd m(2,2);
- 9   m(0,0) = 3;
-10   m(1,0) = 2.5;
-11   m(0,1) = -1;
-12   m(1,1) = m(1,0) + m(0,1);
-13   std::cout << m << std::endl;
-14 }
+#include <iostream>
+#include <Eigen/Dense>
+
+using Eigen::MatrixXd;
+ 
+int main()
+{
+  MatrixXd m(2,2);
+  m(0,0) = 3;
+  m(1,0) = 2.5;
+  m(0,1) = -1;
+  m(1,1) = m(1,0) + m(0,1);
+  std::cout << m << std::endl;
+}
 ```
 
 If you completed the [getting started guide](https://eigen.tuxfamily.org/dox/GettingStarted.html) you should already be familiar with this example.
@@ -86,19 +86,19 @@ Now we need to tell CMake what do to. Therefore, we create a file named *CMakeLi
 For Eigen in a local folder:
 
 ```cmake
-1 cmake_minimum_required (VERSION 3.0)
-2 project (myproject)
-4 include_directories("<path to eigen source files>")
-5 add_executable (example example.cpp)
+cmake_minimum_required (VERSION 3.10)
+project (myproject)
+include_directories("<path to eigen source files>")
+add_executable (example example.cpp)
 ```
 
 For the installed version:
 ```cmake
-1 cmake_minimum_required (VERSION 3.0)
-2 project (myproject)
-3 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
-4 add_executable (example example.cpp)
-5 target_link_libraries (example Eigen3::Eigen)
+cmake_minimum_required (VERSION 3.10)
+project (myproject)
+find_package (Eigen3 3.4 REQUIRED NO_MODULE)
+add_executable (example example.cpp)
+target_link_libraries (example Eigen3::Eigen)
 ```
 
 The directory structure should now look like this:
