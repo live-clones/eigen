@@ -1235,6 +1235,7 @@ struct block_evaluator<ArgType, BlockRows, BlockCols, InnerPanel, /* HasDirectAc
 // NOTE shall we introduce a ternary_evaluator?
 
 // TODO enable vectorization for Select
+
 template<typename ConditionMatrixType, typename ThenMatrixType, typename ElseMatrixType>
 struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
   : evaluator_base<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
@@ -1242,23 +1243,28 @@ struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
   using ThenScalar = typename ThenMatrixType::Scalar;
   using ElseScalar = typename ElseMatrixType::Scalar;
   using CondScalar = typename ConditionMatrixType::Scalar;
+  using ThenEvaluator = evaluator<ThenMatrixType>;
+  using ElseEvaluator = evaluator<ElseMatrixType>;
+  using CondEvaluator = evaluator<ConditionMatrixType>;
   using XprType = Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType>;
   enum {
     CoeffReadCost = evaluator<ConditionMatrixType>::CoeffReadCost
                   + plain_enum_max(evaluator<ThenMatrixType>::CoeffReadCost,
                                              evaluator<ElseMatrixType>::CoeffReadCost),
-    ThenFlags = (unsigned int)evaluator<ThenMatrixType>::Flags,
-    ElseFlags = (unsigned int)evaluator<ElseMatrixType>::Flags,
-    CondFlags = (unsigned int)evaluator<ConditionMatrixType>::Flags,
-    ThenElseFlags = ThenFlags & ElseFlags,
-    AllFlags = ThenElseFlags & CondFlags,
+    ThenFlags = (unsigned int)ThenEvaluator::Flags,
+    ElseFlags = (unsigned int)ElseEvaluator::Flags,
+    CondFlags = (unsigned int)CondEvaluator::Flags,
+    AllFlags = ThenFlags & ElseFlags & CondFlags,
+    DefaultFlags = AllFlags & (HereditaryBits | DirectAccessBit | LinearAccessBit),
     ConditionIsBool = is_same<CondScalar, bool>::value,
     ThenElseSameType = is_same<ThenScalar, ElseScalar>::value,
     AllSameType = ThenElseSameType && is_same<ElseScalar, CondScalar>::value,
-    ActualPacketAccessBit = (ConditionIsBool & ThenElseSameType) ? (ThenElseFlags & PacketAccessBit) : AllSameType ? (AllFlags & PacketAccessBit) : 0,
-    DefaultFlags = AllFlags & (HereditaryBits | DirectAccessBit | LinearAccessBit),
+    BooleanSpecialization = !AllSameType && ConditionIsBool && ThenElseSameType,
+    ActualPacketAccessBit = BooleanSpecialization ? (ThenFlags & ElseFlags & PacketAccessBit) : AllSameType ? (AllFlags & PacketAccessBit) : 0,
     Flags = DefaultFlags | ActualPacketAccessBit,
-    Alignment = plain_enum_min(evaluator<ThenMatrixType>::Alignment, evaluator<ElseMatrixType>::Alignment)
+    ThenElseAlignment = plain_enum_min(ThenEvaluator::Alignment, ElseEvaluator::Alignment),
+    AllAlignment = plain_enum_min(CondEvaluator::Alignment, ThenElseAlignment),
+    Alignment = BooleanSpecialization ? ThenElseAlignment : AllAlignment
   };
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
@@ -1272,68 +1278,52 @@ struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
 
   typedef typename XprType::CoeffReturnType CoeffReturnType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  CoeffReturnType coeff(Index row, Index col) const
-  {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     if (m_conditionImpl.coeff(row, col))
       return m_thenImpl.coeff(row, col);
     else
       return m_elseImpl.coeff(row, col);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  CoeffReturnType coeff(Index index) const
-  {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     if (m_conditionImpl.coeff(index))
       return m_thenImpl.coeff(index);
     else
       return m_elseImpl.coeff(index);
   }
 
-  template<int, typename Packet>
-  EIGEN_STRONG_INLINE
-  std::enable_if_t<ConditionIsBool, Packet> condition_mask_impl(Index index) const
-  {
-    // m_conditionImpl is boolean
-    // load boolean conditional into a packet for evaluation
-    // prefer integer types as their conversion and comparison is faster than floats
-    constexpr Index Size = unpacket_traits<Packet>::size;
-    using Scalar = typename unpacket_traits<Packet>::type;
-    using IntegralScalar = typename make_integer<Scalar>::type;
-    using IntegralPacket = typename packet_traits<IntegralScalar>::type;
-    constexpr bool UseIntegralType = packet_traits<IntegralScalar>::size == Size;
-    using EvalScalar = typename conditional<UseIntegralType, IntegralScalar, Scalar>::type;
-    using EvalPacket = typename conditional<UseIntegralType, IntegralPacket, Packet>::type;
-    Array<EvalScalar, Size, 1> mask;
-    for (Index i = 0; i < Size; i++) mask[i] = static_cast<EvalScalar>(m_conditionImpl.coeff(index + i));
-    EvalPacket maskPacket = pload<EvalPacket>(mask.data());
-    maskPacket = pcmp_lt(pzero(maskPacket), maskPacket);
-    return preinterpret<Packet, EvalPacket>(maskPacket);
+  template <int LoadMode, typename Packet>
+  EIGEN_STRONG_INLINE Packet packet(Index row, Index col) const {
+    Packet conditionPacket = condition_mask_impl<LoadMode, Packet>(row, col);
+    Packet thenPacket = m_thenImpl.template packet<LoadMode, Packet>(row, col);
+    Packet elsePacket = m_elseImpl.template packet<LoadMode, Packet>(row, col);
+    return pselect(conditionPacket, thenPacket, elsePacket);
   }
-  template<int LoadMode, typename Packet>
-  EIGEN_STRONG_INLINE
-  std::enable_if_t<!ConditionIsBool, Packet> condition_mask_impl(Index index) const
-  {
-    // m_conditionImpl is not boolean
-    return m_conditionImpl.template packet<LoadMode, Packet>(index);
-  }
-  template<int LoadMode, typename Packet>
-  EIGEN_STRONG_INLINE
-  Packet packet(Index index) const
-  {
+
+  template <int LoadMode, typename Packet>
+  EIGEN_STRONG_INLINE Packet packet(Index index) const {
     Packet conditionPacket = condition_mask_impl<LoadMode, Packet>(index);
     Packet thenPacket = m_thenImpl.template packet<LoadMode, Packet>(index);
     Packet elsePacket = m_elseImpl.template packet<LoadMode, Packet>(index);
     return pselect(conditionPacket, thenPacket, elsePacket);
   }
 
-  template<int, typename Packet>
-  EIGEN_STRONG_INLINE
-  std::enable_if_t<ConditionIsBool, Packet> condition_mask_impl(Index row, Index col) const
-  {
-    // m_conditionImpl is boolean
-    // load boolean conditional into a packet for evaluation
-    // prefer integer types as their conversion and comparison is faster than floats
+  template <int LoadMode, typename Packet>
+  EIGEN_STRONG_INLINE std::enable_if_t<!BooleanSpecialization, Packet> condition_mask_impl(Index row, Index col) const {
+    return m_conditionImpl.template packet<LoadMode, Packet>(row, col);
+  }
+
+  template <int LoadMode, typename Packet>
+  EIGEN_STRONG_INLINE std::enable_if_t<!BooleanSpecialization, Packet> condition_mask_impl(Index index) const {
+    return m_conditionImpl.template packet<LoadMode, Packet>(index);
+  }
+   
+  // specializations that enable vectorization when conditional is boolean
+  // load boolean conditional into a packet for evaluation
+  // prefer integer types as their conversion and comparison is faster than floating point types
+
+  template <int, typename Packet>
+  EIGEN_STRONG_INLINE std::enable_if_t<BooleanSpecialization, Packet> condition_mask_impl(Index row, Index col) const {
     constexpr bool RowMajor = CondFlags & RowMajorBit;
     constexpr Index Size = unpacket_traits<Packet>::size;
     using Scalar = typename unpacket_traits<Packet>::type;
@@ -1342,28 +1332,33 @@ struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> >
     constexpr bool UseIntegralType = packet_traits<IntegralScalar>::size == Size;
     using EvalScalar = typename conditional<UseIntegralType, IntegralScalar, Scalar>::type;
     using EvalPacket = typename conditional<UseIntegralType, IntegralPacket, Packet>::type;
-    Array<EvalScalar, Size, 1> mask;
-    for (Index i = 0; i < Size; i++) mask[i] = static_cast<EvalScalar>(m_conditionImpl.coeff(RowMajor ? row : row + i, RowMajor ? col + i : col));
+
+    EIGEN_ALIGN_TO_BOUNDARY(AlignedMax) std::array<EvalScalar, Size> mask;
+    for (Index i = 0; i < Size; i++)
+      mask[i] = static_cast<EvalScalar>(m_conditionImpl.coeff(RowMajor ? row : row + i, RowMajor ? col + i : col));
     EvalPacket maskPacket = pload<EvalPacket>(mask.data());
     maskPacket = pcmp_lt(pzero(maskPacket), maskPacket);
     return preinterpret<Packet, EvalPacket>(maskPacket);
   }
-  template<int LoadMode, typename Packet>
-  EIGEN_STRONG_INLINE
-  std::enable_if_t<!ConditionIsBool, Packet> condition_mask_impl(Index row, Index col) const
-  {
-    // m_conditionImpl is not boolean
-    return m_conditionImpl.template packet<LoadMode, Packet>(row, col);
+
+  template <int, typename Packet>
+  EIGEN_STRONG_INLINE std::enable_if_t<BooleanSpecialization, Packet> condition_mask_impl(Index index) const {
+    constexpr Index Size = unpacket_traits<Packet>::size;
+    using Scalar = typename unpacket_traits<Packet>::type;
+    using IntegralScalar = typename make_integer<Scalar>::type;
+    using IntegralPacket = typename packet_traits<IntegralScalar>::type;
+    constexpr bool UseIntegralType = packet_traits<IntegralScalar>::size == Size;
+    using EvalScalar = typename conditional<UseIntegralType, IntegralScalar, Scalar>::type;
+    using EvalPacket = typename conditional<UseIntegralType, IntegralPacket, Packet>::type;
+
+    EIGEN_ALIGN_TO_BOUNDARY(AlignedMax) std::array<EvalScalar, Size> mask;
+    for (Index i = 0; i < Size; i++) 
+      mask[i] = static_cast<EvalScalar>(m_conditionImpl.coeff(index + i));
+    EvalPacket maskPacket = pload<EvalPacket>(mask.data());
+    maskPacket = pcmp_lt(pzero(maskPacket), maskPacket);
+    return preinterpret<Packet, EvalPacket>(maskPacket);
   }
-  template<int LoadMode, typename Packet>
-  EIGEN_STRONG_INLINE
-  Packet packet(Index row, Index col) const
-  {
-    Packet conditionPacket = condition_mask_impl<LoadMode, Packet>(row, col);
-    Packet thenPacket = m_thenImpl.template packet<LoadMode, Packet>(row, col);
-    Packet elsePacket = m_elseImpl.template packet<LoadMode, Packet>(row, col);
-    return pselect(conditionPacket, thenPacket, elsePacket);
-  }
+
 
 protected:
   evaluator<ConditionMatrixType> m_conditionImpl;
