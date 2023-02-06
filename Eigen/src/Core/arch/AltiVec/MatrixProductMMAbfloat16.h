@@ -111,8 +111,6 @@ template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool l
 void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* indexB, Index strideB, Index offsetB, float* result, Index extra_cols, Index extra_rows)
 {
   const Index step = (num_acc * 4); //each accumulator has 4 elements
-  indexB += strideB*col;
-  strideB *= 4;
 
   do{
     for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += 8) {
@@ -194,6 +192,7 @@ EIGEN_ALWAYS_INLINE void colLoops(Index depth, Index cols, Index rows, const Pac
   Index col = 0;
   if (cols >= (MAX_BFLOAT16_ACC * 4)) {
     colLoopBody<MAX_BFLOAT16_ACC, num_packets, false, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
+    blockB += (strideB >> 2)*col;
   }
   if (extra_cols) {
     colLoopBodyExtra<num_packets, true, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
@@ -268,6 +267,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   const bfloat16* indexB = blockB + 4*offsetB;
   const Index extra_cols = cols & 3;
   Index block_index;
+  strideB *= 4;
   for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
     indexA += 2*8*offsetA;
     colLoops<16>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row, extra_cols);
