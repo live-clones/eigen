@@ -19,13 +19,6 @@ namespace Eigen {
 
 namespace internal {
 
-EIGEN_ALWAYS_INLINE void scaleAndStore(float* result, Packet4f acc, const Packet4f pAlpha)
-{
-  Packet4f result_block = ploadu<Packet4f>(result);
-  result_block = pmadd(acc, pAlpha, result_block);
-  pstoreu(result, result_block);
-}
-
 template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16(const bfloat16* indexA)
 {
@@ -48,12 +41,6 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index ex
   } else {
     return reinterpret_cast<Packet8us>(ploadu_partial<Packet4i>(reinterpret_cast<const int *>(indexA), extra_rows));
   }
-}
-
-template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadLhsBfloat16ExtraRows(const bfloat16* indexA, Index extra_rows)
-{
-  return loadBfloat16Extra<zero>(indexA, extra_rows);
 }
 
 template<bool zero>
@@ -83,7 +70,7 @@ EIGEN_ALWAYS_INLINE void KLoop
 {
   Packet8bf lhs;
   Packet8bf rhs[num_acc];
-  if(lhs_extra_rows) lhs = loadLhsBfloat16ExtraRows<zero>(indexA+k*extra_rows, extra_rows);
+  if(lhs_extra_rows) lhs = loadBfloat16Extra<zero>(indexA+k*extra_rows, extra_rows);
   else lhs = loadBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
   Index i = 0;
   for(; i < (num_acc - 1); i++){
@@ -110,7 +97,9 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f* acc, Index rows, const Packet4f 
       result_block = pmadd(acc[x], pAlpha, result_block);
       pstoreu_partial<float>(result, result_block, extra_rows);
     } else {
-      scaleAndStore(result, acc[x], pAlpha);
+      Packet4f result_block = ploadu<Packet4f>(result);
+      result_block = pmadd(acc[x], pAlpha, result_block);
+      pstoreu(result, result_block);
     }
     result += rows;
   } while (++x < (rhsExtraCols ? extra_cols : 4));
@@ -145,15 +134,46 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, Index offset_r
     for(i = 0; i < num_acc; i++)
       __builtin_mma_disassemble_acc((void*)acc[i], &(quad_acc[i]));
 
+    float *result2 = result + (col*rows);
     i = 0;
     for(; i < (num_acc - 1); i++){
-      storeResults<num_packets, false, lhsExtraRows>(acc[i], rows, pAlpha, result + (col+i*4)*rows, extra_cols, extra_rows);
+      storeResults<num_packets, false, lhsExtraRows>(acc[i], rows, pAlpha, result2 + i*4*rows, extra_cols, extra_rows);
     }
-    storeResults<num_packets, rhsExtraCols, lhsExtraRows>(acc[i], rows, pAlpha, result + (col+i*4)*rows, extra_cols, extra_rows);
+    storeResults<num_packets, rhsExtraCols, lhsExtraRows>(acc[i], rows, pAlpha, result2 + i*4*rows, extra_cols, extra_rows);
 
     if(rhsExtraCols || (num_acc != MAX_BFLOAT16_ACC)) return;
     indexB += strideB*step;
   } while(step <= cols - (col += step));
+}
+
+template<const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
+void colLoopBodyExtra(Index col, Index depth, Index cols, Index rows, Index offset_row, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols, Index extra_rows)
+{
+  switch ((cols - col) >> 2) {
+  case 6:
+    colLoopBody<6+(rhsExtraCols?1:0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    break;
+  case 5:
+    colLoopBody<5+(rhsExtraCols?1:0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    break;
+  case 4:
+    colLoopBody<4+(rhsExtraCols?1:0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    break;
+  case 3:
+    colLoopBody<3+(rhsExtraCols?1:0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    break;
+  case 2:
+    colLoopBody<2+(rhsExtraCols?1:0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    break;
+  case 1:
+    colLoopBody<1+(rhsExtraCols?1:0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    break;
+  default:
+    if (rhsExtraCols) {
+      colLoopBody<1, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    }
+    break;
+  }
 }
 
 template<const Index num_packets, bool lhsExtraRows = false>
@@ -164,50 +184,9 @@ EIGEN_ALWAYS_INLINE void colLoops(Index depth, Index cols, Index rows, Index off
     colLoopBody<7, num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
   }
   if (extra_cols) {
-    switch ((cols - col) >> 2) {
-    case 6:
-      colLoopBody<7, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
-      break;
-    case 5:
-      colLoopBody<6, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
-      break;
-    case 4:
-      colLoopBody<5, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
-      break;
-    case 3:
-      colLoopBody<4, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
-      break;
-    case 2:
-      colLoopBody<3, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
-      break;
-    case 1:
-      colLoopBody<2, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
-      break;
-    default:
-      colLoopBody<1, num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
-      break;
-    }
+    colLoopBodyExtra<num_packets, true, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
   } else {
-    switch ((cols - col) >> 2) {
-    case 6:
-      colLoopBody<6, num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
-      break;
-    case 5:
-      colLoopBody<5, num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
-      break;
-    case 4:
-      colLoopBody<4, num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
-      break;
-    case 3:
-      colLoopBody<3, num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
-      break;
-    case 2:
-      colLoopBody<2, num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
-      break;
-    case 1:
-      colLoopBody<1, num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
-      break;
-    }
+    colLoopBodyExtra<num_packets, false, lhsExtraRows>(col, depth, cols, rows, offset_row, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
   }
 }
 
