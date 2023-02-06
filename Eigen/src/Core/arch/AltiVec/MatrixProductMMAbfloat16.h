@@ -70,14 +70,17 @@ EIGEN_ALWAYS_INLINE void KLoop
 {
   Packet8bf lhs;
   Packet8bf rhs[num_acc];
+
   if(lhs_extra_rows) lhs = loadBfloat16Extra<zero>(indexA+k*extra_rows, extra_rows);
   else lhs = loadBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
+
   for(Index i = 0; i < (num_acc - (rhs_extra_cols ? 1 : 0)); i++){
     rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
   }
   if(rhs_extra_cols) {
     rhs[num_acc-1] = loadRhsBfloat16ExtraCols<zero>(indexB - (3*offsetB), strideB, num_acc-1, k, extra_cols);
   }
+
   BFLOAT16_UNROLL
   for (Index i = 0; i < num_acc; i++) {
     __builtin_mma_xvbf16ger2pp(&(quad_acc[i]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs.m_val));
@@ -112,21 +115,20 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
   strideB *= 4;
 
   do{
-    for(Index offset_row = 0; offset_row < num_packets; offset_row += 4) {
-      const bfloat16* indexA2 = indexA + (offset_row*2);
+    for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += 8) {
       Index k;
       Packet4f acc[num_acc][4];
       __vector_quad quad_acc[num_acc];
- 
+
       BFLOAT16_UNROLL
       for(k = 0; k < num_acc; k++)
         __builtin_mma_xxsetaccz(&(quad_acc[k]));
 
       for(k = 0; k + 2 <= depth; k += 2){
-        KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA2, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
+        KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
       }
       if(depth&1){
-        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA2-offset_row, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
+        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-offset_row, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
       }
 
       BFLOAT16_UNROLL
@@ -140,6 +142,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
       storeResults<rhsExtraCols, lhsExtraRows>(acc[k], rows, pAlpha, result2 + k*4*rows, extra_cols, extra_rows);
     }
 
+    indexA -= num_packets*2;
     indexB += strideB*num_acc;
   } while(!rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC) && (step <= cols - (col += step)));
 }
