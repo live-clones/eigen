@@ -201,81 +201,108 @@ struct functor_traits<scalar_cmp_op<LhsScalar,RhsScalar, cmp> > {
   enum {
     Cost = (NumTraits<LhsScalar>::AddCost+NumTraits<RhsScalar>::AddCost)/2,
     PacketAccess = is_same<LhsScalar, RhsScalar>::value &&
-        packet_traits<LhsScalar>::HasCmp &&
-        // Since return type is bool, we currently require the inputs
-        // to be bool to enable packet access.
-        is_same<LhsScalar, bool>::value
+        packet_traits<LhsScalar>::HasCmp
   };
 };
 
-template<ComparisonName Cmp, typename LhsScalar, typename RhsScalar>
-struct result_of<scalar_cmp_op<LhsScalar, RhsScalar, Cmp>(LhsScalar,RhsScalar)> {
-  typedef bool type;
+template <typename LhsScalar, typename RhsScalar>
+struct cmp_result_helper {
+  using type = typename conditional<sizeof(LhsScalar) >= sizeof(RhsScalar), LhsScalar, RhsScalar>::type;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE type run(bool a) { return a ? type(true) : type(false); }
+  template <typename Packet>
+  static EIGEN_STRONG_INLINE Packet runPacket(Packet a) {
+    using Scalar = typename unpacket_traits<Packet>::type;
+    const Scalar ktrue = static_cast<Scalar>(true);
+    const Packet cst_true = pset1<Packet>(ktrue);
+    return pand(cst_true, a);
+  }
 };
 
-
-template<typename LhsScalar, typename RhsScalar>
-struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_EQ> : binary_op_base<LhsScalar,RhsScalar>
-{
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const LhsScalar& a, const RhsScalar& b) const {return a==b;}
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pcmp_eq(a,b); }
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_EQ> : binary_op_base<LhsScalar, RhsScalar> {
+  using result_helper = cmp_result_helper<LhsScalar, RhsScalar>;
+  using result_type = typename result_helper::type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return result_helper::run(a == b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(pcmp_eq(a, b));
+  }
 };
-template<typename LhsScalar, typename RhsScalar>
-struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_LT> : binary_op_base<LhsScalar,RhsScalar>
-{
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const LhsScalar& a, const RhsScalar& b) const {return a<b;}
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pcmp_lt(a,b); }
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_LT> : binary_op_base<LhsScalar, RhsScalar> {
+  using result_helper = cmp_result_helper<LhsScalar, RhsScalar>;
+  using result_type = typename result_helper::type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return result_helper::run(a < b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(pcmp_lt(a, b));
+  }
 };
-template<typename LhsScalar, typename RhsScalar>
-struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_LE> : binary_op_base<LhsScalar,RhsScalar>
-{
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const LhsScalar& a, const RhsScalar& b) const {return a<=b;}
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pcmp_le(a,b); }
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_LE> : binary_op_base<LhsScalar, RhsScalar> {
+  using result_helper = cmp_result_helper<LhsScalar, RhsScalar>;
+  using result_type = typename result_helper::type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return result_helper::run(a <= b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(pcmp_le(a, b));
+  }
 };
-template<typename LhsScalar, typename RhsScalar>
-struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_GT> : binary_op_base<LhsScalar,RhsScalar>
-{
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const LhsScalar& a, const RhsScalar& b) const {return a>b;}
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pcmp_lt(b,a); }
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_GT> : binary_op_base<LhsScalar, RhsScalar> {
+  using result_helper = cmp_result_helper<LhsScalar, RhsScalar>;
+  using result_type = typename result_helper::type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return result_helper::run(a > b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(pcmp_lt(b, a));
+  }
 };
-template<typename LhsScalar, typename RhsScalar>
-struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_GE> : binary_op_base<LhsScalar,RhsScalar>
-{
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const LhsScalar& a, const RhsScalar& b) const {return a>=b;}
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pcmp_le(b,a); }
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_GE> : binary_op_base<LhsScalar, RhsScalar> {
+  using result_helper = cmp_result_helper<LhsScalar, RhsScalar>;
+  using result_type = typename result_helper::type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return result_helper::run(a >= b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(pcmp_le(b, a));
+  }
 };
-template<typename LhsScalar, typename RhsScalar>
-struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_UNORD> : binary_op_base<LhsScalar,RhsScalar>
-{
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const LhsScalar& a, const RhsScalar& b) const {return !(a<=b || b<=a);}
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pcmp_eq(internal::por(internal::pcmp_le(a, b), internal::pcmp_le(b, a)), internal::pzero(a)); }
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_UNORD> : binary_op_base<LhsScalar, RhsScalar> {
+  using result_helper = cmp_result_helper<LhsScalar, RhsScalar>;
+  using result_type = typename result_helper::type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return result_helper::run(!(a <= b || b <= a));
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    //return result_helper::template runPacket<Packet>(pcmp_eq(por(pcmp_le(a, b), pcmp_le(b, a)), pzero(a)));
+    return result_helper::template runPacket<Packet>(pnot(por(pcmp_le(a, b), pcmp_le(b, a))));
+  }
 };
-template<typename LhsScalar, typename RhsScalar>
-struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_NEQ> : binary_op_base<LhsScalar,RhsScalar>
-{
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const LhsScalar& a, const RhsScalar& b) const {return a!=b;}
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pcmp_eq(internal::pcmp_eq(a, b), internal::pzero(a)); }
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_NEQ> : binary_op_base<LhsScalar, RhsScalar> {
+  using result_helper = cmp_result_helper<LhsScalar, RhsScalar>;
+  using result_type = typename result_helper::type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return result_helper::run(a != b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    //return result_helper::template runPacket<Packet>(pcmp_eq(pcmp_eq(a, b), pzero(a)));
+    return result_helper::template runPacket<Packet>(pnot(pcmp_eq(a, b)));
+  }
 };
 
 /** \internal
@@ -435,15 +462,21 @@ struct functor_traits<scalar_quotient_op<LhsScalar,RhsScalar> > {
   *
   * \sa class CwiseBinaryOp, ArrayBase::operator&&
   */
+template <typename Scalar>
 struct scalar_boolean_and_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a, const bool& b) const { return a && b; }
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pand(a,b); }
+  using result_helper = internal::cmp_result_helper<Scalar, Scalar>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return result_helper::run(static_cast<bool>(a) && static_cast<bool>(b));
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(pand(a, b));
+  }
 };
-template<> struct functor_traits<scalar_boolean_and_op> {
+template<typename Scalar>
+struct functor_traits<scalar_boolean_and_op<Scalar>> {
   enum {
-    Cost = NumTraits<bool>::AddCost,
+    Cost = NumTraits<Scalar>::AddCost,
     PacketAccess = true
   };
 };
@@ -453,15 +486,20 @@ template<> struct functor_traits<scalar_boolean_and_op> {
   *
   * \sa class CwiseBinaryOp, ArrayBase::operator||
   */
+template<typename Scalar>
 struct scalar_boolean_or_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a, const bool& b) const { return a || b; }
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::por(a,b); }
+  using result_helper = internal::cmp_result_helper<Scalar, Scalar>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return result_helper::run(static_cast<bool>(a) || static_cast<bool>(b));
+  }
+  template <typename Packet>
+  EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(por(a, b));
+  }
 };
-template<> struct functor_traits<scalar_boolean_or_op> {
+template<typename Scalar> struct functor_traits<scalar_boolean_or_op<Scalar>> {
   enum {
-    Cost = NumTraits<bool>::AddCost,
+    Cost = NumTraits<Scalar>::AddCost,
     PacketAccess = true
   };
 };
@@ -471,15 +509,20 @@ template<> struct functor_traits<scalar_boolean_or_op> {
  *
  * \sa class CwiseBinaryOp, ArrayBase::operator^
  */
+template<typename Scalar>
 struct scalar_boolean_xor_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a, const bool& b) const { return a ^ b; }
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pxor(a,b); }
+  using result_helper = internal::cmp_result_helper<Scalar, Scalar>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const Scalar& a, const Scalar& b) const {
+    return result_helper::run(static_cast<bool>(a) ^ static_cast<bool>(b));
+  }
+  template <typename Packet>
+  EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+    return result_helper::template runPacket<Packet>(pxor(a, b));
+  }
 };
-template<> struct functor_traits<scalar_boolean_xor_op> {
+template<typename Scalar> struct functor_traits<scalar_boolean_xor_op<Scalar>> {
   enum {
-    Cost = NumTraits<bool>::AddCost,
+    Cost = NumTraits<Scalar>::AddCost,
     PacketAccess = true
   };
 };

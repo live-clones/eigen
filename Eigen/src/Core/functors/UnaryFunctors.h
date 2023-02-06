@@ -895,14 +895,23 @@ struct functor_traits<scalar_isfinite_op<Scalar> >
   *
   * \sa class CwiseUnaryOp, ArrayBase::operator!
   */
-template<typename Scalar> struct scalar_boolean_not_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a) const { return !a; }
+template <typename Scalar>
+struct scalar_boolean_not_op {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
+    return static_cast<bool>(a) ? Scalar(false) : Scalar(true);
+  }
+  template <typename Packet>
+  EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+    const Scalar ktrue = static_cast<Scalar>(true);
+    const Packet cst_true = pset1<Packet>(ktrue);
+    return pand(pcmp_eq(a, pzero(a)), cst_true);
+  }
 };
 template<typename Scalar>
 struct functor_traits<scalar_boolean_not_op<Scalar> > {
   enum {
-    Cost = NumTraits<bool>::AddCost,
-    PacketAccess = false
+    Cost = NumTraits<Scalar>::AddCost,
+    PacketAccess = true
   };
 };
 

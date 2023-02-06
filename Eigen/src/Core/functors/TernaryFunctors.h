@@ -18,7 +18,29 @@ namespace internal {
 
 //---------- associative ternary functors ----------
 
+template <typename ConditionScalar, typename ThenScalar, typename ElseScalar>
+struct scalar_select_op {
+  static constexpr bool ThenElseAreSame = is_same<ThenScalar, ElseScalar>::value;
+  EIGEN_STATIC_ASSERT(ThenElseAreSame, THEN AND ELSE MUST BE SAME TYPE)
+  using Scalar = ThenScalar;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const ConditionScalar& cond, const ThenScalar& a,
+                                                          const ElseScalar& b) const {
+    return static_cast<bool>(cond) ? a : b;
+  }
+  template <typename Packet>
+  EIGEN_STRONG_INLINE Packet packetOp(const Packet& cond, const Packet& a, const Packet& b) const {
+    return pselect(pcmp_eq(cond, pzero(cond)), b, a);
+  }
+};
 
+template <typename ConditionScalar, typename ThenScalar, typename ElseScalar>
+struct functor_traits<scalar_select_op<ConditionScalar, ThenScalar, ElseScalar>> {
+  enum {
+    Cost = 1,
+    PacketAccess = is_same<ConditionScalar, ThenScalar>::value && is_same<ConditionScalar, ElseScalar>::value &&
+                   packet_traits<ConditionScalar>::HasBlend
+  };
+};
 
 } // end namespace internal
 
