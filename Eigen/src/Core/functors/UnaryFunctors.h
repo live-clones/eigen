@@ -898,7 +898,7 @@ struct functor_traits<scalar_isfinite_op<Scalar> >
 template <typename Scalar>
 struct scalar_boolean_not_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    return static_cast<bool>(a) ? Scalar(false) : Scalar(true);
+    return static_cast<Scalar>(!static_cast<bool>(a));
   }
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
@@ -911,7 +911,7 @@ template<typename Scalar>
 struct functor_traits<scalar_boolean_not_op<Scalar> > {
   enum {
     Cost = NumTraits<Scalar>::AddCost,
-    PacketAccess = true
+    PacketAccess = packet_traits<Scalar>::HasCmp
   };
 };
 
