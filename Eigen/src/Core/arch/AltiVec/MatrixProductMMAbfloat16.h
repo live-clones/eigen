@@ -44,9 +44,9 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index ex
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* baseB, Index strideB, Index i, Index k)
+EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* blockB, Index strideB, Index i, Index k)
 {
-  return loadBfloat16<zero>(baseB + strideB*i + (k*4));
+  return loadBfloat16<zero>(blockB + strideB*i + (k*4));
 }
 
 template<bool zero>
@@ -55,7 +55,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, I
   return loadBfloat16Extra<zero>(blockB + strideB*i + (k*extra_cols), extra_cols);
 }
 
-template<Index num_acc, Index num_packets, bool zero, bool rhs_extra_cols, bool lhs_extra_rows>
+template<Index num_acc, Index num_packets, bool zero, bool rhsExtraCols, bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void KLoop
 (
   const bfloat16* indexA,
@@ -71,14 +71,14 @@ EIGEN_ALWAYS_INLINE void KLoop
   Packet8bf lhs;
   Packet8bf rhs[num_acc];
 
-  if(lhs_extra_rows) lhs = loadBfloat16Extra<zero>(indexA+k*extra_rows, extra_rows);
+  if(lhsExtraRows) lhs = loadBfloat16Extra<zero>(indexA + k*extra_rows, extra_rows);
   else lhs = loadBfloat16<zero>(indexA + k*num_packets); //a packet of bfloat16 has 8 elements
 
-  for(Index i = 0; i < (num_acc - (rhs_extra_cols ? 1 : 0)); i++){
+  for(Index i = 0; i < (num_acc - (rhsExtraCols ? 1 : 0)); i++){
     rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
   }
-  if(rhs_extra_cols) {
-    rhs[num_acc-1] = loadRhsBfloat16ExtraCols<zero>(indexB - (3*offsetB), strideB, num_acc-1, k, extra_cols);
+  if(rhsExtraCols) {
+    rhs[num_acc - 1] = loadRhsBfloat16ExtraCols<zero>(indexB - offsetB, strideB, num_acc - 1, k, extra_cols);
   }
 
   BFLOAT16_UNROLL
@@ -126,7 +126,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
         KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
       }
       if(depth&1){
-        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA-offset_row, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
+        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA - offset_row, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
       }
 
       BFLOAT16_UNROLL
@@ -149,7 +149,7 @@ template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool l
 EIGEN_ALWAYS_INLINE void colLoopBodyExtraN(Index col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* blockB, Index strideB, Index offsetB, float* result, Index extra_cols, Index extra_rows)
 {
   if (MAX_BFLOAT16_ACC > num_acc) {
-    colLoopBody<num_acc+(rhsExtraCols?1:0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
+    colLoopBody<num_acc + (rhsExtraCols ? 1 : 0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
   }
 }
 
@@ -268,6 +268,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   const Index extra_cols = cols & 3;
   Index block_index;
   strideB *= 4;
+  offsetB *= 3;
   for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
     indexA += 2*8*offsetA;
     colLoops<16>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row, extra_cols);
@@ -292,7 +293,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   Index extra_rows = rows & 3;
   if(extra_rows){
     //This index is the beginning of remaining block.
-    colLoops<4, true>(depth, cols, rows, pAlpha, blockA + row*strideA, indexB, strideB, offsetB, result + row, extra_cols, extra_rows);
+    colLoops<4, true>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row, extra_cols, extra_rows);
   }
 
   //Convert back to bfloat16
