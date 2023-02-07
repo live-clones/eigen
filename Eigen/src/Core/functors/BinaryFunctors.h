@@ -291,7 +291,6 @@ struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_UNORD> : binary_op_base<LhsScalar
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
-    //return result_helper::template runPacket<Packet>(pcmp_eq(por(pcmp_le(a, b), pcmp_le(b, a)), pzero(a)));
     return result_helper::template runPacket<Packet>(pnot(por(pcmp_le(a, b), pcmp_le(b, a))));
   }
 };
@@ -304,7 +303,6 @@ struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_NEQ> : binary_op_base<LhsScalar, 
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
-    //return result_helper::template runPacket<Packet>(pcmp_eq(pcmp_eq(a, b), pzero(a)));
     return result_helper::template runPacket<Packet>(pnot(pcmp_eq(a, b)));
   }
 };

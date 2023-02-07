@@ -23,9 +23,9 @@ struct scalar_select_op {
   static constexpr bool ThenElseAreSame = is_same<ThenScalar, ElseScalar>::value;
   EIGEN_STATIC_ASSERT(ThenElseAreSame, THEN AND ELSE MUST BE SAME TYPE)
   using Scalar = ThenScalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const ConditionScalar& cond, const ThenScalar& a,
-                                                          const ElseScalar& b) const {
-    return static_cast<bool>(cond) ? a : b;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const ConditionScalar& cond, const Scalar& a,
+                                                          const Scalar& b) const {
+    return cond == Scalar(0) ? b : a;
   }
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& cond, const Packet& a, const Packet& b) const {
@@ -38,7 +38,7 @@ struct functor_traits<scalar_select_op<ConditionScalar, ThenScalar, ElseScalar>>
   enum {
     Cost = 1,
     PacketAccess = is_same<ConditionScalar, ThenScalar>::value && is_same<ConditionScalar, ElseScalar>::value &&
-                   packet_traits<ConditionScalar>::HasBlend
+                   packet_traits<ConditionScalar>::HasBlend && packet_traits<ConditionScalar>::HasCmp
   };
 };
 

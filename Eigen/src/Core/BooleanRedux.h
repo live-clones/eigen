@@ -27,7 +27,7 @@ struct all_unroller
 
   EIGEN_DEVICE_FUNC static inline bool run(const Derived &mat)
   {
-    return all_unroller<Derived, UnrollCount-1, InnerSize>::run(mat) && mat.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i);
+    return all_unroller<Derived, UnrollCount-1, InnerSize>::run(mat) && mat.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i) != Derived::CoeffReturnType(0);
   }
 };
 
@@ -54,7 +54,7 @@ struct any_unroller
 
   EIGEN_DEVICE_FUNC static inline bool run(const Derived &mat)
   {
-    return any_unroller<Derived, UnrollCount-1, InnerSize>::run(mat) || mat.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i);
+    return any_unroller<Derived, UnrollCount-1, InnerSize>::run(mat) || mat.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i) != Derived::CoeffReturnType(0);
   }
 };
 
