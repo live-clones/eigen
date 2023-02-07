@@ -84,6 +84,7 @@
 #include "src/IterativeSolvers/ConstrainedConjGrad.h"
 #endif
 
+// IWYU pragma: begin_exports
 #include "src/IterativeSolvers/IncompleteLU.h"
 #include "src/IterativeSolvers/GMRES.h"
 #include "src/IterativeSolvers/DGMRES.h"
@@ -91,6 +92,7 @@
 #include "src/IterativeSolvers/IDRS.h"
 #include "src/IterativeSolvers/BiCGSTABL.h"
 #include "src/IterativeSolvers/IDRSTABL.h"
+// IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
 
