@@ -95,7 +95,7 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Pack
     if (lhsExtraRows) {
       Packet4f result_block = ploadu_partial<Packet4f>(result, extra_rows);
       result_block = pmadd(acc[x], pAlpha, result_block);
-      pstoreu_partial<float>(result, result_block, extra_rows);
+      pstoreu_partial(result, result_block, extra_rows);
     } else {
       Packet4f result_block = ploadu<Packet4f>(result);
       result_block = pmadd(acc[x], pAlpha, result_block);
@@ -234,14 +234,14 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       Packet4f r32_1 = reinterpret_cast<Packet4f>(res2.template loadPacket<Packet8bf>(i +  8).m_val);
       Packet4f r32_2 = reinterpret_cast<Packet4f>(res2.template loadPacket<Packet8bf>(i + 16).m_val);
       Packet4f r32_3 = reinterpret_cast<Packet4f>(res2.template loadPacket<Packet8bf>(i + 24).m_val);
-      pstore<float>(result2 + i +  0, vec_mergeo(r32_0, z));
-      pstore<float>(result2 + i +  4, vec_mergee(r32_0, z));
-      pstore<float>(result2 + i +  8, vec_mergeo(r32_1, z));
-      pstore<float>(result2 + i + 12, vec_mergee(r32_1, z));
-      pstore<float>(result2 + i + 16, vec_mergeo(r32_2, z));
-      pstore<float>(result2 + i + 20, vec_mergee(r32_2, z));
-      pstore<float>(result2 + i + 24, vec_mergeo(r32_3, z));
-      pstore<float>(result2 + i + 28, vec_mergee(r32_3, z));
+      pstore(result2 + i +  0, vec_mergeo(r32_0, z));
+      pstore(result2 + i +  4, vec_mergee(r32_0, z));
+      pstore(result2 + i +  8, vec_mergeo(r32_1, z));
+      pstore(result2 + i + 12, vec_mergee(r32_1, z));
+      pstore(result2 + i + 16, vec_mergeo(r32_2, z));
+      pstore(result2 + i + 20, vec_mergee(r32_2, z));
+      pstore(result2 + i + 24, vec_mergeo(r32_3, z));
+      pstore(result2 + i + 28, vec_mergee(r32_3, z));
     }
     BFLOAT16_UNROLL
     for(; i < rows; i++){
