@@ -898,12 +898,11 @@ struct functor_traits<scalar_isfinite_op<Scalar> >
 template <typename Scalar>
 struct scalar_boolean_not_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    return static_cast<Scalar>(!static_cast<bool>(a));
+    return a == Scalar(0) ? Scalar(1) : Scalar(0);
   }
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    const Scalar ktrue = static_cast<Scalar>(true);
-    const Packet cst_true = pset1<Packet>(ktrue);
+    const Packet cst_true = pset1<Packet>(Scalar(1));
     return pand(pcmp_eq(a, pzero(a)), cst_true);
   }
 };

@@ -94,7 +94,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::all() const
   {
     for(Index i = 0; i < derived().outerSize(); ++i)
       for(Index j = 0; j < derived().innerSize(); ++j)
-        if (!evaluator.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i)) return false;
+        if (evaluator.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i) == DenseBase<Derived>::Scalar(0)) return false;
     return true;
   }
 }
@@ -118,7 +118,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::any() const
   {
     for(Index i = 0; i < derived().outerSize(); ++i)
       for(Index j = 0; j < derived().innerSize(); ++j)
-        if (evaluator.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i)) return true;
+        if (evaluator.coeff(IsRowMajor ? i : j, IsRowMajor ? j : i) != DenseBase<Derived>::Scalar(0)) return true;
     return false;
   }
 }

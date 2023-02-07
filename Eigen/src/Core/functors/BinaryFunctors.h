@@ -208,18 +208,16 @@ struct functor_traits<scalar_cmp_op<LhsScalar,RhsScalar, cmp> > {
 template <typename LhsScalar, typename RhsScalar>
 struct cmp_result_helper {
   using type = typename conditional<sizeof(LhsScalar) >= sizeof(RhsScalar), LhsScalar, RhsScalar>::type;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE type run(bool a) { return static_cast<type>(a); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE type run(bool a) { return a ? type(1) : type(0); }
   template <typename Packet>
   static EIGEN_STRONG_INLINE Packet runPacket(Packet a) {
-    using Scalar = typename unpacket_traits<Packet>::type;
-    const Scalar ktrue = static_cast<Scalar>(true);
-    const Packet cst_true = pset1<Packet>(ktrue);
+    const Packet cst_true = pset1<Packet>(type(1));
     return pand(cst_true, a);
   }
 };
-// dumbbbbbbbb
+// specialization for std::string
 template <>
-struct cmp_result_helper<std::string, std::string> {
+struct cmp_result_helper<std::string,std::string> {
     using type = bool;
     static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(bool a) { return a; }
 };
