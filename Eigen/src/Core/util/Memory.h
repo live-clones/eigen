@@ -196,8 +196,9 @@ EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
   */
 EIGEN_DEVICE_FUNC inline void* aligned_malloc(std::size_t size)
 {
-  if(size > 0)
-    check_that_malloc_is_allowed();
+  if (size == 0) return 0;
+  
+  check_that_malloc_is_allowed();
 
   void *result;
   #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
@@ -238,10 +239,10 @@ EIGEN_DEVICE_FUNC inline void aligned_free(void *ptr)
   */
 EIGEN_DEVICE_FUNC inline void* aligned_realloc(void *ptr, std::size_t new_size, std::size_t old_size)
 {
-  if(new_size != old_size)
-    check_that_malloc_is_allowed();
-
   if (ptr == 0) return aligned_malloc(new_size);
+  if (old_size == new_size) return ptr;
+  if (new_size == 0) { aligned_free(ptr); return 0; }
+
   void *result;
 #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
   EIGEN_UNUSED_VARIABLE(old_size)
