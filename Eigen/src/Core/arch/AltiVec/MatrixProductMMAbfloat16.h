@@ -113,7 +113,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
   const Index step = (num_acc * 4); //each accumulator has 4 elements
 
   do{
-    for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += 8) {
+    for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += 8, result += 4) {
       Index k;
       Packet4f acc[num_acc][4];
       __vector_quad quad_acc[num_acc];
@@ -133,15 +133,15 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
       for(k = 0; k < num_acc; k++)
         __builtin_mma_disassemble_acc((void*)acc[k], &(quad_acc[k]));
 
-      float *result2 = result + (col*rows) + offset_row;
       for(k = 0; k < (num_acc - 1); k++){
-        storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result2 + k*4*rows, extra_cols, extra_rows);
+        storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
       }
-      storeResults<rhsExtraCols, lhsExtraRows>(acc[k], rows, pAlpha, result2 + k*4*rows, extra_cols, extra_rows);
+      storeResults<rhsExtraCols, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
     }
 
     indexA -= num_packets*2;
     indexB += strideB*num_acc;
+    result += (rows*step - num_packets);
   } while(!rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC) && (step <= cols - (col += step)));
 }
 
@@ -193,6 +193,7 @@ EIGEN_ALWAYS_INLINE void colLoops(Index depth, Index cols, Index rows, const Pac
   if (cols >= (MAX_BFLOAT16_ACC * 4)) {
     colLoopBody<MAX_BFLOAT16_ACC, num_packets, false, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, 0, result, 0, extra_rows);
     blockB += (strideB >> 2)*col;
+    result += rows*col;
   }
   if (extra_cols) {
     colLoopBodyExtra<num_packets, true, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, offsetB, result, extra_cols, extra_rows);
