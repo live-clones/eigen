@@ -891,19 +891,27 @@ struct functor_traits<scalar_isfinite_op<Scalar> >
 };
 
 /** \internal
-  * \brief Template functor to compute the logical not of a boolean
+  * \brief Template functor to compute the logical not of a scalar as if it were a boolean
   *
   * \sa class CwiseUnaryOp, ArrayBase::operator!
   */
-template<typename Scalar> struct scalar_boolean_not_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a) const { return !a; }
+template <typename Scalar>
+struct scalar_boolean_not_op {
+  using result_type = Scalar;
+  // `false` any value `a` that satisfies `a == Scalar(0)`
+  // `true` is the complement of `false`
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
+    return a == Scalar(0) ? Scalar(1) : Scalar(0);
+  }
+  template <typename Packet>
+  EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+    const Packet cst_one = pset1<Packet>(Scalar(1));
+    return pand(pcmp_eq(a, pzero(a)), cst_one);
+  }
 };
-template<typename Scalar>
-struct functor_traits<scalar_boolean_not_op<Scalar> > {
-  enum {
-    Cost = NumTraits<bool>::AddCost,
-    PacketAccess = false
-  };
+template <typename Scalar>
+struct functor_traits<scalar_boolean_not_op<Scalar>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 
 /** \internal

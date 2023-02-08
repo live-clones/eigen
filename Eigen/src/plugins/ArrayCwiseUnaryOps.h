@@ -587,8 +587,6 @@ EIGEN_DEVICE_FUNC
 inline const BooleanNotReturnType
 operator!() const
 {
-  EIGEN_STATIC_ASSERT((internal::is_same<bool,Scalar>::value),
-                      THIS_METHOD_IS_ONLY_FOR_EXPRESSIONS_OF_BOOL);
   return BooleanNotReturnType(derived());
 }
 

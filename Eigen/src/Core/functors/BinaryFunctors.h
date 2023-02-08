@@ -431,57 +431,81 @@ struct functor_traits<scalar_quotient_op<LhsScalar,RhsScalar> > {
 
 
 /** \internal
-  * \brief Template functor to compute the and of two booleans
+  * \brief Template functor to compute the and of two scalars as if they were booleans
   *
   * \sa class CwiseBinaryOp, ArrayBase::operator&&
   */
+template <typename Scalar>
 struct scalar_boolean_and_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a, const bool& b) const { return a && b; }
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pand(a,b); }
+  using result_type = Scalar;
+  // `false` any value `a` that satisfies `a == Scalar(0)`
+  // `true` is the complement of `false`
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return (a != Scalar(0)) && (b != Scalar(0)) ? Scalar(1) : Scalar(0);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+    const Packet cst_one = pset1<Packet>(Scalar(1));
+    // and(a,b) == !or(!a,!b)
+    Packet complement = por(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
+    return pandnot(cst_one, complement);
+  }
 };
-template<> struct functor_traits<scalar_boolean_and_op> {
-  enum {
-    Cost = NumTraits<bool>::AddCost,
-    PacketAccess = true
-  };
+template <typename Scalar>
+struct functor_traits<scalar_boolean_and_op<Scalar>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 
 /** \internal
-  * \brief Template functor to compute the or of two booleans
+  * \brief Template functor to compute the or of two scalars as if they were booleans
   *
   * \sa class CwiseBinaryOp, ArrayBase::operator||
   */
+template <typename Scalar>
 struct scalar_boolean_or_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a, const bool& b) const { return a || b; }
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::por(a,b); }
+  using result_type = Scalar;
+  // `false` any value `a` that satisfies `a == Scalar(0)`
+  // `true` is the complement of `false`
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return (a != Scalar(0)) || (b != Scalar(0)) ? Scalar(1) : Scalar(0);
+  }
+  template <typename Packet>
+  EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+    const Packet cst_one = pset1<Packet>(Scalar(1));
+    // or(a,b) == !and(!a,!b)
+    Packet complement = pand(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
+    return pandnot(cst_one, complement);
+  }
 };
-template<> struct functor_traits<scalar_boolean_or_op> {
-  enum {
-    Cost = NumTraits<bool>::AddCost,
-    PacketAccess = true
-  };
+template <typename Scalar>
+struct functor_traits<scalar_boolean_or_op<Scalar>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 
 /** \internal
- * \brief Template functor to compute the xor of two booleans
+ * \brief Template functor to compute the xor of two scalars as if they were booleans
  *
  * \sa class CwiseBinaryOp, ArrayBase::operator^
  */
+template <typename Scalar>
 struct scalar_boolean_xor_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const bool& a, const bool& b) const { return a ^ b; }
-  template<typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const
-  { return internal::pxor(a,b); }
+  using result_type = Scalar;
+  // `false` any value `a` that satisfies `a == Scalar(0)`
+  // `true` is the complement of `false`
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return (a != Scalar(0)) ^ (b != Scalar(0)) ? Scalar(1) : Scalar(0);
+  }
+  template <typename Packet>
+  EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+    const Packet cst_one = pset1<Packet>(Scalar(1));
+    // pxor(a,b) == pxor(!a,!b)
+    Packet result = pxor(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
+    return pand(cst_one, result);
+  }
 };
-template<> struct functor_traits<scalar_boolean_xor_op> {
-  enum {
-    Cost = NumTraits<bool>::AddCost,
-    PacketAccess = true
-  };
+template <typename Scalar>
+struct functor_traits<scalar_boolean_xor_op<Scalar>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 
 /** \internal
