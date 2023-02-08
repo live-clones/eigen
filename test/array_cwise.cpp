@@ -954,6 +954,54 @@ void signed_shift_test(const ArrayType& m) {
     signed_shift_test_impl<ArrayType>::run(m);
 }
 
+template <typename ArrayType>
+struct typed_logicals_test_impl {
+  using Scalar = typename ArrayType::Scalar;
+
+  static bool scalar_to_bool(const Scalar& x) { return x != Scalar(0) ? Scalar(1) : Scalar(0); }
+  static Scalar bool_to_scalar(const bool& x) { return x ? Scalar(1) : Scalar(0); }
+
+  static void run(const ArrayType& m) {
+    Index rows = m.rows();
+    Index cols = m.cols();
+
+    ArrayType m1(rows, cols), m2(rows, cols), m3(rows, cols), m4(rows, cols);
+
+    m1.setRandom();
+    m2.setRandom();
+    m1 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
+    m2 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
+
+    // test and
+    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) && scalar_to_bool(y)); });
+    m4 = m1 && m2;
+    VERIFY_IS_APPROX(m3, m4);
+    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test or
+    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) || scalar_to_bool(y)); });
+    m4 = m1 || m2;
+    VERIFY_IS_APPROX(m3, m4);
+    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test xor
+    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) ^ scalar_to_bool(y)); });
+    m4 = m1 ^ m2;
+    VERIFY_IS_APPROX(m3, m4);
+    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test not
+    m3 = m1.unaryExpr([](const Scalar& x) { return bool_to_scalar(!scalar_to_bool(x)); });
+    m4 = !m1;
+    VERIFY_IS_APPROX(m3, m4);
+    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+  }
+};
+template <typename ArrayType>
+void typed_logicals_test(const ArrayType& m) {
+    typed_logicals_test_impl<ArrayType>::run(m);
+}
+
 EIGEN_DECLARE_TEST(array_cwise)
 {
   for(int i = 0; i < g_repeat; i++) {
@@ -1000,6 +1048,15 @@ EIGEN_DECLARE_TEST(array_cwise)
     CALL_SUBTEST_6( int_pow_test() );
     CALL_SUBTEST_7( mixed_pow_test() );
     CALL_SUBTEST_8( signbit_tests() );
+  }
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1( typed_logicals_test(Array<bool, 1, 1>()));
+    CALL_SUBTEST_1( typed_logicals_test(Array<int, 1, 1>()));
+    CALL_SUBTEST_1( typed_logicals_test(Array<float, 1, 1>()));
+    CALL_SUBTEST_2( typed_logicals_test(ArrayX<bool>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_2( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_2( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_2( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
