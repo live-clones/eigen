@@ -121,7 +121,8 @@ inline void throw_std_bad_alloc()
 EIGEN_DEVICE_FUNC inline void* handmade_aligned_malloc(std::size_t size, std::size_t alignment = EIGEN_DEFAULT_ALIGN_BYTES)
 {
   eigen_assert(alignment >= sizeof(void*) && alignment <= 128 && (alignment & (alignment-1)) == 0 && "Alignment must be at least sizeof(void*), less than or equal to 128, and a power of 2");
-  void* original = std::malloc(size + alignment);
+  EIGEN_USING_STD(malloc)
+  void* original = malloc(size + alignment);
   if (original == 0) return 0;
   uint8_t offset = static_cast<uint8_t>(alignment - (reinterpret_cast<std::size_t>(original) & (alignment - 1)));
   void* aligned = static_cast<void*>(static_cast<uint8_t*>(original) + offset);
@@ -135,7 +136,8 @@ EIGEN_DEVICE_FUNC inline void handmade_aligned_free(void *ptr)
   if (ptr) {
     uint8_t offset = static_cast<uint8_t>(*(static_cast<uint8_t*>(ptr) - 1));
     void* original = static_cast<void*>(static_cast<uint8_t*>(ptr) - offset);
-    std::free(original);
+    EIGEN_USING_STD(free)
+    free(original);
   }
 }
 
@@ -149,7 +151,8 @@ EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t n
   if (ptr == nullptr) return handmade_aligned_malloc(new_size, alignment);
   uint8_t old_offset = *(static_cast<uint8_t*>(ptr) - 1);
   void* old_original = static_cast<uint8_t*>(ptr) - old_offset;
-  void* original = std::realloc(old_original, new_size + alignment);
+  EIGEN_USING_STD(realloc)
+  void* original = realloc(old_original, new_size + alignment);
   if (original == nullptr) return nullptr;
   if (original == old_original) return ptr;
   uint8_t offset = static_cast<uint8_t>(alignment - (reinterpret_cast<std::size_t>(original) & (alignment - 1)));
@@ -248,7 +251,8 @@ EIGEN_DEVICE_FUNC inline void* aligned_realloc(void *ptr, std::size_t new_size, 
   void *result;
 #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
   EIGEN_UNUSED_VARIABLE(old_size)
-  result = std::realloc(ptr,new_size);
+  EIGEN_USING_STD(realloc)
+  result = realloc(ptr,new_size);
 #else
   result = handmade_aligned_realloc(ptr,new_size,old_size);
 #endif
@@ -309,8 +313,9 @@ template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(voi
   if (new_size == 0) { conditional_aligned_free<false>(ptr); return nullptr; }
 
   check_that_malloc_is_allowed();
-
-  return std::realloc(ptr, new_size);
+  
+  EIGEN_USING_STD(realloc)
+  return realloc(ptr, new_size);
 }
 
 /*****************************************************************************
