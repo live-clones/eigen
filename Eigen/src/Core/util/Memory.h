@@ -146,11 +146,11 @@ EIGEN_DEVICE_FUNC inline void handmade_aligned_free(void *ptr)
   */
 EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t new_size, std::size_t old_size, std::size_t alignment = EIGEN_DEFAULT_ALIGN_BYTES)
 {
-  if (ptr == 0) return handmade_aligned_malloc(new_size, alignment);
+  if (ptr == nullptr) return handmade_aligned_malloc(new_size, alignment);
   uint8_t old_offset = *(static_cast<uint8_t*>(ptr) - 1);
   void* old_original = static_cast<uint8_t*>(ptr) - old_offset;
   void* original = std::realloc(old_original, new_size + alignment);
-  if (original == 0) return 0;
+  if (original == nullptr) return nullptr;
   if (original == old_original) return ptr;
   uint8_t offset = static_cast<uint8_t>(alignment - (reinterpret_cast<std::size_t>(original) & (alignment - 1)));
   void* aligned = static_cast<void*>(static_cast<uint8_t*>(original) + offset);
@@ -196,7 +196,7 @@ EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
   */
 EIGEN_DEVICE_FUNC inline void* aligned_malloc(std::size_t size)
 {
-  if (size == 0) return 0;
+  if (size == 0) return nullptr;
   
   check_that_malloc_is_allowed();
 
