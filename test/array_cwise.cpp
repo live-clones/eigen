@@ -958,8 +958,12 @@ template <typename ArrayType>
 struct typed_logicals_test_impl {
   using Scalar = typename ArrayType::Scalar;
 
-  static bool scalar_to_bool(const Scalar& x) { return x != Scalar(0) ? Scalar(1) : Scalar(0); }
+  static bool scalar_to_bool(const Scalar& x) { return x != Scalar(0); }
   static Scalar bool_to_scalar(const bool& x) { return x ? Scalar(1) : Scalar(0); }
+  static Scalar eval_and(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) && scalar_to_bool(y)); }
+  static Scalar eval_or(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) || scalar_to_bool(y)); }
+  static Scalar eval_xor(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) ^ scalar_to_bool(y)); }
+  static Scalar eval_not(const Scalar& x) { return bool_to_scalar(!scalar_to_bool(x)); }
 
   static void run(const ArrayType& m) {
     Index rows = m.rows();
@@ -973,27 +977,27 @@ struct typed_logicals_test_impl {
     m2 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
 
     // test and
-    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) && scalar_to_bool(y)); });
+    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_and(x,y); });
     m4 = m1 && m2;
-    VERIFY_IS_APPROX(m3, m4);
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
     for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
 
     // test or
-    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) || scalar_to_bool(y)); });
+    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_or(x,y); });
     m4 = m1 || m2;
-    VERIFY_IS_APPROX(m3, m4);
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
     for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
 
     // test xor
-    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) ^ scalar_to_bool(y)); });
+    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_xor(x,y); });
     m4 = m1 ^ m2;
-    VERIFY_IS_APPROX(m3, m4);
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
     for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
 
     // test not
-    m3 = m1.unaryExpr([](const Scalar& x) { return bool_to_scalar(!scalar_to_bool(x)); });
+    m3 = m1.unaryExpr([](const Scalar& x) { return eval_not(x); });
     m4 = !m1;
-    VERIFY_IS_APPROX(m3, m4);
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
     for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
   }
 };
