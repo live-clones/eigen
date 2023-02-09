@@ -428,8 +428,6 @@ struct functor_traits<scalar_quotient_op<LhsScalar,RhsScalar> > {
   };
 };
 
-
-
 /** \internal
   * \brief Template functor to compute the and of two scalars as if they were booleans
   *
@@ -444,7 +442,7 @@ struct scalar_boolean_and_op {
     return (a != Scalar(0)) && (b != Scalar(0)) ? Scalar(1) : Scalar(0);
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
     // and(a,b) == !or(!a,!b)
     Packet complement = por(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
@@ -470,7 +468,7 @@ struct scalar_boolean_or_op {
     return (a != Scalar(0)) || (b != Scalar(0)) ? Scalar(1) : Scalar(0);
   }
   template <typename Packet>
-  EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+  EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
     // or(a,b) == !and(!a,!b)
     Packet complement = pand(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
@@ -496,9 +494,9 @@ struct scalar_boolean_xor_op {
     return (a != Scalar(0)) ^ (b != Scalar(0)) ? Scalar(1) : Scalar(0);
   }
   template <typename Packet>
-  EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+  EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
-    // pxor(a,b) == pxor(!a,!b)
+    // xor(a,b) == xor(!a,!b)
     Packet result = pxor(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
     return pand(cst_one, result);
   }
