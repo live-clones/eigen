@@ -445,8 +445,10 @@ struct scalar_boolean_and_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
     // and(a,b) == !or(!a,!b)
-    Packet complement = por(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
-    return pandnot(cst_one, complement);
+    Packet not_a = pcmp_eq(a, pzero(a));
+    Packet not_b = pcmp_eq(b, pzero(b));
+    Packet a_nand_b = por(not_a, not_b);
+    return pandnot(cst_one, a_nand_b);
   }
 };
 template <typename Scalar>
@@ -470,9 +472,9 @@ struct scalar_boolean_or_op {
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
-    // or(a,b) == !and(!a,!b)
-    Packet complement = pand(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
-    return pandnot(cst_one, complement);
+    // or(a,b) == !and(!a,!b) == !nor(a,b)
+    Packet a_nor_b = pcmp_eq(por(a, b), pzero(a));
+    return pandnot(cst_one, a_nor_b);
   }
 };
 template <typename Scalar>
@@ -497,8 +499,10 @@ struct scalar_boolean_xor_op {
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
     // xor(a,b) == xor(!a,!b)
-    Packet result = pxor(pcmp_eq(a, pzero(a)), pcmp_eq(b, pzero(b)));
-    return pand(cst_one, result);
+    Packet not_a = pcmp_eq(a, pzero(a));
+    Packet not_b = pcmp_eq(b, pzero(b));
+    Packet a_xor_b = pxor(not_a, not_b);
+    return pand(cst_one, a_xor_b);
   }
 };
 template <typename Scalar>

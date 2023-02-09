@@ -999,6 +999,9 @@ struct typed_logicals_test_impl {
     m4 = !m1;
     VERIFY_IS_CWISE_EQUAL(m3, m4);
     for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test something more complicated
+    VERIFY_IS_CWISE_EQUAL(m1 && m2, !(!m1 || !m2));
   }
 };
 template <typename ArrayType>
@@ -1054,13 +1057,10 @@ EIGEN_DECLARE_TEST(array_cwise)
     CALL_SUBTEST_8( signbit_tests() );
   }
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( typed_logicals_test(Array<bool, 1, 1>()));
-    CALL_SUBTEST_1( typed_logicals_test(Array<int, 1, 1>()));
-    CALL_SUBTEST_1( typed_logicals_test(Array<float, 1, 1>()));
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<bool>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_7( typed_logicals_test(ArrayX<bool>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_7( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_7( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_7( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
