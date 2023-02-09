@@ -475,9 +475,9 @@ template<> EIGEN_STRONG_INLINE Packet4i pcmp_lt(const Packet4i& a, const Packet4
 template<> EIGEN_STRONG_INLINE Packet4i pcmp_eq(const Packet4i& a, const Packet4i& b) { return _mm_cmpeq_epi32(a,b); }
 template<> EIGEN_STRONG_INLINE Packet4i pcmp_le(const Packet4i& a, const Packet4i& b) { return por(pcmp_lt(a,b), pcmp_eq(a,b)); }
 
-template<> EIGEN_STRONG_INLINE Packet16b pcmp_lt<Packet16b>(const Packet16b& a, const Packet16b& b) { return _mm_andnot_si128(a, b); }
-template<> EIGEN_STRONG_INLINE Packet16b pcmp_eq(const Packet16b& a, const Packet16b& b) { return _mm_cmpeq_epi8(a, b); }
-template<> EIGEN_STRONG_INLINE Packet16b pcmp_le<Packet16b>(const Packet16b& a, const Packet16b& b) { return pandnot(ptrue(a), pcmp_lt(b, a)); }
+template<> EIGEN_STRONG_INLINE Packet16b pcmp_lt<Packet16b>(const Packet16b& a, const Packet16b& b) { return _mm_cmplt_epi8(a,b); }
+template<> EIGEN_STRONG_INLINE Packet16b pcmp_eq<Packet16b>(const Packet16b& a, const Packet16b& b) { return _mm_cmpeq_epi8(a,b); }
+template<> EIGEN_STRONG_INLINE Packet16b pcmp_le<Packet16b>(const Packet16b& a, const Packet16b& b) { return pandnot(ptrue(a), pcmp_lt(b,a)); }
 
 template<> EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) {
 #if EIGEN_GNUC_STRICT_LESS_THAN(6,3,0)
