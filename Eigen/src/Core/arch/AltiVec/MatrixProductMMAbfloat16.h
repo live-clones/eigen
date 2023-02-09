@@ -44,15 +44,15 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index ex
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* blockB, Index strideB, Index i, Index k)
+EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* blockB, Index strideB, Index i)
 {
-  return loadBfloat16<zero>(blockB + strideB*i + (k*4));
+  return loadBfloat16<zero>(blockB + strideB*i);
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, Index strideB, Index i, Index k, Index extra_cols)
+EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, Index strideB, Index i, Index extra_cols)
 {
-  return loadBfloat16Extra<zero>(blockB + strideB*i + (k*extra_cols), extra_cols);
+  return loadBfloat16Extra<zero>(blockB + strideB*i, extra_cols);
 }
 
 template<Index num_acc, Index num_packets, bool zero, bool rhsExtraCols, bool lhsExtraRows>
@@ -60,10 +60,9 @@ EIGEN_ALWAYS_INLINE void KLoop
 (
   const bfloat16* indexA,
   const bfloat16* indexB,
+  const bfloat16* indexB2,
   __vector_quad (&quad_acc)[num_acc],
   Index strideB,
-  Index offsetB,
-  Index k,
   Index extra_rows,
   Index extra_cols
 )
@@ -75,10 +74,10 @@ EIGEN_ALWAYS_INLINE void KLoop
   else lhs = loadBfloat16<zero>(indexA); //a packet of bfloat16 has 8 elements
 
   for(Index i = 0; i < (num_acc - (rhsExtraCols ? 1 : 0)); i++){
-    rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i, k);
+    rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i);
   }
   if(rhsExtraCols) {
-    rhs[num_acc - 1] = loadRhsBfloat16ExtraCols<zero>(indexB - offsetB, strideB, num_acc - 1, k, extra_cols);
+    rhs[num_acc - 1] = loadRhsBfloat16ExtraCols<zero>(indexB2, strideB, num_acc - 1, extra_cols);
   }
 
   BFLOAT16_UNROLL
@@ -112,6 +111,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
 {
   const Index step = (num_acc * 4); //each accumulator has 4 elements
   const Index extra_cols = (rhsExtraCols) ? (cols & 3) : 0;
+  extra_rows = (lhsExtraRows) ? extra_rows : num_packets;
 
   do{
     for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += 8, result += 4) {
@@ -124,12 +124,14 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
         __builtin_mma_xxsetaccz(&(quad_acc[k]));
 
       const bfloat16* indexA2 = indexA;
-      for(k = 0; k + 2 <= depth; k += 2, indexA2 += 2*(lhsExtraRows ? extra_rows : num_packets)){
-        KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA2, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
+      const bfloat16* indexB2 = indexB - offsetB;
+      for(k = 0; k + 2 <= depth; k += 2, indexA2 += 2*extra_rows, indexB += 2*4, indexB2 += 2*extra_cols){
+        KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA2, indexB, indexB2, quad_acc, strideB, extra_rows, extra_cols);
       }
       if(depth&1){
-        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA2 - offset_row, indexB, quad_acc, strideB, offsetB, k, extra_rows, extra_cols);
+        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA2 - offset_row, indexB, indexB2, quad_acc, strideB, extra_rows, extra_cols);
       }
+      indexB -= k*4;
 
       BFLOAT16_UNROLL
       for(k = 0; k < num_acc; k++)
