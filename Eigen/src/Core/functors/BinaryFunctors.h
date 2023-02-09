@@ -472,7 +472,8 @@ struct scalar_boolean_or_op {
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
-    // or(a,b) == !and(!a,!b) == !nor(a,b)
+    // if or(a,b) == 0, then a == 0 and b == 0
+    // or(a,b) == !nor(a,b)
     Packet a_nor_b = pcmp_eq(por(a, b), pzero(a));
     return pandnot(cst_one, a_nor_b);
   }
