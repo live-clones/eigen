@@ -520,7 +520,6 @@ class DenseStorage<T, Dynamic, Dynamic, Dynamic, Options_>
     {
       if(size != m_rows*m_cols)
       {
-        internal::check_that_malloc_is_allowed();
         internal::conditional_aligned_delete_auto<T,(Options_&DontAlign)==0>(m_data, m_rows*m_cols);
         if (size>0) // >0 and not simply !=0 to let the compiler knows that size cannot be negative
           m_data = internal::conditional_aligned_new_auto<T,(Options_&DontAlign)==0>(size);
