@@ -32,52 +32,29 @@ EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16(const bfloat16* indexA)
 }
 
 template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadBfloat16Extra(const bfloat16* indexA, Index extra_rows)
-{
-  if (zero) {
-    Packet8bf lhs1 = ploadu_partial<Packet8bf>(indexA, extra_rows);
-    Packet8bf lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
-    return vec_mergeh(lhs1.m_val, lhs2.m_val);
-  } else {
-    return reinterpret_cast<Packet8us>(ploadu_partial<Packet4i>(reinterpret_cast<const int *>(indexA), extra_rows));
-  }
-}
-
-template<bool zero>
 EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* blockB, Index strideB, Index i)
 {
   return loadBfloat16<zero>(blockB + strideB*i);
 }
 
-template<bool zero>
-EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16ExtraCols(const bfloat16* blockB, Index strideB, Index i, Index extra_cols)
-{
-  return loadBfloat16Extra<zero>(blockB + strideB*i, extra_cols);
-}
-
-template<Index num_acc, Index num_packets, bool zero, bool rhsExtraCols, bool lhsExtraRows>
+template<Index num_acc, bool zero, bool rhsExtraCols>
 EIGEN_ALWAYS_INLINE void KLoop
 (
   const bfloat16* indexA,
   const bfloat16* indexB,
   const bfloat16* indexB2,
   __vector_quad (&quad_acc)[num_acc],
-  Index strideB,
-  Index extra_rows,
-  Index extra_cols
+  Index strideB
 )
 {
-  Packet8bf lhs;
+  Packet8bf lhs = loadBfloat16<zero>(indexA); //a packet of bfloat16 has 8 elements
   Packet8bf rhs[num_acc];
-
-  if(lhsExtraRows) lhs = loadBfloat16Extra<zero>(indexA, extra_rows);
-  else lhs = loadBfloat16<zero>(indexA); //a packet of bfloat16 has 8 elements
 
   for(Index i = 0; i < (num_acc - (rhsExtraCols ? 1 : 0)); i++){
     rhs[i] = loadRhsBfloat16<zero>(indexB, strideB, i);
   }
   if(rhsExtraCols) {
-    rhs[num_acc - 1] = loadRhsBfloat16ExtraCols<zero>(indexB2, strideB, num_acc - 1, extra_cols);
+    rhs[num_acc - 1] = loadRhsBfloat16<zero>(indexB2, strideB, num_acc - 1);
   }
 
   BFLOAT16_UNROLL
@@ -91,13 +68,11 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Pack
 {
   Index x = 0;
   do{
+    Packet4f result_block = ploadu<Packet4f>(result);
+    result_block = pmadd(acc[x], pAlpha, result_block);
     if (lhsExtraRows) {
-      Packet4f result_block = ploadu_partial<Packet4f>(result, extra_rows);
-      result_block = pmadd(acc[x], pAlpha, result_block);
       pstoreu_partial(result, result_block, extra_rows);
     } else {
-      Packet4f result_block = ploadu<Packet4f>(result);
-      result_block = pmadd(acc[x], pAlpha, result_block);
       pstoreu(result, result_block);
     }
     result += rows;
@@ -126,10 +101,10 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
       const bfloat16* indexA2 = indexA;
       const bfloat16* indexB2 = indexB - offsetB;
       for(k = 0; k + 2 <= depth; k += 2, indexA2 += 2*extra_rows, indexB += 2*4, indexB2 += 2*extra_cols){
-        KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA2, indexB, indexB2, quad_acc, strideB, extra_rows, extra_cols);
+        KLoop<num_acc, false, rhsExtraCols>(indexA2, indexB, indexB2, quad_acc, strideB);
       }
       if(depth&1){
-        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA2 - offset_row, indexB, indexB2, quad_acc, strideB, extra_rows, extra_cols);
+        KLoop<num_acc, true, rhsExtraCols>(indexA2 - offset_row, indexB, indexB2, quad_acc, strideB);
       }
       indexB -= k*4;
 
