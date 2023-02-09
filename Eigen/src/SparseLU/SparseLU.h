@@ -177,6 +177,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_,OrderingType_> >, 
     void analyzePattern (const MatrixType& matrix);
     void factorize (const MatrixType& matrix);
     void simplicialfactorize(const MatrixType& matrix);
+    void getCscLU(SparseMatrix<Scalar, ColMajor, StorageIndex> &Lcsc, SparseMatrix<Scalar, ColMajor, StorageIndex> &Ucsc) const;
     
     /**
       * Compute the symbolic and numeric factorization of the input sparse matrix.
@@ -479,9 +480,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_,OrderingType_> >, 
     SCMatrix m_Lstore; // The lower triangular matrix (supernodal)
     Map<SparseMatrix<Scalar,ColMajor,StorageIndex>> m_Ustore; // The upper triangular matrix
     PermutationType m_perm_c; // Column permutation 
-    PermutationType m_perm_r ; // Row permutation
-    IndexVector m_etree; // Column elimination tree 
-    
+    PermutationType m_perm_r; // Row permutation
+    IndexVector m_etree; // Column elimination tree
+
     typename Base::GlobalLU_t m_glu; 
                                
     // SparseLU options 
@@ -799,6 +800,112 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix)
   
   m_info = Success;
   m_factorizationIsOk = true;
+}
+
+/**
+ * Convert the internally stored supernode matrices L and U to standard CSC format and store the result user provided SparseMatrix.
+ * 
+ * The inputs Lcsc and Ucsc will be resized to target shape.
+ * 
+ * @param Lcsc SparseMatrix where resulting L matrix will be stored into
+ * @param Ucsc SparseMatrix where resulting U matrix will be stored into
+*/
+template <typename MatrixType, typename OrderingType>
+void SparseLU<MatrixType, OrderingType>::getCscLU(SparseMatrix<SparseLU::Scalar, ColMajor, StorageIndex> &Lcsc, SparseMatrix<Scalar, ColMajor, StorageIndex> &Ucsc) const
+{
+  /*
+    * Convert SC and NC format matrices L, U to CSC format.
+    * The LU decomposition U factor is partly stored in m_Ustore and partly in the upper
+    * diagonal of m_Lstore.  The L matrix is stored in column-addressable rectangular
+    * superblock format.
+    *
+    * This routine is adapted from SuperLU SciPy wrappers:
+    * https://github.com/scipy/scipy/blob/v1.10.0/scipy/sparse/linalg/_dsolve/_superluobject.c
+    */
+  
+  Lcsc.resize(rows(), cols());
+  Ucsc.resize(rows(), cols());
+  Lcsc.makeCompressed();
+  Ucsc.makeCompressed();
+  Lcsc.reserve(m_nnzL);
+  Ucsc.reserve(m_nnzU);
+
+  Scalar *L_data = Lcsc.valuePtr();
+  Scalar *U_data = Ucsc.valuePtr();
+  StorageIndex *L_colptr = Lcsc.outerIndexPtr();
+  StorageIndex *U_colptr = Ucsc.outerIndexPtr();
+  StorageIndex *L_rowind = Lcsc.innerIndexPtr();
+  StorageIndex *U_rowind = Ucsc.innerIndexPtr();
+
+  Index isup, icol, icolStart, icolEnd, iptr, iStart, iEnd, iVal;
+  Index U_nnz, L_nnz;
+
+  U_colptr[0] = 0;
+  L_colptr[0] = 0;
+  U_nnz = 0;
+  L_nnz = 0;
+
+  /* For each supernode */
+  for (isup = 0; isup <= m_Lstore.nsuper(); ++isup) {
+    icolStart = m_Lstore.supToCol()[isup];
+    icolEnd = m_Lstore.supToCol()[isup + 1];
+    iStart = m_Lstore.rowIndexPtr()[icolStart];
+    iEnd = m_Lstore.rowIndexPtr()[icolStart + 1];
+
+    /* For each column in supernode */
+    for (icol = icolStart; icol < icolEnd; ++icol) {
+
+      /* Process data in Ustore*/
+      for (iptr = m_Ustore.outerIndexPtr()[icol]; iptr < m_Ustore.outerIndexPtr()[icol + 1]; ++iptr) {
+        if (m_Ustore.valuePtr()[iptr] != Scalar(0)) {
+          eigen_assert(U_nnz < m_nnzU && "SparseLU matrices have wrong nnz");
+          U_rowind[U_nnz] = m_Ustore.innerIndexPtr()[iptr];
+          U_data[U_nnz] = m_Ustore.valuePtr()[iptr];
+          ++U_nnz;
+        }
+      }
+
+      /* Process data in Lstore */
+      iptr = iStart;
+      iVal = m_Lstore.colIndexPtr()[icol];
+
+      /* Upper triangle part */
+      for (; iptr < iEnd; ++iptr) {
+        if (m_Lstore.rowIndex()[iptr] > icol) {
+          break;
+        }
+
+        if (m_Lstore.valuePtr()[iVal] != Scalar(0)) {
+          eigen_assert(U_nnz < m_nnzU && "SparseLU matrices have wrong nnz");
+          U_rowind[U_nnz] = m_Lstore.rowIndex()[iptr];
+          U_data[U_nnz] = m_Lstore.valuePtr()[iVal];
+          ++U_nnz;
+        }
+        ++iVal;
+      }
+
+      /* Add unit diagonal in L */
+      eigen_assert(L_nnz < m_nnzL && "SparseLU matrices have wrong nnz");
+      L_data[L_nnz] = Scalar(1);
+      L_rowind[L_nnz] = icol;
+      ++L_nnz;
+
+      /* Lower triangle part */
+      for (; iptr < iEnd; ++iptr) {
+        if (m_Lstore.valuePtr()[iVal] != Scalar(0)) {
+          eigen_assert(L_nnz < m_nnzL && "SparseLU matrices have wrong nnz");
+          L_rowind[L_nnz] = m_Lstore.rowIndex()[iptr];
+          L_data[L_nnz] = m_Lstore.valuePtr()[iVal];
+          ++L_nnz;
+        }
+        ++iVal;
+      }
+
+      /* Record column pointers */
+      U_colptr[icol + 1] = U_nnz;
+      L_colptr[icol + 1] = L_nnz;
+    }
+  }
 }
 
 template<typename MappedSupernodalType>
