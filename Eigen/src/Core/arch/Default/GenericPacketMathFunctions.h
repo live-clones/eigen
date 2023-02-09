@@ -1117,7 +1117,6 @@ struct psign_impl<Packet, std::enable_if_t<!NumTraits<typename unpacket_traits<P
                                            NumTraits<typename unpacket_traits<Packet>::type>::IsSigned &&
                                            NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
-
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet cst_one = pset1<Packet>(Scalar(1));
     const Packet cst_minus_one = pset1<Packet>(Scalar(-1));
