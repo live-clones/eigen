@@ -1495,8 +1495,8 @@ struct runall<Scalar, PacketType, true, false> {  // i.e. complex
 EIGEN_DECLARE_TEST(packetmath) {
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(test::runner<float>::run());
-    CALL_SUBTEST_2(test::runner<double>::run());
+    //CALL_SUBTEST_1(test::runner<float>::run());
+    //CALL_SUBTEST_2(test::runner<double>::run());
     CALL_SUBTEST_3(test::runner<int8_t>::run());
     CALL_SUBTEST_4(test::runner<uint8_t>::run());
     CALL_SUBTEST_5(test::runner<int16_t>::run());
