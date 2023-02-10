@@ -964,9 +964,6 @@ void signed_shift_test(const ArrayType& m) {
 template <typename ArrayType>
 struct typed_logicals_test_impl {
   using Scalar = typename ArrayType::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  using uint_t = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
-  static const bool IsComplex = NumTraits<Scalar>::IsComplex;
 
   static bool scalar_to_bool(const Scalar& x) { return x != Scalar(0); }
   static Scalar bool_to_scalar(const bool& x) { return x ? Scalar(1) : Scalar(0); }
@@ -1021,7 +1018,7 @@ struct typed_logicals_test_impl {
     m4 = (!m1).binaryExpr((!m2), internal::scalar_boolean_xor_op<Scalar>());
     VERIFY_IS_CWISE_EQUAL(m3, m4);
 
-    const Index bytes = rows * cols * sizeof(Scalar) / CHAR_BIT;
+    const Index bytes = rows * cols * sizeof(Scalar);
     const uint8_t* m1_data = reinterpret_cast<const uint8_t*>(m1.data());
     const uint8_t* m2_data = reinterpret_cast<const uint8_t*>(m2.data());
     uint8_t* m3_data = reinterpret_cast<uint8_t*>(m3.data());
