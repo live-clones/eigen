@@ -511,49 +511,6 @@ struct functor_traits<scalar_boolean_xor_op<Scalar>> {
   enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 
-template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
-struct eval_bit_op_impl {
-  using uint_t = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  static Scalar EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE run_and(const Scalar& a, const Scalar& b) {
-    return numext::bit_cast<Scalar, uint_t>(numext::bit_cast<uint_t, Scalar>(a) & numext::bit_cast<uint_t, Scalar>(b));
-  }
-  static Scalar EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE run_or(const Scalar& a, const Scalar& b) {
-    return numext::bit_cast<Scalar, uint_t>(numext::bit_cast<uint_t, Scalar>(a) | numext::bit_cast<uint_t, Scalar>(b));
-  }
-  static Scalar EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE run_xor(const Scalar& a, const Scalar& b) {
-    return numext::bit_cast<Scalar, uint_t>(numext::bit_cast<uint_t, Scalar>(a) ^ numext::bit_cast<uint_t, Scalar>(b));
-  }
-};
-template <typename Scalar>
-struct eval_bit_op_impl<Scalar, true> {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  using uint_t = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_and(const Scalar& a, const Scalar& b) {
-    Scalar result;
-    numext::real_ref(result) = numext::bit_cast<RealScalar, uint_t>(
-        numext::bit_cast<uint_t, RealScalar>(numext::real(a)) & numext::bit_cast<uint_t, RealScalar>(numext::real(b)));
-    numext::imag_ref(result) = numext::bit_cast<RealScalar, uint_t>(
-        numext::bit_cast<uint_t, RealScalar>(numext::imag(a)) & numext::bit_cast<uint_t, RealScalar>(numext::imag(b)));
-    return result;
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_or(const Scalar& a, const Scalar& b) {
-    Scalar result;
-    numext::real_ref(result) = numext::bit_cast<RealScalar, uint_t>(
-        numext::bit_cast<uint_t, RealScalar>(numext::real(a)) | numext::bit_cast<uint_t, RealScalar>(numext::real(b)));
-    numext::imag_ref(result) = numext::bit_cast<RealScalar, uint_t>(
-        numext::bit_cast<uint_t, RealScalar>(numext::imag(a)) | numext::bit_cast<uint_t, RealScalar>(numext::imag(b)));
-    return result;
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_xor(const Scalar& a, const Scalar& b) {
-    Scalar result;
-    numext::real_ref(result) = numext::bit_cast<RealScalar, uint_t>(
-        numext::bit_cast<uint_t, RealScalar>(numext::real(a)) ^ numext::bit_cast<uint_t, RealScalar>(numext::real(b)));
-    numext::imag_ref(result) = numext::bit_cast<RealScalar, uint_t>(
-        numext::bit_cast<uint_t, RealScalar>(numext::imag(a)) ^ numext::bit_cast<uint_t, RealScalar>(numext::imag(b)));
-    return result;
-  }
-};
-
 /** \internal
   * \brief Template functor to compute the bitwise and of two scalars
   *
@@ -563,7 +520,12 @@ template <typename Scalar>
 struct scalar_bitwise_and_op {
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
-    return eval_bit_op_impl<Scalar>::run_and(a, b);
+    Scalar result;
+    const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
+    const uint8_t* b_bytes = reinterpret_cast<const uint8_t*>(&b);
+    uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
+    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] & b_bytes[i];
+    return result;
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
@@ -584,7 +546,12 @@ template <typename Scalar>
 struct scalar_bitwise_or_op {
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
-    return eval_bit_op_impl<Scalar>::run_or(a, b);
+    Scalar result;
+    const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
+    const uint8_t* b_bytes = reinterpret_cast<const uint8_t*>(&b);
+    uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
+    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] | b_bytes[i];
+    return result;
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
@@ -605,7 +572,12 @@ template <typename Scalar>
 struct scalar_bitwise_xor_op {
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
-    return eval_bit_op_impl<Scalar>::run_xor(a, b);
+    Scalar result;
+    const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
+    const uint8_t* b_bytes = reinterpret_cast<const uint8_t*>(&b);
+    uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
+    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] ^ b_bytes[i];
+    return result;
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {

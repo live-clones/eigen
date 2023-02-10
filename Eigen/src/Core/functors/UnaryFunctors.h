@@ -914,25 +914,6 @@ struct functor_traits<scalar_boolean_not_op<Scalar>> {
   enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 
-template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
-struct eval_bit_not_op_impl {
-  using uint_t = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  static Scalar EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE run(const Scalar& a) {
-    return numext::bit_cast<Scalar, uint_t>(~numext::bit_cast<uint_t, Scalar>(a));
-  }
-};
-template <typename Scalar>
-struct eval_bit_not_op_impl<Scalar, true> {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  using uint_t = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Scalar& a) {
-    Scalar result;
-    numext::real_ref(result) = numext::bit_cast<RealScalar, uint_t>(~numext::bit_cast<uint_t, RealScalar>(numext::real(a)));
-    numext::imag_ref(result) = numext::bit_cast<RealScalar, uint_t>(~numext::bit_cast<uint_t, RealScalar>(numext::imag(a)));
-    return result;
-  }
-};
-
 /** \internal
   * \brief Template functor to compute the bitwise not of a scalar
   *
@@ -943,7 +924,11 @@ struct scalar_bitwise_not_op {
   using result_type = Scalar;
   using uint_t = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    return eval_bit_not_op_impl<Scalar>::run(a);
+    Scalar result;
+    const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
+    uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
+    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = ~a_bytes[i];
+    return result;
   }
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
