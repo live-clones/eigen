@@ -7,14 +7,6 @@
 #define BFLOAT16_UNROLL _Pragma("GCC unroll(8)")
 #endif
 
-#define TEST_VERBOSE   // Report timings and gemm type, MMA, rows, depth and cols
-
-#ifdef TEST_VERBOSE
-#include <cstdio>
-#include <iostream>
-#include <sys/platform/ppc.h>
-#endif
-
 namespace Eigen {
 
 namespace internal {
@@ -190,10 +182,6 @@ EIGEN_ALWAYS_INLINE Packet8bf convertF16toF32(const float *res)
 template<typename Index, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
   if(rows == 0 || cols == 0 || depth == 0) return;
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
   if (falpha == float(0)) return;
@@ -309,10 +297,6 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     }
     col++;
   }
-#ifdef TEST_VERBOSE
-  end = __ppc_get_timebase();
-  printf("gemm bfloat16 MMA time = %16ld\n", end - start);
-#endif
 }
 
 
