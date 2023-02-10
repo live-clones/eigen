@@ -49,24 +49,6 @@ EIGEN_ALWAYS_INLINE void gemm_complex_extra_row(
   const Packet& pAlphaImag,
   const Packet& pMask);
 
-template<typename Scalar, typename Packet, typename Packetc, typename DataMapper, const Index accCols, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
-EIGEN_STRONG_INLINE void gemm_complex_extra_cols(
-  const DataMapper& res,
-  const Scalar* blockA,
-  const Scalar* blockB,
-  Index depth,
-  Index strideA,
-  Index offsetA,
-  Index strideB,
-  Index offsetB,
-  Index col,
-  Index rows,
-  Index cols,
-  Index remaining_rows,
-  const Packet& pAlphaReal,
-  const Packet& pAlphaImag,
-  const Packet& pMask);
-
 template<typename Packet>
 EIGEN_ALWAYS_INLINE Packet ploadLhs(const __UNPACK_TYPE__(Packet)* lhs);
 
@@ -192,6 +174,23 @@ EIGEN_ALWAYS_INLINE void bcouple(PacketBlock<Packet,N>& taccReal, PacketBlock<Pa
   MICRO_UPDATE \
   if(LhsIsReal || (accCols == accCols2)) { \
     EIGEN_UNUSED_VARIABLE(imag_delta2); \
+  }
+
+#define MICRO_EXTRA(MICRO_EXTRA_UNROLL, value, is_col) \
+  switch(value) { \
+    default: \
+      MICRO_EXTRA_UNROLL(1) \
+      break; \
+    case 2: \
+      if (is_col || (sizeof(Scalar) == sizeof(float))) { \
+        MICRO_EXTRA_UNROLL(2) \
+      } \
+      break; \
+    case 3: \
+      if (is_col || (sizeof(Scalar) == sizeof(float))) { \
+        MICRO_EXTRA_UNROLL(3) \
+      } \
+      break; \
   }
 
 

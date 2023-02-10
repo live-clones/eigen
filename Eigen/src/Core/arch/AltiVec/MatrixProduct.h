@@ -1941,23 +1941,6 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_row_iteration(
 #endif
 }
 
-#define MICRO_EXTRA(MICRO_EXTRA_UNROLL, value, is_col) \
-  switch(value) { \
-    default: \
-      MICRO_EXTRA_UNROLL(1) \
-      break; \
-    case 2: \
-      if (is_col || (sizeof(Scalar) == sizeof(float))) { \
-        MICRO_EXTRA_UNROLL(2) \
-      } \
-      break; \
-    case 3: \
-      if (is_col || (sizeof(Scalar) == sizeof(float))) { \
-        MICRO_EXTRA_UNROLL(3) \
-      } \
-      break; \
-  }
-
 #define MICRO_EXTRA_ROWS(N) \
   gemm_unrolled_row_iteration<Scalar, Packet, DataMapper, accRows, accCols, N>(res, lhs_base, rhs_base, depth, strideA, offsetA, strideB, row, rows, pAlpha, pMask);
 
