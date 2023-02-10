@@ -38,11 +38,11 @@ std::vector<Scalar> special_values() {
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
   std::vector<Scalar> result = {zero, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan};
 #if defined(EIGEN_COMP_MSVC)
-  const int test_denorm = EIGEN_COMP_MSVC;
+  const int skip_denorm = EIGEN_COMP_MSVC;
 #else
-  const int test_denorm = 1;
+  const int skip_denorm = 0;
 #endif
-  if (!test_denorm) result.push_back(denorm_min);
+  if (!skip_denorm) result.push_back(denorm_min);
   return result;
 }
 
