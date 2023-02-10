@@ -922,7 +922,6 @@ struct functor_traits<scalar_boolean_not_op<Scalar>> {
 template <typename Scalar>
 struct scalar_bitwise_not_op {
   using result_type = Scalar;
-  using uint_t = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     Scalar result;
     const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
