@@ -225,7 +225,6 @@ template<> struct packet_traits<bool> : default_packet_traits
     HasMax       = 0,
     HasConj      = 0,
     HasSqrt      = 1,
-    HasCmp       = 1,
     HasSign      = 0   // Don't try to vectorize psign<bool> = identity.
   };
 };
@@ -459,7 +458,6 @@ template<> EIGEN_STRONG_INLINE Packet16b pxor<Packet16b>(const Packet16b& a, con
 template<> EIGEN_STRONG_INLINE Packet4f pandnot<Packet4f>(const Packet4f& a, const Packet4f& b) { return _mm_andnot_ps(b,a); }
 template<> EIGEN_STRONG_INLINE Packet2d pandnot<Packet2d>(const Packet2d& a, const Packet2d& b) { return _mm_andnot_pd(b,a); }
 template<> EIGEN_STRONG_INLINE Packet4i pandnot<Packet4i>(const Packet4i& a, const Packet4i& b) { return _mm_andnot_si128(b,a); }
-template<> EIGEN_STRONG_INLINE Packet16b pandnot<Packet16b>(const Packet16b& a, const Packet16b& b) { return _mm_andnot_si128(b, a); }
 
 template<> EIGEN_STRONG_INLINE Packet4f pcmp_le(const Packet4f& a, const Packet4f& b) { return _mm_cmple_ps(a,b); }
 template<> EIGEN_STRONG_INLINE Packet4f pcmp_lt(const Packet4f& a, const Packet4f& b) { return _mm_cmplt_ps(a,b); }
@@ -473,11 +471,8 @@ template<> EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2
 
 template<> EIGEN_STRONG_INLINE Packet4i pcmp_lt(const Packet4i& a, const Packet4i& b) { return _mm_cmplt_epi32(a,b); }
 template<> EIGEN_STRONG_INLINE Packet4i pcmp_eq(const Packet4i& a, const Packet4i& b) { return _mm_cmpeq_epi32(a,b); }
+template<> EIGEN_STRONG_INLINE Packet16b pcmp_eq(const Packet16b& a, const Packet16b& b) { return _mm_cmpeq_epi8(a,b); }
 template<> EIGEN_STRONG_INLINE Packet4i pcmp_le(const Packet4i& a, const Packet4i& b) { return por(pcmp_lt(a,b), pcmp_eq(a,b)); }
-
-template<> EIGEN_STRONG_INLINE Packet16b pcmp_lt<Packet16b>(const Packet16b& a, const Packet16b& b) { return _mm_cmplt_epi8(a,b); }
-template<> EIGEN_STRONG_INLINE Packet16b pcmp_eq<Packet16b>(const Packet16b& a, const Packet16b& b) { return _mm_cmpeq_epi8(a,b); }
-template<> EIGEN_STRONG_INLINE Packet16b pcmp_le<Packet16b>(const Packet16b& a, const Packet16b& b) { return pandnot(ptrue(a), pcmp_lt(b,a)); }
 
 template<> EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) {
 #if EIGEN_GNUC_STRICT_LESS_THAN(6,3,0)
