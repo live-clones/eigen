@@ -15,6 +15,8 @@
 typedef CwiseUnaryOp<internal::scalar_abs_op<Scalar>, const Derived> CwiseAbsReturnType;
 typedef CwiseUnaryOp<internal::scalar_abs2_op<Scalar>, const Derived> CwiseAbs2ReturnType;
 typedef CwiseUnaryOp<internal::scalar_arg_op<Scalar>, const Derived> CwiseArgReturnType;
+typedef CwiseUnaryOp<internal::scalar_cabs2_op<Scalar>, const Derived> CwiseCAbs2ReturnType;
+typedef CwiseUnaryOp<internal::scalar_carg_op<Scalar>, const Derived> CwiseCArgReturnType;
 typedef CwiseUnaryOp<internal::scalar_sqrt_op<Scalar>, const Derived> CwiseSqrtReturnType;
 typedef CwiseUnaryOp<internal::scalar_sign_op<Scalar>, const Derived> CwiseSignReturnType;
 typedef CwiseUnaryOp<internal::scalar_inverse_op<Scalar>, const Derived> CwiseInverseReturnType;
@@ -93,6 +95,15 @@ EIGEN_DOC_UNARY_ADDONS(cwiseArg,arg)
 EIGEN_DEVICE_FUNC
 inline const CwiseArgReturnType
 cwiseArg() const { return CwiseArgReturnType(derived()); }
+
+
+EIGEN_DEVICE_FUNC
+EIGEN_STRONG_INLINE const CwiseCAbs2ReturnType
+cwiseCAbs2() const { return CwiseCAbs2ReturnType(derived()); }
+
+EIGEN_DEVICE_FUNC
+EIGEN_STRONG_INLINE const CwiseCArgReturnType
+cwiseCArg() const { return CwiseCArgReturnType(derived()); }
 
 template <typename ScalarExponent>
 using CwisePowReturnType =

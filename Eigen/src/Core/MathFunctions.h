@@ -1278,6 +1278,22 @@ inline EIGEN_MATHFUNC_RETVAL(abs2, Scalar) abs2(const Scalar& x)
   return EIGEN_MATHFUNC_IMPL(abs2, Scalar)::run(x);
 }
 
+template<typename Scalar, std::enable_if_t<NumTraits<Scalar>::IsComplex, int> = 0>
+EIGEN_DEVICE_FUNC
+inline Scalar cabs2(const Scalar& x)
+{
+  using numext::abs2;
+  return Scalar(abs2(x));
+}
+
+template<typename Scalar, std::enable_if_t<NumTraits<Scalar>::IsComplex, int> = 0>
+EIGEN_DEVICE_FUNC
+inline Scalar carg(const Scalar& x)
+{
+  using numext::arg;
+  return Scalar(arg(x));
+}
+
 EIGEN_DEVICE_FUNC
 inline bool abs2(bool x) { return x; }
 
