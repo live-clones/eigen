@@ -494,7 +494,7 @@ struct scalar_boolean_xor_op {
   // `false` any value `a` that satisfies `a == Scalar(0)`
   // `true` is the complement of `false`
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
-    return (a != Scalar(0)) ^ (b != Scalar(0)) ? Scalar(1) : Scalar(0);
+    return (a != Scalar(0)) != (b != Scalar(0)) ? Scalar(1) : Scalar(0);
   }
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
@@ -509,6 +509,112 @@ struct scalar_boolean_xor_op {
 template <typename Scalar>
 struct functor_traits<scalar_boolean_xor_op<Scalar>> {
   enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
+};
+
+template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct eval_bit_op_impl {
+  using uint_t = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  static Scalar EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE run_and(const Scalar& a, const Scalar& b) {
+    return numext::bit_cast<Scalar, uint_t>(numext::bit_cast<uint_t, Scalar>(a) & numext::bit_cast<uint_t, Scalar>(b));
+  }
+  static Scalar EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE run_or(const Scalar& a, const Scalar& b) {
+    return numext::bit_cast<Scalar, uint_t>(numext::bit_cast<uint_t, Scalar>(a) | numext::bit_cast<uint_t, Scalar>(b));
+  }
+  static Scalar EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE run_xor(const Scalar& a, const Scalar& b) {
+    return numext::bit_cast<Scalar, uint_t>(numext::bit_cast<uint_t, Scalar>(a) ^ numext::bit_cast<uint_t, Scalar>(b));
+  }
+};
+template <typename Scalar>
+struct eval_bit_op_impl<Scalar, true> {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using uint_t = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_and(const Scalar& a, const Scalar& b) {
+    Scalar result;
+    numext::real_ref(result) = numext::bit_cast<RealScalar, uint_t>(
+        numext::bit_cast<uint_t, RealScalar>(numext::real(a)) & numext::bit_cast<uint_t, RealScalar>(numext::real(b)));
+    numext::imag_ref(result) = numext::bit_cast<RealScalar, uint_t>(
+        numext::bit_cast<uint_t, RealScalar>(numext::imag(a)) & numext::bit_cast<uint_t, RealScalar>(numext::imag(b)));
+    return result;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_or(const Scalar& a, const Scalar& b) {
+    Scalar result;
+    numext::real_ref(result) = numext::bit_cast<RealScalar, uint_t>(
+        numext::bit_cast<uint_t, RealScalar>(numext::real(a)) | numext::bit_cast<uint_t, RealScalar>(numext::real(b)));
+    numext::imag_ref(result) = numext::bit_cast<RealScalar, uint_t>(
+        numext::bit_cast<uint_t, RealScalar>(numext::imag(a)) | numext::bit_cast<uint_t, RealScalar>(numext::imag(b)));
+    return result;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_xor(const Scalar& a, const Scalar& b) {
+    Scalar result;
+    numext::real_ref(result) = numext::bit_cast<RealScalar, uint_t>(
+        numext::bit_cast<uint_t, RealScalar>(numext::real(a)) ^ numext::bit_cast<uint_t, RealScalar>(numext::real(b)));
+    numext::imag_ref(result) = numext::bit_cast<RealScalar, uint_t>(
+        numext::bit_cast<uint_t, RealScalar>(numext::imag(a)) ^ numext::bit_cast<uint_t, RealScalar>(numext::imag(b)));
+    return result;
+  }
+};
+
+/** \internal
+  * \brief Template functor to compute the bitwise and of two scalars
+  *
+  * \sa class CwiseBinaryOp, ArrayBase::operator&
+  */
+template <typename Scalar>
+struct scalar_bitwise_and_op {
+  using result_type = Scalar;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return eval_bit_op_impl<Scalar>::run_and(a, b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return pand(a, b);
+  }
+};
+template <typename Scalar>
+struct functor_traits<scalar_bitwise_and_op<Scalar>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = true };
+};
+
+/** \internal
+  * \brief Template functor to compute the bitwise or of two scalars
+  *
+  * \sa class CwiseBinaryOp, ArrayBase::operator|
+  */
+template <typename Scalar>
+struct scalar_bitwise_or_op {
+  using result_type = Scalar;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return eval_bit_op_impl<Scalar>::run_or(a, b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return por(a, b);
+  }
+};
+template <typename Scalar>
+struct functor_traits<scalar_bitwise_or_op<Scalar>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = true };
+};
+
+/** \internal
+  * \brief Template functor to compute the bitwise xor of two scalars
+  *
+  * \sa class CwiseBinaryOp, ArrayBase::operator^
+  */
+template <typename Scalar>
+struct scalar_bitwise_xor_op {
+  using result_type = Scalar;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
+    return eval_bit_op_impl<Scalar>::run_xor(a, b);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
+    return pxor(a, b);
+  }
+};
+template <typename Scalar>
+struct functor_traits<scalar_bitwise_xor_op<Scalar>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = true };
 };
 
 /** \internal

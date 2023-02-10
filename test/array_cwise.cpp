@@ -36,7 +36,14 @@ std::vector<Scalar> special_values() {
   const Scalar min = (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
-  return { zero, denorm_min, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan };
+  std::vector<Scalar> result = {zero, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan};
+#if defined(EIGEN_COMP_MSVC)
+  const int test_denorm = EIGEN_COMP_MSVC;
+#else
+  const int test_denorm = 1;
+#endif
+  if (!test_denorm) result.push_back(denorm_min);
+  return result;
 }
 
 template<typename Scalar>
@@ -957,15 +964,20 @@ void signed_shift_test(const ArrayType& m) {
 template <typename ArrayType>
 struct typed_logicals_test_impl {
   using Scalar = typename ArrayType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using uint_t = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
+  static const bool IsComplex = NumTraits<Scalar>::IsComplex;
 
   static bool scalar_to_bool(const Scalar& x) { return x != Scalar(0); }
   static Scalar bool_to_scalar(const bool& x) { return x ? Scalar(1) : Scalar(0); }
-  static Scalar eval_and(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) && scalar_to_bool(y)); }
-  static Scalar eval_or(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) || scalar_to_bool(y)); }
-  static Scalar eval_xor(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) ^ scalar_to_bool(y)); }
-  static Scalar eval_not(const Scalar& x) { return bool_to_scalar(!scalar_to_bool(x)); }
+
+  static Scalar eval_bool_and(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) && scalar_to_bool(y)); }
+  static Scalar eval_bool_or(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) || scalar_to_bool(y)); }
+  static Scalar eval_bool_xor(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) != scalar_to_bool(y)); }
+  static Scalar eval_bool_not(const Scalar& x) { return bool_to_scalar(!scalar_to_bool(x)); }
 
   static void run(const ArrayType& m) {
+      
     Index rows = m.rows();
     Index cols = m.cols();
 
@@ -976,32 +988,73 @@ struct typed_logicals_test_impl {
     m1 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
     m2 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
 
-    // test and
-    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_and(x,y); });
-    m4 = m1 && m2;
+    // test boolean and
+    m3 = m1 && m2;
+    m4 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_bool_and(x, y); });
     VERIFY_IS_CWISE_EQUAL(m3, m4);
-    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
 
-    // test or
-    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_or(x,y); });
-    m4 = m1 || m2;
+    // test boolean or
+    m3 = m1 || m2;
+    m4 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_bool_or(x, y); });
     VERIFY_IS_CWISE_EQUAL(m3, m4);
-    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
 
-    // test xor
-    m3 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_xor(x,y); });
-    m4 = m1 ^ m2;
+    // test boolean xor
+    m3 = m1.binaryExpr(m2, internal::scalar_boolean_xor_op<Scalar>());
+    m4 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_bool_xor(x, y); });
     VERIFY_IS_CWISE_EQUAL(m3, m4);
-    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
 
-    // test not
-    m3 = m1.unaryExpr([](const Scalar& x) { return eval_not(x); });
-    m4 = !m1;
+    // test boolean not
+    m3 = !m1;
+    m4 = m1.unaryExpr([](const Scalar& x) { return eval_bool_not(x); });
     VERIFY_IS_CWISE_EQUAL(m3, m4);
-    for (const Scalar& val : m4) VERIFY(val == Scalar(0) || val == Scalar(1));
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
 
     // test something more complicated
-    VERIFY_IS_CWISE_EQUAL(m1 && m2, !(!m1 || !m2));
+    m3 = m1 && m2;
+    m4 = !(!m1 || !m2);
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+
+    m3 = m1.binaryExpr(m2, internal::scalar_boolean_xor_op<Scalar>());
+    m4 = (!m1).binaryExpr((!m2), internal::scalar_boolean_xor_op<Scalar>());
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+
+    const Index bytes = rows * cols * sizeof(Scalar) / CHAR_BIT;
+    const uint8_t* m1_data = reinterpret_cast<uint8_t*>(m1.data());
+    const uint8_t* m2_data = reinterpret_cast<uint8_t*>(m2.data());
+    const uint8_t* m3_data = reinterpret_cast<uint8_t*>(m3.data());
+    uint8_t* m4_data = reinterpret_cast<uint8_t*>(m4.data());
+
+    // test bitwise and
+    m3 = m1 & m2;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = m1_data[i] & m2_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test bitwise or
+    m3 = m1 | m2;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = m1_data[i] | m2_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test bitwise xor
+    m3 = m1 ^ m2;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = m1_data[i] ^ m2_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test bitwise not
+    m3 = ~m1;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = ~m1_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test something more complicated
+    m3 = m1 & m2;
+    m4 = ~(~m1 | ~m2);
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    m3 = m1 ^ m2;
+    m4 = (~m1) ^ (~m2);
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
   }
 };
 template <typename ArrayType>

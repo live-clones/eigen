@@ -77,52 +77,61 @@ const CwiseBinaryOp<internal::scalar_quotient_op<Scalar,T>,Derived,Constant<T> >
 #endif
 
 /** \returns an expression of the coefficient-wise boolean \b and operator of \c *this and \a other
-  *
-  * \warning this operator is for expression of bool only.
-  *
-  * Example: \include Cwise_boolean_and.cpp
-  * Output: \verbinclude Cwise_boolean_and.out
-  *
-  * \sa operator||(), select()
-  */
-template<typename OtherDerived>
-EIGEN_DEVICE_FUNC
-inline const CwiseBinaryOp<internal::scalar_boolean_and_op<Scalar>, const Derived, const OtherDerived>
-operator&&(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
-{
-  return CwiseBinaryOp<internal::scalar_boolean_and_op<Scalar>, const Derived, const OtherDerived>(derived(),other.derived());
+ *
+ * Example: \include Cwise_boolean_and.cpp
+ * Output: \verbinclude Cwise_boolean_and.out
+ *
+ * \sa operator||(), select()
+ */
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC inline const CwiseBinaryOp<internal::scalar_boolean_and_op<Scalar>, const Derived, const OtherDerived>
+operator&&(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const {
+  return CwiseBinaryOp<internal::scalar_boolean_and_op<Scalar>, const Derived, const OtherDerived>(derived(),
+                                                                                                   other.derived());
 }
 
 /** \returns an expression of the coefficient-wise boolean \b or operator of \c *this and \a other
-  *
-  * \warning this operator is for expression of bool only.
-  *
-  * Example: \include Cwise_boolean_or.cpp
-  * Output: \verbinclude Cwise_boolean_or.out
-  *
-  * \sa operator&&(), select()
-  */
-template<typename OtherDerived>
-EIGEN_DEVICE_FUNC
-inline const CwiseBinaryOp<internal::scalar_boolean_or_op<Scalar>, const Derived, const OtherDerived>
-operator||(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
-{
-  return CwiseBinaryOp<internal::scalar_boolean_or_op<Scalar>, const Derived, const OtherDerived>(derived(),other.derived());
-}
-
-/** \returns an expression of the coefficient-wise ^ operator of *this and \a other
  *
- * \warning this operator is for expression of bool only.
- *
- * Example: \include Cwise_boolean_xor.cpp
- * Output: \verbinclude Cwise_boolean_xor.out
+ * Example: \include Cwise_boolean_or.cpp
+ * Output: \verbinclude Cwise_boolean_or.out
  *
  * \sa operator&&(), select()
  */
-template<typename OtherDerived>
-EIGEN_DEVICE_FUNC
-inline const CwiseBinaryOp<internal::scalar_boolean_xor_op<Scalar>, const Derived, const OtherDerived>
-operator^(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const
-{
-  return CwiseBinaryOp<internal::scalar_boolean_xor_op<Scalar>, const Derived, const OtherDerived>(derived(), other.derived());
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC inline const CwiseBinaryOp<internal::scalar_boolean_or_op<Scalar>, const Derived, const OtherDerived>
+operator||(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const {
+  return CwiseBinaryOp<internal::scalar_boolean_or_op<Scalar>, const Derived, const OtherDerived>(derived(),
+                                                                                                  other.derived());
+}
+
+/** \returns an expression of the bitwise \b and operator of \c *this and \a other
+ *
+ * \sa operator|(), operator^()
+ */
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC inline const CwiseBinaryOp<internal::scalar_bitwise_and_op<Scalar>, const Derived, const OtherDerived>
+operator&(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const {
+  return CwiseBinaryOp<internal::scalar_bitwise_and_op<Scalar>, const Derived, const OtherDerived>(derived(),
+                                                                                                   other.derived());
+}
+
+/** \returns an expression of the bitwise boolean \b or operator of \c *this and \a other
+ *
+ * \sa operator&(), operator^()
+ */
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC inline const CwiseBinaryOp<internal::scalar_bitwise_or_op<Scalar>, const Derived, const OtherDerived>
+operator|(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const {
+  return CwiseBinaryOp<internal::scalar_bitwise_or_op<Scalar>, const Derived, const OtherDerived>(derived(),
+                                                                                                  other.derived());
+}
+
+/** \returns an expression of the bitwise xor operator of *this and \a other
+ * \sa operator&(), operator|()
+ */
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC inline const CwiseBinaryOp<internal::scalar_bitwise_xor_op<Scalar>, const Derived, const OtherDerived>
+operator^(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const {
+  return CwiseBinaryOp<internal::scalar_bitwise_xor_op<Scalar>, const Derived, const OtherDerived>(derived(),
+                                                                                                   other.derived());
 }
