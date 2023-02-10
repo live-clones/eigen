@@ -30,7 +30,7 @@ EIGEN_ALWAYS_INLINE void gemm_extra_row(
   const Packet& pAlpha,
   const Packet& pMask);
 
-template<typename Scalar, typename Packet, typename DataMapper, const Index accCols, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
+template<typename Scalar, typename Packet, typename DataMapper, const Index accCols>
 EIGEN_ALWAYS_INLINE void gemm_extra_cols(
   const DataMapper& res,
   const Scalar* blockA,
