@@ -429,29 +429,6 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
   }
 }
 
-#define MICRO_MMA_EXTRA_COLS(N) \
-  gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, N, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask);
-
-template<typename Scalar, typename Packet, typename RhsPacket2, typename DataMapper, const Index accCols>
-EIGEN_STRONG_INLINE void gemmMMA_extra_cols(
-  const DataMapper& res,
-  const Scalar* blockA,
-  const Scalar* blockB,
-  Index depth,
-  Index strideA,
-  Index offsetA,
-  Index strideB,
-  Index offsetB,
-  Index col,
-  Index rows,
-  Index cols,
-  Index remaining_rows,
-  const Packet& pAlpha,
-  const Packet& pMask)
-{
-  MICRO_EXTRA(MICRO_MMA_EXTRA_COLS, cols-col, true)
-}
-
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
@@ -473,7 +450,7 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
 
       if (col != cols)
       {
-        gemmMMA_extra_cols<Scalar, Packet, RhsPacket2, DataMapper, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlpha, pMask);
+        gemm_extra_cols<Scalar, Packet, DataMapper, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlpha, pMask);
       }
 }
 
@@ -735,30 +712,6 @@ EIGEN_ALWAYS_INLINE void gemmMMA_complex_cols(
   }
 }
 
-#define MICRO_MMA_COMPLEX_EXTRA_COLS(N) \
-  gemmMMA_complex_cols<Scalar, Packet, Packetc, RhsPacket2, DataMapper, N, accCols, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlphaReal, pAlphaImag, pMask);
-
-template<typename Scalar, typename Packet, typename Packetc, typename RhsPacket2, typename DataMapper, const Index accCols, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
-EIGEN_STRONG_INLINE void gemmMMA_complex_extra_cols(
-  const DataMapper& res,
-  const Scalar* blockA,
-  const Scalar* blockB,
-  Index depth,
-  Index strideA,
-  Index offsetA,
-  Index strideB,
-  Index offsetB,
-  Index col,
-  Index rows,
-  Index cols,
-  Index remaining_rows,
-  const Packet& pAlphaReal,
-  const Packet& pAlphaImag,
-  const Packet& pMask)
-{
-  MICRO_EXTRA(MICRO_MMA_COMPLEX_EXTRA_COLS, cols-col, true)
-}
-
 template<typename LhsScalar, typename RhsScalar, typename Scalarc, typename Scalar, typename Packet, typename Packetc, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
 void gemm_complexMMA(const DataMapper& res, const LhsScalar* blockAc, const RhsScalar* blockBc, Index rows, Index depth, Index cols, Scalarc alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
@@ -784,7 +737,7 @@ void gemm_complexMMA(const DataMapper& res, const LhsScalar* blockAc, const RhsS
 
       if (col != cols)
       {
-        gemmMMA_complex_extra_cols<Scalar, Packet, Packetc, RhsPacket2, DataMapper, accCols, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlphaReal, pAlphaImag, pMask);
+        gemm_complex_extra_cols<Scalar, Packet, Packetc, DataMapper, accCols, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlphaReal, pAlphaImag, pMask);
       }
 }
 
