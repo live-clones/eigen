@@ -208,6 +208,23 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       pstore(result2 + i + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_3)));
       pstore(result2 + i + 28, reinterpret_cast<Packet4f>(vec_mergel(z, r32_3)));
     }
+    for(; i + 16 <= rows; i+=16){
+      Packet8us r32_0 = res2.template loadPacket<Packet8bf>(i +  0).m_val;
+      Packet8us r32_1 = res2.template loadPacket<Packet8bf>(i +  8).m_val;
+      pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
+      pstore(result2 + i +  4, reinterpret_cast<Packet4f>(vec_mergel(z, r32_0)));
+      pstore(result2 + i +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_1)));
+      pstore(result2 + i + 12, reinterpret_cast<Packet4f>(vec_mergel(z, r32_1)));
+    }
+    for(; i + 8 <= rows; i+=8){
+      Packet8us r32_0 = res2.template loadPacket<Packet8bf>(i +  0).m_val;
+      pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
+      pstore(result2 + i +  4, reinterpret_cast<Packet4f>(vec_mergel(z, r32_0)));
+    }
+    for(; i + 4 <= rows; i+=4){
+      Packet8us r32_0 = res2.template loadPacketPartial<Packet8bf>(i +  0, 4).m_val;
+      pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
+    }
     for(; i < rows; i++){
       result2[i] = res2(i);
     }
