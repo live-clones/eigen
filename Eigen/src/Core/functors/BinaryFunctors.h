@@ -518,6 +518,7 @@ struct functor_traits<scalar_boolean_xor_op<Scalar>> {
   */
 template <typename Scalar>
 struct scalar_bitwise_and_op {
+  EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization, BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES )
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
     Scalar result;
@@ -544,6 +545,7 @@ struct functor_traits<scalar_bitwise_and_op<Scalar>> {
   */
 template <typename Scalar>
 struct scalar_bitwise_or_op {
+  EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization, BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES)
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
     Scalar result;
@@ -570,6 +572,7 @@ struct functor_traits<scalar_bitwise_or_op<Scalar>> {
   */
 template <typename Scalar>
 struct scalar_bitwise_xor_op {
+  EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization, BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES)
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
     Scalar result;

@@ -906,7 +906,8 @@ struct scalar_boolean_not_op {
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
-    return pand(pcmp_eq(a, pzero(a)), cst_one);
+    Packet not_a = pcmp_eq(a, pzero(a));
+    return pand(not_a, cst_one);
   }
 };
 template <typename Scalar>
@@ -921,6 +922,7 @@ struct functor_traits<scalar_boolean_not_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_bitwise_not_op {
+  EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization, BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES)
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     Scalar result;
