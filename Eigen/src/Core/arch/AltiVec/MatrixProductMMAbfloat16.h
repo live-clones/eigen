@@ -208,7 +208,6 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       pstore(result2 + i + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_3)));
       pstore(result2 + i + 28, reinterpret_cast<Packet4f>(vec_mergel(z, r32_3)));
     }
-    BFLOAT16_UNROLL
     for(; i < rows; i++){
       result2[i] = res2(i);
     }
