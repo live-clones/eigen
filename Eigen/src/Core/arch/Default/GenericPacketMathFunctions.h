@@ -1070,7 +1070,7 @@ Packet psqrt_complex(const Packet& a) {
 
   // Step 5. Select solution branch based on the sign of the real parts.
   Packet negative_real_mask;
-  negative_real_mask.v = psignbit(pand(real_mask, a.v));
+  negative_real_mask.v = pcmp_lt(pand(real_mask, a.v), pzero(a.v));
   negative_real_mask.v = por(negative_real_mask.v, pcplxflip(negative_real_mask).v);
   Packet result = pselect(negative_real_mask, negative_real_result, positive_real_result);
 
