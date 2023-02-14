@@ -148,30 +148,6 @@ struct functor_traits<scalar_arg_op<Scalar> >
 };
 
 /** \internal
-  * \brief Template functor to compute the squared magnitude value of a complex scalar, returned as a complex type
-  *
-  * \sa class CwiseUnaryOp, Cwise::cabs2
-  */
-template<typename Scalar> struct scalar_cabs2_op {
-    using result_type = Scalar;
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { return numext::cabs2(a); }
-    template <typename Packet>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const {
-      using RealPacket = typename unpacket_traits<Packet>::as_real;
-      RealPacket a2 = pmul(a.v, a.v);                     // r2    i2    r2    i2    ...
-      RealPacket a2flip = pcplxflip(Packet(a2)).v;        // i2    r2    i2    r2    ...
-      RealPacket result = padd(a2, a2flip);               // abs2  abs2  abs2  abs2  ...
-      return (Packet)pand(result, peven_mask(result));    // abs2  0     abs2  0     ...
-    }
-};
-template<typename Scalar>
-struct functor_traits<scalar_cabs2_op<Scalar> >
-{
-    enum { Cost = 2 * NumTraits<Scalar>::MulCost, PacketAccess = packet_traits<Scalar>::HasMul };
-};
-
-/** \internal
   * \brief Template functor to compute the complex argument, returned as a complex type
   *
   * \sa class CwiseUnaryOp, Cwise::carg
@@ -180,20 +156,16 @@ template <typename Scalar>
 struct scalar_carg_op {
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC
-  EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return numext::carg(a); }
+  EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return Scalar(numext::arg(a)); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const {
-    using RealPacket = typename unpacket_traits<Packet>::as_real;
-    // a                                              // r     i    r     i    ...
-    RealPacket aflip = pcplxflip(a).v;                // i     r    i     r    ...
-    RealPacket result = patan2(aflip, a.v);           // atan2 crap atan2 crap ...
-    return (Packet)pand(result, peven_mask(result));  // atan2 0    atan2 0    ...
+    return pcarg(a);
   }
 };
 template <typename Scalar>
 struct functor_traits<scalar_carg_op<Scalar>> {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  enum { Cost = functor_traits<scalar_atan_op<RealScalar>>::Cost, PacketAccess = packet_traits<RealScalar>::HasATan };
+  enum { Cost = functor_traits<scalar_atan2_op<RealScalar>>::Cost, PacketAccess = packet_traits<RealScalar>::HasATan };
 };
 
 /** \internal
