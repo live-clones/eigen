@@ -29,21 +29,14 @@ std::vector<Scalar> special_values() {
   const Scalar two = Scalar(2);
   const Scalar three = Scalar(3);
   const Scalar sqrt_half = Scalar(std::sqrt(0.5));
-  const Scalar sqrt2 = Scalar(std::sqrt(2));
+  const Scalar sqrt2 = Scalar(std::sqrt(2));    
   const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
   const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
   const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
   const Scalar min = (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
-  std::vector<Scalar> result = {zero, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan};
-#if defined(EIGEN_COMP_MSVC)
-  const int skip_denorm = EIGEN_COMP_MSVC;
-#else
-  const int skip_denorm = 0;
-#endif
-  if (!skip_denorm) result.push_back(denorm_min);
-  return result;
+  return { zero, denorm_min, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan };
 }
 
 template<typename Scalar>
