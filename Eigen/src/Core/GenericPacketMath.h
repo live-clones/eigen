@@ -1256,24 +1256,6 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet patan2(const Packet& y, const Packe
   return result;
 }
 
-/** \internal \returns the squared magnitude of \a a as a complex number */
-template <typename Packet, std::enable_if_t<is_scalar<Packet>::value, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcabs2(const Packet& a) {
-  return Packet(numext::abs2(a));
-}
-
-/** \internal \returns the squared magnitude of \a a as a complex number */
-template <typename Packet, std::enable_if_t<!is_scalar<Packet>::value, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcabs2(const Packet& a) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  EIGEN_STATIC_ASSERT(NumTraits<Scalar>::IsComplex, THIS METHOD IS FOR COMPLEX TYPES ONLY)
-  using RealPacket = typename unpacket_traits<Packet>::as_real;
-  RealPacket a2 = pmul(a.v, a.v);                   // r2    i2    r2    i2    ...
-  RealPacket a2flip = pcplxflip(Packet(a2)).v;      // i2    r2    i2    r2    ...
-  RealPacket result = padd(a2, a2flip);             // abs2  abs2  abs2  abs2  ...
-  return (Packet)pand(result, peven_mask(result));  // abs2  0     abs2  0     ...
-}
-
 /** \internal \returns the argument of \a a as a complex number */
 template <typename Packet, std::enable_if_t<is_scalar<Packet>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
