@@ -100,21 +100,6 @@ void binary_ops_test() {
                          [](const auto& x, const auto& y) { return std::pow(x, y); });
   binary_op_test<Scalar>("atan2",
                          [](const auto& x, const auto& y) { return Eigen::atan2(x, y); },
-<<<<<<< HEAD
-
-      [](const auto& x, const auto& y) {
-          auto t = std::atan2(x, y);
-#if EIGEN_COMP_MSVC
-          // Work around MSVC return value on underflow.
-          // |atan(y/x)| is bounded above by |y/x|, so on underflow return y/x according to POSIX spec.
-          // MSVC otherwise returns denorm_min.
-          if (EIGEN_PREDICT_FALSE(std::abs(t) == std::numeric_limits<decltype(t)>::denorm_min())) {
-              return x / y;
-          }
-#endif
-          return t;
-      });
-=======
                          [](const auto& x, const auto& y) {
                             auto t = std::atan2(x, y);
 #if EIGEN_COMP_MSVC
@@ -127,7 +112,6 @@ void binary_ops_test() {
 #endif
                             return t;
                           });
->>>>>>> 71a8e60a7aa6f3c46529e0f029dce5d4c9630890
 }
 
 template <typename Scalar>
@@ -790,7 +774,7 @@ template<typename ArrayType> void array_complex(const ArrayType& m)
   VERIFY_IS_APPROX(m1.logistic(), logistic(m1));
   VERIFY_IS_APPROX(m1.arg(), arg(m1));
   VERIFY_IS_APPROX(m1.carg(), carg(m1));
-  VERIFY_IS_APPROX(m1.arg(), m1.carg());
+  VERIFY_IS_APPROX(arg(m1), carg(m1));
   VERIFY((m1.isNaN() == (Eigen::isnan)(m1)).all());
   VERIFY((m1.isInf() == (Eigen::isinf)(m1)).all());
   VERIFY((m1.isFinite() == (Eigen::isfinite)(m1)).all());
