@@ -100,7 +100,18 @@ void binary_ops_test() {
                          [](const auto& x, const auto& y) { return std::pow(x, y); });
   binary_op_test<Scalar>("atan2",
                          [](const auto& x, const auto& y) { return Eigen::atan2(x, y); },
-                         [](const auto& x, const auto& y) { return std::atan2(x, y); });
+                         [](const auto& x, const auto& y) {
+                            auto t = std::atan2(x, y);
+#if EIGEN_COMP_MSVC
+                            // Work around MSVC return value on underflow.
+                            // |atan(y/x)| is bounded above by |y/x|, so on underflow return y/x according to POSIX spec.
+                            // MSVC otherwise returns denorm_min.
+                            if (EIGEN_PREDICT_FALSE(std::abs(t) == std::numeric_limits<decltype(t)>::denorm_min())) {
+                              return x/y;
+                            }
+#endif
+                            return t;
+                          });
 }
 
 template <typename Scalar>
@@ -1092,6 +1103,7 @@ EIGEN_DECLARE_TEST(array_cwise)
   }
   for(int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_4( array_complex(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_5( array_complex(ArrayXXcd(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))));
   }
 
   for(int i = 0; i < g_repeat; i++) {
