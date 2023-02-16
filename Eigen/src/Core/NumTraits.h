@@ -254,6 +254,7 @@ template<> struct NumTraits<long double>
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static inline long double epsilon()
   {
+    // 2^(-(__LDBL_MANT_DIG__)+1)
     return static_cast<long double>(2.4651903288156618919116517665087e-32l);
   }
 #endif
