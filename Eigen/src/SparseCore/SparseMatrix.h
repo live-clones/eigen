@@ -1124,8 +1124,8 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
 
   // push triplets to back of each inner vector
   for (InputIterator it(begin); it != end; ++it) {
-    StorageIndex j = IsRowMajor ? it->row() : it->col();
-    StorageIndex i = IsRowMajor ? it->col() : it->row();
+    StorageIndex j = static_cast<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    StorageIndex i = static_cast<StorageIndex>(IsRowMajor ? it->col() : it->row());
     mat.data().index(back.coeff(j)) = i;
     mat.data().value(back.coeff(j)) = it->value();
     back.coeffRef(j)++;
