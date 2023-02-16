@@ -690,7 +690,7 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   ArrayType tmp = m1.atan2(m2);
   for (Index i = 0; i < tmp.size(); ++i) {
     Scalar actual = tmp.array()(i);
-    Scalar expected = atan2(m1.array()(i), m2.array()(i));
+    Scalar expected = atan2(static_cast<double>(m1.array()(i)), static_cast<double>(m2.array()(i)));
     VERIFY_IS_APPROX(actual, expected);
   }
 
