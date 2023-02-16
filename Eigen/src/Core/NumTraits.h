@@ -254,7 +254,7 @@ template<> struct NumTraits<long double>
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static inline long double epsilon()
   {
-    return static_cast<long double>(2.4651903288156618919116517665087e-32l);
+    return static_cast<long double>(1.2325951644078309459558258832544e-32);
   }
 #endif
 };
@@ -277,7 +277,7 @@ template<typename Real_> struct NumTraits<std::complex<Real_> >
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static inline Real dummy_precision() { return NumTraits<Real>::dummy_precision(); }
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
-  static inline int digits10() { return static_cast<int>(NumTraits<Real>::digits10()); }
+  static inline int digits10() { return NumTraits<Real>::digits10(); }
 };
 
 template<typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
