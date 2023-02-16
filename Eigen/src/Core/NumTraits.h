@@ -246,8 +246,23 @@ template<> struct NumTraits<double> : GenericNumTraits<double>
 template<> struct NumTraits<long double>
   : GenericNumTraits<long double>
 {
-  EIGEN_CONSTEXPR
+#if defined(EIGEN_ARCH_PPC) && (__LDBL_MANT_DIG__ == 106)
+  // PowerPC double double causes issues with some values
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
+  static inline long double epsilon()
+  {
+    return NumTraits<double>::epsilon();
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
+  static inline long double dummy_precision()
+  {
+    return NumTraits<double>::dummy_precision();
+  }
+#else
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR
   static inline long double dummy_precision() { return 1e-15l; }
+#endif
 };
 
 template<typename Real_> struct NumTraits<std::complex<Real_> >
