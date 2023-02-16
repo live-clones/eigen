@@ -1109,7 +1109,7 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
-    StorageIndex j = IsRowMajor ? it->row() : it->col();
+    StorageIndex j = static_cast<StorageIndex>(IsRowMajor ? it->row() : it->col());
     outerIndexMap.coeffRef(j + 1)++;
   }
 
