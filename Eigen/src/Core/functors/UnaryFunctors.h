@@ -624,10 +624,16 @@ struct scalar_atanh_op {
   EIGEN_DEVICE_FUNC inline const Scalar operator()(const Scalar& a) const { return numext::atanh(a); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& x) const {
+    // atanh(x) = x + 1/3*x^3 + 1/5*x^5 ...
+    // The relative difference |atanh(x) - x| / x = 1/3*x^2 + O(x^4).
+    // Therefore, Using atanh(x) ~= x has a relative error less than eps for x ~< sqrt(3*eps).
+    static const Scalar kSmall = Scalar(std::sqrt(Scalar(2.9) * NumTraits<Scalar>::epsilon()));
+    const Packet small = pset1<Packet>(kSmall);
+    const Packet x_is_small = pcmp_lt(pabs(x), small);
     const Packet one = pset1<Packet>(Scalar(1));
     const Packet half = pset1<Packet>(Scalar(0.5));
-    Packet r = pdiv(padd(one, x), psub(one, x));
-    return pmul(half, plog(r));
+    const Packet r = pdiv(padd(one, x), psub(one, x));
+    return pselect(x_is_small, x, pmul(half, plog(r)));
   }
 };
 
