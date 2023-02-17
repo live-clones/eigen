@@ -142,7 +142,6 @@ void unary_op_test(std::string name, Fn fun, RefFn ref) {
   VERIFY(all_pass);
 }
 
-// template <typename Scalar>
 #define UNARY_FUNCTOR_TEST_ARGS(fun) #fun, \
       [](const auto& x) { return (Eigen::fun)(x); },    \
       [](const auto& x) { return (std::fun)(x); }
