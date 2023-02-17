@@ -36,13 +36,46 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& ArrayBase<Derived>::operator-=(co
   internal::call_assignment(this->derived(), PlainObject::Constant(rows(),cols(),other), internal::sub_assign_op<Scalar,Scalar>());
   return derived();
 }
-
+#ifndef EIGEN_LIBDIVIDESUPPORT_MODULE_H
 template<typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const Scalar& other)
 {
   internal::call_assignment(this->derived(), PlainObject::Constant(rows(),cols(),other), internal::div_assign_op<Scalar,Scalar>());
   return derived();
 }
+#else
+template <typename Derived, typename DivisorScalar,
+          bool Compatible = IS_LIBDIVIDE_COMPATIBLE(typename Derived::Scalar, DivisorScalar)>
+struct quotient_helper {
+  // Derived::Scalar is not a libdivide type and/or DivisorScalar is not representable as one
+  typedef typename Derived::Scalar Scalar;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& run(Derived& lhs, const DivisorScalar& other) {
+    // preserve current behavior for non-libdivide expressions : implicit conversion of DivisorScalar to Scalar
+    // todo: investigate impact of fixing current behavior, the root cause of which is PlainObject::Constant
+    internal::call_assignment(
+        lhs.derived(), 
+        Derived::PlainObject::Constant(lhs.rows(), lhs.cols(), static_cast<Scalar>(other)),
+        internal::div_assign_op<Scalar, Scalar>());
+    return lhs.derived();
+  }
+};
+template <typename Derived, typename DivisorScalar>
+struct quotient_helper<Derived, DivisorScalar, true> {
+  // Derived::Scalar is a libdivide type and DivisorScalar can be represented as one
+  typedef internal::scalar_libdivide_op<typename Derived::Scalar, DivisorScalar> LibdivideOp;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& run(Derived& lhs, const DivisorScalar& other) {
+    const LibdivideOp libdivideOp(other);
+    const CwiseUnaryOp<LibdivideOp, const Derived> libdivideExpr(lhs.derived(), libdivideOp);
+    internal::call_assignment(lhs.derived(), libdivideExpr);
+    return lhs.derived();
+  }
+};
+template <typename Derived>
+template <typename DivisorScalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const DivisorScalar& other) {
+  return quotient_helper<Derived, DivisorScalar>::run(derived(), other);
+}
+#endif // !EIGEN_LIBDIVIDESUPPORT_H
 
 } // end namespace Eigen
 

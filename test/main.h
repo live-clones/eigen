@@ -22,6 +22,10 @@
 #include <CL/sycl.hpp>
 #endif
 
+#ifndef EIGEN_LIBDIVIDESUPPORT_MODULE_H
+#include <Eigen/LibdivideSupport>
+#endif
+
 // The following includes of STL headers have to be done _before_ the
 // definition of macros min() and max().  The reason is that many STL
 // implementations will not work properly as the min and max symbols collide
