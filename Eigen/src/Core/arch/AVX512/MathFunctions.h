@@ -257,6 +257,8 @@ pcos<Packet16f>(const Packet16f& _x) {
   return pcos_float(_x);
 }
 
+#if EIGEN_HAS_AVX512_MATH
+
 template <>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet16f
 pacos<Packet16f>(const Packet16f& _x) {
@@ -268,6 +270,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet16f
 pasin<Packet16f>(const Packet16f& _x) {
   return pasin_float(_x);
 }
+
+#endif  // EIGEN_HAS_AVX512_MATH
 
 template <>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet16f
