@@ -148,7 +148,6 @@ void unary_op_test(std::string name, Fn fun, RefFn ref) {
 
 template <typename Scalar>
 void unary_ops_test() {
-  //  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(atanh));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sqrt));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log));
