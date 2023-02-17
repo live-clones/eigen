@@ -622,11 +622,21 @@ struct functor_traits<scalar_tanh_op<Scalar> > {
 template <typename Scalar>
 struct scalar_atanh_op {
   EIGEN_DEVICE_FUNC inline const Scalar operator()(const Scalar& a) const { return numext::atanh(a); }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& x) const {
+    const Packet one = pset1<Packet>(Scalar(1));
+    const Packet half = pset1<Packet>(Scalar(0.5));
+    Packet r = pdiv(padd(one, x), psub(one, x));
+    return pmul(half, plog(r));
+  }
 };
 
 template <typename Scalar>
 struct functor_traits<scalar_atanh_op<Scalar> > {
-  enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
+  enum {
+    Cost = 5 * NumTraits<Scalar>::MulCost,
+    PacketAccess = packet_traits<Scalar>::HasLog && packet_traits<Scalar>::HasDiv
+  };
 };
 
 /** \internal
