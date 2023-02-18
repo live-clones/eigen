@@ -85,7 +85,7 @@ StorageIndex cs_tdfs(StorageIndex j, StorageIndex k, StorageIndex *head, const S
 template<typename Scalar, typename StorageIndex>
 void minimum_degree_ordering(SparseMatrix<Scalar,ColMajor,StorageIndex>& C, PermutationMatrix<Dynamic,Dynamic,StorageIndex>& perm)
 {
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(sqrt);
   
   StorageIndex d, dk, dext, lemax = 0, e, elenk, eln, i, j, k, k1,
                 k2, k3, jlast, ln, dense, nzmax, mindeg = 0, nvi, nvj, nvk, mark, wnvi,

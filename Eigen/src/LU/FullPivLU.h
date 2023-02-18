@@ -331,7 +331,7 @@ template<typename MatrixType_> class FullPivLU
       */
     inline Index rank() const
     {
-      using std::abs;
+      EIGEN_USING_STD_MATH(abs);
       eigen_assert(m_isInitialized && "LU is not initialized.");
       RealScalar premultiplied_threshold = abs(m_maxpivot) * threshold();
       Index result = 0;
@@ -623,7 +623,7 @@ struct kernel_retval<FullPivLU<MatrixType_> >
 
   template<typename Dest> void evalTo(Dest& dst) const
   {
-    using std::abs;
+    EIGEN_USING_STD_MATH(abs);
     const Index cols = dec().matrixLU().cols(), dimker = cols - rank();
     if(dimker == 0)
     {
@@ -709,7 +709,7 @@ struct image_retval<FullPivLU<MatrixType_> >
 
   template<typename Dest> void evalTo(Dest& dst) const
   {
-    using std::abs;
+    EIGEN_USING_STD_MATH(abs);
     if(rank() == 0)
     {
       // The Image is just {0}, so it doesn't have a basis properly speaking, but let's

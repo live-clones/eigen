@@ -283,7 +283,7 @@ namespace Eigen {
   template<typename MatrixType>
     inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu)
     {
-      using std::abs;
+      EIGEN_USING_STD_MATH(abs);
       Index res = iu;
       while (res > 0)
       {
@@ -301,7 +301,7 @@ namespace Eigen {
   template<typename MatrixType>
     inline Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l)
     {
-      using std::abs;
+      EIGEN_USING_STD_MATH(abs);
       Index res = l;
       while (res >= f) {
         if (abs(m_T.coeff(res,res)) <= NumTraits<Scalar>::epsilon() * m_normOfT)
@@ -315,8 +315,8 @@ namespace Eigen {
   template<typename MatrixType>
     inline void RealQZ<MatrixType>::splitOffTwoRows(Index i)
     {
-      using std::abs;
-      using std::sqrt;
+      EIGEN_USING_STD_MATH(abs);
+      EIGEN_USING_STD_MATH(sqrt);
       const Index dim=m_S.cols();
       if (numext::is_exactly_zero(abs(m_S.coeff(i + 1, i))))
         return;
@@ -404,7 +404,7 @@ namespace Eigen {
   template<typename MatrixType>
     inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter)
     {
-      using std::abs;
+      EIGEN_USING_STD_MATH(abs);
       const Index dim = m_S.cols();
 
       // x, y, z

@@ -32,7 +32,7 @@ Index QuickSplit(VectorV &row, VectorI &ind, Index ncut)
 {
   typedef typename VectorV::RealScalar RealScalar;
   using std::swap;
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   Index mid;
   Index n = row.size(); /* length of the vector */
   Index first, last ;
@@ -245,9 +245,9 @@ template <typename Scalar, typename StorageIndex>
 template<typename MatrixType_>
 void IncompleteLUT<Scalar,StorageIndex>::factorize(const MatrixType_& amat)
 {
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(sqrt);
   using std::swap;
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   using internal::convert_index;
 
   eigen_assert((amat.rows() == amat.cols()) && "The factorization should be done on a square matrix");

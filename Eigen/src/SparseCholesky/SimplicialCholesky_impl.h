@@ -77,7 +77,7 @@ template<typename Derived>
 template<bool DoLDLT>
 void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType& ap)
 {
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(sqrt);
 
   eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");
   eigen_assert(ap.rows()==ap.cols());

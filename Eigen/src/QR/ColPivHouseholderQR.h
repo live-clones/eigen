@@ -254,7 +254,7 @@ private:
       */
     inline Index rank() const
     {
-      using std::abs;
+      EIGEN_USING_STD_MATH(abs);
       eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
       RealScalar premultiplied_threshold = abs(m_maxpivot) * threshold();
       Index result = 0;
@@ -456,7 +456,7 @@ typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::d
 template<typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const
 {
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   return abs(m_qr.diagonal().prod());
@@ -491,7 +491,7 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace()
 
   eigen_assert(m_qr.cols()<=NumTraits<PermutationIndex>::highest());
 
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
 
   Index rows = m_qr.rows();
   Index cols = m_qr.cols();

@@ -148,7 +148,7 @@ struct unary_evaluator<SparseView<Product<Lhs, Rhs, Options> >, IteratorBased>
   explicit unary_evaluator(const XprType& xpr)
     : m_result(xpr.rows(), xpr.cols())
   {
-    using std::abs;
+    EIGEN_USING_STD_MATH(abs);
     internal::construct_at<Base>(this, m_result);
     typedef typename nested_eval<Lhs,Dynamic>::type LhsNested;
     typedef typename nested_eval<Rhs,Dynamic>::type RhsNested;

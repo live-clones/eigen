@@ -282,7 +282,7 @@ inline bool ComplexSchur<MatrixType>::subdiagonalEntryIsNeglegible(Index i)
 template<typename MatrixType>
 typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::computeShift(Index iu, Index iter)
 {
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   if (iter == 10 || iter == 20) 
   {
     // exceptional shift, taken from http://www.netlib.org/eispack/comqr.f

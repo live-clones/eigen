@@ -83,8 +83,8 @@ template<typename VectorType>
 typename VectorType::RealScalar
 stable_norm_impl(const VectorType &vec, std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0 )
 {
-  using std::sqrt;
-  using std::abs;
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
 
   Index n = vec.size();
 
@@ -105,7 +105,7 @@ template<typename MatrixType>
 typename MatrixType::RealScalar
 stable_norm_impl(const MatrixType &mat, std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0 )
 {
-  using std::sqrt;
+  EIGEN_USING_STD_MATH(sqrt);
 
   typedef typename MatrixType::RealScalar RealScalar;
   RealScalar scale(0);
@@ -123,8 +123,8 @@ blueNorm_impl(const EigenBase<Derived>& _vec)
 {
   typedef typename Derived::RealScalar RealScalar;  
   using std::pow;
-  using std::sqrt;
-  using std::abs;
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
 
   // This program calculates the machine-dependent constants
   // bl, b2, slm, s2m, relerr overfl

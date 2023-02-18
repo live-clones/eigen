@@ -288,7 +288,7 @@ template<typename MatrixType>
 template<typename HessMatrixType, typename OrthMatrixType>
 RealSchur<MatrixType>& RealSchur<MatrixType>::computeFromHessenberg(const HessMatrixType& matrixH, const OrthMatrixType& matrixQ,  bool computeU)
 {
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
 
   m_matT = matrixH;
   m_workspaceVector.resize(m_matT.cols());
@@ -377,7 +377,7 @@ inline typename MatrixType::Scalar RealSchur<MatrixType>::computeNormOfT()
 template<typename MatrixType>
 inline Index RealSchur<MatrixType>::findSmallSubdiagEntry(Index iu, const Scalar& considerAsZero)
 {
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   Index res = iu;
   while (res > 0)
   {
@@ -396,8 +396,8 @@ inline Index RealSchur<MatrixType>::findSmallSubdiagEntry(Index iu, const Scalar
 template<typename MatrixType>
 inline void RealSchur<MatrixType>::splitOffTwoRows(Index iu, bool computeU, const Scalar& exshift)
 {
-  using std::sqrt;
-  using std::abs;
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
   const Index size = m_matT.cols();
 
   // The eigenvalues of the 2x2 matrix [a b; c d] are 
@@ -431,8 +431,8 @@ inline void RealSchur<MatrixType>::splitOffTwoRows(Index iu, bool computeU, cons
 template<typename MatrixType>
 inline void RealSchur<MatrixType>::computeShift(Index iu, Index iter, Scalar& exshift, Vector3s& shiftInfo)
 {
-  using std::sqrt;
-  using std::abs;
+  EIGEN_USING_STD_MATH(sqrt);
+  EIGEN_USING_STD_MATH(abs);
   shiftInfo.coeffRef(0) = m_matT.coeff(iu,iu);
   shiftInfo.coeffRef(1) = m_matT.coeff(iu-1,iu-1);
   shiftInfo.coeffRef(2) = m_matT.coeff(iu,iu-1) * m_matT.coeff(iu-1,iu);
@@ -473,7 +473,7 @@ inline void RealSchur<MatrixType>::computeShift(Index iu, Index iter, Scalar& ex
 template<typename MatrixType>
 inline void RealSchur<MatrixType>::initFrancisQRStep(Index il, Index iu, const Vector3s& shiftInfo, Index& im, Vector3s& firstHouseholderVector)
 {
-  using std::abs;
+  EIGEN_USING_STD_MATH(abs);
   Vector3s& v = firstHouseholderVector; // alias to save typing
 
   for (im = iu-2; im >= il; --im)

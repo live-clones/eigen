@@ -221,7 +221,7 @@ public:
     */
   inline Index rank() const
   {
-    using std::abs;
+    EIGEN_USING_STD_MATH(abs);
     _check_compute_assertions();
     if(m_singularValues.size()==0) return 0;
     RealScalar premultiplied_threshold = numext::maxi<RealScalar>(m_singularValues.coeff(0) * threshold(), (std::numeric_limits<RealScalar>::min)());

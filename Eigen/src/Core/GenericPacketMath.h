@@ -587,7 +587,7 @@ plogical_shift_left(const long int& a) { return a << N; }
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pfrexp(const Packet& a, Packet& exponent) {
   int exp;
-  EIGEN_USING_STD(frexp);
+  EIGEN_USING_STD_MATH(frexp);
   Packet result = static_cast<Packet>(frexp(a, &exp));
   exponent = static_cast<Packet>(exp);
   return result;
@@ -598,7 +598,7 @@ EIGEN_DEVICE_FUNC inline Packet pfrexp(const Packet& a, Packet& exponent) {
   */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pldexp(const Packet &a, const Packet &exponent) {
-  EIGEN_USING_STD(ldexp)
+  EIGEN_USING_STD_MATH(ldexp)
   return static_cast<Packet>(ldexp(a, static_cast<int>(exponent)));
 }
 
@@ -737,8 +737,13 @@ peven_mask(const Packet& /*a*/) {
 
 
 /** \internal copy the packet \a from to \a *to, \a to must be properly aligned */
+#ifdef EIGEN_USE_SYCL
+template<typename Scalar, typename Packet> SYCL_EXTERNAL EIGEN_DEVICE_FUNC inline void pstore(Scalar* to, const Packet& from)
+{  (*to) = from[0]; }
+#else
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(Scalar* to, const Packet& from)
 { (*to) = from; }
+#endif
 
 /** \internal copy n elements of the packet \a from to \a *to, \a to must be properly aligned
  * offset indicates the starting element in which to store and
@@ -755,8 +760,13 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store) */
+#ifdef EIGEN_USE_SYCL
+template<typename Scalar, typename Packet> SYCL_EXTERNAL EIGEN_DEVICE_FUNC inline void pstoreu(Scalar* to, const Packet& from)
+{  (*to) = from[0]; }
+#else
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu(Scalar* to, const Packet& from)
 {  (*to) = from; }
+#endif
 
 /** \internal copy n elements of the packet \a from to \a *to, (un-aligned store) */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n)
@@ -839,43 +849,43 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet pcplxflip(const Packet
 
 /** \internal \returns the sine of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet psin(const Packet& a) { EIGEN_USING_STD(sin); return sin(a); }
+Packet psin(const Packet& a) { EIGEN_USING_STD_MATH(sin); return sin(a); }
 
 /** \internal \returns the cosine of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet pcos(const Packet& a) { EIGEN_USING_STD(cos); return cos(a); }
+Packet pcos(const Packet& a) { EIGEN_USING_STD_MATH(cos); return cos(a); }
 
 /** \internal \returns the tan of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet ptan(const Packet& a) { EIGEN_USING_STD(tan); return tan(a); }
+Packet ptan(const Packet& a) { EIGEN_USING_STD_MATH(tan); return tan(a); }
 
 /** \internal \returns the arc sine of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet pasin(const Packet& a) { EIGEN_USING_STD(asin); return asin(a); }
+Packet pasin(const Packet& a) { EIGEN_USING_STD_MATH(asin); return asin(a); }
 
 /** \internal \returns the arc cosine of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet pacos(const Packet& a) { EIGEN_USING_STD(acos); return acos(a); }
+Packet pacos(const Packet& a) { EIGEN_USING_STD_MATH(acos); return acos(a); }
 
 /** \internal \returns the arc tangent of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet patan(const Packet& a) { EIGEN_USING_STD(atan); return atan(a); }
+Packet patan(const Packet& a) { EIGEN_USING_STD_MATH(atan); return atan(a); }
 
 /** \internal \returns the hyperbolic sine of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet psinh(const Packet& a) { EIGEN_USING_STD(sinh); return sinh(a); }
+Packet psinh(const Packet& a) { EIGEN_USING_STD_MATH(sinh); return sinh(a); }
 
 /** \internal \returns the hyperbolic cosine of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet pcosh(const Packet& a) { EIGEN_USING_STD(cosh); return cosh(a); }
+Packet pcosh(const Packet& a) { EIGEN_USING_STD_MATH(cosh); return cosh(a); }
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet ptanh(const Packet& a) { EIGEN_USING_STD(tanh); return tanh(a); }
+Packet ptanh(const Packet& a) { EIGEN_USING_STD_MATH(tanh); return tanh(a); }
 
 /** \internal \returns the exp of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet pexp(const Packet& a) { EIGEN_USING_STD(exp); return exp(a); }
+Packet pexp(const Packet& a) { EIGEN_USING_STD_MATH(exp); return exp(a); }
 
 /** \internal \returns the expm1 of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
@@ -883,7 +893,7 @@ Packet pexpm1(const Packet& a) { return numext::expm1(a); }
 
 /** \internal \returns the log of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet plog(const Packet& a) { EIGEN_USING_STD(log); return log(a); }
+Packet plog(const Packet& a) { EIGEN_USING_STD_MATH(log); return log(a); }
 
 /** \internal \returns the log1p of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
@@ -891,7 +901,7 @@ Packet plog1p(const Packet& a) { return numext::log1p(a); }
 
 /** \internal \returns the log10 of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet plog10(const Packet& a) { EIGEN_USING_STD(log10); return log10(a); }
+Packet plog10(const Packet& a) { EIGEN_USING_STD_MATH(log10); return log10(a); }
 
 /** \internal \returns the log10 of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS

@@ -46,7 +46,7 @@ using sycl_acc_mode = cl::sycl::access::mode;
  * Default values for template arguments
  */
 using buffer_data_type_t = uint8_t;
-const sycl_acc_target default_acc_target = sycl_acc_target::global_buffer;
+const sycl_acc_target default_acc_target = sycl_acc_target::device;
 const sycl_acc_mode default_acc_mode = sycl_acc_mode::read_write;
 
 /**
@@ -425,7 +425,7 @@ class PointerMapper {
   template <class BufferT>
   virtual_pointer_t add_pointer_impl(BufferT b) {
     virtual_pointer_t retVal = nullptr;
-    size_t bufSize = b.get_count() * sizeof(buffer_data_type_t);
+    size_t bufSize = b.size() * sizeof(buffer_data_type_t);
     auto byte_buffer =
         b.template reinterpret<buffer_data_type_t>(cl::sycl::range<1>{bufSize});
     pMapNode_t p{byte_buffer, bufSize, false};
@@ -545,7 +545,7 @@ inline void SYCLfreeAll(PointerMapper &pMap) {
 
 template <cl::sycl::access::mode AcMd, typename T>
 struct RangeAccess {
-  static const auto global_access = cl::sycl::access::target::global_buffer;
+  static const auto global_access = cl::sycl::access::target::device;
   static const auto is_place_holder = cl::sycl::access::placeholder::true_t;
   typedef T scalar_t;
   typedef scalar_t &ref_t;

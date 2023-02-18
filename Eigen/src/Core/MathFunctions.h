@@ -19,6 +19,13 @@
 
 #include "./InternalHeaderCheck.h"
 
+#if defined(EIGEN_USE_ONEDPL_RANDOM)
+//need since std::rand() is not suppoerted inside SYCL kernel
+//so methods from this library are used instead
+//https://github.com/oneapi-src/oneDPL or already included in oneAPI
+#include <oneapi/dpl/random>
+#endif
+
 namespace Eigen {
 
 namespace internal {
@@ -261,7 +268,8 @@ struct sign_impl<Scalar, true, IsInteger>
   static inline Scalar run(const Scalar& a)
   {
     using real_type = typename NumTraits<Scalar>::Real;
-    real_type aa = std::abs(a);
+    EIGEN_USING_STD_MATH(abs);
+    real_type aa = abs(a);
     if (aa==real_type(0))
       return Scalar(0);
     aa = real_type(1)/aa;
@@ -373,7 +381,7 @@ struct sqrt_impl
   EIGEN_DEVICE_FUNC
   static EIGEN_ALWAYS_INLINE Scalar run(const Scalar& x)
   {
-    EIGEN_USING_STD(sqrt);
+    EIGEN_USING_STD_MATH(sqrt);
     return sqrt(x);
   }
 };
@@ -436,7 +444,7 @@ struct norm1_default_impl<Scalar,true>
   EIGEN_DEVICE_FUNC
   static inline RealScalar run(const Scalar& x)
   {
-    EIGEN_USING_STD(abs);
+    EIGEN_USING_STD_MATH(abs);
     return abs(x.real()) + abs(x.imag());
   }
 };
@@ -447,7 +455,7 @@ struct norm1_default_impl<Scalar, false>
   EIGEN_DEVICE_FUNC
   static inline Scalar run(const Scalar& x)
   {
-    EIGEN_USING_STD(abs);
+    EIGEN_USING_STD_MATH(abs);
     return abs(x);
   }
 };
@@ -524,7 +532,7 @@ struct round_impl
   EIGEN_DEVICE_FUNC
   static inline Scalar run(const Scalar& x)
   {
-    EIGEN_USING_STD(round);
+    EIGEN_USING_STD_MATH(round);
     return Scalar(round(x));
   }
 };
@@ -546,7 +554,7 @@ struct rint_impl {
   EIGEN_DEVICE_FUNC
   static inline Scalar run(const Scalar& x)
   {
-    EIGEN_USING_STD(rint);
+    EIGEN_USING_STD_MATH(rint);
     return rint(x);
   }
 };
@@ -643,7 +651,7 @@ namespace std_fallback {
     EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
     typedef typename NumTraits<Scalar>::Real RealScalar;
 
-    EIGEN_USING_STD(exp);
+    EIGEN_USING_STD_MATH(exp);
     Scalar u = exp(x);
     if (numext::equal_strict(u, Scalar(1))) {
       return x;
@@ -653,7 +661,7 @@ namespace std_fallback {
       return RealScalar(-1);
     }
 
-    EIGEN_USING_STD(log);
+    EIGEN_USING_STD_MATH(log);
     Scalar logu = log(u);
     return numext::equal_strict(u, logu) ? u : (u - RealScalar(1)) * x / logu;
   }
@@ -686,7 +694,7 @@ template<typename Scalar>
 struct log_impl {
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& x)
   {
-    EIGEN_USING_STD(log);
+    EIGEN_USING_STD_MATH(log);
     return static_cast<Scalar>(log(x));
   }
 };
@@ -710,7 +718,7 @@ namespace std_fallback {
   EIGEN_DEVICE_FUNC inline Scalar log1p(const Scalar& x) {
     EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
     typedef typename NumTraits<Scalar>::Real RealScalar;
-    EIGEN_USING_STD(log);
+    EIGEN_USING_STD_MATH(log);
     Scalar x1p = RealScalar(1) + x;
     Scalar log_1p = log_impl<Scalar>::run(x1p);
     const bool is_small = numext::equal_strict(x1p, Scalar(1));
@@ -758,7 +766,7 @@ struct pow_impl
   typedef typename ScalarBinaryOpTraits<ScalarX,ScalarY,internal::scalar_pow_op<ScalarX,ScalarY> >::ReturnType result_type;
   static EIGEN_DEVICE_FUNC inline result_type run(const ScalarX& x, const ScalarY& y)
   {
-    EIGEN_USING_STD(pow);
+    EIGEN_USING_STD_MATH(pow);
     return pow(x, y);
   }
 };
@@ -809,7 +817,15 @@ struct random_default_impl<Scalar, false, false>
 {
   static inline Scalar run(const Scalar& x, const Scalar& y)
   {
+    #if defined(EIGEN_USE_ONEDPL_RANDOM)
+    //std::rand() is not suppoerted inside SYCL kernel
+    oneapi::dpl::minstd_rand engine(777, 0);
+    oneapi::dpl::uniform_real_distribution<float> distr;
+    auto res = distr(engine);
+    return x + (y-x) * Scalar(res) / Scalar(RAND_MAX);
+    #else
     return x + (y-x) * Scalar(std::rand()) / Scalar(RAND_MAX);
+    #endif
   }
   static inline Scalar run()
   {
@@ -1065,7 +1081,7 @@ template<typename T>
 EIGEN_DEVICE_FUNC
 EIGEN_ALWAYS_INLINE T mini(const T& x, const T& y)
 {
-  EIGEN_USING_STD(min)
+  EIGEN_USING_STD_MATH(min)
   return min EIGEN_NOT_A_MACRO (x,y);
 }
 
@@ -1073,7 +1089,7 @@ template<typename T>
 EIGEN_DEVICE_FUNC
 EIGEN_ALWAYS_INLINE T maxi(const T& x, const T& y)
 {
-  EIGEN_USING_STD(max)
+  EIGEN_USING_STD_MATH(max)
   return max EIGEN_NOT_A_MACRO (x,y);
 }
 #else
@@ -1389,7 +1405,7 @@ template<typename T>
 EIGEN_DEVICE_FUNC
 T (floor)(const T& x)
 {
-  EIGEN_USING_STD(floor)
+  EIGEN_USING_STD_MATH(floor)
   return floor(x);
 }
 
@@ -1409,7 +1425,7 @@ template<typename T>
 EIGEN_DEVICE_FUNC
 T (ceil)(const T& x)
 {
-  EIGEN_USING_STD(ceil);
+  EIGEN_USING_STD_MATH(ceil);
   return ceil(x);
 }
 
@@ -1497,7 +1513,7 @@ template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 std::enable_if_t<NumTraits<T>::IsSigned || NumTraits<T>::IsComplex,typename NumTraits<T>::Real>
 abs(const T &x) {
-  EIGEN_USING_STD(abs);
+  EIGEN_USING_STD_MATH(abs);
   return abs(x);
 }
 
@@ -1565,7 +1581,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static constexpr Scalar signbit(const Scal
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T exp(const T &x) {
-  EIGEN_USING_STD(exp);
+  EIGEN_USING_STD_MATH(exp);
   return exp(x);
 }
 
@@ -1619,7 +1635,7 @@ double expm1(const double &x) { return ::expm1(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T cos(const T &x) {
-  EIGEN_USING_STD(cos);
+  EIGEN_USING_STD_MATH(cos);
   return cos(x);
 }
 
@@ -1638,7 +1654,7 @@ double cos(const double &x) { return ::cos(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T sin(const T &x) {
-  EIGEN_USING_STD(sin);
+  EIGEN_USING_STD_MATH(sin);
   return sin(x);
 }
 
@@ -1657,7 +1673,7 @@ double sin(const double &x) { return ::sin(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T tan(const T &x) {
-  EIGEN_USING_STD(tan);
+  EIGEN_USING_STD_MATH(tan);
   return tan(x);
 }
 
@@ -1676,14 +1692,14 @@ double tan(const double &x) { return ::tan(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T acos(const T &x) {
-  EIGEN_USING_STD(acos);
+  EIGEN_USING_STD_MATH(acos);
   return acos(x);
 }
 
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T acosh(const T &x) {
-  EIGEN_USING_STD(acosh);
+  EIGEN_USING_STD_MATH(acosh);
   return static_cast<T>(acosh(x));
 }
 
@@ -1703,14 +1719,14 @@ double acos(const double &x) { return ::acos(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T asin(const T &x) {
-  EIGEN_USING_STD(asin);
+  EIGEN_USING_STD_MATH(asin);
   return asin(x);
 }
 
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T asinh(const T &x) {
-  EIGEN_USING_STD(asinh);
+  EIGEN_USING_STD_MATH(asinh);
   return static_cast<T>(asinh(x));
 }
 
@@ -1730,7 +1746,7 @@ double asin(const double &x) { return ::asin(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T atan(const T &x) {
-  EIGEN_USING_STD(atan);
+  EIGEN_USING_STD_MATH(atan);
   return static_cast<T>(atan(x));
 }
 
@@ -1743,7 +1759,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T atan2(const T& y, const T& x) {
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T atanh(const T &x) {
-  EIGEN_USING_STD(atanh);
+  EIGEN_USING_STD_MATH(atanh);
   return static_cast<T>(atanh(x));
 }
 
@@ -1764,7 +1780,7 @@ double atan(const double &x) { return ::atan(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T cosh(const T &x) {
-  EIGEN_USING_STD(cosh);
+  EIGEN_USING_STD_MATH(cosh);
   return static_cast<T>(cosh(x));
 }
 
@@ -1783,7 +1799,7 @@ double cosh(const double &x) { return ::cosh(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T sinh(const T &x) {
-  EIGEN_USING_STD(sinh);
+  EIGEN_USING_STD_MATH(sinh);
   return static_cast<T>(sinh(x));
 }
 
@@ -1802,7 +1818,7 @@ double sinh(const double &x) { return ::sinh(x); }
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T tanh(const T &x) {
-  EIGEN_USING_STD(tanh);
+  EIGEN_USING_STD_MATH(tanh);
   return tanh(x);
 }
 
@@ -1826,7 +1842,7 @@ double tanh(const double &x) { return ::tanh(x); }
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 T fmod(const T& a, const T& b) {
-  EIGEN_USING_STD(fmod);
+  EIGEN_USING_STD_MATH(fmod);
   return fmod(a, b);
 }
 
