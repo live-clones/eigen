@@ -218,8 +218,7 @@ struct typed_cmp_helper<std::string, std::string, UseTypedComparators> {
 };
 
 template <typename LhsScalar, typename RhsScalar, bool UseTypedComparators>
-using cmp_return_t =
-    typename conditional<UseTypedComparators && is_same<LhsScalar, RhsScalar>::value, LhsScalar, bool>::type;
+using cmp_return_t = typename typed_cmp_helper<LhsScalar, RhsScalar, UseTypedComparators>::type;
 
 template <typename LhsScalar, typename RhsScalar, bool UseTypedComparators>
 struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_EQ, UseTypedComparators> : binary_op_base<LhsScalar, RhsScalar> {
