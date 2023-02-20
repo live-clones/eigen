@@ -880,6 +880,7 @@ void packetmath_real() {
   CHECK_CWISE1_IF(PacketTraits::HasASin, std::asin, internal::pasin);
   CHECK_CWISE1_IF(PacketTraits::HasACos, std::acos, internal::pacos);
   CHECK_CWISE1_IF(PacketTraits::HasATan, std::atan, internal::patan);
+  CHECK_CWISE1_IF(PacketTraits::HasATanh, std::atanh, internal::patanh);
 
 
   for (int i = 0; i < size; ++i) {
