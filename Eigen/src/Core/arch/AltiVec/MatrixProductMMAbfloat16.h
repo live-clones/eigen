@@ -332,12 +332,12 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
 }
 
 template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
-EIGEN_STRONG_INLINE void gemvMMA_bfloat16_col(
+void gemvMMA_bfloat16_col(
     Index rows, Index cols,
     const LhsMapper& alhs,
     const RhsMapper& rhs,
-    ResScalar* res, Index resIncr,
-    ResScalar alpha)
+    bfloat16* res, Index resIncr,
+    bfloat16 alpha)
 {
 #ifdef TEST_VERBOSE
     uint64_t start, end;
@@ -349,6 +349,7 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_col(
     typedef typename Traits::LhsPacket LhsPacket;
     typedef typename Traits::RhsPacket RhsPacket;
     typedef typename Traits::ResPacket ResPacket;
+#endif
 
     EIGEN_UNUSED_VARIABLE(resIncr);
     eigen_internal_assert(resIncr == 1);
@@ -359,9 +360,10 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_col(
     RhsMapper rhs2(rhs);
 
     conj_helper<LhsScalar, RhsScalar, false, false> cj;
-    conj_helper<LhsPacket, RhsPacket, false, false> pcj;
+//    conj_helper<LhsPacket, RhsPacket, false, false> pcj;
 
     const Index lhsStride = lhs.stride();
+#if 0
     // TODO: for padded aligned inputs, we could enable aligned reads
     enum {
         LhsAlignment = Unaligned,
@@ -370,6 +372,26 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_col(
         RhsPacketSize = Traits::RhsPacketSize,
     };
 #endif
+
+    // TODO: improve the following heuristic:
+    const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 16000 ? 16 : 8);
+//    ResPacket palpha = pset1<ResPacket>(alpha);
+
+    for (Index j2 = 0; j2 < cols; j2 += block_cols)
+    {
+        Index jend = numext::mini(j2 + block_cols, cols);
+        Index i = 0;
+
+        for (;i < rows;++i)
+        {
+            ResScalar d0(0);
+            Index j = j2;
+            do {
+                d0 += cj.pmul(lhs(i, j), rhs2(j, 0));
+            } while (++j < jend);
+            res[i] += alpha * d0;
+        }
+    }
 
 #ifdef TEST_VERBOSE
     end = __ppc_get_timebase();
@@ -382,14 +404,13 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
     Index rows, Index cols,
     const LhsMapper& alhs,
     const RhsMapper& rhs,
-    ResScalar* res, Index resIncr,
-    ResScalar alpha)
+    bfloat16* res, Index resIncr,
+    bfloat16 alpha)
 {
 #ifdef TEST_VERBOSE
     uint64_t start, end;
     start = __ppc_get_timebase();
 #endif
-#if 0
     typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
     typedef typename Traits::LhsPacket LhsPacket;
@@ -404,7 +425,33 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
     eigen_internal_assert(rhs.stride() == 1);
     conj_helper<LhsScalar, RhsScalar, false, false> cj;
     conj_helper<LhsPacket, RhsPacket, false, false> pcj;
-#endif
+
+    // TODO: for padded aligned inputs, we could enable aligned reads
+    enum {
+        LhsAlignment = Unaligned,
+        ResPacketSize = Traits::ResPacketSize,
+        LhsPacketSize = Traits::LhsPacketSize,
+        RhsPacketSize = Traits::RhsPacketSize,
+    };
+
+    Index i = 0;
+    for (; i < rows; ++i)
+    {
+        ResPacket d0 = pset1<ResPacket>(ResScalar(0));
+        Index j = 0;
+        for (; j + LhsPacketSize <= cols; j += LhsPacketSize)
+        {
+            RhsPacket b0 = rhs2.template load<RhsPacket, Unaligned>(j);
+
+            d0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, d0);
+        }
+        ResScalar dd0 = predux(d0);
+        for (; j < cols; ++j)
+        {
+            dd0 += cj.pmul(lhs(i, j), rhs2(j));
+        }
+        res[i * resIncr] += alpha * dd0;
+    }
 
 #ifdef TEST_VERBOSE
     end = __ppc_get_timebase();

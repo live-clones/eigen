@@ -2067,15 +2067,13 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(double)
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \
 { \
-    typedef typename ScalarBinaryOpTraits<bfloat16, bfloat16>::ReturnType ResScalar; \
-\
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run( \
         Index rows, Index cols, \
         const LhsMapper& lhs, \
         const RhsMapper& rhs, \
-        ResScalar* res, Index resIncr, \
-        ResScalar alpha) { \
-        gemvMMA_bfloat16_col<bfloat16, LhsMapper, bfloat16, RhsMapper, ResScalar>(rows, cols, lhs, rhs, res, resIncr, alpha); \
+        bfloat16* res, Index resIncr, \
+        bfloat16 alpha) { \
+        gemvMMA_bfloat16_col<bfloat16, LhsMapper, bfloat16, RhsMapper, bfloat16>(rows, cols, lhs, rhs, res, resIncr, alpha); \
     } \
 };
 
@@ -2083,15 +2081,13 @@ struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, Conju
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, bfloat16, LhsMapper, RowMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \
 { \
-    typedef typename ScalarBinaryOpTraits<bfloat16, bfloat16>::ReturnType ResScalar; \
-\
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run( \
         Index rows, Index cols, \
         const LhsMapper& lhs, \
         const RhsMapper& rhs, \
-        ResScalar* res, Index resIncr, \
-        ResScalar alpha) { \
-        gemvMMA_bfloat16_row<bfloat16, LhsMapper, bfloat16, RhsMapper, ResScalar>(rows, cols, lhs, rhs, res, resIncr, alpha); \
+        bfloat16* res, Index resIncr, \
+        bfloat16 alpha) { \
+        gemvMMA_bfloat16_row<bfloat16, LhsMapper, bfloat16, RhsMapper, bfloat16>(rows, cols, lhs, rhs, res, resIncr, alpha); \
     } \
 };
 
