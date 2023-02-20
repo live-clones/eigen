@@ -63,7 +63,7 @@ struct scalar_bitwise_select_op {
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& cond, const Packet& a, const Packet& b) const {
-    return pselect(cond, a, b);
+    return por(pand(a, cond), pandnot(b, cond));
   }
 };
 

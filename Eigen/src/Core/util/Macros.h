@@ -1295,8 +1295,7 @@ EIGEN_DEVICE_FUNC bool all(T t, Ts ... ts){ return t && all(ts...); }
 #endif
 
 #if !defined(EIGEN_USE_TYPED_COMPARATORS)
-// todo: change default to zero for final commit
-#define EIGEN_USE_TYPED_COMPARATORS 1
+#define EIGEN_USE_TYPED_COMPARATORS 0
 #endif
 
 
