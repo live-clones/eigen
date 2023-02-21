@@ -580,14 +580,18 @@ template<typename ArrayType> void comparisons(const ArrayType& m)
   VERIFY( ( (m1(r,c)+1) >  m1).any() );
   VERIFY( (  m1(r,c)    == m1).any() );
 
+  // currently, any() / all() are not vectorized, so use VERIFY_IS_CWISE_EQUAL to test vectorized path
+   
   // use typed comparisons, regardless of operator overload behavior
   typename ArrayType::ConstantReturnType typed_true = ArrayType::Constant(rows, cols, Scalar(1));
   // (m1 + Scalar(1)) > m1).all()
   VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1, typed_gt()), typed_true);
   // (m1 - Scalar(1)) < m1).all()
   VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, typed_lt()), typed_true);
-  // !(m1 > m2 && m1 < m2).any()
-  VERIFY((!m1.binaryExpr(m2, typed_gt()) && m1.binaryExpr(m2, typed_lt())).any());
+  // (m1 + Scalar(1)) == (m1 + Scalar(1))).all()
+  VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1 + Scalar(1), typed_eq()), typed_true);
+  // (m1 - Scalar(1)) != m1).all()
+  VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, typed_ne()), typed_true);
   // (m1 <= m2 || m1 >= m2).all()
   VERIFY_IS_CWISE_EQUAL(m1.binaryExpr(m2, typed_le()) || m1.binaryExpr(m2, typed_ge()), typed_true);
 
@@ -597,8 +601,10 @@ template<typename ArrayType> void comparisons(const ArrayType& m)
   VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1, bool_gt()), bool_true);
   // (m1 - Scalar(1)) < m1).all()
   VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, bool_lt()), bool_true);
-  // !(m1 > m2 && m1 < m2).any()
-  VERIFY((!m1.binaryExpr(m2, bool_gt()) && m1.binaryExpr(m2, bool_lt())).any());
+  // (m1 + Scalar(1)) == (m1 + Scalar(1))).all()
+  VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1 + Scalar(1), bool_eq()), bool_true);
+  // (m1 - Scalar(1)) != m1).all()
+  VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, bool_ne()), bool_true);
   // (m1 <= m2 || m1 >= m2).all()
   VERIFY_IS_CWISE_EQUAL(m1.binaryExpr(m2, bool_le()) || m1.binaryExpr(m2, bool_ge()), bool_true);
 

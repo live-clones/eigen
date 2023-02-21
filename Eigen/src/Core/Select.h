@@ -133,7 +133,7 @@ DenseBase<Derived>::select(const DenseBase<ThenDerived>& thenMatrix, const Dense
   return CwiseTernaryOp<Op, Derived, ThenDerived, ElseDerived>(derived(), thenMatrix.derived(), elseMatrix.derived(),
                                                                Op());
 }
-/** Version of DenseBase::booleanSelect(const DenseBase&, const DenseBase&) with
+/** Version of DenseBase::select(const DenseBase&, const DenseBase&) with
  * the \em else expression being a scalar value.
  *
  * \sa DenseBase::booleanSelect(const DenseBase<ThenDerived>&, const DenseBase<ElseDerived>&) const, class Select
@@ -152,7 +152,7 @@ DenseBase<Derived>::select(const DenseBase<ThenDerived>& thenMatrix,
   return CwiseTernaryOp<Op, Derived, ThenDerived, ElseConstantType>(derived(), thenMatrix.derived(),
                                                                     ElseConstantType(rows(), cols(), elseScalar), Op());
 }
-/** Version of DenseBase::booleanSelect(const DenseBase&, const DenseBase&) with
+/** Version of DenseBase::select(const DenseBase&, const DenseBase&) with
  * the \em then expression being a scalar value.
  *
  * \sa DenseBase::booleanSelect(const DenseBase<ThenDerived>&, const DenseBase<ElseDerived>&) const, class Select

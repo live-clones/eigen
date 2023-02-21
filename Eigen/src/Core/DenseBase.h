@@ -567,7 +567,6 @@ template<typename Derived> class DenseBase
     static const RandomReturnType Random(Index size);
     static const RandomReturnType Random();
 
-    /* alias for DenseBase::booleanSelect(const DenseBase&, const DenseBase&) */
     template <typename ThenDerived, typename ElseDerived>
     inline EIGEN_DEVICE_FUNC
         CwiseTernaryOp<internal::scalar_boolean_select_op<Scalar, typename DenseBase<ThenDerived>::Scalar,
@@ -575,8 +574,6 @@ template<typename Derived> class DenseBase
                        Derived, ThenDerived, ElseDerived>
         select(const DenseBase<ThenDerived>& thenMatrix, const DenseBase<ElseDerived>& elseMatrix) const;
 
-    /* alias for DenseBase::select(const DenseBase&, const DenseBase&) with
-     * the \em else expression being a scalar value. */
     template <typename ThenDerived>
     inline EIGEN_DEVICE_FUNC
         CwiseTernaryOp<internal::scalar_boolean_select_op<Scalar, typename DenseBase<ThenDerived>::Scalar,
@@ -585,8 +582,6 @@ template<typename Derived> class DenseBase
         select(const DenseBase<ThenDerived>& thenMatrix,
                const typename DenseBase<ThenDerived>::Scalar& elseScalar) const;
 
-    /* alias for DenseBase::select(const DenseBase&, const DenseBase&) with
-     * the \em then expression being a scalar value. */
     template <typename ElseDerived>
     inline EIGEN_DEVICE_FUNC
         CwiseTernaryOp<internal::scalar_boolean_select_op<Scalar, typename DenseBase<ElseDerived>::Scalar,
