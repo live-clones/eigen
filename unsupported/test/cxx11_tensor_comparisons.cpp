@@ -15,7 +15,7 @@ using Eigen::Tensor;
 using Eigen::RowMajor;
 
 using Scalar = float;
-using cmp_type = internal::cmp_return_t<Scalar, Scalar, EIGEN_USE_TYPED_COMPARATORS>;
+using cmp_type = internal::cmp_return_t<Scalar, Scalar, true>;
 
 static void test_orderings()
 {
