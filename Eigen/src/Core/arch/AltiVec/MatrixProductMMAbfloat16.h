@@ -207,7 +207,7 @@ EIGEN_ALWAYS_INLINE Packet8bf convertF32toBF16(const float *res)
 }
 
 template<const Index size, typename DataMapper>
-EIGEN_ALWAYS_INLINE void convertBF16oF32(Index& i, float *result2, Index rows, const DataMapper& res2, Packet8us z)
+EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float *result2, Index rows, const DataMapper& res2, Packet8us z)
 {
   for(; i + size <= rows; i += size){
     Packet8us r32_0, r32_1, r32_2, r32_3;
@@ -240,80 +240,30 @@ EIGEN_ALWAYS_INLINE void convertBF16oF32(Index& i, float *result2, Index rows, c
   }
 }
 
-template<Index size>
-EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexB, Index strideB, Index offsetA, Index offsetB, Index bigSuffix, float *result)
+template<typename DataMapper>
+EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float *result, Index cols, Index rows, const DataMapper& res)
 {
-  if ((size == 16) || (rows & size)) {
-    indexA += size*offsetA;
-    colLoops<size>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
-    row += size;
-    indexA += bigSuffix*size/16;
-  }
-}
-
-template<typename Index, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
-void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
-{
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
-  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
-  if (falpha == float(0)) return;
-  const Packet4f pAlpha = pset1<Packet4f>(falpha);
-  ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
-
   typedef typename DataMapper::LinearMapper LinearMapper;
   Packet8us z = pset1<Packet8us>(0);
   for(Index j = 0; j < cols; j++){
     const LinearMapper res2 = res.getLinearMapper(0, j);
     float *result2 = result + j*rows;
     Index i = 0;
-    convertBF16oF32<32, LinearMapper>(i, result2, rows, res2, z);
-    convertBF16oF32<16, LinearMapper>(i, result2, rows, res2, z);
-    convertBF16oF32<8,  LinearMapper>(i, result2, rows, res2, z);
-    convertBF16oF32<4,  LinearMapper>(i, result2, rows, res2, z);
+    convertBF16toF32<32, LinearMapper>(i, result2, rows, res2, z);
+    convertBF16toF32<16, LinearMapper>(i, result2, rows, res2, z);
+    convertBF16toF32<8,  LinearMapper>(i, result2, rows, res2, z);
+    convertBF16toF32<4,  LinearMapper>(i, result2, rows, res2, z);
     for(; i < rows; i++){
       result2[i] = res2(i);
     }
   }
+}
 
-  Index row = 0;
-  Index col;
-
-  if( strideA == -1 ) strideA = depth;
-  if( strideB == -1 ) strideB = depth;
-  //Packing is done in blocks.
-  //There's 4 possible sizes of blocks
-  //Blocks of 8 columns with 16 elements (8x16)
-  //Blocks of 8 columns with 8 elements (8x8). This happens when there's 16 > rows >= 8
-  //Blocks of 8 columns with 4 elements (8x4). This happens when there's 8 > rows >= 4
-  //Blocks of 8 columns with < 4 elements. This happens when there's less than 4 remaining rows
-
-  //Loop for LHS standard block (8x16)
-  const Index standard_block_size = 16;
-  const Index standard_blocks_quantity = rows/standard_block_size; //Number of standard blocks
-  Index bigSuffix = (2*8) * (strideA-offsetA);
-  const bfloat16* indexA = blockA;
-  const bfloat16* indexB = blockB + 4*offsetB;
-  Index block_index;
-  strideB *= 4;
-  offsetB *= 3;
-  for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
-    calcColLoops<16>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
-  }
-  //LHS (8x8) block
-  calcColLoops<8>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
-  //LHS (8x4) block
-  calcColLoops<4>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
-  //extra rows
-  Index extra_rows = rows & 3;
-  if(extra_rows){
-    //This index is the beginning of remaining block.
-    colLoops<4, true>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row, extra_rows);
-  }
-
-  //Convert back to bfloat16
+template<typename DataMapper>
+EIGEN_ALWAYS_INLINE void convertArrayF32toBF16(float *result, Index cols, Index rows, const DataMapper& res)
+{
+  typedef typename DataMapper::LinearMapper LinearMapper;
+  Index col, row;
   for(col = 0; col + 4 <= cols; col += 4){
     const DataMapper res2 = res.getSubMapper(0, col);
     for(row = 0; row + 8 <= rows; row += 8){
@@ -348,6 +298,69 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     }
     col++;
   }
+}
+
+template<Index size>
+EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexB, Index strideB, Index offsetA, Index offsetB, Index bigSuffix, float *result)
+{
+  if ((size == 16) || (rows & size)) {
+    indexA += size*offsetA;
+    colLoops<size>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
+    row += size;
+    indexA += bigSuffix*size/16;
+  }
+}
+
+template<typename Index, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
+void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
+{
+#ifdef TEST_VERBOSE
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
+  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
+  if (falpha == float(0)) return;
+  const Packet4f pAlpha = pset1<Packet4f>(falpha);
+  ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
+
+  convertArrayBF16toF32<DataMapper>(result, cols, rows, res);
+
+  Index row = 0;
+
+  if( strideA == -1 ) strideA = depth;
+  if( strideB == -1 ) strideB = depth;
+  //Packing is done in blocks.
+  //There's 4 possible sizes of blocks
+  //Blocks of 8 columns with 16 elements (8x16)
+  //Blocks of 8 columns with 8 elements (8x8). This happens when there's 16 > rows >= 8
+  //Blocks of 8 columns with 4 elements (8x4). This happens when there's 8 > rows >= 4
+  //Blocks of 8 columns with < 4 elements. This happens when there's less than 4 remaining rows
+
+  //Loop for LHS standard block (8x16)
+  const Index standard_block_size = 16;
+  const Index standard_blocks_quantity = rows/standard_block_size; //Number of standard blocks
+  Index bigSuffix = (2*8) * (strideA-offsetA);
+  const bfloat16* indexA = blockA;
+  const bfloat16* indexB = blockB + 4*offsetB;
+  Index block_index;
+  strideB *= 4;
+  offsetB *= 3;
+  for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
+    calcColLoops<16>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
+  }
+  //LHS (8x8) block
+  calcColLoops<8>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
+  //LHS (8x4) block
+  calcColLoops<4>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
+  //extra rows
+  Index extra_rows = rows & 3;
+  if(extra_rows){
+    //This index is the beginning of remaining block.
+    colLoops<4, true>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row, extra_rows);
+  }
+
+  //Convert back to bfloat16
+  convertArrayF32toBF16<DataMapper>(result, cols, rows, res);
 #ifdef TEST_VERBOSE
   end = __ppc_get_timebase();
   printf("gemm bfloat16 MMA time = %16ld\n", end - start);
