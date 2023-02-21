@@ -82,6 +82,22 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Pack
   } while (++x < (rhsExtraCols ? extra_cols : 4));
 }
 
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void ZeroAccumulators(__vector_quad (&quad_acc)[num_acc])
+{
+  BFLOAT16_UNROLL
+  for(Index k = 0; k < num_acc; k++)
+    __builtin_mma_xxsetaccz(&(quad_acc[k]));
+}
+
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void DisassembleAccumulators(__vector_quad (&quad_acc)[num_acc], Packet4f (&acc)[num_acc][4])
+{
+  BFLOAT16_UNROLL
+  for(Index k = 0; k < num_acc; k++)
+    __builtin_mma_disassemble_acc((void*)acc[k], &(quad_acc[k]));
+}
+
 #define MAX_BFLOAT16_ACC   8
 
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
@@ -96,9 +112,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
       Packet4f acc[num_acc][4];
       __vector_quad quad_acc[num_acc];
 
-      BFLOAT16_UNROLL
-      for(k = 0; k < num_acc; k++)
-        __builtin_mma_xxsetaccz(&(quad_acc[k]));
+      ZeroAccumulators<num_acc>(quad_acc);
 
       for(k = 0; k + 2 <= depth; k += 2){
         KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
@@ -107,9 +121,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
         KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA - offset_row, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
       }
 
-      BFLOAT16_UNROLL
-      for(k = 0; k < num_acc; k++)
-        __builtin_mma_disassemble_acc((void*)acc[k], &(quad_acc[k]));
+      DisassembleAccumulators(quad_acc, acc);
 
       for(k = 0; k < (num_acc - 1); k++){
         storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
@@ -239,7 +251,6 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   uint64_t start, end;
   start = __ppc_get_timebase();
 #endif
-  if(rows == 0 || cols == 0 || depth == 0) return;
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
   if (falpha == float(0)) return;
   const Packet4f pAlpha = pset1<Packet4f>(falpha);
@@ -348,9 +359,9 @@ void gemvMMA_bfloat16_col(
     uint64_t start, end;
     start = __ppc_get_timebase();
 #endif
-#if 0
     typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
+#if 0
     typedef typename Traits::LhsPacket LhsPacket;
     typedef typename Traits::RhsPacket RhsPacket;
     typedef typename Traits::ResPacket ResPacket;
@@ -364,11 +375,10 @@ void gemvMMA_bfloat16_col(
     LhsMapper lhs(alhs);
     RhsMapper rhs2(rhs);
 
-    conj_helper<LhsScalar, RhsScalar, false, false> cj;
+//    conj_helper<LhsScalar, RhsScalar, false, false> cj;
 //    conj_helper<LhsPacket, RhsPacket, false, false> pcj;
 
     const Index lhsStride = lhs.stride();
-#if 0
     // TODO: for padded aligned inputs, we could enable aligned reads
     enum {
         LhsAlignment = Unaligned,
@@ -376,10 +386,10 @@ void gemvMMA_bfloat16_col(
         LhsPacketSize = Traits::LhsPacketSize,
         RhsPacketSize = Traits::RhsPacketSize,
     };
-#endif
 
     // TODO: improve the following heuristic:
     const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 16000 ? 16 : 8);
+    float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
 //    ResPacket palpha = pset1<ResPacket>(alpha);
 
     for (Index j2 = 0; j2 < cols; j2 += block_cols)
@@ -389,12 +399,12 @@ void gemvMMA_bfloat16_col(
 
         for (;i < rows;++i)
         {
-            ResScalar d0(0);
+            float d0(0);
             Index j = j2;
             do {
-                d0 += cj.pmul(lhs(i, j), rhs2(j, 0));
+                d0 += float(lhs(i, j) * rhs2(j, 0));
             } while (++j < jend);
-            res[i] += alpha * d0;
+            res[i] += ResScalar(falpha * d0);
         }
     }
 
@@ -428,7 +438,7 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
     typename RhsMapper::LinearMapper rhs2 = rhs.getLinearMapper(0, 0);
 
     eigen_internal_assert(rhs.stride() == 1);
-    conj_helper<LhsScalar, RhsScalar, false, false> cj;
+//    conj_helper<LhsScalar, RhsScalar, false, false> cj;
     conj_helper<LhsPacket, RhsPacket, false, false> pcj;
 
     // TODO: for padded aligned inputs, we could enable aligned reads
@@ -438,6 +448,8 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
         LhsPacketSize = Traits::LhsPacketSize,
         RhsPacketSize = Traits::RhsPacketSize,
     };
+
+    float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
 
     Index i = 0;
     for (; i < rows; ++i)
@@ -450,12 +462,12 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
 
             d0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, d0);
         }
-        ResScalar dd0 = predux(d0);
+        float dd0 = float(predux(d0));
         for (; j < cols; ++j)
         {
-            dd0 += cj.pmul(lhs(i, j), rhs2(j));
+            dd0 += float(lhs(i, j) * rhs2(j));
         }
-        res[i * resIncr] += alpha * dd0;
+        res[i * resIncr] += ResScalar(falpha * dd0);
     }
 
 #ifdef TEST_VERBOSE
