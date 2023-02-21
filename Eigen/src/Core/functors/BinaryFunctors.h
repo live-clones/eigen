@@ -195,7 +195,7 @@ struct functor_traits<scalar_max_op<LhsScalar,RhsScalar, NaNPropagation> > {
  * \todo Implement packet-comparisons
  */
 template <typename LhsScalar, typename RhsScalar, ComparisonName cmp,
-          bool UseTypedComparators = EIGEN_USE_TYPED_COMPARATORS>
+          bool UseTypedComparators = true>
 struct scalar_cmp_op;
 
 template <typename LhsScalar, typename RhsScalar, ComparisonName cmp, bool UseTypedComparators>
@@ -209,12 +209,10 @@ struct functor_traits<scalar_cmp_op<LhsScalar, RhsScalar, cmp, UseTypedComparato
 
 template <typename LhsScalar, typename RhsScalar, bool UseTypedComparators>
 struct typed_cmp_helper {
-  using type = typename conditional<UseTypedComparators && is_same<LhsScalar, RhsScalar>::value, LhsScalar, bool>::type;
-};
-// std::string specialization: always return bool
-template <bool UseTypedComparators>
-struct typed_cmp_helper<std::string, std::string, UseTypedComparators> {
-  using type = bool;
+  static constexpr bool SameType = is_same<LhsScalar, RhsScalar>::value;
+  static constexpr bool IsNumeric = is_arithmetic<typename NumTraits<LhsScalar>::Real>::value;
+  static constexpr bool UseTyped = UseTypedComparators && SameType && IsNumeric;
+  using type = typename conditional<UseTyped, LhsScalar, bool>::type;
 };
 
 template <typename LhsScalar, typename RhsScalar, bool UseTypedComparators>
