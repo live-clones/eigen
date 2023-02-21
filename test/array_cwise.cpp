@@ -581,16 +581,26 @@ template<typename ArrayType> void comparisons(const ArrayType& m)
   VERIFY( (  m1(r,c)    == m1).any() );
 
   // use typed comparisons, regardless of operator overload behavior
+  typename ArrayType::ConstantReturnType typed_true = ArrayType::Constant(rows, cols, Scalar(1));
   // (m1 + Scalar(1)) > m1).all()
-  VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1, typed_gt()), ArrayType::Constant(rows, cols, Scalar(1)));
+  VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1, typed_gt()), typed_true);
   // (m1 - Scalar(1)) < m1).all()
-  VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, typed_lt()), ArrayType::Constant(rows, cols, Scalar(1)));
+  VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, typed_lt()), typed_true);
+  // !(m1 > m2 && m1 < m2).any()
+  VERIFY((!m1.binaryExpr(m2, typed_gt()) && m1.binaryExpr(m2, typed_lt())).sum() > Scalar(0));
+  // (m1 <= m2 || m1 >= m2).all()
+  VERIFY_IS_CWISE_EQUAL(m1.binaryExpr(m2, typed_le()) || m1.binaryExpr(m2, typed_ge()), typed_true);
 
   // use boolean comparisons, regardless of operator overload behavior
+  ArrayXX<bool>::ConstantReturnType bool_true = ArrayXX<bool>::Constant(rows, cols, true);
   // (m1 + Scalar(1)) > m1).all()
-  VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1, bool_gt()), ArrayXX<bool>::Constant(rows, cols, true));
+  VERIFY_IS_CWISE_EQUAL((m1 + Scalar(1)).binaryExpr(m1, bool_gt()), bool_true);
   // (m1 - Scalar(1)) < m1).all()
-  VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, bool_lt()), ArrayXX<bool>::Constant(rows, cols, true));
+  VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, bool_lt()), bool_true);
+  // !(m1 > m2 && m1 < m2).any()
+  VERIFY((!m1.binaryExpr(m2, bool_gt()) && m1.binaryExpr(m2, bool_lt())).sum());
+  // (m1 <= m2 || m1 >= m2).all()
+  VERIFY_IS_CWISE_EQUAL(m1.binaryExpr(m2, bool_le()) || m1.binaryExpr(m2, bool_ge()), bool_true);
 
   // test Select
   VERIFY_IS_APPROX( (m1<m2).select(m1,m2), m1.cwiseMin(m2) );

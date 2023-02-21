@@ -39,41 +39,7 @@ struct functor_traits<scalar_boolean_select_op<ConditionScalar, ThenScalar, Else
   using Scalar = ThenScalar;
   enum {
     Cost = 1,
-    PacketAccess = is_same<ThenScalar, ElseScalar>::value && is_same<ConditionScalar, Scalar>::value &&
-                   packet_traits<Scalar>::HasBlend && packet_traits<Scalar>::HasCmp
-  };
-};
-
-template <typename ConditionScalar, typename ThenScalar, typename ElseScalar>
-struct scalar_bitwise_select_op {
-  static constexpr bool ThenElseAreSame = is_same<ThenScalar, ElseScalar>::value;
-  EIGEN_STATIC_ASSERT(ThenElseAreSame, THEN AND ELSE MUST BE SAME TYPE)
-  using Scalar = ThenScalar;
-  using result_type = Scalar;
-  static constexpr bool CompatibleSizes = sizeof(ConditionScalar) == sizeof(Scalar);
-  EIGEN_STATIC_ASSERT(CompatibleSizes, CONDITION THEN AND ELSE MUST BE SAME SIZE)
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const ConditionScalar& cond, const ThenScalar& a, const ElseScalar& b) const {
-    Scalar result;
-    const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
-    const uint8_t* b_bytes = reinterpret_cast<const uint8_t*>(&b);
-    const uint8_t* c_bytes = reinterpret_cast<const uint8_t*>(&cond);
-    uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
-    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = (a_bytes[i] & c_bytes[i]) | (b_bytes[i] & ~c_bytes[i]);
-    return result;
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& cond, const Packet& a, const Packet& b) const {
-    return por(pand(a, cond), pandnot(b, cond));
-  }
-};
-
-template <typename ConditionScalar, typename ThenScalar, typename ElseScalar>
-struct functor_traits<scalar_bitwise_select_op<ConditionScalar, ThenScalar, ElseScalar>> {
-  using Scalar = ThenScalar;
-  enum {
-    Cost = 1,
-    PacketAccess = is_same<ThenScalar, ElseScalar>::value && is_same<ConditionScalar, Scalar>::value &&
-    packet_traits<Scalar>::HasBlend
+    PacketAccess = is_same<ThenScalar, ElseScalar>::value && is_same<ConditionScalar, Scalar>::value && packet_traits<Scalar>::HasCmp
   };
 };
 
