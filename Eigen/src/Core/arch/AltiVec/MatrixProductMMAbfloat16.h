@@ -180,7 +180,7 @@ EIGEN_ALWAYS_INLINE void colLoops(Index depth, Index cols, Index rows, const Pac
   }
 }
 
-EIGEN_ALWAYS_INLINE Packet8bf convertF3216toBF16(const float *res)
+EIGEN_ALWAYS_INLINE Packet8bf convertF32toBF16(const float *res)
 {
   Packet16uc fp16_0 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(res + 0)));
   Packet16uc fp16_1 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(res + 4)));
@@ -218,6 +218,17 @@ EIGEN_ALWAYS_INLINE void convertBF16oF32(Index& i, float *result2, Index rows, c
       pstore(result2 + i + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_3)));
       pstore(result2 + i + 28, reinterpret_cast<Packet4f>(vec_mergel(z, r32_3)));
     }
+  }
+}
+
+template<Index size>
+EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexB, Index strideB, Index offsetA, Index offsetB, Index bigSuffix, float *result)
+{
+  if ((size == 16) || (rows & size)) {
+    indexA += size*offsetA;
+    colLoops<size>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
+    row += size;
+    indexA += bigSuffix*size/16;
   }
 }
 
@@ -271,25 +282,12 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   strideB *= 4;
   offsetB *= 3;
   for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
-    indexA += 2*8*offsetA;
-    colLoops<16>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
-    row += 16;
-    indexA += bigSuffix;
+    calcColLoops<16>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
   }
   //LHS (8x8) block
-  if(rows & 8){
-    indexA += 1*8*offsetA;
-    colLoops<8>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
-    row += 8;
-    indexA += (bigSuffix >> 1);
-  }
+  calcColLoops<8>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
   //LHS (8x4) block
-  if(rows & 4){
-    indexA += 1*4*offsetA;
-    colLoops<4>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
-    row += 4;
-    indexA += (bigSuffix >> 2);
-  }
+  calcColLoops<4>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
   //extra rows
   Index extra_rows = rows & 3;
   if(extra_rows){
