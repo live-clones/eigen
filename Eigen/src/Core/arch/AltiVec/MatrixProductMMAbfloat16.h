@@ -98,6 +98,16 @@ EIGEN_ALWAYS_INLINE void DisassembleAccumulators(__vector_quad (&quad_acc)[num_a
     __builtin_mma_disassemble_acc((void*)acc[k], &(quad_acc[k]));
 }
 
+template<Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
+EIGEN_ALWAYS_INLINE void OutputResults(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f pAlpha, float* result, const Index extra_cols, Index extra_rows)
+{
+  Index k;
+  for(k = 0; k < (num_acc - 1); k++){
+    storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
+  }
+  storeResults<rhsExtraCols, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
+}
+
 #define MAX_BFLOAT16_ACC   8
 
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
@@ -121,12 +131,9 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
         KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA - offset_row, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
       }
 
-      DisassembleAccumulators(quad_acc, acc);
+      DisassembleAccumulators<num_acc>(quad_acc, acc);
 
-      for(k = 0; k < (num_acc - 1); k++){
-        storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
-      }
-      storeResults<rhsExtraCols, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
+      OutputResults<num_acc, rhsExtraCols, lhsExtraRows>(acc, rows, pAlpha, result, extra_cols, extra_rows);
     }
 
     indexA -= num_packets*2;
