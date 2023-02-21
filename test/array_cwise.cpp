@@ -587,7 +587,7 @@ template<typename ArrayType> void comparisons(const ArrayType& m)
   // (m1 - Scalar(1)) < m1).all()
   VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, typed_lt()), typed_true);
   // !(m1 > m2 && m1 < m2).any()
-  VERIFY((!m1.binaryExpr(m2, typed_gt()) && m1.binaryExpr(m2, typed_lt())).sum() > Scalar(0));
+  VERIFY((!m1.binaryExpr(m2, typed_gt()) && m1.binaryExpr(m2, typed_lt())).any());
   // (m1 <= m2 || m1 >= m2).all()
   VERIFY_IS_CWISE_EQUAL(m1.binaryExpr(m2, typed_le()) || m1.binaryExpr(m2, typed_ge()), typed_true);
 
@@ -598,7 +598,7 @@ template<typename ArrayType> void comparisons(const ArrayType& m)
   // (m1 - Scalar(1)) < m1).all()
   VERIFY_IS_CWISE_EQUAL((m1 - Scalar(1)).binaryExpr(m1, bool_lt()), bool_true);
   // !(m1 > m2 && m1 < m2).any()
-  VERIFY((!m1.binaryExpr(m2, bool_gt()) && m1.binaryExpr(m2, bool_lt())).sum());
+  VERIFY((!m1.binaryExpr(m2, bool_gt()) && m1.binaryExpr(m2, bool_lt())).any());
   // (m1 <= m2 || m1 >= m2).all()
   VERIFY_IS_CWISE_EQUAL(m1.binaryExpr(m2, bool_le()) || m1.binaryExpr(m2, bool_ge()), bool_true);
 
