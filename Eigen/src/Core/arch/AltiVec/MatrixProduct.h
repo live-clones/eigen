@@ -436,26 +436,6 @@ EIGEN_ALWAYS_INLINE void storeBlock(Scalar* to, PacketBlock<Packet,N>& block)
   }
 }
 
-template<int N>
-EIGEN_ALWAYS_INLINE void storeConvertBlockBF16(float* to, PacketBlock<Packet8bf,(N+4)/8>& block)
-{
-  Packet8us z = pset1<Packet8us>(0);
-  pstore(to +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[0].m_val)));
-  if (N >= 8) {
-    pstore(to +  4, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[0].m_val)));
-  }
-  if (N >= 16) {
-    pstore(to +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[1].m_val)));
-    pstore(to + 12, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[1].m_val)));
-  }
-  if (N >= 32) {
-    pstore(to + 16, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[2].m_val)));
-    pstore(to + 20, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[2].m_val)));
-    pstore(to + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[3].m_val)));
-    pstore(to + 28, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[3].m_val)));
-  }
-}
-
 // General template for lhs & rhs complex packing.
 template<typename Scalar, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode, bool UseLhs>
 struct dhs_cpack {
@@ -863,8 +843,8 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
 
 #if !EIGEN_ALTIVEC_DISABLE_MMA && defined(__MMA__)
 // General template for lhs packing, bfloat16 specialization.
-template<typename DataMapper, int StorageOrder, bool PanelMode, bool Convert>
-struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true, Convert>
+template<typename DataMapper, int StorageOrder, bool PanelMode>
+struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
 {
   EIGEN_STRONG_INLINE void operator()(bfloat16* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
@@ -897,11 +877,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
           block.packet[0] = t0;
           block.packet[1] = t1;
 
-          if (Convert) {
-            storeConvertBlockBF16<32>(reinterpret_cast<float *>(blockA) + ri, block);
-          } else {
-            storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
-          }
+          storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
 
           ri += 2*2*vectorSize;
         }
@@ -912,11 +888,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
           block.packet[0] = lhs2.template loadPacket<Packet8bf>(0 * vectorSize, i + 0);
           block.packet[1] = lhs2.template loadPacket<Packet8bf>(1 * vectorSize, i + 0);
 
-          if (Convert) {
-            storeConvertBlockBF16<16>(reinterpret_cast<float *>(blockA) + ri, block);
-          } else {
-            storeBlock<bfloat16, Packet8bf, 2>(blockA + ri, block);
-          }
+          storeBlock<bfloat16, Packet8bf, 2>(blockA + ri, block);
 
           ri += 2*vectorSize;
         }
@@ -1015,11 +987,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
           block.packet[1] = vec_mergel(block.packet[0].m_val, block.packet[1].m_val);
           block.packet[0] = t0;
 
-          if (Convert) {
-            storeConvertBlockBF16<16>(reinterpret_cast<float *>(blockA) + ri, block);
-          } else {
-            storeBlock<bfloat16, Packet8bf, 2>(blockA + ri, block);
-          }
+          storeBlock<bfloat16, Packet8bf, 2>(blockA + ri, block);
 
           ri += 2*vectorSize;
         }
@@ -1029,11 +997,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
 
           block.packet[0] = lhs2.template loadPacket<Packet8bf>(0 * vectorSize, i + 0);
 
-          if (Convert) {
-            storeConvertBlockBF16<8>(reinterpret_cast<float *>(blockA) + ri, block);
-          } else {
-            pstore<bfloat16>(blockA + ri, block.packet[0]);
-          }
+          pstore<bfloat16>(blockA + ri, block.packet[0]);
 
           ri += vectorSize;
         }
@@ -1111,11 +1075,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
 
           block2.packet[0] = vec_mergeh(block.packet[0].m_val, block.packet[1].m_val);
 
-          if (Convert) {
-            storeConvertBlockBF16<8>(reinterpret_cast<float *>(blockA) + ri, block2);
-          } else {
-            pstore<bfloat16>(blockA + ri, block2.packet[0]);
-          }
+          pstore<bfloat16>(blockA + ri, block2.packet[0]);
         } else {
           blockA[ri+0] = lhs2(0, i + 0);
           blockA[ri+1] = lhs2(0, i + 1);
@@ -1137,11 +1097,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
 
           block.packet[0] = lhs2.template loadPacketPartial<Packet8bf>(0, i + 0, 4);
 
-          if (Convert) {
-            storeConvertBlockBF16<4>(reinterpret_cast<float *>(blockA) + ri, block);
-          } else {
-            pstore_partial<bfloat16>(blockA + ri, block.packet[0], 4);
-          }
+          pstore_partial<bfloat16>(blockA + ri, block.packet[0], 4);
         } else {
           blockA[ri+0] = lhs2(0, i);
           blockA[ri+1] = lhs2(1, i);
@@ -1166,13 +1122,8 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
         Index k = j;
         for(; k < rows; k++)
         {
-          if (Convert) {
-            reinterpret_cast<float *>(blockA)[ri+0] = lhs(k, i + 0);
-            reinterpret_cast<float *>(blockA)[ri+1] = lhs(k, i + 1);
-          } else {
-            blockA[ri+0] = lhs(k, i + 0);
-            blockA[ri+1] = lhs(k, i + 1);
-          }
+          blockA[ri+0] = lhs(k, i + 0);
+          blockA[ri+1] = lhs(k, i + 1);
           ri += 2;
         }
       }
@@ -1180,11 +1131,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
       {
         for(; j < rows; j++)
         {
-          if (Convert) {
-            reinterpret_cast<float *>(blockA)[ri] = lhs(j, i);
-          } else {
-            blockA[ri] = lhs(j, i);
-          }
+          blockA[ri] = lhs(j, i);
           ri += 1;
         }
       }
@@ -1193,8 +1140,8 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true,
 };
 
 // General template for rhs packing, bfloat16 specialization.
-template<typename DataMapper, int StorageOrder, bool PanelMode, bool Convert>
-struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false, Convert>
+template<typename DataMapper, int StorageOrder, bool PanelMode>
+struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 {
   EIGEN_STRONG_INLINE void operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
   {
@@ -1227,11 +1174,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false
           block.packet[2] = reinterpret_cast<Packet8us>(vec_mergeh(t2, t3));
           block.packet[3] = reinterpret_cast<Packet8us>(vec_mergel(t2, t3));
 
-          if (Convert) {
-            storeConvertBlockBF16<32>(reinterpret_cast<float *>(blockB) + ri, block);
-          } else {
-            storeBlock<bfloat16, Packet8bf, 4>(blockB + ri, block);
-          }
+          storeBlock<bfloat16, Packet8bf, 4>(blockB + ri, block);
         } else {
           PacketBlock<Packet8bf,8> block;
 
@@ -1256,25 +1199,14 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false
       for (; i + 2 <= depth; i += 2) {
         if(StorageOrder == ColMajor)
         {
-          if (Convert) {
-            reinterpret_cast<float *>(blockB)[ri+0] = rhs2(i + 0, 0);
-            reinterpret_cast<float *>(blockB)[ri+1] = rhs2(i + 1, 0);
-            reinterpret_cast<float *>(blockB)[ri+2] = rhs2(i + 0, 1);
-            reinterpret_cast<float *>(blockB)[ri+3] = rhs2(i + 1, 1);
-            reinterpret_cast<float *>(blockB)[ri+4] = rhs2(i + 0, 2);
-            reinterpret_cast<float *>(blockB)[ri+5] = rhs2(i + 1, 2);
-            reinterpret_cast<float *>(blockB)[ri+6] = rhs2(i + 0, 3);
-            reinterpret_cast<float *>(blockB)[ri+7] = rhs2(i + 1, 3);
-          } else {
-            blockB[ri+0] = rhs2(i + 0, 0);
-            blockB[ri+1] = rhs2(i + 1, 0);
-            blockB[ri+2] = rhs2(i + 0, 1);
-            blockB[ri+3] = rhs2(i + 1, 1);
-            blockB[ri+4] = rhs2(i + 0, 2);
-            blockB[ri+5] = rhs2(i + 1, 2);
-            blockB[ri+6] = rhs2(i + 0, 3);
-            blockB[ri+7] = rhs2(i + 1, 3);
-          }
+          blockB[ri+0] = rhs2(i + 0, 0);
+          blockB[ri+1] = rhs2(i + 1, 0);
+          blockB[ri+2] = rhs2(i + 0, 1);
+          blockB[ri+3] = rhs2(i + 1, 1);
+          blockB[ri+4] = rhs2(i + 0, 2);
+          blockB[ri+5] = rhs2(i + 1, 2);
+          blockB[ri+6] = rhs2(i + 0, 3);
+          blockB[ri+7] = rhs2(i + 1, 3);
         } else {
           PacketBlock<Packet8bf,2> block;
 
@@ -1291,17 +1223,10 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false
       }
       if (depth & 1)
       {
-        if (Convert) {
-          reinterpret_cast<float *>(blockB)[ri+0] = rhs2(i, 0);
-          reinterpret_cast<float *>(blockB)[ri+1] = rhs2(i, 1);
-          reinterpret_cast<float *>(blockB)[ri+2] = rhs2(i, 2);
-          reinterpret_cast<float *>(blockB)[ri+3] = rhs2(i, 3);
-        } else {
-          blockB[ri+0] = rhs2(i, 0);
-          blockB[ri+1] = rhs2(i, 1);
-          blockB[ri+2] = rhs2(i, 2);
-          blockB[ri+3] = rhs2(i, 3);
-        }
+        blockB[ri+0] = rhs2(i, 0);
+        blockB[ri+1] = rhs2(i, 1);
+        blockB[ri+2] = rhs2(i, 2);
+        blockB[ri+3] = rhs2(i, 3);
 
         ri += 4;
       }
@@ -1319,13 +1244,8 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false
         Index k = j;
         for(; k < cols; k++)
         {
-          if (Convert) {
-            reinterpret_cast<float *>(blockB)[ri+0] = rhs(i + 0, k);
-            reinterpret_cast<float *>(blockB)[ri+1] = rhs(i + 1, k);
-          } else {
-            blockB[ri+0] = rhs(i + 0, k);
-            blockB[ri+1] = rhs(i + 1, k);
-          }
+          blockB[ri+0] = rhs(i + 0, k);
+          blockB[ri+1] = rhs(i + 1, k);
           ri += 2;
         }
       }
@@ -1333,11 +1253,7 @@ struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false
       {
         for(; j < cols; j++)
         {
-          if (Convert) {
-            reinterpret_cast<float *>(blockB)[ri] = rhs(i, j);
-          } else {
-            blockB[ri] = rhs(i, j);
-          }
+          blockB[ri] = rhs(i, j);
           ri += 1;
         }
       }
@@ -2839,7 +2755,7 @@ template<typename Index, typename DataMapper, int nr, bool Conjugate, bool Panel
 void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_packb<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, false> pack;
+  dhs_pack<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 
@@ -2853,7 +2769,7 @@ template<typename Index, typename DataMapper, int nr, bool Conjugate, bool Panel
 void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_packb<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, false> pack;
+  dhs_pack<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 #endif
@@ -2868,7 +2784,7 @@ template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Pac
 void gemm_pack_lhs<bfloat16, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_packb<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, true> pack;
+  dhs_pack<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 
@@ -2882,7 +2798,7 @@ template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Pac
 void gemm_pack_lhs<bfloat16, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_packb<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, true> pack;
+  dhs_pack<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 #endif

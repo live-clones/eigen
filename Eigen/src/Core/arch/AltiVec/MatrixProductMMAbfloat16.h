@@ -206,6 +206,26 @@ EIGEN_ALWAYS_INLINE Packet8bf convertF32toBF16(const float *res)
   return vec_pack(reinterpret_cast<Packet4ui>(fp16_0), reinterpret_cast<Packet4ui>(fp16_1));
 }
 
+template<int N>
+EIGEN_ALWAYS_INLINE void storeConvertBlockBF16(float* to, PacketBlock<Packet8bf,(N+4)/8>& block)
+{
+  Packet8us z = pset1<Packet8us>(0);
+  pstore(to +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[0].m_val)));
+  if (N >= 8) {
+    pstore(to +  4, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[0].m_val)));
+  }
+  if (N >= 16) {
+    pstore(to +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[1].m_val)));
+    pstore(to + 12, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[1].m_val)));
+  }
+  if (N >= 32) {
+    pstore(to + 16, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[2].m_val)));
+    pstore(to + 20, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[2].m_val)));
+    pstore(to + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[3].m_val)));
+    pstore(to + 28, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[3].m_val)));
+  }
+}
+
 template<const Index size, typename DataMapper>
 EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float *result2, Index rows, const DataMapper& res2)
 {
