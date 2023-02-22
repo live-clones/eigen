@@ -556,7 +556,7 @@ struct scalar_bitwise_and_op {
     const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
     const uint8_t* b_bytes = reinterpret_cast<const uint8_t*>(&b);
     uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
-    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] & b_bytes[i];
+    for (size_t i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] & b_bytes[i];
     return result;
   }
   template <typename Packet>
@@ -583,7 +583,7 @@ struct scalar_bitwise_or_op {
     const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
     const uint8_t* b_bytes = reinterpret_cast<const uint8_t*>(&b);
     uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
-    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] | b_bytes[i];
+    for (size_t i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] | b_bytes[i];
     return result;
   }
   template <typename Packet>
@@ -610,7 +610,7 @@ struct scalar_bitwise_xor_op {
     const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
     const uint8_t* b_bytes = reinterpret_cast<const uint8_t*>(&b);
     uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
-    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] ^ b_bytes[i];
+    for (size_t i = 0; i < sizeof(Scalar); i++) r_bytes[i] = a_bytes[i] ^ b_bytes[i];
     return result;
   }
   template <typename Packet>

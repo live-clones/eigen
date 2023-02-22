@@ -195,19 +195,21 @@ static void test_constants()
 
 static void test_boolean()
 {
+  using Scalar = int;
+
   const int kSize = 31;
-  Tensor<int, 1> vec(kSize);
+  Tensor<Scalar, 1> vec(kSize);
   std::iota(vec.data(), vec.data() + kSize, 0);
 
   // Test ||.
-  Tensor<bool, 1> bool1 = vec < vec.constant(1) || vec > vec.constant(4);
+  Tensor<Scalar, 1> bool1 = vec < vec.constant(1) || vec > vec.constant(4);
   for (int i = 0; i < kSize; ++i) {
     bool expected = i < 1 || i > 4;
     VERIFY_IS_EQUAL(bool1[i], expected);
   }
 
   // Test &&, including cast of operand vec.
-  Tensor<bool, 1> bool2 = vec.cast<bool>() && vec < vec.constant(4);
+  Tensor<Scalar, 1> bool2 = vec && vec < vec.constant(4);
   for (int i = 0; i < kSize; ++i) {
     bool expected = bool(i) && i < 4;
     VERIFY_IS_EQUAL(bool2[i], expected);
@@ -217,7 +219,7 @@ static void test_boolean()
   // Test Tensor<bool> against results of cast or comparison; verifies that
   // CoeffReturnType is set to match Op return type of bool for Unary and Binary
   // Ops.
-  Tensor<bool, 1> bool3 = vec.cast<bool>() && bool2;
+  Tensor<Scalar, 1> bool3 = vec && bool2;
   bool3 = vec < vec.constant(4) && bool2;
 }
 

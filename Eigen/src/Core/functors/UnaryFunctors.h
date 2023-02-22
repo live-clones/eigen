@@ -955,7 +955,7 @@ struct scalar_bitwise_not_op {
     Scalar result;
     const uint8_t* a_bytes = reinterpret_cast<const uint8_t*>(&a);
     uint8_t* r_bytes = reinterpret_cast<uint8_t*>(&result);
-    for (Index i = 0; i < sizeof(Scalar); i++) r_bytes[i] = ~a_bytes[i];
+    for (size_t i = 0; i < sizeof(Scalar); i++) r_bytes[i] = ~a_bytes[i];
     return result;
   }
   template <typename Packet>
