@@ -122,11 +122,9 @@ template<> struct packet_traits<float>  : default_packet_traits
     HasBlend = 0,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
+#if EIGEN_HAS_AVX512_MATH
     HasACos = 1,
     HasASin = 1,
-    HasATan = 1,
-    HasATanh = 1,
-#if EIGEN_HAS_AVX512_MATH
     HasLog = 1,
     HasLog1p  = 1,
     HasExpm1  = 1,
@@ -139,6 +137,8 @@ template<> struct packet_traits<float>  : default_packet_traits
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
 #endif
+    HasATan = 1,
+    HasATanh = 1,
     HasCmp  = 1,
     HasDiv = 1,
     HasRound = 1,
