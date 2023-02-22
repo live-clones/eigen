@@ -279,6 +279,90 @@ struct scalar_cmp_op<LhsScalar,RhsScalar, cmp_NEQ> : binary_op_base<LhsScalar,Rh
 };
 
 /** \internal
+  * \brief Template functors for comparison of two scalars, with vectorization support.
+  */
+template<typename LhsScalar, typename RhsScalar, ComparisonName cmp> struct scalar_typed_cmp_op;
+
+template<typename LhsScalar, typename RhsScalar, ComparisonName cmp>
+struct functor_traits<scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp> > {
+  enum {
+    Cost = (NumTraits<LhsScalar>::AddCost+NumTraits<RhsScalar>::AddCost)/2,
+    PacketAccess = is_same<LhsScalar, RhsScalar>::value &&
+        packet_traits<LhsScalar>::HasCmp
+  };
+};
+
+template<typename LhsScalar, typename RhsScalar>
+struct scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp_EQ> : binary_op_base<LhsScalar,RhsScalar>
+{
+  typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_typed_cmp_op<LhsScalar, RhsScalar, cmp_EQ> >::ReturnType result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {return a==b;}
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pcmp_eq(a,b); }
+};
+
+template<typename LhsScalar, typename RhsScalar>
+struct scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp_LT> : binary_op_base<LhsScalar,RhsScalar>
+{
+  typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_typed_cmp_op<LhsScalar, RhsScalar, cmp_LT> >::ReturnType result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {return a<b;}
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pcmp_lt(a,b); }
+};
+
+template<typename LhsScalar, typename RhsScalar>
+struct scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp_LE> : binary_op_base<LhsScalar,RhsScalar>
+{
+  typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_typed_cmp_op<LhsScalar, RhsScalar, cmp_LE> >::ReturnType result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {return a<=b;}
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pcmp_le(a,b); }
+};
+
+template<typename LhsScalar, typename RhsScalar>
+struct scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp_GT> : binary_op_base<LhsScalar,RhsScalar>
+{
+  typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_typed_cmp_op<LhsScalar, RhsScalar, cmp_GT> >::ReturnType result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {return a>b;}
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pcmp_lt(b,a); }
+};
+
+template<typename LhsScalar, typename RhsScalar>
+struct scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp_GE> : binary_op_base<LhsScalar,RhsScalar>
+{
+  typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_typed_cmp_op<LhsScalar, RhsScalar, cmp_GE> >::ReturnType result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {return a>=b;}
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pcmp_le(b,a); }
+};
+
+template<typename LhsScalar, typename RhsScalar>
+struct scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp_UNORD> : binary_op_base<LhsScalar,RhsScalar>
+{
+  typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_typed_cmp_op<LhsScalar, RhsScalar, cmp_UNORD> >::ReturnType result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {return !(a<=b || b<=a);}
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pcmp_eq(internal::por(internal::pcmp_le(a, b), internal::pcmp_le(b, a)), internal::pzero(a)); }
+};
+
+template<typename LhsScalar, typename RhsScalar>
+struct scalar_typed_cmp_op<LhsScalar,RhsScalar, cmp_NEQ> : binary_op_base<LhsScalar,RhsScalar>
+{
+  typedef typename ScalarBinaryOpTraits<LhsScalar,RhsScalar,scalar_typed_cmp_op<LhsScalar, RhsScalar, cmp_NEQ> >::ReturnType result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {return a!=b;}
+  template<typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const
+  { return internal::pcmp_eq(internal::pcmp_eq(a, b), internal::pzero(a)); }
+};
+
+/** \internal
   * \brief Template functor to compute the hypot of two \b positive \b and \b real scalars
   *
   * \sa MatrixBase::stableNorm(), class Redux
