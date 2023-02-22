@@ -861,7 +861,7 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
   }
 };
 
-#ifdef __MMA__
+#if !EIGEN_ALTIVEC_DISABLE_MMA && defined(__MMA__)
 // General template for lhs packing, bfloat16 specialization.
 template<typename DataMapper, int StorageOrder, bool PanelMode, bool Convert>
 struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true, Convert>
@@ -2827,7 +2827,7 @@ void gemm_pack_rhs<double, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode
 }
 #endif
 
-#ifdef __MMA__
+#if !EIGEN_ALTIVEC_DISABLE_MMA && defined(__MMA__)
 #if EIGEN_ALTIVEC_USE_CUSTOM_PACK
 template<typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<bfloat16, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
@@ -3361,7 +3361,7 @@ void gebp_kernel<double, std::complex<double>, Index, DataMapper, mr, nr, Conjug
     gemm_function(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB);
   }
 
-#if defined(__MMA__)
+#if !EIGEN_ALTIVEC_DISABLE_MMA && defined(__MMA__)
 template<typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<bfloat16, bfloat16, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>
 {

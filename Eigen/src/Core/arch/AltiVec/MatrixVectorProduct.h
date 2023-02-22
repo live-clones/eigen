@@ -2077,7 +2077,7 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(double)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(float)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(double)
 
-#if defined(USE_GEMV_MMA)
+#ifdef USE_GEMV_MMA
 //#if 0
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16() \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
