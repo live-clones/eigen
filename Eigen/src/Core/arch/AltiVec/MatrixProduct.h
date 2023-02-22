@@ -436,6 +436,26 @@ EIGEN_ALWAYS_INLINE void storeBlock(Scalar* to, PacketBlock<Packet,N>& block)
   }
 }
 
+template<int N>
+EIGEN_ALWAYS_INLINE void storeConvertBlockBF16(float* to, PacketBlock<Packet8bf,(N+4)/8>& block)
+{
+  Packet8us z = pset1<Packet8us>(0);
+  pstore(to +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[0].m_val)));
+  if (N >= 8) {
+    pstore(to +  4, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[0].m_val)));
+  }
+  if (N >= 16) {
+    pstore(to +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[1].m_val)));
+    pstore(to + 12, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[1].m_val)));
+  }
+  if (N >= 32) {
+    pstore(to + 16, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[2].m_val)));
+    pstore(to + 20, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[2].m_val)));
+    pstore(to + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, block.packet[3].m_val)));
+    pstore(to + 28, reinterpret_cast<Packet4f>(vec_mergel(z, block.packet[3].m_val)));
+  }
+}
+
 // General template for lhs & rhs complex packing.
 template<typename Scalar, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode, bool UseLhs>
 struct dhs_cpack {
@@ -843,8 +863,8 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
 
 #ifdef __MMA__
 // General template for lhs packing, bfloat16 specialization.
-template<typename DataMapper, int StorageOrder, bool PanelMode>
-struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
+template<typename DataMapper, int StorageOrder, bool PanelMode, bool Convert>
+struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true, Convert>
 {
   EIGEN_STRONG_INLINE void operator()(bfloat16* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
@@ -877,7 +897,10 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
           block.packet[0] = t0;
           block.packet[1] = t1;
 
-          storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
+          if (Convert) {
+          } else {
+            storeBlock<bfloat16, Packet8bf, 4>(blockA + ri, block);
+          }
 
           ri += 2*2*vectorSize;
         }
@@ -1134,8 +1157,8 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
 };
 
 // General template for rhs packing, bfloat16 specialization.
-template<typename DataMapper, int StorageOrder, bool PanelMode>
-struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
+template<typename DataMapper, int StorageOrder, bool PanelMode, bool Convert>
+struct dhs_packb<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false, Convert>
 {
   EIGEN_STRONG_INLINE void operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
   {
@@ -1162,6 +1185,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
           t1 = reinterpret_cast<Packet2ul>(vec_mergeh(reinterpret_cast<Packet4ui>(block.packet[2].m_val), reinterpret_cast<Packet4ui>(block.packet[3].m_val)));
           t2 = reinterpret_cast<Packet2ul>(vec_mergel(reinterpret_cast<Packet4ui>(block.packet[0].m_val), reinterpret_cast<Packet4ui>(block.packet[1].m_val)));
           t3 = reinterpret_cast<Packet2ul>(vec_mergel(reinterpret_cast<Packet4ui>(block.packet[2].m_val), reinterpret_cast<Packet4ui>(block.packet[3].m_val)));
+
           block.packet[0] = reinterpret_cast<Packet8us>(vec_mergeh(t0, t1));
           block.packet[1] = reinterpret_cast<Packet8us>(vec_mergel(t0, t1));
           block.packet[2] = reinterpret_cast<Packet8us>(vec_mergeh(t2, t3));
@@ -2748,7 +2772,7 @@ template<typename Index, typename DataMapper, int nr, bool Conjugate, bool Panel
 void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_pack<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, false> pack;
+  dhs_packb<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 
@@ -2762,7 +2786,7 @@ template<typename Index, typename DataMapper, int nr, bool Conjugate, bool Panel
 void gemm_pack_rhs<bfloat16, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
 {
-  dhs_pack<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, false> pack;
+  dhs_packb<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, false> pack;
   pack(blockB, rhs, depth, cols, stride, offset);
 }
 #endif
@@ -2777,7 +2801,7 @@ template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Pac
 void gemm_pack_lhs<bfloat16, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_pack<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, true> pack;
+  dhs_packb<bfloat16, DataMapper, Packet8bf, ColMajor, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 
@@ -2791,7 +2815,7 @@ template<typename Index, typename DataMapper, int Pack1, int Pack2, typename Pac
 void gemm_pack_lhs<bfloat16, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
   ::operator()(bfloat16* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
 {
-  dhs_pack<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, true> pack;
+  dhs_packb<bfloat16, DataMapper, Packet8bf, RowMajor, PanelMode, true> pack;
   pack(blockA, lhs, depth, rows, stride, offset);
 }
 #endif

@@ -83,7 +83,7 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Pack
 }
 
 template<Index num_acc>
-EIGEN_ALWAYS_INLINE void ZeroAccumulators(__vector_quad (&quad_acc)[num_acc])
+EIGEN_ALWAYS_INLINE void zeroAccumulators(__vector_quad (&quad_acc)[num_acc])
 {
   BFLOAT16_UNROLL
   for(Index k = 0; k < num_acc; k++)
@@ -91,7 +91,7 @@ EIGEN_ALWAYS_INLINE void ZeroAccumulators(__vector_quad (&quad_acc)[num_acc])
 }
 
 template<Index num_acc>
-EIGEN_ALWAYS_INLINE void DisassembleAccumulators(__vector_quad (&quad_acc)[num_acc], Packet4f (&acc)[num_acc][4])
+EIGEN_ALWAYS_INLINE void disassembleAccumulators(__vector_quad (&quad_acc)[num_acc], Packet4f (&acc)[num_acc][4])
 {
   BFLOAT16_UNROLL
   for(Index k = 0; k < num_acc; k++)
@@ -99,7 +99,7 @@ EIGEN_ALWAYS_INLINE void DisassembleAccumulators(__vector_quad (&quad_acc)[num_a
 }
 
 template<Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void OutputResults(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f pAlpha, float* result, const Index extra_cols, Index extra_rows)
+EIGEN_ALWAYS_INLINE void outputResults(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f pAlpha, float* result, const Index extra_cols, Index extra_rows)
 {
   Index k;
   for(k = 0; k < (num_acc - 1); k++){
@@ -122,7 +122,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
       Packet4f acc[num_acc][4];
       __vector_quad quad_acc[num_acc];
 
-      ZeroAccumulators<num_acc>(quad_acc);
+      zeroAccumulators<num_acc>(quad_acc);
 
       for(k = 0; k + 2 <= depth; k += 2){
         KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
@@ -131,9 +131,9 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
         KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA - offset_row, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
       }
 
-      DisassembleAccumulators<num_acc>(quad_acc, acc);
+      disassembleAccumulators<num_acc>(quad_acc, acc);
 
-      OutputResults<num_acc, rhsExtraCols, lhsExtraRows>(acc, rows, pAlpha, result, extra_cols, extra_rows);
+      outputResults<num_acc, rhsExtraCols, lhsExtraRows>(acc, rows, pAlpha, result, extra_cols, extra_rows);
     }
 
     indexA -= num_packets*2;
@@ -207,36 +207,23 @@ EIGEN_ALWAYS_INLINE Packet8bf convertF32toBF16(const float *res)
 }
 
 template<const Index size, typename DataMapper>
-EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float *result2, Index rows, const DataMapper& res2, Packet8us z)
+EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float *result2, Index rows, const DataMapper& res2)
 {
   for(; i + size <= rows; i += size){
-    Packet8us r32_0, r32_1, r32_2, r32_3;
+    PacketBlock<Packet8bf,(size+4)/8> r32;
     if (size >= 8) {
-      r32_0 = res2.template loadPacket<Packet8bf>(i +  0).m_val;
+      r32.packet[0] = res2.template loadPacket<Packet8bf>(i +  0);
     } else {
-      r32_0 = res2.template loadPacketPartial<Packet8bf>(i +  0, 4).m_val;
+      r32.packet[0] = res2.template loadPacketPartial<Packet8bf>(i +  0, 4);
     }
     if (size >= 16) {
-      r32_1 = res2.template loadPacket<Packet8bf>(i +  8).m_val;
+      r32.packet[1] = res2.template loadPacket<Packet8bf>(i +  8);
     }
     if (size >= 32) {
-      r32_2 = res2.template loadPacket<Packet8bf>(i + 16).m_val;
-      r32_3 = res2.template loadPacket<Packet8bf>(i + 24).m_val;
+      r32.packet[2] = res2.template loadPacket<Packet8bf>(i + 16);
+      r32.packet[3] = res2.template loadPacket<Packet8bf>(i + 24);
     }
-    pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
-    if (size >= 8) {
-      pstore(result2 + i +  4, reinterpret_cast<Packet4f>(vec_mergel(z, r32_0)));
-    }
-    if (size >= 16) {
-      pstore(result2 + i +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_1)));
-      pstore(result2 + i + 12, reinterpret_cast<Packet4f>(vec_mergel(z, r32_1)));
-    }
-    if (size >= 32) {
-      pstore(result2 + i + 16, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_2)));
-      pstore(result2 + i + 20, reinterpret_cast<Packet4f>(vec_mergel(z, r32_2)));
-      pstore(result2 + i + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_3)));
-      pstore(result2 + i + 28, reinterpret_cast<Packet4f>(vec_mergel(z, r32_3)));
-    }
+    storeConvertBlockBF16<size>(result2 + i, r32);
   }
 }
 
@@ -244,15 +231,14 @@ template<typename DataMapper>
 EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float *result, Index cols, Index rows, const DataMapper& res)
 {
   typedef typename DataMapper::LinearMapper LinearMapper;
-  Packet8us z = pset1<Packet8us>(0);
   for(Index j = 0; j < cols; j++){
     const LinearMapper res2 = res.getLinearMapper(0, j);
     float *result2 = result + j*rows;
     Index i = 0;
-    convertBF16toF32<32, LinearMapper>(i, result2, rows, res2, z);
-    convertBF16toF32<16, LinearMapper>(i, result2, rows, res2, z);
-    convertBF16toF32<8,  LinearMapper>(i, result2, rows, res2, z);
-    convertBF16toF32<4,  LinearMapper>(i, result2, rows, res2, z);
+    convertBF16toF32<32, LinearMapper>(i, result2, rows, res2);
+    convertBF16toF32<16, LinearMapper>(i, result2, rows, res2);
+    convertBF16toF32<8,  LinearMapper>(i, result2, rows, res2);
+    convertBF16toF32<4,  LinearMapper>(i, result2, rows, res2);
     for(; i < rows; i++){
       result2[i] = res2(i);
     }
