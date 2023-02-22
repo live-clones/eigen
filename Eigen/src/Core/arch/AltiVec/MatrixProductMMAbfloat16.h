@@ -263,7 +263,7 @@ EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float *result, Index cols, Index 
 template<const Index size>
 EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float *result2, Index rows, bfloat16* res2, Index resInc)
 {
-  for(; i + size <= rows; i += size, res2 += size*resInc){
+  for(res2 += (i*resInc); i + size <= rows; i += size, res2 += size*resInc){
     PacketBlock<Packet8bf,(size+4)/8> r32;
     if (resInc == 1) {
       r32.packet[0] = ploadu<Packet8bf>(res2 +  0);
