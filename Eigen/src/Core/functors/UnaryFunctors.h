@@ -182,7 +182,7 @@ struct scalar_cast_op {
 template <typename Scalar>
 struct scalar_cast_op<Scalar, bool> {
   typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const bool operator()(const Scalar& a) const { return a != Scalar(0); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const Scalar& a) const { return a != Scalar(0); }
 };
 
 template<typename Scalar, typename NewType>
