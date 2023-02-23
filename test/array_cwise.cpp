@@ -1139,37 +1139,74 @@ struct typed_logicals_test_impl {
     const size_t bytes = size_t(rows) * size_t(cols) * sizeof(Scalar);
     const uint8_t* m1_data = reinterpret_cast<const uint8_t*>(m1.data());
     const uint8_t* m2_data = reinterpret_cast<const uint8_t*>(m2.data());
-    uint8_t* m3_data = reinterpret_cast<uint8_t*>(m3.data());
-    uint8_t* m4_data = reinterpret_cast<uint8_t*>(m4.data());
+    const uint8_t* m3_data = reinterpret_cast<const uint8_t*>(m3.data());
+    const uint8_t* m4_data = reinterpret_cast<const uint8_t*>(m4.data());
 
     // test bitwise and
     m3 = m1 & m2;
-    for (size_t i = 0; i < bytes; i++) m4_data[i] = m1_data[i] & m2_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) {
+      uint8_t m1_byte, m2_byte, m3_byte, res_byte;
+      std::memcpy(&m1_byte, &m1_data[i], 1);
+      std::memcpy(&m2_byte, &m2_data[i], 1);
+      std::memcpy(&m3_byte, &m3_data[i], 1);
+      res_byte = m1_byte & m2_byte;
+      VERIFY_IS_EQUAL(m3_byte, res_byte);
+    }
 
     // test bitwise or
     m3 = m1 | m2;
-    for (size_t i = 0; i < bytes; i++) m4_data[i] = m1_data[i] | m2_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) {
+      uint8_t m1_byte, m2_byte, m3_byte, res_byte;
+      std::memcpy(&m1_byte, &m1_data[i], 1);
+      std::memcpy(&m2_byte, &m2_data[i], 1);
+      std::memcpy(&m3_byte, &m3_data[i], 1);
+      res_byte = m1_byte | m2_byte;
+      VERIFY_IS_EQUAL(m3_byte, res_byte);
+    }
 
     // test bitwise xor
     m3 = m1 ^ m2;
-    for (size_t i = 0; i < bytes; i++) m4_data[i] = m1_data[i] ^ m2_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) {
+      uint8_t m1_byte, m2_byte, m3_byte, res_byte;
+      std::memcpy(&m1_byte, &m1_data[i], 1);
+      std::memcpy(&m2_byte, &m2_data[i], 1);
+      std::memcpy(&m3_byte, &m3_data[i], 1);
+      res_byte = m1_byte ^ m2_byte;
+      VERIFY_IS_EQUAL(m3_byte, res_byte);
+    }
 
     // test bitwise not
     m3 = ~m1;
-    for (size_t i = 0; i < bytes; i++) m4_data[i] = ~m1_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) {
+      uint8_t m1_byte, m3_byte, res_byte;
+      std::memcpy(&m1_byte, &m1_data[i], 1);
+      std::memcpy(&m3_byte, &m3_data[i], 1);
+      res_byte = ~m1_byte;
+      VERIFY_IS_EQUAL(m3_byte, res_byte);
+    }
 
     // test something more complicated
     m3 = m1 & m2;
     m4 = ~(~m1 | ~m2);
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) {
+      uint8_t m1_byte, m2_byte, m3_byte, m4_byte;
+      std::memcpy(&m1_byte, &m1_data[i], 1);
+      std::memcpy(&m2_byte, &m2_data[i], 1);
+      std::memcpy(&m3_byte, &m3_data[i], 1);
+      m4_byte = ~(~m1_byte | ~m2_byte);
+      VERIFY_IS_EQUAL(m3_byte, m4_byte);
+    }
 
     m3 = m1 ^ m2;
     m4 = (~m1) ^ (~m2);
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) {
+      uint8_t m1_byte, m2_byte, m3_byte, m4_byte;
+      std::memcpy(&m1_byte, &m1_data[i], 1);
+      std::memcpy(&m2_byte, &m2_data[i], 1);
+      std::memcpy(&m3_byte, &m3_data[i], 1);
+      m4_byte = (~m1_byte) ^ (~m2_byte);
+      VERIFY_IS_EQUAL(m3_byte, m4_byte);
+    }
   }
 };
 template <typename ArrayType>
