@@ -955,8 +955,8 @@ struct bitwise_unary_impl {
   using uint_t = typename numext::get_integer_by_size<Size>::unsigned_type;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_not(const Scalar& a) {
     uint_t a_as_uint = numext::bit_cast<uint_t, Scalar>(a);
-    a_as_uint = ~a_as_uint;
-    return numext::bit_cast<Scalar, uint_t>(a_as_uint);
+    uint_t result = ~a_as_uint;
+    return numext::bit_cast<Scalar, uint_t>(result);
   }
 };
 
