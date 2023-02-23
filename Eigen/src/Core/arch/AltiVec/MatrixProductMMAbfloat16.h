@@ -172,11 +172,45 @@ EIGEN_ALWAYS_INLINE void colLoops(Index depth, Index cols, Index rows, const Pac
   }
 }
 
-EIGEN_ALWAYS_INLINE Packet8bf convertF16toF32(const float *res)
+EIGEN_ALWAYS_INLINE Packet8bf convertF32toBF16(const float *res)
 {
   Packet16uc fp16_0 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(res + 0)));
   Packet16uc fp16_1 = __builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(ploadu<Packet4f>(res + 4)));
   return vec_pack(reinterpret_cast<Packet4ui>(fp16_0), reinterpret_cast<Packet4ui>(fp16_1));
+}
+
+template<const Index size, typename DataMapper>
+EIGEN_ALWAYS_INLINE void convertBF16oF32(Index& i, float *result2, Index rows, const DataMapper& res2, Packet8us z)
+{
+  for(; i + size <= rows; i += size){
+    Packet8us r32_0, r32_1, r32_2, r32_3;
+    if (size >= 8) {
+      r32_0 = res2.template loadPacket<Packet8bf>(i +  0).m_val;
+    } else {
+      r32_0 = res2.template loadPacketPartial<Packet8bf>(i +  0, 4).m_val;
+    }
+    if (size >= 16) {
+      r32_1 = res2.template loadPacket<Packet8bf>(i +  8).m_val;
+    }
+    if (size >= 32) {
+      r32_2 = res2.template loadPacket<Packet8bf>(i + 16).m_val;
+      r32_3 = res2.template loadPacket<Packet8bf>(i + 24).m_val;
+    }
+    pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
+    if (size >= 8) {
+      pstore(result2 + i +  4, reinterpret_cast<Packet4f>(vec_mergel(z, r32_0)));
+    }
+    if (size >= 16) {
+      pstore(result2 + i +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_1)));
+      pstore(result2 + i + 12, reinterpret_cast<Packet4f>(vec_mergel(z, r32_1)));
+    }
+    if (size >= 32) {
+      pstore(result2 + i + 16, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_2)));
+      pstore(result2 + i + 20, reinterpret_cast<Packet4f>(vec_mergel(z, r32_2)));
+      pstore(result2 + i + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_3)));
+      pstore(result2 + i + 28, reinterpret_cast<Packet4f>(vec_mergel(z, r32_3)));
+    }
+  }
 }
 
 template<typename Index, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
@@ -194,37 +228,10 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     const LinearMapper res2 = res.getLinearMapper(0, j);
     float *result2 = result + j*rows;
     Index i = 0;
-    for(; i + 32 <= rows; i+=32){
-      Packet8us r32_0 = res2.template loadPacket<Packet8bf>(i +  0).m_val;
-      Packet8us r32_1 = res2.template loadPacket<Packet8bf>(i +  8).m_val;
-      Packet8us r32_2 = res2.template loadPacket<Packet8bf>(i + 16).m_val;
-      Packet8us r32_3 = res2.template loadPacket<Packet8bf>(i + 24).m_val;
-      pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
-      pstore(result2 + i +  4, reinterpret_cast<Packet4f>(vec_mergel(z, r32_0)));
-      pstore(result2 + i +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_1)));
-      pstore(result2 + i + 12, reinterpret_cast<Packet4f>(vec_mergel(z, r32_1)));
-      pstore(result2 + i + 16, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_2)));
-      pstore(result2 + i + 20, reinterpret_cast<Packet4f>(vec_mergel(z, r32_2)));
-      pstore(result2 + i + 24, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_3)));
-      pstore(result2 + i + 28, reinterpret_cast<Packet4f>(vec_mergel(z, r32_3)));
-    }
-    for(; i + 16 <= rows; i+=16){
-      Packet8us r32_0 = res2.template loadPacket<Packet8bf>(i +  0).m_val;
-      Packet8us r32_1 = res2.template loadPacket<Packet8bf>(i +  8).m_val;
-      pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
-      pstore(result2 + i +  4, reinterpret_cast<Packet4f>(vec_mergel(z, r32_0)));
-      pstore(result2 + i +  8, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_1)));
-      pstore(result2 + i + 12, reinterpret_cast<Packet4f>(vec_mergel(z, r32_1)));
-    }
-    for(; i + 8 <= rows; i+=8){
-      Packet8us r32_0 = res2.template loadPacket<Packet8bf>(i +  0).m_val;
-      pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
-      pstore(result2 + i +  4, reinterpret_cast<Packet4f>(vec_mergel(z, r32_0)));
-    }
-    for(; i + 4 <= rows; i+=4){
-      Packet8us r32_0 = res2.template loadPacketPartial<Packet8bf>(i +  0, 4).m_val;
-      pstore(result2 + i +  0, reinterpret_cast<Packet4f>(vec_mergeh(z, r32_0)));
-    }
+    convertBF16oF32<32, LinearMapper>(i, result2, rows, res2, z);
+    convertBF16oF32<16, LinearMapper>(i, result2, rows, res2, z);
+    convertBF16oF32<8,  LinearMapper>(i, result2, rows, res2, z);
+    convertBF16oF32<4,  LinearMapper>(i, result2, rows, res2, z);
     for(; i < rows; i++){
       result2[i] = res2(i);
     }
@@ -285,7 +292,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
       //get and save block
       PacketBlock<Packet8bf,4> block;
       for(Index j = 0; j < 4; j++){
-        block.packet[j].m_val = convertF16toF32(result + (col + j)*rows + row);
+        block.packet[j].m_val = convertF32toBF16(result + (col + j)*rows + row);
       }
 
       res2.template storePacketBlock<Packet8bf,4>(row, 0, block);
@@ -305,7 +312,7 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
     float *result2 = result + col*rows;
     Index r = 0;
     for(; r + 8 <= rows; r += 8){
-      Packet8bf fp16 = convertF16toF32(result2 + r);
+      Packet8bf fp16 = convertF32toBF16(result2 + r);
       res2.template storePacket<Packet8bf>(r, fp16);
     }
     for(; r< rows; r++){
