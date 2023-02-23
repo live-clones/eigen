@@ -152,7 +152,6 @@ template<> EIGEN_STRONG_INLINE Packet8f preciprocal<Packet8f>(const Packet8f& a)
 }
 #endif
 
-
 F16_PACKET_FUNCTION(Packet8f, Packet8h, psin)
 F16_PACKET_FUNCTION(Packet8f, Packet8h, pcos)
 F16_PACKET_FUNCTION(Packet8f, Packet8h, plog)
