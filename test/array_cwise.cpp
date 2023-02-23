@@ -1092,7 +1092,9 @@ struct typed_logicals_test_impl {
   static Scalar eval_bool_not(const Scalar& x) { return bool_to_scalar(!scalar_to_bool(x)); }
 
   static void run(const ArrayType& m) {
-      
+
+    static constexpr bool type_is_bool = std::is_same<Scalar, bool>::value;
+
     Index rows = m.rows();
     Index cols = m.cols();
 
@@ -1102,6 +1104,15 @@ struct typed_logicals_test_impl {
     m2.setRandom();
     m1 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
     m2 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
+
+    // true is not guaranteed to be 0xff
+    if (type_is_bool) {
+      for (Index i = 0; i < rows; i++)
+        for (Index j = 0; j < cols; j++) {
+          std::memset(&m1.coeffRef(i, j), m1.coeff(i, j) ? 0xff : 0xff, 1);
+          std::memset(&m2.coeffRef(i, j), m2.coeff(i, j) ? 0xff : 0xff, 1);
+        }
+    }
 
     // test boolean and
     m3 = m1 && m2;
