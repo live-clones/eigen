@@ -604,6 +604,7 @@ void svd_verify_constructor_options_assert(const MatrixType& m, bool fullOnly = 
 
   typedef Matrix<Scalar, RowsAtCompileTime, 1> RhsType;
   RhsType rhs(rows);
+  svd_fill_random(rhs);
   SvdType svd;
   VERIFY_RAISES_ASSERT(svd.matrixU())
   VERIFY_RAISES_ASSERT(svd.singularValues())

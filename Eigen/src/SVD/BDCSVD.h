@@ -49,11 +49,6 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
   typedef MatrixType_ MatrixType;
 };
 
-
-#if EIGEN_COMP_GNUC_STRICT
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
 template <typename MatrixType, int Options>
 struct allocate_small_svd {
   static void run(JacobiSVD<MatrixType, Options>& smallSvd, Index rows, Index cols, unsigned int computationOptions) {
@@ -73,10 +68,6 @@ struct allocate_small_svd<MatrixType, 0> {
 };
 
 EIGEN_DIAGNOSTICS(pop)
-    
-#if EIGEN_COMP_GNUC_STRICT
-  #pragma GCC diagnostic pop
-#endif
 
 } // end namespace internal
 
