@@ -29,7 +29,7 @@ std::vector<Scalar> special_values() {
   const Scalar two = Scalar(2);
   const Scalar three = Scalar(3);
   const Scalar sqrt_half = Scalar(std::sqrt(0.5));
-  const Scalar sqrt2 = Scalar(std::sqrt(2));
+  const Scalar sqrt2 = Scalar(std::sqrt(2));    
   const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
   const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
   const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
@@ -93,26 +93,90 @@ void binary_op_test(std::string name, Fn fun, RefFn ref) {
   VERIFY(all_pass);
 }
 
+#define BINARY_FUNCTOR_TEST_ARGS(fun) #fun, \
+      [](const auto& x, const auto& y) { return (Eigen::fun)(x, y); },    \
+      [](const auto& x, const auto& y) { return (std::fun)(x, y); }
+
+
 template <typename Scalar>
 void binary_ops_test() {
-  binary_op_test<Scalar>("pow",
-                         [](const auto& x, const auto& y) { return Eigen::pow(x, y); },
-                         [](const auto& x, const auto& y) { return std::pow(x, y); });
-  binary_op_test<Scalar>("atan2",
-                         [](const auto& x, const auto& y) { return Eigen::atan2(x, y); },
-                         [](const auto& x, const auto& y) {
-                            auto t = std::atan2(x, y);
-#if EIGEN_COMP_MSVC
-                            // Work around MSVC return value on underflow.
-                            // |atan(y/x)| is bounded above by |y/x|, so on underflow return y/x according to POSIX spec.
-                            // MSVC otherwise returns denorm_min.
-                            if (EIGEN_PREDICT_FALSE(std::abs(t) == std::numeric_limits<decltype(t)>::denorm_min())) {
-                              return x/y;
-                            }
+  binary_op_test<Scalar>(BINARY_FUNCTOR_TEST_ARGS(pow));
+#ifndef EIGEN_COMP_MSVC
+  binary_op_test<Scalar>(BINARY_FUNCTOR_TEST_ARGS(atan2));
+#else
+  binary_op_test<Scalar>(
+      "atan2", [](const auto& x, const auto& y) { return Eigen::atan2(x, y); },
+      [](Scalar x, Scalar y) {
+        auto t = Scalar(std::atan2(x, y));
+        // Work around MSVC return value on underflow.
+        // |atan(y/x)| is bounded above by |y/x|, so on underflow return y/x according to POSIX spec.
+        // MSVC otherwise returns denorm_min.
+        if (EIGEN_PREDICT_FALSE(std::abs(t) == std::numeric_limits<decltype(t)>::denorm_min())) {
+          return x / y;
+        }
+        return t;
+      });
 #endif
-                            return t;
-                          });
 }
+
+
+template <typename Scalar, typename Fn, typename RefFn>
+void unary_op_test(std::string name, Fn fun, RefFn ref) {
+  const Scalar tol = test_precision<Scalar>();
+  auto values = special_values<Scalar>();
+  Map<Array<Scalar, Dynamic, 1>> x(values.data(), values.size());
+
+  Array<Scalar, Dynamic, Dynamic> actual = fun(x);
+  bool all_pass = true;
+  for (Index i = 0; i < x.size(); ++i) {
+    Scalar e = static_cast<Scalar>(ref(x(i)));
+    Scalar a = actual(i);
+    bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
+                   ((numext::isnan)(a) && (numext::isnan)(e));
+    if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
+    all_pass &= success;
+    if (!success) {
+      std::cout << name << "(" << x(i) << ") = " << a << " !=  " << e << std::endl;
+    }
+  }
+  VERIFY(all_pass);
+}
+
+#define UNARY_FUNCTOR_TEST_ARGS(fun) #fun, \
+      [](const auto& x) { return (Eigen::fun)(x); },    \
+      [](const auto& x) { return (std::fun)(x); }
+
+template <typename Scalar>
+void unary_ops_test() {
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sqrt));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sin));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(cos));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(tan));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(asin));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(acos));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(atan));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sinh));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(cosh));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(tanh));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(asinh));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(acosh));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(atanh));
+  /* FIXME: Enable when the behavior of rsqrt on denormals for half and double is fixed. 
+  unary_op_test<Scalar>("rsqrt",
+                        [](const auto& x) { return Eigen::rsqrt(x); }, 
+                        [](Scalar x) {
+                          if (x >= 0 && x < (std::numeric_limits<Scalar>::min)()) {
+                            // rsqrt return +inf for positive subnormals.
+                            return NumTraits<Scalar>::infinity();
+                          } else {
+                            return  Scalar(std::sqrt(Scalar(1)/x));
+                          }
+                        });
+  */
+}
+
 
 template <typename Scalar>
 void pow_scalar_exponent_test() {
@@ -630,6 +694,7 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   VERIFY_IS_APPROX(m1.tanh().atanh(), atanh(tanh(m1)));
   VERIFY_IS_APPROX(m1.sinh().asinh(), asinh(sinh(m1)));
   VERIFY_IS_APPROX(m1.cosh().acosh(), acosh(cosh(m1)));
+  VERIFY_IS_APPROX(m1.tanh().atanh(), atanh(tanh(m1)));
   VERIFY_IS_APPROX(m1.logistic(), logistic(m1));
 
   VERIFY_IS_APPROX(m1.arg(), arg(m1));
@@ -722,6 +787,7 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   VERIFY_IS_APPROX(m3.pow(RealScalar(-2)), m3.square().inverse());
 
   // Test pow and atan2 on special IEEE values.
+  unary_ops_test<Scalar>();
   binary_ops_test<Scalar>();
   pow_scalar_exponent_test<Scalar>();
 
@@ -968,6 +1034,104 @@ void signed_shift_test(const ArrayType& m) {
     signed_shift_test_impl<ArrayType>::run(m);
 }
 
+template <typename ArrayType>
+struct typed_logicals_test_impl {
+  using Scalar = typename ArrayType::Scalar;
+
+  static bool scalar_to_bool(const Scalar& x) { return x != Scalar(0); }
+  static Scalar bool_to_scalar(const bool& x) { return x ? Scalar(1) : Scalar(0); }
+
+  static Scalar eval_bool_and(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) && scalar_to_bool(y)); }
+  static Scalar eval_bool_or(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) || scalar_to_bool(y)); }
+  static Scalar eval_bool_xor(const Scalar& x, const Scalar& y) { return bool_to_scalar(scalar_to_bool(x) != scalar_to_bool(y)); }
+  static Scalar eval_bool_not(const Scalar& x) { return bool_to_scalar(!scalar_to_bool(x)); }
+
+  static void run(const ArrayType& m) {
+      
+    Index rows = m.rows();
+    Index cols = m.cols();
+
+    ArrayType m1(rows, cols), m2(rows, cols), m3(rows, cols), m4(rows, cols);
+
+    m1.setRandom();
+    m2.setRandom();
+    m1 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
+    m2 *= ArrayX<bool>::Random(rows, cols).cast<Scalar>();
+
+    // test boolean and
+    m3 = m1 && m2;
+    m4 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_bool_and(x, y); });
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test boolean or
+    m3 = m1 || m2;
+    m4 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_bool_or(x, y); });
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test boolean xor
+    m3 = m1.binaryExpr(m2, internal::scalar_boolean_xor_op<Scalar>());
+    m4 = m1.binaryExpr(m2, [](const Scalar& x, const Scalar& y) { return eval_bool_xor(x, y); });
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test boolean not
+    m3 = !m1;
+    m4 = m1.unaryExpr([](const Scalar& x) { return eval_bool_not(x); });
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+    for (const Scalar& val : m3) VERIFY(val == Scalar(0) || val == Scalar(1));
+
+    // test something more complicated
+    m3 = m1 && m2;
+    m4 = !(!m1 || !m2);
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+
+    m3 = m1.binaryExpr(m2, internal::scalar_boolean_xor_op<Scalar>());
+    m4 = (!m1).binaryExpr((!m2), internal::scalar_boolean_xor_op<Scalar>());
+    VERIFY_IS_CWISE_EQUAL(m3, m4);
+
+    const Index bytes = rows * cols * sizeof(Scalar);
+    const uint8_t* m1_data = reinterpret_cast<const uint8_t*>(m1.data());
+    const uint8_t* m2_data = reinterpret_cast<const uint8_t*>(m2.data());
+    uint8_t* m3_data = reinterpret_cast<uint8_t*>(m3.data());
+    uint8_t* m4_data = reinterpret_cast<uint8_t*>(m4.data());
+
+    // test bitwise and
+    m3 = m1 & m2;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = m1_data[i] & m2_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test bitwise or
+    m3 = m1 | m2;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = m1_data[i] | m2_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test bitwise xor
+    m3 = m1 ^ m2;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = m1_data[i] ^ m2_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test bitwise not
+    m3 = ~m1;
+    for (Index i = 0; i < bytes; i++) m4_data[i] = ~m1_data[i];
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    // test something more complicated
+    m3 = m1 & m2;
+    m4 = ~(~m1 | ~m2);
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+
+    m3 = m1 ^ m2;
+    m4 = (~m1) ^ (~m2);
+    for (Index i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i], m4_data[i]);
+  }
+};
+template <typename ArrayType>
+void typed_logicals_test(const ArrayType& m) {
+    typed_logicals_test_impl<ArrayType>::run(m);
+}
+
 EIGEN_DECLARE_TEST(array_cwise)
 {
   for(int i = 0; i < g_repeat; i++) {
@@ -1015,6 +1179,14 @@ EIGEN_DECLARE_TEST(array_cwise)
     CALL_SUBTEST_6( int_pow_test() );
     CALL_SUBTEST_7( mixed_pow_test() );
     CALL_SUBTEST_8( signbit_tests() );
+  }
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1( typed_logicals_test(ArrayX<bool>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_2( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_2( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_3( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));

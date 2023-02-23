@@ -171,6 +171,7 @@ struct packet_traits<float> : default_packet_traits {
     HasACos = 1,
     HasASin = 1,
     HasATan = 1,
+    HasATanh = 1,
     HasLog = 1,
     HasExp = 1,
 #ifdef EIGEN_VECTORIZE_VSX
@@ -255,7 +256,11 @@ struct packet_traits<int> : default_packet_traits {
     HasSub   = 1,
     HasShift = 1,
     HasMul   = 1,
+#ifdef _ARCH_PWR10
+    HasDiv   = 1,
+#else
     HasDiv   = 0,
+#endif
     HasBlend = 1,
     HasCmp = 1
   };
@@ -1059,9 +1064,16 @@ template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const 
 #endif
 }
 
-template<> EIGEN_STRONG_INLINE Packet4i pdiv<Packet4i>(const Packet4i& /*a*/, const Packet4i& /*b*/)
-{ eigen_assert(false && "packet integer division are not supported by AltiVec");
+template<> EIGEN_STRONG_INLINE Packet4i pdiv<Packet4i>(const Packet4i& a, const Packet4i& b)
+{
+#ifdef _ARCH_PWR10
+  return vec_div(a, b);
+#else
+  EIGEN_UNUSED_VARIABLE(a);
+  EIGEN_UNUSED_VARIABLE(b);
+  eigen_assert(false && "packet integer division are not supported by AltiVec");
   return pset1<Packet4i>(0);
+#endif
 }
 
 // for some weird raisons, it has to be overloaded for packet of integers

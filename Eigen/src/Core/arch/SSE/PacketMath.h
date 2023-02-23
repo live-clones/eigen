@@ -142,6 +142,7 @@ struct packet_traits<float> : default_packet_traits {
     HasACos = 1,
     HasASin = 1,
     HasATan = 1,
+    HasATanh = 1,
     HasLog = 1,
     HasLog1p = 1,
     HasExpm1 = 1,
@@ -216,6 +217,7 @@ template<> struct packet_traits<bool> : default_packet_traits
     
     HasAdd       = 1,
     HasSub       = 1,
+    HasCmp       = 1, // note -- only pcmp_eq is defined
     HasShift     = 0,
     HasMul       = 1,
     HasNegate    = 1,
