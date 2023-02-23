@@ -1145,31 +1145,31 @@ struct typed_logicals_test_impl {
     // test bitwise and
     m3 = m1 & m2;
     for (size_t i = 0; i < bytes; i++) m4_data[i] = m1_data[i] & m2_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i] ^ m4_data[i], uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
 
     // test bitwise or
     m3 = m1 | m2;
     for (size_t i = 0; i < bytes; i++) m4_data[i] = m1_data[i] | m2_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i] ^ m4_data[i], uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
 
     // test bitwise xor
     m3 = m1 ^ m2;
     for (size_t i = 0; i < bytes; i++) m4_data[i] = m1_data[i] ^ m2_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i] ^ m4_data[i], uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
 
     // test bitwise not
     m3 = ~m1;
     for (size_t i = 0; i < bytes; i++) m4_data[i] = ~m1_data[i];
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i] ^ m4_data[i], uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
 
     // test something more complicated
     m3 = m1 & m2;
     m4 = ~(~m1 | ~m2);
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i] ^ m4_data[i], uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
 
     m3 = m1 ^ m2;
     m4 = (~m1) ^ (~m2);
-    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(m3_data[i] ^ m4_data[i], uint8_t(0));
+    for (size_t i = 0; i < bytes; i++) VERIFY_IS_EQUAL(uint8_t(m3_data[i] ^ m4_data[i]), uint8_t(0));
   }
 };
 template <typename ArrayType>
