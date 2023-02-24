@@ -3289,10 +3289,7 @@ void gebp_kernel<bfloat16, bfloat16, Index, DataMapper, mr, nr, ConjugateLhs, Co
                Index rows, Index depth, Index cols, bfloat16 alpha,
                Index strideA, Index strideB, Index offsetA, Index offsetB)
   {
-    const Index accRows = quad_traits<bfloat16>::rows;
-    const Index accCols = quad_traits<bfloat16>::size;
-
-    Eigen::internal::gemmMMAbfloat16<Index, Packet, RhsPacket, DataMapper, accRows, accCols>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB);
+    Eigen::internal::gemmMMAbfloat16<DataMapper>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB);
   }
 #endif
 } // end namespace internal

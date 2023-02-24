@@ -402,7 +402,7 @@ EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index
   }
 }
 
-template<typename Index, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
+template<typename DataMapper>
 void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
 #ifdef TEST_VERBOSE
