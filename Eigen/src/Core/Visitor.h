@@ -108,36 +108,49 @@ struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, ShortCircu
   typedef typename Derived::Scalar Scalar;
   typedef typename packet_traits<Scalar>::type Packet;
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
-
+  static constexpr bool RowMajor = Derived::IsRowMajor;
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
+    const Index innerSize = RowMajor ? mat.cols() : mat.rows();
+    const Index outerSize = RowMajor ? mat.rows() : mat.cols();
     const Index PacketSize = packet_traits<Scalar>::size;
     visitor.init(mat.coeff(0, 0), 0, 0);
-    if (Derived::IsRowMajor) {
-      for (Index i = 0; i < mat.rows(); ++i) {
-        Index j = i == 0 ? 1 : 0;
-        for (; j + PacketSize - 1 < mat.cols(); j += PacketSize) {
-          Packet p = mat.packet(i, j);
-          visitor.packet(p, i, j);
-          if (short_circuit::run(visitor)) return;
-        }
-        for (; j < mat.cols(); ++j) {
-          visitor(mat.coeff(i, j), i, j);
-          if (short_circuit::run(visitor)) return;
-        }
+    {
+      Index i = 1;
+      for (; i < numext::mini(innerSize, PacketSize); i++) {
+        Index r = RowMajor ? 0 : i;
+        Index c = RowMajor ? i : 0;
+        visitor(mat.coeff(r, c), r, c);
+        if (short_circuit::run(visitor)) return;
       }
-    } else {
-      for (Index j = 0; j < mat.cols(); ++j) {
-        Index i = j == 0 ? 1 : 0;
-        for (; i + PacketSize - 1 < mat.rows(); i += PacketSize) {
-          Packet p = mat.packet(i, j);
-          visitor.packet(p, i, j);
-          if (short_circuit::run(visitor)) return;
-        }
-        for (; i < mat.rows(); ++i) {
-          visitor(mat.coeff(i, j), i, j);
-          if (short_circuit::run(visitor)) return;
-        }
+      for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
+        Index r = RowMajor ? 0 : i;
+        Index c = RowMajor ? i : 0;
+        Packet p = mat.packet(r, c);
+        visitor.packet(p, r, c);
+        if (short_circuit::run(visitor)) return;
+      }
+      for (; i < innerSize; ++i) {
+        Index r = RowMajor ? 0 : i;
+        Index c = RowMajor ? i : 0;
+        visitor(mat.coeff(r, c), r, c);
+        if (short_circuit::run(visitor)) return;
+      }
+    }
+    for (Index j = 1; j < outerSize; j++) {
+      Index i = 0;
+      for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
+        Index r = RowMajor ? j : i;
+        Index c = RowMajor ? i : j;
+        Packet p = mat.packet(r, c);
+        visitor.packet(p, r, c);
+        if (short_circuit::run(visitor)) return;
+      }
+      for (; i < innerSize; ++i) {
+        Index r = RowMajor ? j : i;
+        Index c = RowMajor ? i : j;
+        visitor(mat.coeff(r, c), r, c);
+        if (short_circuit::run(visitor)) return;
       }
     }
   }
@@ -149,31 +162,34 @@ class visitor_evaluator
 {
 public:
   typedef internal::evaluator<XprType> Evaluator;
+  typedef typename XprType::Scalar Scalar;
+  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
+  typedef std::remove_const_t<typename XprType::PacketReturnType> PacketReturnType;
 
   enum {
     PacketAccess = Evaluator::Flags & PacketAccessBit,
+    LinearAccess = Evaluator::Flags & LinearAccessBit,
     IsRowMajor = XprType::IsRowMajor,
     RowsAtCompileTime = XprType::RowsAtCompileTime,
     ColsAtCompileTime = XprType::ColsAtCompileTime,
-    CoeffReadCost = Evaluator::CoeffReadCost
+    CoeffReadCost = Evaluator::CoeffReadCost,
+    Alignment = Evaluator::Alignment
   };
 
 
   EIGEN_DEVICE_FUNC
   explicit visitor_evaluator(const XprType &xpr) : m_evaluator(xpr), m_xpr(xpr) { }
 
-  typedef typename XprType::Scalar Scalar;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef std::remove_const_t<typename XprType::PacketReturnType> PacketReturnType;
+
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_xpr.rows(); }
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_xpr.cols(); }
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index size() const EIGEN_NOEXCEPT { return m_xpr.size(); }
 
-  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index row, Index col) const
-  { return m_evaluator.coeff(row, col); }
-  EIGEN_DEVICE_FUNC PacketReturnType packet(Index row, Index col) const
-  { return m_evaluator.template packet<Unaligned,PacketReturnType>(row, col); }
+  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index row, Index col) const { return m_evaluator.coeff(row, col); }
+  EIGEN_DEVICE_FUNC PacketReturnType packet(Index row, Index col) const {
+    return m_evaluator.template packet<Alignment, PacketReturnType>(row, col);
+  }
 
 protected:
   Evaluator m_evaluator;
