@@ -978,6 +978,7 @@ struct bitwise_unary_impl<Scalar, true> {
 template <typename Scalar>
 struct scalar_bitwise_not_op {
   EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization, BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES)
+  EIGEN_STATIC_ASSERT((!internal::is_same<Scalar, bool>::value), DONT USE BITWISE OPS ON BOOLEAN TYPES)
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     return bitwise_unary_impl<Scalar>::run_not(a);

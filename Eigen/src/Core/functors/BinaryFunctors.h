@@ -595,6 +595,7 @@ template <typename Scalar>
 struct scalar_bitwise_and_op {
   EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization,
                       BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES)
+  EIGEN_STATIC_ASSERT((!internal::is_same<Scalar, bool>::value), DONT USE BITWISE OPS ON BOOLEAN TYPES)
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
     return bitwise_binary_impl<Scalar>::run_and(a, b);
@@ -618,6 +619,7 @@ template <typename Scalar>
 struct scalar_bitwise_or_op {
   EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization,
                       BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES)
+  EIGEN_STATIC_ASSERT((!internal::is_same<Scalar, bool>::value), DONT USE BITWISE OPS ON BOOLEAN TYPES)
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
     return bitwise_binary_impl<Scalar>::run_or(a, b);
@@ -641,6 +643,7 @@ template <typename Scalar>
 struct scalar_bitwise_xor_op {
   EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::RequireInitialization,
                       BITWISE OPERATIONS MAY ONLY BE PERFORMED ON PLAIN DATA TYPES)
+  EIGEN_STATIC_ASSERT((!internal::is_same<Scalar, bool>::value), DONT USE BITWISE OPS ON BOOLEAN TYPES)
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const {
     return bitwise_binary_impl<Scalar>::run_xor(a, b);
