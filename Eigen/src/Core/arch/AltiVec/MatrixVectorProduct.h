@@ -12,14 +12,6 @@
 
 #include "../../InternalHeaderCheck.h"
 
-#define TEST_VERBOSE   // Report timings and gemm type, MMA, rows, depth and cols
-
-#ifdef TEST_VERBOSE
-#include <cstdio>
-#include <iostream>
-#include <sys/platform/ppc.h>
-#endif
-
 #if defined(__MMA__) && !EIGEN_ALTIVEC_DISABLE_MMA
 #if EIGEN_COMP_LLVM || (__GNUC__ > 10 || __GNUC_MINOR__ >= 3)
 #define USE_GEMV_MMA

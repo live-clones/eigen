@@ -7,14 +7,6 @@
 #define BFLOAT16_UNROLL _Pragma("GCC unroll(8)")
 #endif
 
-#define TEST_VERBOSE   // Report timings and gemm type, MMA, rows, depth and cols
-
-#ifdef TEST_VERBOSE
-#include <cstdio>
-#include <iostream>
-#include <sys/platform/ppc.h>
-#endif
-
 namespace Eigen {
 
 namespace internal {
