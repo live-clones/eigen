@@ -110,7 +110,8 @@ void binary_ops_test() {
                               return x/y;
                             }
 #endif
-                            return t;
+
+                            return Scalar(t);
                           });
 }
 
