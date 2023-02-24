@@ -910,7 +910,7 @@ template<> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet16uc pgather_partial<unsi
 template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter_common(__UNPACK_TYPE__(Packet)* to, const Packet& from, const Index stride, const Index n = unpacket_traits<Packet>::size)
 {
   if (stride == 1) {
-    if (n ==  unpacket_traits<Packet>::size) {
+    if (n == unpacket_traits<Packet>::size) {
       return pstoreu(to, from);
     } else {
       return pstoreu_partial(to, from, n);

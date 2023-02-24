@@ -993,11 +993,8 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
         }
         if (depth & 1)
         {
-          PacketBlock<Packet8bf,1> block;
-
-          block.packet[0] = lhs2.template loadPacket<Packet8bf>(0 * vectorSize, i + 0);
-
-          pstore<bfloat16>(blockA + ri, block.packet[0]);
+          Packet8bf lhsV = lhs2.template loadPacket<Packet8bf>(0 * vectorSize, i + 0);
+          pstore<bfloat16>(blockA + ri, lhsV);
 
           ri += vectorSize;
         }
@@ -1068,14 +1065,13 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
         if(StorageOrder == ColMajor)
         {
           PacketBlock<Packet8bf,2> block;
-          PacketBlock<Packet8bf,1> block2;
 
           block.packet[0] = lhs2.template loadPacketPartial<Packet8bf>(0, i + 0, 4);
           block.packet[1] = lhs2.template loadPacketPartial<Packet8bf>(0, i + 1, 4);
 
-          block2.packet[0] = vec_mergeh(block.packet[0].m_val, block.packet[1].m_val);
+          block.packet[0] = vec_mergeh(block.packet[0].m_val, block.packet[1].m_val);
 
-          pstore<bfloat16>(blockA + ri, block2.packet[0]);
+          pstore<bfloat16>(blockA + ri, block.packet[0]);
         } else {
           blockA[ri+0] = lhs2(0, i + 0);
           blockA[ri+1] = lhs2(0, i + 1);
@@ -1093,11 +1089,9 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true>
       {
         if(StorageOrder == ColMajor)
         {
-          PacketBlock<Packet8bf,1> block;
+          Packet8bf lhsV = lhs2.template loadPacketPartial<Packet8bf>(0, i + 0, 4);
 
-          block.packet[0] = lhs2.template loadPacketPartial<Packet8bf>(0, i + 0, 4);
-
-          pstore_partial<bfloat16>(blockA + ri, block.packet[0], 4);
+          pstore_partial<bfloat16>(blockA + ri, lhsV, 4);
         } else {
           blockA[ri+0] = lhs2(0, i);
           blockA[ri+1] = lhs2(1, i);
