@@ -62,16 +62,35 @@ template <bool rhsExtraCols, bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result, Index extra_cols, Index extra_rows)
 {
   Index x = 0;
-  do{
-    Packet4f result_block = ploadu<Packet4f>(result);
-    result_block = pmadd(acc[x], pAlpha, result_block);
-    if (lhsExtraRows) {
-      pstoreu_partial(result, result_block, extra_rows);
-    } else {
-      pstoreu(result, result_block);
-    }
-    result += rows;
-  } while (++x < (rhsExtraCols ? extra_cols : 4));
+  if (rhsExtraCols) {
+    do{
+      Packet4f result_block = ploadu<Packet4f>(result);
+      result_block = pmadd(acc[x], pAlpha, result_block);
+      if (lhsExtraRows) {
+        pstoreu_partial(result, result_block, extra_rows);
+      } else {
+        pstoreu(result, result_block);
+      }
+      result += rows;
+    } while (++x < extra_cols);
+  } else {
+    Packet4f result_block[4];
+    float *result2 = result;
+    do{
+      result_block[x] = ploadu<Packet4f>(result);
+      result_block[x] = pmadd(acc[x], pAlpha, result_block[x]);
+      result += rows;
+    } while (++x < 4);
+    x = 0;
+    do{
+      if (lhsExtraRows) {
+        pstoreu_partial(result2, result_block[x], extra_rows);
+      } else {
+        pstoreu(result2, result_block[x]);
+      }
+      result2 += rows;
+    } while (++x < 4);
+  }
 }
 
 template<Index num_acc>
