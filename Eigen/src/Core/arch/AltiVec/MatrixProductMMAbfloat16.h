@@ -460,150 +460,150 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
 
 template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
 void gemvMMA_bfloat16_col(
-    Index rows, Index cols,
-    const LhsMapper& alhs,
-    const RhsMapper& rhs,
-    bfloat16* res, Index resIncr,
-    bfloat16 alpha)
+  Index rows, Index cols,
+  const LhsMapper& alhs,
+  const RhsMapper& rhs,
+  bfloat16* res, Index resIncr,
+  bfloat16 alpha)
 {
 #ifdef TEST_VERBOSE
-    uint64_t start, end;
-    start = __ppc_get_timebase();
+  uint64_t start, end;
+  start = __ppc_get_timebase();
 #endif
-    typedef gemv_traits<LhsScalar, RhsScalar> Traits;
+  typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
 #if 0
-    typedef typename Traits::LhsPacket LhsPacket;
-    typedef typename Traits::RhsPacket RhsPacket;
-    typedef typename Traits::ResPacket ResPacket;
+  typedef typename Traits::LhsPacket LhsPacket;
+  typedef typename Traits::RhsPacket RhsPacket;
+  typedef typename Traits::ResPacket ResPacket;
 #endif
 
-    EIGEN_UNUSED_VARIABLE(resIncr);
-    eigen_internal_assert(resIncr == 1);
+  EIGEN_UNUSED_VARIABLE(resIncr);
+  eigen_internal_assert(resIncr == 1);
 
-    // The following copy tells the compiler that lhs's attributes are not modified outside this function
-    // This helps GCC to generate proper code.
-    LhsMapper lhs(alhs);
-    RhsMapper rhs2(rhs);
+  // The following copy tells the compiler that lhs's attributes are not modified outside this function
+  // This helps GCC to generate proper code.
+  LhsMapper lhs(alhs);
+  RhsMapper rhs2(rhs);
 
-//    conj_helper<LhsScalar, RhsScalar, false, false> cj;
-//    conj_helper<LhsPacket, RhsPacket, false, false> pcj;
+//  conj_helper<LhsScalar, RhsScalar, false, false> cj;
+//  conj_helper<LhsPacket, RhsPacket, false, false> pcj;
 
-    const Index lhsStride = lhs.stride();
-    // TODO: for padded aligned inputs, we could enable aligned reads
-    enum {
-        LhsAlignment = Unaligned,
-        ResPacketSize = Traits::ResPacketSize,
-        LhsPacketSize = Traits::LhsPacketSize,
-        RhsPacketSize = Traits::RhsPacketSize,
-    };
+  const Index lhsStride = lhs.stride();
+  // TODO: for padded aligned inputs, we could enable aligned reads
+  enum {
+    LhsAlignment = Unaligned,
+    ResPacketSize = Traits::ResPacketSize,
+    LhsPacketSize = Traits::LhsPacketSize,
+    RhsPacketSize = Traits::RhsPacketSize,
+  };
 
-    // TODO: improve the following heuristic:
-    const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 16000 ? 16 : 8);
-    float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
-//    ResPacket palpha = pset1<ResPacket>(alpha);
+  // TODO: improve the following heuristic:
+  const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 16000 ? 16 : 8);
+  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
+//  ResPacket palpha = pset1<ResPacket>(alpha);
 
-    ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
-    convertArrayPointerBF16toF32(result, rows, res);
+  ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
+  convertArrayPointerBF16toF32(result, rows, res);
 
-    for (Index j2 = 0; j2 < cols; j2 += block_cols)
+  for (Index j2 = 0; j2 < cols; j2 += block_cols)
+  {
+    Index jend = numext::mini(j2 + block_cols, cols);
+    Index i = 0;
+
+    // MMA code here
+    for (;i < rows;++i)
     {
-        Index jend = numext::mini(j2 + block_cols, cols);
-        Index i = 0;
-
-        // MMA code here
-        for (;i < rows;++i)
-        {
-            float d0(0);
-            Index j = j2;
-            do {
-                d0 += Eigen::bfloat16_impl::bfloat16_to_float(lhs(i, j) * rhs2(j, 0));
-            } while (++j < jend);
-            result[i] += falpha * d0;
-        }
+      float d0(0);
+      Index j = j2;
+      do {
+        d0 += Eigen::bfloat16_impl::bfloat16_to_float(lhs(i, j) * rhs2(j, 0));
+      } while (++j < jend);
+      result[i] += falpha * d0;
     }
+  }
 
-    convertArrayPointerF32toBF16(result, rows, res);
+  convertArrayPointerF32toBF16(result, rows, res);
 
 #ifdef TEST_VERBOSE
-    end = __ppc_get_timebase();
-    printf("gemvMMA_col bfloat16 MMA time = %16ld\n", end - start);
+  end = __ppc_get_timebase();
+  printf("gemvMMA_col bfloat16 MMA time = %16ld\n", end - start);
 #endif
 }
 
 template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
 EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
-    Index rows, Index cols,
-    const LhsMapper& alhs,
-    const RhsMapper& rhs,
-    bfloat16* res, Index resIncr,
-    bfloat16 alpha)
+  Index rows, Index cols,
+  const LhsMapper& alhs,
+  const RhsMapper& rhs,
+  bfloat16* res, Index resIncr,
+  bfloat16 alpha)
 {
 #ifdef TEST_VERBOSE
-    uint64_t start, end;
-    start = __ppc_get_timebase();
+  uint64_t start, end;
+  start = __ppc_get_timebase();
 #endif
-    typedef gemv_traits<LhsScalar, RhsScalar> Traits;
+  typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
-    typedef typename Traits::LhsPacket LhsPacket;
-    typedef typename Traits::RhsPacket RhsPacket;
-    typedef typename Traits::ResPacket ResPacket;
+  typedef typename Traits::LhsPacket LhsPacket;
+  typedef typename Traits::RhsPacket RhsPacket;
+  typedef typename Traits::ResPacket ResPacket;
 
-    // The following copy tells the compiler that lhs's attributes are not modified outside this function
-    // This helps GCC to generate proper code.
-    LhsMapper lhs(alhs);
-    typename RhsMapper::LinearMapper rhs2 = rhs.getLinearMapper(0, 0);
+  // The following copy tells the compiler that lhs's attributes are not modified outside this function
+  // This helps GCC to generate proper code.
+  LhsMapper lhs(alhs);
+  typename RhsMapper::LinearMapper rhs2 = rhs.getLinearMapper(0, 0);
 
-    eigen_internal_assert(rhs.stride() == 1);
-//    conj_helper<LhsScalar, RhsScalar, false, false> cj;
-    conj_helper<LhsPacket, RhsPacket, false, false> pcj;
+  eigen_internal_assert(rhs.stride() == 1);
+//  conj_helper<LhsScalar, RhsScalar, false, false> cj;
+  conj_helper<LhsPacket, RhsPacket, false, false> pcj;
 
-    // TODO: for padded aligned inputs, we could enable aligned reads
-    enum {
-        LhsAlignment = Unaligned,
-        ResPacketSize = Traits::ResPacketSize,
-        LhsPacketSize = Traits::LhsPacketSize,
-        RhsPacketSize = Traits::RhsPacketSize,
-    };
+  // TODO: for padded aligned inputs, we could enable aligned reads
+  enum {
+    LhsAlignment = Unaligned,
+    ResPacketSize = Traits::ResPacketSize,
+    LhsPacketSize = Traits::LhsPacketSize,
+    RhsPacketSize = Traits::RhsPacketSize,
+  };
 
-    float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
+  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
 
-    ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
-    if (resIncr == 1) {
-      convertArrayPointerBF16toF32(result, rows, res);
-    } else {
-      convertArrayPointerBF16toF32<true>(result, rows, res, resIncr);
-    }
+  ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
+  if (resIncr == 1) {
+    convertArrayPointerBF16toF32(result, rows, res);
+  } else {
+    convertArrayPointerBF16toF32<true>(result, rows, res, resIncr);
+  }
 
-    Index i = 0;
-    // MMA code here
-    for (; i < rows; ++i)
+  Index i = 0;
+  // MMA code here
+  for (; i < rows; ++i)
+  {
+    ResPacket d0 = pset1<ResPacket>(ResScalar(0));
+    Index j = 0;
+    for (; j + LhsPacketSize <= cols; j += LhsPacketSize)
     {
-        ResPacket d0 = pset1<ResPacket>(ResScalar(0));
-        Index j = 0;
-        for (; j + LhsPacketSize <= cols; j += LhsPacketSize)
-        {
-            RhsPacket b0 = rhs2.template load<RhsPacket, Unaligned>(j);
+      RhsPacket b0 = rhs2.template load<RhsPacket, Unaligned>(j);
 
-            d0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, d0);
-        }
-        float dd0 = Eigen::bfloat16_impl::bfloat16_to_float(predux(d0));
-        for (; j < cols; ++j)
-        {
-            dd0 += Eigen::bfloat16_impl::bfloat16_to_float(lhs(i, j) * rhs2(j));
-        }
-        result[i] += falpha * dd0;
+      d0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, d0);
     }
+    float dd0 = Eigen::bfloat16_impl::bfloat16_to_float(predux(d0));
+    for (; j < cols; ++j)
+    {
+      dd0 += Eigen::bfloat16_impl::bfloat16_to_float(lhs(i, j) * rhs2(j));
+    }
+    result[i] += falpha * dd0;
+  }
 
-    if (resIncr == 1) {
-      convertArrayPointerF32toBF16(result, rows, res);
-    } else {
-      convertArrayPointerF32toBF16<true>(result, rows, res, resIncr);
-    }
+  if (resIncr == 1) {
+    convertArrayPointerF32toBF16(result, rows, res);
+  } else {
+    convertArrayPointerF32toBF16<true>(result, rows, res, resIncr);
+  }
 
 #ifdef TEST_VERBOSE
-    end = __ppc_get_timebase();
-    printf("gemvMMA_row bfloat16 MMA time = %16ld\n", end - start);
+  end = __ppc_get_timebase();
+  printf("gemvMMA_row bfloat16 MMA time = %16ld\n", end - start);
 #endif
 }
 
