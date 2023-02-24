@@ -189,7 +189,7 @@ struct short_circuit_visit_impl {
       SizeAtCompileTime != Dynamic && SizeAtCompileTime * int(Evaluator::CoeffReadCost) +
                                               (SizeAtCompileTime - 1) * int(internal::functor_traits<Visitor>::Cost) <=
                                           EIGEN_UNROLLING_LIMIT;
-  static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic
+  static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
   static constexpr bool Vectorize = Evaluator::PacketAccess && functor_traits<Visitor>::PacketAccess;
   static constexpr bool ShortCircuitEvaluation = true;
   using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, ShortCircuitEvaluation>;
