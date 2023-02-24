@@ -182,7 +182,7 @@ protected:
 
 template <typename Derived, typename Visitor>
 struct short_circuit_visit_impl {
-  using Evaluator = typename visitor_evaluator<Derived>;
+  using Evaluator = visitor_evaluator<Derived>;
   using Scalar = typename DenseBase<Derived>::Scalar;
   static constexpr int SizeAtCompileTime = DenseBase<Derived>::SizeAtCompileTime;
   static constexpr bool Unroll =
