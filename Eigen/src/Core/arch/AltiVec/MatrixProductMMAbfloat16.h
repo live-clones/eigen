@@ -253,29 +253,28 @@ EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float *result, Index cols, Index 
   }
 }
 
+template<bool inc, Index delta>
+EIGEN_ALWAYS_INLINE Packet8bf loadBF16fromResult(bfloat16* src, Index resInc)
+{
+  if (inc) {
+    return pgather<bfloat16, Packet8bf>(src + delta*resInc, resInc);
+  } else {
+    return ploadu<Packet8bf>(src + delta);
+  }
+}
+
 template<const Index size, bool inc>
 EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float *result, Index rows, bfloat16*& src, Index resInc)
 {
   for(; i + size <= rows; i += size, src += size*resInc){
     PacketBlock<Packet8bf,(size+4)/8> r32;
-    if (inc) {
-      r32.packet[0] = pgather<bfloat16, Packet8bf>(src +  0*resInc, resInc);
-      if (size >= 16) {
-        r32.packet[1] = pgather<bfloat16, Packet8bf>(src +  8*resInc, resInc);
-      }
-      if (size >= 32) {
-        r32.packet[2] = pgather<bfloat16, Packet8bf>(src + 16*resInc, resInc);
-        r32.packet[3] = pgather<bfloat16, Packet8bf>(src + 24*resInc, resInc);
-      }
-    } else {
-      r32.packet[0] = ploadu<Packet8bf>(src +  0);
-      if (size >= 16) {
-        r32.packet[1] = ploadu<Packet8bf>(src +  8);
-      }
-      if (size >= 32) {
-        r32.packet[2] = ploadu<Packet8bf>(src + 16);
-        r32.packet[3] = ploadu<Packet8bf>(src + 24);
-      }
+    r32.packet[0] = loadBF16fromResult<inc, 0>(src, resInc);
+    if (size >= 16) {
+      r32.packet[1] = loadBF16fromResult<inc, 8>(src, resInc);
+    }
+    if (size >= 32) {
+      r32.packet[2] = loadBF16fromResult<inc, 16>(src, resInc);
+      r32.packet[3] = loadBF16fromResult<inc, 24>(src, resInc);
     }
     storeConvertBlockBF16<size>(result + i, r32);
   }
@@ -285,10 +284,10 @@ template<bool inc = false>
 EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index rows, bfloat16* src, Index resInc = 1)
 {
   Index i = 0;
-  convertPointerBF16toF32<32,inc>(i, result, rows, src, resInc);
-  convertPointerBF16toF32<16,inc>(i, result, rows, src, resInc);
-  convertPointerBF16toF32<8,inc>(i, result, rows, src, resInc);
-  convertPointerBF16toF32<4,inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<32, inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<16, inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<8,  inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<4,  inc>(i, result, rows, src, resInc);
   for(; i < rows; i++, src += resInc){
     result[i] = Eigen::bfloat16_impl::bfloat16_to_float(*src);
   }
@@ -323,15 +322,32 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16(float *result, Index cols, Index 
   while(col < cols){
     const LinearMapper res2 = res.getLinearMapper(0, col);
     float *result2 = result + col*rows;
-    Index r = 0;
-    for(; r + 8 <= rows; r += 8){
-      Packet8bf fp16 = convertF32toBF16(result2 + r);
-      res2.template storePacket<Packet8bf>(r, fp16);
+    for(row = 0; row + 8 <= rows; row += 8){
+      Packet8bf fp16 = convertF32toBF16(result2 + row);
+      res2.template storePacket<Packet8bf>(row, fp16);
     }
-    for(; r < rows; r++){
-      res2(r) = Eigen::bfloat16(result2[r]);
+    for(; row < rows; row++){
+      res2(row) = Eigen::bfloat16(result2[row]);
     }
     col++;
+  }
+}
+
+template<const Index size, bool inc, Index delta>
+EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc)
+{
+  if (inc) {
+    if (size == 4) {
+      pscatter_partial(dst + delta*resInc, data, resInc, 4);
+    } else {
+      pscatter<bfloat16, Packet8bf>(dst + delta*resInc, data, resInc);
+    }
+  } else {
+    if (size == 4) {
+      pstoreu_partial(dst + delta, data, 4);
+    } else {
+      pstoreu(dst + delta, data);
+    }
   }
 }
 
@@ -348,32 +364,13 @@ EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index 
       r32.packet[2] = convertF32toBF16<true>(result + i + 16);
       r32.packet[3] = convertF32toBF16<true>(result + i + 24);
     }
-    if (inc) {
-      if (size == 4) {
-        pscatter_partial(dst +  0*resInc, r32.packet[0], resInc, 4);
-      } else {
-        pscatter<bfloat16, Packet8bf>(dst +  0*resInc, r32.packet[0], resInc);
-      }
-      if (size >= 16) {
-        pscatter<bfloat16, Packet8bf>(dst +  8*resInc, r32.packet[1], resInc);
-      }
-      if (size >= 32) {
-        pscatter<bfloat16, Packet8bf>(dst + 16*resInc, r32.packet[2], resInc);
-        pscatter<bfloat16, Packet8bf>(dst + 24*resInc, r32.packet[3], resInc);
-      }
-    } else {
-      if (size == 4) {
-        pstoreu_partial(dst +  0, r32.packet[0], 4);
-      } else {
-        pstoreu(dst +  0, r32.packet[0]);
-      }
-      if (size >= 16) {
-        pstoreu(dst +  8, r32.packet[1]);
-      }
-      if (size >= 32) {
-        pstoreu(dst + 16, r32.packet[2]);
-        pstoreu(dst + 24, r32.packet[3]);
-      }
+    storeBF16fromResult<size, inc, 0>(dst, r32.packet[0], resInc);
+    if (size >= 16) {
+      storeBF16fromResult<size, inc, 8>(dst, r32.packet[1], resInc);
+    }
+    if (size >= 32) {
+      storeBF16fromResult<size, inc, 16>(dst, r32.packet[2], resInc);
+      storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
     }
   }
 }
