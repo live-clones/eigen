@@ -424,7 +424,7 @@ EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index
 }
 
 template<typename DataMapper>
-void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
+void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat16* indexB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
 #ifdef TEST_VERBOSE
   uint64_t start, end;
@@ -449,15 +449,11 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* blockA, const bfloat
   //Blocks of 8 columns with < 4 elements. This happens when there's less than 4 remaining rows
 
   //Loop for LHS standard block (8x16)
-  const Index standard_block_size = 16;
-  const Index standard_blocks_quantity = rows/standard_block_size; //Number of standard blocks
   Index bigSuffix = (2*8) * (strideA-offsetA);
-  const bfloat16* indexA = blockA;
-  const bfloat16* indexB = blockB + 4*offsetB;
-  Index block_index;
+  indexB += 4*offsetB;
   strideB *= 4;
   offsetB *= 3;
-  for(block_index = 0; block_index < standard_blocks_quantity; block_index++){
+  while(row + 16 <= rows){
     calcColLoops<16>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
   }
   //LHS (8x8) block
