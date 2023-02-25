@@ -16,7 +16,7 @@ namespace Eigen {
 
 namespace internal {
 
-template<typename Visitor, typename Derived, int UnrollCount, bool Vectorize=((Derived::PacketAccess!=0) && functor_traits<Visitor>::PacketAccess), bool ShortCircuitEvaluation = false>
+template<typename Visitor, typename Derived, int UnrollCount, bool Vectorize = (Derived::PacketAccess && functor_traits<Visitor>::PacketAccess), bool LinearAccess = false, bool ShortCircuitEvaluation = false>
 struct visitor_impl;
 
 template <typename Visitor, bool ShortCircuitEvaluation = false>
@@ -32,8 +32,8 @@ struct short_circuit_eval_impl<Visitor, true> {
   }
 };
 
-template<typename Visitor, typename Derived, int UnrollCount, bool ShortCircuitEvaluation>
-struct visitor_impl<Visitor, Derived, UnrollCount, false, ShortCircuitEvaluation>
+template<typename Visitor, typename Derived, int UnrollCount, bool LinearAccess, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, UnrollCount, false, LinearAccess, ShortCircuitEvaluation>
 {
   enum {
     col = Derived::IsRowMajor ? (UnrollCount-1) % Derived::ColsAtCompileTime
@@ -68,44 +68,31 @@ struct visitor_impl<Visitor, Derived, 0, false> {
   {}
 };
 
-template<typename Visitor, typename Derived, bool ShortCircuitEvaluation>
-struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, ShortCircuitEvaluation>
-{
+template <typename Visitor, typename Derived, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAccess=*/false, ShortCircuitEvaluation> {
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
+  static constexpr bool RowMajor = Derived::IsRowMajor;
 
   EIGEN_DEVICE_FUNC
-  static inline void run(const Derived& mat, Visitor& visitor)
-  {
-    visitor.init(mat.coeff(0,0), 0, 0);
-    if (Derived::IsRowMajor) {
-      for(Index i = 1; i < mat.cols(); ++i) {
-          visitor(mat.coeff(0, i), 0, i);
-          if (short_circuit::run(visitor)) return;
-      }
-      for(Index j = 1; j < mat.rows(); ++j) {
-        for(Index i = 0; i < mat.cols(); ++i) {
-          visitor(mat.coeff(j, i), j, i);
-          if (short_circuit::run(visitor)) return;
-        }
-      }
-    } else {
-      for(Index i = 1; i < mat.rows(); ++i) {
-          visitor(mat.coeff(i, 0), i, 0);
-          if (short_circuit::run(visitor)) return;
-      }
-      for(Index j = 1; j < mat.cols(); ++j) {
-        for(Index i = 0; i < mat.rows(); ++i) {
-          visitor(mat.coeff(i, j), i, j);
-          if (short_circuit::run(visitor)) return;
-        }
+  static inline void run(const Derived& mat, Visitor& visitor) {
+    const Index innerSize = RowMajor ? mat.cols() : mat.rows();
+    const Index outerSize = RowMajor ? mat.rows() : mat.cols();
+    visitor.init(mat.coeff(0, 0), 0, 0);
+    for (Index j = 0; j < outerSize; j++) {
+      for (Index i = j == 0 ? 1 : 0; i < innerSize; ++i) {
+        Index r = RowMajor ? j : i;
+        Index c = RowMajor ? i : j;
+        visitor(mat.coeff(r, c), r, c);
+        if (short_circuit::run(visitor)) return;
       }
     }
   }
 };
 
 template <typename Visitor, typename Derived, int UnrollSize, bool ShortCircuitEvaluation>
-struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, ShortCircuitEvaluation> {
+struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, /*LinearAccess=*/false, ShortCircuitEvaluation> {
   typedef typename Derived::Scalar Scalar;
+
   typedef typename packet_traits<Scalar>::type Packet;
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   static constexpr bool RowMajor = Derived::IsRowMajor;
@@ -115,43 +102,62 @@ struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, ShortCircu
     const Index outerSize = RowMajor ? mat.rows() : mat.cols();
     const Index PacketSize = packet_traits<Scalar>::size;
     visitor.init(mat.coeff(0, 0), 0, 0);
-    {
-      Index i = 1;
-      for (; i < numext::mini(innerSize, PacketSize); i++) {
-        Index r = RowMajor ? 0 : i;
-        Index c = RowMajor ? i : 0;
-        visitor(mat.coeff(r, c), r, c);
-        if (short_circuit::run(visitor)) return;
-      }
+    for (Index j = 0; j < outerSize; j++) {
+      Index i = j == 0 ? 1 : 0;
       for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
-        Index r = RowMajor ? 0 : i;
-        Index c = RowMajor ? i : 0;
+        Index r = RowMajor ? j : i;
+        Index c = RowMajor ? i : j;
         Packet p = mat.packet(r, c);
         visitor.packet(p, r, c);
         if (short_circuit::run(visitor)) return;
       }
       for (; i < innerSize; ++i) {
-        Index r = RowMajor ? 0 : i;
-        Index c = RowMajor ? i : 0;
+        Index r = RowMajor ? j : i;
+        Index c = RowMajor ? i : j;
         visitor(mat.coeff(r, c), r, c);
         if (short_circuit::run(visitor)) return;
       }
     }
-    for (Index j = 1; j < outerSize; j++) {
-      Index i = 0;
-      for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
-        Index r = RowMajor ? j : i;
-        Index c = RowMajor ? i : j;
-        Packet p = mat.packet(r, c);
-        visitor.packet(p, r, c);
-        if (short_circuit::run(visitor)) return;
-      }
-      for (; i < innerSize; ++i) {
-        Index r = RowMajor ? j : i;
-        Index c = RowMajor ? i : j;
-        visitor(mat.coeff(r, c), r, c);
-        if (short_circuit::run(visitor)) return;
-      }
+  }
+};
+
+template <typename Visitor, typename Derived, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAccess=*/true, ShortCircuitEvaluation> {
+  using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
+  static constexpr bool RowMajor = Derived::IsRowMajor;
+
+  EIGEN_DEVICE_FUNC
+  static inline void run(const Derived& mat, Visitor& visitor) {
+    const Index size = mat.size();
+    visitor.init(mat.coeff(0), 0);
+    for (Index k = 1; k < size; k++) {
+      visitor(mat.coeff(k), k);
+      if (short_circuit::run(visitor)) return;
+    }
+  }
+};
+
+template <typename Visitor, typename Derived, int UnrollSize, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, /*LinearAccess=*/true, ShortCircuitEvaluation> {
+  typedef typename Derived::Scalar Scalar;
+
+  typedef typename packet_traits<Scalar>::type Packet;
+  using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
+  static constexpr bool RowMajor = Derived::IsRowMajor;
+  EIGEN_DEVICE_FUNC
+  static inline void run(const Derived& mat, Visitor& visitor) {
+    const Index size = mat.size();
+    const Index PacketSize = packet_traits<Scalar>::size;
+    visitor.init(mat.coeff(0), 0);
+    Index k = 1;
+    for (; k + PacketSize - 1 < size; k += PacketSize) {
+      Packet p = mat.packet(k);
+      visitor.packet(p, k);
+      if (short_circuit::run(visitor)) return;
+    }
+    for (; k < size; k++) {
+      visitor(mat.coeff(k), k);
+      if (short_circuit::run(visitor)) return;
     }
   }
 };
@@ -172,8 +178,7 @@ public:
     IsRowMajor = XprType::IsRowMajor,
     RowsAtCompileTime = XprType::RowsAtCompileTime,
     ColsAtCompileTime = XprType::ColsAtCompileTime,
-    CoeffReadCost = Evaluator::CoeffReadCost,
-    Alignment = Evaluator::Alignment
+    CoeffReadCost = Evaluator::CoeffReadCost
   };
 
 
@@ -188,7 +193,11 @@ public:
 
   EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index row, Index col) const { return m_evaluator.coeff(row, col); }
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index row, Index col) const {
-    return m_evaluator.template packet<Alignment, PacketReturnType>(row, col);
+    return m_evaluator.template packet<Unaligned, PacketReturnType>(row, col);
+  }
+  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index index) const { return m_evaluator.coeff(index); }
+  EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
+    return m_evaluator.template packet<Unaligned, PacketReturnType>(index);
   }
 
 protected:
@@ -207,8 +216,9 @@ struct short_circuit_visit_impl {
                                           EIGEN_UNROLLING_LIMIT;
   static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
   static constexpr bool Vectorize = Evaluator::PacketAccess && functor_traits<Visitor>::PacketAccess;
+  static constexpr bool LinearAccess = Evaluator::LinearAccess && functor_traits<Visitor>::LinearAccess;
   static constexpr bool ShortCircuitEvaluation = true;
-  using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, ShortCircuitEvaluation>;
+  using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, LinearAccess, ShortCircuitEvaluation>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const DenseBase<Derived>& mat) {
     Evaluator evaluator(mat.derived());
@@ -416,10 +426,21 @@ struct all_visitor {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index, Index) {
     m_res = m_res && (value != Scalar(0));
   }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index) { m_res = m_res && (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index, Index) {
     m_res = m_res && (value != Scalar(0));
   }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index) {
+    m_res = m_res && (value != Scalar(0));
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index, Index) {
+    if (m_res) {
+      Packet p_is_false = pcmp_eq(p, pzero(p));
+      bool any_are_false = predux_any(p_is_false);
+      m_res = !any_are_false;
+    }
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index) {
     if (m_res) {
       Packet p_is_false = pcmp_eq(p, pzero(p));
       bool any_are_false = predux_any(p_is_false);
@@ -432,7 +453,7 @@ struct all_visitor {
 };
 template <typename Scalar>
 struct functor_traits<all_visitor<Scalar>> {
-  enum { Cost = NumTraits<Scalar>::ReadCost, PacketAccess = packet_traits<Scalar>::HasCmp };
+  enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 
 template <typename Scalar>
@@ -442,10 +463,21 @@ struct any_visitor {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index, Index) {
     m_res = m_res || (value != Scalar(0));
   }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index) { m_res = m_res || (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index, Index) {
     m_res = m_res || (value != Scalar(0));
   }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index) {
+    m_res = m_res || (value != Scalar(0));
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index, Index) {
+    if (!m_res) {
+      Packet p_is_true = pandnot(ptrue(p), pcmp_eq(p, pzero(p)));
+      bool any_are_true = predux_any(p_is_true);
+      m_res = any_are_true;
+    }
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index) {
     if (!m_res) {
       Packet p_is_true = pandnot(ptrue(p), pcmp_eq(p, pzero(p)));
       bool any_are_true = predux_any(p_is_true);
@@ -458,7 +490,7 @@ struct any_visitor {
 };
 template <typename Scalar>
 struct functor_traits<any_visitor<Scalar>> {
-  enum { Cost = NumTraits<Scalar>::ReadCost, PacketAccess = packet_traits<Scalar>::HasCmp };
+  enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
 };
 } // end namespace internal
 
