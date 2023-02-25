@@ -58,37 +58,42 @@ EIGEN_ALWAYS_INLINE void KLoop
   }
 }
 
+EIGEN_ALWAYS_INLINE Packet4f loadAndMultiplyF32(Packet4f acc, const Packet4f pAlpha, float* result)
+{
+  Packet4f result_block = ploadu<Packet4f>(result);
+  return pmadd(acc, pAlpha, result_block);
+}
+
+template<bool lhsExtraRows>
+EIGEN_ALWAYS_INLINE void storeF32(float*& result, Packet4f result_block, Index rows, Index extra_rows)
+{
+  if (lhsExtraRows) {
+    pstoreu_partial(result, result_block, extra_rows);
+  } else {
+    pstoreu(result, result_block);
+  }
+  result += rows;
+}
+
 template <bool rhsExtraCols, bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result, Index extra_cols, Index extra_rows)
 {
   Index x = 0;
   if (rhsExtraCols) {
     do{
-      Packet4f result_block = ploadu<Packet4f>(result);
-      result_block = pmadd(acc[x], pAlpha, result_block);
-      if (lhsExtraRows) {
-        pstoreu_partial(result, result_block, extra_rows);
-      } else {
-        pstoreu(result, result_block);
-      }
-      result += rows;
+      Packet4f result_block = loadAndMultiplyF32(acc[x], pAlpha, result);
+      storeF32<lhsExtraRows>(result, result_block, rows, extra_rows);
     } while (++x < extra_cols);
   } else {
     Packet4f result_block[4];
     float *result2 = result;
     do{
-      result_block[x] = ploadu<Packet4f>(result);
-      result_block[x] = pmadd(acc[x], pAlpha, result_block[x]);
+      result_block[x] = loadAndMultiplyF32(acc[x], pAlpha, result);
       result += rows;
     } while (++x < 4);
     x = 0;
     do{
-      if (lhsExtraRows) {
-        pstoreu_partial(result2, result_block[x], extra_rows);
-      } else {
-        pstoreu(result2, result_block[x]);
-      }
-      result2 += rows;
+      storeF32<lhsExtraRows>(result2, result_block[x], rows, extra_rows);
     } while (++x < 4);
   }
 }
