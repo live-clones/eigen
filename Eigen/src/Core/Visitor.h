@@ -33,30 +33,30 @@ struct short_circuit_eval_impl<Visitor, true> {
 };
 
 template<typename Visitor, typename Derived, int UnrollCount, bool LinearAccess, bool ShortCircuitEvaluation>
-struct visitor_impl<Visitor, Derived, UnrollCount, false, LinearAccess, ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, UnrollCount, /*Vectorize=*/false, LinearAccess, ShortCircuitEvaluation>
 {
-  enum {
-    col = Derived::IsRowMajor ? (UnrollCount-1) % Derived::ColsAtCompileTime
-                              : (UnrollCount-1) / Derived::RowsAtCompileTime,
-    row = Derived::IsRowMajor ? (UnrollCount-1) / Derived::ColsAtCompileTime
-                              : (UnrollCount-1) % Derived::RowsAtCompileTime
-  };
+  static constexpr int col = Derived::IsRowMajor ? (UnrollCount - 1) % Derived::ColsAtCompileTime
+                                                 : (UnrollCount - 1) / Derived::RowsAtCompileTime;
+  static constexpr int row = Derived::IsRowMajor ? (UnrollCount - 1) / Derived::ColsAtCompileTime
+                                                 : (UnrollCount - 1) % Derived::RowsAtCompileTime;
+
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
-    visitor_impl<Visitor, Derived, UnrollCount - 1>::run(mat, visitor);
-    visitor(mat.coeff(row, col), row, col);
-    if (short_circuit::run(visitor)) return;
+    visitor_impl<Visitor, Derived, UnrollCount - 1, LinearAccess, ShortCircuitEvaluation>::run(mat, visitor);
+    if (!short_circuit::run(visitor)) visitor(mat.coeff(row, col), row, col);
   }
 };
 
-template<typename Visitor, typename Derived>
-struct visitor_impl<Visitor, Derived, 1, false>
+// TODO: vectorize unrolled
+template<typename Visitor, typename Derived, bool LinearAccess, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, /*UnrollCount=*/1, /*Vectorize=*/false, LinearAccess, ShortCircuitEvaluation>
 {
+  using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived &mat, Visitor& visitor)
   {
-    return visitor.init(mat.coeff(0, 0), 0, 0);
+    visitor.init(mat.coeff(0, 0), 0, 0);
   }
 };
 
@@ -68,6 +68,7 @@ struct visitor_impl<Visitor, Derived, 0, false> {
   {}
 };
 
+// scalar outer-inner traversal
 template <typename Visitor, typename Derived, bool ShortCircuitEvaluation>
 struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAccess=*/false, ShortCircuitEvaluation> {
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
@@ -89,25 +90,35 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
   }
 };
 
+// vectorized outer-inner traversal
 template <typename Visitor, typename Derived, int UnrollSize, bool ShortCircuitEvaluation>
 struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, /*LinearAccess=*/false, ShortCircuitEvaluation> {
-  typedef typename Derived::Scalar Scalar;
-
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Scalar = typename Derived::Scalar;
+  using Packet = typename packet_traits<Scalar>::type;
+  static constexpr int PacketSize = packet_traits<Scalar>::size;
+  static constexpr int Alignment = unpacket_traits<Packet>::alignment;
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   static constexpr bool RowMajor = Derived::IsRowMajor;
+
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
     const Index innerSize = RowMajor ? mat.cols() : mat.rows();
     const Index outerSize = RowMajor ? mat.rows() : mat.cols();
-    const Index PacketSize = packet_traits<Scalar>::size;
     visitor.init(mat.coeff(0, 0), 0, 0);
     for (Index j = 0; j < outerSize; j++) {
       Index i = j == 0 ? 1 : 0;
+      const Index aligned_start = i + internal::first_aligned<Alignment, Scalar, Index>(
+                                          &mat.coeff(RowMajor ? j : i, RowMajor ? i : j), innerSize);
+      for (; i < aligned_start; ++i) {
+        Index r = RowMajor ? j : i;
+        Index c = RowMajor ? i : j;
+        visitor(mat.coeff(r, c), r, c);
+        if (short_circuit::run(visitor)) return;
+      }
       for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
         Index r = RowMajor ? j : i;
         Index c = RowMajor ? i : j;
-        Packet p = mat.packet(r, c);
+        Packet p = mat.template packet<Packet, Alignment>(r, c);
         visitor.packet(p, r, c);
         if (short_circuit::run(visitor)) return;
       }
@@ -121,10 +132,10 @@ struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, /*LinearAc
   }
 };
 
+// scalar linear traversal
 template <typename Visitor, typename Derived, bool ShortCircuitEvaluation>
 struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAccess=*/true, ShortCircuitEvaluation> {
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
-  static constexpr bool RowMajor = Derived::IsRowMajor;
 
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
@@ -137,21 +148,28 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
   }
 };
 
+// vectorized linear traversal
 template <typename Visitor, typename Derived, int UnrollSize, bool ShortCircuitEvaluation>
 struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, /*LinearAccess=*/true, ShortCircuitEvaluation> {
-  typedef typename Derived::Scalar Scalar;
-
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Scalar = typename Derived::Scalar;
+  using Packet = typename packet_traits<Scalar>::type;
+  static constexpr int PacketSize = packet_traits<Scalar>::size;
+  //static constexpr int Alignment = unpacket_traits<Packet>::alignment;
+  static constexpr int Alignment = Derived::Alignment;
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
-  static constexpr bool RowMajor = Derived::IsRowMajor;
+
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
     const Index size = mat.size();
-    const Index PacketSize = packet_traits<Scalar>::size;
     visitor.init(mat.coeff(0), 0);
     Index k = 1;
+    const Index aligned_start = k;// +internal::first_aligned<Alignment, Scalar, Index>(&mat.coeff(k), size);
+    for (; k < aligned_start; k++) {
+      visitor(mat.coeff(k), k);
+      if (short_circuit::run(visitor)) return;
+    }
     for (; k + PacketSize - 1 < size; k += PacketSize) {
-      Packet p = mat.packet(k);
+      Packet p = mat.template packet<Packet, Alignment>(k);
       visitor.packet(p, k);
       if (short_circuit::run(visitor)) return;
     }
@@ -170,10 +188,10 @@ public:
   typedef internal::evaluator<XprType> Evaluator;
   typedef typename XprType::Scalar Scalar;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef std::remove_const_t<typename XprType::PacketReturnType> PacketReturnType;
 
   enum {
     PacketAccess = Evaluator::Flags & PacketAccessBit,
+    Alignment = Evaluator::Alignment,
     LinearAccess = Evaluator::Flags & LinearAccessBit,
     IsRowMajor = XprType::IsRowMajor,
     RowsAtCompileTime = XprType::RowsAtCompileTime,
@@ -191,13 +209,15 @@ public:
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_xpr.cols(); }
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index size() const EIGEN_NOEXCEPT { return m_xpr.size(); }
 
-  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index row, Index col) const { return m_evaluator.coeff(row, col); }
-  EIGEN_DEVICE_FUNC PacketReturnType packet(Index row, Index col) const {
-    return m_evaluator.template packet<Unaligned, PacketReturnType>(row, col);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const { return m_evaluator.coeff(row, col); }
+  template <typename Packet, int Alignment = Unaligned>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index row, Index col) const {
+    return m_evaluator.template packet<Alignment, Packet>(row, col);
   }
-  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index index) const { return m_evaluator.coeff(index); }
-  EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
-    return m_evaluator.template packet<Unaligned, PacketReturnType>(index);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_evaluator.coeff(index); }
+  template <typename Packet, int Alignment = Unaligned>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index index) const {
+    return m_evaluator.template packet<Alignment, Packet>(index);
   }
 
 protected:
@@ -421,33 +441,23 @@ struct functor_traits<minmax_coeff_visitor<Scalar, is_min, NaNPropagation> > {
 template <typename Scalar>
 struct all_visitor {
   using Packet = typename packet_traits<Scalar>::type;
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index, Index) {
-    m_res = m_res && (value != Scalar(0));
-  }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index) { m_res = m_res && (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index, Index) { m_res = (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index) { m_res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index, Index) {
-    m_res = m_res && (value != Scalar(0));
+    m_res = (value != Scalar(0));
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index) {
-    m_res = m_res && (value != Scalar(0));
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index) { m_res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index, Index) {
-    if (m_res) {
-      Packet p_is_false = pcmp_eq(p, pzero(p));
-      bool any_are_false = predux_any(p_is_false);
-      m_res = !any_are_false;
-    }
+    Packet p_is_false = pcmp_eq(p, pzero(p));
+    bool any_are_false = predux_any(p_is_false);
+    m_res = !any_are_false;
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index) {
-    if (m_res) {
-      Packet p_is_false = pcmp_eq(p, pzero(p));
-      bool any_are_false = predux_any(p_is_false);
-      m_res = !any_are_false;
-    }
+    Packet p_is_false = pcmp_eq(p, pzero(p));
+    bool any_are_false = predux_any(p_is_false);
+    m_res = !any_are_false;
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool done() const { return !m_res; }
-
   bool m_res = true;
 };
 template <typename Scalar>
@@ -458,33 +468,23 @@ struct functor_traits<all_visitor<Scalar>> {
 template <typename Scalar>
 struct any_visitor {
   using Packet = typename packet_traits<Scalar>::type;
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index, Index) {
-    m_res = m_res || (value != Scalar(0));
-  }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index) { m_res = m_res || (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index, Index) { m_res = (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& value, Index) { m_res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index, Index) {
-    m_res = m_res || (value != Scalar(0));
+    m_res = (value != Scalar(0));
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index) {
-    m_res = m_res || (value != Scalar(0));
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& value, Index) { m_res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index, Index) {
-    if (!m_res) {
-      Packet p_is_true = pandnot(ptrue(p), pcmp_eq(p, pzero(p)));
-      bool any_are_true = predux_any(p_is_true);
-      m_res = any_are_true;
-    }
+    Packet p_is_true = pandnot(ptrue(p), pcmp_eq(p, pzero(p)));
+    bool any_are_true = predux_any(p_is_true);
+    m_res = any_are_true;
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& p, Index) {
-    if (!m_res) {
-      Packet p_is_true = pandnot(ptrue(p), pcmp_eq(p, pzero(p)));
-      bool any_are_true = predux_any(p_is_true);
-      m_res = any_are_true;
-    }
+    Packet p_is_true = pandnot(ptrue(p), pcmp_eq(p, pzero(p)));
+    bool any_are_true = predux_any(p_is_true);
+    m_res = any_are_true;
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool done() const { return m_res; }
-
   bool m_res = false;
 };
 template <typename Scalar>
