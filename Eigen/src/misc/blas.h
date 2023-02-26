@@ -59,6 +59,8 @@ int BLASFUNC(zhemm)(const char *, const char *, const int *, const int *, const 
 int BLASFUNC(cherk)(const char *, const char *, const int *, const int *, const float  *, const float  *, const int *, const float  *, float  *, const int *);
 int BLASFUNC(zherk)(const char *, const char *, const int *, const int *, const double *, const double *, const int *, const double *, double *, const int *);
 
+#undef BLASFUNC
+
 }
 
 #endif
