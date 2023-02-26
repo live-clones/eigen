@@ -1,5 +1,5 @@
-#ifndef BLAS_H
-#define BLAS_H
+#ifndef EIGEN_MISC_BLAS_H
+#define EIGEN_MISC_BLAS_H
 
 extern "C" {
 
