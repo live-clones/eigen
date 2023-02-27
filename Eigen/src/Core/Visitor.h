@@ -539,7 +539,8 @@ struct functor_traits<count_visitor<Scalar>> {
   enum {
     Cost = NumTraits<Scalar>::ReadCost,
     LinearAccess = true,
-    PacketAccess = packet_traits<Scalar>::HasCmp && packet_traits<Scalar>::HasAdd
+    // predux is problematic for bool
+    PacketAccess = packet_traits<Scalar>::HasCmp && packet_traits<Scalar>::HasAdd && !is_same<Scalar,bool>::value
   };
 };
 
