@@ -35,8 +35,8 @@ struct short_circuit_eval_impl<Visitor, true> {
 };
 
 // inner-outer unrolled
-template <typename Visitor, typename Derived, int UnrollCount, bool LinearAccess, bool ShortCircuitEvaluation>
-struct visitor_impl<Visitor, Derived, UnrollCount, /*Vectorize=*/false, /*LinearAccess=*/LinearAccess, ShortCircuitEvaluation> {
+template <typename Visitor, typename Derived, int UnrollCount, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, UnrollCount, /*Vectorize=*/false, /*LinearAccess=*/false, ShortCircuitEvaluation> {
   static constexpr int col = Derived::IsRowMajor ? (UnrollCount - 1) % Derived::ColsAtCompileTime
                                                  : (UnrollCount - 1) / Derived::RowsAtCompileTime;
   static constexpr int row = Derived::IsRowMajor ? (UnrollCount - 1) / Derived::ColsAtCompileTime
@@ -51,8 +51,8 @@ struct visitor_impl<Visitor, Derived, UnrollCount, /*Vectorize=*/false, /*Linear
 };
 
 // inner-outer unrolled
-template <typename Visitor, typename Derived, bool LinearAccess, bool ShortCircuitEvaluation>
-struct visitor_impl<Visitor, Derived, /*UnrollCount=*/1, /*Vectorize=*/false, /*LinearAccess=*/LinearAccess, ShortCircuitEvaluation> {
+template <typename Visitor, typename Derived, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, /*UnrollCount=*/1, /*Vectorize=*/false, /*LinearAccess=*/false, ShortCircuitEvaluation> {
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) { visitor.init(mat.coeff(0, 0), 0, 0); }
@@ -79,8 +79,8 @@ struct visitor_impl<Visitor, Derived, /*UnrollCount=*/1, /*Vectorize=*/false, /*
 };
 
 // This specialization enables visitors on empty matrices at compile-time
-template<typename Visitor, typename Derived, bool LinearAccess, bool ShortCircuitEvaluation>
-struct visitor_impl<Visitor, Derived, 0, false, LinearAccess, ShortCircuitEvaluation> {
+template<typename Visitor, typename Derived, bool Vectorize, bool LinearAccess, bool ShortCircuitEvaluation>
+struct visitor_impl<Visitor, Derived, 0, Vectorize, LinearAccess, ShortCircuitEvaluation> {
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived &/*mat*/, Visitor& /*visitor*/)
   {}
@@ -96,6 +96,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
   static inline void run(const Derived& mat, Visitor& visitor) {
     const Index innerSize = RowMajor ? mat.cols() : mat.rows();
     const Index outerSize = RowMajor ? mat.rows() : mat.cols();
+    if (innerSize == 0 || outerSize == 0) return;
     visitor.init(mat.coeff(0, 0), 0, 0);
     if (short_circuit::run(visitor)) return;
     for (Index j = 0; j < outerSize; j++) {
@@ -122,6 +123,7 @@ struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, /*LinearAc
   static inline void run(const Derived& mat, Visitor& visitor) {
     const Index innerSize = RowMajor ? mat.cols() : mat.rows();
     const Index outerSize = RowMajor ? mat.rows() : mat.cols();
+    if (innerSize == 0 || outerSize == 0) return;
     visitor.init(mat.coeff(0, 0), 0, 0);
     if (short_circuit::run(visitor)) return;
     for (Index j = 0; j < outerSize; j++) {
@@ -151,6 +153,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
     const Index size = mat.size();
+    if (size == 0) return;
     visitor.init(mat.coeff(0), 0);
     if (short_circuit::run(visitor)) return;
     for (Index k = 1; k < size; k++) {
@@ -172,6 +175,7 @@ struct visitor_impl<Visitor, Derived, UnrollSize, /*Vectorize=*/true, /*LinearAc
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
     const Index size = mat.size();
+    if (size == 0) return;
     visitor.init(mat.coeff(0), 0);
     if (short_circuit::run(visitor)) return;
     Index k = 1;
@@ -247,7 +251,6 @@ struct short_circuit_visitor_impl {
   using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, LinearAccess, true>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const DenseBase<Derived>& mat, Visitor& visitor) {
-    if (mat.size() == 0) return;
     Evaluator evaluator(mat.derived());
     impl::run(evaluator, visitor);
   }
@@ -289,10 +292,10 @@ void DenseBase<Derived>::visit(Visitor& visitor) const
                                           EIGEN_UNROLLING_LIMIT;
   static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
   static constexpr bool Vectorize = Evaluator::PacketAccess && functor_traits<Visitor>::PacketAccess;
+  using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, false, false>;
 
-  if (size() == 0) return;
   Evaluator evaluator(derived());
-  visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, false, false>::run(evaluator, visitor);
+  impl::run(evaluator, visitor);
 }
 
 namespace internal {
