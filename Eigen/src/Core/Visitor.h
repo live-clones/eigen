@@ -45,7 +45,7 @@ struct visitor_impl<Visitor, Derived, UnrollCount, /*Vectorize=*/false, /*Linear
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   EIGEN_DEVICE_FUNC
   static inline void run(const Derived& mat, Visitor& visitor) {
-    visitor_impl<Visitor, Derived, UnrollCount - 1, false, LinearAccess, ShortCircuitEvaluation>::run(mat, visitor);
+    visitor_impl<Visitor, Derived, UnrollCount - 1, false, false, ShortCircuitEvaluation>::run(mat, visitor);
     if (!short_circuit::run(visitor)) visitor(mat.coeff(row, col), row, col);
   }
 };
