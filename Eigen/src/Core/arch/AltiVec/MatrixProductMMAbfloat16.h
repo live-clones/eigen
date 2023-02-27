@@ -29,7 +29,7 @@ EIGEN_ALWAYS_INLINE Packet8bf loadRhsBfloat16(const bfloat16* blockB, Index stri
   return loadBfloat16<zero>(blockB + strideB*i);
 }
 
-template<Index num_acc, Index num_packets, bool zero, bool rhsExtraCols, bool lhsExtraRows>
+template<Index num_acc, Index num_packets, bool zero, bool rhsExtraCols, bool lhsExtraRows, Index num_lhs>
 EIGEN_ALWAYS_INLINE void KLoop
 (
   const bfloat16* indexA,
@@ -42,19 +42,26 @@ EIGEN_ALWAYS_INLINE void KLoop
   Index extra_rows
 )
 {
-  Packet8bf lhs = loadBfloat16<zero>(indexA + k*(lhsExtraRows ? extra_rows : num_packets)); //a packet of bfloat16 has 8 elements
-  Packet8bf rhs[num_acc];
+  constexpr Index num_rhs = (num_acc + num_lhs - 1) / num_lhs;
+  Packet8bf lhs[num_lhs], rhs[num_rhs];
 
-  for(Index i = 0; i < (num_acc - (rhsExtraCols ? 1 : 0)); i++){
+  for(Index i = 0; i < (num_rhs - (rhsExtraCols ? 1 : 0)); i++){
     rhs[i] = loadRhsBfloat16<zero>(indexB + k*4, strideB, i);
   }
   if(rhsExtraCols) {
-    rhs[num_acc - 1] = loadRhsBfloat16<zero>(indexB + k*extra_cols - offsetB, strideB, num_acc - 1);
+    rhs[num_rhs - 1] = loadRhsBfloat16<zero>(indexB + k*extra_cols - offsetB, strideB, num_rhs - 1);
+  }
+
+  for(Index j = 0; j < num_lhs; j++) {
+    lhs[j] = loadBfloat16<zero>(indexA + (j*(zero ? 4 : 8)) + k*(lhsExtraRows ? extra_rows : num_packets)); //a packet of bfloat16 has 8 elements
   }
 
   BFLOAT16_UNROLL
-  for (Index i = 0; i < num_acc; i++) {
-    __builtin_mma_xvbf16ger2pp(&(quad_acc[i]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs.m_val));
+  for (Index i = 0, k = 0; i < num_rhs; i++) {
+    BFLOAT16_UNROLL
+    for(Index j = 0; j < num_lhs; j++, k++) {
+      __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs[j].m_val));
+    }
   }
 }
 
@@ -75,7 +82,7 @@ EIGEN_ALWAYS_INLINE void storeF32(float*& result, Packet4f result_block, Index r
   result += rows;
 }
 
-template <bool rhsExtraCols, bool lhsExtraRows>
+template<bool rhsExtraCols, bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result, Index extra_cols, Index extra_rows)
 {
   Index x = 0;
@@ -114,14 +121,42 @@ EIGEN_ALWAYS_INLINE void disassembleAccumulators(__vector_quad (&quad_acc)[num_a
     __builtin_mma_disassemble_acc((void*)acc[k], &(quad_acc[k]));
 }
 
-template<Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
+template<Index num_acc, bool rhsExtraCols, bool lhsExtraRows, Index num_lhs>
 EIGEN_ALWAYS_INLINE void outputResults(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f pAlpha, float* result, const Index extra_cols, Index extra_rows)
 {
-  Index k;
-  for(k = 0; k < (num_acc - 1); k++){
-    storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
+  constexpr Index num_rhs = (num_acc / num_lhs) - (rhsExtraCols ? 1 : 0);
+  for(Index i = 0, k = 0; i < num_rhs; i++, result += 4*rows){
+    for(Index j = 0; j < num_lhs; j++, k++) {
+      storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result + j*4, extra_cols, extra_rows);
+    }
   }
-  storeResults<rhsExtraCols, lhsExtraRows>(acc[k], rows, pAlpha, result + k*4*rows, extra_cols, extra_rows);
+  if(rhsExtraCols) {
+    storeResults<rhsExtraCols, lhsExtraRows>(acc[num_acc - 1], rows, pAlpha, result, extra_cols, extra_rows);
+  }
+}
+
+template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows, const Index num_lhs>
+EIGEN_ALWAYS_INLINE void colLoopBodyIter(Index depth, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* indexB, Index strideB, Index offsetB, float* result, const Index extra_cols, Index extra_rows)
+{
+  constexpr Index num_rhs = num_acc / num_lhs;
+  for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += ((num_lhs > 1) ? 0 : 8), indexB += ((num_lhs > 1) ? (num_rhs*strideB) : 0), result += ((num_lhs > 1) ? (4*rows*num_rhs) : 4)) {
+    Packet4f acc[num_acc][4];
+    __vector_quad quad_acc[num_acc];
+
+    zeroAccumulators<num_acc>(quad_acc);
+
+    Index k;
+    for(k = 0; k + 2 <= depth; k += 2){
+      KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows, num_lhs>(indexA, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
+    }
+    if(depth&1){
+      KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows, num_lhs>(indexA - ((num_lhs > 1) ? 0 : offset_row), indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
+    }
+
+    disassembleAccumulators<num_acc>(quad_acc, acc);
+
+    outputResults<num_acc, rhsExtraCols, lhsExtraRows, num_lhs>(acc, rows, pAlpha, result, extra_cols, extra_rows);
+  }
 }
 
 #define MAX_BFLOAT16_ACC   8
@@ -131,31 +166,18 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
 {
   const Index step = (num_acc * 4); //each accumulator has 4 elements
   const Index extra_cols = (rhsExtraCols) ? (cols & 3) : 0;
+  constexpr bool multiIters = !rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC);
 
   do{
-    for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += 8, result += 4) {
-      Index k;
-      Packet4f acc[num_acc][4];
-      __vector_quad quad_acc[num_acc];
-
-      zeroAccumulators<num_acc>(quad_acc);
-
-      for(k = 0; k + 2 <= depth; k += 2){
-        KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows>(indexA, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
-      }
-      if(depth&1){
-        KLoop<num_acc, num_packets, true, rhsExtraCols, lhsExtraRows>(indexA - offset_row, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
-      }
-
-      disassembleAccumulators<num_acc>(quad_acc, acc);
-
-      outputResults<num_acc, rhsExtraCols, lhsExtraRows>(acc, rows, pAlpha, result, extra_cols, extra_rows);
+    if (multiIters && (num_acc % 4 == 0)) {
+      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, (num_packets / 4)>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
+    } else {
+      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, 1>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
     }
 
-    indexA -= num_packets*2;
     indexB += strideB*num_acc;
-    result += (rows*step - num_packets);
-  } while(!rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC) && (step <= cols - (col += step)));
+    result += rows*step;
+  } while(multiIters && (step <= cols - (col += step)));
 }
 
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
