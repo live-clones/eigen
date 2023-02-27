@@ -201,20 +201,15 @@ public:
   using Packet = typename packet_traits<Scalar>::type;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
 
-  enum {
-    PacketAccess = Evaluator::Flags & PacketAccessBit,
-    LinearAccess = Evaluator::Flags & LinearAccessBit,
-    IsRowMajor = XprType::IsRowMajor,
-    RowsAtCompileTime = XprType::RowsAtCompileTime,
-    ColsAtCompileTime = XprType::ColsAtCompileTime,
-    CoeffReadCost = Evaluator::CoeffReadCost
-  };
-
+  static constexpr bool PacketAccess = static_cast<bool>(Evaluator::Flags & PacketAccessBit);
+  static constexpr bool LinearAccess = static_cast<bool>(Evaluator::Flags & LinearAccessBit);
+  static constexpr bool IsRowMajor = static_cast<bool>(XprType::IsRowMajor);
+  static constexpr int RowsAtCompileTime = XprType::RowsAtCompileTime;
+  static constexpr int ColsAtCompileTime = XprType::ColsAtCompileTime;
+  static constexpr int CoeffReadCost = Evaluator::CoeffReadCost;
 
   EIGEN_DEVICE_FUNC
   explicit visitor_evaluator(const XprType &xpr) : m_evaluator(xpr), m_xpr(xpr) { }
-
-
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_xpr.rows(); }
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_xpr.cols(); }
@@ -246,8 +241,8 @@ struct short_circuit_visitor_impl {
                                               (SizeAtCompileTime - 1) * int(functor_traits<Visitor>::Cost) <=
                                           EIGEN_UNROLLING_LIMIT;
   static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
-  static constexpr bool Vectorize = Evaluator::PacketAccess && functor_traits<Visitor>::PacketAccess;
-  static constexpr bool LinearAccess = Evaluator::LinearAccess && functor_traits<Visitor>::LinearAccess;
+  static constexpr bool Vectorize = Evaluator::PacketAccess && static_cast<bool>(functor_traits<Visitor>::PacketAccess);
+  static constexpr bool LinearAccess = Evaluator::LinearAccess && static_cast<bool>(functor_traits<Visitor>::LinearAccess);
   using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, LinearAccess, true>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const DenseBase<Derived>& mat, Visitor& visitor) {
@@ -284,14 +279,13 @@ void DenseBase<Derived>::visit(Visitor& visitor) const
 {
   using namespace internal;
   using Evaluator = visitor_evaluator<Derived>;
-  using Scalar = typename DenseBase<Derived>::Scalar;
   static constexpr int SizeAtCompileTime = DenseBase<Derived>::SizeAtCompileTime;
   static constexpr bool Unroll =
       SizeAtCompileTime != Dynamic && SizeAtCompileTime * int(Evaluator::CoeffReadCost) +
                                               (SizeAtCompileTime - 1) * int(functor_traits<Visitor>::Cost) <=
                                           EIGEN_UNROLLING_LIMIT;
   static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
-  static constexpr bool Vectorize = Evaluator::PacketAccess && functor_traits<Visitor>::PacketAccess;
+  static constexpr bool Vectorize = Evaluator::PacketAccess && static_cast<bool>(functor_traits<Visitor>::PacketAccess);
   using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, false, false>;
 
   Evaluator evaluator(derived());
