@@ -171,7 +171,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
   constexpr bool multiIters = !rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC);
 
   do{
-    if (multiIters) {
+    if (multiIters && ((num_acc % (num_packets / 4)) == 0)) {
       colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, (num_packets / 4)>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
     } else {
       colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, 1>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
