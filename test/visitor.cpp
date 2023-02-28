@@ -243,8 +243,8 @@ void checkOptimalTraversal() {
   // use sizes that mix vector and scalar ops
   constexpr int Rows = 3 * PacketSize + 1;
   constexpr int Cols = 4 * PacketSize + 1;
-  int rows = internal::random(PacketSize + 1, EIGEN_TEST_SIZE_MAX);
-  int cols = internal::random(PacketSize + 1, EIGEN_TEST_SIZE_MAX);
+  int rows = internal::random(PacketSize + 1, EIGEN_TEST_MAX_SIZE);
+  int cols = internal::random(PacketSize + 1, EIGEN_TEST_MAX_SIZE);
 
   using UnrollColMajor = Matrix<Scalar, Rows, Cols, ColMajor>;
   using UnrollRowMajor = Matrix<Scalar, Rows, Cols, RowMajor>;
