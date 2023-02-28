@@ -137,12 +137,10 @@ EIGEN_ALWAYS_INLINE void outputResults(Packet4f (&acc)[num_acc][4], Index rows, 
 
 #define MAX_BFLOAT16_ACC   8
 
-template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows, const Index num_lhs>
+template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows, const Index num_lhs, bool multiIter = false>
 EIGEN_ALWAYS_INLINE void colLoopBodyIter(Index depth, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* indexB, Index strideB, Index offsetB, float* result, const Index extra_cols, Index extra_rows)
 {
   constexpr Index num_rhs = num_acc / num_lhs;
-  constexpr bool multiIter = !rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC);
-
   for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += (multiIter ? 0 : 8), indexB += (multiIter ? (num_rhs*strideB) : 0), result += (multiIter ? (4*rows*num_rhs) : 4)) {
     Packet4f acc[num_acc][4];
     __vector_quad quad_acc[num_acc];
@@ -172,7 +170,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
 
   do{
     if (multiIters && ((num_acc % (num_packets / 4)) == 0)) {
-      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, (num_packets / 4)>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
+      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, (num_packets / 4), true>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
     } else {
       colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, 1>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
     }
