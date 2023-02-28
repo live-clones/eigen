@@ -21,12 +21,20 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   typedef typename Environment::Task Task;
   typedef RunQueue<Task, 1024> Queue;
 
-  ThreadPoolTempl(int num_threads, Environment env = Environment()) : ThreadPoolTempl(num_threads, true, env) {}
+  ThreadPoolTempl(int num_threads, Environment env = Environment())
+      : ThreadPoolTempl(num_threads, /*max_spinning_threads=*/1, env) {}
 
-  ThreadPoolTempl(int num_threads, bool allow_spinning, Environment env = Environment())
+  // This constructor is for backward-compatibility only.
+  EIGEN_DEPRECATED
+  ThreadPoolTempl(int num_threads, bool allow_spinning,
+                  Environment env = Environment())
+      : ThreadPoolTempl(num_threads, allow_spinning ? 1 : 0, env) {}
+
+  ThreadPoolTempl(int num_threads, int max_spinning_threads,
+                  Environment env = Environment())
       : env_(env),
         num_threads_(num_threads),
-        allow_spinning_(allow_spinning),
+        max_spinning_threads_(max_spinning_threads),
         thread_data_(num_threads),
         all_coprimes_(num_threads),
         waiters_(num_threads),
@@ -226,13 +234,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
 
   Environment env_;
   const int num_threads_;
-  const bool allow_spinning_;
+  const int max_spinning_threads_;
   MaxSizeVector<ThreadData> thread_data_;
   MaxSizeVector<MaxSizeVector<unsigned>> all_coprimes_;
   MaxSizeVector<EventCount::Waiter> waiters_;
   unsigned global_steal_partition_;
   std::atomic<unsigned> blocked_;
-  std::atomic<bool> spinning_;
+  std::atomic<int> spinning_;
   std::atomic<bool> done_;
   std::atomic<bool> cancelled_;
   EventCount ec_;
@@ -241,6 +249,24 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   EIGEN_MUTEX per_thread_map_mutex_;  // Protects per_thread_map_.
   std::unordered_map<uint64_t, std::unique_ptr<PerThread>> per_thread_map_;
 #endif
+
+  EIGEN_ALWAYS_INLINE bool MaybeStartSpinning() {
+    int num_spinning = spinning_.load(std::memory_order_relaxed);
+    while (num_spinning < max_spinning_threads_) {
+      if (spinning_.compare_exchange_weak(num_spinning, num_spinning + 1,
+                                          std::memory_order_relaxed)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  EIGEN_ALWAYS_INLINE void StopSpinning() {
+    int num_spinning = spinning_.load(std::memory_order_relaxed);
+    while (!spinning_.compare_exchange_weak(num_spinning, num_spinning - 1,
+                                            std::memory_order_relaxed)) {
+    }
+  }
 
   // Main worker thread loop.
   void WorkerLoop(int thread_id) {
@@ -264,7 +290,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // proportional to num_threads_ and we assume that new work is scheduled at
     // a constant rate, so we set spin_count to 5000 / num_threads_. The
     // constant was picked based on a fair dice roll, tune it.
-    const int spin_count = allow_spinning_ && num_threads_ > 0 ? 5000 / num_threads_ : 0;
+    const int spin_count =
+        max_spinning_threads_ > 0 && num_threads_ > 0 ? 5000 / num_threads_ : 0;
     if (num_threads_ == 1) {
       // For num_threads_ == 1 there is no point in going through the expensive
       // steal loop. Moreover, since NonEmptyQueueIndex() calls PopBack() on the
@@ -296,8 +323,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
           if (!t.f) {
             t = GlobalSteal();
             if (!t.f) {
-              // Leave one thread spinning. This reduces latency.
-              if (allow_spinning_ && !spinning_ && !spinning_.exchange(true)) {
+              // Maybe leave thread spinning to reduce latency.
+              const bool start_spinning = MaybeStartSpinning();
+              if (start_spinning) {
                 for (int i = 0; i < spin_count && !t.f; i++) {
                   if (!cancelled_.load(std::memory_order_relaxed)) {
                     t = GlobalSteal();
@@ -305,7 +333,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
                     return;
                   }
                 }
-                spinning_ = false;
+                StopSpinning();
               }
               if (!t.f) {
                 if (!WaitForWork(waiter, &t)) {
