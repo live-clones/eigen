@@ -164,7 +164,7 @@ EIGEN_ALWAYS_INLINE void colLoopBodyIter(Index depth, Index rows, const Packet4f
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
 void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* indexB, Index strideB, Index offsetB, float* result, Index extra_rows)
 {
-  const Index step = (num_acc * 4); //each accumulator has 4 elements
+  constexpr Index step = (num_acc * 4); //each accumulator has 4 elements
   const Index extra_cols = (rhsExtraCols) ? (cols & 3) : 0;
   constexpr bool multiIters = !rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC);
 
