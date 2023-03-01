@@ -173,33 +173,36 @@ template<typename VectorType> void vectorVisitor(const VectorType& w)
   }
 }
 
-template<typename Derived, bool Vectorizable>
+template <typename Derived, bool Vectorizable>
 struct TrackedVisitor {
-  using T = typename DenseBase<Derived>::Scalar;
+  using Scalar = typename DenseBase<Derived>::Scalar;
+  static constexpr int PacketSize = Eigen::internal::packet_traits<Scalar>::size;
+  static constexpr bool RowMajor = Derived::IsRowMajor;
 
-  void init(T v, Index i, Index j) { return this->operator()(v,i,j); }
-  template<typename Packet>
-  void initpacket(Packet p, Index i, Index j) { return this->packet(p,i,j); }
-  void operator()(T v, Index i, Index j) {
+  void init(Scalar v, Index i, Index j) { return this->operator()(v, i, j); }
+  template <typename Packet>
+  void initpacket(Packet p, Index i, Index j) {
+    return this->packet(p, i, j);
+  }
+  void operator()(Scalar v, Index i, Index j) {
     EIGEN_UNUSED_VARIABLE(v)
-    visited.push_back({i, j});
+    visited.emplace_back(i, j);
+    scalarOps++;
   }
 
-  template<typename Packet>
+  template <typename Packet>
   void packet(Packet p, Index i, Index j) {
-    constexpr int PacketSize = Eigen::internal::packet_traits<T>::size;
-    constexpr bool RowMajor = Derived::IsRowMajor;
     EIGEN_UNUSED_VARIABLE(p)
     for (int k = 0; k < PacketSize; k++)
       if (RowMajor)
-        visited.push_back({i, j + k});
+        visited.emplace_back(i, j + k);
       else
-        visited.push_back({i + k, j});
-    // at least one packet op was used
-    vectorized = true;
+        visited.emplace_back(i + k, j);
+    vectorOps++;
   }
-  std::vector<std::pair<int,int>> visited;
-  bool vectorized = false;
+  std::vector<std::pair<Index, Index>> visited;
+  Index scalarOps = 0;
+  Index vectorOps = 0;
 };
 
 namespace Eigen {
@@ -215,25 +218,28 @@ struct functor_traits<TrackedVisitor<T, Vectorizable> > {
 
 template <typename Derived, bool Vectorized>
 void checkOptimalTraversal_impl(const DenseBase<Derived>& mat) {
-  constexpr int PacketSize = Eigen::internal::packet_traits<typename Derived::Scalar>::size;
+  using Scalar = typename DenseBase<Derived>::Scalar;
+  static constexpr int PacketSize = Eigen::internal::packet_traits<Scalar>::size;
+  static constexpr bool RowMajor = Derived::IsRowMajor;
   Derived X(mat.rows(), mat.cols());
   X.setRandom();
   TrackedVisitor<Derived, Vectorized> visitor;
+  visitor.visited.reserve(X.size());
   X.visit(visitor);
   Index count = 0;
   for (Index j = 0; j < X.outerSize(); ++j) {
     for (Index i = 0; i < X.innerSize(); ++i) {
-      Index r = Derived::IsRowMajor ? j : i;
-      Index c = Derived::IsRowMajor ? i : j;
+      Index r = RowMajor ? j : i;
+      Index c = RowMajor ? i : j;
       VERIFY_IS_EQUAL(visitor.visited[count].first, r);
       VERIFY_IS_EQUAL(visitor.visited[count].second, c);
       ++count;
     }
   }
-  VERIFY_IS_EQUAL(count, X.size());
-  // cannot use packet ops if the size is too small
-  if(X.size() >= PacketSize)
-    VERIFY_IS_EQUAL(Vectorized, visitor.vectorized);
+  Index vectorOps = Vectorized ? ((X.innerSize() / PacketSize) * X.outerSize()) : 0;
+  Index scalarOps = X.size() - (vectorOps * PacketSize);
+  VERIFY_IS_EQUAL(vectorOps, visitor.vectorOps);
+  VERIFY_IS_EQUAL(scalarOps, visitor.scalarOps);
 }
 
 void checkOptimalTraversal() {
