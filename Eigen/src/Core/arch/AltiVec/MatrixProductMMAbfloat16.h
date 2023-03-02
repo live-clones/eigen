@@ -301,46 +301,6 @@ EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float *result, Index cols, Index 
   }
 }
 
-template<bool inc, Index delta>
-EIGEN_ALWAYS_INLINE Packet8bf loadBF16fromResult(bfloat16* src, Index resInc)
-{
-  if (inc) {
-    return pgather<bfloat16, Packet8bf>(src + delta*resInc, resInc);
-  } else {
-    return ploadu<Packet8bf>(src + delta);
-  }
-}
-
-template<const Index size, bool inc>
-EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float *result, Index rows, bfloat16*& src, Index resInc)
-{
-  for(; i + size <= rows; i += size, src += size*resInc){
-    PacketBlock<Packet8bf,(size+4)/8> r32;
-    r32.packet[0] = loadBF16fromResult<inc, 0>(src, resInc);
-    if (size >= 16) {
-      r32.packet[1] = loadBF16fromResult<inc, 8>(src, resInc);
-    }
-    if (size >= 32) {
-      r32.packet[2] = loadBF16fromResult<inc, 16>(src, resInc);
-      r32.packet[3] = loadBF16fromResult<inc, 24>(src, resInc);
-    }
-    storeConvertBlockBF16<size>(result + i, r32);
-  }
-}
-
-template<bool inc = false>
-EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index rows, bfloat16* src, Index resInc = 1)
-{
-  Index i = 0;
-  convertPointerBF16toF32<32, inc>(i, result, rows, src, resInc);
-  convertPointerBF16toF32<16, inc>(i, result, rows, src, resInc);
-  convertPointerBF16toF32<8,  inc>(i, result, rows, src, resInc);
-  convertPointerBF16toF32<4,  inc>(i, result, rows, src, resInc);
-  for(; i < rows; i++, src += resInc){
-    result[i] = Eigen::bfloat16_impl::bfloat16_to_float(*src);
-  }
-}
-
 template<typename DataMapper>
 EIGEN_ALWAYS_INLINE void convertArrayF32toBF16(float *result, Index cols, Index rows, const DataMapper& res)
 {
@@ -378,61 +338,6 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16(float *result, Index cols, Index 
       res2(row) = Eigen::bfloat16(result2[row]);
     }
     col++;
-  }
-}
-
-template<const Index size, bool inc, Index delta>
-EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc)
-{
-  if (inc) {
-    if (size == 4) {
-      pscatter_partial(dst + delta*resInc, data, resInc, 4);
-    } else {
-      pscatter<bfloat16, Packet8bf>(dst + delta*resInc, data, resInc);
-    }
-  } else {
-    if (size == 4) {
-      pstoreu_partial(dst + delta, data, 4);
-    } else {
-      pstoreu(dst + delta, data);
-    }
-  }
-}
-
-template<const Index size, bool inc>
-EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index rows, bfloat16*& dst, Index resInc)
-{
-  for(; i + size <= rows; i += size, dst += size*resInc){
-    PacketBlock<Packet8bf,(size+4)/8> r32;
-    r32.packet[0] = convertF32toBF16<size != 4>(result + i +  0);
-    if (size >= 16) {
-      r32.packet[1] = convertF32toBF16<true>(result + i +  8);
-    }
-    if (size >= 32) {
-      r32.packet[2] = convertF32toBF16<true>(result + i + 16);
-      r32.packet[3] = convertF32toBF16<true>(result + i + 24);
-    }
-    storeBF16fromResult<size, inc, 0>(dst, r32.packet[0], resInc);
-    if (size >= 16) {
-      storeBF16fromResult<size, inc, 8>(dst, r32.packet[1], resInc);
-    }
-    if (size >= 32) {
-      storeBF16fromResult<size, inc, 16>(dst, r32.packet[2], resInc);
-      storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
-    }
-  }
-}
-
-template<bool inc = false>
-EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16(float *result, Index rows, bfloat16* dst, Index resInc = 1)
-{
-  Index i = 0;
-  convertPointerF32toBF16<32,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16<16,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16<8,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16<4,inc>(i, result, rows, dst, resInc);
-  for(; i < rows; i++, dst += resInc){
-    *dst = Eigen::bfloat16(result[i]);
   }
 }
 
@@ -496,6 +401,101 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat
   end = __ppc_get_timebase();
   printf("gemm bfloat16 MMA time = %16ld\n", end - start);
 #endif
+}
+
+template<const Index size, bool inc, Index delta>
+EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc)
+{
+  if (inc) {
+    if (size == 4) {
+      pscatter_partial(dst + delta*resInc, data, resInc, 4);
+    } else {
+      pscatter<bfloat16, Packet8bf>(dst + delta*resInc, data, resInc);
+    }
+  } else {
+    if (size == 4) {
+      pstoreu_partial(dst + delta, data, 4);
+    } else {
+      pstoreu(dst + delta, data);
+    }
+  }
+}
+
+template<const Index size, bool inc>
+EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index rows, bfloat16*& dst, Index resInc)
+{
+  for(; i + size <= rows; i += size, dst += size*resInc){
+    PacketBlock<Packet8bf,(size+4)/8> r32;
+    r32.packet[0] = convertF32toBF16<size != 4>(result + i +  0);
+    if (size >= 16) {
+      r32.packet[1] = convertF32toBF16<true>(result + i +  8);
+    }
+    if (size >= 32) {
+      r32.packet[2] = convertF32toBF16<true>(result + i + 16);
+      r32.packet[3] = convertF32toBF16<true>(result + i + 24);
+    }
+    storeBF16fromResult<size, inc, 0>(dst, r32.packet[0], resInc);
+    if (size >= 16) {
+      storeBF16fromResult<size, inc, 8>(dst, r32.packet[1], resInc);
+    }
+    if (size >= 32) {
+      storeBF16fromResult<size, inc, 16>(dst, r32.packet[2], resInc);
+      storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
+    }
+  }
+}
+
+template<bool inc, Index delta>
+EIGEN_ALWAYS_INLINE Packet8bf loadBF16fromResult(bfloat16* src, Index resInc)
+{
+  if (inc) {
+    return pgather<bfloat16, Packet8bf>(src + delta*resInc, resInc);
+  } else {
+    return ploadu<Packet8bf>(src + delta);
+  }
+}
+
+template<const Index size, bool inc>
+EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float *result, Index rows, bfloat16*& src, Index resInc)
+{
+  for(; i + size <= rows; i += size, src += size*resInc){
+    PacketBlock<Packet8bf,(size+4)/8> r32;
+    r32.packet[0] = loadBF16fromResult<inc, 0>(src, resInc);
+    if (size >= 16) {
+      r32.packet[1] = loadBF16fromResult<inc, 8>(src, resInc);
+    }
+    if (size >= 32) {
+      r32.packet[2] = loadBF16fromResult<inc, 16>(src, resInc);
+      r32.packet[3] = loadBF16fromResult<inc, 24>(src, resInc);
+    }
+    storeConvertBlockBF16<size>(result + i, r32);
+  }
+}
+
+template<bool inc = false>
+EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index rows, bfloat16* src, Index resInc = 1)
+{
+  Index i = 0;
+  convertPointerBF16toF32<32, inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<16, inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<8,  inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<4,  inc>(i, result, rows, src, resInc);
+  for(; i < rows; i++, src += resInc){
+    result[i] = Eigen::bfloat16_impl::bfloat16_to_float(*src);
+  }
+}
+
+template<bool inc = false>
+EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16(float *result, Index rows, bfloat16* dst, Index resInc = 1)
+{
+  Index i = 0;
+  convertPointerF32toBF16<32,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<16,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<8,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<4,inc>(i, result, rows, dst, resInc);
+  for(; i < rows; i++, dst += resInc){
+    *dst = Eigen::bfloat16(result[i]);
+  }
 }
 
 template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
@@ -569,6 +569,13 @@ void gemvMMA_bfloat16_col(
   end = __ppc_get_timebase();
   printf("gemvMMA_col bfloat16 MMA time = %16ld\n", end - start);
 #endif
+}
+
+template<Index size>
+EIGEN_ALWAYS_INLINE void calcvRowLoops(const bfloat16*& indexA, Index strideA, Index& row, Index cols, Index rows, const Packet4f pAlpha, float alpha, float *result)
+{
+//  vRowLoops<size>(cols, rows, pAlpha, indexA, result + row);
+  row += size;
 }
 
 template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
