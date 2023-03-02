@@ -51,8 +51,9 @@ EIGEN_ALWAYS_INLINE void KLoop
     rhs[num_rhs - 1] = loadRhsBfloat16<zero>(indexB + k*extra_cols - offsetB, strideB, num_rhs - 1);
   }
 
+  indexA += k*(lhsExtraRows ? extra_rows : num_packets);
   for(Index j = 0; j < num_lhs; j++) {
-    lhs[j] = loadBfloat16<zero>(indexA + j*(zero ? 4 : 8) + k*(lhsExtraRows ? extra_rows : num_packets)); //a packet of bfloat16 has 8 elements
+    lhs[j] = loadBfloat16<zero>(indexA + j*(zero ? 4 : 8)); //a packet of bfloat16 has 8 elements
   }
 
   BFLOAT16_UNROLL
