@@ -135,11 +135,10 @@ EIGEN_ALWAYS_INLINE void outputResults(Packet4f (&acc)[num_acc][4], Index rows, 
 }
 
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows, bool multiIter = false>
-EIGEN_ALWAYS_INLINE void colLoopBodyIter(Index depth, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* indexB, Index strideB, Index offsetB, float* result, const Index extra_cols)
+EIGEN_ALWAYS_INLINE void colLoopBodyIter(Index depth, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* indexB, Index strideB, Index offsetB, float* result, const Index extra_cols, const Index extra_rows)
 {
   constexpr Index num_lhs = multiIter ? (num_packets / 4) : 1;
   constexpr Index num_rhs = (num_acc + num_lhs - 1) / num_lhs;
-  const Index extra_rows = (lhsExtraRows) ? (rows & 3) : 0;
 
   for(Index offset_row = 0; offset_row < num_packets; offset_row += 4, indexA += (multiIter ? 0 : 8), indexB += (multiIter ? (num_rhs*strideB) : 0), result += (multiIter ? (4*rows*num_rhs) : 4)) {
     Packet4f acc[num_acc][4];
@@ -168,13 +167,14 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
 {
   constexpr Index step = (num_acc * 4); //each accumulator has 4 elements
   const Index extra_cols = (rhsExtraCols) ? (cols & 3) : 0;
+  const Index extra_rows = (lhsExtraRows) ? (rows & 3) : 0;
   constexpr bool multiIters = !rhsExtraCols && (num_acc == MAX_BFLOAT16_ACC);
 
   do{
     if (multiIters && ((num_acc % (num_packets / 4)) == 0)) {
-      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, true>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols);
+      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows, true>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
     } else {
-      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols);
+      colLoopBodyIter<num_acc, num_packets, rhsExtraCols, lhsExtraRows>(depth, rows, pAlpha, indexA, indexB, strideB, offsetB, result, extra_cols, extra_rows);
     }
 
     indexB += strideB*num_acc;
