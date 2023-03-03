@@ -315,6 +315,94 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16(float *result, Index cols, Index 
         block.packet[j].m_val = convertF32toBF16(result + (col + j)*rows + row);
       }
 
+      res2.template storePacketBlock<Packet8bf,4>(row, 0, block);
+    }
+    //extra rows
+    while(row < rows){
+      for(Index col_off = 0; col_off < 4; col_off++){
+        res2(row, col_off) = Eigen::bfloat16(result[(col+col_off)*rows+row]);
+      }
+      row++;
+    }
+
+  }
+  //extra cols
+  while(col < cols){
+    const LinearMapper res2 = res.getLinearMapper(0, col);
+    float *result2 = result + col*rows;
+    for(row = 0; row + 8 <= rows; row += 8){
+      Packet8bf fp16 = convertF32toBF16(result2 + row);
+      res2.template storePacket<Packet8bf>(row, fp16);
+    }
+    for(; row < rows; row++){
+      res2(row) = Eigen::bfloat16(result2[row]);
+    }
+    col++;
+  }
+}
+
+template<Index size>
+EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexB, Index strideB, Index offsetA, Index offsetB, Index bigSuffix, float *result)
+{
+  if ((size == 16) || (rows & size)) {
+    indexA += size*offsetA;
+    colLoops<size>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
+    row += size;
+    indexA += bigSuffix*size/16;
+  }
+}
+
+template<typename DataMapper>
+void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat16* indexB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
+{
+#ifdef TEST_VERBOSE
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
+  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
+  if (falpha == float(0)) return;
+  const Packet4f pAlpha = pset1<Packet4f>(falpha);
+  ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
+
+  convertArrayBF16toF32<DataMapper>(result, cols, rows, res);
+
+  Index row = 0;
+
+  if( strideA == -1 ) strideA = depth;
+  if( strideB == -1 ) strideB = depth;
+  //Packing is done in blocks.
+  //There's 4 possible sizes of blocks
+  //Blocks of 8 columns with 16 elements (8x16)
+  //Blocks of 8 columns with 8 elements (8x8). This happens when there's 16 > rows >= 8
+  //Blocks of 8 columns with 4 elements (8x4). This happens when there's 8 > rows >= 4
+  //Blocks of 8 columns with < 4 elements. This happens when there's less than 4 remaining rows
+
+  //Loop for LHS standard block (8x16)
+  Index bigSuffix = (2*8) * (strideA-offsetA);
+  indexB += 4*offsetB;
+  strideB *= 4;
+  offsetB *= 3;
+  while(row + 16 <= rows){
+    calcColLoops<16>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
+  }
+  //LHS (8x8) block
+  calcColLoops<8>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
+  //LHS (8x4) block
+  calcColLoops<4>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
+  //extra rows
+  if(rows & 3){
+    //This index is the beginning of remaining block.
+    colLoops<4, true>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
+  }
+
+  //Convert back to bfloat16
+  convertArrayF32toBF16<DataMapper>(result, cols, rows, res);
+#ifdef TEST_VERBOSE
+  end = __ppc_get_timebase();
+  printf("gemm bfloat16 MMA time = %16ld\n", end - start);
+#endif
+}
+
 template<const Index size, bool inc, Index delta>
 EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc)
 {
@@ -355,16 +443,123 @@ EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index 
       storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
     }
   }
-  //extra cols
-  while(col < cols){
-    const LinearMapper res2 = res.getLinearMapper(0, col);
-    float *result2 = result + col*rows;
-    for(row = 0; row + 8 <= rows; row += 8){
-      Packet8bf fp16 = convertF32toBF16(result2 + row);
-      res2.template storePacket<Packet8bf>(row, fp16);
+}
+
+template<bool inc, Index delta>
+EIGEN_ALWAYS_INLINE Packet8bf loadBF16fromResult(bfloat16* src, Index resInc)
+{
+  if (inc) {
+    return pgather<bfloat16, Packet8bf>(src + delta*resInc, resInc);
+  } else {
+    return ploadu<Packet8bf>(src + delta);
+  }
+}
+
+template<const Index size, bool inc>
+EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float *result, Index rows, bfloat16*& src, Index resInc)
+{
+  for(; i + size <= rows; i += size, src += size*resInc){
+    PacketBlock<Packet8bf,(size+4)/8> r32;
+    r32.packet[0] = loadBF16fromResult<inc, 0>(src, resInc);
+    if (size >= 16) {
+      r32.packet[1] = loadBF16fromResult<inc, 8>(src, resInc);
     }
-    for(; row < rows; row++){
-      res2(row) = Eigen::bfloat16(result2[row]);
+    if (size >= 32) {
+      r32.packet[2] = loadBF16fromResult<inc, 16>(src, resInc);
+      r32.packet[3] = loadBF16fromResult<inc, 24>(src, resInc);
+    }
+    storeConvertBlockBF16<size>(result + i, r32);
+  }
+}
+
+template<bool inc = false>
+EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index rows, bfloat16* src, Index resInc = 1)
+{
+  Index i = 0;
+  convertPointerBF16toF32<32, inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<16, inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<8,  inc>(i, result, rows, src, resInc);
+  convertPointerBF16toF32<4,  inc>(i, result, rows, src, resInc);
+  for(; i < rows; i++, src += resInc){
+    result[i] = Eigen::bfloat16_impl::bfloat16_to_float(*src);
+  }
+}
+
+template<bool inc = false>
+EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16(float *result, Index rows, bfloat16* dst, Index resInc = 1)
+{
+  Index i = 0;
+  convertPointerF32toBF16<32,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<16,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<8,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<4,inc>(i, result, rows, dst, resInc);
+  for(; i < rows; i++, dst += resInc){
+    *dst = Eigen::bfloat16(result[i]);
+  }
+}
+
+template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
+void gemvMMA_bfloat16_col(
+  Index rows, Index cols,
+  const LhsMapper& alhs,
+  const RhsMapper& rhs,
+  bfloat16* res, Index resIncr,
+  bfloat16 alpha)
+{
+#ifdef TEST_VERBOSE
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
+  typedef gemv_traits<LhsScalar, RhsScalar> Traits;
+
+#if 0
+  typedef typename Traits::LhsPacket LhsPacket;
+  typedef typename Traits::RhsPacket RhsPacket;
+  typedef typename Traits::ResPacket ResPacket;
+#endif
+
+  EIGEN_UNUSED_VARIABLE(resIncr);
+  eigen_internal_assert(resIncr == 1);
+
+  // The following copy tells the compiler that lhs's attributes are not modified outside this function
+  // This helps GCC to generate proper code.
+  LhsMapper lhs(alhs);
+  RhsMapper rhs2(rhs);
+
+//  conj_helper<LhsScalar, RhsScalar, false, false> cj;
+//  conj_helper<LhsPacket, RhsPacket, false, false> pcj;
+
+  const Index lhsStride = lhs.stride();
+  // TODO: for padded aligned inputs, we could enable aligned reads
+  enum {
+    LhsAlignment = Unaligned,
+    ResPacketSize = Traits::ResPacketSize,
+    LhsPacketSize = Traits::LhsPacketSize,
+    RhsPacketSize = Traits::RhsPacketSize,
+  };
+
+  // TODO: improve the following heuristic:
+  const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 16000 ? 16 : 8);
+  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
+//  ResPacket palpha = pset1<ResPacket>(alpha);
+
+  ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
+  convertArrayPointerBF16toF32(result, rows, res);
+
+  for (Index j2 = 0; j2 < cols; j2 += block_cols)
+  {
+    Index jend = numext::mini(j2 + block_cols, cols);
+    Index i = 0;
+
+    // MMA code here
+    for (;i < rows;++i)
+    {
+      float d0(0);
+      Index j = j2;
+      do {
+        d0 += Eigen::bfloat16_impl::bfloat16_to_float(lhs(i, j) * rhs2(j, 0));
+      } while (++j < jend);
+      result[i] += falpha * d0;
     }
   }
 
@@ -376,58 +571,104 @@ EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index 
 #endif
 }
 
-template<Index size>
-EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexB, Index strideB, Index offsetA, Index offsetB, Index bigSuffix, float *result)
+#define MAX_BFLOAT16_VEC_ACC   8
+
+#if 0
+template<typename LhsMapper, typename RhsMapper, bool lhsExtraRows = false>
+EIGEN_ALWAYS_INLINE void colVecLoops(Index& row, Index cols, Index rows, LhsMapper lhs, RhsMapper rhs, const Packet4f pAlpha, float *result, Index resInc)
 {
-  if ((size == 16) || (rows & size)) {
-    indexA += size*offsetA;
-    colLoops<size>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
-    row += size;
-    indexA += bigSuffix*size/16;
+  Index col = 0;
+  if (cols >= (MAX_BFLOAT16_VEC_ACC * 4)) {
+    colVecLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper, false, lhsExtraRows>(col, cols, rows, lhs, rhs, pAlpha, result, resInc);
+//    blockB += (strideB >> 2)*col;
+//    result += rows*col;
   }
+//  if (cols & 3) {
+//    colVecLoopBodyExtra<LhsMapper, RhsMapper, true, lhsExtraRows>(col, cols, rows, lhs, rhs, pAlpha, result);
+//  } else {
+//    colVecLoopBodyExtra<LhsMapper, RhsMapper, false, lhsExtraRows>(col, cols, rows, lhs, rhs, pAlpha, result);
+//  }
 }
+#endif
 
-template<typename DataMapper>
-void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat16* indexB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
+template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
+EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
+  Index rows, Index cols,
+  const LhsMapper& alhs,
+  const RhsMapper& rhs,
+  bfloat16* res, Index resIncr,
+  bfloat16 alpha)
 {
+#ifdef TEST_VERBOSE
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
+  typedef gemv_traits<LhsScalar, RhsScalar> Traits;
+
+  typedef typename Traits::LhsPacket LhsPacket;
+  typedef typename Traits::RhsPacket RhsPacket;
+  typedef typename Traits::ResPacket ResPacket;
+
+  typedef typename RhsMapper::LinearMapper LinearMapper;
+
+  // The following copy tells the compiler that lhs's attributes are not modified outside this function
+  // This helps GCC to generate proper code.
+  LhsMapper lhs(alhs);
+  LinearMapper rhs2 = rhs.getLinearMapper(0, 0);
+
+  eigen_internal_assert(rhs.stride() == 1);
+//  conj_helper<LhsScalar, RhsScalar, false, false> cj;
+  conj_helper<LhsPacket, RhsPacket, false, false> pcj;
+
+  // TODO: for padded aligned inputs, we could enable aligned reads
+  enum {
+    LhsAlignment = Unaligned,
+    ResPacketSize = Traits::ResPacketSize,
+    LhsPacketSize = Traits::LhsPacketSize,
+    RhsPacketSize = Traits::RhsPacketSize,
+  };
+
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
-  if (falpha == float(0)) return;
-  const Packet4f pAlpha = pset1<Packet4f>(falpha);
-  ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
+//  Packet4f pAlpha = pset1<Packet4f>(falpha);
 
-  convertArrayBF16toF32<DataMapper>(result, cols, rows, res);
-
-  Index row = 0;
-
-  if( strideA == -1 ) strideA = depth;
-  if( strideB == -1 ) strideB = depth;
-  //Packing is done in blocks.
-  //There's 4 possible sizes of blocks
-  //Blocks of 8 columns with 16 elements (8x16)
-  //Blocks of 8 columns with 8 elements (8x8). This happens when there's 16 > rows >= 8
-  //Blocks of 8 columns with 4 elements (8x4). This happens when there's 8 > rows >= 4
-  //Blocks of 8 columns with < 4 elements. This happens when there's less than 4 remaining rows
-
-  //Loop for LHS standard block (8x16)
-  Index bigSuffix = (2*8) * (strideA-offsetA);
-  indexB += 4*offsetB;
-  strideB *= 4;
-  offsetB *= 3;
-  while(row + 16 <= rows){
-    calcColLoops<16>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
-  }
-  //LHS (8x8) block
-  calcColLoops<8>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
-  //LHS (8x4) block
-  calcColLoops<4>(indexA, row, depth, cols, rows, pAlpha, indexB, strideB, offsetA, offsetB, bigSuffix, result);
-  //extra rows
-  if(rows & 3){
-    //This index is the beginning of remaining block.
-    colLoops<4, true>(depth, cols, rows, pAlpha, indexA, indexB, strideB, offsetB, result + row);
+  ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
+  if (resIncr == 1) {
+    convertArrayPointerBF16toF32(result, rows, res);
+  } else {
+    convertArrayPointerBF16toF32<true>(result, rows, res, resIncr);
   }
 
-  //Convert back to bfloat16
-  convertArrayF32toBF16<DataMapper>(result, cols, rows, res);
+  Index i = 0;
+//  colVecLoops<LhsMapper, LinearMapper>(i);
+  // MMA code here
+  for (; i < rows; ++i)
+  {
+    ResPacket d0 = pset1<ResPacket>(ResScalar(0));
+    Index j = 0;
+    for (; j + LhsPacketSize <= cols; j += LhsPacketSize)
+    {
+      RhsPacket b0 = rhs2.template load<RhsPacket, Unaligned>(j);
+
+      d0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, d0);
+    }
+    float dd0 = Eigen::bfloat16_impl::bfloat16_to_float(predux(d0));
+    for (; j < cols; ++j)
+    {
+      dd0 += Eigen::bfloat16_impl::bfloat16_to_float(lhs(i, j) * rhs2(j));
+    }
+    result[i] += falpha * dd0;
+  }
+
+  if (resIncr == 1) {
+    convertArrayPointerF32toBF16(result, rows, res);
+  } else {
+    convertArrayPointerF32toBF16<true>(result, rows, res, resIncr);
+  }
+
+#ifdef TEST_VERBOSE
+  end = __ppc_get_timebase();
+  printf("gemvMMA_row bfloat16 MMA time = %16ld\n", end - start);
+#endif
 }
 
 }
