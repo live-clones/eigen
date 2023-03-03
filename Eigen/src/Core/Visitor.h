@@ -37,7 +37,7 @@ struct short_circuit_eval_impl<Visitor, true> {
 // unrolled inner-outer traversal
 template <typename Visitor, typename Derived, int UnrollCount, bool Vectorize, bool ShortCircuitEvaluation>
 struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircuitEvaluation> {
-  using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
+  // don't use short circuit evaulation for unrolled version
   using Scalar = typename Derived::Scalar;
   using Packet = typename packet_traits<Scalar>::type;
   static constexpr bool RowMajor = Derived::IsRowMajor;
@@ -50,25 +50,24 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
     return Vectorize && (InnerSizeAtCompileTime - (K % InnerSizeAtCompileTime) >= PacketSize);
   }
 
-  template <int K = 0, int N = UnrollCount - K, 
-      bool Empty = (N == 0),
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       std::enable_if_t<Empty, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived&, Visitor&) {}
 
-  template <int K = 0, int N = UnrollCount - K,
-      bool Empty = (N == 0),
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && Initialize && !DoVectorOp, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor)
   {
     visitor.init(mat.coeff(0, 0), 0, 0);
-    if (short_circuit::run(visitor)) return;
     run<1>(mat, visitor);
   }
 
-  template <int K = 0, int N = UnrollCount - K,
-      bool Empty = (N == 0),
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && !Initialize && !DoVectorOp, bool> = true>
@@ -77,12 +76,11 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
     static constexpr int R = RowMajor ? (K / ColsAtCompileTime) : (K % RowsAtCompileTime);
     static constexpr int C = RowMajor ? (K % ColsAtCompileTime) : (K / RowsAtCompileTime);
     visitor(mat.coeff(R, C), R, C);
-    if (short_circuit::run(visitor)) return;
     run<K + 1>(mat, visitor);
   }
 
-  template <int K = 0, int N = UnrollCount - K,
-      bool Empty = (N == 0),
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && Initialize && DoVectorOp, bool> = true>
@@ -90,12 +88,11 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
   {
     Packet P = mat.template packet<Packet>(0, 0);
     visitor.initpacket(P, 0, 0);
-    if (short_circuit::run(visitor)) return;
     run<PacketSize>(mat, visitor);
   }
 
-  template <int K = 0, int N = UnrollCount - K,
-      bool Empty = (N == 0),
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && !Initialize && DoVectorOp, bool> = true>
@@ -105,7 +102,6 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
     static constexpr int C = RowMajor ? (K % ColsAtCompileTime) : (K / RowsAtCompileTime);
     Packet P = mat.template packet<Packet>(R, C);
     visitor.packet(P, R, C);
-    if (short_circuit::run(visitor)) return;
     run<K + PacketSize>(mat, visitor);
   }
 };
@@ -113,7 +109,7 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
 // unrolled linear traversal
 template <typename Visitor, typename Derived, int UnrollCount, bool Vectorize, bool ShortCircuitEvaluation>
 struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, true, ShortCircuitEvaluation> {
-  using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
+  // don't use short circuit evaulation for unrolled version
   using Scalar = typename Derived::Scalar;
   using Packet = typename packet_traits<Scalar>::type;
   static constexpr int PacketSize = packet_traits<Scalar>::size;
@@ -122,59 +118,55 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, true, ShortCircuit
       return Vectorize && ((UnrollCount - K) >= PacketSize);
   }
 
-  // empty specialization
-  template <int K = 0, int N = UnrollCount - K, 
-      bool Empty = (N == 0), 
+  // empty
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       std::enable_if_t<Empty, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived&, Visitor&) {}
 
   // scalar initialization
-  template <int K = 0, int N = UnrollCount - K, 
-      bool Empty = (N == 0), 
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && Initialize && !DoVectorOp, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
     visitor.init(mat.coeff(0), 0);
-    if (short_circuit::run(visitor)) return;
     run<1>(mat, visitor);
   }
 
   // scalar iteration
-  template <int K = 0, int N = UnrollCount - K, 
-      bool Empty = (N == 0), 
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && !Initialize && !DoVectorOp, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
     visitor(mat.coeff(K), K);
-    if (short_circuit::run(visitor)) return;
     run<K + 1>(mat, visitor);
   }
 
   // vector initialization
-  template <int K = 0, int N = UnrollCount - K, 
-      bool Empty = (N == 0), 
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && Initialize && DoVectorOp, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
     Packet P = mat.template packet<Packet>(0);
     visitor.initpacket(P, 0);
-    if (short_circuit::run(visitor)) return;
     run<PacketSize>(mat, visitor);
   }
 
   // vector iteration
-  template <int K = 0, int N = UnrollCount - K, 
-      bool Empty = (N == 0), 
+  template <int K = 0,
+      bool Empty = (K == UnrollCount),
       bool Initialize = (K == 0),
       bool DoVectorOp = CanVectorize(K),
       std::enable_if_t<!Empty && !Initialize && DoVectorOp, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
     Packet P = mat.template packet<Packet>(K);
     visitor.packet(P, K);
-    if (short_circuit::run(visitor)) return;
     run<K + PacketSize>(mat, visitor);
   }
 };
@@ -196,7 +188,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
         Index r = RowMajor ? 0 : i;
         Index c = RowMajor ? i : 0;
         visitor(mat.coeff(r, c), r, c);
-        if (short_circuit::run(visitor)) return;
+        if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
       }
     }
     for (Index j = 1; j < outerSize; j++) {
@@ -204,7 +196,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
         Index r = RowMajor ? j : i;
         Index c = RowMajor ? i : j;
         visitor(mat.coeff(r, c), r, c);
-        if (short_circuit::run(visitor)) return;
+        if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
       }
     }
   }
@@ -233,19 +225,19 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
         visitor.initpacket(p, 0, 0);
         i = PacketSize;
       }
-      if (short_circuit::run(visitor)) return;
+      if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
       for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
         Index r = RowMajor ? 0 : i;
         Index c = RowMajor ? i : 0;
         Packet p = mat.template packet<Packet>(r, c);
         visitor.packet(p, r, c);
-        if (short_circuit::run(visitor)) return;
+        if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
       }
       for (; i < innerSize; ++i) {
         Index r = RowMajor ? 0 : i;
         Index c = RowMajor ? i : 0;
         visitor(mat.coeff(r, c), r, c);
-        if (short_circuit::run(visitor)) return;
+        if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
       }
     }
     for (Index j = 1; j < outerSize; j++) {
@@ -255,13 +247,13 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
         Index c = RowMajor ? i : j;
         Packet p = mat.template packet<Packet>(r, c);
         visitor.packet(p, r, c);
-        if (short_circuit::run(visitor)) return;
+        if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
       }
       for (; i < innerSize; ++i) {
         Index r = RowMajor ? j : i;
         Index c = RowMajor ? i : j;
         visitor(mat.coeff(r, c), r, c);
-        if (short_circuit::run(visitor)) return;
+        if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
       }
     }
   }
@@ -276,10 +268,10 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
     const Index size = mat.size();
     if (size == 0) return;
     visitor.init(mat.coeff(0), 0);
-    if (short_circuit::run(visitor)) return;
+    if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
     for (Index k = 1; k < size; k++) {
       visitor(mat.coeff(k), k);
-      if (short_circuit::run(visitor)) return;
+      if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
     }
   }
 };
@@ -304,15 +296,15 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
       visitor.initpacket(p, k);
       k = PacketSize;
     }
-    if (short_circuit::run(visitor)) return;
+    if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
     for (; k + PacketSize - 1 < size; k += PacketSize) {
       Packet p = mat.template packet<Packet>(k);
       visitor.packet(p, k);
-      if (short_circuit::run(visitor)) return;
+      if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
     }
     for (; k < size; k++) {
       visitor(mat.coeff(k), k);
-      if (short_circuit::run(visitor)) return;
+      if EIGEN_PREDICT_FALSE(short_circuit::run(visitor)) return;
     }
   }
 };
@@ -362,14 +354,28 @@ template <typename Derived, typename Visitor, bool ShortCircuitEvaulation>
 struct visit_impl {
   using Evaluator = visitor_evaluator<Derived>;
   using Scalar = typename DenseBase<Derived>::Scalar;
+
+  static constexpr bool IsRowMajor = DenseBase<Derived>::IsRowMajor;
   static constexpr int SizeAtCompileTime = DenseBase<Derived>::SizeAtCompileTime;
-  static constexpr bool Unroll =
-      SizeAtCompileTime != Dynamic && SizeAtCompileTime * int(Evaluator::CoeffReadCost) +
-                                              (SizeAtCompileTime - 1) * int(functor_traits<Visitor>::Cost) <=
-                                          EIGEN_UNROLLING_LIMIT;
-  static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
-  static constexpr bool Vectorize = Evaluator::PacketAccess && static_cast<bool>(functor_traits<Visitor>::PacketAccess);
+  static constexpr int RowsAtCompileTime = DenseBase<Derived>::RowsAtCompileTime;
+  static constexpr int ColsAtCompileTime = DenseBase<Derived>::ColsAtCompileTime;
+  static constexpr int InnerSizeAtCompileTime = IsRowMajor ? ColsAtCompileTime : RowsAtCompileTime;
+  static constexpr int OuterSizeAtCompileTime = IsRowMajor ? RowsAtCompileTime : ColsAtCompileTime;
+
   static constexpr bool LinearAccess = Evaluator::LinearAccess && static_cast<bool>(functor_traits<Visitor>::LinearAccess);
+  static constexpr bool Vectorize = Evaluator::PacketAccess && static_cast<bool>(functor_traits<Visitor>::PacketAccess);
+
+  static constexpr int PacketSize = packet_traits<Scalar>::size;
+  static constexpr int VectorOps = Vectorize ? (LinearAccess ? (SizeAtCompileTime / PacketSize) : (OuterSizeAtCompileTime * (InnerSizeAtCompileTime / PacketSize))) : 0;
+  static constexpr int ScalarOps = SizeAtCompileTime - (VectorOps * PacketSize);
+  // treat vector op and scalar op as same cost for unroll logic
+  static constexpr int TotalOps = VectorOps + ScalarOps;
+
+  static constexpr int UnrollCost = int(Evaluator::CoeffReadCost) + int(functor_traits<Visitor>::Cost);
+  static constexpr bool Unroll = (SizeAtCompileTime != Dynamic) && ((TotalOps * UnrollCost) <= EIGEN_UNROLLING_LIMIT);
+  static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
+
+
   using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, LinearAccess, ShortCircuitEvaulation>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const DenseBase<Derived>& mat, Visitor& visitor) {
@@ -649,7 +655,7 @@ struct count_visitor {
 template <typename Scalar>
 struct functor_traits<count_visitor<Scalar>> {
   enum {
-    Cost = NumTraits<Scalar>::ReadCost,
+    Cost = NumTraits<Scalar>::AddCost,
     LinearAccess = true,
     // predux is problematic for bool
     PacketAccess = packet_traits<Scalar>::HasCmp && packet_traits<Scalar>::HasAdd && !is_same<Scalar, bool>::value
