@@ -161,30 +161,30 @@ You should now see the output
 
 The three following commands are used in both cases and are typically part of every CMakeLists.txt.
 
-**cmake_minimum_required** (VERSION 3.0)
+[**cmake_minimum_required**](https://cmake.org/cmake/help/v3.5/command/cmake_minimum_required.html) (VERSION 3.0)
   - The top most command in any *CMakeLists.txt* must specify the minimum required CMake version.
   - In Eigen's case the minimum required version is 3.0.
 
-**project** (myproject)
+[**project**](https://cmake.org/cmake/help/latest/command/project.html) (myproject)
   - This command sets the name of the project and is also required.
   - Typically it should be used right after *cmake_minimum_required*.
 
-**add_executable** (example example.cpp)
+[**add_executable**](https://cmake.org/cmake/help/latest/command/add_executable.html) (example example.cpp)
   - This command tells CMake to create an executable (named *example*) using the specified source code files.
 
 The following command is neccessary if you access Eigen from a local folder:
 
-**include_directories** ("\<path to eigen source files\>")
+[**include_directories**](https://cmake.org/cmake/help/latest/command/include_directories.html) ("\<path to eigen source files\>")
   - This command adds the specified directory to those that the compiler uses to search for include files.
   - This has to point to the eigen header files, otherwise the compiler will not be able to find them.
   - In our example, the eigen header files lie within the project directory in the eigen folder (.../myproject/eigen). If you placed them outside, make sure that the path to the eigen directory is correctly set in this command.
 
 These commands are neccessary if you use an installed version of Eigen. This makes use Eigen's native CMake support, by importing the CMake target Eigen3::Eigen:
 
-**find_package** (Eigen3 3.3 REQUIRED NO_MODULE)
+[**find_package**](https://cmake.org/cmake/help/latest/command/find_package.html) (Eigen3 3.3 REQUIRED NO_MODULE)
   - This command is used to find *cmake-ready* external package on the system and make it available.
   - In our example we are looking for the Eigen3 package in version 3.3 or higher.
 
-**target_link_libraries** (example Eigen3::Eigen)
+[**target_link_libraries**](https://cmake.org/cmake/help/latest/command/target_link_libraries.html) (example Eigen3::Eigen)
   - Links the library into the target executable.
   - In this case the Eigen3::Eigen target is linked to the example program.
