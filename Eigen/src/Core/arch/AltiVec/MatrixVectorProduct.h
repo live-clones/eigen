@@ -2103,7 +2103,7 @@ struct general_matrix_vector_product<Index, bfloat16, LhsMapper, RowMajor, Conju
         const RhsMapper& rhs, \
         bfloat16* res, Index resIncr, \
         bfloat16 alpha) { \
-        gemvMMA_bfloat16_row<bfloat16, LhsMapper, bfloat16, RhsMapper, bfloat16>(rows, cols, lhs, rhs, res, resIncr, alpha); \
+        gemvMMA_bfloat16_row<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha); \
     } \
 };
 
