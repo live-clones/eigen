@@ -241,7 +241,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
       }
     }
     for (Index j = 1; j < outerSize; j++) {
-      Index i = j == 0 ? 1 : 0;
+      Index i = 0;
       for (; i + PacketSize - 1 < innerSize; i += PacketSize) {
         Index r = RowMajor ? j : i;
         Index c = RowMajor ? i : j;
@@ -314,7 +314,7 @@ template<typename XprType>
 class visitor_evaluator
 {
 public:
-  typedef internal::evaluator<XprType> Evaluator;
+  typedef evaluator<XprType> Evaluator;
   typedef typename XprType::Scalar Scalar;
   using Packet = typename packet_traits<Scalar>::type;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
@@ -324,6 +324,7 @@ public:
   static constexpr bool IsRowMajor = static_cast<bool>(XprType::IsRowMajor);
   static constexpr int RowsAtCompileTime = XprType::RowsAtCompileTime;
   static constexpr int ColsAtCompileTime = XprType::ColsAtCompileTime;
+  static constexpr int XprAlignment = Evaluator::Alignment;
   static constexpr int CoeffReadCost = Evaluator::CoeffReadCost;
 
   EIGEN_DEVICE_FUNC
@@ -332,14 +333,15 @@ public:
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_xpr.rows(); }
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_xpr.cols(); }
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index size() const EIGEN_NOEXCEPT { return m_xpr.size(); }
-
+  // outer-inner access
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const { return m_evaluator.coeff(row, col); }
   template <typename Packet, int Alignment = Unaligned>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index row, Index col) const {
     return m_evaluator.template packet<Alignment, Packet>(row, col);
   }
+  // linear access
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_evaluator.coeff(index); }
-  template <typename Packet, int Alignment = Unaligned>
+  template <typename Packet, int Alignment = XprAlignment>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index index) const {
     return m_evaluator.template packet<Alignment, Packet>(index);
   }
@@ -349,7 +351,6 @@ protected:
   const XprType &m_xpr;
 };
 
-// cannot use this functor for DenseBase<Derived>::visit yet as linear access is not enabled
 template <typename Derived, typename Visitor, bool ShortCircuitEvaulation>
 struct visit_impl {
   using Evaluator = visitor_evaluator<Derived>;
@@ -813,7 +814,7 @@ Index DenseBase<Derived>::count() const
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::hasNaN() const {
-  return (derived().array() != derived().array()).any();
+  return derived().cwiseTypedNotEqual(derived()).any();
 }
 
 /** \returns true if \c *this contains only finite numbers, i.e., no NaN and no +/-INF values.
@@ -822,7 +823,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::hasNaN() const {
   */
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::allFinite() const {
-  return (derived().array().abs() < NumTraits<Scalar>::infinity()).all();
+  return derived().cwiseAbs().cwiseTypedLesser(NumTraits<Scalar>::infinity()).all();
 }
 
 } // end namespace Eigen
