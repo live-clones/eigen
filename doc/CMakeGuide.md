@@ -40,20 +40,19 @@ Move to the directory where the Eigen source files are located. This directory s
 
 Assuming you are in the Eigen source directory:
 ```bash
-mkdir build
-cd build
-cmake ..
-make install
+cmake -B build .
+cmake --build build --target install
 ```
 
-The ```make install``` command may require administrator privileges. In that the case, simply do 
+The ```install``` target may require administrator privileges. In that the case, simply do 
 ```bash
-sudo make install
+sudo cmake --build build --target install
 ```
 
 You can also install to a local directory without administrator privileges:
 ```bash
-cmake .. -DCMAKE_INSTALL_PREFIX=<path to local installation folder>
+cmake -B build . -DCMAKE_INSTALL_PREFIX=<path to local installation folder>
+cmake --build build --target install
 ```
 
 ## Preparing the Files
@@ -67,7 +66,7 @@ We will now create a simple program, which will make use of the Eigen library. C
 #include <Eigen/Dense>
 
 using Eigen::MatrixXd;
- 
+
 int main()
 {
   MatrixXd m(2,2);
@@ -110,28 +109,21 @@ myproject/
 
 ## Running CMake
 
-Now we are technically ready to run CMake. However, running CMake will create various build files that can clutter the directory. Therefore it is recommended to create a build folder and run CMake within that folder.
+Now we are technically ready to run CMake. However, running CMake will create various build files that can clutter the directory. Therefore it is recommended to create a build folder and run CMake within that folder. The following command does all of this.
 
 ```bash
-mkdir build
-cd build
-cmake ..
-```
-
-Or as a one-liner
-```bash
-mkdir build && cd build && cmake..
+cmake -B build .
 ```
 
 ---
 **Note**: If Eigen is not installed in a default location or if you want to pick a specific version, you have to set the *CMAKE_PREFIX_PATH* variable:
 ```bash
-cmake .. -DCMAKE_PREFIX_PATH=$HOME/mypackages
+cmake -B build . -DCMAKE_PREFIX_PATH=$HOME/mypackages
 ```
 
 Alternatively, you can also set the *Eigen3_DIR* variable to the respective path containing the Eigen3*.cmake files:
 ```bash
-cmake .. -DEigen3_DIR=$HOME/mypackages/share/eigen3/cmake/
+cmake -B build . -DEigen3_DIR=$HOME/mypackages/share/eigen3/cmake/
 ```
 ---
 The directory structure should now be the following
@@ -146,16 +138,16 @@ myproject/
         `-- CMakeFiles/
 ```
 
-Now, from within the build directory, you can use the ```make``` command to create the executable.
+Now you can use the following command to create the executable.
 
 ```bash
-make
+cmake --build builddir .
 ```
 
 This will add one more file to the build folder, which is the executable of our example program. Execute your program with
 
 ```bash
-./example
+./example (from within the build folder)
 ```
 
 You should now see the output
