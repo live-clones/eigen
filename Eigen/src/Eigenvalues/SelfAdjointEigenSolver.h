@@ -126,8 +126,8 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     EIGEN_DEVICE_FUNC
     SelfAdjointEigenSolver()
         : m_eivec(),
-          m_eivalues(),
           m_workspace(),
+          m_eivalues(),
           m_subdiag(),
           m_hcoeffs(),
           m_info(InvalidInput),
@@ -150,8 +150,8 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     EIGEN_DEVICE_FUNC
     explicit SelfAdjointEigenSolver(Index size)
         : m_eivec(size, size),
-          m_eivalues(size),
           m_workspace(size),
+          m_eivalues(size),
           m_subdiag(size > 1 ? size - 1 : 1),
           m_hcoeffs(size > 1 ? size - 1 : 1),
           m_isInitialized(false),
@@ -177,8 +177,8 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     EIGEN_DEVICE_FUNC
     explicit SelfAdjointEigenSolver(const EigenBase<InputType>& matrix, int options = ComputeEigenvectors)
       : m_eivec(matrix.rows(), matrix.cols()),
-        m_eivalues(matrix.cols()),
         m_workspace(matrix.cols()),
+        m_eivalues(matrix.cols()),
         m_subdiag(matrix.rows() > 1 ? matrix.rows() - 1 : 1),
         m_hcoeffs(matrix.cols() > 1 ? matrix.cols() - 1 : 1),
         m_isInitialized(false),
