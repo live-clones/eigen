@@ -126,6 +126,7 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     SelfAdjointEigenSolver()
         : m_eivec(),
           m_eivalues(),
+          m_workspace(),
           m_subdiag(),
           m_hcoeffs(),
           m_info(InvalidInput),
@@ -149,6 +150,7 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     explicit SelfAdjointEigenSolver(Index size)
         : m_eivec(size, size),
           m_eivalues(size),
+          m_workspace(size),
           m_subdiag(size > 1 ? size - 1 : 1),
           m_hcoeffs(size > 1 ? size - 1 : 1),
           m_isInitialized(false),
@@ -175,6 +177,7 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     explicit SelfAdjointEigenSolver(const EigenBase<InputType>& matrix, int options = ComputeEigenvectors)
       : m_eivec(matrix.rows(), matrix.cols()),
         m_eivalues(matrix.cols()),
+        m_workspace(matrix.cols()),
         m_subdiag(matrix.rows() > 1 ? matrix.rows() - 1 : 1),
         m_hcoeffs(matrix.cols() > 1 ? matrix.cols() - 1 : 1),
         m_isInitialized(false),
@@ -377,7 +380,7 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
     EigenvectorsType m_eivec;
-    RealVectorType m_eivalues;
+    RealVectorType m_eivalues, m_workspace;
     typename TridiagonalizationType::SubDiagonalType m_subdiag;
     typename TridiagonalizationType::CoeffVectorType m_hcoeffs;
     ComputationInfo m_info;
@@ -451,7 +454,7 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>
   mat.template triangularView<Lower>() /= scale;
   m_subdiag.resize(n-1);
   m_hcoeffs.resize(n-1);
-  internal::tridiagonalization_inplace(mat, diag, m_subdiag, m_hcoeffs, computeEigenvectors);
+  internal::tridiagonalization_inplace(mat, diag, m_subdiag, m_hcoeffs, m_workspace, computeEigenvectors);
 
   m_info = internal::computeFromTridiagonal_impl(diag, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
   
