@@ -409,7 +409,7 @@ EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Inde
     if (size == 4) {
       pscatter_partial(dst + delta*resInc, data, resInc, 4);
     } else {
-      pscatter<bfloat16, Packet8bf>(dst + delta*resInc, data, resInc);
+      pscatter(dst + delta*resInc, data, resInc);
     }
   } else {
     if (size == 4) {
@@ -573,16 +573,22 @@ void gemvMMA_bfloat16_col(
 template<const Index num_acc, bool inc>
 EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packet4f pAlpha, float falpha, Index resInc)
 {
-  if (inc) {
-    for(Index k = 0; k < num_acc; k++) {
-      result[k*resInc] += falpha * acc2[k];
-    }
-  } else {
-    for(Index k = 0; k < num_acc; k += 4) {
-      Packet4f c0, d0;
+  for(Index k = 0; k < num_acc; k += 4) {
+    Packet4f d0;
+    if (inc) {
+      d0 = pgather<float, Packet4f>(result + k*resInc, resInc);
+    } else {
       d0 = ploadu<Packet4f>(result + k);
-      c0 = pload<Packet4f>(acc2 + k);
-      d0 = pmadd(c0, pAlpha, d0);
+    }
+    Packet4f c0 = pload<Packet4f>(acc2 + k);
+    d0 = pmadd(c0, pAlpha, d0);
+    if (inc) {
+      if (num_acc < (k + 4)) {
+        pscatter_partial<float, Packet4f>(result + k*resInc, d0, resInc, (num_acc & 3));
+      } else {
+        pscatter<float, Packet4f>(result + k*resInc, d0, resInc);
+      }
+    } else {
       if (num_acc < (k + 4)) {
         pstoreu_partial(result + k, d0, (num_acc & 3));
       } else {
@@ -632,6 +638,7 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
     disassembleAccumulators<num_acc>(quad_acc, acc);
 
     preduxVecResults<num_acc>(acc, acc2);
+
     outputVecResults<num_acc, inc>(acc2, result, pAlpha, falpha, resInc);
 #else
     Packet8bf acc[num_acc];
@@ -664,7 +671,7 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
     outputVecResults<num_acc, inc>(acc2, result, pAlpha, falpha, resInc);
 #endif
 
-    result += num_acc;
+    result += (inc) ? (num_acc*resInc) : num_acc;
   } while(multiIters && (num_acc <= rows - (row += num_acc)));
 }
 
@@ -679,7 +686,7 @@ EIGEN_ALWAYS_INLINE void colVecLoopBodyExtraN(Index& row, Index cols, Index rows
 template<typename LhsMapper, typename RhsMapper, bool inc>
 EIGEN_ALWAYS_INLINE void colVecLoopBodyExtra(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const float falpha, float *result, Index resInc)
 {
-  switch (rows & 7) {
+  switch (rows - row) {
   case 7:
     colVecLoopBodyExtraN<7, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, falpha, result, resInc);
     break;
