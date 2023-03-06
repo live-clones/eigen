@@ -602,7 +602,7 @@ template<const Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults(Packet8bf (&acc)[num_acc], float (&acc2)[8])
 {
   for(Index k = 0; k < num_acc; k++) {
-    acc2[k] = Eigen::bfloat16_impl::bfloat16_to_float(predux(acc[k]));
+    acc2[k] = predux<Packet4f>(Bf16ToF32Even(acc[k])) + predux<Packet4f>(Bf16ToF32Odd(acc[k]));
   }
 }
 
@@ -664,7 +664,7 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
     outputVecResults<num_acc, inc>(acc2, result, pAlpha, resInc);
 #endif
 
-    result += (inc) ? (num_acc*resInc) : num_acc;
+    result += ((inc) ? (num_acc*resInc) : num_acc);
   } while(multiIters && (num_acc <= rows - (row += num_acc)));
 }
 
@@ -712,7 +712,7 @@ EIGEN_ALWAYS_INLINE void calcVecLoops(Index cols, Index rows, LhsMapper& lhs, Rh
   Index row = 0;
   if (rows >= MAX_BFLOAT16_VEC_ACC) {
     colVecLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
-    result += row;
+    result += ((inc) ? (row*resInc) : row);
   }
   colVecLoopBodyExtra<LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
 }
