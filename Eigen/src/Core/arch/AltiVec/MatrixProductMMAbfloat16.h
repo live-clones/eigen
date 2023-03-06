@@ -598,11 +598,26 @@ EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packe
   }
 }
 
+EIGEN_ALWAYS_INLINE float predux2(Packet8bf acc)
+{
+  Packet4f sum0, sum1, a0, a1, sum;
+
+  a0 = Bf16ToF32Even(acc);
+  a1 = Bf16ToF32Odd(acc);
+
+  sum0 = a0 + vec_sld(a0, a0, 8);
+  sum1 = a1 + vec_sld(a1, a1, 8);
+
+  sum = sum0 + sum1 + vec_sld(sum0, sum0, 4) + vec_sld(sum1, sum1, 4);
+
+  return pfirst(sum);
+}
+
 template<const Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults(Packet8bf (&acc)[num_acc], float (&acc2)[8])
 {
   for(Index k = 0; k < num_acc; k++) {
-    acc2[k] = predux<Packet4f>(Bf16ToF32Even(acc[k])) + predux<Packet4f>(Bf16ToF32Odd(acc[k]));
+    acc2[k] = predux2(acc[k]);
   }
 }
 
