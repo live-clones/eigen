@@ -598,9 +598,6 @@ EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packe
   }
 }
 
-#define USE_BFLOAT16_VEC_MMA
-
-#ifdef USE_BFLOAT16_VEC_MMA
 static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f, 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f };
 
 template<const Index num_acc, bool two>
@@ -664,51 +661,6 @@ EIGEN_ALWAYS_INLINE void vecLoop(Index row, Index cols, LhsMapper& lhs, RhsMappe
     }
   }
 }
-#else
-EIGEN_ALWAYS_INLINE float predux2(Packet8bf acc)
-{
-  Packet4f sum0, sum1, a0, a1, sum;
-
-  a0 = Bf16ToF32Even(acc);
-  a1 = Bf16ToF32Odd(acc);
-
-  sum0 = a0 + vec_sld(a0, a0, 8);
-  sum1 = a1 + vec_sld(a1, a1, 8);
-
-  sum = sum0 + sum1 + vec_sld(sum0, sum0, 4) + vec_sld(sum1, sum1, 4);
-
-  return pfirst(sum);
-}
-
-template<const Index num_acc>
-EIGEN_ALWAYS_INLINE void preduxVecResults(Packet8bf (&acc)[num_acc], float (&acc2)[8])
-{
-  for(Index k = 0; k < num_acc; k++) {
-    acc2[k] = predux2(acc[k]);
-  }
-}
-
-template<const Index num_acc, typename LhsMapper, typename RhsMapper>
-EIGEN_ALWAYS_INLINE void vecLoop(Index row, Index cols, LhsMapper& lhs, RhsMapper& rhs, Packet8bf (&acc)[num_acc], Index extra_cols)
-{
-  Index j = 0;
-  for(; j + 8 <= cols; j += 8){
-    Packet8bf b0 = rhs.template loadPacket<Packet8bf>(j);
-
-    for(Index k = 0; k < num_acc; k++) {
-      acc[k] = pmadd(lhs.template loadPacket<Packet8bf>(row + k, j), b0, acc[k]);
-    }
-  }
-
-  if (extra_cols) {
-    Packet8bf b0 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
-
-    for(Index k = 0; k < num_acc; k++) {
-      acc[k] = pmadd(lhs.template loadPacketPartial<Packet8bf>(row + k, j, extra_cols), b0, acc[k]);
-    }
-  }
-}
-#endif
 
 #define MAX_BFLOAT16_VEC_ACC   8
 
@@ -720,7 +672,6 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 
   do{
     EIGEN_ALIGN16 float acc2[8];
-#ifdef USE_BFLOAT16_VEC_MMA
     Packet4f acc[num_acc][4];
     __vector_quad quad_acc[num_acc];
 
@@ -729,15 +680,6 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
     vecLoop<num_acc, LhsMapper, RhsMapper>(row, cols, lhs, rhs, quad_acc, extra_cols);
 
     disassembleAccumulators<num_acc>(quad_acc, acc);
-#else
-    Packet8bf acc[num_acc];
-
-    for(Index k = 0; k < num_acc; k++) {
-      acc[k] = pset1<Packet8bf>(Eigen::bfloat16(0));
-    }
-
-    vecLoop<num_acc, LhsMapper, RhsMapper>(row, cols, lhs, rhs, acc, extra_cols);
-#endif
 
     preduxVecResults<num_acc>(acc, acc2);
 
