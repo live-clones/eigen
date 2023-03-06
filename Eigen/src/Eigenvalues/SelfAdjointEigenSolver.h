@@ -108,6 +108,7 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
       * This is a column vector with entries of type #RealScalar.
       * The length of the vector is the size of \p MatrixType_.
       */
+    typedef typename internal::plain_col_type<MatrixType, Scalar>::type VectorType;
     typedef typename internal::plain_col_type<MatrixType, RealScalar>::type RealVectorType;
     typedef Tridiagonalization<MatrixType> TridiagonalizationType;
     typedef typename TridiagonalizationType::SubDiagonalType SubDiagonalType;
@@ -380,7 +381,8 @@ template<typename MatrixType_> class SelfAdjointEigenSolver
     EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
     EigenvectorsType m_eivec;
-    RealVectorType m_eivalues, m_workspace;
+    VectorType m_workspace;
+    RealVectorType m_eivalues;
     typename TridiagonalizationType::SubDiagonalType m_subdiag;
     typename TridiagonalizationType::CoeffVectorType m_hcoeffs;
     ComputationInfo m_info;
