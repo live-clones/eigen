@@ -497,7 +497,7 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16(float *result, Index rows,
   }
 }
 
-template<typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
+template<typename LhsMapper, typename RhsMapper>
 void gemvMMA_bfloat16_col(
   Index rows, Index cols,
   const LhsMapper& alhs,
@@ -509,13 +509,6 @@ void gemvMMA_bfloat16_col(
   uint64_t start, end;
   start = __ppc_get_timebase();
 #endif
-  typedef gemv_traits<LhsScalar, RhsScalar> Traits;
-
-#if 0
-  typedef typename Traits::LhsPacket LhsPacket;
-  typedef typename Traits::RhsPacket RhsPacket;
-  typedef typename Traits::ResPacket ResPacket;
-#endif
 
   EIGEN_UNUSED_VARIABLE(resIncr);
   eigen_internal_assert(resIncr == 1);
@@ -525,24 +518,15 @@ void gemvMMA_bfloat16_col(
   LhsMapper lhs(alhs);
   RhsMapper rhs2(rhs);
 
-  conj_helper<LhsScalar, RhsScalar, false, false> cj;
-//  conj_helper<LhsPacket, RhsPacket, false, false> pcj;
-
   const Index lhsStride = lhs.stride();
-  // TODO: for padded aligned inputs, we could enable aligned reads
-  enum {
-    LhsAlignment = Unaligned,
-    ResPacketSize = Traits::ResPacketSize,
-    LhsPacketSize = Traits::LhsPacketSize,
-    RhsPacketSize = Traits::RhsPacketSize,
-  };
 
   // TODO: improve the following heuristic:
-  const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 16000 ? 16 : 8);
+  const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(bfloat16) < 16000 ? 16 : 8);
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
 //  ResPacket palpha = pset1<ResPacket>(alpha);
 
   ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
+
   convertArrayPointerBF16toF32(result, rows, res);
 
   for (Index j2 = 0; j2 < cols; j2 += block_cols)
@@ -556,7 +540,7 @@ void gemvMMA_bfloat16_col(
       float d0(0);
       Index j = j2;
       do {
-        d0 += Eigen::bfloat16_impl::bfloat16_to_float(cj.pmul(lhs(i, j), rhs2(j, 0)));
+        d0 += Eigen::bfloat16_impl::bfloat16_to_float(pmul(lhs(i, j), rhs2(j, 0)));
       } while (++j < jend);
       result[i] += falpha * d0;
     }
@@ -600,10 +584,11 @@ EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packe
 
 static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f, 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f };
 
-template<const Index num_acc, bool two>
-EIGEN_ALWAYS_INLINE void predux2(Packet4f (&acc)[num_acc][4], float (&acc2)[8], Index k)
+template<const Index num_acc>
+EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float (&acc2)[8])
 {
-  if (two) {
+  Index k = 0;
+  for(; k + 2 <= num_acc; k += 2) {
     acc[k + 0][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
     acc[k + 0][1] = vec_mergeo(acc[k + 0][1], acc[k + 1][1]);
     acc[k + 0][2] = vec_mergel(acc[k + 0][2], acc[k + 1][2]);
@@ -611,7 +596,8 @@ EIGEN_ALWAYS_INLINE void predux2(Packet4f (&acc)[num_acc][4], float (&acc2)[8], 
     acc[k + 0][0] = vec_add(vec_add(acc[k + 0][0], acc[k + 0][2]), vec_add(acc[k + 0][1], acc[k + 0][3]));
     unsigned long long *acc2b = reinterpret_cast<unsigned long long *>(&acc2[k + 0]);
     *acc2b = reinterpret_cast<Packet2ul>(acc[k + 0][0])[0];
-  } else {
+  }
+  if (num_acc & 1) {
     acc[k][0] += vec_sld(acc[k][2], acc[k][2], 8);
     acc[k][1] += vec_sld(acc[k][3], acc[k][3], 8);
 #ifdef _BIG_ENDIAN
@@ -620,18 +606,6 @@ EIGEN_ALWAYS_INLINE void predux2(Packet4f (&acc)[num_acc][4], float (&acc2)[8], 
     acc[k][0] += vec_sld(acc[k][1], acc[k][1], 12);
 #endif
     acc2[k] = pfirst(acc[k][0]);
-  }
-}
-
-template<const Index num_acc>
-EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float (&acc2)[8])
-{
-  Index k = 0;
-  for(; k + 2 <= num_acc; k += 2) {
-    predux2<num_acc, true>(acc, acc2, k);
-  }
-  if (num_acc & 1) {
-    predux2<num_acc, false>(acc, acc2, k);
   }
 }
 
