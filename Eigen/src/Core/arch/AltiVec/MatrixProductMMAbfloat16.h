@@ -497,47 +497,136 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16(float *result, Index rows,
   }
 }
 
+template<bool extraRows>
+EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float *result, Packet4f pAlpha, Index extra_rows)
+{
+  Packet4f d0 = ploadu<Packet4f>(result);
+  d0 = pmadd(acc, pAlpha, d0);
+  if (extraRows) {
+    pstoreu_partial(result, d0, extra_rows);
+  } else {
+    pstoreu(result, d0);
+  }
+}
+
+template<const Index num_acc, bool extraRows>
+EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha, Index extra_rows)
+{
+  for(Index k = 0; k < num_acc - (extraRows ? 1 : 0); k++) {
+    outputVecCol<false>(acc[k][0], result + k*4, pAlpha, extra_rows);
+  }
+  if (extraRows) {
+    outputVecCol<true>(acc[num_acc - 1][0], result + (num_acc - 1)*4, pAlpha, extra_rows);
+  }
+}
+
+template<const Index num_acc, typename LhsMapper, typename RhsMapper>
+EIGEN_ALWAYS_INLINE void vecColLoop(Index row, Index cstart, Index cend, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc])
+{
+  Index j = cstart;
+  for(; j + 2 <= cend; j += 2) {
+    const bfloat16& r = rhs(j + 0, 0);
+    Packet8bf b0 = reinterpret_cast<Packet8us>(pset1<Packet4i>(*(int *)(&r)));
+
+    Index k = 0;
+    BFLOAT16_UNROLL
+    for(; k + 2 <= num_acc; k += 2) {
+      Packet8bf a0 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 0);
+      Packet8bf a1 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 1);
+      Packet8bf a2 = vec_mergeh(a0.m_val, a1.m_val);
+      a1 = vec_mergel(a0.m_val, a1.m_val);
+
+      __builtin_mma_xvbf16ger2pp(&(quad_acc[k + 0]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a2.m_val));
+      __builtin_mma_xvbf16ger2pp(&(quad_acc[k + 1]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a1.m_val));
+    }
+    if (num_acc & 1) {
+      Packet8bf a0 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 0);
+      Packet8bf a1 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 1);
+      Packet8bf a2 = vec_mergeh(a0.m_val, a1.m_val);
+
+      __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a2.m_val));
+    }
+  }
+}
+
 #define MAX_BFLOAT16_VEC_ACC   8
 
-template<typename LhsMapper, typename RhsMapper>
-EIGEN_ALWAYS_INLINE void colVecColLoopBodyExtra(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result, Index extra)
+template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
+void colVecColLoopBody(Index& row, Index cstart, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
-  switch (extra) {
+  constexpr Index step = (num_acc * 4);
+  const Index extra_rows = (extraRows) ? (rows & 3) : 0;
+  constexpr bool multiIters = !extraRows && (num_acc == MAX_BFLOAT16_VEC_ACC);
+
+  do{
+    Packet4f acc[num_acc][4];
+    __vector_quad quad_acc[num_acc];
+
+    zeroAccumulators<num_acc>(quad_acc);
+
+    vecColLoop<num_acc, LhsMapper, RhsMapper>(row, cstart, cend, lhs, rhs, quad_acc);
+
+    disassembleAccumulators<num_acc>(quad_acc, acc);
+
+    outputVecColResults<num_acc, extraRows>(acc, result, pAlpha, extra_rows);
+
+    result += step;
+  } while(multiIters && (step <= rows - (row += step)));
+}
+
+template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
+EIGEN_ALWAYS_INLINE void colVecColLoopBodyExtraN(Index& row, Index cstart, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
+{
+  if (MAX_BFLOAT16_VEC_ACC > num_acc) {
+    colVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
+  }
+}
+
+template<typename LhsMapper, typename RhsMapper, bool extraRows>
+EIGEN_ALWAYS_INLINE void colVecColLoopBodyExtra(Index& row, Index cstart, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
+{
+  switch ((rows - row) >> 2) {
   case 7:
-//    colVecColLoopBody<7, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    colVecColLoopBodyExtraN<7, LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 6:
-//    colVecColLoopBody<6, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    colVecColLoopBodyExtraN<6, LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 5:
-//    colVecColLoopBody<5, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    colVecColLoopBodyExtraN<5, LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 4:
-//    colVecColLoopBody<4, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    colVecColLoopBodyExtraN<4, LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 3:
-//    colVecColLoopBody<3, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    colVecColLoopBodyExtraN<3, LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 2:
-//    colVecColLoopBody<2, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    colVecColLoopBodyExtraN<2, LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 1:
-//    colVecColLoopBody<1, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    colVecColLoopBodyExtraN<1, LhsMapper, RhsMapper, extraRows>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
+    break;
+  default:
+    if (extraRows) {
+      colVecColLoopBody<1, LhsMapper, RhsMapper, true>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
+    }
     break;
   }
 }
 
 template<typename LhsMapper, typename RhsMapper>
-EIGEN_ALWAYS_INLINE void calcVecColLoops(Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
+EIGEN_ALWAYS_INLINE void calcVecColLoops(Index cstart, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   Index row = 0;
-  if (rows >= MAX_BFLOAT16_VEC_ACC) {
-//    colVecColLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+  if (rows >= (MAX_BFLOAT16_VEC_ACC * 4)) {
+    colVecColLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper, false>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
     result += row;
   }
-  Index extra = rows - row;
-  if (MAX_BFLOAT16_VEC_ACC > extra) {
-    colVecColLoopBodyExtra<LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, extra);
+  if (rows & 3) {
+    colVecColLoopBodyExtra<LhsMapper, RhsMapper, true>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
+  } else {
+    colVecColLoopBodyExtra<LhsMapper, RhsMapper, false>(row, cstart, cend, rows, lhs, rhs, pAlpha, result);
   }
 }
 
@@ -567,7 +656,7 @@ void gemvMMA_bfloat16_col(
   // TODO: improve the following heuristic:
   const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(bfloat16) < 16000 ? 16 : 8);
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
-//  Packet4f pAlpha = pset1<ResPacket>(alpha);
+  Packet4f pAlpha = pset1<Packet4f>(falpha);
 
   ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
 
@@ -577,7 +666,7 @@ void gemvMMA_bfloat16_col(
   {
     Index jend = numext::mini(j2 + block_cols, cols);
 
-#if 1
+#if 0
     Index i = 0;
     for (;i < rows;++i)
     {
@@ -589,7 +678,7 @@ void gemvMMA_bfloat16_col(
       result[i] += falpha * d0;
     }
 #else
-    calcVecColLoops<LhsMapper, RhsMapper>(cols, rows, lhs, rhs2, pAlpha, result);
+    calcVecColLoops<LhsMapper, RhsMapper>(j2, jend, rows, lhs, rhs2, pAlpha, result);
 #endif
   }
 
