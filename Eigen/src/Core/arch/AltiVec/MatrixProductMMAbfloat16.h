@@ -707,30 +707,18 @@ void gemvMMA_bfloat16_col(
 #endif
 }
 
-template<const Index num_acc, bool inc>
-EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packet4f pAlpha, Index resInc)
+template<const Index num_acc>
+EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packet4f pAlpha)
 {
   for(Index k = 0; k < num_acc; k += 4) {
     Packet4f d0;
-    if (inc) {
-      d0 = pgather<float, Packet4f>(result + k*resInc, resInc);
-    } else {
-      d0 = ploadu<Packet4f>(result + k);
-    }
+    d0 = ploadu<Packet4f>(result + k);
     Packet4f c0 = pload<Packet4f>(acc2 + k);
     d0 = pmadd(c0, pAlpha, d0);
-    if (inc) {
-      if (num_acc < (k + 4)) {
-        pscatter_partial<float, Packet4f>(result + k*resInc, d0, resInc, (num_acc & 3));
-      } else {
-        pscatter<float, Packet4f>(result + k*resInc, d0, resInc);
-      }
+    if (num_acc < (k + 4)) {
+      pstoreu_partial(result + k, d0, (num_acc & 3));
     } else {
-      if (num_acc < (k + 4)) {
-        pstoreu_partial(result + k, d0, (num_acc & 3));
-      } else {
-        pstoreu(result + k, d0);
-      }
+      pstoreu(result + k, d0);
     }
   }
 }
@@ -800,8 +788,8 @@ EIGEN_ALWAYS_INLINE void vecLoop(Index cols, const LhsMapper& lhs, RhsMapper& rh
   }
 }
 
-template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool inc>
-void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result, Index resInc)
+template<const Index num_acc, typename LhsMapper, typename RhsMapper>
+void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   constexpr bool multiIters = (num_acc == MAX_BFLOAT16_VEC_ACC);
   const Index extra_cols = (cols & 7);
@@ -820,49 +808,49 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 
     preduxVecResults<num_acc>(acc, acc2);
 
-    outputVecResults<num_acc, inc>(acc2, result, pAlpha, resInc);
+    outputVecResults<num_acc>(acc2, result, pAlpha);
 
-    result += ((inc) ? (num_acc*resInc) : num_acc);
+    result += num_acc;
   } while(multiIters && (num_acc <= rows - (row += num_acc)));
 }
 
-template<typename LhsMapper, typename RhsMapper, bool inc>
-EIGEN_ALWAYS_INLINE void colVecLoopBodyExtra(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result, Index resInc)
+template<typename LhsMapper, typename RhsMapper>
+EIGEN_ALWAYS_INLINE void colVecLoopBodyExtra(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   switch (rows - row) {
   case 7:
-    colVecLoopBody<7, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+    colVecLoopBody<7, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 6:
-    colVecLoopBody<6, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+    colVecLoopBody<6, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 5:
-    colVecLoopBody<5, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+    colVecLoopBody<5, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 4:
-    colVecLoopBody<4, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+    colVecLoopBody<4, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 3:
-    colVecLoopBody<3, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+    colVecLoopBody<3, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 2:
-    colVecLoopBody<2, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+    colVecLoopBody<2, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 1:
-    colVecLoopBody<1, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+    colVecLoopBody<1, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   }
 }
 
-template<typename LhsMapper, typename RhsMapper, bool inc = false>
-EIGEN_ALWAYS_INLINE void calcVecLoops(Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result, Index resInc)
+template<typename LhsMapper, typename RhsMapper>
+EIGEN_ALWAYS_INLINE void calcVecLoops(Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   Index row = 0;
   if (rows >= MAX_BFLOAT16_VEC_ACC) {
-    colVecLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
-    result += ((inc) ? (row*resInc) : row);
+    colVecLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
+    result += row;
   }
-  colVecLoopBodyExtra<LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
+  colVecLoopBodyExtra<LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
 }
 
 template<typename LhsMapper, typename RhsMapper>
@@ -893,11 +881,13 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
   ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
   if (resIncr == 1) {
     convertArrayPointerBF16toF32(result, rows, res);
-    calcVecLoops<LhsMapper, LinearMapper>(cols, rows, lhs, rhs2, pAlpha, result, resIncr);
-    convertArrayPointerF32toBF16(result, rows, res);
   } else {
     convertArrayPointerBF16toF32<true>(result, rows, res, resIncr);
-    calcVecLoops<LhsMapper, LinearMapper, true>(cols, rows, lhs, rhs2, pAlpha, result, resIncr);
+  }
+  calcVecLoops<LhsMapper, LinearMapper>(cols, rows, lhs, rhs2, pAlpha, result);
+  if (resIncr == 1) {
+    convertArrayPointerF32toBF16(result, rows, res);
+  } else {
     convertArrayPointerF32toBF16<true>(result, rows, res, resIncr);
   }
 
