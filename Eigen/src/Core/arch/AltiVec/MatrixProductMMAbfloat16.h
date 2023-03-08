@@ -767,7 +767,7 @@ EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], Packet8
 }
 
 template<const Index num_acc, typename LhsMapper, typename RhsMapper>
-EIGEN_ALWAYS_INLINE void vecLoop(Index row, Index cols, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc], Index extra_cols)
+EIGEN_ALWAYS_INLINE void vecLoop(Index cols, const LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc], Index extra_cols)
 {
   Packet8bf a0[num_acc];
 
@@ -775,8 +775,9 @@ EIGEN_ALWAYS_INLINE void vecLoop(Index row, Index cols, LhsMapper& lhs, RhsMappe
   for(; j + 8 <= cols; j += 8){
     Packet8bf b0 = rhs.template loadPacket<Packet8bf>(j);
 
+    const LhsMapper lhs2 = lhs.getSubMapper(0, j);
     for(Index k = 0; k < num_acc; k++) {
-      a0[k] = lhs.template loadPacket<Packet8bf>(row + k, j);
+      a0[k] = lhs2.template loadPacket<Packet8bf>(k, 0);
     }
 
     multVecLoop<num_acc>(quad_acc, a0, b0);
@@ -785,8 +786,9 @@ EIGEN_ALWAYS_INLINE void vecLoop(Index row, Index cols, LhsMapper& lhs, RhsMappe
   if (extra_cols) {
     Packet8bf b0 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
 
+    const LhsMapper lhs2 = lhs.getSubMapper(0, j);
     for(Index k = 0; k < num_acc; k++) {
-      a0[k] = lhs.template loadPacketPartial<Packet8bf>(row + k, j, extra_cols);
+      a0[k] = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
     }
 
     multVecLoop<num_acc>(quad_acc, a0, b0);
@@ -806,7 +808,8 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 
     zeroAccumulators<num_acc>(quad_acc);
 
-    vecLoop<num_acc, LhsMapper, RhsMapper>(row, cols, lhs, rhs, quad_acc, extra_cols);
+    const LhsMapper lhs2 = lhs.getSubMapper(row, 0);
+    vecLoop<num_acc, LhsMapper, RhsMapper>(cols, lhs2, rhs, quad_acc, extra_cols);
 
     disassembleAccumulators<num_acc>(quad_acc, acc);
 
