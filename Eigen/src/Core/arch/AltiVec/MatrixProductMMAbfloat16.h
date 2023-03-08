@@ -711,8 +711,7 @@ template<const Index num_acc>
 EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packet4f pAlpha)
 {
   for(Index k = 0; k < num_acc; k += 4) {
-    Packet4f d0;
-    d0 = ploadu<Packet4f>(result + k);
+    Packet4f d0 = ploadu<Packet4f>(result + k);
     Packet4f c0 = pload<Packet4f>(acc2 + k);
     d0 = pmadd(c0, pAlpha, d0);
     if (num_acc < (k + 4)) {
