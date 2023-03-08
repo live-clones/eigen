@@ -520,21 +520,24 @@ EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float 
   }
 }
 
+template<const Index num_acc, bool two>
+EIGEN_ALWAYS_INLINE void mergeVecLoop(Index k, Packet8bf (&a0)[num_acc], Packet8bf b1)
+{
+  if (two) {
+    a0[k + 1] = vec_mergel(a0[k + 0].m_val, b1.m_val);
+  }
+  a0[k + 0] = vec_mergeh(a0[k + 0].m_val, b1.m_val);
+}
+
 template<const Index num_acc, typename LhsMapper, bool two, bool zero>
-EIGEN_ALWAYS_INLINE void loadVecLoop(Index row, Index j, Index k, LhsMapper& lhs, __vector_quad (&quad_acc)[num_acc], Packet8bf (&a0)[num_acc], Packet8bf b1)
+EIGEN_ALWAYS_INLINE void loadVecLoop(Index row, Index j, Index k, LhsMapper& lhs, Packet8bf (&a0)[num_acc], Packet8bf b1)
 {
   a0[k + 0] = lhs.template loadPacket<Packet8bf>(row + k*4, j + 0);
   if (zero) {
-    if (two) {
-      a0[k + 1] = vec_mergel(a0[k + 0].m_val, b1.m_val);
-    }
-    a0[k + 0] = vec_mergeh(a0[k + 0].m_val, b1.m_val);
+    mergeVecLoop<num_acc, two>(k, a0, b1);
   } else {
     Packet8bf a1 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 1);
-    if (two) {
-      a0[k + 1] = vec_mergel(a0[k + 0].m_val, a1.m_val);
-    }
-    a0[k + 0] = vec_mergeh(a0[k + 0].m_val, a1.m_val);
+    mergeVecLoop<num_acc, two>(k, a0, a1);
   }
 }
 
@@ -553,10 +556,10 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index row, Index j, LhsMapper& lhs, RhsMappe
   }
 
   for(Index k = 0; k + 2 <= num_acc; k += 2) {
-    loadVecLoop<num_acc, LhsMapper, true, zero>(row, j, k, lhs, quad_acc, a0, b1);
+    loadVecLoop<num_acc, LhsMapper, true, zero>(row, j, k, lhs, a0, b1);
   }
   if (num_acc & 1) {
-    loadVecLoop<num_acc, LhsMapper, false, zero>(row, j, num_acc - 1, lhs, quad_acc, a0, b1);
+    loadVecLoop<num_acc, LhsMapper, false, zero>(row, j, num_acc - 1, lhs, a0, b1);
   }
 
   BFLOAT16_UNROLL
@@ -688,20 +691,7 @@ void gemvMMA_bfloat16_col(
   {
     Index jend = numext::mini(j2 + block_cols, cols);
 
-#if 0
-    Index i = 0;
-    for (;i < rows;++i)
-    {
-      float d0(0);
-      Index j = j2;
-      do {
-        d0 += Eigen::bfloat16_impl::bfloat16_to_float(pmul(lhs(i, j), rhs2(j, 0)));
-      } while (++j < jend);
-      result[i] += falpha * d0;
-    }
-#else
     calcVecColLoops<LhsMapper, RhsMapper>(j2, jend, rows, lhs, rhs2, pAlpha, result);
-#endif
   }
 
   convertArrayPointerF32toBF16(result, rows, res);
@@ -767,30 +757,39 @@ EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float (&a
   }
 }
 
+template<const Index num_acc>
+EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], Packet8bf (&a0)[num_acc], Packet8bf b0)
+{
+  BFLOAT16_UNROLL
+  for(Index k = 0; k < num_acc; k++) {
+    __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0[k].m_val));
+  }
+}
+
 template<const Index num_acc, typename LhsMapper, typename RhsMapper>
 EIGEN_ALWAYS_INLINE void vecLoop(Index row, Index cols, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc], Index extra_cols)
 {
+  Packet8bf a0[num_acc];
+
   Index j = 0;
   for(; j + 8 <= cols; j += 8){
     Packet8bf b0 = rhs.template loadPacket<Packet8bf>(j);
 
-    BFLOAT16_UNROLL
     for(Index k = 0; k < num_acc; k++) {
-      Packet8bf a0 = lhs.template loadPacket<Packet8bf>(row + k, j);
-
-      __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0.m_val));
+      a0[k] = lhs.template loadPacket<Packet8bf>(row + k, j);
     }
+
+    multVecLoop<num_acc>(quad_acc, a0, b0);
   }
 
   if (extra_cols) {
     Packet8bf b0 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
 
-    BFLOAT16_UNROLL
     for(Index k = 0; k < num_acc; k++) {
-      Packet8bf a0 = lhs.template loadPacketPartial<Packet8bf>(row + k, j, extra_cols);
-
-      __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0.m_val));
+      a0[k] = lhs.template loadPacketPartial<Packet8bf>(row + k, j, extra_cols);
     }
+
+    multVecLoop<num_acc>(quad_acc, a0, b0);
   }
 }
 
