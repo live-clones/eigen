@@ -817,24 +817,16 @@ pbroadcast4<Packet4i>(const int *a,
   pbroadcast4_common<Packet4i>(a, a0, a1, a2, a3);
 }
 
-template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pgather_common(const __UNPACK_TYPE__(Packet)* from, const Index stride, const Index n = unpacket_traits<Packet>::size)
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pgather_common(const __UNPACK_TYPE__(Packet)* from, Index stride, const Index n = unpacket_traits<Packet>::size)
 {
-  if (stride == 1) {
-    if (n == unpacket_traits<Packet>::size) {
-      return ploadu<Packet>(from);
-    } else {
-      return ploadu_partial<Packet>(from, n);
-    }
-  } else {
-    EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) a[unpacket_traits<Packet>::size];
-    eigen_internal_assert(n <= unpacket_traits<Packet>::size && "number of elements will gather past end of packet");
-    LOAD_STORE_UNROLL_16
-    for (Index i = 0; i < n; i++) {
-      a[i] = from[i*stride];
-    }
-    // Leave rest of the array uninitialized
-    return pload_ignore<Packet>(a);
+  EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) a[unpacket_traits<Packet>::size];
+  eigen_internal_assert(n <= unpacket_traits<Packet>::size && "number of elements will gather past end of packet");
+  LOAD_STORE_UNROLL_16
+  for (Index i = 0; i < n; i++) {
+    a[i] = from[i*stride];
   }
+  // Leave rest of the array uninitialized
+  return pload_ignore<Packet>(a);
 }
 
 template<> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride)
@@ -907,22 +899,14 @@ template<> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet16uc pgather_partial<unsi
   return pgather_common<Packet16uc>(from, stride, n);
 }
 
-template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter_common(__UNPACK_TYPE__(Packet)* to, const Packet& from, const Index stride, const Index n = unpacket_traits<Packet>::size)
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter_common(__UNPACK_TYPE__(Packet)* to, const Packet& from, Index stride, const Index n = unpacket_traits<Packet>::size)
 {
-  if (stride == 1) {
-    if (n == unpacket_traits<Packet>::size) {
-      return pstoreu(to, from);
-    } else {
-      return pstoreu_partial(to, from, n);
-    }
-  } else {
-    EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) a[unpacket_traits<Packet>::size];
-    eigen_internal_assert(n <= unpacket_traits<Packet>::size && "number of elements will scatter past end of packet");
-    pstore<__UNPACK_TYPE__(Packet)>(a, from);
-    LOAD_STORE_UNROLL_16
-    for (Index i = 0; i < n; i++) {
-      to[i*stride] = a[i];
-    }
+  EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) a[unpacket_traits<Packet>::size];
+  eigen_internal_assert(n <= unpacket_traits<Packet>::size && "number of elements will scatter past end of packet");
+  pstore<__UNPACK_TYPE__(Packet)>(a, from);
+  LOAD_STORE_UNROLL_16
+  for (Index i = 0; i < n; i++) {
+    to[i*stride] = a[i];
   }
 }
 
