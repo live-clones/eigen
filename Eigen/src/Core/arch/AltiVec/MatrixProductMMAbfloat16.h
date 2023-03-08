@@ -547,7 +547,7 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
   Packet8bf b0, a0[num_acc];
   Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
 
-  const bfloat16& r = rhs(j + 0, 0);
+  const bfloat16& r = rhs(j + 0);
   if (zero) {
     b0 = pset1<Packet8bf>(r);
     b0 = vec_mergeh(b0.m_val, b1.m_val);
@@ -669,6 +669,8 @@ void gemvMMA_bfloat16_col(
   start = __ppc_get_timebase();
 #endif
 
+  typedef typename RhsMapper::LinearMapper LinearMapper;
+
   EIGEN_UNUSED_VARIABLE(resIncr);
   eigen_internal_assert(resIncr == 1);
 
@@ -693,8 +695,8 @@ void gemvMMA_bfloat16_col(
     Index jend = numext::mini(j2 + block_cols, cols);
 
     LhsMapper lhs2 = lhs.getSubMapper(0, j2);
-    RhsMapper rhs3 = rhs2.getSubMapper(j2, 0);
-    calcVecColLoops<LhsMapper, RhsMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
+    LinearMapper rhs3 = rhs2.getLinearMapper(j2, 0);
+    calcVecColLoops<LhsMapper, LinearMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
   }
 
   convertArrayPointerF32toBF16(result, rows, res);
@@ -825,9 +827,9 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 }
 
 template<typename LhsMapper, typename RhsMapper, bool inc>
-EIGEN_ALWAYS_INLINE void colVecLoopBodyExtra(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result, Index resInc, Index extra)
+EIGEN_ALWAYS_INLINE void colVecLoopBodyExtra(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result, Index resInc)
 {
-  switch (extra) {
+  switch (rows - row) {
   case 7:
     colVecLoopBody<7, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
     break;
@@ -860,10 +862,7 @@ EIGEN_ALWAYS_INLINE void calcVecLoops(Index cols, Index rows, LhsMapper& lhs, Rh
     colVecLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
     result += ((inc) ? (row*resInc) : row);
   }
-  Index extra = rows - row;
-  if (MAX_BFLOAT16_VEC_ACC > extra) {
-    colVecLoopBodyExtra<LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc, extra);
-  }
+  colVecLoopBodyExtra<LhsMapper, RhsMapper, inc>(row, cols, rows, lhs, rhs, pAlpha, result, resInc);
 }
 
 template<typename LhsMapper, typename RhsMapper>
