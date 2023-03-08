@@ -520,32 +520,48 @@ EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float 
   }
 }
 
-template<const Index num_acc, typename LhsMapper, typename RhsMapper>
-EIGEN_ALWAYS_INLINE void vecColLoop(Index row, Index cstart, Index cend, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc])
+template<const Index num_acc, typename LhsMapper, bool two, bool zero>
+EIGEN_ALWAYS_INLINE void loadVecLoop(Index row, Index j, Index k, LhsMapper& lhs, __vector_quad (&quad_acc)[num_acc], Packet8bf (&a0)[num_acc], Packet8bf b1)
 {
-  Index j = cstart;
-  for(; j + 2 <= cend; j += 2) {
-    const bfloat16& r = rhs(j + 0, 0);
-    Packet8bf b0 = reinterpret_cast<Packet8us>(pset1<Packet4i>(*(int *)(&r)));
-
-    Index k = 0;
-    BFLOAT16_UNROLL
-    for(; k + 2 <= num_acc; k += 2) {
-      Packet8bf a0 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 0);
-      Packet8bf a1 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 1);
-      Packet8bf a2 = vec_mergeh(a0.m_val, a1.m_val);
-      a1 = vec_mergel(a0.m_val, a1.m_val);
-
-      __builtin_mma_xvbf16ger2pp(&(quad_acc[k + 0]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a2.m_val));
-      __builtin_mma_xvbf16ger2pp(&(quad_acc[k + 1]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a1.m_val));
+  a0[k + 0] = lhs.template loadPacket<Packet8bf>(row + k*4, j + 0);
+  if (zero) {
+    if (two) {
+      a0[k + 1] = vec_mergel(a0[k + 0].m_val, b1.m_val);
     }
-    if (num_acc & 1) {
-      Packet8bf a0 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 0);
-      Packet8bf a1 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 1);
-      Packet8bf a2 = vec_mergeh(a0.m_val, a1.m_val);
-
-      __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a2.m_val));
+    a0[k + 0] = vec_mergeh(a0[k + 0].m_val, b1.m_val);
+  } else {
+    Packet8bf a1 = lhs.template loadPacket<Packet8bf>(row + k*4, j + 1);
+    if (two) {
+      a0[k + 1] = vec_mergel(a0[k + 0].m_val, a1.m_val);
     }
+    a0[k + 0] = vec_mergeh(a0[k + 0].m_val, a1.m_val);
+  }
+}
+
+template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
+EIGEN_ALWAYS_INLINE void vecColLoop(Index row, Index j, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc])
+{
+  Packet8bf b0, a0[num_acc];
+  Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
+
+  const bfloat16& r = rhs(j + 0, 0);
+  if (zero) {
+    b0 = pset1<Packet8bf>(r);
+    b0 = vec_mergeh(b0.m_val, b1.m_val);
+  } else {
+    b0 = reinterpret_cast<Packet8us>(pset1<Packet4i>(*(int *)(&r)));
+  }
+
+  for(Index k = 0; k + 2 <= num_acc; k += 2) {
+    loadVecLoop<num_acc, LhsMapper, true, zero>(row, j, k, lhs, quad_acc, a0, b1);
+  }
+  if (num_acc & 1) {
+    loadVecLoop<num_acc, LhsMapper, false, zero>(row, j, num_acc - 1, lhs, quad_acc, a0, b1);
+  }
+
+  BFLOAT16_UNROLL
+  for(Index k = 0; k < num_acc; k++) {
+    __builtin_mma_xvbf16ger2pp(&(quad_acc[k + 0]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0[k].m_val));
   }
 }
 
@@ -564,7 +580,13 @@ void colVecColLoopBody(Index& row, Index cstart, Index cend, Index rows, LhsMapp
 
     zeroAccumulators<num_acc>(quad_acc);
 
-    vecColLoop<num_acc, LhsMapper, RhsMapper>(row, cstart, cend, lhs, rhs, quad_acc);
+    Index j = cstart;
+    for(; j + 2 <= cend; j += 2) {
+      vecColLoop<num_acc, LhsMapper, RhsMapper, false>(row, j, lhs, rhs, quad_acc);
+    }
+    if (j != cend) {
+      vecColLoop<num_acc, LhsMapper, RhsMapper, true>(row, j, lhs, rhs, quad_acc);
+    }
 
     disassembleAccumulators<num_acc>(quad_acc, acc);
 
