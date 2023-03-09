@@ -509,7 +509,7 @@ EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float *result, Packet4f pAlp
   }
 }
 
-template<const Index num_acc, bool extraRows>
+template<Index num_acc, bool extraRows>
 EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha, Index extra_rows)
 {
   for(Index k = 0; k < num_acc - (extraRows ? 1 : 0); k++) {
@@ -520,28 +520,28 @@ EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float 
   }
 }
 
-template<const Index num_acc, bool two>
+template<Index num_acc>
 EIGEN_ALWAYS_INLINE void mergeVecLoop(Index k, Packet8bf (&a0)[num_acc], Packet8bf b1)
 {
-  if (two) {
+  if (num_acc > (k + 1)) {
     a0[k + 1] = vec_mergel(a0[k + 0].m_val, b1.m_val);
   }
   a0[k + 0] = vec_mergeh(a0[k + 0].m_val, b1.m_val);
 }
 
-template<const Index num_acc, typename LhsMapper, bool two, bool zero>
+template<Index num_acc, typename LhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void loadVecLoop(Index k, LhsMapper& lhs, Packet8bf (&a0)[num_acc], Packet8bf b1)
 {
   a0[k + 0] = lhs.template loadPacket<Packet8bf>(k*4, 0);
   if (zero) {
-    mergeVecLoop<num_acc, two>(k, a0, b1);
+    mergeVecLoop<num_acc>(k, a0, b1);
   } else {
     Packet8bf a1 = lhs.template loadPacket<Packet8bf>(k*4, 1);
-    mergeVecLoop<num_acc, two>(k, a0, a1);
+    mergeVecLoop<num_acc>(k, a0, a1);
   }
 }
 
-template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
+template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc])
 {
   Packet8bf b0, a0[num_acc];
@@ -557,10 +557,10 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
 
   LhsMapper lhs2 = lhs.getSubMapper(0, j);
   for(Index k = 0; k + 2 <= num_acc; k += 2) {
-    loadVecLoop<num_acc, LhsMapper, true, zero>(k, lhs2, a0, b1);
+    loadVecLoop<num_acc, LhsMapper, zero>(k, lhs2, a0, b1);
   }
   if (num_acc & 1) {
-    loadVecLoop<num_acc, LhsMapper, false, zero>(num_acc - 1, lhs2, a0, b1);
+    loadVecLoop<num_acc, LhsMapper, zero>(num_acc - 1, lhs2, a0, b1);
   }
 
   BFLOAT16_UNROLL
@@ -707,50 +707,31 @@ void gemvMMA_bfloat16_col(
 #endif
 }
 
-template<const Index num_acc>
-EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packet4f pAlpha, Index extra_rows)
-{
-  for(Index k = 0; k < num_acc; k += 4) {
-    Packet4f d0 = ploadu<Packet4f>(result + k);
-    Packet4f c0 = pload<Packet4f>(acc2 + k);
-    d0 = pmadd(c0, pAlpha, d0);
-    if (num_acc < (k + 4)) {
-      pstoreu_partial(result + k, d0, extra_rows);
-    } else {
-      pstoreu(result + k, d0);
-    }
-  }
-}
-
 static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f, 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f };
 
-template<const Index num_acc>
+template<Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
 {
-  acc[k + 0][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
-  acc[k + 0][1] = vec_mergeo(acc[k + 0][1], acc[k + 1][1]);
-  acc[k + 0][2] = vec_mergel(acc[k + 0][2], acc[k + 1][2]);
-  acc[k + 0][3] = vec_perm(acc[k + 0][3], acc[k + 1][3], p16uc_ELEMENT_VEC3);
-  acc[k + 0][0] = vec_add(vec_add(acc[k + 0][0], acc[k + 0][2]), vec_add(acc[k + 0][1], acc[k + 0][3]));
+  Index k2 = (num_acc > (k + 1)) ? (k + 1) : k;
+
+  acc[k][0] = vec_mergeh(acc[k][0], acc[k2][0]);
+  acc[k][1] = vec_mergeo(acc[k][1], acc[k2][1]);
+  acc[k][2] = vec_mergel(acc[k][2], acc[k2][2]);
+  acc[k][3] = vec_perm(acc[k][3], acc[k2][3], p16uc_ELEMENT_VEC3);
+  acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
 }
 
-template<const Index num_acc>
-EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float (&acc2)[8])
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha, Index k)
 {
-  Index k = 0;
-  for(; k + 4 <= num_acc; k += 4) {
+  Packet4f d0 = ploadu<Packet4f>(result + k);
+  if (num_acc > (k + 1)) {
     preduxVecResults2<num_acc>(acc, k + 0);
-    preduxVecResults2<num_acc>(acc, k + 2);
-    acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_mergeh(reinterpret_cast<Packet2ul>(acc[k + 0][0]), reinterpret_cast<Packet2ul>(acc[k + 2][0])));
-    pstoreu(acc2 + k + 0, acc[k + 0][0]);
-  }
-  if (num_acc & 2) {
-    preduxVecResults2<num_acc>(acc, k);
-    unsigned long long *acc2b = reinterpret_cast<unsigned long long *>(&acc2[k + 0]);
-    *acc2b = reinterpret_cast<Packet2ul>(acc[k + 0][0])[0];
-    k += 2;
-  }
-  if (num_acc & 1) {
+    if (num_acc > (k + 2)) {
+      preduxVecResults2<num_acc>(acc, k + 2);
+      acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_mergeh(reinterpret_cast<Packet2ul>(acc[k + 0][0]), reinterpret_cast<Packet2ul>(acc[k + 2][0])));
+    }
+  } else {
     acc[k][0] += vec_sld(acc[k][2], acc[k][2], 8);
     acc[k][1] += vec_sld(acc[k][3], acc[k][3], 8);
 #ifdef _BIG_ENDIAN
@@ -758,11 +739,37 @@ EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float (&a
 #else
     acc[k][0] += vec_sld(acc[k][1], acc[k][1], 12);
 #endif
-    acc2[k] = pfirst(acc[k][0]);
+  }
+  d0 = pmadd(acc[k + 0][0], pAlpha, d0);
+  if (num_acc < (k + 4)) {
+    constexpr Index extra = num_acc & 3;
+    if (extra == 3) {
+      pstoreu_partial(result + k, d0, extra);
+    } else if (extra == 2) {
+      Packet2ul d1 = reinterpret_cast<Packet2ul>(d0);
+      *(unsigned long long *)(result + k) = d1[0];
+    } else {
+      Packet4i d1 = reinterpret_cast<Packet4i>(d0);
+      *(unsigned int *)(result + k) = d1[0];
+    }
+  } else {
+    pstoreu(result + k, d0);
   }
 }
 
-template<const Index num_acc>
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha)
+{
+  Index k = 0;
+  for(; k + 4 <= num_acc; k += 4) {
+    outputVecResults<num_acc>(acc, result, pAlpha, k);
+  }
+  if (num_acc & 3) {
+    outputVecResults<num_acc>(acc, result, pAlpha, k);
+  }
+}
+
+template<Index num_acc>
 EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], Packet8bf (&a0)[num_acc], Packet8bf b0)
 {
   BFLOAT16_UNROLL
@@ -771,7 +778,7 @@ EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], Packet8
   }
 }
 
-template<const Index num_acc, typename LhsMapper, typename RhsMapper>
+template<Index num_acc, typename LhsMapper, typename RhsMapper>
 EIGEN_ALWAYS_INLINE void vecLoop(Index cols, const LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc], Index extra_cols)
 {
   Packet8bf a0[num_acc];
@@ -801,13 +808,12 @@ EIGEN_ALWAYS_INLINE void vecLoop(Index cols, const LhsMapper& lhs, RhsMapper& rh
 }
 
 template<const Index num_acc, typename LhsMapper, typename RhsMapper>
-void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result, Index extra_rows)
+void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   constexpr bool multiIters = (num_acc == MAX_BFLOAT16_VEC_ACC);
   const Index extra_cols = (cols & 7);
 
   do{
-    EIGEN_ALIGN16 float acc2[8];
     Packet4f acc[num_acc][4];
     __vector_quad quad_acc[num_acc];
 
@@ -818,9 +824,7 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 
     disassembleAccumulators<num_acc>(quad_acc, acc);
 
-    preduxVecResults<num_acc>(acc, acc2);
-
-    outputVecResults<num_acc>(acc2, result, pAlpha, extra_rows);
+    preduxVecResults<num_acc>(acc, result, pAlpha);
 
     result += num_acc;
   } while(multiIters && (num_acc <= rows - (row += num_acc)));
@@ -831,25 +835,25 @@ EIGEN_ALWAYS_INLINE void colVecLoopBodyExtra(Index& row, Index cols, Index rows,
 {
   switch (rows - row) {
   case 7:
-    colVecLoopBody<7, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, 3);
+    colVecLoopBody<7, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 6:
-    colVecLoopBody<6, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, 2);
+    colVecLoopBody<6, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 5:
-    colVecLoopBody<5, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, 1);
+    colVecLoopBody<5, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 4:
-    colVecLoopBody<4, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, 0);
+    colVecLoopBody<4, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 3:
-    colVecLoopBody<3, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, 3);
+    colVecLoopBody<3, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 2:
-    colVecLoopBody<2, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, 2);
+    colVecLoopBody<2, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   case 1:
-    colVecLoopBody<1, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, 1);
+    colVecLoopBody<1, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     break;
   }
 }
@@ -859,7 +863,7 @@ EIGEN_ALWAYS_INLINE void calcVecLoops(Index cols, Index rows, LhsMapper& lhs, Rh
 {
   Index row = 0;
   if (rows >= MAX_BFLOAT16_VEC_ACC) {
-    colVecLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result, MAX_BFLOAT16_VEC_ACC & 3);
+    colVecLoopBody<MAX_BFLOAT16_VEC_ACC, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
     result += row;
   }
   colVecLoopBodyExtra<LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
