@@ -725,17 +725,30 @@ EIGEN_ALWAYS_INLINE void outputVecResults(float (&acc2)[8], float *result, Packe
 static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f, 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f };
 
 template<const Index num_acc>
+EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
+{
+  acc[k + 0][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
+  acc[k + 0][1] = vec_mergeo(acc[k + 0][1], acc[k + 1][1]);
+  acc[k + 0][2] = vec_mergel(acc[k + 0][2], acc[k + 1][2]);
+  acc[k + 0][3] = vec_perm(acc[k + 0][3], acc[k + 1][3], p16uc_ELEMENT_VEC3);
+  acc[k + 0][0] = vec_add(vec_add(acc[k + 0][0], acc[k + 0][2]), vec_add(acc[k + 0][1], acc[k + 0][3]));
+}
+
+template<const Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float (&acc2)[8])
 {
   Index k = 0;
-  for(; k + 2 <= num_acc; k += 2) {
-    acc[k + 0][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
-    acc[k + 0][1] = vec_mergeo(acc[k + 0][1], acc[k + 1][1]);
-    acc[k + 0][2] = vec_mergel(acc[k + 0][2], acc[k + 1][2]);
-    acc[k + 0][3] = vec_perm(acc[k + 0][3], acc[k + 1][3], p16uc_ELEMENT_VEC3);
-    acc[k + 0][0] = vec_add(vec_add(acc[k + 0][0], acc[k + 0][2]), vec_add(acc[k + 0][1], acc[k + 0][3]));
+  for(; k + 4 <= num_acc; k += 4) {
+    preduxVecResults2<num_acc>(acc, k + 0);
+    preduxVecResults2<num_acc>(acc, k + 2);
+    acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_mergeh(reinterpret_cast<Packet2ul>(acc[k + 0][0]), reinterpret_cast<Packet2ul>(acc[k + 2][0])));
+    pstoreu(acc2 + k + 0, acc[k + 0][0]);
+  }
+  if (num_acc & 2) {
+    preduxVecResults2<num_acc>(acc, k);
     unsigned long long *acc2b = reinterpret_cast<unsigned long long *>(&acc2[k + 0]);
     *acc2b = reinterpret_cast<Packet2ul>(acc[k + 0][0])[0];
+    k += 2;
   }
   if (num_acc & 1) {
     acc[k][0] += vec_sld(acc[k][2], acc[k][2], 8);
