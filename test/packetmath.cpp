@@ -10,6 +10,7 @@
 
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
+#include "packet_ostream.h"
 
 template <typename T>
 inline T REF_ADD(const T& a, const T& b) {
@@ -925,7 +926,7 @@ void packetmath_real() {
   }
   for (int i = 0; i < PacketSize; ++i) {
     data1[i+PacketSize] = Scalar(internal::random<int>(-4, 4));
-    data2[i+PacketSize] = Scalar(internal::random<double>(-4, 4));
+    data2[i+PacketSize] = Scalar(internal::random<int>(-4, 4));
   }
   CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
   if (PacketTraits::HasExp) {

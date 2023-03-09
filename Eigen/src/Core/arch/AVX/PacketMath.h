@@ -986,10 +986,12 @@ template<> EIGEN_STRONG_INLINE void pstoreu<float>(float*   to, const Packet8f& 
   __mmask16 mask = static_cast<__mmask16>(umask & 0x00FF);
   EIGEN_DEBUG_UNALIGNED_STORE return _mm512_mask_storeu_ps(to, mask, _mm512_castps256_ps512(from));
 #else
-  Packet8i mask = _mm256_set1_epi8(static_cast<char>(umask));
+  // MSVC seems to struggle with _mm256_set1_*, sometimes leading to random results.
+  const char m = static_cast<char>(umask);
+  Packet8i mask = _mm256_set_epi8(m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m, m);
   const Packet8i bit_mask = _mm256_set_epi32(0xffffff7f, 0xffffffbf, 0xffffffdf, 0xffffffef, 0xfffffff7, 0xfffffffb, 0xfffffffd, 0xfffffffe);
   mask = por<Packet8i>(mask, bit_mask);
-  mask = pcmp_eq<Packet8i>(mask, _mm256_set1_epi32(0xffffffff));
+  mask = pcmp_eq<Packet8i>(mask, _mm256_set_epi32(0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff));
   EIGEN_DEBUG_UNALIGNED_STORE return _mm256_maskstore_ps(to, mask, from);
 #endif
 }
