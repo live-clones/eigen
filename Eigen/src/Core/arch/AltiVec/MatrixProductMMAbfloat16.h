@@ -712,33 +712,33 @@ static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1
 template<Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
 {
-  Index k2 = (num_acc > (k + 1)) ? (k + 1) : k;
-
-  acc[k][0] = vec_mergeh(acc[k][0], acc[k2][0]);
-  acc[k][1] = vec_mergeo(acc[k][1], acc[k2][1]);
-  acc[k][2] = vec_mergel(acc[k][2], acc[k2][2]);
-  acc[k][3] = vec_perm(acc[k][3], acc[k2][3], p16uc_ELEMENT_VEC3);
-  acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
+  if (num_acc > (k + 1)) {
+    acc[k][0] = vec_mergeh(acc[k][0], acc[k + 1][0]);
+    acc[k][1] = vec_mergeo(acc[k][1], acc[k + 1][1]);
+    acc[k][2] = vec_mergel(acc[k][2], acc[k + 1][2]);
+    acc[k][3] = vec_perm(acc[k][3], acc[k + 1][3], p16uc_ELEMENT_VEC3);
+    acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
+  } else {
+#ifdef _BIG_ENDIAN
+    acc[k][1] = vec_sld(acc[k][1], acc[k][1], 4);
+    acc[k][3] = vec_sld(acc[k][3], acc[k][3], 12);
+#else
+    acc[k][1] = vec_sld(acc[k][1], acc[k][1], 12);
+    acc[k][3] = vec_sld(acc[k][3], acc[k][3], 4);
+#endif
+    acc[k][2] = vec_sld(acc[k][2], acc[k][2], 8);
+    acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
+  }
 }
 
 template<Index num_acc>
 EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha, Index k)
 {
   Packet4f d0 = ploadu<Packet4f>(result + k);
-  if (num_acc > (k + 1)) {
-    preduxVecResults2<num_acc>(acc, k + 0);
-    if (num_acc > (k + 2)) {
-      preduxVecResults2<num_acc>(acc, k + 2);
-      acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_mergeh(reinterpret_cast<Packet2ul>(acc[k + 0][0]), reinterpret_cast<Packet2ul>(acc[k + 2][0])));
-    }
-  } else {
-    acc[k][0] += vec_sld(acc[k][2], acc[k][2], 8);
-    acc[k][1] += vec_sld(acc[k][3], acc[k][3], 8);
-#ifdef _BIG_ENDIAN
-    acc[k][0] += vec_sld(acc[k][1], acc[k][1], 4);
-#else
-    acc[k][0] += vec_sld(acc[k][1], acc[k][1], 12);
-#endif
+  preduxVecResults2<num_acc>(acc, k + 0);
+  if (num_acc > (k + 2)) {
+    preduxVecResults2<num_acc>(acc, k + 2);
+    acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_mergeh(reinterpret_cast<Packet2ul>(acc[k + 0][0]), reinterpret_cast<Packet2ul>(acc[k + 2][0])));
   }
   d0 = pmadd(acc[k + 0][0], pAlpha, d0);
   if (num_acc < (k + 4)) {
