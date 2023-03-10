@@ -86,6 +86,7 @@ struct default_packet_traits
     HasSinh   = 0,
     HasCosh   = 0,
     HasTanh   = 0,
+    HasATanh  = 0,
     HasLGamma = 0,
     HasDiGamma = 0,
     HasZeta = 0,
