@@ -109,7 +109,7 @@ template<typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet patan_double(const Packet& x);
 
-/** \internal \returns atan(x) for single precision float */
+/** \internal \returns atanh(x) for single precision float */
 template<typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet patanh_float(const Packet& x);
