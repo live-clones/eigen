@@ -717,7 +717,6 @@ EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
     acc[k][1] = vec_mergeo(acc[k][1], acc[k + 1][1]);
     acc[k][2] = vec_mergel(acc[k][2], acc[k + 1][2]);
     acc[k][3] = vec_perm(acc[k][3], acc[k + 1][3], p16uc_ELEMENT_VEC3);
-    acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
   } else {
 #ifdef _BIG_ENDIAN
     acc[k][1] = vec_sld(acc[k][1], acc[k][1], 4);
@@ -727,8 +726,8 @@ EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
     acc[k][3] = vec_sld(acc[k][3], acc[k][3], 4);
 #endif
     acc[k][2] = vec_sld(acc[k][2], acc[k][2], 8);
-    acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
   }
+  acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
 }
 
 template<Index num_acc>
@@ -769,9 +768,26 @@ EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float *re
   }
 }
 
-template<Index num_acc>
-EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], Packet8bf (&a0)[num_acc], Packet8bf b0)
+template<Index num_acc, typename LhsMapper, typename RhsMapper, bool extra>
+EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], const LhsMapper& lhs, RhsMapper& rhs, Index j, Index extra_cols)
 {
+  Packet8bf a0[num_acc], b0;
+
+  if (extra) {
+    b0 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
+  } else {
+    b0 = rhs.template loadPacket<Packet8bf>(j);
+  }
+
+  const LhsMapper lhs2 = lhs.getSubMapper(0, j);
+  for(Index k = 0; k < num_acc; k++) {
+    if (extra) {
+      a0[k] = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
+    } else {
+      a0[k] = lhs2.template loadPacket<Packet8bf>(k, 0);
+    }
+  }
+
   BFLOAT16_UNROLL
   for(Index k = 0; k < num_acc; k++) {
     __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0[k].m_val));
@@ -781,29 +797,13 @@ EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], Packet8
 template<Index num_acc, typename LhsMapper, typename RhsMapper>
 EIGEN_ALWAYS_INLINE void vecLoop(Index cols, const LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc], Index extra_cols)
 {
-  Packet8bf a0[num_acc];
-
   Index j = 0;
   for(; j + 8 <= cols; j += 8){
-    Packet8bf b0 = rhs.template loadPacket<Packet8bf>(j);
-
-    const LhsMapper lhs2 = lhs.getSubMapper(0, j);
-    for(Index k = 0; k < num_acc; k++) {
-      a0[k] = lhs2.template loadPacket<Packet8bf>(k, 0);
-    }
-
-    multVecLoop<num_acc>(quad_acc, a0, b0);
+    multVecLoop<num_acc, LhsMapper, RhsMapper, false>(quad_acc, lhs, rhs, j, extra_cols);
   }
 
   if (extra_cols) {
-    Packet8bf b0 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
-
-    const LhsMapper lhs2 = lhs.getSubMapper(0, j);
-    for(Index k = 0; k < num_acc; k++) {
-      a0[k] = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
-    }
-
-    multVecLoop<num_acc>(quad_acc, a0, b0);
+    multVecLoop<num_acc, LhsMapper, RhsMapper, true>(quad_acc, lhs, rhs, j, extra_cols);
   }
 }
 
