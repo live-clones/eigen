@@ -718,16 +718,22 @@ static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1
 template<Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
 {
-  Index k2 = (num_acc > (k + 1)) ? (k + 1) : k;
-
   if (num_acc > (k + 1)) {
-    acc[k][0] = vec_mergeh(acc[k][0], acc[k2][0]);
-  }
-  acc[k][1] = vec_mergeo(acc[k][1], acc[k2][1]);
-  acc[k][2] = vec_mergel(acc[k][2], acc[k2][2]);
-  acc[k][3] = vec_perm(acc[k][3], acc[k2][3], p16uc_ELEMENT_VEC3);
+    acc[k][0] = vec_mergeh(acc[k][0], acc[k + 1][0]);
+    acc[k][1] = vec_mergeo(acc[k][1], acc[k + 1][1]);
+    acc[k][2] = vec_mergel(acc[k][2], acc[k + 1][2]);
+    acc[k][3] = vec_perm(acc[k][3], acc[k + 1][3], p16uc_ELEMENT_VEC3);
 
-  acc[k][0] = (acc[k][0] + acc[k][2]) + (acc[k][1] + acc[k][3]);
+    acc[k][0] = (acc[k][0] + acc[k][2]) + (acc[k][1] + acc[k][3]);
+  } else {
+    acc[k][0] = vec_mergeh(acc[k][0], acc[k][1]);
+    acc[k][0] += vec_mergel(acc[k][2], acc[k][3]);
+#ifdef _BIG_ENDIAN
+    acc[k][0] += vec_sld(acc[k][0], acc[k][0], 12);
+#else
+    acc[k][0] += vec_sld(acc[k][0], acc[k][0], 4);
+#endif
+  }
 }
 
 template<Index num_acc>
