@@ -541,6 +541,15 @@ EIGEN_ALWAYS_INLINE void loadVecLoop(Index k, LhsMapper& lhs, Packet8bf (&a0)[nu
   }
 }
 
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void multVec(__vector_quad (&quad_acc)[num_acc], Packet8bf (&a0)[num_acc], Packet8bf b0)
+{
+  BFLOAT16_UNROLL
+  for(Index k = 0; k < num_acc; k++) {
+    __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0[k].m_val));
+  }
+}
+
 template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc])
 {
@@ -563,10 +572,7 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
     loadVecLoop<num_acc, LhsMapper, zero>(num_acc - 1, lhs2, a0, b1);
   }
 
-  BFLOAT16_UNROLL
-  for(Index k = 0; k < num_acc; k++) {
-    __builtin_mma_xvbf16ger2pp(&(quad_acc[k + 0]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0[k].m_val));
-  }
+  multVec<num_acc>(quad_acc, a0, b0);
 }
 
 #define MAX_BFLOAT16_VEC_ACC   8
@@ -721,7 +727,7 @@ EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
   acc[k][2] = vec_mergel(acc[k][2], acc[k2][2]);
   acc[k][3] = vec_perm(acc[k][3], acc[k2][3], p16uc_ELEMENT_VEC3);
 
-  acc[k][0] = vec_add(vec_add(acc[k][0], acc[k][2]), vec_add(acc[k][1], acc[k][3]));
+  acc[k][0] = (acc[k][0] + acc[k][2]) + (acc[k][1] + acc[k][3]);
 }
 
 template<Index num_acc>
@@ -782,10 +788,7 @@ EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], const L
     }
   }
 
-  BFLOAT16_UNROLL
-  for(Index k = 0; k < num_acc; k++) {
-    __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(b0.m_val), reinterpret_cast<Packet16uc>(a0[k].m_val));
-  }
+  multVec<num_acc>(quad_acc, a0, b0);
 }
 
 template<Index num_acc, typename LhsMapper, typename RhsMapper>
