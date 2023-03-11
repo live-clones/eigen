@@ -497,26 +497,22 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16(float *result, Index rows,
   }
 }
 
-template<bool extraRows>
-EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float *result, Packet4f pAlpha, Index extra_rows)
-{
-  Packet4f d0 = ploadu<Packet4f>(result);
-  d0 = pmadd(acc, pAlpha, d0);
-  if (extraRows) {
-    pstoreu_partial(result, d0, extra_rows);
-  } else {
-    pstoreu(result, d0);
-  }
-}
-
 template<Index num_acc, bool extraRows>
 EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha, Index extra_rows)
 {
+  Packet4f src[num_acc];
+  float *result2 = result;
+
+  for(Index k = 0; k < num_acc; k++, result += 4) {
+    src[k] = ploadu<Packet4f>(result);
+    src[k] = pmadd(acc[k][0], pAlpha, src[k]);
+  }
+
   for(Index k = 0; k < num_acc - (extraRows ? 1 : 0); k++) {
-    outputVecCol<false>(acc[k][0], result + k*4, pAlpha, extra_rows);
+    storeF32<false>(result2, src[k], 4, extra_rows);
   }
   if (extraRows) {
-    outputVecCol<true>(acc[num_acc - 1][0], result + (num_acc - 1)*4, pAlpha, extra_rows);
+    storeF32<false>(result2, src[num_acc - 1], 0, extra_rows);
   }
 }
 
