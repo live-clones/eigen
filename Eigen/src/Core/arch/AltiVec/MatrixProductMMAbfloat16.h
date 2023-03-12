@@ -551,14 +551,12 @@ EIGEN_ALWAYS_INLINE void multVec(__vector_quad (&quad_acc)[num_acc], Packet8bf (
 template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc])
 {
-  Packet8bf b0, a0[num_acc];
+  Packet8bf a0[num_acc];
   Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
+  Packet8bf b0 = rhs.template loadPacket<Packet8bf>(j + 0);
 
   if (zero) {
-    b0 = pset1<Packet8bf>(rhs(j + 0));
     b0 = vec_mergeh(b0.m_val, b1.m_val);
-  } else {
-    b0 = rhs.template loadPacket<Packet8bf>(j + 0);
   }
 
   LhsMapper lhs2 = lhs.getSubMapper(0, j);
