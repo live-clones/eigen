@@ -556,12 +556,11 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
   Packet8bf b0, a0[num_acc];
   Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
 
-  const bfloat16& r = rhs(j + 0);
   if (zero) {
-    b0 = pset1<Packet8bf>(r);
+    b0 = pset1<Packet8bf>(rhs(j + 0));
     b0 = vec_mergeh(b0.m_val, b1.m_val);
   } else {
-    b0 = reinterpret_cast<Packet8us>(pset1<Packet4i>(*(int *)(&r)));
+    b0 = rhs.template loadPacket<Packet8bf>(j + 0);
   }
 
   LhsMapper lhs2 = lhs.getSubMapper(0, j);
