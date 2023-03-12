@@ -533,12 +533,10 @@ template<Index num_acc, typename LhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void loadVecLoop(Index k, LhsMapper& lhs, Packet8bf (&a0)[num_acc], Packet8bf b1)
 {
   a0[k + 0] = lhs.template loadPacket<Packet8bf>(k*4, 0);
-  if (zero) {
-    mergeVecLoop<num_acc>(k, a0, b1);
-  } else {
-    Packet8bf a1 = lhs.template loadPacket<Packet8bf>(k*4, 1);
-    mergeVecLoop<num_acc>(k, a0, a1);
+  if (!zero) {
+    b1 = lhs.template loadPacket<Packet8bf>(k*4, 1);
   }
+  mergeVecLoop<num_acc>(k, a0, b1);
 }
 
 template<Index num_acc>
@@ -564,11 +562,8 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
   }
 
   LhsMapper lhs2 = lhs.getSubMapper(0, j);
-  for(Index k = 0; k + 2 <= num_acc; k += 2) {
+  for(Index k = 0; k < ((num_acc + 1) & -2); k += 2) {
     loadVecLoop<num_acc, LhsMapper, zero>(k, lhs2, a0, b1);
-  }
-  if (num_acc & 1) {
-    loadVecLoop<num_acc, LhsMapper, zero>(num_acc - 1, lhs2, a0, b1);
   }
 
   multVec<num_acc>(quad_acc, a0, b0);
@@ -764,11 +759,7 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *re
 template<Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha)
 {
-  Index k = 0;
-  for(; k + 4 <= num_acc; k += 4) {
-    outputVecResults<num_acc>(acc, result, pAlpha, k);
-  }
-  if (num_acc & 3) {
+  for(Index k = 0; k < ((num_acc + 3) & -4); k += 4) {
     outputVecResults<num_acc>(acc, result, pAlpha, k);
   }
 }
