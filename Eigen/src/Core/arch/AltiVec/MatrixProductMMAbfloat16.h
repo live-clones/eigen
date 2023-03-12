@@ -723,16 +723,24 @@ EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
 }
 
 template<Index num_acc>
-EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha)
+EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4])
 {
   for(Index k = 0; k < num_acc; k += 4) {
-    Packet4f d0 = ploadu<Packet4f>(result + k);
     preduxVecResults2<num_acc>(acc, k + 0);
     if (num_acc > (k + 2)) {
       preduxVecResults2<num_acc>(acc, k + 2);
       acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_mergeh(reinterpret_cast<Packet2ul>(acc[k + 0][0]), reinterpret_cast<Packet2ul>(acc[k + 2][0])));
     }
+  }
+}
+
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha)
+{
+  for(Index k = 0; k < num_acc; k += 4) {
+    Packet4f d0 = ploadu<Packet4f>(result + k);
     d0 = pmadd(acc[k + 0][0], pAlpha, d0);
+
     if (num_acc > (k + 3)) {
       pstoreu(result + k, d0);
     } else {
@@ -803,7 +811,9 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 
     disassembleAccumulators<num_acc>(quad_acc, acc);
 
-    preduxVecResults<num_acc>(acc, result, pAlpha);
+    preduxVecResults<num_acc>(acc);
+
+    outputVecResults<num_acc>(acc, result, pAlpha);
 
     result += num_acc;
   } while(multiIters && (num_acc <= rows - (row += num_acc)));
