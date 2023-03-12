@@ -577,11 +577,12 @@ void colVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMa
     zeroAccumulators<num_acc>(quad_acc);
 
     LhsMapper lhs2 = lhs.getSubMapper(row, 0);
-    for(Index j = 0; j + 2 <= cend; j += 2) {
+    Index j = 0;
+    for(Index k = cend >> 1; k--; j += 2) {
       vecColLoop<num_acc, LhsMapper, RhsMapper, false>(j, lhs2, rhs, quad_acc);
     }
     if (cend & 1) {
-      vecColLoop<num_acc, LhsMapper, RhsMapper, true>(cend - 1, lhs2, rhs, quad_acc);
+      vecColLoop<num_acc, LhsMapper, RhsMapper, true>(j, lhs2, rhs, quad_acc);
     }
 
     disassembleAccumulators<num_acc>(quad_acc, acc);
@@ -786,7 +787,7 @@ template<Index num_acc, typename LhsMapper, typename RhsMapper>
 EIGEN_ALWAYS_INLINE void vecLoop(Index cols, const LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc], Index extra_cols)
 {
   Index j = 0;
-  for(; j + 8 <= cols; j += 8){
+  for(Index k = cols >> 3; k--; j += 8) {
     multVecLoop<num_acc, LhsMapper, RhsMapper, false>(quad_acc, lhs, rhs, j, extra_cols);
   }
 
