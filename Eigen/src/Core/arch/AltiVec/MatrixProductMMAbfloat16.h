@@ -737,6 +737,8 @@ EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4])
 template<Index num_acc>
 EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha)
 {
+  constexpr Index extra = num_acc & 3;
+
   for(Index k = 0; k < num_acc; k += 4) {
     Packet4f d0 = ploadu<Packet4f>(result + k);
     d0 = pmadd(acc[k + 0][0], pAlpha, d0);
@@ -744,7 +746,6 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *re
     if (num_acc > (k + 3)) {
       pstoreu(result + k, d0);
     } else {
-      constexpr Index extra = num_acc & 3;
       if (extra == 3) {
         pstoreu_partial(result + k, d0, extra);
       } else if (extra == 2) {
