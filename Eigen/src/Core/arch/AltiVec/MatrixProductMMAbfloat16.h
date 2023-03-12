@@ -562,7 +562,7 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
   }
 
   LhsMapper lhs2 = lhs.getSubMapper(0, j);
-  for(Index k = 0; k < ((num_acc + 1) & -2); k += 2) {
+  for(Index k = 0; k < num_acc; k += 2) {
     loadVecLoop<num_acc, LhsMapper, zero>(k, lhs2, a0, b1);
   }
 
@@ -759,7 +759,7 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *re
 template<Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha)
 {
-  for(Index k = 0; k < ((num_acc + 3) & -4); k += 4) {
+  for(Index k = 0; k < num_acc; k += 4) {
     outputVecResults<num_acc>(acc, result, pAlpha, k);
   }
 }
