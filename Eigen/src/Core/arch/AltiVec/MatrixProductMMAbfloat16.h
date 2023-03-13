@@ -146,8 +146,8 @@ EIGEN_ALWAYS_INLINE void colLoopBodyIter(Index depth, Index rows, const Packet4f
 
     zeroAccumulators<num_acc>(quad_acc);
 
-    Index k;
-    for(k = 0; k + 2 <= depth; k += 2){
+    Index k = 0;
+    for(Index j = depth >> 1; j--; k += 2){
       KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows, num_rhs, num_lhs>(indexA, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
     }
     if(depth&1){
@@ -423,7 +423,7 @@ EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Inde
 template<const Index size, bool inc>
 EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index rows, bfloat16*& dst, Index resInc)
 {
-  for(; i + size <= rows; i += size, dst += size*resInc){
+  for(Index j = (rows - i) / size; j--; i += size, dst += size*resInc){
     PacketBlock<Packet8bf,(size+4)/8> r32;
     r32.packet[0] = convertF32toBF16<size != 4>(result + i +  0);
     if (size >= 16) {
