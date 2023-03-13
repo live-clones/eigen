@@ -355,10 +355,6 @@ EIGEN_ALWAYS_INLINE void calcColLoops(const bfloat16*& indexA, Index& row, Index
 template<typename DataMapper>
 void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat16* indexB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
   const Packet4f pAlpha = pset1<Packet4f>(falpha);
   ei_declare_aligned_stack_constructed_variable(float, result, cols*rows, 0);
@@ -396,10 +392,6 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat
 
   //Convert back to bfloat16
   convertArrayF32toBF16<DataMapper>(result, cols, rows, res);
-#ifdef TEST_VERBOSE
-  end = __ppc_get_timebase();
-  printf("gemm bfloat16 MMA time = %16ld\n", end - start);
-#endif
 }
 
 template<const Index size, bool inc, Index delta>
@@ -657,11 +649,6 @@ void gemvMMA_bfloat16_col(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
-
   typedef typename RhsMapper::LinearMapper LinearMapper;
 
   EIGEN_UNUSED_VARIABLE(resIncr);
@@ -693,11 +680,6 @@ void gemvMMA_bfloat16_col(
   }
 
   convertArrayPointerF32toBF16(result, rows, res);
-
-#ifdef TEST_VERBOSE
-  end = __ppc_get_timebase();
-  printf("gemvMMA_col bfloat16 MMA time = %16ld\n", end - start);
-#endif
 }
 
 static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f, 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f };
@@ -868,11 +850,6 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
-
   typedef typename RhsMapper::LinearMapper LinearMapper;
 
   // The following copy tells the compiler that lhs's attributes are not modified outside this function
@@ -897,11 +874,6 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
   } else {
     convertArrayPointerF32toBF16<true>(result, rows, res, resIncr);
   }
-
-#ifdef TEST_VERBOSE
-  end = __ppc_get_timebase();
-  printf("gemvMMA_row bfloat16 MMA time = %16ld\n", end - start);
-#endif
 }
 
 }
