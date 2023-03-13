@@ -453,7 +453,7 @@ struct minmax_compare<Scalar, NaNPropagation, false> {
   static EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& p) { return predux_max<NaNPropagation>(p); }
 };
 
-// Default imlementation used by non-floating types, where we do not
+// Default implementation used by non-floating types, where we do not
 // need special logic for NaN handling.
 template <typename Derived, bool is_min, int NaNPropagation,
           bool isInt = NumTraits<typename Derived::Scalar>::IsInteger>
