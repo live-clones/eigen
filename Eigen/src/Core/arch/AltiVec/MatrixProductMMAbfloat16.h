@@ -146,8 +146,8 @@ EIGEN_ALWAYS_INLINE void colLoopBodyIter(Index depth, Index rows, const Packet4f
 
     zeroAccumulators<num_acc>(quad_acc);
 
-    Index k = 0;
-    for(Index j = depth >> 1; j--; k += 2){
+    Index k;
+    for(k = 0; k + 2 <= depth; k += 2){
       KLoop<num_acc, num_packets, false, rhsExtraCols, lhsExtraRows, num_rhs, num_lhs>(indexA, indexB, quad_acc, strideB, k, offsetB, extra_cols, extra_rows);
     }
     if(depth&1){
@@ -185,9 +185,7 @@ void colLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f
 template<const Index num_acc, const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void colLoopBodyExtraN(Index col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexA, const bfloat16* blockB, Index strideB, Index offsetB, float* result)
 {
-  if (MAX_BFLOAT16_ACC > num_acc) {
-    colLoopBody<num_acc + (rhsExtraCols ? 1 : 0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, offsetB, result);
-  }
+  colLoopBody<num_acc + (rhsExtraCols ? 1 : 0), num_packets, rhsExtraCols, lhsExtraRows>(col, depth, cols, rows, pAlpha, indexA, blockB, strideB, offsetB, result);
 }
 
 template<const Index num_packets, bool rhsExtraCols, bool lhsExtraRows>
@@ -588,9 +586,7 @@ void colVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMa
 template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
 EIGEN_ALWAYS_INLINE void colVecColLoopBodyExtraN(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
-  if (MAX_BFLOAT16_VEC_ACC > num_acc) {
-    colVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
-  }
+  colVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
 }
 
 template<typename LhsMapper, typename RhsMapper, bool extraRows>
