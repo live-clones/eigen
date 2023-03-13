@@ -590,21 +590,6 @@ template<typename ArrayType> void comparisons(const ArrayType& m)
   typedef typename ArrayType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
-  // explicitly test both typed and boolean comparison ops
-  using typed_eq = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_EQ, true>;
-  using typed_ne = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_NEQ, true>;
-  using typed_lt = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_LT, true>;
-  using typed_le = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_LE, true>;
-  using typed_gt = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_GT, true>;
-  using typed_ge = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_GE, true>;
-
-  using bool_eq = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_EQ, false>;
-  using bool_ne = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_NEQ, false>;
-  using bool_lt = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_LT, false>;
-  using bool_le = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_LE, false>;
-  using bool_gt = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_GT, false>;
-  using bool_ge = internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_GE, false>;
-
   Index rows = m.rows();
   Index cols = m.cols();
 
