@@ -891,9 +891,9 @@ isfinite_impl(const T&) {
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC std::enable_if_t<(std::numeric_limits<T>::has_infinity ||
-                                    std::numeric_limits<T>::has_quiet_NaN ||
-                                    std::numeric_limits<T>::has_signaling_NaN),
+EIGEN_DEVICE_FUNC std::enable_if_t<(std::numeric_limits<T>::has_infinity || std::numeric_limits<T>::has_quiet_NaN ||
+                                    std::numeric_limits<T>::has_signaling_NaN) &&
+                                       (!NumTraits<T>::IsComplex),
                                    bool>
 isfinite_impl(const T& x) {
   EIGEN_USING_STD(isfinite);
