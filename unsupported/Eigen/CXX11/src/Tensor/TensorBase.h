@@ -613,9 +613,9 @@ class TensorBase<Derived, ReadOnlyAccessors>
 
     // Checks
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<internal::scalar_isnan_op<Scalar>, const Derived>
+    EIGEN_STRONG_INLINE const TensorConversionOp<bool, const TensorCwiseUnaryOp<internal::scalar_isnan_op<Scalar, true>, const Derived>>
     (isnan)() const {
-      return unaryExpr(internal::scalar_isnan_op<Scalar>());
+      return unaryExpr(internal::scalar_isnan_op<Scalar, true>()).template cast<bool>();
     }
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<internal::scalar_isinf_op<Scalar>, const Derived>
@@ -1219,4 +1219,3 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 } // end namespace Eigen
 
 #endif // EIGEN_CXX11_TENSOR_TENSOR_BASE_H
-
