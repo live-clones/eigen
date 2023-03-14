@@ -587,7 +587,7 @@ void colVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMa
 template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
 EIGEN_ALWAYS_INLINE void colVecColLoopBodyExtraN(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
-  if (MAX_BFLOAT16_ACC > num_acc) {
+  if (MAX_BFLOAT16_VEC_ACC > num_acc) {
     colVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
   }
 }
@@ -805,7 +805,7 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 template<const Index num_acc, typename LhsMapper, typename RhsMapper>
 EIGEN_ALWAYS_INLINE void colVecLoopBodyExtraN(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
-  if (MAX_BFLOAT16_ACC > num_acc) {
+  if (MAX_BFLOAT16_VEC_ACC > num_acc) {
     colVecLoopBody<num_acc, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
   }
 }
