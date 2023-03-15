@@ -855,12 +855,23 @@ struct functor_traits<scalar_ceil_op<Scalar> >
   };
 };
 
+template <typename Scalar, bool UseTypedPredicate>
+struct typed_predicate_helper {
+  static constexpr bool IsNumeric = is_arithmetic<typename NumTraits<Scalar>::Real>::value;
+  static constexpr bool UseTyped = UseTypedPredicate && IsNumeric;
+  using type = typename conditional<UseTyped, Scalar, bool>::type;
+};
+
+template <typename Scalar, bool UseTypedPredicate>
+using predicate_return_t = typename typed_predicate_helper<Scalar, UseTypedPredicate>::type;
+
 /** \internal
   * \brief Template functor to compute whether a scalar is NaN
   * \sa class CwiseUnaryOp, ArrayBase::isnan()
   */
-template<typename Scalar> struct scalar_isnan_op {
-  typedef bool result_type;
+template<typename Scalar, bool UseTypedPredicate = false>
+struct scalar_isnan_op {
+  using result_type = predicate_return_t<Scalar, UseTypedPredicate>;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator() (const Scalar& a) const {
 #if defined(SYCL_DEVICE_ONLY)
     return numext::isnan(a);
@@ -868,13 +879,17 @@ template<typename Scalar> struct scalar_isnan_op {
     return (numext::isnan)(a);
 #endif
   }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
+    return internal::pnot(internal::pcmp_eq(a, a));
+  }
 };
-template<typename Scalar>
-struct functor_traits<scalar_isnan_op<Scalar> >
+template<typename Scalar, bool UseTypedPredicate>
+struct functor_traits<scalar_isnan_op<Scalar, UseTypedPredicate> >
 {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = false
+    PacketAccess = packet_traits<Scalar>::HasCmp && typed_predicate_helper<Scalar, UseTypedPredicate>::UseTyped
   };
 };
 
