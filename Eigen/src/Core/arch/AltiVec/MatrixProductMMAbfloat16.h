@@ -730,12 +730,8 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *re
     } else {
       if (extra == 3) {
         pstoreu_partial(result + k, d0, extra);
-      } else if (extra == 2) {
-        Packet2ul d1 = reinterpret_cast<Packet2ul>(d0);
-        *reinterpret_cast<unsigned long long *>(result + k) = d1[0];
       } else {
-        Packet4i d1 = reinterpret_cast<Packet4i>(d0);
-        *reinterpret_cast<unsigned int *>(result + k) = d1[0];
+        memcpy((void *)(result + k), (void *)(&d0), sizeof(float) * extra);
       }
     }
   }
