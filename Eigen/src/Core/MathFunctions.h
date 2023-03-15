@@ -607,7 +607,7 @@ struct expm1_impl {
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& x)
   {
     EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
-    using std::expm1;
+    EIGEN_USING_STD(expm1);
     return expm1(x);
   }
 };
@@ -668,7 +668,7 @@ struct log1p_impl {
 
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& x)
   {
-    using std::log1p;
+    EIGEN_USING_STD(log1p);
     return log1p(x);
   }
 };
@@ -969,7 +969,8 @@ struct sign_impl<Scalar, true, IsInteger> {
   EIGEN_DEVICE_FUNC
   static inline Scalar run(const Scalar& a) {
     using real_type = typename NumTraits<Scalar>::Real;
-    real_type aa = std::abs(a);
+    EIGEN_USING_STD(abs);
+    real_type aa = abs(a);
     if (aa == real_type(0)) return Scalar(0);
     aa = real_type(1) / aa;
     return Scalar(a.real() * aa, a.imag() * aa);
