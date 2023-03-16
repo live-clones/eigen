@@ -583,8 +583,7 @@ EIGEN_STRONG_INLINE __m256i Pack32To16(Packet16f rf) {
 template <>
 EIGEN_STRONG_INLINE Packet16f pisnan(const Packet16f& a) {
   __mmask16 mask = _mm512_cmp_ps_mask(a, a, _CMP_UNORD_Q);
-  return _mm512_castsi512_ps(
-      _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu));
+  return _mm512_castsi512_ps(_mm512_maskz_set1_epi32(mask, 0xffffffffu));
 }
 
 template <>
