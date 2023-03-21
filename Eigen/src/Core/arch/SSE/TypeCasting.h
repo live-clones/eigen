@@ -54,14 +54,14 @@ template <>
 };
 #endif
 
-// template <>
-// struct type_casting_traits<double, float> {
-//   enum {
-//     VectorizedCast = 1,
-//     SrcCoeffRatio = 2,
-//     TgtCoeffRatio = 1
-//   };
-// };
+template <>
+struct type_casting_traits<double, float> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 2,
+    TgtCoeffRatio = 1
+  };
+};
 
 template <>
 EIGEN_STRONG_INLINE Packet16b pcast<Packet4f, Packet16b>(const Packet4f& a,
