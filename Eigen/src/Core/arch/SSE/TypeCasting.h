@@ -45,7 +45,7 @@ struct type_casting_traits<int, float> {
 };
 
 template <>
-    struct type_casting_traits<float, double> {
+struct type_casting_traits<float, double> {
   enum {
     VectorizedCast = 1,
     SrcCoeffRatio = 1,
