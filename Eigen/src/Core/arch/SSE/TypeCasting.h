@@ -34,11 +34,10 @@ struct type_casting_traits<float, double> {
     TgtCoeffRatio = 2
   };
 };
-
 #endif
 
 template <>
-struct type_casting_traits<float, int> {
+struct type_casting_traits<int, float> {
   enum {
     VectorizedCast = 1,
     SrcCoeffRatio = 1,
@@ -47,7 +46,7 @@ struct type_casting_traits<float, int> {
 };
 
 template <>
-struct type_casting_traits<int, float> {
+struct type_casting_traits<float, int> {
   enum {
     VectorizedCast = 1,
     SrcCoeffRatio = 1,
