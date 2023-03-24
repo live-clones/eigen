@@ -561,8 +561,9 @@ EIGEN_STRONG_INLINE Packet16f cat256(Packet8f a, Packet8f b) {
   return _mm512_castsi512_ps(_mm512_inserti64x4(_mm512_castsi256_si512(_mm256_castps_si256(a)),
                                                 _mm256_castps_si256(b),1));
 }
-EIGEN_STRONG_INLINE Packet16f cat256i(Packet8i a, Packet8i b) {
-  return _mm512_inserti64x4(_mm512_castsi256_si512(a), _mm512_castsi256_si512(b), 1);
+EIGEN_STRONG_INLINE Packet16i cat256i(Packet8i a, Packet8i b) {
+  return _mm512_inserti64x4(_mm512_castsi256_si512(a), b, 1);
+}
 #endif
 
 // Helper function for bit packing snippet of low precision comparison.
