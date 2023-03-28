@@ -41,6 +41,14 @@ IvcColType<Indices> ivcSize(const Indices& indices) const {
       indices, internal::variable_if_dynamic<Index, SizeAtCompileTime>(derived().size()), Specialized);
 }
 
+// convert l-value raw array to std::array
+template <typename IndicesT, std::size_t IndicesN>
+static std::array<IndicesT, IndicesN> raw_to_std_array(const IndicesT (&indices)[IndicesN]) {
+  std::array<IndicesT, IndicesN> indicesArray;
+  std::copy(std::begin(indices), std::end(indices), indicesArray.begin());
+  return indicesArray;
+}
+
 // convert r-value raw array to std::array
 template <typename IndicesT, std::size_t IndicesN>
 static std::array<IndicesT, IndicesN> raw_to_std_array(IndicesT(&&indices)[IndicesN]) {
