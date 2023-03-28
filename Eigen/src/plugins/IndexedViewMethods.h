@@ -43,7 +43,7 @@ IvcColType<Indices> ivcSize(const Indices& indices) const {
 
 // convert r-value raw array to std::array
 template <typename IndicesT, std::size_t IndicesN>
-std::array<IndicesT, IndicesN> raw_to_std_array(IndicesT(&&indices)[IndicesN]) {
+static std::array<IndicesT, IndicesN> raw_to_std_array(IndicesT(&&indices)[IndicesN]) {
   std::array<IndicesT, IndicesN> indicesArray;
   std::move(std::begin(indices), std::end(indices), indicesArray.begin());
   return indicesArray;
