@@ -122,11 +122,31 @@ IndexedView<Derived, const RowIndicesT (&)[RowIndicesN], IvcColType<ColIndices>>
                                                                                          ivcCol(colIndices));
 }
 
+// this overload forces a copy of the r-value input array
+template <typename RowIndicesT, std::size_t RowIndicesN, typename ColIndices>
+IndexedView<Derived, const std::array<RowIndicesT,RowIndicesN>, IvcColType<ColIndices>> operator()(
+    RowIndicesT(&&rowIndices)[RowIndicesN], const ColIndices& colIndices) {
+    std::array<RowIndicesT, RowIndicesN> rowIndicesArray;
+    std::move(std::begin(rowIndices), std::end(rowIndices), rowIndicesArray.begin());
+    return IndexedView<Derived, const std::array<RowIndicesT, RowIndicesN>, IvcColType<ColIndices>>(derived(), rowIndicesArray,
+        ivcCol(colIndices));
+}
+
 template <typename RowIndicesT, std::size_t RowIndicesN, typename ColIndices>
 IndexedView<const Derived, const RowIndicesT (&)[RowIndicesN], IvcColType<ColIndices>> operator()(
     const RowIndicesT (&rowIndices)[RowIndicesN], const ColIndices& colIndices) const {
   return IndexedView<const Derived, const RowIndicesT(&)[RowIndicesN], IvcColType<ColIndices>>(derived(), rowIndices,
                                                                                                ivcCol(colIndices));
+}
+
+// this overload forces a copy of the r-value input array
+template <typename RowIndicesT, std::size_t RowIndicesN, typename ColIndices>
+IndexedView<const Derived, const std::array<RowIndicesT, RowIndicesN>, IvcColType<ColIndices>> operator()(
+    RowIndicesT(&&rowIndices)[RowIndicesN], const ColIndices& colIndices) const {
+  std::array<RowIndicesT, RowIndicesN> rowIndicesArray;
+  std::move(std::begin(rowIndices), std::end(rowIndices), rowIndicesArray.begin());
+  return IndexedView<const Derived, const std::array<RowIndicesT, RowIndicesN>, IvcColType<ColIndices>>(
+      derived(), rowIndicesArray, ivcCol(colIndices));
 }
 
 template <typename RowIndices, typename ColIndicesT, std::size_t ColIndicesN>
@@ -136,11 +156,31 @@ IndexedView<Derived, IvcRowType<RowIndices>, const ColIndicesT (&)[ColIndicesN]>
                                                                                          colIndices);
 }
 
+// this overload forces a copy of the r-value input array
+template <typename RowIndices, typename ColIndicesT, std::size_t ColIndicesN>
+IndexedView<Derived, IvcRowType<RowIndices>, const std::array<ColIndicesT,ColIndicesN>> operator()(
+    const RowIndices& rowIndices, ColIndicesT(&&colIndices)[ColIndicesN]) {
+    std::array<ColIndicesT, ColIndicesN> colIndicesArray;
+    std::move(std::begin(colIndices), std::end(colIndices), colIndicesArray.begin());
+    return IndexedView<Derived, IvcRowType<RowIndices>, const std::array<ColIndicesT, ColIndicesN>>(derived(), ivcRow(rowIndices),
+        colIndicesArray);
+}
+
 template <typename RowIndices, typename ColIndicesT, std::size_t ColIndicesN>
 IndexedView<const Derived, IvcRowType<RowIndices>, const ColIndicesT (&)[ColIndicesN]> operator()(
     const RowIndices& rowIndices, const ColIndicesT (&colIndices)[ColIndicesN]) const {
   return IndexedView<const Derived, IvcRowType<RowIndices>, const ColIndicesT(&)[ColIndicesN]>(
       derived(), ivcRow(rowIndices), colIndices);
+}
+
+// this overload forces a copy of the r-value input array
+template <typename RowIndices, typename ColIndicesT, std::size_t ColIndicesN>
+IndexedView<const Derived, IvcRowType<RowIndices>, const std::array<ColIndicesT, ColIndicesN>> operator()(
+    const RowIndices& rowIndices, ColIndicesT(&& colIndices)[ColIndicesN]) const {
+    std::array<ColIndicesT, ColIndicesN> colIndicesArray;
+    std::move(std::begin(colIndices), std::end(colIndices), colIndicesArray.begin());
+    return IndexedView<const Derived, IvcRowType<RowIndices>, const std::array<ColIndicesT, ColIndicesN>>(derived(), ivcRow(rowIndices),
+        colIndicesArray);
 }
 
 template <typename RowIndicesT, std::size_t RowIndicesN, typename ColIndicesT, std::size_t ColIndicesN>
@@ -150,12 +190,37 @@ IndexedView<Derived, const RowIndicesT (&)[RowIndicesN], const ColIndicesT (&)[C
       derived(), rowIndices, colIndices);
 }
 
+// this overload forces a copy of the r-value input array
+template <typename RowIndicesT, std::size_t RowIndicesN, typename ColIndicesT, std::size_t ColIndicesN>
+IndexedView<Derived, const std::array<RowIndicesT, RowIndicesN>, const std::array<ColIndicesT, ColIndicesN>> operator()(
+    RowIndicesT(&&rowIndices)[RowIndicesN], ColIndicesT(&&colIndices)[ColIndicesN]) {
+  std::array<RowIndicesT, RowIndicesN> rowIndicesArray;
+  std::array<ColIndicesT, ColIndicesN> colIndicesArray;
+  std::move(std::begin(rowIndices), std::end(rowIndices), rowIndicesArray.begin());
+  std::move(std::begin(colIndices), std::end(colIndices), colIndicesArray.begin());
+  return IndexedView<Derived, const std::array<RowIndicesT, RowIndicesN>, const std::array<ColIndicesT, ColIndicesN>>(
+      derived(), rowIndicesArray, colIndicesArray);
+}
+
 template <typename RowIndicesT, std::size_t RowIndicesN, typename ColIndicesT, std::size_t ColIndicesN>
 IndexedView<const Derived, const RowIndicesT (&)[RowIndicesN], const ColIndicesT (&)[ColIndicesN]> operator()(
     const RowIndicesT (&rowIndices)[RowIndicesN], const ColIndicesT (&colIndices)[ColIndicesN]) const {
   return IndexedView<const Derived, const RowIndicesT(&)[RowIndicesN], const ColIndicesT(&)[ColIndicesN]>(
       derived(), rowIndices, colIndices);
 }
+
+// this overload forces a copy of the r-value input array
+template <typename RowIndicesT, std::size_t RowIndicesN, typename ColIndicesT, std::size_t ColIndicesN>
+IndexedView<const Derived, const std::array<RowIndicesT, RowIndicesN>, const std::array<ColIndicesT, ColIndicesN>> operator()(
+    RowIndicesT(&& rowIndices)[RowIndicesN], ColIndicesT(&& colIndices)[ColIndicesN]) const {
+    std::array<RowIndicesT, RowIndicesN> rowIndicesArray;
+    std::array<ColIndicesT, ColIndicesN> colIndicesArray;
+    std::move(std::begin(rowIndices), std::end(rowIndices), rowIndicesArray.begin());
+    std::move(std::begin(colIndices), std::end(colIndices), colIndicesArray.begin());
+    return IndexedView<const Derived, const std::array<RowIndicesT, RowIndicesN>, const std::array<ColIndicesT, ColIndicesN>>(
+        derived(), rowIndicesArray, colIndicesArray);
+}
+
 // Overloads for 1D vectors/arrays
 
 template <typename Indices>
