@@ -344,16 +344,39 @@ class SparseCompressedBase<Derived>::ReverseInnerIterator
 namespace internal {
 
 // modified from https://artificial-mind.net/blog/2020/11/28/std-sort-multiple-ranges
+
+template <typename Scalar, typename StorageIndex>
+class StorageVal;
+template <typename Scalar, typename StorageIndex>
+class StorageRef;
 template <typename Scalar, typename StorageIndex>
 class CompressedStorageIterator;
 
+// thin wrapper around std::pair<StorageIndex,Scalar> to disable default comparators
+template <typename Scalar, typename StorageIndex>
+class StorageVal : public std::pair<StorageIndex, Scalar>
+{
+public:
+  using Base = std::pair<StorageIndex, Scalar>;
+  using Base::Base;
+
+  inline const StorageIndex& key() const { return this->first; }
+  #define VAL_COMP_T(OP) template<class T> inline friend bool operator OP(const StorageVal& a, const T& b) { return a.key() OP b.key(); }
+  #define VAL_COMP_IDX(OP) inline friend bool operator OP(const StorageVal& a, const StorageIndex& b) { return a.key() OP b; }
+  #define IDX_COMP_VAL(OP) inline friend bool operator OP(const StorageIndex& a, const StorageVal& b) { return a OP b.key(); }
+  #define MAKE_COMP(OP) VAL_COMP_T(OP) VAL_COMP_IDX(OP) IDX_COMP_VAL(OP)
+  MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)
+  #undef MAKE_COMP
+  #undef VAL_COMP_IDX
+  #undef VAL_COMP_T
+};
 // wrapper class analogous to std::pair<StorageIndex&, Scalar&>
 // used to define assignment, swap, and comparison operators for CompressedStorageIterator
 template <typename Scalar, typename StorageIndex>
 class StorageRef 
 {
 public:
-  using value_type = std::pair<StorageIndex, Scalar>;
+  using value_type = StorageVal<Scalar, StorageIndex>;
 
   inline StorageRef& operator=(const StorageRef& other) {
     *m_innerIndexIterator = *other.m_innerIndexIterator;
@@ -370,13 +393,15 @@ public:
     std::iter_swap(a.m_valueIterator, b.m_valueIterator);
   }
 
-  inline static const StorageIndex& key(const StorageRef& a) { return *a.m_innerIndexIterator; }
-  inline static const StorageIndex& key(const value_type& a) { return a.first; }
-  #define REF_COMP_REF(OP) inline friend bool operator OP(const StorageRef& a, const StorageRef& b) { return key(a) OP key(b); };
-  #define REF_COMP_VAL(OP) inline friend bool operator OP(const StorageRef& a, const value_type& b) { return key(a) OP key(b); };
-  #define VAL_COMP_REF(OP) inline friend bool operator OP(const value_type& a, const StorageRef& b) { return key(a) OP key(b); };
-  #define MAKE_COMPS(OP) REF_COMP_REF(OP) REF_COMP_VAL(OP) VAL_COMP_REF(OP)
-  MAKE_COMPS(<) MAKE_COMPS(>) MAKE_COMPS(<=) MAKE_COMPS(>=) MAKE_COMPS(==) MAKE_COMPS(!=)
+  inline const StorageIndex& key() const { return *(this->m_innerIndexIterator); }
+  #define REF_COMP_T(OP) template<class T> inline friend bool operator OP(const StorageRef& a, const T& b) { return a.key() OP b.key(); }
+  #define REF_COMP_IDX(OP) inline friend bool operator OP(const StorageRef& a, const StorageIndex& b) { return a.key() OP b; }
+  #define IDX_COMP_REF(OP) inline friend bool operator OP(const StorageIndex& a, const StorageRef& b) { return a OP b.key(); }
+  #define MAKE_COMP(OP) REF_COMP_T(OP) REF_COMP_IDX(OP) IDX_COMP_REF(OP)
+  MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)
+  #undef MAKE_COMP
+  #undef REF_COMP_IDX
+  #undef REF_COMP_T
 
 protected:
   StorageIndex* m_innerIndexIterator;
@@ -422,6 +447,7 @@ public:
 
   #define MAKE_COMP(OP) inline bool operator OP(const CompressedStorageIterator& other) const { return m_index OP other.m_index; }
   MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)
+  #undef MAKE_COMP
 
 protected:
   difference_type m_index;

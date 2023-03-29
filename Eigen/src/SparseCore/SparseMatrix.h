@@ -489,6 +489,12 @@ class SparseMatrix
     template<typename InputIterators, typename DupFunctor>
     void setFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func);
 
+    template<typename InputIterators>
+    void insertFromTriplets(const InputIterators& begin, const InputIterators& end);
+
+    template<typename InputIterators, typename DupFunctor>
+    void insertFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func);
+
     //---
     
     /** \internal
@@ -1095,10 +1101,10 @@ namespace internal {
 template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
 void set_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                        DupFunctor dup_func) {
-
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
+  using IndexMap = typename VectorX<StorageIndex>::AlignedMapType;
   if (begin == end) return;
 
   // free innerNonZeroPtr (if present) and zero outerIndexPtr
@@ -1134,10 +1140,9 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
     back.coeffRef(j)++;
   }
 
-  // use tmp to collapse duplicates
+  //// use tmp to collapse duplicates
   IndexMap wi(tmp, mat.innerSize());
   mat.collapseDuplicates(wi, dup_func);
-  mat.sortInnerIndices();
 }
 
 // Creates a compressed sparse matrix from a sorted range of triplets
@@ -1173,7 +1178,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
     previous_j = j;
     previous_i = i;
   }
-  
+
   // finalize outer indices and allocate memory
   std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
   eigen_assert(nonZeros == mat.outerIndexPtr()[mat.outerSize()]);
@@ -1200,8 +1205,54 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   // matrix is finalized
 }
 
-}
+template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
+void insert_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
+                          DupFunctor dup_func) {
+  constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
+  typedef typename SparseMatrixType::StorageIndex StorageIndex;
+  typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
+  if (begin == end) return;
 
+  // allocate temporary storage for nonzero insertion (outer size) and duplicate removal (inner size)
+  ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, numext::maxi(mat.innerSize(), mat.outerSize()), 0);
+  // scan triplets to determine allocation size before reserving memory
+  // use tmp to track nonzero insertions
+  IndexMap reserveCount(tmp, mat.outerSize());
+  reserveCount.setZero();
+  Index nonZeros = mat.nonZeros();
+  for (InputIterator it(begin); it != end; ++it) {
+    eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
+    StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    reserveCount.coeffRef(j)++;
+    if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
+    nonZeros++;
+  }
+
+  // allocate memory
+  mat.reserve(reserveCount);
+  eigen_assert(!mat.isCompressed());
+
+  IndexMap outerStart(mat.outerIndexPtr(), mat.outerSize());
+  IndexMap innerNonZeroMap(mat.innerNonZeroPtr(), mat.outerSize());
+  IndexMap back(tmp, mat.outerSize());
+  
+  back = outerStart + innerNonZeroMap;
+
+  // push triplets to back of each inner vector
+  for (InputIterator it(begin); it != end; ++it) {
+    StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    StorageIndex i = convert_index<StorageIndex>(IsRowMajor ? it->col() : it->row());
+    mat.data().index(back.coeff(j)) = i;
+    mat.data().value(back.coeff(j)) = it->value();
+    innerNonZeroMap.coeffRef(j)++;
+    back.coeffRef(j)++;
+  }
+
+  // use tmp to collapse duplicates
+  IndexMap wi(tmp, mat.innerSize());
+  mat.collapseDuplicates(wi, dup_func);
+}
+}  // namespace internal
 
 /** Fill the matrix \c *this with the list of \em triplets defined by the iterator range \a begin - \a end.
   *
@@ -1258,7 +1309,7 @@ template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const InputIterators& begin, const InputIterators& end)
 {
-    internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
+  internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
 }
 
 /** The same as setFromTriplets but when duplicates are met the functor \a dup_func is applied:
@@ -1274,7 +1325,7 @@ template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators, typename DupFunctor>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
 {
-    internal::set_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
+  internal::set_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
 
 /** The same as setFromSortedTriplets but when duplicates are met the functor \a dup_func is applied:
@@ -1290,41 +1341,68 @@ template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators, typename DupFunctor>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
 {
-    internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
+  internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
 
-/** \internal */
 template<typename Scalar, int Options_, typename StorageIndex_>
-template<typename Derived, typename DupFunctor>
-void SparseMatrix<Scalar, Options_, StorageIndex_>::collapseDuplicates(DenseBase<Derived>& wi, DupFunctor dup_func)
+template<typename InputIterators>
+void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const InputIterators& begin, const InputIterators& end)
 {
-  eigen_assert(wi.size() >= m_innerSize);
+  internal::insert_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
+}
+
+template<typename Scalar, int Options_, typename StorageIndex_>
+template<typename InputIterators, typename DupFunctor>
+void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
+{
+  internal::insert_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
+}
+
+template <typename StorageIndex_, class Comp = std::less<>>
+struct collapse_comp {
+  // custom sorting function to shift invalid entries to the right of the inner vector
+  // if 'a' is an invalid index, return false ('invalid' is not less than anything)
+  // if 'b' is an invalid index, return true (anything is less than 'invalid')
+  // otherwise, use the result of the comparator function
+  template <typename T1, typename T2>
+  constexpr bool operator()(const T1& a, const T2& b, Comp comp = Comp()) const {
+    if (a < StorageIndex_(0)) return false;
+    if (b < StorageIndex_(0)) return true;
+    return comp(a, b);
+  }
+};
+
+/** \internal */
+template<typename Scalar_, int Options_, typename StorageIndex_>
+template<typename Derived, typename DupFunctor>
+void SparseMatrix<Scalar_, Options_, StorageIndex_>::collapseDuplicates(DenseBase<Derived>& wi, DupFunctor dup_func)
+{
+  // remove duplicates, sort the inner indices, and compress the matrix
   constexpr StorageIndex kEmptyIndexValue(-1);
+  eigen_assert(wi.size() == m_innerSize);
   wi.setConstant(kEmptyIndexValue);
-  StorageIndex count = 0;
-  // for each inner-vector, wi[inner_index] will hold the position of first element into the index/value buffers
+  uncompress();
   for (Index j = 0; j < m_outerSize; ++j) {
-    StorageIndex start = count;
-    StorageIndex oldEnd = isCompressed() ? m_outerIndex[j + 1] : m_outerIndex[j] + m_innerNonZeros[j];
-    for (StorageIndex k = m_outerIndex[j]; k < oldEnd; ++k) {
-      StorageIndex i = m_data.index(k);
-      if (wi(i) >= start) {
-        // we already meet this entry => accumulate it
-        m_data.value(wi(i)) = dup_func(m_data.value(wi(i)), m_data.value(k));
+    const Index k_start = m_outerIndex[j];
+    const Index k_end = k_start + m_innerNonZeros[j];
+    Index uniqueNonZeros = 0;
+    for (Index k = k_start; k < k_end; k++) {
+      Index i = m_data.index(k);
+      if (wi(i) < k_start) {
+        // this is first coefficient in vector `j` with inner index 'i'
+        wi(i) = k;
+        uniqueNonZeros++;
       } else {
-        m_data.value(count) = m_data.value(k);
-        m_data.index(count) = m_data.index(k);
-        wi(i) = count;
-        ++count;
+        // duplicate found: apply the duplicate functor and mark it for removal
+        m_data.value(wi(i)) = dup_func(m_data.value(wi(i)), m_data.value(k));
+        m_data.index(k) = kEmptyIndexValue;
       }
     }
-    m_outerIndex[j] = start;
+    // sort the inner indices and shift duplicates to the right in place
+    this->sortInnerIndices<collapse_comp<StorageIndex>>(j, j + 1);
+    m_innerNonZeros[j] = uniqueNonZeros;
   }
-  m_outerIndex[m_outerSize] = count;
-  // turn the matrix into compressed form
-  internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
-  m_innerNonZeros = 0;
-  m_data.resize(m_outerIndex[m_outerSize]);
+  makeCompressed();
 }
 
 

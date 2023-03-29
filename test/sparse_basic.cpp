@@ -515,6 +515,37 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     m.setFromSortedTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    // test insertFromTriplets
+
+    std::vector<TripletType> moreTriplets;
+    moreTriplets.reserve(ntriplets);
+    for (Index i = 0; i < ntriplets; ++i) {
+      StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
+      StorageIndex c = internal::random<StorageIndex>(0, StorageIndex(cols - 1));
+      Scalar v = internal::random<Scalar>();
+      moreTriplets.push_back(TripletType(r, c, v));
+      refMat_sum(r, c) += v;
+      if (std::abs(refMat_prod(r, c)) == 0)
+        refMat_prod(r, c) = v;
+      else
+        refMat_prod(r, c) *= v;
+      refMat_last(r, c) = v;
+    }
+
+    m.setFromTriplets(triplets.begin(), triplets.end());
+    m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end());
+    VERIFY_IS_APPROX(m, refMat_sum);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    m.setFromTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
+    m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
+    VERIFY_IS_APPROX(m, refMat_prod);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+    m.setFromTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
+    m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), [](Scalar, Scalar b) { return b; });
+    VERIFY_IS_APPROX(m, refMat_last);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
   }
   
   // test Map
