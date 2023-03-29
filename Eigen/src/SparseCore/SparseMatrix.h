@@ -1399,7 +1399,7 @@ void SparseMatrix<Scalar_, Options_, StorageIndex_>::collapseDuplicates(DenseBas
       }
     }
     // sort the inner indices and shift duplicates to the right in place
-    this->sortInnerIndices<collapse_comp<StorageIndex>>(j, j + 1);
+    this->template sortInnerIndices<collapse_comp<StorageIndex>>(j, j + 1);
     m_innerNonZeros[j] = uniqueNonZeros;
   }
   makeCompressed();
