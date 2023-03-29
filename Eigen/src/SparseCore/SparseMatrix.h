@@ -1140,7 +1140,7 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
     back.coeffRef(j)++;
   }
 
-  //// use tmp to collapse duplicates
+  // use tmp to collapse duplicates
   IndexMap wi(tmp, mat.innerSize());
   mat.collapseDuplicates(wi, dup_func);
 }
