@@ -1102,7 +1102,6 @@ template <typename InputIterator, typename SparseMatrixType, typename DupFunctor
 void set_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                        DupFunctor dup_func) {
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
-  using Scalar = typename SparseMatrixType::Scalar;
   using StorageIndex = typename SparseMatrixType::StorageIndex;
   using IndexMap = typename VectorX<StorageIndex>::AlignedMapType;
   if (begin == end) return;
@@ -1400,7 +1399,7 @@ void SparseMatrix<Scalar_, Options_, StorageIndex_>::collapseDuplicates(DenseBas
     }
     // sort the inner indices and shift duplicates to the right in place
     this->template sortInnerIndices<collapse_comp<StorageIndex>>(j, j + 1);
-    m_innerNonZeros[j] = uniqueNonZeros;
+    m_innerNonZeros[j] = internal::convert_index<StorageIndex>(uniqueNonZeros);
   }
   makeCompressed();
 }

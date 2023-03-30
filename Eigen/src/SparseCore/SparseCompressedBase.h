@@ -398,7 +398,6 @@ public:
     value() = other.value();
     return *this;
   }
-
   inline operator value_type() const { return value_type(key(), value()); }
   inline friend void swap(const StorageRef& a, const StorageRef& b) {
     std::iter_swap(a.keyPtr(), b.keyPtr());
@@ -425,7 +424,7 @@ protected:
   Scalar* m_valueIterator;
 private:
   StorageRef() = delete;
-  // these constructors are only called by the CompressedStorageIterator constructors for convenience only
+  // these constructors are called by the CompressedStorageIterator constructors for convenience only
   StorageRef(StorageIndex* innerIndexIterator, Scalar* valueIterator) : m_innerIndexIterator(innerIndexIterator), m_valueIterator(valueIterator) {}
   StorageRef(const StorageRef& other) : m_innerIndexIterator(other.m_innerIndexIterator), m_valueIterator(other.m_valueIterator) {}
 
