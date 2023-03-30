@@ -1389,7 +1389,7 @@ void SparseMatrix<Scalar_, Options_, StorageIndex_>::collapseDuplicates(DenseBas
       Index i = m_data.index(k);
       if (wi(i) < k_start) {
         // this is first coefficient in vector `j` with inner index 'i'
-        wi(i) = k;
+        wi(i) = internal::convert_index<StorageIndex>(k);
         uniqueNonZeros++;
       } else {
         // duplicate found: apply the duplicate functor and mark it for removal
