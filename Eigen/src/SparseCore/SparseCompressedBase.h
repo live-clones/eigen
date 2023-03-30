@@ -352,15 +352,20 @@ class StorageRef;
 template <typename Scalar, typename StorageIndex>
 class CompressedStorageIterator;
 
-// thin wrapper around std::pair<StorageIndex,Scalar> to disable default comparators
+// class to hold an index/value pair
 template <typename Scalar, typename StorageIndex>
-class StorageVal : public std::pair<StorageIndex, Scalar>
+class StorageVal
 {
 public:
-  using Base = std::pair<StorageIndex, Scalar>;
-  using Base::Base;
+    
+  StorageVal(const StorageIndex& innerIndex, const Scalar& value) : m_innerIndex(innerIndex), m_value(value) {}
+  StorageVal(const StorageVal& other) : m_innerIndex(other.m_innerIndex), m_value(other.m_value) {}
 
-  inline const StorageIndex& key() const { return this->first; }
+  inline const StorageIndex& key() const { return m_innerIndex; }
+  inline StorageIndex& key() { return m_innerIndex; }
+  inline const Scalar& value() const { return m_value; }
+  inline Scalar& value() { return m_value; }
+
   #define VAL_COMP_T(OP) template<class T> inline friend bool operator OP(const StorageVal& a, const T& b) { return a.key() OP b.key(); }
   #define VAL_COMP_IDX(OP) inline friend bool operator OP(const StorageVal& a, const StorageIndex& b) { return a.key() OP b; }
   #define IDX_COMP_VAL(OP) inline friend bool operator OP(const StorageIndex& a, const StorageVal& b) { return a OP b.key(); }
@@ -369,8 +374,13 @@ public:
   #undef MAKE_COMP
   #undef VAL_COMP_IDX
   #undef VAL_COMP_T
+protected:
+  StorageIndex m_innerIndex;
+  Scalar m_value;
+private:
+  StorageVal() = delete;
 };
-// wrapper class analogous to std::pair<StorageIndex&, Scalar&>
+// class to hold an index/value iterator pair
 // used to define assignment, swap, and comparison operators for CompressedStorageIterator
 template <typename Scalar, typename StorageIndex>
 class StorageRef 
@@ -379,21 +389,29 @@ public:
   using value_type = StorageVal<Scalar, StorageIndex>;
 
   inline StorageRef& operator=(const StorageRef& other) {
-    *m_innerIndexIterator = *other.m_innerIndexIterator;
-    *m_valueIterator = *other.m_valueIterator;
+    key() = other.key();
+    value() = other.value();
     return *this;
   }
   inline StorageRef& operator=(const value_type& other) {
-    std::tie(*m_innerIndexIterator, *m_valueIterator) = other;
+    key() = other.key();
+    value() = other.value();
     return *this;
   }
-  inline operator value_type() const { return std::make_pair(*m_innerIndexIterator, *m_valueIterator); }
+
+  inline operator value_type() const { return value_type(key(), value()); }
   inline friend void swap(const StorageRef& a, const StorageRef& b) {
-    std::iter_swap(a.m_innerIndexIterator, b.m_innerIndexIterator);
-    std::iter_swap(a.m_valueIterator, b.m_valueIterator);
+    std::iter_swap(a.keyPtr(), b.keyPtr());
+    std::iter_swap(a.valuePtr(), b.valuePtr());
   }
 
-  inline const StorageIndex& key() const { return *(this->m_innerIndexIterator); }
+  inline const StorageIndex& key() const { return *m_innerIndexIterator; }
+  inline StorageIndex& key() { return *m_innerIndexIterator; }
+  inline const Scalar& value() const { return *m_valueIterator; }
+  inline Scalar& value() { return *m_valueIterator; }
+  inline StorageIndex* keyPtr() const { return m_innerIndexIterator; }
+  inline Scalar* valuePtr() const { return m_valueIterator; }
+
   #define REF_COMP_T(OP) template<class T> inline friend bool operator OP(const StorageRef& a, const T& b) { return a.key() OP b.key(); }
   #define REF_COMP_IDX(OP) inline friend bool operator OP(const StorageRef& a, const StorageIndex& b) { return a.key() OP b; }
   #define IDX_COMP_REF(OP) inline friend bool operator OP(const StorageIndex& a, const StorageRef& b) { return a OP b.key(); }
@@ -402,7 +420,6 @@ public:
   #undef MAKE_COMP
   #undef REF_COMP_IDX
   #undef REF_COMP_T
-
 protected:
   StorageIndex* m_innerIndexIterator;
   Scalar* m_valueIterator;
@@ -443,7 +460,7 @@ public:
   inline CompressedStorageIterator& operator--() { --m_index; return *this; }
   inline CompressedStorageIterator& operator+=(difference_type offset) { m_index += offset; return *this; }
   inline CompressedStorageIterator& operator-=(difference_type offset) { m_index -= offset; return *this; }
-  inline reference operator*() const { return reference(m_data.m_innerIndexIterator + m_index, m_data.m_valueIterator + m_index); }
+  inline reference operator*() const { return reference(m_data.keyPtr() + m_index, m_data.valuePtr() + m_index); }
 
   #define MAKE_COMP(OP) inline bool operator OP(const CompressedStorageIterator& other) const { return m_index OP other.m_index; }
   MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)

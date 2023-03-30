@@ -1150,8 +1150,8 @@ template <typename InputIterator, typename SparseMatrixType, typename DupFunctor
 void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                               DupFunctor dup_func) {
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
+  using IndexMap = typename VectorX<StorageIndex>::AlignedMapType;
   if (begin == end) return;
 
   constexpr StorageIndex kEmptyIndexValue(-1);
@@ -1209,8 +1209,8 @@ template <typename InputIterator, typename SparseMatrixType, typename DupFunctor
 void insert_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                           DupFunctor dup_func) {
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef typename VectorX<StorageIndex>::AlignedMapType IndexMap;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
+  using IndexMap = typename VectorX<StorageIndex>::AlignedMapType;
   if (begin == end) return;
 
   // allocate temporary storage for nonzero insertion (outer size) and duplicate removal (inner size)
