@@ -1230,8 +1230,6 @@ void insert_from_triplets(const InputIterator& begin, const InputIterator& end, 
 
   // allocate memory
   mat.reserve(reserveCount);
-  eigen_assert(!mat.isCompressed());
-  eigen_assert(mat.data().size() == mat.outerIndexPtr()[mat.outerSize()]);
 
   IndexMap outerStart(mat.outerIndexPtr(), mat.outerSize());
   IndexMap innerNonZeroMap(mat.innerNonZeroPtr(), mat.outerSize());
@@ -1248,7 +1246,6 @@ void insert_from_triplets(const InputIterator& begin, const InputIterator& end, 
     innerNonZeroMap.coeffRef(j)++;
     back.coeffRef(j)++;
   }
-
 
   // use tmp to collapse duplicates
   IndexMap wi(tmp, mat.innerSize());
@@ -1365,17 +1362,21 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const Inp
 template <typename Scalar_, int Options_, typename StorageIndex_>
 template <typename Derived, typename DupFunctor>
 void SparseMatrix<Scalar_, Options_, StorageIndex_>::collapseDuplicates(DenseBase<Derived>& wi, DupFunctor dup_func) {
+  // removes duplicate entries and compresses the matrix
+  // the excess allocated memory is not released
+  // the inner indices do not need to be sorted, nor is the matrix returned in a sorted state
+  // call sortInnerIndices() after using this function
   eigen_assert(wi.size() == m_innerSize);
   constexpr StorageIndex kEmptyIndexValue(-1);
   wi.setConstant(kEmptyIndexValue);
   StorageIndex count = 0;
   // for each inner-vector, wi[inner_index] will hold the position of first element into the index/value buffers
   for (Index j = 0; j < m_outerSize; ++j) {
-    StorageIndex start = count;
-    StorageIndex oldEnd = isCompressed() ? m_outerIndex[j + 1] : m_outerIndex[j] + m_innerNonZeros[j];
-    for (StorageIndex k = m_outerIndex[j]; k < oldEnd; ++k) {
+    const StorageIndex newBegin = count;
+    const StorageIndex end = isCompressed() ? m_outerIndex[j + 1] : m_outerIndex[j] + m_innerNonZeros[j];
+    for (StorageIndex k = m_outerIndex[j]; k < end; ++k) {
       StorageIndex i = m_data.index(k);
-      if (wi(i) >= start) {
+      if (wi(i) >= newBegin) {
         // entry at k is a duplicate
         // accumulate it into the primary entry located at wi(i)
         m_data.value(wi(i)) = dup_func(m_data.value(wi(i)), m_data.value(k));
@@ -1388,14 +1389,14 @@ void SparseMatrix<Scalar_, Options_, StorageIndex_>::collapseDuplicates(DenseBas
         ++count;
       }
     }
-    m_outerIndex[j] = start;
+    m_outerIndex[j] = newBegin;
   }
   m_outerIndex[m_outerSize] = count;
+  m_data.resize(count);
 
   // turn the matrix into compressed form (if it is not already)
   internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
   m_innerNonZeros = 0;
-  m_data.resize(count);
 }
 
 /** \internal */

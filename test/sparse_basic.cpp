@@ -478,6 +478,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     }
 
     SparseMatrixType m(rows,cols);
+
     m.setFromTriplets(triplets.begin(), triplets.end());
     VERIFY_IS_APPROX(m, refMat_sum);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
@@ -485,6 +486,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     m.setFromTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
     m.setFromTriplets(triplets.begin(), triplets.end(), [] (Scalar,Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
@@ -503,7 +505,6 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     // for most cases, std::sort is sufficient and preferred
     std::stable_sort(triplets.begin(), triplets.end(), triplet_comp());
 
-    m.setZero();
     m.setFromSortedTriplets(triplets.begin(), triplets.end());
     VERIFY_IS_APPROX(m, refMat_sum);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
@@ -546,6 +547,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
     m.setFromTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     VERIFY(m.isCompressed());
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), [](Scalar, Scalar b) { return b; });
@@ -570,6 +572,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
     m.setFromTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     m.reserve(reserveSizes);
     VERIFY(!m.isCompressed());
@@ -888,10 +891,10 @@ EIGEN_DECLARE_TEST(sparse_basic)
     EIGEN_UNUSED_VARIABLE(r+c);
     CALL_SUBTEST_1(( sparse_basic(SparseMatrix<double>(1, 1)) ));
     CALL_SUBTEST_1(( sparse_basic(SparseMatrix<double>(8, 8)) ));
-    //CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c)) ));
-    //CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c)) ));
+    CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c)) ));
+    CALL_SUBTEST_2(( sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c)) ));
     CALL_SUBTEST_2(( sparse_basic(SparseMatrix<float,  RowMajor>(r, c))));
-    //CALL_SUBTEST_2(( sparse_basic(SparseMatrix<float,  ColMajor>(r, c))));
+    CALL_SUBTEST_2(( sparse_basic(SparseMatrix<float,  ColMajor>(r, c))));
     CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double, ColMajor>(r, c))));
     CALL_SUBTEST_3(( sparse_basic(SparseMatrix<double, RowMajor>(r, c))));
     CALL_SUBTEST_4(( sparse_basic(SparseMatrix<double, ColMajor,long int>(r, c)) ));
