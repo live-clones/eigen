@@ -480,10 +480,6 @@ class SparseMatrix
     template<typename InputIterators,typename DupFunctor>
     void setFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func);
 
-    // old version
-    template<typename DupFunctor>
-    void collapseDuplicates(DupFunctor dup_func = DupFunctor());
-
     template<typename Derived, typename DupFunctor>
     void collapseDuplicates(DenseBase<Derived>& wi, DupFunctor dup_func = DupFunctor());
 
