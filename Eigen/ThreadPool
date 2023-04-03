@@ -7,29 +7,24 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef EIGEN_CXX11_THREADPOOL_MODULE_H
-#define EIGEN_CXX11_THREADPOOL_MODULE_H
+#ifndef EIGEN_THREADPOOL_MODULE_H
+#define EIGEN_THREADPOOL_MODULE_H
 
-#include "../../../Eigen/Core"
+#include "Core"
 
-#include "../../../Eigen/src/Core/util/DisableStupidWarnings.h"
+#include "src/Core/util/DisableStupidWarnings.h"
 
-/** \defgroup CXX11_ThreadPool_Module C++11 ThreadPool Module
+/** \defgroup ThreadPool_Module ThreadPool Module
   *
   * This module provides 2 threadpool implementations
   *  - a simple reference implementation
   *  - a faster non blocking implementation
   *
-  * This module requires C++11.
-  *
   * \code
-  * #include <Eigen/CXX11/ThreadPool>
+  * #include <Eigen/ThreadPool>
   * \endcode
   */
 
-
-// The code depends on CXX11, so only include the module if the
-// compiler supports it.
 #include <cstddef>
 #include <cstring>
 #include <time.h>
@@ -53,8 +48,8 @@
 #endif
 #include <unordered_map>
 
-#include "src/util/CXX11Meta.h"
-#include "src/util/MaxSizeVector.h"
+#include "src/Core/util/Meta.h"
+#include "src/Core/util/MaxSizeVector.h"
 
 // IWYU pragma: begin_exports
 #include "src/ThreadPool/ThreadLocal.h"
@@ -68,6 +63,6 @@
 #include "src/ThreadPool/NonBlockingThreadPool.h"
 // IWYU pragma: end_exports
 
-#include "../../../Eigen/src/Core/util/ReenableStupidWarnings.h"
+#include "src/Core/util/ReenableStupidWarnings.h"
 
 #endif // EIGEN_CXX11_THREADPOOL_MODULE_H

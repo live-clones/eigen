@@ -10,7 +10,7 @@
 #include "main.h"
 
 #include <array>
-#include <Eigen/CXX11/src/util/CXX11Meta.h>
+#include <Eigen/src/Core/util/Meta.h>
 
 using Eigen::internal::is_same;
 using Eigen::internal::type_list;

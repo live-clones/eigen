@@ -10,7 +10,7 @@
 
 #define EIGEN_USE_THREADS
 #include "main.h"
-#include "Eigen/CXX11/ThreadPool"
+#include "Eigen/ThreadPool"
 #include "Eigen/CXX11/Tensor"
 
 static void test_create_destroy_empty_pool()
