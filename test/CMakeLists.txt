@@ -311,7 +311,9 @@ ei_add_test(initializer_list_construction)
 ei_add_test(diagonal_matrix_variadic_ctor)
 ei_add_test(serializer)
 ei_add_test(tuple_test)
-
+ei_add_test(threads_eventcount "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(threads_runqueue "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(threads_non_blocking_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 add_executable(bug1213 bug1213.cpp bug1213_main.cpp)
 
 check_cxx_compiler_flag("-ffast-math" COMPILER_SUPPORT_FASTMATH)
