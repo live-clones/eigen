@@ -13,8 +13,6 @@
 #include <vector>
 #include "EmulateArray.h"
 
-#include "CXX11Workarounds.h"
-
 namespace Eigen {
 
 namespace internal {
@@ -207,10 +205,10 @@ struct contained_in_list<test, check_against, type_list<a, as...>, false> : cont
 
 template<
   template<typename, typename> class test,
-  typename check_against
-  EIGEN_TPL_PP_SPEC_HACK_DEFC(typename, empty)
+  typename check_against,
+  typename... empty
 >
-struct contained_in_list<test, check_against, type_list<EIGEN_TPL_PP_SPEC_HACK_USE(empty)>, false> { constexpr static bool value = false; };
+struct contained_in_list<test, check_against, type_list<empty...>, false> { constexpr static bool value = false; };
 
 /* see if an element is in a list and check for global flags */
 
@@ -249,12 +247,12 @@ struct contained_in_list_gf<test, check_against, type_list<a, as...>, default_fl
 
 template<
   template<typename, typename> class test,
-  typename check_against
-  EIGEN_TPL_PP_SPEC_HACK_DEFC(typename, empty),
+  typename check_against,
+  typename... empty,
   int default_flags,
   int last_check_flags
 >
-struct contained_in_list_gf<test, check_against, type_list<EIGEN_TPL_PP_SPEC_HACK_USE(empty)>, default_flags, false, last_check_flags> { constexpr static bool value = false; constexpr static int global_flags = default_flags; };
+struct contained_in_list_gf<test, check_against, type_list<empty...>, default_flags, false, last_check_flags> { constexpr static bool value = false; constexpr static int global_flags = default_flags; };
 
 /* generic reductions */
 
