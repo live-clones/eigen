@@ -1154,7 +1154,6 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
                               DupFunctor dup_func) {
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
   using StorageIndex = typename SparseMatrixType::StorageIndex;
-  using IndexMap = typename VectorX<StorageIndex>::AlignedMapType;
   if (begin == end) return;
 
   constexpr StorageIndex kEmptyIndexValue(-1);
