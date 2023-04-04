@@ -451,8 +451,14 @@ public:
   inline CompressedStorageIterator& operator-=(difference_type offset) { m_index -= offset; return *this; }
   inline reference operator*() const { return reference(m_data.keyPtr() + m_index, m_data.valuePtr() + m_index); }
 
-  // enables CompressedStorageIterator to be compared with respect to any type that is convertible to difference_type
-  inline operator difference_type() const { return m_index; }
+  #define MAKE_COMP(OP) inline bool operator OP(const CompressedStorageIterator& other) const { return m_index OP other.m_index; }
+  MAKE_COMP(<)
+  MAKE_COMP(>)
+  MAKE_COMP(>=)
+  MAKE_COMP(<=)
+  MAKE_COMP(!=)
+  MAKE_COMP(==)
+  #undef MAKE_COMP
 
 protected:
   difference_type m_index;
