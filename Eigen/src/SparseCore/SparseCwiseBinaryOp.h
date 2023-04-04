@@ -72,7 +72,7 @@ public:
   public:
     
     EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
-      : m_lhsIter(aEval.m_lhsImpl,outer), m_rhsIter(aEval.m_rhsImpl,outer), m_functor(aEval.m_functor)
+      : m_lhsIter(aEval.m_lhsImpl,outer), m_rhsIter(aEval.m_rhsImpl,outer), m_functor(aEval.m_functor), m_value(Scalar(0))
     {
       this->operator++();
     }
@@ -100,7 +100,6 @@ public:
       }
       else
       {
-        m_value = Scalar(0); // this is to avoid a compilation warning
         m_id = -1;
       }
       return *this;
@@ -143,6 +142,85 @@ public:
   }
 
 protected:
+  const BinaryOp m_functor;
+  evaluator<Lhs> m_lhsImpl;
+  evaluator<Rhs> m_rhsImpl;
+};
+
+// Specialization of the sparse OP sparse evaulator for a duplicate functor: only apply functor when both values are present
+template <typename Scalar, typename DupFunc, typename Lhs, typename Rhs>
+struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<Scalar, DupFunc>, Lhs, Rhs>, IteratorBased, IteratorBased>
+    : evaluator_base<CwiseBinaryOp<scalar_dup_op<Scalar, DupFunc>, Lhs, Rhs> > {
+ protected:
+  typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
+  typedef typename evaluator<Rhs>::InnerIterator RhsIterator;
+  typedef scalar_dup_op<Scalar, DupFunc> BinaryOp;
+  typedef CwiseBinaryOp<BinaryOp, Lhs, Rhs> XprType;
+  typedef typename traits<XprType>::Scalar Scalar;
+  typedef typename XprType::StorageIndex StorageIndex;
+
+ public:
+  class InnerIterator {
+   public:
+    EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
+        : m_lhsIter(aEval.m_lhsImpl, outer),
+          m_rhsIter(aEval.m_rhsImpl, outer),
+          m_functor(aEval.m_functor),
+          m_value(Scalar(0)) {
+      this->operator++();
+    }
+
+    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+      if (m_lhsIter && m_rhsIter && (m_lhsIter.index() == m_rhsIter.index())) {
+        m_id = m_lhsIter.index();
+        m_value = m_functor(m_lhsIter.value(), m_rhsIter.value());
+        ++m_lhsIter;
+        ++m_rhsIter;
+      } else if (m_lhsIter && (!m_rhsIter || (m_lhsIter.index() < m_rhsIter.index()))) {
+        m_id = m_lhsIter.index();
+        m_value = m_lhsIter.value();
+        ++m_lhsIter;
+      } else if (m_rhsIter && (!m_lhsIter || (m_lhsIter.index() > m_rhsIter.index()))) {
+        m_id = m_rhsIter.index();
+        m_value = m_rhsIter.value();
+        ++m_rhsIter;
+      } else {
+        m_id = -1;
+      }
+      return *this;
+    }
+
+    EIGEN_STRONG_INLINE Scalar value() const { return m_value; }
+
+    EIGEN_STRONG_INLINE StorageIndex index() const { return m_id; }
+    EIGEN_STRONG_INLINE Index outer() const { return m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE Index row() const { return Lhs::IsRowMajor ? m_lhsIter.row() : index(); }
+    EIGEN_STRONG_INLINE Index col() const { return Lhs::IsRowMajor ? index() : m_lhsIter.col(); }
+
+    EIGEN_STRONG_INLINE operator bool() const { return m_id >= 0; }
+
+   protected:
+    LhsIterator m_lhsIter;
+    RhsIterator m_rhsIter;
+    const BinaryOp& m_functor;
+    Scalar m_value;
+    StorageIndex m_id;
+  };
+
+  enum {
+    CoeffReadCost =
+        int(evaluator<Lhs>::CoeffReadCost) + int(evaluator<Rhs>::CoeffReadCost) + int(functor_traits<BinaryOp>::Cost),
+    Flags = XprType::Flags
+  };
+
+  explicit binary_evaluator(const XprType& xpr) : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
+    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
+  }
+
+  inline Index nonZerosEstimate() const { return m_lhsImpl.nonZerosEstimate() + m_rhsImpl.nonZerosEstimate(); }
+
+ protected:
   const BinaryOp m_functor;
   evaluator<Lhs> m_lhsImpl;
   evaluator<Rhs> m_rhsImpl;

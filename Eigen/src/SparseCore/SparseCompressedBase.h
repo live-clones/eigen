@@ -366,14 +366,9 @@ public:
   inline const Scalar& value() const { return m_value; }
   inline Scalar& value() { return m_value; }
 
-  #define VAL_COMP_T(OP) template<class T> inline friend bool operator OP(const StorageVal& a, const T& b) { return a.key() OP b.key(); }
-  #define VAL_COMP_IDX(OP) inline friend bool operator OP(const StorageVal& a, const StorageIndex& b) { return a.key() OP b; }
-  #define IDX_COMP_VAL(OP) inline friend bool operator OP(const StorageIndex& a, const StorageVal& b) { return a OP b.key(); }
-  #define MAKE_COMP(OP) VAL_COMP_T(OP) VAL_COMP_IDX(OP) IDX_COMP_VAL(OP)
-  MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)
-  #undef MAKE_COMP
-  #undef VAL_COMP_IDX
-  #undef VAL_COMP_T
+  // enables StorageVal to be compared with respect to any type that is convertible to StorageIndex
+  inline operator StorageIndex() const { return m_innerIndex; }
+
 protected:
   StorageIndex m_innerIndex;
   Scalar m_value;
@@ -411,14 +406,9 @@ public:
   inline StorageIndex* keyPtr() const { return m_innerIndexIterator; }
   inline Scalar* valuePtr() const { return m_valueIterator; }
 
-  #define REF_COMP_T(OP) template<class T> inline friend bool operator OP(const StorageRef& a, const T& b) { return a.key() OP b.key(); }
-  #define REF_COMP_IDX(OP) inline friend bool operator OP(const StorageRef& a, const StorageIndex& b) { return a.key() OP b; }
-  #define IDX_COMP_REF(OP) inline friend bool operator OP(const StorageIndex& a, const StorageRef& b) { return a OP b.key(); }
-  #define MAKE_COMP(OP) REF_COMP_T(OP) REF_COMP_IDX(OP) IDX_COMP_REF(OP)
-  MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)
-  #undef MAKE_COMP
-  #undef REF_COMP_IDX
-  #undef REF_COMP_T
+  // enables StorageRef to be compared with respect to any type that is convertible to StorageIndex
+  inline operator StorageIndex() const { return *m_innerIndexIterator; }
+
 protected:
   StorageIndex* m_innerIndexIterator;
   Scalar* m_valueIterator;
@@ -461,9 +451,8 @@ public:
   inline CompressedStorageIterator& operator-=(difference_type offset) { m_index -= offset; return *this; }
   inline reference operator*() const { return reference(m_data.keyPtr() + m_index, m_data.valuePtr() + m_index); }
 
-  #define MAKE_COMP(OP) inline bool operator OP(const CompressedStorageIterator& other) const { return m_index OP other.m_index; }
-  MAKE_COMP(<) MAKE_COMP(>) MAKE_COMP(>=) MAKE_COMP(<=) MAKE_COMP(!=) MAKE_COMP(==)
-  #undef MAKE_COMP
+  // enables CompressedStorageIterator to be compared with respect to any type that is convertible to difference_type
+  inline operator difference_type() const { return m_index; }
 
 protected:
   difference_type m_index;

@@ -503,17 +503,18 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     // stable_sort is only necessary when the reduction functor is dependent on the order of the triplets
     // this is the case with refMat_last
     // for most cases, std::sort is sufficient and preferred
-    std::stable_sort(triplets.begin(), triplets.end(), triplet_comp());
+    std::vector<TripletType> sortedTriplets = triplets;
+    std::stable_sort(sortedTriplets.begin(), sortedTriplets.end(), triplet_comp());
 
-    m.setFromSortedTriplets(triplets.begin(), triplets.end());
+    m.setFromSortedTriplets(sortedTriplets.begin(), sortedTriplets.end());
     VERIFY_IS_APPROX(m, refMat_sum);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
-    m.setFromSortedTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
+    m.setFromSortedTriplets(sortedTriplets.begin(), sortedTriplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
-    m.setFromSortedTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
+    m.setFromSortedTriplets(sortedTriplets.begin(), sortedTriplets.end(), [](Scalar, Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
