@@ -156,7 +156,6 @@ struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<Scalar, DupFunc>, Lhs, Rhs>,
   typedef typename evaluator<Rhs>::InnerIterator RhsIterator;
   typedef scalar_dup_op<Scalar, DupFunc> BinaryOp;
   typedef CwiseBinaryOp<BinaryOp, Lhs, Rhs> XprType;
-  typedef typename traits<XprType>::Scalar Scalar;
   typedef typename XprType::StorageIndex StorageIndex;
 
  public:
