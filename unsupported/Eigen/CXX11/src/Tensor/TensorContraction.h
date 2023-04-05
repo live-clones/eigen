@@ -90,6 +90,11 @@ struct TensorContractionBlockMemAllocator {
     eigen_assert(lhs_block);
     eigen_assert(rhs_block);
     BlockSizes sz = ComputeLhsRhsBlockSizes(bm, bk, bn);
+    if ((sz.lhs_size + sz.rhs_size) == 0) {
+      *lhs_block = nullptr;
+      *rhs_block = nullptr;
+      return nullptr;
+    }
     char* block_mem = static_cast<char*>(d.allocate(sz.lhs_size + sz.rhs_size));
     eigen_assert(block_mem);
     *lhs_block = reinterpret_cast<LhsScalar*>(block_mem);
