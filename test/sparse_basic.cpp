@@ -453,80 +453,23 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     VERIFY_IS_APPROX(m2, refM2);
   }
 
-  // test setFromTriplets
+  // test setFromTriplets / insertFromTriplets
   {
     typedef Triplet<Scalar,StorageIndex> TripletType;
+    Index ntriplets = rows * cols;
+
     std::vector<TripletType> triplets;
-    Index ntriplets = rows*cols;
+
     triplets.reserve(ntriplets);
     DenseMatrix refMat_sum  = DenseMatrix::Zero(rows,cols);
     DenseMatrix refMat_prod = DenseMatrix::Zero(rows,cols);
     DenseMatrix refMat_last = DenseMatrix::Zero(rows,cols);
 
-    for(Index i=0;i<ntriplets;++i)
-    {
-      StorageIndex r = internal::random<StorageIndex>(0,StorageIndex(rows-1));
-      StorageIndex c = internal::random<StorageIndex>(0,StorageIndex(cols-1));
-      Scalar v = internal::random<Scalar>();
-      triplets.push_back(TripletType(r,c,v));
-      refMat_sum(r,c) += v;
-      if(std::abs(refMat_prod(r,c))==0)
-        refMat_prod(r,c) = v;
-      else
-        refMat_prod(r,c) *= v;
-      refMat_last(r,c) = v;
-    }
-
-    SparseMatrixType m(rows,cols);
-
-    m.setFromTriplets(triplets.begin(), triplets.end());
-    VERIFY_IS_APPROX(m, refMat_sum);
-    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
-
-    m.setFromTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
-    VERIFY_IS_APPROX(m, refMat_prod);
-    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
-
-    m.setFromTriplets(triplets.begin(), triplets.end(), [] (Scalar,Scalar b) { return b; });
-    VERIFY_IS_APPROX(m, refMat_last);
-    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
-
-    // test setFromSortedTriplets
-
-    struct triplet_comp {
-      inline bool operator()(const TripletType& a, const TripletType& b) {
-        return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
-                                            : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
-      }
-    };
-
-    // stable_sort is only necessary when the reduction functor is dependent on the order of the triplets
-    // this is the case with refMat_last
-    // for most cases, std::sort is sufficient and preferred
-    std::vector<TripletType> sortedTriplets = triplets;
-    std::stable_sort(sortedTriplets.begin(), sortedTriplets.end(), triplet_comp());
-
-    m.setFromSortedTriplets(sortedTriplets.begin(), sortedTriplets.end());
-    VERIFY_IS_APPROX(m, refMat_sum);
-    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
-
-    m.setFromSortedTriplets(sortedTriplets.begin(), sortedTriplets.end(), std::multiplies<Scalar>());
-    VERIFY_IS_APPROX(m, refMat_prod);
-    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
-
-    m.setFromSortedTriplets(sortedTriplets.begin(), sortedTriplets.end(), [](Scalar, Scalar b) { return b; });
-    VERIFY_IS_APPROX(m, refMat_last);
-    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
-
-    // test insertFromTriplets
-
-    std::vector<TripletType> moreTriplets;
-    moreTriplets.reserve(ntriplets);
     for (Index i = 0; i < ntriplets; ++i) {
       StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
       StorageIndex c = internal::random<StorageIndex>(0, StorageIndex(cols - 1));
       Scalar v = internal::random<Scalar>();
-      moreTriplets.push_back(TripletType(r, c, v));
+      triplets.push_back(TripletType(r, c, v));
       refMat_sum(r, c) += v;
       if (std::abs(refMat_prod(r, c)) == 0)
         refMat_prod(r, c) = v;
@@ -535,24 +478,52 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
       refMat_last(r, c) = v;
     }
 
-    // insert into a compressed matrix
+    std::vector<TripletType> moreTriplets;
+    moreTriplets.reserve(ntriplets);
+    DenseMatrix refMat_sum_more = refMat_sum;
+    DenseMatrix refMat_prod_more = refMat_prod;
+    DenseMatrix refMat_last_more = refMat_last;
+
+    for (Index i = 0; i < ntriplets; ++i) {
+      StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
+      StorageIndex c = internal::random<StorageIndex>(0, StorageIndex(cols - 1));
+      Scalar v = internal::random<Scalar>();
+      moreTriplets.push_back(TripletType(r, c, v));
+      refMat_sum_more(r, c) += v;
+      if (std::abs(refMat_prod_more(r, c)) == 0)
+        refMat_prod_more(r, c) = v;
+      else
+        refMat_prod_more(r, c) *= v;
+      refMat_last_more(r, c) = v;
+    }
+
+    SparseMatrixType m(rows,cols);
+
+    // test setFromTriplets / insertFromTriplets
 
     m.setFromTriplets(triplets.begin(), triplets.end());
+    VERIFY_IS_APPROX(m, refMat_sum);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
     VERIFY(m.isCompressed());
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end());
-    VERIFY_IS_APPROX(m, refMat_sum);
+    VERIFY_IS_APPROX(m, refMat_sum_more);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     m.setFromTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
-    VERIFY(m.isCompressed());
-    m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
     VERIFY_IS_APPROX(m, refMat_prod);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+    VERIFY(m.isCompressed());
+    m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
+    VERIFY_IS_APPROX(m, refMat_prod_more);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
+    m.setFromTriplets(triplets.begin(), triplets.end(), [] (Scalar,Scalar b) { return b; });
+    VERIFY_IS_APPROX(m, refMat_last);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
     m.setFromTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     VERIFY(m.isCompressed());
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), [](Scalar, Scalar b) { return b; });
-    VERIFY_IS_APPROX(m, refMat_last);
+    VERIFY_IS_APPROX(m, refMat_last_more);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     // insert into an uncompressed matrix
@@ -564,21 +535,84 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     m.reserve(reserveSizes);
     VERIFY(!m.isCompressed());
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end());
-    VERIFY_IS_APPROX(m, refMat_sum);
+    VERIFY_IS_APPROX(m, refMat_sum_more);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     m.setFromTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
     m.reserve(reserveSizes);
     VERIFY(!m.isCompressed());
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
-    VERIFY_IS_APPROX(m, refMat_prod);
+    VERIFY_IS_APPROX(m, refMat_prod_more);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     m.setFromTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     m.reserve(reserveSizes);
     VERIFY(!m.isCompressed());
     m.insertFromTriplets(moreTriplets.begin(), moreTriplets.end(), [](Scalar, Scalar b) { return b; });
+    VERIFY_IS_APPROX(m, refMat_last_more);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    // test setFromSortedTriplets / insertFromSortedTriplets
+
+    struct triplet_comp {
+      inline bool operator()(const TripletType& a, const TripletType& b) {
+        return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
+                                            : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
+      }
+    };
+
+    // stable_sort is only necessary when the reduction functor is dependent on the order of the triplets
+    // this is the case with refMat_last
+    // for most cases, std::sort is sufficient and preferred
+
+    std::stable_sort(triplets.begin(), triplets.end(), triplet_comp());
+    std::stable_sort(moreTriplets.begin(), moreTriplets.end(), triplet_comp());
+
+    m.setFromSortedTriplets(triplets.begin(), triplets.end());
+    VERIFY_IS_APPROX(m, refMat_sum);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+    VERIFY(m.isCompressed());
+    m.insertFromSortedTriplets(moreTriplets.begin(), moreTriplets.end());
+    VERIFY_IS_APPROX(m, refMat_sum_more);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    m.setFromSortedTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
+    VERIFY_IS_APPROX(m, refMat_prod);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+    VERIFY(m.isCompressed());
+    m.insertFromSortedTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
+    VERIFY_IS_APPROX(m, refMat_prod_more);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    m.setFromSortedTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
     VERIFY_IS_APPROX(m, refMat_last);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+    VERIFY(m.isCompressed());
+    m.insertFromSortedTriplets(moreTriplets.begin(), moreTriplets.end(), [](Scalar, Scalar b) { return b; });
+    VERIFY_IS_APPROX(m, refMat_last_more);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    // insert into an uncompressed matrix
+
+    m.setFromSortedTriplets(triplets.begin(), triplets.end());
+    m.reserve(reserveSizes);
+    VERIFY(!m.isCompressed());
+    m.insertFromSortedTriplets(moreTriplets.begin(), moreTriplets.end());
+    VERIFY_IS_APPROX(m, refMat_sum_more);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    m.setFromSortedTriplets(triplets.begin(), triplets.end(), std::multiplies<Scalar>());
+    m.reserve(reserveSizes);
+    VERIFY(!m.isCompressed());
+    m.insertFromSortedTriplets(moreTriplets.begin(), moreTriplets.end(), std::multiplies<Scalar>());
+    VERIFY_IS_APPROX(m, refMat_prod_more);
+    VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
+
+    m.setFromSortedTriplets(triplets.begin(), triplets.end(), [](Scalar, Scalar b) { return b; });
+    m.reserve(reserveSizes);
+    VERIFY(!m.isCompressed());
+    m.insertFromSortedTriplets(moreTriplets.begin(), moreTriplets.end(), [](Scalar, Scalar b) { return b; });
+    VERIFY_IS_APPROX(m, refMat_last_more);
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
   }
   

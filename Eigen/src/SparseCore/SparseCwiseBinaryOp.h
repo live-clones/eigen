@@ -148,15 +148,18 @@ protected:
 };
 
 // Specialization of the sparse OP sparse evaulator for a duplicate functor: only apply functor when both values are present
-template <typename Scalar, typename DupFunc, typename Lhs, typename Rhs>
-struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<Scalar, DupFunc>, Lhs, Rhs>, IteratorBased, IteratorBased>
-    : evaluator_base<CwiseBinaryOp<scalar_dup_op<Scalar, DupFunc>, Lhs, Rhs> > {
+template <typename DupFunc, typename Lhs, typename Rhs>
+struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<DupFunc, typename Lhs::Scalar>, Lhs, Rhs>, IteratorBased, IteratorBased>
+    : evaluator_base<CwiseBinaryOp<scalar_dup_op<DupFunc, typename Lhs::Scalar>, Lhs, Rhs> > {
  protected:
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
   typedef typename evaluator<Rhs>::InnerIterator RhsIterator;
-  typedef scalar_dup_op<Scalar, DupFunc> BinaryOp;
-  typedef CwiseBinaryOp<BinaryOp, Lhs, Rhs> XprType;
+  typedef typename Lhs::Scalar Scalar;
+  typedef DupFunc BinaryOp;
+  typedef CwiseBinaryOp<scalar_dup_op<BinaryOp, Scalar>, Lhs, Rhs> XprType;
   typedef typename XprType::StorageIndex StorageIndex;
+
+  EIGEN_STATIC_ASSERT((is_same<typename Lhs::Scalar, typename Rhs::Scalar>::value), LHS AND RHS MUST HAVE SAME TYPE);
 
  public:
   class InnerIterator {
@@ -212,7 +215,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<Scalar, DupFunc>, Lhs, Rhs>,
     Flags = XprType::Flags
   };
 
-  explicit binary_evaluator(const XprType& xpr) : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
+  explicit binary_evaluator(const XprType& xpr) : m_functor(xpr.functor().functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }

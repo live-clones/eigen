@@ -495,6 +495,12 @@ class SparseMatrix
     template<typename InputIterators, typename DupFunctor>
     void insertFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func);
 
+    template<typename InputIterators>
+    void insertFromSortedTriplets(const InputIterators& begin, const InputIterators& end);
+
+    template<typename InputIterators, typename DupFunctor>
+    void insertFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func);
+
     //---
     
     /** \internal
@@ -1109,9 +1115,9 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   if (begin == end) return;
 
   // There are two strategies to consider for constructing a matrix from unordered triplets:
-  // A) construct the matrix in its native storage order and sort in-place (less memory); or, 
-  // B) construct the transposed matrix and assign to `mat` (less time) 
-  // This routine uses B), which is tantamount to an out-of-place sort, for faster execution time.
+  // A) construct the 'mat' in its native storage order and sort in-place (less memory); or, 
+  // B) construct the transposed matrix and use an implicit sort upon assignment to `mat` (less time).
+  // This routine uses B) for faster execution time.
   TransposedSparseMatrix trmat(mat.rows(), mat.cols());
 
   // scan triplets to determine allocation size before constructing matrix
@@ -1125,8 +1131,8 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   }
 
   std::partial_sum(trmat.outerIndexPtr(), trmat.outerIndexPtr() + trmat.outerSize() + 1, trmat.outerIndexPtr());
-  trmat.resizeNonZeros(nonZeros);
   eigen_assert(nonZeros == trmat.outerIndexPtr()[trmat.outerSize()]);
+  trmat.resizeNonZeros(nonZeros);
 
   // construct temporary array to track insertions (outersize) and collapse duplicates (innersize)
   ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, numext::maxi(mat.innerSize(), mat.outerSize()), 0);
@@ -1154,6 +1160,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
                               DupFunctor dup_func) {
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
   using StorageIndex = typename SparseMatrixType::StorageIndex;
+
   if (begin == end) return;
 
   constexpr StorageIndex kEmptyIndexValue(-1);
@@ -1172,12 +1179,12 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
     // identify duplicates by examining previous location
     bool duplicate = (previous_j == j) && (previous_i == i);
     if (!duplicate) {
-      mat.outerIndexPtr()[j + 1]++;
       if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
       nonZeros++;
+      mat.outerIndexPtr()[j + 1]++;
+      previous_j = j;
+      previous_i = i;
     }
-    previous_j = j;
-    previous_i = i;
   }
 
   // finalize outer indices and allocate memory
@@ -1187,7 +1194,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
 
   previous_i = kEmptyIndexValue;
   previous_j = kEmptyIndexValue;
-  StorageIndex back = 0;
+  Index back = 0;
   for (InputIterator it(begin); it != end; ++it) {
     StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
     StorageIndex i = convert_index<StorageIndex>(IsRowMajor ? it->col() : it->row());
@@ -1203,26 +1210,53 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
       back++;
     }
   }
+  eigen_assert(back == nonZeros);
   // matrix is finalized
 }
 
-// thin wrapper around DupFunctor to help specialize binary_evaluator
-template<typename Scalar, typename DupFunctor>
+// thin wrapper around a generic binary functor to help specialize the sparse-sparse binary_evaluator
+template<typename DupFunctor, typename Scalar>
 struct scalar_dup_op
 {
   scalar_dup_op(const DupFunctor& op) : m_functor(op) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator() (const Scalar& a, const Scalar& b) const { return m_functor(a,b); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator() (const Scalar& a, const Scalar& b) const { return m_functor(a, b); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DupFunctor& functor() const { return m_functor; }
   const DupFunctor& m_functor;
 };
+
+template <typename DupFunctor, typename Scalar>
+struct functor_traits<scalar_dup_op<DupFunctor, Scalar>> : public functor_traits<DupFunctor> {};
 
 // Creates a compressed sparse matrix from its existing entries and those from an unsorted range of triplets
 template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
 void insert_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                           DupFunctor dup_func) {
   using Scalar = typename SparseMatrixType::Scalar;
-  SparseMatrixType tmp(mat.rows(), mat.cols());
-  tmp.setFromTriplets(begin, end, dup_func);
-  mat = mat.binaryExpr(tmp, scalar_dup_op<Scalar, DupFunctor>(dup_func));
+  using SrcXprType = CwiseBinaryOp<scalar_dup_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
+
+  // set_from_triplets is necessary to sort the inner indices and remove the duplicate entries
+  SparseMatrixType trips(mat.rows(), mat.cols());
+  set_from_triplets(begin, end, trips, dup_func);
+
+  SrcXprType src = mat.binaryExpr(trips, scalar_dup_op<DupFunctor, Scalar>(dup_func));
+  // the sparse assignment procedure creates a temporary matrix and swaps the final result
+  assign_sparse_to_sparse<SparseMatrixType, SrcXprType>(mat, src);
+}
+
+// Creates a compressed sparse matrix from its existing entries and those from an sorted range of triplets
+template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
+void insert_from_triplets_sorted(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
+                                 DupFunctor dup_func) {
+  using Scalar = typename SparseMatrixType::Scalar;
+  using SrcXprType = CwiseBinaryOp<scalar_dup_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
+
+  // TODO: process triplets without making a copy
+  SparseMatrixType trips(mat.rows(), mat.cols());
+  set_from_triplets_sorted(begin, end, trips, dup_func);
+
+  SrcXprType src = mat.binaryExpr(trips, scalar_dup_op<DupFunctor, Scalar>(dup_func));
+  // the sparse assignment procedure creates a temporary matrix and swaps the final result
+  assign_sparse_to_sparse<SparseMatrixType, SrcXprType>(mat, src);
 }
 
 }  // namespace internal
@@ -1329,6 +1363,20 @@ template<typename InputIterators, typename DupFunctor>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
 {
   internal::insert_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
+}
+
+template<typename Scalar, int Options_, typename StorageIndex_>
+template<typename InputIterators>
+void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromSortedTriplets(const InputIterators& begin, const InputIterators& end)
+{
+  internal::insert_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
+}
+
+template<typename Scalar, int Options_, typename StorageIndex_>
+template<typename InputIterators, typename DupFunctor>
+void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
+{
+  internal::insert_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
 
 /** \internal */
