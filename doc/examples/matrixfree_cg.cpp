@@ -1,5 +1,3 @@
-static bool eigen_did_assert = false;
-#define eigen_assert(X) if(!eigen_did_assert && !(X)){ std::cout << "### Assertion raised in " << __FILE__ << ":" << __LINE__ << ":\n" #X << "\n### The following would happen without assertions:\n"; eigen_did_assert = true;}
 #include <iostream>
 #include <Eigen/Core>
 #include <Eigen/Dense>
