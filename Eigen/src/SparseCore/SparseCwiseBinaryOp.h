@@ -159,7 +159,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<DupFunc, typename Lhs::Scala
   typedef CwiseBinaryOp<scalar_dup_op<BinaryOp, Scalar>, Lhs, Rhs> XprType;
   typedef typename XprType::StorageIndex StorageIndex;
 
-  EIGEN_STATIC_ASSERT((is_same<typename Lhs::Scalar, typename Rhs::Scalar>::value), LHS AND RHS MUST HAVE SAME TYPE);
+  EIGEN_STATIC_ASSERT((is_same<typename Lhs::Scalar, typename Rhs::Scalar>::value), LHS AND RHS MUST HAVE SAME TYPE)
 
  public:
   class InnerIterator {
