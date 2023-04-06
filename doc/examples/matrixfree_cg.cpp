@@ -1,3 +1,5 @@
+static bool eigen_did_assert = false;
+#define eigen_assert(X) if(!eigen_did_assert && !(X)){ std::cout << "### Assertion raised in " << __FILE__ << ":" << __LINE__ << ":\n" #X << "\n### The following would happen without assertions:\n"; eigen_did_assert = true;}
 #include <iostream>
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -66,7 +68,7 @@ namespace internal {
     {
       // This method should implement "dst += alpha * lhs * rhs" inplace,
       // however, for iterative solvers, alpha is always equal to 1, so let's not bother about it.
-      assert(alpha==Scalar(1) && "scaling is not implemented");
+      eigen_assert(alpha==Scalar(1) && "scaling is not implemented");
       EIGEN_ONLY_USED_FOR_DEBUG(alpha);
 
       // Here we could simply call dst.noalias() += lhs.my_matrix() * rhs,
