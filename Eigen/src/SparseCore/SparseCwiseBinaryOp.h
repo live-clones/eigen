@@ -4,7 +4,7 @@
 // Copyright (C) 2008-2014 Gael Guennebaud <gael.guennebaud@inria.fr>
 //
 // This Source Code Form is subject to the terms of the Mozilla
-// Public License v. 2.0. If a copy of the MPL was not  tributed
+// Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #ifndef EIGEN_SPARSE_CWISE_BINARY_OP_H
@@ -51,6 +51,12 @@ class CwiseBinaryOpImpl<BinaryOp, Lhs, Rhs, Sparse>
 
 namespace internal {
 
+// The default evaluator performs an "arithmetic" operation on two input arrays.
+// Given input arrays 'lhs' and 'rhs' and binary functor 'func', 
+// the sparse destination array 'dst' is evaulated as follows:
+//   if lhs(i,j) and rhs(i,j) are present, dst(i,j) = func(lhs(i,j), rhs(i,j))
+//   if lhs(i,j) is present and rhs(i,j) is null, dst(i,j) = func(lhs(i,j), 0)
+//   if lhs(i,j) is null and rhs(i,j) is present, dst(i,j) = func(0, rhs(i,j))
   
 // Generic "sparse OP sparse"
 template<typename XprType> struct binary_sparse_evaluator;
@@ -393,6 +399,13 @@ struct binary_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs>, It
   explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
+// The conjunction "^" evaluator performs a logical "and" or set "intersection" operation on two input arrays.
+// Given input arrays 'lhs' and 'rhs' and binary functor 'func', 
+// the sparse destination array 'dst' is evaulated as follows:
+//   if lhs(i,j) and rhs(i,j) are present, dst(i,j) = func(lhs(i,j), rhs(i,j))
+//   if lhs(i,j) is present and rhs(i,j) is null, dst(i,j) is null
+//   if lhs(i,j) is null and rhs(i,j) is present, dst(i,j) is null
+
 // "sparse ^ sparse"
 template<typename XprType>
 struct sparse_conjunction_evaluator<XprType, IteratorBased, IteratorBased>
@@ -630,6 +643,13 @@ template<typename T,
     typename RhsKind = typename evaluator_traits<typename T::Rhs>::Kind,
     typename LhsScalar = typename traits<typename T::Lhs>::Scalar,
     typename RhsScalar = typename traits<typename T::Rhs>::Scalar> struct sparse_disjunction_evaluator;
+
+// The disjunction "v" evaluator performs a logical "or" or set "union" operation on two input arrays.
+// Given input arrays 'lhs' and 'rhs' and binary functor 'func', 
+// the sparse destination array 'dst' is evaulated as follows:
+//   if lhs(i,j) and rhs(i,j) are present, dst(i,j) = func(lhs(i,j), rhs(i,j))
+//   if lhs(i,j) is present and rhs(i,j) is null, dst(i,j) = lhs(i,j)
+//   if lhs(i,j) is null and rhs(i,j) is present, dst(i,j) = rhs(i,j)
 
 // "sparse v sparse"
 template <typename XprType>
@@ -879,8 +899,7 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
 
 // when DupFunc is wrapped with scalar_dup_op, use disjunction evaulator
 template <typename T1, typename T2, typename DupFunc, typename Lhs, typename Rhs>
-struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<DupFunc, T1, T2>, Lhs, Rhs>, IteratorBased,
-                                    IteratorBased>
+struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<DupFunc, T1, T2>, Lhs, Rhs>, IteratorBased, IteratorBased>
     : sparse_disjunction_evaluator<CwiseBinaryOp<scalar_dup_op<DupFunc, T1, T2>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_dup_op<DupFunc, T1, T2>, Lhs, Rhs> XprType;
   typedef sparse_disjunction_evaluator<XprType> Base;

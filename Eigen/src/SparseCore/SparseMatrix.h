@@ -1352,6 +1352,43 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const 
   internal::set_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
 
+/** Insert a batch of elements into the matrix \c *this with the list of \em triplets defined by the iterator range \a begin - \a end.
+  *
+  * A \em triplet is a tuple (i,j,value) defining a non-zero element.
+  * The input list of triplets does not have to be sorted, and can contains duplicated elements.
+  * In any case, the result is a \b sorted and \b compressed sparse matrix where the duplicates have been summed up.
+  * This is a \em O(n) operation, with \em n the number of triplet elements.
+  * The initial contents of \c *this is preserved (less the action of the duplicate functor).
+  * The matrix \c *this must be properly sized beforehand. The sizes are not extracted from the triplet list.
+  *
+  * The \a InputIterators value_type must provide the following interface:
+  * \code
+  * Scalar value() const; // the value
+  * Scalar row() const;   // the row index i
+  * Scalar col() const;   // the column index j
+  * \endcode
+  * See for instance the Eigen::Triplet template class.
+  *
+  * Here is a typical usage example:
+  * \code
+    SparseMatrixType m(rows,cols); // m contains nonzero entries
+    typedef Triplet<double> T;
+    std::vector<T> tripletList;
+    tripletList.reserve(estimation_of_entries);
+    for(...)
+    {
+      // ...
+      tripletList.push_back(T(i,j,v_ij));
+    }
+    
+    m.insertFromTriplets(tripletList.begin(), tripletList.end());
+    // m is ready to go!
+  * \endcode
+  *
+  * \warning The list of triplets is read multiple times (at least twice). Therefore, it is not recommended to define
+  * an abstract iterator over a complex data-structure that would be expensive to evaluate. The triplets should rather
+  * be explicitly stored into a std::vector for instance.
+  */
 template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const InputIterators& begin, const InputIterators& end)
@@ -1359,6 +1396,15 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const Inp
   internal::insert_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
 }
 
+/** The same as insertFromTriplets but when duplicates are met the functor \a dup_func is applied:
+  * \code
+  * value = dup_func(OldValue, NewValue)
+  * \endcode
+  * Here is a C++11 example keeping the latest entry only:
+  * \code
+  * mat.insertFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
+  * \endcode
+  */
 template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators, typename DupFunctor>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
@@ -1366,6 +1412,13 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const Inp
   internal::insert_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_>, DupFunctor>(begin, end, *this, dup_func);
 }
 
+/** The same as insertFromTriplets but triplets are assumed to be pre-sorted. This is faster and requires less temporary storage.
+  * Two triplets `a` and `b` are appropriately ordered if:
+  * \code
+  * ColMajor: ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row())
+  * RowMajor: ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col())
+  * \endcode
+  */
 template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromSortedTriplets(const InputIterators& begin, const InputIterators& end)
@@ -1373,6 +1426,15 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromSortedTriplets(con
   internal::insert_from_triplets_sorted<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_> >(begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
 }
 
+/** The same as insertFromSortedTriplets but when duplicates are met the functor \a dup_func is applied:
+  * \code
+  * value = dup_func(OldValue, NewValue)
+  * \endcode
+  * Here is a C++11 example keeping the latest entry only:
+  * \code
+  * mat.insertFromSortedTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
+  * \endcode
+  */
 template<typename Scalar, int Options_, typename StorageIndex_>
 template<typename InputIterators, typename DupFunctor>
 void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromSortedTriplets(const InputIterators& begin, const InputIterators& end, DupFunctor dup_func)
