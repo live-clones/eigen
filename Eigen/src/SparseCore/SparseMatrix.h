@@ -1218,7 +1218,7 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
 template<typename DupFunctor, typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_dup_op
 {
-  using result_type = decltype(DupFunctor(LhsScalar, RhsScalar));
+  using result_type = typename result_of<DupFunctor(LhsScalar, RhsScalar)>::type;
   scalar_dup_op(const DupFunctor& op) : m_functor(op) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator() (const LhsScalar& a, const RhsScalar& b) const { return m_functor(a, b); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DupFunctor& functor() const { return m_functor; }
