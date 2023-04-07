@@ -157,10 +157,10 @@ template<typename PlainObjectType, int Options_, template <class> class MakePoin
       }
     }
 
-#   if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
     // Einstein notation
     using TensorBase<TensorMap<PlainObjectType, Options_, MakePointer_> >::operator();
-#   endif
+    #endif
 
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE StorageRefType operator()(const array<Index, NumIndices>& indices)
