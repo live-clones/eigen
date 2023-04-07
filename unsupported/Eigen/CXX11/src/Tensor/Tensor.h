@@ -89,7 +89,6 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   protected:
     TensorStorage<Scalar, Dimensions, Options> m_storage;
 
-
   #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
   template<typename CustomIndices>
   struct isOfNormalIndex 
