@@ -288,6 +288,7 @@ ei_add_test(cxx11_tensor_volume_patch)
 if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # This test requires __uint128_t which is only available on 64bit systems
   ei_add_test(cxx11_tensor_uint128)
+endif()
 
 if(True)
   set(CMAKE_CXX_STANDARD 14)
