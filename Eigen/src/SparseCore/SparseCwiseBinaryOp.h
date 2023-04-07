@@ -53,7 +53,7 @@ namespace internal {
 
 // The default evaluator performs an "arithmetic" operation on two input arrays.
 // Given input arrays 'lhs' and 'rhs' and binary functor 'func', 
-// the sparse destination array 'dst' is evaulated as follows:
+// the sparse destination array 'dst' is evaluated as follows:
 //   if lhs(i,j) and rhs(i,j) are present, dst(i,j) = func(lhs(i,j), rhs(i,j))
 //   if lhs(i,j) is present and rhs(i,j) is null, dst(i,j) = func(lhs(i,j), 0)
 //   if lhs(i,j) is null and rhs(i,j) is present, dst(i,j) = func(0, rhs(i,j))
@@ -401,7 +401,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs>, It
 
 // The conjunction "^" evaluator performs a logical "and" or set "intersection" operation on two input arrays.
 // Given input arrays 'lhs' and 'rhs' and binary functor 'func', 
-// the sparse destination array 'dst' is evaulated as follows:
+// the sparse destination array 'dst' is evaluated as follows:
 //   if lhs(i,j) and rhs(i,j) are present, dst(i,j) = func(lhs(i,j), rhs(i,j))
 //   if lhs(i,j) is present and rhs(i,j) is null, dst(i,j) is null
 //   if lhs(i,j) is null and rhs(i,j) is present, dst(i,j) is null
@@ -646,7 +646,7 @@ template<typename T,
 
 // The disjunction "v" evaluator performs a logical "or" or set "union" operation on two input arrays.
 // Given input arrays 'lhs' and 'rhs' and binary functor 'func', 
-// the sparse destination array 'dst' is evaulated as follows:
+// the sparse destination array 'dst' is evaluated as follows:
 //   if lhs(i,j) and rhs(i,j) are present, dst(i,j) = func(lhs(i,j), rhs(i,j))
 //   if lhs(i,j) is present and rhs(i,j) is null, dst(i,j) = lhs(i,j)
 //   if lhs(i,j) is null and rhs(i,j) is present, dst(i,j) = rhs(i,j)
