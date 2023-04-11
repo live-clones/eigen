@@ -87,24 +87,24 @@ struct evaluator_traits<HouseholderSequence<VectorsType,CoeffsType,Side> >
 template<typename VectorsType, typename CoeffsType, int Side>
 struct hseq_side_dependent_impl
 {
-  typedef Block<const VectorsType, Dynamic, 1> EssentialVectorType;
+  typedef typename VectorsType::template ConstFixedBlockXpr<Dynamic, 1>::Type EssentialVectorType;
   typedef HouseholderSequence<VectorsType, CoeffsType, OnTheLeft> HouseholderSequenceType;
   static EIGEN_DEVICE_FUNC inline const EssentialVectorType essentialVector(const HouseholderSequenceType& h, Index k)
   {
     Index start = k+1+h.m_shift;
-    return Block<const VectorsType,Dynamic,1>(h.m_vectors, start, k, h.rows()-start, 1);
+    return h.m_vectors.template block<Dynamic, 1>(start, k, h.rows()-start, 1);
   }
 };
 
 template<typename VectorsType, typename CoeffsType>
 struct hseq_side_dependent_impl<VectorsType, CoeffsType, OnTheRight>
 {
-  typedef Transpose<Block<const VectorsType, 1, Dynamic> > EssentialVectorType;
+  typedef Transpose<typename VectorsType::template ConstFixedBlockXpr<1, Dynamic>::Type > EssentialVectorType;
   typedef HouseholderSequence<VectorsType, CoeffsType, OnTheRight> HouseholderSequenceType;
   static inline const EssentialVectorType essentialVector(const HouseholderSequenceType& h, Index k)
   {
     Index start = k+1+h.m_shift;
-    return Block<const VectorsType,1,Dynamic>(h.m_vectors, k, start, 1, h.rows()-start).transpose();
+    return h.m_vectors.template block<1, Dynamic>(k, start, 1, h.rows()-start).transpose();
   }
 };
 
@@ -384,18 +384,19 @@ template<typename VectorsType, typename CoeffsType, int Side> class HouseholderS
           Index bs = end-k;
           Index start = k + m_shift;
 
-          typedef Block<internal::remove_all_t<VectorsType>,Dynamic,Dynamic> SubVectorsType;
-          SubVectorsType sub_vecs1(m_vectors.const_cast_derived(), Side==OnTheRight ? k : start,
-                                                                   Side==OnTheRight ? start : k,
-                                                                   Side==OnTheRight ? bs : m_vectors.rows()-start,
-                                                                   Side==OnTheRight ? m_vectors.cols()-start : bs);
+          typedef typename internal::remove_all_t<VectorsType>::BlockXpr SubVectorsType;
+          SubVectorsType sub_vecs1 = m_vectors.const_cast_derived().block(
+                                        Side==OnTheRight ? k : start,
+                                        Side==OnTheRight ? start : k,
+                                        Side==OnTheRight ? bs : m_vectors.rows()-start,
+                                        Side==OnTheRight ? m_vectors.cols()-start : bs);
           std::conditional_t<Side==OnTheRight, Transpose<SubVectorsType>, SubVectorsType&> sub_vecs(sub_vecs1);
 
           Index dstRows  = rows()-m_shift-k;
 
           if (inputIsIdentity)
           {
-            Block<Dest, Dynamic, Dynamic> sub_dst = dst.bottomRightCorner(dstRows, dstRows);
+            auto sub_dst = dst.bottomRightCorner(dstRows, dstRows);
             apply_block_householder_on_the_left(sub_dst, sub_vecs, m_coeffs.segment(k, bs), !m_reverse);
           }
           else
@@ -415,7 +416,7 @@ template<typename VectorsType, typename CoeffsType, int Side> class HouseholderS
 
           if (inputIsIdentity)
           {
-            Block<Dest, Dynamic, Dynamic> sub_dst = dst.bottomRightCorner(dstRows, dstRows);
+            auto sub_dst = dst.bottomRightCorner(dstRows, dstRows);
             sub_dst.applyHouseholderOnTheLeft(essentialVector(actual_k), m_coeffs.coeff(actual_k), workspace.data());
           }
           else

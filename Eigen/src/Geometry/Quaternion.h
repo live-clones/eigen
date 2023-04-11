@@ -48,6 +48,8 @@ class QuaternionBase : public RotationBase<Derived, 3>
   typedef typename Coefficients::CoeffReturnType CoeffReturnType;
   typedef std::conditional_t<bool(internal::traits<Derived>::Flags&LvalueBit),
                                   Scalar&, CoeffReturnType> NonConstCoeffReturnType;
+  typedef typename Coefficients::template FixedSegmentReturnType<3>::Type CoefficientsVec;
+  typedef typename Coefficients::template ConstFixedSegmentReturnType<3>::Type ConstCoefficientsVec;
 
 
   enum {
@@ -83,16 +85,16 @@ class QuaternionBase : public RotationBase<Derived, 3>
   EIGEN_DEVICE_FUNC inline NonConstCoeffReturnType w() { return this->derived().coeffs().w(); }
 
   /** \returns a read-only vector expression of the imaginary part (x,y,z) */
-  EIGEN_DEVICE_FUNC inline const VectorBlock<const Coefficients,3> vec() const { return coeffs().template head<3>(); }
+  EIGEN_DEVICE_FUNC inline ConstCoefficientsVec vec() const { return coeffs().template head<3>(); }
 
   /** \returns a vector expression of the imaginary part (x,y,z) */
-  EIGEN_DEVICE_FUNC inline VectorBlock<Coefficients,3> vec() { return coeffs().template head<3>(); }
+  EIGEN_DEVICE_FUNC inline CoefficientsVec vec() { return coeffs().template head<3>(); }
 
   /** \returns a read-only vector expression of the coefficients (x,y,z,w) */
-  EIGEN_DEVICE_FUNC inline const typename internal::traits<Derived>::Coefficients& coeffs() const { return derived().coeffs(); }
+  EIGEN_DEVICE_FUNC inline const Coefficients& coeffs() const { return derived().coeffs(); }
 
   /** \returns a vector expression of the coefficients (x,y,z,w) */
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Coefficients& coeffs() { return derived().coeffs(); }
+  EIGEN_DEVICE_FUNC inline Coefficients& coeffs() { return derived().coeffs(); }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE QuaternionBase<Derived>& operator=(const QuaternionBase<Derived>& other);
   template<class OtherDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const QuaternionBase<OtherDerived>& other);

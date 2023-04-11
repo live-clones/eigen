@@ -16,9 +16,10 @@
 namespace Eigen {
 
 namespace internal {
-template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
-struct traits<Block<XprType, BlockRows, BlockCols, InnerPanel> > : traits<XprType>
+template<typename XprType_, int BlockRows, int BlockCols, bool InnerPanel_>
+struct traits<Block<XprType_, BlockRows, BlockCols, InnerPanel_> > : traits<XprType_>
 {
+  typedef XprType_ XprType;
   typedef typename traits<XprType>::Scalar Scalar;
   typedef typename traits<XprType>::StorageKind StorageKind;
   typedef typename traits<XprType>::XprKind XprKind;
@@ -52,12 +53,13 @@ struct traits<Block<XprType, BlockRows, BlockCols, InnerPanel> > : traits<XprTyp
     // FIXME, this traits is rather specialized for dense object and it needs to be cleaned further
     FlagsLvalueBit = is_lvalue<XprType>::value ? LvalueBit : 0,
     FlagsRowMajorBit = IsRowMajor ? RowMajorBit : 0,
-    Flags = (traits<XprType>::Flags & (DirectAccessBit | (InnerPanel?CompressedAccessBit:0))) | FlagsLvalueBit | FlagsRowMajorBit,
+    Flags = (traits<XprType>::Flags & (DirectAccessBit | (InnerPanel_?CompressedAccessBit:0))) | FlagsLvalueBit | FlagsRowMajorBit,
     // FIXME DirectAccessBit should not be handled by expressions
     //
     // Alignment is needed by MapBase's assertions
     // We can sefely set it to false here. Internal alignment errors will be detected by an eigen_internal_assert in the respective evaluator
-    Alignment = 0
+    Alignment = 0,
+    InnerPanel = InnerPanel_ ? 1 : 0
   };
 };
 
