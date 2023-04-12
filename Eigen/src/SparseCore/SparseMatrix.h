@@ -1233,7 +1233,7 @@ template <typename InputIterator, typename SparseMatrixType, typename DupFunctor
 void insert_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                           DupFunctor dup_func) {
   using Scalar = typename SparseMatrixType::Scalar;
-  using SrcXprType = CwiseBinaryOp<scalar_dup_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
+  using SrcXprType = CwiseBinaryOp<scalar_disjunction_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
 
   // set_from_triplets is necessary to sort the inner indices and remove the duplicate entries
   SparseMatrixType trips(mat.rows(), mat.cols());
