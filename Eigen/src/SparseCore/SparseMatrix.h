@@ -1239,7 +1239,7 @@ void insert_from_triplets(const InputIterator& begin, const InputIterator& end, 
   SparseMatrixType trips(mat.rows(), mat.cols());
   set_from_triplets(begin, end, trips, dup_func);
 
-  SrcXprType src = mat.binaryExpr(trips, scalar_dup_op<DupFunctor, Scalar>(dup_func));
+  SrcXprType src = mat.binaryExpr(trips, scalar_disjunction_op<DupFunctor, Scalar>(dup_func));
   // the sparse assignment procedure creates a temporary matrix and swaps the final result
   assign_sparse_to_sparse<SparseMatrixType, SrcXprType>(mat, src);
 }
@@ -1255,7 +1255,7 @@ void insert_from_triplets_sorted(const InputIterator& begin, const InputIterator
   SparseMatrixType trips(mat.rows(), mat.cols());
   set_from_triplets_sorted(begin, end, trips, dup_func);
 
-  SrcXprType src = mat.binaryExpr(trips, scalar_dup_op<DupFunctor, Scalar>(dup_func));
+  SrcXprType src = mat.binaryExpr(trips, scalar_disjunction_op<DupFunctor, Scalar>(dup_func));
   // the sparse assignment procedure creates a temporary matrix and swaps the final result
   assign_sparse_to_sparse<SparseMatrixType, SrcXprType>(mat, src);
 }
