@@ -1249,7 +1249,7 @@ template <typename InputIterator, typename SparseMatrixType, typename DupFunctor
 void insert_from_triplets_sorted(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                                  DupFunctor dup_func) {
   using Scalar = typename SparseMatrixType::Scalar;
-  using SrcXprType = CwiseBinaryOp<scalar_dup_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
+  using SrcXprType = CwiseBinaryOp<scalar_disjunction_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
 
   // TODO: process triplets without making a copy
   SparseMatrixType trips(mat.rows(), mat.cols());
