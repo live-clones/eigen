@@ -47,11 +47,13 @@ typedef __m128d Packet2d;
 
 typedef eigen_packet_wrapper<__m128i, 0> Packet4i;
 typedef eigen_packet_wrapper<__m128i, 1> Packet16b;
+typedef eigen_packet_wrapper<__m128i, 4> Packet4ui;
 
 template<> struct is_arithmetic<__m128>  { enum { value = true }; };
 template<> struct is_arithmetic<__m128i> { enum { value = true }; };
 template<> struct is_arithmetic<__m128d> { enum { value = true }; };
 template<> struct is_arithmetic<Packet4i>  { enum { value = true }; };
+template<> struct is_arithmetic<Packet4ui>  { enum { value = true }; };
 template<> struct is_arithmetic<Packet16b>  { enum { value = true }; };
 
 template<int p, int q, int r, int s>
@@ -64,6 +66,9 @@ struct shuffle_mask{
   Packet4f(_mm_castsi128_ps(_mm_shuffle_epi32( _mm_castps_si128(v), (shuffle_mask<p,q,r,s>::mask))))
 
 #define vec4i_swizzle1(v,p,q,r,s) \
+  Packet4i(_mm_shuffle_epi32( v, (shuffle_mask<p,q,r,s>::mask)))
+
+#define vec4ui_swizzle1(v,p,q,r,s) \
   Packet4i(_mm_shuffle_epi32( v, (shuffle_mask<p,q,r,s>::mask)))
 
 #define vec2d_swizzle1(v,p,q) \
@@ -119,6 +124,9 @@ EIGEN_STRONG_INLINE Packet2d vec2d_unpackhi(const Packet2d& a, const Packet2d& b
 
 #define EIGEN_DECLARE_CONST_Packet4i(NAME,X) \
   const Packet4i p4i_##NAME = pset1<Packet4i>(X)
+
+#define EIGEN_DECLARE_CONST_Packet4ui(NAME,X) \
+  const Packet4ui p4ui_##NAME = pset1<Packet4ui>(X)
 
 
 // Use the packet_traits defined in AVX/PacketMath.h instead if we're going
@@ -203,6 +211,33 @@ template<> struct packet_traits<int>    : default_packet_traits
   };
 };
 #endif
+template<> struct packet_traits<uint32_t>    : default_packet_traits
+{
+  typedef Packet4ui type;
+  typedef Packet4ui half;
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    size=4,
+
+    // The following don't make sense for unsigned integers.
+    HasNegate    = 0,
+    HasAbs       = 0,
+    HasAbs2      = 0,
+    HasSign      = 0,
+
+    // Currently not implemented.
+    HasAdd       = 0,
+    HasSub       = 0,
+    HasShift     = 0,
+    HasMul       = 0,
+    HasArg       = 0,
+    HasConj      = 0,
+    HasCmp       = 0,
+
+    HasBlend = 1
+  };
+};
 template<> struct packet_traits<bool> : default_packet_traits
 {
   typedef Packet16b type;
@@ -242,6 +277,11 @@ template<> struct unpacket_traits<Packet2d> {
 template<> struct unpacket_traits<Packet4i> {
   typedef int       type;
   typedef Packet4i  half;
+  enum {size=4, alignment=Aligned16, vectorizable=true, masked_load_available=false, masked_store_available=false};
+};
+template<> struct unpacket_traits<Packet4ui> {
+  typedef uint32_t  type;
+  typedef Packet4ui half;
   enum {size=4, alignment=Aligned16, vectorizable=true, masked_load_available=false, masked_store_available=false};
 };
 template<> struct unpacket_traits<Packet16b> {
