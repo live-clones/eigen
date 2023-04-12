@@ -899,9 +899,9 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
 
 // when DupFunc is wrapped with scalar_dup_op, use disjunction evaulator
 template <typename T1, typename T2, typename DupFunc, typename Lhs, typename Rhs>
-struct binary_evaluator<CwiseBinaryOp<scalar_dup_op<DupFunc, T1, T2>, Lhs, Rhs>, IteratorBased, IteratorBased>
-    : sparse_disjunction_evaluator<CwiseBinaryOp<scalar_dup_op<DupFunc, T1, T2>, Lhs, Rhs> > {
-  typedef CwiseBinaryOp<scalar_dup_op<DupFunc, T1, T2>, Lhs, Rhs> XprType;
+struct binary_evaluator<CwiseBinaryOp<scalar_disjunction_op<DupFunc, T1, T2>, Lhs, Rhs>, IteratorBased, IteratorBased>
+    : sparse_disjunction_evaluator<CwiseBinaryOp<scalar_disjunction_op<DupFunc, T1, T2>, Lhs, Rhs> > {
+  typedef CwiseBinaryOp<scalar_disjunction_op<DupFunc, T1, T2>, Lhs, Rhs> XprType;
   typedef sparse_disjunction_evaluator<XprType> Base;
   explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };

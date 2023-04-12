@@ -1214,19 +1214,19 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   // matrix is finalized
 }
 
-// thin wrapper around a generic binary functor
+// thin wrapper around a generic binary functor to use the sparse disjunction evaulator instead of the default "arithmetic" evaulator
 template<typename DupFunctor, typename LhsScalar, typename RhsScalar = LhsScalar>
-struct scalar_dup_op
+struct scalar_disjunction_op
 {
   using result_type = typename result_of<DupFunctor(LhsScalar, RhsScalar)>::type;
-  scalar_dup_op(const DupFunctor& op) : m_functor(op) {}
+  scalar_disjunction_op(const DupFunctor& op) : m_functor(op) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator() (const LhsScalar& a, const RhsScalar& b) const { return m_functor(a, b); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DupFunctor& functor() const { return m_functor; }
   const DupFunctor& m_functor;
 };
 
 template <typename DupFunctor, typename LhsScalar, typename RhsScalar>
-struct functor_traits<scalar_dup_op<DupFunctor, LhsScalar, RhsScalar>> : public functor_traits<DupFunctor> {};
+struct functor_traits<scalar_disjunction_op<DupFunctor, LhsScalar, RhsScalar>> : public functor_traits<DupFunctor> {};
 
 // Creates a compressed sparse matrix from its existing entries and those from an unsorted range of triplets
 template <typename InputIterator, typename SparseMatrixType, typename DupFunctor>
