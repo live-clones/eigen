@@ -422,6 +422,17 @@ void check_indexed_view()
   // check symbolic indices
   a(last) = 1;
   A(last, last) = 1;
+  // check weird non-const, non-lvalue scenarios
+  {
+    // non-const map to a const object: compiler will attempt to use non-const overload without intervention
+
+    Map<const ArrayXd> a_map(a.data(), a.size());
+    double a_test = a_map(last);
+
+    Map<const ArrayXXi> A_map(A.data(), A.rows(), A.cols());
+    int A_test = A_map(last, last);
+  }
+
 
   // Check compilation of varying integer types as index types:
   Index i = n/2;
