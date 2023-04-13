@@ -380,6 +380,10 @@ EIGEN_STRONG_INLINE void gemv_col(
     ResScalar* res, Index resIncr,
     ResScalar alpha)
 {
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+    uint64_t start, end;
+    start = __ppc_get_timebase();
+#endif
     typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
     typedef typename Traits::LhsPacket LhsPacket;
@@ -462,6 +466,10 @@ EIGEN_STRONG_INLINE void gemv_col(
             res[i] += alpha * d0;
         }
     }
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+    end = __ppc_get_timebase();
+    printf("gemv_col float32 time = %16ld\n", end - start);
+#endif
 }
 
 const Packet16uc p16uc_COMPLEX32_XORFLIP = { 0x44,0x55,0x66,0x77, 0x00,0x11,0x22,0x33, 0xcc,0xdd,0xee,0xff, 0x88,0x99,0xaa,0xbb };
@@ -1961,6 +1969,10 @@ EIGEN_STRONG_INLINE void gemv_row(
     ResScalar* res, Index resIncr,
     ResScalar alpha)
 {
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+    uint64_t start, end;
+    start = __ppc_get_timebase();
+#endif
     typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
     typedef typename Traits::LhsPacket LhsPacket;
@@ -2022,8 +2034,13 @@ EIGEN_STRONG_INLINE void gemv_row(
         }
         res[i * resIncr] += alpha * dd0;
     }
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+    end = __ppc_get_timebase();
+    printf("gemv_row float32 time = %16ld\n", end - start);
+#endif
 }
 
+#ifndef GENERIC_GEMM
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(Scalar) \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, Scalar, LhsMapper, ColMajor, ConjugateLhs, Scalar, RhsMapper, ConjugateRhs, Version> \
@@ -2060,8 +2077,10 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(float)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(double)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(float)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(double)
+#endif
 
 #ifdef USE_GEMV_MMA
+#ifndef GENERIC_GEMM
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16() \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \
@@ -2092,6 +2111,7 @@ struct general_matrix_vector_product<Index, bfloat16, LhsMapper, RowMajor, Conju
 
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16()
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW_BFLOAT16()
+#endif
 #endif
 
 template<typename ResScalar, typename PResPacket, typename ResPacket, typename LhsPacket, typename RhsPacket>
