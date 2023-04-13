@@ -296,19 +296,18 @@ struct digamma_impl {
  ****************************************************************************/
 
 /** \internal \returns the error function of \a a (coeff-wise)
-    Doesn't do anything fancy, just a 13/8-degree rational interpolant which
-    is accurate up to a couple of ulp in the range [-4, 4], outside of which
-    fl(erf(x)) = +/-1.
-
+    Doesn't do anything fancy, just a 9/12-degree rational interpolant which
+    is accurate up to 3 of ulp for normalized floats in the range  [-c;c] where
+    c = erfinv(1-2^-23), outside of which x should be +/-1 in single precision.
+    Strictly speaking c should be erfinv(1-2^-24), but we clamp slightly earlier
+    to avoid returning values greater than 1.
     This implementation works on both scalars and Ts.
 */
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf_float(const T& a_x) {
-  // Clamp x to be within [-c;c] where c = erfinv(1-2^-23), outside of
-  // which x should be +/-1 in single precision.
-  constexpr float kErfInvOneMinusHalfULP = 3.7439211627767994f;
-  const T plus_clamp = pset1<T>(kErfInvOneMinusHalfULP);
-  const T minus_clamp = pset1<T>(-kErfInvOneMinusHalfULP);
+  constexpr float kErfInvOneMinusULP = 3.7439211627767994f;
+  const T plus_clamp = pset1<T>(kErfInvOneMinusULP);
+  const T minus_clamp = pset1<T>(-kErfInvOneMinusULP);
   const T x = pmax(pmin(a_x, plus_clamp), minus_clamp);
   // The monomial coefficients of the numerator polynomial (odd).
   const T alpha_1 = pset1<T>(1.128379143519084f);
