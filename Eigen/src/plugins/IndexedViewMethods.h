@@ -191,21 +191,18 @@ using IndexedViewType = std::enable_if_t<internal::valid_indexed_view_overload<R
 
 template <typename RowIndices, typename ColIndices>
 IndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices, const ColIndices& colIndices) {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), rowIndices, colIndices);
 }
 
 template <typename RowT, size_t RowSize, typename ColIndices, typename RowIndices = Array<RowT, RowSize, 1>>
 IndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize], const ColIndices& colIndices) {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), RowIndices{rowIndices}, colIndices);
 }
 
 template <typename RowIndices, typename ColT, size_t ColSize, typename ColIndices = Array<ColT, ColSize, 1>>
 IndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices, const ColT (&colIndices)[ColSize]) {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), rowIndices, ColIndices{colIndices});
 }
@@ -214,7 +211,6 @@ template <typename RowT, size_t RowSize, typename ColT, size_t ColSize, typename
           typename ColIndices = Array<ColT, ColSize, 1>>
 IndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize],
                                                    const ColT (&colIndices)[ColSize]) {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), RowIndices{rowIndices}, ColIndices{colIndices});
 }
@@ -229,7 +225,6 @@ using ConstIndexedViewType =
 template <typename RowIndices, typename ColIndices>
 ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices,
                                                         const ColIndices& colIndices) const {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), rowIndices, colIndices);
 }
@@ -237,7 +232,6 @@ ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowInd
 template <typename RowT, size_t RowSize, typename ColIndices, typename RowIndices = Array<RowT, RowSize, 1>>
 ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize],
                                                         const ColIndices& colIndices) const {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), RowIndices{rowIndices}, colIndices);
 }
@@ -245,7 +239,6 @@ ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)
 template <typename RowIndices, typename ColT, size_t ColSize, typename ColIndices = Array<ColT, ColSize, 1>>
 ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices,
                                                         const ColT (&colIndices)[ColSize]) const {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), rowIndices, ColIndices{colIndices});
 }
@@ -254,7 +247,6 @@ template <typename RowT, size_t RowSize, typename ColT, size_t ColSize, typename
           typename ColIndices = Array<ColT, ColSize, 1>>
 ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize],
                                                         const ColT (&colIndices)[ColSize]) const {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = IndexedView_selector<Derived, RowIndices, ColIndices>;
   return Impl::run(derived(), RowIndices{rowIndices}, ColIndices{colIndices});
 }
@@ -269,12 +261,14 @@ using VectorIndexedViewType = std::enable_if_t<!internal::is_valid_index_type<In
 
 template <typename Indices>
 VectorIndexedViewType<Indices> operator()(const Indices& indices) {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = VectorIndexedView_selector<Derived, Indices>;
   return Impl::run(derived(), indices);
 }
 
 template <typename IdxT, size_t Size, typename Indices = Array<IdxT, Size, 1>>
 VectorIndexedViewType<Indices> operator()(const IdxT (&indices)[Size]) {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = VectorIndexedView_selector<Derived, Indices>;
   return Impl::run(derived(), Indices{indices});
 }
@@ -288,12 +282,14 @@ using ConstVectorIndexedViewType =
 
 template <typename Indices>
 ConstVectorIndexedViewType<Indices> operator()(const Indices& indices) const {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = VectorIndexedView_selector<Derived, Indices>;
   return Impl::run(derived(), indices);
 }
 
 template <typename IdxT, size_t Size, typename Indices = Array<IdxT, Size, 1>>
 ConstVectorIndexedViewType<Indices> operator()(const IdxT (&indices)[Size]) const {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Impl = VectorIndexedView_selector<Derived, Indices>;
   return Impl::run(derived(), Indices{indices});
 }
