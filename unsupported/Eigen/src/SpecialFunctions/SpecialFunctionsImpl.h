@@ -297,10 +297,11 @@ struct digamma_impl {
 
 /** \internal \returns the error function of \a a (coeff-wise)
     Doesn't do anything fancy, just a 9/12-degree rational interpolant which
-    is accurate up to 3 of ulp for normalized floats in the range  [-c;c] where
+    is accurate to 3 ulp for normalized floats in the range [-c;c], where
     c = erfinv(1-2^-23), outside of which x should be +/-1 in single precision.
     Strictly speaking c should be erfinv(1-2^-24), but we clamp slightly earlier
     to avoid returning values greater than 1.
+
     This implementation works on both scalars and Ts.
 */
 template <typename T>
