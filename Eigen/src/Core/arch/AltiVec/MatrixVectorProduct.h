@@ -472,6 +472,185 @@ EIGEN_STRONG_INLINE void gemv_col(
 #endif
 }
 
+// No more than 4 (uses 2X the accumulators or 8X the number of VSX registers)
+#define MAX_BFLOAT16_VEC_ACC_VSX   4
+
+template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
+void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
+{
+  constexpr Index step = (num_acc * 4);
+//  const Index extra_rows = (extraRows) ? (rows & 3) : 0;
+  constexpr bool multiIters = !extraRows && (num_acc == MAX_BFLOAT16_VEC_ACC_VSX);
+
+  do{
+#if 0
+    Packet4f acc[num_acc][4];
+
+    zeroAccumulators<num_acc>(quad_acc);
+
+    LhsMapper lhs2 = lhs.getSubMapper(row, 0);
+    for(Index j = 0; j + 2 <= cend; j += 2) {
+      vecColLoop<num_acc, LhsMapper, RhsMapper, false>(j, lhs2, rhs, quad_acc);
+    }
+    if (cend & 1) {
+      vecColLoop<num_acc, LhsMapper, RhsMapper, true>(cend - 1, lhs2, rhs, quad_acc);
+    }
+
+    disassembleAccumulators<num_acc>(quad_acc, acc);
+
+    outputVecColResults<num_acc, extraRows>(acc, result, pAlpha, extra_rows);
+#endif
+
+    result += step;
+  } while(multiIters && (step <= rows - (row += step)));
+}
+
+template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
+EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtraN(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
+{
+  if (MAX_BFLOAT16_VEC_ACC_VSX > num_acc) {
+    colVSXVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+  }
+}
+
+template<typename LhsMapper, typename RhsMapper, bool extraRows>
+EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtra(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
+{
+  switch ((rows - row) >> 2) {
+  case 3:
+    colVSXVecColLoopBodyExtraN<3, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    break;
+  case 2:
+    colVSXVecColLoopBodyExtraN<2, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    break;
+  case 1:
+    colVSXVecColLoopBodyExtraN<1, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    break;
+  default:
+    if (extraRows) {
+      colVSXVecColLoopBody<1, LhsMapper, RhsMapper, true>(row, cend, rows, lhs, rhs, pAlpha, result);
+    }
+    break;
+  }
+}
+
+template<typename LhsMapper, typename RhsMapper>
+EIGEN_ALWAYS_INLINE void calcVSXVecColLoops(Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
+{
+  Index row = 0;
+  if (rows >= (MAX_BFLOAT16_VEC_ACC_VSX * 4)) {
+    colVSXVecColLoopBody<MAX_BFLOAT16_VEC_ACC_VSX, LhsMapper, RhsMapper, false>(row, cend, rows, lhs, rhs, pAlpha, result);
+    result += row;
+  }
+  if (rows & 3) {
+    colVSXVecColLoopBodyExtra<LhsMapper, RhsMapper, true>(row, cend, rows, lhs, rhs, pAlpha, result);
+  } else {
+    colVSXVecColLoopBodyExtra<LhsMapper, RhsMapper, false>(row, cend, rows, lhs, rhs, pAlpha, result);
+  }
+}
+
+template<const Index size, bool inc, Index delta>
+EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc, Index extra)
+{
+  if (inc) {
+    if (size < 8) {
+      pscatter_partial(dst + delta*resInc, data, resInc, extra);
+    } else {
+      pscatter(dst + delta*resInc, data, resInc);
+    }
+  } else {
+    if (size < 8) {
+      pstoreu_partial(dst + delta, data, extra);
+    } else {
+      pstoreu(dst + delta, data);
+    }
+  }
+}
+
+template<const Index size, bool inc = false>
+EIGEN_ALWAYS_INLINE void convertPointerF32toBF16VSX(Index& i, float* result, Index rows, bfloat16*& dst, Index resInc = 1)
+{
+  constexpr Index extra = ((size < 8) ? 8 : size);
+  for(; i + size <= rows; i += extra, dst += extra*resInc){
+    PacketBlock<Packet8bf,(size+7)/8> r32;
+    r32.packet[0] = convertF32toBF16VSX(result + i +  0);
+    if (size >= 16) {
+      r32.packet[1] = convertF32toBF16VSX(result + i +  8);
+    }
+    if (size >= 32) {
+      r32.packet[2] = convertF32toBF16VSX(result + i + 16);
+      r32.packet[3] = convertF32toBF16VSX(result + i + 24);
+    }
+    storeBF16fromResult<size, inc, 0>(dst, r32.packet[0], resInc, rows & 7);
+    if (size >= 16) {
+      storeBF16fromResult<size, inc, 8>(dst, r32.packet[1], resInc);
+    }
+    if (size >= 32) {
+      storeBF16fromResult<size, inc, 16>(dst, r32.packet[2], resInc);
+      storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
+    }
+  }
+}
+
+template<bool inc = false>
+EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16VSX(float *result, Index rows, bfloat16* dst, Index resInc = 1)
+{
+  Index i = 0;
+  convertPointerF32toBF16VSX<32,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16VSX<16,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16VSX<8,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16VSX<1,inc>(i, result, rows, dst, resInc);
+}
+
+template<typename LhsMapper, typename RhsMapper>
+void gemv_bfloat16_col(
+  Index rows, Index cols,
+  const LhsMapper& alhs,
+  const RhsMapper& rhs,
+  bfloat16* res, Index resIncr,
+  bfloat16 alpha)
+{
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
+  typedef typename RhsMapper::LinearMapper LinearMapper;
+
+  EIGEN_UNUSED_VARIABLE(resIncr);
+  eigen_internal_assert(resIncr == 1);
+
+  // The following copy tells the compiler that lhs's attributes are not modified outside this function
+  // This helps GCC to generate proper code.
+  LhsMapper lhs(alhs);
+  RhsMapper rhs2(rhs);
+
+  const Index lhsStride = lhs.stride();
+
+  // TODO: improve the following heuristic:
+  const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(bfloat16) < 16000 ? 16 : 8);
+  float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
+  Packet4f pAlpha = pset1<Packet4f>(falpha);
+
+  ei_declare_aligned_stack_constructed_variable(float, result, rows, 0);
+
+  convertArrayPointerBF16toF32(result, 1, rows, res);
+
+  for (Index j2 = 0; j2 < cols; j2 += block_cols)
+  {
+    Index jend = numext::mini(j2 + block_cols, cols);
+
+    LhsMapper lhs2 = lhs.getSubMapper(0, j2);
+    LinearMapper rhs3 = rhs2.getLinearMapper(j2, 0);
+    calcVSXVecColLoops<LhsMapper, LinearMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
+  }
+
+  convertArrayPointerF32toBF16VSX(result, rows, res);
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+  end = __ppc_get_timebase();
+  printf("gemv_col bfloat16 time = %16ld\n", end - start);
+#endif
+}
+
 const Packet16uc p16uc_COMPLEX32_XORFLIP = { 0x44,0x55,0x66,0x77, 0x00,0x11,0x22,0x33, 0xcc,0xdd,0xee,0xff, 0x88,0x99,0xaa,0xbb };
 const Packet16uc p16uc_COMPLEX64_XORFLIP = { 0x88,0x99,0xaa,0xbb, 0xcc,0xdd,0xee,0xff, 0x00,0x11,0x22,0x33, 0x44,0x55,0x66,0x77 };
 
@@ -2057,6 +2236,22 @@ struct general_matrix_vector_product<Index, Scalar, LhsMapper, ColMajor, Conjuga
     } \
 };
 
+#ifndef USE_GEMV_MMA
+#define EIGEN_POWER_GEMV_REAL_SPECIALIZE_BFLOAT_COL \
+template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
+struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \
+{ \
+    EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run( \
+        Index rows, Index cols, \
+        const LhsMapper& lhs, \
+        const RhsMapper& rhs, \
+        bfloat16* res, Index resIncr, \
+        bfloat16 alpha) { \
+        gemv_bfloat16_col<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha); \
+    } \
+};
+#endif
+
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(Scalar) \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, Scalar, LhsMapper, RowMajor, ConjugateLhs, Scalar, RhsMapper, ConjugateRhs, Version> \
@@ -2077,10 +2272,10 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(float)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(double)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(float)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(double)
-#endif
+
+EIGEN_POWER_GEMV_REAL_SPECIALIZE_BFLOAT_COL
 
 #ifdef USE_GEMV_MMA
-#ifndef GENERIC_GEMM
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16() \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \

@@ -3246,59 +3246,6 @@ void gemmbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat16*
 
 #include "MatrixVectorProduct.h"
 
-template<const Index size, bool inc, Index delta>
-EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc, Index extra)
-{
-  if (inc) {
-    if (size < 8) {
-      pscatter_partial(dst + delta*resInc, data, resInc, extra);
-    } else {
-      pscatter(dst + delta*resInc, data, resInc);
-    }
-  } else {
-    if (size < 8) {
-      pstoreu_partial(dst + delta, data, extra);
-    } else {
-      pstoreu(dst + delta, data);
-    }
-  }
-}
-
-template<const Index size, bool inc = false>
-EIGEN_ALWAYS_INLINE void convertPointerF32toBF16VSX(Index& i, float* result, Index rows, bfloat16*& dst, Index resInc = 1)
-{
-  constexpr Index extra = ((size < 8) ? 8 : size);
-  for(; i + size <= rows; i += extra, dst += extra*resInc){
-    PacketBlock<Packet8bf,(size+7)/8> r32;
-    r32.packet[0] = convertF32toBF16VSX(result + i +  0);
-    if (size >= 16) {
-      r32.packet[1] = convertF32toBF16VSX(result + i +  8);
-    }
-    if (size >= 32) {
-      r32.packet[2] = convertF32toBF16VSX(result + i + 16);
-      r32.packet[3] = convertF32toBF16VSX(result + i + 24);
-    }
-    storeBF16fromResult<size, inc, 0>(dst, r32.packet[0], resInc, rows & 7);
-    if (size >= 16) {
-      storeBF16fromResult<size, inc, 8>(dst, r32.packet[1], resInc);
-    }
-    if (size >= 32) {
-      storeBF16fromResult<size, inc, 16>(dst, r32.packet[2], resInc);
-      storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
-    }
-  }
-}
-
-template<bool inc = false>
-EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16VSX(float *result, Index rows, bfloat16* dst, Index resInc = 1)
-{
-  Index i = 0;
-  convertPointerF32toBF16VSX<32,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16VSX<16,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16VSX<8,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16VSX<1,inc>(i, result, rows, dst, resInc);
-}
-
 /************************************
  * ppc64le template specializations *
  * **********************************/
