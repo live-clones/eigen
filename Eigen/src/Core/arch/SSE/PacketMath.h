@@ -759,6 +759,7 @@ template<> EIGEN_STRONG_INLINE Packet2d psignbit(const Packet2d& a)
   return _mm_castps_pd(_mm_shuffle_ps(tmp, tmp, (shuffle_mask<1, 1, 3, 3>::mask)));
 #endif // EIGEN_VECTORIZE_AVX
 }
+template<> EIGEN_STRONG_INLINE Packet4ui  psignbit(const Packet4ui& a)  { return pzero(a); }
 
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template<> EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a)
