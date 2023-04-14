@@ -428,16 +428,13 @@ void check_indexed_view()
     // overloads without intervention
 
     // non-const map to a const object
-
     Map<const ArrayXd> a_map(a.data(), a.size());
-    VERIFY_IS_EQUAL(a_map(last), a.coeff(a.size() - 1));
-
     Map<const ArrayXXi> A_map(A.data(), A.rows(), A.cols());
+
+    VERIFY_IS_EQUAL(a_map(last), a.coeff(a.size() - 1));
     VERIFY_IS_EQUAL(A_map(last, last), A.coeff(A.rows() - 1, A.cols() - 1));
-    int A_test = A_map(last, last);
 
     // non-const expressions that have no modifiable data
-
     using Op = internal::scalar_constant_op<double>;
     using VectorXpr = CwiseNullaryOp<Op, VectorXd>;
     using MatrixXpr = CwiseNullaryOp<Op, MatrixXd>;
