@@ -472,6 +472,29 @@ EIGEN_STRONG_INLINE void gemv_col(
 #endif
 }
 
+template<bool extraRows>
+EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float *result, Packet4f pAlpha, Index extra_rows)
+{
+  Packet4f d0 = ploadu<Packet4f>(result);
+  d0 = pmadd(acc, pAlpha, d0);
+  if (extraRows) {
+    pstoreu_partial(result, d0, extra_rows);
+  } else {
+    pstoreu(result, d0);
+  }
+}
+
+template<Index num_acc, bool extraRows>
+EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha, Index extra_rows)
+{
+  for(Index k = 0; k < num_acc - (extraRows ? 1 : 0); k++) {
+    outputVecCol<false>(acc[k][0], result + k*4, pAlpha, extra_rows);
+  }
+  if (extraRows) {
+    outputVecCol<true>(acc[num_acc - 1][0], result + (num_acc - 1)*4, pAlpha, extra_rows);
+  }
+}
+
 // No more than 4 (uses 2X the accumulators or 8X the number of VSX registers)
 #define MAX_BFLOAT16_VEC_ACC_VSX   4
 
@@ -479,15 +502,15 @@ template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extra
 void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   constexpr Index step = (num_acc * 4);
-//  const Index extra_rows = (extraRows) ? (rows & 3) : 0;
+  const Index extra_rows = (extraRows) ? (rows & 3) : 0;
   constexpr bool multiIters = !extraRows && (num_acc == MAX_BFLOAT16_VEC_ACC_VSX);
 
   do{
-#if 0
     Packet4f acc[num_acc][4];
 
-    zeroAccumulators<num_acc>(quad_acc);
+    zeroAccumulators<num_acc>(acc);
 
+#if 0
     LhsMapper lhs2 = lhs.getSubMapper(row, 0);
     for(Index j = 0; j + 2 <= cend; j += 2) {
       vecColLoop<num_acc, LhsMapper, RhsMapper, false>(j, lhs2, rhs, quad_acc);
@@ -495,11 +518,9 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
     if (cend & 1) {
       vecColLoop<num_acc, LhsMapper, RhsMapper, true>(cend - 1, lhs2, rhs, quad_acc);
     }
-
-    disassembleAccumulators<num_acc>(quad_acc, acc);
+#endif
 
     outputVecColResults<num_acc, extraRows>(acc, result, pAlpha, extra_rows);
-#endif
 
     result += step;
   } while(multiIters && (step <= rows - (row += step)));
@@ -650,6 +671,8 @@ void gemv_bfloat16_col(
   printf("gemv_col bfloat16 time = %16ld\n", end - start);
 #endif
 }
+
+#undef MAX_BFLOAT16_VEC_ACC_VSX
 
 const Packet16uc p16uc_COMPLEX32_XORFLIP = { 0x44,0x55,0x66,0x77, 0x00,0x11,0x22,0x33, 0xcc,0xdd,0xee,0xff, 0x88,0x99,0xaa,0xbb };
 const Packet16uc p16uc_COMPLEX64_XORFLIP = { 0x88,0x99,0xaa,0xbb, 0xcc,0xdd,0xee,0xff, 0x00,0x11,0x22,0x33, 0x44,0x55,0x66,0x77 };
@@ -2236,22 +2259,6 @@ struct general_matrix_vector_product<Index, Scalar, LhsMapper, ColMajor, Conjuga
     } \
 };
 
-#ifndef USE_GEMV_MMA
-#define EIGEN_POWER_GEMV_REAL_SPECIALIZE_BFLOAT_COL \
-template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
-struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \
-{ \
-    EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run( \
-        Index rows, Index cols, \
-        const LhsMapper& lhs, \
-        const RhsMapper& rhs, \
-        bfloat16* res, Index resIncr, \
-        bfloat16 alpha) { \
-        gemv_bfloat16_col<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha); \
-    } \
-};
-#endif
-
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(Scalar) \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, Scalar, LhsMapper, RowMajor, ConjugateLhs, Scalar, RhsMapper, ConjugateRhs, Version> \
@@ -2273,8 +2280,6 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(double)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(float)
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(double)
 
-EIGEN_POWER_GEMV_REAL_SPECIALIZE_BFLOAT_COL
-
 #ifdef USE_GEMV_MMA
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16() \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
@@ -2289,7 +2294,23 @@ struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, Conju
         gemvMMA_bfloat16_col<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha); \
     } \
 };
+#else
+#define EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16() \
+template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
+struct general_matrix_vector_product<Index, bfloat16, LhsMapper, ColMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \
+{ \
+    EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run( \
+        Index rows, Index cols, \
+        const LhsMapper& lhs, \
+        const RhsMapper& rhs, \
+        bfloat16* res, Index resIncr, \
+        bfloat16 alpha) { \
+        gemv_bfloat16_col<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha); \
+    } \
+};
+#endif
 
+#ifdef USE_GEMV_MMA
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW_BFLOAT16() \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, bfloat16, LhsMapper, RowMajor, ConjugateLhs, bfloat16, RhsMapper, ConjugateRhs, Version> \
@@ -2303,8 +2324,11 @@ struct general_matrix_vector_product<Index, bfloat16, LhsMapper, RowMajor, Conju
         gemvMMA_bfloat16_row<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha); \
     } \
 };
+#else
+#endif
 
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16()
+#ifdef USE_GEMV_MMA
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW_BFLOAT16()
 #endif
 #endif
