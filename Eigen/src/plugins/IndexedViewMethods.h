@@ -180,7 +180,8 @@ struct VectorIndexedView_selector<Indices, true, false, false> {
 };
 
 public:
-// Overloads for 2D matrices/arrays
+
+// Public API for 2D matrices/arrays
 
 // non-const versions
 
@@ -194,20 +195,20 @@ IndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices,
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), rowIndices, colIndices);
 }
 
-template <typename RowT, size_t RowSize, typename ColIndices, typename RowIndices = Array<RowT, RowSize, 1>>
-IndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize], const ColIndices& colIndices) {
+template <typename Row_t, size_t RowSize, typename ColIndices, typename RowIndices = Array<Row_t, RowSize, 1>>
+IndexedViewType<RowIndices, ColIndices> operator()(const Row_t(&rowIndices)[RowSize], const ColIndices& colIndices) {
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), RowIndices{rowIndices}, colIndices);
 }
 
-template <typename RowIndices, typename ColT, size_t ColSize, typename ColIndices = Array<ColT, ColSize, 1>>
-IndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices, const ColT (&colIndices)[ColSize]) {
+template <typename RowIndices, typename Col_t, size_t ColSize, typename ColIndices = Array<Col_t, ColSize, 1>>
+IndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices, const Col_t (&colIndices)[ColSize]) {
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), rowIndices, ColIndices{colIndices});
 }
 
-template <typename RowT, size_t RowSize, typename ColT, size_t ColSize, typename RowIndices = Array<RowT, RowSize, 1>,
-          typename ColIndices = Array<ColT, ColSize, 1>>
-IndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize],
-                                                   const ColT (&colIndices)[ColSize]) {
+template <typename Row_t, size_t RowSize, typename Col_t, size_t ColSize, typename RowIndices = Array<Row_t, RowSize, 1>,
+          typename ColIndices = Array<Col_t, ColSize, 1>>
+IndexedViewType<RowIndices, ColIndices> operator()(const Row_t (&rowIndices)[RowSize],
+                                                   const Col_t (&colIndices)[ColSize]) {
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), RowIndices{rowIndices}, ColIndices{colIndices});
 }
 
@@ -223,26 +224,26 @@ ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowInd
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), rowIndices, colIndices);
 }
 
-template <typename RowT, size_t RowSize, typename ColIndices, typename RowIndices = Array<RowT, RowSize, 1>>
-ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize],
+template <typename Row_t, size_t RowSize, typename ColIndices, typename RowIndices = Array<Row_t, RowSize, 1>>
+ConstIndexedViewType<RowIndices, ColIndices> operator()(const Row_t (&rowIndices)[RowSize],
                                                         const ColIndices& colIndices) const {
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), RowIndices{rowIndices}, colIndices);
 }
 
-template <typename RowIndices, typename ColT, size_t ColSize, typename ColIndices = Array<ColT, ColSize, 1>>
+template <typename RowIndices, typename Col_t, size_t ColSize, typename ColIndices = Array<Col_t, ColSize, 1>>
 ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowIndices& rowIndices,
-                                                        const ColT (&colIndices)[ColSize]) const {
+                                                        const Col_t (&colIndices)[ColSize]) const {
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), rowIndices, ColIndices{colIndices});
 }
 
-template <typename RowT, size_t RowSize, typename ColT, size_t ColSize, typename RowIndices = Array<RowT, RowSize, 1>,
-          typename ColIndices = Array<ColT, ColSize, 1>>
-ConstIndexedViewType<RowIndices, ColIndices> operator()(const RowT (&rowIndices)[RowSize],
-                                                        const ColT (&colIndices)[ColSize]) const {
+template <typename Row_t, size_t RowSize, typename Col_t, size_t ColSize, typename RowIndices = Array<Row_t, RowSize, 1>,
+          typename ColIndices = Array<Col_t, ColSize, 1>>
+ConstIndexedViewType<RowIndices, ColIndices> operator()(const Row_t(&rowIndices)[RowSize],
+                                                        const Col_t (&colIndices)[ColSize]) const {
   return IndexedView_selector<RowIndices, ColIndices>::run(derived(), RowIndices{rowIndices}, ColIndices{colIndices});
 }
 
-// Overloads for 1D vectors/arrays
+// Public API for 1D vectors/arrays
 
 // non-const versions
 
@@ -257,8 +258,8 @@ VectorIndexedViewType<Indices> operator()(const Indices& indices) {
   return VectorIndexedView_selector<Indices>::run(derived(), indices);
 }
 
-template <typename IdxT, size_t Size, typename Indices = Array<IdxT, Size, 1>>
-VectorIndexedViewType<Indices> operator()(const IdxT (&indices)[Size]) {
+template <typename Idx_t, size_t Size, typename Indices = Array<Idx_t, Size, 1>>
+VectorIndexedViewType<Indices> operator()(const Idx_t (&indices)[Size]) {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   return VectorIndexedView_selector<Indices>::run(derived(), Indices{indices});
 }
@@ -275,8 +276,8 @@ ConstVectorIndexedViewType<Indices> operator()(const Indices& indices) const {
   return VectorIndexedView_selector<Indices>::run(derived(), indices);
 }
 
-template <typename IdxT, size_t Size, typename Indices = Array<IdxT, Size, 1>>
-ConstVectorIndexedViewType<Indices> operator()(const IdxT (&indices)[Size]) const {
+template <typename Idx_t, size_t Size, typename Indices = Array<Idx_t, Size, 1>>
+ConstVectorIndexedViewType<Indices> operator()(const Idx_t (&indices)[Size]) const {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   return VectorIndexedView_selector<Indices>::run(derived(), Indices{indices});
 }
