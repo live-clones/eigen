@@ -1697,47 +1697,63 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f p4f){
 #endif
 }
 
-template<bool lohi>
 #ifdef _BIG_ENDIAN
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackOne(Packet4f lo, Packet4f hi)
-#else
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackTwo(Packet4f hi, Packet4f lo)
-#endif
+/**
+ * Pack the high portion of two float Packets into one bfloat16 Packet
+ *
+ * @param lohi to expect either a low & high OR odd & even order
+ */
+template<bool lohi>
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f lo, Packet4f hi)
 {
   if (lohi) {
-#ifdef _BIG_ENDIAN
     return vec_perm(reinterpret_cast<Packet8us>(lo), reinterpret_cast<Packet8us>(hi), p16uc_MERGEH16);
+  } else {
+    return vec_perm(reinterpret_cast<Packet8us>(hi), reinterpret_cast<Packet8us>(lo), p16uc_MERGEE16);
+  }
+}
+
+/**
+ * Pack the low portion of two float Packets into one bfloat16 Packet
+ *
+ * @param lohi to expect either a low & high OR odd & even order
+ */
+template<bool lohi>
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(Packet4f hi, Packet4f lo)
+{
+  if (lohi) {
+    return vec_pack(reinterpret_cast<Packet4ui>(lo), reinterpret_cast<Packet4ui>(hi));
+  } else {
+    return vec_perm(reinterpret_cast<Packet8us>(hi), reinterpret_cast<Packet8us>(lo), p16uc_MERGEO16);
+  }
+}
 #else
+template<bool lohi>
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(Packet4f hi, Packet4f lo)
+{
+  if (lohi) {
     return vec_pack(reinterpret_cast<Packet4ui>(hi), reinterpret_cast<Packet4ui>(lo));
-#endif
   } else {
     return vec_perm(reinterpret_cast<Packet8us>(hi), reinterpret_cast<Packet8us>(lo), p16uc_MERGEE16);
   }
 }
 
 template<bool lohi>
-#ifdef _BIG_ENDIAN
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackTwo(Packet4f lo, Packet4f hi)
-#else
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackOne(Packet4f hi, Packet4f lo)
-#endif
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f hi, Packet4f lo)
 {
   if (lohi) {
-#ifdef _BIG_ENDIAN
-    return vec_pack(reinterpret_cast<Packet4ui>(lo), reinterpret_cast<Packet4ui>(hi));
-#else
     return vec_perm(reinterpret_cast<Packet8us>(hi), reinterpret_cast<Packet8us>(lo), p16uc_MERGEL16);
-#endif
   } else {
     return vec_perm(reinterpret_cast<Packet8us>(hi), reinterpret_cast<Packet8us>(lo), p16uc_MERGEO16);
   }
 }
+#endif
 
 template<bool lohi = true>
 EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi)
 {
-  Packet8us p4f = Bf16PackOne<lohi>(lo, hi);
-  Packet8us p4f2 = Bf16PackTwo<lohi>(lo, hi);
+  Packet8us p4f = Bf16PackHigh<lohi>(lo, hi);
+  Packet8us p4f2 = Bf16PackLow<lohi>(lo, hi);
 
   Packet8us lsb = pand<Packet8us>(p4f, p8us_ONE);
   EIGEN_DECLARE_CONST_FAST_Packet8us(BIAS,0x7FFFu);
@@ -1750,14 +1766,14 @@ EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi)
 #ifdef _ARCH_PWR9
   Packet4bi nan_selector_lo = vec_test_data_class(lo, __VEC_CLASS_FP_NAN);
   Packet4bi nan_selector_hi = vec_test_data_class(hi, __VEC_CLASS_FP_NAN);
-  Packet8us nan_selector = Bf16PackTwo<lohi>(reinterpret_cast<Packet4f>(nan_selector_lo), reinterpret_cast<Packet4f>(nan_selector_hi));
+  Packet8us nan_selector = Bf16PackLow<lohi>(reinterpret_cast<Packet4f>(nan_selector_lo), reinterpret_cast<Packet4f>(nan_selector_hi));
 
   input = vec_sel(input, p8us_BIAS, nan_selector);
 
 #ifdef SUPPORT_BF16_SUBNORMALS
   Packet4bi subnormal_selector_lo = vec_test_data_class(lo, __VEC_CLASS_FP_SUBNORMAL);
   Packet4bi subnormal_selector_hi = vec_test_data_class(hi, __VEC_CLASS_FP_SUBNORMAL);
-  Packet8us subnormal_selector = Bf16PackTwo<lohi>(reinterpret_cast<Packet4f>(subnormal_selector_lo), reinterpret_cast<Packet4f>(subnormal_selector_hi));
+  Packet8us subnormal_selector = Bf16PackLow<lohi>(reinterpret_cast<Packet4f>(subnormal_selector_lo), reinterpret_cast<Packet4f>(subnormal_selector_hi));
 
   input = vec_sel(input, reinterpret_cast<Packet8us>(p4f), subnormal_selector);
 #endif
@@ -1792,7 +1808,7 @@ EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi)
   //Test only NaN
   Packet4bi nan_selector_lo = vec_cmpeq(lo, lo);
   Packet4bi nan_selector_hi = vec_cmpeq(hi, hi);
-  Packet8us nan_selector = Bf16PackTwo<lohi>(reinterpret_cast<Packet4f>(nan_selector_lo), reinterpret_cast<Packet4f>(nan_selector_hi));
+  Packet8us nan_selector = Bf16PackLow<lohi>(reinterpret_cast<Packet4f>(nan_selector_lo), reinterpret_cast<Packet4f>(nan_selector_hi));
 
   input = vec_sel(p8us_BIAS, input, nan_selector);
 #endif
