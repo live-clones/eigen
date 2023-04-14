@@ -1439,6 +1439,7 @@ template<> EIGEN_STRONG_INLINE Packet8ui pabs(const Packet8ui& a) { return a; }
 template<> EIGEN_STRONG_INLINE Packet8h  psignbit(const Packet8h&  a) { return _mm_srai_epi16(a, 15); }
 template<> EIGEN_STRONG_INLINE Packet8bf psignbit(const Packet8bf& a) { return _mm_srai_epi16(a, 15); }
 template<> EIGEN_STRONG_INLINE Packet8f  psignbit(const Packet8f&  a) { return _mm256_castsi256_ps(parithmetic_shift_right<31>((Packet8i)_mm256_castps_si256(a))); }
+template<> EIGEN_STRONG_INLINE Packet8ui  psignbit(const Packet8ui& a)  { return pzero(a); }
 #ifdef EIGEN_VECTORIZE_AVX2
 template<> EIGEN_STRONG_INLINE Packet4d  psignbit(const Packet4d& a)  { return _mm256_castsi256_pd(parithmetic_shift_right<63>((Packet4l)_mm256_castpd_si256(a))); }
 template<> EIGEN_STRONG_INLINE Packet4ul  psignbit(const Packet4ul& a)  { return pzero(a); }
