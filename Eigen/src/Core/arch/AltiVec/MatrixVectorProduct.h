@@ -495,6 +495,48 @@ EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float 
   }
 }
 
+template<Index num_acc, typename LhsMapper, bool zero>
+EIGEN_ALWAYS_INLINE void loadVecLoopVSX(Index k, LhsMapper& lhs, Packet8bf (&a0)[num_acc], Packet8bf b1)
+{
+  a0[k + 0] = lhs.template loadPacket<Packet8bf>(k*4, 0);
+  if (!zero) {
+    b1 = lhs.template loadPacket<Packet8bf>(k*4, 1);
+  }
+  if (num_acc > (k + 1)) {
+    a0[k + 1] = vec_mergel(a0[k + 0].m_val, b1.m_val);
+  }
+  a0[k + 0] = vec_mergeh(a0[k + 0].m_val, b1.m_val);
+}
+
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void multVecVSX(Packet4f (&acc)[num_acc][4], Packet8bf (&a0)[num_acc], Packet8bf b0)
+{
+  for(Index k = 0; k < num_acc; k++) {
+    for(Index i = 0; i < 4; i++) {
+//      acc[k][i] = pmadd(b0[i], a0[k][i], acc[k][i]);
+    }
+  }
+}
+
+template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
+EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, Packet4f (&acc)[num_acc][4])
+{
+  Packet8bf a0[num_acc];
+  Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
+  Packet8bf b0 = rhs.template loadPacket<Packet8bf>(j + 0);
+
+  if (zero) {
+    b0 = vec_mergeh(b0.m_val, b1.m_val);
+  }
+
+  LhsMapper lhs2 = lhs.getSubMapper(0, j);
+  for(Index k = 0; k < num_acc; k += 2) {
+    loadVecLoopVSX<num_acc, LhsMapper, zero>(k, lhs2, a0, b1);
+  }
+
+  multVecVSX<num_acc>(acc, a0, b0);
+}
+
 // No more than 4 (uses 2X the accumulators or 8X the number of VSX registers)
 #define MAX_BFLOAT16_VEC_ACC_VSX   4
 
@@ -510,15 +552,13 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
 
     zeroAccumulators<num_acc>(acc);
 
-#if 0
     LhsMapper lhs2 = lhs.getSubMapper(row, 0);
     for(Index j = 0; j + 2 <= cend; j += 2) {
-      vecColLoop<num_acc, LhsMapper, RhsMapper, false>(j, lhs2, rhs, quad_acc);
+      vecColLoopVSX<num_acc, LhsMapper, RhsMapper, false>(j, lhs2, rhs, acc);
     }
     if (cend & 1) {
-      vecColLoop<num_acc, LhsMapper, RhsMapper, true>(cend - 1, lhs2, rhs, quad_acc);
+      vecColLoopVSX<num_acc, LhsMapper, RhsMapper, true>(cend - 1, lhs2, rhs, acc);
     }
-#endif
 
     outputVecColResults<num_acc, extraRows>(acc, result, pAlpha, extra_rows);
 
