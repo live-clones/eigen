@@ -424,7 +424,8 @@ void check_indexed_view()
   A(last, last) = 1;
   // check weird non-const, non-lvalue scenarios
   {
-    // in these scenarios, the objects are not declared 'const', and the compiler will atttempt to use the non-const overloads without intervention
+    // in these scenarios, the objects are not declared 'const', and the compiler will atttempt to use the non-const
+    // overloads without intervention
 
     // non-const map to a const object
 
@@ -437,12 +438,13 @@ void check_indexed_view()
 
     // non-const expressions that have no modifiable data
 
-    double constant_val = internal::random<double>();
     using Op = internal::scalar_constant_op<double>;
     using VectorXpr = CwiseNullaryOp<Op, VectorXd>;
     using MatrixXpr = CwiseNullaryOp<Op, MatrixXd>;
-    VectorXpr vectorXpr(10, 1, Op(constant_val));
-    MatrixXpr matrixXpr(8, 11, Op(constant_val));
+    double constant_val = internal::random<double>();
+    Op op(constant_val);
+    VectorXpr vectorXpr(10, 1, op);
+    MatrixXpr matrixXpr(8, 11, op);
 
     VERIFY_IS_EQUAL(vectorXpr.coeff(vectorXpr.size() - 1), vectorXpr(last));
     VERIFY_IS_EQUAL(matrixXpr.coeff(matrixXpr.rows() - 1, matrixXpr.cols() - 1), matrixXpr(last, last));
