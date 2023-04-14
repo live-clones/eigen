@@ -420,17 +420,32 @@ void check_indexed_view()
   A(XX,Y) = 1;
   A(X,YY) = 1;
   // check symbolic indices
-  a(last) = 1;
+  a(last) = 1.0;
   A(last, last) = 1;
   // check weird non-const, non-lvalue scenarios
   {
-    // non-const map to a const object: compiler will attempt to use non-const overload without intervention
+    // in these scenarios, the objects are not declared 'const', and the compiler will atttempt to use the non-const overloads without intervention
+
+    // non-const map to a const object
 
     Map<const ArrayXd> a_map(a.data(), a.size());
-    double a_test = a_map(last);
+    VERIFY_IS_EQUAL(a_map(last), a.coeff(a.size() - 1));
 
     Map<const ArrayXXi> A_map(A.data(), A.rows(), A.cols());
+    VERIFY_IS_EQUAL(A_map(last, last), A.coeff(A.rows() - 1, A.cols() - 1));
     int A_test = A_map(last, last);
+
+    // non-const expressions that have no modifiable data
+
+    double constant_val = internal::random<double>();
+    using Op = internal::scalar_constant_op<double>;
+    using VectorXpr = CwiseNullaryOp<Op, VectorXd>;
+    using MatrixXpr = CwiseNullaryOp<Op, MatrixXd>;
+    VectorXpr vectorXpr(10, 1, Op(constant_val));
+    MatrixXpr matrixXpr(8, 11, Op(constant_val));
+
+    VERIFY_IS_EQUAL(vectorXpr.coeff(vectorXpr.size() - 1), vectorXpr(last));
+    VERIFY_IS_EQUAL(matrixXpr.coeff(matrixXpr.rows() - 1, matrixXpr.cols() - 1), matrixXpr(last, last));
   }
 
 
