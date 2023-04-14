@@ -1299,7 +1299,7 @@ void packetmath_notcomplex() {
     CHECK_CWISE2_IF(PacketTraits::HasMax, propagate_nan_max, internal::pmax<PropagateNaN>);
   }
 
-  packetmath_boolean_mask_ops_notcomplex<Scalar, Packet>();
+  packetmath_boolean_mask_ops_notcomplex_test<Scalar, Packet>::run();
 }
 
 template <typename Scalar, typename Packet, bool ConjLhs, bool ConjRhs>
