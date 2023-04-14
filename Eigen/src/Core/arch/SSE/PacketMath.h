@@ -1207,6 +1207,7 @@ template<> EIGEN_STRONG_INLINE int predux<Packet4i>(const Packet4i& a)
 {
   Packet4i tmp = _mm_add_epi32(a, _mm_unpackhi_epi64(a,a));
   return pfirst(tmp) + pfirst<Packet4i>(_mm_shuffle_epi32(tmp, 1));
+}
 template<> EIGEN_STRONG_INLINE uint32_t predux<Packet4ui>(const Packet4ui& a) {
   Packet4ui tmp = _mm_add_epi32(a, _mm_unpackhi_epi64(a, a));
   return pfirst(tmp) + pfirst<Packet4ui>(_mm_shuffle_epi32(tmp, 1));
