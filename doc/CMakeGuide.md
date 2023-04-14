@@ -6,7 +6,7 @@ This is a short guide on how to incorporate Eigen into to your own project with 
 
 Before we start, you have to make sure that both CMake and Eigen are available on your system. 
 
-**CMake:** The required CMake version is 3.10 or higher. Run ```cmake --version``` to check which version is installed on your system. If the version is below 3.10 or CMake is not installed at all, make sure to update/install it before you continue. Note that not all parts of this guide require CMake version 3.10. However, having CMake version 3.10 or higher ensures that everything in this guide can be followed.
+**CMake:** The recommended CMake version is 3.10 or higher. Run ```cmake --version``` to check which version is installed on your system. If the version is below 3.10 or CMake is not installed at all, make sure to update/install it before you continue. Note that not all parts of this guide require CMake version 3.10. However, having CMake version 3.10 or higher ensures that everything in this guide can be followed.
 
 **Eigen:** There are multiple ways to make Eigen available on your system. Since Eigen is a pure template library, it is sufficient to download the header files to a local folder and access them from there. However, you can also install Eigen, which can be more convenient.
 
@@ -41,7 +41,7 @@ Move to the directory where the Eigen source files are located. This directory s
 Assuming you are in the Eigen source directory:
 ```bash
 cmake -B build
-cmake --install build
+cmake --build build
 ```
 
 The ```install``` target may require administrator privileges. In that the case, simply do 
@@ -52,6 +52,7 @@ cmake --install build
 You can also install to a local directory without administrator privileges:
 ```bash
 cmake -B build -DCMAKE_INSTALL_PREFIX=<path to local installation folder>
+cmake --build build
 cmake --install build
 ```
 
@@ -87,7 +88,7 @@ For Eigen in a local folder:
 ```cmake
 cmake_minimum_required (VERSION 3.10)
 project (myproject)
-include_directories("<path to eigen source files>")
+target_include_directories("<path to eigen source files>")
 add_executable (example example.cpp)
 ```
 
@@ -174,7 +175,7 @@ The three following commands are used in both cases and are typically part of ev
 
 The following command is neccessary if you access Eigen from a local folder:
 
-[**include_directories**](https://cmake.org/cmake/help/latest/command/include_directories.html) ("\<path to eigen source files\>")
+[**target_include_directories**](https://cmake.org/cmake/help/latest/command/include_directories.html) ("\<path to eigen source files\>")
   - This command adds the specified directory to those that the compiler uses to search for include files.
   - This has to point to the eigen header files, otherwise the compiler will not be able to find them.
   - In our example, the eigen header files lie within the project directory in the eigen folder (.../myproject/eigen). If you placed them outside, make sure that the path to the eigen directory is correctly set in this command.
