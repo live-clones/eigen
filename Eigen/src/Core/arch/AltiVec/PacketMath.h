@@ -1749,6 +1749,11 @@ EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f hi, Packet4f lo)
 }
 #endif
 
+/**
+ * Convert and pack two float Packets into one bfloat16 Packet
+ *
+ * @param lohi to expect either a low & high OR odd & even order
+ */
 template<bool lohi = true>
 EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi)
 {
@@ -1817,6 +1822,9 @@ EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi)
   return input;
 }
 
+/**
+ * Convert and pack two float Packets into one bfloat16 Packet - low & high order
+ */
 EIGEN_STRONG_INLINE Packet8bf F32ToBf16Both(Packet4f lo, Packet4f hi)
 {
 #ifdef _ARCH_PWR10
@@ -1828,6 +1836,9 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16Both(Packet4f lo, Packet4f hi)
 #endif
 }
 
+/**
+ * Convert and pack two float Packets into one bfloat16 Packet - odd & even order
+ */
 EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f even, Packet4f odd){
 #ifdef _ARCH_PWR10
   return pmerge(reinterpret_cast<Packet4ui>(F32ToBf16(even).m_val), reinterpret_cast<Packet4ui>(F32ToBf16(odd).m_val));
