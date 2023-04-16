@@ -314,10 +314,10 @@ namespace internal {
 
   /** \brief A helper function to IndexedTensor::operator*.
     *
-    * This is the exit point of make_contraction_indices(). It returns the 
-    * list of pairs of dimensions to be contracted, and the BoundIndices of 
-    * the resulting expression. Indices remaining from the first operand are 
-    * put first.
+    * This is the exit point of make_contraction_indices() that performs a 
+    * true contraction. It returns the list of pairs of dimensions to be 
+    * contracted, and the BoundIndices of the resulting expression. Indices 
+    * remaining from the first operand are put first.
     */
   template<int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
            int... UncontractedIndexIds2, DimensionIndex... UncontractedBoundDims2,
@@ -330,12 +330,40 @@ namespace internal {
                                 DimensionIds<ContractedBoundDims1...>, DimensionIds<ContractedBoundDims2...>)
   {
     return std::make_pair(
-      std::array<Eigen::IndexPair<int>, sizeof...(ContractedBoundDims1)>{
-        {Eigen::IndexPair<int>{static_cast<int>(ContractedBoundDims1), static_cast<int>(ContractedBoundDims2)}...}},
-        sorted_indices_merge(
-          internal::sorted_indices_t<BoundTensorIndex<UncontractedIndexIds1, update_dim_index<UncontractedBoundDims1, ContractedBoundDims1...>()>...>{},
-           internal::sorted_indices_t<BoundTensorIndex<UncontractedIndexIds2, update_dim_index<UncontractedBoundDims2, ContractedBoundDims2...>() + sizeof...(UncontractedBoundDims1)>...>{})
-      );
+      Eigen::IndexPairList<Eigen::type2indexpair<ContractedBoundDims1, ContractedBoundDims2>...>{},
+      sorted_indices_merge(
+        internal::sorted_indices_t<
+            BoundTensorIndex<UncontractedIndexIds1, update_dim_index<UncontractedBoundDims1, ContractedBoundDims1...>()>...
+        >{},
+        internal::sorted_indices_t<
+            BoundTensorIndex<UncontractedIndexIds2, update_dim_index<UncontractedBoundDims2, ContractedBoundDims2...>() + sizeof...(UncontractedBoundDims1)>...
+        >{}
+      )
+    );
+  }
+  /** This is the exit point of make_contraction_indices() that performs no 
+    * contraction but a tensor product (handled by a tensor contraction with 
+    * an empty array of IndexPairs).
+    */
+  template<int... UncontractedIndexIds1, DimensionIndex... UncontractedBoundDims1, 
+           int... UncontractedIndexIds2, DimensionIndex... UncontractedBoundDims2>
+  auto make_contraction_indices(TensorIndexIds<>, DimensionIds<>, 
+                                TensorIndexIds<>, DimensionIds<>, 
+                                TensorIndexIds<UncontractedIndexIds1...>, DimensionIds<UncontractedBoundDims1...>, 
+                                TensorIndexIds<UncontractedIndexIds2...>, DimensionIds<UncontractedBoundDims2...>,
+                                DimensionIds<>, DimensionIds<>)
+  {
+    return std::make_pair(
+      std::array<Eigen::IndexPair<int>, 0>{},
+      sorted_indices_merge(
+        internal::sorted_indices_t<
+            BoundTensorIndex<UncontractedIndexIds1, UncontractedBoundDims1>...
+        >{},
+        internal::sorted_indices_t<
+            BoundTensorIndex<UncontractedIndexIds2, UncontractedBoundDims2 + sizeof...(UncontractedBoundDims1)>...
+        >{}
+      )
+    );
   }
   /** If all dimensions from one operand have been treated, there is nothing 
     * left to be contracted, so we put all remaing indices from the other 
