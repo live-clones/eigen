@@ -927,16 +927,19 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     return m_condImpl.coeff(index) ? m_thenImpl.coeff(index) : m_elseImpl.coeff(index);
   }
 
-  template <int LoadMode, bool UseTernary = internal::functor_traits<TernarySelectOp>::PacketAccess,
-            std::enable_if_t<!UseTernary, bool> = true>
-  EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
-    internal::Selector<PacketSize> select;
-    EIGEN_UNROLL_LOOP
-    for (Index i = 0; i < PacketSize; ++i) {
-      select.select[i] = m_condImpl.coeff(index + i);
-    }
-    return internal::pblend(select, m_thenImpl.template packet<LoadMode>(index),
-                            m_elseImpl.template packet<LoadMode>(index));
+  template<int LoadMode, bool UseTernary = internal::functor_traits<TernarySelectOp>::PacketAccess, 
+           std::enable_if_t<!UseTernary, bool> = true>
+  EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const
+  {
+     internal::Selector<PacketSize> select;
+     EIGEN_UNROLL_LOOP
+     for (Index i = 0; i < PacketSize; ++i) {
+       select.select[i] = m_condImpl.coeff(index+i);
+     }
+     return internal::pblend(select,
+                             m_thenImpl.template packet<LoadMode>(index),
+                             m_elseImpl.template packet<LoadMode>(index));
+
   }
 
   template <int LoadMode, bool UseTernary = internal::functor_traits<TernarySelectOp>::PacketAccess,
