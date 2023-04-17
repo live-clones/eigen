@@ -389,20 +389,29 @@ struct packetmath_boolean_mask_ops_notcomplex_test<
 template <>
 void packetmath_boolean_mask_ops<bool, internal::packet_traits<bool>::type>() {}
 
-template <typename Scalar, typename Packet>
-void packetmath_minus_zero_add() {
-  const int PacketSize = internal::unpacket_traits<Packet>::size;
-  const int size = 2 * PacketSize;
-  EIGEN_ALIGN_MAX Scalar data1[size] = {};
-  EIGEN_ALIGN_MAX Scalar data2[size] = {};
-  EIGEN_ALIGN_MAX Scalar ref[size] = {};
+template <typename Scalar, typename Packet, typename EnableIf = void>
+struct packetmath_minus_zero_add_test {
+  static void run() {}
+};
 
-  for (int i = 0; i < PacketSize; ++i) {
-    data1[i] = Scalar(-0.0);
-    data1[i + PacketSize] = Scalar(-0.0);
+template <typename Scalar, typename Packet>
+struct packetmath_minus_zero_add_test<
+    Scalar, Packet,
+    std::enable_if_t<!NumTraits<Scalar>::IsInteger>> {
+  static void run() {
+    const int PacketSize = internal::unpacket_traits<Packet>::size;
+    const int size = 2 * PacketSize;
+    EIGEN_ALIGN_MAX Scalar data1[size] = {};
+    EIGEN_ALIGN_MAX Scalar data2[size] = {};
+    EIGEN_ALIGN_MAX Scalar ref[size] = {};
+
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = Scalar(-0.0);
+      data1[i + PacketSize] = Scalar(-0.0);
+    }
+    CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasAdd, REF_ADD, internal::padd);
   }
-  CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasAdd, REF_ADD, internal::padd);
-}
+};
 
 // Ensure optimization barrier compiles and doesn't modify contents.
 // Only applies to raw types, so will not work for std::complex, Eigen::half
@@ -682,7 +691,7 @@ void packetmath() {
 
   packetmath_boolean_mask_ops<Scalar, Packet>();
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
-  packetmath_minus_zero_add<Scalar, Packet>();
+  packetmath_minus_zero_add_test<Scalar, Packet>::run();
 
   for (int i = 0; i < size; ++i) {
     data1[i] = numext::abs(internal::random<Scalar>());
