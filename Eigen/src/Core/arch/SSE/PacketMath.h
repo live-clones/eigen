@@ -597,12 +597,15 @@ template<> EIGEN_STRONG_INLINE Packet4i pmin<Packet4i>(const Packet4i& a, const 
   return _mm_or_si128(_mm_and_si128(mask,a),_mm_andnot_si128(mask,b));
 #endif
 }
+template<> EIGEN_STRONG_INLINE Packet4ui pmin<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
 #ifdef EIGEN_VECTORIZE_SSE4_1
-template<> EIGEN_STRONG_INLINE Packet4ui pmin<Packet4ui>(const Packet4ui& a, const Packet4ui& b)
-{
   return _mm_min_epu32(a, b);
-}
+#else
+  return padd((Packet4ui)pmin((Packet4i)psub(a, pset1<Packet4ui>(0x80000000UL)),
+                              (Packet4i)psub(b, pset1<Packet4ui>(0x80000000UL))),
+              pset1<Packet4ui>(0x80000000UL));
 #endif
+}
 
 
 template<> EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b) {
@@ -653,20 +656,32 @@ template<> EIGEN_STRONG_INLINE Packet4i pmax<Packet4i>(const Packet4i& a, const 
   return _mm_or_si128(_mm_and_si128(mask,a),_mm_andnot_si128(mask,b));
 #endif
 }
-#ifdef EIGEN_VECTORIZE_SSE4_1
 template<> EIGEN_STRONG_INLINE Packet4ui pmax<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
-  return _mm_max_epu32(a, b);
-}
-#endif
-
 #ifdef EIGEN_VECTORIZE_SSE4_1
+  return _mm_max_epu32(a, b);
+#else
+  return padd((Packet4ui)pmax((Packet4i)psub(a, pset1<Packet4ui>(0x80000000UL)),
+                              (Packet4i)psub(b, pset1<Packet4ui>(0x80000000UL))),
+              pset1<Packet4ui>(0x80000000UL));
+#endif
+}
+
 template<> EIGEN_STRONG_INLINE Packet4ui pcmp_lt(const Packet4ui& a, const Packet4ui& b) {
+#ifdef EIGEN_VECTORIZE_SSE4_1
   return pxor(pcmp_eq(a, pmax(a, b)), ptrue(a));
+#else
+  return (Packet4ui)pcmp_lt((Packet4i)psub(a, pset1<Packet4ui>(0x80000000UL)),
+                            (Packet4i)psub(b, pset1<Packet4ui>(0x80000000UL)));
+#endif
 }
 template<> EIGEN_STRONG_INLINE Packet4ui pcmp_le(const Packet4ui& a, const Packet4ui& b) {
+#ifdef EIGEN_VECTORIZE_SSE4_1
   return pcmp_eq(a, pmin(a, b));
-}
+#else
+  return (Packet4ui)pcmp_le((Packet4i)psub(a, pset1<Packet4ui>(0x80000000UL)),
+                            (Packet4i)psub(b, pset1<Packet4ui>(0x80000000UL)));
 #endif
+}
 
 template <typename Packet, typename Op>
 EIGEN_STRONG_INLINE Packet pminmax_propagate_numbers(const Packet& a, const Packet& b, Op op) {

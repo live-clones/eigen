@@ -1216,6 +1216,9 @@ void packetmath_notcomplex() {
 
   Array<Scalar, Dynamic, 1>::Map(data1, PacketSize * 4).setRandom();
 
+  VERIFY((!PacketTraits::Vectorizable) || PacketTraits::HasMin);
+  VERIFY((!PacketTraits::Vectorizable) || PacketTraits::HasMax);
+
   CHECK_CWISE2_IF(PacketTraits::HasMin, (std::min), internal::pmin);
   CHECK_CWISE2_IF(PacketTraits::HasMax, (std::max), internal::pmax);
 

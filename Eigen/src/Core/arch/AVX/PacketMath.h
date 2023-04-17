@@ -269,15 +269,15 @@ template<> struct packet_traits<uint64_t> : default_packet_traits
     AlignedOnScalar = 1,
     size = 4,
 
-    HasMin = 0,
-    HasMax = 0,
-    HasCmp = 0,
+    // HasMin = 0,
+    // HasMax = 0,
     HasDiv = 0,
     HasBlend = 0,
     HasTranspose = 0,
     HasNegate = 0,
     HasSqrt = 0,
 
+    HasCmp = 1,
     HasShift = 1
   };
 };
@@ -346,7 +346,7 @@ EIGEN_STRONG_INLINE Packet4l pset1<Packet4l>(const int64_t& from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ul pset1<Packet4ul>(const uint64_t& from) {
-  return _mm256_set1_epi64x(from);
+  return _mm256_set1_epi64x(numext::bit_cast<uint64_t>(from));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4l pzero(const Packet4l& /*a*/) {
@@ -393,6 +393,10 @@ EIGEN_STRONG_INLINE Packet4l psub<Packet4l>(const Packet4l& a, const Packet4l& b
   return _mm256_sub_epi64(a, b);
 }
 template <>
+EIGEN_STRONG_INLINE Packet4ul psub<Packet4ul>(const Packet4ul& a, const Packet4ul& b) {
+  return _mm256_sub_epi64(a, b);
+}
+template <>
 EIGEN_STRONG_INLINE Packet4l pnegate(const Packet4l& a) {
   return psub(pzero(a), a);
 }
@@ -405,8 +409,18 @@ EIGEN_STRONG_INLINE Packet4l pcmp_le(const Packet4l& a, const Packet4l& b) {
   return _mm256_xor_si256(_mm256_cmpgt_epi64(a, b), _mm256_set1_epi32(-1));
 }
 template <>
+EIGEN_STRONG_INLINE Packet4ul pcmp_le(const Packet4ul& a, const Packet4ul& b) {
+  return (Packet4ul)pcmp_le((Packet4l)psub(a, pset1<Packet4ul>(0x8000000000000000UL)),
+                            (Packet4l)psub(b, pset1<Packet4ul>(0x8000000000000000UL)));
+}
+template <>
 EIGEN_STRONG_INLINE Packet4l pcmp_lt(const Packet4l& a, const Packet4l& b) {
   return _mm256_cmpgt_epi64(b, a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4ul pcmp_lt(const Packet4ul& a, const Packet4ul& b) {
+  return (Packet4ul)pcmp_lt((Packet4l)psub(a, pset1<Packet4ul>(0x8000000000000000UL)),
+                            (Packet4l)psub(b, pset1<Packet4ul>(0x8000000000000000UL)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4l pcmp_eq(const Packet4l& a, const Packet4l& b) {
@@ -604,6 +618,12 @@ EIGEN_STRONG_INLINE Packet4l pmin<Packet4l>(const Packet4l& a, const Packet4l& b
   return Packet4l(_mm256_or_si256(a_min, b_min));
 }
 template <>
+EIGEN_STRONG_INLINE Packet4ul pmin<Packet4ul>(const Packet4ul& a, const Packet4ul& b) {
+  return padd((Packet4ul)pmin((Packet4l)psub(a, pset1<Packet4ul>(0x8000000000000000UL)),
+                              (Packet4l)psub(b, pset1<Packet4ul>(0x8000000000000000UL))),
+              pset1<Packet4ul>(0x8000000000000000UL));
+}
+template <>
 EIGEN_STRONG_INLINE Packet4l pmax<Packet4l>(const Packet4l& a, const Packet4l& b) {
   __m256i cmp = _mm256_cmpgt_epi64(a, b);
   __m256i a_min = _mm256_and_si256(cmp, a);
@@ -611,10 +631,20 @@ EIGEN_STRONG_INLINE Packet4l pmax<Packet4l>(const Packet4l& a, const Packet4l& b
   return Packet4l(_mm256_or_si256(a_min, b_min));
 }
 template <>
+EIGEN_STRONG_INLINE Packet4ul pmax<Packet4ul>(const Packet4ul& a, const Packet4ul& b) {
+  return padd((Packet4ul)pmax((Packet4l)psub(a, pset1<Packet4ul>(0x8000000000000000UL)),
+                              (Packet4l)psub(b, pset1<Packet4ul>(0x8000000000000000UL))),
+              pset1<Packet4ul>(0x8000000000000000UL));
+}
+template <>
 EIGEN_STRONG_INLINE Packet4l pabs<Packet4l>(const Packet4l& a) {
   Packet4l pz = pzero<Packet4l>(a);
   Packet4l cmp = _mm256_cmpgt_epi64(a, pz);
   return psub(cmp, pxor(a, cmp));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4ul pabs<Packet4ul>(const Packet4ul& a) {
+  return a;
 }
 template <>
 EIGEN_STRONG_INLINE Packet4l pmul<Packet4l>(const Packet4l& a, const Packet4l& b) {
