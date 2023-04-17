@@ -218,14 +218,14 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16Col(float *result, Index col, Inde
   Index row;
   float *result2 = result + col*rows;
   for(row = 0; row + 8 <= rows; row += 8){
-    //get and save block
+    // get and save block
     PacketBlock<Packet8bf,size> block;
     for(Index j = 0; j < size; j++){
       block.packet[j] = convertF32toBF16(result2 + j*rows + row);
     }
     res2.template storePacketBlock<Packet8bf,size>(row, 0, block);
   }
-  //extra rows
+  // extra rows
   if(row < rows){
     for(Index j = 0; j < size; j++){
       Packet8bf fp16 = convertF32toBF16(result2 + j*rows + row);
@@ -234,7 +234,7 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16Col(float *result, Index col, Inde
   }
 }
 
-template<const Index size, bool inc = false>
+template<const Index size, bool non_unit_stride = false>
 EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index rows, bfloat16*& dst, Index resInc = 1)
 {
   constexpr Index extra = ((size < 8) ? 8 : size);
@@ -248,25 +248,25 @@ EIGEN_ALWAYS_INLINE void convertPointerF32toBF16(Index& i, float* result, Index 
       r32.packet[2] = convertF32toBF16(result + i + 16);
       r32.packet[3] = convertF32toBF16(result + i + 24);
     }
-    storeBF16fromResult<size, inc, 0>(dst, r32.packet[0], resInc, rows & 7);
+    storeBF16fromResult<size, non_unit_stride, 0>(dst, r32.packet[0], resInc, rows & 7);
     if (size >= 16) {
-      storeBF16fromResult<size, inc, 8>(dst, r32.packet[1], resInc);
+      storeBF16fromResult<size, non_unit_stride, 8>(dst, r32.packet[1], resInc);
     }
     if (size >= 32) {
-      storeBF16fromResult<size, inc, 16>(dst, r32.packet[2], resInc);
-      storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
+      storeBF16fromResult<size, non_unit_stride, 16>(dst, r32.packet[2], resInc);
+      storeBF16fromResult<size, non_unit_stride, 24>(dst, r32.packet[3], resInc);
     }
   }
 }
 
-template<bool inc = false>
+template<bool non_unit_stride = false>
 EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16(float *result, Index rows, bfloat16* dst, Index resInc = 1)
 {
   Index i = 0;
-  convertPointerF32toBF16<32,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16<16,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16<8,inc>(i, result, rows, dst, resInc);
-  convertPointerF32toBF16<1,inc>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<32,non_unit_stride>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<16,non_unit_stride>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<8,non_unit_stride>(i, result, rows, dst, resInc);
+  convertPointerF32toBF16<1,non_unit_stride>(i, result, rows, dst, resInc);
 }
 
 template<typename DataMapper>
