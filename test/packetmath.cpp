@@ -691,7 +691,7 @@ void packetmath() {
   CHECK_CWISE1_IF(PacketTraits::HasRsqrt, numext::rsqrt, internal::prsqrt);
   CHECK_CWISE3_IF(true, REF_MADD, internal::pmadd);
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
-    CHECK_CWISE3_IF(true, REF_NMSUB, internal::pnmsub);
+    CHECK_CWISE3_IF(PacketTraits::HasNegate, REF_NMSUB, internal::pnmsub);
   }
 
   // For pmsub, pnmadd, the values can cancel each other to become near zero,
