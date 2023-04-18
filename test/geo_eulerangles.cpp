@@ -109,7 +109,7 @@ template<typename Scalar> void eulerangles()
   check_all_var(ea);
   
   // Check with random angles in range [-pi:pi]x[-pi:pi]x[-pi:pi].
-  ea = (Array3::Random() + Array3(1,0,0))*Scalar(EIGEN_PI)*Array3(1,1,1);
+  ea = Array3::Random() * Scalar(EIGEN_PI)*Array3(1,1,1);
   check_all_var(ea);
   
   ea[2] = ea[0] = internal::random<Scalar>(0,Scalar(EIGEN_PI));
