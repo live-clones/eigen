@@ -2920,7 +2920,7 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index cols,
   }
 }
 
-template<Index num_acc, bool half>
+template<Index num_acc, bool half = false>
 EIGEN_ALWAYS_INLINE void zeroAccumulators(Packet4f (&acc)[num_acc][half ? 2 : 4])
 {
   Packet4f z = pset1<Packet4f>(float(0));
