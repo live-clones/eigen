@@ -543,7 +543,7 @@ EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, 
 
   b0[0] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V1);
   if (zero) {
-    b0[1] = pset1<Packet4f>(float(0));
+    b0[1] = reinterpret_cast<Packet4f>(b1.m_val);
   } else {
     b0[1] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V2);
   }
@@ -564,8 +564,8 @@ EIGEN_ALWAYS_INLINE void addResultsVSX(Packet4f (&acc)[num_acc][2])
   }
 }
 
-// No more than 4 (uses 2X the accumulators or 8X the number of VSX registers)
-#define MAX_BFLOAT16_VEC_ACC_VSX   4
+// Uses 2X the accumulators or 4X the number of VSX registers
+#define MAX_BFLOAT16_VEC_ACC_VSX   8
 
 template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
 void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
@@ -607,6 +607,18 @@ template<typename LhsMapper, typename RhsMapper, bool extraRows>
 EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtra(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   switch ((rows - row) >> 2) {
+  case 7:
+    colVSXVecColLoopBodyExtraN<7, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    break;
+  case 6:
+    colVSXVecColLoopBodyExtraN<6, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    break;
+  case 5:
+    colVSXVecColLoopBodyExtraN<5, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    break;
+  case 4:
+    colVSXVecColLoopBodyExtraN<4, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    break;
   case 3:
     colVSXVecColLoopBodyExtraN<3, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
