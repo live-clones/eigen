@@ -20,22 +20,55 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
   typedef Matrix<Scalar,3,1> Vector3;
   typedef AngleAxis<Scalar> AngleAxisx;
   using std::abs;
-  Matrix3 m(AngleAxisx(ea[0], Vector3::Unit(i)) * AngleAxisx(ea[1], Vector3::Unit(j)) * AngleAxisx(ea[2], Vector3::Unit(k)));
-  Vector3 eabis = m.eulerAngles(i, j, k);
-  Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k))); 
-  VERIFY_IS_APPROX(m,  mbis); 
-  /* If I==K, and ea[1]==0, then there no unique solution. */ 
-  /* The remark apply in the case where I!=K, and |ea[1]| is close to pi/2. */ 
-  if((i!=k || !numext::is_exactly_zero(ea[1])) && (i == k || !internal::isApprox(abs(ea[1]), Scalar(EIGEN_PI / 2), test_precision<Scalar>())) )
-    VERIFY((ea-eabis).norm() <= test_precision<Scalar>());
-  
-  // approx_or_less_than does not work for 0
-  VERIFY(0 < eabis[0] || test_isMuchSmallerThan(eabis[0], Scalar(1)));
-  VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
-  VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[1]);
-  VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
-  VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
-  VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
+  const Matrix3 m(AngleAxisx(ea[0], Vector3::Unit(i)) * AngleAxisx(ea[1], Vector3::Unit(j)) * AngleAxisx(ea[2], Vector3::Unit(k)));
+
+  // Test the new default canonical ranges behaviour of eulerAngles (canonical = true)
+  {
+    Vector3 eabis = m.eulerAngles(i, j, k);
+    Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
+    VERIFY_IS_APPROX(m,  mbis);
+    /* If I==K, and ea[1]==0, then there no unique solution. */
+    /* The remark apply in the case where I!=K, and |ea[1]| is close to pi/2. */
+    if((i!=k || !numext::is_exactly_zero(ea[1])) && (i == k || !internal::isApprox(abs(ea[1]), Scalar(EIGEN_PI / 2), test_precision<Scalar>())) )
+      VERIFY((ea-eabis).norm() <= test_precision<Scalar>());
+
+    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[0]);
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
+    if (i != k)
+    {
+      // Tait-Bryan sequence
+      VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI / 2), eabis[1]);
+      VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI / 2));
+    }
+    else
+    {
+      // Proper Euler sequence
+      // approx_or_less_than does not work for 0
+      VERIFY(0 < eabis[1] || test_isMuchSmallerThan(eabis[1], Scalar(1)));
+      VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
+    }
+    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
+  }
+
+  // Test legacy behaviour of eulerAngles (canonical = false)
+  {
+    Vector3 eabis = m.eulerAngles(i, j, k, false);
+    Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
+    VERIFY_IS_APPROX(m,  mbis);
+    /* If I==K, and ea[1]==0, then there no unique solution. */
+    /* The remark apply in the case where I!=K, and |ea[1]| is close to pi/2. */
+    if((i!=k || !numext::is_exactly_zero(ea[1])) && (i == k || !internal::isApprox(abs(ea[1]), Scalar(EIGEN_PI / 2), test_precision<Scalar>())) )
+      VERIFY((ea-eabis).norm() <= test_precision<Scalar>());
+
+    // approx_or_less_than does not work for 0
+    VERIFY(0 < eabis[0] || test_isMuchSmallerThan(eabis[0], Scalar(1)));
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
+    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[1]);
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
+    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
+  }
 }
 
 template<typename Scalar> void check_all_var(const Matrix<Scalar,3,1>& ea)
