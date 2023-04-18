@@ -509,26 +509,22 @@ EIGEN_ALWAYS_INLINE void loadVecLoopVSX(Index k, LhsMapper& lhs, Packet4f (&a0)[
 
   if (num_acc > (k + 1)) {
     a0[k + 1][0] = oneConvertBF16Lo(c0.m_val);
-    if (zero) {
-      a0[k + 1][1] = reinterpret_cast<Packet4f>(b1.m_val);
-    } else {
+    if (!zero) {
       a0[k + 1][1] = oneConvertBF16Lo(b1.m_val);
     }
   }
 
   a0[k + 0][0] = oneConvertBF16Hi(c0.m_val);
-  if (zero) {
-    a0[k + 0][1] = reinterpret_cast<Packet4f>(b1.m_val);
-  } else {
+  if (!zero) {
     a0[k + 0][1] = oneConvertBF16Hi(b1.m_val);
   }
 }
 
-template<Index num_acc>
+template<Index num_acc, bool zero>
 EIGEN_ALWAYS_INLINE void multVecVSX(Packet4f (&acc)[num_acc][2], Packet4f (&a0)[num_acc][2], Packet4f (&b0)[2])
 {
   for(Index k = 0; k < num_acc; k++) {
-    for(Index i = 0; i < 2; i++) {
+    for(Index i = 0; i < (zero ? 1 : 2); i++) {
       acc[k][i] = pmadd(b0[i], a0[k][i], acc[k][i]);
     }
   }
@@ -542,9 +538,7 @@ EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, 
   Packet8bf b2 = rhs.template loadPacket<Packet8bf>(j + 0);
 
   b0[0] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V1);
-  if (zero) {
-    b0[1] = reinterpret_cast<Packet4f>(b1.m_val);
-  } else {
+  if (!zero) {
     b0[1] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V2);
   }
 
@@ -553,7 +547,7 @@ EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, 
     loadVecLoopVSX<num_acc, LhsMapper, zero>(k, lhs2, a0, b1);
   }
 
-  multVecVSX<num_acc>(acc, a0, b0);
+  multVecVSX<num_acc, zero>(acc, a0, b0);
 }
 
 template<Index num_acc>
