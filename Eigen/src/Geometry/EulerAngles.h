@@ -116,14 +116,14 @@ MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2, bool canonical) c
 
   if (canonical)
   {
-    // If Tait-Bryan angles, make sure that the result is in the standard range (middle axis angle in [-pi/2, pi/2]).
+    // If Tait-Bryan angles, make sure that the result is in the canonical range (middle axis angle in [-pi/2, pi/2]).
     if (a0 != a2 && res.cwiseAbs()[1] > Scalar(EIGEN_PI / 2))
     {
       res -= Scalar(EIGEN_PI) * res.cwiseSign();
       res[1] = -res[1];
     }
 
-    // If proper Euler angles, make sure that the result is in the standard range (middle axis angle in [0, pi]).
+    // If proper Euler angles, make sure that the result is in the canonical range (middle axis angle in [0, pi]).
     if (a0 == a2 && res[1] < Scalar(0))
     {
         res[0] -= Scalar(EIGEN_PI) * res.cwiseSign()[0];
