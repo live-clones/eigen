@@ -96,8 +96,8 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index cols,
 template<bool rhsExtraCols, bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result, Index extra_cols, Index extra_rows);
 
-template<Index num_acc, bool extraRows, bool half = false>
-EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][half ? 2 : 4], float *result, Packet4f pAlpha, Index extra_rows);
+template<Index num_acc, bool extraRows, Index size = 4>
+EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], float *result, Packet4f pAlpha, Index extra_rows);
 
 template<typename Packet>
 EIGEN_ALWAYS_INLINE Packet ploadLhs(const __UNPACK_TYPE__(Packet)* lhs);

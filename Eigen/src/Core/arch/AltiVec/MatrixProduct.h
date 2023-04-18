@@ -2928,13 +2928,13 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index cols,
   }
 }
 
-template<Index num_acc, bool half = false>
-EIGEN_ALWAYS_INLINE void zeroAccumulators(Packet4f (&acc)[num_acc][half ? 2 : 4])
+template<Index num_acc, Index size = 4>
+EIGEN_ALWAYS_INLINE void zeroAccumulators(Packet4f (&acc)[num_acc][size])
 {
   Packet4f z = pset1<Packet4f>(float(0));
 
   for(Index k = 0; k < num_acc; k++) {
-    for(Index j = 0; j < (half ? 2 : 4); j++) {
+    for(Index j = 0; j < size; j++) {
       acc[k][j] = z;
     }
   }

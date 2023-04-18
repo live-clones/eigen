@@ -484,8 +484,8 @@ EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float *result, Packet4f pAlp
   }
 }
 
-template<Index num_acc, bool extraRows, bool half>
-EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][half ? 2 : 4], float *result, Packet4f pAlpha, Index extra_rows)
+template<Index num_acc, bool extraRows, Index size>
+EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], float *result, Packet4f pAlpha, Index extra_rows)
 {
   constexpr Index real_acc = (num_acc - (extraRows ? 1 : 0));
   for(Index k = 0; k < real_acc; k++) {
@@ -571,7 +571,7 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
   do{
     Packet4f acc[num_acc][2];
 
-    zeroAccumulators<num_acc, true>(acc);
+    zeroAccumulators<num_acc, 2>(acc);
 
     LhsMapper lhs2 = lhs.getSubMapper(row, 0);
     for(Index j = 0; j + 2 <= cend; j += 2) {
@@ -583,7 +583,7 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
 
     addResultsVSX<num_acc>(acc);
 
-    outputVecColResults<num_acc, extraRows, true>(acc, result, pAlpha, extra_rows);
+    outputVecColResults<num_acc, extraRows, 2>(acc, result, pAlpha, extra_rows);
 
     result += step;
   } while(multiIters && (step <= rows - (row += step)));
