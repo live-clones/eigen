@@ -821,14 +821,17 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   using TernarySelectOp = internal::scalar_boolean_select_op<typename internal::traits<ThenArgType>::Scalar,
                                                              typename internal::traits<ElseArgType>::Scalar,
                                                              typename internal::traits<IfArgType>::Scalar>;
+  static constexpr bool TernaryPacketAccess =
+      TensorEvaluator<ThenArgType, Device>::PacketAccess && TensorEvaluator<ElseArgType, Device>::PacketAccess &&
+      TensorEvaluator<IfArgType, Device>::PacketAccess && internal::functor_traits<TernarySelectOp>::PacketAccess;
 
     static constexpr int Layout = TensorEvaluator<IfArgType, Device>::Layout;
   enum {
     IsAligned         = TensorEvaluator<ThenArgType, Device>::IsAligned &
                         TensorEvaluator<ElseArgType, Device>::IsAligned,
-    PacketAccess      = bool(TensorEvaluator<ThenArgType, Device>::PacketAccess &
-                        TensorEvaluator<ElseArgType, Device>::PacketAccess &
-                        PacketType<Scalar, Device>::HasBlend) || internal::functor_traits<TernarySelectOp>::PacketAccess,
+    PacketAccess      = (TensorEvaluator<ThenArgType, Device>::PacketAccess &&
+                        TensorEvaluator<ElseArgType, Device>::PacketAccess &&
+                        PacketType<Scalar, Device>::HasBlend) || TernaryPacketAccess,
     BlockAccess       = TensorEvaluator<IfArgType, Device>::BlockAccess &&
                         TensorEvaluator<ThenArgType, Device>::BlockAccess &&
                         TensorEvaluator<ElseArgType, Device>::BlockAccess,
@@ -927,7 +930,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     return m_condImpl.coeff(index) ? m_thenImpl.coeff(index) : m_elseImpl.coeff(index);
   }
 
-  template<int LoadMode, bool UseTernary = internal::functor_traits<TernarySelectOp>::PacketAccess, 
+  template<int LoadMode, bool UseTernary = TernaryPacketAccess,
            std::enable_if_t<!UseTernary, bool> = true>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const
   {
@@ -942,7 +945,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
 
   }
 
-  template <int LoadMode, bool UseTernary = internal::functor_traits<TernarySelectOp>::PacketAccess,
+  template <int LoadMode, bool UseTernary = TernaryPacketAccess,
             std::enable_if_t<UseTernary, bool> = true>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
     return TernarySelectOp().template packetOp<PacketReturnType>(m_thenImpl.template packet<LoadMode>(index),
