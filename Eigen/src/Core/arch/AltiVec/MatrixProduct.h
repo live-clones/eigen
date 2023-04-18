@@ -2249,6 +2249,10 @@ EIGEN_ALWAYS_INLINE void gemm_extra_cols(
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+      uint64_t start, end;
+      start = __ppc_get_timebase();
+#endif
       const Index remaining_rows = rows % accCols;
 
       if( strideA == -1 ) strideA = depth;
@@ -2267,6 +2271,10 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
       {
         gemm_extra_cols<Scalar, Packet, DataMapper, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlpha, pMask);
       }
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+      end = __ppc_get_timebase();
+      printf("gemm float32 time = %16ld\n", end - start);
+#endif
 }
 
 #define accColsC (accCols / 2)
@@ -3205,6 +3213,10 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16VSX(float *result, Index cols, Ind
 template<typename DataMapper>
 void gemmbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat16* indexB, Index rows, Index depth, Index cols, bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
   float falpha = Eigen::bfloat16_impl::bfloat16_to_float(alpha);
   const Packet4f pAlpha = pset1<Packet4f>(falpha);
 
@@ -3240,6 +3252,10 @@ void gemmbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat16*
 
   // Convert back to bfloat16
   convertArrayF32toBF16VSX<DataMapper>(result, cols, rows, res);
+#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
+  end = __ppc_get_timebase();
+  printf("gemm bfloat16 time = %16ld\n", end - start);
+#endif
 }
 
 #undef MAX_BFLOAT16_ACC_VSX
