@@ -107,7 +107,7 @@ struct type_casting_traits<bfloat16, float> {
   enum {
     VectorizedCast = 1,
     SrcCoeffRatio = 1,
-    TgtCoeffRatio = 1
+    TgtCoeffRatio = 2
   };
 };
 
@@ -124,13 +124,13 @@ template <>
 struct type_casting_traits<float, bfloat16> {
   enum {
     VectorizedCast = 1,
-    SrcCoeffRatio = 1,
+    SrcCoeffRatio = 2,
     TgtCoeffRatio = 1
   };
 };
 
-template<> EIGEN_STRONG_INLINE Packet8bf pcast<Packet4f, Packet8bf>(const Packet4f& a) {
-  return F32ToBf16(a);
+template<> EIGEN_STRONG_INLINE Packet8bf pcast<Packet4f, Packet8bf>(const Packet4f& a, const Packet4f &b) {
+  return F32ToBf16Both(a, b);
 }
 
 template<> EIGEN_STRONG_INLINE Packet4i preinterpret<Packet4i,Packet4f>(const Packet4f& a) {
