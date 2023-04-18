@@ -339,30 +339,6 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat
 #undef MAX_BFLOAT16_ACC
 
 #if !EIGEN_ALTIVEC_DISABLE_MMA
-template<bool extraRows>
-EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float *result, Packet4f pAlpha, Index extra_rows)
-{
-  Packet4f d0 = ploadu<Packet4f>(result);
-  d0 = pmadd(acc, pAlpha, d0);
-  if (extraRows) {
-    pstoreu_partial(result, d0, extra_rows);
-  } else {
-    pstoreu(result, d0);
-  }
-}
-
-template<Index num_acc, bool extraRows>
-EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][4], float *result, Packet4f pAlpha, Index extra_rows)
-{
-  for(Index k = 0; k < num_acc - (extraRows ? 1 : 0); k++) {
-    outputVecCol<false>(acc[k][0], result + k*4, pAlpha, extra_rows);
-  }
-  if (extraRows) {
-    outputVecCol<true>(acc[num_acc - 1][0], result + (num_acc - 1)*4, pAlpha, extra_rows);
-  }
-}
-
-#if !EIGEN_ALTIVEC_DISABLE_MMA
 template<Index num_acc, typename LhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void loadVecLoop(Index k, LhsMapper& lhs, Packet8bf (&a0)[num_acc], Packet8bf b1)
 {
