@@ -27,10 +27,6 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
     Vector3 eabis = m.eulerAngles(i, j, k);
     Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
     VERIFY_IS_APPROX(m,  mbis);
-    /* If I==K, and ea[1]==0, then there no unique solution. */
-    /* The remark apply in the case where I!=K, and |ea[1]| is close to pi/2. */
-    if((i!=k || !numext::is_exactly_zero(ea[1])) && (i == k || !internal::isApprox(abs(ea[1]), Scalar(EIGEN_PI / 2), test_precision<Scalar>())) )
-      VERIFY((ea-eabis).norm() <= test_precision<Scalar>());
 
     VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[0]);
     VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
@@ -56,10 +52,6 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
     Vector3 eabis = m.eulerAngles(i, j, k, false);
     Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
     VERIFY_IS_APPROX(m,  mbis);
-    /* If I==K, and ea[1]==0, then there no unique solution. */
-    /* The remark apply in the case where I!=K, and |ea[1]| is close to pi/2. */
-    if((i!=k || !numext::is_exactly_zero(ea[1])) && (i == k || !internal::isApprox(abs(ea[1]), Scalar(EIGEN_PI / 2), test_precision<Scalar>())) )
-      VERIFY((ea-eabis).norm() <= test_precision<Scalar>());
 
     // approx_or_less_than does not work for 0
     VERIFY(0 < eabis[0] || test_isMuchSmallerThan(eabis[0], Scalar(1)));
@@ -116,8 +108,8 @@ template<typename Scalar> void eulerangles()
   ea = m.eulerAngles(0,1,0);
   check_all_var(ea);
   
-  // Check with random angles in range [0:pi]x[-pi:pi]x[-pi:pi].
-  ea = (Array3::Random() + Array3(1,0,0))*Scalar(EIGEN_PI)*Array3(0.5,1,1);
+  // Check with random angles in range [-pi:pi]x[-pi:pi]x[-pi:pi].
+  ea = (Array3::Random() + Array3(1,0,0))*Scalar(EIGEN_PI)*Array3(1,1,1);
   check_all_var(ea);
   
   ea[2] = ea[0] = internal::random<Scalar>(0,Scalar(EIGEN_PI));
