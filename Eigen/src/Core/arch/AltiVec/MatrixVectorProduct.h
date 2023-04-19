@@ -772,18 +772,14 @@ template<Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults2VSX(Packet4f (&acc)[num_acc][2], Index k)
 {
   if (num_acc > (k + 1)) {
-    acc[k + 0][1] = vec_mergel(acc[k + 0][0], acc[k + 1][0]);
-    acc[k + 0][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
+    acc[k][1] = vec_mergel(acc[k + 0][0], acc[k + 1][0]);
+    acc[k][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
   } else {
     acc[k][1] = vec_mergel(acc[k][0], acc[k][0]);
     acc[k][0] = vec_mergeh(acc[k][0], acc[k][0]);
   }
   acc[k][0] = acc[k][0] + acc[k][1];
-#ifdef EIGEN_VECTORIZE_VSX
-  acc[k][0] += reinterpret_cast<Packet4f>(vec_mergel(reinterpret_cast<Packet2ul>(acc[k][0]), reinterpret_cast<Packet2ul>(acc[k][0])));
-#else
-  acc[k][0] += reinterpret_cast<Packet4f>(vec_perm(acc[k][0],acc[k][0],p16uc_TRANSPOSE64_LO));
-#endif
+  acc[k][0] += vec_sld(acc[k][0], acc[k][0], 8);
 }
 
 template<Index num_acc>
