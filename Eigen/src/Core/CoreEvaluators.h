@@ -621,6 +621,65 @@ protected:
   Data m_d;
 };
 
+template <typename OldType, typename NewType, typename ArgType>
+struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<OldType, NewType>, ArgType>, IndexBased> {
+  using UnaryOp = scalar_cast_op<OldType, NewType>;
+  using XprType = CwiseUnaryOp<UnaryOp, ArgType>;
+  using Scalar = NewType;  // use the dst scalar
+  using OldPacketType = typename packet_traits<OldType>::type;
+  static constexpr int OldPacketSize = unpacket_traits<OldPacketType>::size;
+
+  enum {
+    CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<UnaryOp>::Cost),
+
+    Flags = evaluator<ArgType>::Flags &
+            (HereditaryBits | LinearAccessBit | (functor_traits<UnaryOp>::PacketAccess ? PacketAccessBit : 0)),
+    Alignment = evaluator<ArgType>::Alignment
+  };
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit unary_evaluator(const XprType& op) : m_d(op) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<UnaryOp>::Cost);
+    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
+  }
+
+  using CoeffReturnType = NewType;
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
+    return m_d.func()(m_d.argImpl.coeff(row, col));
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+    return m_d.func()(m_d.argImpl.coeff(index));
+  }
+
+  // SFINAE enable if NewOldRatio == 1
+  template <int LoadMode, typename PacketType, std::enable_if_t<unpacket_traits<PacketType>::size == OldPacketSize, bool> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+    return m_d.func().template packetOp<PacketType>(m_d.argImpl.template packet<LoadMode, OldPacketType>(row, col));
+  }
+  // SFINAE enable if NewOldRatio == 1
+  template <int LoadMode, typename PacketType, std::enable_if_t<unpacket_traits<PacketType>::size == OldPacketSize, bool> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    return m_d.func().template packetOp<PacketType>(m_d.argImpl.template packet<LoadMode, OldPacketType>(index));
+  }
+  // TODO: SFINAE enable if unpacket_traits<PacketType>::size > OldPacketSize (call multiple OldPacketType ops)
+  // TODO: figure out how to handle unpacket_traits<PacketType>::size < OldPacketSize
+
+  // can probably get rid of Data, leave it for now
+
+ protected:
+  // this helper permits to completely eliminate the functor if it is empty
+  struct Data {
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Data(const XprType& xpr)
+        : op(xpr.functor()), argImpl(xpr.nestedExpression()) {}
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const UnaryOp& func() const { return op; }
+    UnaryOp op;
+    evaluator<ArgType> argImpl;
+  };
+
+  Data m_d;
+};
+
 // -------------------- CwiseTernaryOp --------------------
 
 // this is a ternary expression
