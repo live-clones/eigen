@@ -64,22 +64,71 @@ struct type_casting_traits<float, bool> {
 };
 #endif  // EIGEN_VECTORIZE_AVX512
 
-template<> EIGEN_STRONG_INLINE Packet8i pcast<Packet8f, Packet8i>(const Packet8f& a) {
+// float to int
+template <>
+EIGEN_STRONG_INLINE Packet8i pcast<Packet8f, Packet8i>(const Packet8f& a) {
   return _mm256_cvttps_epi32(a);
 }
+template <>
+struct scalar_cast_op<float, int> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(float a) const { return static_cast<int>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8i packetOp(Packet8f a) const { return pcast<Packet8f, Packet8i>(a); }
+};
+template <>
+struct functor_traits<scalar_cast_op<float, int>> {
+  enum { Cost = 1, PacketAccess = true };
+};
 
-template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet8i, Packet8f>(const Packet8i& a) {
+// int to float
+template <>
+EIGEN_STRONG_INLINE Packet8f pcast<Packet8i, Packet8f>(const Packet8i& a) {
   return _mm256_cvtepi32_ps(a);
 }
+template <>
+struct scalar_cast_op<int, float> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(int a) const { return static_cast<float>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8f packetOp(Packet8i a) const { return pcast<Packet8i, Packet8f>(a); }
+};
+template <>
+struct functor_traits<scalar_cast_op<int, float>> {
+  enum { Cost = 1, PacketAccess = true };
+};
 
-template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet4d, Packet8f>(const Packet4d& a, const Packet4d& b) {
+// double to float
+template <>
+EIGEN_STRONG_INLINE Packet8f pcast<Packet4d, Packet8f>(const Packet4d& a, const Packet4d& b) {
   return _mm256_set_m128(_mm256_cvtpd_ps(b), _mm256_cvtpd_ps(a));
 }
+template <>
+struct scalar_cast_op<double, float> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(double a) const { return static_cast<float>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8f packetOp(Packet4d a, Packet4d b) const {
+    return pcast<Packet4d, Packet8f>(a, b);
+  }
+};
+template <>
+struct functor_traits<scalar_cast_op<double, float>> {
+  enum { Cost = 2, PacketAccess = true };
+};
 
-template<> EIGEN_STRONG_INLINE Packet8i pcast<Packet4d, Packet8i>(const Packet4d& a, const Packet4d& b) {
+// double to int
+template <>
+EIGEN_STRONG_INLINE Packet8i pcast<Packet4d, Packet8i>(const Packet4d& a, const Packet4d& b) {
   return _mm256_set_m128i(_mm256_cvttpd_epi32(b), _mm256_cvttpd_epi32(a));
 }
+template <>
+struct scalar_cast_op<double, int> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(double a) const { return static_cast<int>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8i packetOp(Packet4d a, Packet4d b) const {
+    return pcast<Packet4d, Packet8i>(a, b);
+  }
+};
+template <>
+struct functor_traits<scalar_cast_op<double, int>> {
+  enum { Cost = 2, PacketAccess = true };
+};
 
+// float to bool
 template <>
 EIGEN_STRONG_INLINE Packet16b pcast<Packet8f, Packet16b>(const Packet8f& a,
                                                          const Packet8f& b) {
@@ -109,6 +158,17 @@ EIGEN_STRONG_INLINE Packet16b pcast<Packet8f, Packet16b>(const Packet8f& a,
   return _mm256_castsi256_si128(_mm256_and_si256(merged, _mm256_set1_epi8(1)));
 #endif
 }
+template <>
+struct scalar_cast_op<float, bool> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(float a) const { return static_cast<bool>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet16b packetOp(Packet8f a, Packet8f b) const {
+    return pcast<Packet8f, Packet16b>(a, b);
+  }
+};
+template <>
+struct functor_traits<scalar_cast_op<float, bool>> {
+  enum { Cost = 4, PacketAccess = true };
+};
 
 template<> EIGEN_STRONG_INLINE Packet8i preinterpret<Packet8i,Packet8f>(const Packet8f& a) {
   return _mm256_castps_si256(a);
@@ -118,21 +178,61 @@ template<> EIGEN_STRONG_INLINE Packet8f preinterpret<Packet8f,Packet8i>(const Pa
   return _mm256_castsi256_ps(a);
 }
 
-template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet8h, Packet8f>(const Packet8h& a) {
+template <>
+EIGEN_STRONG_INLINE Packet8f pcast<Packet8h, Packet8f>(const Packet8h& a) {
   return half2float(a);
 }
+template <>
+struct scalar_cast_op<half, float> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(const half& a) const { return cast<half, float>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8f packetOp(Packet8h a) const { return pcast<Packet8h, Packet8f>(a); }
+};
+template <>
+struct functor_traits<scalar_cast_op<half, float>> {
+  enum { Cost = 1, PacketAccess = true };
+};
 
-template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet8bf, Packet8f>(const Packet8bf& a) {
+template <>
+EIGEN_STRONG_INLINE Packet8f pcast<Packet8bf, Packet8f>(const Packet8bf& a) {
   return Bf16ToF32(a);
 }
+template <>
+struct scalar_cast_op<bfloat16, float> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(const bfloat16& a) const { return cast<bfloat16, float>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8f packetOp(Packet8bf a) const { return pcast<Packet8bf, Packet8f>(a); }
+};
+template <>
+struct functor_traits<scalar_cast_op<bfloat16, float>> {
+  enum { Cost = 1, PacketAccess = true };
+};
 
-template<> EIGEN_STRONG_INLINE Packet8h pcast<Packet8f, Packet8h>(const Packet8f& a) {
+template <>
+EIGEN_STRONG_INLINE Packet8h pcast<Packet8f, Packet8h>(const Packet8f& a) {
   return float2half(a);
 }
+template <>
+struct scalar_cast_op<float, half> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half operator()(float a) const { return cast<float, half>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8h packetOp(Packet8f a) const { return pcast<Packet8f, Packet8h>(a); }
+};
+template <>
+struct functor_traits<scalar_cast_op<float, half>> {
+  enum { Cost = 1, PacketAccess = true };
+};
 
-template<> EIGEN_STRONG_INLINE Packet8bf pcast<Packet8f, Packet8bf>(const Packet8f& a) {
+template <>
+EIGEN_STRONG_INLINE Packet8bf pcast<Packet8f, Packet8bf>(const Packet8f& a) {
   return F32ToBf16(a);
 }
+template <>
+struct scalar_cast_op<float, bfloat16> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bfloat16 operator()(float a) const { return cast<float, bfloat16>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8bf packetOp(Packet8f a) const { return pcast<Packet8f, Packet8bf>(a); }
+};
+template <>
+struct functor_traits<scalar_cast_op<float, bfloat16>> {
+  enum { Cost = 1, PacketAccess = true };
+};
 
 } // end namespace internal
 

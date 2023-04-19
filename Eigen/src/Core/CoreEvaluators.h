@@ -621,13 +621,15 @@ protected:
   Data m_d;
 };
 
-template <typename OldType, typename NewType, typename ArgType>
-struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<OldType, NewType>, ArgType>, IndexBased> {
-  using UnaryOp = scalar_cast_op<OldType, NewType>;
+template <typename SrcType, typename NewType, typename ArgType>
+struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, IndexBased> {
+  using UnaryOp = scalar_cast_op<SrcType, NewType>;
   using XprType = CwiseUnaryOp<UnaryOp, ArgType>;
-  using Scalar = NewType;  // use the dst scalar
-  using OldPacketType = typename packet_traits<OldType>::type;
-  static constexpr int OldPacketSize = unpacket_traits<OldPacketType>::size;
+  using Scalar = NewType;
+  using CoeffReturnType = NewType;
+  using SrcPacketType = typename packet_traits<SrcType>::type;
+  static constexpr bool ArgIsRowMajor = evaluator<ArgType>::Flags & RowMajorBit;
+  static constexpr int SrcPacketSize = unpacket_traits<SrcPacketType>::size;
 
   enum {
     CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<UnaryOp>::Cost),
@@ -642,30 +644,70 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<OldType, NewType>, ArgType>, 
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  using CoeffReturnType = NewType;
-
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     return m_d.func()(m_d.argImpl.coeff(row, col));
   }
-
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     return m_d.func()(m_d.argImpl.coeff(index));
   }
 
-  // SFINAE enable if NewOldRatio == 1
-  template <int LoadMode, typename PacketType, std::enable_if_t<unpacket_traits<PacketType>::size == OldPacketSize, bool> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().template packetOp<PacketType>(m_d.argImpl.template packet<LoadMode, OldPacketType>(row, col));
+  template <int LoadMode>
+  EIGEN_STRONG_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
+    return m_d.argImpl.template packet<LoadMode, SrcPacketType>(ArgIsRowMajor ? row : row + (offset * SrcPacketSize),
+                                                                ArgIsRowMajor ? col + (offset * SrcPacketSize) : col);
   }
-  // SFINAE enable if NewOldRatio == 1
-  template <int LoadMode, typename PacketType, std::enable_if_t<unpacket_traits<PacketType>::size == OldPacketSize, bool> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().template packetOp<PacketType>(m_d.argImpl.template packet<LoadMode, OldPacketType>(index));
+  template <int LoadMode>
+  EIGEN_STRONG_INLINE SrcPacketType srcPacket(Index index, Index offset) const {
+    return m_d.argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
   }
-  // TODO: SFINAE enable if unpacket_traits<PacketType>::size > OldPacketSize (call multiple OldPacketType ops)
-  // TODO: figure out how to handle unpacket_traits<PacketType>::size < OldPacketSize
 
-  // can probably get rid of Data, leave it for now
+  template<typename PacketType> using PacketRatio_1 = std::enable_if_t<unpacket_traits<PacketType>::size == 1 * SrcPacketSize, bool>;
+  template<typename PacketType> using PacketRatio_2 = std::enable_if_t<unpacket_traits<PacketType>::size == 2 * SrcPacketSize, bool>;
+  template<typename PacketType> using PacketRatio_4 = std::enable_if_t<unpacket_traits<PacketType>::size == 4 * SrcPacketSize, bool>;
+  template<typename PacketType> using PacketRatio_8 = std::enable_if_t<unpacket_traits<PacketType>::size == 8 * SrcPacketSize, bool>;
+
+  template <int LoadMode, typename PacketType, PacketRatio_1<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0));
+  }
+  template <int LoadMode, typename PacketType, PacketRatio_2<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1));
+  }
+  template <int LoadMode, typename PacketType, PacketRatio_4<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
+                               srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3));
+  }
+  template <int LoadMode, typename PacketType, PacketRatio_8<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
+                               srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3),
+                               srcPacket<LoadMode>(row, col, 4), srcPacket<LoadMode>(row, col, 5),
+                               srcPacket<LoadMode>(row, col, 6), srcPacket<LoadMode>(row, col, 7));
+  }
+
+  template <int LoadMode, typename PacketType, PacketRatio_1<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0));
+  }
+  template <int LoadMode, typename PacketType, PacketRatio_2<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1));
+  }
+  template <int LoadMode, typename PacketType, PacketRatio_4<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
+                               srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3));
+  }
+  template <int LoadMode, typename PacketType, PacketRatio_8<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
+                               srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3),
+                               srcPacket<LoadMode>(index, 4), srcPacket<LoadMode>(index, 5),
+                               srcPacket<LoadMode>(index, 6), srcPacket<LoadMode>(index, 7));
+  }
+
 
  protected:
   // this helper permits to completely eliminate the functor if it is empty
