@@ -179,12 +179,6 @@ struct scalar_cast_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const NewType operator() (const Scalar& a) const { return cast<Scalar, NewType>(a); }
 };
 
-template <typename Scalar>
-struct scalar_cast_op<Scalar, bool> {
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(const Scalar& a) const { return a != Scalar(0); }
-};
-
 template<typename Scalar, typename NewType>
 struct functor_traits<scalar_cast_op<Scalar,NewType> >
 { enum { Cost = is_same<Scalar, NewType>::value ? 0 : NumTraits<NewType>::AddCost, PacketAccess = false }; };

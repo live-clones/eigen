@@ -71,7 +71,7 @@ EIGEN_STRONG_INLINE Packet8i pcast<Packet8f, Packet8i>(const Packet8f& a) {
 }
 template <>
 struct scalar_cast_op<float, int> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(float a) const { return static_cast<int>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(float a) const { return cast<float,int>(a); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8i packetOp(Packet8f a) const { return pcast<Packet8f, Packet8i>(a); }
 };
 template <>
@@ -86,7 +86,7 @@ EIGEN_STRONG_INLINE Packet8f pcast<Packet8i, Packet8f>(const Packet8i& a) {
 }
 template <>
 struct scalar_cast_op<int, float> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(int a) const { return static_cast<float>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(int a) const { return cast<int,float>(a); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8f packetOp(Packet8i a) const { return pcast<Packet8i, Packet8f>(a); }
 };
 template <>
@@ -101,7 +101,7 @@ EIGEN_STRONG_INLINE Packet8f pcast<Packet4d, Packet8f>(const Packet4d& a, const 
 }
 template <>
 struct scalar_cast_op<double, float> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(double a) const { return static_cast<float>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(double a) const { return cast<double,float>(a); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8f packetOp(Packet4d a, Packet4d b) const {
     return pcast<Packet4d, Packet8f>(a, b);
   }
@@ -118,7 +118,7 @@ EIGEN_STRONG_INLINE Packet8i pcast<Packet4d, Packet8i>(const Packet4d& a, const 
 }
 template <>
 struct scalar_cast_op<double, int> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(double a) const { return static_cast<int>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(double a) const { return cast<double,int>(a); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8i packetOp(Packet4d a, Packet4d b) const {
     return pcast<Packet4d, Packet8i>(a, b);
   }
@@ -160,7 +160,7 @@ EIGEN_STRONG_INLINE Packet16b pcast<Packet8f, Packet16b>(const Packet8f& a,
 }
 template <>
 struct scalar_cast_op<float, bool> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(float a) const { return static_cast<bool>(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(float a) const { return cast<float,bool>(a); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet16b packetOp(Packet8f a, Packet8f b) const {
     return pcast<Packet8f, Packet16b>(a, b);
   }
