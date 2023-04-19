@@ -768,46 +768,127 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float 
   }
 }
 
-template<Index num_acc, typename LhsMapper, typename RhsMapper, bool extra>
-EIGEN_ALWAYS_INLINE void multVSXVecLoop(__vector_quad (&quad_acc)[num_acc], const LhsMapper& lhs, RhsMapper& rhs, Index j, Index extra_cols)
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void preduxVecResults2VSX(Packet4f (&acc)[num_acc][2], Index k)
 {
-  Packet8bf a0[num_acc], b0;
+  if (num_acc > (k + 1)) {
+    acc[k + 0][1] = vec_mergel(acc[k + 0][0], acc[k + 1][0]);
+    acc[k + 0][0] = vec_mergeh(acc[k + 0][0], acc[k + 1][0]);
+  } else {
+    acc[k][1] = vec_mergel(acc[k][0], acc[k][0]);
+    acc[k][0] = vec_mergeh(acc[k][0], acc[k][0]);
+  }
+  acc[k][0] = acc[k][0] + acc[k][1];
+#ifdef EIGEN_VECTORIZE_VSX
+  acc[k][0] += reinterpret_cast<Packet4f>(vec_mergel(reinterpret_cast<Packet2ul>(acc[k][0]), reinterpret_cast<Packet2ul>(acc[k][0])));
+#else
+  acc[k][0] += reinterpret_cast<Packet4f>(vec_perm(acc[k][0],acc[k][0],p16uc_TRANSPOSE64_LO));
+#endif
+}
+
+template<Index num_acc>
+EIGEN_ALWAYS_INLINE void preduxVecResultsVSX(Packet4f (&acc)[num_acc][2])
+{
+  for(Index k = 0; k < num_acc; k += 4) {
+    preduxVecResults2VSX<num_acc>(acc, k + 0);
+    if (num_acc > (k + 2)) {
+      preduxVecResults2VSX<num_acc>(acc, k + 2);
+#ifdef EIGEN_VECTORIZE_VSX
+      acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_mergeh(reinterpret_cast<Packet2ul>(acc[k + 0][0]), reinterpret_cast<Packet2ul>(acc[k + 2][0])));
+#else
+      acc[k + 0][0] = reinterpret_cast<Packet4f>(vec_perm(acc[k + 0][0],acc[k + 2][0],p16uc_TRANSPOSE64_HI));
+#endif
+    }
+  }
+}
+
+#ifndef _ARCH_PWR9
+static Packet16uc p16uc_MERGE16_ZERO[8] = {
+  {  0, 1,  2, 3,  4, 5,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
+  { 16,17,  2, 3,  4, 5,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
+  { 16,17, 18,19,  4, 5,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
+  { 16,17, 18,19, 20,21,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
+  { 16,17, 18,19, 20,21, 22,23,  8, 9, 10,11, 12,13, 14,15 },
+  { 16,17, 18,19, 20,21, 22,23, 24,25, 10,11, 12,13, 14,15 },
+  { 16,17, 18,19, 20,21, 22,23, 24,25, 26,27, 12,13, 14,15 },
+  { 16,17, 18,19, 20,21, 22,23, 24,25, 26,27, 28,29, 14,15 }
+};
+
+EIGEN_ALWAYS_INLINE Packet8us loadPacketPartialZero(Packet8us data, Index extra_cols)
+{
+  Packet8us z = pset1<Packet8us>(0);
+#ifdef _BIG_ENDIAN
+  return vec_perm(data, z, p16uc_MERGE16_ZERO[extra_cols]);
+#else
+  return vec_perm(z, data, p16uc_MERGE16_ZERO[extra_cols]);
+#endif
+}
+#endif
+
+template<Index num_acc, typename LhsMapper, typename RhsMapper, bool extra>
+EIGEN_ALWAYS_INLINE void multVSXVecLoop(Packet4f (&acc)[num_acc][2], const LhsMapper& lhs, RhsMapper& rhs, Index j, Index extra_cols)
+{
+  Packet4f a0[num_acc][2], b0[2];
+  Packet8bf a1, b1;
 
   if (extra) {
-    b0 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
+    b1 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
+#ifndef _ARCH_PWR9
+    b1 = loadPacketPartialZero(b1.m_val, extra_cols);
+#endif
   } else {
-    b0 = rhs.template loadPacket<Packet8bf>(j);
+    b1 = rhs.template loadPacket<Packet8bf>(j);
   }
+  b0[0] = oneConvertBF16Hi(b1.m_val);
+  b0[1] = oneConvertBF16Lo(b1.m_val);
 
   const LhsMapper lhs2 = lhs.getSubMapper(0, j);
   for(Index k = 0; k < num_acc; k++) {
     if (extra) {
-      a0[k] = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
+      a1 = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
+#ifndef _ARCH_PWR9
+      a1 = loadPacketPartialZero(a1.m_val, extra_cols);
+#endif
     } else {
-      a0[k] = lhs2.template loadPacket<Packet8bf>(k, 0);
+      a1 = lhs2.template loadPacket<Packet8bf>(k, 0);
     }
+    a0[k][0] = oneConvertBF16Hi(a1.m_val);
+    a0[k][1] = oneConvertBF16Lo(a1.m_val);
   }
 
-//  multVec<num_acc>(quad_acc, a0, b0);
+  multVecVSX<num_acc, false>(acc, a0, b0);
+}
+
+template<Index num_acc, typename LhsMapper, typename RhsMapper>
+EIGEN_ALWAYS_INLINE void vecVSXLoop(Index cols, const LhsMapper& lhs, RhsMapper& rhs, Packet4f (&acc)[num_acc][2], Index extra_cols)
+{
+  Index j = 0;
+  for(; j + 8 <= cols; j += 8){
+    multVSXVecLoop<num_acc, LhsMapper, RhsMapper, false>(acc, lhs, rhs, j, extra_cols);
+  }
+
+  if (extra_cols) {
+    multVSXVecLoop<num_acc, LhsMapper, RhsMapper, true>(acc, lhs, rhs, j, extra_cols);
+  }
 }
 
 template<const Index num_acc, typename LhsMapper, typename RhsMapper>
 void colVSXVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   constexpr bool multiIters = (num_acc == MAX_BFLOAT16_VEC_ACC_VSX);
-//  const Index extra_cols = (cols & 7);
+  const Index extra_cols = (cols & 7);
 
   do{
     Packet4f acc[num_acc][2];
 
     zeroAccumulators<num_acc, 2>(acc);
 
-#if 0
     const LhsMapper lhs2 = lhs.getSubMapper(row, 0);
-    vecLoop<num_acc, LhsMapper, RhsMapper>(cols, lhs2, rhs, quad_acc, extra_cols);
+    vecVSXLoop<num_acc, LhsMapper, RhsMapper>(cols, lhs2, rhs, acc, extra_cols);
 
-    preduxVecResults<num_acc>(acc);
-#endif
+    addResultsVSX<num_acc>(acc);
+
+    preduxVecResultsVSX<num_acc>(acc);
 
     outputVecResults<num_acc, 2>(acc, result, pAlpha);
 
