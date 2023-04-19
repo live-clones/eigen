@@ -813,11 +813,7 @@ static Packet16uc p16uc_MERGE16_ZERO[8] = {
 EIGEN_ALWAYS_INLINE Packet8us loadPacketPartialZero(Packet8us data, Index extra_cols)
 {
   Packet8us z = pset1<Packet8us>(0);
-#ifdef _BIG_ENDIAN
-  return vec_perm(data, z, p16uc_MERGE16_ZERO[extra_cols]);
-#else
   return vec_perm(z, data, p16uc_MERGE16_ZERO[extra_cols]);
-#endif
 }
 #endif
 
