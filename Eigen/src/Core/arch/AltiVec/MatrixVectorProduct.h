@@ -2622,10 +2622,7 @@ struct general_matrix_vector_product<Index, bfloat16, LhsMapper, RowMajor, Conju
 };
 
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16()
-//#ifdef USE_GEMV_MMA
-#if 1
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW_BFLOAT16()
-#endif
 #endif
 
 template<typename ResScalar, typename PResPacket, typename ResPacket, typename LhsPacket, typename RhsPacket>
