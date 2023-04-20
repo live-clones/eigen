@@ -500,23 +500,22 @@ static Packet16uc p16uc_MERGE16_32_V1 = {  0, 1, 16,17,  0, 1, 16,17,  0, 1, 16,
 static Packet16uc p16uc_MERGE16_32_V2 = {  2, 3, 18,19,  2, 3, 18,19,  2, 3, 18,19,  2, 3, 18,19 };
 
 template<Index num_acc, typename LhsMapper, bool zero>
-EIGEN_ALWAYS_INLINE void loadVecLoopVSX(Index k, LhsMapper& lhs, Packet4f (&a0)[num_acc][2], Packet8bf b1)
+EIGEN_ALWAYS_INLINE void loadVecLoopVSX(Index k, LhsMapper& lhs, Packet4f (&a0)[num_acc][2])
 {
   Packet8bf c0 = lhs.template loadPacket<Packet8bf>(k*4, 0);
+  Packet8bf b1;
   if (!zero) {
     b1 = lhs.template loadPacket<Packet8bf>(k*4, 1);
+
+    a0[k + 0][1] = oneConvertBF16Hi(b1.m_val);
   }
+  a0[k + 0][0] = oneConvertBF16Hi(c0.m_val);
 
   if (num_acc > (k + 1)) {
     a0[k + 1][0] = oneConvertBF16Lo(c0.m_val);
     if (!zero) {
       a0[k + 1][1] = oneConvertBF16Lo(b1.m_val);
     }
-  }
-
-  a0[k + 0][0] = oneConvertBF16Hi(c0.m_val);
-  if (!zero) {
-    a0[k + 0][1] = oneConvertBF16Hi(b1.m_val);
   }
 }
 
@@ -534,7 +533,6 @@ template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, Packet4f (&acc)[num_acc][2])
 {
   Packet4f a0[num_acc][2], b0[2];
-  Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
   Packet8bf b2 = rhs.template loadPacket<Packet8bf>(j + 0);
 
   b0[0] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V1);
@@ -544,7 +542,7 @@ EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, 
 
   LhsMapper lhs2 = lhs.getSubMapper(0, j);
   for(Index k = 0; k < num_acc; k += 2) {
-    loadVecLoopVSX<num_acc, LhsMapper, zero>(k, lhs2, a0, b1);
+    loadVecLoopVSX<num_acc, LhsMapper, zero>(k, lhs2, a0);
   }
 
   multVecVSX<num_acc, zero>(acc, a0, b0);
