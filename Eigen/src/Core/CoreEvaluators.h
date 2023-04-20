@@ -685,7 +685,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int SrcLoadMode0 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
-    constexpr int SrcLoadMode1 = plain_enum_min(3 * SrcPacketSizeBytes, SrcLoadMode0);
+    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode0);
     constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode1);
     constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode2);
     return m_d.func().template packetOp<DstPacketType>(
@@ -710,7 +710,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int SrcLoadMode0 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
-    constexpr int SrcLoadMode1 = plain_enum_min(3 * SrcPacketSizeBytes, SrcLoadMode0);
+    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode0);
     constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode1);
     constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode2);
     return m_d.func().template packetOp<DstPacketType>(
