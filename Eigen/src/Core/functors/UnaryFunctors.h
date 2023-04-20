@@ -209,7 +209,8 @@ template <typename SrcType, typename DstType>
 struct functor_traits<scalar_cast_op<SrcType, DstType>> {
   enum {
     Cost = is_same<SrcType, DstType>::value ? 0 : NumTraits<DstType>::AddCost,
-    PacketAccess = type_casting_traits<SrcType, DstType>::VectorizedCast
+    PacketAccess = (type_casting_traits<SrcType, DstType>::VectorizedCast != 0) &&
+                   (type_casting_traits<SrcType, DstType>::TgtCoeffRatio == 1)
   };
 };
 
