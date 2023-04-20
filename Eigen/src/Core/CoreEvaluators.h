@@ -621,6 +621,7 @@ protected:
   Data m_d;
 };
 
+// ----------------------- Casting ---------------------
 template <typename SrcType, typename NewType, typename ArgType>
 struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, IndexBased> {
   using UnaryOp = scalar_cast_op<SrcType, NewType>;
@@ -669,23 +670,23 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, 
 
   template <int LoadMode, typename PacketType, PacketRatio_1<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0));
   }
   template <int LoadMode, typename PacketType, PacketRatio_2<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1));
   }
   template <int LoadMode, typename PacketType, PacketRatio_4<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
-                               srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
+                                                    srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3));
   }
   template <int LoadMode, typename PacketType, PacketRatio_8<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
-                               srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3),
-                               srcPacket<LoadMode>(row, col, 4), srcPacket<LoadMode>(row, col, 5),
-                               srcPacket<LoadMode>(row, col, 6), srcPacket<LoadMode>(row, col, 7));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
+                                                    srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3),
+                                                    srcPacket<LoadMode>(row, col, 4), srcPacket<LoadMode>(row, col, 5),
+                                                    srcPacket<LoadMode>(row, col, 6), srcPacket<LoadMode>(row, col, 7));
   }
 
   template <int LoadMode, typename PacketType, PacketRatio_1<PacketType> = true>
