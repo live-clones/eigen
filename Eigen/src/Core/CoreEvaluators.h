@@ -663,51 +663,64 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     return m_d.argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
   }
 
-  template<typename PacketType> using PacketRatio1 = std::enable_if_t<unpacket_traits<PacketType>::size == (1 * SrcPacketSize), bool>;
-  template<typename PacketType> using PacketRatio2 = std::enable_if_t<unpacket_traits<PacketType>::size == (2 * SrcPacketSize), bool>;
-  template<typename PacketType> using PacketRatio4 = std::enable_if_t<unpacket_traits<PacketType>::size == (4 * SrcPacketSize), bool>;
-  template<typename PacketType> using PacketRatio8 = std::enable_if_t<unpacket_traits<PacketType>::size == (8 * SrcPacketSize), bool>;
+  template<typename DstPacketType> using PacketRatioLT1 = std::enable_if_t<unpacket_traits<DstPacketType>::size < SrcPacketSize, bool>;
+  template<typename DstPacketType> using PacketRatio1 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (1 * SrcPacketSize), bool>;
+  template<typename DstPacketType> using PacketRatio2 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (2 * SrcPacketSize), bool>;
+  template<typename DstPacketType> using PacketRatio4 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (4 * SrcPacketSize), bool>;
+  template<typename DstPacketType> using PacketRatio8 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (8 * SrcPacketSize), bool>;
 
-  template <int LoadMode, typename PacketType, PacketRatio1<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0));
+  template <int LoadMode, typename DstPacketType, PacketRatioLT1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcLoadMode = LoadMode / (SrcPacketSize / DstPacketSize);
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(row, col, 0));
   }
-  template <int LoadMode, typename PacketType, PacketRatio2<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1));
+  template <int LoadMode, typename DstPacketType, PacketRatio1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(row, col, 0));
   }
-  template <int LoadMode, typename PacketType, PacketRatio4<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
-                                                    srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3));
+  template <int LoadMode, typename DstPacketType, PacketRatio2<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1));
   }
-  template <int LoadMode, typename PacketType, PacketRatio8<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1),
-                                                    srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3),
-                                                    srcPacket<LoadMode>(row, col, 4), srcPacket<LoadMode>(row, col, 5),
-                                                    srcPacket<LoadMode>(row, col, 6), srcPacket<LoadMode>(row, col, 7));
+  template <int LoadMode, typename DstPacketType, PacketRatio4<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1), 
+                                                       srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3));
+  }
+  template <int LoadMode, typename DstPacketType, PacketRatio8<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(row, col, 0), srcPacket<LoadMode>(row, col, 1), 
+                                                       srcPacket<LoadMode>(row, col, 2), srcPacket<LoadMode>(row, col, 3), 
+                                                       srcPacket<LoadMode>(row, col, 4), srcPacket<LoadMode>(row, col, 5),
+                                                       srcPacket<LoadMode>(row, col, 6), srcPacket<LoadMode>(row, col, 7));
   }
 
-  template <int LoadMode, typename PacketType, PacketRatio1<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0));
+  template <int LoadMode, typename DstPacketType, PacketRatioLT1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcLoadMode = LoadMode / (SrcPacketSize / DstPacketSize);
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(index, 0));
   }
-  template <int LoadMode, typename PacketType, PacketRatio2<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1));
+  template <int LoadMode, typename DstPacketType, PacketRatio1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(index, 0));
   }
-  template <int LoadMode, typename PacketType, PacketRatio4<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
-                                                    srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3));
+  template <int LoadMode, typename DstPacketType, PacketRatio2<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1));
   }
-  template <int LoadMode, typename PacketType, PacketRatio8<PacketType> = true>
-  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
-                                                    srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3),
-                                                    srcPacket<LoadMode>(index, 4), srcPacket<LoadMode>(index, 5),
-                                                    srcPacket<LoadMode>(index, 6), srcPacket<LoadMode>(index, 7));
+  template <int LoadMode, typename DstPacketType, PacketRatio4<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
+                                                       srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3));
+  }
+  template <int LoadMode, typename DstPacketType, PacketRatio8<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    return m_d.func().template packetOp<DstPacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
+                                                       srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3),
+                                                       srcPacket<LoadMode>(index, 4), srcPacket<LoadMode>(index, 5),
+                                                       srcPacket<LoadMode>(index, 6), srcPacket<LoadMode>(index, 7));
   }
 
  protected:
