@@ -380,10 +380,6 @@ EIGEN_STRONG_INLINE void gemv_col(
     ResScalar* res, Index resIncr,
     ResScalar alpha)
 {
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-    uint64_t start, end;
-    start = __ppc_get_timebase();
-#endif
     typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
     typedef typename Traits::LhsPacket LhsPacket;
@@ -466,10 +462,6 @@ EIGEN_STRONG_INLINE void gemv_col(
             res[i] += alpha * d0;
         }
     }
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-    end = __ppc_get_timebase();
-    printf("gemv_col float32 time = %16ld\n", end - start);
-#endif
 }
 
 template<bool extraRows>
@@ -704,10 +696,6 @@ void gemv_bfloat16_col(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
   typedef typename RhsMapper::LinearMapper LinearMapper;
 
   EIGEN_UNUSED_VARIABLE(resIncr);
@@ -739,10 +727,6 @@ void gemv_bfloat16_col(
   }
 
   convertArrayPointerF32toBF16VSX(result, rows, res);
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  end = __ppc_get_timebase();
-  printf("gemv_col bfloat16 time = %16ld\n", end - start);
-#endif
 }
 
 template<Index num_acc, Index size>
@@ -938,10 +922,6 @@ EIGEN_STRONG_INLINE void gemv_bfloat16_row(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
   typedef typename RhsMapper::LinearMapper LinearMapper;
 
   // The following copy tells the compiler that lhs's attributes are not modified outside this function
@@ -966,10 +946,6 @@ EIGEN_STRONG_INLINE void gemv_bfloat16_row(
   } else {
     convertArrayPointerF32toBF16VSX<true>(result, rows, res, resIncr);
   }
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  end = __ppc_get_timebase();
-  printf("gemv_row bfloat16 time = %16ld\n", end - start);
-#endif
 }
 
 #undef MAX_BFLOAT16_VEC_ACC_VSX
@@ -2471,10 +2447,6 @@ EIGEN_STRONG_INLINE void gemv_row(
     ResScalar* res, Index resIncr,
     ResScalar alpha)
 {
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-    uint64_t start, end;
-    start = __ppc_get_timebase();
-#endif
     typedef gemv_traits<LhsScalar, RhsScalar> Traits;
 
     typedef typename Traits::LhsPacket LhsPacket;
@@ -2536,13 +2508,8 @@ EIGEN_STRONG_INLINE void gemv_row(
         }
         res[i * resIncr] += alpha * dd0;
     }
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-    end = __ppc_get_timebase();
-    printf("gemv_row float32 time = %16ld\n", end - start);
-#endif
 }
 
-#ifndef GENERIC_GEMM
 #define EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL(Scalar) \
 template<typename Index, typename LhsMapper, bool ConjugateLhs, typename RhsMapper, bool ConjugateRhs, int Version> \
 struct general_matrix_vector_product<Index, Scalar, LhsMapper, ColMajor, ConjugateLhs, Scalar, RhsMapper, ConjugateRhs, Version> \
@@ -2618,7 +2585,6 @@ struct general_matrix_vector_product<Index, bfloat16, LhsMapper, RowMajor, Conju
 
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16()
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW_BFLOAT16()
-#endif
 
 template<typename ResScalar, typename PResPacket, typename ResPacket, typename LhsPacket, typename RhsPacket>
 EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(PResPacket& a0, PResPacket& b0, ResPacket& a1, ResPacket& b1)

@@ -475,10 +475,6 @@ void gemvMMA_bfloat16_col(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
   typedef typename RhsMapper::LinearMapper LinearMapper;
 
   EIGEN_UNUSED_VARIABLE(resIncr);
@@ -510,10 +506,6 @@ void gemvMMA_bfloat16_col(
   }
 
   convertArrayPointerF32toBF16(result, rows, res);
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  end = __ppc_get_timebase();
-  printf("gemv_col bfloat16 MMA time = %16ld\n", end - start);
-#endif
 }
 
 static Packet16uc p16uc_ELEMENT_VEC3 = { 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f, 0x0c,0x0d,0x0e,0x0f, 0x1c,0x1d,0x1e,0x1f };
@@ -667,10 +659,6 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
   typedef typename RhsMapper::LinearMapper LinearMapper;
 
   // The following copy tells the compiler that lhs's attributes are not modified outside this function
@@ -695,10 +683,6 @@ EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(
   } else {
     convertArrayPointerF32toBF16<true>(result, rows, res, resIncr);
   }
-#if defined(TEST_VERBOSE) && !defined(GENERIC_GEMM)
-  end = __ppc_get_timebase();
-  printf("gemv_row bfloat16 MMA time = %16ld\n", end - start);
-#endif
 }
 #endif
 
