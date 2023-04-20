@@ -860,28 +860,4 @@ EIGEN_STRONG_INLINE __device__ Eigen::bfloat16 __ldg(const Eigen::bfloat16* ptr)
 }
 #endif // __ldg
 
-namespace Eigen {
-namespace internal {
-
-template <>
-struct cast_impl<float, bfloat16> {
-  EIGEN_DEVICE_FUNC
-  static inline bfloat16 run(const float& a) { return bfloat16(a); }
-};
-
-template <>
-struct cast_impl<int, bfloat16> {
-  EIGEN_DEVICE_FUNC
-  static inline bfloat16 run(const int& a) { return bfloat16(static_cast<float>(a)); }
-};
-
-template <>
-struct cast_impl<bfloat16, float> {
-  EIGEN_DEVICE_FUNC
-  static inline float run(const bfloat16& a) { return static_cast<float>(a); }
-};
-
-}  // namespace internal
-}  // namespace Eigen
-
 #endif // EIGEN_BFLOAT16_H

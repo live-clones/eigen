@@ -632,7 +632,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
 
   static constexpr int SrcPacketSize = packet_traits<SrcType>::size;
   static constexpr int SrcPacketSizeBytes = SrcPacketSize * sizeof(SrcType);
-  static constexpr bool ArgIsRowMajor = evaluator<ArgType>::Flags & RowMajorBit;
+  
 
   enum {
     CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<UnaryOp>::Cost),
@@ -656,6 +656,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
 
   template <int LoadMode>
   EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
+    constexpr bool ArgIsRowMajor = evaluator<ArgType>::Flags & RowMajorBit;
     return m_d.argImpl.template packet<LoadMode, SrcPacketType>(ArgIsRowMajor ? row : row + (offset * SrcPacketSize),
                                                                 ArgIsRowMajor ? col + (offset * SrcPacketSize) : col);
   }
