@@ -625,11 +625,12 @@ template <typename SrcType, typename NewType, typename ArgType>
 struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, IndexBased> {
   using UnaryOp = scalar_cast_op<SrcType, NewType>;
   using XprType = CwiseUnaryOp<UnaryOp, ArgType>;
-  using Scalar = NewType;
+
   using CoeffReturnType = NewType;
   using SrcPacketType = typename packet_traits<SrcType>::type;
+
+  static constexpr int SrcPacketSize = packet_traits<SrcType>::size;
   static constexpr bool ArgIsRowMajor = evaluator<ArgType>::Flags & RowMajorBit;
-  static constexpr int SrcPacketSize = unpacket_traits<SrcPacketType>::size;
 
   enum {
     CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<UnaryOp>::Cost),
@@ -652,12 +653,12 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, 
   }
 
   template <int LoadMode>
-  EIGEN_STRONG_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
+  EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
     return m_d.argImpl.template packet<LoadMode, SrcPacketType>(ArgIsRowMajor ? row : row + (offset * SrcPacketSize),
                                                                 ArgIsRowMajor ? col + (offset * SrcPacketSize) : col);
   }
   template <int LoadMode>
-  EIGEN_STRONG_INLINE SrcPacketType srcPacket(Index index, Index offset) const {
+  EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index index, Index offset) const {
     return m_d.argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
   }
 
@@ -689,23 +690,23 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, 
 
   template <int LoadMode, typename PacketType, PacketRatio_1<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0));
   }
   template <int LoadMode, typename PacketType, PacketRatio_2<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1));
   }
   template <int LoadMode, typename PacketType, PacketRatio_4<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
-                               srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
+                                                    srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3));
   }
   template <int LoadMode, typename PacketType, PacketRatio_8<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return m_d.func().packetOp(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
-                               srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3),
-                               srcPacket<LoadMode>(index, 4), srcPacket<LoadMode>(index, 5),
-                               srcPacket<LoadMode>(index, 6), srcPacket<LoadMode>(index, 7));
+    return m_d.func().template packetOp<PacketType>(srcPacket<LoadMode>(index, 0), srcPacket<LoadMode>(index, 1),
+                                                    srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3),
+                                                    srcPacket<LoadMode>(index, 4), srcPacket<LoadMode>(index, 5),
+                                                    srcPacket<LoadMode>(index, 6), srcPacket<LoadMode>(index, 7));
   }
 
 

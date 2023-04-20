@@ -173,15 +173,45 @@ struct functor_traits<scalar_carg_op<Scalar>> {
   *
   * \sa class CwiseUnaryOp, MatrixBase::cast()
   */
-template<typename Scalar, typename NewType>
+template <typename SrcType, typename DstType>
 struct scalar_cast_op {
-  typedef NewType result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const NewType operator() (const Scalar& a) const { return cast<Scalar, NewType>(a); }
+
+  using result_type = DstType;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstType operator()(const SrcType& a) const {
+    return cast<SrcType, DstType>(a);
+  }
+
+  using SrcPacket = typename packet_traits<SrcType>::type;
+
+  template <typename DstPacket>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a) const {
+    return pcast<SrcPacket, DstPacket>(a);
+  }
+  template <typename DstPacket>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b) const {
+    return pcast<SrcPacket, DstPacket>(a, b);
+  }
+  template <typename DstPacket>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b,
+                                                                 const SrcPacket& c, const SrcPacket& d) const {
+    return pcast<SrcPacket, DstPacket>(a, b, c, d);
+  }
+  template <typename DstPacket>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b,
+                                                                 const SrcPacket& c, const SrcPacket& d,
+                                                                 const SrcPacket& e, const SrcPacket& f,
+                                                                 const SrcPacket& g, const SrcPacket& h) const {
+    return pcast<SrcPacket, DstPacket>(a, b, c, d, e, f, g, h);
+  }
 };
 
-template<typename Scalar, typename NewType>
-struct functor_traits<scalar_cast_op<Scalar,NewType> >
-{ enum { Cost = is_same<Scalar, NewType>::value ? 0 : NumTraits<NewType>::AddCost, PacketAccess = false }; };
+template <typename SrcType, typename DstType>
+struct functor_traits<scalar_cast_op<SrcType, DstType>> {
+  enum {
+    Cost = is_same<SrcType, DstType>::value ? 0 : NumTraits<DstType>::AddCost,
+    PacketAccess = type_casting_traits<SrcType, DstType>::VectorizedCast
+  };
+};
 
 /** \internal
   * \brief Template functor to arithmetically shift a scalar right by a number of bits
