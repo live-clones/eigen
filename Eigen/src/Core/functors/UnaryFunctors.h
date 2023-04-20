@@ -191,25 +191,14 @@ struct scalar_cast_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b) const {
     return pcast<SrcPacket, DstPacket>(a, b);
   }
-  template <typename DstPacket>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b,
-                                                                 const SrcPacket& c, const SrcPacket& d) const {
-    return pcast<SrcPacket, DstPacket>(a, b, c, d);
-  }
-  template <typename DstPacket>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b,
-                                                                 const SrcPacket& c, const SrcPacket& d,
-                                                                 const SrcPacket& e, const SrcPacket& f,
-                                                                 const SrcPacket& g, const SrcPacket& h) const {
-    return pcast<SrcPacket, DstPacket>(a, b, c, d, e, f, g, h);
-  }
 };
 
 template <typename SrcType, typename DstType>
 struct functor_traits<scalar_cast_op<SrcType, DstType>> {
   enum {
     Cost = is_same<SrcType, DstType>::value ? 0 : NumTraits<DstType>::AddCost,
-    PacketAccess = (type_casting_traits<SrcType, DstType>::VectorizedCast != 0)
+    PacketAccess = (type_casting_traits<SrcType, DstType>::VectorizedCast != 0) &&
+                   (type_casting_traits<SrcType, DstType>::SrcCoeffRatio <= 2)
   };
 };
 
