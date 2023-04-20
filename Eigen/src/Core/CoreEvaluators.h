@@ -622,12 +622,12 @@ protected:
 };
 
 // ----------------------- Casting ---------------------
-template <typename SrcType, typename NewType, typename ArgType>
-struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, IndexBased> {
-  using UnaryOp = scalar_cast_op<SrcType, NewType>;
+template <typename SrcType, typename DstType, typename ArgType>
+struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, IndexBased> {
+  using UnaryOp = scalar_cast_op<SrcType, DstType>;
   using XprType = CwiseUnaryOp<UnaryOp, ArgType>;
 
-  using CoeffReturnType = NewType;
+  using CoeffReturnType = DstType;
   using SrcPacketType = typename packet_traits<SrcType>::type;
 
   static constexpr int SrcPacketSize = packet_traits<SrcType>::size;
@@ -663,10 +663,11 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, 
     return m_d.argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
   }
 
-  template<typename PacketType> using PacketRatio_1 = std::enable_if_t<unpacket_traits<PacketType>::size == 1 * SrcPacketSize, bool>;
-  template<typename PacketType> using PacketRatio_2 = std::enable_if_t<unpacket_traits<PacketType>::size == 2 * SrcPacketSize, bool>;
-  template<typename PacketType> using PacketRatio_4 = std::enable_if_t<unpacket_traits<PacketType>::size == 4 * SrcPacketSize, bool>;
-  template<typename PacketType> using PacketRatio_8 = std::enable_if_t<unpacket_traits<PacketType>::size == 8 * SrcPacketSize, bool>;
+  template<typename PacketType> using PacketRatio_1 = std::enable_if_t<unpacket_traits<PacketType>::size == (1 * SrcPacketSize), bool>;
+  template<typename PacketType> using PacketRatio_2 = std::enable_if_t<unpacket_traits<PacketType>::size == (2 * SrcPacketSize), bool>;
+  template<typename PacketType> using PacketRatio_4 = std::enable_if_t<unpacket_traits<PacketType>::size == (4 * SrcPacketSize), bool>;
+  template<typename PacketType> using PacketRatio_8 = std::enable_if_t<unpacket_traits<PacketType>::size == (8 * SrcPacketSize), bool>;
+  template<typename PacketType> using NotSupported = std::enable_if_t<(unpacket_traits<PacketType>::size > (8 * SrcPacketSize)) || (unpacket_traits<PacketType>::size < SrcPacketSize), bool>;
 
   template <int LoadMode, typename PacketType, PacketRatio_1<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
@@ -688,6 +689,11 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, 
                                                     srcPacket<LoadMode>(row, col, 4), srcPacket<LoadMode>(row, col, 5),
                                                     srcPacket<LoadMode>(row, col, 6), srcPacket<LoadMode>(row, col, 7));
   }
+  template <int LoadMode, typename PacketType, NotSupported<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index, Index) const {
+    eigen_assert(false && "this cast is not supported");
+    return PacketType();
+  }
 
   template <int LoadMode, typename PacketType, PacketRatio_1<PacketType> = true>
   EIGEN_STRONG_INLINE PacketType packet(Index index) const {
@@ -708,6 +714,11 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, NewType>, ArgType>, 
                                                     srcPacket<LoadMode>(index, 2), srcPacket<LoadMode>(index, 3),
                                                     srcPacket<LoadMode>(index, 4), srcPacket<LoadMode>(index, 5),
                                                     srcPacket<LoadMode>(index, 6), srcPacket<LoadMode>(index, 7));
+  }
+  template <int LoadMode, typename PacketType, NotSupported<PacketType> = true>
+  EIGEN_STRONG_INLINE PacketType packet(Index) const {
+    eigen_assert(false && "this cast is not supported");
+    return PacketType();
   }
 
 
