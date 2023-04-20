@@ -801,21 +801,14 @@ EIGEN_ALWAYS_INLINE void preduxVecResultsVSX(Packet4f (&acc)[num_acc][2])
 }
 
 #ifndef _ARCH_PWR9
-static Packet16uc p16uc_MERGE16_ZERO[8] = {
-  {  0, 1,  2, 3,  4, 5,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
-  { 16,17,  2, 3,  4, 5,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
-  { 16,17, 18,19,  4, 5,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
-  { 16,17, 18,19, 20,21,  6, 7,  8, 9, 10,11, 12,13, 14,15 },
-  { 16,17, 18,19, 20,21, 22,23,  8, 9, 10,11, 12,13, 14,15 },
-  { 16,17, 18,19, 20,21, 22,23, 24,25, 10,11, 12,13, 14,15 },
-  { 16,17, 18,19, 20,21, 22,23, 24,25, 26,27, 12,13, 14,15 },
-  { 16,17, 18,19, 20,21, 22,23, 24,25, 26,27, 28,29, 14,15 }
-};
-
 EIGEN_ALWAYS_INLINE Packet8us loadPacketPartialZero(Packet8us data, Index extra_cols)
 {
-  Packet8us z = pset1<Packet8us>(0);
-  return vec_perm(z, data, p16uc_MERGE16_ZERO[extra_cols]);
+  Packet16uc shift = pset1<Packet16uc>(8 * 2 * (8 - extra_cols));
+#ifdef _BIG_ENDIAN
+  return reinterpret_cast<Packet8us>(vec_slo(vec_sro(reinterpret_cast<Packet16uc>(data), shift), shift));
+#else
+  return reinterpret_cast<Packet8us>(vec_sro(vec_slo(reinterpret_cast<Packet16uc>(data), shift), shift));
+#endif
 }
 #endif
 
