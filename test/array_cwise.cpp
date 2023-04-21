@@ -1191,7 +1191,7 @@ struct cast_test_impl {
 
   static constexpr int SrcPacketSize = internal::packet_traits<SrcType>::size;
   static constexpr int DstPacketSize = internal::packet_traits<DstType>::size;
-  static constexpr int TestSize = 100 * (SrcPacketSize > DstPacketSize ? SrcPacketSize : DstPacketSize);
+  static constexpr int MaxPacketSize = internal::plain_enum_max(SrcPacketSize, DstPacketSize);
 
   struct src_to_dst {
     DstType operator()(const SrcType& a) const { return static_cast<DstType>(a); }
@@ -1201,8 +1201,8 @@ struct cast_test_impl {
   };
 
   static void run() {
-    SrcArray src(TestSize);
-    DstArray dst(TestSize);
+    SrcArray src(100 * MaxPacketSize);
+    DstArray dst(100 * MaxPacketSize);
 
     src.setRandom();
     dst = src.template cast<DstType>();
