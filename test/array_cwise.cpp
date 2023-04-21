@@ -1193,24 +1193,22 @@ struct cast_test_impl {
   static constexpr int DstPacketSize = internal::packet_traits<DstType>::size;
   static constexpr int MaxPacketSize = internal::plain_enum_max(SrcPacketSize, DstPacketSize);
 
-  struct src_to_dst {
-    DstType operator()(const SrcType& a) const { return static_cast<DstType>(a); }
-  };
-  struct dst_to_src {
-    SrcType operator()(const DstType& a) const { return static_cast<SrcType>(a); }
-  };
-
   static void run() {
-    SrcArray src(100 * MaxPacketSize);
-    DstArray dst(100 * MaxPacketSize);
+    const Index testSize = 100 * MaxPacketSize;
+    SrcArray src(testSize);
+    DstArray dst(testSize);
 
     src.setRandom();
     dst = src.template cast<DstType>();
-    VERIFY_IS_CWISE_EQUAL(dst, src.unaryExpr(src_to_dst()));
-
-    dst.setRandom();
-    src = dst.template cast<SrcType>();
-    VERIFY_IS_CWISE_EQUAL(src, dst.unaryExpr(dst_to_src()));
+    for (Index i = 0; i < testSize; i++) {
+      DstType ref = static_cast<DstType>(src(i));
+      DstType res = dst(i);
+      bool ref_is_nan = ref != ref;
+      bool res_is_nan = res != res;
+      bool both_are_nan = ref_is_nan && res_is_nan;
+      bool pass = both_are_nan || (ref == res);
+      VERIFY(pass);
+    }
   }
 };
 
@@ -1224,9 +1222,10 @@ struct cast_tests_impl {
 
   template <size_t i = 0, size_t j = i + 1, bool Done = (i >= ScalarTupleSize - 1) || (j >= ScalarTupleSize)>
   static std::enable_if_t<!Done> run() {
-    using SrcType = typename std::tuple_element<i, ScalarTuple>::type;
-    using DstType = typename std::tuple_element<j, ScalarTuple>::type;
-    cast_test_impl<SrcType, DstType>::run();
+    using Type1 = typename std::tuple_element<i, ScalarTuple>::type;
+    using Type2 = typename std::tuple_element<j, ScalarTuple>::type;
+    cast_test_impl<Type1, Type2>::run();
+    cast_test_impl<Type2, Type1>::run();
     static constexpr size_t next_i = (j == ScalarTupleSize - 1) ? (i + 1) : (i + 0);
     static constexpr size_t next_j = (j == ScalarTupleSize - 1) ? (i + 2) : (j + 1);
     run<next_i, next_j>();
