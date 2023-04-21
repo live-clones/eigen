@@ -1183,6 +1183,164 @@ void typed_logicals_test(const ArrayType& m) {
     typed_logicals_test_impl<ArrayType>::run(m);
 }
 
+template <typename SrcType, typename DstType>
+struct cast_test_impl {
+
+  using SrcArray = ArrayX<SrcType>;
+  using DstArray = ArrayX<DstType>;
+
+  static constexpr int SrcPacketSize = internal::packet_traits<SrcType>::size;
+  static constexpr int DstPacketSize = internal::packet_traits<DstType>::size;
+  static constexpr int TestSize = 100 * (SrcPacketSize > DstPacketSize ? SrcPacketSize : DstPacketSize);
+
+  struct src_to_dst {
+    DstType operator()(const SrcType& a) const { return static_cast<DstType>(a); }
+  };
+  struct dst_to_src {
+    SrcType operator()(const DstType& a) const { return static_cast<SrcType>(a); }
+  };
+
+  static void run() {
+    SrcArray src(TestSize);
+    DstArray dst(TestSize);
+
+    src.setRandom();
+    dst = src.cast<DstType>();
+    VERIFY_IS_CWISE_EQUAL(dst, src.unaryExpr(src_to_dst()));
+
+    dst.setRandom();
+    src = dst.cast<SrcType>();
+    VERIFY_IS_CWISE_EQUAL(src, dst.unaryExpr(dst_to_src()));
+  }
+};
+
+template <typename... ScalarTypes>
+struct cast_tests_impl {
+  using ScalarTuple = std::tuple<ScalarTypes...>;
+  static constexpr size_t ScalarTupleSize = std::tuple_size<ScalarTuple>::value;
+
+  template <size_t i = 0, size_t j = i + 1, bool Done = (i >= ScalarTupleSize - 1) || (j >= ScalarTupleSize)>
+  static std::enable_if_t<Done> run() {}
+
+  template <size_t i = 0, size_t j = i + 1, bool Done = (i >= ScalarTupleSize - 1) || (j >= ScalarTupleSize)>
+  static std::enable_if_t<!Done> run() {
+    using SrcType = typename std::tuple_element<i, ScalarTuple>::type;
+    using DstType = typename std::tuple_element<j, ScalarTuple>::type;
+    cast_test_impl<SrcType, DstType>::run();
+    static constexpr size_t next_i = (j == ScalarTupleSize - 1) ? (i + 1) : (i + 0);
+    static constexpr size_t next_j = (j == ScalarTupleSize - 1) ? (i + 2) : (j + 1);
+    run<next_i, next_j>();
+  }
+};
+
+void cast_test() {
+  cast_tests_impl<bool, int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, float, double,
+                  long double, half, bfloat16>::run();
+}
+
+//void cast_test_int_int() {
+//
+//    cast_test_impl<int8_t, int16_t>::run();
+//    cast_test_impl<int8_t, int32_t>::run();
+//    cast_test_impl<int8_t, int64_t>::run();
+//
+//    cast_test_impl<int16_t, int32_t>::run();
+//    cast_test_impl<int16_t, int64_t>::run();
+//
+//    cast_test_impl<int32_t, int64_t>::run();
+//}
+//
+//void cast_test_uint_uint() {
+//
+//    cast_test_impl<bool, uint8_t>::run();
+//    cast_test_impl<bool, uint16_t>::run();
+//    cast_test_impl<bool, uint32_t>::run();
+//    cast_test_impl<bool, uint64_t>::run();
+//
+//    cast_test_impl<uint8_t, uint16_t>::run();
+//    cast_test_impl<uint8_t, uint32_t>::run();
+//    cast_test_impl<uint8_t, uint64_t>::run();
+//
+//    cast_test_impl<uint16_t, uint32_t>::run();
+//    cast_test_impl<uint16_t, uint64_t>::run();
+//
+//    cast_test_impl<uint32_t, uint64_t>::run();
+//}
+//
+//void cast_test_int_uint() {
+//    cast_test_impl<bool, int8_t>::run();
+//    cast_test_impl<bool, int16_t>::run();
+//    cast_test_impl<bool, int32_t>::run();
+//    cast_test_impl<bool, int64_t>::run();
+//
+//    cast_test_impl<int8_t, uint8_t>::run();
+//    cast_test_impl<int8_t, uint16_t>::run();
+//    cast_test_impl<int8_t, uint32_t>::run();
+//    cast_test_impl<int8_t, uint64_t>::run();
+//
+//    cast_test_impl<int16_t, uint8_t>::run();
+//    cast_test_impl<int16_t, uint16_t>::run();
+//    cast_test_impl<int16_t, uint32_t>::run();
+//    cast_test_impl<int16_t, uint64_t>::run();
+//
+//    cast_test_impl<int32_t, uint8_t>::run();
+//    cast_test_impl<int32_t, uint16_t>::run();
+//    cast_test_impl<int32_t, uint32_t>::run();
+//    cast_test_impl<int32_t, uint64_t>::run();
+//
+//    cast_test_impl<int64_t, uint8_t>::run();
+//    cast_test_impl<int64_t, uint16_t>::run();
+//    cast_test_impl<int64_t, uint32_t>::run();
+//    cast_test_impl<int64_t, uint64_t>::run();
+//}
+//
+//void cast_test_float_float() {
+//    cast_test_impl<float, double>::run();
+//    cast_test_impl<float, long double>::run();
+//    cast_test_impl<float, half>::run();
+//    cast_test_impl<float, bfloat16>::run();
+//
+//    cast_test_impl<double, long double>::run();
+//    cast_test_impl<double, half>::run();
+//    cast_test_impl<double, bfloat16>::run();
+//
+//    cast_test_impl<long double, half>::run();
+//    cast_test_impl<long double, bfloat16>::run();
+//
+//    cast_test_impl<half, bfloat16>::run();
+//}
+//
+//void cast_test_int_float() {
+//    cast_test_impl<bool, float>::run();
+//    cast_test_impl<bool, double>::run();
+//    cast_test_impl<bool, long double>::run();
+//    cast_test_impl<bool, half>::run();
+//    cast_test_impl<bool, bfloat16>::run();
+//
+//    cast_test_impl<int8_t, float>::run();
+//    cast_test_impl<int8_t, double>::run();
+//    cast_test_impl<int8_t, long double>::run();
+//    cast_test_impl<int8_t, half>::run();
+//    cast_test_impl<int8_t, bfloat16>::run();
+//
+//    cast_test_impl<int16_t, float>::run();
+//    cast_test_impl<int16_t, double>::run();
+//    cast_test_impl<int16_t, long double>::run();
+//    cast_test_impl<int16_t, half>::run();
+//    cast_test_impl<int16_t, bfloat16>::run();
+//
+//    cast_test_impl<int32_t, float>::run();
+//    cast_test_impl<int32_t, double>::run();
+//    cast_test_impl<int32_t, long double>::run();
+//    cast_test_impl<int32_t, half>::run();
+//    cast_test_impl<int32_t, bfloat16>::run();
+//
+//    cast_test_impl<int64_t, float>::run();
+//    cast_test_impl<int64_t, double>::run();
+//    cast_test_impl<int64_t, long double>::run();
+//    cast_test_impl<int64_t, half>::run();
+//    cast_test_impl<int64_t, bfloat16>::run();
+//}
 EIGEN_DECLARE_TEST(array_cwise)
 {
   for(int i = 0; i < g_repeat; i++) {
@@ -1237,6 +1395,9 @@ EIGEN_DECLARE_TEST(array_cwise)
     CALL_SUBTEST_3( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  }
+  for (int i = 0; i < g_repeat; i++) {
+    cast_test();
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
