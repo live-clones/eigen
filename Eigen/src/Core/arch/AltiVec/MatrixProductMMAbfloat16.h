@@ -44,6 +44,7 @@ EIGEN_ALWAYS_INLINE void KLoop
 {
   Packet8bf lhs[num_lhs], rhs[num_rhs];
 
+  BFLOAT16_UNROLL
   for(Index i = 0; i < (num_rhs - (rhsExtraCols ? 1 : 0)); i++){
     rhs[i] = loadRhsBfloat16<zero>(indexB + k*4, strideB, i);
   }
@@ -52,8 +53,21 @@ EIGEN_ALWAYS_INLINE void KLoop
   }
 
   indexA += k*(lhsExtraRows ? extra_rows : num_packets);
-  for(Index j = 0; j < num_lhs; j++) {
-    lhs[j] = loadBfloat16<zero>(indexA + j*(zero ? 4 : 8)); // a packet of bfloat16 has 8 elements
+  if (num_lhs == 1) {
+    lhs[0] = loadBfloat16<zero>(indexA);
+  } else {
+    BFLOAT16_UNROLL
+    for(Index j = 0; j < num_lhs; j += 2) {
+      Packet8bf lhs1 = ploadu<Packet8bf>(indexA + (j + 0)*(zero ? 4 : 8));
+      if (zero) {
+        Packet8bf lhs2 = pset1<Packet8bf>(Eigen::bfloat16(0));
+        lhs[j + 0] = vec_mergeh(lhs1.m_val, lhs2.m_val);
+        lhs[j + 1] = vec_mergel(lhs1.m_val, lhs2.m_val);
+      } else {
+        lhs[j + 0] = lhs1;
+        lhs[j + 1] = ploadu<Packet8bf>(indexA + (j + 1)*8);
+      }
+    }
   }
 
   BFLOAT16_UNROLL
@@ -84,7 +98,9 @@ EIGEN_ALWAYS_INLINE void disassembleAccumulators(__vector_quad (&quad_acc)[num_a
 template<Index num_acc, bool rhsExtraCols, bool lhsExtraRows, Index num_rhs, Index num_lhs>
 EIGEN_ALWAYS_INLINE void outputResults(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f pAlpha, float* result, const Index extra_cols, Index extra_rows)
 {
+  BFLOAT16_UNROLL
   for(Index i = 0, k = 0; i < num_rhs - (rhsExtraCols ? 1 : 0); i++, result += 4*rows){
+    BFLOAT16_UNROLL
     for(Index j = 0; j < num_lhs; j++, k++) {
       storeResults<false, lhsExtraRows>(acc[k], rows, pAlpha, result + j*4, extra_cols, extra_rows);
     }
@@ -373,6 +389,7 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
   }
 
   LhsMapper lhs2 = lhs.getSubMapper(0, j);
+  BFLOAT16_UNROLL
   for(Index k = 0; k < num_acc; k += 2) {
     loadVecLoop<num_acc, LhsMapper, zero>(k, lhs2, a0, b1);
   }
@@ -534,6 +551,7 @@ EIGEN_ALWAYS_INLINE void preduxVecResults2(Packet4f (&acc)[num_acc][4], Index k)
 template<Index num_acc>
 EIGEN_ALWAYS_INLINE void preduxVecResults(Packet4f (&acc)[num_acc][4])
 {
+  BFLOAT16_UNROLL
   for(Index k = 0; k < num_acc; k += 4) {
     preduxVecResults2<num_acc>(acc, k + 0);
     if (num_acc > (k + 2)) {
@@ -555,6 +573,7 @@ EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], const L
   }
 
   const LhsMapper lhs2 = lhs.getSubMapper(0, j);
+  BFLOAT16_UNROLL
   for(Index k = 0; k < num_acc; k++) {
     if (extra) {
       a0[k] = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
