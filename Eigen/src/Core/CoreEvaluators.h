@@ -675,22 +675,22 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
-    constexpr int SrcLoadMode = plain_enum_min(LoadMode, SrcIncrementBytes);
+    constexpr int SrcLoadMode = plain_enum_min(SrcIncrementBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(row, col, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int SrcLoadMode0 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
-    constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode0);
+    constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(row, col, 0),
                                                      srcPacket<SrcLoadMode1>(row, col, 1));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int SrcLoadMode0 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
-    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode0);
-    constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode1);
-    constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode2);
+    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(
         srcPacket<SrcLoadMode0>(row, col, 0), srcPacket<SrcLoadMode1>(row, col, 1),
         srcPacket<SrcLoadMode2>(row, col, 2), srcPacket<SrcLoadMode3>(row, col, 3));
@@ -700,22 +700,22 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
-    constexpr int SrcLoadMode = plain_enum_min(LoadMode, SrcIncrementBytes);
+    constexpr int SrcLoadMode = plain_enum_min(SrcIncrementBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(index, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int SrcLoadMode0 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
-    constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode0);
+    constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(index, 0),
                                                      srcPacket<SrcLoadMode1>(index, 1));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int SrcLoadMode0 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
-    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode0);
-    constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode1);
-    constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode2);
+    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(
         srcPacket<SrcLoadMode0>(index, 0), srcPacket<SrcLoadMode1>(index, 1),
         srcPacket<SrcLoadMode2>(index, 2), srcPacket<SrcLoadMode3>(index, 3));
