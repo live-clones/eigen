@@ -1205,11 +1205,11 @@ struct cast_test_impl {
     DstArray dst(TestSize);
 
     src.setRandom();
-    dst = src.cast<DstType>();
+    dst = src.template cast<DstType>();
     VERIFY_IS_CWISE_EQUAL(dst, src.unaryExpr(src_to_dst()));
 
     dst.setRandom();
-    src = dst.cast<SrcType>();
+    src = dst.template cast<SrcType>();
     VERIFY_IS_CWISE_EQUAL(src, dst.unaryExpr(dst_to_src()));
   }
 };
