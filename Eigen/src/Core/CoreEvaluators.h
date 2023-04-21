@@ -624,64 +624,61 @@ protected:
 // ----------------------- Casting ---------------------
 template <typename SrcType, typename DstType, typename ArgType>
 struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, IndexBased> {
-  using UnaryOp = scalar_cast_op<SrcType, DstType>;
-  using XprType = CwiseUnaryOp<UnaryOp, ArgType>;
-
-  using CoeffReturnType = DstType;
+  using CastOp = scalar_cast_op<SrcType, DstType>;
+  using XprType = CwiseUnaryOp<CastOp, ArgType>;
   using SrcPacketType = typename packet_traits<SrcType>::type;
 
   static constexpr int SrcPacketSize = packet_traits<SrcType>::size;
   static constexpr int SrcPacketSizeBytes = SrcPacketSize * sizeof(SrcType);
-  
 
   enum {
-    CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<UnaryOp>::Cost),
-
+    CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<CastOp>::Cost),
     Flags = evaluator<ArgType>::Flags &
-            (HereditaryBits | LinearAccessBit | (functor_traits<UnaryOp>::PacketAccess ? PacketAccessBit : 0)),
+            (HereditaryBits | LinearAccessBit | (functor_traits<CastOp>::PacketAccess ? PacketAccessBit : 0)),
     Alignment = evaluator<ArgType>::Alignment
   };
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit unary_evaluator(const XprType& op) : m_d(op) {
-    EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<UnaryOp>::Cost);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit unary_evaluator(const XprType& xpr)
+      : m_argImpl(xpr.nestedExpression()) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<CastOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
-    return m_d.func()(m_d.argImpl.coeff(row, col));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index row, Index col) const {
+    return CastOp()(m_argImpl.coeff(row, col));
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
-    return m_d.func()(m_d.argImpl.coeff(index));
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index index) const { return CastOp()(m_argImpl.coeff(index)); }
 
   template <int LoadMode>
   EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
     constexpr bool ArgIsRowMajor = evaluator<ArgType>::Flags & RowMajorBit;
-    return m_d.argImpl.template packet<LoadMode, SrcPacketType>(ArgIsRowMajor ? row : row + (offset * SrcPacketSize),
-                                                                ArgIsRowMajor ? col + (offset * SrcPacketSize) : col);
+    return m_argImpl.template packet<LoadMode, SrcPacketType>(ArgIsRowMajor ? row : row + (offset * SrcPacketSize),
+                                                              ArgIsRowMajor ? col + (offset * SrcPacketSize) : col);
   }
   template <int LoadMode>
   EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index index, Index offset) const {
-    return m_d.argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
+    return m_argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
   }
 
-  template<typename DstPacketType> using SrcPacketArgs1 = std::enable_if_t<unpacket_traits<DstPacketType>::size <= (1 * SrcPacketSize), bool>;
-  template<typename DstPacketType> using SrcPacketArgs2 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (2 * SrcPacketSize), bool>;
-  template<typename DstPacketType> using SrcPacketArgs4 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (4 * SrcPacketSize), bool>;
+  template <typename DstPacketType> using SrcPacketArgs1 = std::enable_if_t<unpacket_traits<DstPacketType>::size <= (1 * SrcPacketSize), bool>;
+  template <typename DstPacketType> using SrcPacketArgs2 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (2 * SrcPacketSize), bool>;
+  template <typename DstPacketType> using SrcPacketArgs4 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (4 * SrcPacketSize), bool>;
 
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(LoadMode, SrcIncrementBytes);
-    return m_d.func().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(row, col, 0));
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(row, col, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int SrcLoadMode0 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
     constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode0);
-    return m_d.func().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(row, col, 0),
-                                                       srcPacket<SrcLoadMode1>(row, col, 1));
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(row, col, 0),
+                                                     srcPacket<SrcLoadMode1>(row, col, 1));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
@@ -689,7 +686,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode0);
     constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode1);
     constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode2);
-    return m_d.func().template packetOp<DstPacketType>(
+    return CastOp().template packetOp<DstPacketType>(
         srcPacket<SrcLoadMode0>(row, col, 0), srcPacket<SrcLoadMode1>(row, col, 1),
         srcPacket<SrcLoadMode2>(row, col, 2), srcPacket<SrcLoadMode3>(row, col, 3));
   }
@@ -699,14 +696,14 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(LoadMode, SrcIncrementBytes);
-    return m_d.func().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(index, 0));
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(index, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int SrcLoadMode0 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
     constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode0);
-    return m_d.func().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(index, 0),
-                                                       srcPacket<SrcLoadMode1>(index, 1));
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(index, 0),
+                                                     srcPacket<SrcLoadMode1>(index, 1));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
@@ -714,22 +711,13 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode0);
     constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, SrcLoadMode1);
     constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, SrcLoadMode2);
-    return m_d.func().template packetOp<DstPacketType>(
-        srcPacket<SrcLoadMode0>(index, 0), srcPacket<SrcLoadMode1>(index, 1), srcPacket<SrcLoadMode2>(index, 2),
-        srcPacket<SrcLoadMode3>(index, 3));
+    return CastOp().template packetOp<DstPacketType>(
+        srcPacket<SrcLoadMode0>(index, 0), srcPacket<SrcLoadMode1>(index, 1),
+        srcPacket<SrcLoadMode2>(index, 2), srcPacket<SrcLoadMode3>(index, 3));
   }
 
  protected:
-  // this helper permits to completely eliminate the functor if it is empty
-  struct Data {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Data(const XprType& xpr)
-        : op(xpr.functor()), argImpl(xpr.nestedExpression()) {}
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const UnaryOp& func() const { return op; }
-    UnaryOp op;
-    evaluator<ArgType> argImpl;
-  };
-
-  Data m_d;
+  const evaluator<ArgType> m_argImpl;
 };
 
 // -------------------- CwiseTernaryOp --------------------
