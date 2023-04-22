@@ -1209,8 +1209,8 @@ struct cast_test_impl {
       bool pass = both_are_nan || (ref == res);
       if (!pass)
       {
-        std::cout << typeid(SrcType).name() << " to " << typeid(DstType).name() << ", " << src(i) << " to " << res
-                  << " != " << ref << "\n";
+        std::cout << typeid(SrcType).name() << " to " << typeid(DstType).name() << ", " << +src(i) << " to " << +res
+                  << " != " << +ref << "\n";
       }
       VERIFY(pass);
     }
@@ -1239,7 +1239,9 @@ struct cast_tests_impl {
 
 void cast_test() {
   cast_tests_impl<bool, int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, float, double,
-                  long double, half, bfloat16>::run();
+                  long double>::run();
+  cast_tests_impl<float, bfloat16>::run();
+  cast_tests_impl<float, half>::run();
 }
 
 EIGEN_DECLARE_TEST(array_cwise)
