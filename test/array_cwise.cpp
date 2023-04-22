@@ -1207,6 +1207,11 @@ struct cast_test_impl {
       bool res_is_nan = res != res;
       bool both_are_nan = ref_is_nan && res_is_nan;
       bool pass = both_are_nan || (ref == res);
+      if (!pass)
+      {
+        std::cout << typeid(SrcType).name() << " to " << typeid(DstType).name() << ", " << src(i) << " to " << res
+                  << " != " << ref << "\n";
+      }
       VERIFY(pass);
     }
   }
