@@ -1209,9 +1209,9 @@ struct cast_test_impl {
     for (Index i = 0; i < testSize; i++) {
       DstType ref = static_cast<DstType>(src(i));
       DstType res = dst(i);
-      bool both_are_nan = (ref != ref) && (res != res);
+      bool both_are_finite = (numext::isfinite)(ref) && (numext::isfinite)(res);
       bool is_equal = ref == res;
-      bool pass = both_are_nan || is_equal;
+      bool pass = !both_are_finite || is_equal;
       if (!pass)
       {
         std::cout << typeid(SrcType).name() << ": [" << +src(i) << "] to " << typeid(DstType).name() << ": [" << +res
