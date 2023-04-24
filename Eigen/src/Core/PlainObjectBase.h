@@ -299,10 +299,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
 #ifdef EIGEN_INITIALIZE_COEFFS
         bool size_changed = size != this->size();
       #endif
-      if(RowsAtCompileTime == 1)
-        m_storage.resize(size, 1, size);
-      else
-        m_storage.resize(size, size, 1);
+        if(RowsAtCompileTime == 1)
+          m_storage.resize(size, 1, size);
+        else
+          m_storage.resize(size, size, 1);
       #ifdef EIGEN_INITIALIZE_COEFFS
         if(size_changed) EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED
       #endif
