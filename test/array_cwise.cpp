@@ -1198,19 +1198,24 @@ struct cast_test_impl {
     SrcArray src(testSize);
     DstArray dst(testSize);
 
-    src.setRandom();
+    const SrcType srcLow =
+        numext::maxi(NumTraits<SrcType>::lowest(), static_cast<SrcType>(NumTraits<DstType>::lowest()));
+    const SrcType srcHigh =
+        numext::mini(NumTraits<SrcType>::highest(), static_cast<SrcType>(NumTraits<DstType>::highest()));
+
+    for (Index i = 0; i < testSize; i++) src(i) = internal::random<SrcType>(srcLow, srcHigh);
+
     dst = src.template cast<DstType>();
     for (Index i = 0; i < testSize; i++) {
       DstType ref = static_cast<DstType>(src(i));
       DstType res = dst(i);
-      bool ref_is_nan = ref != ref;
-      bool res_is_nan = res != res;
-      bool both_are_nan = ref_is_nan && res_is_nan;
-      bool pass = both_are_nan || (ref == res);
+      bool both_are_nan = (ref != ref) && (res != res);
+      bool is_equal = ref == res;
+      bool pass = both_are_nan || is_equal;
       if (!pass)
       {
-        std::cout << typeid(SrcType).name() << " to " << typeid(DstType).name() << ", " << +src(i) << " to " << +res
-                  << " != " << +ref << "\n";
+        std::cout << typeid(SrcType).name() << ": [" << +src(i) << "] to " << typeid(DstType).name() << ": [" << +res
+                  << "] != [" << +ref << "]\n";
       }
       VERIFY(pass);
     }
@@ -1239,9 +1244,7 @@ struct cast_tests_impl {
 
 void cast_test() {
   cast_tests_impl<bool, int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, float, double,
-                  long double>::run();
-  cast_tests_impl<float, bfloat16>::run();
-  cast_tests_impl<float, half>::run();
+                  long double, half, bfloat16>::run();
 }
 
 EIGEN_DECLARE_TEST(array_cwise)
