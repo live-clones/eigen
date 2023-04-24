@@ -1194,14 +1194,20 @@ struct cast_test_impl {
   static constexpr int MaxPacketSize = internal::plain_enum_max(SrcPacketSize, DstPacketSize);
 
   static void run() {
-    const Index testSize = 100 * MaxPacketSize;
-    SrcArray src(testSize);
-    DstArray dst(testSize);
 
     const SrcType srcLow =
         numext::maxi(NumTraits<SrcType>::lowest(), static_cast<SrcType>(NumTraits<DstType>::lowest()));
     const SrcType srcHigh =
         numext::mini(NumTraits<SrcType>::highest(), static_cast<SrcType>(NumTraits<DstType>::highest()));
+
+    // if we cannot construct a valid range using the above method, don't bother with the test
+    bool valid_range = ((numext::isfinite)(srcLow) && (numext::isfinite)(srcHigh)) && (srcLow <= srcHigh);
+    VERIFY(valid_range);
+    //if (!valid_range) return;
+
+    const Index testSize = 100 * MaxPacketSize;
+    SrcArray src(testSize);
+    DstArray dst(testSize);
 
     for (Index i = 0; i < testSize; i++) src(i) = internal::random<SrcType>(srcLow, srcHigh);
 
@@ -1209,9 +1215,9 @@ struct cast_test_impl {
     for (Index i = 0; i < testSize; i++) {
       DstType ref = static_cast<DstType>(src(i));
       DstType res = dst(i);
-      bool both_are_finite = (numext::isfinite)(ref) && (numext::isfinite)(res);
+      bool all_nan = ((numext::isnan)(src(i)) && (numext::isnan)(ref) && (numext::isnan)(res));
       bool is_equal = ref == res;
-      bool pass = !both_are_finite || is_equal;
+      bool pass = all_nan || is_equal;
       if (!pass)
       {
         std::cout << typeid(SrcType).name() << ": [" << +src(i) << "] to " << typeid(DstType).name() << ": [" << +res
