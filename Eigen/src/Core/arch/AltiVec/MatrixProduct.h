@@ -3171,18 +3171,18 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16ColVSX(float *result, Index col, I
   const DataMapper res2 = res.getSubMapper(0, col);
   Index row;
   float *result2 = result + col*rows;
-  for(row = 0; row + 8 <= rows; row += 8){
+  for(row = 0; row + 8 <= rows; row += 8, result2 += 8){
     // get and save block
     PacketBlock<Packet8bf,size> block;
     for(Index j = 0; j < size; j++){
-      block.packet[j] = convertF32toBF16VSX(result2 + j*rows + row);
+      block.packet[j] = convertF32toBF16VSX(result2 + j*rows);
     }
     res2.template storePacketBlock<Packet8bf,size>(row, 0, block);
   }
   // extra rows
   if(row < rows){
     for(Index j = 0; j < size; j++){
-      Packet8bf fp16 = convertF32toBF16VSX(result2 + j*rows + row);
+      Packet8bf fp16 = convertF32toBF16VSX(result2 + j*rows);
       res2.template storePacketPartial<Packet8bf>(row, j, fp16, rows & 7);
     }
   }
@@ -3196,9 +3196,16 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16VSX(float *result, Index cols, Ind
     convertArrayF32toBF16ColVSX<DataMapper,4>(result, col, rows, res);
   }
   // extra cols
-  while(col < cols){
+  switch (cols - col) {
+  case 1:
     convertArrayF32toBF16ColVSX<DataMapper,1>(result, col, rows, res);
-    col++;
+    break;
+  case 2:
+    convertArrayF32toBF16ColVSX<DataMapper,2>(result, col, rows, res);
+    break;
+  case 3:
+    convertArrayF32toBF16ColVSX<DataMapper,3>(result, col, rows, res);
+    break;
   }
 }
 
