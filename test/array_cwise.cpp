@@ -9,7 +9,6 @@
 
 #include <vector>
 #include "main.h"
-#include "random_without_cast_overflow.h"
 
 template <typename Scalar, std::enable_if_t<NumTraits<Scalar>::IsInteger,int> = 0>
 std::vector<Scalar> special_values() {
@@ -1299,6 +1298,7 @@ EIGEN_DECLARE_TEST(array_cwise)
     CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
+
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(cast_test<1>());
     CALL_SUBTEST_2(cast_test<2>());
