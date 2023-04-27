@@ -26,11 +26,19 @@ namespace internal {
 
 // copy_using_evaluator_traits is based on assign_traits
 
+template <typename T>
+struct is_cast_xpr : std::false_type {};
+
+template <typename SrcType, typename DstType, typename ArgType>
+struct is_cast_xpr<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>> : std::true_type {};
+
 template <typename DstEvaluator, typename SrcEvaluator, typename AssignFunc, int MaxPacketSize = -1>
 struct copy_using_evaluator_traits
 {
   typedef typename DstEvaluator::XprType Dst;
   typedef typename Dst::Scalar DstScalar;
+  typedef typename SrcEvaluator::XprType Src;
+  typedef typename Src::Scalar SrcScalar;
 
   enum {
     DstFlags = DstEvaluator::Flags,
@@ -59,9 +67,11 @@ private:
     MaxSizeAtCompileTime = Dst::SizeAtCompileTime
   };
 
-  // TODO distinguish between linear traversal and inner-traversals
-  typedef typename find_best_packet<DstScalar,RestrictedLinearSize>::type LinearPacketType;
-  typedef typename find_best_packet<DstScalar,RestrictedInnerSize>::type InnerPacketType;
+  using BestLinearPacketType = typename find_best_packet<SrcScalar, RestrictedLinearSize>::type;
+  using BestInnerPacketType = typename find_best_packet<SrcScalar, RestrictedInnerSize>::type;
+  using DefaultPacketType = typename packet_traits<SrcScalar>::type;
+  using LinearPacketType = typename conditional<is_cast_xpr<Src>::value, DefaultPacketType, BestLinearPacketType>::type;
+  using InnerPacketType = typename conditional<is_cast_xpr<Src>::value, DefaultPacketType, BestInnerPacketType>::type;
 
   enum {
     LinearPacketSize = unpacket_traits<LinearPacketType>::size,
