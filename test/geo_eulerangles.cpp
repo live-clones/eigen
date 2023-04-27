@@ -22,9 +22,24 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
   using std::abs;
   const Matrix3 m(AngleAxisx(ea[0], Vector3::Unit(i)) * AngleAxisx(ea[1], Vector3::Unit(j)) * AngleAxisx(ea[2], Vector3::Unit(k)));
 
-  // Test the new default canonical ranges behaviour of eulerAngles (canonical = true)
+  // Test non-canonical eulerAngles
   {
     Vector3 eabis = m.eulerAngles(i, j, k);
+    Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
+    VERIFY_IS_APPROX(m,  mbis);
+
+    // approx_or_less_than does not work for 0
+    VERIFY(0 < eabis[0] || test_isMuchSmallerThan(eabis[0], Scalar(1)));
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
+    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[1]);
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
+    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
+  }
+
+  // Test canonicalEulerAngles
+  {
+    Vector3 eabis = m.canonicalEulerAngles(i, j, k);
     Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
     VERIFY_IS_APPROX(m,  mbis);
 
@@ -43,21 +58,6 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
       VERIFY(0 < eabis[1] || test_isMuchSmallerThan(eabis[1], Scalar(1)));
       VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
     }
-    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
-    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
-  }
-
-  // Test legacy behaviour of eulerAngles (canonical = false)
-  {
-    Vector3 eabis = m.eulerAngles(i, j, k, false);
-    Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
-    VERIFY_IS_APPROX(m,  mbis);
-
-    // approx_or_less_than does not work for 0
-    VERIFY(0 < eabis[0] || test_isMuchSmallerThan(eabis[0], Scalar(1)));
-    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
-    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[1]);
-    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
     VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
     VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
   }
