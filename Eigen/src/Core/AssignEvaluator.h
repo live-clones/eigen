@@ -112,7 +112,7 @@ private:
 public:
   enum {
     Traversal =  int(Dst::SizeAtCompileTime) == 0 ? int(AllAtOnceTraversal) // If compile-size is zero, traversing will fail at compile-time.
-              : (int(MayLinearVectorize) && (LinearPacketSize>=InnerPacketSize)) ? int(LinearVectorizedTraversal)
+              : (int(MayLinearVectorize) && (LinearPacketSize>InnerPacketSize)) ? int(LinearVectorizedTraversal)
               : int(MayInnerVectorize)   ? int(InnerVectorizedTraversal)
               : int(MayLinearVectorize)  ? int(LinearVectorizedTraversal)
               : int(MaySliceVectorize)   ? int(SliceVectorizedTraversal)
