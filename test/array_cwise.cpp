@@ -9,6 +9,7 @@
 
 #include <vector>
 #include "main.h"
+#include "random_without_cast_overflow.h"
 
 template <typename Scalar, std::enable_if_t<NumTraits<Scalar>::IsInteger,int> = 0>
 std::vector<Scalar> special_values() {
