@@ -67,9 +67,9 @@ private:
     MaxSizeAtCompileTime = Dst::SizeAtCompileTime
   };
 
-  using BestLinearPacketType = typename find_best_packet<SrcScalar, RestrictedLinearSize>::type;
-  using BestInnerPacketType = typename find_best_packet<SrcScalar, RestrictedInnerSize>::type;
-  using DefaultPacketType = typename packet_traits<SrcScalar>::type;
+  using BestLinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize>::type;
+  using BestInnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize>::type;
+  using DefaultPacketType = typename packet_traits<DstScalar>::type;
   using LinearPacketType = typename conditional<is_cast_xpr<Src>::value, DefaultPacketType, BestLinearPacketType>::type;
   using InnerPacketType = typename conditional<is_cast_xpr<Src>::value, DefaultPacketType, BestInnerPacketType>::type;
 

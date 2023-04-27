@@ -1184,7 +1184,7 @@ void typed_logicals_test(const ArrayType& m) {
     typed_logicals_test_impl<ArrayType>::run(m);
 }
 
-template <typename SrcType, typename DstType, size_t RowsAtCompileTime, size_t ColsAtCompileTime>
+template <typename SrcType, typename DstType, int RowsAtCompileTime, int ColsAtCompileTime>
 struct cast_test_impl {
   using SrcArray = Array<SrcType, RowsAtCompileTime, ColsAtCompileTime>;
   using DstArray = Array<DstType, RowsAtCompileTime, ColsAtCompileTime>;
@@ -1217,7 +1217,7 @@ struct cast_test_impl {
   }
 };
 
-template <size_t RowsAtCompileTime, size_t ColsAtCompileTime, typename... ScalarTypes>
+template <int RowsAtCompileTime, int ColsAtCompileTime, typename... ScalarTypes>
 struct cast_tests_impl {
   using ScalarTuple = std::tuple<ScalarTypes...>;
   static constexpr size_t ScalarTupleSize = std::tuple_size<ScalarTuple>::value;
@@ -1237,7 +1237,7 @@ struct cast_tests_impl {
   }
 };
 
-template <size_t RowsAtCompileTime, size_t ColsAtCompileTime = 1>
+template <int RowsAtCompileTime, int ColsAtCompileTime = 1>
 void cast_test() {
   cast_tests_impl<RowsAtCompileTime, ColsAtCompileTime, bool, int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t,
                   uint32_t, uint64_t, float, double, long double, half, bfloat16>::run();
@@ -1301,16 +1301,16 @@ EIGEN_DECLARE_TEST(array_cwise)
   }
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(cast_test<1>());
-    CALL_SUBTEST_2(cast_test<2>());
-    CALL_SUBTEST_3(cast_test<3>());
-    CALL_SUBTEST_4(cast_test<4>());
-    CALL_SUBTEST_5(cast_test<5>());
-    CALL_SUBTEST_6(cast_test<8>());
-    CALL_SUBTEST_6(cast_test<9>());
-    CALL_SUBTEST_7(cast_test<16>());
-    CALL_SUBTEST_7(cast_test<17>());
-    CALL_SUBTEST_8(cast_test<Dynamic>());
+    CALL_SUBTEST_1( cast_test<1>() );
+    CALL_SUBTEST_2( cast_test<2>() );
+    CALL_SUBTEST_3( cast_test<3>() );
+    CALL_SUBTEST_4( cast_test<4>() );
+    CALL_SUBTEST_5( cast_test<5>() );
+    CALL_SUBTEST_6( cast_test<8>() );
+    CALL_SUBTEST_6( cast_test<9>() );
+    CALL_SUBTEST_7( cast_test<16>() );
+    CALL_SUBTEST_7( cast_test<17>() );
+    CALL_SUBTEST_8( cast_test<Dynamic>() );
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
