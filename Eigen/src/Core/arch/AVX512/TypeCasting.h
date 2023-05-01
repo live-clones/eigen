@@ -271,7 +271,7 @@ EIGEN_STRONG_INLINE Packet8f pcast<Packet32h, Packet8f>(const Packet32h& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet32h, Packet4f>(const Packet32h& a) {
-  return _mm256_castps256_ps128(pcast<Packet32h, Packet16f>(a));
+  return _mm512_castps512_ps128(pcast<Packet32h, Packet16f>(a));
 }
 
 template <>
