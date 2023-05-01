@@ -64,6 +64,15 @@ struct type_casting_traits<double, int> {
 };
 
 template <>
+struct type_casting_traits<int, double> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 1,
+    TgtCoeffRatio = 2
+  };
+};
+
+template <>
 struct type_casting_traits<double, float> {
   enum {
     VectorizedCast = 1,
@@ -104,6 +113,11 @@ template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet2d, Packet4i>(const Packet2d
   return _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(_mm_cvttpd_epi32(a)),
                                          _mm_castsi128_ps(_mm_cvttpd_epi32(b)),
                                          (1 << 2) | (1 << 6)));
+}
+
+template<> EIGEN_STRONG_INLINE Packet2d pcast<Packet4i, Packet2d>(const Packet4i& a) {
+  // Simply discard the second half of the input
+  return _mm_cvtepi32_pd(a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet2d pcast<Packet4f, Packet2d>(const Packet4f& a) {

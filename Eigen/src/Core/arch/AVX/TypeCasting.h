@@ -72,15 +72,6 @@ struct type_casting_traits<float, double> {
   };
 };
 
-template <>
-struct type_casting_traits<int, double> {
-  enum {
-    VectorizedCast = 1,
-    SrcCoeffRatio = 1,
-    TgtCoeffRatio = 2
-  };
-};
-
 #endif  // EIGEN_VECTORIZE_AVX512
 
 template<> EIGEN_STRONG_INLINE Packet8i pcast<Packet8f, Packet8i>(const Packet8f& a) {
@@ -124,8 +115,6 @@ template<> EIGEN_STRONG_INLINE Packet4d pcast<Packet8i, Packet4d>(const Packet8i
 template<> EIGEN_STRONG_INLINE Packet2d pcast<Packet8i, Packet2d>(const Packet8i& a) {
   return _mm256_castpd256_pd128(_mm256_cvtepi32_pd(_mm256_castsi256_si128(a)));
 }
-
-// TODO int32_t -> int64_t
 
 template <>
 EIGEN_STRONG_INLINE Packet16b pcast<Packet8f, Packet16b>(const Packet8f& a,
