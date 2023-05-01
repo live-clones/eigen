@@ -9,7 +9,6 @@
 #define EIGEN_CXX11_TENSOR_TENSOR_BLOCK_H
 
 #include "./InternalHeaderCheck.h"
-#include "third_party/eigen3/Eigen/src/Core/GenericPacketMath.h"
 
 namespace Eigen {
 namespace internal {
@@ -1076,9 +1075,10 @@ class StridedLinearBufferCopy {
       }
       if (HasHalfPacket) {
         const IndexType vectorized_half_size = count - HalfPacketSize;
-        for (; i <= vectorized_half_size; i += HalfPacketSize) {
+        if (i <= vectorized_half_size) {
           HalfPacket p = ploadu<HalfPacket>(src + i);
           pstoreu<Scalar, HalfPacket>(dst + i, p);
+          i += HalfPacketSize;
         }
       }
       for (; i < count; ++i) {
@@ -1094,9 +1094,10 @@ class StridedLinearBufferCopy {
       }
       if (HasHalfPacket) {
         const IndexType vectorized_half_size = count - HalfPacketSize;
-        for (; i <= vectorized_half_size; i += HalfPacketSize) {
+        if (i <= vectorized_half_size) {
           HalfPacket p = ploadu<HalfPacket>(src + i);
           pscatter<Scalar, HalfPacket>(dst + i * dst_stride, p, dst_stride);
+          i += HalfPacketSize;
         }
       }
       for (; i < count; ++i) {
@@ -1119,9 +1120,10 @@ class StridedLinearBufferCopy {
       }
       if (HasHalfPacket) {
         const IndexType vectorized_half_size = count - HalfPacketSize;
-        HalfPacket hp = pset1<HalfPacket>(s);
-        for (; i <= vectorized_half_size; i += HalfPacketSize) {
+        if (i <= vectorized_half_size) {
+          HalfPacket hp = pset1<HalfPacket>(s);
           pstoreu<Scalar, HalfPacket>(dst + i, hp);
+          i += HalfPacketSize;
         }
       }
       for (; i < count; ++i) {
@@ -1138,9 +1140,10 @@ class StridedLinearBufferCopy {
       }
       if (HasHalfPacket) {
         const IndexType vectorized_half_size = count - HalfPacketSize;
-        HalfPacket hp = pset1<HalfPacket>(s);
-        for (; i <= vectorized_half_size; i += HalfPacketSize) {
+        if (i <= vectorized_half_size) {
+          HalfPacket hp = pset1<HalfPacket>(s);
           pscatter<Scalar, HalfPacket>(dst + i * dst_stride, hp, dst_stride);
+          i += HalfPacketSize;
         }
       }
       for (; i < count; ++i) {
@@ -1156,10 +1159,11 @@ class StridedLinearBufferCopy {
       }
       if (HasHalfPacket) {
         const IndexType vectorized_half_size = count - HalfPacketSize;
-        for (; i <= vectorized_half_size; i += HalfPacketSize) {
+        if (i <= vectorized_half_size) {
           HalfPacket p =
               pgather<Scalar, HalfPacket>(src + i * src_stride, src_stride);
           pstoreu<Scalar, HalfPacket>(dst + i, p);
+          i += HalfPacketSize;
         }
       }
       for (; i < count; ++i) {
