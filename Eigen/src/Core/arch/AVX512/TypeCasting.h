@@ -85,7 +85,7 @@ template<> EIGEN_STRONG_INLINE Packet16i pcast<Packet8d, Packet16i>(const Packet
 template<> EIGEN_STRONG_INLINE Packet8i pcast<Packet8d, Packet8i>(const Packet8d& a) {
   return _mm512_cvttpd_epi32(a);
 }
-template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet8d, Packet4i>(const Packet8d& a, const Packet8d& b) {
+template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet8d, Packet4i>(const Packet8d& a) {
   return _mm256_castsi256_si128(_mm512_cvttpd_epi32(a));
 }
 
