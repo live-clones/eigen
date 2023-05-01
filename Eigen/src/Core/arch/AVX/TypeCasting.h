@@ -149,14 +149,14 @@ template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet8h, Packet8f>(const Packet8h
   return half2float(a);
 }
 template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet8h, Packet4f>(const Packet8h& a) {
-  return (Packet4f)_mm256_castps256_ps128(half2float(a));
+  return _mm256_castps256_ps128(half2float(a));
 }
 
 template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet8bf, Packet8f>(const Packet8bf& a) {
   return Bf16ToF32(a);
 }
 template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet8bf, Packet4f>(const Packet8bf& a) {
-  return (Packet4f)_mm256_castps256_ps128(Bf16ToF32(a));
+  return _mm256_castps256_ps128(Bf16ToF32(a));
 }
 
 template<> EIGEN_STRONG_INLINE Packet8h pcast<Packet8f, Packet8h>(const Packet8f& a) {
