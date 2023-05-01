@@ -79,6 +79,16 @@ template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet8d, Packet4f>(const Packet8d
   return _mm256_castps256_ps128(_mm512_cvtpd_ps(a));
 }
 
+template<> EIGEN_STRONG_INLINE Packet8d pcast<Packet16f, Packet8d>(const Packet16f& a) {
+  return _mm512_cvtps_pd(_mm512_castps512_ps256(a));
+}
+template<> EIGEN_STRONG_INLINE Packet4d pcast<Packet16f, Packet4d>(const Packet16f& a) {
+  return _mm512_castpd512_pd256(_mm512_cvtps_pd(_mm512_castps512_ps256(a)));
+}
+template<> EIGEN_STRONG_INLINE Packet2d pcast<Packet16f, Packet2d>(const Packet16f& a) {
+  return _mm512_castpd512_pd128(_mm512_cvtps_pd(_mm512_castps512_ps256(a)));
+}
+
 template<> EIGEN_STRONG_INLINE Packet16i pcast<Packet8d, Packet16i>(const Packet8d& a, const Packet8d& b) {
   return  cat256i(_mm512_cvttpd_epi32(a), _mm512_cvttpd_epi32(b));
 }
@@ -277,7 +287,7 @@ EIGEN_STRONG_INLINE Packet16h pcast<Packet16f, Packet16h>(const Packet16f& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet8h pcast<Packet16f, Packet8h>(const Packet16f& a) {
-  return _mm256_castsi256_si128(pcast<Packet16f, Packet16h>(a));
+  return _mm256_castsi256_si128(_mm512_cvtps_ph(a, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
 }
 
 template <>

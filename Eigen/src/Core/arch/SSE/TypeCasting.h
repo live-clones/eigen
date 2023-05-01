@@ -82,6 +82,15 @@ struct type_casting_traits<double, float> {
 };
 
 template <>
+struct type_casting_traits<float, double> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 1,
+    TgtCoeffRatio = 2
+  };
+};
+
+template <>
 EIGEN_STRONG_INLINE Packet16b pcast<Packet4f, Packet16b>(const Packet4f& a,
                                                          const Packet4f& b,
                                                          const Packet4f& c,
