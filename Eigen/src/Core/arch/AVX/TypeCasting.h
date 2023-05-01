@@ -137,6 +137,13 @@ EIGEN_STRONG_INLINE Packet16b pcast<Packet8f, Packet16b>(const Packet8f& a,
 #endif
 }
 
+template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet16b, Packet8f>(const Packet16b& a) {
+  return _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_cvtepi8_epi32(a), _mm256_set1_epi32(1)));
+}
+template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet16b, Packet4f>(const Packet16b& a) {
+  return _mm256_castps256_ps128(_mm256_cvtepi32_ps(_mm256_and_si256(_mm256_cvtepi8_epi32(a), _mm256_set1_epi32(1))));
+}
+
 template<> EIGEN_STRONG_INLINE Packet8i preinterpret<Packet8i,Packet8f>(const Packet8f& a) {
   return _mm256_castps_si256(a);
 }
