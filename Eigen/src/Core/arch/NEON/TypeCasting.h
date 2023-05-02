@@ -183,7 +183,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet4f, Packet4i>(const Packet4f& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet4f, Packet2i>(const Packet4f& a) {
-  return vget_low_s16(pcast<Packet4f, Packet4i>(a));
+  return vget_low_s32(pcast<Packet4f, Packet4i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet2f, Packet2i>(const Packet2f& a) {
@@ -337,7 +337,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet16c, Packet4i>(const Packet16c& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet16c, Packet2i>(const Packet16c& a) {
-  return vget_low_s16(pcast<Packet16c, Packet4i>(a));
+  return vget_low_s32(pcast<Packet16c, Packet4i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet8c, Packet2i>(const Packet8c& a) {
@@ -499,7 +499,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet16uc, Packet4i>(const Packet16uc& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet16uc, Packet2i>(const Packet16uc& a) {
-  return vget_low_s16(pcast<Packet16uc, Packet4i>(a));
+  return vget_low_s32(pcast<Packet16uc, Packet4i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet8uc, Packet2i>(const Packet8uc& a) {
@@ -632,7 +632,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet8s, Packet4i>(const Packet8s& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet8s, Packet2i>(const Packet8s& a) {
-  return vget_low_s16(pcast<Packet8s, Packet4i>(a));
+  return vget_low_s32(pcast<Packet8s, Packet4i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet4s, Packet2i>(const Packet4s& a) {
@@ -783,7 +783,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet8us, Packet4i>(const Packet8us& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet8us, Packet2i>(const Packet8us& a) {
-  return vget_low_s16(pcast<Packet8us, Packet4i>(a));
+  return vget_low_s32(pcast<Packet8us, Packet4i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet4us, Packet2i>(const Packet4us& a) {
@@ -1063,7 +1063,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet4ui, Packet4i>(const Packet4ui& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet4ui, Packet2i>(const Packet4ui& a) {
-  return vget_low_s16(pcast<Packet4ui, Packet4i>(a));
+  return vget_low_s32(pcast<Packet4ui, Packet4i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet2ui, Packet2i>(const Packet2ui& a) {
