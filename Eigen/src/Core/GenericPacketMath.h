@@ -183,27 +183,32 @@ struct is_scalar {
   };
 };
 
+template <typename SrcPacket, typename TgtPacket>
+struct pcast_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return static_cast<TgtPacket>(a); }
+};
+
 /** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
 template <typename SrcPacket, typename TgtPacket>
 EIGEN_DEVICE_FUNC inline TgtPacket
 pcast(const SrcPacket& a) {
-  return static_cast<TgtPacket>(a);
+  return pcast_impl<SrcPacket, TgtPacket>::run(a);
 }
 template <typename SrcPacket, typename TgtPacket>
 EIGEN_DEVICE_FUNC inline TgtPacket
 pcast(const SrcPacket& a, const SrcPacket& /*b*/) {
-  return static_cast<TgtPacket>(a);
+  return pcast_impl<SrcPacket, TgtPacket>::run(a);
 }
 template <typename SrcPacket, typename TgtPacket>
 EIGEN_DEVICE_FUNC inline TgtPacket
 pcast(const SrcPacket& a, const SrcPacket& /*b*/, const SrcPacket& /*c*/, const SrcPacket& /*d*/) {
-  return static_cast<TgtPacket>(a);
+  return pcast_impl<SrcPacket, TgtPacket>::run(a);
 }
 template <typename SrcPacket, typename TgtPacket>
 EIGEN_DEVICE_FUNC inline TgtPacket
 pcast(const SrcPacket& a, const SrcPacket& /*b*/, const SrcPacket& /*c*/, const SrcPacket& /*d*/,
       const SrcPacket& /*e*/, const SrcPacket& /*f*/, const SrcPacket& /*g*/, const SrcPacket& /*h*/) {
-  return static_cast<TgtPacket>(a);
+  return pcast_impl<SrcPacket, TgtPacket>::run(a);
 }
 
 /** \internal \returns reinterpret_cast<Target>(a) */
