@@ -668,6 +668,8 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   using SrcPacketArgs2 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (2 * SrcPacketSize), bool>;
   template <typename DstPacketType>
   using SrcPacketArgs4 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (4 * SrcPacketSize), bool>;
+  template <typename DstPacketType>
+  using SrcPacketArgs8 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (8 * SrcPacketSize), bool>;
 
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
@@ -693,6 +695,22 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
         srcPacket<SrcLoadMode0>(row, col, 0), srcPacket<SrcLoadMode1>(row, col, 1),
         srcPacket<SrcLoadMode2>(row, col, 2), srcPacket<SrcLoadMode3>(row, col, 3));
   }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+      constexpr int SrcLoadMode0 = plain_enum_min(8 * SrcPacketSizeBytes, LoadMode);
+      constexpr int SrcLoadMode1 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+      constexpr int SrcLoadMode2 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+      constexpr int SrcLoadMode3 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+      constexpr int SrcLoadMode4 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+      constexpr int SrcLoadMode5 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+      constexpr int SrcLoadMode6 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+      constexpr int SrcLoadMode7 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
+      return CastOp().template packetOp<DstPacketType>(
+          srcPacket<SrcLoadMode0>(row, col, 0), srcPacket<SrcLoadMode1>(row, col, 1),
+          srcPacket<SrcLoadMode2>(row, col, 2), srcPacket<SrcLoadMode3>(row, col, 3),
+          srcPacket<SrcLoadMode4>(row, col, 4), srcPacket<SrcLoadMode5>(row, col, 5),
+          srcPacket<SrcLoadMode6>(row, col, 6), srcPacket<SrcLoadMode7>(row, col, 7));
+  }
 
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
@@ -715,8 +733,24 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
     constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(
-        srcPacket<SrcLoadMode0>(index, 0), srcPacket<SrcLoadMode1>(index, 1), srcPacket<SrcLoadMode2>(index, 2),
-        srcPacket<SrcLoadMode3>(index, 3));
+        srcPacket<SrcLoadMode0>(index, 0), srcPacket<SrcLoadMode1>(index, 1), 
+        srcPacket<SrcLoadMode2>(index, 2), srcPacket<SrcLoadMode3>(index, 3));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    constexpr int SrcLoadMode0 = plain_enum_min(8 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode1 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode2 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode3 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode4 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode5 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode6 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode7 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
+    return CastOp().template packetOp<DstPacketType>(
+        srcPacket<SrcLoadMode0>(index, 0), srcPacket<SrcLoadMode1>(index, 1),
+        srcPacket<SrcLoadMode2>(index, 2), srcPacket<SrcLoadMode3>(index, 3),
+        srcPacket<SrcLoadMode4>(index, 4), srcPacket<SrcLoadMode5>(index, 5),
+        srcPacket<SrcLoadMode6>(index, 6), srcPacket<SrcLoadMode7>(index, 7));
   }
 
  protected:
