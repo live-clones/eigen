@@ -43,10 +43,10 @@ template<> EIGEN_STRONG_INLINE Packet16f pcast<Packet16b, Packet16f>(const Packe
   return _mm512_cvtepi32_ps(_mm512_and_si512(_mm512_cvtepi8_epi32(a), _mm512_set1_epi32(1)));
 }
 template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet16b, Packet8f>(const Packet16b& a) {
-  return _mm512_castps512_ps256(_mm512_cvtepi32_ps(_mm512_and_si512(_mm512_cvtepi8_epi32(a), _mm512_set1_epi32(1))));
+  return _mm512_castps512_ps256(pcast<Packet16b, Packet16f>(a));
 }
 template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet16b, Packet4f>(const Packet16b& a) {
-    return _mm512_castps512_ps128(_mm512_cvtepi32_ps(_mm512_and_si512(_mm512_cvtepi8_epi32(a), _mm512_set1_epi32(1))));
+  return _mm512_castps512_ps128(pcast<Packet16b, Packet16f>(a));
 }
 
 template<> EIGEN_STRONG_INLINE Packet16i pcast<Packet16f, Packet16i>(const Packet16f& a) {

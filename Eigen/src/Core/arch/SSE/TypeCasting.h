@@ -25,6 +25,14 @@ struct type_casting_traits<float, bool> {
     TgtCoeffRatio = 1
   };
 };
+template <>
+struct type_casting_traits<bool, float> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 1,
+    TgtCoeffRatio = 4
+  };
+};
 #endif
 
 template <>
@@ -96,6 +104,16 @@ EIGEN_STRONG_INLINE Packet16b pcast<Packet4f, Packet16b>(const Packet4f& a,
   __m128i merged = _mm_packs_epi16(ab_bytes, cd_bytes);
   return _mm_and_si128(merged, _mm_set1_epi8(1));
 }
+
+#ifndef EIGEN_VECTORIZE_AVX
+template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet16b, Packet4f>(const Packet16b& a) {
+#ifdef EIGEN_VECTORIZE_SSE4_1
+  return _mm_cvtepi32_ps(_mm_cvtepi8_epi32(a));
+#else
+  return _mm_cvtepi32_ps(_mm_unpacklo_epi8(_mm_unpacklo_epi8(a, pzero(a)), pzero(a)));
+#endif
+}
+#endif // !EIGEN_VECTORIZE_AVX
 
 template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet4f, Packet4i>(const Packet4f& a) {
   return _mm_cvttps_epi32(a);
