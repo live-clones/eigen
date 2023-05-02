@@ -234,7 +234,7 @@ EIGEN_STRONG_INLINE Packet8us pcast<Packet4f, Packet8us>(const Packet4f& a, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet4f, Packet4us>(const Packet4f& a) {
-    return vmovn_u32(vcvtq_u32_f32(a);
+  return vmovn_u32(vcvtq_u32_f32(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet2f, Packet4us>(const Packet2f& a, const Packet2f& b) {
@@ -726,7 +726,7 @@ EIGEN_STRONG_INLINE Packet16uc pcast<Packet8s, Packet16uc>(const Packet8s& a, co
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet8s, Packet8uc>(const Packet8s& a) {
-    return vmovn_u16(vreinterpretq_u16_s16(a);
+  return vmovn_u16(vreinterpretq_u16_s16(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet4s, Packet8uc>(const Packet4s& a, const Packet4s& b) {
