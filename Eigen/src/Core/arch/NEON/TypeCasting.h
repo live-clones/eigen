@@ -1103,7 +1103,7 @@ EIGEN_STRONG_INLINE Packet8us pcast<Packet4ui, Packet8us>(const Packet4ui& a, co
   return vcombine_u16(vmovn_u32(a), vmovn_u32(b));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4us pcast<Packet4ui, Packet4us>(const Packet4ui& a, const Packet4ui& b) {
+EIGEN_STRONG_INLINE Packet4us pcast<Packet4ui, Packet4us>(const Packet4ui& a) {
   return vmovn_u32(a);
 }
 template <>
@@ -1184,8 +1184,8 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet2l, Packet4f>(const Packet2l& a, const 
   return vcvtq_f32_s32(vcombine_s32(vmovn_s64(a), vmovn_s64(b)));
 }
 template <>
-EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a, const Packet2l& b) {
-  return vget_low_f32(pcast<Packet2l, Packet4f>(a));
+EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a) {
+  return vcvt_f32_s32(vmovn_s64(a));
 }
 
 template <>
@@ -1316,8 +1316,8 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet2ul, Packet4f>(const Packet2ul& a, cons
   return vcvtq_f32_u32(vcombine_u32(vmovn_u64(a), vmovn_u64(b)));
 }
 template <>
-EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a, const Packet2ul& b) {
-  return vget_low_f32(pcast<Packet2ul, Packet4f>(a));
+EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a) {
+  return vcvt_f32_u32(vmovn_u64(a));
 }
 
 template <>
