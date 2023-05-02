@@ -1164,7 +1164,7 @@ EIGEN_STRONG_INLINE Packet16c pcast<Packet4ui, Packet16c>(const Packet4ui& a, co
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet4ui, Packet8c>(const Packet4ui& a, const Packet4ui& b) {
   const uint16x8_t ab_u16 = vcombine_u16(vmovn_u32(a), vmovn_u32(b));
-  return preinterpret<Packet8c>(ab_u16);
+  return preinterpret<Packet8c>(vmovn_u16(ab_u16));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet2ui, Packet8c>(const Packet2ui& a, const Packet2ui& b, const Packet2ui& c,
