@@ -1434,40 +1434,35 @@ EIGEN_STRONG_INLINE Packet8c pcast<Packet2ul, Packet8c>(const Packet2ul& a, cons
 // hold my beer!
 template <typename SrcPacket>
 struct pcast_impl<SrcPacket, Packet4uc> {
-  using SrcPacketSize2 = std::enable_if_t<unpacket_traits<SrcPacket>::size == 2, Packet4uc>;
-  using SrcPacketSize4 = std::enable_if_t<unpacket_traits<SrcPacket>::size == 4, Packet4uc>;
-  using SrcPacketSize8 = std::enable_if_t<unpacket_traits<SrcPacket>::size >= 8, Packet4uc>;
-
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4uc truncate(const Packet8uc& a) {
     return vget_lane_u32(vreinterpret_u32_u8(a), 0);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcPacketSize2 run(const SrcPacket& a, const SrcPacket& b) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4uc run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+                                                             const SrcPacket& d) {
+    return truncate(pcast<SrcPacket, Packet8uc>(a, b, c, d, a, b, c, d));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4uc run(const SrcPacket& a, const SrcPacket& b) {
     return truncate(pcast<SrcPacket, Packet8uc>(a, b, a, b));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcPacketSize4 run(const SrcPacket& a) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4uc run(const SrcPacket& a) {
     return truncate(pcast<SrcPacket, Packet8uc>(a, a));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcPacketSize8 run(const SrcPacket& a) {
-    return truncate(pcast<SrcPacket, Packet8uc>(a));
   }
 };
 template <typename SrcPacket>
 struct pcast_impl<SrcPacket, Packet4c> {
-  using SrcPacketSize2 = std::enable_if_t<unpacket_traits<SrcPacket>::size == 2, Packet4c>;
-  using SrcPacketSize4 = std::enable_if_t<unpacket_traits<SrcPacket>::size == 4, Packet4c>;
-  using SrcPacketSize8 = std::enable_if_t<unpacket_traits<SrcPacket>::size >= 8, Packet4c>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c truncate(const Packet8c& a) {
     return vget_lane_s32(vreinterpret_s32_s8(a), 0);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcPacketSize2 run(const SrcPacket& a, const SrcPacket& b) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+                                                            const SrcPacket& d) {
+    return truncate(pcast<SrcPacket, Packet8c>(a, b, c, d, a, b, c, d));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a, const SrcPacket& b) {
     return truncate(pcast<SrcPacket, Packet8c>(a, b, a, b));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcPacketSize4 run(const SrcPacket& a) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a) {
     return truncate(pcast<SrcPacket, Packet8c>(a, a));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcPacketSize8 run(const SrcPacket& a) {
-    return truncate(pcast<SrcPacket, Packet8c>(a));
   }
 };
 
