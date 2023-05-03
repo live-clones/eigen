@@ -1564,12 +1564,12 @@ EIGEN_STRONG_INLINE Packet4c pcast<Packet16c, Packet4c>(const Packet16c& a) {
 }
 #if EIGEN_ARCH_ARM64
 template <>
-EIGEN_STRONG_INLINE Packet4uc pcast<Packet2d, Packet4uc>(const Packet2d& a) {
-  return pcast_impl<Packet2d, Packet4uc>::run(a);
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2d, Packet4uc>(const Packet2d& a, const Packet2d& b) {
+  return pcast_impl<Packet2d, Packet4uc>::run(a, b);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4c pcast<Packet2d, Packet4c>(const Packet2d& a) {
-  return pcast_impl<Packet2d, Packet4c>::run(a);
+EIGEN_STRONG_INLINE Packet4c pcast<Packet2d, Packet4c>(const Packet2d& a, const Packet2d& b) {
+  return pcast_impl<Packet2d, Packet4c>::run(a, b);
 }
 #endif
 
