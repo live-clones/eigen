@@ -1440,19 +1440,19 @@ EIGEN_STRONG_INLINE Packet4uc pcast<Packet2ul, Packet4uc>(const Packet2ul& a, co
   return pcast<Packet8uc, Packet4uc>(pcast<Packet2ul, Packet8uc>(a, b, a, b));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4uc pcast<Packet2l, Packet4uc>(const Packet2l& a, const Packet2ul& b) {
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2l, Packet4uc>(const Packet2l& a, const Packet2l& b) {
   return pcast<Packet8uc, Packet4uc>(pcast<Packet2l, Packet8uc>(a, b, a, b));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4uc pcast<Packet2ui, Packet4uc>(const Packet2ui& a, const Packet2ul& b) {
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2ui, Packet4uc>(const Packet2ui& a, const Packet2ui& b) {
   return pcast<Packet8uc, Packet4uc>(pcast<Packet2ui, Packet8uc>(a, b, a, b));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4uc pcast<Packet2i, Packet4uc>(const Packet2i& a, const Packet2ul& b) {
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2i, Packet4uc>(const Packet2i& a, const Packet2i& b) {
   return pcast<Packet8uc, Packet4uc>(pcast<Packet2i, Packet8uc>(a, b, a, b));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4uc pcast<Packet2f, Packet4uc>(const Packet2f& a, const Packet2ul& b) {
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2f, Packet4uc>(const Packet2f& a, const Packet2f& b) {
   return pcast<Packet8uc, Packet4uc>(pcast<Packet2f, Packet8uc>(a, b, a, b));
 }
 template <>
