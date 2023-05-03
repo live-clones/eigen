@@ -383,18 +383,6 @@ EIGEN_ALWAYS_INLINE void multVec(__vector_quad (&quad_acc)[num_acc], Packet8bf (
   }
 }
 
-template<typename RhsMapper, bool linear, std::enable_if_t<linear, bool> = true>
-EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
-{
-  return rhs.template loadPacket<Packet8bf>(j + 0);
-}
-
-template<typename RhsMapper, bool linear, std::enable_if_t<!linear, bool> = true>
-EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
-{
-  return pgather<bfloat16, Packet8bf>(&rhs(j + 0, 0), rhs.stride());
-}
-
 template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero, bool linear>
 EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc])
 {

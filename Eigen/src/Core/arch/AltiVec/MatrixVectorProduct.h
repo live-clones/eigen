@@ -522,13 +522,13 @@ EIGEN_ALWAYS_INLINE void multVecVSX(Packet4f (&acc)[num_acc][2], Packet4f (&a0)[
 }
 
 template<typename RhsMapper, bool linear, std::enable_if_t<linear, bool> = true>
-EIGEN_ALWAYS_INLINE Packet8bf loadColDataVSX(RhsMapper& rhs, Index j)
+EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
 {
   return rhs.template loadPacket<Packet8bf>(j + 0);
 }
 
 template<typename RhsMapper, bool linear, std::enable_if_t<!linear, bool> = true>
-EIGEN_ALWAYS_INLINE Packet8bf loadColDataVSX(RhsMapper& rhs, Index j)
+EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
 {
   return pgather<bfloat16, Packet8bf>(&rhs(j + 0, 0), rhs.stride());
 }
@@ -537,7 +537,7 @@ template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero, bool 
 EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, Packet4f (&acc)[num_acc][2])
 {
   Packet4f a0[num_acc][2], b0[2];
-  Packet8bf b2 = loadColDataVSX<RhsMapper, linear>(rhs, j);
+  Packet8bf b2 = loadColData<RhsMapper, linear>(rhs, j);
 
   b0[0] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V1);
   if (!zero) {
