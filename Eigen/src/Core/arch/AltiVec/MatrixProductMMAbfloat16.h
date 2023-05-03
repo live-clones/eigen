@@ -388,7 +388,7 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
 {
   Packet8bf a0[num_acc];
   Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
-  Packet8bf b0 = rhs.template loadPacket<Packet8bf>(j + 0);
+  Packet8bf b0 = pgather<bfloat16, Packet8bf>(&rhs(j + 0, 0), rhs.stride());
 
   if (zero) {
     b0 = vec_mergeh(b0.m_val, b1.m_val);
@@ -498,8 +498,6 @@ void gemvMMA_bfloat16_col(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-  typedef typename RhsMapper::LinearMapper LinearMapper;
-
   EIGEN_UNUSED_VARIABLE(resIncr);
   eigen_internal_assert(resIncr == 1);
 
@@ -524,8 +522,8 @@ void gemvMMA_bfloat16_col(
     Index jend = numext::mini(j2 + block_cols, cols);
 
     LhsMapper lhs2 = lhs.getSubMapper(0, j2);
-    LinearMapper rhs3 = rhs2.getLinearMapper(j2, 0);
-    calcVecColLoops<LhsMapper, LinearMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
+    RhsMapper rhs3 = rhs2.getSubMapper(j2, 0);
+    calcVecColLoops<LhsMapper, RhsMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
   }
 
   convertArrayPointerF32toBF16(result, rows, res);

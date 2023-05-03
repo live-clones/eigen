@@ -525,7 +525,7 @@ template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, Packet4f (&acc)[num_acc][2])
 {
   Packet4f a0[num_acc][2], b0[2];
-  Packet8bf b2 = rhs.template loadPacket<Packet8bf>(j + 0);
+  Packet8bf b2 = pgather<bfloat16, Packet8bf>(&rhs(j + 0, 0), rhs.stride());
 
   b0[0] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V1);
   if (!zero) {
@@ -698,8 +698,6 @@ void gemv_bfloat16_col(
   bfloat16* res, Index resIncr,
   bfloat16 alpha)
 {
-  typedef typename RhsMapper::LinearMapper LinearMapper;
-
   EIGEN_UNUSED_VARIABLE(resIncr);
   eigen_internal_assert(resIncr == 1);
 
@@ -724,8 +722,8 @@ void gemv_bfloat16_col(
     Index jend = numext::mini(j2 + block_cols, cols);
 
     LhsMapper lhs2 = lhs.getSubMapper(0, j2);
-    LinearMapper rhs3 = rhs2.getLinearMapper(j2, 0);
-    calcVSXVecColLoops<LhsMapper, LinearMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
+    RhsMapper rhs3 = rhs2.getSubMapper(j2, 0);
+    calcVSXVecColLoops<LhsMapper, RhsMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
   }
 
   convertArrayPointerF32toBF16VSX(result, rows, res);
