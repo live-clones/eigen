@@ -1449,6 +1449,23 @@ struct pcast_impl<SrcPacket, Packet4uc> {
   }
 };
 
+template <typename SrcPacket>
+struct pcast_impl<SrcPacket, Packet4c> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c truncate(const Packet8c& a) {
+    return vget_lane_s32(vreinterpret_s32_s8(a), 0);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+                                                            const SrcPacket& d) {
+    return truncate(pcast<SrcPacket, Packet8c>(a, b, c, d, a, b, c, d));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a, const SrcPacket& b) {
+    return truncate(pcast<SrcPacket, Packet8c>(a, b, a, b));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a) {
+    return truncate(pcast<SrcPacket, Packet8c>(a, a));
+  }
+};
+
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet2ul, Packet4uc>(const Packet2ul& a, const Packet2ul& b) {
   return pcast_impl<Packet2ul, Packet4uc>::run(a, b);
@@ -1572,25 +1589,6 @@ EIGEN_STRONG_INLINE Packet4c pcast<Packet2d, Packet4c>(const Packet2d& a, const 
   return pcast_impl<Packet2d, Packet4c>::run(a, b);
 }
 #endif
-
-
-template <typename SrcPacket>
-struct pcast_impl<SrcPacket, Packet4c> {
-
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c truncate(const Packet8c& a) {
-    return vget_lane_s32(vreinterpret_s32_s8(a), 0);
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
-                                                            const SrcPacket& d) {
-    return truncate(pcast<SrcPacket, Packet8c>(a, b, c, d, a, b, c, d));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a, const SrcPacket& b) {
-    return truncate(pcast<SrcPacket, Packet8c>(a, b, a, b));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c run(const SrcPacket& a) {
-    return truncate(pcast<SrcPacket, Packet8c>(a, a));
-  }
-};
 
 #if EIGEN_ARCH_ARM64
 
