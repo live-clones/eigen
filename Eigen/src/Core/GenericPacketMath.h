@@ -183,42 +183,27 @@ struct is_scalar {
   };
 };
 
-template <typename SrcPacket, typename TgtPacket>
-struct pcast_impl {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return static_cast<TgtPacket>(a); }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&) {
-    return static_cast<TgtPacket>(a);
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&, const SrcPacket&,
-                                                             const SrcPacket&) {
-    return static_cast<TgtPacket>(a);
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&, const SrcPacket&,
-                                                             const SrcPacket&, const SrcPacket&, const SrcPacket&,
-                                                             const SrcPacket&, const SrcPacket&) {
-    return static_cast<TgtPacket>(a);
-  }
-};
-
 /** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
 template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a);
+EIGEN_DEVICE_FUNC inline TgtPacket
+pcast(const SrcPacket& a) {
+  return static_cast<TgtPacket>(a);
 }
 template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a, b);
+EIGEN_DEVICE_FUNC inline TgtPacket
+pcast(const SrcPacket& a, const SrcPacket& /*b*/) {
+  return static_cast<TgtPacket>(a);
 }
 template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
-                                         const SrcPacket& d) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d);
+EIGEN_DEVICE_FUNC inline TgtPacket
+pcast(const SrcPacket& a, const SrcPacket& /*b*/, const SrcPacket& /*c*/, const SrcPacket& /*d*/) {
+  return static_cast<TgtPacket>(a);
 }
 template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c, const SrcPacket& d,
-                                         const SrcPacket& e, const SrcPacket& f, const SrcPacket& g,
-                                         const SrcPacket& h) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d, e, f, g, h);
+EIGEN_DEVICE_FUNC inline TgtPacket
+pcast(const SrcPacket& a, const SrcPacket& /*b*/, const SrcPacket& /*c*/, const SrcPacket& /*d*/,
+      const SrcPacket& /*e*/, const SrcPacket& /*f*/, const SrcPacket& /*g*/, const SrcPacket& /*h*/) {
+  return static_cast<TgtPacket>(a);
 }
 
 /** \internal \returns reinterpret_cast<Target>(a) */

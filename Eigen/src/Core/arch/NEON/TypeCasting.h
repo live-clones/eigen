@@ -1448,6 +1448,132 @@ struct pcast_impl<SrcPacket, Packet4uc> {
     return truncate(pcast<SrcPacket, Packet8uc>(a, a));
   }
 };
+
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2ul, Packet4uc>(const Packet2ul& a, const Packet2ul& b) {
+  return pcast_impl<Packet2ul, Packet4uc>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2l, Packet4uc>(const Packet2l& a, const Packet2l& b) {
+  return pcast_impl<Packet2l, Packet4uc>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2ui, Packet4uc>(const Packet2ui& a, const Packet2ui& b) {
+  return pcast_impl<Packet2ui, Packet4uc>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2i, Packet4uc>(const Packet2i& a, const Packet2i& b) {
+  return pcast_impl<Packet2i, Packet4uc>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2f, Packet4uc>(const Packet2f& a, const Packet2f& b) {
+  return pcast_impl<Packet2f, Packet4uc>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet4us, Packet4uc>(const Packet4us& a) {
+  return pcast_impl<Packet4us, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet4s, Packet4uc>(const Packet4s& a) {
+  return pcast_impl<Packet4s, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet4ui, Packet4uc>(const Packet4ui& a) {
+  return pcast_impl<Packet4ui, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet4i, Packet4uc>(const Packet4i& a) {
+  return pcast_impl<Packet4i, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet4f, Packet4uc>(const Packet4f& a) {
+  return pcast_impl<Packet4f, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet8c, Packet4uc>(const Packet8c& a) {
+  return pcast_impl<Packet8c, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet8s, Packet4uc>(const Packet8s& a) {
+  return pcast_impl<Packet8s, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet8us, Packet4uc>(const Packet8us& a) {
+  return pcast_impl<Packet8us, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet16c, Packet4uc>(const Packet16c& a) {
+  return pcast_impl<Packet16c, Packet4uc>::run(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet2ul, Packet4c>(const Packet2ul& a, const Packet2ul& b) {
+  return pcast_impl<Packet2ul, Packet4c>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet2l, Packet4c>(const Packet2l& a, const Packet2l& b) {
+  return pcast_impl<Packet2l, Packet4c>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet2ui, Packet4c>(const Packet2ui& a, const Packet2ui& b) {
+  return pcast_impl<Packet2ui, Packet4c>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet2i, Packet4c>(const Packet2i& a, const Packet2i& b) {
+  return pcast_impl<Packet2i, Packet4c>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet2f, Packet4c>(const Packet2f& a, const Packet2f& b) {
+  return pcast_impl<Packet2f, Packet4c>::run(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet4us, Packet4c>(const Packet4us& a) {
+  return pcast_impl<Packet4us, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet4s, Packet4c>(const Packet4s& a) {
+  return pcast_impl<Packet4s, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet4ui, Packet4c>(const Packet4ui& a) {
+  return pcast_impl<Packet4ui, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet4i, Packet4c>(const Packet4i& a) {
+  return pcast_impl<Packet4i, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet4f, Packet4c>(const Packet4f& a) {
+  return pcast_impl<Packet4f, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet8c, Packet4c>(const Packet8c& a) {
+  return pcast_impl<Packet8c, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet8s, Packet4c>(const Packet8s& a) {
+  return pcast_impl<Packet8s, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet8us, Packet4c>(const Packet8us& a) {
+  return pcast_impl<Packet8us, Packet4c>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet16c, Packet4c>(const Packet16c& a) {
+  return pcast_impl<Packet16c, Packet4c>::run(a);
+}
+#if EIGEN_ARCH_ARM64
+template <>
+EIGEN_STRONG_INLINE Packet4uc pcast<Packet2d, Packet4uc>(const Packet2d& a) {
+  return pcast_impl<Packet2d, Packet4uc>::run(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c pcast<Packet2d, Packet4c>(const Packet2d& a) {
+  return pcast_impl<Packet2d, Packet4c>::run(a);
+}
+#endif
+
+
 template <typename SrcPacket>
 struct pcast_impl<SrcPacket, Packet4c> {
 
