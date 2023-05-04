@@ -1193,6 +1193,40 @@ struct cast_test_impl {
   static constexpr int DstPacketSize = internal::packet_traits<DstType>::size;
   static constexpr int MaxPacketSize = internal::plain_enum_max(SrcPacketSize, DstPacketSize);
 
+  template <typename T>
+  static std::string printTypeInfo(const T&) {
+    if (internal::is_same<bool, T>::value)
+      return "bool";
+    else if (internal::is_same<int8_t, T>::value)
+      return "int8_t";
+    else if (internal::is_same<int16_t, T>::value)
+      return "int16_t";
+    else if (internal::is_same<int32_t, T>::value)
+      return "int32_t";
+    else if (internal::is_same<int64_t, T>::value)
+      return "int64_t";
+    else if (internal::is_same<uint8_t, T>::value)
+      return "uint8_t";
+    else if (internal::is_same<uint16_t, T>::value)
+      return "uint16_t";
+    else if (internal::is_same<uint32_t, T>::value)
+      return "uint32_t";
+    else if (internal::is_same<uint64_t, T>::value)
+      return "uint64_t";
+    else if (internal::is_same<float, T>::value)
+      return "float";
+    else if (internal::is_same<double, T>::value)
+      return "double";
+    else if (internal::is_same<long double, T>::value)
+      return "long double";
+    else if (internal::is_same<half, T>::value)
+      return "half";
+    else if (internal::is_same<bfloat16, T>::value)
+      return "bfloat16";
+    else
+      return typeid(T).name();
+  }
+
   static void run() {
     const Index testRows = RowsAtCompileTime == Dynamic ? 100 * MaxPacketSize : RowsAtCompileTime;
     const Index testCols = ColsAtCompileTime == Dynamic ? 100 * MaxPacketSize : ColsAtCompileTime;
@@ -1209,7 +1243,7 @@ struct cast_test_impl {
         bool is_equal = ref == dst(i, j);
         bool pass = all_nan || is_equal;
         if (!pass) {
-          std::cout << typeid(SrcType).name() << ": [" << +src(i, j) << "] to " << typeid(DstType).name() << ": ["
+          std::cout << printTypeInfo(src(i, j)) << ": [" << +src(i, j) << "] to " << printTypeInfo(dst(i, j)) << ": ["
                     << +dst(i, j) << "] != [" << +ref << "]\n";
         }
         VERIFY(pass);
