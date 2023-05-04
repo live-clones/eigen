@@ -183,7 +183,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet4f, Packet4i>(const Packet4f& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet4f, Packet2i>(const Packet4f& a) {
-  return vget_low_f32(vcvtq_s32_f32(a));
+  return vget_low_s32(vcvtq_s32_f32(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet2f, Packet2i>(const Packet2f& a) {
@@ -200,7 +200,7 @@ EIGEN_STRONG_INLINE Packet4ui pcast<Packet4f, Packet4ui>(const Packet4f& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet4f, Packet2ui>(const Packet4f& a) {
-  return vget_low_f32(vcvtq_u32_f32(a));
+  return vget_low_u32(vcvtq_u32_f32(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet2f, Packet2ui>(const Packet2f& a) {
@@ -238,7 +238,7 @@ EIGEN_STRONG_INLINE Packet4us pcast<Packet4f, Packet4us>(const Packet4f& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet2f, Packet4us>(const Packet2f& a, const Packet2f& b) {
-  return vmovn_u32(vcombine_u32(vcvt_u32_f32(a), vcvt_u32_f32(b)));
+  return vmovn_u32(vcvtq_u32_f32(vcombine_f32(a, b)));
 }
 
 template <>
@@ -284,14 +284,11 @@ struct type_casting_traits<float, numext::uint8_t> {
 template <>
 EIGEN_STRONG_INLINE Packet16uc pcast<Packet4f, Packet16uc>(const Packet4f& a, const Packet4f& b, const Packet4f& c,
                                                            const Packet4f& d) {
-  const uint16x8_t ab_u16 = pcast<Packet4f, Packet8us>(a, b);
-  const uint16x8_t cd_u16 = pcast<Packet4f, Packet8us>(c, d);
-  return vcombine_u8(vmovn_u16(ab_u16), vmovn_u16(cd_u16));
+  return preinterpret<Packet16uc>(pcast<Packet4f, Packet16c>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet4f, Packet8uc>(const Packet4f& a, const Packet4f& b) {
-  const uint16x8_t ab_u16 = pcast<Packet4f, Packet8us>(a, b);
-  return vmovn_u16(ab_u16);
+  return preinterpret<Packet8uc>(pcast<Packet4f, Packet8c>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet4f, Packet4uc>(const Packet4f& a) {
@@ -300,9 +297,7 @@ EIGEN_STRONG_INLINE Packet4uc pcast<Packet4f, Packet4uc>(const Packet4f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet2f, Packet8uc>(const Packet2f& a, const Packet2f& b, const Packet2f& c,
                                                          const Packet2f& d) {
-  const uint16x4_t ab_u16 = pcast<Packet2f, Packet4us>(a, b);
-  const uint16x4_t cd_u16 = pcast<Packet2f, Packet4us>(c, d);
-  return vmovn_u16(vcombine_u16(ab_u16, cd_u16));
+  return preinterpret<Packet8uc>(pcast<Packet2f, Packet8c>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet2f, Packet4uc>(const Packet2f& a, const Packet2f& b) {
@@ -380,7 +375,7 @@ EIGEN_STRONG_INLINE Packet4ui pcast<Packet16c, Packet4ui>(const Packet16c& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet16c, Packet2ui>(const Packet16c& a) {
-  return vget_low_u32(preinterpret<Packet4ui>(pcast<Packet16c, Packet4i>(a)));
+  return preinterpret<Packet2ui>(pcast<Packet16c, Packet2i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet8c, Packet2ui>(const Packet8c& a) {
@@ -416,7 +411,7 @@ EIGEN_STRONG_INLINE Packet8us pcast<Packet16c, Packet8us>(const Packet16c& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet16c, Packet4us>(const Packet16c& a) {
-  return vget_low_u16(preinterpret<Packet8us>(pcast<Packet16c, Packet8s>(a)));
+  return preinterpret<Packet4us>(pcast<Packet16c, Packet4s>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet8c, Packet4us>(const Packet8c& a) {
@@ -540,7 +535,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet16uc, Packet4i>(const Packet16uc& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet16uc, Packet2i>(const Packet16uc& a) {
-  return vget_low_s32(preinterpret<Packet4i>(pcast<Packet16uc, Packet4ui>(a)));
+  return preinterpret<Packet2i>(pcast<Packet16uc, Packet2ui>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet8uc, Packet2i>(const Packet8uc& a) {
@@ -572,15 +567,15 @@ struct type_casting_traits<numext::uint8_t, numext::int16_t> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet8s pcast<Packet16uc, Packet8s>(const Packet16uc& a) {
-  return vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(a)));
+  return preinterpret<Packet8s>(pcast<Packet16uc, Packet8us>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s pcast<Packet16uc, Packet4s>(const Packet16uc& a) {
-  return vreinterpret_s16_u16(vget_low_u16(vmovl_u8(vget_low_u8(a))));
+  return preinterpret<Packet4s>(pcast<Packet16uc, Packet4us>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s pcast<Packet8uc, Packet4s>(const Packet8uc& a) {
-  return vreinterpret_s16_u16(vget_low_u16(vmovl_u8(a)));
+  return preinterpret<Packet4s>(pcast<Packet8uc, Packet4us>(a));
 }
 
 template <>
@@ -695,7 +690,7 @@ EIGEN_STRONG_INLINE Packet4ui pcast<Packet8s, Packet4ui>(const Packet8s& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet8s, Packet2ui>(const Packet8s& a) {
-  return vget_low_u32(preinterpret<Packet4ui>(pcast<Packet8s, Packet4i>(a)));
+  return preinterpret<Packet2ui>(pcast<Packet8s, Packet2i>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet4s, Packet2ui>(const Packet4s& a) {
@@ -746,8 +741,7 @@ EIGEN_STRONG_INLINE Packet8c pcast<Packet8s, Packet8c>(const Packet8s& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet8s, Packet4c>(const Packet8s& a) {
-  int8x8_t a_s8x8 = vmovn_s16(a);
-  return vget_lane_s32(vreinterpret_s32_s8(a_s8x8), 0);
+  return vget_lane_s32(vreinterpret_s32_s8(vmovn_s16(a)), 0);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet4s, Packet8c>(const Packet4s& a, const Packet4s& b) {
@@ -755,8 +749,7 @@ EIGEN_STRONG_INLINE Packet8c pcast<Packet4s, Packet8c>(const Packet4s& a, const 
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet4s, Packet4c>(const Packet4s& a) {
-  int8x8_t aa_s8x8 = vmovn_s16(vcombine_s8(a, a));
-  return vget_lane_s32(vreinterpret_s32_s8(aa_s8x8), 0);
+  return vget_lane_s32(vreinterpret_s32_s8(vmovn_s16(vcombine_s8(a, a))), 0);
 }
 
 template <>
@@ -765,25 +758,23 @@ struct type_casting_traits<numext::int16_t, numext::uint8_t> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet16uc pcast<Packet8s, Packet16uc>(const Packet8s& a, const Packet8s& b) {
-  return vcombine_u8(vmovn_u16(vreinterpretq_u16_s16(a)), vmovn_u16(vreinterpretq_u16_s16(b)));
+  return preinterpret<Packet16uc>(pcast<Packet8s, Packet16c>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet8s, Packet8uc>(const Packet8s& a) {
-  return vmovn_u16(vreinterpretq_u16_s16(a));
+  return preinterpret<Packet8uc>(pcast<Packet8s, Packet8c>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet8s, Packet4uc>(const Packet8s& a) {
-  return vget_lane_u32(vreinterpret_u32_u8(vmovn_u16(vreinterpretq_u16_s16(a))), 0);
+  return preinterpret<Packet4uc>(pcast<Packet8s, Packet4c>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet4s, Packet8uc>(const Packet4s& a, const Packet4s& b) {
-  return vmovn_u16(vcombine_u16(vreinterpret_u16_s16(a), vreinterpret_u16_s16(b)));
+  return preinterpret<Packet8uc>(pcast<Packet4s, Packet8c>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet4s, Packet4uc>(const Packet4s& a) {
-  int16x8_t aa_s16x8 = vcombine_s16(a, a);
-  uint8x8_t aa_u8x8 = vmovn_u16(vreinterpretq_u16_s16(aa_s16x8));
-  return vget_lane_u32(vreinterpret_u32_u8(aa_u8x8), 0);
+  return static_cast<Packet4uc>(pcast<Packet4s, Packet4c>(a));
 }
 
 //==============================================================================
@@ -856,7 +847,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet8us, Packet4i>(const Packet8us& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet8us, Packet2i>(const Packet8us& a) {
-  return vget_low_s32(preinterpret<Packet4i>(pcast<Packet8us, Packet4ui>(a)));
+  return preinterpret<Packet2i>(pcast<Packet8us, Packet2ui>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet4us, Packet2i>(const Packet4us& a) {
@@ -932,8 +923,7 @@ EIGEN_STRONG_INLINE Packet8c pcast<Packet8us, Packet8c>(const Packet8us& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet8us, Packet4c>(const Packet8us& a) {
-  uint8x8_t a_u8x8 = vmovn_u16(a);
-  return vget_lane_s32(vreinterpret_s32_u8(a_u8x8), 0);
+  return preinterpret<Packet4c>(pcast<Packet8us, Packet4uc>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet4us, Packet8c>(const Packet4us& a, const Packet4us& b) {
@@ -941,7 +931,7 @@ EIGEN_STRONG_INLINE Packet8c pcast<Packet4us, Packet8c>(const Packet4us& a, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet4us, Packet4c>(const Packet4us& a) {
-  return pcast<Packet8us, Packet4c>(vcombine_u16(a, a));
+  return static_cast<Packet4c>(pcast<Packet4us, Packet4uc>(a));
 }
 
 //==============================================================================
@@ -1036,15 +1026,15 @@ struct type_casting_traits<numext::int32_t, numext::uint16_t> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet8us pcast<Packet4i, Packet8us>(const Packet4i& a, const Packet4i& b) {
-  return vcombine_u16(vmovn_u32(vreinterpretq_u32_s32(a)), vmovn_u32(vreinterpretq_u32_s32(b)));
+  return preinterpret<Packet8us>(pcast<Packet4i, Packet8s>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet4i, Packet4us>(const Packet4i& a) {
-  return vmovn_u32(vreinterpretq_u32_s32(a));
+  return preinterpret<Packet4us>(pcast<Packet4i, Packet4s>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet2i, Packet4us>(const Packet2i& a, const Packet2i& b) {
-  return vmovn_u32(vreinterpretq_u32_s32(vcombine_s32(a, b)));
+  return preinterpret<Packet4us>(pcast<Packet2i, Packet4s>(a, b));
 }
 
 template <>
@@ -1060,27 +1050,24 @@ EIGEN_STRONG_INLINE Packet16c pcast<Packet4i, Packet16c>(const Packet4i& a, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet4i, Packet8c>(const Packet4i& a, const Packet4i& b) {
-    const int16x8_t ab_s16 = pcast<Packet4i, Packet8s>(a, b);
-    return vmovn_s16(ab_s16);
+  const int16x8_t ab_s16 = pcast<Packet4i, Packet8s>(a, b);
+  return vmovn_s16(ab_s16);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet4i, Packet4c>(const Packet4i& a) {
-  int16x4_t a_s16x4 = vmovn_s32(a);
-  int16x8_t aa_s16x8 = vcombine_s16(a_s16x4, a_s16x4);
-  int8x8_t aa_s8x8 = vmovn_s16(aa_s16x8);
+  const int16x4_t a_s16x4 = vmovn_s32(a);
+  const int16x8_t aa_s16x8 = vcombine_s16(a_s16x4, a_s16x4);
+  const int8x8_t aa_s8x8 = vmovn_s16(aa_s16x8);
   return vget_lane_s32(vreinterpret_s32_s8(aa_s8x8), 0);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet2i, Packet8c>(const Packet2i& a, const Packet2i& b, const Packet2i& c,
                                                        const Packet2i& d) {
-  const int16x4_t ab_s16 = vmovn_s32(vcombine_s32(a, b));
-  const int16x4_t cd_s16 = vmovn_s32(vcombine_s32(c, d));
-  return vmovn_s16(vcombine_s16(ab_s16, cd_s16));
+  return pcast<Packet4i, Packet8c>(vcombine_s32(a, b), vcombine_s32(c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet2i, Packet4c>(const Packet2i& a, const Packet2i& b) {
-  const int32x4_t ab_s32 = vcombine_s32(a, b);
-  return pcast<Packet4i, Packet4c>(ab_s32);
+  return pcast<Packet4i, Packet4c>(vcombine_s32(a, b));
 }
 
 template <>
@@ -1090,33 +1077,24 @@ struct type_casting_traits<numext::int32_t, numext::uint8_t> {
 template <>
 EIGEN_STRONG_INLINE Packet16uc pcast<Packet4i, Packet16uc>(const Packet4i& a, const Packet4i& b, const Packet4i& c,
                                                            const Packet4i& d) {
-  const uint16x8_t ab_u16 = pcast<Packet4i, Packet8us>(a, b);
-  const uint16x8_t cd_u16 = pcast<Packet4i, Packet8us>(c, d);
-  return vcombine_u8(vmovn_u16(ab_u16), vmovn_u16(cd_u16));
+  return preinterpret<Packet16uc>(pcast<Packet4i, Packet16c>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet4i, Packet8uc>(const Packet4i& a, const Packet4i& b) {
-  const uint16x8_t ab_u16 = pcast<Packet4i, Packet8us>(a, b);
-  return vmovn_u16(ab_u16);
+  return preinterpret<Packet8uc>(pcast<Packet4i, Packet8c>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet4i, Packet4uc>(const Packet4i& a) {
-  uint16x4_t a_u16x4 = vmovn_u32(vreinterpretq_u32_s32(a));
-  uint16x8_t aa_u16x8 = vcombine_u16(a_u16x4, a_u16x4);
-  uint8x8_t aa_u8x8 = vmovn_u16(aa_u16x8);
-  return vget_lane_u32(vreinterpret_u32_u8(aa_u8x8), 0);
+  return preinterpret<Packet4uc>(pcast<Packet4i, Packet4c>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet2i, Packet8uc>(const Packet2i& a, const Packet2i& b, const Packet2i& c,
                                                          const Packet2i& d) {
-  const uint16x4_t ab_u16 = pcast<Packet2i, Packet4us>(a, b);
-  const uint16x4_t cd_u16 = pcast<Packet2i, Packet4us>(c, d);
-  return vmovn_u16(vcombine_u16(ab_u16, cd_u16));
+  return preinterpret<Packet8uc>(pcast<Packet2i, Packet8c>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet2i, Packet4uc>(const Packet2i& a, const Packet2i& b) {
-  const int32x4_t ab_u32 = vcombine_s32(a, b);
-  return pcast<Packet4i, Packet4uc>(ab_u32);
+  return static_cast<Packet4uc>(pcast<Packet2i, Packet4c>(a, b));
 }
 
 //==============================================================================
@@ -1211,15 +1189,15 @@ struct type_casting_traits<numext::uint32_t, numext::int16_t> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet8s pcast<Packet4ui, Packet8s>(const Packet4ui& a, const Packet4ui& b) {
-  return vreinterpretq_s16_u16(vcombine_u16(vmovn_u32(a), vmovn_u32(b)));
+  return preinterpret<Packet8s>(pcast<Packet4ui, Packet8us>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s pcast<Packet4ui, Packet4s>(const Packet4ui& a) {
-  return vreinterpret_s16_u16(vmovn_u32(a));
+  return preinterpret<Packet4s>(pcast<Packet4ui, Packet4us>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s pcast<Packet2ui, Packet4s>(const Packet2ui& a, const Packet2ui& b) {
-  return vreinterpret_s16_u16(vmovn_u32(vcombine_u32(a, b)));
+  return preinterpret<Packet4s>(pcast<Packet2ui, Packet4us>(a, b));
 }
 
 template <>
@@ -1240,8 +1218,10 @@ EIGEN_STRONG_INLINE Packet8uc pcast<Packet4ui, Packet8uc>(const Packet4ui& a, co
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet4ui, Packet4uc>(const Packet4ui& a) {
-  int32x4_t a_s32x4 = vreinterpretq_s32_u32(a);
-  return pcast<Packet4i, Packet4uc>(a_s32x4);
+  const uint16x4_t a_u16x4 = vmovn_u32(a);
+  const uint16x8_t aa_u16x8 = vcombine_u32(a_u16x4, a_u16x4);
+  const uint8x8_t aa_u8x8 = vmovn_u16(aa_u16x8);
+  return vget_lane_u32(vreinterpret_u32_u8(aa_u8x8), 0);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet2ui, Packet8uc>(const Packet2ui& a, const Packet2ui& b, const Packet2ui& c,
@@ -1266,11 +1246,11 @@ EIGEN_STRONG_INLINE Packet16c pcast<Packet4ui, Packet16c>(const Packet4ui& a, co
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet4ui, Packet8c>(const Packet4ui& a, const Packet4ui& b) {
-  return pcast<Packet8s, Packet8c>(pcast<Packet4ui, Packet8s>(a, b));
+  return preinterpret<Packet8c>(pcast<Packet4ui, Packet8uc>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet4ui, Packet4c>(const Packet4ui& a) {
-  return pcast<Packet4s, Packet4c>(pcast<Packet4ui, Packet4s>(a));
+  return preinterpret<Packet4c>(pcast<Packet4ui, Packet4uc>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet2ui, Packet8c>(const Packet2ui& a, const Packet2ui& b, const Packet2ui& c,
@@ -1335,11 +1315,11 @@ struct type_casting_traits<numext::int64_t, numext::uint32_t> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet4ui pcast<Packet2l, Packet4ui>(const Packet2l& a, const Packet2l& b) {
-  return vcombine_u32(vmovn_u64(vreinterpretq_u64_s64(a)), vmovn_u64(vreinterpretq_u64_s64(b)));
+  return preinterpret<Packet4ui>(pcast<Packet2l, Packet4i>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet2l, Packet2ui>(const Packet2l& a) {
-  return vmovn_u64(vreinterpretq_u64_s64(a));
+  return preinterpret<Packet2ui>(pcast<Packet2l, Packet2i>(a));
 }
 
 template <>
@@ -1366,14 +1346,11 @@ struct type_casting_traits<numext::int64_t, numext::uint16_t> {
 template <>
 EIGEN_STRONG_INLINE Packet8us pcast<Packet2l, Packet8us>(const Packet2l& a, const Packet2l& b, const Packet2l& c,
                                                          const Packet2l& d) {
-  const uint32x4_t ab_u32 = pcast<Packet2l, Packet4ui>(a, b);
-  const uint32x4_t cd_u32 = pcast<Packet2l, Packet4ui>(c, d);
-  return vcombine_u16(vmovn_u32(ab_u32), vmovn_u32(cd_u32));
+  return preinterpret<Packet8us>(pcast<Packet2l, Packet8s>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet2l, Packet4us>(const Packet2l& a, const Packet2l& b) {
-  const uint32x4_t ab_u32 = pcast<Packet2l, Packet4ui>(a, b);
-  return pcast<Packet4ui, Packet4us>(ab_u32);
+  return preinterpret<Packet4us>(pcast<Packet2l, Packet4s>(a, b));
 }
 
 template <>
@@ -1408,20 +1385,16 @@ template <>
 EIGEN_STRONG_INLINE Packet16uc pcast<Packet2l, Packet16uc>(const Packet2l& a, const Packet2l& b, const Packet2l& c,
                                                            const Packet2l& d, const Packet2l& e, const Packet2l& f,
                                                            const Packet2l& g, const Packet2l& h) {
-  const uint16x8_t abcd_u16 = pcast<Packet2l, Packet8us>(a, b, c, d);
-  const uint16x8_t efgh_u16 = pcast<Packet2l, Packet8us>(e, f, g, h);
-  return vcombine_u8(vmovn_u16(abcd_u16), vmovn_u16(efgh_u16));
+  return preinterpret<Packet16uc>(pcast<Packet2l, Packet16c>(a, b, c, d, e, f, g, h));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet2l, Packet8uc>(const Packet2l& a, const Packet2l& b, const Packet2l& c,
                                                          const Packet2l& d) {
-  const uint16x8_t abcd_u16 = pcast<Packet2l, Packet8us>(a, b, c, d);
-  return vmovn_u16(abcd_u16);
+  return preinterpret<Packet8uc>(pcast<Packet2l, Packet8c>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet2l, Packet4uc>(const Packet2l& a, const Packet2l& b) {
-  const int16x4_t ab_s16 = pcast<Packet2l, Packet4s>(a, b);
-  return pcast<Packet4s, Packet4uc>(ab_s16);
+  return static_cast<Packet4uc>(pcast<Packet2l, Packet4c>(a, b));
 }
 
 //==============================================================================
@@ -1481,7 +1454,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet2ul, Packet4i>(const Packet2ul& a, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet2ul, Packet2i>(const Packet2ul& a) {
-  return vreinterpret_s32_u32(vmovn_u64(a));
+  return preinterpret<Packet2i>(pcast<Packet2ul, Packet2ui>(a));
 }
 
 template <>
@@ -1511,8 +1484,7 @@ EIGEN_STRONG_INLINE Packet8s pcast<Packet2ul, Packet8s>(const Packet2ul& a, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s pcast<Packet2ul, Packet4s>(const Packet2ul& a, const Packet2ul& b) {
-  uint16x4_t ab_u16x4 = pcast<Packet2ul, Packet4us>(a, b);
-  return vreinterpret_s16_u16(ab_u16x4);
+  return preinterpret<Packet4s>(pcast<Packet2ul, Packet4us>(a, b));
 }
 
 template <>
@@ -1551,8 +1523,7 @@ EIGEN_STRONG_INLINE Packet16c pcast<Packet2ul, Packet16c>(const Packet2ul& a, co
 template <>
 EIGEN_STRONG_INLINE Packet8c pcast<Packet2ul, Packet8c>(const Packet2ul& a, const Packet2ul& b, const Packet2ul& c,
                                                         const Packet2ul& d) {
-  uint8x8_t abcd_u8x8 = pcast<Packet2ul, Packet8uc>(a, b, c, d);
-  return vreinterpret_s8_u8(abcd_u8x8);
+  return preinterpret<Packet8c>(pcast<Packet2ul, Packet8uc>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet2ul, Packet4c>(const Packet2ul& a, const Packet2ul& b) {
@@ -1649,11 +1620,11 @@ struct type_casting_traits<double, numext::uint32_t> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet4ui pcast<Packet2d, Packet4ui>(const Packet2d& a, const Packet2d& b) {
-  return vcombine_u32(vmovn_u64(vcvtq_u64_f64(a)), vmovn_u64(vcvtq_u64_f64(b)));
+  return preinterpret<Packet4ui>(pcast<Packet2d, Packet4i>(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet2d, Packet2ui>(const Packet2d& a) {
-  return vmovn_u64(vcvtq_u64_f64(a));
+  return preinterpret<Packet2ui>(pcast<Packet2d, Packet2i>(a));
 }
 
 template <>
@@ -1680,14 +1651,11 @@ struct type_casting_traits<double, numext::uint16_t> {
 template <>
 EIGEN_STRONG_INLINE Packet8us pcast<Packet2d, Packet8us>(const Packet2d& a, const Packet2d& b, const Packet2d& c,
                                                          const Packet2d& d) {
-  const uint32x4_t ab_u32 = pcast<Packet2d, Packet4ui>(a, b);
-  const uint32x4_t cd_u32 = pcast<Packet2d, Packet4ui>(c, d);
-  return vcombine_u16(vmovn_u32(ab_u32), vmovn_u32(cd_u32));
+  return preinterpret<Packet8us>(pcast<Packet2d, Packet8s>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet2d, Packet4us>(const Packet2d& a, const Packet2d& b) {
-  const uint32x4_t ab_u32 = pcast<Packet2d, Packet4ui>(a, b);
-  return vmovn_u32(ab_u32);
+  return preinterpret<Packet4us>(pcast<Packet2d, Packet4s>(a, b));
 }
 
 template <>
@@ -1722,15 +1690,12 @@ template <>
 EIGEN_STRONG_INLINE Packet16uc pcast<Packet2d, Packet16uc>(const Packet2d& a, const Packet2d& b, const Packet2d& c,
                                                            const Packet2d& d, const Packet2d& e, const Packet2d& f,
                                                            const Packet2d& g, const Packet2d& h) {
-  const uint16x8_t abcd_u16 = pcast<Packet2d, Packet8us>(a, b, c, d);
-  const uint16x8_t efgh_u16 = pcast<Packet2d, Packet8us>(e, f, g, h);
-  return vcombine_u8(vmovn_u16(abcd_u16), vmovn_u16(efgh_u16));
+  return preinterpret<Packet16uc>(pcast<Packet2d, Packet16c>(a, b, c, d, e, f, g, h));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet2d, Packet8uc>(const Packet2d& a, const Packet2d& b, const Packet2d& c,
                                                          const Packet2d& d) {
-  const uint16x8_t abcd_u16 = pcast<Packet2d, Packet8us>(a, b, c, d);
-  return vmovn_u16(abcd_u16);
+  return preinterpret<Packet8uc>(pcast<Packet2d, Packet8c>(a, b, c, d));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet2d, Packet4uc>(const Packet2d& a, const Packet2d& b) {

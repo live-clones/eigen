@@ -1243,7 +1243,7 @@ struct cast_test_impl {
         bool is_equal = ref == dst(i, j);
         bool pass = all_nan || is_equal;
         if (!pass) {
-          std::cout << printTypeInfo(src(i, j)) << ": [" << +src(i, j) << "] to " << printTypeInfo(dst(i, j)) << ": ["
+          std::cout << printTypeInfo(SrcType()) << ": [" << +src(i, j) << "] to " << printTypeInfo(DstType()) << ": ["
                     << +dst(i, j) << "] != [" << +ref << "]\n";
         }
         VERIFY(pass);
