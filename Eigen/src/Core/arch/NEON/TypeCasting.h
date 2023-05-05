@@ -1219,7 +1219,7 @@ EIGEN_STRONG_INLINE Packet8uc pcast<Packet4ui, Packet8uc>(const Packet4ui& a, co
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet4ui, Packet4uc>(const Packet4ui& a) {
   const uint16x4_t a_u16x4 = vmovn_u32(a);
-  const uint16x8_t aa_u16x8 = vcombine_u32(a_u16x4, a_u16x4);
+  const uint16x8_t aa_u16x8 = vcombine_u16(a_u16x4, a_u16x4);
   const uint8x8_t aa_u8x8 = vmovn_u16(aa_u16x8);
   return vget_lane_u32(vreinterpret_u32_u8(aa_u8x8), 0);
 }
