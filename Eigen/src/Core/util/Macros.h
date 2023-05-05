@@ -557,7 +557,7 @@
   // ++ host_defines.h which contains the defines for the __host__ and __device__ macros
   #include <hip/hip_runtime.h>
 
-  #if defined(__HIP_DEVICE_COMPILE__) && && !defined(__SYCL_DEVICE_ONLY__)
+  #if defined(__HIP_DEVICE_COMPILE__) && !defined(__SYCL_DEVICE_ONLY__)
     // analogous to EIGEN_CUDA_ARCH, but for HIP
     #define EIGEN_HIP_DEVICE_COMPILE __HIP_DEVICE_COMPILE__
   #endif
