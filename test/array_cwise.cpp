@@ -1185,6 +1185,11 @@ template <typename SrcType, typename DstType, int RowsAtCompileTime, int ColsAtC
 struct cast_test_impl {
   using SrcArray = Array<SrcType, RowsAtCompileTime, ColsAtCompileTime>;
   using DstArray = Array<DstType, RowsAtCompileTime, ColsAtCompileTime>;
+  struct RandomOp {
+    inline SrcType operator()(const SrcType&) const {
+      return internal::random_without_cast_overflow<SrcType, DstType>::value();
+    }
+  };
 
   static constexpr int SrcPacketSize = internal::packet_traits<SrcType>::size;
   static constexpr int DstPacketSize = internal::packet_traits<DstType>::size;
@@ -1224,13 +1229,13 @@ struct cast_test_impl {
       return typeid(T).name();
   }
 
+
+
   static void run() {
     const Index testRows = RowsAtCompileTime == Dynamic ? 100 * MaxPacketSize : RowsAtCompileTime;
     const Index testCols = ColsAtCompileTime == Dynamic ? 100 * MaxPacketSize : ColsAtCompileTime;
     SrcArray src(testRows, testCols);
-    for (Index i = 0; i < testRows; i++)
-      for (Index j = 0; j < testCols; j++)
-        src(i, j) = internal::random_without_cast_overflow<SrcType, DstType>::value();
+    src = src.unaryExpr(RandomOp());
     DstArray dst = src.template cast<DstType>();
 
     for (Index i = 0; i < testRows; i++)
