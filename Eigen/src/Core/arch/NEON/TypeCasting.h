@@ -357,7 +357,8 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet16c, Packet4i>(const Packet16c& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet16c, Packet2i>(const Packet16c& a) {
   // Discard all but first 4 bytes.
-  return vget_low_s32(vmovl_s16(vget_low_s16(vmovl_s8(vget_low_s8(a)))));
+  const int32x4_t tmp = pcast<Packet16c, Packet4i>(a);
+  return vget_low_s32(tmp);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pcast<Packet8c, Packet2i>(const Packet8c& a) {
