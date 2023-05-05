@@ -750,7 +750,7 @@ EIGEN_STRONG_INLINE Packet8c pcast<Packet4s, Packet8c>(const Packet4s& a, const 
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcast<Packet4s, Packet4c>(const Packet4s& a) {
-  return pcast<Packet8s, Packet4c>(vcombine_s8(a, a));
+  return pcast<Packet8s, Packet4c>(vcombine_s16(a, a));
 }
 
 template <>
