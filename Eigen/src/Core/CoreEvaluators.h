@@ -633,8 +633,10 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
 
   enum {
     CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<CastOp>::Cost),
-    Flags = evaluator<ArgType>::Flags &
-            (HereditaryBits | LinearAccessBit | (functor_traits<CastOp>::PacketAccess ? PacketAccessBit : 0)),
+    PacketAccess = functor_traits<CastOp>::PacketAccess,
+    ActualPacketAccessBit = PacketAccess ? PacketAccessBit : 0,
+    Flags = evaluator<ArgType>::Flags & (HereditaryBits | LinearAccessBit | ActualPacketAccessBit),
+    IsRowMajor = (evaluator<ArgType>::Flags & RowMajorBit),
     Alignment = evaluator<ArgType>::Alignment
   };
 
@@ -652,9 +654,8 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <int LoadMode>
   EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
     EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
-    constexpr bool ArgIsRowMajor = evaluator<ArgType>::Flags & RowMajorBit;
-    return m_argImpl.template packet<LoadMode, SrcPacketType>(ArgIsRowMajor ? row : row + (offset * SrcPacketSize),
-                                                              ArgIsRowMajor ? col + (offset * SrcPacketSize) : col);
+    return m_argImpl.template packet<LoadMode, SrcPacketType>(IsRowMajor ? row : row + (offset * SrcPacketSize),
+                                                              IsRowMajor ? col + (offset * SrcPacketSize) : col);
   }
   template <int LoadMode>
   EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index index, Index offset) const {
@@ -663,7 +664,9 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   }
 
   template <typename DstPacketType>
-  using SrcPacketArgs1 = std::enable_if_t<unpacket_traits<DstPacketType>::size <= (1 * SrcPacketSize), bool>;
+  using SyntheticPacketOp = std::enable_if_t<unpacket_traits<DstPacketType>::size < SrcPacketSize, bool>;
+  template <typename DstPacketType>
+  using SrcPacketArgs1 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (1 * SrcPacketSize), bool>;
   template <typename DstPacketType>
   using SrcPacketArgs2 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (2 * SrcPacketSize), bool>;
   template <typename DstPacketType>
@@ -671,11 +674,18 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <typename DstPacketType>
   using SrcPacketArgs8 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (8 * SrcPacketSize), bool>;
 
-  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  template <int LoadMode, typename DstPacketType, SyntheticPacketOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
-    constexpr int SrcLoadMode = plain_enum_min(SrcIncrementBytes, LoadMode);
+    Array<DstType, DstPacketSize, 1> dstArray;
+    EIGEN_UNROLL_LOOP
+    for (size_t k = 0; k < DstPacketSize; k++)
+      dstArray(k) = coeff(IsRowMajor ? row : row + k, IsRowMajor ? col + k : col);
+    return pload<DstPacketType>(dstArray.data());
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketSizeBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(row, col, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
@@ -712,11 +722,17 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
           srcPacket<SrcLoadMode6>(row, col, 6), srcPacket<SrcLoadMode7>(row, col, 7));
   }
 
-  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  template <int LoadMode, typename DstPacketType, SyntheticPacketOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
-    constexpr int SrcLoadMode = plain_enum_min(SrcIncrementBytes, LoadMode);
+    Array<DstType, DstPacketSize, 1> dstArray;
+    EIGEN_UNROLL_LOOP
+    for (size_t k = 0; k < DstPacketSize; k++) dstArray(k) = coeff(index + k);
+    return pload<DstPacketType>(dstArray.data());
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketSizeBytes, LoadMode);
     return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(index, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>

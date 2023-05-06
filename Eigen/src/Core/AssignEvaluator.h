@@ -29,8 +29,6 @@ namespace internal {
 template <typename DstEvaluator, typename SrcEvaluator, typename AssignFunc, int MaxPacketSize = -1>
 struct copy_using_evaluator_traits
 {
-  typedef typename SrcEvaluator::XprType Src;
-  typedef typename Src::Scalar SrcScalar;
   typedef typename DstEvaluator::XprType Dst;
   typedef typename Dst::Scalar DstScalar;
 
@@ -47,7 +45,7 @@ public:
     JointAlignment = plain_enum_min(DstAlignment, SrcAlignment)
   };
 
-//private:
+private:
   enum {
     InnerSize = int(Dst::IsVectorAtCompileTime) ? int(Dst::SizeAtCompileTime)
               : int(DstFlags)&RowMajorBit ? int(Dst::ColsAtCompileTime)
@@ -64,12 +62,10 @@ public:
   // TODO distinguish between linear traversal and inner-traversals
   typedef typename find_best_packet<DstScalar,RestrictedLinearSize>::type LinearPacketType;
   typedef typename find_best_packet<DstScalar,RestrictedInnerSize>::type InnerPacketType;
-  typedef typename packet_traits<SrcScalar>::type SourcePacketType;
 
   enum {
     LinearPacketSize = unpacket_traits<LinearPacketType>::size,
-    InnerPacketSize = unpacket_traits<InnerPacketType>::size,
-    SourcePacketSize = unpacket_traits<SourcePacketType>::size
+    InnerPacketSize = unpacket_traits<InnerPacketType>::size
   };
 
 public:
@@ -86,16 +82,16 @@ private:
     MightVectorize = bool(StorageOrdersAgree)
                   && (int(DstFlags) & int(SrcFlags) & ActualPacketAccessBit)
                   && bool(functor_traits<AssignFunc>::PacketAccess),
-    MayInnerVectorize  = MightVectorize && (InnerPacketSize >= SourcePacketSize)
+    MayInnerVectorize  = MightVectorize
                        && int(InnerSize)!=Dynamic && int(InnerSize)%int(InnerPacketSize)==0
                        && int(OuterStride)!=Dynamic && int(OuterStride)%int(InnerPacketSize)==0
                        && (EIGEN_UNALIGNED_VECTORIZE  || int(JointAlignment)>=int(InnerRequiredAlignment)),
     MayLinearize = bool(StorageOrdersAgree) && (int(DstFlags) & int(SrcFlags) & LinearAccessBit),
-    MayLinearVectorize = bool(MightVectorize) && (LinearPacketSize >= SourcePacketSize) && bool(MayLinearize) && bool(DstHasDirectAccess)
+    MayLinearVectorize = bool(MightVectorize) && bool(MayLinearize) && bool(DstHasDirectAccess)
                        && (EIGEN_UNALIGNED_VECTORIZE || (int(DstAlignment)>=int(LinearRequiredAlignment)) || MaxSizeAtCompileTime == Dynamic),
       /* If the destination isn't aligned, we have to do runtime checks and we don't unroll,
          so it's only good for large enough sizes. */
-    MaySliceVectorize  = bool(MightVectorize) && bool(DstHasDirectAccess) && (InnerPacketSize >= SourcePacketSize)
+    MaySliceVectorize  = bool(MightVectorize) && bool(DstHasDirectAccess)
                        && (int(InnerMaxSize)==Dynamic || int(InnerMaxSize)>=(EIGEN_UNALIGNED_VECTORIZE?InnerPacketSize:(3*InnerPacketSize)))
       /* slice vectorization can be slow, so we only want it if the slices are big, which is
          indicated by InnerMaxSize rather than InnerSize, think of the case of a dynamic block
