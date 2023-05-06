@@ -664,15 +664,15 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   }
 
   template <typename DstPacketType>
-  using SyntheticPacketOp = std::enable_if_t<unpacket_traits<DstPacketType>::size < SrcPacketSize, bool>;
+  using SyntheticPacketOp = std::enable_if_t<(unpacket_traits<DstPacketType>::size) < SrcPacketSize, bool>;
   template <typename DstPacketType>
-  using SrcPacketArgs1 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (1 * SrcPacketSize), bool>;
+  using SrcPacketArgs1 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (1 * SrcPacketSize), bool>;
   template <typename DstPacketType>
-  using SrcPacketArgs2 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (2 * SrcPacketSize), bool>;
+  using SrcPacketArgs2 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (2 * SrcPacketSize), bool>;
   template <typename DstPacketType>
-  using SrcPacketArgs4 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (4 * SrcPacketSize), bool>;
+  using SrcPacketArgs4 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (4 * SrcPacketSize), bool>;
   template <typename DstPacketType>
-  using SrcPacketArgs8 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (8 * SrcPacketSize), bool>;
+  using SrcPacketArgs8 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (8 * SrcPacketSize), bool>;
 
   template <int LoadMode, typename DstPacketType, SyntheticPacketOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
