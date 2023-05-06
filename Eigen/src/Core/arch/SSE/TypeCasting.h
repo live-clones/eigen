@@ -25,12 +25,13 @@ struct type_casting_traits<float, bool> {
     TgtCoeffRatio = 1
   };
 };
+
 template <>
-struct type_casting_traits<bool, float> {
+struct type_casting_traits<float, double> {
   enum {
     VectorizedCast = 1,
     SrcCoeffRatio = 1,
-    TgtCoeffRatio = 4
+    TgtCoeffRatio = 2
   };
 };
 #endif
@@ -63,29 +64,11 @@ struct type_casting_traits<double, int> {
 };
 
 template <>
-struct type_casting_traits<int, double> {
-  enum {
-    VectorizedCast = 1,
-    SrcCoeffRatio = 1,
-    TgtCoeffRatio = 2
-  };
-};
-
-template <>
 struct type_casting_traits<double, float> {
   enum {
     VectorizedCast = 1,
     SrcCoeffRatio = 2,
     TgtCoeffRatio = 1
-  };
-};
-
-template <>
-struct type_casting_traits<float, double> {
-  enum {
-    VectorizedCast = 1,
-    SrcCoeffRatio = 1,
-    TgtCoeffRatio = 2
   };
 };
 
@@ -105,16 +88,6 @@ EIGEN_STRONG_INLINE Packet16b pcast<Packet4f, Packet16b>(const Packet4f& a,
   return _mm_and_si128(merged, _mm_set1_epi8(1));
 }
 
-#ifndef EIGEN_VECTORIZE_AVX
-template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet16b, Packet4f>(const Packet16b& a) {
-#ifdef EIGEN_VECTORIZE_SSE4_1
-  return _mm_cvtepi32_ps(_mm_cvtepi8_epi32(a));
-#else
-  return _mm_cvtepi32_ps(_mm_unpacklo_epi8(_mm_unpacklo_epi8(a, pzero(a)), pzero(a)));
-#endif
-}
-#endif // !EIGEN_VECTORIZE_AVX
-
 template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet4f, Packet4i>(const Packet4f& a) {
   return _mm_cvttps_epi32(a);
 }
@@ -131,11 +104,6 @@ template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet2d, Packet4i>(const Packet2d
   return _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(_mm_cvttpd_epi32(a)),
                                          _mm_castsi128_ps(_mm_cvttpd_epi32(b)),
                                          (1 << 2) | (1 << 6)));
-}
-
-template<> EIGEN_STRONG_INLINE Packet2d pcast<Packet4i, Packet2d>(const Packet4i& a) {
-  // Simply discard the second half of the input
-  return _mm_cvtepi32_pd(a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet2d pcast<Packet4f, Packet2d>(const Packet4f& a) {
