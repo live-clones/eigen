@@ -382,7 +382,7 @@ EIGEN_STRONG_INLINE Packet4s pcast<Packet8c, Packet4s>(const Packet8c& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s pcast<Packet4c, Packet4s>(const Packet4c& a) {
-  return pcast<Packet8c, Packet4s>(preinterpret<Packet8c>(vdup_n_s32(a)));
+  return pcast<Packet8c, Packet4s>(vreinterpret_s8_s32(vdup_n_s32(a)));
 }
 
 template <>
