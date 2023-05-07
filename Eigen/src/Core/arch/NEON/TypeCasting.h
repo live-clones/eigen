@@ -831,7 +831,7 @@ EIGEN_STRONG_INLINE Packet8uc pcast<Packet4us, Packet8uc>(const Packet4us& a, co
 template <>
 EIGEN_STRONG_INLINE Packet4uc pcast<Packet4us, Packet4uc>(const Packet4us& a) {
   uint8x8_t aa_u8x8 = pcast<Packet4us, Packet8uc>(a, a);
-  return vget_lane_u32(vreinterpretq_u32_u8(aa_u8x8), 0);
+  return vget_lane_u32(vreinterpret_u32_u8(aa_u8x8), 0);
 }
 
 template <>
@@ -1405,7 +1405,7 @@ EIGEN_STRONG_INLINE Packet4uc pcast<Packet2ul, Packet4uc>(const Packet2ul& a, co
   const uint16x4_t ab_u16 = pcast<Packet2ul, Packet4us>(a, b);
   const uint16x8_t abab_u16 = vcombine_u16(ab_u16, ab_u16);
   const uint8x8_t abab_u8 = vmovn_u16(abab_u16);
-  return vget_lane_u32(vreinterpretq_u32_u8(abab_u8), 0);
+  return vget_lane_u32(vreinterpret_u32_u8(abab_u8), 0);
 }
 
 template <>
