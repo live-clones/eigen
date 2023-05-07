@@ -528,4 +528,4 @@ InstType instantiate_by_c_array(ArrType* arr)
 
 } // end namespace Eigen
 
-#endif // EIGEN_META_H
+#endif // EIGEN_MOREMETA_H
