@@ -14,30 +14,9 @@
 
 namespace Eigen { 
 
-/** \geometry_module \ingroup Geometry_Module
-  *
-  *
-  * \returns the Euler-angles of the rotation matrix \c *this using the convention defined by the triplet (\a a0,\a a1,\a a2)
-  *
-  * Each of the three parameters \a a0,\a a1,\a a2 represents the respective rotation axis as an integer in {0,1,2}.
-  * For instance, in:
-  * \code Vector3f ea = mat.eulerAngles(2, 0, 2); \endcode
-  * "2" represents the z axis and "0" the x axis, etc. The returned angles are such that
-  * we have the following equality:
-  * \code
-  * mat == AngleAxisf(ea[0], Vector3f::UnitZ())
-  *      * AngleAxisf(ea[1], Vector3f::UnitX())
-  *      * AngleAxisf(ea[2], Vector3f::UnitZ()); \endcode
-  * This corresponds to the right-multiply conventions (with right hand side frames).
-  * 
-  * NB: The returned angles are in non-canonical ranges [0:pi]x[-pi:pi]x[-pi:pi]. For canonical Tait-Bryan/proper Euler ranges, use canonicalEulerAngles.
-  * 
-  * \sa MatrixBase::canonicalEulerAngles
-  * \sa class AngleAxis
-  */
 template<typename Derived>
 EIGEN_DEVICE_FUNC inline Matrix<typename MatrixBase<Derived>::Scalar,3,1>
-MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2) const
+MatrixBase<Derived>::eulerAnglesImpl(Index a0, Index a1, Index a2) const
 {
   EIGEN_USING_STD(atan2)
   EIGEN_USING_STD(sin)
@@ -117,18 +96,28 @@ MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2) const
   *
   * \returns the canonical Euler-angles of the rotation matrix \c *this using the convention defined by the triplet (\a a0,\a a1,\a a2)
   *
+  * Each of the three parameters \a a0,\a a1,\a a2 represents the respective rotation axis as an integer in {0,1,2}.
+  * For instance, in:
+  * \code Vector3f ea = mat.eulerAngles(2, 0, 2); \endcode
+  * "2" represents the z axis and "0" the x axis, etc. The returned angles are such that
+  * we have the following equality:
+  * \code
+  * mat == AngleAxisf(ea[0], Vector3f::UnitZ())
+  *      * AngleAxisf(ea[1], Vector3f::UnitX())
+  *      * AngleAxisf(ea[2], Vector3f::UnitZ()); \endcode
+  * This corresponds to the right-multiply conventions (with right hand side frames).
+  *
   * For Tait-Bryan angle configurations (a0 != a2), the returned angles are in the ranges [-pi:pi]x[-pi/2:pi/2]x[-pi:pi].
   * For proper Euler angle configurations (a0 == a2), the returned angles are in the ranges [-pi:pi]x[0:pi]x[-pi:pi].
   *
-  * \sa MatrixBase::eulerAngles
   * \sa class AngleAxis
   */
 template<typename Derived>
 EIGEN_DEVICE_FUNC inline Matrix<typename MatrixBase<Derived>::Scalar,3,1>
 MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
 {
-  Matrix<Scalar,3,1> res = eulerAngles(a0, a1, a2);
-  
+  Matrix<Scalar,3,1> res = eulerAnglesImpl(a0, a1, a2);
+
   // If Tait-Bryan angles, make sure that the result is in the canonical range (middle axis angle in [-pi/2, pi/2]).
   if (a0 != a2 && res.cwiseAbs()[1] > Scalar(EIGEN_PI / 2))
   {
@@ -143,8 +132,26 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
       res[2] -= Scalar(EIGEN_PI) * res.cwiseSign()[2];
       res[1] = -res[1];
   }
-  
+
   return res;
+}
+
+/** \geometry_module \ingroup Geometry_Module
+  *
+  *
+  * \returns the Euler-angles of the rotation matrix \c *this using the convention defined by the triplet (\a a0,\a a1,\a a2)
+  *
+  * NB: The returned angles are in non-canonical ranges [0:pi]x[-pi:pi]x[-pi:pi]. For canonical Tait-Bryan/proper Euler ranges, use canonicalEulerAngles.
+  *
+  * \sa MatrixBase::canonicalEulerAngles
+  * \sa class AngleAxis
+  */
+template<typename Derived>
+EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline Matrix<typename MatrixBase<Derived>::Scalar,3,1>
+MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2) const
+{
+  // eulerAnglesImpl contains the original implementation which returns the angles in non-canonical ranges.
+  return eulerAnglesImpl(a0, a1, a2);
 }
 
 } // end namespace Eigen
