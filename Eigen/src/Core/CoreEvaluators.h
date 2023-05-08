@@ -626,6 +626,7 @@ template <typename SrcType, typename DstType, typename ArgType>
 struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, IndexBased> {
   using CastOp = scalar_cast_op<SrcType, DstType>;
   using XprType = CwiseUnaryOp<CastOp, ArgType>;
+  // TODO: use most appropriate packet type for casting to DstPacketType
   using SrcPacketType = typename packet_traits<SrcType>::type;
 
   static constexpr int SrcPacketSize = packet_traits<SrcType>::size;
