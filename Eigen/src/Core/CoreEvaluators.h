@@ -651,20 +651,6 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index index) const { return CastOp()(m_argImpl.coeff(index)); }
 
-  template <int LoadMode>
-  EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
-    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
-    return m_argImpl.template packet<LoadMode, SrcPacketType>(IsRowMajor ? row : row + (offset * SrcPacketSize),
-                                                              IsRowMajor ? col + (offset * SrcPacketSize) : col);
-  }
-  template <int LoadMode>
-  EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index index, Index offset) const {
-    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
-    return m_argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
-  }
-
-  template <typename DstPacketType>
-  using SyntheticPacketOp = std::enable_if_t<(unpacket_traits<DstPacketType>::size) < SrcPacketSize, bool>;
   template <typename DstPacketType>
   using SrcPacketArgs1 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (1 * SrcPacketSize), bool>;
   template <typename DstPacketType>
@@ -674,15 +660,20 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <typename DstPacketType>
   using SrcPacketArgs8 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (8 * SrcPacketSize), bool>;
 
-  template <int LoadMode, typename DstPacketType, SyntheticPacketOp<DstPacketType> = true>
-  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
-    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    Array<DstType, DstPacketSize, 1> dstArray;
-    EIGEN_UNROLL_LOOP
-    for (size_t k = 0; k < DstPacketSize; k++)
-      dstArray(k) = coeff(IsRowMajor ? row : row + k, IsRowMajor ? col + k : col);
-    return pload<DstPacketType>(dstArray.data());
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_ALWAYS_INLINE PacketType srcPacket(Index row, Index col, Index offset) const {
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
+    return m_argImpl.template packet<LoadMode, PacketType>(IsRowMajor ? row : row + (offset * PacketSize),
+                                                           IsRowMajor ? col + (offset * PacketSize) : col);
   }
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_ALWAYS_INLINE PacketType srcPacket(Index index, Index offset) const {
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
+    return m_argImpl.template packet<LoadMode, PacketType>(index + (offset * PacketSize));
+  }
+
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketSizeBytes, LoadMode);
@@ -722,14 +713,6 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
           srcPacket<SrcLoadMode6>(row, col, 6), srcPacket<SrcLoadMode7>(row, col, 7));
   }
 
-  template <int LoadMode, typename DstPacketType, SyntheticPacketOp<DstPacketType> = true>
-  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
-    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    Array<DstType, DstPacketSize, 1> dstArray;
-    EIGEN_UNROLL_LOOP
-    for (size_t k = 0; k < DstPacketSize; k++) dstArray(k) = coeff(index + k);
-    return pload<DstPacketType>(dstArray.data());
-  }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketSizeBytes, LoadMode);

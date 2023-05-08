@@ -207,7 +207,8 @@ struct functor_traits<scalar_cast_op<SrcType, DstType>> {
   using CastingTraits = type_casting_traits<SrcType, DstType>;
   enum {
     Cost = is_same<SrcType, DstType>::value ? 0 : NumTraits<DstType>::AddCost,
-    PacketAccess = CastingTraits::VectorizedCast && (CastingTraits::SrcCoeffRatio <= 8)
+    PacketAccess =
+        CastingTraits::VectorizedCast && (CastingTraits::SrcCoeffRatio <= 8) && (CastingTraits::TgtCoeffRatio == 1)
   };
 };
 
