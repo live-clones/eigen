@@ -22,45 +22,27 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
   using std::abs;
   const Matrix3 m(AngleAxisx(ea[0], Vector3::Unit(i)) * AngleAxisx(ea[1], Vector3::Unit(j)) * AngleAxisx(ea[2], Vector3::Unit(k)));
 
-  // Test non-canonical eulerAngles
-  {
-    Vector3 eabis = m.eulerAngles(i, j, k);
-    Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
-    VERIFY_IS_APPROX(m,  mbis);
+  Vector3 eabis = m.canonicalEulerAngles(i, j, k);
+  Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
+  VERIFY_IS_APPROX(m,  mbis);
 
+  VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[0]);
+  VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
+  if (i != k)
+  {
+    // Tait-Bryan sequence
+    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI / 2), eabis[1]);
+    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI / 2));
+  }
+  else
+  {
+    // Proper Euler sequence
     // approx_or_less_than does not work for 0
-    VERIFY(0 < eabis[0] || test_isMuchSmallerThan(eabis[0], Scalar(1)));
-    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
-    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[1]);
+    VERIFY(0 < eabis[1] || test_isMuchSmallerThan(eabis[1], Scalar(1)));
     VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
-    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
-    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
   }
-
-  // Test canonicalEulerAngles
-  {
-    Vector3 eabis = m.canonicalEulerAngles(i, j, k);
-    Matrix3 mbis(AngleAxisx(eabis[0], Vector3::Unit(i)) * AngleAxisx(eabis[1], Vector3::Unit(j)) * AngleAxisx(eabis[2], Vector3::Unit(k)));
-    VERIFY_IS_APPROX(m,  mbis);
-
-    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[0]);
-    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[0], Scalar(EIGEN_PI));
-    if (i != k)
-    {
-      // Tait-Bryan sequence
-      VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI / 2), eabis[1]);
-      VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI / 2));
-    }
-    else
-    {
-      // Proper Euler sequence
-      // approx_or_less_than does not work for 0
-      VERIFY(0 < eabis[1] || test_isMuchSmallerThan(eabis[1], Scalar(1)));
-      VERIFY_IS_APPROX_OR_LESS_THAN(eabis[1], Scalar(EIGEN_PI));
-    }
-    VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
-    VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
-  }
+  VERIFY_IS_APPROX_OR_LESS_THAN(-Scalar(EIGEN_PI), eabis[2]);
+  VERIFY_IS_APPROX_OR_LESS_THAN(eabis[2], Scalar(EIGEN_PI));
 }
 
 template<typename Scalar> void check_all_var(const Matrix<Scalar,3,1>& ea)
@@ -94,36 +76,36 @@ template<typename Scalar> void eulerangles()
   q1 = AngleAxisx(a, Vector3::Random().normalized());
   Matrix3 m;
   m = q1;
-  
-  Vector3 ea = m.eulerAngles(0,1,2);
+
+  Vector3 ea = m.canonicalEulerAngles(0,1,2);
   check_all_var(ea);
-  ea = m.eulerAngles(0,1,0);
+  ea = m.canonicalEulerAngles(0,1,0);
   check_all_var(ea);
-  
+
   // Check with purely random Quaternion:
   q1.coeffs() = Quaternionx::Coefficients::Random().normalized();
   m = q1;
-  ea = m.eulerAngles(0,1,2);
+  ea = m.canonicalEulerAngles(0,1,2);
   check_all_var(ea);
-  ea = m.eulerAngles(0,1,0);
+  ea = m.canonicalEulerAngles(0,1,0);
   check_all_var(ea);
-  
+
   // Check with random angles in range [-pi:pi]x[-pi:pi]x[-pi:pi].
-  ea = Array3::Random() * Scalar(EIGEN_PI)*Array3(1,1,1);
+  ea = Array3::Random() * Scalar(EIGEN_PI);
   check_all_var(ea);
-  
+
   ea[2] = ea[0] = internal::random<Scalar>(0,Scalar(EIGEN_PI));
   check_all_var(ea);
-  
+
   ea[0] = ea[1] = internal::random<Scalar>(0,Scalar(EIGEN_PI));
   check_all_var(ea);
-  
+
   ea[1] = 0;
   check_all_var(ea);
-  
+
   ea.head(2).setZero();
   check_all_var(ea);
-  
+
   ea.setZero();
   check_all_var(ea);
 }

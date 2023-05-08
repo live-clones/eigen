@@ -12,15 +12,12 @@
 
 #include "./InternalHeaderCheck.h"
 
-namespace Eigen { 
+namespace Eigen {
 
 template<typename Derived>
 EIGEN_DEVICE_FUNC inline Matrix<typename MatrixBase<Derived>::Scalar,3,1>
 MatrixBase<Derived>::eulerAnglesImpl(Index a0, Index a1, Index a2) const
 {
-  EIGEN_USING_STD(atan2)
-  EIGEN_USING_STD(sin)
-  EIGEN_USING_STD(cos)
   /* Implemented from Graphics Gems IV */
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Derived,3,3)
 
@@ -31,10 +28,10 @@ MatrixBase<Derived>::eulerAnglesImpl(Index a0, Index a1, Index a2) const
   const Index i = a0;
   const Index j = (a0 + 1 + odd)%3;
   const Index k = (a0 + 2 - odd)%3;
-  
+
   if (a0==a2)
   {
-    res[0] = atan2(coeff(j,i), coeff(k,i));
+    res[0] = numext::atan2(coeff(j,i), coeff(k,i));
     if((odd && res[0]<Scalar(0)) || ((!odd) && res[0]>Scalar(0)))
     {
       if(res[0] > Scalar(0)) {
@@ -44,31 +41,31 @@ MatrixBase<Derived>::eulerAnglesImpl(Index a0, Index a1, Index a2) const
         res[0] += Scalar(EIGEN_PI);
       }
       Scalar s2 = Vector2(coeff(j,i), coeff(k,i)).norm();
-      res[1] = -atan2(s2, coeff(i,i));
+      res[1] = -numext::atan2(s2, coeff(i,i));
     }
     else
     {
       Scalar s2 = Vector2(coeff(j,i), coeff(k,i)).norm();
-      res[1] = atan2(s2, coeff(i,i));
+      res[1] = numext::atan2(s2, coeff(i,i));
     }
-    
+
     // With a=(0,1,0), we have i=0; j=1; k=2, and after computing the first two angles,
     // we can compute their respective rotation, and apply its inverse to M. Since the result must
     // be a rotation around x, we have:
     //
-    //  c2  s1.s2 c1.s2                   1  0   0 
+    //  c2  s1.s2 c1.s2                   1  0   0
     //  0   c1    -s1       *    M    =   0  c3  s3
     //  -s2 s1.c2 c1.c2                   0 -s3  c3
     //
     //  Thus:  m11.c1 - m21.s1 = c3  &   m12.c1 - m22.s1 = s3
-    
-    Scalar s1 = sin(res[0]);
-    Scalar c1 = cos(res[0]);
-    res[2] = atan2(c1*coeff(j,k)-s1*coeff(k,k), c1*coeff(j,j) - s1 * coeff(k,j));
-  } 
+
+    Scalar s1 = numext::sin(res[0]);
+    Scalar c1 = numext::cos(res[0]);
+    res[2] = numext::atan2(c1*coeff(j,k)-s1*coeff(k,k), c1*coeff(j,j) - s1 * coeff(k,j));
+  }
   else
   {
-    res[0] = atan2(coeff(j,k), coeff(k,k));
+    res[0] = numext::atan2(coeff(j,k), coeff(k,k));
     Scalar c2 = Vector2(coeff(i,i), coeff(i,j)).norm();
     if((odd && res[0]<Scalar(0)) || ((!odd) && res[0]>Scalar(0))) {
       if(res[0] > Scalar(0)) {
@@ -77,13 +74,13 @@ MatrixBase<Derived>::eulerAnglesImpl(Index a0, Index a1, Index a2) const
       else {
         res[0] += Scalar(EIGEN_PI);
       }
-      res[1] = atan2(-coeff(i,k), -c2);
+      res[1] = numext::atan2(-coeff(i,k), -c2);
     }
     else
-      res[1] = atan2(-coeff(i,k), c2);
-    Scalar s1 = sin(res[0]);
-    Scalar c1 = cos(res[0]);
-    res[2] = atan2(s1*coeff(k,i)-c1*coeff(j,i), c1*coeff(j,j) - s1 * coeff(k,j));
+      res[1] = numext::atan2(-coeff(i,k), c2);
+    Scalar s1 = numext::sin(res[0]);
+    Scalar c1 = numext::cos(res[0]);
+    res[2] = numext::atan2(s1*coeff(k,i)-c1*coeff(j,i), c1*coeff(j,j) - s1 * coeff(k,j));
   }
   if (!odd)
     res = -res;
@@ -119,7 +116,7 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
   Matrix<Scalar,3,1> res = eulerAnglesImpl(a0, a1, a2);
 
   // If Tait-Bryan angles, make sure that the result is in the canonical range (middle axis angle in [-pi/2, pi/2]).
-  if (a0 != a2 && res.cwiseAbs()[1] > Scalar(EIGEN_PI / 2))
+  if (a0 != a2 && numext::abs(res[1]) > Scalar(EIGEN_PI / 2))
   {
     res -= Scalar(EIGEN_PI) * res.cwiseSign();
     res[1] = -res[1];
@@ -128,8 +125,8 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
   // If proper Euler angles, make sure that the result is in the canonical range (middle axis angle in [0, pi]).
   if (a0 == a2 && res[1] < Scalar(0))
   {
-      res[0] -= Scalar(EIGEN_PI) * res.cwiseSign()[0];
-      res[2] -= Scalar(EIGEN_PI) * res.cwiseSign()[2];
+      res[0] -= Scalar(EIGEN_PI) * numext::sign(res[0]);
+      res[2] -= Scalar(EIGEN_PI) * numext::sign(res[2]);
       res[1] = -res[1];
   }
 
