@@ -405,11 +405,6 @@ template<typename Derived> class MatrixBase
     EIGEN_DEVICE_FUNC
     inline Matrix<Scalar,3,1> canonicalEulerAngles(Index a0, Index a1, Index a2) const;
 
-  protected:
-    EIGEN_DEVICE_FUNC
-    inline Matrix<Scalar,3,1> eulerAnglesImpl(Index a0, Index a1, Index a2) const;
-
-  public:
     // put this as separate enum value to work around possible GCC 4.3 bug (?)
     enum { HomogeneousReturnTypeDirection = ColsAtCompileTime==1&&RowsAtCompileTime==1 ? ((internal::traits<Derived>::Flags&RowMajorBit)==RowMajorBit ? Horizontal : Vertical)
                                           : ColsAtCompileTime==1 ? Vertical : Horizontal };
