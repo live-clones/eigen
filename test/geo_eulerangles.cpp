@@ -22,7 +22,6 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
   typedef Matrix<Scalar,3,3> Matrix3;
   typedef Matrix<Scalar,3,1> Vector3;
   typedef AngleAxis<Scalar> AngleAxisx;
-  using std::abs;
   const Matrix3 m(AngleAxisx(ea[0], Vector3::Unit(i)) * AngleAxisx(ea[1], Vector3::Unit(j)) * AngleAxisx(ea[2], Vector3::Unit(k)));
 
   // Test non-canonical eulerAngles
@@ -114,6 +113,26 @@ template<typename Scalar> void eulerangles()
   // Check with random angles in range [-pi:pi]x[-pi:pi]x[-pi:pi].
   ea = Array3::Random() * Scalar(EIGEN_PI);
   check_all_var(ea);
+
+  // Check gimbal lock configurations and a bit noisy gimbal locks
+  Vector3 ea_gl = ea;
+  ea_gl[1] = EIGEN_PI/2;
+  check_all_var(ea_gl);
+  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  check_all_var(ea_gl);
+  ea_gl[1] = -EIGEN_PI/2;
+  check_all_var(ea_gl);
+  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  check_all_var(ea_gl);
+  ea_gl[1] = EIGEN_PI/2;
+  ea_gl[2] = ea_gl[0];
+  check_all_var(ea_gl);
+  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  check_all_var(ea_gl);
+  ea_gl[1] = -EIGEN_PI/2;
+  check_all_var(ea_gl);
+  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  check_all_var(ea_gl);
 
   ea[2] = ea[0] = internal::random<Scalar>(0,Scalar(EIGEN_PI));
   check_all_var(ea);
