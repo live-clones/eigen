@@ -179,21 +179,21 @@ struct scalar_cast_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstType operator()(const SrcType& a) const {
     return cast<SrcType, DstType>(a);
   }
-  using SrcPacket = typename packet_traits<SrcType>::type;
-  template <typename DstPacket>
+  //using SrcPacket = typename packet_traits<SrcType>::type;
+  template <typename SrcPacket, typename DstPacket>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a) const {
     return pcast<SrcPacket, DstPacket>(a);
   }
-  template <typename DstPacket>
+  template <typename SrcPacket, typename DstPacket>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b) const {
     return pcast<SrcPacket, DstPacket>(a, b);
   }
-  template <typename DstPacket>
+  template <typename SrcPacket, typename DstPacket>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b,
                                                                  const SrcPacket& c, const SrcPacket& d) const {
     return pcast<SrcPacket, DstPacket>(a, b, c, d);
   }
-  template <typename DstPacket>
+  template <typename SrcPacket, typename DstPacket>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstPacket packetOp(const SrcPacket& a, const SrcPacket& b,
                                                                  const SrcPacket& c, const SrcPacket& d,
                                                                  const SrcPacket& e, const SrcPacket& f,

@@ -59,6 +59,13 @@ template<> EIGEN_STRONG_INLINE Packet16i pcast<Packet8d, Packet16i>(const Packet
   return  cat256i(_mm512_cvttpd_epi32(a), _mm512_cvttpd_epi32(b));
 }
 
+template<> EIGEN_STRONG_INLINE Packet8i pcast<Packet8d, Packet8i>(const Packet8d& a) {
+  return _mm512_cvtpd_epi32(a);
+}
+template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet8d, Packet8f>(const Packet8d& a) {
+  return _mm512_cvtpd_ps(a);
+}
+
 template<> EIGEN_STRONG_INLINE Packet16i preinterpret<Packet16i, Packet16f>(const Packet16f& a) {
   return _mm512_castps_si512(a);
 }
