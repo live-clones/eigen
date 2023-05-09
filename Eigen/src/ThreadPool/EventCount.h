@@ -220,7 +220,7 @@ class EventCount {
   }
 
   void Park(Waiter* w) {
-    std::unique_lock<EIGEN_MUTEX> lock(w->mu);
+    EIGEN_MUTEX_LOCK lock(w->mu);
     while (w->state != Waiter::kSignaled) {
       w->state = Waiter::kWaiting;
       w->cv.wait(lock);
@@ -233,7 +233,7 @@ class EventCount {
       next = wnext == kStackMask ? nullptr : &waiters_[wnext];
       unsigned state;
       {
-        std::unique_lock<EIGEN_MUTEX> lock(w->mu);
+        EIGEN_MUTEX_LOCK lock(w->mu);
         state = w->state;
         w->state = Waiter::kSignaled;
       }

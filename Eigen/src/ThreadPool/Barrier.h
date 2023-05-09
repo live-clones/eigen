@@ -33,7 +33,7 @@ class Barrier {
       eigen_plain_assert(((v + 2) & ~1) != 0);
       return;  // either count has not dropped to 0, or waiter is not waiting
     }
-    std::unique_lock<EIGEN_MUTEX> l(mu_);
+    EIGEN_MUTEX_LOCK l(mu_);
     eigen_plain_assert(!notified_);
     notified_ = true;
     cv_.notify_all();
@@ -42,7 +42,7 @@ class Barrier {
   void Wait() {
     unsigned int v = state_.fetch_or(1, std::memory_order_acq_rel);
     if ((v >> 1) == 0) return;
-    std::unique_lock<EIGEN_MUTEX> l(mu_);
+    EIGEN_MUTEX_LOCK l(mu_);
     while (!notified_) {
       cv_.wait(l);
     }
