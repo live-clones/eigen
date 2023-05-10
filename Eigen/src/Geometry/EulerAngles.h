@@ -52,9 +52,18 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
 
   if (a0 == a2)
   {
-    res[0] = numext::atan2(coeff(j, i), coeff(k, i));
+    // Proper Euler angles (same first and last axis)
     Scalar s2 = Vector2(coeff(j, i), coeff(k, i)).norm();
-    res[1] = numext::atan2(s2, coeff(i, i));
+    if (odd)
+    {
+      res[0] = numext::atan2(coeff(j, i), coeff(k, i));
+      res[1] = numext::atan2(s2, coeff(i, i));
+    }
+    else
+    {
+      res[0] = numext::atan2(-coeff(j, i), -coeff(k, i));
+      res[1] = -numext::atan2(s2, coeff(i, i));
+    }
 
     // With a=(0,1,0), we have i=0; j=1; k=2, and after computing the first two angles,
     // we can compute their respective rotation, and apply its inverse to M. Since the result must
@@ -69,29 +78,19 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
     Scalar s1 = numext::sin(res[0]);
     Scalar c1 = numext::cos(res[0]);
     res[2] = numext::atan2(c1 * coeff(j, k) - s1 * coeff(k, k), c1 * coeff(j, j) - s1 * coeff(k, j));
-
-    // If proper Euler angles, make sure that the result is in the canonical range (middle axis angle in [0, pi]).
-    if ((odd && res[1] < Scalar(0)) || (!odd && res[1] > Scalar(0)))
-    {
-      res[0] -= Scalar(EIGEN_PI) * numext::sign(res[0]);
-      res[2] -= Scalar(EIGEN_PI) * numext::sign(res[2]);
-      res[1] = -res[1];
-    }
   }
   else
   {
+    // Tait-Bryan angles
     res[0] = numext::atan2(coeff(j, k), coeff(k, k));
+
     Scalar c2 = Vector2(coeff(i, i), coeff(i, j)).norm();
+    // c2 is always positive, so the following atan2 will always return a result in the correct canonical middle angle range [-pi/2, pi/2]
     res[1] = numext::atan2(-coeff(i, k), c2);
+
     Scalar s1 = numext::sin(res[0]);
     Scalar c1 = numext::cos(res[0]);
     res[2] = numext::atan2(s1 * coeff(k, i) - c1 * coeff(j, i), c1 * coeff(j, j) - s1 * coeff(k, j));
-    // If Tait-Bryan angles, make sure that the result is in the canonical range (middle axis angle in [-pi/2, pi/2]).
-    if (numext::abs(res[1]) > Scalar(EIGEN_PI / 2))
-    {
-      res -= Scalar(EIGEN_PI) * res.cwiseSign();
-      res[1] = -res[1];
-    }
   }
   if (!odd)
   {
