@@ -52,15 +52,31 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
 
   if (a0 == a2)
   {
-    // Proper Euler angles (same first and last axis)
+    // Proper Euler angles (same first and last axis).
+    // The i, j, k indices enable addressing the input matrix as the XYX archetype matrix (see Graphics Gems IV),
+    // where e.g. coeff(k, i) means third column, first row in the XYX archetype matrix:
+    //  c2      s2s1              s2c1
+    //  s2s3   -c2s1s3 + c1c3    -c2c1s3 - s1c3
+    // -s2c3    c2s1c3 + c1s3     c2c1c3 - s1s3
+
+    // Note: s2 is always positive.
     Scalar s2 = Vector2(coeff(j, i), coeff(k, i)).norm();
     if (odd)
     {
       res[0] = numext::atan2(coeff(j, i), coeff(k, i));
+      // s2 is always positive, so res[1] will be within the canonical [0, pi] range
       res[1] = numext::atan2(s2, coeff(i, i));
     }
     else
     {
+      // In the !odd case, signs of all three angles are flipped at the very end. To keep the solution within the canonical range,
+      // we flip the solution and make res[1] always negative here (since s2 is always positive, -atan2(s2, c2) will always be negative).
+      // The final flip at the end due to !odd will thus make res[1] positive and canonical.
+      // NB: in the general case, there are two correct solutions, but only one is canonical. For proper Euler angles,
+      // flipping from one solution to the other involves flipping the sign of the second angle res[1] and adding/subtracting pi
+      // to the first and third angles. The addition/subtraction of pi to the first angle res[0] is handled here by flipping
+      // the signs of arguments to atan2, while the calculation of the third angle does not need special adjustment since
+      // it uses the adjusted res[0] as the input and produces a correct result.
       res[0] = numext::atan2(-coeff(j, i), -coeff(k, i));
       res[1] = -numext::atan2(s2, coeff(i, i));
     }
@@ -81,7 +97,13 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
   }
   else
   {
-    // Tait-Bryan angles
+    // Tait-Bryan angles (all three axes are different; typically used for yaw-pitch-roll calculations).
+    // The i, j, k indices enable addressing the input matrix as the XYZ archetype matrix (see Graphics Gems IV),
+    // where e.g. coeff(k, i) means third column, first row in the XYZ archetype matrix:
+    //  c2c3    s2s1c3 - c1s3     s2c1c3 + s1s3
+    //  c2s3    s2s1s3 + c1c3     s2c1s3 - s1c3
+    // -s2      c2s1              c2c1
+
     res[0] = numext::atan2(coeff(j, k), coeff(k, k));
 
     Scalar c2 = Vector2(coeff(i, i), coeff(i, j)).norm();
