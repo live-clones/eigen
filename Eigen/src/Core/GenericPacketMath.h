@@ -146,32 +146,6 @@ template<typename T> struct unpacket_traits
 
 template<typename T> struct unpacket_traits<const T> : unpacket_traits<T> { };
 
-template <typename T>
-struct is_degenerate {
-  using type = T;
-  static constexpr bool value = false;
-};
-template <>
-struct is_degenerate<uint8_t> {
-  using type = int8_t;
-  static constexpr bool value = true;
-};
-template <>
-struct is_degenerate<uint16_t> {
-  using type = int16_t;
-  static constexpr bool value = true;
-};
-template <>
-struct is_degenerate<uint32_t> {
-  using type = int32_t;
-  static constexpr bool value = true;
-};
-template <>
-struct is_degenerate<uint64_t> {
-  using type = int64_t;
-  static constexpr bool value = true;
-};
-
 template <typename Src, typename Tgt>
 struct type_casting_traits {
   enum { VectorizedCast = is_same<Src, Tgt>::value, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
@@ -206,11 +180,19 @@ struct is_scalar {
   };
 };
 
-template <typename Target, typename Packet>
+template <typename Target, typename Packet, bool IsSame = is_same<Target, Packet>::value,
+          bool Scalar2Scalar = is_scalar<Target>::value && is_scalar<Packet>::value>
 struct preinterpret_impl;
 
-template <typename Packet>
-struct preinterpret_impl<Packet, Packet> {
+template <typename Target, typename Packet>
+struct preinterpret_impl<Target, Packet, false, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Target run(const Packet& a) {
+    return numext::bit_cast<Target, Packet>(a);
+  }
+};
+
+template <typename Packet, bool Scalar2Scalar>
+struct preinterpret_impl<Packet, Packet, true, Scalar2Scalar> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
 };
 
@@ -220,10 +202,7 @@ EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {
   return preinterpret_impl<Target, Packet>::run(a);
 }
 
-// if one or both of the packet types is unsigned, then it can be defined in terms of its signed packet types
-template <typename SrcPacket, typename TgtPacket, bool IsSame = is_same<SrcPacket, TgtPacket>::value,
-          bool Degenerate = is_degenerate<typename unpacket_traits<SrcPacket>::type>::value ||
-                            is_degenerate<typename unpacket_traits<TgtPacket>::type>::value>
+template <typename SrcPacket, typename TgtPacket, bool IsSame = is_same<SrcPacket, TgtPacket>::value>
 struct pcast_impl;
 
 /** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
@@ -247,53 +226,19 @@ EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b,
   return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d, e, f, g, h);
 }
 
-template <typename SrcPacket, typename TgtPacket>
-struct pcast_impl<SrcPacket, TgtPacket, false, false> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return static_cast<TgtPacket>(a); }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
-    return static_cast<TgtPacket>(a);
-  }
-};
+//template <typename SrcPacket, typename TgtPacket>
+//struct pcast_impl<SrcPacket, TgtPacket, false> {
+//  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
+//    return cast_impl<SrcPacket, TgtPacket>::run(a);
+//  }
+//  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
+//    return cast_impl<SrcPacket, TgtPacket>::run(a);
+//  }
+//};
 
-template <typename Packet, bool Degenerate>
-struct pcast_impl<Packet, Packet, true, Degenerate> {
+template <typename Packet>
+struct pcast_impl<Packet, Packet, true> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
-};
-
-template <typename SrcPacket, typename TgtPacket>
-struct pcast_impl<SrcPacket, TgtPacket, false, true> {
-  // reduces the number of redundant pcast definitions that include unsigned integer types
-  using SrcScalar = typename unpacket_traits<SrcPacket>::type;
-  using SignedSrcScalar = typename is_degenerate<SrcScalar>::type;
-  static constexpr int SrcSize = unpacket_traits<SrcPacket>::size;
-  using SignedSrcPacket = typename find_packet_by_size<SignedSrcScalar, SrcSize>::type;
-
-  using TgtScalar = typename unpacket_traits<TgtPacket>::type;
-  using SignedTgtScalar = typename is_degenerate<TgtScalar>::type;
-  static constexpr int TgtSize = unpacket_traits<TgtPacket>::size;
-  using SignedTgtPacket = typename find_packet_by_size<SignedTgtScalar, TgtSize>::type;
-
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
-    return preinterpret<TgtPacket>(pcast<SignedSrcPacket, SignedTgtPacket>(preinterpret<SignedSrcPacket>(a)));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket& b) {
-    return preinterpret<TgtPacket>(
-        pcast<SignedSrcPacket, SignedTgtPacket>(preinterpret<SignedSrcPacket>(a), preinterpret<SignedSrcPacket>(b)));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
-                                                             const SrcPacket& d) {
-    return preinterpret<TgtPacket>(
-        pcast<SignedSrcPacket, SignedTgtPacket>(preinterpret<SignedSrcPacket>(a), preinterpret<SignedSrcPacket>(b),
-                                                preinterpret<SignedSrcPacket>(c), preinterpret<SignedSrcPacket>(d)));
-  }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
-                                                             const SrcPacket& d, const SrcPacket& e, const SrcPacket& f,
-                                                             const SrcPacket& g, const SrcPacket& h) {
-    return preinterpret<TgtPacket>(pcast<SignedSrcPacket, SignedTgtPacket>(
-        preinterpret<SignedSrcPacket>(a), preinterpret<SignedSrcPacket>(b), preinterpret<SignedSrcPacket>(c),
-        preinterpret<SignedSrcPacket>(d), preinterpret<SignedSrcPacket>(e), preinterpret<SignedSrcPacket>(f),
-        preinterpret<SignedSrcPacket>(g), preinterpret<SignedSrcPacket>(h)));
-  }
 };
 
 /** \internal \returns a + b (coeff-wise) */
