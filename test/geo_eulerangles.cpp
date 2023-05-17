@@ -17,10 +17,10 @@
 
 
 template<typename Scalar>
-void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
+void verify_euler(const Matrix<Scalar, 3, 1>& ea, int i, int j, int k)
 {
-  typedef Matrix<Scalar,3,3> Matrix3;
-  typedef Matrix<Scalar,3,1> Vector3;
+  typedef Matrix<Scalar, 3, 3> Matrix3;
+  typedef Matrix<Scalar, 3, 1> Vector3;
   typedef AngleAxis<Scalar> AngleAxisx;
   const Matrix3 m(AngleAxisx(ea[0], Vector3::Unit(i)) * AngleAxisx(ea[1], Vector3::Unit(j)) * AngleAxisx(ea[2], Vector3::Unit(k)));
 
@@ -65,7 +65,7 @@ void verify_euler(const Matrix<Scalar,3,1>& ea, int i, int j, int k)
   }
 }
 
-template<typename Scalar> void check_all_var(const Matrix<Scalar,3,1>& ea)
+template<typename Scalar> void check_all_var(const Matrix<Scalar, 3, 1>& ea)
 {
   auto verify_permutation = [](const Matrix<Scalar, 3, 1>& eap)
   {
@@ -97,9 +97,9 @@ template<typename Scalar> void check_all_var(const Matrix<Scalar,3,1>& ea)
 
 template<typename Scalar> void eulerangles()
 {
-  typedef Matrix<Scalar,3,3> Matrix3;
-  typedef Matrix<Scalar,3,1> Vector3;
-  typedef Array<Scalar,3,1> Array3;
+  typedef Matrix<Scalar, 3, 3> Matrix3;
+  typedef Matrix<Scalar, 3, 1> Vector3;
+  typedef Array<Scalar, 3, 1> Array3;
   typedef Quaternion<Scalar> Quaternionx;
   typedef AngleAxis<Scalar> AngleAxisx;
 
@@ -109,17 +109,17 @@ template<typename Scalar> void eulerangles()
   Matrix3 m;
   m = q1;
 
-  Vector3 ea = m.eulerAngles(0,1,2);
+  Vector3 ea = m.eulerAngles(0, 1, 2);
   check_all_var(ea);
-  ea = m.eulerAngles(0,1,0);
+  ea = m.eulerAngles(0, 1, 0);
   check_all_var(ea);
 
   // Check with purely random Quaternion:
   q1.coeffs() = Quaternionx::Coefficients::Random().normalized();
   m = q1;
-  ea = m.eulerAngles(0,1,2);
+  ea = m.eulerAngles(0, 1, 2);
   check_all_var(ea);
-  ea = m.eulerAngles(0,1,0);
+  ea = m.eulerAngles(0, 1, 0);
   check_all_var(ea);
 
   // Check with random angles in range [-pi:pi]x[-pi:pi]x[-pi:pi].
@@ -132,57 +132,57 @@ template<typename Scalar> void eulerangles()
     Vector3 ea_glz = eaz;
     ea_glz[0] = Scalar(0);
     check_all_var(ea_glz);
-    ea_glz[0] = internal::random<Scalar>(-0.001,0.001);
+    ea_glz[0] = internal::random<Scalar>(-0.001, 0.001);
     check_all_var(ea_glz);
     ea_glz[2] = Scalar(0);
     check_all_var(ea_glz);
-    ea_glz[2] = internal::random<Scalar>(-0.001,0.001);
+    ea_glz[2] = internal::random<Scalar>(-0.001, 0.001);
     check_all_var(ea_glz);
   };
   // Check gimbal lock configurations and a bit noisy gimbal locks
   Vector3 ea_gl = ea;
   ea_gl[1] = EIGEN_PI/2;
   test_with_some_zeros(ea_gl);
-  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_gl[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
   ea_gl[1] = -EIGEN_PI/2;
   test_with_some_zeros(ea_gl);
-  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_gl[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
   ea_gl[1] = EIGEN_PI/2;
   ea_gl[2] = ea_gl[0];
   test_with_some_zeros(ea_gl);
-  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_gl[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
   ea_gl[1] = -EIGEN_PI/2;
   test_with_some_zeros(ea_gl);
-  ea_gl[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_gl[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
 
   // Similar to above, but with pi instead of pi/2
   Vector3 ea_pi = ea;
   ea_pi[1] = EIGEN_PI;
   test_with_some_zeros(ea_gl);
-  ea_pi[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_pi[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
   ea_pi[1] = -EIGEN_PI;
   test_with_some_zeros(ea_gl);
-  ea_pi[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_pi[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
   ea_pi[1] = EIGEN_PI;
   ea_pi[2] = ea_pi[0];
   test_with_some_zeros(ea_gl);
-  ea_pi[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_pi[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
   ea_pi[1] = -EIGEN_PI;
   test_with_some_zeros(ea_gl);
-  ea_pi[1] += internal::random<Scalar>(-0.001,0.001);
+  ea_pi[1] += internal::random<Scalar>(-0.001, 0.001);
   test_with_some_zeros(ea_gl);
 
-  ea[2] = ea[0] = internal::random<Scalar>(0,Scalar(EIGEN_PI));
+  ea[2] = ea[0] = internal::random<Scalar>(0, Scalar(EIGEN_PI));
   check_all_var(ea);
 
-  ea[0] = ea[1] = internal::random<Scalar>(0,Scalar(EIGEN_PI));
+  ea[0] = ea[1] = internal::random<Scalar>(0, Scalar(EIGEN_PI));
   check_all_var(ea);
 
   ea[1] = 0;
