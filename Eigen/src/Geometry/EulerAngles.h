@@ -43,7 +43,6 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Derived, 3, 3)
 
   Matrix<Scalar, 3, 1> res;
-  typedef Matrix<typename Derived::Scalar, 2, 1> Vector2;
 
   const Index odd = ((a0 + 1) % 3 == a1) ? 0 : 1;
   const Index i = a0;
@@ -60,7 +59,7 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
     // -s2c3    c2s1c3 + c1s3     c2c1c3 - s1s3
 
     // Note: s2 is always positive.
-    Scalar s2 = Vector2(coeff(j, i), coeff(k, i)).norm();
+    Scalar s2 = numext::hypot(coeff(j, i), coeff(k, i));
     if (odd)
     {
       res[0] = numext::atan2(coeff(j, i), coeff(k, i));
@@ -106,7 +105,7 @@ MatrixBase<Derived>::canonicalEulerAngles(Index a0, Index a1, Index a2) const
 
     res[0] = numext::atan2(coeff(j, k), coeff(k, k));
 
-    Scalar c2 = Vector2(coeff(i, i), coeff(i, j)).norm();
+    Scalar c2 = numext::hypot(coeff(i, i), coeff(i, j));
     // c2 is always positive, so the following atan2 will always return a result in the correct canonical middle angle range [-pi/2, pi/2]
     res[1] = numext::atan2(-coeff(i, k), c2);
 
