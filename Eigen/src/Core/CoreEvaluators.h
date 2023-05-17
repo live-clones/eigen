@@ -689,7 +689,6 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
       dstArray[k] = coeff(IsRowMajor ? row : row + k, IsRowMajor ? col + k : col);
     return pload<DstPacketType>(dstArray.data());
   }
-
   // we cannot use the default (largest) source packet
   // instead, we use the source packet that has the same size as the destination packet
   template <int LoadMode, typename DstPacketType, AltSrcPacketOp<DstPacketType> = true>

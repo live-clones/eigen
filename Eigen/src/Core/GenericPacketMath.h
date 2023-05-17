@@ -146,12 +146,34 @@ template<typename T> struct unpacket_traits
 
 template<typename T> struct unpacket_traits<const T> : unpacket_traits<T> { };
 
-template <typename Src, typename Tgt> struct type_casting_traits {
-  enum {
-    VectorizedCast = 0,
-    SrcCoeffRatio = 1,
-    TgtCoeffRatio = 1
-  };
+template <typename T>
+struct get_signed {
+  using type = T;
+};
+template <>
+struct get_signed<uint8_t> {
+  using type = int8_t;
+};
+template <>
+struct get_signed<uint16_t> {
+  using type = int16_t;
+};
+template <>
+struct get_signed<uint32_t> {
+  using type = int32_t;
+};
+template <>
+struct get_signed<uint64_t> {
+  using type = int64_t;
+};
+
+template <typename Src, typename Tgt>
+struct type_casting_traits {
+  enum { VectorizedCast = 0, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
+};
+template <typename T>
+struct type_casting_traits<T, T> {
+  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
 };
 
 /** \internal Wrapper to ensure that multiple packet types can map to the same
@@ -183,33 +205,96 @@ struct is_scalar {
   };
 };
 
-/** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket
-pcast(const SrcPacket& a) {
-  return static_cast<TgtPacket>(a);
-}
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket
-pcast(const SrcPacket& a, const SrcPacket& /*b*/) {
-  return static_cast<TgtPacket>(a);
-}
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket
-pcast(const SrcPacket& a, const SrcPacket& /*b*/, const SrcPacket& /*c*/, const SrcPacket& /*d*/) {
-  return static_cast<TgtPacket>(a);
-}
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket
-pcast(const SrcPacket& a, const SrcPacket& /*b*/, const SrcPacket& /*c*/, const SrcPacket& /*d*/,
-      const SrcPacket& /*e*/, const SrcPacket& /*f*/, const SrcPacket& /*g*/, const SrcPacket& /*h*/) {
-  return static_cast<TgtPacket>(a);
-}
+template <typename Target, typename Packet>
+struct preinterpret_impl;
+
+template <typename Packet>
+struct preinterpret_impl<Packet, Packet> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
+};
 
 /** \internal \returns reinterpret_cast<Target>(a) */
 template <typename Target, typename Packet>
-EIGEN_DEVICE_FUNC inline Target
-preinterpret(const Packet& a); /* { return reinterpret_cast<const Target&>(a); } */
+EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {
+  return preinterpret_impl<Target, Packet>::run(a);
+}
+
+template <typename SrcPacket, typename TgtPacket,
+          bool HasUnsigned = !NumTraits<typename unpacket_traits<SrcPacket>::type>::IsSigned ||
+                             !NumTraits<typename unpacket_traits<TgtPacket>::type>::IsSigned>
+struct pcast_impl;
+
+/** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a) {
+  return pcast_impl<SrcPacket, TgtPacket>::run(a);
+}
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b) {
+  return pcast_impl<SrcPacket, TgtPacket>::run(a, b);
+}
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+                                         const SrcPacket& d) {
+  return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d);
+}
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c, const SrcPacket& d,
+                                         const SrcPacket& e, const SrcPacket& f, const SrcPacket& g,
+                                         const SrcPacket& h) {
+  return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d, e, f, g, h);
+}
+
+template <typename SrcPacket, typename TgtPacket>
+struct pcast_impl<SrcPacket, TgtPacket, false> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return static_cast<TgtPacket>(a); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
+    return static_cast<TgtPacket>(a);
+  }
+};
+
+template <typename Packet, bool HasUnsigned>
+struct pcast_impl<Packet, Packet, HasUnsigned> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
+};
+
+template <typename SrcPacket, typename TgtPacket>
+struct pcast_impl<SrcPacket, TgtPacket, true> {
+  // reduces the number of redundant pcast definitions that include unsigned integer types
+  using SrcScalar = typename unpacket_traits<SrcPacket>::type;
+  using SignedSrcScalar = typename get_signed<SrcScalar>::type;
+  static constexpr int SrcSize = unpacket_traits<SrcPacket>::size;
+  using SignedSrcPacket = typename find_packet_by_size<SignedSrcScalar, SrcSize>::type;
+  EIGEN_STATIC_ASSERT((find_packet_by_size<SignedSrcScalar, SrcSize>::value), SIGNED SOURCE PACKET ERROR)
+
+  using TgtScalar = typename unpacket_traits<TgtPacket>::type;
+  using SignedTgtScalar = typename get_signed<TgtScalar>::type;
+  static constexpr int TgtSize = unpacket_traits<TgtPacket>::size;
+  using SignedTgtPacket = typename find_packet_by_size<SignedTgtScalar, TgtSize>::type;
+  EIGEN_STATIC_ASSERT((find_packet_by_size<SignedTgtScalar, TgtSize>::value), SIGNED TARGET PACKET ERROR)
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
+    return preinterpret<TgtPacket>(pcast<SignedSrcPacket, SignedTgtPacket>(preinterpret<SignedSrcPacket>(a)));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket& b) {
+    return preinterpret<TgtPacket>(
+        pcast<SignedSrcPacket, SignedTgtPacket>(preinterpret<SignedSrcPacket>(a), preinterpret<SignedSrcPacket>(b)));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+                                                             const SrcPacket& d) {
+    return preinterpret<TgtPacket>(
+        pcast<SignedSrcPacket, SignedTgtPacket>(preinterpret<SignedSrcPacket>(a), preinterpret<SignedSrcPacket>(b),
+                                                preinterpret<SignedSrcPacket>(c), preinterpret<SignedSrcPacket>(d)));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+                                                             const SrcPacket& d, const SrcPacket& e, const SrcPacket& f,
+                                                             const SrcPacket& g, const SrcPacket& h) {
+    return preinterpret<TgtPacket>(pcast<SignedSrcPacket, SignedTgtPacket>(
+        preinterpret<SignedSrcPacket>(a), preinterpret<SignedSrcPacket>(b), preinterpret<SignedSrcPacket>(c),
+        preinterpret<SignedSrcPacket>(d), preinterpret<SignedSrcPacket>(e), preinterpret<SignedSrcPacket>(f),
+        preinterpret<SignedSrcPacket>(g), preinterpret<SignedSrcPacket>(h)));
+  }
+};
 
 /** \internal \returns a + b (coeff-wise) */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
