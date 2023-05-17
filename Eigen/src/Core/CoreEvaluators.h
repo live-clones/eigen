@@ -743,7 +743,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     Array<DstType, DstPacketSize, 1> dstArray;
     for (size_t k = 0; k < DstPacketSize; k++)
-      dstArray[k] = coeff(index);
+      dstArray[k] = coeff(index + k);
     return pload<DstPacketType>(dstArray.data());
   }
   template <int LoadMode, typename DstPacketType, AltSrcPacketOp<DstPacketType> = true>
