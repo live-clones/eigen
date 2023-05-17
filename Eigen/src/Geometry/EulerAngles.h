@@ -139,7 +139,6 @@ MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2) const
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Derived, 3, 3)
 
   Matrix<Scalar, 3, 1> res;
-  typedef Matrix<typename Derived::Scalar, 2, 1> Vector2;
 
   const Index odd = ((a0 + 1) % 3 == a1) ? 0 : 1;
   const Index i = a0;
@@ -160,12 +159,12 @@ MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2) const
         res[0] += Scalar(EIGEN_PI);
       }
 
-      Scalar s2 = Vector2(coeff(j, i), coeff(k, i)).norm();
+      Scalar s2 = numext::hypot(coeff(j, i), coeff(k, i));
       res[1] = -numext::atan2(s2, coeff(i, i));
     }
     else
     {
-      Scalar s2 = Vector2(coeff(j, i), coeff(k, i)).norm();
+      Scalar s2 = numext::hypot(coeff(j, i), coeff(k, i));
       res[1] = numext::atan2(s2, coeff(i, i));
     }
 
@@ -186,7 +185,7 @@ MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2) const
   else
   {
     res[0] = numext::atan2(coeff(j, k), coeff(k, k));
-    Scalar c2 = Vector2(coeff(i, i), coeff(i, j)).norm();
+    Scalar c2 = numext::hypot(coeff(i, i), coeff(i, j));
     if ((odd && res[0] < Scalar(0)) || ((!odd) && res[0] > Scalar(0)))
     {
       if (res[0] > Scalar(0))
