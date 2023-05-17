@@ -147,33 +147,34 @@ template<typename T> struct unpacket_traits
 template<typename T> struct unpacket_traits<const T> : unpacket_traits<T> { };
 
 template <typename T>
-struct get_signed {
+struct is_degenerate {
   using type = T;
+  static constexpr bool value = false;
 };
 template <>
-struct get_signed<uint8_t> {
+struct is_degenerate<uint8_t> {
   using type = int8_t;
+  static constexpr bool value = true;
 };
 template <>
-struct get_signed<uint16_t> {
+struct is_degenerate<uint16_t> {
   using type = int16_t;
+  static constexpr bool value = true;
 };
 template <>
-struct get_signed<uint32_t> {
+struct is_degenerate<uint32_t> {
   using type = int32_t;
+  static constexpr bool value = true;
 };
 template <>
-struct get_signed<uint64_t> {
+struct is_degenerate<uint64_t> {
   using type = int64_t;
+  static constexpr bool value = true;
 };
 
 template <typename Src, typename Tgt>
 struct type_casting_traits {
-  enum { VectorizedCast = 0, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <typename T>
-struct type_casting_traits<T, T> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
+  enum { VectorizedCast = is_same<Src, Tgt>::value, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
 };
 
 /** \internal Wrapper to ensure that multiple packet types can map to the same
@@ -219,9 +220,10 @@ EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {
   return preinterpret_impl<Target, Packet>::run(a);
 }
 
+// if one or both of the packet types is unsigned, then it can be defined in terms of its signed packet types
 template <typename SrcPacket, typename TgtPacket,
-          bool HasUnsigned = !NumTraits<typename unpacket_traits<SrcPacket>::type>::IsSigned ||
-                             !NumTraits<typename unpacket_traits<TgtPacket>::type>::IsSigned>
+          bool Degenerate = is_degenerate<typename unpacket_traits<SrcPacket>::type>::value ||
+                            is_degenerate<typename unpacket_traits<TgtPacket>::type>::value>
 struct pcast_impl;
 
 /** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
@@ -253,8 +255,8 @@ struct pcast_impl<SrcPacket, TgtPacket, false> {
   }
 };
 
-template <typename Packet, bool HasUnsigned>
-struct pcast_impl<Packet, Packet, HasUnsigned> {
+template <typename Packet, bool Degenerate>
+struct pcast_impl<Packet, Packet, Degenerate> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
 };
 
@@ -262,16 +264,14 @@ template <typename SrcPacket, typename TgtPacket>
 struct pcast_impl<SrcPacket, TgtPacket, true> {
   // reduces the number of redundant pcast definitions that include unsigned integer types
   using SrcScalar = typename unpacket_traits<SrcPacket>::type;
-  using SignedSrcScalar = typename get_signed<SrcScalar>::type;
+  using SignedSrcScalar = typename is_degenerate<SrcScalar>::type;
   static constexpr int SrcSize = unpacket_traits<SrcPacket>::size;
   using SignedSrcPacket = typename find_packet_by_size<SignedSrcScalar, SrcSize>::type;
-  EIGEN_STATIC_ASSERT((find_packet_by_size<SignedSrcScalar, SrcSize>::value), SIGNED SOURCE PACKET ERROR)
 
   using TgtScalar = typename unpacket_traits<TgtPacket>::type;
-  using SignedTgtScalar = typename get_signed<TgtScalar>::type;
+  using SignedTgtScalar = typename is_degenerate<TgtScalar>::type;
   static constexpr int TgtSize = unpacket_traits<TgtPacket>::size;
   using SignedTgtPacket = typename find_packet_by_size<SignedTgtScalar, TgtSize>::type;
-  EIGEN_STATIC_ASSERT((find_packet_by_size<SignedTgtScalar, TgtSize>::value), SIGNED TARGET PACKET ERROR)
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
     return preinterpret<TgtPacket>(pcast<SignedSrcPacket, SignedTgtPacket>(preinterpret<SignedSrcPacket>(a)));
