@@ -226,15 +226,15 @@ EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b,
   return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d, e, f, g, h);
 }
 
-//template <typename SrcPacket, typename TgtPacket>
-//struct pcast_impl<SrcPacket, TgtPacket, false> {
-//  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
-//    return cast_impl<SrcPacket, TgtPacket>::run(a);
-//  }
-//  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
-//    return cast_impl<SrcPacket, TgtPacket>::run(a);
-//  }
-//};
+template <typename SrcPacket, typename TgtPacket>
+struct pcast_impl<SrcPacket, TgtPacket, false> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
+    return cast_impl<SrcPacket, TgtPacket>::run(a);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
+    return cast_impl<SrcPacket, TgtPacket>::run(a);
+  }
+};
 
 template <typename Packet>
 struct pcast_impl<Packet, Packet, true> {
