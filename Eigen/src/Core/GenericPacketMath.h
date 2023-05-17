@@ -221,7 +221,7 @@ EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {
 }
 
 // if one or both of the packet types is unsigned, then it can be defined in terms of its signed packet types
-template <typename SrcPacket, typename TgtPacket,
+template <typename SrcPacket, typename TgtPacket, bool IsSame = is_same<SrcPacket, TgtPacket>::value,
           bool Degenerate = is_degenerate<typename unpacket_traits<SrcPacket>::type>::value ||
                             is_degenerate<typename unpacket_traits<TgtPacket>::type>::value>
 struct pcast_impl;
@@ -248,7 +248,7 @@ EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b,
 }
 
 template <typename SrcPacket, typename TgtPacket>
-struct pcast_impl<SrcPacket, TgtPacket, false> {
+struct pcast_impl<SrcPacket, TgtPacket, false, false> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return static_cast<TgtPacket>(a); }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
     return static_cast<TgtPacket>(a);
@@ -256,12 +256,12 @@ struct pcast_impl<SrcPacket, TgtPacket, false> {
 };
 
 template <typename Packet, bool Degenerate>
-struct pcast_impl<Packet, Packet, Degenerate> {
+struct pcast_impl<Packet, Packet, true, Degenerate> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
 };
 
 template <typename SrcPacket, typename TgtPacket>
-struct pcast_impl<SrcPacket, TgtPacket, true> {
+struct pcast_impl<SrcPacket, TgtPacket, false, true> {
   // reduces the number of redundant pcast definitions that include unsigned integer types
   using SrcScalar = typename unpacket_traits<SrcPacket>::type;
   using SignedSrcScalar = typename is_degenerate<SrcScalar>::type;
