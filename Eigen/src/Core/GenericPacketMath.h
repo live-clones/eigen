@@ -146,10 +146,25 @@ template<typename T> struct unpacket_traits
 
 template<typename T> struct unpacket_traits<const T> : unpacket_traits<T> { };
 
+template <typename SrcPacket, typename TgtPacket>
+struct degenerate_pair : std::false_type {};
+
+template <typename Packet>
+struct degenerate_pair<Packet, Packet> : std::true_type {};
+
+struct degenerate_type_casting_traits {
+  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
+};
+
 template <typename Src, typename Tgt>
 struct type_casting_traits {
-  enum { VectorizedCast = is_same<Src, Tgt>::value, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
+  enum {
+    VectorizedCast = is_same<Src, Tgt>::value && packet_traits<Src>::Vectorizable,
+    SrcCoeffRatio = 1,
+    TgtCoeffRatio = 1
+  };
 };
+
 
 /** \internal Wrapper to ensure that multiple packet types can map to the same
     same underlying vector type. */
@@ -181,7 +196,7 @@ struct is_scalar {
 };
 
 template <typename Target, typename Packet, bool IsSame = is_same<Target, Packet>::value,
-          bool Scalar2Scalar = is_scalar<Target>::value && is_scalar<Packet>::value>
+          bool ScalarToScalar = is_scalar<Target>::value && is_scalar<Packet>::value>
 struct preinterpret_impl;
 
 template <typename Target, typename Packet>
@@ -191,8 +206,8 @@ struct preinterpret_impl<Target, Packet, false, true> {
   }
 };
 
-template <typename Packet, bool Scalar2Scalar>
-struct preinterpret_impl<Packet, Packet, true, Scalar2Scalar> {
+template <typename Packet, bool ScalarToScalar>
+struct preinterpret_impl<Packet, Packet, true, ScalarToScalar> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
 };
 
@@ -202,20 +217,20 @@ EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {
   return preinterpret_impl<Target, Packet>::run(a);
 }
 
-template <typename SrcPacket, typename TgtPacket, bool IsSame = is_same<SrcPacket, TgtPacket>::value>
+template <typename SrcPacket, typename TgtPacket, bool Degenerate = degenerate_pair<SrcPacket, TgtPacket>::value>
 struct pcast_impl;
 
 /** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
 template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket pcast(const SrcPacket& a) {
   return pcast_impl<SrcPacket, TgtPacket>::run(a);
 }
 template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket pcast(const SrcPacket& a, const SrcPacket& b) {
   return pcast_impl<SrcPacket, TgtPacket>::run(a, b);
 }
 template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
                                          const SrcPacket& d) {
   return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d);
 }
@@ -228,6 +243,7 @@ EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b,
 
 template <typename SrcPacket, typename TgtPacket>
 struct pcast_impl<SrcPacket, TgtPacket, false> {
+  // the packets are not degenerate: attempt static_cast
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
     return cast_impl<SrcPacket, TgtPacket>::run(a);
   }
@@ -236,9 +252,11 @@ struct pcast_impl<SrcPacket, TgtPacket, false> {
   }
 };
 
-template <typename Packet>
-struct pcast_impl<Packet, Packet, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
+template <typename SrcPacket, typename TgtPacket>
+struct pcast_impl<SrcPacket, TgtPacket, true> {
+  // the packets are degenerate: preinterpret is equivalent to pcast
+  // moreover, if the packets are the same, then the pcast is a no-op
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return preinterpret<TgtPacket>(a); }
 };
 
 /** \internal \returns a + b (coeff-wise) */
