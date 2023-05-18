@@ -210,7 +210,7 @@ struct find_packet_by_size {
 };
 template <typename T>
 struct find_packet_by_size<T, 1> {
-  using type = T;
+  using type = typename unpacket_traits<T>::type;
   static constexpr bool value = (unpacket_traits<type>::size == 1);
 };
 

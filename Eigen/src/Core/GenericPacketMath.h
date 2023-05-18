@@ -251,9 +251,7 @@ struct pcast_generic<SrcPacket, TgtPacket, false> {
     return cast_impl<SrcPacket, TgtPacket>::run(a);
   }
   // TODO: do we need this?
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
-    return cast_impl<SrcPacket, TgtPacket>::run(a);
-  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) { return run(a); }
 };
 
 template <typename Packet>
