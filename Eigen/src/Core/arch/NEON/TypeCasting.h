@@ -127,18 +127,7 @@ EIGEN_STRONG_INLINE Packet2ul preinterpret<Packet2ul, Packet2l>(const Packet2l& 
 //==============================================================================
 // pcast, SrcType = float
 //==============================================================================
-template <>
-struct type_casting_traits<float, float> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet4f pcast<Packet4f, Packet4f>(const Packet4f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2f pcast<Packet2f, Packet2f>(const Packet2f& a) {
-  return a;
-}
+
 
 template <>
 struct type_casting_traits<float, numext::int64_t> {
@@ -431,22 +420,6 @@ EIGEN_STRONG_INLINE Packet4us pcast<Packet4c, Packet4us>(const Packet4c& a) {
   return preinterpret<Packet4us>(pcast<Packet4c, Packet4s>(a));
 }
 
-template <>
-struct type_casting_traits<numext::int8_t, numext::int8_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet16c pcast<Packet16c, Packet16c>(const Packet16c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8c pcast<Packet8c, Packet8c>(const Packet8c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4c pcast<Packet4c, Packet4c>(const Packet4c& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::int8_t, numext::uint8_t> {
@@ -582,22 +555,6 @@ EIGEN_STRONG_INLINE Packet4s pcast<Packet4uc, Packet4s>(const Packet4uc& a) {
   return preinterpret<Packet4s>(pcast<Packet4uc, Packet4us>(a));
 }
 
-template <>
-struct type_casting_traits<numext::uint8_t, numext::uint8_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet16uc pcast<Packet16uc, Packet16uc>(const Packet16uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8uc pcast<Packet8uc, Packet8uc>(const Packet8uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4uc pcast<Packet4uc, Packet4uc>(const Packet4uc& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::uint8_t, numext::int8_t> {
@@ -693,18 +650,6 @@ EIGEN_STRONG_INLINE Packet2ui pcast<Packet4s, Packet2ui>(const Packet4s& a) {
   return preinterpret<Packet2ui>(pcast<Packet4s, Packet2i>(a));
 }
 
-template <>
-struct type_casting_traits<numext::int16_t, numext::int16_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet8s pcast<Packet8s, Packet8s>(const Packet8s& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4s pcast<Packet4s, Packet4s>(const Packet4s& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::int16_t, numext::uint16_t> {
@@ -839,18 +784,6 @@ EIGEN_STRONG_INLINE Packet2i pcast<Packet4us, Packet2i>(const Packet4us& a) {
   return preinterpret<Packet2i>(pcast<Packet4us, Packet2ui>(a));
 }
 
-template <>
-struct type_casting_traits<numext::uint16_t, numext::uint16_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet8us pcast<Packet8us, Packet8us>(const Packet8us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4us pcast<Packet4us, Packet4us>(const Packet4us& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::uint16_t, numext::int16_t> {
@@ -951,18 +884,6 @@ EIGEN_STRONG_INLINE Packet2ul pcast<Packet2i, Packet2ul>(const Packet2i& a) {
   return preinterpret<Packet2ul>(pcast<Packet2i, Packet2l>(a));
 }
 
-template <>
-struct type_casting_traits<numext::int32_t, numext::int32_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet4i pcast<Packet4i, Packet4i>(const Packet4i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2i pcast<Packet2i, Packet2i>(const Packet2i& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::int32_t, numext::uint32_t> {
@@ -1108,18 +1029,6 @@ EIGEN_STRONG_INLINE Packet2l pcast<Packet2ui, Packet2l>(const Packet2ui& a) {
   return preinterpret<Packet2l>(pcast<Packet2ui, Packet2ul>(a));
 }
 
-template <>
-struct type_casting_traits<numext::uint32_t, numext::uint32_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet4ui pcast<Packet4ui, Packet4ui>(const Packet4ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ui pcast<Packet2ui, Packet2ui>(const Packet2ui& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::uint32_t, numext::int32_t> {
@@ -1238,14 +1147,6 @@ EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a) {
   return vcvt_f32_s32(vmovn_s64(a));
 }
 
-template <>
-struct type_casting_traits<numext::int64_t, numext::int64_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet2l pcast<Packet2l, Packet2l>(const Packet2l& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::int64_t, numext::uint64_t> {
@@ -1377,14 +1278,6 @@ EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a) {
   return vcvt_f32_u32(vmovn_u64(a));
 }
 
-template <>
-struct type_casting_traits<numext::uint64_t, numext::uint64_t> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet2ul pcast<Packet2ul, Packet2ul>(const Packet2ul& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<numext::uint64_t, numext::int64_t> {
@@ -1528,14 +1421,6 @@ EIGEN_STRONG_INLINE Packet4i preinterpret<Packet4i, Packet2d>(const Packet2d& a)
   return Packet4i(vreinterpretq_s32_f64(a));
 }
 
-template <>
-struct type_casting_traits<double, double> {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
-};
-template <>
-EIGEN_STRONG_INLINE Packet2d pcast<Packet2d, Packet2d>(const Packet2d& a) {
-  return a;
-}
 
 template <>
 struct type_casting_traits<double, float> {
