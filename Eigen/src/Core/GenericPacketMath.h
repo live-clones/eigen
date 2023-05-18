@@ -180,7 +180,7 @@ struct is_degenerate_helper<SrcPacket, TgtPacket, false> {
   static constexpr int SrcSize = unpacket_traits<SrcPacket>::size;
   using TgtScalar = typename unpacket_traits<TgtPacket>::type;
   static constexpr int TgtSize = unpacket_traits<TgtPacket>::size;
-  static constexpr bool value = is_degenerate_helper<SrcScalar, TgtScalar>::value && (SrcSize == TgtSize);
+  static constexpr bool value = is_degenerate_helper<SrcScalar, TgtScalar, true>::value && (SrcSize == TgtSize);
 };
 
 // is_degenerate<T1,T2>::value == is_degenerate<T2,T1>::value
