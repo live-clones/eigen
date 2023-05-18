@@ -124,38 +124,6 @@ EIGEN_STRONG_INLINE Packet2ul preinterpret<Packet2ul, Packet2l>(const Packet2l& 
   return Packet2ul(vreinterpretq_u64_s64(a));
 }
 
-template<> struct type_casting_traits<numext::int8_t, numext::uint8_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet4c, Packet4uc> : std::true_type {};
-template<> struct degenerate_pair<Packet8c, Packet8uc> : std::true_type {};
-template<> struct degenerate_pair<Packet16c, Packet16uc> : std::true_type {};
-
-template<> struct type_casting_traits<numext::uint8_t, numext::int8_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet4uc, Packet4c> : std::true_type {};
-template<> struct degenerate_pair<Packet8uc, Packet8c> : std::true_type {};
-template<> struct degenerate_pair<Packet16uc, Packet16c> : std::true_type {};
-
-template<> struct type_casting_traits<numext::int16_t, numext::uint16_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet4s, Packet4us> : std::true_type {};
-template<> struct degenerate_pair<Packet8s, Packet8us> : std::true_type {};
-
-template<> struct type_casting_traits<numext::uint16_t, numext::int16_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet4us, Packet4s> : std::true_type {};
-template<> struct degenerate_pair<Packet8us, Packet8s> : std::true_type {};
-
-template<> struct type_casting_traits<numext::int32_t, numext::uint32_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet2i, Packet2ui> : std::true_type {};
-template<> struct degenerate_pair<Packet4i, Packet4ui> : std::true_type {};
-
-template<> struct type_casting_traits<numext::uint32_t, numext::int32_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet2ui, Packet2i> : std::true_type {};
-template<> struct degenerate_pair<Packet4ui, Packet4i> : std::true_type {};
-
-template<> struct type_casting_traits<numext::int64_t, numext::uint64_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet2l, Packet2ul> : std::true_type {};
-
-template<> struct type_casting_traits<numext::uint64_t, numext::int64_t> : degenerate_type_casting_traits {};
-template<> struct degenerate_pair<Packet2ul, Packet2l> : std::true_type {};
-
 //==============================================================================
 // pcast, SrcType = float
 //==============================================================================

@@ -146,20 +146,55 @@ template<typename T> struct unpacket_traits
 
 template<typename T> struct unpacket_traits<const T> : unpacket_traits<T> { };
 
-template <typename SrcPacket, typename TgtPacket>
-struct degenerate_pair : std::false_type {};
-
+/** \internal A convenience utility for determining if the type is a scalar.
+ * This is used to enable some generic packet implementations.
+ */
 template <typename Packet>
-struct degenerate_pair<Packet, Packet> : std::true_type {};
+struct is_scalar {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  enum { value = internal::is_same<Packet, Scalar>::value };
+};
 
-struct degenerate_type_casting_traits {
-  enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };
+// automatically and succinctly define combinations of pcast<SrcPacket,TgtPacket> when 
+// 1) the packets are the same type, or
+// 2) the packets differ only in sign. 
+// In both of these cases, preinterpret (bit_cast) is equivalent to pcast (static_cast)
+template <typename SrcPacket, typename TgtPacket,
+          bool Scalar = is_scalar<SrcPacket>::value && is_scalar<TgtPacket>::value>
+struct is_degenerate_helper : std::false_type {};
+template <>
+struct is_degenerate_helper<int8_t, uint8_t, true> : std::true_type {};
+template <>
+struct is_degenerate_helper<int16_t, uint16_t, true> : std::true_type {};
+template <>
+struct is_degenerate_helper<int32_t, uint32_t, true> : std::true_type {};
+template <>
+struct is_degenerate_helper<int64_t, uint64_t, true> : std::true_type {};
+
+template <typename Packet, bool Scalar>
+struct is_degenerate_helper<Packet, Packet, Scalar> : std::true_type {};
+
+template <typename SrcPacket, typename TgtPacket>
+struct is_degenerate_helper<SrcPacket, TgtPacket, false> {
+  using SrcScalar = typename unpacket_traits<SrcPacket>::type;
+  static constexpr int SrcSize = unpacket_traits<SrcPacket>::size;
+  using TgtScalar = typename unpacket_traits<TgtPacket>::type;
+  static constexpr int TgtSize = unpacket_traits<TgtPacket>::size;
+  static constexpr bool value = is_degenerate_asymmetric<SrcScalar, TgtScalar>::value && (SrcSize == TgtSize);
+};
+
+// is_degenerate<T1,T2>::value == is_degenerate<T2,T1>::value
+template <typename SrcPacket, typename TgtPacket>
+struct is_degenerate {
+  static constexpr bool value =
+      is_degenerate_helper<SrcPacket, TgtPacket>::value || is_degenerate_helper<TgtPacket, SrcPacket>::value;
 };
 
 template <typename Src, typename Tgt>
 struct type_casting_traits {
   enum {
-    VectorizedCast = is_same<Src, Tgt>::value && packet_traits<Src>::Vectorizable,
+    VectorizedCast =
+        is_degenerate<Src, Tgt>::value && packet_traits<Src>::Vectorizable && packet_traits<Tgt>::Vectorizable,
     SrcCoeffRatio = 1,
     TgtCoeffRatio = 1
   };
@@ -183,81 +218,76 @@ struct eigen_packet_wrapper
   T m_val;
 };
 
-
-/** \internal A convenience utility for determining if the type is a scalar.
- * This is used to enable some generic packet implementations.
- */
-template<typename Packet>
-struct is_scalar {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  enum {
-    value = internal::is_same<Packet, Scalar>::value
-  };
-};
-
-template <typename Target, typename Packet, bool IsSame = is_same<Target, Packet>::value,
-          bool ScalarToScalar = is_scalar<Target>::value && is_scalar<Packet>::value>
-struct preinterpret_impl;
+template <typename Target, typename Packet, bool IsSame = is_same<Target, Packet>::value>
+struct preinterpret_generic;
 
 template <typename Target, typename Packet>
-struct preinterpret_impl<Target, Packet, false, true> {
+struct preinterpret_generic<Target, Packet, false> {
+  // the packets are not the same, attempt scalar bit_cast
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Target run(const Packet& a) {
     return numext::bit_cast<Target, Packet>(a);
   }
 };
 
-template <typename Packet, bool ScalarToScalar>
-struct preinterpret_impl<Packet, Packet, true, ScalarToScalar> {
+template <typename Packet>
+struct preinterpret_generic<Packet, Packet, true> {
+  // the packets are the same type: do nothing
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
 };
 
 /** \internal \returns reinterpret_cast<Target>(a) */
 template <typename Target, typename Packet>
 EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {
-  return preinterpret_impl<Target, Packet>::run(a);
+  return preinterpret_generic<Target, Packet>::run(a);
 }
 
-template <typename SrcPacket, typename TgtPacket, bool Degenerate = degenerate_pair<SrcPacket, TgtPacket>::value>
-struct pcast_impl;
-
-/** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket pcast(const SrcPacket& a) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a);
-}
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket pcast(const SrcPacket& a, const SrcPacket& b) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a, b);
-}
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
-                                         const SrcPacket& d) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d);
-}
-template <typename SrcPacket, typename TgtPacket>
-EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c, const SrcPacket& d,
-                                         const SrcPacket& e, const SrcPacket& f, const SrcPacket& g,
-                                         const SrcPacket& h) {
-  return pcast_impl<SrcPacket, TgtPacket>::run(a, b, c, d, e, f, g, h);
-}
+template <typename SrcPacket, typename TgtPacket, bool Degenerate = is_degenerate<SrcPacket, TgtPacket>::value>
+struct pcast_generic;
 
 template <typename SrcPacket, typename TgtPacket>
-struct pcast_impl<SrcPacket, TgtPacket, false> {
-  // the packets are not degenerate: attempt static_cast
+struct pcast_generic<SrcPacket, TgtPacket, false> {
+  // the packets are not degenerate: attempt scalar static_cast
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
     return cast_impl<SrcPacket, TgtPacket>::run(a);
   }
+  // TODO: do we need this?
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a, const SrcPacket&...) {
     return cast_impl<SrcPacket, TgtPacket>::run(a);
   }
 };
 
+template <typename Packet>
+struct pcast_generic<Packet, Packet, true> {
+  // the packets are the same: do nothing
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
+};
+
 template <typename SrcPacket, typename TgtPacket>
-struct pcast_impl<SrcPacket, TgtPacket, true> {
+struct pcast_generic<SrcPacket, TgtPacket, true> {
   // the packets are degenerate: preinterpret is equivalent to pcast
-  // moreover, if the packets are the same, then the pcast is a no-op
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return preinterpret<TgtPacket>(a); }
 };
+
+/** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a) {
+  return pcast_generic<SrcPacket, TgtPacket>::run(a);
+}
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b) {
+  return pcast_generic<SrcPacket, TgtPacket>::run(a, b);
+}
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c,
+                                         const SrcPacket& d) {
+  return pcast_generic<SrcPacket, TgtPacket>::run(a, b, c, d);
+}
+template <typename SrcPacket, typename TgtPacket>
+EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b, const SrcPacket& c, const SrcPacket& d,
+                                         const SrcPacket& e, const SrcPacket& f, const SrcPacket& g,
+                                         const SrcPacket& h) {
+  return pcast_generic<SrcPacket, TgtPacket>::run(a, b, c, d, e, f, g, h);
+}
 
 /** \internal \returns a + b (coeff-wise) */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
