@@ -622,6 +622,7 @@ protected:
 };
 
 // ----------------------- Casting ---------------------
+
 template <typename SrcType, typename DstType, typename ArgType>
 struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, IndexBased> {
   using CastOp = scalar_cast_op<SrcType, DstType>;
@@ -642,7 +643,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   };
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit unary_evaluator(const XprType& xpr)
-      : m_argImpl(xpr.nestedExpression()) {
+      : m_argImpl(xpr.nestedExpression()), m_rows(xpr.rows()), m_cols(xpr.cols()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<CastOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
@@ -665,32 +666,73 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <typename DstPacketType>
   using SrcPacketArgs8 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (8 * SrcPacketSize), bool>;
 
-  template <int LoadMode, typename PacketType = SrcPacketType>
-  EIGEN_ALWAYS_INLINE PacketType srcPacket(Index row, Index col, Index offset) const {
-    constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
-    return m_argImpl.template packet<LoadMode, PacketType>(IsRowMajor ? row : row + (offset * PacketSize),
-                                                           IsRowMajor ? col + (offset * PacketSize) : col);
+  bool check_array_bounds(Index row, Index col, Index packetSize) const {
+    Index rowEnd = IsRowMajor ? row : row + packetSize;
+    Index colEnd = IsRowMajor ? col + packetSize : col;
+    return (row >= 0) && (rowEnd <= rows()) && (col >= 0) && (colEnd <= cols());
   }
-  template <int LoadMode, typename PacketType = SrcPacketType>
-  EIGEN_ALWAYS_INLINE PacketType srcPacket(Index index, Index offset) const {
-    constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
-    return m_argImpl.template packet<LoadMode, PacketType>(index + (offset * PacketSize));
+  bool check_array_bounds(Index index, Index packetSize) const {
+    Index indexEnd = index + packetSize;
+    return (index >= 0) && (indexEnd <= size());
   }
 
-  // no suitable source packet type is available, revert to a scalar loop
-  // this is primarily intended as a catch-all for uncommon combinations of packet types
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcType srcCoeff(Index row, Index col, Index offset) const {
+    Index actualRow = IsRowMajor ? row : row + offset;
+    Index actualCol = IsRowMajor ? col + offset : col;
+    eigen_assert(check_array_bounds(actualRow, actualCol, 1) && "Array index out of bounds");
+    return m_argImpl.coeff(actualRow, actualCol);
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcType srcCoeff(Index index, Index offset) const {
+    Index actualIndex = index + offset;
+    eigen_assert(check_array_bounds(actualIndex, 1) && "Array index out of bounds");
+    return m_argImpl.coeff(actualIndex);
+  }
+
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_STRONG_INLINE PacketType srcPacket(Index row, Index col, Index offset) const {
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
+    Index actualRow = IsRowMajor ? row : row + (offset * PacketSize);
+    Index actualCol = IsRowMajor ? col + (offset * PacketSize) : col;
+    eigen_assert(check_array_bounds(actualRow, actualCol, PacketSize) && "Array index out of bounds");
+    return m_argImpl.template packet<LoadMode, PacketType>(actualRow, actualCol);
+  }
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_STRONG_INLINE PacketType srcPacket(Index index, Index offset) const {
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
+    Index actualIndex = index + (offset * PacketSize);
+    eigen_assert(check_array_bounds(actualIndex, PacketSize) && "Array index out of bounds");
+    return m_argImpl.template packet<LoadMode, PacketType>(actualIndex);
+  }
+
+  // In this scenario, the destination packet has fewer elements than the default source packet.
+  // This is problematic as the evaluation loop may attempt to access data outside the bounds of the array.
+  // For example, consider the cast utilizing pcast<Packet4f,Packet2d> with an array of size 4: {0.0f,1.0f,2.0f,3.0f}. 
+  // The first iteration of the evaulation loop will load 16 bytes: {0.0f,1.0f,2.0f,3.0f} and cast to {0.0,1.0}, which is acceptable.
+  // The second iteration will load 16 bytes: {2.0f,3.0f,?,?}, which is outside the bounds of the array.
+
+  // Instead, perform runtime check to determine if the load would access data outside the bounds of the array.
+  // If not, perform full load. Otherwise, revert to a scalar loop to perform a partial load.
+  // In either case, perform a vectorized cast of the source packet.
+
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
-    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    Array<DstType, DstPacketSize, 1> dstArray;
-    for (size_t k = 0; k < DstPacketSize; k++)
-      dstArray[k] = coeff(IsRowMajor ? row : row + k, IsRowMajor ? col + k : col);
-    return pload<DstPacketType>(dstArray.data());
+    SrcPacketType src;
+    if (check_array_bounds(row, col, SrcPacketSize)) {
+      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+      src = srcPacket<SrcLoadMode>(row, col, 0);
+    } else {
+      constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+      Array<SrcType, SrcPacketSize, 1> srcArray;
+      for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(row, col, k);
+      for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
+      src = pload<SrcPacketType>(srcArray.data());
+    }
+    return CastOp().template packetOp<SrcPacketType, DstPacketType>(src);
   }
-  // we cannot use the default (largest) source packet
-  // instead, we use the source packet that has the same size as the destination packet
+  // The default source packet has a half (or quarter) packet that has the same size as the
+  // destination packet. 
   template <int LoadMode, typename DstPacketType, AltSrcPacketOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
@@ -740,11 +782,18 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
 
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
-    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    Array<DstType, DstPacketSize, 1> dstArray;
-    for (size_t k = 0; k < DstPacketSize; k++)
-      dstArray[k] = coeff(index + k);
-    return pload<DstPacketType>(dstArray.data());
+    SrcPacketType src;
+    if (check_array_bounds(index, SrcPacketSize)) {
+      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+      src = srcPacket<SrcLoadMode>(index, 0);
+    } else {
+      constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+      Array<SrcType, SrcPacketSize, 1> srcArray;
+      for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(index, k);
+      for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
+      src = pload<SrcPacketType>(srcArray.data());
+    }
+    return CastOp().template packetOp<SrcPacketType, DstPacketType>(src);
   }
   template <int LoadMode, typename DstPacketType, AltSrcPacketOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
@@ -793,8 +842,14 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
         srcPacket<SrcLoadMode6>(index, 6), srcPacket<SrcLoadMode7>(index, 7));
   }
 
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rows() const { return m_rows; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index cols() const { return m_cols; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_rows * m_cols; }
+
  protected:
   const evaluator<ArgType> m_argImpl;
+  const variable_if_dynamic<Index, XprType::RowsAtCompileTime> m_rows;
+  const variable_if_dynamic<Index, XprType::ColsAtCompileTime> m_cols;
 };
 
 // -------------------- CwiseTernaryOp --------------------

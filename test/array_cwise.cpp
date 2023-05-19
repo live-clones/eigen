@@ -1232,8 +1232,8 @@ struct cast_test_impl {
 
 
   static void run() {
-    const Index testRows = RowsAtCompileTime == Dynamic ? 100 * MaxPacketSize : RowsAtCompileTime;
-    const Index testCols = ColsAtCompileTime == Dynamic ? 100 * MaxPacketSize : ColsAtCompileTime;
+    const Index testRows = RowsAtCompileTime == Dynamic ? ((100 * MaxPacketSize) + 1) : RowsAtCompileTime;
+    const Index testCols = ColsAtCompileTime == Dynamic ? ((100 * MaxPacketSize) + 1) : ColsAtCompileTime;
     SrcArray src(testRows, testCols);
     src = src.unaryExpr(RandomOp());
     DstArray dst = src.template cast<DstType>();
@@ -1335,11 +1335,12 @@ EIGEN_DECLARE_TEST(array_cwise)
   }
 
   for (int i = 0; i < g_repeat; i++) {
+    // test fixed-sizes == 2^N + 1
     CALL_SUBTEST_1( cast_test<1>() );
-    CALL_SUBTEST_2( cast_test<2>() );
-    CALL_SUBTEST_3( cast_test<4>() );
-    CALL_SUBTEST_4( cast_test<8>() );
-    CALL_SUBTEST_5( cast_test<16>() );
+    CALL_SUBTEST_2( cast_test<2+1>() );
+    CALL_SUBTEST_3( cast_test<4+1>() );
+    CALL_SUBTEST_4( cast_test<8+1>() );
+    CALL_SUBTEST_5( cast_test<16+1>() );
     CALL_SUBTEST_6( cast_test<Dynamic>() );
   }
 

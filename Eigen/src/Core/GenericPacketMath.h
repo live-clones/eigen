@@ -190,6 +190,17 @@ struct is_degenerate {
       is_degenerate_helper<SrcPacket, TgtPacket>::value || is_degenerate_helper<TgtPacket, SrcPacket>::value;
 };
 
+template <typename Packet>
+struct is_half {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  static constexpr int Size = unpacket_traits<Packet>::size;
+
+  using DefaultPacket = typename packet_traits<Scalar>::type;
+  static constexpr int DefaultSize = unpacket_traits<DefaultPacket>::size;
+
+  static constexpr bool value = Size < DefaultSize;
+};
+
 template <typename Src, typename Tgt>
 struct type_casting_traits {
   enum {
@@ -241,11 +252,11 @@ EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {
   return preinterpret_generic<Target, Packet>::run(a);
 }
 
-template <typename SrcPacket, typename TgtPacket, bool Degenerate = is_degenerate<SrcPacket, TgtPacket>::value>
+template <typename SrcPacket, typename TgtPacket, bool Degenerate = is_degenerate<SrcPacket, TgtPacket>::value, bool TgtIsHalf = is_half<TgtPacket>::value>
 struct pcast_generic;
 
 template <typename SrcPacket, typename TgtPacket>
-struct pcast_generic<SrcPacket, TgtPacket, false> {
+struct pcast_generic<SrcPacket, TgtPacket, false, false> {
   // the packets are not degenerate: attempt scalar static_cast
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
     return cast_impl<SrcPacket, TgtPacket>::run(a);
@@ -255,16 +266,18 @@ struct pcast_generic<SrcPacket, TgtPacket, false> {
 };
 
 template <typename Packet>
-struct pcast_generic<Packet, Packet, true> {
+struct pcast_generic<Packet, Packet, true, false> {
   // the packets are the same: do nothing
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
 };
 
-template <typename SrcPacket, typename TgtPacket>
-struct pcast_generic<SrcPacket, TgtPacket, true> {
+template <typename SrcPacket, typename TgtPacket, bool TgtIsHalf>
+struct pcast_generic<SrcPacket, TgtPacket, true, TgtIsHalf> {
   // the packets are degenerate: preinterpret is equivalent to pcast
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) { return preinterpret<TgtPacket>(a); }
 };
+
+
 
 /** \internal \returns static_cast<TgtType>(a) (coeff-wise) */
 template <typename SrcPacket, typename TgtPacket>
@@ -286,6 +299,16 @@ EIGEN_DEVICE_FUNC inline TgtPacket pcast(const SrcPacket& a, const SrcPacket& b,
                                          const SrcPacket& h) {
   return pcast_generic<SrcPacket, TgtPacket>::run(a, b, c, d, e, f, g, h);
 }
+
+template <typename SrcPacket, typename TgtPacket>
+struct pcast_generic<SrcPacket, TgtPacket, false, true> {
+  // TgtPacket is a half packet of some other type
+  // perform cast and truncate result
+  using DefaultTgtPacket = typename is_half<TgtPacket>::DefaultPacket;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket run(const SrcPacket& a) {
+    return preinterpret<TgtPacket>(pcast<SrcPacket, DefaultTgtPacket>(a));
+  }
+};
 
 /** \internal \returns a + b (coeff-wise) */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet

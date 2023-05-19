@@ -17,6 +17,61 @@ namespace Eigen {
 
 namespace internal {
 
+
+//==============================================================================
+// preinterpret (truncation operations)
+//==============================================================================
+
+template <>
+EIGEN_STRONG_INLINE Packet8c preinterpret<Packet8c, Packet16c>(const Packet16c& a) {
+  return Packet8c(vget_low_s8(a));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c preinterpret<Packet4c, Packet8c>(const Packet8c& a) {
+  return Packet4c(vget_lane_s32(vreinterpret_s32_s8(a), 0));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4c preinterpret<Packet4c, Packet16c>(const Packet16c& a) {
+  return preinterpret<Packet4c>(preinterpret<Packet8c>(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8uc preinterpret<Packet8uc, Packet16uc>(const Packet16uc& a) {
+  return Packet8uc(vget_low_u8(a));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc preinterpret<Packet4uc, Packet8uc>(const Packet8uc& a) {
+  return Packet4uc(vget_lane_u32(vreinterpret_u32_u8(a), 0));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4uc preinterpret<Packet4uc, Packet16uc>(const Packet16uc& a) {
+  return preinterpret<Packet4uc>(preinterpret<Packet8uc>(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4s preinterpret<Packet4s, Packet8s>(const Packet8s& a) {
+  return Packet4s(vget_low_s16(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4us preinterpret<Packet4us, Packet8us>(const Packet8us& a) {
+  return Packet4us(vget_low_u16(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2i preinterpret<Packet2i, Packet4i>(const Packet4i& a) {
+  return Packet2i(vget_low_s32(a));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2ui preinterpret<Packet2ui, Packet4ui>(const Packet4ui& a) {
+  return Packet2ui(vget_low_u32(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2f preinterpret<Packet2f, Packet4f>(const Packet4f& a) {
+  return Packet2f(vget_low_f32(a));
+}
+
 //==============================================================================
 // preinterpret
 //==============================================================================
@@ -37,6 +92,7 @@ EIGEN_STRONG_INLINE Packet4f preinterpret<Packet4f, Packet4ui>(const Packet4ui& 
   return Packet4f(vreinterpretq_f32_u32(a));
 }
 
+
 template <>
 EIGEN_STRONG_INLINE Packet4c preinterpret<Packet4c, Packet4uc>(const Packet4uc& a) {
   return static_cast<Packet4c>(a);
@@ -49,6 +105,7 @@ template <>
 EIGEN_STRONG_INLINE Packet16c preinterpret<Packet16c, Packet16uc>(const Packet16uc& a) {
   return Packet16c(vreinterpretq_s8_u8(a));
 }
+
 
 template <>
 EIGEN_STRONG_INLINE Packet4uc preinterpret<Packet4uc, Packet4c>(const Packet4c& a) {
@@ -71,7 +128,6 @@ template <>
 EIGEN_STRONG_INLINE Packet8s preinterpret<Packet8s, Packet8us>(const Packet8us& a) {
   return Packet8s(vreinterpretq_s16_u16(a));
 }
-
 template <>
 EIGEN_STRONG_INLINE Packet4us preinterpret<Packet4us, Packet4s>(const Packet4s& a) {
   return Packet4us(vreinterpret_u16_s16(a));
