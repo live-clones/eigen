@@ -679,14 +679,12 @@ public:
   /// Assign src(row,col) to dst(row,col) through the assignment functor.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(Index row, Index col)
   {
-    eigen_assert(check_array_bounds(row, col, 1) && "Array index out of bounds");
     m_functor.assignCoeff(m_dst.coeffRef(row,col), m_src.coeff(row,col));
   }
 
   /// \sa assignCoeff(Index,Index)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(Index index)
   {
-    eigen_assert(check_array_bounds(index, 1) && "Array index out of bounds");
     m_functor.assignCoeff(m_dst.coeffRef(index), m_src.coeff(index));
   }
 
@@ -702,14 +700,12 @@ public:
   template<int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index row, Index col)
   {
-    eigen_assert(check_array_bounds(row, col, unpacket_traits<Packet>::size) && "Array index out of bounds");
     m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(row,col), m_src.template packet<LoadMode, Packet>(row,col));
   }
 
   template<int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index index)
   {
-    eigen_assert(check_array_bounds(index, unpacket_traits<Packet>::size) && "Array index out of bounds");
     m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(index), m_src.template packet<LoadMode, Packet>(index));
   }
 
@@ -737,17 +733,6 @@ public:
   }
 
 protected:
-  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
-  bool check_array_bounds(Index row, Index col, Index packetSize) const {
-    return (row >= 0) && (row < rows()) && (col >= 0) && (col + packetSize <= cols());
-  }
-  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
-  bool check_array_bounds(Index row, Index col, Index packetSize) const {
-    return (row >= 0) && (row + packetSize <= rows()) && (col >= 0) && (col < cols());
-  }
-  bool check_array_bounds(Index index, Index packetSize) const {
-    return (index >= 0) && (index + packetSize <= size());
-  }
   DstEvaluatorType& m_dst;
   const SrcEvaluatorType& m_src;
   const Functor &m_functor;
