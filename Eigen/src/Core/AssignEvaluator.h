@@ -413,6 +413,30 @@ struct unaligned_dense_assignment_loop<false>
   }
 };
 
+template <typename Kernel, int Index, int Stop>
+struct copy_using_evaluator_linearvec_CompleteUnrolling {
+  // FIXME: this is not very clean, perhaps this information should be provided by the kernel?
+  typedef typename Kernel::DstEvaluatorType DstEvaluatorType;
+  typedef typename DstEvaluatorType::XprType DstXprType;
+  typedef typename Kernel::PacketType PacketType;
+
+  enum {
+    SrcAlignment = Kernel::AssignmentTraits::SrcAlignment,
+    DstAlignment = Kernel::AssignmentTraits::DstAlignment
+  };
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
+    kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(Index);
+    enum { NextIndex = Index + unpacket_traits<PacketType>::size };
+    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, NextIndex, Stop>::run(kernel);
+  }
+};
+
+template <typename Kernel, int Stop>
+struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
+};
+
 template<typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling>
 {
@@ -453,8 +477,8 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrollin
            packetSize =unpacket_traits<PacketType>::size,
            alignedSize = (int(size)/packetSize)*packetSize };
 
-    copy_using_evaluator_innervec_CompleteUnrolling<Kernel, 0, alignedSize>::run(kernel);
-    copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, alignedSize, size>::run(kernel);
+    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, alignedSize>::run(kernel);
+    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, alignedSize, size>::run(kernel);
   }
 };
 
@@ -628,7 +652,10 @@ public:
   typedef typename DstEvaluatorType::Scalar Scalar;
   typedef copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor> AssignmentTraits;
   typedef typename AssignmentTraits::PacketType PacketType;
-
+  using Traits = typename DstEvaluatorType::ExpressionTraits;
+  static constexpr bool IsRowMajor = static_cast<bool>(int(DstEvaluatorType::Flags) & RowMajorBit);
+  static constexpr int RowsAtCompileTime = Traits::RowsAtCompileTime;
+  static constexpr int ColsAtCompileTime = Traits::ColsAtCompileTime;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   generic_dense_assignment_kernel(DstEvaluatorType &dst, const SrcEvaluatorType &src, const Functor &func, DstXprType& dstExpr)
@@ -652,12 +679,14 @@ public:
   /// Assign src(row,col) to dst(row,col) through the assignment functor.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(Index row, Index col)
   {
+    eigen_assert(check_array_bounds(row, col, 1) && "Array index out of bounds");
     m_functor.assignCoeff(m_dst.coeffRef(row,col), m_src.coeff(row,col));
   }
 
   /// \sa assignCoeff(Index,Index)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(Index index)
   {
+    eigen_assert(check_array_bounds(index, 1) && "Array index out of bounds");
     m_functor.assignCoeff(m_dst.coeffRef(index), m_src.coeff(index));
   }
 
@@ -670,42 +699,36 @@ public:
   }
 
 
-  template<int StoreMode, int LoadMode, typename PacketType>
+  template<int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index row, Index col)
   {
-    m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(row,col), m_src.template packet<LoadMode,PacketType>(row,col));
+    eigen_assert(check_array_bounds(row, col, unpacket_traits<Packet>::size) && "Array index out of bounds");
+    m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(row,col), m_src.template packet<LoadMode, Packet>(row,col));
   }
 
-  template<int StoreMode, int LoadMode, typename PacketType>
+  template<int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index index)
   {
-    m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(index), m_src.template packet<LoadMode,PacketType>(index));
+    eigen_assert(check_array_bounds(index, unpacket_traits<Packet>::size) && "Array index out of bounds");
+    m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(index), m_src.template packet<LoadMode, Packet>(index));
   }
 
-  template<int StoreMode, int LoadMode, typename PacketType>
+  template<int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketByOuterInner(Index outer, Index inner)
   {
     Index row = rowIndexByOuterInner(outer, inner);
     Index col = colIndexByOuterInner(outer, inner);
-    assignPacket<StoreMode,LoadMode,PacketType>(row, col);
+    assignPacket<StoreMode,LoadMode, Packet>(row, col);
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner)
   {
-    typedef typename DstEvaluatorType::ExpressionTraits Traits;
-    return int(Traits::RowsAtCompileTime) == 1 ? 0
-      : int(Traits::ColsAtCompileTime) == 1 ? inner
-      : int(DstEvaluatorType::Flags)&RowMajorBit ? outer
-      : inner;
+    return RowsAtCompileTime == 1 ? 0 : ColsAtCompileTime == 1 ? inner : IsRowMajor ? outer : inner;
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index colIndexByOuterInner(Index outer, Index inner)
   {
-    typedef typename DstEvaluatorType::ExpressionTraits Traits;
-    return int(Traits::ColsAtCompileTime) == 1 ? 0
-      : int(Traits::RowsAtCompileTime) == 1 ? inner
-      : int(DstEvaluatorType::Flags)&RowMajorBit ? inner
-      : outer;
+    return ColsAtCompileTime == 1 ? 0 : RowsAtCompileTime == 1 ? inner : IsRowMajor ? inner : outer;
   }
 
   EIGEN_DEVICE_FUNC const Scalar* dstDataPtr() const
@@ -714,6 +737,17 @@ public:
   }
 
 protected:
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
+  bool check_array_bounds(Index row, Index col, Index packetSize) const {
+    return (row >= 0) && (row < rows()) && (col >= 0) && (col + packetSize <= cols());
+  }
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
+  bool check_array_bounds(Index row, Index col, Index packetSize) const {
+    return (row >= 0) && (row + packetSize <= rows()) && (col >= 0) && (col < cols());
+  }
+  bool check_array_bounds(Index index, Index packetSize) const {
+    return (index >= 0) && (index + packetSize <= size());
+  }
   DstEvaluatorType& m_dst;
   const SrcEvaluatorType& m_src;
   const Functor &m_functor;
