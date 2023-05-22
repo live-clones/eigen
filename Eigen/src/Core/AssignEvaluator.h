@@ -719,7 +719,7 @@ public:
     typedef typename DstEvaluatorType::ExpressionTraits Traits;
     return int(Traits::RowsAtCompileTime) == 1 ? 0
       : int(Traits::ColsAtCompileTime) == 1 ? inner
-      : int(DstEvaluatorType::Flags) & RowMajorBit ? outer
+      : int(DstEvaluatorType::Flags)&RowMajorBit ? outer
       : inner;
   }
 
@@ -728,7 +728,7 @@ public:
     typedef typename DstEvaluatorType::ExpressionTraits Traits;
     return int(Traits::ColsAtCompileTime) == 1 ? 0
       : int(Traits::RowsAtCompileTime) == 1 ? inner
-      : int(DstEvaluatorType::Flags) & RowMajorBit ? inner
+      : int(DstEvaluatorType::Flags)&RowMajorBit ? inner
       : outer;
   }
 
