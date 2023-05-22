@@ -652,10 +652,7 @@ public:
   typedef typename DstEvaluatorType::Scalar Scalar;
   typedef copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor> AssignmentTraits;
   typedef typename AssignmentTraits::PacketType PacketType;
-  using Traits = typename DstEvaluatorType::ExpressionTraits;
-  static constexpr bool IsRowMajor = static_cast<bool>(int(DstEvaluatorType::Flags) & RowMajorBit);
-  static constexpr int RowsAtCompileTime = Traits::RowsAtCompileTime;
-  static constexpr int ColsAtCompileTime = Traits::ColsAtCompileTime;
+
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   generic_dense_assignment_kernel(DstEvaluatorType &dst, const SrcEvaluatorType &src, const Functor &func, DstXprType& dstExpr)
@@ -719,12 +716,20 @@ public:
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner)
   {
-    return RowsAtCompileTime == 1 ? 0 : ColsAtCompileTime == 1 ? inner : IsRowMajor ? outer : inner;
+    typedef typename DstEvaluatorType::ExpressionTraits Traits;
+    return int(Traits::RowsAtCompileTime) == 1 ? 0
+      : int(Traits::ColsAtCompileTime) == 1 ? inner
+      : int(DstEvaluatorType::Flags) & RowMajorBit ? outer
+      : inner;
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index colIndexByOuterInner(Index outer, Index inner)
   {
-    return ColsAtCompileTime == 1 ? 0 : RowsAtCompileTime == 1 ? inner : IsRowMajor ? inner : outer;
+    typedef typename DstEvaluatorType::ExpressionTraits Traits;
+    return int(Traits::ColsAtCompileTime) == 1 ? 0
+      : int(Traits::RowsAtCompileTime) == 1 ? inner
+      : int(DstEvaluatorType::Flags) & RowMajorBit ? inner
+      : outer;
   }
 
   EIGEN_DEVICE_FUNC const Scalar* dstDataPtr() const
