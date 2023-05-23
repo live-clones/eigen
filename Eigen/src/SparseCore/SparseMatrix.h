@@ -491,7 +491,7 @@ class SparseMatrix
       if (!isCompressed())
         internal::smart_memmove(m_innerNonZeros + begin, m_innerNonZeros + end, m_innerNonZeros + target);
 
-      // if m_outerIndex[0] > 0, shift the data in the first vector while it is easy to do so
+      // if m_outerIndex[0] > 0, shift the data within the first vector while it is easy to do so
       if (m_outerIndex[0] > StorageIndex(0)) {
         uncompress();
         const Index from = internal::convert_index<Index>(m_outerIndex[0]);
@@ -507,7 +507,7 @@ class SparseMatrix
 
     // insert empty outer vectors at indices j, j+1 ... j+num-1 and resize the matrix
     void insertEmptyOuterVectors(Index j, Index num = 1) {
-      EIGEN_USING_STD(fill);
+      EIGEN_USING_STD(fill_n);
       eigen_assert(num >= 0 && j >= 0 && j < m_outerSize && "Invalid parameters");
 
       const Index newRows = IsRowMajor ? m_outerSize + num : rows();
@@ -523,12 +523,12 @@ class SparseMatrix
       // shift m_outerIndex and m_innerNonZeros [num] to the right
       internal::smart_memmove(m_outerIndex + begin, m_outerIndex + end + 1, m_outerIndex + target);
       // m_outerIndex[begin] == m_outerIndex[target], set all indices in this range to same value
-      fill(m_outerIndex + begin + 1, m_outerIndex + target, m_outerIndex[begin]);
+      fill_n(m_outerIndex + begin, num, m_outerIndex[begin]);
 
       if (!isCompressed()) {
         internal::smart_memmove(m_innerNonZeros + begin, m_innerNonZeros + end, m_innerNonZeros + target);
         // set the nonzeros of the newly inserted vectors to 0
-        fill(m_innerNonZeros + begin, m_innerNonZeros + target, StorageIndex(0));
+        fill_n(m_innerNonZeros + begin, num, StorageIndex(0));
       }
     }
 

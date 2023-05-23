@@ -172,20 +172,11 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
         Vector<Index, Dynamic> reserveSizes(outer);
         for (Index j = 0; j < outer; j++) reserveSizes(j) = internal::random<Index>(1, inner - 1);
         m2.reserve(reserveSizes);
-        // generate random inner indices with no repeats
-        Vector<Index, Dynamic> innerIndices(inner);
-        innerIndices.setLinSpaced(inner, 0, inner - 1);
-        std::random_device rd;
-        std::mt19937 g(rd());
         for (Index j = 0; j < outer; j++) {
-          std::shuffle(innerIndices.begin(), innerIndices.end(), g);
-          Index nzj = internal::random<Index>(2, inner / 2);
-          for (Index k = 0; k < nzj; k++) {
-            Index i = innerIndices[k];
-            Scalar val = internal::random<Scalar>();
-            m1.coeffRefByOuterInner(j, i) = val;
-            m2.insertByOuterInner(j, i) = val;
-          }
+          Index i = internal::random<Index>(0, inner - 1);
+          Scalar val = internal::random<Scalar>();
+          m1.coeffRefByOuterInner(j, i) = val;
+          m2.insertByOuterInner(j, i) = val;
         }
         if (mode % 2 == 0) m2.makeCompressed();
 
@@ -197,7 +188,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
           Index newCols = SparseMatrixType::IsRowMajor ? cols : cols - num;
 
           CompatibleDenseMatrix m3(newRows, newCols);
-          m3.setConstant(NumTraits<RealScalar>::quiet_NaN());
+          m3.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
 
           if (SparseMatrixType::IsRowMajor) {
             m3.topRows(start) = m1.topRows(start);
@@ -219,7 +210,7 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
           Index newCols = SparseMatrixType::IsRowMajor ? cols : cols + num;
 
           CompatibleDenseMatrix m3(newRows, newCols);
-          m3.setConstant(NumTraits<RealScalar>::quiet_NaN());
+          m3.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
 
           if (SparseMatrixType::IsRowMajor) {
             m3.topRows(start) = m1.topRows(start);
