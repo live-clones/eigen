@@ -47,7 +47,7 @@ public:
     MayLinearize = (int(Evaluator::Flags) & LinearAccessBit),
     MightVectorize = (int(Evaluator::Flags)&ActualPacketAccessBit)
                   && (functor_traits<Func>::PacketAccess),
-    MayLinearVectorize = bool(MightVectorize) && MayLinearize,
+    MayLinearVectorize = bool(MightVectorize) && bool(MayLinearize),
     MaySliceVectorize  = bool(MightVectorize) && (int(SliceVectorizedWork)==Dynamic || int(SliceVectorizedWork)>=3)
   };
 
