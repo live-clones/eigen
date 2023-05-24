@@ -413,19 +413,19 @@ EIGEN_DECLARE_TEST(vectorization_logic)
   if(internal::packet_traits<float>::Vectorizable)
   {
     VERIFY(test_assign(Matrix<float,3,3>(),Matrix<float,3,3>()+Matrix<float,3,3>(),
-      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
+      internal::packet_traits<float>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
       
     VERIFY(test_redux(Matrix<float,5,2>(),
-      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
+      internal::packet_traits<float>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
   }
   
   if(internal::packet_traits<double>::Vectorizable)
   {
     VERIFY(test_assign(Matrix<double,3,3>(),Matrix<double,3,3>()+Matrix<double,3,3>(),
-      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
+      internal::packet_traits<double>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
     
     VERIFY(test_redux(Matrix<double,7,3>(),
-      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
+      internal::packet_traits<double>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
   }
 #endif // EIGEN_VECTORIZE
 
