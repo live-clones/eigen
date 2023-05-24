@@ -368,7 +368,7 @@ class SparseMatrix
           m_innerNonZeros[j] = innerNNZ;
         }
         if(m_outerSize>0)
-          m_outerIndex[m_outerSize] = m_outerIndex[m_outerSize-1] + m_innerNonZeros[m_outerSize-1] + reserveSizes[m_outerSize-1];
+          m_outerIndex[m_outerSize] = m_outerIndex[m_outerSize-1] + m_innerNonZeros[m_outerSize-1] + internal::convert_index<StorageIndex>(reserveSizes[m_outerSize-1]);
         
         m_data.resize(m_outerIndex[m_outerSize]);
       }
