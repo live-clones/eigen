@@ -270,9 +270,8 @@ struct vectorization_logic_half
 {
   typedef internal::packet_traits<Scalar> PacketTraits;
   typedef typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half PacketType;
-  enum {
-    PacketSize = internal::unpacket_traits<PacketType>::size
-  };
+  static constexpr int PacketSize = internal::unpacket_traits<PacketType>::size;
+
   static void run()
   {
     // Some half-packets have a byte size < EIGEN_MIN_ALIGN_BYTES (e.g. Packet2f),
@@ -280,7 +279,7 @@ struct vectorization_logic_half
     // EIGEN_UNALIGNED_VECTORIZE is 0 (the matrix is assumed unaligned).
     // Adjust the matrix sizes to account for these alignment issues.
     constexpr int PacketBytes = sizeof(Scalar)*PacketSize;
-    constexpr int MinVSize = EIGEN_UNALIGNED_VECTORIZE ? PacketSize
+    constexpr int MinVSize = int(EIGEN_UNALIGNED_VECTORIZE) ? PacketSize
                              : PacketBytes >= EIGEN_MIN_ALIGN_BYTES ? PacketSize
                              : (EIGEN_MIN_ALIGN_BYTES + sizeof(Scalar) - 1) / sizeof(Scalar);
     
@@ -417,7 +416,7 @@ EIGEN_DECLARE_TEST(vectorization_logic)
       EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
       
     VERIFY(test_redux(Matrix<float,5,2>(),
-      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : DefaultTraversal,CompleteUnrolling));
+      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
   }
   
   if(internal::packet_traits<double>::Vectorizable)
@@ -426,7 +425,7 @@ EIGEN_DECLARE_TEST(vectorization_logic)
       EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
     
     VERIFY(test_redux(Matrix<double,7,3>(),
-      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : DefaultTraversal,CompleteUnrolling));
+      EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,CompleteUnrolling));
   }
 #endif // EIGEN_VECTORIZE
 
