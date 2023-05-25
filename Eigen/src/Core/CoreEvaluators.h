@@ -651,9 +651,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <typename DstPacketType>
   using AltSrcScalarOp = std::enable_if_t<(unpacket_traits<DstPacketType>::size < SrcPacketSize && !find_packet_by_size<SrcType, unpacket_traits<DstPacketType>::size>::value), bool>;
   template <typename DstPacketType>
-  using AltSrcPacketOp = std::enable_if_t<(unpacket_traits<DstPacketType>::size < SrcPacketSize && find_packet_by_size<SrcType, unpacket_traits<DstPacketType>::size>::value), bool>;
-  template <typename DstPacketType>
-  using SrcPacketArgs1 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (1 * SrcPacketSize), bool>;
+  using SrcPacketArgs1 = std::enable_if_t<(find_packet_by_size<SrcType, unpacket_traits<DstPacketType>::size>::value), bool>;
   template <typename DstPacketType>
   using SrcPacketArgs2 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (2 * SrcPacketSize), bool>;
   template <typename DstPacketType>
@@ -709,7 +707,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     return m_argImpl.template packet<LoadMode, PacketType>(actualIndex);
   }
 
-  // In this scenario, the destination packet has fewer elements than the default source packet.
+  // There is no source packet type with equal or fewer elements than DstPacketType.
   // This is problematic as the evaluation loop may attempt to access data outside the bounds of the array.
   // For example, consider the cast utilizing pcast<Packet4f,Packet2d> with an array of size 4: {0.0f,1.0f,2.0f,3.0f}. 
   // The first iteration of the evaulation loop will load 16 bytes: {0.0f,1.0f,2.0f,3.0f} and cast to {0.0,1.0}, which is acceptable.
@@ -718,7 +716,6 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   // Instead, perform runtime check to determine if the load would access data outside the bounds of the array.
   // If not, perform full load. Otherwise, revert to a scalar loop to perform a partial load.
   // In either case, perform a vectorized cast of the source packet.
-
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     SrcPacketType src;
@@ -734,21 +731,17 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     }
     return CastOp().template packetOp<SrcPacketType, DstPacketType>(src);
   }
-  // The default source packet has a half (or quarter) packet that has the same size as the
-  // destination packet. 
-  template <int LoadMode, typename DstPacketType, AltSrcPacketOp<DstPacketType> = true>
-  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
-    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    using AltSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
-    constexpr int AltSrcPacketBytes = DstPacketSize * sizeof(SrcType);
-    constexpr int AltSrcLoadMode = plain_enum_min(AltSrcPacketBytes, LoadMode);
-    return CastOp().template packetOp<AltSrcPacketType, DstPacketType>(srcPacket<AltSrcLoadMode, AltSrcPacketType>(row, col, 0));
-  }
+  // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
-    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
-    return CastOp().template packetOp<SrcPacketType, DstPacketType>(srcPacket<SrcLoadMode>(row, col, 0));
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
+    constexpr int SizedSrcPacketBytes = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SizedSrcPacketBytes, LoadMode);
+    return CastOp().template packetOp<SizedSrcPacketType, DstPacketType>(
+        srcPacket<SrcLoadMode, SizedSrcPacketType>(row, col, 0));
   }
+  // unpacket_traits<DstPacketType>::size == 2 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int SrcLoadMode0 = plain_enum_min(2 * SrcPacketBytes, LoadMode);
@@ -756,6 +749,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     return CastOp().template packetOp<SrcPacketType, DstPacketType>(srcPacket<SrcLoadMode0>(row, col, 0),
                                                                     srcPacket<SrcLoadMode1>(row, col, 1));
   }
+  // unpacket_traits<DstPacketType>::size == 4 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int SrcLoadMode0 = plain_enum_min(4 * SrcPacketBytes, LoadMode);
@@ -766,6 +760,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
         srcPacket<SrcLoadMode0>(row, col, 0), srcPacket<SrcLoadMode1>(row, col, 1),
         srcPacket<SrcLoadMode2>(row, col, 2), srcPacket<SrcLoadMode3>(row, col, 3));
   }
+  // unpacket_traits<DstPacketType>::size == 8 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
       constexpr int SrcLoadMode0 = plain_enum_min(8 * SrcPacketBytes, LoadMode);
@@ -783,6 +778,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
           srcPacket<SrcLoadMode6>(row, col, 6), srcPacket<SrcLoadMode7>(row, col, 7));
   }
 
+  // Analagous routines for linear access.
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     SrcPacketType src;
@@ -798,18 +794,14 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     }
     return CastOp().template packetOp<SrcPacketType, DstPacketType>(src);
   }
-  template <int LoadMode, typename DstPacketType, AltSrcPacketOp<DstPacketType> = true>
-  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
-    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
-    using AltSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
-    constexpr int AltSrcPacketBytes = DstPacketSize * sizeof(SrcType);
-    constexpr int AltSrcLoadMode = plain_enum_min(AltSrcPacketBytes, LoadMode);
-    return CastOp().template packetOp<AltSrcPacketType, DstPacketType>(srcPacket<AltSrcLoadMode, AltSrcPacketType>(index, 0));
-  }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
-    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
-    return CastOp().template packetOp<SrcPacketType, DstPacketType>(srcPacket<SrcLoadMode>(index, 0));
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
+    constexpr int SizedSrcPacketBytes = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SizedSrcPacketBytes, LoadMode);
+    return CastOp().template packetOp<SizedSrcPacketType, DstPacketType>(
+        srcPacket<SrcLoadMode, SizedSrcPacketType>(index, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {

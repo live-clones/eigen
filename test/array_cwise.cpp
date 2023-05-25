@@ -1229,27 +1229,30 @@ struct cast_test_impl {
       return typeid(T).name();
   }
 
-
-
   static void run() {
     const Index testRows = RowsAtCompileTime == Dynamic ? ((100 * MaxPacketSize) + 1) : RowsAtCompileTime;
     const Index testCols = ColsAtCompileTime == Dynamic ? ((100 * MaxPacketSize) + 1) : ColsAtCompileTime;
+    const Index testSize = testRows * testCols;
+    const Index minTestSize = 1000;
+    const Index repeats = numext::div_ceil(minTestSize, testSize);
     SrcArray src(testRows, testCols);
-    src = src.unaryExpr(RandomOp());
-    DstArray dst = src.template cast<DstType>();
-
-    for (Index i = 0; i < testRows; i++)
-      for (Index j = 0; j < testCols; j++) {
-        DstType ref = static_cast<DstType>(src(i, j));
-        bool all_nan = ((numext::isnan)(src(i, j)) && (numext::isnan)(ref) && (numext::isnan)(dst(i, j)));
-        bool is_equal = ref == dst(i, j);
-        bool pass = all_nan || is_equal;
-        if (!pass) {
-          std::cout << printTypeInfo(SrcType()) << ": [" << +src(i, j) << "] to " << printTypeInfo(DstType()) << ": ["
-                    << +dst(i, j) << "] != [" << +ref << "]\n";
+    DstArray dst(testRows, testCols);
+    for (Index repeat = 0; repeat < repeats; repeat++) {
+      src = src.unaryExpr(RandomOp());
+      dst = src.template cast<DstType>();
+      for (Index i = 0; i < testRows; i++)
+        for (Index j = 0; j < testCols; j++) {
+          DstType ref = static_cast<DstType>(src(i, j));
+          bool all_nan = ((numext::isnan)(src(i, j)) && (numext::isnan)(ref) && (numext::isnan)(dst(i, j)));
+          bool is_equal = ref == dst(i, j);
+          bool pass = all_nan || is_equal;
+          if (!pass) {
+            std::cout << printTypeInfo(SrcType()) << ": [" << +src(i, j) << "] to " << printTypeInfo(DstType()) << ": ["
+                      << +dst(i, j) << "] != [" << +ref << "]\n";
+          }
+          VERIFY(pass);
         }
-        VERIFY(pass);
-      }
+    }
   }
 };
 
@@ -1335,12 +1338,17 @@ EIGEN_DECLARE_TEST(array_cwise)
   }
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( (cast_test<1,1>()) );
-    CALL_SUBTEST_2( (cast_test<3,3>()) );
-    CALL_SUBTEST_3( (cast_test<5,5>()) );
-    CALL_SUBTEST_4( (cast_test<9,9>()) );
-    CALL_SUBTEST_5( (cast_test<17,17>()) );
-    CALL_SUBTEST_6( (cast_test<Dynamic, Dynamic>()) );
+    CALL_SUBTEST_1((cast_test<1, 1>()));
+    CALL_SUBTEST_2((cast_test<3, 1>()));
+    CALL_SUBTEST_2((cast_test<3, 3>()));
+    CALL_SUBTEST_3((cast_test<5, 1>()));
+    CALL_SUBTEST_3((cast_test<5, 5>()));
+    CALL_SUBTEST_4((cast_test<9, 1>()));
+    CALL_SUBTEST_4((cast_test<9, 9>()));
+    CALL_SUBTEST_5((cast_test<17, 1>()));
+    CALL_SUBTEST_5((cast_test<17, 17>()));
+    CALL_SUBTEST_6((cast_test<Dynamic, 1>()));
+    CALL_SUBTEST_6((cast_test<Dynamic, Dynamic>()));
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
