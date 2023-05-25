@@ -1273,7 +1273,7 @@ struct cast_tests_impl {
   }
 };
 
-template <int RowsAtCompileTime, int ColsAtCompileTime = 1>
+template <int RowsAtCompileTime, int ColsAtCompileTime>
 void cast_test() {
   cast_tests_impl<RowsAtCompileTime, ColsAtCompileTime, bool, int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t,
                   uint32_t, uint64_t, float, double, long double, half, bfloat16>::run();
@@ -1335,13 +1335,12 @@ EIGEN_DECLARE_TEST(array_cwise)
   }
 
   for (int i = 0; i < g_repeat; i++) {
-    // test fixed-sizes == 2^N + 1
-    CALL_SUBTEST_1( cast_test<1>() );
-    CALL_SUBTEST_2( cast_test<2+1>() );
-    CALL_SUBTEST_3( cast_test<4+1>() );
-    CALL_SUBTEST_4( cast_test<8+1>() );
-    CALL_SUBTEST_5( cast_test<16+1>() );
-    CALL_SUBTEST_6( cast_test<Dynamic>() );
+    CALL_SUBTEST_1( (cast_test<1,1>()) );
+    CALL_SUBTEST_2( (cast_test<3,3>()) );
+    CALL_SUBTEST_3( (cast_test<5,5>()) );
+    CALL_SUBTEST_4( (cast_test<9,9>()) );
+    CALL_SUBTEST_5( (cast_test<17,17>()) );
+    CALL_SUBTEST_6( (cast_test<Dynamic, Dynamic>()) );
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));

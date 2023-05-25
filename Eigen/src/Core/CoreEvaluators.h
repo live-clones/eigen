@@ -648,11 +648,6 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index row, Index col) const {
-    return CastOp()(m_argImpl.coeff(row, col));
-  }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index index) const { return CastOp()(m_argImpl.coeff(index)); }
-
   template <typename DstPacketType>
   using AltSrcScalarOp = std::enable_if_t<(unpacket_traits<DstPacketType>::size < SrcPacketSize && !find_packet_by_size<SrcType, unpacket_traits<DstPacketType>::size>::value), bool>;
   template <typename DstPacketType>
@@ -666,10 +661,13 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <typename DstPacketType>
   using SrcPacketArgs8 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (8 * SrcPacketSize), bool>;
 
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
   bool check_array_bounds(Index row, Index col, Index packetSize) const {
-    Index rowEnd = IsRowMajor ? row : row + packetSize;
-    Index colEnd = IsRowMajor ? col + packetSize : col;
-    return (row >= 0) && (rowEnd <= rows()) && (col >= 0) && (colEnd <= cols());
+    return (row >= 0) && (row < rows()) && (col >= 0) && (col + packetSize <= cols());
+  }
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
+  bool check_array_bounds(Index row, Index col, Index packetSize) const {
+    return (row >= 0) && (row + packetSize <= rows()) && (col >= 0) && (col < cols());
   }
   bool check_array_bounds(Index index, Index packetSize) const {
     Index indexEnd = index + packetSize;
@@ -687,6 +685,11 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
     eigen_assert(check_array_bounds(actualIndex, 1) && "Array index out of bounds");
     return m_argImpl.coeff(actualIndex);
   }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index row, Index col) const {
+    return CastOp()(srcCoeff(row, col, 0));
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index index) const { return CastOp()(srcCoeff(index, 0)); }
 
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_STRONG_INLINE PacketType srcPacket(Index row, Index col, Index offset) const {
