@@ -806,9 +806,21 @@ struct functor_traits<scalar_round_op<Scalar> >
   * \sa class CwiseUnaryOp, ArrayBase::floor()
   */
 template<typename Scalar> struct scalar_floor_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { return numext::floor(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { 
+    if (std::is_integral<Scalar>::value) {
+      return a;
+    } else {
+      return numext::floor(a); 
+    }
+  }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { return internal::pfloor(a); }
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { 
+    if (std::is_integral<Scalar>::value) {
+      return a;
+    } else {
+      return internal::pfloor(a); 
+    }
+  }
 };
 template<typename Scalar>
 struct functor_traits<scalar_floor_op<Scalar> >
@@ -842,9 +854,21 @@ struct functor_traits<scalar_rint_op<Scalar> >
   * \sa class CwiseUnaryOp, ArrayBase::ceil()
   */
 template<typename Scalar> struct scalar_ceil_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { return numext::ceil(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator() (const Scalar& a) const { 
+    if (std::is_integral<Scalar>::value) {
+      return a;
+    } else {
+      return numext::ceil(a); 
+    }
+  }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { return internal::pceil(a); }
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { 
+    if (std::is_integral<Scalar>::value) {
+      return a;
+    } else { 
+      return internal::pceil(a);
+    }
+  }
 };
 template<typename Scalar>
 struct functor_traits<scalar_ceil_op<Scalar> >
