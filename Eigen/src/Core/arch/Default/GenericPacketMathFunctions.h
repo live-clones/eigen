@@ -2050,8 +2050,8 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_int_errors(con
   const Packet cst_neg_inf = pset1<Packet>(neg_inf);
 
   const bool exponent_is_odd = is_odd<ScalarExponent>::run(exponent);
-  const bool exponent_is_pos = exponent > 0;
-  const bool exponent_is_neg = exponent < 0;
+  const bool exponent_is_pos = exponent > ScalarExponent(0);
+  const bool exponent_is_neg = exponent < ScalarExponent(0);
 
   const Packet exp_is_odd = exponent_is_odd ? cst_all_ones : cst_pos_zero;
   const Packet exp_is_pos = exponent_is_pos ? cst_all_ones : cst_pos_zero;
@@ -2105,7 +2105,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
 
   const bool exponent_is_fin = (numext::isfinite)(exponent);
   const bool exponent_is_nan = (numext::isnan)(exponent);
-  const bool exponent_is_neg = exponent < Scalar(0);
+  const bool exponent_is_neg = exponent < ScalarExponent(0);
   const bool exponent_is_inf = !exponent_is_fin && !exponent_is_nan;
 
   const Packet exp_is_neg = exponent_is_neg ? cst_all_ones : cst_pos_zero;
