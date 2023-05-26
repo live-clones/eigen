@@ -2145,7 +2145,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet&
   // signed integer base, signed/unsigned integer exponent case
 
   // This routine handles negative exponents.
-  // The return value is neither is 0, 1, or -1.
+  // The return value is either 0, 1, or -1.
 
   const Scalar pos_one = Scalar(1);
 
@@ -2155,9 +2155,9 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet&
 
   const Packet abs_x = pabs(x);
   const Packet absx_is_one = pcmp_eq(abs_x, cst_pos_one);
-  const Packet x_in = exponent_is_odd ? x : abs_x;
 
-  Packet result = pand(absx_is_one, x_in);
+  Packet result = exponent_is_odd ? x : abs_x;
+  result = pand(absx_is_one, result);
   return result;
 }
 
