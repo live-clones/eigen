@@ -660,27 +660,24 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   using SrcPacketArgs8 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (8 * SrcPacketSize), bool>;
 
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
-  bool check_array_bounds(Index row, Index col, Index packetSize) const {
-    return (row >= 0) && (row < rows()) && (col >= 0) && (col + packetSize <= cols());
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index, Index col, Index packetSize) const {
+    return col + packetSize <= cols();
   }
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
-  bool check_array_bounds(Index row, Index col, Index packetSize) const {
-    return (row >= 0) && (row + packetSize <= rows()) && (col >= 0) && (col < cols());
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index row, Index, Index packetSize) const {
+    return row + packetSize <= rows();
   }
-  bool check_array_bounds(Index index, Index packetSize) const {
-    Index indexEnd = index + packetSize;
-    return (index >= 0) && (indexEnd <= size());
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index index, Index packetSize) const {
+    return index + packetSize <= size();
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcType srcCoeff(Index row, Index col, Index offset) const {
     Index actualRow = IsRowMajor ? row : row + offset;
     Index actualCol = IsRowMajor ? col + offset : col;
-    eigen_assert(check_array_bounds(actualRow, actualCol, 1) && "Array index out of bounds");
     return m_argImpl.coeff(actualRow, actualCol);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcType srcCoeff(Index index, Index offset) const {
     Index actualIndex = index + offset;
-    eigen_assert(check_array_bounds(actualIndex, 1) && "Array index out of bounds");
     return m_argImpl.coeff(actualIndex);
   }
 
@@ -719,7 +716,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     SrcPacketType src;
-    if (check_array_bounds(row, col, SrcPacketSize)) {
+    if (EIGEN_PREDICT_TRUE(check_array_bounds(row, col, SrcPacketSize))) {
       constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
       src = srcPacket<SrcLoadMode>(row, col, 0);
     } else {
@@ -782,7 +779,7 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     SrcPacketType src;
-    if (check_array_bounds(index, SrcPacketSize)) {
+    if (EIGEN_PREDICT_TRUE(check_array_bounds(index, SrcPacketSize))) {
       constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
       src = srcPacket<SrcLoadMode>(index, 0);
     } else {
