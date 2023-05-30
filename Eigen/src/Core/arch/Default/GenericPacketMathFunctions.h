@@ -1999,7 +1999,6 @@ template <typename Packet, typename ScalarExponent>
 struct do_div<Packet, ScalarExponent, true> {
   // pdiv not defined, nor necessary for integer base types
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
-    EIGEN_UNUSED_VARIABLE(exponent);
     return x;
   }
 };
@@ -2059,7 +2058,6 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_int_errors(con
 
   const Packet abs_x = pabs(x);
   const Packet abs_x_is_zero = pcmp_eq(abs_x, cst_pos_zero);
-  const Packet abs_x_is_one = pcmp_eq(abs_x, cst_pos_one);
   const Packet abs_x_is_inf = pcmp_eq(abs_x, cst_pos_inf);
 
   const Packet x_has_signbit = psignbit(x);
