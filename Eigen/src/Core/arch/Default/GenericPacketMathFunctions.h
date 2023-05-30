@@ -1998,7 +1998,7 @@ struct do_div {
 template <typename Packet, typename ScalarExponent>
 struct do_div<Packet, ScalarExponent, true> {
   // pdiv not defined, nor necessary for integer base types
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent&) {
     return x;
   }
 };
