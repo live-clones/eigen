@@ -2030,63 +2030,6 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet gen_pow(const Packet& x,
 }
 
 template <typename Packet, typename ScalarExponent>
-static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_int_errors(const Packet& x, const Packet& powx,
-                                                                             const ScalarExponent& exponent) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-
-  // non-integer base, integer exponent case
-
-  const Scalar neg_zero = -Scalar(0);
-  const Scalar pos_one = Scalar(1);
-  const Scalar pos_inf = NumTraits<Scalar>::infinity();
-  const Scalar neg_inf = -NumTraits<Scalar>::infinity();
-
-  const Packet cst_pos_zero = pzero(x);
-  const Packet cst_all_ones = ptrue(x);
-  const Packet cst_neg_zero = pset1<Packet>(neg_zero);
-  const Packet cst_pos_one = pset1<Packet>(pos_one);
-  const Packet cst_pos_inf = pset1<Packet>(pos_inf);
-  const Packet cst_neg_inf = pset1<Packet>(neg_inf);
-
-  const bool exponent_is_odd = is_odd<ScalarExponent>::run(exponent);
-  const bool exponent_is_pos = exponent > ScalarExponent(0);
-  const bool exponent_is_neg = exponent < ScalarExponent(0);
-
-  const Packet exp_is_odd = exponent_is_odd ? cst_all_ones : cst_pos_zero;
-  const Packet exp_is_pos = exponent_is_pos ? cst_all_ones : cst_pos_zero;
-  const Packet exp_is_neg = exponent_is_neg ? cst_all_ones : cst_pos_zero;
-
-  const Packet abs_x = pabs(x);
-  const Packet abs_x_is_zero = pcmp_eq(abs_x, cst_pos_zero);
-  const Packet abs_x_is_inf = pcmp_eq(abs_x, cst_pos_inf);
-
-  const Packet x_has_signbit = psignbit(x);
-  const Packet x_is_neg_zero = pand(x_has_signbit, abs_x_is_zero);
-
-  Packet pow_is_pos_inf = pand(pandnot(abs_x_is_zero, x_is_neg_zero), pand(exp_is_odd, exp_is_neg));
-  pow_is_pos_inf = por(pow_is_pos_inf, pand(abs_x_is_zero, pandnot(exp_is_neg, exp_is_odd)));
-  pow_is_pos_inf = por(pow_is_pos_inf, pand(pand(abs_x_is_inf, x_has_signbit), pandnot(exp_is_pos, exp_is_odd)));
-  pow_is_pos_inf = por(pow_is_pos_inf, pand(pandnot(abs_x_is_inf, x_has_signbit), exp_is_pos));
-
-  Packet pow_is_neg_inf = pand(x_is_neg_zero, pand(exp_is_neg, exp_is_odd));
-  pow_is_neg_inf = por(pow_is_neg_inf, pand(pand(abs_x_is_inf, x_has_signbit), pand(exp_is_odd, exp_is_pos)));
-
-  Packet pow_is_pos_zero = pand(abs_x_is_zero, exp_is_pos);
-  pow_is_pos_zero = por(pow_is_pos_zero, pand(pand(abs_x_is_inf, x_has_signbit), pandnot(exp_is_neg, exp_is_odd)));
-  pow_is_pos_zero = por(pow_is_pos_zero, pand(pandnot(abs_x_is_inf, x_has_signbit), exp_is_neg));
-
-  Packet pow_is_neg_zero = pand(x_is_neg_zero, pand(exp_is_odd, exp_is_pos));
-  pow_is_neg_zero = por(pow_is_neg_zero, pand(pand(abs_x_is_inf, x_has_signbit), pand(exp_is_odd, exp_is_neg)));
-
-  Packet result = powx;
-  result = pselect(pow_is_neg_inf, cst_neg_inf, result);
-  result = pselect(pow_is_neg_zero, cst_neg_zero, result);
-  result = pandnot(result, pow_is_pos_zero);
-  result = pselect(pow_is_pos_inf, cst_pos_inf, result);
-  return result;
-}
-
-template <typename Packet, typename ScalarExponent>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const Packet& x, const Packet& powx,
                                                                                 const ScalarExponent& exponent) {
   typedef typename unpacket_traits<Packet>::type Scalar;
@@ -2108,31 +2051,27 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
 
   const Packet exp_is_neg = exponent_is_neg ? cst_all_ones : cst_pos_zero;
   const Packet exp_is_inf = exponent_is_inf ? cst_all_ones : cst_pos_zero;
+  const Packet exp_is_pos_inf = pandnot(exp_is_inf, exp_is_neg);
+  const Packet exp_is_neg_inf = pand(exp_is_inf, exp_is_neg);
 
-  const Packet abs_x = pabs(x);
-  const Packet abs_x_is_zero = pcmp_eq(abs_x, cst_pos_zero);
-  const Packet abs_x_is_lt_one = pcmp_lt(abs_x, cst_pos_one);
-  const Packet abs_x_is_gt_one = pcmp_lt(cst_pos_one, abs_x);
-  
-  const Packet x_is_not_finite = psub(x, x);
-  const Packet x_is_pos_one = pcmp_eq(x, cst_pos_one);
+  const Packet x_is_gt_one = pcmp_lt(cst_pos_one, x);
+  const Packet x_is_lt_one = pcmp_lt(x, cst_pos_one);
+  const Packet x_is_zero = pcmp_eq(x, cst_pos_zero);
+  const Packet x_is_not_one = por(x_is_gt_one, x_is_lt_one);
 
-  if (exponent_is_nan) return por(cst_pos_one, pandnot(cst_all_ones, x_is_pos_one));
+  if (exponent_is_nan) return por(x_is_not_one, cst_pos_one);
 
-  Packet pow_is_pos_zero = pandnot(abs_x_is_zero, exp_is_neg);
-  pow_is_pos_zero = por(pow_is_pos_zero, pand(abs_x_is_gt_one, pand(exp_is_inf, exp_is_neg)));
-  pow_is_pos_zero = por(pow_is_pos_zero, pand(abs_x_is_lt_one, pandnot(exp_is_inf, exp_is_neg)));
-  pow_is_pos_zero = por(pow_is_pos_zero, pand(x_is_not_finite, exp_is_neg));
+  Packet pow_is_pos_zero = pandnot(x_is_zero, exp_is_neg);
+  pow_is_pos_zero = por(pow_is_pos_zero, pand(x_is_gt_one, exp_is_neg_inf));
+  pow_is_pos_zero = por(pow_is_pos_zero, pand(x_is_lt_one, exp_is_pos_inf));
 
-  Packet pow_is_pos_inf = pand(abs_x_is_zero, exp_is_neg);
-  pow_is_pos_inf = por(pow_is_pos_inf, pand(abs_x_is_lt_one, pand(exp_is_inf, exp_is_neg)));
-  pow_is_pos_inf = por(pow_is_pos_inf, pand(abs_x_is_gt_one, pandnot(exp_is_inf, exp_is_neg)));
-  pow_is_pos_inf = por(pow_is_pos_inf, pandnot(x_is_not_finite, exp_is_neg));
+  Packet pow_is_pos_inf = pand(x_is_zero, exp_is_neg);
+  pow_is_pos_inf = por(pow_is_pos_inf, pand(x_is_gt_one, exp_is_pos_inf));
+  pow_is_pos_inf = por(pow_is_pos_inf, pand(x_is_lt_one, exp_is_neg_inf));
 
-  Packet result = powx;
+  Packet result = pandnot(powx, pow_is_pos_zero);
   result = pselect(pow_is_pos_inf, cst_pos_inf, result);
-  result = pandnot(result, pow_is_pos_zero);
-  result = pselect(x_is_pos_one, cst_pos_one, result);
+  result = pselect(x_is_not_one, result, cst_pos_one);
   return result;
 }
 
@@ -2191,9 +2130,7 @@ struct unary_pow_impl<Packet, ScalarExponent, false, false> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     const bool exponent_is_integer = (numext::isfinite)(exponent) && numext::round(exponent) == exponent;
     if (exponent_is_integer) {
-      Packet result = unary_pow::int_pow(x, exponent);
-      result = unary_pow::handle_nonint_int_errors(x, result, exponent);
-      return result;
+      return unary_pow::int_pow(x, exponent);
     } else {
       Packet result = unary_pow::gen_pow(x, exponent);
       result = unary_pow::handle_nonint_nonint_errors(x, result, exponent);
@@ -2206,9 +2143,7 @@ template <typename Packet, typename ScalarExponent>
 struct unary_pow_impl<Packet, ScalarExponent, false, true> {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
-    Packet result = unary_pow::int_pow(x, exponent);
-    result = unary_pow::handle_nonint_int_errors(x, result, exponent);
-    return result;
+    return unary_pow::int_pow(x, exponent);
   }
 };
 
