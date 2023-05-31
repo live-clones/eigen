@@ -2036,11 +2036,12 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
 
   // non-integer base and exponent case
 
+  const Scalar pos_zero = Scalar(0);
+  const Scalar all_ones = ptrue<Scalar>(Scalar());
   const Scalar pos_one = Scalar(1);
   const Scalar pos_inf = NumTraits<Scalar>::infinity();
 
   const Packet cst_pos_zero = pzero(x);
-  const Packet cst_all_ones = ptrue(x);
   const Packet cst_pos_one = pset1<Packet>(pos_one);
   const Packet cst_pos_inf = pset1<Packet>(pos_inf);
 
@@ -2048,28 +2049,23 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
   const bool exponent_is_fin = (numext::isfinite)(exponent);
   const bool exponent_is_neg = exponent < ScalarExponent(0);
 
-  const Packet exp_is_neg = exponent_is_neg ? cst_all_ones : cst_pos_zero;
-  const Packet exp_is_inf = exponent_is_fin ? cst_pos_zero : cst_all_ones;
-  const Packet exp_is_pos_inf = pandnot(exp_is_inf, exp_is_neg);
-  const Packet exp_is_neg_inf = pand(exp_is_inf, exp_is_neg);
+  const Packet exp_is_nan = pset1<Packet>(exponent_is_nan ? all_ones : pos_zero);
+  const Packet exp_is_fin = pset1<Packet>(exponent_is_fin ? all_ones : pos_zero);
+  const Packet exp_is_neg = pset1<Packet>(exponent_is_neg ? all_ones : pos_zero);
 
   const Packet x_is_gt_one = pcmp_lt(cst_pos_one, x);
   const Packet x_is_lt_one = pcmp_lt(x, cst_pos_one);
   const Packet x_is_zero = pcmp_eq(x, cst_pos_zero);
   const Packet x_is_not_one = por(x_is_gt_one, x_is_lt_one);
 
-  if (exponent_is_nan) return por(x_is_not_one, cst_pos_one);
+  const Packet inf_if_neg_exp = pand(cst_pos_inf, exp_is_neg);
+  const Packet inf_if_pos_exp = pandnot(cst_pos_inf, exp_is_neg);
 
-  Packet pow_is_pos_zero = pandnot(x_is_zero, exp_is_neg);
-  pow_is_pos_zero = por(pow_is_pos_zero, pand(x_is_gt_one, exp_is_neg_inf));
-  pow_is_pos_zero = por(pow_is_pos_zero, pand(x_is_lt_one, exp_is_pos_inf));
-
-  Packet pow_is_pos_inf = pand(x_is_zero, exp_is_neg);
-  pow_is_pos_inf = por(pow_is_pos_inf, pand(x_is_gt_one, exp_is_pos_inf));
-  pow_is_pos_inf = por(pow_is_pos_inf, pand(x_is_lt_one, exp_is_neg_inf));
-
-  Packet result = pandnot(powx, pow_is_pos_zero);
-  result = pselect(pow_is_pos_inf, cst_pos_inf, result);
+  Packet result = powx;
+  result = pselect(x_is_zero, inf_if_neg_exp, result);
+  result = pselect(pandnot(x_is_gt_one, exp_is_fin), inf_if_pos_exp, result);
+  result = pselect(pandnot(x_is_lt_one, exp_is_fin), inf_if_neg_exp, result);
+  result = por(exp_is_nan, result);
   result = pselect(x_is_not_one, result, cst_pos_one);
   return result;
 }
