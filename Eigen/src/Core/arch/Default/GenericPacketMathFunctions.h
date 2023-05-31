@@ -2044,13 +2044,12 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
   const Packet cst_pos_one = pset1<Packet>(pos_one);
   const Packet cst_pos_inf = pset1<Packet>(pos_inf);
 
-  const bool exponent_is_fin = (numext::isfinite)(exponent);
   const bool exponent_is_nan = (numext::isnan)(exponent);
+  const bool exponent_is_fin = (numext::isfinite)(exponent);
   const bool exponent_is_neg = exponent < ScalarExponent(0);
-  const bool exponent_is_inf = !exponent_is_fin && !exponent_is_nan;
 
   const Packet exp_is_neg = exponent_is_neg ? cst_all_ones : cst_pos_zero;
-  const Packet exp_is_inf = exponent_is_inf ? cst_all_ones : cst_pos_zero;
+  const Packet exp_is_inf = exponent_is_fin ? cst_pos_zero : cst_all_ones;
   const Packet exp_is_pos_inf = pandnot(exp_is_inf, exp_is_neg);
   const Packet exp_is_neg_inf = pand(exp_is_inf, exp_is_neg);
 
