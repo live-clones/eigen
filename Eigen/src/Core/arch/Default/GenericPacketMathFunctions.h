@@ -1972,7 +1972,7 @@ struct pchebevl {
 namespace unary_pow {
 template <typename ScalarExponent, bool IsIntegerAtCompileTime = NumTraits<ScalarExponent>::IsInteger>
 struct is_odd {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent run(const ScalarExponent& x) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const ScalarExponent& x) {
     ScalarExponent xdiv2 = x / ScalarExponent(2);
     ScalarExponent floorxdiv2 = numext::floor(xdiv2);
     return xdiv2 != floorxdiv2;
@@ -1980,8 +1980,8 @@ struct is_odd {
 };
 template <typename ScalarExponent>
 struct is_odd<ScalarExponent, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent run(const ScalarExponent& x) {
-    return x % ScalarExponent(2);
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const ScalarExponent& x) {
+    return x % ScalarExponent(2) != 0;
   }
 };
 
@@ -1989,7 +1989,7 @@ template <typename Packet, typename ScalarExponent,
           bool BaseIsIntegerType = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
 struct do_div {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
-    typedef typename unpacket_traits<Packet>::type Scalar;
+    using Scalar = typename unpacket_traits<Packet>::type;
     const Packet cst_pos_one = pset1<Packet>(Scalar(1));
     return exponent < 0 ? pdiv(cst_pos_one, x) : x;
   }
@@ -2005,7 +2005,7 @@ struct do_div<Packet, ScalarExponent, true> {
 
 template <typename Packet, typename ScalarExponent>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet int_pow(const Packet& x, const ScalarExponent& exponent) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_pos_one = pset1<Packet>(Scalar(1));
   if (exponent == 0) return cst_pos_one;
   Packet result = x;
@@ -2032,7 +2032,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet gen_pow(const Packet& x,
 template <typename Packet, typename ScalarExponent>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const Packet& x, const Packet& powx,
                                                                                 const ScalarExponent& exponent) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
 
   // non-integer base and exponent case
 
@@ -2070,45 +2070,30 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
   return result;
 }
 
-template <typename Packet, typename ScalarExponent, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsSigned, bool> = true>
+template <typename Packet, typename ScalarExponent>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet& x, const ScalarExponent& exponent) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
 
-  // signed integer base, signed/unsigned integer exponent case
+  // integer base, integer exponent case
 
   // This routine handles negative exponents.
   // The return value is either 0, 1, or -1.
 
+  const Scalar pos_zero = Scalar(0);
+  const Scalar all_ones = ptrue<Scalar>(Scalar());
   const Scalar pos_one = Scalar(1);
 
   const Packet cst_pos_one = pset1<Packet>(pos_one);
 
   const bool exponent_is_odd = unary_pow::is_odd<ScalarExponent>::run(exponent);
 
+  const Packet exp_is_odd = pset1<Packet>(exponent_is_odd ? all_ones : pos_zero);
+
   const Packet abs_x = pabs(x);
-  const Packet absx_is_one = pcmp_eq(abs_x, cst_pos_one);
+  const Packet abs_x_is_one = pcmp_eq(abs_x, cst_pos_one);
 
-  Packet result = exponent_is_odd ? x : abs_x;
-  result = pand(absx_is_one, result);
-  return result;
-}
-
-template <typename Packet, typename ScalarExponent, std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsSigned, bool> = true>
-static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet& x, const ScalarExponent&) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-
-  // unsigned integer base, signed/unsigned integer exponent case
-
-  // This routine handles negative exponents.
-  // The return value is either is 0 or 1.
-
-  const Scalar pos_one = Scalar(1);
-
-  const Packet cst_pos_one = pset1<Packet>(pos_one);
-
-  const Packet pow_is_pos_one = pcmp_eq(x, cst_pos_one);
-
-  Packet result = pand(pow_is_pos_one, cst_pos_one);
+  Packet result = pselect(exp_is_odd, x, abs_x);
+  result = pand(abs_x_is_one, result);
   return result;
 }
 
