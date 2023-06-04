@@ -84,7 +84,7 @@ struct generic_rsqrt_newton_step {
     for (int step = 0; step < Steps; ++step) {
       // Refine the approximation using one Newton-Raphson step:
       // h_n = 1.0 - x * (inv_sqrt * inv_sqrt) (so that h_n is nearly 0).
-      // inv_sqrt = inv_sqrt + .5 * r * h_n
+      // inv_sqrt = inv_sqrt + .5 * inv_sqrt * h_n
       Packet r2 = pmul(inv_sqrt, inv_sqrt);
       Packet half_r = pmul(inv_sqrt, pset1<Packet>(0.5f));
       Packet h_n = pnmadd(a, r2, pset1<Packet>(1.0f));
