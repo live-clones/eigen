@@ -80,14 +80,18 @@ struct generic_rsqrt_newton_step {
   using Scalar = typename unpacket_traits<Packet>::type;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet
   run(const Packet& a, const Packet& approx_rsqrt) {
+    constexpr Scalar kMinusHalf = Scalar(-1)/Scalar(2);
+    const Packet cst_minus_half = pset1<Packet>(kMinusHalf);
+    const Packet cst_minus_one = pset1<Packet>(Scalar(-1));
+
     Packet inv_sqrt = approx_rsqrt;
     for (int step = 0; step < Steps; ++step) {
       // Refine the approximation using one Newton-Raphson step:
       // h_n = x * (inv_sqrt * inv_sqrt) - 1 (so that h_n is nearly 0).
       // inv_sqrt = inv_sqrt - 0.5 * inv_sqrt * h_n
       Packet r2 = pmul(inv_sqrt, inv_sqrt);
-      Packet half_r = pmul(inv_sqrt, pset1<Packet>(-0.5f));
-      Packet h_n = pmadd(a, r2, pset1<Packet>(-1.0f));
+      Packet half_r = pmul(inv_sqrt, cst_minus_half);
+      Packet h_n = pmadd(a, r2, cst_minus_one);
       inv_sqrt = pmadd(half_r, h_n, inv_sqrt);
     }
 
