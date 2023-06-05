@@ -194,50 +194,33 @@ void unary_ops_test() {
 
 template <typename Scalar>
 void pow_scalar_exponent_test() {
-  using Int_t = typename internal::make_integer<Scalar>::type;
   const Scalar tol = test_precision<Scalar>();
-
   std::vector<Scalar> abs_vals = special_values<Scalar>();
   const Index num_vals = (Index)abs_vals.size();
-  Map<Array<Scalar, Dynamic, 1>> bases(abs_vals.data(), num_vals);
-
+  const Index num_repeats = internal::packet_traits<Scalar>::size + 1;
+  ArrayX<Scalar> bases(num_repeats), eigenPow(num_repeats);
   bool all_pass = true;
-  for (Scalar abs_exponent : abs_vals) {
-    for (Scalar exponent : {-abs_exponent, abs_exponent}) {
-      // test integer exponent code path
-      bool exponent_is_integer = (numext::isfinite)(exponent) && (numext::round(exponent) == exponent) &&
-                                 (numext::abs(exponent) < static_cast<Scalar>(NumTraits<Int_t>::highest()));
-      if (exponent_is_integer) {
-        Int_t exponent_as_int = static_cast<Int_t>(exponent);
-        Array<Scalar, Dynamic, 1> eigenPow = bases.pow(exponent_as_int);
-        for (Index j = 0; j < num_vals; j++) {
-          Scalar e = static_cast<Scalar>(std::pow(bases(j), exponent));
-          Scalar a = eigenPow(j);
-          bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
-                         ((numext::isnan)(a) && (numext::isnan)(e));
-          if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
-          all_pass &= success;
-          if (!success) {
-            std::cout << "pow(" << bases(j) << "," << exponent << ") = " << a << " !=  " << e << std::endl;
-          }
-        }
-      } else {
-        // test floating point exponent code path
-        Array<Scalar, Dynamic, 1> eigenPow = bases.pow(exponent);
-        for (Index j = 0; j < num_vals; j++) {
-          Scalar e = static_cast<Scalar>(std::pow(bases(j), exponent));
-          Scalar a = eigenPow(j);
-          bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
-                         ((numext::isnan)(a) && (numext::isnan)(e));
-          if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
-          all_pass &= success;
-          if (!success) {
-            std::cout << "pow(" << bases(j) << "," << exponent << ")   =   " << a << " !=  " << e << std::endl;
+  for (Scalar abs_base : abs_vals)
+    for (Scalar base : {-abs_base, abs_base}) {
+      bases.setConstant(base);
+      for (Scalar abs_exponent : abs_vals) {
+        for (Scalar exponent : {-abs_exponent, abs_exponent}) {
+          eigenPow = bases.pow(exponent);
+          for (Index j = 0; j < num_repeats; j++) {
+            Scalar e = static_cast<Scalar>(std::pow(bases(j), exponent));
+            Scalar a = eigenPow(j);
+            bool both_nan = (numext::isnan)(a) && (numext::isnan)(e);
+            bool exact_or_approx = (a == e) || internal::isApprox(a, e, tol);
+            bool same_sign = (bool)numext::signbit(e) == (bool)numext::signbit(a);
+            bool success = both_nan || (exact_or_approx && same_sign);
+            all_pass &= success;
+            if (!success) {
+              std::cout << "pow(" << bases(j) << "," << exponent << ")   =   " << a << " !=  " << e << std::endl;
+            }
           }
         }
       }
     }
-  }
   VERIFY(all_pass);
 }
 
