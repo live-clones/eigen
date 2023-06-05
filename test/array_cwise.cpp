@@ -196,15 +196,14 @@ template <typename Scalar>
 void pow_scalar_exponent_test() {
   const Scalar tol = test_precision<Scalar>();
   std::vector<Scalar> abs_vals = special_values<Scalar>();
-  const Index num_vals = (Index)abs_vals.size();
   const Index num_repeats = internal::packet_traits<Scalar>::size + 1;
   ArrayX<Scalar> bases(num_repeats), eigenPow(num_repeats);
   bool all_pass = true;
   for (Scalar abs_base : abs_vals)
-    for (Scalar base : {-abs_base, abs_base}) {
+    for (Scalar base : {negative_or_zero(abs_base), abs_base}) {
       bases.setConstant(base);
       for (Scalar abs_exponent : abs_vals) {
-        for (Scalar exponent : {-abs_exponent, abs_exponent}) {
+        for (Scalar exponent : {negative_or_zero(abs_exponent), abs_exponent}) {
           eigenPow = bases.pow(exponent);
           for (Index j = 0; j < num_repeats; j++) {
             Scalar e = static_cast<Scalar>(std::pow(bases(j), exponent));
