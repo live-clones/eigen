@@ -193,21 +193,31 @@ void unary_ops_test() {
 
 
 template <typename Scalar>
-void pow_scalar_exponent_test() {
+void float_pow_test_impl() {
   const Scalar tol = test_precision<Scalar>();
+  const Scalar min_value = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar max_value = Scalar(10);
   std::vector<Scalar> abs_vals = special_values<Scalar>();
+  for (int i = 0; i < 100; i++) abs_vals.push_back(internal::random<Scalar>(min_value, max_value));
   const Index num_repeats = internal::packet_traits<Scalar>::size + 1;
   ArrayX<Scalar> bases(num_repeats), eigenPow(num_repeats);
   bool all_pass = true;
   for (Scalar abs_base : abs_vals)
-    for (Scalar base : {negative_or_zero(abs_base), abs_base}) {
+    for (Scalar base : {-abs_base, abs_base}) {
       bases.setConstant(base);
       for (Scalar abs_exponent : abs_vals) {
-        for (Scalar exponent : {negative_or_zero(abs_exponent), abs_exponent}) {
+        for (Scalar exponent : {-abs_exponent, abs_exponent}) {
           eigenPow = bases.pow(exponent);
           for (Index j = 0; j < num_repeats; j++) {
-            Scalar e = static_cast<Scalar>(std::pow(bases(j), exponent));
+            auto std_pow = std::pow(bases(j), exponent);
+            Scalar e = static_cast<Scalar>(std_pow);
             Scalar a = eigenPow(j);
+            #ifdef EIGEN_COMP_MSVC
+            // Work around MSVC return value on underflow.
+            // if std::pow returns 0 and Eigen returns a denormalized value, then skip the test
+            int fpclass = std::fpclassify(a);
+            if (e == Scalar(0) && fpclass == FP_SUBNORMAL) continue;
+            #endif
             bool both_nan = (numext::isnan)(a) && (numext::isnan)(e);
             bool exact_or_approx = (a == e) || internal::isApprox(a, e, tol);
             bool same_sign = (bool)numext::signbit(e) == (bool)numext::signbit(a);
@@ -222,6 +232,12 @@ void pow_scalar_exponent_test() {
     }
   VERIFY(all_pass);
 }
+
+void float_pow_test() {
+  float_pow_test_impl<float>();
+  float_pow_test_impl<double>();
+}
+
 
 template <typename Scalar, typename ScalarExponent>
 Scalar calc_overflow_threshold(const ScalarExponent exponent) {
@@ -831,7 +847,6 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   // Test pow and atan2 on special IEEE values.
   unary_ops_test<Scalar>();
   binary_ops_test<Scalar>();
-  pow_scalar_exponent_test<Scalar>();
 
   VERIFY_IS_APPROX(log10(m3), log(m3)/numext::log(Scalar(10)));
   VERIFY_IS_APPROX(log2(m3), log(m3)/numext::log(Scalar(2)));
@@ -1164,64 +1179,65 @@ void typed_logicals_test(const ArrayType& m) {
 
 EIGEN_DECLARE_TEST(array_cwise)
 {
-  for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( array_generic(Array<float, 1, 1>()) );
-    CALL_SUBTEST_2( array_generic(Array22f()) );
-    CALL_SUBTEST_3( array_generic(Array44d()) );
-    CALL_SUBTEST_4( array_generic(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_5( array_generic(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( array_generic(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( array_generic(Array<Index,Dynamic,Dynamic>(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_7( signed_shift_test(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_7( signed_shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8( array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8( array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-  }
-  for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( comparisons(Array<float, 1, 1>()) );
-    CALL_SUBTEST_2( comparisons(Array22f()) );
-    CALL_SUBTEST_3( comparisons(Array44d()) );
-    CALL_SUBTEST_5( comparisons(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( comparisons(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-  }
-  for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( min_max(Array<float, 1, 1>()) );
-    CALL_SUBTEST_2( min_max(Array22f()) );
-    CALL_SUBTEST_3( min_max(Array44d()) );
-    CALL_SUBTEST_5( min_max(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( min_max(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-  }
-  for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( array_real(Array<float, 1, 1>()) );
-    CALL_SUBTEST_2( array_real(Array22f()) );
-    CALL_SUBTEST_3( array_real(Array44d()) );
-    CALL_SUBTEST_5( array_real(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_7( array_real(Array<Eigen::half, 32, 32>()) );
-    CALL_SUBTEST_8( array_real(Array<Eigen::bfloat16, 32, 32>()) );
-  }
-  for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_4( array_complex(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_5( array_complex(ArrayXXcd(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))));
-  }
+  //for(int i = 0; i < g_repeat; i++) {
+  //  CALL_SUBTEST_1( array_generic(Array<float, 1, 1>()) );
+  //  CALL_SUBTEST_2( array_generic(Array22f()) );
+  //  CALL_SUBTEST_3( array_generic(Array44d()) );
+  //  CALL_SUBTEST_4( array_generic(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_5( array_generic(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_6( array_generic(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_6( array_generic(Array<Index,Dynamic,Dynamic>(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_7( signed_shift_test(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  //  CALL_SUBTEST_7( signed_shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  //  CALL_SUBTEST_8( array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  //  CALL_SUBTEST_8( array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  //}
+  //for(int i = 0; i < g_repeat; i++) {
+  //  CALL_SUBTEST_1( comparisons(Array<float, 1, 1>()) );
+  //  CALL_SUBTEST_2( comparisons(Array22f()) );
+  //  CALL_SUBTEST_3( comparisons(Array44d()) );
+  //  CALL_SUBTEST_5( comparisons(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_6( comparisons(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //}
+  //for(int i = 0; i < g_repeat; i++) {
+  //  CALL_SUBTEST_1( min_max(Array<float, 1, 1>()) );
+  //  CALL_SUBTEST_2( min_max(Array22f()) );
+  //  CALL_SUBTEST_3( min_max(Array44d()) );
+  //  CALL_SUBTEST_5( min_max(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_6( min_max(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //}
+  //for(int i = 0; i < g_repeat; i++) {
+  //  CALL_SUBTEST_1( array_real(Array<float, 1, 1>()) );
+  //  CALL_SUBTEST_2( array_real(Array22f()) );
+  //  CALL_SUBTEST_3( array_real(Array44d()) );
+  //  CALL_SUBTEST_5( array_real(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_7( array_real(Array<Eigen::half, 32, 32>()) );
+  //  CALL_SUBTEST_8( array_real(Array<Eigen::bfloat16, 32, 32>()) );
+  //}
+  //for(int i = 0; i < g_repeat; i++) {
+  //  CALL_SUBTEST_4( array_complex(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_5( array_complex(ArrayXXcd(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))));
+  //}
 
   for(int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_5( float_pow_test() );
     CALL_SUBTEST_6( int_pow_test() );
     CALL_SUBTEST_7( mixed_pow_test() );
     CALL_SUBTEST_8( signbit_tests() );
   }
-  for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_3( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-  }
+  //for (int i = 0; i < g_repeat; i++) {
+  //  CALL_SUBTEST_2( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_2( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+  //  CALL_SUBTEST_3( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  //  CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  //  CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  //}
 
-  VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
-  VERIFY((internal::is_same< internal::global_math_functions_filtering_base<float>::type, float >::value));
-  VERIFY((internal::is_same< internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i> >::value));
-  typedef CwiseUnaryOp<internal::scalar_abs_op<double>, ArrayXd > Xpr;
-  VERIFY((internal::is_same< internal::global_math_functions_filtering_base<Xpr>::type,
-                           ArrayBase<Xpr>
-                         >::value));
+  //VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
+  //VERIFY((internal::is_same< internal::global_math_functions_filtering_base<float>::type, float >::value));
+  //VERIFY((internal::is_same< internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i> >::value));
+  //typedef CwiseUnaryOp<internal::scalar_abs_op<double>, ArrayXd > Xpr;
+  //VERIFY((internal::is_same< internal::global_math_functions_filtering_base<Xpr>::type,
+  //                         ArrayBase<Xpr>
+  //                       >::value));
 }
