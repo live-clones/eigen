@@ -2010,7 +2010,8 @@ struct exponent_helper<ScalarExponent, true> {
 };
 
 template <typename Packet, typename ScalarExponent,
-          bool BaseIsIntegerType = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
+          bool ReciprocateIfExponentIsNegative =
+              !NumTraits<typename unpacket_traits<Packet>::type>::IsInteger && NumTraits<ScalarExponent>::IsSigned>
 struct reciprocate {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     using Scalar = typename unpacket_traits<Packet>::type;
@@ -2020,11 +2021,10 @@ struct reciprocate {
 };
 
 template <typename Packet, typename ScalarExponent>
-struct reciprocate<Packet, ScalarExponent, true> {
+struct reciprocate<Packet, ScalarExponent, false> {
   // pdiv not defined, nor necessary for integer base types
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent&) {
-    return x;
-  }
+  // if the exponent is unsigned, then the exponent cannot be negative
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent&) { return x; }
 };
 
 template <typename Packet, typename ScalarExponent>
