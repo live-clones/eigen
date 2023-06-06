@@ -1970,24 +1970,57 @@ struct pchebevl {
 };
 
 namespace unary_pow {
-template <typename ScalarExponent, bool IsIntegerAtCompileTime = NumTraits<ScalarExponent>::IsInteger>
-struct is_odd {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const ScalarExponent& x) {
-    ScalarExponent xdiv2 = x / ScalarExponent(2);
-    ScalarExponent floorxdiv2 = numext::floor(xdiv2);
-    return xdiv2 != floorxdiv2;
+
+template <typename ScalarExponent, bool IsInteger = NumTraits<ScalarExponent>::IsInteger,
+          bool IsSigned = NumTraits<ScalarExponent>::IsSigned>
+struct safe_abs {
+  using return_type = ScalarExponent;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent run(const ScalarExponent& exp) {
+    return numext::abs(exp);
   }
 };
 template <typename ScalarExponent>
-struct is_odd<ScalarExponent, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const ScalarExponent& x) {
-    return x % ScalarExponent(2) != 0;
+struct safe_abs<ScalarExponent, true, true> {
+  // avoid annoying edge case where numext::abs(NumTraits<ScalarExponent>::lowest()) is not representable
+  using return_type = typename numext::get_integer_by_size<sizeof(ScalarExponent)>::unsigned_type;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const ScalarExponent& exp) {
+    ScalarExponent mask = exp ^ numext::abs(exp);
+    return_type result = static_cast<return_type>(exp);
+    return result ^ mask;
+  }
+};
+template <typename ScalarExponent>
+struct safe_abs<ScalarExponent, true, false> {
+  using return_type = ScalarExponent;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const ScalarExponent& exp) { return exp; }
+};
+
+template <typename ScalarExponent, bool IsInteger = NumTraits<ScalarExponent>::IsInteger>
+struct floor_div_two {
+  // sets exp to floor(exp/2) and returns whether or not exp is odd
+  static constexpr ScalarExponent one_half = ScalarExponent(1) / ScalarExponent(2);
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(ScalarExponent& exp) {
+    ScalarExponent exp_div_2 = exp * one_half;
+    ScalarExponent floor_exp_div_2 = numext::floor(exp_div_2);
+    bool exp_is_odd = exp_div_2 != floor_exp_div_2;
+    exp = floor_exp_div_2;
+    return exp_is_odd;
+  }
+};
+
+template <typename ScalarExponent>
+struct floor_div_two<ScalarExponent, true> {
+  // sets exp to floor(exp/2) and returns whether or not exp is odd
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(ScalarExponent& exp) {
+    bool exp_is_odd = exp % ScalarExponent(2) != ScalarExponent(0);
+    exp = exp >> ScalarExponent(1);
+    return exp_is_odd;
   }
 };
 
 template <typename Packet, typename ScalarExponent,
           bool BaseIsIntegerType = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
-struct do_div {
+struct reciprocate {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet cst_pos_one = pset1<Packet>(Scalar(1));
@@ -1996,7 +2029,7 @@ struct do_div {
 };
 
 template <typename Packet, typename ScalarExponent>
-struct do_div<Packet, ScalarExponent, true> {
+struct reciprocate<Packet, ScalarExponent, true> {
   // pdiv not defined, nor necessary for integer base types
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent&) {
     return x;
@@ -2004,22 +2037,24 @@ struct do_div<Packet, ScalarExponent, true> {
 };
 
 template <typename Packet, typename ScalarExponent>
-static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet int_pow(const Packet& x, const ScalarExponent& exponent) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet int_pow(const Packet& x, const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;
+  using AbsExponentType = typename safe_abs<ScalarExponent>::return_type;
   const Packet cst_pos_one = pset1<Packet>(Scalar(1));
-  if (exponent == 0) return cst_pos_one;
-  Packet result = x;
+
+  if (exponent == ScalarExponent(0)) return cst_pos_one;
+
+  Packet result = reciprocate<Packet, ScalarExponent>::run(x, exponent);
   Packet y = cst_pos_one;
-  ScalarExponent m = numext::abs(exponent);
+  AbsExponentType m = safe_abs<ScalarExponent>::run(exponent);
+
   while (m > 1) {
-    bool odd = is_odd<ScalarExponent>::run(m);
+    bool odd = floor_div_two<AbsExponentType>::run(m);
     if (odd) y = pmul(y, result);
     result = pmul(result, result);
-    m = numext::floor(m / ScalarExponent(2));
   }
-  result = pmul(y, result);
-  result = do_div<Packet, ScalarExponent>::run(result, exponent);
-  return result;
+
+  return pmul(y, result);
 }
 
 template <typename Packet>
@@ -2093,7 +2128,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet&
 
   const Packet cst_pos_one = pset1<Packet>(pos_one);
 
-  const bool exponent_is_odd = unary_pow::is_odd<ScalarExponent>::run(exponent);
+  const bool exponent_is_odd = exponent % ScalarExponent(2) != ScalarExponent(0);
 
   const Packet exp_is_odd = pset1<Packet>(exponent_is_odd ? all_ones : pos_zero);
 
