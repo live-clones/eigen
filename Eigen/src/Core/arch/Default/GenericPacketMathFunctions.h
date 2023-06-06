@@ -1971,50 +1971,41 @@ struct pchebevl {
 
 namespace unary_pow {
 
-template <typename ScalarExponent, bool IsInteger = NumTraits<ScalarExponent>::IsInteger,
-          bool IsSigned = NumTraits<ScalarExponent>::IsSigned>
-struct safe_abs {
-  using return_type = ScalarExponent;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent run(const ScalarExponent& exp) {
+template <typename ScalarExponent, bool IsInteger = NumTraits<ScalarExponent>::IsInteger>
+struct exponent_helper {
+  using safe_abs_type = ScalarExponent;
+  static constexpr ScalarExponent one_half = ScalarExponent(0.5);
+  // these routines assume that exp is an integer stored as a floating point type
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent safe_abs(const ScalarExponent& exp) {
     return numext::abs(exp);
   }
-};
-template <typename ScalarExponent>
-struct safe_abs<ScalarExponent, true, true> {
-  // avoid annoying edge case where numext::abs(NumTraits<ScalarExponent>::lowest()) is not representable
-  using return_type = typename numext::get_integer_by_size<sizeof(ScalarExponent)>::unsigned_type;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const ScalarExponent& exp) {
-    ScalarExponent mask = exp ^ numext::abs(exp);
-    return_type result = static_cast<return_type>(exp);
-    return result ^ mask;
-  }
-};
-template <typename ScalarExponent>
-struct safe_abs<ScalarExponent, true, false> {
-  using return_type = ScalarExponent;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent run(const ScalarExponent& exp) { return exp; }
-};
-
-template <typename ScalarExponent, bool IsInteger = NumTraits<ScalarExponent>::IsInteger>
-struct floor_div_two {
-  // sets exp to floor(exp/2) and returns whether or not exp is odd
-  static constexpr ScalarExponent one_half = ScalarExponent(1) / ScalarExponent(2);
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(ScalarExponent& exp) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_odd(const ScalarExponent& exp) {
+    eigen_assert(((numext::isfinite)(exp) && exp == numext::floor(exp)) && "exp must be an integer");
     ScalarExponent exp_div_2 = exp * one_half;
     ScalarExponent floor_exp_div_2 = numext::floor(exp_div_2);
-    bool exp_is_odd = exp_div_2 != floor_exp_div_2;
-    exp = floor_exp_div_2;
-    return exp_is_odd;
+    return exp_div_2 != floor_exp_div_2;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent floor_div_two(const ScalarExponent& exp) {
+    ScalarExponent exp_div_2 = exp * one_half;
+    return numext::floor(exp_div_2);
   }
 };
 
 template <typename ScalarExponent>
-struct floor_div_two<ScalarExponent, true> {
-  // sets exp to floor(exp/2) and returns whether or not exp is odd
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(ScalarExponent& exp) {
-    bool exp_is_odd = exp % ScalarExponent(2) != ScalarExponent(0);
-    exp = exp >> ScalarExponent(1);
-    return exp_is_odd;
+struct exponent_helper<ScalarExponent, true> {
+  // if `exp` is a signed integer type, cast it to its unsigned counterpart to safely store its absolute value
+  // consider the (rare) case where `exp` is an int32_t: abs(-2147483648) != 2147483648
+  using safe_abs_type = typename numext::get_integer_by_size<sizeof(ScalarExponent)>::unsigned_type;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE safe_abs_type safe_abs(const ScalarExponent& exp) {
+    ScalarExponent mask = exp ^ numext::abs(exp);
+    safe_abs_type result = static_cast<safe_abs_type>(exp);
+    return result ^ mask;
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_odd(const safe_abs_type& exp) {
+    return exp % safe_abs_type(2) != safe_abs_type(0);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE safe_abs_type floor_div_two(const safe_abs_type& exp) {
+    return exp >> safe_abs_type(1);
   }
 };
 
@@ -2039,19 +2030,20 @@ struct reciprocate<Packet, ScalarExponent, true> {
 template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet int_pow(const Packet& x, const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;
-  using AbsExponentType = typename safe_abs<ScalarExponent>::return_type;
+  using ExponentHelper = exponent_helper<ScalarExponent>;
+  using AbsExponentType = typename ExponentHelper::safe_abs_type;
   const Packet cst_pos_one = pset1<Packet>(Scalar(1));
-
   if (exponent == ScalarExponent(0)) return cst_pos_one;
 
   Packet result = reciprocate<Packet, ScalarExponent>::run(x, exponent);
   Packet y = cst_pos_one;
-  AbsExponentType m = safe_abs<ScalarExponent>::run(exponent);
+  AbsExponentType m = ExponentHelper::safe_abs(exponent);
 
   while (m > 1) {
-    bool odd = floor_div_two<AbsExponentType>::run(m);
+    bool odd = ExponentHelper::is_odd(m);
     if (odd) y = pmul(y, result);
     result = pmul(result, result);
+    m = ExponentHelper::floor_div_two(m);
   }
 
   return pmul(y, result);
