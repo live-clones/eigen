@@ -1992,7 +1992,7 @@ struct safe_abs<ScalarExponent, true, true> {
 template <typename ScalarExponent>
 struct safe_abs<ScalarExponent, true, false> {
   using return_type = ScalarExponent;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const ScalarExponent& exp) { return exp; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ScalarExponent run(const ScalarExponent& exp) { return exp; }
 };
 
 template <typename ScalarExponent, bool IsInteger = NumTraits<ScalarExponent>::IsInteger>
@@ -2058,14 +2058,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet int_pow(const Packet& x, const Scal
 }
 
 template <typename Packet>
-static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet gen_pow(const Packet& x,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet gen_pow(const Packet& x,
                                                             const typename unpacket_traits<Packet>::type& exponent) {
   const Packet exponent_packet = pset1<Packet>(exponent);
   return generic_pow_impl(x, exponent_packet);
 }
 
 template <typename Packet, typename ScalarExponent>
-static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const Packet& x, const Packet& powx,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const Packet& x, const Packet& powx,
                                                                                 const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;
 
@@ -2113,11 +2113,12 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
   return result;
 }
 
-template <typename Packet, typename ScalarExponent>
-static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet& x, const ScalarExponent& exponent) {
+template <typename Packet, typename ScalarExponent,
+          std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsSigned, bool> = true>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_negative_exponent(const Packet& x, const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;
 
-  // integer base, integer exponent case
+  // singed integer base, signed integer exponent case
 
   // This routine handles negative exponents.
   // The return value is either 0, 1, or -1.
@@ -2140,15 +2141,36 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet&
   return result;
 }
 
+template <typename Packet, typename ScalarExponent,
+          std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsSigned, bool> = true>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_negative_exponent(const Packet& x, const ScalarExponent&) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+
+  // unsigned integer base, signed integer exponent case
+
+  // This routine handles negative exponents.
+  // The return value is either 0 or 1
+
+  const Scalar pos_one = Scalar(1);
+
+  const Packet cst_pos_one = pset1<Packet>(pos_one);
+
+  const Packet x_is_one = pcmp_eq(x, cst_pos_one);
+
+  return pand(x_is_one, x);
+}
+
+
 }  // end namespace unary_pow
 
 template <typename Packet, typename ScalarExponent,
           bool BaseIsIntegerType = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger,
-          bool ExponentIsIntegerType = NumTraits<ScalarExponent>::IsInteger>
+          bool ExponentIsIntegerType = NumTraits<ScalarExponent>::IsInteger,
+          bool ExponentIsSigned = NumTraits<ScalarExponent>::IsSigned>
 struct unary_pow_impl;
 
-template <typename Packet, typename ScalarExponent>
-struct unary_pow_impl<Packet, ScalarExponent, false, false> {
+template <typename Packet, typename ScalarExponent, bool ExponentIsSigned>
+struct unary_pow_impl<Packet, ScalarExponent, false, false, ExponentIsSigned> {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     const bool exponent_is_integer = (numext::isfinite)(exponent) && numext::round(exponent) == exponent;
@@ -2162,8 +2184,8 @@ struct unary_pow_impl<Packet, ScalarExponent, false, false> {
   }
 };
 
-template <typename Packet, typename ScalarExponent>
-struct unary_pow_impl<Packet, ScalarExponent, false, true> {
+template <typename Packet, typename ScalarExponent, bool ExponentIsSigned>
+struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     return unary_pow::int_pow(x, exponent);
@@ -2171,14 +2193,22 @@ struct unary_pow_impl<Packet, ScalarExponent, false, true> {
 };
 
 template <typename Packet, typename ScalarExponent>
-struct unary_pow_impl<Packet, ScalarExponent, true, true> {
+struct unary_pow_impl<Packet, ScalarExponent, true, true, true> {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     if (exponent < ScalarExponent(0)) {
-      return unary_pow::handle_int_int(x, exponent);
+      return unary_pow::handle_negative_exponent(x, exponent);
     } else {
       return unary_pow::int_pow(x, exponent);
     }
+  }
+};
+
+template <typename Packet, typename ScalarExponent>
+struct unary_pow_impl<Packet, ScalarExponent, true, true, false> {
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
+    return unary_pow::int_pow(x, exponent);
   }
 };
 
