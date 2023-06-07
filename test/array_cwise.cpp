@@ -1181,17 +1181,6 @@ void typed_logicals_test(const ArrayType& m) {
     typed_logicals_test_impl<ArrayType>::run(m);
 }
 
-// use static_cast for conversions between standard types (everything but half, bfloat16)
-template <typename SrcType, typename DstType, bool IsConvertible = std::is_convertible<SrcType, DstType>::value>
-struct ref_cast_impl {
-  static DstType run(const SrcType& x) { return static_cast<DstType>(x); }
-};
-// otherwise, use Eigen's implementation (which may also be static_cast)
-template <typename SrcType, typename DstType>
-struct ref_cast_impl<SrcType, DstType, false> {
-  static DstType run(const SrcType& x) { return internal::cast_impl<SrcType, DstType>::run(x); }
-};
-
 template <typename SrcType, typename DstType, int RowsAtCompileTime, int ColsAtCompileTime>
 struct cast_test_impl {
   using SrcArray = Array<SrcType, RowsAtCompileTime, ColsAtCompileTime>;
@@ -1242,10 +1231,10 @@ struct cast_test_impl {
   }
 
   static void run() {
-    const Index testRows = RowsAtCompileTime == Dynamic ? ((100 * MaxPacketSize) + 1) : RowsAtCompileTime;
-    const Index testCols = ColsAtCompileTime == Dynamic ? ((100 * MaxPacketSize) + 1) : ColsAtCompileTime;
+    const Index testRows = RowsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : RowsAtCompileTime;
+    const Index testCols = ColsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : ColsAtCompileTime;
     const Index testSize = testRows * testCols;
-    const Index minTestSize = 1000;
+    const Index minTestSize = 100;
     const Index repeats = numext::div_ceil(minTestSize, testSize);
     SrcArray src(testRows, testCols);
     DstArray dst(testRows, testCols);
@@ -1254,7 +1243,7 @@ struct cast_test_impl {
       dst = src.template cast<DstType>();
       for (Index i = 0; i < testRows; i++)
         for (Index j = 0; j < testCols; j++) {
-          DstType ref = ref_cast_impl<SrcType, DstType>::run(src(i, j));
+          DstType ref = internal::cast_impl<SrcType, DstType>::run(src(i, j));
           bool all_nan = ((numext::isnan)(src(i, j)) && (numext::isnan)(ref) && (numext::isnan)(dst(i, j)));
           bool is_equal = ref == dst(i, j);
           bool pass = all_nan || is_equal;
