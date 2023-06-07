@@ -715,12 +715,13 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   // In either case, perform a vectorized cast of the source packet.
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int PacketSizeRatio = SrcPacketSize / DstPacketSize;
     SrcPacketType src;
     if (EIGEN_PREDICT_TRUE(check_array_bounds(row, col, SrcPacketSize))) {
-      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode / PacketSizeRatio);
       src = srcPacket<SrcLoadMode>(row, col, 0);
     } else {
-      constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
       Array<SrcType, SrcPacketSize, 1> srcArray;
       for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(row, col, k);
       for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
@@ -778,12 +779,13 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   // Analagous routines for linear access.
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int PacketSizeRatio = SrcPacketSize / DstPacketSize;
     SrcPacketType src;
     if (EIGEN_PREDICT_TRUE(check_array_bounds(index, SrcPacketSize))) {
-      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode / PacketSizeRatio);
       src = srcPacket<SrcLoadMode>(index, 0);
     } else {
-      constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
       Array<SrcType, SrcPacketSize, 1> srcArray;
       for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(index, k);
       for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
