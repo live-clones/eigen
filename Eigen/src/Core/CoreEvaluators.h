@@ -717,9 +717,9 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int PacketSizeRatio = SrcPacketSize / DstPacketSize;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode / PacketSizeRatio);
     SrcPacketType src;
     if (EIGEN_PREDICT_TRUE(check_array_bounds(row, col, SrcPacketSize))) {
-      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode / PacketSizeRatio);
       src = srcPacket<SrcLoadMode>(row, col, 0);
     } else {
       Array<SrcType, SrcPacketSize, 1> srcArray;
@@ -781,9 +781,9 @@ struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, 
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int PacketSizeRatio = SrcPacketSize / DstPacketSize;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode / PacketSizeRatio);
     SrcPacketType src;
     if (EIGEN_PREDICT_TRUE(check_array_bounds(index, SrcPacketSize))) {
-      constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode / PacketSizeRatio);
       src = srcPacket<SrcLoadMode>(index, 0);
     } else {
       Array<SrcType, SrcPacketSize, 1> srcArray;
