@@ -183,11 +183,12 @@ template<typename Scalar, typename NewType>
 struct functor_traits<scalar_cast_op<Scalar,NewType> >
 { enum { Cost = is_same<Scalar, NewType>::value ? 0 : NumTraits<NewType>::AddCost, PacketAccess = false }; };
 
-// this op serves to distinguish the vectorized implemention from that of the legacy scalar_cast_op
+// `core_cast_op` serves to distinguish this vectorized implementation from that of the legacy `scalar_cast_op` for backwards
+// compatibility. The manner in which packet ops are handled is defined by the specialized unary_evaluator:
+// `unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, IndexBased>` in CoreEvaluators.h
+// Otherwise, the non-vectorized behavior is identical to that of `scalar_cast_op`
 template <typename SrcType, typename DstType>
-struct core_cast_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstType operator() (const SrcType& a) const { return cast<SrcType, DstType>(a); }
-};
+struct core_cast_op : scalar_cast_op<SrcType, DstType> {};
 
 template <typename SrcType, typename DstType>
 struct functor_traits<core_cast_op<SrcType, DstType>> {
