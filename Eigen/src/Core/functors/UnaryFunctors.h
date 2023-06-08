@@ -186,7 +186,7 @@ struct functor_traits<scalar_cast_op<Scalar,NewType> >
 // this op serves to distinguish the vectorized implemention from that of the legacy scalar_cast_op
 template <typename SrcType, typename DstType>
 struct core_cast_op {
-  DstType operator()(const SrcType&) const;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const DstType operator() (const SrcType& a) const { return cast<SrcType, DstType>(a); }
 };
 
 template <typename SrcType, typename DstType>
