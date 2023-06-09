@@ -626,7 +626,6 @@ protected:
 template <typename SrcType, typename DstType, typename ArgType>
 struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, IndexBased> {
   using CastOp = core_cast_op<SrcType, DstType>;
-  using CastImpl = cast_impl<SrcType, DstType>;
   using XprType = CwiseUnaryOp<CastOp, ArgType>;
 
   // Use the largest packet type by default
@@ -683,9 +682,9 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index row, Index col) const {
-    return CastImpl::run(srcCoeff(row, col, 0));
+    return cast(srcCoeff(row, col, 0));
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index index) const { return CastImpl::run(srcCoeff(index, 0)); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index index) const { return cast(srcCoeff(index, 0)); }
 
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_STRONG_INLINE PacketType srcPacket(Index row, Index col, Index offset) const {
