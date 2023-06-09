@@ -689,7 +689,6 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
 
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_STRONG_INLINE PacketType srcPacket(Index row, Index col, Index offset) const {
-    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
     constexpr int PacketSize = unpacket_traits<PacketType>::size;
     Index actualRow = IsRowMajor ? row : row + (offset * PacketSize);
     Index actualCol = IsRowMajor ? col + (offset * PacketSize) : col;
@@ -698,7 +697,6 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   }
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_STRONG_INLINE PacketType srcPacket(Index index, Index offset) const {
-    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
     constexpr int PacketSize = unpacket_traits<PacketType>::size;
     Index actualIndex = index + (offset * PacketSize);
     eigen_assert(check_array_bounds(actualIndex, PacketSize) && "Array index out of bounds");

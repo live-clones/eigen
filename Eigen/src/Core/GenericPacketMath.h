@@ -159,28 +159,25 @@ struct is_scalar {
 // 1) the packets are the same type, or
 // 2) the packets differ only in sign. 
 // In both of these cases, preinterpret (bit_cast) is equivalent to pcast (static_cast)
-template <typename SrcPacket, typename TgtPacket, bool IsSame = is_same<SrcPacket, TgtPacket>::value,
-          bool Scalar = is_scalar<SrcPacket>::value&& is_scalar<TgtPacket>::value>
-struct is_degenerate_helper : std::false_type {};
+template <typename SrcPacket, typename TgtPacket,
+          bool Scalar = is_scalar<SrcPacket>::value && is_scalar<TgtPacket>::value>
+struct is_degenerate_helper : is_same<SrcPacket, TgtPacket> {};
 template <>
-struct is_degenerate_helper<int8_t, uint8_t, false, true> : std::true_type {};
+struct is_degenerate_helper<int8_t, uint8_t, true> : std::true_type {};
 template <>
-struct is_degenerate_helper<int16_t, uint16_t, false, true> : std::true_type {};
+struct is_degenerate_helper<int16_t, uint16_t, true> : std::true_type {};
 template <>
-struct is_degenerate_helper<int32_t, uint32_t, false, true> : std::true_type {};
+struct is_degenerate_helper<int32_t, uint32_t, true> : std::true_type {};
 template <>
-struct is_degenerate_helper<int64_t, uint64_t, false, true> : std::true_type {};
-
-template <typename Packet, bool Scalar>
-struct is_degenerate_helper<Packet, Packet, true, Scalar> : std::true_type {};
+struct is_degenerate_helper<int64_t, uint64_t, true> : std::true_type {};
 
 template <typename SrcPacket, typename TgtPacket>
-struct is_degenerate_helper<SrcPacket, TgtPacket, false, false> {
+struct is_degenerate_helper<SrcPacket, TgtPacket, false> {
   using SrcScalar = typename unpacket_traits<SrcPacket>::type;
   static constexpr int SrcSize = unpacket_traits<SrcPacket>::size;
   using TgtScalar = typename unpacket_traits<TgtPacket>::type;
   static constexpr int TgtSize = unpacket_traits<TgtPacket>::size;
-  static constexpr bool value = is_degenerate_helper<SrcScalar, TgtScalar>::value && (SrcSize == TgtSize);
+  static constexpr bool value = is_degenerate_helper<SrcScalar, TgtScalar, true>::value && (SrcSize == TgtSize);
 };
 
 // is_degenerate<T1,T2>::value == is_degenerate<T2,T1>::value
@@ -194,10 +191,8 @@ template <typename Packet>
 struct is_half {
   using Scalar = typename unpacket_traits<Packet>::type;
   static constexpr int Size = unpacket_traits<Packet>::size;
-
   using DefaultPacket = typename packet_traits<Scalar>::type;
   static constexpr int DefaultSize = unpacket_traits<DefaultPacket>::size;
-
   static constexpr bool value = Size < DefaultSize;
 };
 
