@@ -646,13 +646,13 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
 
   template<int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  const PacketType partialPacket(Index row, Index col) const
+  const PacketType partialPacket(Index row, Index col, Index n, Index offset) const
   {
     PacketType res;
-    typedef etor_product_packet_impl<bool(int(Flags)&RowMajorBit) ? RowMajor : ColMajor,
+    typedef etor_product_partial_packet_impl<bool(int(Flags)&RowMajorBit) ? RowMajor : ColMajor,
                                      Unroll ? int(InnerSize) : Dynamic,
                                      LhsEtorType, RhsEtorType, PacketType, LoadMode> PacketImpl;
-    PacketImpl::run(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res);
+    PacketImpl::run(row, col, n, offset, m_lhsImpl, m_rhsImpl, m_innerDim, res);
     return res;
   }
 
