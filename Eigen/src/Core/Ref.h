@@ -354,7 +354,7 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
 //      std::cout << match_helper<Derived>::HasDirectAccess << "," << match_helper<Derived>::OuterStrideMatch << "," << match_helper<Derived>::InnerStrideMatch << "\n";
 //      std::cout << int(StrideType::OuterStrideAtCompileTime) << " - " << int(Derived::OuterStrideAtCompileTime) << "\n";
 //      std::cout << int(StrideType::InnerStrideAtCompileTime) << " - " << int(Derived::InnerStrideAtCompileTime) << "\n";
-      EIGEN_STATIC_ASSERT(typename Traits::template match<Derived>::type::value || may_map_m_object_successfully,
+      EIGEN_STATIC_ASSERT(Traits::template match<Derived>::type::value || may_map_m_object_successfully,
                           STORAGE_LAYOUT_DOES_NOT_MATCH);
       construct(expr.derived(), typename Traits::template match<Derived>::type());
     }
@@ -365,7 +365,7 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
 
     template<typename OtherRef>
     EIGEN_DEVICE_FUNC inline Ref(const RefBase<OtherRef>& other) {
-      EIGEN_STATIC_ASSERT(typename Traits::template match<OtherRef>::type::value || may_map_m_object_successfully,
+      EIGEN_STATIC_ASSERT(Traits::template match<OtherRef>::type::value || may_map_m_object_successfully,
                           STORAGE_LAYOUT_DOES_NOT_MATCH);
       construct(other.derived(), typename Traits::template match<OtherRef>::type());
     }
