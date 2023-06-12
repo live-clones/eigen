@@ -792,7 +792,7 @@ struct etor_product_partial_packet_impl<ColMajor, UnrollingIndex, Lhs, Rhs, Pack
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet &res, Index n, Index offset)
   {
     etor_product_partial_packet_impl<ColMajor, UnrollingIndex-1, Lhs, Rhs, Packet, LoadMode>::run(row, col, lhs, rhs, innerDim, res, n, offset);
-    res =  pmadd(lhs.template partialPacket<LoadMode,Packet>(row, Index(UnrollingIndex-1)), pset1<Packet>(rhs.coeff(Index(UnrollingIndex-1), col, n, offset)), res);
+    res =  pmadd(lhs.template partialPacket<LoadMode,Packet>(row, Index(UnrollingIndex-1), n, offset), pset1<Packet>(rhs.coeff(Index(UnrollingIndex-1), col)), res);
   }
 };
 

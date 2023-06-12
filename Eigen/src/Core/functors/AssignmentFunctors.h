@@ -118,7 +118,7 @@ struct functor_traits<mul_assign_op<DstScalar,SrcScalar> > {
   *
   */
 template<typename DstScalar, typename SrcScalar=DstScalar> struct div_assign_op {
-
+  // TODO: vectorized integer division does not check for divide by zero
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(DstScalar& a, const SrcScalar& b) const { a /= b; }
 
   template<int Alignment, typename Packet>
