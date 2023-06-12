@@ -27,6 +27,9 @@ template<typename DstScalar,typename SrcScalar> struct assign_op {
   template<int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const
   { internal::pstoret<DstScalar,Packet,Alignment>(a,b); }
+  template<int Alignment, typename Packet>
+  EIGEN_STRONG_INLINE void assignPartialPacket(DstScalar* a, const Packet& b, Index n, Index offset) const
+  { internal::pstoret_partial<DstScalar,Packet,Alignment>(a,b,n,offset); }
 };
 
 // Empty overload for void type (used by PermutationMatrix)

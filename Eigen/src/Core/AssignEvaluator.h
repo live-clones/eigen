@@ -391,25 +391,29 @@ struct unaligned_dense_assignment_loop
 };
 
 template <>
-struct unaligned_dense_assignment_loop<false>
-{
+struct unaligned_dense_assignment_loop<false> {
   // MSVC must not inline this functions. If it does, it fails to optimize the
   // packet access path.
   // FIXME check which version exhibits this issue
 #if EIGEN_COMP_MSVC
   template <typename Kernel>
-  static EIGEN_DONT_INLINE void run(Kernel &kernel,
-                                    Index start,
-                                    Index end)
+  static EIGEN_DONT_INLINE void run(Kernel& kernel, Index start, Index end)
 #else
   template <typename Kernel>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel &kernel,
-                                      Index start,
-                                      Index end)
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel &kernel, Index start, Index end)
 #endif
   {
-    for (Index index = start; index < end; ++index)
-      kernel.assignCoeff(index);
+    typedef typename Kernel::Scalar Scalar;
+    typedef typename Kernel::PacketType PacketType;
+    enum {
+      requestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
+      dstAlignment = packet_traits<Scalar>::AlignedOnScalar ? int(requestedAlignment)
+                                                            : int(Kernel::AssignmentTraits::DstAlignment),
+      srcAlignment = Kernel::AssignmentTraits::JointAlignment
+    };
+    // for (Index index = start; index < end; ++index)
+    //   kernel.assignCoeff(index);
+    kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(start, end - start, 0);
   }
 };
 
@@ -707,11 +711,31 @@ public:
   }
 
   template<int StoreMode, int LoadMode, typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPartialPacket(Index row, Index col, Index n, Index offset)
+  {
+    m_functor.template assignPartialPacket<StoreMode>(&m_dst.coeffRef(row,col), m_src.template partialPacket<LoadMode,Packet>(row,col, n, offset), n, offset);
+  }
+
+  template<int StoreMode, int LoadMode, typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPartialPacket(Index index, Index n, Index offset)
+  {
+    m_functor.template assignPartialPacket<StoreMode>(&m_dst.coeffRef(index), m_src.template partialPacket<LoadMode,Packet>(index, n, offset), n, offset);
+  }
+
+  template<int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketByOuterInner(Index outer, Index inner)
   {
     Index row = rowIndexByOuterInner(outer, inner);
     Index col = colIndexByOuterInner(outer, inner);
     assignPacket<StoreMode,LoadMode,Packet>(row, col);
+  }
+
+  template<int StoreMode, int LoadMode, typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPartialPacketByOuterInner(Index outer, Index inner, Index n, Index offset)
+  {
+    Index row = rowIndexByOuterInner(outer, inner);
+    Index col = colIndexByOuterInner(outer, inner);
+    assignPartialPacket<StoreMode,LoadMode,Packet>(row, col, n, offset);
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner)
