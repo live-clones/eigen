@@ -810,7 +810,7 @@ struct etor_product_partial_packet_impl<ColMajor, 1, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index /*innerDim*/, Packet &res, Index n, Index offset)
   {
-    res = pmul(lhs.template partialPacket<LoadMode,Packet>(row, Index(0)), pset1<Packet>(rhs.coeff(Index(0), col, n, offset)));
+    res = pmul(lhs.template partialPacket<LoadMode,Packet>(row, Index(0), n, offset), pset1<Packet>(rhs.coeff(Index(0), col)));
   }
 };
 
