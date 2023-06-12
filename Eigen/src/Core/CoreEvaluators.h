@@ -291,7 +291,7 @@ struct evaluator<PlainObjectBase<Derived> >
 
   template <int StoreMode, typename PacketType>
   EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
-    pstoret_partial<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x);
+    pstoret_partial<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x, n, offset);
   }
 
 protected:
@@ -599,12 +599,12 @@ struct evaluator<CwiseNullaryOp<NullaryOp,PlainObjectType> >
 
   template <int LoadMode, typename PacketType, typename IndexType>
   EIGEN_STRONG_INLINE PacketType partialPacket(IndexType row, IndexType col, Index, Index) const {
-    return packet<LoadMode, PacketType, IndexType>(m_functor, row, col);
+    return packet<LoadMode, PacketType, IndexType>(row, col);
   }
 
   template <int LoadMode, typename PacketType, typename IndexType>
   EIGEN_STRONG_INLINE PacketType partialPacket(IndexType index, Index, Index) const {
-    return packet<LoadMode, PacketType, IndexType>(m_functor, index);
+    return packet<LoadMode, PacketType, IndexType>(index);
   }
 
 protected:
