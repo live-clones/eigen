@@ -1,5 +1,5 @@
 // This file is part of Eigen, a lightweight C++ template library
-// for linear algebra.
+// for linear algebra.etor_partial_product_packet_impl
 //
 // Copyright (C) 2006-2008 Benoit Jacob <jacob.benoit.1@gmail.com>
 // Copyright (C) 2008-2010 Gael Guennebaud <gael.guennebaud@inria.fr>
@@ -652,7 +652,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
     typedef etor_product_partial_packet_impl<bool(int(Flags)&RowMajorBit) ? RowMajor : ColMajor,
                                      Unroll ? int(InnerSize) : Dynamic,
                                      LhsEtorType, RhsEtorType, PacketType, LoadMode> PacketImpl;
-    PacketImpl::run(row, col, n, offset, m_lhsImpl, m_rhsImpl, m_innerDim, res);
+    PacketImpl::run(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res, n, offset);
     return res;
   }
 
