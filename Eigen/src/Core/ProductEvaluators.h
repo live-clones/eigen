@@ -1130,9 +1130,9 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   }
 
   template<int LoadMode,typename PacketType>
-  EIGEN_STRONG_INLINE PacketType partialPacket(Index idx) const
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index idx, Index n, Index offset) const
   {
-    return partialPacket<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx, n, offsetof);
+    return partialPacket<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx, n, offset);
   }
 #endif
 };
