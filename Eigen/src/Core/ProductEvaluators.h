@@ -489,6 +489,9 @@ struct etor_product_coeff_impl;
 template<int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl;
 
+template<int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl;
+
 template<typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape, DenseShape>
     : evaluator_base<Product<Lhs, Rhs, LazyProduct> >
@@ -641,6 +644,27 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
     return packet<LoadMode,PacketType>(row,col);
   }
 
+  template<int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+  const PacketType partialPacket(Index row, Index col) const
+  {
+    PacketType res;
+    typedef etor_product_packet_impl<bool(int(Flags)&RowMajorBit) ? RowMajor : ColMajor,
+                                     Unroll ? int(InnerSize) : Dynamic,
+                                     LhsEtorType, RhsEtorType, PacketType, LoadMode> PacketImpl;
+    PacketImpl::run(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res);
+    return res;
+  }
+
+  template<int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+  const PacketType partialPacket(Index index, Index n, Index offset) const
+  {
+    const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime==1) ? 0 : index;
+    const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime==1) ? index : 0;
+    return partialPacket<LoadMode,PacketType>(row,col,n,offset);
+  }
+
 protected:
   add_const_on_value_type_t<LhsNested> m_lhs;
   add_const_on_value_type_t<RhsNested> m_rhs;
@@ -747,6 +771,86 @@ struct etor_product_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
     res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
     for(Index i = 0; i < innerDim; ++i)
       res =  pmadd(lhs.template packet<LoadMode,Packet>(row, i), pset1<Packet>(rhs.coeff(i, col)), res);
+  }
+};
+
+// partial packets
+
+template<int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<RowMajor, UnrollingIndex, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet &res, Index n, Index offset)
+  {
+    etor_product_partial_packet_impl<RowMajor, UnrollingIndex-1, Lhs, Rhs, Packet, LoadMode>::run(row, col, lhs, rhs, innerDim, res, n, offset);
+    res =  pmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex-1))), rhs.template partialPacket<LoadMode,Packet>(Index(UnrollingIndex-1), col, n, offset), res);
+  }
+};
+
+template<int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<ColMajor, UnrollingIndex, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet &res, Index n, Index offset)
+  {
+    etor_product_partial_packet_impl<ColMajor, UnrollingIndex-1, Lhs, Rhs, Packet, LoadMode>::run(row, col, lhs, rhs, innerDim, res, n, offset);
+    res =  pmadd(lhs.template partialPacket<LoadMode,Packet>(row, Index(UnrollingIndex-1)), pset1<Packet>(rhs.coeff(Index(UnrollingIndex-1), col, n, offset)), res);
+  }
+};
+
+template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<RowMajor, 1, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index /*innerDim*/, Packet &res, Index n, Index offset)
+  {
+    res = pmul(pset1<Packet>(lhs.coeff(row, Index(0))),rhs.template partialPacket<LoadMode,Packet>(Index(0), col, n, offset));
+  }
+};
+
+template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<ColMajor, 1, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index /*innerDim*/, Packet &res, Index n, Index offset)
+  {
+    res = pmul(lhs.template partialPacket<LoadMode,Packet>(row, Index(0)), pset1<Packet>(rhs.coeff(Index(0), col, n, offset)));
+  }
+};
+
+template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<RowMajor, 0, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res, Index /*n*/, Index /*offset*/)
+  {
+    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+  }
+};
+
+template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<ColMajor, 0, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res, Index /*n*/, Index /*offset*/)
+  {
+    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+  }
+};
+
+template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<RowMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res, Index n, Index offset)
+  {
+    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    for(Index i = 0; i < innerDim; ++i)
+      res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template partialPacket<LoadMode,Packet>(i, col), res, n, offset);
+  }
+};
+
+template<typename Lhs, typename Rhs, typename Packet, int LoadMode>
+struct etor_product_partial_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode>
+{
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res, Index n, Index offset)
+  {
+    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    for(Index i = 0; i < innerDim; ++i)
+      res = pmadd(lhs.template partialPacket<LoadMode,Packet>(row, i, n, offset), pset1<Packet>(rhs.coeff(i, col)), res);
   }
 };
 
@@ -895,6 +999,24 @@ protected:
                           m_diagImpl.template packet<DiagonalPacketLoadMode,PacketType>(id));
   }
 
+  template<int LoadMode,typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partial_packet_impl(Index row, Index col, Index id, Index n, Index offset, internal::true_type) const
+  {
+    return internal::pmul(m_matImpl.template partialPacket<LoadMode,PacketType>(row, col, n, offset),
+                          internal::pset1<PacketType>(m_diagImpl.coeff(id)));
+  }
+
+  template<int LoadMode,typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partial_packet_impl(Index row, Index col, Index id, Index n, Index offset, internal::false_type) const
+  {
+    enum {
+      InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
+      DiagonalPacketLoadMode = plain_enum_min(LoadMode,((InnerSize%16) == 0) ? int(Aligned16) : int(evaluator<DiagonalType>::Alignment)) // FIXME hardcoded 16!!
+    };
+    return internal::pmul(m_matImpl.template partialPacket<LoadMode,PacketType>(row, col, n, offset),
+                          m_diagImpl.template partialPacket<DiagonalPacketLoadMode,PacketType>(id, n, offset));
+  }
+
   evaluator<DiagonalType> m_diagImpl;
   evaluator<MatrixType>   m_matImpl;
 };
@@ -942,6 +1064,21 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   {
     return packet<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx);
   }
+
+  template<int LoadMode,typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const
+  {
+    // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
+    // See also similar calls below.
+    return this->template partial_packet_impl<LoadMode,PacketType>(row,col, row, n, offset,
+                                 std::conditional_t<int(StorageOrder)==RowMajor, internal::true_type, internal::false_type>());
+  }
+
+  template<int LoadMode,typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index idx, Index n, Index offset) const
+  {
+    return partialPacket<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx, n, offset);
+  }
 #endif
 };
 
@@ -983,6 +1120,19 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   EIGEN_STRONG_INLINE PacketType packet(Index idx) const
   {
     return packet<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx);
+  }
+
+  template<int LoadMode,typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const
+  {
+    return this->template partial_packet_impl<LoadMode,PacketType>(row,col, col, n, offset,
+                                 std::conditional_t<int(StorageOrder)==ColMajor, internal::true_type, internal::false_type>());
+  }
+
+  template<int LoadMode,typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index idx) const
+  {
+    return partialPacket<LoadMode,PacketType>(int(StorageOrder)==ColMajor?idx:0,int(StorageOrder)==ColMajor?0:idx, n, offsetof);
   }
 #endif
 };
