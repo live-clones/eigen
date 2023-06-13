@@ -412,10 +412,7 @@ struct unaligned_dense_assignment_loop<false> {
                                                             : int(Kernel::AssignmentTraits::DstAlignment),
       srcAlignment = Kernel::AssignmentTraits::JointAlignment
     };
-    Index index = start;
-    for (; index + packetSize <= end; index += packetSize)
-      kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
-    kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(index, end - index, 0);
+    kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(start, end - start, 0);
   }
 };
 

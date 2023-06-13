@@ -41,6 +41,14 @@ namespace internal {
 #define EIGEN_DEBUG_ALIGNED_STORE
 #endif
 
+#ifndef EIGEN_DEBUG_GENERIC_MASKED_STORE
+#define EIGEN_DEBUG_GENERIC_MASKED_STORE
+#endif
+
+#ifndef EIGEN_DEBUG_GENERIC_MASKED_LOAD
+#define EIGEN_DEBUG_GENERIC_MASKED_LOAD
+#endif
+
 #ifndef EIGEN_DEBUG_UNALIGNED_STORE
 #define EIGEN_DEBUG_UNALIGNED_STORE
 #endif
@@ -721,8 +729,8 @@ pload(const typename unpacket_traits<Packet>::type* from) { return *from; }
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pload_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
+  EIGEN_DEBUG_GENERIC_MASKED_LOAD
   const Index packet_size = unpacket_traits<Packet>::size;
-  eigen_assert(n + offset <= packet_size && "number of elements plus offset will read past end of packet");
   typedef typename unpacket_traits<Packet>::type Scalar;
   EIGEN_ALIGN_MAX Scalar elements[packet_size] = { Scalar(0) };
   for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
@@ -841,8 +849,8 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(
  * offset + n <= unpacket_traits::size */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
+  EIGEN_DEBUG_GENERIC_MASKED_STORE
   const Index packet_size = unpacket_traits<Packet>::size;
-  eigen_assert(n + offset <= packet_size && "number of elements plus offset will write past end of packet");
   EIGEN_ALIGN_MAX Scalar elements[packet_size];
   pstore<Scalar>(elements, from);
   for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
@@ -1191,6 +1199,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_trai
 template<typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
+  eigen_assert(n + offset <= unpacket_traits<Packet>::size && "number of elements plus offset will read past end of packet");
   if(Alignment >= unpacket_traits<Packet>::alignment)
     return pload_partial<Packet>(from, n, offset);
   else
@@ -1213,6 +1222,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& fro
 template<typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
+  eigen_assert(n + offset <= unpacket_traits<Packet>::size && "number of elements plus offset will write past end of packet");
   if(Alignment >= unpacket_traits<Packet>::alignment)
     pstore_partial(to, from, n, offset);
   else
