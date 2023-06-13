@@ -403,16 +403,12 @@ struct unaligned_dense_assignment_loop<false> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel &kernel, Index start, Index end)
 #endif
   {
-    typedef typename Kernel::Scalar Scalar;
-    typedef typename Kernel::PacketType PacketType;
-    enum {
-      requestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
-      packetSize = unpacket_traits<PacketType>::size,
-      dstAlignment = packet_traits<Scalar>::AlignedOnScalar ? int(requestedAlignment)
-                                                            : int(Kernel::AssignmentTraits::DstAlignment),
-      srcAlignment = Kernel::AssignmentTraits::JointAlignment
-    };
-    kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(start, end - start, 0);
+    using PacketType = typename Kernel::PacketType;
+    constexpr Index PacketSize = unpacket_traits<PacketType>::size;
+    Index index = start;
+    for (; index + PacketSize <= end; index += PacketSize)
+      kernel.template assignPacket<Unaligned, Unaligned, PacketType>(index);
+    kernel.template assignPartialPacket<Unaligned, Unaligned, PacketType>(index, end - index, 0);
   }
 };
 
