@@ -303,9 +303,9 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
 #define MICRO_MMA_STORE MICRO_MMA_UNROLL(MICRO_MMA_STORE_ONE)
 
 #ifdef USE_PARTIAL_PACKETS
-template<int unroll_factor, typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, bool full>
+template<int unroll_factor, typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, bool full, const Index accItr>
 #else
-template<int unroll_factor, typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, const Index accCols2>
+template<int unroll_factor, typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, const Index accCols2, const Index accItr>
 #endif
 EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(
   const DataMapper& res,
@@ -348,15 +348,15 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(
 
 #ifdef USE_PARTIAL_PACKETS
 #define MICRO_MMA_UNROLL_ITER2(N, M) \
-  gemm_unrolled_MMA_iteration<N + (M ? 1 : 0), Scalar, Packet, RhsPacket, DataMapper, accRows, accCols, !M>(res3, lhs_base, rhs_base, depth, strideA, offsetA, row, pAlpha, M ? remaining_rows : accCols); \
+  gemm_unrolled_MMA_iteration<N + (M ? 1 : 0), Scalar, Packet, RhsPacket, DataMapper, accRows, accCols, !M, accItr>(res3, lhs_base, rhs_base, depth, strideA, offsetA, row, pAlpha, M ? remaining_rows : accCols); \
   if (M) return;
 #else
 #define MICRO_MMA_UNROLL_ITER2(N, M) \
-  gemm_unrolled_MMA_iteration<N + (M ? 1 : 0), Scalar, Packet, RhsPacket, DataMapper, accRows, accCols, M ? M : accCols>(res3, lhs_base, rhs_base, depth, strideA, offsetA, row, pAlpha, pMask); \
+  gemm_unrolled_MMA_iteration<N + (M ? 1 : 0), Scalar, Packet, RhsPacket, DataMapper, accRows, accCols, M ? M : accCols, accItr>(res3, lhs_base, rhs_base, depth, strideA, offsetA, row, pAlpha, pMask); \
   if (M) return;
 #endif
 
-template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
+template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, const Index accItr>
 EIGEN_ALWAYS_INLINE void gemmMMA_cols(
   const DataMapper& res,
   const Scalar* blockA,
@@ -379,49 +379,50 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
   Index row = 0;
 
 #define MAX_MMA_UNROLL 7
-  while(row + MAX_MMA_UNROLL*accCols <= rows) {
-    MICRO_MMA_UNROLL_ITER2(MAX_MMA_UNROLL, 0);
+  if (accItr == 1) {
+    while(row + MAX_MMA_UNROLL*accCols <= rows) {
+      MICRO_MMA_UNROLL_ITER2(MAX_MMA_UNROLL, 0);
+    }
   }
   switch( (rows-row)/accCols ) {
 #if MAX_MMA_UNROLL > 7
     case 7:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 7)
+      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 7*accItr)
       break;
 #endif
 #if MAX_MMA_UNROLL > 6
     case 6:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 6)
+      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 6*accItr)
       break;
 #endif
 #if MAX_MMA_UNROLL > 5
     case 5:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 5)
+      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 5*accItr)
       break;
 #endif
 #if MAX_MMA_UNROLL > 4
     case 4:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 4)
+      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 4*accItr)
       break;
 #endif
 #if MAX_MMA_UNROLL > 3
     case 3:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 3)
+      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 3*accItr)
       break;
 #endif
 #if MAX_MMA_UNROLL > 2
     case 2:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 2)
+      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 2*accItr)
       break;
 #endif
 #if MAX_MMA_UNROLL > 1
     case 1:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 1)
+      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 1*accItr)
       break;
 #endif
     default:
       break;
   }
-#undef MAX_MMA_UNROLL
 
   if(remaining_rows > 0)
   {
@@ -429,9 +430,15 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
   }
 }
 
+//#define GEMM_SMALL_ROWS
+
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
+#ifdef TEST_VERBOSE
+  uint64_t start, end;
+  start = __ppc_get_timebase();
+#endif
       const Index remaining_rows = rows % accCols;
 
       if( strideA == -1 ) strideA = depth;
@@ -443,16 +450,30 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
       typedef typename std::conditional_t<(sizeof(Scalar) == sizeof(float)), RhsPacket, __vector_pair> RhsPacket2;
 
       Index col = 0;
+#ifdef GEMM_SMALL_ROWS
+      if (rows < ((MAX_MMA_UNROLL/2) + 1)*accCols) {
+        for(; col + 2*accRows <= cols; col += 2*accRows)
+        {
+          gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, accRows, accCols, 2>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask);
+        }
+      }
+#endif
       for(; col + accRows <= cols; col += accRows)
       {
-        gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, accRows, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask);
+        gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, accRows, accCols, 1>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask);
       }
 
       if (col != cols)
       {
         gemm_extra_cols<Scalar, Packet, DataMapper, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlpha, pMask);
       }
+#ifdef TEST_VERBOSE
+  end = __ppc_get_timebase();
+  printf("gemm MMA time = %16ld (%4ld %4ld %4ld)\n", end - start, rows, depth, cols);
+#endif
 }
+
+#undef MAX_MMA_UNROLL
 
 #define advanceRows ((LhsIsReal) ? 1 : 2)
 #define advanceCols ((RhsIsReal) ? 1 : 2)
