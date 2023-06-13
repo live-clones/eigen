@@ -510,7 +510,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4ul ploadu<Packet4ul>(const uint64_t* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(from));
 }
-
 // Loads 2 int64_ts from memory a returns the packet {a0, a0, a1, a1}
 template <>
 EIGEN_STRONG_INLINE Packet4l ploaddup<Packet4l>(const int64_t* from) {
@@ -1210,14 +1209,13 @@ template<> EIGEN_STRONG_INLINE Packet8ui ploadu<Packet8ui>(const uint32_t* from)
 
 template <typename Scalar>
 EIGEN_STRONG_INLINE __m128i avx_128_partial_mask(const Index n, const Index offset) {
-  // if offset == 0 (the most common case), the compiler will eliminate much of this function
   static constexpr int Size = sizeof(Scalar);
   const __m128i cst_lin = _mm_setr_epi32(0 / Size, 4 / Size, 8 / Size, 12 / Size);
   __m128i off = _mm_set1_epi32(static_cast<int>(offset));
   __m128i off_n = _mm_set1_epi32(static_cast<int>(offset + n));
-  __m128i off_gt_lin = _mm_cmpgt_epi32(off, cst_lin);         // offset > i
-  __m128i off_n_gt_lin = _mm_cmpgt_epi32(off_n, cst_lin);     // offset + n > i
-  __m128i mask = _mm_andnot_si128(off_gt_lin, off_n_gt_lin);  // offset + n > i && !(offset > i)
+  __m128i off_gt_lin = _mm_cmpgt_epi32(off, cst_lin);
+  __m128i off_n_gt_lin = _mm_cmpgt_epi32(off_n, cst_lin);
+  __m128i mask = _mm_andnot_si128(off_gt_lin, off_n_gt_lin);
   return mask;
 }
 template <>

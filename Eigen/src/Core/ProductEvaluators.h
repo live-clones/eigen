@@ -1,5 +1,5 @@
 // This file is part of Eigen, a lightweight C++ template library
-// for linear algebra.etor_partial_product_packet_impl
+// for linear algebra.
 //
 // Copyright (C) 2006-2008 Benoit Jacob <jacob.benoit.1@gmail.com>
 // Copyright (C) 2008-2010 Gael Guennebaud <gael.guennebaud@inria.fr>
@@ -819,7 +819,7 @@ struct etor_product_partial_packet_impl<RowMajor, 0, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res, Index /*n*/, Index /*offset*/)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pzero(res);
   }
 };
 
@@ -828,7 +828,7 @@ struct etor_product_partial_packet_impl<ColMajor, 0, Lhs, Rhs, Packet, LoadMode>
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/, const Rhs& /*rhs*/, Index /*innerDim*/, Packet &res, Index /*n*/, Index /*offset*/)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pzero(res);
   }
 };
 
@@ -837,9 +837,9 @@ struct etor_product_partial_packet_impl<RowMajor, Dynamic, Lhs, Rhs, Packet, Loa
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res, Index n, Index offset)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pzero(res);
     for(Index i = 0; i < innerDim; ++i)
-      res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template partialPacket<LoadMode,Packet>(i, col), res, n, offset);
+      res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template partialPacket<LoadMode,Packet>(i, col, n, offset), res);
   }
 };
 
@@ -848,7 +848,7 @@ struct etor_product_partial_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, Loa
 {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Index row, Index col, const Lhs& lhs, const Rhs& rhs, Index innerDim, Packet& res, Index n, Index offset)
   {
-    res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
+    res = pzero(res);
     for(Index i = 0; i < innerDim; ++i)
       res = pmadd(lhs.template partialPacket<LoadMode,Packet>(row, i, n, offset), pset1<Packet>(rhs.coeff(i, col)), res);
   }
@@ -1068,8 +1068,6 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   template<int LoadMode,typename PacketType>
   EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const
   {
-    // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
-    // See also similar calls below.
     return this->template partial_packet_impl<LoadMode,PacketType>(row,col, row, n, offset,
                                  std::conditional_t<int(StorageOrder)==RowMajor, internal::true_type, internal::false_type>());
   }

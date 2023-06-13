@@ -1919,22 +1919,22 @@ struct evaluator_wrapper_base
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
-    return m_argImpl.template packet<LoadMode, PacketType>(row, col, n, offset);
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(row, col, n, offset);
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
-    return m_argImpl.template packet<LoadMode, PacketType>(index, n, offset);
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(index, n, offset);
   }
 
   template <int StoreMode, typename PacketType>
   EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
-    m_argImpl.template writePacket<StoreMode>(row, col, x, n, offset);
+    m_argImpl.template writePartialPacket<StoreMode>(row, col, x, n, offset);
   }
 
   template <int StoreMode, typename PacketType>
   EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
-    m_argImpl.template writePacket<StoreMode>(index, x, n, offset);
+    m_argImpl.template writePartialPacket<StoreMode>(index, x, n, offset);
   }
 
 protected:
