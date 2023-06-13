@@ -524,11 +524,11 @@ EIGEN_STRONG_INLINE Packet4ul ploaddup<Packet4ul>(const uint64_t* from) {
 }
 template<>
 EIGEN_STRONG_INLINE void pstore<int64_t>(int64_t* to, const Packet4l& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm256_store_si256(reinterpret_cast<__m256i*>(to), from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint64_t>(uint64_t* to, const Packet4ul& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm256_store_si256(reinterpret_cast<__m256i*>(to), from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<int64_t>(int64_t* to, const Packet4l& from) {
@@ -1290,11 +1290,12 @@ EIGEN_STRONG_INLINE Packet8ui pload_partial<Packet8ui>(const uint32_t* from, con
 }
 template <>
 EIGEN_STRONG_INLINE Packet4l pload_partial<Packet4l>(const int64_t* from, const Index n, const Index offset) {
-  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi64(from, avx2_256_partial_mask<int64_t>(n, offset));
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi64(reinterpret_cast<const long long*>(from),
+                                                       avx2_256_partial_mask<int64_t>(n, offset));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ul pload_partial<Packet4ul>(const uint64_t* from, const Index n, const Index offset) {
-  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi64(reinterpret_cast<const int64_t*>(from),
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi64(reinterpret_cast<const long long*>(from),
                                                        avx2_256_partial_mask<uint64_t>(n, offset));
 }
 template <>
@@ -1321,12 +1322,13 @@ EIGEN_STRONG_INLINE void pstore_partial<uint32_t, Packet8ui>(uint32_t* to, const
 template <>
 EIGEN_STRONG_INLINE void pstore_partial<int64_t, Packet4l>(int64_t* to, const Packet4l& from, const Index n,
                                                            const Index offset) {
-  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi64(to, avx2_256_partial_mask<int64_t>(n, offset), from);
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi64(reinterpret_cast<long long*>(to),
+                                                         avx2_256_partial_mask<int64_t>(n, offset), from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore_partial<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& from, const Index n,
                                                              const Index offset) {
-  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi64(reinterpret_cast<int64_t*>(to),
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi64(reinterpret_cast<long long*>(to),
                                                          avx2_256_partial_mask<uint64_t>(n, offset), from);
 }
 #endif
