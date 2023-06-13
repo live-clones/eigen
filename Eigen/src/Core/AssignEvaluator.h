@@ -407,13 +407,15 @@ struct unaligned_dense_assignment_loop<false> {
     typedef typename Kernel::PacketType PacketType;
     enum {
       requestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
+      packetSize = unpacket_traits<PacketType>::size,
       dstAlignment = packet_traits<Scalar>::AlignedOnScalar ? int(requestedAlignment)
                                                             : int(Kernel::AssignmentTraits::DstAlignment),
       srcAlignment = Kernel::AssignmentTraits::JointAlignment
     };
-    // for (Index index = start; index < end; ++index)
-    //   kernel.assignCoeff(index);
-    kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(start, end - start, 0);
+    Index index = start;
+    for (; index + packetSize <= end; index += packetSize)
+      kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
+    kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(index, end - index, 0);
   }
 };
 
