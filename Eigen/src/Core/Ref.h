@@ -386,7 +386,7 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
     {
       internal::call_assignment_no_alias(m_object,expr,internal::assign_op<Scalar,Scalar>());
       const bool success = Base::construct(m_object);
-      EIGEN_UNUSED_VARIABLE(success)
+      EIGEN_ONLY_USED_FOR_DEBUG(success)
       eigen_assert(success);
     }
 
