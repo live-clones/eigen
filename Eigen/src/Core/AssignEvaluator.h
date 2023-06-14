@@ -395,20 +395,22 @@ struct unaligned_dense_assignment_loop<false> {
   // MSVC must not inline this functions. If it does, it fails to optimize the
   // packet access path.
   // FIXME check which version exhibits this issue
-#if EIGEN_COMP_MSVC
+#if EIGEN_COMP_MSVC < 1936
   template <typename Kernel>
   static EIGEN_DONT_INLINE void run(Kernel& kernel, Index start, Index end)
 #else
   template <typename Kernel>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel &kernel, Index start, Index end)
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end)
 #endif
   {
     using PacketType = typename Kernel::PacketType;
-    constexpr Index PacketSize = unpacket_traits<PacketType>::size;
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+
     Index index = start;
     for (; index + PacketSize <= end; index += PacketSize)
-      kernel.template assignPacket<Unaligned, Unaligned, PacketType>(index);
-    kernel.template assignPartialPacket<Unaligned, Unaligned, PacketType>(index, end - index, 0);
+      kernel.template assignPacket<Unaligned, SrcAlignment, PacketType>(index);
+    kernel.template assignPartialPacket<Unaligned, SrcAlignment, PacketType>(index, end - index, 0);
   }
 };
 
@@ -436,31 +438,29 @@ struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
-template<typename Kernel>
-struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling>
-{
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel &kernel)
-  {
+template <typename Kernel>
+struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
+    using Scalar = typename Kernel::Scalar;
+    using PacketType = typename Kernel::PacketType;
+
+    constexpr int RequestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment;
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    constexpr int DefaultDstAlignment = Kernel::AssignmentTraits::DstAlignment;
+    constexpr bool DstIsAligned = DefaultDstAlignment >= RequestedAlignment;
+    constexpr int DstAlignment = packet_traits<Scalar>::AlignedOnScalar ? RequestedAlignment : DefaultDstAlignment;
+    constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+
     const Index size = kernel.size();
-    typedef typename Kernel::Scalar Scalar;
-    typedef typename Kernel::PacketType PacketType;
-    enum {
-      requestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
-      packetSize = unpacket_traits<PacketType>::size,
-      dstIsAligned = int(Kernel::AssignmentTraits::DstAlignment)>=int(requestedAlignment),
-      dstAlignment = packet_traits<Scalar>::AlignedOnScalar ? int(requestedAlignment)
-                                                            : int(Kernel::AssignmentTraits::DstAlignment),
-      srcAlignment = Kernel::AssignmentTraits::JointAlignment
-    };
-    const Index alignedStart = dstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
-    const Index alignedEnd = alignedStart + ((size-alignedStart)/packetSize)*packetSize;
+    const Index alignedStart = DstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
+    const Index alignedEnd = alignedStart + ((size - alignedStart) / PacketSize) * PacketSize;
 
-    unaligned_dense_assignment_loop<dstIsAligned!=0>::run(kernel, 0, alignedStart);
+    unaligned_dense_assignment_loop<!DstIsAligned>::run(kernel, 0, alignedStart);
 
-    for(Index index = alignedStart; index < alignedEnd; index += packetSize)
-      kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
+    for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
+      kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
 
-    unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
+    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(alignedEnd, size - alignedEnd, 0);
   }
 };
 
