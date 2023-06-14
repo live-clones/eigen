@@ -455,11 +455,14 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
     const Index alignedStart = DstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + ((size - alignedStart) / PacketSize) * PacketSize;
 
-    unaligned_dense_assignment_loop<!DstIsAligned>::run(kernel, 0, alignedStart);
+    Index index = 0;
+
+    for (; index + PacketSize <= alignedStart; index += PacketSize)
+      kernel.template assignPacket<Unaligned, SrcAlignment, PacketType>(index);
+    kernel.template assignPartialPacket<Unaligned, SrcAlignment, PacketType>(index, alignedStart - index, 0);
 
     for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
       kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
-
     kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(alignedEnd, size - alignedEnd, 0);
   }
 };
@@ -477,7 +480,7 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrollin
            alignedSize = (int(size)/packetSize)*packetSize };
 
     copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, alignedSize>::run(kernel);
-    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, alignedSize, size>::run(kernel);
+    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(alignedSize, size - alignedSize, 0);
   }
 };
 
@@ -586,18 +589,15 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling>
 
     for(Index outer = 0; outer < outerSize; ++outer)
     {
-      const Index alignedEnd = alignedStart + ((innerSize-alignedStart) & ~packetAlignedMask);
-      // do the non-vectorizable part of the assignment
-      for(Index inner = 0; inner<alignedStart ; ++inner)
-        kernel.assignCoeffByOuterInner(outer, inner);
+      Index inner = 0;
 
-      // do the vectorizable part of the assignment
-      for(Index inner = alignedStart; inner<alignedEnd; inner+=packetSize)
+      for(; inner + packetSize <= alignedStart ; inner += packetSize)
+        kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
+      kernel.template assignPartialPacket<Unaligned, Unaligned, PacketType>(inner, alignedStart - inner, 0);
+
+      for(; inner + packetSize <= innerSize; inner += packetSize)
         kernel.template assignPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner);
-
-      // do the non-vectorizable part of the assignment
-      for(Index inner = alignedEnd; inner<innerSize ; ++inner)
-        kernel.assignCoeffByOuterInner(outer, inner);
+      kernel.template assignPartialPacket<dstAlignment, Unaligned, PacketType>(inner, innerSize - inner, 0);
 
       alignedStart = numext::mini((alignedStart+alignedStep)%packetSize, innerSize);
     }
