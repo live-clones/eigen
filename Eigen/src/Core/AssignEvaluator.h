@@ -308,6 +308,20 @@ struct copy_using_evaluator_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlign
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel &, Index) { }
 };
 
+template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment>
+struct copy_using_evaluator_partial_innervec_InnerUnrolling {
+  using PacketType = typename Kernel::PacketType;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, Index outer) {
+    kernel.template assignPartialPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, Start, Stop - Start, 0);
+  }
+};
+
+template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
+struct copy_using_evaluator_partial_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlignment, DstAlignment> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&, Index) {}
+};
+
 /***************************************************************************
 * Part 3 : implementation of all cases
 ***************************************************************************/
@@ -438,6 +452,25 @@ struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
+template <typename Kernel, int Index, int Stop>
+struct copy_using_evaluator_partial_linearvec_CompleteUnrolling {
+  typedef typename Kernel::DstEvaluatorType DstEvaluatorType;
+  typedef typename DstEvaluatorType::XprType DstXprType;
+  typedef typename Kernel::PacketType PacketType;
+
+  static constexpr int SrcAlignment = Kernel::AssignmentTraits::SrcAlignment;
+  static constexpr int DstAlignment = Kernel::AssignmentTraits::DstAlignment;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
+    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(Index, Stop - Index, 0);
+  }
+};
+
+template <typename Kernel, int Stop>
+struct copy_using_evaluator_partial_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&) {}
+};
+
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
@@ -452,35 +485,34 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
     constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
 
     const Index size = kernel.size();
-    const Index alignedStart = DstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
-    const Index alignedEnd = alignedStart + ((size - alignedStart) / PacketSize) * PacketSize;
+    const Index alignedStart = DstIsAligned ? 0 : internal::first_aligned<RequestedAlignment>(kernel.dstDataPtr(), size);
 
-    Index index = 0;
+    unaligned_dense_assignment_loop<DstIsAligned>::run(kernel, 0, alignedStart);
 
-    for (; index + PacketSize <= alignedStart; index += PacketSize)
-      kernel.template assignPacket<Unaligned, SrcAlignment, PacketType>(index);
-    kernel.template assignPartialPacket<Unaligned, SrcAlignment, PacketType>(index, alignedStart - index, 0);
+    Index index = alignedStart;
 
-    for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
+    for (; index + PacketSize <= size; index += PacketSize)
       kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
-    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(alignedEnd, size - alignedEnd, 0);
+    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(index, size - index, 0);
   }
 };
 
 template<typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrolling>
 {
+  using DstXprType = typename Kernel::DstEvaluatorType::XprType;
+  using PacketType = typename Kernel::PacketType;
+
+  static constexpr int Size = DstXprType::SizeAtCompileTime;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+  static constexpr int AlignedSize = (Size / PacketSize) * PacketSize;
+  static constexpr int DstAlignment = Kernel::AssignmentTraits::DstAlignment;
+  static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel &kernel)
   {
-    typedef typename Kernel::DstEvaluatorType::XprType DstXprType;
-    typedef typename Kernel::PacketType PacketType;
-
-    enum { size = DstXprType::SizeAtCompileTime,
-           packetSize =unpacket_traits<PacketType>::size,
-           alignedSize = (int(size)/packetSize)*packetSize };
-
-    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, alignedSize>::run(kernel);
-    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(alignedSize, size - alignedSize, 0);
+    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, AlignedSize>::run(kernel);
+    copy_using_evaluator_partial_linearvec_CompleteUnrolling<Kernel, AlignedSize, Size>::run(kernel);
   }
 };
 
@@ -591,15 +623,15 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling>
     {
       Index inner = 0;
 
-      for(; inner + packetSize <= alignedStart ; inner += packetSize)
+      for (; inner + packetSize <= alignedStart; inner += packetSize)
         kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
-      kernel.template assignPartialPacket<Unaligned, Unaligned, PacketType>(inner, alignedStart - inner, 0);
+      kernel.template assignPartialPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner, alignedStart - inner, 0);
 
-      for(; inner + packetSize <= innerSize; inner += packetSize)
+      for (inner = alignedStart; inner + packetSize <= innerSize; inner += packetSize)
         kernel.template assignPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner);
-      kernel.template assignPartialPacket<dstAlignment, Unaligned, PacketType>(inner, innerSize - inner, 0);
+      kernel.template assignPartialPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner, innerSize - inner, 0);
 
-      alignedStart = numext::mini((alignedStart+alignedStep)%packetSize, innerSize);
+      alignedStart = numext::mini((alignedStart + alignedStep) % packetSize, innerSize);
     }
   }
 };
@@ -620,8 +652,10 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, InnerUnrolling>
 
     for(Index outer = 0; outer < kernel.outerSize(); ++outer)
     {
-      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, vectorizableSize, 0, 0>::run(kernel, outer);
-      copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, vectorizableSize, innerSize>::run(kernel, outer);
+      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, vectorizableSize, Unaligned, Unaligned>::run(kernel, outer);
+      copy_using_evaluator_partial_innervec_InnerUnrolling<Kernel, vectorizableSize, innerSize, Unaligned, Unaligned>::run(kernel, outer);
+      //kernel.template assignPartialPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, vectorizableSize, innerSize - vectorizableSize, 0);
+      //copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, vectorizableSize, innerSize>::run(kernel, outer);
     }
   }
 };

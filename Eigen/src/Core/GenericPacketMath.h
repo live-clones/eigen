@@ -1188,9 +1188,15 @@ inline void pstore1(typename unpacket_traits<Packet>::type* to, const typename u
 template<typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_traits<Packet>::type* from)
 {
-  if(Alignment >= unpacket_traits<Packet>::alignment)
+  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
+  if (Alignment >= RequiredAlignment) {
+    #ifndef EIGEN_NO_DEBUG
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(from);
+    bool ptrIsAligned = ptr % RequiredAlignment == 0;
+    eigen_assert(ptrIsAligned && "'from' is not sufficiently aligned for 'pload'");
+    #endif
     return pload<Packet>(from);
-  else
+  } else
     return ploadu<Packet>(from);
 }
 
@@ -1211,9 +1217,15 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpac
 template<typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& from)
 {
-  if(Alignment >= unpacket_traits<Packet>::alignment)
+  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
+  if (Alignment >= RequiredAlignment) {
+    #ifndef EIGEN_NO_DEBUG
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(to);
+    bool ptrIsAligned = ptr % RequiredAlignment == 0;
+    eigen_assert(ptrIsAligned && "'to' is not sufficiently aligned for 'pstore'");
+    #endif
     pstore(to, from);
-  else
+  } else
     pstoreu(to, from);
 }
 

@@ -773,20 +773,24 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_STRONG_INLINE PacketType srcPartialPacket(Index row, Index col, Index offset, Index n, Index loadOffset) const {
     constexpr Index PacketSize = unpacket_traits<PacketType>::size;
-    Index actualRow = IsRowMajor ? row : row + (offset * PacketSize);
-    Index actualCol = IsRowMajor ? col + (offset * PacketSize) : col;
-    eigen_assert(check_array_bounds(actualRow, actualCol, n) && "Array index out of bounds");
-    Index start = numext::mini(numext::maxi(loadOffset - offset * PacketSize, Index(0)), PacketSize);
-    Index end = numext::mini(start + n, PacketSize);
+    Index packetStart = offset * PacketSize;
+    Index actualRow = IsRowMajor ? row : row + packetStart;
+    Index actualCol = IsRowMajor ? col + packetStart : col;
+    Index start = numext::mini(numext::maxi(loadOffset - packetStart, Index(0)), PacketSize);
+    Index end = numext::mini(numext::maxi(loadOffset + n - packetStart, Index(0)), PacketSize);
+    eigen_assert(end == start ||
+                 check_array_bounds(actualRow + start, actualCol + start, end - start) && "Array index out of bounds");
     return m_argImpl.template partialPacket<LoadMode, PacketType>(actualRow, actualCol, end - start, start);
   }
+
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_STRONG_INLINE PacketType srcPartialPacket(Index index, Index offset, Index n, Index loadOffset) const {
     constexpr Index PacketSize = unpacket_traits<PacketType>::size;
-    Index actualIndex = index + (offset * PacketSize);
-    eigen_assert(check_array_bounds(actualIndex, n) && "Array index out of bounds");
-    Index start = numext::mini(numext::maxi(loadOffset - offset * PacketSize, Index(0)), PacketSize);
-    Index end = numext::mini(start + n, PacketSize);
+    Index packetStart = offset * PacketSize;
+    Index actualIndex = index + packetStart;
+    Index start = numext::mini(numext::maxi(loadOffset - packetStart, Index(0)), PacketSize);
+    Index end = numext::mini(numext::maxi(loadOffset + n - packetStart, Index(0)), PacketSize);
+    eigen_assert(end == start || check_array_bounds(actualIndex + start, end - start) && "Array index out of bounds");
     return m_argImpl.template partialPacket<LoadMode, PacketType>(actualIndex, end - start, start);
   }
 
