@@ -809,16 +809,6 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
     return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(row, col, 0, DstPacketSize, 0));
-    //SrcPacketType src;
-    //if (EIGEN_PREDICT_TRUE(check_array_bounds(row, col, SrcPacketSize))) {
-    //  src = srcPacket<SrcLoadMode>(row, col, 0);
-    //} else {
-    //  Array<SrcType, SrcPacketSize, 1> srcArray;
-    //  for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(row, col, k);
-    //  for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
-    //  src = pload<SrcPacketType>(srcArray.data());
-    //}
-    //return pcast<SrcPacketType, DstPacketType>(src);
   }
   // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
@@ -902,16 +892,6 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
     return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(index, 0, DstPacketSize, 0));
-    //SrcPacketType src;
-    //if (EIGEN_PREDICT_TRUE(check_array_bounds(index, SrcPacketSize))) {
-    //  src = srcPacket<SrcLoadMode>(index, 0);
-    //} else {
-    //  Array<SrcType, SrcPacketSize, 1> srcArray;
-    //  for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(index, k);
-    //  for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
-    //  src = pload<SrcPacketType>(srcArray.data());
-    //}
-    //return pcast<SrcPacketType, DstPacketType>(src);
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
@@ -2090,43 +2070,50 @@ struct unary_evaluator<Reverse<ArgType, Direction> >
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1,
-      OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1
-    };
-    typedef internal::reverse_packet_cond<PacketType, ReversePacket> reverse_packet;
-    return reverse_packet::run(m_argImpl.template partialPacket<LoadMode, PacketType>(
-        ReverseRow ? m_rows.value() - row - OffsetRow : row, ReverseCol ? m_cols.value() - col - OffsetCol : col, n,
-        offset));
+    using impl = reverse_packet_cond<PacketType, ReversePacket>;
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+
+    Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
+
+    return impl::run(m_argImpl.template partialPacket<LoadMode, PacketType>(actualRow, actualCol, n, actualOffset));
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
-    enum { PacketSize = unpacket_traits<PacketType>::size };
-    return preverse(m_argImpl.template partialPacket<LoadMode, PacketType>(
-        m_rows.value() * m_cols.value() - index - PacketSize, n, offset));
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+
+    Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    Index actualOffset = PacketSize - n - offset;
+
+    return preverse(m_argImpl.template partialPacket<LoadMode, PacketType>(actualIndex, n, actualOffset));
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
-    // FIXME we could factorize some code with packet(i,j)
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1,
-      OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1
-    };
-    typedef internal::reverse_packet_cond<PacketType, ReversePacket> reverse_packet;
-    m_argImpl.template writePartialPacket<LoadMode>(ReverseRow ? m_rows.value() - row - OffsetRow : row,
-                                             ReverseCol ? m_cols.value() - col - OffsetCol : col,
-                                             reverse_packet::run(x), n, offset);
+    using impl = reverse_packet_cond<PacketType, ReversePacket>;
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+
+    Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
+
+    m_argImpl.template writePartialPacket<LoadMode>(actualRow, actualCol, impl::run(x), n, actualOffset);
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
-    enum { PacketSize = unpacket_traits<PacketType>::size };
-    m_argImpl.template writePartialPacket<LoadMode>(m_rows.value() * m_cols.value() - index - PacketSize, preverse(x), n,
-                                             offset);
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+
+    Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    Index actualOffset = PacketSize - n - offset;
+
+    m_argImpl.template writePartialPacket<LoadMode>(actualIndex, preverse(x), n, actualOffset);
   }
 
 protected:
