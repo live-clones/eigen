@@ -727,11 +727,15 @@ pload(const typename unpacket_traits<Packet>::type* from) { return *from; }
   * offset + n <= unpacket_traits::size
   * All elements before offset and after the last element loaded will initialized with zero */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-pload_partial(const typename unpacket_traits<Packet>::type* from, const Index/* n*/, const Index /*offset*/ = 0)
+pload_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
-  // if `from` is aligned, then the entire packet may be loaded even if it is outside the bounds of the array
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  return pload<Packet>(from);
+  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
+  for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
+  return pload<Packet>(elements);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned load) */
@@ -744,9 +748,10 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  const Index packet_size = unpacket_traits<Packet>::size;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size] = { Scalar(0) };
+  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
   for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
   return pload<Packet>(elements);
 }
@@ -851,8 +856,9 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_STORE
-  const Index packet_size = unpacket_traits<Packet>::size;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size];
+  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
   pstore<Scalar>(elements, from);
   for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
 }
@@ -867,8 +873,9 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_STORE
-  const Index packet_size = unpacket_traits<Packet>::size;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size];
+  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
   pstore<Scalar>(elements, from);
   for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
 }
@@ -1196,11 +1203,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_trai
 {
   constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
   if (Alignment >= RequiredAlignment) {
-    #ifndef EIGEN_NO_DEBUG
-    uintptr_t ptr = reinterpret_cast<uintptr_t>(from);
-    bool ptrIsAligned = ptr % RequiredAlignment == 0;
-    eigen_assert(ptrIsAligned && "'from' is not sufficiently aligned for 'pload'");
-    #endif
+    eigen_assert((std::uintptr_t(from) % RequiredAlignment == 0) && "'from' is not sufficiently aligned for 'pload'");
     return pload<Packet>(from);
   } else
     return ploadu<Packet>(from);
@@ -1225,11 +1228,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& fro
 {
   constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
   if (Alignment >= RequiredAlignment) {
-    #ifndef EIGEN_NO_DEBUG
-    uintptr_t ptr = reinterpret_cast<uintptr_t>(to);
-    bool ptrIsAligned = ptr % RequiredAlignment == 0;
-    eigen_assert(ptrIsAligned && "'to' is not sufficiently aligned for 'pstore'");
-    #endif
+    eigen_assert((std::uintptr_t(to) % RequiredAlignment == 0) && "'to' is not sufficiently aligned for 'pstore'");
     pstore(to, from);
   } else
     pstoreu(to, from);
