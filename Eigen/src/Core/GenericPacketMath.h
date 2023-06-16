@@ -730,7 +730,7 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pload_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
   alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
@@ -748,7 +748,7 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
   alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
@@ -856,7 +856,7 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_STORE
-  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
   pstore<Scalar>(elements, from);
@@ -873,7 +873,7 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_STORE
-  constexpr Index Alignment = unpacket_traits<Packet>::size;
+  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
   pstore<Scalar>(elements, from);
