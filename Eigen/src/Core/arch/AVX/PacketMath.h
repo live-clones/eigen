@@ -1218,6 +1218,7 @@ template <typename Scalar> EIGEN_STRONG_INLINE __m128i avx_128_partial_mask(cons
   return mask;
 }
 
+// TODO: aligned pload should be safe for aligned pload_partial -- confirm with testing (and perf implications)
 template<> EIGEN_STRONG_INLINE Packet4f  pload_partial<Packet4f>(const float* from, const Index n, const Index offset) {
   EIGEN_DEBUG_MASKED_LOAD return _mm_maskload_ps(from, avx_128_partial_mask<float>(n, offset));
 }
@@ -1286,6 +1287,7 @@ template <typename Scalar> EIGEN_STRONG_INLINE __m256i avx2_256_partial_mask(con
   return mask;
 }
 
+// TODO: aligned pload should be safe for aligned pload_partial -- confirm with testing (and perf implications)
 template<> EIGEN_STRONG_INLINE Packet8f  pload_partial<Packet8f>(const float* from, const Index n, const Index offset) {
   EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_ps(from, avx2_256_partial_mask<float>(n, offset));
 }

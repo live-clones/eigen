@@ -903,6 +903,14 @@ template<> EIGEN_STRONG_INLINE Packet16b ploadu<Packet16b>(const bool*     from)
   return _mm_loadu_si128(reinterpret_cast<const __m128i*>(from));
 }
 
+#ifndef EIGEN_VECTORIZE_AVX2
+template<> EIGEN_STRONG_INLINE Packet4f pload_partial<Packet4f>(const float*   from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_ps(from); }
+template<> EIGEN_STRONG_INLINE Packet2d pload_partial<Packet2d>(const double*  from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_pd(from); }
+template<> EIGEN_STRONG_INLINE Packet4i pload_partial<Packet4i>(const int*     from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_si128(reinterpret_cast<const __m128i*>(from)); }
+template<> EIGEN_STRONG_INLINE Packet4ui pload_partial<Packet4ui>(const uint32_t* from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_si128(reinterpret_cast<const __m128i*>(from)); }
+template<> EIGEN_STRONG_INLINE Packet16b pload_partial<Packet16b>(const bool*     from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return  _mm_load_si128(reinterpret_cast<const __m128i*>(from)); }
+#endif
+
 // Load lower part of packet zero extending.
 template<typename Packet> EIGEN_STRONG_INLINE Packet ploadl(const typename unpacket_traits<Packet>::type* from);
 template<> EIGEN_STRONG_INLINE Packet4f ploadl<Packet4f>(const float*  from) { EIGEN_DEBUG_UNALIGNED_LOAD return _mm_castpd_ps(_mm_load_sd(reinterpret_cast<const double*>(from))); }

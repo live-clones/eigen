@@ -722,6 +722,18 @@ pabsdiff(const Packet& a, const Packet& b) { return pselect(pcmp_lt(a, b), psub(
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pload(const typename unpacket_traits<Packet>::type* from) { return *from; }
 
+template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+pload_partial_generic(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset)
+{
+  EIGEN_USING_STD(copy_n);
+  EIGEN_DEBUG_GENERIC_MASKED_LOAD
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
+  copy_n(from + offset, n, elements + offset);
+  return pload<Packet>(elements);
+}
+
 /** \internal \returns n elements of a packet version of \a *from, from must be properly aligned
   * offset indicates the starting element in which to load and
   * offset + n <= unpacket_traits::size
@@ -729,12 +741,7 @@ pload(const typename unpacket_traits<Packet>::type* from) { return *from; }
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pload_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
-  EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  using Scalar = typename unpacket_traits<Packet>::type;
-  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
-  for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
-  return pload<Packet>(elements);
+  return pload_partial_generic<Packet>(from, n, offset);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned load) */
@@ -746,12 +753,7 @@ ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
-  EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  using Scalar = typename unpacket_traits<Packet>::type;
-  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
-  for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
-  return pload<Packet>(elements);
+  return pload_partial_generic<Packet>(from, n, offset);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned masked load)
@@ -848,16 +850,22 @@ peven_mask(const Packet& /*a*/) {
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(Scalar* to, const Packet& from)
 { (*to) = from; }
 
+template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial_generic(Scalar* to, const Packet& from, const Index n, const Index offset)
+{
+  EIGEN_USING_STD(copy_n);
+  EIGEN_DEBUG_GENERIC_MASKED_STORE
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
+  pstore<Scalar>(elements, from);
+  copy_n(elements + offset, n, to);
+}
+
 /** \internal copy n elements of the packet \a from to \a *to, \a to must be properly aligned
  * offset indicates the starting element in which to store and
  * offset + n <= unpacket_traits::size */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
-  EIGEN_DEBUG_GENERIC_MASKED_STORE
-  constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
-  pstore<Scalar>(elements, from);
-  for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
+  pstore_partial_generic<Scalar, Packet>(to, from, n, offset);
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store) */
@@ -869,11 +877,7 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
  * offset + n <= unpacket_traits::size */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
-  EIGEN_DEBUG_GENERIC_MASKED_STORE
-  constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
-  pstore<Scalar>(elements, from);
-  for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
+  pstore_partial_generic<Scalar, Packet>(to, from, n, offset);
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store with a mask)
