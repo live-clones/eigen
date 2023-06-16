@@ -153,7 +153,7 @@ template<typename T> struct unpacket_traits
   enum
   {
     size = 1,
-    alignment = 1,
+    alignment = alignof(T),
     vectorizable = false,
     masked_load_available=false,
     masked_store_available=false
@@ -730,10 +730,9 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pload_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
-  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
+  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
   for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
   return pload<Packet>(elements);
 }
@@ -748,10 +747,9 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
-  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
+  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
   for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
   return pload<Packet>(elements);
 }
@@ -856,9 +854,8 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_STORE
-  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
+  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
   pstore<Scalar>(elements, from);
   for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
 }
@@ -873,9 +870,8 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_STORE
-  constexpr Index Alignment = unpacket_traits<Packet>::alignment;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  alignas(Alignment) Scalar elements[PacketSize] = { Scalar(0) };
+  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
   pstore<Scalar>(elements, from);
   for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
 }
