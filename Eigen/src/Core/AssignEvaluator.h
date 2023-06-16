@@ -612,7 +612,8 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling>
     const Index outerSize = kernel.outerSize();
 
     for (Index outer = 0; outer < outerSize; ++outer) {
-      Index alignedStart = internal::first_aligned<DstAlignment>(dst_ptr + outer * innerSize, innerSize);
+
+      Index alignedStart = internal::first_aligned<DstAlignment>(dst_ptr + outer * kernel.outerStride(), innerSize);
 
       Index inner = 0;
 

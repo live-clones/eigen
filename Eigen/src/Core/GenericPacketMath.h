@@ -727,14 +727,11 @@ pload(const typename unpacket_traits<Packet>::type* from) { return *from; }
   * offset + n <= unpacket_traits::size
   * All elements before offset and after the last element loaded will initialized with zero */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-pload_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
+pload_partial(const typename unpacket_traits<Packet>::type* from, const Index/* n*/, const Index /*offset*/ = 0)
 {
+  // if `from` is aligned, then the entire packet may be loaded even if it is outside the bounds of the array
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  const Index packet_size = unpacket_traits<Packet>::size;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size] = { Scalar(0) };
-  for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
-  return pload<Packet>(elements);
+  return pload<Packet>(from);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned load) */
@@ -746,8 +743,12 @@ ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
-  // by default, assume there is no alignment requirement for masked load
-  return pload_partial<Packet>(from, n, offset);
+  EIGEN_DEBUG_GENERIC_MASKED_LOAD
+  const Index packet_size = unpacket_traits<Packet>::size;
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  EIGEN_ALIGN_MAX Scalar elements[packet_size] = { Scalar(0) };
+  for (Index i = offset; i < offset + n; i++) elements[i] = from[i];
+  return pload<Packet>(elements);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned masked load)
@@ -860,11 +861,16 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu(Scalar* to, const Packet& from)
 {  (*to) = from; }
 
-/** \internal copy n elements of the packet \a from to \a *to, (un-aligned store) */
+/** \internal copy n elements of the packet \a from to \a *to
+ * offset indicates the starting element in which to store and
+ * offset + n <= unpacket_traits::size */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
-  // by default, assume there is no alignment requirement for masked store
-  pstore_partial<Scalar, Packet>(to, from, n, offset);
+  EIGEN_DEBUG_GENERIC_MASKED_STORE
+  const Index packet_size = unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_MAX Scalar elements[packet_size];
+  pstore<Scalar>(elements, from);
+  for (Index i = offset; i < offset + n; i++) to[i] = elements[i];
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store with a mask)
