@@ -426,7 +426,8 @@ struct unaligned_dense_assignment_loop<false> {
 
     for (Index index = start; index < unalignedPacketEnd; index += PacketSize)
       kernel.template assignPacket<Unaligned, SrcAlignment, PacketType>(index);
-    kernel.template assignPartialPacket<Unaligned, SrcAlignment, PacketType>(unalignedPacketEnd, end - unalignedPacketEnd, 0);
+    if(end > unalignedPacketEnd)
+      kernel.template assignPartialPacket<Unaligned, SrcAlignment, PacketType>(unalignedPacketEnd, end - unalignedPacketEnd, 0);
   }
 };
 
@@ -495,7 +496,8 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
 
     for (Index index = alignedStart; index < alignedPacketEnd; index += PacketSize)
       kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
-    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(alignedPacketEnd, size - alignedPacketEnd, 0);
+    if(size > alignedPacketEnd)
+      kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(alignedPacketEnd, size - alignedPacketEnd, 0);
   }
 };
 
@@ -619,11 +621,13 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling>
 
       for (; inner + PacketSize <= alignedStart; inner += PacketSize)
         kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
-      kernel.template assignPartialPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner, alignedStart - inner, 0);
+      if(alignedStart > inner)
+        kernel.template assignPartialPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner, alignedStart - inner, 0);
 
       for (inner = alignedStart; inner + PacketSize <= innerSize; inner += PacketSize)
         kernel.template assignPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner);
-      kernel.template assignPartialPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner, innerSize - inner, 0);
+      if(innerSize > inner)
+        kernel.template assignPartialPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner, innerSize - inner, 0);
     }
   }
 };
