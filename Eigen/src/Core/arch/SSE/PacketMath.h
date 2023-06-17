@@ -903,14 +903,6 @@ template<> EIGEN_STRONG_INLINE Packet16b ploadu<Packet16b>(const bool*     from)
   return _mm_loadu_si128(reinterpret_cast<const __m128i*>(from));
 }
 
-//#ifndef EIGEN_VECTORIZE_AVX2
-//template<> EIGEN_STRONG_INLINE Packet4f pload_partial<Packet4f>(const float*   from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_ps(from); }
-//template<> EIGEN_STRONG_INLINE Packet2d pload_partial<Packet2d>(const double*  from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_pd(from); }
-//template<> EIGEN_STRONG_INLINE Packet4i pload_partial<Packet4i>(const int*     from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_si128(reinterpret_cast<const __m128i*>(from)); }
-//template<> EIGEN_STRONG_INLINE Packet4ui pload_partial<Packet4ui>(const uint32_t* from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return _mm_load_si128(reinterpret_cast<const __m128i*>(from)); }
-//template<> EIGEN_STRONG_INLINE Packet16b pload_partial<Packet16b>(const bool*     from, const Index, const Index) { EIGEN_DEBUG_MASKED_LOAD return  _mm_load_si128(reinterpret_cast<const __m128i*>(from)); }
-//#endif
-
 // Load lower part of packet zero extending.
 template<typename Packet> EIGEN_STRONG_INLINE Packet ploadl(const typename unpacket_traits<Packet>::type* from);
 template<> EIGEN_STRONG_INLINE Packet4f ploadl<Packet4f>(const float*  from) { EIGEN_DEBUG_UNALIGNED_LOAD return _mm_castpd_ps(_mm_load_sd(reinterpret_cast<const double*>(from))); }
@@ -968,6 +960,53 @@ template<> EIGEN_STRONG_INLINE void pstoreu<float>(float*   to, const Packet4f& 
 template<> EIGEN_STRONG_INLINE void pstoreu<int>(int*       to, const Packet4i& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm_storeu_si128(reinterpret_cast<__m128i*>(to), from); }
 template<> EIGEN_STRONG_INLINE void pstoreu<uint32_t>(uint32_t* to, const Packet4ui& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm_storeu_si128(reinterpret_cast<__m128i*>(to), from); }
 template<> EIGEN_STRONG_INLINE void pstoreu<bool>(bool*     to, const Packet16b& from) { EIGEN_DEBUG_ALIGNED_STORE _mm_storeu_si128(reinterpret_cast<__m128i*>(to), from); }
+
+template <typename Scalar>
+EIGEN_STRONG_INLINE __m128i _mm128_partial_mask(const Index n, const Index offset) {
+  static constexpr int Size = sizeof(Scalar);
+  const __m128i cst_lin =
+      _mm_setr_epi8(
+           0 / Size,  1 / Size,  2 / Size,  3 / Size, 
+           4 / Size,  5 / Size,  6 / Size,  7 / Size, 
+           8 / Size,  9 / Size, 10 / Size, 11 / Size, 
+          12 / Size, 13 / Size, 14 / Size, 15 / Size);
+  __m128i off = _mm_set1_epi8(static_cast<char>(offset));
+  __m128i off_n = _mm_set1_epi8(static_cast<char>(offset + n));
+  __m128i off_gt_lin = _mm_cmpgt_epi8(off, cst_lin);
+  __m128i off_n_gt_lin = _mm_cmpgt_epi8(off_n, cst_lin);
+  __m128i mask = _mm_andnot_si128(off_gt_lin, off_n_gt_lin);
+  return mask;
+}
+
+#ifndef EIGEN_VECTORIZE_AVX
+
+template<> EIGEN_STRONG_INLINE void pstore_partial<float, Packet4f>(float* to, const Packet4f& from, const Index n, const Index offset)
+{
+  EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(_mm_castps_si128(from), _mm128_partial_mask<float>(n, offset), reinterpret_cast<char*>(to));
+}
+template<> EIGEN_STRONG_INLINE void pstore_partial<double, Packet2d>(double* to, const Packet2d& from, const Index n, const Index offset)
+{
+  EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(_mm_castpd_si128(from), _mm128_partial_mask<double>(n, offset), reinterpret_cast<char*>(to));
+}
+
+#endif
+
+#ifndef EIGEN_VECTORIZE_AVX2
+
+template<> EIGEN_STRONG_INLINE void pstore_partial<int, Packet4i>(int* to, const Packet4i& from, const Index n, const Index offset)
+{
+  EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(from, _mm128_partial_mask<int>(n, offset), reinterpret_cast<char*>(to));
+}
+template<> EIGEN_STRONG_INLINE void pstore_partial<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, const Index n, const Index offset)
+{
+  EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(from, _mm128_partial_mask<uint32_t>(n, offset), reinterpret_cast<char*>(to));
+}
+template<> EIGEN_STRONG_INLINE void pstore_partial<bool, Packet16b>(bool* to, const Packet16b& from, const Index n, const Index offset)
+{
+  EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(from, _mm128_partial_mask<bool>(n, offset), reinterpret_cast<char*>(to));
+}
+
+#endif
 
 template<typename Scalar, typename Packet> EIGEN_STRONG_INLINE void pstorel(Scalar* to, const Packet& from);
 template<> EIGEN_STRONG_INLINE void pstorel(float*   to, const Packet4f& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm_storel_pi(reinterpret_cast<__m64*>(to), from); }

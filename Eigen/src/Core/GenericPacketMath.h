@@ -753,7 +753,8 @@ ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
-  return pload_partial_generic<Packet>(from, n, offset);
+  // by default, assume there is no alignment requirement for masked loads
+  return pload_partial<Packet>(from, n, offset);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned masked load)
@@ -877,7 +878,8 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
  * offset + n <= unpacket_traits::size */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
-  pstore_partial_generic<Scalar, Packet>(to, from, n, offset);
+  // by default, assume there is no alignment requirement for masked store
+  pstore_partial<Scalar, Packet>(to, from, n, offset);
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store with a mask)
