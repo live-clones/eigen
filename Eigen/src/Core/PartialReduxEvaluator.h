@@ -144,7 +144,7 @@ struct partial_packetwise_redux_impl {
 
   template <typename PacketType>
   EIGEN_DEVICE_FUNC static PacketType run(const Evaluator& eval, const Func& func, Index size, Index n, Index offset) {
-    if (size == 0) return packetwise_redux_empty_value<PacketType>(func);
+    if (size == 0 || n == 0) return packetwise_redux_empty_value<PacketType>(func);
 
     const Index size4 = (size - 1) & (~3);
     PacketType p = eval.template partialPacketByOuterInner<Unaligned, PacketType>(0, 0, n, offset);
