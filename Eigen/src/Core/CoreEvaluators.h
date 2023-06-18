@@ -778,8 +778,8 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     Index actualCol = IsRowMajor ? col + packetStart : col;
     Index start = numext::mini(numext::maxi(loadOffset - packetStart, Index(0)), PacketSize);
     Index end = numext::mini(numext::maxi(loadOffset + n - packetStart, Index(0)), PacketSize);
-    eigen_assert(end == start ||
-                 check_array_bounds(actualRow + start, actualCol + start, end - start) && "Array index out of bounds");
+    if (end == start) return pzero<PacketType>(PacketType());
+    eigen_assert(check_array_bounds(actualRow + start, actualCol + start, end - start) && "Array index out of bounds");
     return m_argImpl.template partialPacket<LoadMode, PacketType>(actualRow, actualCol, end - start, start);
   }
 
@@ -790,7 +790,8 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     Index actualIndex = index + packetStart;
     Index start = numext::mini(numext::maxi(loadOffset - packetStart, Index(0)), PacketSize);
     Index end = numext::mini(numext::maxi(loadOffset + n - packetStart, Index(0)), PacketSize);
-    eigen_assert(end == start || check_array_bounds(actualIndex + start, end - start) && "Array index out of bounds");
+    if (end == start) return pzero<PacketType>(PacketType());
+    eigen_assert(check_array_bounds(actualIndex + start, end - start) && "Array index out of bounds");
     return m_argImpl.template partialPacket<LoadMode, PacketType>(actualIndex, end - start, start);
   }
 
