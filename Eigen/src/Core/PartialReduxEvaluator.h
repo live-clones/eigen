@@ -147,7 +147,7 @@ struct partial_packetwise_redux_impl {
     if (size == 0) return packetwise_redux_empty_value<PacketType>(func);
 
     const Index size4 = (size - 1) & (~3);
-    PacketType p = eval.template packetByOuterInner<Unaligned, PacketType>(0, 0);
+    PacketType p = eval.template partialPacketByOuterInner<Unaligned, PacketType>(0, 0, n, offset);
     Index i = 1;
     // This loop is optimized for instruction pipelining:
     // - each iteration generates two independent instructions
