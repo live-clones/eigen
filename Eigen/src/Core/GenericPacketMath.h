@@ -739,9 +739,10 @@ pload_partial_generic(const typename unpacket_traits<Packet>::type* from, const 
   * offset + n <= unpacket_traits::size
   * All elements before offset and after the last element loaded will initialized with zero */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-pload_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
+pload_partial(const typename unpacket_traits<Packet>::type* from, const Index /*n*/, const Index offset = 0)
 {
-  return pload_partial_generic<Packet>(from, n, offset);
+  EIGEN_DEBUG_GENERIC_MASKED_LOAD
+  return pload<Packet>(from + offset);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned load) */
@@ -753,8 +754,7 @@ ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
-  // by default, assume there is no alignment requirement for masked loads
-  return pload_partial<Packet>(from, n, offset);
+  return pload_partial_generic<Packet>(from, n, offset);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned masked load)
@@ -861,14 +861,6 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_
   copy_n(elements + offset, n, to);
 }
 
-/** \internal copy n elements of the packet \a from to \a *to, \a to must be properly aligned
- * offset indicates the starting element in which to store and
- * offset + n <= unpacket_traits::size */
-template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
-{
-  pstore_partial_generic<Scalar, Packet>(to, from, n, offset);
-}
-
 /** \internal copy the packet \a from to \a *to, (un-aligned store) */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu(Scalar* to, const Packet& from)
 {  (*to) = from; }
@@ -878,8 +870,16 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
  * offset + n <= unpacket_traits::size */
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
-  // by default, assume there is no alignment requirement for masked store
-  pstore_partial<Scalar, Packet>(to, from, n, offset);
+  pstore_partial_generic<Scalar, Packet>(to, from, n, offset);
+}
+
+/** \internal copy n elements of the packet \a from to \a *to, \a to must be properly aligned
+ * offset indicates the starting element in which to store and
+ * offset + n <= unpacket_traits::size */
+template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
+{
+  // by default, assume there are no alignment requirements for pstore_partial
+  pstoreu_partial<Scalar, Packet>(to, from, n, offset);
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store with a mask)
@@ -1218,13 +1218,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpac
 {
   constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
   eigen_assert(n > 0 && "number of elements must be greater than zero");
-  eigen_assert(n + offset <= unpacket_traits<Packet>::size && "number of elements plus offset will read past end of packet");
-  if (Alignment >= RequiredAlignment)
-  {
+  eigen_assert(n + offset <= unpacket_traits<Packet>::size &&
+               "number of elements plus offset will read past end of packet");
+  if (Alignment >= RequiredAlignment) {
     eigen_assert((std::uintptr_t(from) % RequiredAlignment == 0) && "array is not sufficiently aligned for pload");
     return pload_partial<Packet>(from, n, offset);
-  }
-  else
+  } else
     return ploadu_partial<Packet>(from, n, offset);
 }
 
@@ -1250,7 +1249,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret_partial(Scalar* to, const Pac
   eigen_assert(n > 0 && "number of elements must be greater than zero");
   eigen_assert(n + offset <= unpacket_traits<Packet>::size && "number of elements plus offset will write past end of packet");
   if (Alignment >= RequiredAlignment) {
-    eigen_assert((std::uintptr_t(to) % RequiredAlignment == 0) && "array is not sufficiently aligned for pload_partial");
+    eigen_assert((std::uintptr_t(to) % RequiredAlignment == 0) && "array is not sufficiently aligned for pstore_partial");
     pstore_partial(to, from, n, offset);
   }
   else

@@ -980,11 +980,11 @@ EIGEN_STRONG_INLINE __m128i _mm128_partial_mask(const Index n, const Index offse
 
 #ifndef EIGEN_VECTORIZE_AVX
 
-template<> EIGEN_STRONG_INLINE void pstore_partial<float, Packet4f>(float* to, const Packet4f& from, const Index n, const Index offset)
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<float, Packet4f>(float* to, const Packet4f& from, const Index n, const Index offset)
 {
   EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(_mm_castps_si128(from), _mm128_partial_mask<float>(n, offset), reinterpret_cast<char*>(to));
 }
-template<> EIGEN_STRONG_INLINE void pstore_partial<double, Packet2d>(double* to, const Packet2d& from, const Index n, const Index offset)
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<double, Packet2d>(double* to, const Packet2d& from, const Index n, const Index offset)
 {
   EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(_mm_castpd_si128(from), _mm128_partial_mask<double>(n, offset), reinterpret_cast<char*>(to));
 }
@@ -993,15 +993,15 @@ template<> EIGEN_STRONG_INLINE void pstore_partial<double, Packet2d>(double* to,
 
 #ifndef EIGEN_VECTORIZE_AVX2
 
-template<> EIGEN_STRONG_INLINE void pstore_partial<int, Packet4i>(int* to, const Packet4i& from, const Index n, const Index offset)
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<int, Packet4i>(int* to, const Packet4i& from, const Index n, const Index offset)
 {
   EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(from, _mm128_partial_mask<int>(n, offset), reinterpret_cast<char*>(to));
 }
-template<> EIGEN_STRONG_INLINE void pstore_partial<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, const Index n, const Index offset)
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, const Index n, const Index offset)
 {
   EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(from, _mm128_partial_mask<uint32_t>(n, offset), reinterpret_cast<char*>(to));
 }
-template<> EIGEN_STRONG_INLINE void pstore_partial<bool, Packet16b>(bool* to, const Packet16b& from, const Index n, const Index offset)
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<bool, Packet16b>(bool* to, const Packet16b& from, const Index n, const Index offset)
 {
   EIGEN_DEBUG_MASKED_STORE _mm_maskmoveu_si128(from, _mm128_partial_mask<bool>(n, offset), reinterpret_cast<char*>(to));
 }

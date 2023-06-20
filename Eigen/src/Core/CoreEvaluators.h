@@ -801,9 +801,6 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   // The first iteration of the evaulation loop will load 16 bytes: {0.0f,1.0f,2.0f,3.0f} and cast to {0.0,1.0}, which is acceptable.
   // The second iteration will load 16 bytes: {2.0f,3.0f,?,?}, which is outside the bounds of the array.
 
-  // Instead, perform runtime check to determine if the load would access data outside the bounds of the array.
-  // If not, perform full load. Otherwise, revert to a scalar loop to perform a partial load.
-  // In either case, perform a vectorized cast of the source packet.
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
@@ -866,8 +863,8 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType partialPacket(Index row, Index col, Index n, Index offset) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(row, col, 0, n, offset),
-                                               srcPartialPacket<SrcLoadMode>(row, col, 1, n, offset));
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode>(row, col, 0, n, offset), srcPartialPacket<SrcLoadMode>(row, col, 1, n, offset));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType partialPacket(Index row, Index col, Index n, Index offset) const {
@@ -892,7 +889,8 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(index, 0, DstPacketSize, 0));
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode>(index, 0, DstPacketSize, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
@@ -931,7 +929,8 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode, SrcPacketType>(index, 0, n, offset));
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode, SrcPacketType>(index, 0, n, offset));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
@@ -945,8 +944,8 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(index, 0, n, offset),
-                                               srcPartialPacket<SrcLoadMode>(index, 1, n, offset));
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode>(index, 0, n, offset), srcPartialPacket<SrcLoadMode>(index, 1, n, offset));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
   EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
