@@ -1260,7 +1260,7 @@ EIGEN_STRONG_INLINE __m256i _mm256_partial_mask(const Index n, const Index offse
   __m128i off_gt_lin_hi = _mm_cmpgt_epi8(off, cst_lin_hi);
   __m128i off_n_gt_lin_hi = _mm_cmpgt_epi8(off_n, cst_lin_hi);
   __m128i mask_lo = _mm_andnot_si128(off_gt_lin_lo, off_n_gt_lin_lo);
-  __m128i mask_hi = _mm_andnot_si128(off_gt_lin_lo, off_n_gt_lin_hi);
+  __m128i mask_hi = _mm_andnot_si128(off_gt_lin_hi, off_n_gt_lin_hi);
   __m256i mask = _mm256_setr_m128i(mask_lo, mask_hi);
 #endif
   return mask;
@@ -1340,40 +1340,26 @@ template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint64_t, Packet4ul>(uint64_
 
 #else
 
-template<> EIGEN_STRONG_INLINE Packet8i ploadu_partial<Packet8i>(const int* from, const Index n, const Index offset) {
-  Index lo_begin = numext::mini(Index(3), offset);
-  Index lo_end = numext::mini(Index(4), offset + n);
-  Index hi_begin = numext::maxi(Index(0), offset - Index(3));
-  Index hi_end = numext::maxi(Index(0), offset + n - Index(4));
-  Packet4i lo = ploadu_partial<Packet4i>(from, lo_end - lo_begin, lo_begin);
-  Packet4i hi = ploadu_partial<Packet4i>(from + 4, hi_end - hi_begin, hi_begin);
-  return _mm256_setr_m128i(lo, hi);
-}
-template<> EIGEN_STRONG_INLINE Packet8ui ploadu_partial<Packet8ui>(const uint32_t* from, const Index n, const Index offset) {
-  Index lo_begin = numext::mini(Index(3), offset);
-  Index lo_end = numext::mini(Index(4), offset + n);
-  Index hi_begin = numext::maxi(Index(0), offset - Index(3));
-  Index hi_end = numext::maxi(Index(0), offset + n - Index(4));
-  Packet4ui lo = ploadu_partial<Packet4ui>(from, lo_end - lo_begin, lo_begin);
-  Packet4ui hi = ploadu_partial<Packet4ui>(from + 4, hi_end - hi_begin, hi_begin);
-  return _mm256_setr_m128i(lo, hi);
-}
-
 template<> EIGEN_STRONG_INLINE void pstoreu_partial<int, Packet8i>(int* to, const Packet8i& from, const Index n, const Index offset) {
-  Index lo_begin = numext::mini(Index(3), offset);
-  Index lo_end = numext::mini(Index(4), offset + n);
-  Index hi_begin = numext::maxi(Index(0), offset - Index(3));
-  Index hi_end = numext::maxi(Index(0), offset + n - Index(4));
-  pstoreu_partial<int, Packet4i>(to, _mm256_castsi256_si128(from), lo_end - lo_begin, lo_begin);
-  pstoreu_partial<int, Packet4i>(to + 4, _mm256_extractf128_si256(from, 1), hi_end - hi_begin, hi_begin);
+  EIGEN_DEBUG_MASKED_STORE
+  constexpr Index PacketSize = 4;
+  Index lo_offset = numext::mini(PacketSize, offset);
+  Index lo_n = numext::mini(PacketSize, offset + n) - lo_offset;
+  Index hi_offset = numext::maxi(Index(0), offset - PacketSize);
+  Index hi_n = n - lo_n;
+  if (lo_n > 0) {
+    __m128i lo = _mm256_castsi256_si128(from);
+    __m128i lo_mask = _mm128_partial_mask<int>(lo_n, lo_offset);
+    _mm_maskmoveu_si128(lo, lo_mask, reinterpret_cast<char*>(to));
+  }
+  if (hi_n > 0) {
+    __m128i hi = _mm256_extractf128_si256(from, 1);
+    __m128i hi_mask = _mm128_partial_mask<int>(hi_n, hi_offset);
+    _mm_maskmoveu_si128(hi, hi_mask, reinterpret_cast<char*>(to + 4));
+  }
 }
 template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& from, const Index n, const Index offset) {
-  Index lo_begin = numext::mini(Index(3), offset);
-  Index lo_end = numext::mini(Index(4), offset + n);
-  Index hi_begin = numext::maxi(Index(0), offset - Index(3));
-  Index hi_end = numext::maxi(Index(0), offset + n - Index(4));
-  pstoreu_partial<uint32_t, Packet4ui>(to, _mm256_castsi256_si128(from), lo_end - lo_begin, lo_begin);
-  pstoreu_partial<uint32_t, Packet4ui>(to + 4, _mm256_extractf128_si256(from, 1), hi_end - hi_begin, hi_begin);
+  pstoreu_partial<int, Packet8i>(reinterpret_cast<int*>(to), (Packet8i)from, n, offset);
 }
 
 #endif

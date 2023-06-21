@@ -737,12 +737,12 @@ pload_partial_generic(const typename unpacket_traits<Packet>::type* from, const 
 /** \internal \returns n elements of a packet version of \a *from, from must be properly aligned
   * offset indicates the starting element in which to load and
   * offset + n <= unpacket_traits::size
-  * All elements before offset and after the last element loaded will initialized with zero */
+  * All elements before offset and after the last element loaded are not specified */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-pload_partial(const typename unpacket_traits<Packet>::type* from, const Index /*n*/, const Index offset = 0)
+pload_partial(const typename unpacket_traits<Packet>::type* from, const Index /*n*/, const Index /*offset*/ = 0)
 {
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
-  return pload<Packet>(from + offset);
+  return pload<Packet>(from);
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned load) */
@@ -750,7 +750,7 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
 
 /** \internal \returns n elements of a packet version of \a *from, (un-aligned load)
-  * All elements after the last element loaded will initialized with zero */
+  * All elements before offset and after the last element loaded are not specified */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
@@ -858,7 +858,7 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
   pstore<Scalar>(elements, from);
-  copy_n(elements + offset, n, to);
+  copy_n(elements + offset, n, to + offset);
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store) */
