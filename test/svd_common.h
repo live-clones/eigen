@@ -550,7 +550,7 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
 }
 
 template <typename SvdType, typename MatrixType>
-void svd_verify_constructor_options_assert(const MatrixType& m, bool fullOnly = false) {
+void svd_verify_constructor_options_assert(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   Index rows = m.rows();
   Index cols = m.cols();
