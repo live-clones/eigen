@@ -57,7 +57,7 @@ void jacobisvd_verify_assert(const MatrixType& input = MatrixType()) {
   svd_verify_constructor_options_assert<JacobiSVD<MatrixType>>(m);
   svd_verify_constructor_options_assert<JacobiSVD<MatrixType, ColPivHouseholderQRPreconditioner>>(m);
   svd_verify_constructor_options_assert<JacobiSVD<MatrixType, HouseholderQRPreconditioner>>(m);
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, FullPivHouseholderQRPreconditioner>>(m, true);
+  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, FullPivHouseholderQRPreconditioner>>(m);
 }
 
 template <typename MatrixType>
