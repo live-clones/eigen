@@ -278,7 +278,7 @@ void svd_inf_nan() {
   svd.compute(m);
   VERIFY(svd.info() == InvalidInput);
   
-  Scalar min = std::numeric_limits<Scalar>::(min)();
+  Scalar min = (std::numeric_limits<Scalar>::min)();
   m.resize(4,4);
   m <<  1, 0, 0, 0,
         0, 3, 1, min,
