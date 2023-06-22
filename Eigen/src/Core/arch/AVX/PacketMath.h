@@ -1289,19 +1289,12 @@ template<> EIGEN_STRONG_INLINE Packet4ui ploadu_partial<Packet4ui>(const uint32_
   EIGEN_DEBUG_MASKED_LOAD return _mm_maskload_epi32(reinterpret_cast<const int*>(from),
                                                     _mm128_partial_mask<uint32_t>(n, offset));
 }
-template<> EIGEN_STRONG_INLINE Packet16b ploadu_partial<Packet16b>(const bool* from, const Index n, const Index offset) {
-  EIGEN_DEBUG_MASKED_LOAD return _mm_maskload_epi32(reinterpret_cast<const int*>(from),
-                                                    _mm128_partial_mask<bool>(n, offset));
-}
 
 template<> EIGEN_STRONG_INLINE void pstoreu_partial<int, Packet4i>(int* to, const Packet4i& from, const Index n, const Index offset) {
   EIGEN_DEBUG_MASKED_STORE return _mm_maskstore_epi32(to, _mm128_partial_mask<int>(n, offset), from);
 }
 template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, const Index n, const Index offset) {
   EIGEN_DEBUG_MASKED_STORE return _mm_maskstore_epi32(reinterpret_cast<int*>(to), _mm128_partial_mask<uint32_t>(n, offset), from);
-}
-template<> EIGEN_STRONG_INLINE void pstoreu_partial<bool, Packet16b>(bool* to, const Packet16b& from, const Index n, const Index offset) {
-  EIGEN_DEBUG_MASKED_STORE return _mm_maskstore_epi32(reinterpret_cast<int*>(to), _mm128_partial_mask<bool>(n, offset), from);
 }
 
 template<> EIGEN_STRONG_INLINE Packet8i  ploadu_partial<Packet8i>(const int* from, const Index n, const Index offset) {
