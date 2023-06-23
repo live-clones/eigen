@@ -316,6 +316,9 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
 
 #define MICRO_MMA_STORE MICRO_MMA_ITER_UNROLL(MICRO_MMA_STORE_ONE)
 
+#define MICRO_MMA_EXTRA_ROWS(iter) \
+  gemm_extra_row<Scalar, Packet, DataMapper, accRows, accCols>(res3##iter, blockA, rhs_base + iter*accRows*strideB, depth, strideA, offsetA, strideB, row, rows, remaining_rows, pAlpha, pMask);
+
 template<int unroll_factor, typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, bool full, const Index accItr>
 EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(
   const DataMapper& res0,
@@ -363,8 +366,10 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(
 }
 
 #define MICRO_MMA_UNROLL_ITER2(N, M) \
-  gemm_unrolled_MMA_iteration<N + (M ? 1 : 0), Scalar, Packet, RhsPacket, DataMapper, accRows, accCols, !M, accItr>(res3, res4, lhs_base, rhs_base, depth, strideA, strideB, offsetA, row, pAlpha, M ? remaining_rows : accCols); \
+  gemm_unrolled_MMA_iteration<N + (M ? 1 : 0), Scalar, Packet, RhsPacket, DataMapper, accRows, accCols, !M, accItr>(res30, res31, lhs_base, rhs_base, depth, strideA, strideB, offsetA, row, pAlpha, M ? remaining_rows : accCols); \
   if (M) return;
+
+#define GEMM_SMALL_ROWS
 
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, const Index accItr>
 EIGEN_ALWAYS_INLINE void gemmMMA_cols(
@@ -382,14 +387,19 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
   const Packet& pAlpha,
   const Packet& pMask)
 {
-  const DataMapper res3 = res.getSubMapper(0, col);
-  const DataMapper res4 = res3.getSubMapper(0, accRows);
+  const DataMapper res30 = res.getSubMapper(0, col);
+  const DataMapper res31 = res30.getSubMapper(0, accRows*1);
 
   const Scalar* rhs_base = blockB + col*strideB + accRows*offsetB;
   const Scalar* lhs_base = blockA + accCols*offsetA;
   Index row = 0;
 
+#ifdef GEMM_SMALL_ROWS
+#define MAX_MMA_UNROLL 4
+#else
 #define MAX_MMA_UNROLL 7
+#endif
+
 #if MAX_MMA_UNROLL > 4
   if (accItr == 1)
 #endif
@@ -446,14 +456,12 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
 
   if(remaining_rows > 0)
   {
-    gemm_extra_row<Scalar, Packet, DataMapper, accRows, accCols>(res3, blockA, rhs_base, depth, strideA, offsetA, strideB, row, rows, remaining_rows, pAlpha, pMask);
+    MICRO_MMA_EXTRA_ROWS(0);
     if (accItr > 1) {
-      gemm_extra_row<Scalar, Packet, DataMapper, accRows, accCols>(res4, blockA, rhs_base + accRows*strideB, depth, strideA, offsetA, strideB, row, rows, remaining_rows, pAlpha, pMask);
+      MICRO_MMA_EXTRA_ROWS(1);
     }
   }
 }
-
-#define GEMM_SMALL_ROWS
 
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
