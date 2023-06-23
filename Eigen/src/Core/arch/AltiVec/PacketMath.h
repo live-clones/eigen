@@ -1436,57 +1436,67 @@ template<> EIGEN_STRONG_INLINE void pstoreu<unsigned char>(unsigned char*      t
   pstoreu_common<Packet16uc>(to, from);
 }
 
-template<typename Packet> EIGEN_ALWAYS_INLINE void pstoreu_partial_common(__UNPACK_TYPE__(Packet)*  to, const Packet& from, const Index n)
+template<typename Packet> EIGEN_ALWAYS_INLINE void pstoreu_partial_common(__UNPACK_TYPE__(Packet)*  to, const Packet& from, const Index n, const Index offset)
 {
   const Index packet_size = unpacket_traits<Packet>::size;
-  eigen_internal_assert(n <= packet_size && "number of elements will write past end of packet");
+  eigen_internal_assert(n + offset <= packet_size && "number of elements plus offset will write past end of packet");
   const Index size = sizeof(__UNPACK_TYPE__(Packet));
 #ifdef _ARCH_PWR9
   EIGEN_UNUSED_VARIABLE(packet_size);
   EIGEN_DEBUG_UNALIGNED_STORE
-  vec_xst_len(from, to, n * size);
+  Packet store = from;
+  if (offset) {
+    Packet16uc shift = pset1<Packet16uc>(offset * 8 * size);
+#ifdef _BIG_ENDIAN
+    store = Packet(vec_slo(Packet16uc(store), shift));
+#else
+    store = Packet(vec_sro(Packet16uc(store), shift));
+#endif
+  }
+  vec_xst_len(store, to, n * size);
 #else
   if (n) {
-    Index n2 = n * size;
-    if (16 <= n2) {
-      pstoreu(to, from);
-    }
     EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) store[packet_size];
     pstore(store, from);
-    unsigned char* store2 = reinterpret_cast<unsigned char *>(store);
+    unsigned char* store2 = reinterpret_cast<unsigned char *>(store + offset);
     unsigned char* to2 = reinterpret_cast<unsigned char *>(to);
-    memcpy((void *)to2, (void *)store2, n2);
+    Index n2 = n * size;
+    if (16 <= n2) {
+      pstoreu(to2, ploadu<Packet16uc>(store2));
+    } else {
+      memcpy((void *)to2, (void *)store2, n2);
+    }
   }
 #endif
 }
 
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<float>(float*  to, const Packet4f& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<float>(float*  to, const Packet4f& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet4f>(to, from, n);
+  pstoreu_partial_common<Packet4f>(to, from, n, offset);
 }
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<int>(int*  to, const Packet4i& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<int>(int*  to, const Packet4i& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet4i>(to, from, n);
+  pstoreu_partial_common<Packet4i>(to, from, n, offset);
 }
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<short int>(short int*  to, const Packet8s& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<short int>(short int*  to, const Packet8s& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet8s>(to, from, n);
+  pstoreu_partial_common<Packet8s>(to, from, n, offset);
 }
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<unsigned short int>(unsigned short int*  to, const Packet8us& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<unsigned short int>(unsigned short int*  to, const Packet8us& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet8us>(to, from, n);
+  pstoreu_partial_common<Packet8us>(to, from, n, offset);
 }
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<bfloat16>(bfloat16*      to, const Packet8bf& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<bfloat16>(bfloat16*      to, const Packet8bf& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet8us>(reinterpret_cast<unsigned short int*>(to), from, n);
+  pstoreu_partial_common<Packet8us>(reinterpret_cast<unsigned short int*>(to), from, n, offset);
 }
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<signed char>(signed char*  to, const Packet16c& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<signed char>(signed char*  to, const Packet16c& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet16c>(to, from, n);
+  pstoreu_partial_common<Packet16c>(to, from, n, offset);
 }
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<unsigned char>(unsigned char*  to, const Packet16uc& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<unsigned char>(unsigned char*  to, const Packet16uc& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet16uc>(to, from, n);
+  pstoreu_partial_common<Packet16uc>(to, from, n, offset);
 }
 
 template<> EIGEN_STRONG_INLINE void prefetch<float>(const float* addr)    { EIGEN_PPC_PREFETCH(addr); }
@@ -2972,9 +2982,9 @@ template<> EIGEN_STRONG_INLINE void pstoreu<double>(double*  to, const Packet2d&
   vec_xst(from, 0, to);
 }
 
-template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<double>(double*  to, const Packet2d& from, const Index n)
+template<> EIGEN_ALWAYS_INLINE void pstoreu_partial<double>(double*  to, const Packet2d& from, const Index n, const Index offset)
 {
-  pstoreu_partial_common<Packet2d>(to, from, n);
+  pstoreu_partial_common<Packet2d>(to, from, n, offset);
 }
 
 template<> EIGEN_STRONG_INLINE void prefetch<double>(const double* addr) { EIGEN_PPC_PREFETCH(addr); }

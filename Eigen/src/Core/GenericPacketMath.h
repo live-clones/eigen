@@ -855,14 +855,14 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
 {  (*to) = from; }
 
 /** \internal copy n elements of the packet \a from to \a *to, (un-aligned store) */
-template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n)
+template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   const Index packet_size = unpacket_traits<Packet>::size;
-  eigen_assert(n <= packet_size && "number of elements will write past end of packet");
+  eigen_assert(n + offset <= packet_size && "number of elements plus offset will write past end of packet");
   EIGEN_ALIGN_MAX Scalar elements[packet_size];
   pstore<Scalar>(elements, from);
-  for (Index i = 0; i < numext::mini(n,packet_size); i++) {
-    to[i] = elements[i];
+  for (Index i = 0; i < numext::mini(n,packet_size-offset); i++) {
+    to[i] = elements[i + offset];
   }
 }
 
@@ -1223,7 +1223,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret_partial(Scalar* to, const Pac
   if(Alignment >= unpacket_traits<Packet>::alignment)
     pstore_partial(to, from, n, offset);
   else
-    pstoreu_partial(to, from, n);
+    pstoreu_partial(to, from, n, offset);
 }
 
 /** \internal \returns a packet version of \a *from.
