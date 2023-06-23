@@ -1288,14 +1288,14 @@ SYCL_SPECIALIZE_FLOATING_TYPES_UNARY_FUNC_RET_TYPE(isfinite, isfinite, bool)
 #endif
 
 template<typename Scalar>
-EIGEN_DEVICE_FUNC
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 inline Scalar rint(const Scalar& x)
 {
   return internal::nearest_integer_impl<Scalar>::run_rint(x);
 }
 
 template<typename Scalar>
-EIGEN_DEVICE_FUNC
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 inline Scalar round(const Scalar& x)
 {
   return internal::nearest_integer_impl<Scalar>::run_round(x);
@@ -1306,7 +1306,7 @@ SYCL_SPECIALIZE_FLOATING_TYPES_UNARY(round, round)
 #endif
 
 template<typename Scalar>
-EIGEN_DEVICE_FUNC
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 Scalar (floor)(const Scalar& x)
 {
   return internal::nearest_integer_impl<Scalar>::run_floor(x);
@@ -1325,7 +1325,7 @@ double floor(const double &x) { return ::floor(x); }
 #endif
 
 template<typename Scalar>
-EIGEN_DEVICE_FUNC
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 Scalar (ceil)(const Scalar& x)
 {
   return internal::nearest_integer_impl<Scalar>::run_ceil(x);
