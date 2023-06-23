@@ -1224,46 +1224,26 @@ template<> EIGEN_STRONG_INLINE void pstoreu_partial<double, Packet2d>(double* to
 template <typename Scalar>
 EIGEN_STRONG_INLINE __m256i _mm256_partial_mask(const Index n, const Index offset) {
   static constexpr int Size = sizeof(Scalar);
-  #ifdef EIGEN_VECTORIZE_AVX2
-    const __m256i cst_lin =
-      _mm256_setr_epi8(
-           0 / Size,  1 / Size,  2 / Size,  3 / Size, 
-           4 / Size,  5 / Size,  6 / Size,  7 / Size, 
-           8 / Size,  9 / Size, 10 / Size, 11 / Size, 
-          12 / Size, 13 / Size, 14 / Size, 15 / Size,
-          16 / Size, 17 / Size, 18 / Size, 19 / Size, 
-          20 / Size, 21 / Size, 22 / Size, 23 / Size, 
-          24 / Size, 25 / Size, 26 / Size, 27 / Size, 
-          28 / Size, 29 / Size, 30 / Size, 31 / Size);
-  __m256i off = _mm256_set1_epi8(static_cast<char>(offset));
-  __m256i off_n = _mm256_set1_epi8(static_cast<char>(offset + n));
-  __m256i off_gt_lin = _mm256_cmpgt_epi8(off, cst_lin);
-  __m256i off_n_gt_lin = _mm256_cmpgt_epi8(off_n, cst_lin);
+  EIGEN_STATIC_ASSERT(Size >= 4, SIZE OF SCALAR MUST BE GREATER THAN OR EQUAL TO FOUR)
+#ifdef EIGEN_VECTORIZE_AVX2
+  const __m256i cst_lin =
+      _mm256_setr_epi32(0 / Size, 4 / Size, 8 / Size, 12 / Size, 16 / Size, 20 / Size, 24 / Size, 28 / Size);
+  __m256i off = _mm256_set1_epi32(offset);
+  __m256i off_n = _mm256_set1_epi32(offset + n);
+  __m256i off_gt_lin = _mm256_cmpgt_epi32(off, cst_lin);
+  __m256i off_n_gt_lin = _mm256_cmpgt_epi32(off_n, cst_lin);
   __m256i mask = _mm256_andnot_si256(off_gt_lin, off_n_gt_lin);
-#else
-  const __m128i cst_lin_lo =
-    _mm_setr_epi8(
-         0 / Size,  1 / Size,  2 / Size,  3 / Size, 
-         4 / Size,  5 / Size,  6 / Size,  7 / Size, 
-         8 / Size,  9 / Size, 10 / Size, 11 / Size, 
-        12 / Size, 13 / Size, 14 / Size, 15 / Size);
-   const __m128i cst_lin_hi =
-    _mm_setr_epi8(
-        16 / Size, 17 / Size, 18 / Size, 19 / Size, 
-        20 / Size, 21 / Size, 22 / Size, 23 / Size, 
-        24 / Size, 25 / Size, 26 / Size, 27 / Size, 
-        28 / Size, 29 / Size, 30 / Size, 31 / Size);
-  __m128i off = _mm_set1_epi8(static_cast<char>(offset));
-  __m128i off_n = _mm_set1_epi8(static_cast<char>(offset + n));
-  __m128i off_gt_lin_lo = _mm_cmpgt_epi8(off, cst_lin_lo);
-  __m128i off_n_gt_lin_lo = _mm_cmpgt_epi8(off_n, cst_lin_lo);
-  __m128i off_gt_lin_hi = _mm_cmpgt_epi8(off, cst_lin_hi);
-  __m128i off_n_gt_lin_hi = _mm_cmpgt_epi8(off_n, cst_lin_hi);
-  __m128i mask_lo = _mm_andnot_si128(off_gt_lin_lo, off_n_gt_lin_lo);
-  __m128i mask_hi = _mm_andnot_si128(off_gt_lin_hi, off_n_gt_lin_hi);
-  __m256i mask = _mm256_setr_m128i(mask_lo, mask_hi);
-#endif
   return mask;
+#else
+  const __m256 cst_lin =
+      _mm256_setr_ps(0 / Size, 4 / Size, 8 / Size, 12 / Size, 16 / Size, 20 / Size, 24 / Size, 28 / Size);
+  __m256 off = _mm256_set1_ps(offset);
+  __m256 off_n = _mm256_set1_ps(offset + n);
+  __m256 lin_ge_off = _mm256_cmp_ps(cst_lin, off, _CMP_GE_OQ);
+  __m256 lin_lt_off_n = _mm256_cmp_ps(cst_lin, off_n, _CMP_LT_OQ);
+  __m256 mask = _mm256_and_ps(lin_ge_off, lin_lt_off_n);
+  return _mm256_castps_si256(mask);
+#endif
 }
 
 template<> EIGEN_STRONG_INLINE Packet8f ploadu_partial<Packet8f>(const float* from, const Index n, const Index offset) {
