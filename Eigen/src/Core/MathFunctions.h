@@ -1289,14 +1289,14 @@ SYCL_SPECIALIZE_FLOATING_TYPES_UNARY_FUNC_RET_TYPE(isfinite, isfinite, bool)
 
 template<typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-inline Scalar rint(const Scalar& x)
+Scalar rint(const Scalar& x)
 {
   return internal::nearest_integer_impl<Scalar>::run_rint(x);
 }
 
 template<typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-inline Scalar round(const Scalar& x)
+Scalar round(const Scalar& x)
 {
   return internal::nearest_integer_impl<Scalar>::run_round(x);
 }
