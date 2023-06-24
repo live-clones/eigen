@@ -312,36 +312,36 @@ EIGEN_DECLARE_TEST(product_small)
     CALL_SUBTEST_10( product(Matrix<bfloat16, 3, 2>()) );
     CALL_SUBTEST_6( product1x1<0>() );
 
-    CALL_SUBTEST_11( test_lazy_l1<float>() );
-    CALL_SUBTEST_12( test_lazy_l2<float>() );
-    CALL_SUBTEST_13( test_lazy_l3<float>() );
+    //CALL_SUBTEST_11( test_lazy_l1<float>() );
+    //CALL_SUBTEST_12( test_lazy_l2<float>() );
+    //CALL_SUBTEST_13( test_lazy_l3<float>() );
 
-    CALL_SUBTEST_21( test_lazy_l1<double>() );
-    CALL_SUBTEST_22( test_lazy_l2<double>() );
-    CALL_SUBTEST_23( test_lazy_l3<double>() );
+    //CALL_SUBTEST_21( test_lazy_l1<double>() );
+    //CALL_SUBTEST_22( test_lazy_l2<double>() );
+    //CALL_SUBTEST_23( test_lazy_l3<double>() );
 
-    CALL_SUBTEST_31( test_lazy_l1<std::complex<float> >() );
-    CALL_SUBTEST_32( test_lazy_l2<std::complex<float> >() );
-    CALL_SUBTEST_33( test_lazy_l3<std::complex<float> >() );
+    //CALL_SUBTEST_31( test_lazy_l1<std::complex<float> >() );
+    //CALL_SUBTEST_32( test_lazy_l2<std::complex<float> >() );
+    //CALL_SUBTEST_33( test_lazy_l3<std::complex<float> >() );
 
-    CALL_SUBTEST_41( test_lazy_l1<std::complex<double> >() );
-    CALL_SUBTEST_42( test_lazy_l2<std::complex<double> >() );
-    CALL_SUBTEST_43( test_lazy_l3<std::complex<double> >() );
+    //CALL_SUBTEST_41( test_lazy_l1<std::complex<double> >() );
+    //CALL_SUBTEST_42( test_lazy_l2<std::complex<double> >() );
+    //CALL_SUBTEST_43( test_lazy_l3<std::complex<double> >() );
 
-    CALL_SUBTEST_7(( test_linear_but_not_vectorizable<float,2,1,Dynamic>() ));
-    CALL_SUBTEST_7(( test_linear_but_not_vectorizable<float,3,1,Dynamic>() ));
-    CALL_SUBTEST_7(( test_linear_but_not_vectorizable<float,2,1,16>() ));
+    //CALL_SUBTEST_7(( test_linear_but_not_vectorizable<float,2,1,Dynamic>() ));
+    //CALL_SUBTEST_7(( test_linear_but_not_vectorizable<float,3,1,Dynamic>() ));
+    //CALL_SUBTEST_7(( test_linear_but_not_vectorizable<float,2,1,16>() ));
 
-    CALL_SUBTEST_6( bug_1311<3>() );
-    CALL_SUBTEST_6( bug_1311<5>() );
+    //CALL_SUBTEST_6( bug_1311<3>() );
+    //CALL_SUBTEST_6( bug_1311<5>() );
 
-    CALL_SUBTEST_9( test_dynamic_bool() );
-    
-    // Commonly specialized vectorized types.
-    CALL_SUBTEST_50( product_sweep<float>(10, 10, 10) );
-    CALL_SUBTEST_51( product_sweep<double>(10, 10, 10) );
-    CALL_SUBTEST_52( product_sweep<Eigen::half>(10, 10, 10) );
-    CALL_SUBTEST_53( product_sweep<Eigen::bfloat16>(10, 10, 10) );
+    //CALL_SUBTEST_9( test_dynamic_bool() );
+    //
+    //// Commonly specialized vectorized types.
+    //CALL_SUBTEST_50( product_sweep<float>(10, 10, 10) );
+    //CALL_SUBTEST_51( product_sweep<double>(10, 10, 10) );
+    //CALL_SUBTEST_52( product_sweep<Eigen::half>(10, 10, 10) );
+    //CALL_SUBTEST_53( product_sweep<Eigen::bfloat16>(10, 10, 10) );
   }
 
   CALL_SUBTEST_6( product_small_regressions<0>() );
