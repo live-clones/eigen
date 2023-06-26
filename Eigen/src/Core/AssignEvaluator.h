@@ -601,33 +601,44 @@ struct dense_assignment_loop<Kernel, LinearTraversal, CompleteUnrolling>
 template<typename Kernel>
 struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling>
 {
-  using Scalar = typename Kernel::Scalar;
-  using PacketType = typename Kernel::PacketType;
-
-  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-  static constexpr int DstAlignment = Kernel::AssignmentTraits::InnerRequiredAlignment;
-
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel &kernel)
   {
+    typedef typename Kernel::Scalar Scalar;
+    typedef typename Kernel::PacketType PacketType;
+    enum {
+      packetSize = unpacket_traits<PacketType>::size,
+      requestedAlignment = int(Kernel::AssignmentTraits::InnerRequiredAlignment),
+      alignable = packet_traits<Scalar>::AlignedOnScalar || int(Kernel::AssignmentTraits::DstAlignment)>=sizeof(Scalar),
+      dstAlignment = alignable ? int(requestedAlignment)
+                               : int(Kernel::AssignmentTraits::DstAlignment)
+    };
+
     const Scalar *dst_ptr = kernel.dstDataPtr();
+    const Index outerStride = kernel.outerStride();
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
 
-    for (Index outer = 0; outer < outerSize; ++outer) {
-
-      Index alignedStart = internal::first_aligned<DstAlignment>(dst_ptr + outer * kernel.outerStride(), innerSize);
+    for(Index outer = 0; outer < outerSize; ++outer)
+    {
+      Index alignedStart = internal::first_aligned<dstAlignment>(dst_ptr, innerSize);
 
       Index inner = 0;
 
-      for (; inner + PacketSize <= alignedStart; inner += PacketSize)
+      // do the unaligned portion of the assignment
+      for (; inner + packetSize <= alignedStart; inner += packetSize)
         kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
-      if(alignedStart > inner)
+      if (alignedStart > inner)
         kernel.template assignPartialPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner, alignedStart - inner, 0);
 
-      for (inner = alignedStart; inner + PacketSize <= innerSize; inner += PacketSize)
-        kernel.template assignPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner);
-      if(innerSize > inner)
-        kernel.template assignPartialPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner, innerSize - inner, 0);
+      inner = alignedStart;
+
+      // do the aligned portion of the assignment
+      for (; inner + packetSize <= innerSize; inner += packetSize)
+        kernel.template assignPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner);
+      if (innerSize > inner)
+        kernel.template assignPartialPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner, innerSize - inner, 0);
+
+      dst_ptr += outerStride;
     }
   }
 };

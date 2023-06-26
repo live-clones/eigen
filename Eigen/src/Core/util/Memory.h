@@ -558,13 +558,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
   const Index AlignmentSize = Alignment / ScalarSize;
   const Index AlignmentMask = AlignmentSize-1;
 
-  if(AlignmentSize<=1)
-  {
-    // Either the requested alignment if smaller than a scalar, or it exactly match a 1 scalar
-    // so that all elements of the array have the same alignment.
-    return 0;
-  }
-  else if( (std::uintptr_t(array) & (sizeof(Scalar)-1)) || (Alignment%ScalarSize)!=0)
+  if( (std::uintptr_t(array) & (sizeof(Scalar)-1)) || (Alignment%ScalarSize)!=0)
   {
     // The array is not aligned to the size of a single scalar, or the requested alignment is not a multiple of the scalar size.
     // Consequently, no element of the array is well aligned.

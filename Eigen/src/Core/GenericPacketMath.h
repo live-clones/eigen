@@ -1203,11 +1203,9 @@ inline void pstore1(typename unpacket_traits<Packet>::type* to, const typename u
 template<typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_traits<Packet>::type* from)
 {
-  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
-  if (Alignment >= RequiredAlignment) {
-    eigen_assert((std::uintptr_t(from) % RequiredAlignment == 0) && "array is not sufficiently aligned for pload");
+  if(Alignment >= unpacket_traits<Packet>::alignment)
     return pload<Packet>(from);
-  } else
+  else
     return ploadu<Packet>(from);
 }
 
@@ -1216,14 +1214,11 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_trai
 template<typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
-  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
-  eigen_assert(n > 0 && "number of elements must be greater than zero");
   eigen_assert(n + offset <= unpacket_traits<Packet>::size &&
                "number of elements plus offset will read past end of packet");
-  if (Alignment >= RequiredAlignment) {
-    eigen_assert((std::uintptr_t(from) % RequiredAlignment == 0) && "array is not sufficiently aligned for pload");
+  if (Alignment >= unpacket_traits<Packet>::alignment)
     return pload_partial<Packet>(from, n, offset);
-  } else
+  else
     return ploadu_partial<Packet>(from, n, offset);
 }
 
@@ -1232,11 +1227,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpac
 template<typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& from)
 {
-  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
-  if (Alignment >= RequiredAlignment) {
-    eigen_assert((std::uintptr_t(to) % RequiredAlignment == 0) && "array is not sufficiently aligned for pstore");
+  if(Alignment >= unpacket_traits<Packet>::alignment)
     pstore(to, from);
-  } else
+  else
     pstoreu(to, from);
 }
 
@@ -1245,13 +1238,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& fro
 template<typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
-  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
-  eigen_assert(n > 0 && "number of elements must be greater than zero");
   eigen_assert(n + offset <= unpacket_traits<Packet>::size && "number of elements plus offset will write past end of packet");
-  if (Alignment >= RequiredAlignment) {
-    eigen_assert((std::uintptr_t(to) % RequiredAlignment == 0) && "array is not sufficiently aligned for pstore_partial");
+  if (Alignment >= unpacket_traits<Packet>::alignment)
     pstore_partial(to, from, n, offset);
-  }
   else
     pstoreu_partial(to, from, n, offset);
 }
