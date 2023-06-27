@@ -535,8 +535,12 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_align
 template <int Alignment, typename Scalar, typename Index>
 struct first_aligned_helper {
   static EIGEN_DEVICE_FUNC inline Index run(const Scalar* array, Index size) {
-    Index aligned_offset = (std::uintptr_t(array) % Alignment) / sizeof(Scalar);
-    Index first = aligned_offset == 0 ? 0 : Alignment - aligned_offset;
+    Index alignedOffset = std::uintptr_t(array) % Alignment;
+    // the array is aligned
+    if (alignedOffset == 0) return 0;
+    // the array is not alignable
+    if (alignedOffset % sizeof(Scalar) != 0) return size;
+    Index first = (Alignment - alignedOffset) / sizeof(Scalar);
     return first < size ? first : size;
   }
 };
@@ -553,14 +557,6 @@ struct first_aligned_helper<Unaligned, Scalar, Index> {
   * \tparam Alignment requested alignment in Bytes.
   * \param array the address of the start of the array
   * \param size the size of the array
-  *
-  * \note If no element of the array is well aligned or the requested alignment is not a multiple of a scalar,
-  * the size of the array is returned. For example with SSE, the requested alignment is typically 16-bytes. If
-  * packet size for the given scalar type is 1, then everything is considered well-aligned.
-  *
-  * \note Otherwise, if the Alignment is larger that the scalar size, we rely on the assumptions that sizeof(Scalar) is a
-  * power of 2. On the other hand, we do not assume that the array address is a multiple of sizeof(Scalar), as that fails for
-  * example with Scalar=double on certain 32-bit platforms, see bug #79.
   *
   * There is also the variant first_aligned(const MatrixBase&) defined in DenseCoeffsBase.h.
   * \sa first_default_aligned()
