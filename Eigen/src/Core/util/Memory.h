@@ -534,13 +534,14 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_align
 
 template <int Alignment, typename Scalar, typename Index>
 struct first_aligned_helper {
+  EIGEN_STATIC_ASSERT((Alignment & (Alignment - 1)) == 0, ALIGNMENT MUST BE A POWER OF TWO)
+  static constexpr Index ScalarSize = sizeof(Scalar);
   static EIGEN_DEVICE_FUNC inline Index run(const Scalar* array, Index size) {
-    Index alignedOffset = std::uintptr_t(array) % Alignment;
-    // the array is aligned
-    if (alignedOffset == 0) return 0;
-    // the array is not alignable
-    if (alignedOffset % sizeof(Scalar) != 0) return size;
-    Index first = (Alignment - alignedOffset) / sizeof(Scalar);
+    const std::uintptr_t original = std::uintptr_t(array);
+    const std::uintptr_t aligned = Alignment * ((original + Alignment - 1) / Alignment);
+    const std::ptrdiff_t offsetBytes = aligned - original;
+    if (offsetBytes % ScalarSize != 0) return size;
+    Index first = offsetBytes / ScalarSize;
     return first < size ? first : size;
   }
 };
