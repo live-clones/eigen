@@ -532,6 +532,20 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_align
   conditional_aligned_free<Align>(ptr);
 }
 
+template <int Alignment, typename Scalar, typename Index>
+struct first_aligned_helper {
+  static EIGEN_DEVICE_FUNC inline Index run(const Scalar* array, Index size) {
+    Index aligned_offset = (std::uintptr_t(array) % Alignment) / sizeof(Scalar);
+    Index first = aligned_offset == 0 ? 0 : Alignment - aligned_offset;
+    return first < size ? first : size;
+  }
+};
+
+template <typename Scalar, typename Index>
+struct first_aligned_helper<Unaligned, Scalar, Index> {
+  static EIGEN_DEVICE_FUNC inline Index run(const Scalar* /*array*/, Index /*size*/) { return 0; }
+};
+
 /****************************************************************************/
 
 /** \internal Returns the index of the first element of the array that is well aligned with respect to the requested \a Alignment.
@@ -551,24 +565,9 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_align
   * There is also the variant first_aligned(const MatrixBase&) defined in DenseCoeffsBase.h.
   * \sa first_default_aligned()
   */
-template<int Alignment, typename Scalar, typename Index>
-EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
-{
-  const Index ScalarSize = sizeof(Scalar);
-  const Index AlignmentSize = Alignment / ScalarSize;
-  const Index AlignmentMask = AlignmentSize-1;
-
-  if( (std::uintptr_t(array) & (sizeof(Scalar)-1)) || (Alignment%ScalarSize)!=0)
-  {
-    // The array is not aligned to the size of a single scalar, or the requested alignment is not a multiple of the scalar size.
-    // Consequently, no element of the array is well aligned.
-    return size;
-  }
-  else
-  {
-    Index first = (AlignmentSize - (Index((std::uintptr_t(array)/sizeof(Scalar))) & AlignmentMask)) & AlignmentMask;
-    return (first < size) ? first : size;
-  }
+template <int Alignment, typename Scalar, typename Index>
+EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size) {
+  return first_aligned_helper<Alignment, Scalar, Index>::run(array, size);
 }
 
 /** \internal Returns the index of the first element of the array that is well aligned with respect the largest packet requirement.
