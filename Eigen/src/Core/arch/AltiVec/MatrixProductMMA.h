@@ -427,7 +427,13 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
 
 #define MAX_MMA_UNROLL 7
 
+#if MAX_MMA_UNROLL < 2
+  if (1) {
+#elif MAX_MMA_UNROLL < 4
+  if (accItr <= 2) {
+#else
   if (accItr == 1) {
+#endif
     while(row + MAX_MMA_UNROLL*accCols <= rows) {
       MICRO_MMA_UNROLL_ITER2(MAX_MMA_UNROLL, 0);
     }
