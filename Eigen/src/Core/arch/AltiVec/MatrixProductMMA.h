@@ -227,7 +227,7 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
 
 #ifndef VECTOR_PAIR_LOADS_LHS
 #define MICRO_MMA_UNROLL_TYPE_PEEL(funcw, funcl, type) \
-  type rhsV0[8], rhsV1[(accItr > 1) ? 8 : 0], rhsV2[(accItr > 2) ? 8 : 0], rhsV3[(accItr > 2) ? 8 : 0]; \
+  type rhsV0[8], rhsV1[(accItr > 1) ? 8 : 1], rhsV2[(accItr > 2) ? 8 : 1], rhsV3[(accItr > 2) ? 8 : 1]; \
   MICRO_MMA_TYPE_PEEL(funcw,funcl,type,0) MICRO_MMA_TYPE_PEEL(funcw,funcl,type,1) \
   MICRO_MMA_TYPE_PEEL(funcw,funcl,type,2) MICRO_MMA_TYPE_PEEL(funcw,funcl,type,3) \
   MICRO_MMA_TYPE_PEEL(funcw,funcl,type,4) MICRO_MMA_TYPE_PEEL(funcw,funcl,type,5) \
@@ -264,7 +264,7 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
   }
 
 #define MICRO_MMA_UNROLL_TYPE_PEEL2(funcw1, funcl1, funcw2, funcl2, type) \
-  type rhsV0[8], rhsV1[(accItr > 1) ? 8 : 0], rhsV2[(accItr > 2) ? 8 : 0], rhsV3[(accItr > 2) ? 8 : 0]; \
+  type rhsV0[8], rhsV1[(accItr > 1) ? 8 : 1], rhsV2[(accItr > 2) ? 8 : 1], rhsV3[(accItr > 2) ? 8 : 1]; \
   __vector_pair prhsV0, prhsV2, prhsV4, prhsV6; \
   MICRO_MMA_TYPE_PEEL2(funcw1,funcl1,funcw2,funcl2,type,0,1) \
   MICRO_MMA_TYPE_PEEL2(funcw1,funcl1,funcw2,funcl2,type,2,3) \
@@ -273,7 +273,7 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
 #endif
 
 #define MICRO_MMA_UNROLL_TYPE_ONE(funcw, funcl, type) \
-  type rhsV0[1], rhsV1[(accItr > 1) ? 1 : 0], rhsV2[(accItr > 2) ? 1 : 0], rhsV3[(accItr > 2) ? 1 : 0]; \
+  type rhsV0[1], rhsV1[1], rhsV2[1], rhsV3[1]; \
   MICRO_MMA_TYPE_PEEL(funcw,funcl,type,0)
 
 #define MICRO_MMA_UPDATE_RHS(size) \
