@@ -998,7 +998,7 @@ class StridedLinearBufferCopy {
   enum {
     Vectorizable = packet_traits<Scalar>::Vectorizable,
     PacketSize = packet_traits<Scalar>::size,
-    HasHalfPacket = unpacket_traits<HalfPacket>::size < PacketSize,
+    HasHalfPacket = (int)unpacket_traits<HalfPacket>::size < (int)PacketSize,
     HalfPacketSize = unpacket_traits<HalfPacket>::size,
   };
 

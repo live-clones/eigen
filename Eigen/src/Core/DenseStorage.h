@@ -43,7 +43,7 @@ template <typename T, int Size, int MatrixOrArrayOptions,
                         : compute_default_alignment<T,Size>::value >
 struct plain_array
 {
-  T array[Size];
+  T array[Size] = {0};
 
   EIGEN_DEVICE_FUNC constexpr plain_array() { check_static_allocation_size<T, Size>(); }
 
@@ -65,7 +65,7 @@ struct plain_array
 template <typename T, int Size, int MatrixOrArrayOptions>
 struct plain_array<T, Size, MatrixOrArrayOptions, 8>
 {
-  EIGEN_ALIGN_TO_BOUNDARY(8) T array[Size];
+  EIGEN_ALIGN_TO_BOUNDARY(8) T array[Size] = {0};
 
   EIGEN_DEVICE_FUNC constexpr plain_array() {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(7);
@@ -80,7 +80,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 8>
 template <typename T, int Size, int MatrixOrArrayOptions>
 struct plain_array<T, Size, MatrixOrArrayOptions, 16>
 {
-  EIGEN_ALIGN_TO_BOUNDARY(16) T array[Size];
+  EIGEN_ALIGN_TO_BOUNDARY(16) T array[Size] = {0};
 
   EIGEN_DEVICE_FUNC constexpr plain_array() {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(15);
@@ -95,7 +95,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 16>
 template <typename T, int Size, int MatrixOrArrayOptions>
 struct plain_array<T, Size, MatrixOrArrayOptions, 32>
 {
-  EIGEN_ALIGN_TO_BOUNDARY(32) T array[Size];
+  EIGEN_ALIGN_TO_BOUNDARY(32) T array[Size] = {0};
 
   EIGEN_DEVICE_FUNC constexpr plain_array() {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(31);
@@ -110,7 +110,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 32>
 template <typename T, int Size, int MatrixOrArrayOptions>
 struct plain_array<T, Size, MatrixOrArrayOptions, 64>
 {
-  EIGEN_ALIGN_TO_BOUNDARY(64) T array[Size];
+  EIGEN_ALIGN_TO_BOUNDARY(64) T array[Size] = {0};
 
   EIGEN_DEVICE_FUNC constexpr plain_array() {
     EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(63);
@@ -125,7 +125,7 @@ struct plain_array<T, Size, MatrixOrArrayOptions, 64>
 template <typename T, int MatrixOrArrayOptions, int Alignment>
 struct plain_array<T, 0, MatrixOrArrayOptions, Alignment>
 {
-  T array[1];
+  T array[1] = {0};
   EIGEN_DEVICE_FUNC constexpr plain_array() {}
   EIGEN_DEVICE_FUNC constexpr plain_array(constructor_without_unaligned_array_assert) {}
 };
