@@ -1183,13 +1183,13 @@ inline void pstore1(typename unpacket_traits<Packet>::type* to, const typename u
 }
 
 /** \internal \returns a packet version of \a *from.
- * The pointer \a from must be aligned on a \a Alignment bytes boundary. */
-template <typename Packet, int Alignment>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_traits<Packet>::type* from) {
-  if (Alignment >= unpacket_traits<Packet>::alignment) {
-    eigen_assert(std::uintptr_t(from) % alignof(Packet) == 0 && "pload not aligned!!\n");
+  * The pointer \a from must be aligned on a \a Alignment bytes boundary. */
+template<typename Packet, int Alignment>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_traits<Packet>::type* from)
+{
+  if(Alignment >= unpacket_traits<Packet>::alignment)
     return pload<Packet>(from);
-  } else
+  else
     return ploadu<Packet>(from);
 }
 
@@ -1209,12 +1209,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpac
 template<typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& from)
 {
-    if (Alignment >= unpacket_traits<Packet>::alignment)
-    {
-        eigen_assert(std::uintptr_t(to) % alignof(Packet) == 0 && "pstore not aligned!!\n");
-            pstore(to, from);
-  }
-
+  if(Alignment >= unpacket_traits<Packet>::alignment)
+    pstore(to, from);
   else
     pstoreu(to, from);
 }
