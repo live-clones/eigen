@@ -182,7 +182,7 @@ class FFT
     typedef typename impl_type::Complex Complex;
 
     enum Flag {
-      Default=0, // goof proof
+      Default=Default_t::Default, // goof proof
       Unscaled=1,
       HalfSpectrum=2,
       // SomeOtherSpeedOptimization=4
