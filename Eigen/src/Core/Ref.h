@@ -334,14 +334,14 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
     typedef internal::traits<Ref> Traits;
 
     static constexpr bool may_map_m_object_successfully = 
-      (StrideType::InnerStrideAtCompileTime == 0 ||
-       StrideType::InnerStrideAtCompileTime == 1 ||
-       StrideType::InnerStrideAtCompileTime == Dynamic) &&
+      ((int)StrideType::InnerStrideAtCompileTime == 0 ||
+       (int)StrideType::InnerStrideAtCompileTime == 1 ||
+       (int)StrideType::InnerStrideAtCompileTime == Dynamic) &&
       (TPlainObjectType::IsVectorAtCompileTime ||
-       StrideType::OuterStrideAtCompileTime == 0 ||
-       StrideType::OuterStrideAtCompileTime == Dynamic ||
-       StrideType::OuterStrideAtCompileTime == TPlainObjectType::InnerSizeAtCompileTime ||
-       TPlainObjectType::InnerSizeAtCompileTime == Dynamic);
+       (int)StrideType::OuterStrideAtCompileTime == 0 ||
+       (int)StrideType::OuterStrideAtCompileTime == Dynamic ||
+       (int)StrideType::OuterStrideAtCompileTime == (int)TPlainObjectType::InnerSizeAtCompileTime ||
+       (int)TPlainObjectType::InnerSizeAtCompileTime == Dynamic);
   public:
 
     typedef RefBase<Ref> Base;

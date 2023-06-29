@@ -74,6 +74,7 @@ MatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const
 #if !(defined(EIGEN_NO_STATIC_ASSERT) && defined(EIGEN_NO_DEBUG))
   typedef internal::scalar_conj_product_op<Scalar,typename OtherDerived::Scalar> func;
   EIGEN_CHECK_BINARY_COMPATIBILIY(func,Scalar,typename OtherDerived::Scalar);
+  EIGEN_UNUSED_VARIABLE(func());
 #endif
   
   eigen_assert(size() == other.size());

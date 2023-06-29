@@ -124,7 +124,7 @@ void std_vector_gcc_warning()
 {
   typedef Eigen::Vector3f T;
   std::vector<T, Eigen::aligned_allocator<T> > v;
-  v.push_back(T());
+  v.push_back(T(1.0f,2.0f,3.0f));
 }
 
 EIGEN_DECLARE_TEST(stdvector)
@@ -155,4 +155,6 @@ EIGEN_DECLARE_TEST(stdvector)
   // some Quaternion
   CALL_SUBTEST_5(check_stdvector_quaternion(Quaternionf()));
   CALL_SUBTEST_5(check_stdvector_quaternion(Quaterniond()));
+
+  std_vector_gcc_warning();
 }
