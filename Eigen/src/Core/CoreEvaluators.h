@@ -1710,7 +1710,7 @@ struct unary_evaluator<Reverse<ArgType, Direction> >
 
     Flags = int(Flags0) & (HereditaryBits | PacketAccessBit | LinearAccess),
 
-    Alignment = evaluator<ArgType>::Alignment
+    Alignment = 0 // FIXME in some rare cases, Alignment could be preserved, like a Vector4f.
   };
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
@@ -1766,11 +1766,7 @@ struct unary_evaluator<Reverse<ArgType, Direction> >
   PacketType packet(Index index) const
   {
     enum { PacketSize = unpacket_traits<PacketType>::size };
-    constexpr bool ReverseTheRow = ReverseRow;
-    constexpr bool ReverseTheCol = ReverseCol;
-    constexpr bool DontAlign = (ReverseRow && XprType::RowsAtCompileTime % PacketSize != 0) || (ReverseCol && XprType::ColsAtCompileTime % PacketSize != 0);
-    constexpr int ActualAlignment = DontAlign ? Unaligned : LoadMode;
-    return preverse(m_argImpl.template packet<ActualAlignment,PacketType>(m_rows.value() * m_cols.value() - index - PacketSize));
+    return preverse(m_argImpl.template packet<LoadMode,PacketType>(m_rows.value() * m_cols.value() - index - PacketSize));
   }
 
   template<int LoadMode, typename PacketType>
