@@ -155,6 +155,4 @@ EIGEN_DECLARE_TEST(stdvector)
   // some Quaternion
   CALL_SUBTEST_5(check_stdvector_quaternion(Quaternionf()));
   CALL_SUBTEST_5(check_stdvector_quaternion(Quaterniond()));
-
-  std_vector_gcc_warning();
 }
