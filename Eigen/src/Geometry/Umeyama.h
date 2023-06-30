@@ -136,7 +136,8 @@ umeyama(const MatrixBase<Derived>& src, const MatrixBase<OtherDerived>& dst, boo
   VectorType S = VectorType::Ones(m);
 
   if  ( svd.matrixU().determinant() * svd.matrixV().determinant() < 0 ) {
-    S.coeffRef(m - 1) = -1;
+    Index tmp = m - 1;
+    S(tmp) = -1;
   }
 
   // Eq. (40) and (43)
