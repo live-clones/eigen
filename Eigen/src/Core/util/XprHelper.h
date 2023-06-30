@@ -45,7 +45,7 @@ struct convert_index_impl<IndexDest, IndexSrc, true, true, true, false> {
   // IndexSrc is an unsigned integer
   static inline EIGEN_DEVICE_FUNC run(const IndexSrc& idx) {
     eigen_internal_assert(idx <= returnUnsignedIndexValue(NumTraits<IndexDest>::highest()) &&
-                          "Index value too big for target type");
+                          "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
   }
 };
@@ -55,7 +55,7 @@ struct convert_index_impl<IndexDest, IndexSrc, true, false, true, true> {
   // IndexSrc is a signed integer
   static inline EIGEN_DEVICE_FUNC run(const IndexSrc& idx) {
     eigen_internal_assert(returnUnsignedIndexValue(idx) <= NumTraits<IndexDest>::highest() &&
-                          "Index value too big for target type");
+                          "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
   }
 };
