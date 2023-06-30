@@ -17,11 +17,20 @@ namespace Eigen {
 
 namespace internal {
 
+// useful for unsigned / signed integer comparisons when idx is intended to be non-negative
+template <typename IndexType>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename make_unsigned<IndexType>::type returnUnsignedValue(const IndexType& idx) {
+  EIGEN_STATIC_ASSERT((NumTraits<IndexType>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
+  eigen_internal_assert(idx >= 0 && "idx is negative");
+  return typename make_unsigned<IndexType>::type(idx);
+}
+
 template<typename IndexDest, typename IndexSrc>
 EIGEN_DEVICE_FUNC
 inline IndexDest convert_index(const IndexSrc& idx) {
-  // for sizeof(IndexDest)>=sizeof(IndexSrc) compilers should be able to optimize this away:
-  eigen_internal_assert(idx <= NumTraits<IndexDest>::highest() && "Index value to big for target type");
+  // for sizeof(IndexDest)>=sizeof(IndexSrc) compilers should be able to optimize this away: 
+  eigen_internal_assert(returnUnsignedValue(idx) <= returnUnsignedValue(NumTraits<IndexDest>::highest()) &&
+                        "Index value too big for target type");
   return IndexDest(idx);
 }
 
