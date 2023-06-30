@@ -202,7 +202,7 @@ inline void test_return_by_value(int len) {
   in.setRandom(len);
   VectorXcf out1, out2;
   FFT<float> fft;
-  
+
   fft.SetFlag(fft.HalfSpectrum);
 
   fft.fwd(out1, in);
