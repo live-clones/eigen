@@ -777,7 +777,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     {
       EIGEN_STATIC_ASSERT(internal::is_valid_index_type<T0>::value &&
                           internal::is_valid_index_type<T1>::value,
-                          FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
+                          T0 AND T1 MUST BE INTEGER TYPES)
       resize(rows,cols);
     }
 

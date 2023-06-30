@@ -182,10 +182,10 @@ class FFT
     typedef typename impl_type::Complex Complex;
 
     using Flag = int;
-    static constexpr int Default = 0;
-    static constexpr int Unscaled = 1;
-    static constexpr int HalfSpectrum = 2;
-    static constexpr int Speedy = 32767;
+    static constexpr Flag Default = 0;
+    static constexpr Flag Unscaled = 1;
+    static constexpr Flag HalfSpectrum = 2;
+    static constexpr Flag Speedy = 32767;
 
     FFT( const impl_type & impl=impl_type() , Flag flags=Default ) :m_impl(impl),m_flag(flags) 
     {
