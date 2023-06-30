@@ -34,7 +34,7 @@ template <typename IndexDest, typename IndexSrc,
           bool IndexSrcIsInteger = NumTraits<IndexSrc>::IsInteger,
           bool IndexSrcIsSigned = NumTraits<IndexSrc>::IsSigned>
 struct convert_index_impl {
-  static inline EIGEN_DEVICE_FUNC run(const IndexSrc& idx) {
+  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
     eigen_internal_assert(idx <= NumTraits<IndexDest>::highest() && "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
   }
@@ -43,7 +43,7 @@ template <typename IndexDest, typename IndexSrc>
 struct convert_index_impl<IndexDest, IndexSrc, true, true, true, false> {
   // IndexDest is a signed integer
   // IndexSrc is an unsigned integer
-  static inline EIGEN_DEVICE_FUNC run(const IndexSrc& idx) {
+  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
     eigen_internal_assert(idx <= returnUnsignedIndexValue(NumTraits<IndexDest>::highest()) &&
                           "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
@@ -53,7 +53,7 @@ template <typename IndexDest, typename IndexSrc>
 struct convert_index_impl<IndexDest, IndexSrc, true, false, true, true> {
   // IndexDest is an unsigned integer
   // IndexSrc is a signed integer
-  static inline EIGEN_DEVICE_FUNC run(const IndexSrc& idx) {
+  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
     eigen_internal_assert(returnUnsignedIndexValue(idx) <= NumTraits<IndexDest>::highest() &&
                           "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
