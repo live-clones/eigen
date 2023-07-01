@@ -449,6 +449,10 @@ void signbit_tests() {
   signbit_test<double>();
   signbit_test<Eigen::half>();
   signbit_test<Eigen::bfloat16>();
+  signbit_test<int8_t>();
+  signbit_test<int16_t>();
+  signbit_test<int32_t>();
+  signbit_test<int64_t>();
 }
 
 template<typename ArrayType> void array_generic(const ArrayType& m)
@@ -1365,16 +1369,18 @@ EIGEN_DECLARE_TEST(array_cwise)
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_23( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
     CALL_SUBTEST_24( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_25( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_25( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_26( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_27( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_26( (cast_test<1, 1>()) );
-    CALL_SUBTEST_27( (cast_test<3, 1>()) );
-    CALL_SUBTEST_28( (cast_test<5, 1>()) );
-    CALL_SUBTEST_29( (cast_test<9, 1>()) );
-    CALL_SUBTEST_30( (cast_test<17, 1>()) );
-    CALL_SUBTEST_31( (cast_test<Dynamic, 1>()) );
+    CALL_SUBTEST_28( (cast_test<1, 1>()) );
+    CALL_SUBTEST_29( (cast_test<3, 1>()) );
+    CALL_SUBTEST_30( (cast_test<5, 1>()) );
+    CALL_SUBTEST_31( (cast_test<9, 1>()) );
+    CALL_SUBTEST_32( (cast_test<17, 1>()) );
+    CALL_SUBTEST_33( (cast_test<Dynamic, 1>()) );
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
