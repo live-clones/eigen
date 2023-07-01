@@ -337,10 +337,6 @@ void test_exponent(Exponent exponent) {
     for (Base a : y) {
       Base e = ref_pow<Base, Exponent>::run(base, exponent);
       bool pass = (a == e);
-      //if (!NumTraits<Base>::IsInteger) {
-      //  pass = pass || (((numext::isfinite)(e) && internal::isApprox(a, e)) ||
-      //                  ((numext::isnan)(a) && (numext::isnan)(e)));
-      //}
       all_pass &= pass;
       if (!pass) {
         std::cout << "pow(" << base << "," << exponent << ")   =   " << a << " !=  " << e << std::endl;
