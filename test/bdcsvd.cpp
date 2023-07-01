@@ -36,7 +36,7 @@ void bdcsvd_method()
 
 // compare the Singular values returned with Jacobi and Bdc
 template <typename MatrixType>
-void compare_bdc_jacobi(const MatrixType& a = MatrixType(), int algoswap = 16, bool random = true) {
+void compare_bdc_jacobi(const MatrixType& a = MatrixType::Zero(), int algoswap = 16, bool random = true) {
   MatrixType m = random ? MatrixType::Random(a.rows(), a.cols()) : a;
 
   BDCSVD<MatrixType> bdc_svd(m.rows(), m.cols());
@@ -69,12 +69,12 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16)
 }
 
 template <typename MatrixType>
-void bdcsvd_all_options(const MatrixType& input = MatrixType()) {
+void bdcsvd_all_options(const MatrixType& input = MatrixType::Zero()) {
   svd_option_checks<MatrixType, 0>(input);
 }
 
 template <typename MatrixType>
-void bdcsvd_verify_assert(const MatrixType& input = MatrixType()) {
+void bdcsvd_verify_assert(const MatrixType& input = MatrixType::Zero()) {
   svd_verify_assert<MatrixType>(input);
   svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(input);
 }
