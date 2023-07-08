@@ -532,26 +532,24 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline void conditional_align
   conditional_aligned_free<Align>(ptr);
 }
 
+/****************************************************************************/
+
 template <int Alignment, typename Scalar, typename Index>
 struct first_aligned_helper {
   EIGEN_STATIC_ASSERT((Alignment & (Alignment - 1)) == 0, ALIGNMENT MUST BE A POWER OF TWO)
   static constexpr Index ScalarSize = sizeof(Scalar);
   static EIGEN_DEVICE_FUNC inline Index run(const Scalar* array, Index size) {
-    const std::uintptr_t original = std::uintptr_t(array);
-    const std::uintptr_t aligned = Alignment * ((original + Alignment - 1) / Alignment);
-    const std::ptrdiff_t offsetBytes = aligned - original;
-    if (offsetBytes % ScalarSize != 0) return size;
-    Index first = offsetBytes / ScalarSize;
+    std::uintptr_t original = std::uintptr_t(array);
+    std::ptrdiff_t offsetBytes = (Alignment - (original % Alignment)) % Alignment;
+    Index first = (offsetBytes % ScalarSize == 0) ? (offsetBytes / ScalarSize) : size;
     return first < size ? first : size;
   }
 };
 
 template <typename Scalar, typename Index>
-struct first_aligned_helper<Unaligned, Scalar, Index> {
+struct first_aligned_helper<0, Scalar, Index> {
   static EIGEN_DEVICE_FUNC inline Index run(const Scalar* /*array*/, Index /*size*/) { return 0; }
 };
-
-/****************************************************************************/
 
 /** \internal Returns the index of the first element of the array that is well aligned with respect to the requested \a Alignment.
   *
@@ -559,11 +557,20 @@ struct first_aligned_helper<Unaligned, Scalar, Index> {
   * \param array the address of the start of the array
   * \param size the size of the array
   *
+  * \note If no element of the array is well aligned or the requested alignment is not a multiple of a scalar,
+  * the size of the array is returned. For example with SSE, the requested alignment is typically 16-bytes. If
+  * packet size for the given scalar type is 1, then everything is considered well-aligned.
+  *
+  * \note Otherwise, if the Alignment is larger that the scalar size, we rely on the assumptions that sizeof(Scalar) is a
+  * power of 2. On the other hand, we do not assume that the array address is a multiple of sizeof(Scalar), as that fails for
+  * example with Scalar=double on certain 32-bit platforms, see bug #79.
+  *
   * There is also the variant first_aligned(const MatrixBase&) defined in DenseCoeffsBase.h.
   * \sa first_default_aligned()
   */
-template <int Alignment, typename Scalar, typename Index>
-EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size) {
+template<int Alignment, typename Scalar, typename Index>
+EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
+{
   return first_aligned_helper<Alignment, Scalar, Index>::run(array, size);
 }
 

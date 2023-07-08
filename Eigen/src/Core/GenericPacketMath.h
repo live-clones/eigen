@@ -729,7 +729,7 @@ pload_partial_generic(const typename unpacket_traits<Packet>::type* from, const 
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
-  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
+  alignas(alignof(Packet)) Scalar elements[PacketSize] = {};
   copy_n(from + offset, n, elements + offset);
   return pload<Packet>(elements);
 }
@@ -856,7 +856,7 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_
   EIGEN_USING_STD(copy_n);
   EIGEN_DEBUG_GENERIC_MASKED_STORE
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  alignas(alignof(Packet)) Scalar elements[PacketSize] = { Scalar(0) };
+  alignas(alignof(Packet)) Scalar elements[PacketSize];
   pstore<Scalar>(elements, from);
   copy_n(elements + offset, n, to + offset);
 }
