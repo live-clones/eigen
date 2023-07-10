@@ -1,4 +1,3 @@
-
 macro(ei_add_property prop value)
   get_property(previous GLOBAL PROPERTY ${prop})
   if ((NOT previous) OR (previous STREQUAL ""))
@@ -105,7 +104,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
     endif()
   endif()
 
-  add_test(${testname_with_suffix} "${targetname}")
+  add_test(NAME ${testname_with_suffix} COMMAND "${targetname}")
 
   # Specify target and test labels according to EIGEN_CURRENT_SUBPROJECT
   get_property(current_subproject GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT)
