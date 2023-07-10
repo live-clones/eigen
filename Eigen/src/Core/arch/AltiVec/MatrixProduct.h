@@ -15,8 +15,6 @@
 #define EIGEN_ALTIVEC_USE_CUSTOM_PACK    1
 #endif
 
-#include "MatrixProductCommon.h"
-
 #if !defined(EIGEN_ALTIVEC_DISABLE_MMA)
 #define EIGEN_ALTIVEC_DISABLE_MMA 0
 #endif
@@ -44,6 +42,8 @@
 #endif
 
 #endif // EIGEN_ALTIVEC_MMA_SUPPORT
+
+#include "MatrixProductCommon.h"
 
 #if defined(EIGEN_ALTIVEC_MMA_ONLY) || defined(EIGEN_ALTIVEC_MMA_DYNAMIC_DISPATCH)
   #include "MatrixProductMMA.h"
