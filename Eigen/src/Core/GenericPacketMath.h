@@ -725,12 +725,12 @@ pload(const typename unpacket_traits<Packet>::type* from) { return *from; }
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pload_partial_generic(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset)
 {
-  EIGEN_USING_STD(copy_n);
+  EIGEN_USING_STD(memcpy);
   EIGEN_DEBUG_GENERIC_MASKED_LOAD
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
-  alignas(alignof(Packet)) Scalar elements[PacketSize] = {};
-  copy_n(from + offset, n, elements + offset);
+  alignas(alignof(Packet)) Scalar elements[PacketSize];
+  memcpy(elements + offset, from + offset, n * sizeof(Scalar));
   return pload<Packet>(elements);
 }
 
@@ -853,12 +853,12 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore(
 
 template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstore_partial_generic(Scalar* to, const Packet& from, const Index n, const Index offset)
 {
-  EIGEN_USING_STD(copy_n);
+  EIGEN_USING_STD(memcpy);
   EIGEN_DEBUG_GENERIC_MASKED_STORE
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   alignas(alignof(Packet)) Scalar elements[PacketSize];
   pstore<Scalar>(elements, from);
-  copy_n(elements + offset, n, to + offset);
+  memcpy(to + offset, elements + offset, n * sizeof(Scalar));
 }
 
 /** \internal copy the packet \a from to \a *to, (un-aligned store) */
