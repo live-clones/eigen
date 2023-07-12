@@ -74,7 +74,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   # let the user pass flags.
   if(${ARGC} GREATER 2)
-    target_compile_options(${targetname} PRIVATE ${ARGV2})
+	  target_compile_options(${targetname} PRIVATE "SHELL:${ARGV2}")
   endif()
 
   if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
