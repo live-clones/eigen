@@ -17,17 +17,17 @@ namespace Eigen {
 namespace internal {
 
 #ifndef EIGEN_VECTORIZE_AVX
-template<> struct type_casting_traits<float, bool> : public vectorized_type_casting_traits<float, bool> {};
-template<> struct type_casting_traits<bool, float> : public vectorized_type_casting_traits<bool, float> {};
+template<> struct type_casting_traits<float, bool> : vectorized_type_casting_traits<float, bool> {};
+template<> struct type_casting_traits<bool, float> : vectorized_type_casting_traits<bool, float> {};
 
-template<> struct type_casting_traits<float, int> : public vectorized_type_casting_traits<float, int> {};
-template<> struct type_casting_traits<int, float> : public vectorized_type_casting_traits<int, float> {};
+template<> struct type_casting_traits<float, int> : vectorized_type_casting_traits<float, int> {};
+template<> struct type_casting_traits<int, float> : vectorized_type_casting_traits<int, float> {};
 
-template<> struct type_casting_traits<float, double> : public vectorized_type_casting_traits<float, double> {};
-template<> struct type_casting_traits<double, float> : public vectorized_type_casting_traits<double, float> {};
+template<> struct type_casting_traits<float, double> : vectorized_type_casting_traits<float, double> {};
+template<> struct type_casting_traits<double, float> : vectorized_type_casting_traits<double, float> {};
 
-template<> struct type_casting_traits<double, int> : public vectorized_type_casting_traits<double, int> {};
-template<> struct type_casting_traits<int, double> : public vectorized_type_casting_traits<int, double> {};
+template<> struct type_casting_traits<double, int> : vectorized_type_casting_traits<double, int> {};
+template<> struct type_casting_traits<int, double> : vectorized_type_casting_traits<int, double> {};
 #endif
 
 template <>

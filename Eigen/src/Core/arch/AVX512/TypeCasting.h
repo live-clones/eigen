@@ -16,23 +16,23 @@ namespace Eigen {
 
 namespace internal {
 
-template<> struct type_casting_traits<float, bool> : public vectorized_type_casting_traits<float, bool> {};
-template<> struct type_casting_traits<bool, float> : public vectorized_type_casting_traits<bool, float> {};
+template<> struct type_casting_traits<float, bool> : vectorized_type_casting_traits<float, bool> {};
+template<> struct type_casting_traits<bool, float> : vectorized_type_casting_traits<bool, float> {};
 
-template<> struct type_casting_traits<float, int> : public vectorized_type_casting_traits<float, int> {};
-template<> struct type_casting_traits<int, float> : public vectorized_type_casting_traits<int, float> {};
+template<> struct type_casting_traits<float, int> : vectorized_type_casting_traits<float, int> {};
+template<> struct type_casting_traits<int, float> : vectorized_type_casting_traits<int, float> {};
 
-template<> struct type_casting_traits<float, double> : public vectorized_type_casting_traits<float, double> {};
-template<> struct type_casting_traits<double, float> : public vectorized_type_casting_traits<double, float> {};
+template<> struct type_casting_traits<float, double> : vectorized_type_casting_traits<float, double> {};
+template<> struct type_casting_traits<double, float> : vectorized_type_casting_traits<double, float> {};
 
-template<> struct type_casting_traits<double, int> : public vectorized_type_casting_traits<double, int> {};
-template<> struct type_casting_traits<int, double> : public vectorized_type_casting_traits<int, double> {};
+template<> struct type_casting_traits<double, int> : vectorized_type_casting_traits<double, int> {};
+template<> struct type_casting_traits<int, double> : vectorized_type_casting_traits<int, double> {};
 
-template<> struct type_casting_traits<half, float> : public vectorized_type_casting_traits<half, float> {};
-template<> struct type_casting_traits<float, half> : public vectorized_type_casting_traits<float, half> {};
+template<> struct type_casting_traits<half, float> : vectorized_type_casting_traits<half, float> {};
+template<> struct type_casting_traits<float, half> : vectorized_type_casting_traits<float, half> {};
 
-template<> struct type_casting_traits<bfloat16, float> : public vectorized_type_casting_traits<bfloat16, float> {};
-template<> struct type_casting_traits<float, bfloat16> : public vectorized_type_casting_traits<float, bfloat16> {};
+template<> struct type_casting_traits<bfloat16, float> : vectorized_type_casting_traits<bfloat16, float> {};
+template<> struct type_casting_traits<float, bfloat16> : vectorized_type_casting_traits<float, bfloat16> {};
 
 template<> EIGEN_STRONG_INLINE Packet16b pcast<Packet16f, Packet16b>(const Packet16f& a) {
   __mmask16 mask = _mm512_cmpneq_ps_mask(a, pzero(a));
