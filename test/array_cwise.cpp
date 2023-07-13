@@ -1249,17 +1249,19 @@ struct cast_test_impl {
     const Index testSize = testRows * testCols;
     const Index minTestSize = 100;
     const Index repeats = numext::div_ceil(minTestSize, testSize);
+
     SrcArray src(testRows, testCols);
     DstArray dst(testRows, testCols);
 
     using DstBytesType = Array<uint8_t, sizeof(DstType), 1>;
-    DstBytesType dstBytes, refBytes;
+    DstBytesType dstBytes = DstBytesType::Zero();
+    DstBytesType refBytes = DstBytesType::Zero();
 
     for (Index repeat = 0; repeat < repeats; repeat++) {
       src = src.unaryExpr(RandomOp());
       dst = src.template cast<DstType>();
-      for (Index i = 0; i < testRows; i++)
-        for (Index j = 0; j < testCols; j++) {
+      for (Index j = 0; j < testCols; j++)
+        for (Index i = 0; i < testRows; i++) {
           SrcType srcVal = src(i, j);
           DstType dstVal = dst(i, j);
           DstType refVal = internal::cast_impl<SrcType, DstType>::run(srcVal);
