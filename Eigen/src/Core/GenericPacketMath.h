@@ -206,6 +206,16 @@ struct type_casting_traits {
   };
 };
 
+// provides a succint template to define vectorized casting traits with respect to the largest accessible packet types
+template <typename Src, typename Tgt>
+struct vectorized_type_casting_traits {
+  static constexpr int DefaultSrcPacketSize = packet_traits<Src>::size;
+  static constexpr int DefaultTgtPacketSize = packet_traits<Tgt>::size;
+
+  static constexpr bool VectorizedCast = true;
+  static constexpr int SrcCoeffRatio = plain_enum_max(DefaultTgtPacketSize / DefaultSrcPacketSize,1);
+  static constexpr int TgtCoeffRatio = plain_enum_max(DefaultSrcPacketSize / DefaultTgtPacketSize,1);
+};
 
 /** \internal Wrapper to ensure that multiple packet types can map to the same
     same underlying vector type. */
