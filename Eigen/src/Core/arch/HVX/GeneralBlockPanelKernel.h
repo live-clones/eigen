@@ -17,7 +17,7 @@ class gebp_traits<float, float, ConjLhs_, ConjRhs_, Architecture::Target,
 
   template <typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const Packet32f& a, const Packet32f& b,
-                                Packet32qf& c, Packet32f& tmp,
+                                Packet32qf& c, Packet32f& /*tmp*/,
                                 const LaneIdType&) const {
     c = pmadd(a, b, c);
   }
