@@ -1251,6 +1251,10 @@ struct cast_test_impl {
     const Index repeats = numext::div_ceil(minTestSize, testSize);
     SrcArray src(testRows, testCols);
     DstArray dst(testRows, testCols);
+
+    using DstBytesType = Array<uint8_t, sizeof(DstType), 1>;
+    DstBytesType dstBytes, refBytes;
+
     for (Index repeat = 0; repeat < repeats; repeat++) {
       src = src.unaryExpr(RandomOp());
       dst = src.template cast<DstType>();
@@ -1258,13 +1262,14 @@ struct cast_test_impl {
         for (Index j = 0; j < testCols; j++) {
           SrcType srcVal = src(i, j);
           DstType dstVal = dst(i, j);
-          DstType ref = internal::cast_impl<SrcType, DstType>::run(srcVal);
-          bool all_nan = ((numext::isnan)(srcVal) && (numext::isnan)(ref) && (numext::isnan)(dstVal));
-          bool is_equal = ref == dstVal;
-          bool pass = all_nan || is_equal;
+          DstType refVal = internal::cast_impl<SrcType, DstType>::run(srcVal);
+          EIGEN_USING_STD(memcpy);
+          memcpy(dstBytes.data(), &dstVal, sizeof(DstType));
+          memcpy(refBytes.data(), &refVal, sizeof(DstType));
+          bool pass = verifyIsCwiseApprox(dstBytes, refBytes, true);
           if (!pass) {
             std::cout << printTypeInfo(srcVal) << ": [" << +srcVal << "] to " << printTypeInfo(dstVal) << ": ["
-                      << +dstVal << "] != [" << +ref << "]\n";
+                      << +dstVal << "] != [" << +refVal << "]\n";
           }
           VERIFY(pass);
         }
