@@ -72,8 +72,6 @@ template<typename VectorType, int Size> class VectorBlock
 
     using Base::operator=;
 
-    VectorBlock(const VectorBlock&) = default;
-
     /** Dynamic-size constructor
       */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
