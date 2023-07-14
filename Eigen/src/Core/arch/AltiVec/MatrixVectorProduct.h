@@ -718,29 +718,29 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16VSX(float *result, Index ro
   convertPointerF32toBF16VSX<1,inc>(i, result, rows, dst, resInc);
 }
 
-template<typename RhsMapper, typename LhsMapper, typename = void>
-struct UseStride : std::false_type {
-  static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha, float *result)
-  {
-    auto rhs2 = rhs.getSubMapper(j2, 0);
-    calcVSXVecColLoops<LhsMapper, decltype(rhs2), true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
-  }
+template<typename RhsMapper, typename = void>
+struct UseStride : std::false_type {};
+
+template<typename RhsMapper>
+struct UseStride<RhsMapper, std::enable_if_t<std::is_member_function_pointer<
+                           decltype(&RhsMapper::stride)>::value>> : std::true_type {};
+
+template<typename RhsMapper, bool UseStrideFunction = UseStride<RhsMapper>::value>
+struct get_stride_impl
+{
+    // has stride function
+    static Index run(const RhsMapper& rhs) { return rhs.stride(); }
 };
 
-template<typename RhsMapper, typename LhsMapper>
-struct UseStride<RhsMapper, LhsMapper, std::enable_if_t<std::is_member_function_pointer<
-                           decltype(&RhsMapper::stride)>::value>> : std::true_type {
-  static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha, float *result)
-  {
-    if (rhs.stride() == 1) {
-      auto rhs2 = rhs.getLinearMapper(j2, 0);
-      calcVSXVecColLoops<LhsMapper, decltype(rhs2), true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
-    } else {
-      auto rhs2 = rhs.getSubMapper(j2, 0);
-      calcVSXVecColLoops<LhsMapper, decltype(rhs2), false>(jend - j2, rows, lhs, rhs2, pAlpha, result);
-    }
-  }
+template<typename RhsMapper>
+struct get_stride_impl<RhsMapper, false>
+{
+    // no stride function
+    static Index run(const RhsMapper&) { return 1; }
 };
+
+template<typename RhsMapper>
+Index getStride(const RhsMapper& rhs) { return get_stride_impl<RhsMapper>::run(rhs); }
 
 template<typename LhsMapper, typename RhsMapper>
 void gemv_bfloat16_col(
@@ -774,16 +774,13 @@ void gemv_bfloat16_col(
     Index jend = numext::mini(j2 + block_cols, cols);
 
     auto lhs2 = lhs.getSubMapper(0, j2);
-#if 1
-    UseStride<RhsMapper, decltype(lhs2)>::run(j2, jend, rows, lhs2, rhs2, pAlpha, result);
-#else
-    auto rhs3 = rhs2.getSubMapper(j2, 0);
-    if (rhs.stride() == 1) {
+    if (getStride(rhs) == 1) {
+      auto rhs3 = rhs2.getLinearMapper(j2, 0);
       calcVSXVecColLoops<decltype(lhs2), decltype(rhs3), true>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
     } else {
+      auto rhs3 = rhs2.getSubMapper(j2, 0);
       calcVSXVecColLoops<decltype(lhs2), decltype(rhs3), false>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
     }
-#endif
   }
 
   convertArrayPointerF32toBF16VSX(result, rows, res);
