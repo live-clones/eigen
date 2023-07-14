@@ -120,14 +120,18 @@ struct triangular_solver_unroller<Lhs,Rhs,Mode,LoopIndex,Size,false> {
     DiagIndex  = IsLower ? LoopIndex : Size - LoopIndex - 1,
     StartIndex = IsLower ? 0         : DiagIndex+1
   };
+  template <bool DoDiag = !(Mode & UnitDiag), std::enable_if_t<DoDiag, bool> = true>
+  static EIGEN_DEVICE_FUNC void handleDiag(const Lhs& lhs, Rhs& rhs) { rhs.coeffRef(DiagIndex) /= lhs.coeff(DiagIndex, DiagIndex); }
+  template <bool DoDiag = !(Mode & UnitDiag), std::enable_if_t<!DoDiag, bool> = true>
+  static EIGEN_DEVICE_FUNC void handleDiag(const Lhs& lhs, Rhs& rhs) {}
+
   static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, Rhs& rhs)
   {
     if (LoopIndex>0)
       rhs.coeffRef(DiagIndex) -= lhs.row(DiagIndex).template segment<LoopIndex>(StartIndex).transpose()
                                 .cwiseProduct(rhs.template segment<LoopIndex>(StartIndex)).sum();
 
-    if(!(Mode & UnitDiag))
-      rhs.coeffRef(DiagIndex) /= lhs.coeff(DiagIndex,DiagIndex);
+    handleDiag(lhs, rhs);
 
     triangular_solver_unroller<Lhs,Rhs,Mode,LoopIndex+1,Size>::run(lhs,rhs);
   }
