@@ -123,7 +123,7 @@ struct triangular_solver_unroller<Lhs,Rhs,Mode,LoopIndex,Size,false> {
   template <bool DoDiag = !(Mode & UnitDiag), std::enable_if_t<DoDiag, bool> = true>
   static EIGEN_DEVICE_FUNC void handleDiag(const Lhs& lhs, Rhs& rhs) { rhs.coeffRef(DiagIndex) /= lhs.coeff(DiagIndex, DiagIndex); }
   template <bool DoDiag = !(Mode & UnitDiag), std::enable_if_t<!DoDiag, bool> = true>
-  static EIGEN_DEVICE_FUNC void handleDiag(const Lhs&, Rhs&) {}
+  static EIGEN_DEVICE_FUNC void handleDiag(const Lhs& lhs, Rhs& rhs) {}
 
   static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, Rhs& rhs)
   {
