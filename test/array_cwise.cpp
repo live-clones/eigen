@@ -139,27 +139,27 @@ template <typename Scalar, typename Fn, typename RefFn>
 void unary_op_test(std::string name, Fn fun, RefFn ref) {
   const Scalar tol = test_precision<Scalar>();
   auto values = special_values<Scalar>();
-  Map<Array<Scalar, Dynamic, 1>> x(values.data(), values.size());
+  Map<Array<Scalar, Dynamic, 1>> valuesMap(values.data(), values.size());
 
-  Array<Scalar, Dynamic, Dynamic> actual = fun(x);
+  Array<Scalar, Dynamic, Dynamic> actual = fun(valuesMap);
   bool all_pass = true;
-  for (Index i = 0; i < x.size(); ++i) {
-    Scalar e = static_cast<Scalar>(ref(x(i)));
+  for (Index i = 0; i < valuesMap.size(); ++i) {
+    Scalar e = static_cast<Scalar>(ref(valuesMap(i)));
     Scalar a = actual(i);
     bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
                    ((numext::isnan)(a) && (numext::isnan)(e));
     if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
     all_pass &= success;
     if (!success) {
-      std::cout << name << "(" << x(i) << ") = " << a << " !=  " << e << std::endl;
+      std::cout << name << "(" << valuesMap(i) << ") = " << a << " !=  " << e << std::endl;
     }
   }
   VERIFY(all_pass);
 }
 
 #define UNARY_FUNCTOR_TEST_ARGS(fun) #fun, \
-      [](const auto& x) { return (Eigen::fun)(x); },    \
-      [](const auto& x) { return (std::fun)(x); }
+      [](const auto& x_) { return (Eigen::fun)(x_); },    \
+      [](const auto& y_) { return (std::fun)(y_); }
 
 template <typename Scalar>
 void unary_ops_test() {
