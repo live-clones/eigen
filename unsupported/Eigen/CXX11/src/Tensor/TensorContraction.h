@@ -92,7 +92,7 @@ struct TensorContractionBlockMemAllocator {
     BlockSizes sz = ComputeLhsRhsBlockSizes(bm, bk, bn);
     char* block_mem = static_cast<char*>(d.allocate(sz.lhs_size + sz.rhs_size));
     *lhs_block = static_cast<LhsScalar*>(static_cast<void*>(block_mem));
-    *rhs_block = reinterpret_cast<RhsScalar*>(static_cast<void*>(block_mem + sz.lhs_size));
+    *rhs_block = static_cast<RhsScalar*>(static_cast<void*>(block_mem + sz.lhs_size));
     return block_mem;
   }
 
