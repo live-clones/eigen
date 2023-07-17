@@ -87,21 +87,21 @@ void special_value_pairs(Array<Scalar, Dynamic, Dynamic>& x,
 template <typename Scalar, typename Fn, typename RefFn>
 void binary_op_test(std::string name, Fn fun, RefFn ref) {
   const Scalar tol = test_precision<Scalar>();
-  Array<Scalar, Dynamic, Dynamic> x;
-  Array<Scalar, Dynamic, Dynamic> y;
-  special_value_pairs(x, y);
+  Array<Scalar, Dynamic, Dynamic> lhs;
+  Array<Scalar, Dynamic, Dynamic> rhs;
+  special_value_pairs(lhs, rhs);
 
-  Array<Scalar, Dynamic, Dynamic> actual = fun(x, y);
+  Array<Scalar, Dynamic, Dynamic> actual = fun(lhs, rhs);
   bool all_pass = true;
-  for (Index i = 0; i < x.rows(); ++i) {
-    for (Index j = 0; j < x.cols(); ++j) {
-      Scalar e = static_cast<Scalar>(ref(x(i,j), y(i,j)));
+  for (Index i = 0; i < lhs.rows(); ++i) {
+    for (Index j = 0; j < lhs.cols(); ++j) {
+      Scalar e = static_cast<Scalar>(ref(lhs(i,j), rhs(i,j)));
       Scalar a = actual(i, j);
       bool success = (a==e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) || ((numext::isnan)(a) && (numext::isnan)(e));
       if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
       all_pass &= success;
       if (!success) {
-        std::cout << name << "(" << x(i,j) << "," << y(i,j) << ") = " << a << " !=  " << e << std::endl;
+        std::cout << name << "(" << lhs(i,j) << "," << rhs(i,j) << ") = " << a << " !=  " << e << std::endl;
       }
     }
   }
