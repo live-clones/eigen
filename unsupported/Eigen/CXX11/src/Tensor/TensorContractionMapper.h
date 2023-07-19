@@ -343,7 +343,7 @@ class BaseTensorContractionMapper : public SimpleTensorContractionMapper<Scalar,
     return pload<PacketT>(data);
   }
 
-  template <typename PacketT,int AlignmentType>
+  template <typename PacketT,int AlignmentType = Unaligned>
   EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE PacketT loadPacket(Index i, Index j) const {
     return this->load<PacketT,AlignmentType>(i,j);
@@ -443,6 +443,14 @@ class TensorContractionSubMapper {
     return m_base_mapper.template loadPacket<PacketT,Alignment>(i + m_vert_offset, j + m_horiz_offset);
   }
 
+  template <typename PacketT>
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacketPartial(Index i, Index j, Index, Index = 0) const {
+    if (UseDirectOffsets) {
+      return m_base_mapper.template loadPacket<PacketT,Alignment>(i, j);
+    }
+    return m_base_mapper.template loadPacket<PacketT,Alignment>(i + m_vert_offset, j + m_horiz_offset);
+  }
+
   template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i, Index j) const {
     if (UseDirectOffsets) {
@@ -472,6 +480,8 @@ class TensorContractionSubMapper {
     }
     return SubMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
   }
+
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Index stride() const { return m_base_mapper.stride(); }
 
   template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT load(Index i) const {
