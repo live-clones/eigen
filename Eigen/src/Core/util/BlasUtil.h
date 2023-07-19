@@ -210,7 +210,6 @@ public:
 
   EIGEN_DEVICE_FUNC
   EIGEN_ALWAYS_INLINE Scalar& operator()(Index i, Index j) const {
-    eigen_assert((StorageOrder == RowMajor ? i : j) <= (NumTraits<size_t>::highest() / m_stride) && "Integer overflow");
     return m_data[StorageOrder==RowMajor ? j + i*m_stride : i + j*m_stride];
   }
 
