@@ -398,7 +398,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
     ResScalar cc5 = predux(c5);
     ResScalar cc6 = predux(c6);
     ResScalar cc7 = predux(c7);
-    for(; j<cols; ++j)
+    for (Index j = fullColBlockEnd; j < cols; ++j)
     {
       RhsScalar b0 = rhs(j,0);
 
