@@ -2713,12 +2713,10 @@ EIGEN_ALWAYS_INLINE bool supportsMMA()
 {
 #if defined(EIGEN_ALTIVEC_MMA_ONLY)
   return true;
-#else
-#if defined(EIGEN_ALTIVEC_MMA_DYNAMIC_DISPATCH) && __has_builtin(__builtin_cpu_supports)
+#elif defined(EIGEN_ALTIVEC_MMA_DYNAMIC_DISPATCH) && defined(__BUILTIN_CPU_SUPPORTS__)
   return __builtin_cpu_supports ("arch_3_1") && __builtin_cpu_supports ("mma");
 #else
-  return false;  // No dynamic dispatch for LLVM
-#endif
+  return false;  // No dynamic dispatch for LLVM or older GCC
 #endif
 }
 
