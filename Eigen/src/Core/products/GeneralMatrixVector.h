@@ -362,8 +362,8 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
   };
 
   const Index fullColBlockEnd = LhsPacketSize * (cols / LhsPacketSize);
-  const Index halfColBlockEnd = LhsPacketSizeHalf * ((cols - fullColBlockEnd) / LhsPacketSizeHalf);
-  const Index quarterColBlockEnd = LhsPacketSizeQuarter * ((cols - halfColBlockEnd) / LhsPacketSizeQuarter);
+  const Index halfColBlockEnd = LhsPacketSizeHalf * (cols / LhsPacketSizeHalf);
+  const Index quarterColBlockEnd = LhsPacketSizeQuarter * (cols / LhsPacketSizeQuarter);
 
   Index i=0;
   for(; i<n8; i+=8)
@@ -398,6 +398,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
     ResScalar cc5 = predux(c5);
     ResScalar cc6 = predux(c6);
     ResScalar cc7 = predux(c7);
+
     for (Index j = fullColBlockEnd; j < cols; ++j)
     {
       RhsScalar b0 = rhs(j,0);
