@@ -271,7 +271,6 @@ private:
   using Base::m_computationOptions;
   using Base::m_computeThinU;
   using Base::m_computeThinV;
-  using Base::m_diagSize;
   using Base::m_info;
   using Base::m_isInitialized;
   using Base::m_matrixU;
@@ -292,7 +291,7 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
   if (cols < m_algoswap)
     internal::allocate_small_svd<MatrixType, ComputationOptions>::run(smallSvd, rows, cols, computationOptions);
 
-  m_computed = MatrixXr::Zero(m_diagSize.value() + 1, m_diagSize.value() );
+  m_computed = MatrixXr::Zero(diagSize() + 1, diagSize() );
   m_compU = computeV();
   m_compV = computeU();
   m_isTranspose = (cols > rows);
@@ -308,20 +307,20 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
   m_useQrDecomp = !disableQrDecomp && ((rows / kMinAspectRatio > cols) || (cols / kMinAspectRatio > rows));
   if (m_useQrDecomp) {
     qrDecomp = HouseholderQR<MatrixX>((std::max)(rows, cols), (std::min)(rows, cols));
-    reducedTriangle = MatrixX(m_diagSize.value(), m_diagSize.value());
+    reducedTriangle = MatrixX(diagSize(), diagSize());
   }
 
   copyWorkspace = MatrixX(m_isTranspose ? cols : rows, m_isTranspose ? rows : cols);
-  bid = internal::UpperBidiagonalization<MatrixX>(m_useQrDecomp ? m_diagSize.value() : copyWorkspace.rows(),
-                                                  m_useQrDecomp ? m_diagSize.value() : copyWorkspace.cols());
+  bid = internal::UpperBidiagonalization<MatrixX>(m_useQrDecomp ? diagSize() : copyWorkspace.rows(),
+                                                  m_useQrDecomp ? diagSize() : copyWorkspace.cols());
 
-  if (m_compU) m_naiveU = MatrixXr::Zero(m_diagSize.value() + 1, m_diagSize.value() + 1 );
-  else         m_naiveU = MatrixXr::Zero(2, m_diagSize.value() + 1 );
+  if (m_compU) m_naiveU = MatrixXr::Zero(diagSize() + 1, diagSize() + 1 );
+  else         m_naiveU = MatrixXr::Zero(2, diagSize() + 1 );
 
-  if (m_compV) m_naiveV = MatrixXr::Zero(m_diagSize.value(), m_diagSize.value());
+  if (m_compV) m_naiveV = MatrixXr::Zero(diagSize(), diagSize());
 
-  m_workspace.resize((m_diagSize.value()+1)*(m_diagSize.value()+1)*3);
-  m_workspaceI.resize(3*m_diagSize.value());
+  m_workspace.resize((diagSize()+1)*(diagSize()+1)*3);
+  m_workspaceI.resize(3*diagSize());
 }  // end allocate
 
 template <typename MatrixType, int Options>
@@ -370,7 +369,7 @@ BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(const Mat
   // bidiagonalize the input matrix directly.
   if (m_useQrDecomp) {
     qrDecomp.compute(copyWorkspace);
-    reducedTriangle = qrDecomp.matrixQR().topRows(m_diagSize.value());
+    reducedTriangle = qrDecomp.matrixQR().topRows(diagSize());
     reducedTriangle.template triangularView<StrictlyLower>().setZero();
     bid.compute(reducedTriangle);
   } else {
@@ -381,26 +380,26 @@ BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(const Mat
   m_naiveU.setZero();
   m_naiveV.setZero();
   // FIXME this line involves a temporary matrix
-  m_computed.topRows(m_diagSize.value()) = bid.bidiagonal().toDenseMatrix().transpose();
+  m_computed.topRows(diagSize()) = bid.bidiagonal().toDenseMatrix().transpose();
   m_computed.template bottomRows<1>().setZero();
-  divide(0, m_diagSize.value() - 1, 0, 0, 0);
+  divide(0, diagSize() - 1, 0, 0, 0);
   if (m_info != Success && m_info != NoConvergence) {
     m_isInitialized = true;
     return *this;
   }
 
   //**** step 3 - Copy singular values and vectors
-  for (int i=0; i<m_diagSize.value(); i++)
+  for (int i=0; i<diagSize(); i++)
   {
     RealScalar a = abs(m_computed.coeff(i, i));
     m_singularValues.coeffRef(i) = a * scale;
     if (a<considerZero)
     {
       m_nonzeroSingularValues = i;
-      m_singularValues.tail(m_diagSize.value() - i - 1).setZero();
+      m_singularValues.tail(diagSize() - i - 1).setZero();
       break;
     }
-    else if (i == m_diagSize.value() - 1)
+    else if (i == diagSize() - 1)
     {
       m_nonzeroSingularValues = i + 1;
       break;
