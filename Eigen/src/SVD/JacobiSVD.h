@@ -682,7 +682,7 @@ void JacobiSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned i
   m_workMatrix.resize(m_diagSize.value(), m_diagSize.value());
   if(m_cols.value()>m_rows.value())   m_qr_precond_morecols.allocate(*this);
   if(m_rows.value()>m_cols.value())   m_qr_precond_morerows.allocate(*this);
-  if(m_rows.value()!=m_cols.value())  m_scaledMatrix.resize(rows,cols);
+  if(m_rows.value()!=m_cols.value())  m_scaledMatrix.resize(m_rows.value(),m_cols.value());
 }
 
 template <typename MatrixType, int Options>
@@ -711,7 +711,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
-  if(m_rows.value()!=m_cols.value())
+  if(rows()!=m_cols.value())
   {
     m_scaledMatrix = matrix / scale;
     m_qr_precond_morecols.run(*this, m_scaledMatrix);
@@ -720,8 +720,8 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   else
   {
     m_workMatrix = matrix.block(0,0,m_diagSize.value(),m_diagSize.value()) / scale;
-    if(m_computeFullU) m_matrixU.setIdentity(m_rows.value(),m_rows.value());
-    if(m_computeThinU) m_matrixU.setIdentity(m_rows.value(),m_diagSize.value());
+    if(m_computeFullU) m_matrixU.setIdentity(rows(), rows());
+    if(m_computeThinU) m_matrixU.setIdentity(rows(),m_diagSize.value());
     if(m_computeFullV) m_matrixV.setIdentity(m_cols.value(),m_cols.value());
     if(m_computeThinV) m_matrixV.setIdentity(m_cols.value(), m_diagSize.value());
   }
