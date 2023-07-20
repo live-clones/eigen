@@ -436,7 +436,7 @@ bool SVDBase<Derived>::allocate(Index rows, Index cols, unsigned int computation
   eigen_assert(!(m_computeFullU && m_computeThinU) && "SVDBase: you can't ask for both full and thin U");
   eigen_assert(!(m_computeFullV && m_computeThinV) && "SVDBase: you can't ask for both full and thin V");
 
-  m_diagSize.setValue(numext::mini(m_rows, m_cols));
+  m_diagSize.setValue(numext::mini(m_rows.value(), m_cols.value()));
   m_singularValues.resize(m_diagSize);
   if(RowsAtCompileTime==Dynamic)
     m_matrixU.resize(m_rows, m_computeFullU ? m_rows : m_computeThinU ? m_diagSize : 0);
