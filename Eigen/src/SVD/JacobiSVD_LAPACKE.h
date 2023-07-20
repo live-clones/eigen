@@ -64,15 +64,15 @@ JacobiSVD<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, OPTION
     u    = (LAPACKE_TYPE*)m_matrixU.data(); \
   } else { ldu=1; u=&dummy; }\
   MatrixType localV; \
-  lapack_int vt_rows = (m_computeFullV) ? internal::convert_index<lapack_int>(m_cols) : (m_computeThinV) ? internal::convert_index<lapack_int>(diagSize()) : 1; \
+  lapack_int vt_rows = (m_computeFullV) ? internal::convert_index<lapack_int>(cols()) : (m_computeThinV) ? internal::convert_index<lapack_int>(diagSize()) : 1; \
   if (computeV()) { \
-    localV.resize(vt_rows, m_cols); \
+    localV.resize(vt_rows, cols()); \
     ldvt  = internal::convert_index<lapack_int>(localV.outerStride()); \
     vt   = (LAPACKE_TYPE*)localV.data(); \
   } else { ldvt=1; vt=&dummy; }\
   Matrix<LAPACKE_RTYPE, Dynamic, Dynamic> superb; superb.resize(diagSize(), 1); \
   MatrixType m_temp; m_temp = matrix; \
-  lapack_int info = LAPACKE_##LAPACKE_PREFIX##gesvd( matrix_order, jobu, jobvt, internal::convert_index<lapack_int>(m_rows), internal::convert_index<lapack_int>(m_cols), (LAPACKE_TYPE*)m_temp.data(), lda, (LAPACKE_RTYPE*)m_singularValues.data(), u, ldu, vt, ldvt, superb.data()); \
+  lapack_int info = LAPACKE_##LAPACKE_PREFIX##gesvd( matrix_order, jobu, jobvt, internal::convert_index<lapack_int>(rows()), internal::convert_index<lapack_int>(cols()), (LAPACKE_TYPE*)m_temp.data(), lda, (LAPACKE_RTYPE*)m_singularValues.data(), u, ldu, vt, ldvt, superb.data()); \
   /* Check the result of the LAPACK call */ \
   if (info < 0 || !m_singularValues.allFinite()) { \
     m_info = InvalidInput; \
