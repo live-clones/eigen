@@ -711,7 +711,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
-  if(rows()!=m_cols.value())
+  if(rows()!=cols())
   {
     m_scaledMatrix = matrix / scale;
     m_qr_precond_morecols.run(*this, m_scaledMatrix);
@@ -719,11 +719,11 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   }
   else
   {
-    m_workMatrix = matrix.block(0,0,m_diagSize.value(),m_diagSize.value()) / scale;
-    if(m_computeFullU) m_matrixU.setIdentity(rows(), rows());
-    if(m_computeThinU) m_matrixU.setIdentity(rows(),m_diagSize.value());
-    if(m_computeFullV) m_matrixV.setIdentity(m_cols.value(),m_cols.value());
-    if(m_computeThinV) m_matrixV.setIdentity(m_cols.value(), m_diagSize.value());
+    m_workMatrix = matrix.topLeftCorner<DiagSizeAtCompileTime,DiagSizeAtCompileTime>(diagSize(),diagSize()) / scale;
+    if(m_computeFullU) m_matrixU.setIdentity(rows(),rows());
+    if(m_computeThinU) m_matrixU.setIdentity(rows(),diagSize());
+    if(m_computeFullV) m_matrixV.setIdentity(cols(),cols());
+    if(m_computeThinV) m_matrixV.setIdentity(cols(),diagSize());
   }
 
   /*** step 2. The main Jacobi SVD iteration. ***/
@@ -736,7 +736,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
     // do a sweep: for all index pairs (p,q), perform SVD of the corresponding 2x2 sub-matrix
 
-    for(Index p = 1; p < m_diagSize.value(); ++p)
+    for(Index p = 1; p < diagSize(); ++p)
     {
       for(Index q = 0; q < p; ++q)
       {
@@ -771,7 +771,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
   /*** step 3. The work matrix is now diagonal, so ensure it's positive so its diagonal entries are the singular values ***/
 
-  for(Index i = 0; i < m_diagSize.value(); ++i)
+  for(Index i = 0; i < diagSize(); ++i)
   {
     // For a complex matrix, some diagonal coefficients might note have been
     // treated by svd_precondition_2x2_block_to_be_real, and the imaginary part
@@ -795,11 +795,11 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
   /*** step 4. Sort singular values in descending order and compute the number of nonzero singular values ***/
 
-  m_nonzeroSingularValues = m_diagSize.value();
-  for(Index i = 0; i < m_diagSize.value(); i++)
+  m_nonzeroSingularValues = diagSize();
+  for(Index i = 0; i < diagSize(); i++)
   {
     Index pos;
-    RealScalar maxRemainingSingularValue = m_singularValues.tail(m_diagSize.value()-i).maxCoeff(&pos);
+    RealScalar maxRemainingSingularValue = m_singularValues.tail(diagSize()-i).maxCoeff(&pos);
     if(numext::is_exactly_zero(maxRemainingSingularValue))
     {
       m_nonzeroSingularValues = i;
