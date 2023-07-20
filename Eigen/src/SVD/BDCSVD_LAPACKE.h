@@ -67,8 +67,8 @@ public:
     // prepare arguments to ?gesdd
     const lapack_int matrix_order = lapack_storage_of(matrix);
     const char jobz  = (SVD::m_computeFullU || SVD::m_computeFullV) ? 'A' : (SVD::m_computeThinU || SVD::m_computeThinV) ? 'S' : 'N';
-    const lapack_int u_cols = (jobz == 'A') ? to_lapack(rows()) : (jobz == 'S') ? to_lapack(diagSize()) : 1;
-    const lapack_int vt_rows = (jobz == 'A') ? to_lapack(cols()) : (jobz == 'S') ? to_lapack(diagSize()) : 1;
+    const lapack_int u_cols = (jobz == 'A') ? to_lapack(SVD::rows()) : (jobz == 'S') ? to_lapack(SVD::diagSize()) : 1;
+    const lapack_int vt_rows = (jobz == 'A') ? to_lapack(SVD::cols()) : (jobz == 'S') ? to_lapack(SVD::diagSize()) : 1;
     lapack_int ldu, ldvt;
     Scalar *u, *vt, dummy;
     MatrixType localU;
@@ -76,7 +76,7 @@ public:
       ldu  = to_lapack(SVD::m_matrixU.outerStride());
       u    = SVD::m_matrixU.data();
     } else if (SVD::computeV()) {
-      localU.resize(rows(), u_cols);
+      localU.resize(SVD::rows(), u_cols);
       ldu  = to_lapack(localU.outerStride());
       u    = localU.data();
     } else { ldu=1; u=&dummy; }
@@ -89,7 +89,7 @@ public:
     MatrixType temp; temp = matrix;
 
     // actual call to ?gesdd
-    lapack_int info = gesdd( matrix_order, jobz, to_lapack(rows()), to_lapack(cols()),
+    lapack_int info = gesdd( matrix_order, jobz, to_lapack(SVD::rows()), to_lapack(SVD::cols()),
                              to_lapack(temp.data()), to_lapack(temp.outerStride()), (RealScalar*)SVD::m_singularValues.data(),
                              to_lapack(u), ldu, to_lapack(vt), ldvt);
 
