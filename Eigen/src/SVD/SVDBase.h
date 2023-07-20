@@ -348,7 +348,11 @@ protected:
   bool m_computeFullU, m_computeThinU;
   bool m_computeFullV, m_computeThinV;
   unsigned int m_computationOptions;
-  Index m_nonzeroSingularValues, m_rows, m_cols, m_diagSize;
+  //Index m_nonzeroSingularValues, m_rows, m_cols, m_diagSize;
+  Index m_nonzeroSingularValues;
+  internal::variable_if_dynamic<Index, RowsAtCompileTime> m_rows;
+  internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols;
+  internal::variable_if_dynamic<Index, DiagSizeAtCompileTime> m_diagSize;
   RealScalar m_prescribedThreshold;
 
   /** \brief Default Constructor.
@@ -369,9 +373,9 @@ protected:
         m_computeThinV(false),
         m_computationOptions(0),
         m_nonzeroSingularValues(0),
-        m_rows(-1),
-        m_cols(-1),
-        m_diagSize(0),
+        m_rows(RowsAtCompileTime),
+        m_cols(ColsAtCompileTime),
+        m_diagSize(DiagSizeAtCompileTime),
         m_prescribedThreshold(0) {}
 };
 
@@ -418,8 +422,8 @@ bool SVDBase<Derived>::allocate(Index rows, Index cols, unsigned int computation
     return true;
   }
 
-  m_rows = rows;
-  m_cols = cols;
+  m_rows.setValue(rows);
+  m_cols.setValue(cols);
   m_info = Success;
   m_isInitialized = false;
   m_isAllocated = true;
@@ -432,7 +436,7 @@ bool SVDBase<Derived>::allocate(Index rows, Index cols, unsigned int computation
   eigen_assert(!(m_computeFullU && m_computeThinU) && "SVDBase: you can't ask for both full and thin U");
   eigen_assert(!(m_computeFullV && m_computeThinV) && "SVDBase: you can't ask for both full and thin V");
 
-  m_diagSize = (std::min)(m_rows, m_cols);
+  m_diagSize.setValue(numext::mini(m_rows, m_cols));
   m_singularValues.resize(m_diagSize);
   if(RowsAtCompileTime==Dynamic)
     m_matrixU.resize(m_rows, m_computeFullU ? m_rows : m_computeThinU ? m_diagSize : 0);
