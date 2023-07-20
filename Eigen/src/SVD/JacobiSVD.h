@@ -625,6 +625,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
   using Base::computeV;
   using Base::rows;
   using Base::cols;
+  using Base::diagSize;
   using Base::rank;
 
  private:
