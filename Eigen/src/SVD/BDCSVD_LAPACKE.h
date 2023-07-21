@@ -82,7 +82,7 @@ public:
     } else { ldu=1; u=&dummy; }
     MatrixType localV;
     if (SVD::computeU() || SVD::computeV()) {
-      localV.resize(vt_rows, cols());
+      localV.resize(vt_rows, SVD::cols());
       ldvt  = to_lapack(localV.outerStride());
       vt   = localV.data();
     } else { ldvt=1; vt=&dummy; }
