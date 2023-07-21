@@ -719,7 +719,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   }
   else
   {
-    m_workMatrix = matrix.topLeftCorner<DiagSizeAtCompileTime,DiagSizeAtCompileTime>(m_diagSize.value(),m_diagSize.value()) / scale;
+    m_workMatrix = matrix.template topLeftCorner<DiagSizeAtCompileTime,DiagSizeAtCompileTime>(m_diagSize.value(),m_diagSize.value()) / scale;
     if(m_computeFullU) m_matrixU.setIdentity(m_rows.value(),m_rows.value());
     if(m_computeThinU) m_matrixU.setIdentity(m_rows.value(),m_diagSize.value());
     if(m_computeFullV) m_matrixV.setIdentity(m_cols.value(),m_cols.value());
