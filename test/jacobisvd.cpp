@@ -35,7 +35,7 @@ void jacobisvd_method()
 }
 
 template <typename MatrixType>
-void jacobisvd_all_options_1(const MatrixType& input = MatrixType()) {
+void jacobisvd_thin_options(const MatrixType& input = MatrixType()) {
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
 
@@ -45,7 +45,7 @@ void jacobisvd_all_options_1(const MatrixType& input = MatrixType()) {
 }
 
 template <typename MatrixType>
-void jacobisvd_all_options_2(const MatrixType& input = MatrixType()) {
+void jacobisvd_full_options(const MatrixType& input = MatrixType()) {
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
 
@@ -124,8 +124,8 @@ EIGEN_DECLARE_TEST(jacobisvd)
   CALL_SUBTEST_8((jacobisvd_verify_assert<MatrixXf>(MatrixXf(10, 12))));
   CALL_SUBTEST_9((jacobisvd_verify_assert<MatrixXcd>(MatrixXcd(7, 5))));
 
-  CALL_SUBTEST_10(svd_all_trivial_2x2(jacobisvd_all_options_1<Matrix2cd>));
-  CALL_SUBTEST_11(svd_all_trivial_2x2(jacobisvd_all_options_1<Matrix2d>));
+  CALL_SUBTEST_10(svd_all_trivial_2x2(jacobisvd_thin_options<Matrix2cd>));
+  CALL_SUBTEST_11(svd_all_trivial_2x2(jacobisvd_thin_options<Matrix2d>));
 
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, 30),
@@ -134,30 +134,30 @@ EIGEN_DECLARE_TEST(jacobisvd)
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
     
-    CALL_SUBTEST_12((jacobisvd_all_options_1<Matrix3f>()));
-    CALL_SUBTEST_13((jacobisvd_all_options_2<Matrix3f>()));
-    CALL_SUBTEST_14((jacobisvd_all_options_1<Matrix4d>()));
-    CALL_SUBTEST_15((jacobisvd_all_options_2<Matrix4d>()));
-    CALL_SUBTEST_16((jacobisvd_all_options_1<Matrix<float, 2, 3>>()));
-    CALL_SUBTEST_17((jacobisvd_all_options_2<Matrix<float, 2, 3>>()));
-    CALL_SUBTEST_18((jacobisvd_all_options_1<Matrix<double, 4, 7>>()));
-    CALL_SUBTEST_19((jacobisvd_all_options_2<Matrix<double, 4, 7>>()));
-    CALL_SUBTEST_20((jacobisvd_all_options_1<Matrix<double, 7, 4>>()));
-    CALL_SUBTEST_21((jacobisvd_all_options_2<Matrix<double, 7, 4>>()));
-    CALL_SUBTEST_22((jacobisvd_all_options_1<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5))));
-    CALL_SUBTEST_23((jacobisvd_all_options_2<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5))));
-    CALL_SUBTEST_24((jacobisvd_all_options_1<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c))));
-    CALL_SUBTEST_25((jacobisvd_all_options_2<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c))));
-    CALL_SUBTEST_26((jacobisvd_all_options_1<MatrixXf>(MatrixXf(r, c))));
-    CALL_SUBTEST_27((jacobisvd_all_options_2<MatrixXf>(MatrixXf(r, c))));
-    CALL_SUBTEST_28((jacobisvd_all_options_1<MatrixXcd>(MatrixXcd(r, c))));
-    CALL_SUBTEST_29((jacobisvd_all_options_2<MatrixXcd>(MatrixXcd(r, c))));
-    CALL_SUBTEST_30((jacobisvd_all_options_1<MatrixXd>(MatrixXd(r, c))));
-    CALL_SUBTEST_31((jacobisvd_all_options_2<MatrixXd>(MatrixXd(r, c))));
-    CALL_SUBTEST_32((jacobisvd_all_options_1<Matrix<double, 5, 7, RowMajor>>()));
-    CALL_SUBTEST_33((jacobisvd_all_options_2<Matrix<double, 5, 7, RowMajor>>()));
-    CALL_SUBTEST_34((jacobisvd_all_options_1<Matrix<double, 7, 5, RowMajor>>()));
-    CALL_SUBTEST_35((jacobisvd_all_options_2<Matrix<double, 7, 5, RowMajor>>()));
+    CALL_SUBTEST_12((jacobisvd_thin_options<Matrix3f>()));
+    CALL_SUBTEST_13((jacobisvd_full_options<Matrix3f>()));
+    CALL_SUBTEST_14((jacobisvd_thin_options<Matrix4d>()));
+    CALL_SUBTEST_15((jacobisvd_full_options<Matrix4d>()));
+    CALL_SUBTEST_16((jacobisvd_thin_options<Matrix<float, 2, 3>>()));
+    CALL_SUBTEST_17((jacobisvd_full_options<Matrix<float, 2, 3>>()));
+    CALL_SUBTEST_18((jacobisvd_thin_options<Matrix<double, 4, 7>>()));
+    CALL_SUBTEST_19((jacobisvd_full_options<Matrix<double, 4, 7>>()));
+    CALL_SUBTEST_20((jacobisvd_thin_options<Matrix<double, 7, 4>>()));
+    CALL_SUBTEST_21((jacobisvd_full_options<Matrix<double, 7, 4>>()));
+    CALL_SUBTEST_22((jacobisvd_thin_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5))));
+    CALL_SUBTEST_23((jacobisvd_full_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5))));
+    CALL_SUBTEST_24((jacobisvd_thin_options<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c))));
+    CALL_SUBTEST_25((jacobisvd_full_options<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c))));
+    CALL_SUBTEST_26((jacobisvd_thin_options<MatrixXf>(MatrixXf(r, c))));
+    CALL_SUBTEST_27((jacobisvd_full_options<MatrixXf>(MatrixXf(r, c))));
+    CALL_SUBTEST_28((jacobisvd_thin_options<MatrixXcd>(MatrixXcd(r, c))));
+    CALL_SUBTEST_29((jacobisvd_full_options<MatrixXcd>(MatrixXcd(r, c))));
+    CALL_SUBTEST_30((jacobisvd_thin_options<MatrixXd>(MatrixXd(r, c))));
+    CALL_SUBTEST_31((jacobisvd_full_options<MatrixXd>(MatrixXd(r, c))));
+    CALL_SUBTEST_32((jacobisvd_thin_options<Matrix<double, 5, 7, RowMajor>>()));
+    CALL_SUBTEST_33((jacobisvd_full_options<Matrix<double, 5, 7, RowMajor>>()));
+    CALL_SUBTEST_34((jacobisvd_thin_options<Matrix<double, 7, 5, RowMajor>>()));
+    CALL_SUBTEST_35((jacobisvd_full_options<Matrix<double, 7, 5, RowMajor>>()));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     svd_fill_random(noQRTest);
@@ -187,16 +187,16 @@ EIGEN_DECLARE_TEST(jacobisvd)
     CALL_SUBTEST_46((jacobisvd_verify_assert<Matrix<double, 1, Dynamic>>(Matrix<double, 1, Dynamic>(c))));
   }
 
-  CALL_SUBTEST_47((jacobisvd_all_options_1<MatrixXd>(
+  CALL_SUBTEST_47((jacobisvd_thin_options<MatrixXd>(
       MatrixXd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2),
                internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
-  CALL_SUBTEST_48((jacobisvd_all_options_2<MatrixXd>(
+  CALL_SUBTEST_48((jacobisvd_full_options<MatrixXd>(
       MatrixXd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2),
                internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
-  CALL_SUBTEST_49((jacobisvd_all_options_1<MatrixXcd>(
+  CALL_SUBTEST_49((jacobisvd_thin_options<MatrixXcd>(
       MatrixXcd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3),
                 internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3)))));
-  CALL_SUBTEST_50((jacobisvd_all_options_2<MatrixXcd>(
+  CALL_SUBTEST_50((jacobisvd_full_options<MatrixXcd>(
       MatrixXcd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3),
                 internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3)))));
 
