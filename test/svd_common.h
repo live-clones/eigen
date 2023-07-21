@@ -546,12 +546,12 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
   VERIFY_RAISES_ASSERT(fullSvd.compute(dynamicMatrix));
 }
 
-#if EIGEN_COMP_GNUC
+//#if EIGEN_COMP_GNUC
 // by intent, svd_verify_constructor_options_assert attempts to access uninitialized data
 // temporarily disable -Wmaybe-uninitialized to suppress copious compiler warnings
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
+//#pragma GCC diagnostic push
+//#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+//#endif
 
 template <typename SvdType, typename MatrixType>
 void svd_verify_constructor_options_assert(const MatrixType& m) {
@@ -575,9 +575,9 @@ void svd_verify_constructor_options_assert(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(svd.adjoint().solve(rhs))
 }
 
-#if EIGEN_COMP_GNUC
-#pragma GCC diagnostic pop
-#endif
+//#if EIGEN_COMP_GNUC
+//#pragma GCC diagnostic pop
+//#endif
 
 #undef SVD_DEFAULT
 #undef SVD_FOR_MIN_NORM
