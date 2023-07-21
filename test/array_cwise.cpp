@@ -1241,8 +1241,6 @@ struct cast_test_impl {
   static constexpr int DstPacketSize = internal::packet_traits<DstType>::size;
   static constexpr int MaxPacketSize = internal::plain_enum_max(SrcPacketSize, DstPacketSize);
 
-
-
   static void run() {
     const Index testRows = RowsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : RowsAtCompileTime;
     const Index testCols = ColsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : ColsAtCompileTime;
@@ -1253,27 +1251,20 @@ struct cast_test_impl {
     SrcArray src(testRows, testCols);
     DstArray dst(testRows, testCols);
 
-    using DstBytesType = Array<uint8_t, sizeof(DstType), 1>;
-    DstBytesType dstBytes = DstBytesType::Zero();
-    DstBytesType refBytes = DstBytesType::Zero();
-
     for (Index repeat = 0; repeat < repeats; repeat++) {
       src = src.unaryExpr(RandomOp());
       dst = src.template cast<DstType>();
+
       for (Index j = 0; j < testCols; j++)
         for (Index i = 0; i < testRows; i++) {
           SrcType srcVal = src(i, j);
-          DstType dstVal = dst(i, j);
           DstType refVal = internal::cast_impl<SrcType, DstType>::run(srcVal);
-          EIGEN_USING_STD(memcpy);
-          memcpy(dstBytes.data(), &dstVal, sizeof(DstType));
-          memcpy(refBytes.data(), &refVal, sizeof(DstType));
-          bool pass = verifyIsCwiseApprox(dstBytes, refBytes, true);
-          if (!pass) {
+          DstType dstVal = dst(i, j);
+          bool isApprox = verifyIsApprox(dstVal, refVal);
+          if (!isApprox)
             std::cout << printTypeInfo(srcVal) << ": [" << +srcVal << "] to " << printTypeInfo(dstVal) << ": ["
                       << +dstVal << "] != [" << +refVal << "]\n";
-          }
-          VERIFY(pass);
+          VERIFY(isApprox);
         }
     }
   }
