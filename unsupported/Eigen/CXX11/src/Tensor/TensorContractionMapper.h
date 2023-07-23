@@ -343,7 +343,7 @@ class BaseTensorContractionMapper : public SimpleTensorContractionMapper<Scalar,
     return pload<PacketT>(data);
   }
 
-  template <typename PacketT,int AlignmentType = Unaligned>
+  template <typename PacketT,int AlignmentType>
   EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE PacketT loadPacket(Index i, Index j) const {
     return this->load<PacketT,AlignmentType>(i,j);
