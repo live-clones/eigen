@@ -398,6 +398,11 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(
   gemm_unrolled_MMA_iteration<N + (M ? 1 : 0), Scalar, Packet, RhsPacket, DataMapper, accRows, accCols, !M, accItr>(res30, res31, res32, res33, lhs_base, rhs_base, depth, strideA, strideB, offsetA, row, pAlpha, M ? remaining_rows : accCols); \
   if (M) return;
 
+#define MICRO_MMA_ROWS(n) \
+  while(row + n*accCols <= rows) { \
+    MICRO_MMA_UNROLL_ITER2(n, 0); \
+  }
+
 #define GEMM_SMALL_ROWS
 
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, const Index accItr>
@@ -434,17 +439,11 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
 #else
   if (accItr == 1) {
 #endif
-    while(row + MAX_MMA_UNROLL*accCols <= rows) {
-      MICRO_MMA_UNROLL_ITER2(MAX_MMA_UNROLL, 0);
-    }
+    MICRO_MMA_ROWS(MAX_MMA_UNROLL);
   } else if (accItr == 2) {
-    while(row + 4*accCols <= rows) {
-      MICRO_MMA_UNROLL_ITER2(4, 0);
-    }
+    MICRO_MMA_ROWS(4);
   } else {
-    while(row + 2*accCols <= rows) {
-      MICRO_MMA_UNROLL_ITER2(2, 0);
-    }
+    MICRO_MMA_ROWS(2);
   }
   switch( (rows-row)/accCols ) {
 #if MAX_MMA_UNROLL > 7
@@ -510,6 +509,12 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
   }
 }
 
+#define MICRO_MMA_COLS(n) \
+  for(; col + n*accRows <= cols; col += n*accRows) \
+  { \
+    gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, accRows, accCols, n>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask); \
+  }
+
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
@@ -529,19 +534,10 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
 
       Index col = 0;
 #ifdef GEMM_SMALL_ROWS
-      for(; col + 4*accRows <= cols; col += 4*accRows)
-      {
-        gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, accRows, accCols, 4>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask);
-      }
-      for(; col + 2*accRows <= cols; col += 2*accRows)
-      {
-        gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, accRows, accCols, 2>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask);
-      }
+      MICRO_MMA_COLS(4);
+      MICRO_MMA_COLS(2);
 #endif
-      for(; col + accRows <= cols; col += accRows)
-      {
-        gemmMMA_cols<Scalar, Packet, RhsPacket2, DataMapper, accRows, accCols, 1>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, remaining_rows, pAlpha, pMask);
-      }
+      MICRO_MMA_COLS(1);
 
       if (col != cols)
       {
