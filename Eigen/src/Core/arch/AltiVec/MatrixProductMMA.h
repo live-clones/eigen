@@ -469,7 +469,7 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
 #endif
 #if MAX_MMA_UNROLL > 4
     case 4:
-      if (accItr <= 2) {
+      if (accItr == 1) {
         MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 4)
       }
       break;
@@ -483,7 +483,9 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
 #endif
 #if MAX_MMA_UNROLL > 2
     case 2:
-      MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 2)
+      if (accItr <= 2) {
+        MICRO_UNROLL_ITER(MICRO_MMA_UNROLL_ITER2, 2)
+      }
       break;
 #endif
 #if MAX_MMA_UNROLL > 1
