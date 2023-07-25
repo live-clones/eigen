@@ -54,7 +54,7 @@ std::vector<Scalar> special_values() {
 
   std::vector<Scalar> result;
   result.push_back(zero);
-  #if defined(EIGEN_VECTORIZE_NEON) && !EIGEN_ARCH_ARM64
+  #if !defined(EIGEN_VECTORIZE_NEON) || EIGEN_ARCH_ARM64
   // ARM32 NEON flushes denorm to zero
   result.push_back(denorm_min);
   #endif
