@@ -829,7 +829,7 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   // avoid denormalized values so verification doesn't fail on platforms that don't support them
   // denormalized behavior is tested elsewhere (unary_op_test, binary_ops_test)
   const Scalar min = (std::numeric_limits<Scalar>::min)();
-  m3 = (m3 < min).select(Scalar(1), m3);
+  m3 = m3.cwiseMax(min);
 
   VERIFY_IS_APPROX(m3.sqrt(), sqrt(abs(m3)));
   VERIFY_IS_APPROX(m3.rsqrt(), Scalar(1)/sqrt(abs(m3)));
