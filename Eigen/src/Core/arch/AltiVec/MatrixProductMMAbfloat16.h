@@ -498,10 +498,10 @@ template<typename RhsMapper, typename LhsMapper, typename = void>
 struct UseMMAStride : std::false_type {
   static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha, float *result)
   {
-    using RhsLinearMapper = typename RhsMapper::LinearMapper;
+    using RhsSubMapper = typename RhsMapper::SubMapper;
 
-    RhsLinearMapper rhs2 = rhs.getLinearMapper(j2, 0);
-    calcVecColLoops<LhsMapper, RhsLinearMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
+    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
+    calcVecColLoops<LhsMapper, RhsSubMapper, false>(jend - j2, rows, lhs, rhs2, pAlpha, result);
   }
 };
 
@@ -510,15 +510,12 @@ struct UseMMAStride<RhsMapper, LhsMapper, std::enable_if_t<std::is_member_functi
                            decltype(&RhsMapper::stride)>::value>> : std::true_type {
   static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha, float *result)
   {
+    using RhsSubMapper = typename RhsMapper::SubMapper;
+
+    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
     if (rhs.stride() == 1) {
-      using RhsLinearMapper = typename RhsMapper::LinearMapper;
-
-      RhsLinearMapper rhs2 = rhs.getLinearMapper(j2, 0);
-      calcVecColLoops<LhsMapper, RhsLinearMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
+      calcVecColLoops<LhsMapper, RhsSubMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
     } else {
-      using RhsSubMapper = typename RhsMapper::SubMapper;
-
-      RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
       calcVecColLoops<LhsMapper, RhsSubMapper, false>(jend - j2, rows, lhs, rhs2, pAlpha, result);
     }
   }

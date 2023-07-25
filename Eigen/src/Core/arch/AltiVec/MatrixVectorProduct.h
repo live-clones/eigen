@@ -527,8 +527,13 @@ struct loadColData_impl
   // linear == false
   static EIGEN_ALWAYS_INLINE Packet8bf run(RhsMapper& rhs, Index j)
   {
-    const bfloat16 &src = rhs(j + 0, 0);
-    return pgather<bfloat16, Packet8bf>(const_cast<bfloat16*>(&src), rhs.stride());
+    const Index n = unpacket_traits<Packet8bf>::size;
+    EIGEN_ALIGN16 bfloat16 to[n];
+    LOAD_STORE_UNROLL_16
+    for (Index i = 0; i < n; i++) {
+      to[i] = rhs(j + i, 0);
+    }
+    return pload<Packet8bf>(to);
   }
 };
 
@@ -538,8 +543,7 @@ struct loadColData_impl<RhsMapper, true>
   // linear == true
   static EIGEN_ALWAYS_INLINE Packet8bf run(RhsMapper& rhs, Index j)
   {
-    const bfloat16 &src = rhs(j + 0);
-    return pload<Packet8bf>(const_cast<bfloat16*>(&src));
+    return rhs.template loadPacket<Packet8bf>(j + 0, 0);
   }
 };
 
@@ -726,10 +730,10 @@ template<typename RhsMapper, typename LhsMapper, typename = void>
 struct UseStride : std::false_type {
   static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha, float *result)
   {
-    using RhsLinearMapper = typename RhsMapper::LinearMapper;
+    using RhsSubMapper = typename RhsMapper::SubMapper;
 
-    RhsLinearMapper rhs2 = rhs.getLinearMapper(j2, 0);
-    calcVSXVecColLoops<LhsMapper, RhsLinearMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
+    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
+    calcVSXVecColLoops<LhsMapper, RhsSubMapper, false>(jend - j2, rows, lhs, rhs2, pAlpha, result);
   }
 };
 
@@ -738,15 +742,12 @@ struct UseStride<RhsMapper, LhsMapper, std::enable_if_t<std::is_member_function_
                            decltype(&RhsMapper::stride)>::value>> : std::true_type {
   static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha, float *result)
   {
+    using RhsSubMapper = typename RhsMapper::SubMapper;
+
+    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
     if (rhs.stride() == 1) {
-      using RhsLinearMapper = typename RhsMapper::LinearMapper;
-
-      RhsLinearMapper rhs2 = rhs.getLinearMapper(j2, 0);
-      calcVSXVecColLoops<LhsMapper, RhsLinearMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
+      calcVSXVecColLoops<LhsMapper, RhsSubMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
     } else {
-      using RhsSubMapper = typename RhsMapper::SubMapper;
-
-      RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
       calcVSXVecColLoops<LhsMapper, RhsSubMapper, false>(jend - j2, rows, lhs, rhs2, pAlpha, result);
     }
   }
