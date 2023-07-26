@@ -6,6 +6,7 @@
 namespace Eigen {
 namespace internal {
 
+// Floating-point operations are only supported since V68.
 #if __HVX_ARCH__ >= 68
 
 template <bool ConjLhs_, bool ConjRhs_, int PacketSize_>

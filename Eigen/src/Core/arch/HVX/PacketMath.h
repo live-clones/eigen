@@ -30,6 +30,7 @@ class HVXPacket {
   HVX_Vector m_val = Q6_V_vzero();
 };
 
+// Floating-point operations are supported only since V68.
 #if __HVX_ARCH__ >= 68
 
 typedef HVXPacket<0> Packet32f;   // float32
