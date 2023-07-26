@@ -3,8 +3,6 @@
 
 #if defined __HVX__ && (__HVX_LENGTH__ == 128)
 
-#include "hexagon_types.h"
-
 namespace Eigen {
 namespace internal {
 
