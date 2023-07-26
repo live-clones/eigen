@@ -2,7 +2,11 @@
 #ifndef EIGEN_HVX_PACKET_MATH_H
 #define EIGEN_HVX_PACKET_MATH_H
 
+// Only support 128B HVX now.
 #if defined __HVX__ && (__HVX_LENGTH__ == 128)
+
+// Floating-point operations are supported only since V68.
+#if __HVX_ARCH__ >= 68
 
 #ifndef EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
@@ -11,9 +15,21 @@
 namespace Eigen {
 namespace internal {
 
-// These defines borrows from qhmath internal header, qhmath_hvx_convert.h
-#define vmem(A) *((HVX_Vector*)(A))
-#define vmemu(A) *((HVX_UVector*)(A))
+EIGEN_STRONG_INLINE HVX_Vector HVX_load(const void *mem) {
+  return *((HVX_Vector*)mem);
+}
+
+EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const void *mem) {
+  return *((HVX_UVector*)mem);
+}
+
+EIGEN_STRONG_INLINE void HVX_store(void *mem, HVX_Vector v) {
+  *((HVX_Vector*)mem) = v;
+}
+
+EIGEN_STRONG_INLINE void HVX_storeu(void *mem, HVX_Vector v) {
+  *((HVX_UVector*)mem) = v;
+}
 
 // Hexagon compiler uses same HVX_Vector to represent all HVX vector types.
 // Wrap different vector type (float32, int32, etc) to different class with
@@ -29,9 +45,6 @@ class HVXPacket {
   explicit HVXPacket(HVX_Vector v) : m_val(v) {}
   HVX_Vector m_val = Q6_V_vzero();
 };
-
-// Floating-point operations are supported only since V68.
-#if __HVX_ARCH__ >= 68
 
 typedef HVXPacket<0> Packet32f;   // float32
 typedef HVXPacket<1> Packet32qf;  // qfloat32
@@ -73,20 +86,20 @@ EIGEN_STRONG_INLINE Packet32f pset1<Packet32f>(const float& from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet32f pload<Packet32f>(const float* from) {
-  return Packet32f::Create(vmem(from));
+  return Packet32f::Create(HVX_load(from));
 }
 template <>
 EIGEN_STRONG_INLINE Packet32f ploadu<Packet32f>(const float* from) {
-  return Packet32f::Create(vmemu(from));
+  return Packet32f::Create(HVX_loadu(from));
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet32f& from) {
-  vmem(to) = from.Get();
+  HVX_store(to, from.Get());
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet32f& from) {
-  vmemu(to) = from.Get();
+  HVX_storeu(to, from.Get());
 }
 
 template <>
@@ -397,14 +410,14 @@ EIGEN_STRONG_INLINE float predux<Packet32f>(const Packet32f& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet32f ploaddup(const float* from) {
-  HVX_Vector load = vmemu(from);
+  HVX_Vector load = HVX_loadu(from);
   HVX_VectorPair dup = Q6_W_vshuff_VVR(load, load, -4);
   return Packet32f::Create(HEXAGON_HVX_GET_V0(dup));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet32f ploadquad(const float* from) {
-  HVX_Vector load = vmemu(from);
+  HVX_Vector load = HVX_loadu(from);
   HVX_VectorPair dup = Q6_W_vshuff_VVR(load, load, -4);
   HVX_VectorPair quad =
       Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(dup), HEXAGON_HVX_GET_V0(dup), -8);
@@ -525,10 +538,10 @@ EIGEN_STRONG_INLINE Packet32f pmadd_qf32_to_f32(const Packet32qf& a,
       Q6_Vqf32_vmpy_VsfVsf(Q6_Vsf_equals_Vqf32(a.Get()), b.Get()), c.Get())));
 }
 
-#endif  // __HVX_ARCH__ >= 68
-
 }  // end namespace internal
 }  // end namespace Eigen
+
+#endif  // __HVX_ARCH__ >= 68
 
 #endif  // __HVX__ && (__HVX_LENGTH__ == 128)
 

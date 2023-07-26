@@ -1,13 +1,14 @@
 #ifndef EIGEN_HVX_GENERAL_BLOCK_KERNEL_H
 #define EIGEN_HVX_GENERAL_BLOCK_KERNEL_H
 
+// Only support 128B HVX now.
 #if defined __HVX__ && (__HVX_LENGTH__ == 128)
-
-namespace Eigen {
-namespace internal {
 
 // Floating-point operations are only supported since V68.
 #if __HVX_ARCH__ >= 68
+
+namespace Eigen {
+namespace internal {
 
 template <bool ConjLhs_, bool ConjRhs_, int PacketSize_>
 class gebp_traits<float, float, ConjLhs_, ConjRhs_, Architecture::Target,
@@ -39,10 +40,10 @@ class gebp_traits<float, float, ConjLhs_, ConjRhs_, Architecture::Target,
   }
 };
 
-#endif  // __HVX_ARCH__ >= 68
-
 }  // end namespace internal
 }  // end namespace Eigen
+
+#endif  // __HVX_ARCH__ >= 68
 
 #endif  // __HVX__ && (__HVX_LENGTH__ == 128)
 
