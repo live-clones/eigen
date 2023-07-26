@@ -3,10 +3,8 @@
 #define EIGEN_HVX_PACKET_MATH_H
 
 // Only support 128B HVX now.
-#if defined __HVX__ && (__HVX_LENGTH__ == 128)
-
 // Floating-point operations are supported only since V68.
-#if __HVX_ARCH__ >= 68
+#if defined __HVX__ && (__HVX_LENGTH__ == 128) && __HVX_ARCH__ >= 68
 
 #ifndef EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
@@ -541,8 +539,6 @@ EIGEN_STRONG_INLINE Packet32f pmadd_qf32_to_f32(const Packet32qf& a,
 }  // end namespace internal
 }  // end namespace Eigen
 
-#endif  // __HVX_ARCH__ >= 68
-
-#endif  // __HVX__ && (__HVX_LENGTH__ == 128)
+#endif  // __HVX__ && (__HVX_LENGTH__ == 128) && __HVX_ARCH__ >= 68
 
 #endif  // EIGEN_HVX_PACKET_MATH_H
