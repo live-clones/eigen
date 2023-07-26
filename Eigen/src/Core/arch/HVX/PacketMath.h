@@ -4,8 +4,6 @@
 
 #if defined __HVX__ && (__HVX_LENGTH__ == 128)
 
-#include "hexagon_types.h"
-
 #ifndef EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #endif
