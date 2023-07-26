@@ -43,7 +43,6 @@ struct packet_traits<float> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 32,
-    HasSign = 0,
   };
 };
 
