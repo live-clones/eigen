@@ -65,7 +65,7 @@ struct default_digits10_impl<T,false,false> // Floating point
     using std::log10;
     using std::floor;
     typedef typename NumTraits<T>::Real Real;
-    return int(floor((internal::default_digits_impl<T>::run()-1)*log10(2)));
+    return int(floor((internal::default_digits_impl<Real>::run()-1)*log10(2)));
   }
 };
 
@@ -95,7 +95,7 @@ struct default_max_digits10_impl<T,false,false> // Floating point
     using std::log10;
     using std::ceil;
     typedef typename NumTraits<T>::Real Real;
-    return int(ceil(internal::default_digits_impl<T>::run()*log10(2)+1));
+    return int(ceil(internal::default_digits_impl<Real>::run()*log10(2)+1));
   }
 };
 
