@@ -6,6 +6,11 @@
 // Floating-point operations are supported only since V68.
 #if defined __HVX__ && (__HVX_LENGTH__ == 128) && __HVX_ARCH__ >= 68
 
+// All the floating-point operations do not support IEEE standard.
+// From HVX document:
+//   There is no concept of infinity or NaN. QFloat saturates to maximum
+//   exponent with maximum positive or minimum negative significand.
+
 #ifndef EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #endif
