@@ -18,25 +18,6 @@
 
 #include <Eigen/Dense>
 
-template <typename TypeA, typename TypeB>
-bool verify_is_approx_with_nan(const TypeA& a, const TypeB& b) {
-  if (a.rows() != b.rows()) {
-    return false;
-  }
-  if (a.cols() != b.cols()) {
-    return false;
-  }
-  for (Index r = 0; r < a.rows(); ++r) {
-    for (Index c = 0; c < a.cols(); ++c) {
-      if (a(r, c) != b(r, c) && !((numext::isnan)(a(r, c)) && (numext::isnan)(b(r, c))) &&
-          !test_isApprox(a(r, c), b(r, c))) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 template <bool verifyNan = false, bool singleTask = false, typename Operation, typename Input, typename Output>
 void run_and_verify(Operation& ope, size_t num_elements, const Input& in, Output& out) {
   Output out_gpu, out_cpu;
@@ -79,7 +60,7 @@ void run_and_verify(Operation& ope, size_t num_elements, const Input& in, Output
     }
   }
   if constexpr (verifyNan) {
-    VERIFY(verify_is_approx_with_nan(out_gpu, out_cpu));
+    VERIFY_IS_CWISE_APPROX(out_gpu, out_cpu);
   } else {
     VERIFY_IS_APPROX(out_gpu, out_cpu);
   }
