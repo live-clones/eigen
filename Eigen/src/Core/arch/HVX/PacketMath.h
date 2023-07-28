@@ -18,19 +18,19 @@
 namespace Eigen {
 namespace internal {
 
-EIGEN_STRONG_INLINE HVX_Vector HVX_load(const void *mem) {
+EIGEN_STRONG_INLINE HVX_Vector HVX_load(const void* mem) {
   return *((HVX_Vector*)mem);
 }
 
-EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const void *mem) {
+EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const void* mem) {
   return *((HVX_UVector*)mem);
 }
 
-EIGEN_STRONG_INLINE void HVX_store(void *mem, HVX_Vector v) {
+EIGEN_STRONG_INLINE void HVX_store(void* mem, HVX_Vector v) {
   *((HVX_Vector*)mem) = v;
 }
 
-EIGEN_STRONG_INLINE void HVX_storeu(void *mem, HVX_Vector v) {
+EIGEN_STRONG_INLINE void HVX_storeu(void* mem, HVX_Vector v) {
   *((HVX_UVector*)mem) = v;
 }
 
@@ -174,228 +174,227 @@ EIGEN_STRONG_INLINE float pfirst(const Packet32f& a) {
 }
 
 EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet32f, 4>& kernel) {
-  // zip 0,2
-  HVX_VectorPair transpose_0_2 =
-      Q6_W_vshuff_VVR(kernel.packet[2].Get(), kernel.packet[0].Get(), -4);
-  // zip 1,3
-  HVX_VectorPair transpose_1_3 =
-      Q6_W_vshuff_VVR(kernel.packet[3].Get(), kernel.packet[1].Get(), -4);
-  // zip 0,1
-  HVX_VectorPair transpose_0_1 = Q6_W_vshuff_VVR(
-      HEXAGON_HVX_GET_V0(transpose_1_3), HEXAGON_HVX_GET_V0(transpose_0_2), -4);
-  // zip 2,3
-  HVX_VectorPair transpose_2_3 = Q6_W_vshuff_VVR(
-      HEXAGON_HVX_GET_V1(transpose_1_3), HEXAGON_HVX_GET_V1(transpose_0_2), -4);
+  // Shuffle the 32-bit lanes.
+  HVX_VectorPair v_0_1_0 =
+      Q6_W_vshuff_VVR(kernel.packet[1].Get(), kernel.packet[0].Get(), -4);
+  HVX_VectorPair v_0_3_2 =
+      Q6_W_vshuff_VVR(kernel.packet[3].Get(), kernel.packet[2].Get(), -4);
 
-  kernel.packet[0] = Packet32f::Create(HEXAGON_HVX_GET_V0(transpose_0_1));
-  kernel.packet[1] = Packet32f::Create(HEXAGON_HVX_GET_V1(transpose_0_1));
-  kernel.packet[2] = Packet32f::Create(HEXAGON_HVX_GET_V0(transpose_2_3));
-  kernel.packet[3] = Packet32f::Create(HEXAGON_HVX_GET_V1(transpose_2_3));
+  // Shuffle the 64-bit lanes.
+  HVX_VectorPair v_1_1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_3_2),
+                                           HEXAGON_HVX_GET_V0(v_0_1_0), -8);
+  HVX_VectorPair v_1_3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_3_2),
+                                           HEXAGON_HVX_GET_V1(v_0_1_0), -8);
+
+  kernel.packet[0] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_1_1_0));
+  kernel.packet[1] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_1_1_0));
+  kernel.packet[2] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_1_3_2));
+  kernel.packet[3] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_1_3_2));
 }
 
 EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet32f, 32>& kernel) {
   // Shuffle the 32-bit lanes.
-  HVX_VectorPair VD1_0 =
+  HVX_VectorPair v_0_1_0 =
       Q6_W_vshuff_VVR(kernel.packet[1].Get(), kernel.packet[0].Get(), -4);
-  HVX_VectorPair VD3_2 =
+  HVX_VectorPair v_0_3_2 =
       Q6_W_vshuff_VVR(kernel.packet[3].Get(), kernel.packet[2].Get(), -4);
-  HVX_VectorPair VD5_4 =
+  HVX_VectorPair v_0_5_4 =
       Q6_W_vshuff_VVR(kernel.packet[5].Get(), kernel.packet[4].Get(), -4);
-  HVX_VectorPair VD7_6 =
+  HVX_VectorPair v_0_7_6 =
       Q6_W_vshuff_VVR(kernel.packet[7].Get(), kernel.packet[6].Get(), -4);
-  HVX_VectorPair VD9_8 =
+  HVX_VectorPair v_0_9_8 =
       Q6_W_vshuff_VVR(kernel.packet[9].Get(), kernel.packet[8].Get(), -4);
-  HVX_VectorPair VD11_10 =
+  HVX_VectorPair v_0_11_10 =
       Q6_W_vshuff_VVR(kernel.packet[11].Get(), kernel.packet[10].Get(), -4);
-  HVX_VectorPair VD13_12 =
+  HVX_VectorPair v_0_13_12 =
       Q6_W_vshuff_VVR(kernel.packet[13].Get(), kernel.packet[12].Get(), -4);
-  HVX_VectorPair VD15_14 =
+  HVX_VectorPair v_0_15_14 =
       Q6_W_vshuff_VVR(kernel.packet[15].Get(), kernel.packet[14].Get(), -4);
-  HVX_VectorPair VD17_16 =
+  HVX_VectorPair v_0_17_16 =
       Q6_W_vshuff_VVR(kernel.packet[17].Get(), kernel.packet[16].Get(), -4);
-  HVX_VectorPair VD19_18 =
+  HVX_VectorPair v_0_19_18 =
       Q6_W_vshuff_VVR(kernel.packet[19].Get(), kernel.packet[18].Get(), -4);
-  HVX_VectorPair VD21_20 =
+  HVX_VectorPair v_0_21_20 =
       Q6_W_vshuff_VVR(kernel.packet[21].Get(), kernel.packet[20].Get(), -4);
-  HVX_VectorPair VD23_22 =
+  HVX_VectorPair v_0_23_22 =
       Q6_W_vshuff_VVR(kernel.packet[23].Get(), kernel.packet[22].Get(), -4);
-  HVX_VectorPair VD25_24 =
+  HVX_VectorPair v_0_25_24 =
       Q6_W_vshuff_VVR(kernel.packet[25].Get(), kernel.packet[24].Get(), -4);
-  HVX_VectorPair VD27_26 =
+  HVX_VectorPair v_0_27_26 =
       Q6_W_vshuff_VVR(kernel.packet[27].Get(), kernel.packet[26].Get(), -4);
-  HVX_VectorPair VD29_28 =
+  HVX_VectorPair v_0_29_28 =
       Q6_W_vshuff_VVR(kernel.packet[29].Get(), kernel.packet[28].Get(), -4);
-  HVX_VectorPair VD31_30 =
+  HVX_VectorPair v_0_31_30 =
       Q6_W_vshuff_VVR(kernel.packet[31].Get(), kernel.packet[30].Get(), -4);
 
-  // Shuffle the 64-bit lanes
-  HVX_VectorPair VS1_0 =
-      Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD3_2), HEXAGON_HVX_GET_V0(VD1_0), -8);
-  HVX_VectorPair VS3_2 =
-      Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD3_2), HEXAGON_HVX_GET_V1(VD1_0), -8);
-  HVX_VectorPair VS5_4 =
-      Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD7_6), HEXAGON_HVX_GET_V0(VD5_4), -8);
-  HVX_VectorPair VS7_6 =
-      Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD7_6), HEXAGON_HVX_GET_V1(VD5_4), -8);
-  HVX_VectorPair VS9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD11_10),
-                                         HEXAGON_HVX_GET_V0(VD9_8), -8);
-  HVX_VectorPair VS11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD11_10),
-                                           HEXAGON_HVX_GET_V1(VD9_8), -8);
-  HVX_VectorPair VS13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD15_14),
-                                           HEXAGON_HVX_GET_V0(VD13_12), -8);
-  HVX_VectorPair VS15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD15_14),
-                                           HEXAGON_HVX_GET_V1(VD13_12), -8);
-  HVX_VectorPair VS17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD19_18),
-                                           HEXAGON_HVX_GET_V0(VD17_16), -8);
-  HVX_VectorPair VS19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD19_18),
-                                           HEXAGON_HVX_GET_V1(VD17_16), -8);
-  HVX_VectorPair VS21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD23_22),
-                                           HEXAGON_HVX_GET_V0(VD21_20), -8);
-  HVX_VectorPair VS23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD23_22),
-                                           HEXAGON_HVX_GET_V1(VD21_20), -8);
-  HVX_VectorPair VS25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD27_26),
-                                           HEXAGON_HVX_GET_V0(VD25_24), -8);
-  HVX_VectorPair VS27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD27_26),
-                                           HEXAGON_HVX_GET_V1(VD25_24), -8);
-  HVX_VectorPair VS29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD31_30),
-                                           HEXAGON_HVX_GET_V0(VD29_28), -8);
-  HVX_VectorPair VS31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD31_30),
-                                           HEXAGON_HVX_GET_V1(VD29_28), -8);
+  // Shuffle the 64-bit lanes.
+  HVX_VectorPair v_1_1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_3_2),
+                                           HEXAGON_HVX_GET_V0(v_0_1_0), -8);
+  HVX_VectorPair v_1_3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_3_2),
+                                           HEXAGON_HVX_GET_V1(v_0_1_0), -8);
+  HVX_VectorPair v_1_5_4 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_7_6),
+                                           HEXAGON_HVX_GET_V0(v_0_5_4), -8);
+  HVX_VectorPair v_1_7_6 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_7_6),
+                                           HEXAGON_HVX_GET_V1(v_0_5_4), -8);
+  HVX_VectorPair v_1_9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_11_10),
+                                           HEXAGON_HVX_GET_V0(v_0_9_8), -8);
+  HVX_VectorPair v_1_11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_11_10),
+                                             HEXAGON_HVX_GET_V1(v_0_9_8), -8);
+  HVX_VectorPair v_1_13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_15_14),
+                                             HEXAGON_HVX_GET_V0(v_0_13_12), -8);
+  HVX_VectorPair v_1_15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_15_14),
+                                             HEXAGON_HVX_GET_V1(v_0_13_12), -8);
+  HVX_VectorPair v_1_17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_19_18),
+                                             HEXAGON_HVX_GET_V0(v_0_17_16), -8);
+  HVX_VectorPair v_1_19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_19_18),
+                                             HEXAGON_HVX_GET_V1(v_0_17_16), -8);
+  HVX_VectorPair v_1_21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_23_22),
+                                             HEXAGON_HVX_GET_V0(v_0_21_20), -8);
+  HVX_VectorPair v_1_23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_23_22),
+                                             HEXAGON_HVX_GET_V1(v_0_21_20), -8);
+  HVX_VectorPair v_1_25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_27_26),
+                                             HEXAGON_HVX_GET_V0(v_0_25_24), -8);
+  HVX_VectorPair v_1_27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_27_26),
+                                             HEXAGON_HVX_GET_V1(v_0_25_24), -8);
+  HVX_VectorPair v_1_29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_31_30),
+                                             HEXAGON_HVX_GET_V0(v_0_29_28), -8);
+  HVX_VectorPair v_1_31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_31_30),
+                                             HEXAGON_HVX_GET_V1(v_0_29_28), -8);
 
-  // Shuffle the 128-bit lanes
-  VD1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS5_4), HEXAGON_HVX_GET_V0(VS1_0),
-                          -16);
-  VD3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS5_4), HEXAGON_HVX_GET_V1(VS1_0),
-                          -16);
-  VD5_4 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS7_6), HEXAGON_HVX_GET_V0(VS3_2),
-                          -16);
-  VD7_6 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS7_6), HEXAGON_HVX_GET_V1(VS3_2),
-                          -16);
-  VD9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS13_12),
-                          HEXAGON_HVX_GET_V0(VS9_8), -16);
-  VD11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS13_12),
-                            HEXAGON_HVX_GET_V1(VS9_8), -16);
-  VD13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS15_14),
-                            HEXAGON_HVX_GET_V0(VS11_10), -16);
-  VD15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS15_14),
-                            HEXAGON_HVX_GET_V1(VS11_10), -16);
-  VD17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS21_20),
-                            HEXAGON_HVX_GET_V0(VS17_16), -16);
-  VD19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS21_20),
-                            HEXAGON_HVX_GET_V1(VS17_16), -16);
-  VD21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS23_22),
-                            HEXAGON_HVX_GET_V0(VS19_18), -16);
-  VD23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS23_22),
-                            HEXAGON_HVX_GET_V1(VS19_18), -16);
-  VD25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS29_28),
-                            HEXAGON_HVX_GET_V0(VS25_24), -16);
-  VD27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS29_28),
-                            HEXAGON_HVX_GET_V1(VS25_24), -16);
-  VD29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS31_30),
-                            HEXAGON_HVX_GET_V0(VS27_26), -16);
-  VD31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS31_30),
-                            HEXAGON_HVX_GET_V1(VS27_26), -16);
+  // Shuffle the 128-bit lanes.
+  v_0_1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_5_4),
+                            HEXAGON_HVX_GET_V0(v_1_1_0), -16);
+  v_0_3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_5_4),
+                            HEXAGON_HVX_GET_V1(v_1_1_0), -16);
+  v_0_5_4 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_7_6),
+                            HEXAGON_HVX_GET_V0(v_1_3_2), -16);
+  v_0_7_6 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_7_6),
+                            HEXAGON_HVX_GET_V1(v_1_3_2), -16);
+  v_0_9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_13_12),
+                            HEXAGON_HVX_GET_V0(v_1_9_8), -16);
+  v_0_11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_13_12),
+                              HEXAGON_HVX_GET_V1(v_1_9_8), -16);
+  v_0_13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_15_14),
+                              HEXAGON_HVX_GET_V0(v_1_11_10), -16);
+  v_0_15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_15_14),
+                              HEXAGON_HVX_GET_V1(v_1_11_10), -16);
+  v_0_17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_21_20),
+                              HEXAGON_HVX_GET_V0(v_1_17_16), -16);
+  v_0_19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_21_20),
+                              HEXAGON_HVX_GET_V1(v_1_17_16), -16);
+  v_0_21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_23_22),
+                              HEXAGON_HVX_GET_V0(v_1_19_18), -16);
+  v_0_23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_23_22),
+                              HEXAGON_HVX_GET_V1(v_1_19_18), -16);
+  v_0_25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_29_28),
+                              HEXAGON_HVX_GET_V0(v_1_25_24), -16);
+  v_0_27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_29_28),
+                              HEXAGON_HVX_GET_V1(v_1_25_24), -16);
+  v_0_29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_31_30),
+                              HEXAGON_HVX_GET_V0(v_1_27_26), -16);
+  v_0_31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_31_30),
+                              HEXAGON_HVX_GET_V1(v_1_27_26), -16);
 
-  // Shuffle the 256-bit lanes
-  VS1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD9_8), HEXAGON_HVX_GET_V0(VD1_0),
-                          -32);
-  VS3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD9_8), HEXAGON_HVX_GET_V1(VD1_0),
-                          -32);
-  VS5_4 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD11_10),
-                          HEXAGON_HVX_GET_V0(VD3_2), -32);
-  VS7_6 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD11_10),
-                          HEXAGON_HVX_GET_V1(VD3_2), -32);
-  VS9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD13_12),
-                          HEXAGON_HVX_GET_V0(VD5_4), -32);
-  VS11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD13_12),
-                            HEXAGON_HVX_GET_V1(VD5_4), -32);
-  VS13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD15_14),
-                            HEXAGON_HVX_GET_V0(VD7_6), -32);
-  VS15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD15_14),
-                            HEXAGON_HVX_GET_V1(VD7_6), -32);
-  VS17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD25_24),
-                            HEXAGON_HVX_GET_V0(VD17_16), -32);
-  VS19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD25_24),
-                            HEXAGON_HVX_GET_V1(VD17_16), -32);
-  VS21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD27_26),
-                            HEXAGON_HVX_GET_V0(VD19_18), -32);
-  VS23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD27_26),
-                            HEXAGON_HVX_GET_V1(VD19_18), -32);
-  VS25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD29_28),
-                            HEXAGON_HVX_GET_V0(VD21_20), -32);
-  VS27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD29_28),
-                            HEXAGON_HVX_GET_V1(VD21_20), -32);
-  VS29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VD31_30),
-                            HEXAGON_HVX_GET_V0(VD23_22), -32);
-  VS31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VD31_30),
-                            HEXAGON_HVX_GET_V1(VD23_22), -32);
+  // Shuffle the 256-bit lanes.
+  v_1_1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_9_8),
+                            HEXAGON_HVX_GET_V0(v_0_1_0), -32);
+  v_1_3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_9_8),
+                            HEXAGON_HVX_GET_V1(v_0_1_0), -32);
+  v_1_5_4 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_11_10),
+                            HEXAGON_HVX_GET_V0(v_0_3_2), -32);
+  v_1_7_6 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_11_10),
+                            HEXAGON_HVX_GET_V1(v_0_3_2), -32);
+  v_1_9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_13_12),
+                            HEXAGON_HVX_GET_V0(v_0_5_4), -32);
+  v_1_11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_13_12),
+                              HEXAGON_HVX_GET_V1(v_0_5_4), -32);
+  v_1_13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_15_14),
+                              HEXAGON_HVX_GET_V0(v_0_7_6), -32);
+  v_1_15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_15_14),
+                              HEXAGON_HVX_GET_V1(v_0_7_6), -32);
+  v_1_17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_25_24),
+                              HEXAGON_HVX_GET_V0(v_0_17_16), -32);
+  v_1_19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_25_24),
+                              HEXAGON_HVX_GET_V1(v_0_17_16), -32);
+  v_1_21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_27_26),
+                              HEXAGON_HVX_GET_V0(v_0_19_18), -32);
+  v_1_23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_27_26),
+                              HEXAGON_HVX_GET_V1(v_0_19_18), -32);
+  v_1_25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_29_28),
+                              HEXAGON_HVX_GET_V0(v_0_21_20), -32);
+  v_1_27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_29_28),
+                              HEXAGON_HVX_GET_V1(v_0_21_20), -32);
+  v_1_29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_0_31_30),
+                              HEXAGON_HVX_GET_V0(v_0_23_22), -32);
+  v_1_31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_0_31_30),
+                              HEXAGON_HVX_GET_V1(v_0_23_22), -32);
 
-  // Shuffle the 512-bit lanes
-  VD1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS17_16),
-                          HEXAGON_HVX_GET_V0(VS1_0), -64);
-  VD3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS17_16),
-                          HEXAGON_HVX_GET_V1(VS1_0), -64);
-  VD5_4 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS19_18),
-                          HEXAGON_HVX_GET_V0(VS3_2), -64);
-  VD7_6 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS19_18),
-                          HEXAGON_HVX_GET_V1(VS3_2), -64);
-  VD9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS21_20),
-                          HEXAGON_HVX_GET_V0(VS5_4), -64);
-  VD11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS21_20),
-                            HEXAGON_HVX_GET_V1(VS5_4), -64);
-  VD13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS23_22),
-                            HEXAGON_HVX_GET_V0(VS7_6), -64);
-  VD15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS23_22),
-                            HEXAGON_HVX_GET_V1(VS7_6), -64);
-  VD17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS25_24),
-                            HEXAGON_HVX_GET_V0(VS9_8), -64);
-  VD19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS25_24),
-                            HEXAGON_HVX_GET_V1(VS9_8), -64);
-  VD21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS27_26),
-                            HEXAGON_HVX_GET_V0(VS11_10), -64);
-  VD23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS27_26),
-                            HEXAGON_HVX_GET_V1(VS11_10), -64);
-  VD25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS29_28),
-                            HEXAGON_HVX_GET_V0(VS13_12), -64);
-  VD27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS29_28),
-                            HEXAGON_HVX_GET_V1(VS13_12), -64);
-  VD29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(VS31_30),
-                            HEXAGON_HVX_GET_V0(VS15_14), -64);
-  VD31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(VS31_30),
-                            HEXAGON_HVX_GET_V1(VS15_14), -64);
+  // Shuffle the 512-bit lanes.
+  v_0_1_0 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_17_16),
+                            HEXAGON_HVX_GET_V0(v_1_1_0), -64);
+  v_0_3_2 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_17_16),
+                            HEXAGON_HVX_GET_V1(v_1_1_0), -64);
+  v_0_5_4 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_19_18),
+                            HEXAGON_HVX_GET_V0(v_1_3_2), -64);
+  v_0_7_6 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_19_18),
+                            HEXAGON_HVX_GET_V1(v_1_3_2), -64);
+  v_0_9_8 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_21_20),
+                            HEXAGON_HVX_GET_V0(v_1_5_4), -64);
+  v_0_11_10 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_21_20),
+                              HEXAGON_HVX_GET_V1(v_1_5_4), -64);
+  v_0_13_12 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_23_22),
+                              HEXAGON_HVX_GET_V0(v_1_7_6), -64);
+  v_0_15_14 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_23_22),
+                              HEXAGON_HVX_GET_V1(v_1_7_6), -64);
+  v_0_17_16 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_25_24),
+                              HEXAGON_HVX_GET_V0(v_1_9_8), -64);
+  v_0_19_18 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_25_24),
+                              HEXAGON_HVX_GET_V1(v_1_9_8), -64);
+  v_0_21_20 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_27_26),
+                              HEXAGON_HVX_GET_V0(v_1_11_10), -64);
+  v_0_23_22 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_27_26),
+                              HEXAGON_HVX_GET_V1(v_1_11_10), -64);
+  v_0_25_24 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_29_28),
+                              HEXAGON_HVX_GET_V0(v_1_13_12), -64);
+  v_0_27_26 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_29_28),
+                              HEXAGON_HVX_GET_V1(v_1_13_12), -64);
+  v_0_29_28 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(v_1_31_30),
+                              HEXAGON_HVX_GET_V0(v_1_15_14), -64);
+  v_0_31_30 = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V1(v_1_31_30),
+                              HEXAGON_HVX_GET_V1(v_1_15_14), -64);
 
-  kernel.packet[0] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD1_0));
-  kernel.packet[1] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD1_0));
-  kernel.packet[2] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD3_2));
-  kernel.packet[3] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD3_2));
-  kernel.packet[4] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD5_4));
-  kernel.packet[5] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD5_4));
-  kernel.packet[6] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD7_6));
-  kernel.packet[7] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD7_6));
-  kernel.packet[8] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD9_8));
-  kernel.packet[9] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD9_8));
-  kernel.packet[10] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD11_10));
-  kernel.packet[11] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD11_10));
-  kernel.packet[12] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD13_12));
-  kernel.packet[13] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD13_12));
-  kernel.packet[14] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD15_14));
-  kernel.packet[15] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD15_14));
-  kernel.packet[16] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD17_16));
-  kernel.packet[17] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD17_16));
-  kernel.packet[18] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD19_18));
-  kernel.packet[19] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD19_18));
-  kernel.packet[20] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD21_20));
-  kernel.packet[21] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD21_20));
-  kernel.packet[22] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD23_22));
-  kernel.packet[23] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD23_22));
-  kernel.packet[24] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD25_24));
-  kernel.packet[25] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD25_24));
-  kernel.packet[26] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD27_26));
-  kernel.packet[27] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD27_26));
-  kernel.packet[28] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD29_28));
-  kernel.packet[29] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD29_28));
-  kernel.packet[30] = Packet32f::Create(HEXAGON_HVX_GET_V0(VD31_30));
-  kernel.packet[31] = Packet32f::Create(HEXAGON_HVX_GET_V1(VD31_30));
+  kernel.packet[0] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_1_0));
+  kernel.packet[1] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_1_0));
+  kernel.packet[2] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_3_2));
+  kernel.packet[3] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_3_2));
+  kernel.packet[4] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_5_4));
+  kernel.packet[5] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_5_4));
+  kernel.packet[6] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_7_6));
+  kernel.packet[7] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_7_6));
+  kernel.packet[8] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_9_8));
+  kernel.packet[9] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_9_8));
+  kernel.packet[10] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_11_10));
+  kernel.packet[11] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_11_10));
+  kernel.packet[12] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_13_12));
+  kernel.packet[13] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_13_12));
+  kernel.packet[14] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_15_14));
+  kernel.packet[15] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_15_14));
+  kernel.packet[16] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_17_16));
+  kernel.packet[17] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_17_16));
+  kernel.packet[18] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_19_18));
+  kernel.packet[19] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_19_18));
+  kernel.packet[20] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_21_20));
+  kernel.packet[21] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_21_20));
+  kernel.packet[22] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_23_22));
+  kernel.packet[23] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_23_22));
+  kernel.packet[24] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_25_24));
+  kernel.packet[25] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_25_24));
+  kernel.packet[26] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_27_26));
+  kernel.packet[27] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_27_26));
+  kernel.packet[28] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_29_28));
+  kernel.packet[29] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_29_28));
+  kernel.packet[30] = Packet32f::Create(HEXAGON_HVX_GET_V0(v_0_31_30));
+  kernel.packet[31] = Packet32f::Create(HEXAGON_HVX_GET_V1(v_0_31_30));
 }
 
 template <>
