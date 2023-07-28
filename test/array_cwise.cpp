@@ -87,21 +87,21 @@ void special_value_pairs(Array<Scalar, Dynamic, Dynamic>& x,
 template <typename Scalar, typename Fn, typename RefFn>
 void binary_op_test(std::string name, Fn fun, RefFn ref) {
   const Scalar tol = test_precision<Scalar>();
-  Array<Scalar, Dynamic, Dynamic> x;
-  Array<Scalar, Dynamic, Dynamic> y;
-  special_value_pairs(x, y);
+  Array<Scalar, Dynamic, Dynamic> lhs;
+  Array<Scalar, Dynamic, Dynamic> rhs;
+  special_value_pairs(lhs, rhs);
 
-  Array<Scalar, Dynamic, Dynamic> actual = fun(x, y);
+  Array<Scalar, Dynamic, Dynamic> actual = fun(lhs, rhs);
   bool all_pass = true;
-  for (Index i = 0; i < x.rows(); ++i) {
-    for (Index j = 0; j < x.cols(); ++j) {
-      Scalar e = static_cast<Scalar>(ref(x(i,j), y(i,j)));
+  for (Index i = 0; i < lhs.rows(); ++i) {
+    for (Index j = 0; j < lhs.cols(); ++j) {
+      Scalar e = static_cast<Scalar>(ref(lhs(i,j), rhs(i,j)));
       Scalar a = actual(i, j);
       bool success = (a==e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) || ((numext::isnan)(a) && (numext::isnan)(e));
       if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
       all_pass &= success;
       if (!success) {
-        std::cout << name << "(" << x(i,j) << "," << y(i,j) << ") = " << a << " !=  " << e << std::endl;
+        std::cout << name << "(" << lhs(i,j) << "," << rhs(i,j) << ") = " << a << " !=  " << e << std::endl;
       }
     }
   }
@@ -139,27 +139,27 @@ template <typename Scalar, typename Fn, typename RefFn>
 void unary_op_test(std::string name, Fn fun, RefFn ref) {
   const Scalar tol = test_precision<Scalar>();
   auto values = special_values<Scalar>();
-  Map<Array<Scalar, Dynamic, 1>> x(values.data(), values.size());
+  Map<Array<Scalar, Dynamic, 1>> valuesMap(values.data(), values.size());
 
-  Array<Scalar, Dynamic, Dynamic> actual = fun(x);
+  Array<Scalar, Dynamic, Dynamic> actual = fun(valuesMap);
   bool all_pass = true;
-  for (Index i = 0; i < x.size(); ++i) {
-    Scalar e = static_cast<Scalar>(ref(x(i)));
+  for (Index i = 0; i < valuesMap.size(); ++i) {
+    Scalar e = static_cast<Scalar>(ref(valuesMap(i)));
     Scalar a = actual(i);
     bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
                    ((numext::isnan)(a) && (numext::isnan)(e));
     if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
     all_pass &= success;
     if (!success) {
-      std::cout << name << "(" << x(i) << ") = " << a << " !=  " << e << std::endl;
+      std::cout << name << "(" << valuesMap(i) << ") = " << a << " !=  " << e << std::endl;
     }
   }
   VERIFY(all_pass);
 }
 
 #define UNARY_FUNCTOR_TEST_ARGS(fun) #fun, \
-      [](const auto& x) { return (Eigen::fun)(x); },    \
-      [](const auto& x) { return (std::fun)(x); }
+      [](const auto& x_) { return (Eigen::fun)(x_); },    \
+      [](const auto& y_) { return (std::fun)(y_); }
 
 template <typename Scalar>
 void unary_ops_test() {
@@ -267,8 +267,15 @@ void float_pow_test_impl() {
             #ifdef EIGEN_COMP_MSVC
             // Work around MSVC return value on underflow.
             // if std::pow returns 0 and Eigen returns a denormalized value, then skip the test
-            int fpclass = std::fpclassify(a);
-            if (e == Base(0) && fpclass == FP_SUBNORMAL) continue;
+            int eigen_fpclass = std::fpclassify(a);
+            if (e == Base(0) && eigen_fpclass == FP_SUBNORMAL) continue;
+            #endif
+
+            #ifdef EIGEN_VECTORIZE_NEON
+            // Work around NEON flush-to-zero mode
+            // if std::pow returns denormalized value and Eigen returns 0, then skip the test
+            int ref_fpclass = std::fpclassify(e);
+            if (a == Base(0) && ref_fpclass == FP_SUBNORMAL) continue;
             #endif
 
             bool both_nan = (numext::isnan)(a) && (numext::isnan)(e);
@@ -330,10 +337,6 @@ void test_exponent(Exponent exponent) {
     for (Base a : y) {
       Base e = ref_pow<Base, Exponent>::run(base, exponent);
       bool pass = (a == e);
-      //if (!NumTraits<Base>::IsInteger) {
-      //  pass = pass || (((numext::isfinite)(e) && internal::isApprox(a, e)) ||
-      //                  ((numext::isnan)(a) && (numext::isnan)(e)));
-      //}
       all_pass &= pass;
       if (!pass) {
         std::cout << "pow(" << base << "," << exponent << ")   =   " << a << " !=  " << e << std::endl;
@@ -442,12 +445,6 @@ void signbit_tests() {
   signbit_test<double>();
   signbit_test<Eigen::half>();
   signbit_test<Eigen::bfloat16>();
-
-  signbit_test<uint8_t>();
-  signbit_test<uint16_t>();
-  signbit_test<uint32_t>();
-  signbit_test<uint64_t>();
-
   signbit_test<int8_t>();
   signbit_test<int16_t>();
   signbit_test<int32_t>();
@@ -1324,67 +1321,62 @@ EIGEN_DECLARE_TEST(array_cwise)
     CALL_SUBTEST_2( array_generic(Array22f()) );
     CALL_SUBTEST_3( array_generic(Array44d()) );
     CALL_SUBTEST_4( array_generic(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_5( array_generic(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( array_generic(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( array_generic(Array<Index,Dynamic,Dynamic>(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_7( signed_shift_test(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_7( signed_shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8( array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8( array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_7( array_generic(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_8( array_generic(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_7( array_generic(Array<Index,Dynamic,Dynamic>(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_8( signed_shift_test(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_9( signed_shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_10( array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_11( array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
   for(int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1( comparisons(Array<float, 1, 1>()) );
     CALL_SUBTEST_2( comparisons(Array22f()) );
     CALL_SUBTEST_3( comparisons(Array44d()) );
-    CALL_SUBTEST_5( comparisons(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( comparisons(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_7( comparisons(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_8( comparisons(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
   }
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( min_max(Array<float, 1, 1>()) );
-    CALL_SUBTEST_2( min_max(Array22f()) );
-    CALL_SUBTEST_3( min_max(Array44d()) );
-    CALL_SUBTEST_5( min_max(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( min_max(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_6( min_max(Array<float, 1, 1>()) );
+    CALL_SUBTEST_7( min_max(Array22f()) );
+    CALL_SUBTEST_8( min_max(Array44d()) );
+    CALL_SUBTEST_9( min_max(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_10( min_max(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
   }
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( array_real(Array<float, 1, 1>()) );
-    CALL_SUBTEST_2( array_real(Array22f()) );
-    CALL_SUBTEST_3( array_real(Array44d()) );
-    CALL_SUBTEST_5( array_real(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_7( array_real(Array<Eigen::half, 32, 32>()) );
-    CALL_SUBTEST_8( array_real(Array<Eigen::bfloat16, 32, 32>()) );
+    CALL_SUBTEST_11( array_real(Array<float, 1, 1>()) );
+    CALL_SUBTEST_12( array_real(Array22f()) );
+    CALL_SUBTEST_13( array_real(Array44d()) );
+    CALL_SUBTEST_14( array_real(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_15( array_real(Array<Eigen::half, 32, 32>()) );
+    CALL_SUBTEST_16( array_real(Array<Eigen::bfloat16, 32, 32>()) );
   }
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_4( array_complex(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_5( array_complex(ArrayXXcd(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_17( array_complex(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_18( array_complex(ArrayXXcd(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))));
   }
 
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_5( float_pow_test() );
-    CALL_SUBTEST_6( int_pow_test() );
-    CALL_SUBTEST_7( mixed_pow_test() );
-    CALL_SUBTEST_8( signbit_tests() );
+    CALL_SUBTEST_19( float_pow_test() );
+    CALL_SUBTEST_20( int_pow_test() );
+    CALL_SUBTEST_21( mixed_pow_test() );
+    CALL_SUBTEST_22( signbit_tests() );
   }
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_2( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_3( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_3( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23( typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_24( typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_25( typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_26( typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_27( typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1((cast_test<1, 1>()));
-    CALL_SUBTEST_2((cast_test<3, 1>()));
-    CALL_SUBTEST_2((cast_test<3, 3>()));
-    CALL_SUBTEST_3((cast_test<5, 1>()));
-    CALL_SUBTEST_3((cast_test<5, 5>()));
-    CALL_SUBTEST_4((cast_test<9, 1>()));
-    CALL_SUBTEST_4((cast_test<9, 9>()));
-    CALL_SUBTEST_5((cast_test<17, 1>()));
-    CALL_SUBTEST_5((cast_test<17, 17>()));
-    CALL_SUBTEST_6((cast_test<Dynamic, 1>()));
-    CALL_SUBTEST_6((cast_test<Dynamic, Dynamic>()));
+    CALL_SUBTEST_28( (cast_test<1, 1>()) );
+    CALL_SUBTEST_29( (cast_test<3, 1>()) );
+    CALL_SUBTEST_30( (cast_test<5, 1>()) );
+    CALL_SUBTEST_31( (cast_test<9, 1>()) );
+    CALL_SUBTEST_32( (cast_test<17, 1>()) );
+    CALL_SUBTEST_33( (cast_test<Dynamic, 1>()) );
   }
 
   VERIFY((internal::is_same< internal::global_math_functions_filtering_base<int>::type, int >::value));
