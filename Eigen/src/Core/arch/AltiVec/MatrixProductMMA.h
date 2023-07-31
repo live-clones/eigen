@@ -403,7 +403,7 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(
     MICRO_MMA_UNROLL_ITER2(n, 0); \
   }
 
-#define GEMM_SMALL_ROWS
+#define GEMM_MULTIPLE_ROWS
 
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, const Index accItr>
 EIGEN_ALWAYS_INLINE void gemmMMA_cols(
@@ -535,7 +535,7 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
       typedef typename std::conditional_t<(sizeof(Scalar) == sizeof(float)), RhsPacket, __vector_pair> RhsPacket2;
 
       Index col = 0;
-#ifdef GEMM_SMALL_ROWS
+#ifdef GEMM_MULTIPLE_ROWS
       MICRO_MMA_COLS(4);
       MICRO_MMA_COLS(2);
 #endif
