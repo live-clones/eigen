@@ -33,8 +33,8 @@ template<typename Packet> EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC
 Packet pfrexp_generic_get_biased_exponent(const Packet& a) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  static constexpr int mantissa_bits = numext::numeric_limits<Scalar>::digits - 1;
-  return pcast<PacketI, Packet>(plogical_shift_right<mantissa_bits>(preinterpret<PacketI>(pabs(a))));
+  static constexpr int MantissaBits = numext::numeric_limits<Scalar>::digits - 1;
+  return pcast<PacketI, Packet>(plogical_shift_right<MantissaBits>(preinterpret<PacketI>(pabs(a))));
 }
 
 // Safely applies frexp, correctly handles denormals.
@@ -50,38 +50,31 @@ Packet pfrexp_generic(const Packet& a, Packet& exponent) {
   static constexpr ScalarUI
       NormalizationOffset = MantissaBits + 1,
       NormalizationFactor = ScalarUI(1) << NormalizationOffset,
-      ExponentOffset = (1 << (ExponentBits - 1)) - 2;
+      NormalExponentOffset = (1 << (ExponentBits - 1)) - 2;
 
   const Packet normalization_factor = pset1<Packet>(Scalar(NormalizationFactor)); // 2^24
-  const Packet norm_exponent_offset = pset1<Packet>(Scalar(ExponentOffset));   // 126
-  const Packet denorm_exponent_offset = pset1<Packet>(Scalar(ExponentOffset+NormalizationOffset));   // 126+24
+  const Packet norm_exponent_offset = pset1<Packet>(Scalar(NormalExponentOffset));   // 126
+  const Packet denorm_exponent_offset = pset1<Packet>(Scalar(NormalExponentOffset + NormalizationOffset)); // 126+24
 
   const Packet zero = pzero(a);
   const Packet half = pset1<Packet>(Scalar(0.5));
-  // the bitwise complement of inf provides a mask to detect denormalized numbers
   const Packet pos_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
 
-  const Packet abs_a = pabs(a);
+  const Packet exponent_bits = pand(a, pos_inf);
+  const Packet a_is_denormal = pcmp_eq(exponent_bits, zero);
+  const Packet a_is_not_finite = pcmp_eq(exponent_bits, pos_inf);
   const Packet a_is_zero = pcmp_eq(a, zero);
-  const Packet a_is_denormal = pcmp_eq(pandnot(a, pos_inf), zero);
-  const Packet a_is_finite = pcmp_lt(abs_a, pos_inf);
-  const Packet a_is_not_degenerate = pandnot(a_is_finite, a_is_zero);
+  const Packet a_is_degenerate = por(a_is_not_finite, a_is_zero);
 
-  // To handle denormals, normalize by multiplying by 2^(int(MantissaBits)+1).
   const Packet normalized_a = pselect(a_is_denormal, pmul(a, normalization_factor), a);
-  // Determine exponent offset: 126 if normal, 126+24 if denormal
   const Packet exponent_offset = pselect(a_is_denormal, denorm_exponent_offset, norm_exponent_offset);
 
-  // Determine exponent and mantissa from normalized_a.
-  // Zero, Inf and NaN return 'a' unmodified, exponent is zero
-  // (technically the exponent is unspecified for inf/NaN, but GCC/Clang set it to zero)
-
   Packet m = por(pandnot(normalized_a, pos_inf), half);
-  m = pselect(a_is_not_degenerate, m, a);
+  m = pselect(a_is_degenerate, a, m);
 
   exponent = pfrexp_generic_get_biased_exponent(normalized_a);
   exponent = psub(exponent, exponent_offset);
-  exponent = pand(exponent, a_is_not_degenerate);
+  exponent = pandnot(exponent, a_is_degenerate);
 
   return m;
 }
