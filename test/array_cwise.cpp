@@ -47,7 +47,9 @@ std::vector<Scalar> special_values() {
   const Scalar sqrt2 = Scalar(std::sqrt(2));    
   const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
   const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
+  #if !EIGEN_ARCH_ARM
   const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
+  #endif
   const Scalar min = (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
