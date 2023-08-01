@@ -158,8 +158,14 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
 #define VECTOR_PAIR_LOADS_LHS
 #endif
 
+#define GEMM_MULTIPLE_COLS
+
 // PEEL_MMA loop factor.
+#ifdef GEMM_MULTIPLE_COLS
+#define PEEL_MMA 8
+#else
 #define PEEL_MMA 7
+#endif
 
 #define MICRO_MMA_UNROLL(func) \
   func(0) func(1) func(2) func(3) func(4) func(5) func(6) func(7)
@@ -402,8 +408,6 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(
   while(row + n*accCols <= rows) { \
     MICRO_MMA_UNROLL_ITER2(n, 0); \
   }
-
-#define GEMM_MULTIPLE_COLS
 
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, const Index accItr>
 EIGEN_ALWAYS_INLINE void gemmMMA_cols(

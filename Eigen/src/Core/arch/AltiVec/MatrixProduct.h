@@ -591,6 +591,36 @@ struct dhs_cpack {
 // General template for lhs & rhs packing.
 template<typename Scalar, typename DataMapper, typename Packet, int StorageOrder, bool PanelMode, bool UseLhs>
 struct dhs_pack{
+  template<Index n>
+  EIGEN_ALWAYS_INLINE void dhs_copy(Scalar* blockA, const DataMapper& lhs2, Index& i, Index& ri, Index depth, const Index vectorSize)
+  {
+    PacketBlock<Packet,4> block[n];
+
+    for(; i + n*vectorSize <= depth; i+=n*vectorSize)
+    {
+      for (Index k = 0; k < n; k++) {
+        if (UseLhs) {
+          bload<DataMapper, Packet, 4, StorageOrder, false, 4>(block[k], lhs2, 0, i + k*vectorSize);
+        } else {
+          bload<DataMapper, Packet, 4, StorageOrder, false, 4>(block[k], lhs2, i + k*vectorSize, 0);
+        }
+      }
+
+      if(((StorageOrder == RowMajor) && UseLhs) || ((StorageOrder == ColMajor) && !UseLhs))
+      {
+        for (Index k = 0; k < n; k++) {
+          ptranspose(block[k]);
+        }
+      }
+
+      for (Index k = 0; k < n; k++) {
+        storeBlock<Scalar, Packet, 4>(blockA + ri + k*4*vectorSize, block[k]);
+      }
+
+      ri += n*4*vectorSize;
+    }
+  }
+
   EIGEN_STRONG_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
     const Index vectorSize = quad_traits<Scalar>::vectorsize;
@@ -603,24 +633,9 @@ struct dhs_pack{
 
       if(PanelMode) ri += vectorSize*offset;
 
-      for(; i + vectorSize <= depth; i+=vectorSize)
-      {
-        PacketBlock<Packet,4> block;
+      dhs_copy<4>(blockA, lhs2, i, ri, depth, vectorSize);
+      dhs_copy<1>(blockA, lhs2, i, ri, depth, vectorSize);
 
-        if (UseLhs) {
-          bload<DataMapper, Packet, 4, StorageOrder, false, 4>(block, lhs2, 0, i);
-        } else {
-          bload<DataMapper, Packet, 4, StorageOrder, false, 4>(block, lhs2, i, 0);
-        }
-        if(((StorageOrder == RowMajor) && UseLhs) || ((StorageOrder == ColMajor) && !UseLhs))
-        {
-          ptranspose(block);
-        }
-
-        storeBlock<Scalar, Packet, 4>(blockA + ri, block);
-
-        ri += 4*vectorSize;
-      }
       for(; i < depth; i++)
       {
         if(((StorageOrder == RowMajor) && UseLhs) || ((StorageOrder == ColMajor) && !UseLhs))
