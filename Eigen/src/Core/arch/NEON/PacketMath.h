@@ -973,6 +973,9 @@ template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const 
   // approximation of 1/b.
   restep = vrecps_f32(b, inv);
   inv = vmul_f32(restep, inv);
+  // second iteration
+  restep = vrecps_f32(b, inv);
+  inv = vmul_f32(restep, inv);
 
   // Finally, multiply a by 1/b and get the wanted result of the division.
   div = vmul_f32(a, inv);
@@ -996,6 +999,9 @@ template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const 
 
   // This returns a differential, by which we will have to multiply inv to get a better
   // approximation of 1/b.
+  restep = vrecpsq_f32(b, inv);
+  inv = vmulq_f32(restep, inv);
+  // second iteration
   restep = vrecpsq_f32(b, inv);
   inv = vmulq_f32(restep, inv);
 
