@@ -634,6 +634,7 @@ struct dhs_pack{
       if(PanelMode) ri += vectorSize*offset;
 
       dhs_copy<4>(blockA, lhs2, i, ri, depth, vectorSize);
+      dhs_copy<2>(blockA, lhs2, i, ri, depth, vectorSize);
       dhs_copy<1>(blockA, lhs2, i, ri, depth, vectorSize);
 
       for(; i < depth; i++)
@@ -705,6 +706,39 @@ struct dhs_pack{
 template<typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, true>
 {
+  template<Index n>
+  EIGEN_ALWAYS_INLINE void dhs_copy(double* blockA, const DataMapper& lhs2, Index& i, Index& ri, Index depth, const Index vectorSize)
+  {
+    PacketBlock<Packet2d,2> block[n];
+
+    for(; i + n*vectorSize <= depth; i+=n*vectorSize)
+    {
+      for (Index k = 0; k < n; k++) {
+        if(StorageOrder == RowMajor)
+        {
+          block[k].packet[0] = lhs2.template loadPacket<Packet2d>(0, i + k*vectorSize);
+          block[k].packet[1] = lhs2.template loadPacket<Packet2d>(1, i + k*vectorSize);
+        } else {
+          block[k].packet[0] = lhs2.template loadPacket<Packet2d>(0, i + k*vectorSize + 0);
+          block[k].packet[1] = lhs2.template loadPacket<Packet2d>(0, i + k*vectorSize + 1);
+        }
+      }
+
+      if(StorageOrder == RowMajor)
+      {
+        for (Index k = 0; k < n; k++) {
+          ptranspose(block[k]);
+        }
+      }
+
+      for (Index k = 0; k < n; k++) {
+        storeBlock<double, Packet2d, 2>(blockA + ri + k*2*vectorSize, block[k]);
+      }
+
+      ri += n*2*vectorSize;
+    }
+  }
+
   EIGEN_STRONG_INLINE void operator()(double* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
     const Index vectorSize = quad_traits<double>::vectorsize;
@@ -717,24 +751,10 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, true>
 
       if(PanelMode) ri += vectorSize*offset;
 
-      for(; i + vectorSize <= depth; i+=vectorSize)
-      {
-        PacketBlock<Packet2d,2> block;
-        if(StorageOrder == RowMajor)
-        {
-          block.packet[0] = lhs2.template loadPacket<Packet2d>(0, i);
-          block.packet[1] = lhs2.template loadPacket<Packet2d>(1, i);
+      dhs_copy<4>(blockA, lhs2, i, ri, depth, vectorSize);
+      dhs_copy<2>(blockA, lhs2, i, ri, depth, vectorSize);
+      dhs_copy<1>(blockA, lhs2, i, ri, depth, vectorSize);
 
-          ptranspose(block);
-        } else {
-          block.packet[0] = lhs2.template loadPacket<Packet2d>(0, i + 0);
-          block.packet[1] = lhs2.template loadPacket<Packet2d>(0, i + 1);
-        }
-
-        storeBlock<double, Packet2d, 2>(blockA + ri, block);
-
-        ri += 2*vectorSize;
-      }
       for(; i < depth; i++)
       {
         if(StorageOrder == RowMajor)
@@ -773,6 +793,53 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, true>
 template<typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
 {
+  template<Index n>
+  EIGEN_ALWAYS_INLINE void dhs_copy(double* blockB, const DataMapper& rhs2, Index& i, Index& ri, Index depth, const Index vectorSize)
+  {
+    PacketBlock<Packet2d,2> block1[n], block2[n];
+    PacketBlock<Packet2d,4> block3[n];
+
+    for(; i + n*vectorSize <= depth; i+=n*vectorSize)
+    {
+      for (Index k = 0; k < n; k++) {
+        if(StorageOrder == ColMajor)
+        {
+          block1[k].packet[0] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize, 0);
+          block1[k].packet[1] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize, 1);
+          block2[k].packet[0] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize, 2);
+          block2[k].packet[1] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize, 3);
+        } else {
+          block3[k].packet[0] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize + 0, 0); //[a1 a2]
+          block3[k].packet[1] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize + 0, 2); //[a3 a4]
+          block3[k].packet[2] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize + 1, 0); //[b1 b2]
+          block3[k].packet[3] = rhs2.template loadPacket<Packet2d>(i + k*vectorSize + 1, 2); //[b3 b4]
+        }
+      }
+
+      if(StorageOrder == ColMajor)
+      {
+        for (Index k = 0; k < n; k++) {
+          ptranspose(block1[k]);
+          ptranspose(block2[k]);
+        }
+      }
+
+      for (Index k = 0; k < n; k++) {
+        if(StorageOrder == ColMajor)
+        {
+          pstore<double>(blockB + ri + k*4*vectorSize    , block1[k].packet[0]);
+          pstore<double>(blockB + ri + k*4*vectorSize + 2, block2[k].packet[0]);
+          pstore<double>(blockB + ri + k*4*vectorSize + 4, block1[k].packet[1]);
+          pstore<double>(blockB + ri + k*4*vectorSize + 6, block2[k].packet[1]);
+        } else {
+          storeBlock<double, Packet2d, 4>(blockB + ri + k*4*vectorSize, block3[k]);
+        }
+      }
+
+      ri += n*4*vectorSize;
+    }
+  }
+
   EIGEN_STRONG_INLINE void operator()(double* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
   {
     const Index vectorSize = quad_traits<double>::vectorsize;
@@ -785,35 +852,10 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false>
 
       if(PanelMode) ri += offset*(2*vectorSize);
 
-      for(; i + vectorSize <= depth; i+=vectorSize)
-      {
-        PacketBlock<Packet2d,4> block;
-        if(StorageOrder == ColMajor)
-        {
-          PacketBlock<Packet2d,2> block1, block2;
-          block1.packet[0] = rhs2.template loadPacket<Packet2d>(i, 0);
-          block1.packet[1] = rhs2.template loadPacket<Packet2d>(i, 1);
-          block2.packet[0] = rhs2.template loadPacket<Packet2d>(i, 2);
-          block2.packet[1] = rhs2.template loadPacket<Packet2d>(i, 3);
+      dhs_copy<4>(blockB, rhs2, i, ri, depth, vectorSize);
+      dhs_copy<2>(blockB, rhs2, i, ri, depth, vectorSize);
+      dhs_copy<1>(blockB, rhs2, i, ri, depth, vectorSize);
 
-          ptranspose(block1);
-          ptranspose(block2);
-
-          pstore<double>(blockB + ri    , block1.packet[0]);
-          pstore<double>(blockB + ri + 2, block2.packet[0]);
-          pstore<double>(blockB + ri + 4, block1.packet[1]);
-          pstore<double>(blockB + ri + 6, block2.packet[1]);
-        } else {
-          block.packet[0] = rhs2.template loadPacket<Packet2d>(i + 0, 0); //[a1 a2]
-          block.packet[1] = rhs2.template loadPacket<Packet2d>(i + 0, 2); //[a3 a4]
-          block.packet[2] = rhs2.template loadPacket<Packet2d>(i + 1, 0); //[b1 b2]
-          block.packet[3] = rhs2.template loadPacket<Packet2d>(i + 1, 2); //[b3 b4]
-
-          storeBlock<double, Packet2d, 4>(blockB + ri, block);
-        }
-
-        ri += 4*vectorSize;
-      }
       for(; i < depth; i++)
       {
         if(StorageOrder == ColMajor)
