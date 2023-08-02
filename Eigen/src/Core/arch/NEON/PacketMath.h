@@ -983,10 +983,10 @@ template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const 
   return vdivq_f32(a,b);
 #else
   Packet4f b_e;
-  Packet4f b_m = pfrexp<Packet4f>(b, b_e);
-  Packet4f b_m_inv = preciprocal<Packet4f>(b_m);
+  Packet4f b_m = pfrexp_generic(b, b_e);
+  Packet4f b_m_inv = preciprocal(b_m);
   Packet4f result = vmulq_f32(a, b_m_inv);
-  result = pldexp<Packet4f>(result, vnegq_f32(b_e));
+  result = pldexp_generic(result, vnegq_f32(b_e));
 #endif
 }
 
@@ -996,10 +996,10 @@ template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const 
   return vdiv_f32(a,b);
 #else
   Packet2f b_e;
-  Packet2f b_m = pfrexp<Packet2f>(b, b_e);
-  Packet2f b_m_inv = preciprocal<Packet2f>(b_m);
+  Packet2f b_m = pfrexp_generic(b, b_e);
+  Packet2f b_m_inv = preciprocal(b_m);
   Packet2f result = vmul_f32(a, b_m_inv);
-  result = pldexp<Packet2f>(result, vneg_f32(b_e));
+  result = pldexp_generic(result, vneg_f32(b_e));
 #endif
 }
 
