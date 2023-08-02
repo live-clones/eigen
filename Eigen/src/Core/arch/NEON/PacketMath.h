@@ -3365,11 +3365,13 @@ template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
   float32x4_t result = vrsqrteq_f32(a);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
+  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   return result;
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
   float32x2_t result = vrsqrte_f32(a);
+  result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   return result;
@@ -3380,8 +3382,20 @@ template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
 template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return vsqrtq_f32(a); }
 template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return vsqrt_f32(a); }
 #else
-template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return pmul(a, prsqrt(a)); }
-template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return pmul(a, prsqrt(a)); }
+template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) {
+  Packet4f result = pmul(a, prsqrt(a));
+  Packet4f a_is_zero = pcmp_eq(a, pzero(a));
+  Packet4f a_is_pos_inf = pcmp_eq(a, pset1<Packet4f>(NumTraits<float>::infinity()));
+  Packet4f return_a = por(a_is_zero, a_is_pos_inf);
+  return pselect(return_a, a, result);
+  }
+template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
+  Packet2f result = pmul(a, prsqrt(a));
+  Packet2f a_is_zero = pcmp_eq(a, pzero(a));
+  Packet2f a_is_pos_inf = pcmp_eq(a, pset1<Packet2f>(NumTraits<float>::infinity()));
+  Packet2f return_a = por(a_is_zero, a_is_pos_inf);
+  return pselect(return_a, a, result);
+  }
 #endif
 
 //---------- bfloat16 ----------
