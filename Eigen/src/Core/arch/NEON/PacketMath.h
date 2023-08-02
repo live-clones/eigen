@@ -955,60 +955,51 @@ template<> EIGEN_STRONG_INLINE Packet2ul pmul<Packet2ul>(const Packet2ul& a, con
     vdup_n_u64(vgetq_lane_u64(a, 1)*vgetq_lane_u64(b, 1)));
 }
 
-template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
+// NEON does not offer a divide instruction, we have to do a reciprocal approximation
+// However NEON in contrast to other SIMD engines (AltiVec/SSE), offers
+// a reciprocal estimate AND a reciprocal step -which saves a few instructions
+// vrecpeq_f32() returns an estimate to 1/b, which we will finetune with
+// Newton-Raphson and vrecpsq_f32()
+
+template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
 {
-#if EIGEN_ARCH_ARM64
-  return vdiv_f32(a,b);
-#else
-  Packet2f inv, restep, div;
-
-  // NEON does not offer a divide instruction, we have to do a reciprocal approximation
-  // However NEON in contrast to other SIMD engines (AltiVec/SSE), offers
-  // a reciprocal estimate AND a reciprocal step -which saves a few instructions
-  // vrecpeq_f32() returns an estimate to 1/b, which we will finetune with
-  // Newton-Raphson and vrecpsq_f32()
-  inv = vrecpe_f32(b);
-
-  // This returns a differential, by which we will have to multiply inv to get a better
-  // approximation of 1/b.
-  restep = vrecps_f32(b, inv);
-  inv = vmul_f32(restep, inv);
-  // second iteration
-  restep = vrecps_f32(b, inv);
-  inv = vmul_f32(restep, inv);
-
-  // Finally, multiply a by 1/b and get the wanted result of the division.
-  div = vmul_f32(a, inv);
-
-  return div;
-#endif
+  float32x4_t result = vrecpeq_f32(a);
+  result = vmulq_f32(vrecpsq_f32(a, result), result);
+  result = vmulq_f32(vrecpsq_f32(a, result), result);
+  return result;
 }
+
+template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
+{
+  float32x2_t result = vrecpe_f32(a);
+  result = vmul_f32(vrecps_f32(a, result), result);
+  result = vmul_f32(vrecps_f32(a, result), result);
+  return result;
+}
+
 template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
 #if EIGEN_ARCH_ARM64
   return vdivq_f32(a,b);
 #else
-  Packet4f inv, restep, div;
+  float32x4_t b_e;
+  float32x4_t b_m = pfrexp(b, b_e);
+  float32x4_t b_m_inv = preciprocal(b_m);
+  float32x4_t result = vmulq_f32(a, b_m_inv);
+  result = pldexp(result, vnegq_f32(b_e));
+#endif
+}
 
-  // NEON does not offer a divide instruction, we have to do a reciprocal approximation
-  // However NEON in contrast to other SIMD engines (AltiVec/SSE), offers
-  // a reciprocal estimate AND a reciprocal step -which saves a few instructions
-  // vrecpeq_f32() returns an estimate to 1/b, which we will finetune with
-  // Newton-Raphson and vrecpsq_f32()
-  inv = vrecpeq_f32(b);
-
-  // This returns a differential, by which we will have to multiply inv to get a better
-  // approximation of 1/b.
-  restep = vrecpsq_f32(b, inv);
-  inv = vmulq_f32(restep, inv);
-  // second iteration
-  restep = vrecpsq_f32(b, inv);
-  inv = vmulq_f32(restep, inv);
-
-  // Finally, multiply a by 1/b and get the wanted result of the division.
-  div = vmulq_f32(a, inv);
-
-  return div;
+template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
+{
+#if EIGEN_ARCH_ARM64
+  return vdiv_f32(a,b);
+#else
+  float32x2_t b_e;
+  float32x2_t b_m = pfrexp(b, b_e);
+  float32x2_t b_m_inv = preciprocal(b_m);
+  float32x2_t result = vmul_f32(a, b_m_inv);
+  result = pldexp(result, vneg_f32(b_e));
 #endif
 }
 
@@ -3367,27 +3358,28 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
   return res;
 }
 
+// Compute approximate reciprocal sqrt.
 template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
-  // Do Newton iterations for 1/sqrt(x).
-  return generic_rsqrt_newton_step<Packet4f, /*Steps=*/2>::run(a, vrsqrteq_f32(a));
+  float32x4_t result = vrsqrteq_f32(a);
+  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
+  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
+  return result;
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
-  // Compute approximate reciprocal sqrt.
-  return generic_rsqrt_newton_step<Packet2f, /*Steps=*/2>::run(a, vrsqrte_f32(a));
+  float32x2_t result = vrsqrte_f32(a);
+  result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
+  result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
+  return result;
 }
 
 // Unfortunately vsqrt_f32 is only available for A64.
 #if EIGEN_ARCH_ARM64
-template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& _x){return vsqrtq_f32(_x);}
-template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& _x){return vsqrt_f32(_x); }
+template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return vsqrtq_f32(a); }
+template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return vsqrt_f32(a); }
 #else
-template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) {
-  return generic_sqrt_newton_step<Packet4f>::run(a, prsqrt(a));
-}
-template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
-  return generic_sqrt_newton_step<Packet2f>::run(a, prsqrt(a));
-}
+template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return pmul(a, prsqrt(a)); }
+template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return pmul(a, prsqrt(a)); }
 #endif
 
 //---------- bfloat16 ----------
