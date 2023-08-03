@@ -154,11 +154,13 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
   ploadRhsMMA(lhs, lhsV);
 }
 
-#if (EIGEN_COMP_LLVM || (__GNUC__ >= 11))
+#define GEMM_MULTIPLE_COLS
+
+// Disable in GCC until unnecessary register moves are fixed
+//#if (EIGEN_COMP_LLVM || (__GNUC__ >= 11))
+#if EIGEN_COMP_LLVM
 #define VECTOR_PAIR_LOADS_LHS
 #endif
-
-#define GEMM_MULTIPLE_COLS
 
 // PEEL_MMA loop factor.
 #ifdef GEMM_MULTIPLE_COLS
