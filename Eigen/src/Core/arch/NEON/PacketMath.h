@@ -986,7 +986,7 @@ template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
   Packet4f am = pandnot(a, cst_inf);
   Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
   Packet4f a_div_ae = por(am, cst_one);
-  Packet4f ae_div_a = preciprocal_unsafe(a_div_ae)
+  Packet4f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet4f a_recip = pmul(ae_div_a, ae_recip);
   return a_recip;
 }
