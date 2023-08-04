@@ -991,10 +991,6 @@ Packet patanh_float(const Packet& x) {
   // For |x| in ]0.5:1.0] we use atanh = 0.5*ln((1+x)/(1-x));
   const Packet one = pset1<Packet>(1.0f);
   Packet r = pdiv(padd(one, x), psub(one, x));
-  #if EIGEN_ARCH_ARM
-  // division by reciprocal may underflow for |x| >> 1
-  r = por(r, pcmp_lt(one, x));
-  #endif
   r = pmul(half, plog(r));
   return pselect(x_gt_half, r, p);
 }
