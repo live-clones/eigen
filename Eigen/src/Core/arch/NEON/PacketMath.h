@@ -977,45 +977,15 @@ Packet2f preciprocal_unsafe(const Packet2f& a)
   return result;
 }
 
-template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
-{
-  const Packet4f cst_one = pset1<Packet4f>(1.0f);
-  const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
-
-  Packet4f ae = pand(a, cst_inf);
-  Packet4f am = pandnot(a, cst_inf);
-  Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
-  Packet4f a_div_ae = por(am, cst_one);
-  Packet4f ae_div_a = preciprocal_unsafe(a_div_ae);
-  Packet4f a_recip = pmul(ae_div_a, ae_recip);
-  return a_recip;
-}
-
-template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
-{
-  const Packet2f cst_one = pset1<Packet2f>(1.0f);
-  const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
-
-  Packet2f ae = pand(a, cst_inf);
-  Packet2f am = pandnot(a, cst_inf);
-  Packet2f ae_recip = pxor(padd(ae, ae), cst_inf);
-  Packet2f a_div_ae = por(am, cst_one);
-  Packet2f ae_div_a = preciprocal_unsafe(a_div_ae);
-  Packet2f a_recip = pmul(ae_div_a, ae_recip);
-  return a_recip;
-}
+template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a);
+template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a);
 
 template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
 #if EIGEN_ARCH_ARM64
   return vdivq_f32(a,b);
 #else
-  Packet4f b_e;
-  Packet4f b_m = pfrexp_generic(b, b_e);
-  Packet4f b_m_inv = preciprocal(b_m);
-  Packet4f result = vmulq_f32(a, b_m_inv);
-  result = pldexp_generic(result, vnegq_f32(b_e));
-  return result;
+  return pmul(a, preciprocal(b));
 #endif
 }
 
@@ -1024,12 +994,7 @@ template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const 
 #if EIGEN_ARCH_ARM64
   return vdiv_f32(a,b);
 #else
-  Packet2f b_e;
-  Packet2f b_m = pfrexp_generic(b, b_e);
-  Packet2f b_m_inv = preciprocal(b_m);
-  Packet2f result = vmul_f32(a, b_m_inv);
-  result = pldexp_generic(result, vneg_f32(b_e));
-  return result;
+  return pmul(a, preciprocal(b));
 #endif
 }
 
@@ -3425,6 +3390,34 @@ template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
   return pselect(return_a, a, result);
   }
 #endif
+
+template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
+{
+  const Packet4f cst_one = pset1<Packet4f>(1.0f);
+  const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
+
+  Packet4f ae = pand(a, cst_inf);
+  Packet4f am = pandnot(a, cst_inf);
+  Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
+  Packet4f a_div_ae = por(am, cst_one);
+  Packet4f ae_div_a = preciprocal_unsafe(a_div_ae);
+  Packet4f a_recip = pmul(ae_div_a, ae_recip);
+  return a_recip;
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
+{
+  const Packet2f cst_one = pset1<Packet2f>(1.0f);
+  const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
+
+  Packet2f ae = pand(a, cst_inf);
+  Packet2f am = pandnot(a, cst_inf);
+  Packet2f ae_recip = pxor(padd(ae, ae), cst_inf);
+  Packet2f a_div_ae = por(am, cst_one);
+  Packet2f ae_div_a = preciprocal_unsafe(a_div_ae);
+  Packet2f a_recip = pmul(ae_div_a, ae_recip);
+  return a_recip;
+}
 
 //---------- bfloat16 ----------
 // TODO: Add support for native armv8.6-a bfloat16_t
