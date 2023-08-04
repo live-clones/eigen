@@ -3396,15 +3396,11 @@ template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
 
   Packet4f ae = pand(a, cst_inf);
   Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
-  // this method does not handle NaN correctly
-  Packet4f a_div_ae_v1 = por(pandnot(a, cst_inf), cst_one);
-  // this method does not handle Zero or Infinity correctly
-  Packet4f a_div_ae_v2 = pmul(a, ae_recip);
-  // the disjunction of these methods handles all situations correctly
-  Packet4f a_div_ae = pand(a_div_ae_v1, a_div_ae_v2);
+  Packet4f a_div_ae = por(pandnot(a, cst_inf), cst_one);
   Packet4f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet4f a_recip = pmul(ae_div_a, ae_recip);
-  return a_recip;
+  Packet4f a_is_not_nan = pcmp_eq(a, a);
+  return pselect(a_is_not_nan, a_recip, a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
@@ -3414,15 +3410,11 @@ template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
 
   Packet2f ae = pand(a, cst_inf);
   Packet2f ae_recip = pxor(padd(ae, ae), cst_inf);
-  // this method does not handle NaN correctly
-  Packet2f a_div_ae_v1 = por(pandnot(a, cst_inf), cst_one);
-  // this method does not handle Zero or Infinity correctly
-  Packet2f a_div_ae_v2 = pmul(a, ae_recip);
-  // the disjunction of these methods handles all situations correctly
-  Packet2f a_div_ae = pand(a_div_ae_v1, a_div_ae_v2);
+  Packet2f a_div_ae = por(pandnot(a, cst_inf), cst_one);
   Packet2f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet2f a_recip = pmul(ae_div_a, ae_recip);
-  return a_recip;
+  Packet2f a_is_not_nan = pcmp_eq(a, a);
+  return pselect(a_is_not_nan, a_recip, a);
 }
 
 //---------- bfloat16 ----------
