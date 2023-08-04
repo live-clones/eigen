@@ -961,7 +961,7 @@ template<> EIGEN_STRONG_INLINE Packet2ul pmul<Packet2ul>(const Packet2ul& a, con
 // vrecpeq_f32() returns an estimate to 1/b, which we will finetune with
 // Newton-Raphson and vrecpsq_f32()
 
-template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
+Packet4f preciprocal_unsafe(const Packet4f& a)
 {
   float32x4_t result = vrecpeq_f32(a);
   result = vmulq_f32(vrecpsq_f32(a, result), result);
@@ -969,12 +969,40 @@ template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
   return result;
 }
 
-template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
+Packet2f preciprocal_unsafe(const Packet2f& a)
 {
   float32x2_t result = vrecpe_f32(a);
   result = vmul_f32(vrecps_f32(a, result), result);
   result = vmul_f32(vrecps_f32(a, result), result);
   return result;
+}
+
+template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
+{
+  const Packet4f cst_one = pset1<Packet4f>(1.0f);
+  const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
+
+  Packet4f ae = pand(a, cst_inf);
+  Packet4f am = pandnot(a, cst_inf);
+  Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
+  Packet4f a_div_ae = por(am, cst_one);
+  Packet4f ae_div_a = preciprocal_unsafe(a_div_ae)
+  Packet4f a_recip = pmul(ae_div_a, ae_recip);
+  return a_recip;
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
+{
+  const Packet2f cst_one = pset1<Packet2f>(1.0f);
+  const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
+
+  Packet2f ae = pand(a, cst_inf);
+  Packet2f am = pandnot(a, cst_inf);
+  Packet2f ae_recip = pxor(padd(ae, ae), cst_inf);
+  Packet2f a_div_ae = por(am, cst_one);
+  Packet2f ae_div_a = preciprocal_unsafe(a_div_ae);
+  Packet2f a_recip = pmul(ae_div_a, ae_recip);
+  return a_recip;
 }
 
 template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
