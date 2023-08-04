@@ -3391,12 +3391,17 @@ template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
 
 template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
 {
+  const Packet4f cst_one = pset1<Packet4f>(1.0f);
   const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
 
   Packet4f ae = pand(a, cst_inf);
   Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
-  // we could employ por(pandnot(a, cst_inf), cst_one) to cheaply compute a_div_ae, but this will not propagate NaN
-  Packet4f a_div_ae = pmul(a, ae_recip);
+  // this method does not handle NaN correctly
+  Packet4f a_div_ae_v1 = por(pandnot(a, cst_inf), cst_one);
+  // this method does not handle Zero or Infinity correctly
+  Packet4f a_div_ae_v2 = pmul(a, ae_recip);
+  // the disjunction of these methods handles all situations correctly
+  Packet4f a_div_ae = pand(a_div_ae_v1, a_div_ae_v2);
   Packet4f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet4f a_recip = pmul(ae_div_a, ae_recip);
   return a_recip;
@@ -3404,12 +3409,17 @@ template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
 
 template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
 {
+  const Packet2f cst_one = pset1<Packet2f>(1.0f);
   const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
 
   Packet2f ae = pand(a, cst_inf);
   Packet2f ae_recip = pxor(padd(ae, ae), cst_inf);
-  // we could employ por(pandnot(a, cst_inf), cst_one) to cheaply compute a_div_ae, but this will not propagate NaN
-  Packet2f a_div_ae = pmul(a, ae_recip);
+  // this method does not handle NaN correctly
+  Packet2f a_div_ae_v1 = por(pandnot(a, cst_inf), cst_one);
+  // this method does not handle Zero or Infinity correctly
+  Packet2f a_div_ae_v2 = pmul(a, ae_recip);
+  // the disjunction of these methods handles all situations correctly
+  Packet2f a_div_ae = pand(a_div_ae_v1, a_div_ae_v2);
   Packet2f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet2f a_recip = pmul(ae_div_a, ae_recip);
   return a_recip;
