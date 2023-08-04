@@ -3402,7 +3402,8 @@ template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
   Packet4f a_div_ae = por(am, cst_one);
   Packet4f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet4f a_recip = pmul(ae_div_a, ae_recip);
-  return a_recip;
+  Packet4f a_is_not_nan = pcmp_eq(a,a);
+  return pselect(a_is_not_nan, a_recip, a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
@@ -3416,7 +3417,8 @@ template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
   Packet2f a_div_ae = por(am, cst_one);
   Packet2f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet2f a_recip = pmul(ae_div_a, ae_recip);
-  return a_recip;
+  Packet2f a_is_not_nan = pcmp_eq(a,a);
+  return pselect(a_is_not_nan, a_recip, a);
 }
 
 //---------- bfloat16 ----------
