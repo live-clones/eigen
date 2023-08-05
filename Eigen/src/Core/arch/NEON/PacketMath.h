@@ -3445,7 +3445,6 @@ EIGEN_STRONG_INLINE Packet2f preciprocal_unsafe(const Packet2f& a)
 #if !EIGEN_ARCH_ARM64
 template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
-  const Packet4f cst_half = pset1<Packet4f>(0.5f);
   const Packet4f cst_one = pset1<Packet4f>(1.0f);
   const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
 
@@ -3461,7 +3460,6 @@ template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const 
 
 template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
 {
-  const Packet2f cst_half = pset1<Packet2f>(0.5f);
   const Packet2f cst_one = pset1<Packet2f>(1.0f);
   const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
 
