@@ -955,48 +955,17 @@ template<> EIGEN_STRONG_INLINE Packet2ul pmul<Packet2ul>(const Packet2ul& a, con
     vdup_n_u64(vgetq_lane_u64(a, 1)*vgetq_lane_u64(b, 1)));
 }
 
-// NEON does not offer a divide instruction, we have to do a reciprocal approximation
-// However NEON in contrast to other SIMD engines (AltiVec/SSE), offers
-// a reciprocal estimate AND a reciprocal step -which saves a few instructions
-// vrecpeq_f32() returns an estimate to 1/b, which we will finetune with
-// Newton-Raphson and vrecpsq_f32()
-
-Packet4f preciprocal_unsafe(const Packet4f& a)
-{
-  float32x4_t result = vrecpeq_f32(a);
-  result = vmulq_f32(vrecpsq_f32(a, result), result);
-  result = vmulq_f32(vrecpsq_f32(a, result), result);
-  return result;
-}
-
-Packet2f preciprocal_unsafe(const Packet2f& a)
-{
-  float32x2_t result = vrecpe_f32(a);
-  result = vmul_f32(vrecps_f32(a, result), result);
-  result = vmul_f32(vrecps_f32(a, result), result);
-  return result;
-}
-
-template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a);
-template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a);
-
+#if EIGEN_ARCH_ARM64
 template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
-#if EIGEN_ARCH_ARM64
   return vdivq_f32(a,b);
-#else
-  return pmul(a, preciprocal(b));
-#endif
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
 {
-#if EIGEN_ARCH_ARM64
   return vdiv_f32(a,b);
-#else
-  return pmul(a, preciprocal(b));
-#endif
 }
+#endif
 
 template<> EIGEN_STRONG_INLINE Packet4c pdiv<Packet4c>(const Packet4c& /*a*/, const Packet4c& /*b*/)
 {
@@ -3389,11 +3358,30 @@ template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
   }
 #endif
 
+// reciprocal estimate with newton refinement steps
+Packet4f preciprocal_unsafe(const Packet4f& a)
+{
+  float32x4_t result = vrecpeq_f32(a);
+  result = vmulq_f32(vrecpsq_f32(a, result), result);
+  result = vmulq_f32(vrecpsq_f32(a, result), result);
+  return result;
+}
+
+Packet2f preciprocal_unsafe(const Packet2f& a)
+{
+  float32x2_t result = vrecpe_f32(a);
+  result = vmul_f32(vrecps_f32(a, result), result);
+  result = vmul_f32(vrecps_f32(a, result), result);
+  return result;
+}
+
 template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
 {
+  #if EIGEN_ARCH_ARM64
+  return preciprocal_unsafe(a);
+  #else
   const Packet4f cst_one = pset1<Packet4f>(1.0f);
   const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
-
   Packet4f ae = pand(a, cst_inf);
   Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
   Packet4f a_div_ae = por(pandnot(a, cst_inf), cst_one);
@@ -3401,13 +3389,16 @@ template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
   Packet4f a_recip = pmul(ae_div_a, ae_recip);
   Packet4f a_is_not_nan = pcmp_eq(a, a);
   return pselect(a_is_not_nan, a_recip, a);
+  #endif
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
 {
+  #if EIGEN_ARCH_ARM64
+  return preciprocal_unsafe(a);
+  #else
   const Packet2f cst_one = pset1<Packet2f>(1.0f);
   const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
-
   Packet2f ae = pand(a, cst_inf);
   Packet2f ae_recip = pxor(padd(ae, ae), cst_inf);
   Packet2f a_div_ae = por(pandnot(a, cst_inf), cst_one);
@@ -3415,7 +3406,20 @@ template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
   Packet2f a_recip = pmul(ae_div_a, ae_recip);
   Packet2f a_is_not_nan = pcmp_eq(a, a);
   return pselect(a_is_not_nan, a_recip, a);
+  #endif
 }
+
+#if !EIGEN_ARCH_ARM64
+template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
+{
+  return pmul(a, preciprocal(b));
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
+{
+  return pmul(a, preciprocal(b));
+}
+#endif
 
 //---------- bfloat16 ----------
 // TODO: Add support for native armv8.6-a bfloat16_t
