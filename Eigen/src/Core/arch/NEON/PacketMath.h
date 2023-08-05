@@ -3323,14 +3323,14 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
 }
 
 // Compute approximate reciprocal sqrt.
-Packet4f prsqrt_unsafe(const Packet4f& a) {
+EIGEN_STRONG_INLINE Packet4f prsqrt_unsafe(const Packet4f& a) {
   float32x4_t result = vrsqrteq_f32(a);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   return result;
 }
 
-Packet2f prsqrt_unsafe(const Packet2f& a) {
+EIGEN_STRONG_INLINE Packet2f prsqrt_unsafe(const Packet2f& a) {
   float32x2_t result = vrsqrte_f32(a);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
@@ -3338,7 +3338,7 @@ Packet2f prsqrt_unsafe(const Packet2f& a) {
 }
 
 // Compute approximate reciprocal sqrt with support for large inputs
-Packet4f prsqrt_large(const Packet4f& a) {
+EIGEN_STRONG_INLINE Packet4f prsqrt_large(const Packet4f& a) {
   constexpr int mantissa = 23;
   constexpr unsigned int bias = 127;
 
@@ -3369,7 +3369,7 @@ Packet4f prsqrt_large(const Packet4f& a) {
   return rsqrt_a;
 }
 
-Packet2f prsqrt_large(const Packet2f& a) {
+EIGEN_STRONG_INLINE Packet2f prsqrt_large(const Packet2f& a) {
   constexpr int mantissa = 23;
   constexpr unsigned int bias = 127;
 
@@ -3436,7 +3436,7 @@ template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
 #endif
 
 // reciprocal estimate with newton refinement steps
-Packet4f preciprocal_unsafe(const Packet4f& a)
+EIGEN_STRONG_INLINE Packet4f preciprocal_unsafe(const Packet4f& a)
 {
   float32x4_t result = vrecpeq_f32(a);
   result = vmulq_f32(vrecpsq_f32(a, result), result);
@@ -3444,7 +3444,7 @@ Packet4f preciprocal_unsafe(const Packet4f& a)
   return result;
 }
 
-Packet2f preciprocal_unsafe(const Packet2f& a)
+EIGEN_STRONG_INLINE Packet2f preciprocal_unsafe(const Packet2f& a)
 {
   float32x2_t result = vrecpe_f32(a);
   result = vmul_f32(vrecps_f32(a, result), result);
