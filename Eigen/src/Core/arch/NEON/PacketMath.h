@@ -3446,11 +3446,13 @@ EIGEN_STRONG_INLINE Packet2f preciprocal_unsafe(const Packet2f& a)
 template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
   const Packet4f cst_half = pset1<Packet4f>(0.5f);
+  const Packet4f cst_one = pset1<Packet4f>(1.0f);
   const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
 
-  Packet4f p = pand(b, cst_inf);
-  p = pmul(p, cst_half);
-  Packet4f p_recip = pmul(pxor(p, cst_inf), cst_half);
+  Packet4f b_is_degenerate = pcmp_eq(pandnot(b, psub(b, b)), pzero(b));
+  Packet4f half_p = pand(b, cst_inf);
+  Packet4f p_recip = pxor(half_p, cst_inf);
+  p_recip = pselect(b_is_degenerate, cst_one, p_recip);
   Packet4f b_div_p = pmul(b, p_recip);
   Packet4f p_div_b = preciprocal_unsafe(b_div_p);
   Packet4f result = pmul(pmul(a, p_div_b), p_recip);
@@ -3459,12 +3461,14 @@ template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const 
 
 template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
 {
-  const Packet2f cst_half = pset1<Packet4f>(0.5f);
-  const Packet2f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
+  const Packet2f cst_half = pset1<Packet2f>(0.5f);
+  const Packet2f cst_one = pset1<Packet2f>(1.0f);
+  const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
 
-  Packet2f p = pand(b, cst_inf);
-  p = pmul(p, cst_half);
-  Packet2f p_recip = pmul(pxor(p, cst_inf), cst_half);
+  Packet2f b_is_degenerate = pcmp_eq(pandnot(b, psub(b, b)), pzero(b));
+  Packet2f half_p = pand(b, cst_inf);
+  Packet2f p_recip = pxor(half_p, cst_inf);
+  p_recip = pselect(b_is_degenerate, cst_one, p_recip);
   Packet2f b_div_p = pmul(b, p_recip);
   Packet2f p_div_b = preciprocal_unsafe(b_div_p);
   Packet2f result = pmul(pmul(a, p_div_b), p_recip);
