@@ -3465,7 +3465,7 @@ template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
   #if EIGEN_ARCH_ARM64
   return preciprocal_unsafe(a);
   #else
-  const Packet4f cst_half = pset1<Packet4f>(0.5f);
+  const Packet4f Packet4f = pset1<Packet4f>(0.5f);
   const Packet2f cst_one = pset1<Packet2f>(1.0f);
   const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
   Packet2f ae = pand(a, cst_inf);
