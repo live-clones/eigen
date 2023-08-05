@@ -3345,28 +3345,28 @@ Packet4f prsqrt_large(const Packet4f& a) {
   const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
   const Packet4ui cst_bias = pset1<Packet4ui>(bias);
 
-  Packet4f ae = pand(a, cst_inf);
+  Packet4f p = pand(a, cst_inf);
 
-  Packet4ui b = vreinterpretq_u32_f32(ae);
+  Packet4ui b = vreinterpretq_u32_f32(p);
   b = plogical_shift_right<mantissa>(b);
   b = vqsubq_u32(b, cst_bias); // saturated subtraction
 
   Packet4ui c_div_2 = plogical_shift_right<1>(b);
   c_div_2 = padd(c_div_2, cst_bias);
   c_div_2 = plogical_shift_left<mantissa>(c_div_2);
-  Packet4f sqrt_p = vreinterpretq_f32_u32(c_div_2);
-  Packet4f rsqrt_p = pxor(padd(sqrt_p, sqrt_p), cst_inf);
+  Packet4f sqrt_q = vreinterpretq_f32_u32(c_div_2);
+  Packet4f rsqrt_q = pxor(padd(sqrt_q, sqrt_q), cst_inf);
 
   Packet4ui c = plogical_shift_left<1>(c_div_2);
   c = padd(c, cst_bias);
   c = plogical_shift_left<mantissa>(c);
-  Packet4f p = vreinterpretq_f32_u32(c);
-  Packet4f reciprocal_p = pxor(padd(p, p), cst_inf);
+  Packet4f q = vreinterpretq_f32_u32(c);
+  Packet4f reciprocal_q = pxor(padd(q, q), cst_inf);
 
-  Packet4f x_div_p = pmul(x, reciprocal_p);
-  Packet4f rsqrt_x_div_p = prsqrt_unsafe(x_div_p);
-  Packet4f rsqrt_x = pmul(rsqrt_x_div_p, rsqrt_p);
-  return rsqrt_x;
+  Packet4f a_div_q = pmul(a, reciprocal_q);
+  Packet4f rsqrt_a_div_q = prsqrt_unsafe(a_div_q);
+  Packet4f rsqrt_a = pmul(rsqrt_a_div_q, rsqrt_q);
+  return rsqrt_a;
 }
 
 Packet2f prsqrt_large(const Packet2f& a) {
@@ -3376,28 +3376,28 @@ Packet2f prsqrt_large(const Packet2f& a) {
   const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
   const Packet2ui cst_bias = pset1<Packet2ui>(bias);
 
-  Packet2f ae = pand(a, cst_inf);
+  Packet2f p = pand(a, cst_inf);
 
-  Packet2ui b = vreinterpret_u32_f32(ae);
+  Packet2ui b = vreinterpretq_u32_f32(p);
   b = plogical_shift_right<mantissa>(b);
   b = vqsub_u32(b, cst_bias); // saturated subtraction
 
   Packet2ui c_div_2 = plogical_shift_right<1>(b);
   c_div_2 = padd(c_div_2, cst_bias);
   c_div_2 = plogical_shift_left<mantissa>(c_div_2);
-  Packet2f sqrt_p = vreinterpret_f32_u32(c_div_2);
-  Packet2f rsqrt_p = pxor(padd(sqrt_p, sqrt_p), cst_inf);
+  Packet2f sqrt_q = vreinterpret_f32_u32(c_div_2);
+  Packet2f rsqrt_q = pxor(padd(sqrt_q, sqrt_q), cst_inf);
 
   Packet2ui c = plogical_shift_left<1>(c_div_2);
   c = padd(c, cst_bias);
   c = plogical_shift_left<mantissa>(c);
-  Packet2f p = vreinterpret_f32_u32(c);
-  Packet2f reciprocal_p = pxor(padd(p, p), cst_inf);
+  Packet2f q = vreinterpret_f32_u32(c);
+  Packet2f reciprocal_q = pxor(padd(q, q), cst_inf);
 
-  Packet2f x_div_p = pmul(x, reciprocal_p);
-  Packet2f rsqrt_x_div_p = prsqrt_unsafe(x_div_p);
-  Packet2f rsqrt_x = pmul(rsqrt_x_div_p, rsqrt_p);
-  return rsqrt_x;
+  Packet2f a_div_q = pmul(a, reciprocal_q);
+  Packet2f rsqrt_a_div_q = prsqrt_unsafe(a_div_q);
+  Packet2f rsqrt_a = pmul(rsqrt_a_div_q, rsqrt_q);
+  return rsqrt_a;
 }
 
 // Compute approximate reciprocal sqrt with support for large inputs and correct NaN handling
