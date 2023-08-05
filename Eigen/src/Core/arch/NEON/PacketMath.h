@@ -3323,18 +3323,94 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
 }
 
 // Compute approximate reciprocal sqrt.
-template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
+Packet4f prsqrt_unsafe(const Packet4f& a) {
   float32x4_t result = vrsqrteq_f32(a);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   return result;
 }
 
-template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
+Packet2f prsqrt_unsafe(const Packet2f& a) {
   float32x2_t result = vrsqrte_f32(a);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   return result;
+}
+
+// Compute approximate reciprocal sqrt with support for large inputs
+Packet4f prsqrt_large(const Packet4f& a) {
+  constexpr int mantissa = 23;
+  constexpr unsigned int bias = 127;
+
+  const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
+  const Packet4ui cst_bias = pset1<Packet4ui>(bias);
+
+  Packet4f ae = pand(a, cst_inf);
+
+  Packet4ui b = vreinterpretq_u32_f32(ae);
+  b = plogical_shift_right<mantissa>(b);
+  b = vqsubq_u32(b, cst_bias); // saturated subtraction
+
+  Packet4ui c_div_2 = plogical_shift_right<1>(b);
+  c_div_2 = padd(c_div_2, cst_bias);
+  c_div_2 = plogical_shift_left<mantissa>(c_div_2);
+  Packet4f sqrt_p = vreinterpretq_f32_u32(c_div_2);
+  Packet4f rsqrt_p = pxor(padd(sqrt_p, sqrt_p), cst_inf);
+
+  Packet4ui c = plogical_shift_left<1>(c_div_2);
+  c = padd(c, cst_bias);
+  c = plogical_shift_left<mantissa>(c);
+  Packet4f p = vreinterpretq_f32_u32(c);
+  Packet4f reciprocal_p = pxor(padd(p, p), cst_inf);
+
+  Packet4f x_div_p = pmul(x, reciprocal_p);
+  Packet4f rsqrt_x_div_p = prsqrt_unsafe(x_div_p);
+  Packet4f rsqrt_x = pmul(rsqrt_x_div_p, rsqrt_p);
+  return rsqrt_x;
+}
+
+Packet2f prsqrt_large(const Packet2f& a) {
+  constexpr int mantissa = 23;
+  constexpr unsigned int bias = 127;
+
+  const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
+  const Packet2ui cst_bias = pset1<Packet2ui>(bias);
+
+  Packet2f ae = pand(a, cst_inf);
+
+  Packet2ui b = vreinterpret_u32_f32(ae);
+  b = plogical_shift_right<mantissa>(b);
+  b = vqsub_u32(b, cst_bias); // saturated subtraction
+
+  Packet2ui c_div_2 = plogical_shift_right<1>(b);
+  c_div_2 = padd(c_div_2, cst_bias);
+  c_div_2 = plogical_shift_left<mantissa>(c_div_2);
+  Packet2f sqrt_p = vreinterpret_f32_u32(c_div_2);
+  Packet2f rsqrt_p = pxor(padd(sqrt_p, sqrt_p), cst_inf);
+
+  Packet2ui c = plogical_shift_left<1>(c_div_2);
+  c = padd(c, cst_bias);
+  c = plogical_shift_left<mantissa>(c);
+  Packet2f p = vreinterpret_f32_u32(c);
+  Packet2f reciprocal_p = pxor(padd(p, p), cst_inf);
+
+  Packet2f x_div_p = pmul(x, reciprocal_p);
+  Packet2f rsqrt_x_div_p = prsqrt_unsafe(x_div_p);
+  Packet2f rsqrt_x = pmul(rsqrt_x_div_p, rsqrt_p);
+  return rsqrt_x;
+}
+
+// Compute approximate reciprocal sqrt with support for large inputs and correct NaN handling
+template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
+  Packet4f result = prsqrt_large(a);
+  Packet4f a_is_not_nan = pcmp_eq(a, a);
+  return pselect(a_is_not_nan, a_recip, a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
+  Packet2f result = prsqrt_large(a);
+  Packet2f a_is_not_nan = pcmp_eq(a, a);
+  return pselect(a_is_not_nan, a_recip, a);
 }
 
 // Unfortunately vsqrt_f32 is only available for A64.
@@ -3342,15 +3418,16 @@ template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
 template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return vsqrtq_f32(a); }
 template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return vsqrt_f32(a); }
 #else
+// Use prsqrt_large instead of prsqrt to avoid redundant error handling
 template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) {
-  Packet4f result = pmul(a, prsqrt(a));
+  Packet4f result = pmul(a, prsqrt_large(a));
   Packet4f a_is_zero = pcmp_eq(a, pzero(a));
   Packet4f a_is_pos_inf = pcmp_eq(a, pset1<Packet4f>(NumTraits<float>::infinity()));
   Packet4f return_a = por(a_is_zero, a_is_pos_inf);
   return pselect(return_a, a, result);
   }
 template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
-  Packet2f result = pmul(a, prsqrt(a));
+  Packet2f result = pmul(a, prsqrt_large(a));
   Packet2f a_is_zero = pcmp_eq(a, pzero(a));
   Packet2f a_is_pos_inf = pcmp_eq(a, pset1<Packet2f>(NumTraits<float>::infinity()));
   Packet2f return_a = por(a_is_zero, a_is_pos_inf);
