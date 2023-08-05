@@ -3378,7 +3378,7 @@ Packet2f prsqrt_large(const Packet2f& a) {
 
   Packet2f p = pand(a, cst_inf);
 
-  Packet2ui b = vreinterpretq_u32_f32(p);
+  Packet2ui b = vreinterpret_u32_f32(p);
   b = plogical_shift_right<mantissa>(b);
   b = vqsub_u32(b, cst_bias); // saturated subtraction
 
