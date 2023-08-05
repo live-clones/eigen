@@ -3342,6 +3342,7 @@ EIGEN_STRONG_INLINE Packet4f prsqrt_large(const Packet4f& a) {
   constexpr int mantissa = 23;
   constexpr unsigned int bias = 127;
 
+  const Packet4f cst_half = pset1<Packet4f>(0.5f);
   const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
   const Packet4ui cst_bias = pset1<Packet4ui>(bias);
 
@@ -3352,10 +3353,10 @@ EIGEN_STRONG_INLINE Packet4f prsqrt_large(const Packet4f& a) {
   Packet4ui c = plogical_shift_left<1>(c_div_2);
 
   Packet4f sqrt_q = vreinterpretq_f32_u32(plogical_shift_left<mantissa>(padd(c_div_2, cst_bias)));
-  Packet4f rsqrt_q = pxor(padd(sqrt_q, sqrt_q), cst_inf);
+  Packet4f rsqrt_q = pmul(pxor(sqrt_q, cst_inf), cst_half);
 
   Packet4f q = vreinterpretq_f32_u32(plogical_shift_left<mantissa>(padd(c, cst_bias)));
-  Packet4f reciprocal_q = pxor(padd(q, q), cst_inf);
+  Packet4f reciprocal_q = pmul(pxor(q, cst_inf), cst_half);
 
   Packet4f a_div_q = pmul(a, reciprocal_q);
   Packet4f rsqrt_a_div_q = prsqrt_unsafe(a_div_q);
@@ -3367,6 +3368,7 @@ EIGEN_STRONG_INLINE Packet2f prsqrt_large(const Packet2f& a) {
   constexpr int mantissa = 23;
   constexpr unsigned int bias = 127;
 
+  const Packet2f cst_half = pset1<Packet2f>(0.5f);
   const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
   const Packet2ui cst_bias = pset1<Packet2ui>(bias);
 
@@ -3377,10 +3379,10 @@ EIGEN_STRONG_INLINE Packet2f prsqrt_large(const Packet2f& a) {
   Packet2ui c = plogical_shift_left<1>(c_div_2);
 
   Packet2f sqrt_q = vreinterpret_f32_u32(plogical_shift_left<mantissa>(padd(c_div_2, cst_bias)));
-  Packet2f rsqrt_q = pxor(padd(sqrt_q, sqrt_q), cst_inf);
+  Packet2f rsqrt_q = pmul(pxor(sqrt_q, cst_inf), cst_half);
 
   Packet2f q = vreinterpret_f32_u32(plogical_shift_left<mantissa>(padd(c, cst_bias)));
-  Packet2f reciprocal_q = pxor(padd(q, q), cst_inf);
+  Packet2f reciprocal_q = pmul(pxor(q, cst_inf), cst_half);
 
   Packet2f a_div_q = pmul(a, reciprocal_q);
   Packet2f rsqrt_a_div_q = prsqrt_unsafe(a_div_q);
@@ -3445,10 +3447,11 @@ template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
   #if EIGEN_ARCH_ARM64
   return preciprocal_unsafe(a);
   #else
+  const Packet4f cst_half = pset1<Packet4f>(0.5f);
   const Packet4f cst_one = pset1<Packet4f>(1.0f);
   const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
   Packet4f ae = pand(a, cst_inf);
-  Packet4f ae_recip = pxor(padd(ae, ae), cst_inf);
+  Packet4f ae_recip = pmul(pxor(ae, cst_inf), cst_half);
   Packet4f a_div_ae = por(pandnot(a, cst_inf), cst_one);
   Packet4f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet4f a_recip = pmul(ae_div_a, ae_recip);
@@ -3462,10 +3465,11 @@ template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
   #if EIGEN_ARCH_ARM64
   return preciprocal_unsafe(a);
   #else
+  const Packet4f cst_half = pset1<Packet4f>(0.5f);
   const Packet2f cst_one = pset1<Packet2f>(1.0f);
   const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
   Packet2f ae = pand(a, cst_inf);
-  Packet2f ae_recip = pxor(padd(ae, ae), cst_inf);
+  Packet2f ae_recip = pmul(pxor(ae, cst_inf), cst_half);
   Packet2f a_div_ae = por(pandnot(a, cst_inf), cst_one);
   Packet2f ae_div_a = preciprocal_unsafe(a_div_ae);
   Packet2f a_recip = pmul(ae_div_a, ae_recip);
