@@ -3404,13 +3404,13 @@ Packet2f prsqrt_large(const Packet2f& a) {
 template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
   Packet4f result = prsqrt_large(a);
   Packet4f a_is_not_nan = pcmp_eq(a, a);
-  return pselect(a_is_not_nan, a_recip, a);
+  return pselect(a_is_not_nan, result, a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
   Packet2f result = prsqrt_large(a);
   Packet2f a_is_not_nan = pcmp_eq(a, a);
-  return pselect(a_is_not_nan, a_recip, a);
+  return pselect(a_is_not_nan, result, a);
 }
 
 // Unfortunately vsqrt_f32 is only available for A64.
