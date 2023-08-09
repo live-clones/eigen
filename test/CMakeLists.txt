@@ -173,6 +173,7 @@ add_custom_target(BuildOfficial)
 
 ei_add_test(rand)
 ei_add_test(meta)
+ei_add_test(maxsizevector)
 ei_add_test(numext)
 ei_add_test(sizeof)
 ei_add_test(dynalloc)
@@ -311,7 +312,9 @@ ei_add_test(initializer_list_construction)
 ei_add_test(diagonal_matrix_variadic_ctor)
 ei_add_test(serializer)
 ei_add_test(tuple_test)
-
+ei_add_test(threads_eventcount "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(threads_runqueue "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(threads_non_blocking_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 add_executable(bug1213 bug1213.cpp bug1213_main.cpp)
 
 check_cxx_compiler_flag("-ffast-math" COMPILER_SUPPORT_FASTMATH)
@@ -472,6 +475,14 @@ if (EIGEN_TEST_HIP)
   else ()
     message(FATAL_ERROR "EIGEN_TEST_HIP is ON, but the specified HIP_PATH (${HIP_PATH}) does not exist")
   endif()
+endif()
+
+if(EIGEN_TEST_SYCL)
+  set(EIGEN_SYCL ON)
+  include(SyclConfigureTesting)
+
+  ei_add_test(sycl_basic)
+  set(EIGEN_SYCL OFF)
 endif()
 
 cmake_dependent_option(EIGEN_TEST_BUILD_DOCUMENTATION "Test building the doxygen documentation" OFF "EIGEN_BUILD_DOC" OFF)

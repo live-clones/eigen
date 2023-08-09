@@ -5,7 +5,7 @@
 #define EIGEN_POWER_PREFETCH(p)
 #endif
 
-#ifdef _ARCH_PWR9
+#if defined(_ARCH_PWR9) || defined(EIGEN_ALTIVEC_MMA_DYNAMIC_DISPATCH)
 #define USE_PARTIAL_PACKETS
 #endif
 
@@ -101,6 +101,9 @@ EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], flo
 
 template<Index num_acc, Index size = 4>
 EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float *result, Packet4f pAlpha);
+
+template<typename RhsMapper, bool linear>
+EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j);
 
 template<typename Packet>
 EIGEN_ALWAYS_INLINE Packet ploadLhs(const __UNPACK_TYPE__(Packet)* lhs);

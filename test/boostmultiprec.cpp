@@ -156,6 +156,7 @@ EIGEN_DECLARE_TEST(boostmultiprec)
   std::cout << "NumTraits<Real>::lowest()          = " << NumTraits<Real>::lowest() << std::endl;
   std::cout << "NumTraits<Real>::highest()         = " << NumTraits<Real>::highest() << std::endl;
   std::cout << "NumTraits<Real>::digits10()        = " << NumTraits<Real>::digits10() << std::endl;
+  std::cout << "NumTraits<Real>::max_digits10()    = " << NumTraits<Real>::max_digits10() << std::endl;
 
   // check stream output
   {
@@ -200,8 +201,10 @@ EIGEN_DECLARE_TEST(boostmultiprec)
     TEST_SET_BUT_UNUSED_VARIABLE(s)
   }
 
-  CALL_SUBTEST_9(( jacobisvd_all_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE), internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE/2))) ));
-  CALL_SUBTEST_10(( bdcsvd_all_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE), internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE/2))) ));
+  CALL_SUBTEST_9(( jacobisvd_thin_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE), internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE/2))) ));
+  CALL_SUBTEST_9(( jacobisvd_full_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE), internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE/2))) ));
+  CALL_SUBTEST_10(( bdcsvd_thin_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE), internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE/2))) ));
+  CALL_SUBTEST_10(( bdcsvd_full_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE), internal::random<int>(EIGEN_TEST_MAX_SIZE/4, EIGEN_TEST_MAX_SIZE/2))) ));
 
   CALL_SUBTEST_11(( test_simplicial_cholesky_T<Real,int,ColMajor>() ));
 }

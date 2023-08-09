@@ -171,8 +171,8 @@ class EventCount {
     // Align to 128 byte boundary to prevent false sharing with other Waiter
     // objects in the same vector.
     EIGEN_ALIGN_TO_BOUNDARY(128) std::atomic<uint64_t> next;
-    std::mutex mu;
-    std::condition_variable cv;
+    EIGEN_MUTEX mu;
+    EIGEN_CONDVAR cv;
     uint64_t epoch = 0;
     unsigned state = kNotSignaled;
     enum {
@@ -220,7 +220,7 @@ class EventCount {
   }
 
   void Park(Waiter* w) {
-    std::unique_lock<std::mutex> lock(w->mu);
+    EIGEN_MUTEX_LOCK lock(w->mu);
     while (w->state != Waiter::kSignaled) {
       w->state = Waiter::kWaiting;
       w->cv.wait(lock);
@@ -230,10 +230,10 @@ class EventCount {
   void Unpark(Waiter* w) {
     for (Waiter* next; w; w = next) {
       uint64_t wnext = w->next.load(std::memory_order_relaxed) & kStackMask;
-      next = wnext == kStackMask ? nullptr : &waiters_[wnext];
+      next = wnext == kStackMask ? nullptr : &waiters_[internal::convert_index<size_t>(wnext)];
       unsigned state;
       {
-        std::unique_lock<std::mutex> lock(w->mu);
+        EIGEN_MUTEX_LOCK lock(w->mu);
         state = w->state;
         w->state = Waiter::kSignaled;
       }
