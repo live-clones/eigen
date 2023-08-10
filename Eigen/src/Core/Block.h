@@ -108,6 +108,7 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
   : public BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind>
 {
     typedef BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind> Impl;
+    using BlockHelper = internal::block_xpr_helper<Block>;
   public:
     //typedef typename Impl::Base Base;
     typedef Impl Base;
@@ -149,6 +150,20 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
           && (ColsAtCompileTime==Dynamic || ColsAtCompileTime==blockCols));
       eigen_assert(startRow >= 0 && blockRows >= 0 && startRow  <= xpr.rows() - blockRows
           && startCol >= 0 && blockCols >= 0 && startCol <= xpr.cols() - blockCols);
+    }
+
+    using ConstUnwindReturnType = Block<const typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
+    using UnwindReturnType = Block<typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ConstUnwindReturnType unwind() const {
+      return ConstUnwindReturnType(BlockHelper::base(*this), BlockHelper::row(*this, 0), BlockHelper::col(*this, 0),
+                                   this->rows(), this->cols());
+    }
+
+    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnwindReturnType unwind() {
+      return UnwindReturnType(BlockHelper::base(*this), BlockHelper::row(*this, 0), BlockHelper::col(*this, 0),
+                              this->rows(), this->cols());
     }
 };
 
