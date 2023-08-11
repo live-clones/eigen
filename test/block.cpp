@@ -342,7 +342,7 @@ struct unwind_test_impl {
 
 template <typename BaseXpr, typename Xpr>
 struct unwind_test_impl<BaseXpr, Xpr, 4> {
-  static void run(const Xpr& xpr) {}
+  static void run(const Xpr&) {}
 };
 
 template <typename BaseXpr>
