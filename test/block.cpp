@@ -305,17 +305,31 @@ void data_and_stride(const MatrixType& m)
   compare_using_data_and_stride(m1.row(r1).transpose());
   compare_using_data_and_stride(m1.col(c1).transpose());
 }
-
+ 
 template<typename Xpr>
 void recursive_block_check(const Xpr& xpr) {
   // Recursively reduce rows/cols until the result is 1x1.  This is just
   // to ensure we don't introduce infinite compile-time recursion.
   if (xpr.rows() > 1) {
-    recursive_block_check(xpr.block(0, 0, (xpr.rows() + 1) / 2, xpr.cols()));
+    Index rows = (xpr.rows() + 1) / 2;
+    Index cols = xpr.cols();
+    Block<const Xpr> nestedBlock(xpr, 0, 0, rows, cols);
+    VERIFY_IS_CWISE_EQUAL(nestedBlock, nestedBlock.unwind());    
+    recursive_block_check(xpr.block(0, 0, rows, cols));
   }
   if (xpr.cols() > 1) {
-    recursive_block_check(xpr.block(0, 0, xpr.rows(), (xpr.cols() + 1)/2));
+    Index rows = xpr.rows();
+    Index cols = (xpr.cols() + 1) / 2;
+    Block<const Xpr> nestedBlock(xpr, 0, 0, rows, cols);
+    VERIFY_IS_CWISE_EQUAL(nestedBlock, nestedBlock.unwind());
+    recursive_block_check(xpr.block(0, 0, rows, cols));
   }
+}
+
+template <typename Xpr>
+void init_recursive_block_check(const Xpr& xpr) {
+  Xpr xprTest = Xpr::Random(xpr.rows(), xpr.cols());
+  recursive_block_check(xprTest);
 }
 
 EIGEN_DECLARE_TEST(block)
@@ -332,7 +346,7 @@ EIGEN_DECLARE_TEST(block)
     CALL_SUBTEST_7( block(Matrix<int,Dynamic,Dynamic,RowMajor>(internal::random(2,50), internal::random(2,50))) );
 
     CALL_SUBTEST_8( block(Matrix<float,Dynamic,4>(3, 4)) );
-    CALL_SUBTEST_9( recursive_block_check(Matrix<float,Dynamic,4>(3, 4)) );
+    CALL_SUBTEST_9( init_recursive_block_check(Matrix<float, Dynamic, 4>(3, 4)));
 
 #ifndef EIGEN_DEFAULT_TO_ROW_MAJOR
     CALL_SUBTEST_6( data_and_stride(MatrixXf(internal::random(5,50), internal::random(5,50))) );
