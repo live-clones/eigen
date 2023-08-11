@@ -814,11 +814,14 @@ struct is_block_xpr : std::false_type {};
 template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
 struct is_block_xpr<Block<XprType, BlockRows, BlockCols, InnerPanel>> : std::true_type {};
 
+template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
+struct is_block_xpr<const Block<XprType, BlockRows, BlockCols, InnerPanel>> : std::true_type {};
+
 // Helper utility for constructing non-recursive block expressions.
 template<typename XprType>
 struct block_xpr_helper {
   using BaseType = XprType;
-  
+
   // For regular block expressions, simply forward along the InnerPanel argument,
   // which is set when calling row/column expressions.
   static constexpr bool is_inner_panel(bool inner_panel) { return inner_panel; };
@@ -845,6 +848,22 @@ struct block_xpr_helper<Block<XprType, BlockRows, BlockCols, InnerPanel>> {
   // Only enable non-const base function if XprType is not const (otherwise we get a duplicates definition).
   template<typename T = XprType, typename EnableIf=std::enable_if_t<!std::is_const<T>::value>>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE BaseType& base(BlockXprType& xpr) { return NestedXprHelper::base(xpr.nestedExpression()); }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const BaseType& base(const BlockXprType& xpr) { return NestedXprHelper::base(xpr.nestedExpression()); }
+  static constexpr EIGEN_ALWAYS_INLINE Index row(const BlockXprType& xpr, Index r) { return xpr.startRow() + NestedXprHelper::row(xpr.nestedExpression(), r); }
+  static constexpr EIGEN_ALWAYS_INLINE Index col(const BlockXprType& xpr, Index c) { return xpr.startCol() + NestedXprHelper::col(xpr.nestedExpression(), c); }
+};
+
+template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
+struct block_xpr_helper<const Block<XprType, BlockRows, BlockCols, InnerPanel>> {
+  using BlockXprType = const Block<XprType, BlockRows, BlockCols, InnerPanel>;
+  // Recursive helper in case of explicit block-of-block expression.
+  using NestedXprHelper = block_xpr_helper<XprType>;
+  using BaseType = typename NestedXprHelper::BaseType;
+
+  // For block-of-block expressions, we need to combine the InnerPannel trait
+  // with that of the block subexpression.
+  static constexpr bool is_inner_panel(bool inner_panel) { return InnerPanel && inner_panel; }
+
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const BaseType& base(const BlockXprType& xpr) { return NestedXprHelper::base(xpr.nestedExpression()); }
   static constexpr EIGEN_ALWAYS_INLINE Index row(const BlockXprType& xpr, Index r) { return xpr.startRow() + NestedXprHelper::row(xpr.nestedExpression(), r); }
   static constexpr EIGEN_ALWAYS_INLINE Index col(const BlockXprType& xpr, Index c) { return xpr.startCol() + NestedXprHelper::col(xpr.nestedExpression(), c); }
