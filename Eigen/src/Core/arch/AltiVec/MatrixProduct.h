@@ -49,11 +49,6 @@
   #include "MatrixProductMMA.h"
 #endif
 
-/**************************************************************************************************
- * TODO                                                                                           *
- * - Check StorageOrder on dhs_pack (the innermost second loop seems unvectorized when it could). *
- * - Check the possibility of transposing as GETREAL and GETIMAG when needed.                     *
- **************************************************************************************************/
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
@@ -119,6 +114,16 @@ const static Packet16uc p16uc_GETIMAG32 = {  4,  5,  6,  7,
                                             12, 13, 14, 15,
                                             20, 21, 22, 23,
                                             28, 29, 30, 31};
+
+const static Packet16uc p16uc_GETREAL32b = {  0,  1,  2,  3,
+                                             16, 17, 18, 19,
+                                              8,  9, 10, 11,
+                                             24, 25, 26, 27};
+
+const static Packet16uc p16uc_GETIMAG32b = {  4,  5,  6,  7,
+                                             20, 21, 22, 23,
+                                             12, 13, 14, 15,
+                                             28, 29, 30, 31};
 
 /*********************************************
  * Single precision real and complex packing *
@@ -440,6 +445,78 @@ EIGEN_ALWAYS_INLINE void storeBlock(Scalar* to, PacketBlock<Packet,N>& block)
 // General template for lhs & rhs complex packing.
 template<typename Scalar, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode, bool UseLhs>
 struct dhs_cpack {
+  template<bool transpose>
+  EIGEN_ALWAYS_INLINE void dhs_cblock(PacketBlock<PacketC,8>& cblock, PacketBlock<Packet,4>& block, Packet16uc permute)
+  {
+    if (transpose) {
+      block.packet[0] = vec_perm(cblock.packet[0].v, cblock.packet[1].v, permute);
+      block.packet[1] = vec_perm(cblock.packet[2].v, cblock.packet[3].v, permute);
+      block.packet[2] = vec_perm(cblock.packet[4].v, cblock.packet[5].v, permute);
+      block.packet[3] = vec_perm(cblock.packet[6].v, cblock.packet[7].v, permute);
+
+      Packet4f t0, t1, t2, t3;
+#ifdef EIGEN_VECTORIZE_VSX
+      t0 = reinterpret_cast<Packet>(vec_mergeh(reinterpret_cast<Packet2ul>(block.packet[0]), reinterpret_cast<Packet2ul>(block.packet[1])));
+      t1 = reinterpret_cast<Packet>(vec_mergel(reinterpret_cast<Packet2ul>(block.packet[0]), reinterpret_cast<Packet2ul>(block.packet[1])));
+      t2 = reinterpret_cast<Packet>(vec_mergeh(reinterpret_cast<Packet2ul>(block.packet[2]), reinterpret_cast<Packet2ul>(block.packet[3])));
+      t3 = reinterpret_cast<Packet>(vec_mergel(reinterpret_cast<Packet2ul>(block.packet[2]), reinterpret_cast<Packet2ul>(block.packet[3])));
+#else
+      t0 = reinterpret_cast<Packet>(vec_perm(block.packet[0], block.packet[1], p16uc_TRANSPOSE64_HI));
+      t1 = reinterpret_cast<Packet>(vec_perm(block.packet[0], block.packet[1], p16uc_TRANSPOSE64_LO));
+      t2 = reinterpret_cast<Packet>(vec_perm(block.packet[2], block.packet[3], p16uc_TRANSPOSE64_HI));
+      t3 = reinterpret_cast<Packet>(vec_perm(block.packet[2], block.packet[3], p16uc_TRANSPOSE64_LO));
+#endif
+
+      block.packet[0] = t0;
+      block.packet[1] = t1;
+      block.packet[2] = t2;
+      block.packet[3] = t3;
+    } else {
+      block.packet[0] = vec_perm(cblock.packet[0].v, cblock.packet[4].v, permute);
+      block.packet[1] = vec_perm(cblock.packet[1].v, cblock.packet[5].v, permute);
+      block.packet[2] = vec_perm(cblock.packet[2].v, cblock.packet[6].v, permute);
+      block.packet[3] = vec_perm(cblock.packet[3].v, cblock.packet[7].v, permute);
+    }
+  }
+
+  EIGEN_ALWAYS_INLINE void dhs_ccopy(Scalar* blockAt, const DataMapper& lhs2, Index& i, Index& rir, Index& rii, Index depth, const Index vectorSize)
+  {
+    PacketBlock<Packet,4> blockr, blocki;
+    PacketBlock<PacketC,8> cblock;
+
+    for(; i + vectorSize <= depth; i+=vectorSize)
+    {
+      if (UseLhs) {
+        bload<DataMapper, PacketC, 2, StorageOrder, true, 4>(cblock, lhs2, 0, i);
+      } else {
+        bload<DataMapper, PacketC, 2, StorageOrder, true, 4>(cblock, lhs2, i, 0);
+      }
+
+      if(((StorageOrder == RowMajor) && UseLhs) || (((StorageOrder == ColMajor) && !UseLhs)))
+      {
+        dhs_cblock<true>(cblock, blockr, p16uc_GETREAL32b);
+        dhs_cblock<true>(cblock, blocki, p16uc_GETIMAG32b);
+      } else {
+        dhs_cblock<false>(cblock, blockr, p16uc_GETREAL32);
+        dhs_cblock<false>(cblock, blocki, p16uc_GETIMAG32);
+      }
+
+      if(Conjugate)
+      {
+        blocki.packet[0] = -blocki.packet[0];
+        blocki.packet[1] = -blocki.packet[1];
+        blocki.packet[2] = -blocki.packet[2];
+        blocki.packet[3] = -blocki.packet[3];
+      }
+
+      storeBlock<Scalar, Packet, 4>(blockAt + rir, blockr);
+      storeBlock<Scalar, Packet, 4>(blockAt + rii, blocki);
+
+      rir += 4*vectorSize;
+      rii += 4*vectorSize;
+    }
+  }
+
   EIGEN_STRONG_INLINE void operator()(std::complex<Scalar>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
     const Index vectorSize = quad_traits<Scalar>::vectorsize;
@@ -455,47 +532,8 @@ struct dhs_cpack {
 
       rii = rir + vectorDelta;
 
-      for(; i + vectorSize <= depth; i+=vectorSize)
-      {
-        PacketBlock<Packet,4> blockr, blocki;
-        PacketBlock<PacketC,8> cblock;
+      dhs_ccopy(blockAt, lhs2, i, rir, rii, depth, vectorSize);
 
-        if (UseLhs) {
-          bload<DataMapper, PacketC, 2, StorageOrder, true, 4>(cblock, lhs2, 0, i);
-        } else {
-          bload<DataMapper, PacketC, 2, StorageOrder, true, 4>(cblock, lhs2, i, 0);
-        }
-
-        blockr.packet[0] = vec_perm(cblock.packet[0].v, cblock.packet[4].v, p16uc_GETREAL32);
-        blockr.packet[1] = vec_perm(cblock.packet[1].v, cblock.packet[5].v, p16uc_GETREAL32);
-        blockr.packet[2] = vec_perm(cblock.packet[2].v, cblock.packet[6].v, p16uc_GETREAL32);
-        blockr.packet[3] = vec_perm(cblock.packet[3].v, cblock.packet[7].v, p16uc_GETREAL32);
-
-        blocki.packet[0] = vec_perm(cblock.packet[0].v, cblock.packet[4].v, p16uc_GETIMAG32);
-        blocki.packet[1] = vec_perm(cblock.packet[1].v, cblock.packet[5].v, p16uc_GETIMAG32);
-        blocki.packet[2] = vec_perm(cblock.packet[2].v, cblock.packet[6].v, p16uc_GETIMAG32);
-        blocki.packet[3] = vec_perm(cblock.packet[3].v, cblock.packet[7].v, p16uc_GETIMAG32);
-
-        if(Conjugate)
-        {
-          blocki.packet[0] = -blocki.packet[0];
-          blocki.packet[1] = -blocki.packet[1];
-          blocki.packet[2] = -blocki.packet[2];
-          blocki.packet[3] = -blocki.packet[3];
-        }
-
-        if(((StorageOrder == RowMajor) && UseLhs) || (((StorageOrder == ColMajor) && !UseLhs)))
-        {
-          ptranspose(blockr);
-          ptranspose(blocki);
-        }
-
-        storeBlock<Scalar, Packet, 4>(blockAt + rir, blockr);
-        storeBlock<Scalar, Packet, 4>(blockAt + rii, blocki);
-
-        rir += 4*vectorSize;
-        rii += 4*vectorSize;
-      }
       for(; i < depth; i++)
       {
         PacketBlock<Packet,1> blockr, blocki;
@@ -1353,6 +1391,54 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 template<typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, true>
 {
+  EIGEN_ALWAYS_INLINE void dhs_ccopy(double* blockAt, const DataMapper& lhs2, Index& i, Index& rir, Index& rii, Index depth, const Index vectorSize)
+  {
+    PacketBlock<Packet,2> blockr, blocki;
+    PacketBlock<PacketC,4> cblock;
+
+    for(; i + vectorSize <= depth; i+=vectorSize)
+    {
+      if(StorageOrder == ColMajor)
+      {
+        cblock.packet[0] = lhs2.template loadPacket<PacketC>(0, i + 0); //[a1 a1i]
+        cblock.packet[1] = lhs2.template loadPacket<PacketC>(0, i + 1); //[b1 b1i]
+
+        cblock.packet[2] = lhs2.template loadPacket<PacketC>(1, i + 0); //[a2 a2i]
+        cblock.packet[3] = lhs2.template loadPacket<PacketC>(1, i + 1); //[b2 b2i]
+
+        blockr.packet[0] = vec_mergeh(cblock.packet[0].v, cblock.packet[2].v); //[a1 a2]
+        blockr.packet[1] = vec_mergeh(cblock.packet[1].v, cblock.packet[3].v); //[b1 b2]
+
+        blocki.packet[0] = vec_mergel(cblock.packet[0].v, cblock.packet[2].v);
+        blocki.packet[1] = vec_mergel(cblock.packet[1].v, cblock.packet[3].v);
+      } else {
+        cblock.packet[0] = lhs2.template loadPacket<PacketC>(0, i); //[a1 a1i]
+        cblock.packet[1] = lhs2.template loadPacket<PacketC>(1, i); //[a2 a2i]
+
+        cblock.packet[2] = lhs2.template loadPacket<PacketC>(0, i + 1); //[b1 b1i]
+        cblock.packet[3] = lhs2.template loadPacket<PacketC>(1, i + 1); //[b2 b2i
+
+        blockr.packet[0] = vec_mergeh(cblock.packet[0].v, cblock.packet[1].v); //[a1 a2]
+        blockr.packet[1] = vec_mergeh(cblock.packet[2].v, cblock.packet[3].v); //[b1 b2]
+
+        blocki.packet[0] = vec_mergel(cblock.packet[0].v, cblock.packet[1].v);
+        blocki.packet[1] = vec_mergel(cblock.packet[2].v, cblock.packet[3].v);
+      }
+
+      if(Conjugate)
+      {
+        blocki.packet[0] = -blocki.packet[0];
+        blocki.packet[1] = -blocki.packet[1];
+      }
+
+      storeBlock<double, Packet, 2>(blockAt + rir, blockr);
+      storeBlock<double, Packet, 2>(blockAt + rii, blocki);
+
+      rir += 2*vectorSize;
+      rii += 2*vectorSize;
+    }
+  }
+
   EIGEN_STRONG_INLINE void operator()(std::complex<double>* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset)
   {
     const Index vectorSize = quad_traits<double>::vectorsize;
@@ -1368,50 +1454,8 @@ struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, P
 
       rii = rir + vectorDelta;
 
-      for(; i + vectorSize <= depth; i+=vectorSize)
-      {
-        PacketBlock<Packet,2> blockr, blocki;
-        PacketBlock<PacketC,4> cblock;
+      dhs_ccopy(blockAt, lhs2, i, rir, rii, depth, vectorSize);
 
-        if(StorageOrder == ColMajor)
-        {
-          cblock.packet[0] = lhs2.template loadPacket<PacketC>(0, i + 0); //[a1 a1i]
-          cblock.packet[1] = lhs2.template loadPacket<PacketC>(0, i + 1); //[b1 b1i]
-
-          cblock.packet[2] = lhs2.template loadPacket<PacketC>(1, i + 0); //[a2 a2i]
-          cblock.packet[3] = lhs2.template loadPacket<PacketC>(1, i + 1); //[b2 b2i]
-
-          blockr.packet[0] = vec_mergeh(cblock.packet[0].v, cblock.packet[2].v); //[a1 a2]
-          blockr.packet[1] = vec_mergeh(cblock.packet[1].v, cblock.packet[3].v); //[b1 b2]
-
-          blocki.packet[0] = vec_mergel(cblock.packet[0].v, cblock.packet[2].v);
-          blocki.packet[1] = vec_mergel(cblock.packet[1].v, cblock.packet[3].v);
-        } else {
-          cblock.packet[0] = lhs2.template loadPacket<PacketC>(0, i); //[a1 a1i]
-          cblock.packet[1] = lhs2.template loadPacket<PacketC>(1, i); //[a2 a2i]
-
-          cblock.packet[2] = lhs2.template loadPacket<PacketC>(0, i + 1); //[b1 b1i]
-          cblock.packet[3] = lhs2.template loadPacket<PacketC>(1, i + 1); //[b2 b2i
-
-          blockr.packet[0] = vec_mergeh(cblock.packet[0].v, cblock.packet[1].v); //[a1 a2]
-          blockr.packet[1] = vec_mergeh(cblock.packet[2].v, cblock.packet[3].v); //[b1 b2]
-
-          blocki.packet[0] = vec_mergel(cblock.packet[0].v, cblock.packet[1].v);
-          blocki.packet[1] = vec_mergel(cblock.packet[2].v, cblock.packet[3].v);
-        }
-
-        if(Conjugate)
-        {
-          blocki.packet[0] = -blocki.packet[0];
-          blocki.packet[1] = -blocki.packet[1];
-        }
-
-        storeBlock<double, Packet, 2>(blockAt + rir, blockr);
-        storeBlock<double, Packet, 2>(blockAt + rii, blocki);
-
-        rir += 2*vectorSize;
-        rii += 2*vectorSize;
-      }
       for(; i < depth; i++)
       {
         PacketBlock<Packet,1> blockr, blocki;
@@ -1467,6 +1511,35 @@ struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, P
 template<typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, false>
 {
+  EIGEN_ALWAYS_INLINE void dhs_ccopy(double* blockBt, const DataMapper& rhs2, Index& i, Index& rir, Index& rii, Index depth, const Index vectorSize)
+  {
+    for(; i < depth; i++)
+    {
+      PacketBlock<PacketC,4> cblock;
+      PacketBlock<Packet,2> blockr, blocki;
+
+      bload<DataMapper, PacketC, 2, ColMajor, false, 4>(cblock, rhs2, i, 0);
+
+      blockr.packet[0] = vec_mergeh(cblock.packet[0].v, cblock.packet[1].v);
+      blockr.packet[1] = vec_mergeh(cblock.packet[2].v, cblock.packet[3].v);
+
+      blocki.packet[0] = vec_mergel(cblock.packet[0].v, cblock.packet[1].v);
+      blocki.packet[1] = vec_mergel(cblock.packet[2].v, cblock.packet[3].v);
+
+      if(Conjugate)
+      {
+        blocki.packet[0] = -blocki.packet[0];
+        blocki.packet[1] = -blocki.packet[1];
+      }
+
+      storeBlock<double, Packet, 2>(blockBt + rir, blockr);
+      storeBlock<double, Packet, 2>(blockBt + rii, blocki);
+
+      rir += 2*vectorSize;
+      rii += 2*vectorSize;
+    }
+  }
+
   EIGEN_STRONG_INLINE void operator()(std::complex<double>* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset)
   {
     const Index vectorSize = quad_traits<double>::vectorsize;
@@ -1482,31 +1555,7 @@ struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, P
 
       rii = rir + vectorDelta;
 
-      for(; i < depth; i++)
-      {
-        PacketBlock<PacketC,4> cblock;
-        PacketBlock<Packet,2> blockr, blocki;
-
-        bload<DataMapper, PacketC, 2, ColMajor, false, 4>(cblock, rhs2, i, 0);
-
-        blockr.packet[0] = vec_mergeh(cblock.packet[0].v, cblock.packet[1].v);
-        blockr.packet[1] = vec_mergeh(cblock.packet[2].v, cblock.packet[3].v);
-
-        blocki.packet[0] = vec_mergel(cblock.packet[0].v, cblock.packet[1].v);
-        blocki.packet[1] = vec_mergel(cblock.packet[2].v, cblock.packet[3].v);
-
-        if(Conjugate)
-        {
-          blocki.packet[0] = -blocki.packet[0];
-          blocki.packet[1] = -blocki.packet[1];
-        }
-
-        storeBlock<double, Packet, 2>(blockBt + rir, blockr);
-        storeBlock<double, Packet, 2>(blockBt + rii, blocki);
-
-        rir += 2*vectorSize;
-        rii += 2*vectorSize;
-      }
+      dhs_ccopy(blockBt, rhs2, i, rir, rii, depth, vectorSize);
 
       rir += ((PanelMode) ? (2*vectorSize*(2*stride - depth)) : vectorDelta);
     }
