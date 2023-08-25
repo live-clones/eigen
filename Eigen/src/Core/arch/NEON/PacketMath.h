@@ -955,18 +955,6 @@ template<> EIGEN_STRONG_INLINE Packet2ul pmul<Packet2ul>(const Packet2ul& a, con
     vdup_n_u64(vgetq_lane_u64(a, 1)*vgetq_lane_u64(b, 1)));
 }
 
-#if EIGEN_ARCH_ARM64
-template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
-{
-  return vdivq_f32(a,b);
-}
-
-template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
-{
-  return vdiv_f32(a,b);
-}
-#endif
-
 template<> EIGEN_STRONG_INLINE Packet4c pdiv<Packet4c>(const Packet4c& /*a*/, const Packet4c& /*b*/)
 {
   eigen_assert(false && "packet integer division are not supported by NEON");
@@ -3322,156 +3310,97 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
   return res;
 }
 
-// Compute approximate reciprocal sqrt.
-EIGEN_STRONG_INLINE Packet4f prsqrt_unsafe(const Packet4f& a) {
+template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
+  // Compute approximate reciprocal sqrt.
   float32x4_t result = vrsqrteq_f32(a);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
   return result;
 }
 
-EIGEN_STRONG_INLINE Packet2f prsqrt_unsafe(const Packet2f& a) {
+template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
+  // Compute approximate reciprocal sqrt.
   float32x2_t result = vrsqrte_f32(a);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
   return result;
 }
 
-// Compute approximate reciprocal sqrt with support for large inputs
-EIGEN_STRONG_INLINE Packet4f prsqrt_large(const Packet4f& a) {
-  constexpr int mantissa = 23;
-  constexpr unsigned int bias = 127;
-
-  const Packet4f cst_half = pset1<Packet4f>(0.5f);
-  const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
-  const Packet4ui cst_bias = pset1<Packet4ui>(bias);
-
-  Packet4f p = pand(a, cst_inf);
-  Packet4ui b = vqsubq_u32(plogical_shift_right<mantissa>(vreinterpretq_u32_f32(p)), cst_bias);
-
-  Packet4ui c_div_2 = plogical_shift_right<1>(b);
-  Packet4ui c = plogical_shift_left<1>(c_div_2);
-
-  Packet4f sqrt_q = vreinterpretq_f32_u32(plogical_shift_left<mantissa>(padd(c_div_2, cst_bias)));
-  Packet4f rsqrt_q = pmul(pxor(sqrt_q, cst_inf), cst_half);
-
-  Packet4f q = vreinterpretq_f32_u32(plogical_shift_left<mantissa>(padd(c, cst_bias)));
-  Packet4f reciprocal_q = pmul(pxor(q, cst_inf), cst_half);
-
-  Packet4f a_div_q = pmul(a, reciprocal_q);
-  Packet4f rsqrt_a_div_q = prsqrt_unsafe(a_div_q);
-  Packet4f rsqrt_a = pmul(rsqrt_a_div_q, rsqrt_q);
-  return rsqrt_a;
-}
-
-EIGEN_STRONG_INLINE Packet2f prsqrt_large(const Packet2f& a) {
-  constexpr int mantissa = 23;
-  constexpr unsigned int bias = 127;
-
-  const Packet2f cst_half = pset1<Packet2f>(0.5f);
-  const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
-  const Packet2ui cst_bias = pset1<Packet2ui>(bias);
-
-  Packet2f p = pand(a, cst_inf);
-  Packet2ui b = vqsub_u32(plogical_shift_right<mantissa>(vreinterpret_u32_f32(p)), cst_bias); // saturated subtraction
-
-  Packet2ui c_div_2 = plogical_shift_right<1>(b);
-  Packet2ui c = plogical_shift_left<1>(c_div_2);
-
-  Packet2f sqrt_q = vreinterpret_f32_u32(plogical_shift_left<mantissa>(padd(c_div_2, cst_bias)));
-  Packet2f rsqrt_q = pmul(pxor(sqrt_q, cst_inf), cst_half);
-
-  Packet2f q = vreinterpret_f32_u32(plogical_shift_left<mantissa>(padd(c, cst_bias)));
-  Packet2f reciprocal_q = pmul(pxor(q, cst_inf), cst_half);
-
-  Packet2f a_div_q = pmul(a, reciprocal_q);
-  Packet2f rsqrt_a_div_q = prsqrt_unsafe(a_div_q);
-  Packet2f rsqrt_a = pmul(rsqrt_a_div_q, rsqrt_q);
-  return rsqrt_a;
-}
-
-// Compute approximate reciprocal sqrt with support for large inputs and correct NaN handling
-template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
-  Packet4f result = prsqrt_large(a);
-  Packet4f a_is_not_nan = pcmp_eq(a, a);
-  return pselect(a_is_not_nan, result, a);
-}
-
-template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
-  Packet2f result = prsqrt_large(a);
-  Packet2f a_is_not_nan = pcmp_eq(a, a);
-  return pselect(a_is_not_nan, result, a);
-}
-
-// Unfortunately vsqrt_f32 is only available for A64.
-#if EIGEN_ARCH_ARM64
-template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return vsqrtq_f32(a); }
-template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return vsqrt_f32(a); }
-#else
-// Use prsqrt_large instead of prsqrt to avoid redundant error handling
-template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) {
-  Packet4f result = pmul(a, prsqrt_large(a));
-  Packet4f a_is_zero = pcmp_eq(a, pzero(a));
-  Packet4f a_is_pos_inf = pcmp_eq(a, pset1<Packet4f>(NumTraits<float>::infinity()));
-  Packet4f return_a = por(a_is_zero, a_is_pos_inf);
-  return pselect(return_a, a, result);
-  }
-template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
-  Packet2f result = pmul(a, prsqrt_large(a));
-  Packet2f a_is_zero = pcmp_eq(a, pzero(a));
-  Packet2f a_is_pos_inf = pcmp_eq(a, pset1<Packet2f>(NumTraits<float>::infinity()));
-  Packet2f return_a = por(a_is_zero, a_is_pos_inf);
-  return pselect(return_a, a, result);
-  }
-#endif
-
-// reciprocal estimate with newton refinement steps
-EIGEN_STRONG_INLINE Packet4f preciprocal_unsafe(const Packet4f& a)
+template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
 {
+  // Compute approximate reciprocal.
   float32x4_t result = vrecpeq_f32(a);
   result = vmulq_f32(vrecpsq_f32(a, result), result);
   result = vmulq_f32(vrecpsq_f32(a, result), result);
   return result;
 }
 
-EIGEN_STRONG_INLINE Packet2f preciprocal_unsafe(const Packet2f& a)
+template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
 {
+  // Compute approximate reciprocal.
   float32x2_t result = vrecpe_f32(a);
   result = vmul_f32(vrecps_f32(a, result), result);
   result = vmul_f32(vrecps_f32(a, result), result);
   return result;
 }
 
+// Unfortunately vsqrt_f32 is only available for A64.
 #if !EIGEN_ARCH_ARM64
-template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
-{
-  const Packet4f cst_one = pset1<Packet4f>(1.0f);
-  const Packet4f cst_inf = pset1<Packet4f>(NumTraits<float>::infinity());
 
-  Packet4f b_is_degenerate = pcmp_eq(pandnot(b, psub(b, b)), pzero(b));
-  Packet4f half_p = pand(b, cst_inf);
-  Packet4f p_recip = pxor(half_p, cst_inf);
-  p_recip = pselect(b_is_degenerate, cst_one, p_recip);
-  Packet4f b_div_p = pmul(b, p_recip);
-  Packet4f p_div_b = preciprocal_unsafe(b_div_p);
-  Packet4f result = pmul(pmul(a, p_div_b), p_recip);
+template<typename Packet>
+EIGEN_STRONG_INLINE Packet psqrt_float_common(const Packet& a) {
+  // if a is large, NEON intrinsics will flush prsqrt(a) to zero
+  // avoid underflow with the following manipulation:
+  // sqrt(a) = 2 * (a/4) * reciprocal_sqrt(a/4)
+  // note: if a/4 underflows, then sqrt(a) correctly returns zero
+  
+  const Packet cst_zero = pzero(a);
+  const Packet cst_quarter = pset1<Packet>(0.25f);
+  const Packet cst_inf = pset1<Packet>(NumTraits<float>::infinity());
+  
+  Packet af = pmul(a, cst_quarter);
+  Packet result = pmul(af, prsqrt(af));
+  result = padd(result, result);
+  
+  Packet a_is_zero = pcmp_eq(a, cst_zero);
+  Packet a_is_inf = pcmp_eq(a, cst_inf);
+  Packet return_a = por(a_is_zero, a_is_inf);
+  
+  result = pselect(return_a, a, result);
   return result;
 }
 
-template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b)
-{
-  const Packet2f cst_one = pset1<Packet2f>(1.0f);
-  const Packet2f cst_inf = pset1<Packet2f>(NumTraits<float>::infinity());
+template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) {
+  return psqrt_float_common(a);
+}
+template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
+  return psqrt_float_common(a);
+}
 
-  Packet2f b_is_degenerate = pcmp_eq(pandnot(b, psub(b, b)), pzero(b));
-  Packet2f half_p = pand(b, cst_inf);
-  Packet2f p_recip = pxor(half_p, cst_inf);
-  p_recip = pselect(b_is_degenerate, cst_one, p_recip);
-  Packet2f b_div_p = pmul(b, p_recip);
-  Packet2f p_div_b = preciprocal_unsafe(b_div_p);
-  Packet2f result = pmul(pmul(a, p_div_b), p_recip);
+template<typename Packet>
+EIGEN_STRONG_INLINE Packet pdiv_float_common(const Packet& a, const Packet& b) {
+  // if b is large, NEON intrinsics will flush preciprocal(b) to zero
+  // avoid underflow with the following manipulation:
+  // a / b = f * (a * reciprocal(f * b))
+
+  const Packet cst_one = pset1<Packet>(1.0f);
+  const Packet cst_quarter = pset1<Packet>(0.25f);
+  const Packet cst_thresh = pset1<Packet>(NumTraits<float>::highest() / 4.0f);
+  
+  Packet b_will_underflow = pcmp_le(cst_thresh, pabs(b));
+  Packet f = pselect(b_will_underflow, cst_quarter, cst_one);
+  Packet result = pmul(f, pmul(a, preciprocal(pmul(b, f))));
   return result;
 }
+
+template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b) {
+  return pdiv_float_common(a, b);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b) {
+  return pdiv_float_common(a, b);
+}
+
 #endif
 
 //---------- bfloat16 ----------
