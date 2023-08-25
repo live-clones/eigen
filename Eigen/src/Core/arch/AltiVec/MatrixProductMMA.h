@@ -167,8 +167,8 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV)
 #ifdef GEMM_MULTIPLE_COLS
 #define PEEL_MMA 8
 #else
-// Register spillage with GCC13+
-#if EIGEN_COMP_LLVM || (__GNUC__ < 13) || defined(VECTOR_PAIR_LOADS_LHS)
+// Register spillage with GCC12+
+#if EIGEN_COMP_LLVM || (__GNUC__ < 12) || defined(VECTOR_PAIR_LOADS_LHS)
 #define PEEL_MMA 7
 #else
 #define PEEL_MMA 6
