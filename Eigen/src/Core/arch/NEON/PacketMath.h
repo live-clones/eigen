@@ -3365,8 +3365,15 @@ template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
 }
 
 // Unfortunately vsqrt_f32 is only available for A64.
-#if !EIGEN_ARCH_ARM64
+#if EIGEN_ARCH_ARM64
+template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return vsqrtq_f32(a); }
 
+template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return vsqrt_f32(a); }
+
+template<> EIGEN_STRONG_INLINE Packet4f pdiv(const Packet4f& a, const Packet4f& b) { return vsqrtq_f32(_x); }
+
+template<> EIGEN_STRONG_INLINE Packet2f pdiv(const Packet2f& a, const Packet2f& b) { return vsqrt_f32(_x); }
+#else
 template<typename Packet>
 EIGEN_STRONG_INLINE Packet psqrt_float_common(const Packet& a) {
   const Packet cst_zero = pzero(a);
@@ -3384,6 +3391,7 @@ EIGEN_STRONG_INLINE Packet psqrt_float_common(const Packet& a) {
 template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) {
   return psqrt_float_common(a);
 }
+
 template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) {
   return psqrt_float_common(a);
 }
@@ -3411,7 +3419,6 @@ template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const 
 template<> EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b) {
   return pdiv_float_common(a, b);
 }
-
 #endif
 
 //---------- bfloat16 ----------
