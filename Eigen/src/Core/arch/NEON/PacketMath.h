@@ -3314,18 +3314,16 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
 template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
   // Compute approximate reciprocal sqrt.
   float32x4_t result = vrsqrteq_f32(a);
-  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
-  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
-  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(result, result), a), result);
+  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(a, result), result), result);
+  result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(a, result), result), result);
   return result;
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
   // Compute approximate reciprocal sqrt.
   float32x2_t result = vrsqrte_f32(a);
-  result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
-  result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
-  result = vmul_f32(vrsqrts_f32(vmul_f32(result, result), a), result);
+  result = vmul_f32(vrsqrts_f32(vmul_f32(a, result), result), result);
+  result = vmul_f32(vrsqrts_f32(vmul_f32(a, result), result), result);
   return result;
 }
 
