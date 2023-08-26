@@ -47,30 +47,11 @@ std::vector<Scalar> special_values() {
   const Scalar sqrt2 = Scalar(std::sqrt(2));    
   const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
   const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
-  #if !EIGEN_ARCH_ARM
-  const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
-  #endif
+  const Scalar denorm_min = EIGEN_ARCH_ARM ? 1.0f : std::numeric_limits<Scalar>::denorm_min();
   const Scalar min = (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
-
-  std::vector<Scalar> result;
-  result.push_back(zero);
-  #if !EIGEN_ARCH_ARM
-  result.push_back(denorm_min);
-  #endif
-  result.push_back(min);
-  result.push_back(eps);
-  result.push_back(sqrt_half);
-  result.push_back(one);
-  result.push_back(sqrt2);
-  result.push_back(two);
-  result.push_back(three);
-  result.push_back(max_exp);
-  result.push_back(max);
-  result.push_back(inf);
-  result.push_back(nan);
-  return result;
+  return { zero, denorm_min, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan };
 }
 
 template<typename Scalar>
