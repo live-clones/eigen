@@ -3370,9 +3370,9 @@ template<> EIGEN_STRONG_INLINE Packet4f psqrt(const Packet4f& a) { return vsqrtq
 
 template<> EIGEN_STRONG_INLINE Packet2f psqrt(const Packet2f& a) { return vsqrt_f32(a); }
 
-template<> EIGEN_STRONG_INLINE Packet4f pdiv(const Packet4f& a, const Packet4f& b) { return vsqrtq_f32(_x); }
+template<> EIGEN_STRONG_INLINE Packet4f pdiv(const Packet4f& a, const Packet4f& b) { return vdivq_f32(a, b); }
 
-template<> EIGEN_STRONG_INLINE Packet2f pdiv(const Packet2f& a, const Packet2f& b) { return vsqrt_f32(_x); }
+template<> EIGEN_STRONG_INLINE Packet2f pdiv(const Packet2f& a, const Packet2f& b) { return vdiv_f32(a, b); }
 #else
 template<typename Packet>
 EIGEN_STRONG_INLINE Packet psqrt_float_common(const Packet& a) {
