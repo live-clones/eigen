@@ -3311,7 +3311,7 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
   return res;
 }
 
-template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
+EIGEN_STRONG_INLINE Packet4f prsqrt_float_unsafe(const Packet4f& a) {
   // Compute approximate reciprocal sqrt.
   float32x4_t result = vrsqrteq_f32(a);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(a, result), result), result);
@@ -3319,12 +3319,28 @@ template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
   return result;
 }
 
-template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
+EIGEN_STRONG_INLINE Packet2f prsqrt_float_unsafe(const Packet2f& a) {
   // Compute approximate reciprocal sqrt.
   float32x2_t result = vrsqrte_f32(a);
   result = vmul_f32(vrsqrts_f32(vmul_f32(a, result), result), result);
   result = vmul_f32(vrsqrts_f32(vmul_f32(a, result), result), result);
   return result;
+}
+
+template<typename Packet> Packet prsqrt_float_common(const Packet& a) {
+  const Packet cst_zero = pzero(a);
+  const Packet cst_inf = pset1<Packet>(NumTraits<float>::infinity());
+  Packet result = prsqrt_float_unsafe(a);
+  Packet return_inf = pcmp_eq(a, cst_zero);
+  return pselect(return_inf, por(cst_inf, a), result);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
+  return prsqrt_float_common(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
+  return prsqrt_float_common(a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
@@ -3353,7 +3369,7 @@ EIGEN_STRONG_INLINE Packet psqrt_float_common(const Packet& a) {
   const Packet cst_zero = pzero(a);
   const Packet cst_inf = pset1<Packet>(NumTraits<float>::infinity());
   
-  Packet result = pmul(a, prsqrt(a));  
+  Packet result = pmul(a, prsqrt_float_unsafe(a));  
   Packet a_is_zero = pcmp_eq(a, cst_zero);
   Packet a_is_inf = pcmp_eq(a, cst_inf);
   Packet return_a = por(a_is_zero, a_is_inf);
