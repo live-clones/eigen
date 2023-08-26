@@ -754,13 +754,13 @@ void packetmath_test_IEEE_corner_cases(const RefFunctorT& ref_fun,
   }
 
   // Test for subnormals.
-  if (Cond && std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+  if (Cond && std::numeric_limits<Scalar>::has_denorm == std::denorm_present && !EIGEN_ARCH_ARM) {
 
     for (int scale = 1; scale < 5; ++scale) {
       // When EIGEN_FAST_MATH is 1 we relax the conditions slightly, and allow the function
       // to return the same value for subnormals as the reference would return for zero with
       // the same sign as the input.
-#if EIGEN_FAST_MATH && !EIGEN_ARCH_ARM
+#if EIGEN_FAST_MATH
       data1[0] = Scalar(scale) * std::numeric_limits<Scalar>::denorm_min();
       data1[1] = -data1[0];
       test::packet_helper<Cond, Packet> h;
