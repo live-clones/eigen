@@ -3350,20 +3350,10 @@ template<> EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a)
 
 template<typename Packet>
 EIGEN_STRONG_INLINE Packet psqrt_float_common(const Packet& a) {
-  // if a is large, NEON intrinsics will flush prsqrt(a) to zero
-  // avoid underflow with the following manipulation:
-  // sqrt(a) = 2 * (a/4) * reciprocal_sqrt(a/4)
-  
   const Packet cst_zero = pzero(a);
-  const Packet cst_quarter = pset1<Packet>(0.25f);
   const Packet cst_inf = pset1<Packet>(NumTraits<float>::infinity());
-  const Packet cst_thresh = pset1<Packet>(NumTraits<float>::highest() / 4.0f);
   
-  Packet a_will_underflow = pcmp_lt(cst_thresh, a);
-  Packet af = pselect(a_will_underflow, pmul(a, cst_quarter), a);
-  Packet result = pmul(af, prsqrt(af));
-  result = padd(result, pand(a_will_underflow, result));
-  
+  Packet result = pmul(a, prsqrt(a));  
   Packet a_is_zero = pcmp_eq(a, cst_zero);
   Packet a_is_inf = pcmp_eq(a, cst_inf);
   Packet return_a = por(a_is_zero, a_is_inf);
