@@ -33,8 +33,8 @@ template<typename Packet> EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC
 Packet pfrexp_generic_get_biased_exponent(const Packet& a) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  static constexpr int MantissaBits = numext::numeric_limits<Scalar>::digits - 1;
-  return pcast<PacketI, Packet>(plogical_shift_right<MantissaBits>(preinterpret<PacketI>(pabs(a))));
+  static constexpr int mantissa_bits = numext::numeric_limits<Scalar>::digits - 1;
+  return pcast<PacketI, Packet>(plogical_shift_right<mantissa_bits>(preinterpret<PacketI>(pabs(a))));
 }
 
 // Safely applies frexp, correctly handles denormals.
@@ -44,38 +44,40 @@ Packet pfrexp_generic(const Packet& a, Packet& exponent) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename make_unsigned<typename make_integer<Scalar>::type>::type ScalarUI;
   static constexpr int
-      TotalBits = sizeof(Scalar) * CHAR_BIT,
-      MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
-      ExponentBits = TotalBits - MantissaBits - 1;
-  static constexpr ScalarUI
-      NormalizationOffset = MantissaBits + 1,
-      NormalizationFactor = ScalarUI(1) << NormalizationOffset,
-      NormalExponentOffset = (1 << (ExponentBits - 1)) - 2;
+    TotalBits = sizeof(Scalar) * CHAR_BIT,
+    MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
+    ExponentBits = TotalBits - MantissaBits - 1;
 
-  const Packet normalization_factor = pset1<Packet>(Scalar(NormalizationFactor)); // 2^24
-  const Packet norm_exponent_offset = pset1<Packet>(Scalar(NormalExponentOffset));   // 126
-  const Packet denorm_exponent_offset = pset1<Packet>(Scalar(NormalExponentOffset + NormalizationOffset)); // 126+24
-
-  const Packet zero = pzero(a);
+  EIGEN_CONSTEXPR ScalarUI scalar_sign_mantissa_mask =
+      ~(((ScalarUI(1) << ExponentBits) - ScalarUI(1)) << MantissaBits); // ~0x7f800000
+  const Packet sign_mantissa_mask = pset1frombits<Packet>(static_cast<ScalarUI>(scalar_sign_mantissa_mask));
   const Packet half = pset1<Packet>(Scalar(0.5));
-  const Packet pos_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
+  const Packet zero = pzero(a);
+  const Packet normal_min = pset1<Packet>((numext::numeric_limits<Scalar>::min)()); // Minimum normal value, 2^-126
 
-  const Packet exponent_bits = pand(a, pos_inf);
-  const Packet a_is_denormal = pcmp_eq(exponent_bits, zero);
-  const Packet a_is_not_finite = pcmp_eq(exponent_bits, pos_inf);
-  const Packet a_is_zero = pcmp_eq(a, zero);
-  const Packet a_is_degenerate = por(a_is_not_finite, a_is_zero);
+  // To handle denormals, normalize by multiplying by 2^(int(MantissaBits)+1).
+  const Packet is_denormal = pcmp_lt(pabs(a), normal_min);
+  EIGEN_CONSTEXPR ScalarUI scalar_normalization_offset = ScalarUI(MantissaBits + 1); // 24
+  // The following cannot be constexpr because bfloat16(uint16_t) is not constexpr.
+  const Scalar scalar_normalization_factor = Scalar(ScalarUI(1) << int(scalar_normalization_offset)); // 2^24
+  const Packet normalization_factor = pset1<Packet>(scalar_normalization_factor);
+  const Packet normalized_a = pselect(is_denormal, pmul(a, normalization_factor), a);
 
-  const Packet normalized_a = pselect(a_is_denormal, pmul(a, normalization_factor), a);
-  const Packet exponent_offset = pselect(a_is_denormal, denorm_exponent_offset, norm_exponent_offset);
+  // Determine exponent offset: -126 if normal, -126-24 if denormal
+  const Scalar scalar_exponent_offset = -Scalar((ScalarUI(1)<<(ExponentBits-1)) - ScalarUI(2)); // -126
+  Packet exponent_offset = pset1<Packet>(scalar_exponent_offset);
+  const Packet normalization_offset = pset1<Packet>(-Scalar(scalar_normalization_offset)); // -24
+  exponent_offset = pselect(is_denormal, padd(exponent_offset, normalization_offset), exponent_offset);
 
-  Packet m = por(pandnot(normalized_a, pos_inf), half);
-  m = pselect(a_is_degenerate, a, m);
-
+  // Determine exponent and mantissa from normalized_a.
   exponent = pfrexp_generic_get_biased_exponent(normalized_a);
-  exponent = psub(exponent, exponent_offset);
-  exponent = pandnot(exponent, a_is_degenerate);
-
+  // Zero, Inf and NaN return 'a' unmodified, exponent is zero
+  // (technically the exponent is unspecified for inf/NaN, but GCC/Clang set it to zero)
+  const Scalar scalar_non_finite_exponent = Scalar((ScalarUI(1) << ExponentBits) - ScalarUI(1));  // 255
+  const Packet non_finite_exponent = pset1<Packet>(scalar_non_finite_exponent);
+  const Packet is_zero_or_not_finite = por(pcmp_eq(a, zero), pcmp_eq(exponent, non_finite_exponent));
+  const Packet m = pselect(is_zero_or_not_finite, a, por(pand(normalized_a, sign_mantissa_mask), half));
+  exponent = pselect(is_zero_or_not_finite, zero, padd(exponent, exponent_offset));
   return m;
 }
 
