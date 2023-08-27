@@ -855,20 +855,7 @@ struct block_xpr_helper<Block<XprType, BlockRows, BlockCols, InnerPanel>> {
 };
 
 template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
-struct block_xpr_helper<const Block<XprType, BlockRows, BlockCols, InnerPanel>> {
-  using BlockXprType = const Block<XprType, BlockRows, BlockCols, InnerPanel>;
-  // Recursive helper in case of explicit block-of-block expression.
-  using NestedXprHelper = block_xpr_helper<XprType>;
-  using BaseType = typename NestedXprHelper::BaseType;
-
-  // For block-of-block expressions, we need to combine the InnerPannel trait
-  // with that of the block subexpression.
-  static constexpr bool is_inner_panel(bool inner_panel) { return InnerPanel && inner_panel; }
-
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const BaseType& base(const BlockXprType& xpr) { return NestedXprHelper::base(xpr.nestedExpression()); }
-  static constexpr EIGEN_ALWAYS_INLINE Index row(const BlockXprType& xpr, Index r) { return xpr.startRow() + NestedXprHelper::row(xpr.nestedExpression(), r); }
-  static constexpr EIGEN_ALWAYS_INLINE Index col(const BlockXprType& xpr, Index c) { return xpr.startCol() + NestedXprHelper::col(xpr.nestedExpression(), c); }
-};
+struct block_xpr_helper<const Block<XprType, BlockRows, BlockCols, InnerPanel>> : block_xpr_helper<Block<XprType, BlockRows, BlockCols, InnerPanel>> {};
 
 } // end namespace internal
 
