@@ -151,7 +151,8 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
           && startCol >= 0 && blockCols >= 0 && startCol <= xpr.cols() - blockCols);
     }
 
-    
+    // convert nested blocks (e.g. Block<Block<MatrixType>>) to a simple block expression (Block<MatrixType>)
+
     using ConstUnwindReturnType = Block<const typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
     using UnwindReturnType = Block<typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
 
@@ -166,12 +167,12 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
                               this->rows(), this->cols());
     }
 
-    operator ConstUnwindReturnType() const { this->unwind(); }
+    operator ConstUnwindReturnType() const { return this->unwind(); }
     template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
-    operator UnwindReturnType() { this->unwind(); }
+    operator UnwindReturnType() { return this->unwind(); }
 };
 
-// The generic default implementation for dense block simplu forward to the internal::BlockImpl_dense
+// The generic default implementation for dense block simply forward to the internal::BlockImpl_dense
 // that must be specialized for direct and non-direct access...
 template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
 class BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, Dense>
