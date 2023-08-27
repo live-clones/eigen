@@ -167,9 +167,9 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
                               this->rows(), this->cols());
     }
 
-    operator ConstUnwindReturnType() const { return this->unwind(); }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator ConstUnwindReturnType() const { return this->unwind(); }
     template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
-    operator UnwindReturnType() { return this->unwind(); }
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator UnwindReturnType() { return this->unwind(); }
 };
 
 // The generic default implementation for dense block simply forward to the internal::BlockImpl_dense
