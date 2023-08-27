@@ -167,8 +167,9 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
                               this->rows(), this->cols());
     }
 
+    template <typename T = Block, typename EnableIf = std::enable_if_t<!internal::is_same<T, UnwindReturnType>::value>>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator ConstUnwindReturnType() const { return this->unwind(); }
-    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
+    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value && !internal::is_same<T, UnwindReturnType>::value>>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator UnwindReturnType() { return this->unwind(); }
 };
 
