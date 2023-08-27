@@ -114,6 +114,7 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Block)
 
     typedef internal::remove_all_t<XprType> NestedExpression;
+    using BlockHelper = internal::block_xpr_helper<Block>;
 
     /** Column or Row constructor
       */
@@ -149,6 +150,25 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
       eigen_assert(startRow >= 0 && blockRows >= 0 && startRow  <= xpr.rows() - blockRows
           && startCol >= 0 && blockCols >= 0 && startCol <= xpr.cols() - blockCols);
     }
+
+    
+    using ConstUnwindReturnType = Block<const typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
+    using UnwindReturnType = Block<typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ConstUnwindReturnType unwind() const {
+      return ConstUnwindReturnType(BlockHelper::base(*this), BlockHelper::row(*this, 0), BlockHelper::col(*this, 0),
+                                   this->rows(), this->cols());
+    }
+
+    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnwindReturnType unwind() {
+      return UnwindReturnType(BlockHelper::base(*this), BlockHelper::row(*this, 0), BlockHelper::col(*this, 0),
+                              this->rows(), this->cols());
+    }
+
+    operator ConstUnwindReturnType() const { this->unwind(); }
+    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
+    operator UnwindReturnType() { this->unwind(); }
 };
 
 // The generic default implementation for dense block simplu forward to the internal::BlockImpl_dense
