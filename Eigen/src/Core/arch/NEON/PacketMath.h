@@ -3313,6 +3313,7 @@ template<> EIGEN_STRONG_INLINE Packet4ui psqrt(const Packet4ui& a) {
 
 EIGEN_STRONG_INLINE Packet4f prsqrt_float_unsafe(const Packet4f& a) {
   // Compute approximate reciprocal sqrt.
+  // Does not correctly handle +/- 0 or +inf
   float32x4_t result = vrsqrteq_f32(a);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(a, result), result), result);
   result = vmulq_f32(vrsqrtsq_f32(vmulq_f32(a, result), result), result);
@@ -3321,6 +3322,7 @@ EIGEN_STRONG_INLINE Packet4f prsqrt_float_unsafe(const Packet4f& a) {
 
 EIGEN_STRONG_INLINE Packet2f prsqrt_float_unsafe(const Packet2f& a) {
   // Compute approximate reciprocal sqrt.
+  // Does not correctly handle +/- 0 or +inf
   float32x2_t result = vrsqrte_f32(a);
   result = vmul_f32(vrsqrts_f32(vmul_f32(a, result), result), result);
   result = vmul_f32(vrsqrts_f32(vmul_f32(a, result), result), result);
