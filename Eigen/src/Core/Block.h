@@ -167,11 +167,10 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
                               this->rows(), this->cols());
     }
 
-    template <typename T = Block, typename EnableIf = std::enable_if_t<!internal::is_same<T, UnwindReturnType>::value>>
+    template <typename T = Block, typename EnableIf = std::enable_if_t<internal::is_block_xpr<XprType>::value>>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator ConstUnwindReturnType() const { return this->unwind(); }
-    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value && !internal::is_same<T, UnwindReturnType>::value>>
+    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value && internal::is_block_xpr<XprType>::value>>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator UnwindReturnType() { return this->unwind(); }
-};
 
 // The generic default implementation for dense block simply forward to the internal::BlockImpl_dense
 // that must be specialized for direct and non-direct access...
