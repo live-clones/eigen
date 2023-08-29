@@ -148,17 +148,37 @@ struct VectorIndexedViewSelector<Indices, false, false, true> {
 // Block
 template <typename Indices>
 struct VectorIndexedViewSelector<Indices, false, true, false> {
+  using BlockXprHelper = internal::block_xpr_helper<Derived>;
+  using BlockXprBase = typename BlockXprHelper::BaseType;
+  template<int Size> struct FixedSegmentReturnType {
+    typedef Block<BlockXprBase, IsRowMajor ? 1 : Size, IsRowMajor ? Size : 1> Type;
+  };
+  template<int Size> struct ConstFixedSegmentReturnType {
+    typedef const Block<const BlockXprBase, IsRowMajor ? 1 : Size, IsRowMajor ? Size : 1> Type;
+  };
 
-  using ReturnType = VectorBlock<Derived, internal::array_size<Indices>::value>;
-  using ConstReturnType = VectorBlock<const Derived, internal::array_size<Indices>::value>;
+  using ReturnType = typename FixedSegmentReturnType<internal::array_size<Indices>::value>::Type;
+  using ConstReturnType = typename ConstFixedSegmentReturnType<internal::array_size<Indices>::value>::Type;
 
   static inline ReturnType run(Derived& derived, const Indices& indices) {
     IvcType<Indices> actualIndices = derived.ivcSize(indices);
-    return ReturnType(derived, internal::first(actualIndices), internal::index_list_size(actualIndices));
+    auto start = internal::first(actualIndices);
+    auto n = internal::get_runtime_value(internal::index_list_size(actualIndices));
+    return ReturnType(BlockXprHelper::base(derived),
+             BlockXprHelper::row(derived, IsRowMajor ? 0 : start),
+             BlockXprHelper::col(derived, IsRowMajor ? start : 0),
+             IsRowMajor ? 1 : n,
+             IsRowMajor ? n : 1);
   }
   static inline ConstReturnType run(const Derived& derived, const Indices& indices) {
     IvcType<Indices> actualIndices = derived.ivcSize(indices);
-    return ConstReturnType(derived, internal::first(actualIndices), internal::index_list_size(actualIndices));
+    auto start = internal::first(actualIndices);
+    auto n = internal::get_runtime_value(internal::index_list_size(actualIndices));
+    return ConstReturnType(BlockXprHelper::base(derived),
+             BlockXprHelper::row(derived, IsRowMajor ? 0 : start),
+             BlockXprHelper::col(derived, IsRowMajor ? start : 0),
+             IsRowMajor ? 1 : n,
+             IsRowMajor ? n : 1);
   }
 };
 
@@ -344,7 +364,7 @@ operator()(const RowIndices& rowIndices, const ColIndices& colIndices);
   * \only_for_vectors
   */
 template<typename Indices>
-IndexedView_or_VectorBlock
+IndexedView_or_Block
 operator()(const Indices& indices);
 
 #endif  // EIGEN_PARSED_BY_DOXYGEN

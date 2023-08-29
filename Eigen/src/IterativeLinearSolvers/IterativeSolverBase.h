@@ -380,8 +380,8 @@ public:
     ComputationInfo global_info = Success;
     for(Index k=0; k<rhsCols; ++k)
     {
-      typename DestDerived::ColXpr xk(dest,k);
-      typename Rhs::ConstColXpr bk(b,k);
+      typename DestDerived::ColXpr xk = dest.col(k);
+      typename Rhs::ConstColXpr bk = b.col(k);
       derived()._solve_vector_with_guess_impl(bk,xk);
 
       // The call to _solve_vector_with_guess updates m_info, so if it failed for a previous column
