@@ -3339,13 +3339,11 @@ template<typename Packet> Packet prsqrt_float_common(const Packet& a) {
 }
 
 template<> EIGEN_STRONG_INLINE Packet4f prsqrt(const Packet4f& a) {
-  //return prsqrt_float_common(a);
-  return prsqrt_float_unsafe(a);
+  return prsqrt_float_common(a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
-  //return prsqrt_float_common(a);
-  return prsqrt_float_unsafe(a);
+  return prsqrt_float_common(a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a)
