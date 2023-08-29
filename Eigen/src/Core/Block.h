@@ -109,6 +109,7 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
   : public BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind>
 {
     typedef BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind> Impl;
+    using BlockHelper = internal::block_xpr_helper<Block>;
   public:
     //typedef typename Impl::Base Base;
     typedef Impl Base;
@@ -116,7 +117,6 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
     EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Block)
 
     typedef internal::remove_all_t<XprType> NestedExpression;
-    using BlockHelper = internal::block_xpr_helper<Block>;
 
     /** Column or Row constructor
       */
