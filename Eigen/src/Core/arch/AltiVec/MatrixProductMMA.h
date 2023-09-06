@@ -523,10 +523,6 @@ EIGEN_ALWAYS_INLINE void gemmMMA_cols(
 template<typename Scalar, typename Packet, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols>
 void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
       const Index remaining_rows = rows % accCols;
 
       if( strideA == -1 ) strideA = depth;
@@ -548,10 +544,6 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
       {
         gemm_extra_cols<Scalar, Packet, DataMapper, accCols>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlpha, pMask);
       }
-#ifdef TEST_VERBOSE
-  end = __ppc_get_timebase();
-  printf("gemm MMA time = %16ld (%4ld %4ld %4ld)\n", end - start, rows, depth, cols);
-#endif
 }
 
 #define advanceRows ((LhsIsReal) ? 1 : 2)
@@ -913,10 +905,6 @@ EIGEN_ALWAYS_INLINE void gemmMMA_complex_cols(
 template<typename LhsScalar, typename RhsScalar, typename Scalarc, typename Scalar, typename Packet, typename Packetc, typename RhsPacket, typename DataMapper, const Index accRows, const Index accCols, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
 void gemm_complexMMA(const DataMapper& res, const LhsScalar* blockAc, const RhsScalar* blockBc, Index rows, Index depth, Index cols, Scalarc alpha, Index strideA, Index strideB, Index offsetA, Index offsetB)
 {
-#ifdef TEST_VERBOSE
-  uint64_t start, end;
-  start = __ppc_get_timebase();
-#endif
       const Index remaining_rows = rows % accCols;
 
       if( strideA == -1 ) strideA = depth;
@@ -942,10 +930,6 @@ void gemm_complexMMA(const DataMapper& res, const LhsScalar* blockAc, const RhsS
       {
         gemm_complex_extra_cols<Scalar, Packet, Packetc, DataMapper, accCols, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(res, blockA, blockB, depth, strideA, offsetA, strideB, offsetB, col, rows, cols, remaining_rows, pAlphaReal, pAlphaImag, pMask);
       }
-#ifdef TEST_VERBOSE
-  end = __ppc_get_timebase();
-  printf("gemm complex MMA time = %16ld (%4ld %4ld %4ld)\n", end - start, rows, depth, cols);
-#endif
 }
 
 #undef accColsC
