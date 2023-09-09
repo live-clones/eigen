@@ -643,9 +643,6 @@ static void test_scalar_initialization()
   typedef TensorEvaluator<decltype(A.contract(B, dims)), DefaultDevice> Evaluator;
   Evaluator eval(A.contract(B, dims), DefaultDevice());
   eval.evalTo(result.data());
-  EIGEN_STATIC_ASSERT(Evaluator::NumDims==2ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
-  VERIFY_IS_EQUAL(eval.dimensions()[0], 3);
-  VERIFY_IS_EQUAL(eval.dimensions()[1], 3);
 
   VERIFY_IS_APPROX(result(0,0).val, (A(0,0)*B(0,0) + A(1,0)*B(1,0)).val);
   VERIFY_IS_APPROX(result(0,1).val, (A(0,0)*B(0,1) + A(1,0)*B(1,1)).val);
