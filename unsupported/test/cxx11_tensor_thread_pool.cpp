@@ -670,6 +670,126 @@ void test_threadpool_allocate(TestAllocator* allocator)
   VERIFY_IS_EQUAL(allocator->dealloc_count(), num_allocs);
 }
 
+
+class InitializableScalar
+{
+  public:
+
+    // need to be atomic
+    static std::atomic_int instanceCount;
+
+    typedef float Scalar;
+
+    InitializableScalar() {
+      val = 0;
+      instanceCount++;
+    }
+    InitializableScalar(float _v) {
+      val = _v;
+      instanceCount++;
+    }
+    InitializableScalar(const InitializableScalar& other) {
+      val = other.val;
+      instanceCount++;
+    }
+    ~InitializableScalar() { 
+      instanceCount--; 
+    }
+
+    InitializableScalar operator+(const InitializableScalar& other) const
+    {
+      return InitializableScalar(val + other.val);
+    }
+
+    InitializableScalar operator-() const
+    { return InitializableScalar(-val); }
+
+    InitializableScalar operator-(const InitializableScalar& other) const
+    { return InitializableScalar(val - other.val); }
+    
+    InitializableScalar operator*(const InitializableScalar& other) const
+    { return InitializableScalar(val * other.val); }
+
+    InitializableScalar operator/(const InitializableScalar& other) const
+    { return InitializableScalar(val / other.val); }
+
+    InitializableScalar& operator+=(const InitializableScalar& other) { val += other.val; return *this; }
+    InitializableScalar& operator-=(const InitializableScalar& other) { val -= other.val; return *this; }
+    InitializableScalar& operator*=(const InitializableScalar& other) { val *= other.val; return *this; }
+    InitializableScalar& operator/=(const InitializableScalar& other) { val /= other.val; return *this; }
+    InitializableScalar& operator= (const InitializableScalar& other) { val  = other.val; return *this; }
+
+    bool operator==(const InitializableScalar& other) const { return numext::equal_strict(val, other.val); }
+    bool operator!=(const InitializableScalar& other) const { return numext::not_equal_strict(val, other.val); }
+    bool operator<=(const InitializableScalar& other) const { return val <= other.val; }
+    bool operator< (const InitializableScalar& other) const { return val <  other.val; }
+    bool operator>=(const InitializableScalar& other) const { return val >= other.val; }
+    bool operator> (const InitializableScalar& other) const { return val >  other.val; }
+
+    float val;
+};
+
+template<> struct Eigen::NumTraits<InitializableScalar>
+: Eigen::NumTraits<float> 
+{
+  enum {
+    RequireInitialization = 1,
+  };
+};
+
+std::atomic_int InitializableScalar::instanceCount; 
+
+template<int DataLayout>
+void test_multithread_contraction_with_scalar_initialization()
+{
+
+  InitializableScalar::instanceCount = 0;
+
+  Tensor<InitializableScalar, 2, DataLayout> A(128, 64);
+  Tensor<InitializableScalar, 2, DataLayout> B(64, 32);
+  Tensor<InitializableScalar, 2, DataLayout> result(A.dimension(0), B.dimension(1));
+
+  A.setRandom();
+  B.setRandom();
+  result.setZero();
+
+  Matrix<float, Dynamic, Dynamic, DataLayout> mat_A(A.dimension(0), A.dimension(1));
+
+  for (Index i = 0; i < mat_A.rows(); ++i) {
+    for (Index j = 0; j < mat_A.cols(); ++j) {
+      mat_A(i, j) = A(i, j).val;
+    }
+  }
+
+  Matrix<float, Dynamic, Dynamic, DataLayout> mat_B(B.dimension(0), B.dimension(1));
+  for (Index i = 0; i < mat_B.rows(); ++i) {
+    for (Index j = 0; j < mat_B.cols(); ++j) {
+      mat_B(i, j) = B(i, j).val;
+    }
+  }
+
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+
+  typedef Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+  typedef TensorEvaluator<decltype(A.contract(B, dims)), ThreadPoolDevice> Evaluator;
+  Evaluator eval(A.contract(B, dims), thread_pool_device);
+  eval.evalTo(result.data());
+
+  Matrix<float, Dynamic, Dynamic, DataLayout> mat_result(A.dimension(0), B.dimension(1));
+  mat_result = mat_A * mat_B;
+
+  for (Index i = 0; i < mat_result.rows(); ++i) {
+    for (Index j = 0; j < mat_result.cols(); ++j) {
+      VERIFY_IS_APPROX(mat_result(i, j), result(i, j).val);
+    }
+  }
+
+  VERIFY_IS_EQUAL(InitializableScalar::instanceCount, A.size() + B.size() + result.size());
+
+}
+
 EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool)
 {
   CALL_SUBTEST_1(test_multithread_elementwise());
@@ -716,6 +836,9 @@ EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool)
   CALL_SUBTEST_11(test_multithread_shuffle<RowMajor>(&test_allocator));
   CALL_SUBTEST_11(test_threadpool_allocate(&test_allocator));
 
+  CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<ColMajor>());
+  CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<RowMajor>());
+
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12
 }
