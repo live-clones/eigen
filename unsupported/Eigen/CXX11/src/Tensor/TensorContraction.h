@@ -217,10 +217,46 @@ struct TensorContractionKernel {
       /*ConjugateLhs*/ false, /*ConjugateRhs*/ false>
       GebpKernel;
 
+  EIGEN_DEVICE_FUNC void initialize_block(BlockMemHandle block) {
+    if(block && (NumTraits<LhsScalar>::RequireInitialization || NumTraits<RhsScalar>::RequireInitialization))
+    {
+      Index block_mid = bm * bk;
+      Index block_end = bn * bk;
+
+      Index _LhsScalar_size = sizeof(LhsScalar);
+      Index _RhsScalar_size = sizeof(RhsScalar);
+
+      if (block_mid || block_end) {
+
+        char* block_char = reinterpret_cast<char*>(block);
+
+        if(NumTraits<LhsScalar>::RequireInitialization)
+        {
+          for (Index i = 0; i < block_mid; ++i) {
+            char *element_block = block_char + i * _LhsScalar_size;
+            new(element_block)LhsScalar();
+          }
+        }
+
+        char* block_mid_char = reinterpret_cast<char*>(block_char + block_mid*_LhsScalar_size);
+        if(NumTraits<RhsScalar>::RequireInitialization)
+        {
+          for (Index i = 0; i < block_end; ++i) {
+            char *element_block = block_mid_char + i * _RhsScalar_size;
+            new(element_block)RhsScalar();
+          }
+        }
+      }
+    }
+
+  }
+
   template <typename Device>
   EIGEN_DEVICE_FUNC BlockMemHandle allocate(Device& d, LhsBlock* lhs_block,
                                             RhsBlock* rhs_block) {
-    return BlockMemAllocator::allocate(d, bm, bk, bn, lhs_block, rhs_block);
+    BlockMemHandle result = BlockMemAllocator::allocate(d, bm, bk, bn, lhs_block, rhs_block);
+    initialize_block(result);
+    return result;
   }
 
   template <typename Device>
@@ -228,12 +264,48 @@ struct TensorContractionKernel {
       Device& d, const StorageIndex num_lhs, const StorageIndex num_rhs,
       const StorageIndex num_slices, std::vector<LhsBlock>* lhs_blocks,
       std::vector<RhsBlock>* rhs_blocks) {
-    return BlockMemAllocator::allocateSlices(
-        d, bm, bk, bn, num_lhs, num_rhs, num_slices, lhs_blocks, rhs_blocks);
+
+    BlockMemHandle result = BlockMemAllocator::allocateSlices(
+        d, bm, bk, bn, num_lhs, num_rhs, num_slices, lhs_blocks, rhs_blocks);    
+    initialize_block(result);
+    return result;
+  }
+
+  EIGEN_DEVICE_FUNC void finalize_block(BlockMemHandle block) {
+    if(block && (NumTraits<LhsScalar>::RequireInitialization || NumTraits<RhsScalar>::RequireInitialization))
+    {
+      Index block_mid = bm * bk;
+      Index block_end = bn * bk;
+
+      if (block_mid || block_end) {
+
+        char* block_char = reinterpret_cast<char*>(block);
+        LhsScalar *lhs_block = reinterpret_cast<LhsScalar*>(block_char);
+        RhsScalar *rhs_block = reinterpret_cast<RhsScalar*>(block_char + block_mid* sizeof(LhsScalar));
+
+        if(NumTraits<LhsScalar>::RequireInitialization)
+        {
+          for (Index i = 0; i < block_mid; ++i) {
+            LhsScalar *element = &lhs_block[i];
+            element->~LhsScalar();
+          }
+        }
+        if(NumTraits<RhsScalar>::RequireInitialization)
+        {
+          for (Index i = 0; i < block_end; ++i) {
+            RhsScalar *element = &rhs_block[i];
+            element->~RhsScalar();
+          }
+
+        }
+      }
+    }
+
   }
 
   template <typename Device>
-  EIGEN_DEVICE_FUNC static void deallocate(Device& d, BlockMemHandle handle) {
+  EIGEN_DEVICE_FUNC void deallocate(Device& d, BlockMemHandle handle) {
+    finalize_block (handle);
     BlockMemAllocator::deallocate(d, handle);
   }
 
