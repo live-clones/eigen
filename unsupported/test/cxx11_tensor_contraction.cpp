@@ -804,18 +804,33 @@ static void test_scalar_initialization_in_large_contraction()
 =======
   InitializableScalar::instanceCount = 0;
 
-  Tensor<InitializableScalar, 2, DataLayout> A(2, 3);
-  Tensor<InitializableScalar, 2, DataLayout> B(2, 3);
-  Tensor<InitializableScalar, 2, DataLayout> result(A.dimension(1), B.dimension(1));
+  {
 
-  A.setRandom();
-  B.setRandom();
-  result.setZero();
+    Tensor<AnnoyingScalar, 2, DataLayout> A(2, 3);
+    Tensor<AnnoyingScalar, 2, DataLayout> B(2, 3);
+    Tensor<AnnoyingScalar, 2, DataLayout> result(A.dimension(1), B.dimension(1));
 
-  Eigen::array<DimPair, 1> dims = {{DimPair(0, 0)}};
-  typedef TensorEvaluator<decltype(A.contract(B, dims)), DefaultDevice> Evaluator;
-  Evaluator eval(A.contract(B, dims), DefaultDevice());
-  eval.evalTo(result.data());
+    // Tensor<AnnoyingScalar>.setRandom() causes overloaded ambiguous calls
+    std::default_random_engine dre(time(0));
+    std::uniform_real_distribution<float> distro(0, 1);
+
+    for (Index i = 0; i < A.dimension(0); ++i) {
+      for (Index j = 0; j < A.dimension(1); ++j) {
+        A(i, j) = distro(dre);
+      }
+    }
+    for (Index i = 0; i < B.dimension(0); ++i) {
+      for (Index j = 0; j < B.dimension(1); ++j) {
+        B(i, j) = distro(dre);
+      }
+    }
+    result.setZero();
+
+    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
+    Eigen::array<Annoying_DimPair, 1> dims = {{Annoying_DimPair(0, 0)}};
+    typedef TensorEvaluator<decltype(A.contract(B, dims)), DefaultDevice> Evaluator;
+    Evaluator eval(A.contract(B, dims), DefaultDevice());
+    eval.evalTo(result.data());
 
   VERIFY_IS_APPROX(result(0,0).val, (A(0,0)*B(0,0) + A(1,0)*B(1,0)).val);
   VERIFY_IS_APPROX(result(0,1).val, (A(0,0)*B(0,1) + A(1,0)*B(1,1)).val);

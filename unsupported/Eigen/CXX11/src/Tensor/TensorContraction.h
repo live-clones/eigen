@@ -284,9 +284,9 @@ struct TensorContractionKernel {
   }
 
   template <typename Device>
-  EIGEN_DEVICE_FUNC void deallocate(Device& d, BlockMemHandle handle, const StorageIndex num_lhs = 1, const StorageIndex num_rhs = 1,
-      const StorageIndex num_slices = 1) {
-    BlockMemAllocator::deallocate(d, handle, bm, bk, bn, num_lhs, num_rhs, num_slices);
+  EIGEN_DEVICE_FUNC void deallocate(Device& d, BlockMemHandle handle) {
+    finalize_block (handle);
+    BlockMemAllocator::deallocate(d, handle);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void packLhs(
