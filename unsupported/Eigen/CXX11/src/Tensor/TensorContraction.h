@@ -218,7 +218,7 @@ struct TensorContractionKernel {
       GebpKernel;
 
   /**
-   * This function initializes the memory block scalar when required. This is done by calling 
+   * This function initializes the memory block scalars when required. This is done by calling 
    * the scalar's constructor without reallocating the scalar base pointer
    * 
    * \param block the raw memory block to be initialized
@@ -290,7 +290,7 @@ struct TensorContractionKernel {
   }
 
   /**
-   * This function finalizes the memory block scalars when required. This is done by explicitely calling 
+   * This function finalizes the memory block scalars when required. This is done by explicitly calling 
    * the scalar's destructor without deallocating the scalar base pointer
    * 
    * \param block the raw memory block to be finalized
