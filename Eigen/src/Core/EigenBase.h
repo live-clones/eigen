@@ -117,6 +117,10 @@ template<typename Derived> struct EigenBase
     dst = this->derived() * dst;
   }
 
+  template <typename Device>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<Derived, Device> useDevice(const Device& device);
+  template <typename Device>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> useDevice(const Device& device) const;
 };
 
 /***************************************************************************
