@@ -13,6 +13,7 @@
 #include "main.h"
 #include <iostream>
 #include <Eigen/CXX11/Tensor>
+#include "AnnoyingScalar.h"
 
 using Eigen::Tensor;
 
@@ -670,124 +671,134 @@ void test_threadpool_allocate(TestAllocator* allocator)
   VERIFY_IS_EQUAL(allocator->dealloc_count(), num_allocs);
 }
 
-
-class InitializableScalar
-{
-  public:
-
-    // need to be atomic
-    static std::atomic_int instanceCount;
-
-    typedef float Scalar;
-
-    InitializableScalar() {
-      val = 0;
-      instanceCount++;
-    }
-    InitializableScalar(float _v) {
-      val = _v;
-      instanceCount++;
-    }
-    InitializableScalar(const InitializableScalar& other) {
-      val = other.val;
-      instanceCount++;
-    }
-    ~InitializableScalar() { 
-      instanceCount--; 
-    }
-
-    InitializableScalar operator+(const InitializableScalar& other) const
-    {
-      return InitializableScalar(val + other.val);
-    }
-
-    InitializableScalar operator-() const
-    { return InitializableScalar(-val); }
-
-    InitializableScalar operator-(const InitializableScalar& other) const
-    { return InitializableScalar(val - other.val); }
-    
-    InitializableScalar operator*(const InitializableScalar& other) const
-    { return InitializableScalar(val * other.val); }
-
-    InitializableScalar operator/(const InitializableScalar& other) const
-    { return InitializableScalar(val / other.val); }
-
-    InitializableScalar& operator+=(const InitializableScalar& other) { val += other.val; return *this; }
-    InitializableScalar& operator-=(const InitializableScalar& other) { val -= other.val; return *this; }
-    InitializableScalar& operator*=(const InitializableScalar& other) { val *= other.val; return *this; }
-    InitializableScalar& operator/=(const InitializableScalar& other) { val /= other.val; return *this; }
-    InitializableScalar& operator= (const InitializableScalar& other) { val  = other.val; return *this; }
-
-    bool operator==(const InitializableScalar& other) const { return numext::equal_strict(val, other.val); }
-    bool operator!=(const InitializableScalar& other) const { return numext::not_equal_strict(val, other.val); }
-    bool operator<=(const InitializableScalar& other) const { return val <= other.val; }
-    bool operator< (const InitializableScalar& other) const { return val <  other.val; }
-    bool operator>=(const InitializableScalar& other) const { return val >= other.val; }
-    bool operator> (const InitializableScalar& other) const { return val >  other.val; }
-
-    float val;
-};
-
-template<> struct Eigen::NumTraits<InitializableScalar>
-: Eigen::NumTraits<float> 
-{
-  enum {
-    RequireInitialization = 1,
-  };
-};
-
-std::atomic_int InitializableScalar::instanceCount; 
-
 template<int DataLayout>
 void test_multithread_contraction_with_scalar_initialization()
 {
 
-  InitializableScalar::instanceCount = 0;
+#ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+  AnnoyingScalar::dont_throw = true;
+#endif
 
-  Tensor<InitializableScalar, 2, DataLayout> A(128, 64);
-  Tensor<InitializableScalar, 2, DataLayout> B(64, 32);
-  Tensor<InitializableScalar, 2, DataLayout> result(A.dimension(0), B.dimension(1));
+  AnnoyingScalar::instances = 0;
 
-  A.setRandom();
-  B.setRandom();
-  result.setZero();
+  {
+    Tensor<AnnoyingScalar, 2, DataLayout> A(128, 64);
+    Tensor<AnnoyingScalar, 2, DataLayout> B(64, 32);
+    Tensor<AnnoyingScalar, 2, DataLayout> result(A.dimension(0), B.dimension(1));
 
-  Matrix<float, Dynamic, Dynamic, DataLayout> mat_A(A.dimension(0), A.dimension(1));
+    result.setZero();
 
-  for (Index i = 0; i < mat_A.rows(); ++i) {
-    for (Index j = 0; j < mat_A.cols(); ++j) {
-      mat_A(i, j) = A(i, j).val;
+    Matrix<float, Dynamic, Dynamic, DataLayout> mat_A(A.dimension(0), A.dimension(1));
+    Matrix<float, Dynamic, Dynamic, DataLayout> mat_B(B.dimension(0), B.dimension(1));
+
+    std::default_random_engine dre(time(0));
+    std::uniform_real_distribution<float> distro(0, 1);
+
+    for (Index i = 0; i < mat_A.rows(); ++i) {
+      for (Index j = 0; j < mat_A.cols(); ++j) {
+        float val = distro(dre);
+        mat_A(i, j) = val;
+        A(i, j) = val;
+      }
+    }
+
+    for (Index i = 0; i < mat_B.rows(); ++i) {
+      for (Index j = 0; j < mat_B.cols(); ++j) {
+        float val = distro(dre);
+        mat_B(i, j) = val;
+        B(i, j) = val;
+      }
+    }
+
+    Eigen::ThreadPool tp(4);
+    Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+
+    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
+    Eigen::array<Annoying_DimPair, 1> dims = {{Annoying_DimPair(1, 0)}};
+    typedef TensorEvaluator<decltype(A.contract(B, dims)), ThreadPoolDevice> Evaluator;
+    Evaluator eval(A.contract(B, dims), thread_pool_device);
+    eval.evalTo(result.data());
+
+    Matrix<float, Dynamic, Dynamic, DataLayout> mat_result(A.dimension(0), B.dimension(1));
+    mat_result = mat_A * mat_B;
+
+    for (Index i = 0; i < mat_result.rows(); ++i) {
+      for (Index j = 0; j < mat_result.cols(); ++j) {
+        VERIFY_IS_APPROX(mat_result(i, j), *result(i, j).v);
+      }
     }
   }
 
-  Matrix<float, Dynamic, Dynamic, DataLayout> mat_B(B.dimension(0), B.dimension(1));
-  for (Index i = 0; i < mat_B.rows(); ++i) {
-    for (Index j = 0; j < mat_B.cols(); ++j) {
-      mat_B(i, j) = B(i, j).val;
+  VERIFY(AnnoyingScalar::instances == 0 && "memory leak detected in contraction on ThreadPoolDevice");
+
+}
+
+template<int DataLayout>
+static void test_scalar_initialization_multidims()
+{
+
+#ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+  AnnoyingScalar::dont_throw = true;
+#endif
+
+  {
+    Tensor<AnnoyingScalar, 3, DataLayout> A(2, 2, 2);
+    Tensor<AnnoyingScalar, 4, DataLayout> B(2, 2, 2, 2);
+    Tensor<AnnoyingScalar, 3, DataLayout> result(2, 2, 2);
+
+    std::default_random_engine dre(time(0));
+    std::uniform_real_distribution<float> distro(0, 1);
+
+    for (Index i = 0; i < A.dimension(0); ++i) {
+      for (Index j = 0; j < A.dimension(1); ++j) {
+        for (Index k = 0; k < A.dimension(2); ++k) {
+          A(i, j, k) = distro(dre);
+        }
+      }
     }
+    for (Index i = 0; i < B.dimension(0); ++i) {
+      for (Index j = 0; j < B.dimension(1); ++j) {
+        for (Index k = 0; k < B.dimension(2); ++k) {
+          for (Index l = 0; l < B.dimension(3); ++l) {
+            B(i, j, k, l) = distro(dre);
+          }
+        }
+      }
+    }
+    result.setZero();
+
+    Eigen::ThreadPool tp(4);
+    Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+
+    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
+    Eigen::array<Annoying_DimPair, 2> dims = {{Annoying_DimPair(1, 2), Annoying_DimPair(2, 3)}};
+    typedef TensorEvaluator<decltype(A.contract(B, dims)), ThreadPoolDevice> Evaluator;
+    Evaluator eval(A.contract(B, dims), thread_pool_device);
+    eval.evalTo(result.data());
+    EIGEN_STATIC_ASSERT(Evaluator::NumDims==3ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
+    VERIFY_IS_EQUAL(eval.dimensions()[0], 2);
+    VERIFY_IS_EQUAL(eval.dimensions()[1], 2);
+    VERIFY_IS_EQUAL(eval.dimensions()[2], 2);
+
+    VERIFY_IS_APPROX(result(0,0,0), A(0,0,0)*B(0,0,0,0) + A(0,1,0)*B(0,0,1,0) +
+                                  A(0,0,1)*B(0,0,0,1) + A(0,1,1)*B(0,0,1,1));
+    VERIFY_IS_APPROX(result(0,0,1), A(0,0,0)*B(0,1,0,0) + A(0,1,0)*B(0,1,1,0) +
+                                  A(0,0,1)*B(0,1,0,1) + A(0,1,1)*B(0,1,1,1));
+    VERIFY_IS_APPROX(result(0,1,0), A(0,0,0)*B(1,0,0,0) + A(0,1,0)*B(1,0,1,0) +
+                                  A(0,0,1)*B(1,0,0,1) + A(0,1,1)*B(1,0,1,1));
+    VERIFY_IS_APPROX(result(0,1,1), A(0,0,0)*B(1,1,0,0) + A(0,1,0)*B(1,1,1,0) +
+                                  A(0,0,1)*B(1,1,0,1) + A(0,1,1)*B(1,1,1,1));
+    VERIFY_IS_APPROX(result(1,0,0), A(1,0,0)*B(0,0,0,0) + A(1,1,0)*B(0,0,1,0) +
+                                  A(1,0,1)*B(0,0,0,1) + A(1,1,1)*B(0,0,1,1));
+    VERIFY_IS_APPROX(result(1,0,1), A(1,0,0)*B(0,1,0,0) + A(1,1,0)*B(0,1,1,0) +
+                                  A(1,0,1)*B(0,1,0,1) + A(1,1,1)*B(0,1,1,1));
+    VERIFY_IS_APPROX(result(1,1,0), A(1,0,0)*B(1,0,0,0) + A(1,1,0)*B(1,0,1,0) +
+                                  A(1,0,1)*B(1,0,0,1) + A(1,1,1)*B(1,0,1,1));
+    VERIFY_IS_APPROX(result(1,1,1), A(1,0,0)*B(1,1,0,0) + A(1,1,0)*B(1,1,1,0) +
+                                  A(1,0,1)*B(1,1,0,1) + A(1,1,1)*B(1,1,1,1));
   }
 
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
-
-  typedef Tensor<float, 1>::DimensionPair DimPair;
-  Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
-  typedef TensorEvaluator<decltype(A.contract(B, dims)), ThreadPoolDevice> Evaluator;
-  Evaluator eval(A.contract(B, dims), thread_pool_device);
-  eval.evalTo(result.data());
-
-  Matrix<float, Dynamic, Dynamic, DataLayout> mat_result(A.dimension(0), B.dimension(1));
-  mat_result = mat_A * mat_B;
-
-  for (Index i = 0; i < mat_result.rows(); ++i) {
-    for (Index j = 0; j < mat_result.cols(); ++j) {
-      VERIFY_IS_APPROX(mat_result(i, j), result(i, j).val);
-    }
-  }
-
-  VERIFY_IS_EQUAL(InitializableScalar::instanceCount, A.size() + B.size() + result.size());
-
+  VERIFY(AnnoyingScalar::instances==0 && "memory leak detected in contraction on ThreadPoolDevice");
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool)
@@ -839,6 +850,9 @@ EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool)
   CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<ColMajor>());
   CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<RowMajor>());
 
+  CALL_SUBTEST_13(test_scalar_initialization_multidims<ColMajor>());
+  CALL_SUBTEST_13(test_scalar_initialization_multidims<RowMajor>());
+
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13
 }

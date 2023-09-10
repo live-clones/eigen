@@ -11,6 +11,7 @@
 #define EIGEN_TEST_ANNOYING_SCALAR_H
 
 #include <ostream>
+#include <atomic>
 
 #if EIGEN_COMP_GNUC
 #pragma GCC diagnostic ignored "-Wshadow"
@@ -90,7 +91,8 @@ class AnnoyingScalar
   
     float* v;
     float data;
-    static int instances;
+    // need to be atomic to support multithreading tests
+    static std::atomic_int instances;
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
     static int countdown;
     static bool dont_throw;
@@ -112,7 +114,7 @@ std::ostream& operator<<(std::ostream& stream,const AnnoyingScalar& x) {
   return stream;
 }
 
-int AnnoyingScalar::instances = 0;
+std::atomic_int AnnoyingScalar::instances = {0};
 
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
 int AnnoyingScalar::countdown = 0;

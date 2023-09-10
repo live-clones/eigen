@@ -499,7 +499,11 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         for (Index m = 0; m < nm_; m++) delete[] state_kernel_[x][m];
         delete[] state_kernel_[x];
       }
-      kernel_.deallocate(device_, packed_mem_);
+      kernel_.deallocateSlices(device_, packed_mem_,
+        /*num_lhs=*/nm0_,                            //
+        /*num_rhs=*/nn0_,                            //
+        /*num_slices=*/std::min<Index>(nk_, P - 1));
+
       if (parallelize_by_sharding_dim_only_) {
         kernel_.deallocate(device_, thread_local_pre_alocated_mem_);
         delete[] can_use_thread_local_packed_;
