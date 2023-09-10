@@ -217,36 +217,54 @@ struct TensorContractionKernel {
       /*ConjugateLhs*/ false, /*ConjugateRhs*/ false>
       GebpKernel;
 
-  EIGEN_DEVICE_FUNC void initialize_block(BlockMemHandle block) {
+  /**
+   * This function initializes the memory block scalar when required. This is done by calling 
+   * the scalar's constructor without reallocating the scalar base pointer
+   * 
+   * \param block the raw memory block to be initialized
+   * \param num_lhs number of left blocks, used by the ThreadPoolDevice. Default is 1
+   * \param num_rhs number of right blocks, used by the ThreadPoolDevice. Default is 1
+   * \param num_lhs number of slices, used by the ThreadPoolDevice. Default is 1
+   * 
+  */
+  EIGEN_DEVICE_FUNC void initialize_block(BlockMemHandle block, Index num_lhs = 1, Index num_rhs = 1, Index num_slices = 1) {
     if(block && (NumTraits<LhsScalar>::RequireInitialization || NumTraits<RhsScalar>::RequireInitialization))
     {
-      Index block_mid = bm * bk;
-      Index block_end = bn * bk;
 
+      Index slice = 0;
       Index _LhsScalar_size = sizeof(LhsScalar);
       Index _RhsScalar_size = sizeof(RhsScalar);
 
-      if (block_mid || block_end) {
+      for (Index sliceIndex = 0; sliceIndex < num_slices; ++sliceIndex)
+      {
+        Index slice_mid = bm * bk * num_lhs;
+        Index slice_end = bn * bk * num_rhs;
 
-        char* block_char = reinterpret_cast<char*>(block);
+        if (slice_mid || slice_end) {
 
-        if(NumTraits<LhsScalar>::RequireInitialization)
-        {
-          for (Index i = 0; i < block_mid; ++i) {
-            char *element_block = block_char + i * _LhsScalar_size;
-            new(element_block)LhsScalar();
+          char* block_char = reinterpret_cast<char*>(block) + slice;
+
+          if(NumTraits<LhsScalar>::RequireInitialization)
+          {
+            for (Index i = 0; i < slice_mid; ++i) {
+              char *element_block = block_char + i * _LhsScalar_size;
+              new(element_block)LhsScalar();
+            }
+          }
+
+          char* slice_mid_char = reinterpret_cast<char*>(block_char + slice_mid*_LhsScalar_size);
+          if(NumTraits<RhsScalar>::RequireInitialization)
+          {
+            for (Index i = 0; i < slice_end; ++i) {
+              char *element_block = slice_mid_char + i * _RhsScalar_size;
+              new(element_block)RhsScalar();
+            }
           }
         }
 
-        char* block_mid_char = reinterpret_cast<char*>(block_char + block_mid*_LhsScalar_size);
-        if(NumTraits<RhsScalar>::RequireInitialization)
-        {
-          for (Index i = 0; i < block_end; ++i) {
-            char *element_block = block_mid_char + i * _RhsScalar_size;
-            new(element_block)RhsScalar();
-          }
-        }
+        slice += slice_mid * _LhsScalar_size + slice_end * _RhsScalar_size;
       }
+      
     }
 
   }
@@ -267,37 +285,55 @@ struct TensorContractionKernel {
 
     BlockMemHandle result = BlockMemAllocator::allocateSlices(
         d, bm, bk, bn, num_lhs, num_rhs, num_slices, lhs_blocks, rhs_blocks);    
-    initialize_block(result);
+    initialize_block(result, num_lhs, num_rhs, num_slices);
     return result;
   }
 
-  EIGEN_DEVICE_FUNC void finalize_block(BlockMemHandle block) {
+  /**
+   * This function finalizes the memory block scalars when required. This is done by explicitely calling 
+   * the scalar's destructor without deallocating the scalar base pointer
+   * 
+   * \param block the raw memory block to be finalized
+   * \param num_lhs number of left blocks, used by the ThreadPoolDevice. Default is 1
+   * \param num_rhs number of right blocks, used by the ThreadPoolDevice. Default is 1
+   * \param num_lhs number of slices, used by the ThreadPoolDevice. Default is 1
+   * 
+  */
+  EIGEN_DEVICE_FUNC void finalize_block(BlockMemHandle block, Index num_lhs = 1, Index num_rhs = 1, Index num_slices = 1) {
     if(block && (NumTraits<LhsScalar>::RequireInitialization || NumTraits<RhsScalar>::RequireInitialization))
     {
-      Index block_mid = bm * bk;
-      Index block_end = bn * bk;
+      Index slice = 0;
+      Index _LhsScalar_size = sizeof(LhsScalar);
+      Index _RhsScalar_size = sizeof(RhsScalar);
 
-      if (block_mid || block_end) {
+      for (Index sliceIndex = 0; sliceIndex < num_slices; ++sliceIndex)
+      {
+        Index slice_mid = bm * bk * num_lhs;
+        Index slice_end = bn * bk * num_rhs;
 
-        char* block_char = reinterpret_cast<char*>(block);
-        LhsScalar *lhs_block = reinterpret_cast<LhsScalar*>(block_char);
-        RhsScalar *rhs_block = reinterpret_cast<RhsScalar*>(block_char + block_mid* sizeof(LhsScalar));
+        if (slice_mid || slice_end) {
 
-        if(NumTraits<LhsScalar>::RequireInitialization)
-        {
-          for (Index i = 0; i < block_mid; ++i) {
-            LhsScalar *element = &lhs_block[i];
-            element->~LhsScalar();
+          char* block_char = reinterpret_cast<char*>(block) + slice;
+          LhsScalar *lhs_block = reinterpret_cast<LhsScalar*>(block_char);
+          RhsScalar *rhs_block = reinterpret_cast<RhsScalar*>(block_char + slice_mid * _LhsScalar_size);
+
+          if(NumTraits<LhsScalar>::RequireInitialization)
+          {
+            for (Index i = 0; i < slice_mid; ++i) {
+              LhsScalar *element = &lhs_block[i];
+              element->~LhsScalar();
+            }
+          }
+          if(NumTraits<RhsScalar>::RequireInitialization)
+          {
+            for (Index i = 0; i < slice_end; ++i) {
+              RhsScalar *element = &rhs_block[i];
+              element->~RhsScalar();
+            }
+
           }
         }
-        if(NumTraits<RhsScalar>::RequireInitialization)
-        {
-          for (Index i = 0; i < block_end; ++i) {
-            RhsScalar *element = &rhs_block[i];
-            element->~RhsScalar();
-          }
-
-        }
+        slice += slice_mid * _LhsScalar_size + slice_end * _RhsScalar_size;
       }
     }
 
@@ -306,6 +342,15 @@ struct TensorContractionKernel {
   template <typename Device>
   EIGEN_DEVICE_FUNC void deallocate(Device& d, BlockMemHandle handle) {
     finalize_block (handle);
+    BlockMemAllocator::deallocate(d, handle);
+  }
+
+  template <typename Device>
+  EIGEN_DEVICE_FUNC void deallocateSlices(
+      Device& d, BlockMemHandle handle, const StorageIndex num_lhs, const StorageIndex num_rhs,
+      const StorageIndex num_slices) {
+
+    finalize_block (handle, num_lhs, num_rhs, num_slices);
     BlockMemAllocator::deallocate(d, handle);
   }
 
