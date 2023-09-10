@@ -11,23 +11,23 @@
 #define EIGEN_DEVICEWRAPPER_H
 
 namespace Eigen {
-template <typename XprType, typename Device>
-struct DeviceWrapper : public XprType {
-  using CleanedXprType = internal::remove_all_t<XprType>;
+template <typename Derived, typename Device>
+struct DeviceWrapper : public Derived {
+  using CleanedDerived = internal::remove_all_t<Derived>;
 
-  EIGEN_DEVICE_FUNC DeviceWrapper(EigenBase<CleanedXprType>& xpr, const Device& device)
+  EIGEN_DEVICE_FUNC DeviceWrapper(EigenBase<CleanedDerived>& xpr, const Device& device)
       : m_xpr(xpr.derived()), m_device(device) {}
-  EIGEN_DEVICE_FUNC DeviceWrapper(const EigenBase<CleanedXprType>& xpr, const Device& device)
+  EIGEN_DEVICE_FUNC DeviceWrapper(const EigenBase<CleanedDerived>& xpr, const Device& device)
       : m_xpr(xpr.derived()), m_device(device) {}
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE XprType& operator=(const EigenBase<OtherDerived>& other);
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE XprType& xpr() { return m_xpr; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const XprType& xpr() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& derived() { return m_xpr; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Derived& derived() const { return m_xpr; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Device& device() const { return m_device; }
   NoAlias<DeviceWrapper, EigenBase> noalias() { return NoAlias<DeviceWrapper, EigenBase>(*this); }
 
-  XprType& m_xpr;
+  Derived& m_xpr;
   const Device& m_device;
 };
 
@@ -38,7 +38,7 @@ template <typename Dst, typename Src, typename Func, typename Device>
 struct call_assignment_no_alias_device {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR static void run(DeviceWrapper<Dst, Device>& dst, const Src& src,
                                                                         const Func& func) {
-    call_assignment_no_alias(dst.xpr(), src, func);
+    call_assignment_no_alias(dst.derived(), src, func);
   }
 };
 
@@ -61,7 +61,7 @@ template <typename OtherDerived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DeviceWrapper<Derived, Device>::operator=(
     const EigenBase<OtherDerived>& other) {
   internal::call_assignment(*this, other.derived());
-  return xpr();
+  return derived();
 }
 
 template <typename Derived>
