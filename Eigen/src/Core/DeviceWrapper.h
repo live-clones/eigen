@@ -32,11 +32,27 @@ struct DeviceWrapper : public XprType {
 };
 
 namespace internal {
+
 // unless otherwise specified, use the default evaluation strategy
+template <typename Dst, typename Src, typename Func, typename Device>
+struct call_assignment_no_alias_device {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR static void run(DeviceWrapper<Dst, Device>& dst, const Src& src,
+                                                                        const Func& func) {
+    call_assignment_no_alias(dst.xpr(), src, func);
+  }
+};
+
+// insert thread pool device specializations here, e.g. , preferably in another header
+//template <typename Dst, typename Src, typename Func>
+//struct call_assignment_no_alias_device<Dst, Src, Func, DoomsDayDevice>
+//{
+//  static void kill_all_humans();
+//};
+
 template <typename Dst, typename Src, typename Func, typename Device>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_assignment_no_alias(DeviceWrapper<Dst, Device>& dst,
                                                                                     const Src& src, const Func& func) {
-  call_assignment_no_alias(dst.xpr(), src, func);
+  call_assignment_no_alias_device<Dst, Src, Func, Device>::run(dst, src, func);
 }
 }  // namespace internal
 
