@@ -801,6 +801,64 @@ static void test_scalar_initialization_multidims()
   VERIFY(AnnoyingScalar::instances==0 && "memory leak detected in contraction on ThreadPoolDevice");
 }
 
+template<int DataLayout>
+static void test_scalar_initialization_in_large_contraction()
+{
+
+#ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+  AnnoyingScalar::dont_throw = true;
+#endif
+
+  AnnoyingScalar::instances = 0;
+
+  {
+    Tensor<AnnoyingScalar, 4, DataLayout> A(20, 45, 8, 31);
+    Tensor<AnnoyingScalar, 5, DataLayout> B(8, 31, 7, 3, 5);
+    Tensor<AnnoyingScalar, 5, DataLayout> result(20, 45, 7, 3, 5);
+
+    result.setZero();
+
+    // Tensor<AnnoyingScalar>.setRandom() causes overloaded ambiguous calls
+    std::default_random_engine dre(time(0));
+    std::uniform_real_distribution<float> distro(.0f, 10.f);
+
+    for (Index i = 0; i < A.dimension(0); ++i) {
+      for (Index j = 0; j < A.dimension(1); ++j) {
+        for (Index k = 0; k < A.dimension(2); ++k) {
+          for (Index l = 0; l < A.dimension(3); ++l) {
+            A(i, j, k, l) = distro(dre);
+          }
+        }
+      }
+    }
+
+    for (Index i = 0; i < B.dimension(0); ++i) {
+      for (Index j = 0; j < B.dimension(1); ++j) {
+        for (Index k = 0; k < B.dimension(2); ++k) {
+          for (Index l = 0; l < B.dimension(3); ++l) {
+            for (Index m = 0; m < B.dimension(4); ++m) {
+              B(i, j, k, l, m) = distro(dre);
+            }
+          }
+        }
+      }
+    }
+
+    Eigen::ThreadPool tp(4);
+    Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+
+    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
+    Eigen::array<Annoying_DimPair, 2> dims({{Annoying_DimPair(2, 0), Annoying_DimPair(3, 1)}});
+    typedef TensorEvaluator<decltype(A.contract(B, dims)), ThreadPoolDevice> Evaluator;
+    Evaluator eval(A.contract(B, dims), thread_pool_device);
+    eval.evalTo(result.data());
+
+  }
+
+  VERIFY(AnnoyingScalar::instances == 0 && "memory leak detected in contraction on ThreadPoolDevice");
+
+}
+
 EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool)
 {
   CALL_SUBTEST_1(test_multithread_elementwise());
@@ -847,12 +905,17 @@ EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool)
   CALL_SUBTEST_11(test_multithread_shuffle<RowMajor>(&test_allocator));
   CALL_SUBTEST_11(test_threadpool_allocate(&test_allocator));
 
+  // tsting with AnnoyingScalar
+
   CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<ColMajor>());
   CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<RowMajor>());
 
   CALL_SUBTEST_13(test_scalar_initialization_multidims<ColMajor>());
   CALL_SUBTEST_13(test_scalar_initialization_multidims<RowMajor>());
 
+  CALL_SUBTEST_14(test_scalar_initialization_in_large_contraction<ColMajor>());
+  CALL_SUBTEST_14(test_scalar_initialization_in_large_contraction<RowMajor>());
+
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13;14
 }
