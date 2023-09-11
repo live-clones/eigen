@@ -905,7 +905,7 @@ EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool)
   CALL_SUBTEST_11(test_multithread_shuffle<RowMajor>(&test_allocator));
   CALL_SUBTEST_11(test_threadpool_allocate(&test_allocator));
 
-  // tsting with AnnoyingScalar
+  // testing with AnnoyingScalar
 
   CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<ColMajor>());
   CALL_SUBTEST_12(test_multithread_contraction_with_scalar_initialization<RowMajor>());
