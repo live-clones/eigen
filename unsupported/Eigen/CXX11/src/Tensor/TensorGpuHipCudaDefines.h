@@ -29,6 +29,7 @@
 #define gpuError_t hipError_t
 #define gpuSuccess hipSuccess
 #define gpuErrorNotReady hipErrorNotReady
+#define gpuErrorNotSupported hipErrorNotSupported
 #define gpuGetDeviceCount hipGetDeviceCount
 #define gpuGetLastError hipGetLastError
 #define gpuPeekAtLastError hipPeekAtLastError
@@ -60,6 +61,7 @@
 #define gpuError_t cudaError_t
 #define gpuSuccess cudaSuccess
 #define gpuErrorNotReady cudaErrorNotReady
+#define gpuErrorNotSupported cudaErrorNotSupported
 #define gpuGetDeviceCount cudaGetDeviceCount
 #define gpuGetLastError cudaGetLastError
 #define gpuPeekAtLastError cudaPeekAtLastError

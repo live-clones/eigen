@@ -591,11 +591,8 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel1D(
         indexMapper,
     const float* __restrict kernel, const int numPlanes, const int numX,
     const int maxX, const int kernelSize, float* buffer) {
-#if defined(EIGEN_HIPCC)
-  HIP_DYNAMIC_SHARED(float, s)
-#else
+
   extern __shared__ float s[];
-#endif
 
   const int first_x = blockIdx.x * maxX;
   const int last_x = (first_x + maxX < numX ? first_x + maxX : numX) - 1;
@@ -644,11 +641,8 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel2D(
     const float* __restrict kernel, const int numPlanes, const int numX,
     const int maxX, const int numY, const int maxY, const int kernelSizeX,
     const int kernelSizeY, float* buffer) {
-#if defined(EIGEN_HIPCC)
-  HIP_DYNAMIC_SHARED(float, s)
-#else
+
   extern __shared__ float s[];
-#endif
 
   const int first_x = blockIdx.x * maxX;
   const int last_x = (first_x + maxX < numX ? first_x + maxX : numX) - 1;
@@ -716,11 +710,8 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
     const size_t maxX, const size_t numY, const size_t maxY, const size_t numZ,
     const size_t maxZ, const size_t kernelSizeX, const size_t kernelSizeY,
     const size_t kernelSizeZ, float* buffer) {
-#if defined(EIGEN_HIPCC)
-  HIP_DYNAMIC_SHARED(float, s)
-#else
+
   extern __shared__ float s[];
-#endif
 
   // Load inputs to shared memory
   const int first_x = blockIdx.x * maxX;

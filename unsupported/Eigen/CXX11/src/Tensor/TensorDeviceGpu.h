@@ -426,9 +426,11 @@ struct GpuDevice {
 #ifdef EIGEN_GPUCC
 static EIGEN_DEVICE_FUNC inline void setGpuSharedMemConfig(gpuSharedMemConfig config) {
 #ifndef EIGEN_GPU_COMPILE_PHASE
-  gpuError_t status = gpuDeviceSetSharedMemConfig(config);
-  EIGEN_UNUSED_VARIABLE(status)
-  gpu_assert(status == gpuSuccess);
+  #if !defined(EIGEN_USE_HIP)
+    gpuError_t status = gpuDeviceSetSharedMemConfig(config);
+    EIGEN_UNUSED_VARIABLE(status)
+    gpu_assert(status == gpuSuccess);
+  #endif
 #else
   EIGEN_UNUSED_VARIABLE(config)
 #endif
