@@ -71,7 +71,44 @@ struct ThreadPoolDevice {
     }
   }
 
-    EIGEN_STRONG_INLINE void* allocate_temp(size_t num_bytes) const {
+  template<typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* allocate_elements(size_t num_elements) const {
+
+    const size_t element_size = sizeof(T);
+    size_t num_bytes = num_elements * element_size;
+    size_t align = numext::maxi(EIGEN_MAX_ALIGN_BYTES, 1);
+    num_bytes = divup<Index>(num_bytes, align) * align;
+
+    void * result = allocate(num_bytes);
+
+    if (NumTraits<T>::RequireInitialization) {
+      char * mem_pos = reinterpret_cast<char*>(result);
+      for (size_t i = 0; i < num_elements; ++i) {
+        new(mem_pos)T();
+        mem_pos += element_size;
+      }
+    }
+
+    return result;
+  }
+
+  template<typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void deallocate_elements(void* buffer, size_t num_elements) const {
+
+    if (NumTraits<T>::RequireInitialization) {
+
+      T * block = reinterpret_cast<T*>(buffer);
+
+      for (size_t i = 0; i < num_elements; ++i) {
+        T *element = &block[i];
+        element->~T();
+      }
+    }
+
+    deallocate(buffer);
+  }
+
+  EIGEN_STRONG_INLINE void* allocate_temp(size_t num_bytes) const {
     return allocate(num_bytes);
   }
 
