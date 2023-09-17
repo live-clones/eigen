@@ -90,11 +90,20 @@ struct TensorContractionBlockMemAllocator {
                                                    RhsScalar** rhs_block) {
     eigen_assert(lhs_block);
     eigen_assert(rhs_block);
+
+    #ifdef __USING_SINGLE_TYPE_CONTRACTIONS__
     BlockSizes sz = ComputeLhsRhsBlockSizes(bm, bk, bn);
-    // FIXME: what happens if typeof(LhsScalar) != typeof(RhsScalar)
+    // FIXME: what happens if typeof(LhsScalar) != typeof(RhsScalar)?
     char* block_mem = static_cast<char*>(d.template allocate_elements<LhsScalar>(sz.lhs_count + sz.rhs_count));
     *lhs_block = static_cast<LhsScalar*>(static_cast<void*>(block_mem));
     *rhs_block = static_cast<RhsScalar*>(static_cast<void*>(block_mem + sz.lhs_size));
+    #else
+    std::vector<void*> blocks;
+    char* block_mem = static_cast<char*>(d.template allocate_blocks<LhsScalar, RhsScalar>(bm * bk, bn * bk, blocks));
+    *lhs_block = static_cast<LhsScalar*>(blocks[0]);
+    *rhs_block = static_cast<RhsScalar*>(blocks[1]);
+    #endif
+
     return block_mem;
   }
 
@@ -108,9 +117,12 @@ struct TensorContractionBlockMemAllocator {
     eigen_assert(num_lhs >= 0 && num_rhs >= 0);
     eigen_assert(num_lhs == 0 || lhs_blocks);
     eigen_assert(num_rhs == 0 || rhs_blocks);
+
+    #ifdef __USING_SINGLE_TYPE_CONTRACTIONS__
     BlockSizes sz = ComputeLhsRhsBlockSizes(bm, bk, bn);
-    // FIXME: what happens if typeof(LhsScalar) != typeof(RhsScalar)
+    // FIXME: what happens if typeof(LhsScalar) != typeof(RhsScalar)?
     char* block_mem = static_cast<char*>(d.template allocate_elements<LhsScalar>((num_lhs * sz.lhs_count + num_rhs * sz.rhs_count) * num_slices));
+
     eigen_assert(block_mem);
     char* mem = static_cast<char*>(block_mem);
 
@@ -127,6 +139,28 @@ struct TensorContractionBlockMemAllocator {
       }
     }
 
+    #else
+    std::vector<void*> blocks;
+    char* block_mem = static_cast<char*>(d.template allocate_blocks<LhsScalar, RhsScalar>(bm * bk, bn * bk, blocks, num_lhs, num_rhs, num_slices));
+
+    eigen_assert(block_mem);
+
+    Index blocks_index = 0;
+    for (Index slice = 0; slice < num_slices; slice++) {
+      if (num_lhs > 0) lhs_blocks[slice].resize(num_lhs);
+      for (Index m = 0; m < num_lhs; m++) {
+        void* block_memory = blocks[blocks_index++];
+        lhs_blocks[slice][m] = static_cast<LhsScalar*>(block_memory);
+      }
+      if (num_rhs > 0) rhs_blocks[slice].resize(num_rhs);
+      for (Index n = 0; n < num_rhs; n++) {
+        void* block_memory = blocks[blocks_index++];
+        rhs_blocks[slice][n] = static_cast<RhsScalar*>(block_memory);
+      }
+    }
+
+    #endif
+
     return block_mem;
   }
 
@@ -134,9 +168,14 @@ struct TensorContractionBlockMemAllocator {
   EIGEN_DEVICE_FUNC static void deallocate(Device& d, BlockMemHandle handle, const Index bm,
                                                    const Index bk,
                                                    const Index bn) {
+
+    #ifdef __USING_SINGLE_TYPE_CONTRACTIONS__
     BlockSizes sz = ComputeLhsRhsBlockSizes(bm, bk, bn);
-    // FIXME: what happens if typeof(LhsScalar) != typeof(RhsScalar)
+    // FIXME: what happens if typeof(LhsScalar) != typeof(RhsScalar)?
     d.template deallocate_elements<LhsScalar>(handle, sz.lhs_count + sz.rhs_count);
+     #else
+    d.template deallocate_blocks<LhsScalar, RhsScalar>(handle, bm * bk, bn * bk);
+    #endif
   }
 
  private:
