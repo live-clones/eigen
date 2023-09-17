@@ -199,10 +199,11 @@ struct DefaultDevice {
 
         if (NumTraits<LEFT_T>::RequireInitialization) {
           LEFT_T * left_block = reinterpret_cast<LEFT_T*>(mem_pos);
+          size_t block_index = 0;
 
           for (size_t block = 0; block < num_left_blocks; ++block) {
-            for (size_t i = 0; i < left_block_count; ++i) {
-              LEFT_T *element = &left_block[i];
+            for (size_t i = 0; i < left_num_elements; ++i) {
+              LEFT_T *element = &left_block[block_index++];
               element->~LEFT_T();
             }
           }
@@ -212,9 +213,11 @@ struct DefaultDevice {
 
         if (NumTraits<RIGHT_T>::RequireInitialization) {
           RIGHT_T * right_block = reinterpret_cast<RIGHT_T*>(mem_pos);
+          size_t block_index = 0;
+
           for (size_t block = 0; block < num_right_blocks; ++block) {
-            for (size_t i = 0; i < right_block_count; ++i) {
-              RIGHT_T *element = &right_block[i];
+            for (size_t i = 0; i < right_num_elements; ++i) {
+              RIGHT_T *element = &right_block[block_index++];
               element->~RIGHT_T();
             }
           }

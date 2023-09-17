@@ -219,8 +219,8 @@ struct ThreadPoolDevice {
       size_t right_num_bytes = right_block_count * right_element_size;
 
       size_t align = numext::maxi(EIGEN_MAX_ALIGN_BYTES, 1);
-      left_num_bytes = divup<Index>(left_num_bytes, align) * align; // TODO: CHECK left_num_bytes
-      right_num_bytes = divup<Index>(right_num_bytes, align) * align; // TODO: CHECK left_num_bytes
+      left_num_bytes = divup<Index>(left_num_bytes, align) * align; 
+      right_num_bytes = divup<Index>(right_num_bytes, align) * align;
 
       char* mem_pos = reinterpret_cast<char*>(buffer);
 
@@ -228,10 +228,11 @@ struct ThreadPoolDevice {
 
         if (NumTraits<LEFT_T>::RequireInitialization) {
           LEFT_T * left_block = reinterpret_cast<LEFT_T*>(mem_pos);
+          size_t block_index = 0;
 
           for (size_t block = 0; block < num_left_blocks; ++block) {
-            for (size_t i = 0; i < left_block_count; ++i) {
-              LEFT_T *element = &left_block[i];
+            for (size_t i = 0; i < left_num_elements; ++i) {
+              LEFT_T *element = &left_block[block_index++];
               element->~LEFT_T();
             }
           }
@@ -241,9 +242,11 @@ struct ThreadPoolDevice {
 
         if (NumTraits<RIGHT_T>::RequireInitialization) {
           RIGHT_T * right_block = reinterpret_cast<RIGHT_T*>(mem_pos);
+          size_t block_index = 0;
+
           for (size_t block = 0; block < num_right_blocks; ++block) {
-            for (size_t i = 0; i < right_block_count; ++i) {
-              RIGHT_T *element = &right_block[i];
+            for (size_t i = 0; i < right_num_elements; ++i) {
+              RIGHT_T *element = &right_block[block_index++];
               element->~RIGHT_T();
             }
           }

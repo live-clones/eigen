@@ -167,14 +167,17 @@ struct TensorContractionBlockMemAllocator {
   template <typename Device>
   EIGEN_DEVICE_FUNC static void deallocate(Device& d, BlockMemHandle handle, const Index bm,
                                                    const Index bk,
-                                                   const Index bn) {
+                                                   const Index bn, 
+                                                   const Index num_lhs = 1, 
+                                                   const Index num_rhs = 1, 
+                                                   const Index num_slices = 1) {
 
     #ifdef __USING_SINGLE_TYPE_CONTRACTIONS__
     BlockSizes sz = ComputeLhsRhsBlockSizes(bm, bk, bn);
     // FIXME: what happens if typeof(LhsScalar) != typeof(RhsScalar)?
-    d.template deallocate_elements<LhsScalar>(handle, sz.lhs_count + sz.rhs_count);
+    d.template deallocate_elements<LhsScalar>(handle, (sz.lhs_count * num_lhs + sz.rhs_count * num_rhs) * num_slices);
      #else
-    d.template deallocate_blocks<LhsScalar, RhsScalar>(handle, bm * bk, bn * bk);
+    d.template deallocate_blocks<LhsScalar, RhsScalar>(handle, bm * bk, bn * bk, num_lhs, num_rhs, num_slices);
     #endif
   }
 
@@ -283,9 +286,7 @@ struct TensorContractionKernel {
   template <typename Device>
   EIGEN_DEVICE_FUNC void deallocate(Device& d, BlockMemHandle handle, const StorageIndex num_lhs = 1, const StorageIndex num_rhs = 1,
       const StorageIndex num_slices = 1) {
-    Index _bm = bm * num_lhs * num_slices;
-    Index _bn = bn * num_rhs * num_slices; 
-    BlockMemAllocator::deallocate(d, handle, _bm, bk, _bn);
+    BlockMemAllocator::deallocate(d, handle, bm, bk, bn, num_lhs, num_rhs, num_slices);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void packLhs(
