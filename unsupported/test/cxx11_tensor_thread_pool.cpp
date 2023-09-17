@@ -845,7 +845,6 @@ static void test_scalar_initialization_in_large_contraction()
     }
 
     Eigen::ThreadPool tp(internal::random<int>(2, 11));
-    Eigen::ThreadPool tp(internal::random<int>(2, 11));
     Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
 
     typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;

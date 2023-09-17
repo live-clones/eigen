@@ -561,79 +561,10 @@ static void test_large_contraction_with_output_kernel() {
   }
 }
 
-<<<<<<< HEAD
-=======
-class InitializableScalar
-{
-  public:
-
-    static int instanceCount;
-
-    typedef float Scalar;
-
-    InitializableScalar() {
-      val = 0;
-      instanceCount++;
-    }
-    InitializableScalar(float _v) {
-      val = _v;
-      instanceCount++;
-    }
-    InitializableScalar(const InitializableScalar& other) {
-      val = other.val;
-      instanceCount++;
-    }
-    ~InitializableScalar() { instanceCount--; }
-
-    InitializableScalar operator+(const InitializableScalar& other) const
-    {
-      return InitializableScalar(val + other.val);
-    }
-
-    InitializableScalar operator-() const
-    { return InitializableScalar(-val); }
-
-    InitializableScalar operator-(const InitializableScalar& other) const
-    { return InitializableScalar(val - other.val); }
-    
-    InitializableScalar operator*(const InitializableScalar& other) const
-    { return InitializableScalar(val * other.val); }
-
-    InitializableScalar operator/(const InitializableScalar& other) const
-    { return InitializableScalar(val / other.val); }
-
-    InitializableScalar& operator+=(const InitializableScalar& other) { val += other.val; return *this; }
-    InitializableScalar& operator-=(const InitializableScalar& other) { val -= other.val; return *this; }
-    InitializableScalar& operator*=(const InitializableScalar& other) { val *= other.val; return *this; }
-    InitializableScalar& operator/=(const InitializableScalar& other) { val /= other.val; return *this; }
-    InitializableScalar& operator= (const InitializableScalar& other) { val  = other.val; return *this; }
-
-    bool operator==(const InitializableScalar& other) const { return numext::equal_strict(val, other.val); }
-    bool operator!=(const InitializableScalar& other) const { return numext::not_equal_strict(val, other.val); }
-    bool operator<=(const InitializableScalar& other) const { return val <= other.val; }
-    bool operator< (const InitializableScalar& other) const { return val <  other.val; }
-    bool operator>=(const InitializableScalar& other) const { return val >= other.val; }
-    bool operator> (const InitializableScalar& other) const { return val >  other.val; }
-  
-    float val;
-};
-
-template<> struct Eigen::NumTraits<InitializableScalar>
-: Eigen::NumTraits<float> 
-{
-  enum {
-    RequireInitialization = 1,
-  };
-};
-
-int InitializableScalar::instanceCount; 
-
->>>>>>> 0408f0d30 (added test for contraction on default device)
 template<int DataLayout>
 static void test_scalar_initialization()
 {
 
-<<<<<<< HEAD
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
   AnnoyingScalar::dont_throw = true;
 #endif
@@ -801,49 +732,6 @@ static void test_scalar_initialization_in_large_contraction()
   }
 
   VERIFY(AnnoyingScalar::instances == 0 && "memory leak detected in contraction on ThreadPoolDevice");
-=======
-  InitializableScalar::instanceCount = 0;
-
-  {
-
-    Tensor<AnnoyingScalar, 2, DataLayout> A(2, 3);
-    Tensor<AnnoyingScalar, 2, DataLayout> B(2, 3);
-    Tensor<AnnoyingScalar, 2, DataLayout> result(A.dimension(1), B.dimension(1));
-
-    // Tensor<AnnoyingScalar>.setRandom() causes overloaded ambiguous calls
-    std::default_random_engine dre(time(0));
-    std::uniform_real_distribution<float> distro(0, 1);
-
-    for (Index i = 0; i < A.dimension(0); ++i) {
-      for (Index j = 0; j < A.dimension(1); ++j) {
-        A(i, j) = distro(dre);
-      }
-    }
-    for (Index i = 0; i < B.dimension(0); ++i) {
-      for (Index j = 0; j < B.dimension(1); ++j) {
-        B(i, j) = distro(dre);
-      }
-    }
-    result.setZero();
-
-    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
-    Eigen::array<Annoying_DimPair, 1> dims = {{Annoying_DimPair(0, 0)}};
-    typedef TensorEvaluator<decltype(A.contract(B, dims)), DefaultDevice> Evaluator;
-    Evaluator eval(A.contract(B, dims), DefaultDevice());
-    eval.evalTo(result.data());
-
-  VERIFY_IS_APPROX(result(0,0).val, (A(0,0)*B(0,0) + A(1,0)*B(1,0)).val);
-  VERIFY_IS_APPROX(result(0,1).val, (A(0,0)*B(0,1) + A(1,0)*B(1,1)).val);
-  VERIFY_IS_APPROX(result(0,2).val, (A(0,0)*B(0,2) + A(1,0)*B(1,2)).val);
-  VERIFY_IS_APPROX(result(1,0).val, (A(0,1)*B(0,0) + A(1,1)*B(1,0)).val);
-  VERIFY_IS_APPROX(result(1,1).val, (A(0,1)*B(0,1) + A(1,1)*B(1,1)).val);
-  VERIFY_IS_APPROX(result(1,2).val, (A(0,1)*B(0,2) + A(1,1)*B(1,2)).val);
-  VERIFY_IS_APPROX(result(2,0).val, (A(0,2)*B(0,0) + A(1,2)*B(1,0)).val);
-  VERIFY_IS_APPROX(result(2,1).val, (A(0,2)*B(0,1) + A(1,2)*B(1,1)).val);
-  VERIFY_IS_APPROX(result(2,2).val, (A(0,2)*B(0,2) + A(1,2)*B(1,2)).val);
-
-  VERIFY_IS_EQUAL(InitializableScalar::instanceCount, A.size() + B.size() + result.size());
->>>>>>> 0408f0d30 (added test for contraction on default device)
 
 }
 
@@ -881,8 +769,6 @@ EIGEN_DECLARE_TEST(cxx11_tensor_contraction)
   CALL_SUBTEST_8(test_const_inputs<RowMajor>());
   CALL_SUBTEST_8(test_large_contraction_with_output_kernel<ColMajor>());
   CALL_SUBTEST_8(test_large_contraction_with_output_kernel<RowMajor>());
-  CALL_SUBTEST_9(test_scalar_initialization<ColMajor>());
-  CALL_SUBTEST_9(test_scalar_initialization<RowMajor>());
 
   // tests using AnnoyingScalar
   CALL_SUBTEST_9(test_scalar_initialization<ColMajor>());
@@ -893,10 +779,6 @@ EIGEN_DECLARE_TEST(cxx11_tensor_contraction)
   CALL_SUBTEST_11(test_scalar_initialization_in_large_contraction<RowMajor>());
 
   // Force CMake to split this test.
-<<<<<<< HEAD
   // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11
-=======
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9
->>>>>>> 0408f0d30 (added test for contraction on default device)
 
 }
