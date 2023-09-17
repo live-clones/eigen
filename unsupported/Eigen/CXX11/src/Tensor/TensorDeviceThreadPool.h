@@ -75,6 +75,10 @@ struct ThreadPoolDevice {
   /**
    * This version assumes that all elements are of the same type T.
   */
+  #ifdef __USING_SINGLE_TYPE_CONTRACTIONS__
+  /**
+   * This version assumes that all elements are of the same type T.
+  */
   template<typename T>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* allocate_elements(size_t num_elements) const {
 
