@@ -205,6 +205,51 @@ template<typename T> struct functor_traits
   };
 };
 
+template <typename Xpr>
+struct nested_functor_traits {
+  enum : int { Cost = 0 };
+};
+
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
+struct nested_functor_traits<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> {
+  enum : int { Cost = 4 };
+};
+
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
+struct nested_functor_traits<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> {
+  enum : int { Cost = 4 };
+};
+
+template <typename Func, typename Xpr>
+struct nested_functor_traits<CwiseUnaryOp<Func, Xpr>> {
+  using XprCleaned = remove_all_t<Xpr>;
+  using FuncCleaned = remove_all_t<Func>;
+  enum : int { Cost = functor_traits<FuncCleaned>::Cost + nested_functor_traits<XprCleaned>::Cost };
+};
+
+template <typename Func, typename LhsXpr, typename RhsXpr>
+struct nested_functor_traits<CwiseBinaryOp<Func, LhsXpr, RhsXpr>> {
+  using LhsXprCleaned = remove_all_t<LhsXpr>;
+  using RhsXprCleaned = remove_all_t<RhsXpr>;
+  using FuncCleaned = remove_all_t<Func>;
+  enum : int {
+    Cost = functor_traits<FuncCleaned>::Cost + nested_functor_traits<LhsXprCleaned>::Cost +
+           nested_functor_traits<RhsXprCleaned>::Cost
+  };
+};
+
+template <typename Func, typename LhsXpr, typename MidXpr, typename RhsXpr>
+struct nested_functor_traits<CwiseTernaryOp<Func, LhsXpr, MidXpr, RhsXpr>> {
+  using LhsXprCleaned = remove_all_t<LhsXpr>;
+  using MidXprCleaned = remove_all_t<MidXpr>;
+  using RhsXprCleaned = remove_all_t<RhsXpr>;
+  using FuncCleaned = remove_all_t<Func>;
+  enum : int {
+    Cost = functor_traits<FuncCleaned>::Cost + nested_functor_traits<LhsXprCleaned>::Cost +
+           nested_functor_traits<MidXprCleaned>::Cost + nested_functor_traits<RhsXprCleaned>::Cost
+  };
+};
+
 template<typename T> struct packet_traits;
 
 template<typename T> struct unpacket_traits;

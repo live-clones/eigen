@@ -14,69 +14,149 @@ namespace Eigen {
 template <typename Derived, typename Device>
 struct DeviceWrapper : public Derived {
   using CleanedDerived = internal::remove_all_t<Derived>;
+  using Base = EigenBase<CleanedDerived>;
+  using Scalar = typename Derived::Scalar;
 
-  EIGEN_DEVICE_FUNC DeviceWrapper(EigenBase<CleanedDerived>& xpr, const Device& device)
+  EIGEN_DEVICE_FUNC DeviceWrapper(Base& xpr, Device& device)
       : m_xpr(xpr.derived()), m_device(device) {}
-  EIGEN_DEVICE_FUNC DeviceWrapper(const EigenBase<CleanedDerived>& xpr, const Device& device)
+  EIGEN_DEVICE_FUNC DeviceWrapper(const Base& xpr, Device& device)
       : m_xpr(xpr.derived()), m_device(device) {}
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const EigenBase<OtherDerived>& other)
+  {
+    using AssignOp = internal::assign_op<Scalar, typename OtherDerived::Scalar>;
+    internal::call_assignment(*this, other.derived(), AssignOp());
+    return m_xpr;
+  }
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator+=(const EigenBase<OtherDerived>& other)
+  {
+    using AddAssignOp = internal::add_assign_op<Scalar, typename OtherDerived::Scalar>;
+    internal::call_assignment(*this, other.derived(), AddAssignOp());
+    return m_xpr;
+  }
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator-=(const EigenBase<OtherDerived>& other)
+  {
+    using SubAssignOp = internal::sub_assign_op<Scalar, typename OtherDerived::Scalar>;
+    internal::call_assignment(*this, other.derived(), SubAssignOp());
+    return m_xpr;
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& derived() { return m_xpr; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Derived& derived() const { return m_xpr; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Device& device() const { return m_device; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Device& device() const { return m_device; }
+  // this bypasses a few function calls in the assignment function chain
   NoAlias<DeviceWrapper, EigenBase> noalias() { return NoAlias<DeviceWrapper, EigenBase>(*this); }
 
   Derived& m_xpr;
-  const Device& m_device;
+  Device& m_device;
 };
 
 namespace internal {
 
-// unless otherwise specified, use the default evaluation strategy
-template <typename Dst, typename Src, typename Func, typename Device>
-struct call_assignment_no_alias_device {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR static void run(DeviceWrapper<Dst, Device>& dst, const Src& src,
-                                                                        const Func& func) {
-    call_assignment_no_alias(dst.derived(), src, func);
+// this is where we differentiate between lazy assignment and specialized kernels (e.g. matrix products)
+template <typename DstXprType, typename SrcXprType, typename Functor, typename Device, 
+          typename Kind = typename AssignmentKind<typename evaluator_traits<DstXprType>::Shape,
+                                                  typename evaluator_traits<SrcXprType>::Shape>::Kind,
+          typename EnableIf = void>
+struct AssignmentWithDevice;
+
+
+
+// specialization for simple-assignment
+template <typename DstXprType, typename SrcXprType, typename Functor, typename Device, typename Weak>
+struct AssignmentWithDevice<DstXprType, SrcXprType, Functor, Device, Dense2Dense, Weak> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src, const Functor& func, Device& device) {
+#ifndef EIGEN_NO_DEBUG
+    internal::check_for_aliasing(dst, src);
+#endif
+
+    call_dense_assignment_loop(dst, src, func, device);
   }
 };
 
-// insert thread pool device specializations here, e.g. , preferably in another header
-//template <typename Dst, typename Src, typename Func>
-//struct call_assignment_no_alias_device<Dst, Src, Func, DoomsDayDevice>
-//{
-//  static void kill_all_humans();
-//};
+// TODO: specialize matrix product (to bypass lazy evaulation at the very least)
 
+// this allows us to use the default evaulation scheme if it is not specialized for the device
+template <typename Kernel, typename Device, int Traversal = Kernel::AssignmentTraits::Traversal,
+          int Unrolling = Kernel::AssignmentTraits::Unrolling>
+struct dense_assignment_loop_with_device {
+  using Base = dense_assignment_loop<Kernel, Traversal, Unrolling>;
+  // unless otherwise specified, use the default evaulation scheme and ignore the device
+  EIGEN_DEVICE_FUNC static void EIGEN_STRONG_INLINE EIGEN_CONSTEXPR run(Kernel& kernel, Device&) {
+    Base::run(kernel);
+  }
+};
+
+// entry point for a generic expression with device
 template <typename Dst, typename Src, typename Func, typename Device>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_assignment_no_alias(DeviceWrapper<Dst, Device>& dst,
                                                                                     const Src& src, const Func& func) {
-  call_assignment_no_alias_device<Dst, Src, Func, Device>::run(dst, src, func);
-}
-}  // namespace internal
+  enum {
+    NeedToTranspose = ((int(Dst::RowsAtCompileTime) == 1 && int(Src::ColsAtCompileTime) == 1) ||
+                       (int(Dst::ColsAtCompileTime) == 1 && int(Src::RowsAtCompileTime) == 1)) &&
+                      int(Dst::SizeAtCompileTime) != 1
+  };
 
-template <typename Derived, typename Device>
-template <typename OtherDerived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DeviceWrapper<Derived, Device>::operator=(
-    const EigenBase<OtherDerived>& other) {
-  internal::call_assignment(*this, other.derived());
-  return derived();
+  typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst> ActualDstTypeCleaned;
+  typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&> ActualDstType;
+  ActualDstType actualDst(dst.derived());
+
+  // TODO check whether this is the right place to perform these checks:
+  EIGEN_STATIC_ASSERT_LVALUE(Dst)
+  EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(ActualDstTypeCleaned, Src)
+  EIGEN_CHECK_BINARY_COMPATIBILIY(Func, typename ActualDstTypeCleaned::Scalar, typename Src::Scalar);
+
+  // this provides a mechanism for specializing simple assignments, matrix products, etc
+  AssignmentWithDevice<ActualDstTypeCleaned, Src, Func, Device>::run(actualDst, src, func, dst.device());
 }
+
+// copy and pasted from AssignEvaluator except forward device to kernel
+template <typename DstXprType, typename SrcXprType, typename Functor, typename Device>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment_loop(DstXprType& dst,
+                                                                                      const SrcXprType& src,
+                                                                                      const Functor& func,
+                                                                                      Device& device) {
+  typedef evaluator<DstXprType> DstEvaluatorType;
+  typedef evaluator<SrcXprType> SrcEvaluatorType;
+
+  SrcEvaluatorType srcEvaluator(src);
+
+  // NOTE To properly handle A = (A*A.transpose())/s with A rectangular,
+  // we need to resize the destination after the source evaluator has been created.
+  resize_if_allowed(dst, src, func);
+
+  DstEvaluatorType dstEvaluator(dst);
+
+  typedef generic_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Functor> Kernel;
+  // dst.const_cast ??
+  Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
+
+  dense_assignment_loop_with_device<Kernel, Device>::run(kernel, device);
+}
+
+}  // namespace internal
 
 template <typename Derived>
 template <typename Device>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<Derived, Device> EigenBase<Derived>::useDevice(
-    const Device& device) {
+    Device& device) {
   return DeviceWrapper<Derived, Device>(derived(), device);
 }
 
 template <typename Derived>
 template <typename Device>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> EigenBase<Derived>::useDevice(
-    const Device& device) const {
+    Device& device) const {
   return DeviceWrapper<const Derived, Device>(derived(), device);
 }
+
+
+
 }  // namespace Eigen
+
+//#include <Eigen/src/ThreadPool/SimpleThreadPoolDevice.h>
 
 #endif
