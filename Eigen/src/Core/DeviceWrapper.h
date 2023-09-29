@@ -1,7 +1,7 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
-// Copyright (C) 2023 The Dumbass <cs.schlosser@gmail.com>
+// Copyright (C) 2023 Charlie Schlosser <cs.schlosser@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
@@ -47,7 +47,6 @@ struct DeviceWrapper : public Derived {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& derived() { return m_xpr; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Derived& derived() const { return m_xpr; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Device& device() const { return m_device; }
-  // this bypasses a few function calls in the assignment function chain
   NoAlias<DeviceWrapper, EigenBase> noalias() { return NoAlias<DeviceWrapper, EigenBase>(*this); }
 
   Derived& m_xpr;

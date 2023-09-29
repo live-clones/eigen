@@ -1354,6 +1354,7 @@ inline uint32_t log2(uint32_t x) {
   return table[(x * 0x07C4ACDD) >> 27];
 }
 
+// from https://stackoverflow.com/questions/11376288/fast-computing-of-log2-for-64-bit-integers
 inline uint64_t log2(uint64_t value) {
   EIGEN_ALIGN_MAX static constexpr uint8_t table[64] = {63, 0,  58, 1,  59, 47, 53, 2,  60, 39, 48, 27, 54, 33, 42, 3,
                                      61, 51, 37, 40, 49, 18, 28, 20, 55, 30, 34, 11, 43, 14, 22, 4,
