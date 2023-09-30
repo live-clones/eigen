@@ -140,14 +140,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment
 
 template <typename Derived>
 template <typename Device>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<Derived, Device> EigenBase<Derived>::useDevice(
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<Derived, Device> EigenBase<Derived>::device(
     Device& device) {
   return DeviceWrapper<Derived, Device>(derived(), device);
 }
 
 template <typename Derived>
 template <typename Device>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> EigenBase<Derived>::useDevice(
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> EigenBase<Derived>::device(
     Device& device) const {
   return DeviceWrapper<const Derived, Device>(derived(), device);
 }
