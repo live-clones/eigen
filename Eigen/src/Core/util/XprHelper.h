@@ -251,9 +251,9 @@ struct nested_functor_cost<CwiseBinaryOp<Func, LhsXpr, RhsXpr>> {
   using RhsXprCleaned = remove_all_t<RhsXpr>;
   using FuncCleaned = remove_all_t<Func>;
   enum : Index {
-    ScalarCost = nested_functor_cost<FuncCleaned>::ScalarCost + nested_functor_traits<LhsXprCleaned>::ScalarCost +
+    ScalarCost = nested_functor_cost<FuncCleaned>::ScalarCost + nested_functor_cost<LhsXprCleaned>::ScalarCost +
                  nested_functor_cost<RhsXprCleaned>::ScalarCost,
-    VectorCost = nested_functor_cost<FuncCleaned>::VectorCost + nested_functor_traits<LhsXprCleaned>::VectorCost +
+    VectorCost = nested_functor_cost<FuncCleaned>::VectorCost + nested_functor_cost<LhsXprCleaned>::VectorCost +
                  nested_functor_cost<RhsXprCleaned>::VectorCost
   };
 };
