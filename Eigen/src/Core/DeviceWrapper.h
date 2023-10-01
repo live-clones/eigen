@@ -47,7 +47,9 @@ struct DeviceWrapper : public Derived {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& derived() { return m_xpr; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Derived& derived() const { return m_xpr; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Device& device() const { return m_device; }
-  NoAlias<DeviceWrapper, EigenBase> noalias() { return NoAlias<DeviceWrapper, EigenBase>(*this); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NoAlias<DeviceWrapper, EigenBase> noalias() {
+    return NoAlias<DeviceWrapper, EigenBase>(*this);
+  }
 
   Derived& m_xpr;
   Device& m_device;
@@ -67,7 +69,8 @@ struct AssignmentWithDevice;
 // specialization for simple-assignment
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Device, typename Weak>
 struct AssignmentWithDevice<DstXprType, SrcXprType, Functor, Device, Dense2Dense, Weak> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src, const Functor& func, Device& device) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src, const Functor& func,
+                                                       Device& device) {
 #ifndef EIGEN_NO_DEBUG
     internal::check_for_aliasing(dst, src);
 #endif
@@ -84,7 +87,7 @@ template <typename Kernel, typename Device, int Traversal = Kernel::AssignmentTr
 struct dense_assignment_loop_with_device {
   using Base = dense_assignment_loop<Kernel, Traversal, Unrolling>;
   // unless otherwise specified, use the default evaulation scheme and ignore the device
-  EIGEN_DEVICE_FUNC static void EIGEN_STRONG_INLINE EIGEN_CONSTEXPR run(Kernel& kernel, Device&) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Device&) {
     Base::run(kernel);
   }
 };

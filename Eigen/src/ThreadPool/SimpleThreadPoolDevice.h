@@ -15,9 +15,10 @@ namespace Eigen {
 struct SimpleThreadPoolDevice {
   SimpleThreadPoolDevice(ThreadPool& pool) : m_pool(pool) {}
 
+  static constexpr Index ThreadCost = 1 << 15;  // tuneable -- prefer power of two so the division is cheaper
+
   using Task = std::function<void()>;
   using LinearFunctor = std::function<void(Index)>;
-  using OuterInnerFunctor = std::function<void(Index, Index)>;
 
   void parallelFor(Index begin, Index end, Index incr, LinearFunctor f, Barrier& barrier, Index maxDepth, Index depth) {
     eigen_assert((incr & (incr - 1)) == 0 && "this method specialized for power-of-two increments");
@@ -39,9 +40,14 @@ struct SimpleThreadPoolDevice {
     }
   }
 
-  void initParallelFor(Index begin, Index end, Index incr, LinearFunctor f, Index minSize = 1) {
-    Index size = end - begin;
-    Index maxDepth = size <= minSize ? 0 : numext::log2(size) - numext::log2(minSize);
+  void initParallelFor(Index begin, Index end, Index incr, LinearFunctor f, Index cost) {
+    Index numOps = (end - begin) / incr;
+    Index totalCost = numOps * cost;
+    Index idealThreads = numext::div_ceil(totalCost, ThreadCost);
+    Index actualThreads = numext::mini(idealThreads, numThreads());
+    Index maxDepth = numext::log2(actualThreads);
+    // use log2_ceil to ensure available resources are used
+    if ((actualThreads & (actualThreads - 1)) != 0) maxDepth++;
     uint32_t numNotifies = 1 << static_cast<uint32_t>(maxDepth);
     Barrier barrier(numNotifies);
     parallelFor(begin, end, incr, f, barrier, maxDepth, 0);
@@ -49,36 +55,48 @@ struct SimpleThreadPoolDevice {
   }
 
   ThreadPool& pool() { return m_pool; }
+  Index numThreads() const { return static_cast<Index>(m_pool.NumThreads()); }
 
   ThreadPool& m_pool;
 };
 
-namespace internal
-{
+namespace internal {
+
+template <typename Kernel>
+struct cost_helper {
+  using SrcEvaluatorType = typename Kernel::SrcEvaluatorType;
+  using DstEvaluatorType = typename Kernel::DstEvaluatorType;
+  using SrcXprType = typename SrcEvaluatorType::XprType;
+  using DstXprType = typename DstEvaluatorType::XprType;
+  enum : Index {
+    ScalarCost = functor_cost<SrcXprType>::ScalarCost + functor_cost<DstXprType>::ScalarCost,
+    VectorCost = functor_cost<SrcXprType>::VectorCost + functor_cost<DstXprType>::VectorCost
+  };
+};
 
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, DefaultTraversal, NoUnrolling> {
   using LinearFunctor = std::function<void(Index)>;
   using OuterInnerFunctor = std::function<void(Index, Index)>;
-  EIGEN_DEVICE_FUNC static void EIGEN_STRONG_INLINE run(Kernel& kernel, SimpleThreadPoolDevice& device) {
-    
+  static constexpr Index XprEvaluatorCost = cost_helper<Kernel>::ScalarCost;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
     LinearFunctor functor = [&](Index outer) {
       for (Index inner = 0; inner < kernel.innerSize(); ++inner) kernel.assignCoeffByOuterInner(outer, inner);
     };
-    device.initParallelFor(0, kernel.outerSize(), 1, functor);
+    device.initParallelFor(0, kernel.outerSize(), 1, functor, XprEvaluatorCost * kernel.innerSize());
   }
 };
 
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearTraversal, NoUnrolling> {
   using LinearFunctor = std::function<void(Index)>;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel,
+  static constexpr Index XprEvaluatorCost = cost_helper<Kernel>::ScalarCost;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel,
                                                                         SimpleThreadPoolDevice& device) {
     LinearFunctor functor = [&](Index index) { kernel.assignCoeff(index); };
-    device.initParallelFor(0, kernel.size(), 1, functor);
+    device.initParallelFor(0, kernel.size(), 1, functor, XprEvaluatorCost);
   }
 };
-
 
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearVectorizedTraversal, NoUnrolling> {
@@ -86,6 +104,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
   using PacketType = typedef typename Kernel::PacketType;
   using Task = std::function<void()>;
   using LinearFunctor = std::function<void(Index)>;
+  static constexpr Index XprEvaluatorCost = cost_helper<Kernel>::VectorCost;
   enum {
     requestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
     packetSize = unpacket_traits<PacketType>::size,
@@ -95,7 +114,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
     srcAlignment = Kernel::AssignmentTraits::JointAlignment
   };
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel,
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel,
                                                                         SimpleThreadPoolDevice& device) {
     const Index size = kernel.size();
     const Index alignedStart =
@@ -113,7 +132,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
       LinearFunctor vectorIterFunctor = [&](Index index) {
         kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
       };
-      device.initParallelFor(alignedStart, alignedEnd, packetSize, vectorIterFunctor);
+      device.initParallelFor(alignedStart, alignedEnd, packetSize, vectorIterFunctor, XprEvaluatorCost);
       barrier.Notify();
     };
 
@@ -129,7 +148,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
   }
 };
 
-}
+}  // namespace internal
 
 }  // namespace Eigen
 
