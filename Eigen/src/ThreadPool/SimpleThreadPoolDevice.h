@@ -21,7 +21,6 @@ struct SimpleThreadPoolDevice {
   using LinearFunctor = std::function<void(Index)>;
 
   void parallelFor(Index begin, Index end, Index incr, LinearFunctor f, Barrier& barrier, Index maxDepth, Index depth) {
-    eigen_assert((incr & (incr - 1)) == 0 && "this method specialized for power-of-two increments");
     if (depth < maxDepth) {
       Index size = end - begin;
       Index mid = begin + (size / 2);
@@ -41,6 +40,7 @@ struct SimpleThreadPoolDevice {
   }
 
   void initParallelFor(Index begin, Index end, Index incr, LinearFunctor f, Index cost) {
+    eigen_assert((incr & (incr - 1)) == 0 && "this method specialized for power-of-two increments");
     Index size = end - begin;
     eigen_assert(size % incr == 0 && "size should be a multiple of incr");
     Index numOps = size / incr;
@@ -79,7 +79,6 @@ struct cost_helper {
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, DefaultTraversal, NoUnrolling> {
   using LinearFunctor = std::function<void(Index)>;
-  using OuterInnerFunctor = std::function<void(Index, Index)>;
   static constexpr Index XprEvaluatorCost = cost_helper<Kernel>::ScalarCost;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
     LinearFunctor functor = [&](Index outer) {
