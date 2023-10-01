@@ -41,7 +41,9 @@ struct SimpleThreadPoolDevice {
   }
 
   void initParallelFor(Index begin, Index end, Index incr, LinearFunctor f, Index cost) {
-    Index numOps = (end - begin) / incr;
+    Index size = end - begin;
+    eigen_assert(size % incr == 0 && "size should be a multiple of incr");
+    Index numOps = size / incr;
     Index totalCost = numOps * cost;
     Index idealThreads = numext::div_ceil(totalCost, ThreadCost);
     Index actualThreads = numext::mini(idealThreads, numThreads());
@@ -121,30 +123,14 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
         dstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + ((size - alignedStart) / packetSize) * packetSize;
 
-    Barrier barrier(dstIsAligned ? 2 : 3);
+    unaligned_dense_assignment_loop<dstIsAligned != 0>::run(kernel, 0, alignedStart);
 
-    Task headLoopFunctor = [&, alignedStart]() {
-      unaligned_dense_assignment_loop<dstIsAligned != 0>::run(kernel, 0, alignedStart);
-      barrier.Notify();
+    LinearFunctor vectorIterFunctor = [&](Index index) {
+      kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
     };
+    device.initParallelFor(alignedStart, alignedEnd, packetSize, vectorIterFunctor, XprEvaluatorCost);
 
-    Task vectorLoopFunctor = [&, alignedStart, alignedEnd]() {
-      LinearFunctor vectorIterFunctor = [&](Index index) {
-        kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
-      };
-      device.initParallelFor(alignedStart, alignedEnd, packetSize, vectorIterFunctor, XprEvaluatorCost);
-      barrier.Notify();
-    };
-
-    Task tailLoopFunctor = [&, alignedEnd, size]() {
-      unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
-      barrier.Notify();
-    };
-
-    if (!dstIsAligned) device.pool().Schedule(headLoopFunctor);
-    device.pool().Schedule(vectorLoopFunctor);
-    device.pool().Schedule(tailLoopFunctor);
-    barrier.Wait();
+    unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
   }
 };
 
