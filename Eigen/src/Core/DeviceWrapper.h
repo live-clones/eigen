@@ -154,11 +154,5 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> Eigen
     Device& device) const {
   return DeviceWrapper<const Derived, Device>(derived(), device);
 }
-
-
-
 }  // namespace Eigen
-
-//#include <Eigen/src/ThreadPool/SimpleThreadPoolDevice.h>
-
 #endif

@@ -213,12 +213,12 @@ struct nested_functor_cost  {
 
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct nested_functor_cost<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> {
-  enum : Index { ScalarCost = 1, VectorCost = 4 };
+  enum : Index { ScalarCost = 0, VectorCost = 4 };
 };
 
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct nested_functor_cost<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> {
-  enum : Index { ScalarCost = 1, VectorCost = 4 };
+  enum : Index { ScalarCost = 0, VectorCost = 4 };
 };
 
 // TODO: assign a cost to the stride type?
