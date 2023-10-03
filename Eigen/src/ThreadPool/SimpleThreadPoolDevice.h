@@ -50,7 +50,7 @@ struct SimpleThreadPoolDevice {
     Index maxDepth = numext::log2(actualThreads);
     // use log2_ceil to ensure available resources are used
     if ((actualThreads & (actualThreads - 1)) != 0) maxDepth++;
-    uint32_t numNotifies = 1 << static_cast<uint32_t>(maxDepth);
+    uint32_t numNotifies = 1 << maxDepth;
     Barrier barrier(numNotifies);
     parallelFor(begin, end, incr, f, barrier, maxDepth, 0);
     barrier.Wait();
@@ -128,6 +128,52 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVe
         kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, inner);
     };
     device.initParallelFor(0, outerSize, 1, functor, XprEvaluatorCost * innerSize);
+  }
+};
+
+template <typename Kernel>
+struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVectorizedTraversal, NoUnrolling> {
+  using LinearFunctor = std::function<void(Index)>;
+  using Scalar = typename Kernel::Scalar;
+  using PacketType = typename Kernel::PacketType;
+  enum : Index {
+    XprEvaluatorCost = cost_helper<Kernel>::VectorCost,
+    PacketSize = unpacket_traits<PacketType>::size,
+    RequestedAlignment = Kernel::AssignmentTraits::InnerRequiredAlignment,
+    Alignable = packet_traits<Scalar>::AlignedOnScalar || Kernel::AssignmentTraits::DstAlignment >= sizeof(Scalar),
+    DstIsAligned = Kernel::AssignmentTraits::DstAlignment >= RequestedAlignment,
+    DstAlignment = Alignable ? RequestedAlignment : Kernel::AssignmentTraits::DstAlignment,
+    PacketAlignedMask = PacketSize - 1
+  };
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel,
+                                                                        SimpleThreadPoolDevice& device) {
+    const Scalar* dstDataPtr = kernel.dstDataPtr();
+    if ((!bool(DstIsAligned)) && (std::uintptr_t(dstDataPtr) % sizeof(Scalar)) > 0) {
+      // the pointer is not aligned-on scalar, so alignment is not possible
+      return dense_assignment_loop<Kernel, DefaultTraversal, NoUnrolling>::run(kernel);
+    }
+    const Index innerSize = kernel.innerSize();
+    const Index outerSize = kernel.outerSize();
+    const Index outerStride = kernel.outerStride();
+
+    LinearFunctor functor = [=, &kernel](Index outer) {
+      const Scalar* dstAligned = dstDataPtr + (outer * outerStride);
+      const Index alignedStart = internal::first_aligned<DstAlignment>(dstAligned, innerSize);
+      const Index alignedEnd = alignedStart + ((innerSize - alignedStart) & ~PacketAlignedMask);
+
+      // do the non-vectorizable part of the assignment
+      for (Index inner = 0; inner < alignedStart; ++inner) kernel.assignCoeffByOuterInner(outer, inner);
+
+      // do the vectorizable part of the assignment
+      for (Index inner = alignedStart; inner < alignedEnd; inner += PacketSize)
+        kernel.template assignPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner);
+
+      // do the non-vectorizable part of the assignment
+      for (Index inner = alignedEnd; inner < innerSize; ++inner) kernel.assignCoeffByOuterInner(outer, inner);
+    };
+
+    device.initParallelFor(0, outerSize, 1, functor,
+                           XprEvaluatorCost * innerSize);  // not strictly correct as some evaulations are scalar-wise
   }
 };
 

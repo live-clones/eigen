@@ -64,7 +64,17 @@ template <typename DstXprType, typename SrcXprType, typename Functor, typename D
           typename EnableIf = void>
 struct AssignmentWithDevice;
 
-
+// unless otherwise specified, use the default product implementation
+template <typename DstXprType, typename Lhs, typename Rhs, int Options, typename Functor, typename Device,
+          typename Weak>
+struct AssignmentWithDevice<DstXprType, Product<Lhs, Rhs, Options>, Functor, Device, Dense2Dense, Weak> {
+  using SrcXprType = Product<Lhs, Rhs, Options>;
+  using Base = Assignment<DstXprType, SrcXprType, Functor>;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src, const Functor& func,
+                                                        Device&) {
+    Base::run(dst, src, func);
+  };
+};
 
 // specialization for simple-assignment
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Device, typename Weak>
