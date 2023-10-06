@@ -453,11 +453,11 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       }
 
       // Allocate memory for packed rhs/lhs matrices.
-      packed_mem_ = kernel_.allocateSlices(            //
-          device_,                                     //
-          /*num_lhs=*/nm0_,                            //
-          /*num_rhs=*/nn0_,                            //
-          /*num_slices=*/std::min<Index>(nk_, P - 1),  //
+      packed_mem_ = kernel_.allocateSlices(            
+          device_,                                     
+          /*num_lhs=*/nm0_,                            
+          /*num_rhs=*/nn0_,                            
+          /*num_slices=*/std::min<Index>(nk_, P - 1),  
           packed_lhs_, packed_rhs_);
 
       if (parallelize_by_sharding_dim_only_) {
@@ -470,11 +470,11 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                                                   std::memory_order_relaxed);
 
           Index num_blocks = num_worker_threads * gn_;
-          thread_local_pre_alocated_mem_ = kernel_.allocateSlices(  //
-              device_,                                              //
-              /*num_lhs=*/0,                                        //
-              /*num_rhs=*/num_blocks,                               //
-              /*num_slices=*/1,                                     //
+          thread_local_pre_alocated_mem_ = kernel_.allocateSlices(  
+              device_,                                              
+              /*num_lhs=*/0,                                        
+              /*num_rhs=*/num_blocks,                               
+              /*num_slices=*/1,                                     
               /*lhs_blocks=*/nullptr, &rhs_thread_local_pre_allocated_);
 
         } else {
@@ -484,11 +484,11 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                                                   std::memory_order_relaxed);
 
           Index num_blocks = num_worker_threads * gm_;
-          thread_local_pre_alocated_mem_ = kernel_.allocateSlices(  //
-              device_,                                              //
-              /*num_lhs=*/num_blocks,                               //
-              /*num_rhs=*/0,                                        //
-              /*num_slices=*/1, &lhs_thread_local_pre_allocated_,   //
+          thread_local_pre_alocated_mem_ = kernel_.allocateSlices(  
+              device_,                                              
+              /*num_lhs=*/num_blocks,                               
+              /*num_rhs=*/0,                                        
+              /*num_slices=*/1, &lhs_thread_local_pre_allocated_,   
               /*rhs_blocks=*/nullptr);
         }
       }
@@ -499,9 +499,18 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         for (Index m = 0; m < nm_; m++) delete[] state_kernel_[x][m];
         delete[] state_kernel_[x];
       }
-      kernel_.deallocate(device_, packed_mem_);
+      
+      kernel_.deallocate(device_, packed_mem_, nm0_, nn0_, std::min<Index>(nk_, P - 1));
+
       if (parallelize_by_sharding_dim_only_) {
-        kernel_.deallocate(device_, thread_local_pre_alocated_mem_);
+        const int num_worker_threads = device_.numThreadsInPool();
+        if (shard_by_col_) {
+          Index num_blocks = num_worker_threads * gn_;
+          kernel_.deallocate(device_, thread_local_pre_alocated_mem_, 0, num_blocks, 1);
+        } else {
+          Index num_blocks = num_worker_threads * gm_;
+          kernel_.deallocate(device_, thread_local_pre_alocated_mem_, num_blocks, 0, 1);
+        }
         delete[] can_use_thread_local_packed_;
       }
     }

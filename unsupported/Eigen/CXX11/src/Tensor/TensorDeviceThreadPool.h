@@ -71,7 +71,198 @@ struct ThreadPoolDevice {
     }
   }
 
-    EIGEN_STRONG_INLINE void* allocate_temp(size_t num_bytes) const {
+  #ifdef __USING_SINGLE_TYPE_CONTRACTIONS__
+  /**
+   * This version assumes that all elements are of the same type T.
+  */
+  template<typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* allocate_elements(size_t num_elements) const {
+
+    const size_t element_size = sizeof(T);
+    size_t num_bytes = num_elements * element_size;
+    size_t align = numext::maxi(EIGEN_MAX_ALIGN_BYTES, 1);
+    num_bytes = divup<Index>(num_bytes, align) * align;
+
+    void * result = allocate(num_bytes);
+
+    if (NumTraits<T>::RequireInitialization) {
+      char * mem_pos = reinterpret_cast<char*>(result);
+      for (size_t i = 0; i < num_elements; ++i) {
+        new(mem_pos)T();
+        mem_pos += element_size;
+      }
+    }
+
+    return result;
+  }
+
+  template<typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void deallocate_elements(void* buffer, size_t num_elements) const {
+
+    if (NumTraits<T>::RequireInitialization) {
+
+      T * block = reinterpret_cast<T*>(buffer);
+
+      for (size_t i = 0; i < num_elements; ++i) {
+        T *element = &block[i];
+        element->~T();
+      }
+    }
+
+    deallocate(buffer);
+  }
+  #else
+
+  template<typename LEFT_T, typename RIGHT_T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* allocate_blocks(const size_t left_block_count,  
+                                                       const size_t right_block_count, 
+                                                       std::vector<void*> &blocks,      
+                                                       const size_t num_left_blocks = 1, 
+                                                       const size_t num_right_blocks = 1,
+                                                       const size_t num_slices = 1
+                                                       ) const {
+    
+    eigen_assert(blocks.empty());                     
+    eigen_assert(left_block_count || right_block_count);   
+    eigen_assert(num_left_blocks || num_right_blocks);  
+    eigen_assert(num_slices);                                                      
+    
+    const size_t left_element_size = sizeof(LEFT_T);
+    const size_t right_element_size = sizeof(RIGHT_T);
+    size_t left_num_bytes = left_block_count * left_element_size;
+    size_t right_num_bytes = right_block_count * right_element_size;
+
+    size_t align = numext::maxi(EIGEN_MAX_ALIGN_BYTES, 1);
+    left_num_bytes = divup<Index>(left_num_bytes, align) * align;
+    right_num_bytes = divup<Index>(right_num_bytes, align) * align;
+
+    size_t total_size_bytes = (left_num_bytes * num_left_blocks + right_num_bytes * num_right_blocks) * num_slices;
+
+    void* result = allocate(total_size_bytes);
+
+    char * mem_pos = reinterpret_cast<char*>(result);
+
+    blocks.reserve(num_left_blocks * num_slices + num_right_blocks * num_slices);
+
+    for (size_t slice = 0; slice < num_slices; ++slice) {
+
+      for (size_t block = 0; block < num_left_blocks; ++block) {
+        if (left_block_count > 0) {
+          blocks.emplace_back(reinterpret_cast<void*>(mem_pos));
+          if(NumTraits<LEFT_T>::RequireInitialization) {
+            for (size_t i = 0; i < left_block_count; ++i) {
+              new(mem_pos)LEFT_T();
+              mem_pos += left_element_size;
+            }
+          } else {
+            mem_pos += left_num_bytes;
+          }
+        } else {
+          blocks.emplace_back(nullptr);
+        }
+      }
+      for (size_t block = 0; block < num_right_blocks; ++block) {
+        if (right_block_count > 0) {
+          blocks.emplace_back(reinterpret_cast<void*>(mem_pos));
+          if(NumTraits<RIGHT_T>::RequireInitialization) {
+            for (size_t i = 0; i < right_block_count; ++i) {
+              new(mem_pos)RIGHT_T();
+              mem_pos += right_element_size;
+            }
+          } else {
+            mem_pos += right_num_bytes;
+          }
+        } else {
+          blocks.emplace_back(nullptr);
+        }
+      }
+
+    }
+
+    return result;
+  }
+
+  /**
+   * This function deallocates the memory block scalars.
+   * The scalars are finalized by the default destructor if they were initialized.
+   * 
+   * \param left_num_elements number of elements in one left block
+   * \param right_num_elements number of elements in one right block
+   * \param num_left_blocks number of left blocks, used by the ThreadPoolDevice. Default is 1
+   * \param num_right_blocks number of right blocks, used by the ThreadPoolDevice. Default is 1
+   * \param num_slices number of slices, used by the ThreadPoolDevice. Default is 1
+   * 
+  */
+  template<typename LEFT_T, typename RIGHT_T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void deallocate_blocks(void* buffer, 
+                                                        const size_t left_num_elements, 
+                                                        const size_t right_num_elements,
+                                                        const size_t num_left_blocks = 1,
+                                                        const size_t num_right_blocks = 1,
+                                                        const size_t num_slices = 1
+                                                        ) const {
+
+    if (NumTraits<LEFT_T>::RequireInitialization || NumTraits<RIGHT_T>::RequireInitialization) {
+
+
+      eigen_assert(left_num_elements || right_num_elements);   
+      eigen_assert(num_left_blocks || num_right_blocks);  
+      eigen_assert(num_slices);  
+
+      const size_t left_element_size = sizeof(LEFT_T);
+      const size_t right_element_size = sizeof(RIGHT_T);
+
+      const size_t left_block_count = left_num_elements * num_left_blocks;
+      const size_t right_block_count = right_num_elements * num_right_blocks;
+
+      size_t left_num_bytes = left_block_count * left_element_size;
+      size_t right_num_bytes = right_block_count * right_element_size;
+
+      size_t align = numext::maxi(EIGEN_MAX_ALIGN_BYTES, 1);
+      left_num_bytes = divup<Index>(left_num_bytes, align) * align; 
+      right_num_bytes = divup<Index>(right_num_bytes, align) * align;
+
+      char* mem_pos = reinterpret_cast<char*>(buffer);
+
+      for (size_t slice = 0; slice < num_slices; ++slice) {
+
+        if (NumTraits<LEFT_T>::RequireInitialization) {
+          LEFT_T * left_block = reinterpret_cast<LEFT_T*>(mem_pos);
+          size_t block_index = 0;
+
+          for (size_t block = 0; block < num_left_blocks; ++block) {
+            for (size_t i = 0; i < left_num_elements; ++i) {
+              LEFT_T *element = &left_block[block_index++];
+              element->~LEFT_T();
+            }
+          }
+        }
+
+        mem_pos += left_num_bytes;
+
+        if (NumTraits<RIGHT_T>::RequireInitialization) {
+          RIGHT_T * right_block = reinterpret_cast<RIGHT_T*>(mem_pos);
+          size_t block_index = 0;
+
+          for (size_t block = 0; block < num_right_blocks; ++block) {
+            for (size_t i = 0; i < right_num_elements; ++i) {
+              RIGHT_T *element = &right_block[block_index++];
+              element->~RIGHT_T();
+            }
+          }
+        }
+
+        mem_pos += right_num_bytes;
+
+      }
+    }
+
+    deallocate(buffer);
+  }
+
+  #endif
+
+  EIGEN_STRONG_INLINE void* allocate_temp(size_t num_bytes) const {
     return allocate(num_bytes);
   }
 

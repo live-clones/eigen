@@ -10,6 +10,7 @@
 #include "main.h"
 
 #include <Eigen/CXX11/Tensor>
+#include "AnnoyingScalar.h"
 
 using Eigen::DefaultDevice;
 using Eigen::Tensor;
@@ -560,6 +561,180 @@ static void test_large_contraction_with_output_kernel() {
   }
 }
 
+template<int DataLayout>
+static void test_scalar_initialization()
+{
+
+#ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+  AnnoyingScalar::dont_throw = true;
+#endif
+
+  AnnoyingScalar::instances = 0;
+
+  {
+
+    Tensor<AnnoyingScalar, 2, DataLayout> A(2, 3);
+    Tensor<AnnoyingScalar, 2, DataLayout> B(2, 3);
+    Tensor<AnnoyingScalar, 2, DataLayout> result(A.dimension(1), B.dimension(1));
+
+    // Tensor<AnnoyingScalar>.setRandom() causes overloaded ambiguous calls
+    std::default_random_engine dre(time(0));
+    std::uniform_real_distribution<float> distro(0, 1);
+
+    for (Index i = 0; i < A.dimension(0); ++i) {
+      for (Index j = 0; j < A.dimension(1); ++j) {
+        A(i, j) = distro(dre);
+      }
+    }
+    for (Index i = 0; i < B.dimension(0); ++i) {
+      for (Index j = 0; j < B.dimension(1); ++j) {
+        B(i, j) = distro(dre);
+      }
+    }
+    result.setZero();
+
+    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
+    Eigen::array<Annoying_DimPair, 1> dims = {{Annoying_DimPair(0, 0)}};
+    typedef TensorEvaluator<decltype(A.contract(B, dims)), DefaultDevice> Evaluator;
+    Evaluator eval(A.contract(B, dims), DefaultDevice());
+    eval.evalTo(result.data());
+
+    VERIFY_IS_APPROX(result(0,0), (A(0,0)*B(0,0) + A(1,0)*B(1,0)));
+    VERIFY_IS_APPROX(result(0,1), (A(0,0)*B(0,1) + A(1,0)*B(1,1)));
+    VERIFY_IS_APPROX(result(0,2), (A(0,0)*B(0,2) + A(1,0)*B(1,2)));
+    VERIFY_IS_APPROX(result(1,0), (A(0,1)*B(0,0) + A(1,1)*B(1,0)));
+    VERIFY_IS_APPROX(result(1,1), (A(0,1)*B(0,1) + A(1,1)*B(1,1)));
+    VERIFY_IS_APPROX(result(1,2), (A(0,1)*B(0,2) + A(1,1)*B(1,2)));
+    VERIFY_IS_APPROX(result(2,0), (A(0,2)*B(0,0) + A(1,2)*B(1,0)));
+    VERIFY_IS_APPROX(result(2,1), (A(0,2)*B(0,1) + A(1,2)*B(1,1)));
+    VERIFY_IS_APPROX(result(2,2), (A(0,2)*B(0,2) + A(1,2)*B(1,2)));
+
+  }
+
+  VERIFY(AnnoyingScalar::instances == 0 && "memory leak detected in contraction");
+
+}
+
+template<int DataLayout>
+static void test_scalar_initialization_multidims()
+{
+
+#ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+  AnnoyingScalar::dont_throw = true;
+#endif
+
+  {
+    Tensor<AnnoyingScalar, 3, DataLayout> A(2, 2, 2);
+    Tensor<AnnoyingScalar, 4, DataLayout> B(2, 2, 2, 2);
+    Tensor<AnnoyingScalar, 3, DataLayout> result(2, 2, 2);
+
+    std::default_random_engine dre(time(0));
+    std::uniform_real_distribution<float> distro(0, 1);
+
+    for (Index i = 0; i < A.dimension(0); ++i) {
+      for (Index j = 0; j < A.dimension(1); ++j) {
+        for (Index k = 0; k < A.dimension(2); ++k) {
+          A(i, j, k) = distro(dre);
+        }
+      }
+    }
+    for (Index i = 0; i < B.dimension(0); ++i) {
+      for (Index j = 0; j < B.dimension(1); ++j) {
+        for (Index k = 0; k < B.dimension(2); ++k) {
+          for (Index l = 0; l < B.dimension(3); ++l) {
+            B(i, j, k, l) = distro(dre);
+          }
+        }
+      }
+    }
+    result.setZero();
+
+    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
+    Eigen::array<Annoying_DimPair, 2> dims = {{Annoying_DimPair(1, 2), Annoying_DimPair(2, 3)}};
+    typedef TensorEvaluator<decltype(A.contract(B, dims)), DefaultDevice> Evaluator;
+    Evaluator eval(A.contract(B, dims), DefaultDevice());
+    eval.evalTo(result.data());
+    EIGEN_STATIC_ASSERT(Evaluator::NumDims==3ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
+    VERIFY_IS_EQUAL(eval.dimensions()[0], 2);
+    VERIFY_IS_EQUAL(eval.dimensions()[1], 2);
+    VERIFY_IS_EQUAL(eval.dimensions()[2], 2);
+
+    VERIFY_IS_APPROX(result(0,0,0), A(0,0,0)*B(0,0,0,0) + A(0,1,0)*B(0,0,1,0) +
+                                  A(0,0,1)*B(0,0,0,1) + A(0,1,1)*B(0,0,1,1));
+    VERIFY_IS_APPROX(result(0,0,1), A(0,0,0)*B(0,1,0,0) + A(0,1,0)*B(0,1,1,0) +
+                                  A(0,0,1)*B(0,1,0,1) + A(0,1,1)*B(0,1,1,1));
+    VERIFY_IS_APPROX(result(0,1,0), A(0,0,0)*B(1,0,0,0) + A(0,1,0)*B(1,0,1,0) +
+                                  A(0,0,1)*B(1,0,0,1) + A(0,1,1)*B(1,0,1,1));
+    VERIFY_IS_APPROX(result(0,1,1), A(0,0,0)*B(1,1,0,0) + A(0,1,0)*B(1,1,1,0) +
+                                  A(0,0,1)*B(1,1,0,1) + A(0,1,1)*B(1,1,1,1));
+    VERIFY_IS_APPROX(result(1,0,0), A(1,0,0)*B(0,0,0,0) + A(1,1,0)*B(0,0,1,0) +
+                                  A(1,0,1)*B(0,0,0,1) + A(1,1,1)*B(0,0,1,1));
+    VERIFY_IS_APPROX(result(1,0,1), A(1,0,0)*B(0,1,0,0) + A(1,1,0)*B(0,1,1,0) +
+                                  A(1,0,1)*B(0,1,0,1) + A(1,1,1)*B(0,1,1,1));
+    VERIFY_IS_APPROX(result(1,1,0), A(1,0,0)*B(1,0,0,0) + A(1,1,0)*B(1,0,1,0) +
+                                  A(1,0,1)*B(1,0,0,1) + A(1,1,1)*B(1,0,1,1));
+    VERIFY_IS_APPROX(result(1,1,1), A(1,0,0)*B(1,1,0,0) + A(1,1,0)*B(1,1,1,0) +
+                                  A(1,0,1)*B(1,1,0,1) + A(1,1,1)*B(1,1,1,1));
+  }
+
+  VERIFY(AnnoyingScalar::instances==0 && "memory leak detected in contraction");
+}
+
+template<int DataLayout>
+static void test_scalar_initialization_in_large_contraction()
+{
+
+#ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+  AnnoyingScalar::dont_throw = true;
+#endif
+
+  AnnoyingScalar::instances = 0;
+
+  {
+    Tensor<AnnoyingScalar, 4, DataLayout> A(20, 45, 8, 31);
+    Tensor<AnnoyingScalar, 5, DataLayout> B(8, 31, 7, 3, 5);
+    Tensor<AnnoyingScalar, 5, DataLayout> result(20, 45, 7, 3, 5);
+
+    result.setZero();
+
+    // Tensor<AnnoyingScalar>.setRandom() causes overloaded ambiguous calls
+    std::default_random_engine dre(time(0));
+    std::uniform_real_distribution<float> distro(.0f, 10.f);
+
+    for (Index i = 0; i < A.dimension(0); ++i) {
+      for (Index j = 0; j < A.dimension(1); ++j) {
+        for (Index k = 0; k < A.dimension(2); ++k) {
+          for (Index l = 0; l < A.dimension(3); ++l) {
+            A(i, j, k, l) = distro(dre);
+          }
+        }
+      }
+    }
+
+    for (Index i = 0; i < B.dimension(0); ++i) {
+      for (Index j = 0; j < B.dimension(1); ++j) {
+        for (Index k = 0; k < B.dimension(2); ++k) {
+          for (Index l = 0; l < B.dimension(3); ++l) {
+            for (Index m = 0; m < B.dimension(4); ++m) {
+              B(i, j, k, l, m) = distro(dre);
+            }
+          }
+        }
+      }
+    }
+
+    typedef Tensor<AnnoyingScalar, 1>::DimensionPair Annoying_DimPair;
+    Eigen::array<DimPair, 2> dims({{Annoying_DimPair(2, 0), Annoying_DimPair(3, 1)}});
+    typedef TensorEvaluator<decltype(A.contract(B, dims)), DefaultDevice> Evaluator;
+    Evaluator eval(A.contract(B, dims), DefaultDevice());
+    eval.evalTo(result.data());
+
+  }
+
+  VERIFY(AnnoyingScalar::instances == 0 && "memory leak detected in contraction on ThreadPoolDevice");
+
+}
+
 EIGEN_DECLARE_TEST(cxx11_tensor_contraction)
 {
   CALL_SUBTEST_1(test_evals<ColMajor>());
@@ -595,7 +770,15 @@ EIGEN_DECLARE_TEST(cxx11_tensor_contraction)
   CALL_SUBTEST_8(test_large_contraction_with_output_kernel<ColMajor>());
   CALL_SUBTEST_8(test_large_contraction_with_output_kernel<RowMajor>());
 
+  // tests using AnnoyingScalar
+  CALL_SUBTEST_9(test_scalar_initialization<ColMajor>());
+  CALL_SUBTEST_9(test_scalar_initialization<RowMajor>());
+  CALL_SUBTEST_10(test_scalar_initialization_multidims<ColMajor>());
+  CALL_SUBTEST_10(test_scalar_initialization_multidims<RowMajor>());
+  CALL_SUBTEST_11(test_scalar_initialization_in_large_contraction<ColMajor>());
+  CALL_SUBTEST_11(test_scalar_initialization_in_large_contraction<RowMajor>());
+
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11
 
 }
