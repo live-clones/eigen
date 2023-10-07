@@ -1377,12 +1377,12 @@ constexpr inline uint64_t log2(uint64_t x) {
 
 constexpr inline int log2(int x) { 
   eigen_assert(x >= 0);
-  return log2(uint32_t(x));
+  return static_cast<int>(log2(static_cast<uint32_t>(x)));
 }
 
 constexpr inline int64_t log2(int64_t x) { 
   eigen_assert(x >= 0);
-  return log2(uint64_t(x));
+  return static_cast<int64_t>(log2(static_cast<uint64_t>(x)));
 }
 
 /** \returns the square root of \a x.

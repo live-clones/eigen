@@ -89,14 +89,11 @@ struct AssignmentWithDevice<DstXprType, SrcXprType, Functor, Device, Dense2Dense
   }
 };
 
-// TODO: specialize matrix product (to bypass lazy evaulation at the very least)
-
 // this allows us to use the default evaulation scheme if it is not specialized for the device
 template <typename Kernel, typename Device, int Traversal = Kernel::AssignmentTraits::Traversal,
           int Unrolling = Kernel::AssignmentTraits::Unrolling>
 struct dense_assignment_loop_with_device {
   using Base = dense_assignment_loop<Kernel, Traversal, Unrolling>;
-  // unless otherwise specified, use the default evaulation scheme and ignore the device
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Device&) {
     Base::run(kernel);
   }
@@ -143,7 +140,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment
   DstEvaluatorType dstEvaluator(dst);
 
   typedef generic_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Functor> Kernel;
-  // dst.const_cast ??
+
   Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
 
   dense_assignment_loop_with_device<Kernel, Device>::run(kernel, device);

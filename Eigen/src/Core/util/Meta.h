@@ -426,7 +426,7 @@ using std::numeric_limits;
 // T is assumed to be an integer type with a>=0, and b>0
 template<typename T>
 EIGEN_DEVICE_FUNC
-constexpr T div_ceil(const T &a, const T &b)
+T div_ceil(const T &a, const T &b)
 {
   return (a+b-1) / b;
 }
