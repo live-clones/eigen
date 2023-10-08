@@ -12,7 +12,7 @@
 
 namespace Eigen {
 template <typename Derived, typename Device>
-struct DeviceWrapper : public Derived {
+struct DeviceWrapper : public EigenBase<Derived> {
   using CleanedDerived = internal::remove_all_t<Derived>;
   using Base = EigenBase<CleanedDerived>;
   using Scalar = typename Derived::Scalar;

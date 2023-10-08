@@ -17,61 +17,54 @@ namespace Eigen {
 
 struct SimpleThreadPoolDevice {
   using Task = std::function<void()>;
-  using UnaryFunctor = std::function<void(Index)>;
-  using BinaryFunctor = std::function<void(Index, Index)>;
-  SimpleThreadPoolDevice(ThreadPool& pool, float threadCostThreshold = (1 << 15)) : m_pool(pool) {
+  SimpleThreadPoolDevice(ThreadPool& pool, float threadCostThreshold = 500'000) : m_pool(pool) {
     setThreadCostThreshold(threadCostThreshold);
   }
 
-
+  template <typename UnaryFunctor>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index begin, Index end, Index stride, UnaryFunctor f,
-                                                         Barrier& barrier, int maxDepth, int depth) {
+                                                         Barrier& barrier, int depth, int maxDepth, int scheduleLimit) {
+    eigen_assert((stride & (stride - 1)) == 0 && "this function assumes stride is a power of two");
+    eigen_assert((end - begin) % stride == 0 && "this function assumes size is a multiple of stride");
+    const Index strideMask = -stride;
     if (depth < maxDepth) {
-      const Index strideMask = -stride;
-      Index size = end - begin;
-      Index mid = begin + (size / 2);
-      // rounds mid down to the nearest power of stride
-      mid &= strideMask;
-      Task left = [this, begin, mid, stride, f, &barrier, maxDepth, depth]() {
-        parallelFor(begin, mid, stride, f, barrier, maxDepth, depth + 1);
+      Index mid = begin + (((end - begin) / 2) & strideMask);
+      Task left = [this, begin, mid, stride, f, &barrier, maxDepth, depth, scheduleLimit]() {
+        parallelFor(begin, mid, stride, f, barrier, depth + 1, maxDepth, scheduleLimit);
       };
-      Task right = [this, mid, end, stride, f, &barrier, maxDepth, depth]() {
-        parallelFor(mid, end, stride, f, barrier, maxDepth, depth + 1);
+      Task right = [this, mid, end, stride, f, &barrier, maxDepth, depth, scheduleLimit]() {
+        parallelFor(mid, end, stride, f, barrier, depth + 1, maxDepth, scheduleLimit);
       };
-      pool().Schedule(left);
-      pool().Schedule(right);
+      pool().ScheduleWithHint(left, 0, scheduleLimit);
+      pool().ScheduleWithHint(right, 0, scheduleLimit);
     } else {
       for (Index i = begin; i + stride <= end; i += stride) f(i);
       barrier.Notify();
     }
   }
+  template <typename UnaryFunctor>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void initParallelFor(Index begin, Index end, Index stride, UnaryFunctor f,
                                                              float cost) {
-    eigen_assert((stride & (stride - 1)) == 0 && "this function assumes stride is a power of two");
-    Index size = end - begin;
-    eigen_assert(size % stride == 0 && "this function assumes size is a multiple of stride");
-    Index numOps = size / stride;
+    Index numOps = (end - begin) / stride;
     float totalCost = static_cast<float>(numOps) * cost;
     int actualThreads = numThreads();
-    if (numext::isfinite(totalCost))
-    {
+    if (numext::isfinite(totalCost)) {
       float idealThreads = totalCost / threadCostThreshold();
       idealThreads = numext::maxi(idealThreads, 1.0f);
       actualThreads = numext::mini(actualThreads, static_cast<int>(idealThreads));
     }
-    int maxDepth = numext::log2(actualThreads);
-    // round up actualThreads to the nearest power of two
-    if ((actualThreads & (actualThreads - 1)) != 0) maxDepth++;
-    uint32_t numNotifies = 1 << maxDepth;
-    Barrier barrier(numNotifies);
-    parallelFor(begin, end, stride, f, barrier, maxDepth, 0);
+    int numTasks = numext::log2(actualThreads);
+    // round up the number of tasks so that all the allocated threads are in use
+    if ((actualThreads & (actualThreads - 1)) != 0) numTasks++;
+    Barrier barrier(1 << numTasks);
+    parallelFor(begin, end, stride, f, barrier, 0, numTasks, actualThreads);
     barrier.Wait();
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ThreadPool& pool() { return m_pool; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads() const { return m_pool.NumThreads(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float threadCostThreshold() const { return m_threadCostThreshold; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setThreadCostThreshold(float cost) {
-    eigen_assert(cost > 0);
+    eigen_assert(cost > 0 && numext::isfinite(cost) && "cost must be positive and finite");
     m_threadCostThreshold = cost;
   }
   ThreadPool& m_pool;
@@ -212,11 +205,8 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
 
     unaligned_dense_assignment_loop<DstIsAligned != 0>::run(kernel, 0, alignedStart);
 
-    LinearFunctor vectorIterFunctor = [=, &kernel](Index index) {
-      kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
-    };
-    device.initParallelFor(alignedStart, alignedEnd, PacketSize, vectorIterFunctor,
-                           static_cast<float>(XprEvaluationCost));
+    auto vectorIterFunctor = [&kernel](Index index) { kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index); };
+    device.initParallelFor(alignedStart, alignedEnd, PacketSize, vectorIterFunctor, static_cast<float>(XprEvaluationCost));
 
     unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
   }
