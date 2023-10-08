@@ -205,7 +205,7 @@ template<typename T> struct functor_traits
   };
 };
 
-// lots of missing meta template stuff
+// estimates the cost of lazily evaluating a generic functor by unwinding the expression
 template <typename Xpr>
 struct nested_functor_cost  {
   enum : Index { ScalarCost = static_cast<Index>(functor_traits<Xpr>::Cost), VectorCost = ScalarCost };

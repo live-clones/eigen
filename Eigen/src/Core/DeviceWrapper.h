@@ -109,8 +109,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_assignment_no_al
                       int(Dst::SizeAtCompileTime) != 1
   };
 
-  typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst> ActualDstTypeCleaned;
-  typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&> ActualDstType;
+  using ActualDstTypeCleaned = std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst>;
+  using ActualDstType = std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&>;
   ActualDstType actualDst(dst.derived());
 
   // TODO check whether this is the right place to perform these checks:
@@ -128,8 +128,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment
                                                                                       const SrcXprType& src,
                                                                                       const Functor& func,
                                                                                       Device& device) {
-  typedef evaluator<DstXprType> DstEvaluatorType;
-  typedef evaluator<SrcXprType> SrcEvaluatorType;
+  using DstEvaluatorType = evaluator<DstXprType>;
+  using SrcEvaluatorType = evaluator<SrcXprType>;
 
   SrcEvaluatorType srcEvaluator(src);
 
@@ -139,7 +139,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment
 
   DstEvaluatorType dstEvaluator(dst);
 
-  typedef generic_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Functor> Kernel;
+  using Kernel = generic_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Functor>;
 
   Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
 
