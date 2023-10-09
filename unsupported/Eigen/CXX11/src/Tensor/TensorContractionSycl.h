@@ -1263,7 +1263,7 @@ struct GeneralScalarContraction {
     StorageIndex localid = itemID.get_local_id(0);
     OutScalar accumulator = OutScalar(0);
     for (StorageIndex i = globalid; i < rng; i += itemID.get_global_range(0)) {
-      accumulator = ::Eigen::internal::pmadd(lhs(0, i), rhs(i, 0), accumulator);
+      accumulator = Eigen::internal::pmadd(lhs(0, i), rhs(i, 0), accumulator);
     }
     auto out_scratch_ptr = scratch_ptr + localid;
     *out_scratch_ptr = accumulator;
