@@ -34,12 +34,6 @@ template <> struct max_n_1<0> {
   static const size_t size = 1;
 };
 
-template <typename T, typename X, typename Y>
-EIGEN_DEPRECATED EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-constexpr T divup(const X x, const Y y) {
-  return Eigen::numext::div_ceil<T>(x, y);
-}
-
 template <typename T>
 EIGEN_DEPRECATED EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 constexpr T divup(const T x, const T y) {
