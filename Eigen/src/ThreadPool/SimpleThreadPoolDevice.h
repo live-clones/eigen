@@ -53,11 +53,11 @@ struct SimpleThreadPoolDevice {
       idealThreads = numext::maxi(idealThreads, 1.0f);
       actualThreads = numext::mini(actualThreads, static_cast<int>(idealThreads));
     }
-    int numTasks = numext::log2(actualThreads);
+    int maxDepth = numext::log2(actualThreads);
     // round up the number of tasks so that all the allocated threads are in use
-    if ((actualThreads & (actualThreads - 1)) != 0) numTasks++;
-    Barrier barrier(1 << numTasks);
-    parallelFor(begin, end, stride, f, barrier, 0, numTasks, actualThreads);
+    if ((actualThreads & (actualThreads - 1)) != 0) maxDepth++;
+    Barrier barrier(1 << maxDepth);
+    parallelFor(begin, end, stride, f, barrier, 0, maxDepth, actualThreads);
     barrier.Wait();
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ThreadPool& pool() { return m_pool; }
@@ -89,12 +89,11 @@ struct cost_helper {
 
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, DefaultTraversal, NoUnrolling> {
-  using UnaryFunctor = std::function<void(Index)>;
   enum : Index { XprEvaluationCost = cost_helper<Kernel>::ScalarCost };
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
-    UnaryFunctor functor = [=, &kernel](Index outer) {
+    auto functor = [=, &kernel](Index outer) {
       for (Index inner = 0; inner < innerSize; inner++) {
         kernel.assignCoeffByOuterInner(outer, inner);
       }
@@ -107,11 +106,10 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, Default
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, DefaultTraversal, InnerUnrolling> {
   using DstXprType = typename Kernel::DstEvaluatorType::XprType;
-  using UnaryFunctor = std::function<void(Index)>;
   enum : Index { XprEvaluationCost = cost_helper<Kernel>::ScalarCost, InnerSize = DstXprType::InnerSizeAtCompileTime };
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
     const Index outerSize = kernel.outerSize();
-    UnaryFunctor functor = [=, &kernel](Index outer) {
+    auto functor = [&kernel](Index outer) {
       copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, 0, InnerSize>::run(kernel, outer);
     };
     constexpr float Cost = static_cast<float>(XprEvaluationCost) * static_cast<float>(InnerSize);
@@ -121,7 +119,6 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, Default
 
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVectorizedTraversal, NoUnrolling> {
-  using UnaryFunctor = std::function<void(Index)>;
   using PacketType = typename Kernel::PacketType;
   enum : Index {
     XprEvaluationCost = cost_helper<Kernel>::VectorCost,
@@ -133,7 +130,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVe
                                                                         SimpleThreadPoolDevice& device) {
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
-    UnaryFunctor functor = [=, &kernel](Index outer) {
+    auto functor = [=, &kernel](Index outer) {
       for (Index inner = 0; inner < innerSize; inner += PacketSize)
         kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, inner);
     };
@@ -144,7 +141,6 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVe
 
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVectorizedTraversal, NoUnrolling> {
-  using UnaryFunctor = std::function<void(Index)>;
   using Scalar = typename Kernel::Scalar;
   using PacketType = typename Kernel::PacketType;
   enum : Index {
@@ -159,7 +155,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVe
     const Index outerSize = kernel.outerSize();
 
     // prefer unaligned packet ops for simplicity
-    UnaryFunctor functor = [=, &kernel](Index outer) {
+    auto functor = [=, &kernel](Index outer) {
       for (Index inner = 0; inner < packetAccessEnd; inner += PacketSize)
         kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
       for (Index inner = packetAccessEnd; inner < innerSize; ++inner) kernel.assignCoeffByOuterInner(outer, inner);
@@ -172,12 +168,11 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVe
 
 template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearTraversal, NoUnrolling> {
-  using UnaryFunctor = std::function<void(Index)>;
   enum : Index { XprEvaluationCost = cost_helper<Kernel>::ScalarCost };
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel,
                                                                         SimpleThreadPoolDevice& device) {
     const Index size = kernel.size();
-    UnaryFunctor functor = [=, &kernel](Index index) { kernel.assignCoeff(index); };
+    auto functor = [&kernel](Index index) { kernel.assignCoeff(index); };
     device.initParallelFor(0, size, 1, functor, static_cast<float>(XprEvaluationCost));
   }
 };
@@ -205,8 +200,8 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
 
     unaligned_dense_assignment_loop<DstIsAligned != 0>::run(kernel, 0, alignedStart);
 
-    auto vectorIterFunctor = [&kernel](Index index) { kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index); };
-    device.initParallelFor(alignedStart, alignedEnd, PacketSize, vectorIterFunctor, static_cast<float>(XprEvaluationCost));
+    auto functor = [&kernel](Index index) { kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index); };
+    device.initParallelFor(alignedStart, alignedEnd, PacketSize, functor, static_cast<float>(XprEvaluationCost));
 
     unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
   }
