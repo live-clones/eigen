@@ -472,6 +472,31 @@ struct functor_traits<scalar_sqrt_op<bool> > {
 };
 
 /** \internal
+  * \brief Template functor to compute the cube root of a scalar
+  * \sa class CwiseUnaryOp, Cwise::sqrt()
+  */
+template <typename Scalar>
+struct scalar_cbrt_op {
+  EIGEN_DEVICE_FUNC inline const Scalar operator()(const Scalar& a) const { return numext::cbrt(a); }
+};
+
+template <typename Scalar>
+struct functor_traits<scalar_cbrt_op<Scalar> > {
+  enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
+};
+
+// Boolean specialization to eliminate -Wimplicit-conversion-floating-point-to-bool warnings.
+template<> struct scalar_cbrt_op<bool> {
+  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline bool operator() (const bool& a) const { return a; }
+  template <typename Packet>
+  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { return a; }
+};
+template <>
+struct functor_traits<scalar_cbrt_op<bool> > {
+  enum { Cost = 1, PacketAccess = packet_traits<bool>::Vectorizable };
+};
+
+/** \internal
   * \brief Template functor to compute the reciprocal square root of a scalar
   * \sa class CwiseUnaryOp, Cwise::rsqrt()
   */
