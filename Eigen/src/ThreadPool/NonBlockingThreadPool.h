@@ -355,7 +355,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       }
       victim += inc;
       if (victim >= size) {
-        victim -= size;
+        victim -= static_cast<unsigned int>(size);
       }
     }
     return Task();
@@ -446,7 +446,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       }
       victim += inc;
       if (victim >= size) {
-        victim -= size;
+        victim -= static_cast<unsigned int>(size);
       }
     }
     return -1;
