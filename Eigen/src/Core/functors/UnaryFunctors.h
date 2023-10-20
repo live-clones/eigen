@@ -485,12 +485,6 @@ struct functor_traits<scalar_cbrt_op<Scalar> > {
   enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
 };
 
-// Boolean specialization to eliminate -Wimplicit-conversion-floating-point-to-bool warnings.
-template<> struct scalar_cbrt_op<bool> {
-  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline bool operator() (const bool& a) const { return a; }
-  template <typename Packet>
-  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const { return a; }
-};
 template <>
 struct functor_traits<scalar_cbrt_op<bool> > {
   enum { Cost = 1, PacketAccess = packet_traits<bool>::Vectorizable };
