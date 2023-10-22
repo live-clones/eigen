@@ -12,9 +12,8 @@
 
 namespace Eigen {
 template <typename Derived, typename Device>
-struct DeviceWrapper : public EigenBase<Derived> {
-  using CleanedDerived = internal::remove_all_t<Derived>;
-  using Base = EigenBase<CleanedDerived>;
+struct DeviceWrapper {
+  using Base = EigenBase<internal::remove_all_t<Derived>>;
   using Scalar = typename Derived::Scalar;
 
   EIGEN_DEVICE_FUNC DeviceWrapper(Base& xpr, Device& device)
@@ -76,7 +75,7 @@ struct AssignmentWithDevice<DstXprType, Product<Lhs, Rhs, Options>, Functor, Dev
   };
 };
 
-// specialization for simple-assignment
+// specialization for coeffcient-wise assignment
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Device, typename Weak>
 struct AssignmentWithDevice<DstXprType, SrcXprType, Functor, Device, Dense2Dense, Weak> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src, const Functor& func,
@@ -101,7 +100,7 @@ struct dense_assignment_loop_with_device {
 
 // entry point for a generic expression with device
 template <typename Dst, typename Src, typename Func, typename Device>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_assignment_no_alias(DeviceWrapper<Dst, Device>& dst,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_assignment_no_alias(DeviceWrapper<Dst, Device> dst,
                                                                                     const Src& src, const Func& func) {
   enum {
     NeedToTranspose = ((int(Dst::RowsAtCompileTime) == 1 && int(Src::ColsAtCompileTime) == 1) ||
