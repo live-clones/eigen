@@ -23,91 +23,91 @@ struct SimpleThreadPoolDevice {
     setCostFactor(threadCostThreshold);
   }
 
-  template <int Stride>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t calculateLevels(Index size, float cost) const {
+  template <int PacketSize>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE unsigned int calculateLevels(Index size, float cost) const {
     eigen_assert(cost >= 0.0f && "cost must be non-negative");
-    Index numOps = size / Stride;
+    Index numOps = size / PacketSize;
     float totalCost = static_cast<float>(numOps) * cost;
-    int actualThreads = numOps < numThreads() ? static_cast<int>(numOps) : numThreads();
+    unsigned int actualThreads = numOps < numThreads() ? static_cast<int>(numOps) : numThreads();
     if (numext::isfinite(totalCost)) {
       float idealThreads = totalCost * costFactor();
       idealThreads = numext::maxi(idealThreads, 1.0f);
-      actualThreads = numext::mini(actualThreads, static_cast<int>(idealThreads));
+      actualThreads = numext::mini(actualThreads, static_cast<unsigned int>(idealThreads));
     }
     // use the ceiling of log2 to ensure that threads are fully utilized
-    uint_fast8_t maxLevel = static_cast<uint_fast8_t>(numext::log2(actualThreads));
+    unsigned int maxLevel = numext::log2(actualThreads);
     if ((actualThreads & (actualThreads - 1)) != 0) maxLevel++;
     return maxLevel;
   }
 
-  template <typename UnaryFunctor, int Stride>
+  template <typename UnaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index begin, Index end, const UnaryFunctor& f,
-                                                           Barrier& barrier, uint_fast8_t level) {
-    EIGEN_STATIC_ASSERT((Stride & (Stride - 1)) == 0, "this function assumes stride is a power of two");
-    constexpr Index StrideMask = -Stride;
+                                                           Barrier& barrier, unsigned int level) {
+    EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
+    constexpr Index PacketSizeMask = -PacketSize;
     while (level > 0) {
       level--;
       Index size = end - begin;
-      eigen_assert(size % Stride == 0 && "this function assumes size is a multiple of Stride");
-      Index mid = begin + ((size >> 1) & StrideMask);
-      Task right = [=, this, &f, &barrier]() { parallelForImpl<UnaryFunctor, Stride>(mid, end, f, barrier, level); };
+      eigen_assert(size % PacketSize == 0 && "this function assumes size is a multiple of PacketSize");
+      Index mid = begin + ((size >> 1) & PacketSizeMask);
+      Task right = [=, this, &f, &barrier]() { parallelForImpl<UnaryFunctor, PacketSize>(mid, end, f, barrier, level); };
       pool().Schedule(std::move(right));
       end = mid;
     }
-    for (Index i = begin; i < end; i += Stride) f(i);
+    for (Index i = begin; i < end; i += PacketSize) f(i);
     barrier.Notify();
   }
 
-  template <typename UnaryFunctor, int Stride>
+  template <typename UnaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index begin, Index end, const UnaryFunctor& f, float cost) {
     Index size = end - begin;
-    uint_fast8_t maxLevel = calculateLevels<Stride>(size, cost);
+    unsigned int maxLevel = calculateLevels<PacketSize>(size, cost);
     Barrier barrier(1 << maxLevel);
-    parallelForImpl<UnaryFunctor, Stride>(begin, end, f, barrier, maxLevel);
+    parallelForImpl<UnaryFunctor, PacketSize>(begin, end, f, barrier, maxLevel);
     barrier.Wait();
   }
 
-  template <typename BinaryFunctor, int Stride>
+  template <typename BinaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index outerBegin, Index outerEnd, Index innerBegin,
                                                            Index innerEnd, const BinaryFunctor& f, Barrier& barrier,
-                                                           uint_fast8_t level) {
-    EIGEN_STATIC_ASSERT((Stride & (Stride - 1)) == 0, "this function assumes stride is a power of two");
-    constexpr Index StrideMask = -Stride;
+                                                           unsigned int level) {
+    EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
+    constexpr Index PacketSizeMask = -PacketSize;
     while (level > 0) {
       level--;
       Index outerSize = outerEnd - outerBegin;
       if (outerSize > 1) {
         Index outerMid = outerBegin + (outerSize >> 1);
         Task right = [=, this, &f, &barrier]() {
-          parallelForImpl<BinaryFunctor, Stride>(outerMid, outerEnd, innerBegin, innerEnd, f, barrier, level);
+          parallelForImpl<BinaryFunctor, PacketSize>(outerMid, outerEnd, innerBegin, innerEnd, f, barrier, level);
         };
         pool().Schedule(std::move(right));
         outerEnd = outerMid;
       } else {
         Index innerSize = innerEnd - innerBegin;
-        eigen_assert(innerSize % Stride == 0 && "this function assumes innerSize is a multiple of Stride");
-        Index innerMid = innerBegin + ((innerSize >> 1) & StrideMask);
+        eigen_assert(innerSize % PacketSize == 0 && "this function assumes innerSize is a multiple of PacketSize");
+        Index innerMid = innerBegin + ((innerSize >> 1) & PacketSizeMask);
         Task right = [=, this, &f, &barrier]() {
-          parallelForImpl<BinaryFunctor, Stride>(outerBegin, outerEnd, innerMid, innerEnd, f, barrier, level);
+          parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerMid, innerEnd, f, barrier, level);
         };
         pool().Schedule(std::move(right));
         innerEnd = innerMid;
       }
     }
     for (Index outer = outerBegin; outer < outerEnd; outer++)
-      for (Index inner = innerBegin; inner < innerEnd; inner += Stride) f(outer, inner);
+      for (Index inner = innerBegin; inner < innerEnd; inner += PacketSize) f(outer, inner);
     barrier.Notify();
   }
 
-  template <typename BinaryFunctor, int Stride>
+  template <typename BinaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index outerBegin, Index outerEnd, Index innerBegin,
                                                          Index innerEnd, const BinaryFunctor& f, float cost) {
     Index outerSize = outerEnd - outerBegin;
     Index innerSize = innerEnd - innerBegin;
     Index size = outerSize * innerSize;
-    uint_fast8_t maxLevel = calculateLevels<Stride>(size, cost);
+    unsigned int maxLevel = calculateLevels<PacketSize>(size, cost);
     Barrier barrier(1 << maxLevel);
-    parallelForImpl<BinaryFunctor, Stride>(outerBegin, outerEnd, innerBegin, innerEnd, f, barrier, maxLevel);
+    parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerBegin, innerEnd, f, barrier, maxLevel);
     barrier.Wait();
   }
 
@@ -211,13 +211,13 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVe
     XprVectorEvaluationCost = cost_helper<Kernel>::VectorCost,
     XprScalarEvaluationCost = cost_helper<Kernel>::ScalarCost,
     PacketSize = unpacket_traits<PacketType>::size,
-    StrideMask = -PacketSize
+    PacketSizeMask = -PacketSize
   };
   struct AssignmentFunctor {
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AssignmentFunctor(Kernel& kernel) : m_kernel(kernel) {}
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index outer) const {
       const Index innerSize = m_kernel.innerSize();
-      const Index packetAccessSize = innerSize & StrideMask;
+      const Index packetAccessSize = innerSize & PacketSizeMask;
       for (Index inner = 0; inner < packetAccessSize; inner += PacketSize)
         m_kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
       for (Index inner = packetAccessSize; inner < innerSize; inner++) m_kernel.assignCoeffByOuterInner(outer, inner);
@@ -227,7 +227,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVe
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
     const Index outerSize = kernel.outerSize();
     const Index innerSize = kernel.innerSize();
-    const Index packetAccessSize = innerSize & StrideMask;
+    const Index packetAccessSize = innerSize & PacketSizeMask;
     const float cost = static_cast<float>(XprVectorEvaluationCost) * static_cast<float>(packetAccessSize / PacketSize) +
                        static_cast<float>(XprScalarEvaluationCost) * static_cast<float>(innerSize - packetAccessSize);
     AssignmentFunctor functor(kernel);
