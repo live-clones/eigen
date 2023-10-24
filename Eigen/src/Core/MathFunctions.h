@@ -1341,6 +1341,19 @@ double ceil(const double &x) { return ::ceil(x); }
 #endif
 
 
+// Integer division with rounding up.
+// T is assumed to be an integer type with a>=0, and b>0
+template<typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE EIGEN_CONSTEXPR
+T div_ceil(T a, T b)
+{
+  EIGEN_STATIC_ASSERT((NumTraits<T>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
+  eigen_assert(a >= 0);
+  eigen_assert(b > 0);
+  // Note: This form is used because it cannot overflow.
+  return a == 0 ? 0 : (a - 1) / b + 1;
+}
+
 /** Log base 2 for 32 bits positive integers.
   * Conveniently returns 0 for x==0. */
 constexpr inline uint32_t log2(uint32_t x) {
