@@ -13,47 +13,45 @@
 namespace Eigen {
 
 // SimpleThreadPoolDevice provides an easy-to-understand Device for parallelizing Eigen Core expressions with
-// Threadpool. Expressions are recursively bifurcated until the evaluation cost is less than the threshold for
+// Threadpool. Expressions are recursively split evenly until the evaluation cost is less than the threshold for
 // delegating the task to a thread.
 
 struct SimpleThreadPoolDevice {
   using Task = std::function<void()>;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SimpleThreadPoolDevice(ThreadPool& pool, float threadCostThreshold = 1e-6f)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SimpleThreadPoolDevice(ThreadPool& pool, float threadCostThreshold = 2e-7f)
       : m_pool(pool) {
     setCostFactor(threadCostThreshold);
   }
 
   template <int Stride>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void analyzeCost(Index size, float cost, int& maxDepth,
-                                                         int& actualThreads) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t calculateLevels(Index size, float cost) const {
     eigen_assert(cost >= 0.0f && "cost must be non-negative");
     Index numOps = size / Stride;
     float totalCost = static_cast<float>(numOps) * cost;
-    actualThreads = numOps < numThreads() ? numOps : numThreads();
+    int actualThreads = numOps < numThreads() ? static_cast<int>(numOps) : numThreads();
     if (numext::isfinite(totalCost)) {
       float idealThreads = totalCost * costFactor();
       idealThreads = numext::maxi(idealThreads, 1.0f);
       actualThreads = numext::mini(actualThreads, static_cast<int>(idealThreads));
     }
     // use the ceiling of log2 to ensure that threads are fully utilized
-    maxDepth = numext::log2(actualThreads);
-    if ((actualThreads & (actualThreads - 1)) != 0) maxDepth++;
+    uint_fast8_t maxLevel = static_cast<uint_fast8_t>(numext::log2(actualThreads));
+    if ((actualThreads & (actualThreads - 1)) != 0) maxLevel++;
+    return maxLevel;
   }
 
   template <typename UnaryFunctor, int Stride>
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelFor(Index begin, Index end, const UnaryFunctor& f, Barrier& barrier,
-                                                       int depth, int maxDepth, int actualThreads) {
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index begin, Index end, const UnaryFunctor& f,
+                                                           Barrier& barrier, uint_fast8_t level) {
     EIGEN_STATIC_ASSERT((Stride & (Stride - 1)) == 0, "this function assumes stride is a power of two");
     constexpr Index StrideMask = -Stride;
-    while (depth < maxDepth) {
-      depth++;
+    while (level > 0) {
+      level--;
       Index size = end - begin;
       eigen_assert(size % Stride == 0 && "this function assumes size is a multiple of Stride");
       Index mid = begin + ((size >> 1) & StrideMask);
-      Task right = [=, this, &f, &barrier]() {
-        parallelFor<UnaryFunctor, Stride>(mid, end, f, barrier, depth, maxDepth, actualThreads);
-      };
-      m_pool.ScheduleWithHint(std::move(right), 0, actualThreads);
+      Task right = [=, this, &f, &barrier]() { parallelForImpl<UnaryFunctor, Stride>(mid, end, f, barrier, level); };
+      pool().Schedule(std::move(right));
       end = mid;
     }
     for (Index i = begin; i < end; i += Stride) f(i);
@@ -61,41 +59,38 @@ struct SimpleThreadPoolDevice {
   }
 
   template <typename UnaryFunctor, int Stride>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void initParallelFor(Index begin, Index end, const UnaryFunctor& f, float cost) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index begin, Index end, const UnaryFunctor& f, float cost) {
     Index size = end - begin;
-    int maxDepth = 0, actualThreads = 0;
-    analyzeCost<Stride>(size, cost, maxDepth, actualThreads);
-    Barrier barrier(1 << maxDepth);
-    parallelFor<UnaryFunctor, Stride>(begin, end, f, barrier, 0, maxDepth, actualThreads);
+    uint_fast8_t maxLevel = calculateLevels<Stride>(size, cost);
+    Barrier barrier(1 << maxLevel);
+    parallelForImpl<UnaryFunctor, Stride>(begin, end, f, barrier, maxLevel);
     barrier.Wait();
   }
 
   template <typename BinaryFunctor, int Stride>
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelFor(Index outerBegin, Index outerEnd, Index innerBegin,
-                                                       Index innerEnd, const BinaryFunctor& f, Barrier& barrier,
-                                                       int depth, int maxDepth, int actualThreads) {
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index outerBegin, Index outerEnd, Index innerBegin,
+                                                           Index innerEnd, const BinaryFunctor& f, Barrier& barrier,
+                                                           uint_fast8_t level) {
     EIGEN_STATIC_ASSERT((Stride & (Stride - 1)) == 0, "this function assumes stride is a power of two");
     constexpr Index StrideMask = -Stride;
-    while (depth < maxDepth) {
-      depth++;
+    while (level > 0) {
+      level--;
       Index outerSize = outerEnd - outerBegin;
       if (outerSize > 1) {
         Index outerMid = outerBegin + (outerSize >> 1);
         Task right = [=, this, &f, &barrier]() {
-          parallelFor<BinaryFunctor, Stride>(outerMid, outerEnd, innerBegin, innerEnd, f, barrier, depth, maxDepth,
-                                             actualThreads);
+          parallelForImpl<BinaryFunctor, Stride>(outerMid, outerEnd, innerBegin, innerEnd, f, barrier, level);
         };
-        m_pool.ScheduleWithHint(std::move(right), 0, actualThreads);
+        pool().Schedule(std::move(right));
         outerEnd = outerMid;
       } else {
         Index innerSize = innerEnd - innerBegin;
         eigen_assert(innerSize % Stride == 0 && "this function assumes innerSize is a multiple of Stride");
         Index innerMid = innerBegin + ((innerSize >> 1) & StrideMask);
         Task right = [=, this, &f, &barrier]() {
-          parallelFor<BinaryFunctor, Stride>(outerBegin, outerEnd, innerMid, innerEnd, f, barrier, depth, maxDepth,
-                                             actualThreads);
+          parallelForImpl<BinaryFunctor, Stride>(outerBegin, outerEnd, innerMid, innerEnd, f, barrier, level);
         };
-        m_pool.ScheduleWithHint(std::move(right), 0, actualThreads);
+        pool().Schedule(std::move(right));
         innerEnd = innerMid;
       }
     }
@@ -105,16 +100,14 @@ struct SimpleThreadPoolDevice {
   }
 
   template <typename BinaryFunctor, int Stride>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void initParallelFor(Index outerBegin, Index outerEnd, Index innerBegin,
-                                                             Index innerEnd, const BinaryFunctor& f, float cost) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index outerBegin, Index outerEnd, Index innerBegin,
+                                                         Index innerEnd, const BinaryFunctor& f, float cost) {
     Index outerSize = outerEnd - outerBegin;
     Index innerSize = innerEnd - innerBegin;
     Index size = outerSize * innerSize;
-    int maxDepth = 0, actualThreads = 0;
-    analyzeCost<Stride>(size, cost, maxDepth, actualThreads);
-    Barrier barrier(1 << maxDepth);
-    parallelFor<BinaryFunctor, Stride>(outerBegin, outerEnd, innerBegin, innerEnd, f, barrier, 0, maxDepth,
-                                       actualThreads);
+    uint_fast8_t maxLevel = calculateLevels<Stride>(size, cost);
+    Barrier barrier(1 << maxLevel);
+    parallelForImpl<BinaryFunctor, Stride>(outerBegin, outerEnd, innerBegin, innerEnd, f, barrier, maxLevel);
     barrier.Wait();
   }
 
@@ -122,14 +115,16 @@ struct SimpleThreadPoolDevice {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads() const { return m_pool.NumThreads(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float costFactor() const { return m_costFactor; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setCostFactor(float costFactor) {
-    eigen_assert(costFactor >= 0.0f && "cost must be non-negative");
+    eigen_assert(costFactor >= 0.0f && "costFactor must be non-negative");
     m_costFactor = costFactor;
   }
   ThreadPool& m_pool;
+  // costFactor is the inverse of cost of delegating a task to a thread
+  // the inverse is used to avoid a floating point division
   float m_costFactor;
 };
 
-// specializations of assignment loops for SimpleThreadPoolDevice
+// specialization of coefficient-wise assignment loops for SimpleThreadPoolDevice
 
 namespace internal {
 
@@ -160,7 +155,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, Default
     const Index outerSize = kernel.outerSize();
     constexpr float cost = static_cast<float>(XprEvaluationCost);
     AssignmentFunctor functor(kernel);
-    device.template initParallelFor<AssignmentFunctor, 1>(0, outerSize, 0, innerSize, functor, cost);
+    device.template parallelFor<AssignmentFunctor, 1>(0, outerSize, 0, innerSize, functor, cost);
   }
 };
 
@@ -179,7 +174,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, Default
     const Index outerSize = kernel.outerSize();
     AssignmentFunctor functor(kernel);
     constexpr float cost = static_cast<float>(XprEvaluationCost) * static_cast<float>(InnerSize);
-    device.template initParallelFor<AssignmentFunctor, 1>(0, outerSize, std::move(functor), cost);
+    device.template parallelFor<AssignmentFunctor, 1>(0, outerSize, functor, cost);
   }
 };
 
@@ -204,8 +199,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVe
     const Index outerSize = kernel.outerSize();
     const float cost = static_cast<float>(XprEvaluationCost) * static_cast<float>(innerSize);
     AssignmentFunctor functor(kernel);
-    device.template initParallelFor<AssignmentFunctor, PacketSize>(0, outerSize, 0, innerSize, std::move(functor),
-                                                                   cost);
+    device.template parallelFor<AssignmentFunctor, PacketSize>(0, outerSize, 0, innerSize, functor, cost);
   }
 };
 
@@ -237,7 +231,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVe
     const float cost = static_cast<float>(XprVectorEvaluationCost) * static_cast<float>(packetAccessSize / PacketSize) +
                        static_cast<float>(XprScalarEvaluationCost) * static_cast<float>(innerSize - packetAccessSize);
     AssignmentFunctor functor(kernel);
-    device.template initParallelFor<AssignmentFunctor, 1>(0, outerSize, std::move(functor), cost);
+    device.template parallelFor<AssignmentFunctor, 1>(0, outerSize, functor, cost);
   };
 };
 
@@ -253,7 +247,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearT
     const Index size = kernel.size();
     constexpr float cost = static_cast<float>(XprEvaluationCost);
     AssignmentFunctor functor(kernel);
-    device.template initParallelFor<AssignmentFunctor, 1>(0, size, std::move(functor), cost);
+    device.template parallelFor<AssignmentFunctor, 1>(0, size, functor, cost);
   }
 };
 
@@ -287,7 +281,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
 
     constexpr float cost = static_cast<float>(XprEvaluationCost);
     AssignmentFunctor functor(kernel);
-    device.template initParallelFor<AssignmentFunctor, PacketSize>(alignedStart, alignedEnd, std::move(functor), cost);
+    device.template parallelFor<AssignmentFunctor, PacketSize>(alignedStart, alignedEnd, functor, cost);
 
     unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
   }
