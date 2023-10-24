@@ -485,11 +485,6 @@ struct functor_traits<scalar_cbrt_op<Scalar> > {
   enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
 };
 
-template <>
-struct functor_traits<scalar_cbrt_op<bool> > {
-  enum { Cost = 1, PacketAccess = packet_traits<bool>::Vectorizable };
-};
-
 /** \internal
   * \brief Template functor to compute the reciprocal square root of a scalar
   * \sa class CwiseUnaryOp, Cwise::rsqrt()
