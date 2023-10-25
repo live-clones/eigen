@@ -15,7 +15,7 @@ stages:
 
 variables:
   BUILDDIR: builddir
-  EIGEN_CI_CMAKE_GENEATOR: "Ninja"
+  EIGEN_CI_CMAKE_GENERATOR: "Ninja"
 
 include:
   - "/ci/smoketests.gitlab-ci.yml"
