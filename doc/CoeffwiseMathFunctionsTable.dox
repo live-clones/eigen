@@ -177,7 +177,7 @@ This also means that, unless specified, if the function \c std::foo is available
   \link Eigen::cbrt cbrt\endlink(a);\n
   m.\link MatrixBase::cwiseCbrt cwiseCbrt\endlink();
   </td>
-  <td>computes square root (\f$ \cbrt a_i \f$)</td>
+  <td>computes cube root (\f$ \cbrt a_i \f$)</td>
   <td class="code">
   using <a href="http://en.cppreference.com/w/cpp/numeric/math/cbrt">std::cbrt</a>; \n
   cbrt(a[i]);</td>
