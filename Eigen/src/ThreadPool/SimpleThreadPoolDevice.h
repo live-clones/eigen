@@ -14,7 +14,30 @@ namespace Eigen {
 
 // SimpleThreadPoolDevice provides an easy-to-understand Device for parallelizing Eigen Core expressions with
 // Threadpool. Expressions are recursively split evenly until the evaluation cost is less than the threshold for
-// delegating the task to a thread.
+// delegating the task to a thread. 
+
+//                a
+//               / \
+//              /   \
+//             /     \
+//            /       \
+//           /         \
+//          /           \
+//         /             \
+//        a               e
+//       / \             / \
+//      /   \           /   \
+//     /     \         /     \
+//    a       c       e       g
+//   / \     / \     / \     / \
+//  /   \   /   \   /   \   /   \
+// a     b c     d e     f g     h
+
+// Each thread descends the binary tree to the left, delegates the right task to a new thread, and continues to the
+// left. This ensures that work is evenly distributed to the thread pool as quickly as possible and minimizes the number
+// of threads creating during the evaluation. Consider an expression that is divided into 8 chunks. The
+// primary thread 'a' creates tasks 'c' and 'b', and executes its portion of the expression at the bottom of the tree.
+// Likewise, task 'e' creates tasks 'g' and 'f', and executes its portion of the expression. 
 
 struct SimpleThreadPoolDevice {
   using Task = std::function<void()>;
@@ -28,7 +51,7 @@ struct SimpleThreadPoolDevice {
     eigen_assert(cost >= 0.0f && "cost must be non-negative");
     Index numOps = size / PacketSize;
     float totalCost = static_cast<float>(numOps) * cost;
-    unsigned int actualThreads = numOps < numThreads() ? static_cast<int>(numOps) : numThreads();
+    unsigned int actualThreads = numOps < static_cast<Index>(numThreads()) ? static_cast<unsigned int>(numOps) : numThreads();
     if (numext::isfinite(totalCost)) {
       float idealThreads = totalCost * costFactor();
       idealThreads = numext::maxi(idealThreads, 1.0f);
@@ -112,7 +135,9 @@ struct SimpleThreadPoolDevice {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ThreadPool& pool() { return m_pool; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads() const { return m_pool.NumThreads(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE unsigned int numThreads() const {
+    return static_cast<unsigned int>(m_pool.NumThreads());
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float costFactor() const { return m_costFactor; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setCostFactor(float costFactor) {
     eigen_assert(costFactor >= 0.0f && "costFactor must be non-negative");
