@@ -41,31 +41,31 @@ namespace Eigen {
 
 struct SimpleThreadPoolDevice {
   using Task = std::function<void()>;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SimpleThreadPoolDevice(ThreadPool& pool, float threadCostThreshold = 2e-7f)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SimpleThreadPoolDevice(ThreadPool& pool, float threadCostThreshold = float(1 << 15))
       : m_pool(pool) {
     setCostFactor(threadCostThreshold);
   }
 
   template <int PacketSize>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE unsigned int calculateLevels(Index size, float cost) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int calculateLevels(Index size, float cost) const {
     eigen_assert(cost >= 0.0f && "cost must be non-negative");
     Index numOps = size / PacketSize;
+    int actualThreads = numOps < numThreads() ? static_cast<int>(numOps) : numThreads();
     float totalCost = static_cast<float>(numOps) * cost;
-    unsigned int actualThreads = numOps < static_cast<Index>(numThreads()) ? static_cast<unsigned int>(numOps) : numThreads();
-    if (numext::isfinite(totalCost)) {
-      float idealThreads = totalCost * costFactor();
+    float idealThreads = totalCost * costFactor();
+    if (idealThreads < static_cast<float>(NumTraits<int>::highest()))
+    {
       idealThreads = numext::maxi(idealThreads, 1.0f);
-      actualThreads = numext::mini(actualThreads, static_cast<unsigned int>(idealThreads));
+      actualThreads = numext::mini(actualThreads, static_cast<int>(idealThreads));
     }
-    // use the ceiling of log2 to ensure that threads are fully utilized
-    unsigned int maxLevel = numext::log2(actualThreads);
+    int maxLevel = numext::log2(actualThreads);
     if ((actualThreads & (actualThreads - 1)) != 0) maxLevel++;
     return maxLevel;
   }
 
   template <typename UnaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index begin, Index end, const UnaryFunctor& f,
-                                                           Barrier& barrier, unsigned int level) {
+                                                           Barrier& barrier, int level) {
     EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
     constexpr Index PacketSizeMask = -PacketSize;
     while (level > 0) {
@@ -84,7 +84,7 @@ struct SimpleThreadPoolDevice {
   template <typename UnaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index begin, Index end, const UnaryFunctor& f, float cost) {
     Index size = end - begin;
-    unsigned int maxLevel = calculateLevels<PacketSize>(size, cost);
+    int maxLevel = calculateLevels<PacketSize>(size, cost);
     Barrier barrier(1 << maxLevel);
     parallelForImpl<UnaryFunctor, PacketSize>(begin, end, f, barrier, maxLevel);
     barrier.Wait();
@@ -93,7 +93,7 @@ struct SimpleThreadPoolDevice {
   template <typename BinaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index outerBegin, Index outerEnd, Index innerBegin,
                                                            Index innerEnd, const BinaryFunctor& f, Barrier& barrier,
-                                                           unsigned int level) {
+                                                           int level) {
     EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
     constexpr Index PacketSizeMask = -PacketSize;
     while (level > 0) {
@@ -128,23 +128,23 @@ struct SimpleThreadPoolDevice {
     Index outerSize = outerEnd - outerBegin;
     Index innerSize = innerEnd - innerBegin;
     Index size = outerSize * innerSize;
-    unsigned int maxLevel = calculateLevels<PacketSize>(size, cost);
+    int maxLevel = calculateLevels<PacketSize>(size, cost);
     Barrier barrier(1 << maxLevel);
     parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerBegin, innerEnd, f, barrier, maxLevel);
     barrier.Wait();
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ThreadPool& pool() { return m_pool; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE unsigned int numThreads() const {
-    return static_cast<unsigned int>(m_pool.NumThreads());
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads() const {
+    return m_pool.NumThreads();
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float costFactor() const { return m_costFactor; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setCostFactor(float costFactor) {
     eigen_assert(costFactor >= 0.0f && "costFactor must be non-negative");
-    m_costFactor = costFactor;
+    m_costFactor = 1.0f / costFactor;
   }
   ThreadPool& m_pool;
-  // costFactor is the inverse of cost of delegating a task to a thread
+  // costFactor is the cost of delegating a task to a thread
   // the inverse is used to avoid a floating point division
   float m_costFactor;
 };
