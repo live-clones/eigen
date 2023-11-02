@@ -7,14 +7,14 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef EIGEN_SIMPLE_THREAD_POOL_DEVICE_H
-#define EIGEN_SIMPLE_THREAD_POOL_DEVICE_H
+#ifndef EIGEN_CORE_THREAD_POOL_DEVICE_H
+#define EIGEN_CORE_THREAD_POOL_DEVICE_H
 
 namespace Eigen {
 
-// SimpleThreadPoolDevice provides an easy-to-understand Device for parallelizing Eigen Core expressions with
+// CoreThreadPoolDevice provides an easy-to-understand Device for parallelizing Eigen Core expressions with
 // Threadpool. Expressions are recursively split evenly until the evaluation cost is less than the threshold for
-// delegating the task to a thread. 
+// delegating the task to a thread.
 
 //                a
 //               / \
@@ -37,11 +37,12 @@ namespace Eigen {
 // left. This ensures that work is evenly distributed to the thread pool as quickly as possible and minimizes the number
 // of threads creating during the evaluation. Consider an expression that is divided into 8 chunks. The
 // primary thread 'a' creates tasks 'c' and 'b', and executes its portion of the expression at the bottom of the tree.
-// Likewise, task 'e' creates tasks 'g' and 'f', and executes its portion of the expression. 
+// Likewise, task 'e' creates tasks 'g' and 'f', and executes its portion of the expression.
 
-struct SimpleThreadPoolDevice {
+struct CoreThreadPoolDevice {
   using Task = std::function<void()>;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SimpleThreadPoolDevice(ThreadPool& pool, float threadCostThreshold = float(1 << 15))
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoreThreadPoolDevice(ThreadPool& pool,
+                                                             float threadCostThreshold = float(1 << 15))
       : m_pool(pool) {
     setCostFactor(threadCostThreshold);
   }
@@ -53,8 +54,7 @@ struct SimpleThreadPoolDevice {
     int actualThreads = numOps < numThreads() ? static_cast<int>(numOps) : numThreads();
     float totalCost = static_cast<float>(numOps) * cost;
     float idealThreads = totalCost * costFactor();
-    if (idealThreads < static_cast<float>(NumTraits<int>::highest()))
-    {
+    if (idealThreads < static_cast<float>(actualThreads)) {
       idealThreads = numext::maxi(idealThreads, 1.0f);
       actualThreads = numext::mini(actualThreads, static_cast<int>(idealThreads));
     }
@@ -63,17 +63,25 @@ struct SimpleThreadPoolDevice {
     return maxLevel;
   }
 
+  // MSVC does not like inlining parallelForImpl
+  #if EIGEN_COMP_MSVC && !EIGEN_COMP_CLANG
+  #define EIGEN_PARALEL_FOR_INLINE
+  #else
+  #define EIGEN_PARALEL_FOR_INLINE EIGEN_STRONG_INLINE
+  #endif
+
   template <typename UnaryFunctor, int PacketSize>
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index begin, Index end, const UnaryFunctor& f,
-                                                           Barrier& barrier, int level) {
+  EIGEN_DEVICE_FUNC EIGEN_PARALEL_FOR_INLINE void parallelForImpl(Index begin, Index end, UnaryFunctor f,
+                                                                  Barrier& barrier, int level) {
     EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
     constexpr Index PacketSizeMask = -PacketSize;
-    while (level > 0) {
-      level--;
+    while (level--) {
       Index size = end - begin;
       eigen_assert(size % PacketSize == 0 && "this function assumes size is a multiple of PacketSize");
       Index mid = begin + ((size >> 1) & PacketSizeMask);
-      Task right = [=, this, &f, &barrier]() { parallelForImpl<UnaryFunctor, PacketSize>(mid, end, f, barrier, level); };
+      Task right = [=, this, &f, &barrier]() {
+        parallelForImpl<UnaryFunctor, PacketSize>(mid, end, f, barrier, level);
+      };
       pool().Schedule(std::move(right));
       end = mid;
     }
@@ -81,27 +89,17 @@ struct SimpleThreadPoolDevice {
     barrier.Notify();
   }
 
-  template <typename UnaryFunctor, int PacketSize>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index begin, Index end, const UnaryFunctor& f, float cost) {
-    Index size = end - begin;
-    int maxLevel = calculateLevels<PacketSize>(size, cost);
-    Barrier barrier(1 << maxLevel);
-    parallelForImpl<UnaryFunctor, PacketSize>(begin, end, f, barrier, maxLevel);
-    barrier.Wait();
-  }
-
   template <typename BinaryFunctor, int PacketSize>
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void parallelForImpl(Index outerBegin, Index outerEnd, Index innerBegin,
-                                                           Index innerEnd, const BinaryFunctor& f, Barrier& barrier,
-                                                           int level) {
+  EIGEN_DEVICE_FUNC EIGEN_PARALEL_FOR_INLINE void parallelForImpl(Index outerBegin, Index outerEnd, Index innerBegin,
+                                                                  Index innerEnd, BinaryFunctor f, Barrier& barrier,
+                                                                  int level) {
     EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
     constexpr Index PacketSizeMask = -PacketSize;
-    while (level > 0) {
-      level--;
+    while (level--) {
       Index outerSize = outerEnd - outerBegin;
       if (outerSize > 1) {
         Index outerMid = outerBegin + (outerSize >> 1);
-        Task right = [=, this, &f, &barrier]() {
+        Task right = [=, this, &barrier]() {
           parallelForImpl<BinaryFunctor, PacketSize>(outerMid, outerEnd, innerBegin, innerEnd, f, barrier, level);
         };
         pool().Schedule(std::move(right));
@@ -110,7 +108,7 @@ struct SimpleThreadPoolDevice {
         Index innerSize = innerEnd - innerBegin;
         eigen_assert(innerSize % PacketSize == 0 && "this function assumes innerSize is a multiple of PacketSize");
         Index innerMid = innerBegin + ((innerSize >> 1) & PacketSizeMask);
-        Task right = [=, this, &f, &barrier]() {
+        Task right = [=, this, &barrier]() {
           parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerMid, innerEnd, f, barrier, level);
         };
         pool().Schedule(std::move(right));
@@ -122,34 +120,45 @@ struct SimpleThreadPoolDevice {
     barrier.Notify();
   }
 
+  #undef EIGEN_PARALEL_FOR_INLINE
+
+  template <typename UnaryFunctor, int PacketSize>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index begin, Index end, UnaryFunctor f, float cost) {
+    Index size = end - begin;
+    int maxLevel = calculateLevels<PacketSize>(size, cost);
+    Barrier barrier(1 << maxLevel);
+    parallelForImpl<UnaryFunctor, PacketSize>(begin, end, std::move(f), barrier, maxLevel);
+    barrier.Wait();
+  }
+
   template <typename BinaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index outerBegin, Index outerEnd, Index innerBegin,
-                                                         Index innerEnd, const BinaryFunctor& f, float cost) {
+                                                         Index innerEnd, BinaryFunctor f, float cost) {
     Index outerSize = outerEnd - outerBegin;
     Index innerSize = innerEnd - innerBegin;
     Index size = outerSize * innerSize;
     int maxLevel = calculateLevels<PacketSize>(size, cost);
     Barrier barrier(1 << maxLevel);
-    parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerBegin, innerEnd, f, barrier, maxLevel);
+    parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerBegin, innerEnd, std::move(f), barrier,
+                                               maxLevel);
     barrier.Wait();
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ThreadPool& pool() { return m_pool; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads() const {
-    return m_pool.NumThreads();
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads() const { return m_pool.NumThreads(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float costFactor() const { return m_costFactor; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setCostFactor(float costFactor) {
     eigen_assert(costFactor >= 0.0f && "costFactor must be non-negative");
     m_costFactor = 1.0f / costFactor;
   }
+
   ThreadPool& m_pool;
   // costFactor is the cost of delegating a task to a thread
   // the inverse is used to avoid a floating point division
   float m_costFactor;
 };
 
-// specialization of coefficient-wise assignment loops for SimpleThreadPoolDevice
+// specialization of coefficient-wise assignment loops for CoreThreadPoolDevice
 
 namespace internal {
 
@@ -166,26 +175,26 @@ struct cost_helper {
 };
 
 template <typename Kernel>
-struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, DefaultTraversal, NoUnrolling> {
+struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, DefaultTraversal, NoUnrolling> {
   enum : Index { XprEvaluationCost = cost_helper<Kernel>::ScalarCost };
-  struct AssignmentFunctor {
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AssignmentFunctor(Kernel& kernel) : m_kernel(kernel) {}
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index outer, Index inner) const {
-      m_kernel.assignCoeffByOuterInner(outer, inner);
+  struct AssignmentFunctor : public Kernel {
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AssignmentFunctor(const Kernel& kernel) : Kernel(kernel) {}
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index outer, Index inner) {
+      this->assignCoeffByOuterInner(outer, inner);
     }
-    Kernel& m_kernel;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
     constexpr float cost = static_cast<float>(XprEvaluationCost);
     AssignmentFunctor functor(kernel);
-    device.template parallelFor<AssignmentFunctor, 1>(0, outerSize, 0, innerSize, functor, cost);
+    device.template parallelFor<AssignmentFunctor, 1>(0, outerSize, 0, innerSize, std::move(functor), cost);
   }
 };
 
 template <typename Kernel>
-struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, DefaultTraversal, InnerUnrolling> {
+struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, DefaultTraversal, InnerUnrolling> {
   using DstXprType = typename Kernel::DstEvaluatorType::XprType;
   enum : Index { XprEvaluationCost = cost_helper<Kernel>::ScalarCost, InnerSize = DstXprType::InnerSizeAtCompileTime };
   struct AssignmentFunctor {
@@ -195,7 +204,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, Default
     }
     Kernel& m_kernel;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index outerSize = kernel.outerSize();
     AssignmentFunctor functor(kernel);
     constexpr float cost = static_cast<float>(XprEvaluationCost) * static_cast<float>(InnerSize);
@@ -204,7 +213,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, Default
 };
 
 template <typename Kernel>
-struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVectorizedTraversal, NoUnrolling> {
+struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, InnerVectorizedTraversal, NoUnrolling> {
   using PacketType = typename Kernel::PacketType;
   enum : Index {
     XprEvaluationCost = cost_helper<Kernel>::VectorCost,
@@ -219,7 +228,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVe
     }
     Kernel& m_kernel;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
     const float cost = static_cast<float>(XprEvaluationCost) * static_cast<float>(innerSize);
@@ -229,7 +238,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, InnerVe
 };
 
 template <typename Kernel>
-struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVectorizedTraversal, NoUnrolling> {
+struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, SliceVectorizedTraversal, NoUnrolling> {
   using Scalar = typename Kernel::Scalar;
   using PacketType = typename Kernel::PacketType;
   enum : Index {
@@ -249,7 +258,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVe
     }
     Kernel& m_kernel;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index outerSize = kernel.outerSize();
     const Index innerSize = kernel.innerSize();
     const Index packetAccessSize = innerSize & PacketSizeMask;
@@ -261,14 +270,14 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, SliceVe
 };
 
 template <typename Kernel>
-struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearTraversal, NoUnrolling> {
+struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, LinearTraversal, NoUnrolling> {
   enum : Index { XprEvaluationCost = cost_helper<Kernel>::ScalarCost };
   struct AssignmentFunctor {
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AssignmentFunctor(Kernel& kernel) : m_kernel(kernel) {}
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index index) const { m_kernel.assignCoeff(index); }
     Kernel& m_kernel;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index size = kernel.size();
     constexpr float cost = static_cast<float>(XprEvaluationCost);
     AssignmentFunctor functor(kernel);
@@ -277,7 +286,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearT
 };
 
 template <typename Kernel>
-struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearVectorizedTraversal, NoUnrolling> {
+struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, LinearVectorizedTraversal, NoUnrolling> {
   using Scalar = typename Kernel::Scalar;
   using PacketType = typename Kernel::PacketType;
   using LinearFunctor = std::function<void(Index)>;
@@ -296,7 +305,7 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
     }
     Kernel& m_kernel;
   };
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, SimpleThreadPoolDevice& device) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index size = kernel.size();
     const Index alignedStart =
         DstIsAligned ? 0 : internal::first_aligned<RequestedAlignment>(kernel.dstDataPtr(), size);
@@ -316,4 +325,4 @@ struct dense_assignment_loop_with_device<Kernel, SimpleThreadPoolDevice, LinearV
 
 }  // namespace Eigen
 
-#endif  // EIGEN_SIMPLE_THREAD_POOL_DEVICE_H
+#endif  // EIGEN_CORE_THREAD_POOL_DEVICE_H

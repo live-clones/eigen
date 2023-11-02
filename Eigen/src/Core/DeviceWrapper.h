@@ -44,8 +44,7 @@ struct DeviceWrapper {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& derived() { return m_xpr; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Derived& derived() const { return m_xpr; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Device& device() const { return m_device; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Device& device() { return m_device; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NoAlias<DeviceWrapper, EigenBase> noalias() {
     return NoAlias<DeviceWrapper, EigenBase>(*this);
   }
