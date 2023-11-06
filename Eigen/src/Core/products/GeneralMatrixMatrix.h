@@ -129,8 +129,7 @@ static void run(Index rows, Index cols, Index depth,
         // we use testAndSetOrdered to mimic a volatile access.
         // However, no need to wait for the B' part which has been updated by the current thread!
         if (shift>0) {
-          while(info->task_info[i].sync!=k) {
-          }
+          while(info->task_info[i].sync!=k) {}
         }
 
         gebp(res.getSubMapper(info->task_info[i].lhs_start, 0), blockA+info->task_info[i].lhs_start*actual_kc, blockB, info->task_info[i].lhs_length, actual_kc, nc, alpha);
