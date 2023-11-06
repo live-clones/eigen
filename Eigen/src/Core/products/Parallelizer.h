@@ -67,16 +67,23 @@ inline void setNbThreads(int v)
 
 #ifdef EIGEN_GEMM_THREADPOOL
 // Sets the ThreadPool used by Eigen parallel Gemm.
-inline ThreadPool* setGemmThreadPool(std::unique_ptr<ThreadPool> new_pool) {
-  static std::unique_ptr<ThreadPool> pool;
+//
+// NOTICE: This function has a known race condition with
+// parallelize_gemm below, and should not be called while
+// an instance of that function is running.
+//
+// TODO(rmlarsen): Make the device API available instead of
+// storing a local static pointer variable to avoid this issue.
+inline ThreadPool* setGemmThreadPool(ThreadPool* new_pool) {
+  static ThreadPool* pool;
   if (new_pool != nullptr) {
     // This will wait for work in all threads in *pool to finish,
     // then destroy the old ThreadPool, and then replace it with new_pool.
-    pool = std::move(new_pool);
+    pool = new_pool;
     // Reset the number of threads to the number of threads on the new pool.
     setNbThreads(pool->NumThreads());
   }
-  return pool.get();
+  return pool;
 }
 
 // Gets the ThreadPool used by Eigen parallel Gemm.
@@ -140,7 +147,7 @@ inline void manage_multi_threading(Action action, int* v) {
     eigen_internal_assert(*v >= 0);
     ThreadPool* pool = getGemmThreadPool();
     int pool_threads = pool != nullptr ? pool->NumThreads() : 1;
-    m_maxThreads = (*v == 0 ? pool_threads : std::min(pool_threads, *v));
+    m_maxThreads = (*v == 0 ? pool_threads : numext::mini(pool_threads, *v));
 #endif
   } else if (action == GetAction) {
     *v = m_maxThreads;
