@@ -259,7 +259,7 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   // limit number of running threads, even if the threadpool itself was constructed
   // with a larger number of threads.
   for (int i=0; i < threads; ++i) {
-    pool->ScheduleWithHint([=, task = std::move(task)] { task(i); }, 0, threads);
+    pool->Schedule([=, task = std::move(task)] { task(i); });
   }
   barrier.Wait();
 #endif
