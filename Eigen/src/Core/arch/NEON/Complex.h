@@ -67,6 +67,7 @@ template<> struct packet_traits<std::complex<float> > : default_packet_traits
     HasDiv       = 1,
     HasNegate    = 1,
     HasSqrt      = 1,
+    HasLog       = 1,
     HasAbs       = 0,
     HasAbs2      = 0,
     HasMin       = 0,
@@ -373,6 +374,16 @@ template<> EIGEN_STRONG_INLINE Packet2cf psqrt<Packet2cf>(const Packet2cf& a) {
   return psqrt_complex<Packet2cf>(a);
 }
 
+template<> EIGEN_STRONG_INLINE Packet1cf plog<Packet1cf>(const Packet1cf& a)
+{
+  return plog_complex(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2cf plog<Packet2cf>(const Packet2cf& a)
+{
+  return plog_complex(a);
+}
+
 //---------- double ----------
 #if EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG
 
@@ -407,6 +418,7 @@ template<> struct packet_traits<std::complex<double> >  : default_packet_traits
     HasDiv    = 1,
     HasNegate = 1,
     HasSqrt   = 1,
+    HasLog   = 1,
     HasAbs    = 0,
     HasAbs2   = 0,
     HasMin    = 0,
@@ -555,6 +567,11 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet1cd,2>& kernel)
 
 template<> EIGEN_STRONG_INLINE Packet1cd psqrt<Packet1cd>(const Packet1cd& a) {
   return psqrt_complex<Packet1cd>(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet1cd plog<Packet1cd>(const Packet1cd& a)
+{
+  return plog_complex(a);
 }
 
 #endif // EIGEN_ARCH_ARM64

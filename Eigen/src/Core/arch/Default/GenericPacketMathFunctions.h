@@ -1019,6 +1019,31 @@ Packet pdiv_complex(const Packet& x, const Packet& y) {
 
 template<typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+Packet plog_complex(const Packet& x) {
+  typedef typename unpacket_traits<Packet>::as_real RealPacket;
+
+  RealPacket real_mask_rp = peven_mask(x.v);
+  Packet real_mask(real_mask_rp);
+
+  // Real part
+  const RealPacket x_flip = pcplxflip(x).v; // b, a
+  const RealPacket x2 = pmul(x.v, x.v);  // a * a, b * b
+  const RealPacket x2_flip = pcplxflip(Packet(x2)).v;  // b * b, a * a
+  const RealPacket x_norm2 = padd(x2, x2_flip);  // a * a + b * b, a * a + b * b
+  const RealPacket xlog2 = plog(x_norm2); // log(a * a + b * b), log(a * a + b * b)
+  const RealPacket cst_half = pset1<RealPacket>(0.5E0);
+  const RealPacket xlogr = pmul(xlog2, cst_half); // 0.5 * log(a * a + b * b), 0.5 * log(a * a + b * b)
+
+  // Imag part
+  const RealPacket ximg = patan2(x.v, x_flip); // atan2(a, b), atan2(b, a)
+
+  Packet xres = pselect(real_mask, Packet(xlogr), Packet(ximg)); // 0.5 * log(a * a + b * b), atan2(b, a)
+
+  return xres;
+}
+
+template<typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet psqrt_complex(const Packet& a) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;

@@ -103,6 +103,7 @@ template<> struct packet_traits<std::complex<float> >  : default_packet_traits
     HasMin    = 0,
     HasMax    = 0,
     HasSqrt   = 1,
+    HasLog    = 1,
 #ifdef EIGEN_VECTORIZE_VSX
     HasBlend  = 1,
 #endif
@@ -297,6 +298,11 @@ template<> EIGEN_STRONG_INLINE Packet2cf psqrt<Packet2cf>(const Packet2cf& a)
   return psqrt_complex<Packet2cf>(a);
 }
 
+template<> EIGEN_STRONG_INLINE Packet2cf plog<Packet2cf>(const Packet2cf& a)
+{
+  return plog_complex<Packet2cf>(a);
+}
+
 //---------- double ----------
 #ifdef EIGEN_VECTORIZE_VSX
 struct Packet1cd
@@ -371,6 +377,7 @@ template<> struct packet_traits<std::complex<double> >  : default_packet_traits
     HasMin    = 0,
     HasMax    = 0,
     HasSqrt   = 1,
+    HasLog    = 1,
     HasSetLinear = 0
   };
 };
@@ -473,6 +480,11 @@ template<> EIGEN_STRONG_INLINE Packet1cd pcmp_eq(const Packet1cd& a, const Packe
 template<> EIGEN_STRONG_INLINE Packet1cd psqrt<Packet1cd>(const Packet1cd& a)
 {
   return psqrt_complex<Packet1cd>(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet1cd plog<Packet1cd>(const Packet1cd& a)
+{
+  return plog_complex<Packet1cd>(a);
 }
 
 #endif // __VSX__

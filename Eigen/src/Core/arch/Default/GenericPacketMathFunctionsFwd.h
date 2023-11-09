@@ -125,6 +125,11 @@ template<typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pdiv_complex(const Packet& x, const Packet& y);
 
+/** \internal \returns log(x) for complex types */
+template<typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+Packet plog_complex(const Packet& x);
+
 template <typename Packet, int N> struct ppolevl;
 
 // Macros for instantiating these generic functions for different backends.
