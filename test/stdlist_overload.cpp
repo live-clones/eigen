@@ -47,7 +47,8 @@ void check_stdlist_matrix(const MatrixType& m)
   Index rows = m.rows();
   Index cols = m.cols();
   MatrixType x = MatrixType::Random(rows,cols), y = MatrixType::Random(rows,cols);
-  std::list<MatrixType> v(10, MatrixType::Zero(rows,cols)), w(20, y);
+  MatrixType zero = MatrixType::Zero(rows, cols);
+  std::list<MatrixType> v(10, zero), w(20, y);
   typename std::list<MatrixType>::iterator itv = get(v, 5);
   typename std::list<MatrixType>::iterator itw = get(w, 6);
   *itv = x;
