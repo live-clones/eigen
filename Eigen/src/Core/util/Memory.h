@@ -127,19 +127,21 @@ EIGEN_DEVICE_FUNC inline void handmade_aligned_free(void *ptr)
 inline void* handmade_aligned_realloc(void* ptr, std::size_t size, std::size_t old_size)
 {
   if (ptr == 0) return handmade_aligned_malloc(size);
-  void *previous_original = *(reinterpret_cast<void**>(ptr) - 1);
-  std::ptrdiff_t previous_offset = static_cast<char*>(ptr)-static_cast<char*>(previous_original);
-  void* original = std::realloc(previous_original, size + EIGEN_DEFAULT_ALIGN_BYTES);
+  void *original = *(reinterpret_cast<void**>(ptr) - 1);
+  std::ptrdiff_t previous_offset = static_cast<char *>(ptr)-static_cast<char *>(original);
+  original = std::realloc(original,size+EIGEN_DEFAULT_ALIGN_BYTES);
   if (original == 0) return 0;
   void *aligned = reinterpret_cast<void*>((reinterpret_cast<std::size_t>(original) & ~(std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1))) + EIGEN_DEFAULT_ALIGN_BYTES);
-  std::ptrdiff_t offset = static_cast<char*>(aligned)-static_cast<char*>(original);
-  if (offset != previous_offset) {
-    const void* src = static_cast<char*>(original) + previous_offset;
+  void *previous_aligned = static_cast<char *>(original)+previous_offset;
+  if (aligned != previous_aligned) 
+  {
     std::size_t count = (std::min)(size, old_size);
-    std::memmove(aligned, src, count);
+    std::memmove(aligned, previous_aligned, count);
   }
+
   *(reinterpret_cast<void**>(aligned) - 1) = original;
   return aligned;
+
 }
 
 /*****************************************************************************
