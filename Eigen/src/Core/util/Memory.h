@@ -138,10 +138,8 @@ inline void* handmade_aligned_realloc(void* ptr, std::size_t size, std::size_t o
     std::size_t count = (std::min)(size, old_size);
     std::memmove(aligned, previous_aligned, count);
   }
-
   *(reinterpret_cast<void**>(aligned) - 1) = original;
   return aligned;
-
 }
 
 /*****************************************************************************
