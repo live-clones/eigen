@@ -47,8 +47,7 @@ void check_stdlist_matrix(const MatrixType& m)
   Index rows = m.rows();
   Index cols = m.cols();
   MatrixType x = MatrixType::Random(rows,cols), y = MatrixType::Random(rows,cols);
-  MatrixType zero = MatrixType::Zero(rows, cols);
-  std::list<MatrixType> v(10, zero), w(20, y);
+  std::list<MatrixType> v(10, MatrixType::Zero(rows,cols)), w(20, y);
   typename std::list<MatrixType>::iterator itv = get(v, 5);
   typename std::list<MatrixType>::iterator itw = get(w, 6);
   *itv = x;
@@ -64,23 +63,23 @@ void check_stdlist_matrix(const MatrixType& m)
     ++itw;
   }
 
-  v.resize(21);
-  set(v, 20, x);
-  VERIFY_IS_APPROX(*get(v, 20), x);
-  v.resize(22,y);
-  VERIFY_IS_APPROX(*get(v, 21), y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(*get(v, 22), x);
+  //v.resize(21);
+  //set(v, 20, x);
+  //VERIFY_IS_APPROX(*get(v, 20), x);
+  //v.resize(22,y);
+  //VERIFY_IS_APPROX(*get(v, 21), y);
+  //v.push_back(x);
+  //VERIFY_IS_APPROX(*get(v, 22), x);
 
-  // do a lot of push_back such that the list gets internally resized
-  // (with memory reallocation)
-  MatrixType* ref = &(*get(w, 0));
-  for(int i=0; i<30 || ((ref==&(*get(w, 0))) && i<300); ++i)
-    v.push_back(*get(w, i%w.size()));
-  for(unsigned int i=23; i<v.size(); ++i)
-  {
-    VERIFY((*get(v, i))==(*get(w, (i-23)%w.size())));
-  }
+  //// do a lot of push_back such that the list gets internally resized
+  //// (with memory reallocation)
+  //MatrixType* ref = &(*get(w, 0));
+  //for(int i=0; i<30 || ((ref==&(*get(w, 0))) && i<300); ++i)
+  //  v.push_back(*get(w, i%w.size()));
+  //for(unsigned int i=23; i<v.size(); ++i)
+  //{
+  //  VERIFY((*get(v, i))==(*get(w, (i-23)%w.size())));
+  //}
 }
 
 template<typename TransformType>

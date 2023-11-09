@@ -37,7 +37,7 @@
 // Expected values are 03, 11, 14, 17, etc.
 // By default, let's use an arbitrarily large C++ version.
 #ifndef EIGEN_MAX_CPP_VER
-#define EIGEN_MAX_CPP_VER 99
+#define EIGEN_MAX_CPP_VER 03
 #endif
 
 /** Allows to disable some optimizations which might affect the accuracy of the result.
