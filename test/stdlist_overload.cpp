@@ -63,7 +63,7 @@ void check_stdlist_matrix(const MatrixType& m)
     ++itw;
   }
 
-  v.resize(21);
+  v.resize(21, MatrixType::Zero(rows, cols));
   set(v, 20, x);
   VERIFY_IS_APPROX(*get(v, 20), x);
   v.resize(22,y);
@@ -73,13 +73,13 @@ void check_stdlist_matrix(const MatrixType& m)
 
   // do a lot of push_back such that the list gets internally resized
   // (with memory reallocation)
-  //MatrixType* ref = &(*get(w, 0));
-  //for(int i=0; i<30 || ((ref==&(*get(w, 0))) && i<300); ++i)
-  //  v.push_back(*get(w, i%w.size()));
-  //for(unsigned int i=23; i<v.size(); ++i)
-  //{
-  //  VERIFY((*get(v, i))==(*get(w, (i-23)%w.size())));
-  //}
+  MatrixType* ref = &(*get(w, 0));
+  for(int i=0; i<30 || ((ref==&(*get(w, 0))) && i<300); ++i)
+    v.push_back(*get(w, i%w.size()));
+  for(unsigned int i=23; i<v.size(); ++i)
+  {
+    VERIFY((*get(v, i))==(*get(w, (i-23)%w.size())));
+  }
 }
 
 template<typename TransformType>
