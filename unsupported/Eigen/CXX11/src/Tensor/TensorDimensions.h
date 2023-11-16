@@ -248,7 +248,7 @@ struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor>
 
 
 // Dynamic size
-template <typename DenseIndex, int NumDims>
+template <typename DenseIndex, size_t NumDims>
 struct DSizes : array<DenseIndex, NumDims> {
   typedef array<DenseIndex, NumDims> Base;
   static const int count = NumDims;
