@@ -164,7 +164,7 @@ inline void* handmade_aligned_realloc(void* ptr, std::size_t size, std::size_t o
 {
   if (ptr == 0) return handmade_aligned_malloc(size);
   void *original = *(reinterpret_cast<void**>(ptr) - 1);
-  std::size_t alignment = find_alignment(reinterpret_cast<std::uintptr_t>(ptr));
+  std::size_t alignment = find_alignment(reinterpret_cast<uintptr_t>(ptr));
   std::ptrdiff_t previous_offset = static_cast<char *>(ptr)-static_cast<char *>(original);
   original = std::realloc(original, size + alignment);
   if (original == 0) return 0;
