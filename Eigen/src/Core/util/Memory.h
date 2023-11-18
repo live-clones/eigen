@@ -88,6 +88,42 @@ inline void throw_std_bad_alloc()
   #endif
 }
 
+template <typename T>
+EIGEN_DEVICE_FUNC inline int find_alignment(T x) {
+  int mask = EIGEN_MAX_ALIGN_BYTES - 1;
+  while ((mask & x) != 0) mask >>= 1;
+  return mask + 1;
+}
+#if EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
+EIGEN_DEVICE_FUNC inline int find_alignment(unsigned int x) {
+  int ctz = __builtin_ctz(x);
+  return (std::min)(1 << ctz, int(EIGEN_MAX_ALIGN_BYTES));
+}
+EIGEN_DEVICE_FUNC inline int find_alignment(unsigned long x) {
+  int ctz = __builtin_ctzl(x);
+  return (std::min)(1 << ctz, int(EIGEN_MAX_ALIGN_BYTES));
+}
+EIGEN_DEVICE_FUNC inline int find_alignment(unsigned long long x) {
+  int ctz = __builtin_ctzll(x);
+  return (std::min)(1 << ctz, int(EIGEN_MAX_ALIGN_BYTES));
+}
+#endif
+
+#if EIGEN_COMP_MSVC && !EIGEN_COMP_CLANG
+EIGEN_DEVICE_FUNC inline int find_alignment(unsigned long x) {
+  unsigned long ctz;
+  _BitScanReverse(&ctz, x);
+  return (std::min)(1 << static_cast<int>(ctz), int(EIGEN_MAX_ALIGN_BYTES));
+}
+#if defined(_WIN64)
+EIGEN_DEVICE_FUNC inline int find_alignment(unsigned long long x) {
+  unsigned long ctz;
+  _BitScanReverse64(&ctz, x);
+  return (std::min)(1 << static_cast<int>(ctz), int(EIGEN_MAX_ALIGN_BYTES));
+}
+#endif
+#endif
+
 /*****************************************************************************
 *** Implementation of handmade aligned functions                           ***
 *****************************************************************************/
@@ -128,10 +164,11 @@ inline void* handmade_aligned_realloc(void* ptr, std::size_t size, std::size_t o
 {
   if (ptr == 0) return handmade_aligned_malloc(size);
   void *original = *(reinterpret_cast<void**>(ptr) - 1);
+  std::size_t alignment = find_alignment(reinterpret_cast<std::uintptr_t>(ptr));
   std::ptrdiff_t previous_offset = static_cast<char *>(ptr)-static_cast<char *>(original);
-  original = std::realloc(original,size+EIGEN_DEFAULT_ALIGN_BYTES);
+  original = std::realloc(original, size + alignment);
   if (original == 0) return 0;
-  void *aligned = reinterpret_cast<void*>((reinterpret_cast<std::size_t>(original) & ~(std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1))) + EIGEN_DEFAULT_ALIGN_BYTES);
+  void *aligned = reinterpret_cast<void*>((reinterpret_cast<std::size_t>(original) & ~(alignment-1)) + alignment);
   void *previous_aligned = static_cast<char *>(original)+previous_offset;
   if (aligned != previous_aligned) 
   {
