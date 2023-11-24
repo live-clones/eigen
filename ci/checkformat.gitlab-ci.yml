@@ -1,0 +1,10 @@
+checkformat:clangformat:
+  stage: checkformat
+  image: ubuntu:23.10
+  before_script:
+    - apt-get update -y
+    - apt-get install -y --no-install-recommends clang-format-17
+  script:
+    - find Eigen unsupported/Eigen -name "*" ! -name "*.txt" -type f -print0 | xargs -0 -n 1 clang-format-17 --dry-run --Werror --verbose
+  only:
+    - merge_requests
