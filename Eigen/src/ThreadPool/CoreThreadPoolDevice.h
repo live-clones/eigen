@@ -63,22 +63,20 @@ struct CoreThreadPoolDevice {
     return maxLevel;
   }
 
-// MSVC does not like inlining parallelForImpl
-#if EIGEN_COMP_MSVC && !EIGEN_COMP_CLANG
-#define EIGEN_PARALEL_FOR_INLINE
-#else
-#define EIGEN_PARALEL_FOR_INLINE EIGEN_STRONG_INLINE
-#endif
+  // MSVC does not like inlining parallelForImpl
+  #if EIGEN_COMP_MSVC && !EIGEN_COMP_CLANG
+  #define EIGEN_PARALLEL_FOR_INLINE
+  #else
+  #define EIGEN_PARALLEL_FOR_INLINE EIGEN_STRONG_INLINE
+  #endif
 
   template <typename UnaryFunctor, int PacketSize>
-  EIGEN_DEVICE_FUNC EIGEN_PARALEL_FOR_INLINE void parallelForImpl(Index begin, Index end, UnaryFunctor f,
+  EIGEN_DEVICE_FUNC EIGEN_PARALLEL_FOR_INLINE void parallelForImpl(Index begin, Index end, UnaryFunctor f,
                                                                   Barrier& barrier, int level) {
-    EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
-    constexpr Index PacketSizeMask = -PacketSize;
     while (level--) {
       Index size = end - begin;
       eigen_assert(size % PacketSize == 0 && "this function assumes size is a multiple of PacketSize");
-      Index mid = begin + ((size >> 1) & PacketSizeMask);
+      Index mid = begin + numext::round_down(size >> 1, Index(PacketSize));
       Task right = [=, this, &f, &barrier]() {
         parallelForImpl<UnaryFunctor, PacketSize>(mid, end, f, barrier, level);
       };
@@ -90,11 +88,9 @@ struct CoreThreadPoolDevice {
   }
 
   template <typename BinaryFunctor, int PacketSize>
-  EIGEN_DEVICE_FUNC EIGEN_PARALEL_FOR_INLINE void parallelForImpl(Index outerBegin, Index outerEnd, Index innerBegin,
+  EIGEN_DEVICE_FUNC EIGEN_PARALLEL_FOR_INLINE void parallelForImpl(Index outerBegin, Index outerEnd, Index innerBegin,
                                                                   Index innerEnd, BinaryFunctor f, Barrier& barrier,
                                                                   int level) {
-    EIGEN_STATIC_ASSERT((PacketSize & (PacketSize - 1)) == 0, "this function assumes PacketSize is a power of two");
-    constexpr Index PacketSizeMask = -PacketSize;
     while (level--) {
       Index outerSize = outerEnd - outerBegin;
       if (outerSize > 1) {
@@ -107,7 +103,7 @@ struct CoreThreadPoolDevice {
       } else {
         Index innerSize = innerEnd - innerBegin;
         eigen_assert(innerSize % PacketSize == 0 && "this function assumes innerSize is a multiple of PacketSize");
-        Index innerMid = innerBegin + ((innerSize >> 1) & PacketSizeMask);
+        Index innerMid = innerBegin + numext::round_down(innerSize >> 1, Index(PacketSize));
         Task right = [=, this, &barrier]() {
           parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerMid, innerEnd, f, barrier, level);
         };
@@ -120,7 +116,7 @@ struct CoreThreadPoolDevice {
     barrier.Notify();
   }
 
-#undef EIGEN_PARALEL_FOR_INLINE
+  #undef EIGEN_PARALLEL_FOR_INLINE
 
   template <typename UnaryFunctor, int PacketSize>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void parallelFor(Index begin, Index end, UnaryFunctor f, float cost) {
@@ -268,13 +264,12 @@ struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, SliceVect
     XprVectorEvaluationCost = cost_helper<Kernel>::VectorCost,
     XprScalarEvaluationCost = cost_helper<Kernel>::ScalarCost,
     PacketSize = unpacket_traits<PacketType>::size,
-    PacketSizeMask = -PacketSize
   };
   struct AssignmentFunctor : public Kernel {
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AssignmentFunctor(Kernel& kernel) : Kernel(kernel) {}
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index outer) {
       const Index innerSize = this->innerSize();
-      const Index packetAccessSize = innerSize & PacketSizeMask;
+      const Index packetAccessSize = numext::round_down(innerSize, Index(PacketSize));
       for (Index inner = 0; inner < packetAccessSize; inner += PacketSize)
         this->template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
       for (Index inner = packetAccessSize; inner < innerSize; inner++) this->assignCoeffByOuterInner(outer, inner);
@@ -283,7 +278,7 @@ struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, SliceVect
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index outerSize = kernel.outerSize();
     const Index innerSize = kernel.innerSize();
-    const Index packetAccessSize = innerSize & PacketSizeMask;
+    const Index packetAccessSize = numext::round_down(innerSize, Index(PacketSize));
     const float cost = static_cast<float>(XprVectorEvaluationCost) * static_cast<float>(packetAccessSize / PacketSize) +
                        static_cast<float>(XprScalarEvaluationCost) * static_cast<float>(innerSize - packetAccessSize);
     AssignmentFunctor functor(kernel);
@@ -328,7 +323,7 @@ struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, LinearVec
     const Index size = kernel.size();
     const Index alignedStart =
         DstIsAligned ? 0 : internal::first_aligned<RequestedAlignment>(kernel.dstDataPtr(), size);
-    const Index alignedEnd = alignedStart + ((size - alignedStart) / PacketSize) * PacketSize;
+    const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, Index(PacketSize));
 
     unaligned_dense_assignment_loop<DstIsAligned != 0>::run(kernel, 0, alignedStart);
 
