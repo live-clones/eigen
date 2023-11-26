@@ -46,9 +46,11 @@ void test_threaded_assignment(const PlainObject&, Index rows = PlainObject::Rows
 
   PlainObject dst(rows, cols), ref(rows, cols), rhs(rows, cols);
   rhs.setRandom();
-  const auto rhs_xpr = rhs.cwiseMax(Scalar(1)).cwiseAbs2();
+  const auto rhs_xpr = rhs.cwiseAbs2();
 
   // linear access
+  dst.setRandom();
+  ref.setRandom();
   ref = rhs_xpr.unaryExpr(VectorizationOff());
   dst.device(threadPoolDevice) = rhs_xpr.unaryExpr(VectorizationOff());
   VERIFY_IS_CWISE_EQUAL(ref, dst);
@@ -60,14 +62,13 @@ void test_threaded_assignment(const PlainObject&, Index rows = PlainObject::Rows
   // outer-inner access
   Index blockRows = numext::maxi(Index(1), rows - 1);
   Index blockCols = numext::maxi(Index(1), cols - 1);
-
-  ref.setZero();
-  dst.setZero();
+  dst.setRandom();
+  ref.setRandom();
   ref.bottomRightCorner(blockRows, blockCols) =
       rhs_xpr.bottomRightCorner(blockRows, blockCols).unaryExpr(VectorizationOff());
   dst.bottomRightCorner(blockRows, blockCols).device(threadPoolDevice) =
       rhs_xpr.bottomRightCorner(blockRows, blockCols).unaryExpr(VectorizationOff());
-  VERIFY_IS_CWISE_EQUAL(ref, dst);
+  VERIFY_IS_CWISE_EQUAL(ref.bottomRightCorner(blockRows, blockCols), dst.bottomRightCorner(blockRows, blockCols));
 
   ref.setZero();
   dst.setZero();
@@ -75,7 +76,7 @@ void test_threaded_assignment(const PlainObject&, Index rows = PlainObject::Rows
       rhs_xpr.bottomRightCorner(blockRows, blockCols).unaryExpr(VectorizationOn());
   dst.bottomRightCorner(blockRows, blockCols).device(threadPoolDevice) =
       rhs_xpr.bottomRightCorner(blockRows, blockCols).unaryExpr(VectorizationOn());
-  VERIFY_IS_CWISE_EQUAL(ref, dst);
+  VERIFY_IS_CWISE_EQUAL(ref.bottomRightCorner(blockRows, blockCols), dst.bottomRightCorner(blockRows, blockCols));
 }
 
 EIGEN_DECLARE_TEST(test) {
