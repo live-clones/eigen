@@ -1006,6 +1006,18 @@ class TensorBase<Derived, ReadOnlyAccessors>
     #include EIGEN_READONLY_TENSORBASE_PLUGIN
     #endif
 
+    #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    // Einstein notation
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if_t<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>>
+    inline auto operator()(IndexTypes... indices){
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if_t<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>>
+    inline auto operator()(IndexTypes... indices)const{
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
+    #endif
+
   protected:
     template <typename Scalar, int NumIndices, int Options, typename IndexType> friend class Tensor;
     template <typename Scalar, typename Dimensions, int Option, typename IndexTypes> friend class TensorFixedSize;
@@ -1198,6 +1210,18 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 
     #ifdef EIGEN_TENSORBASE_PLUGIN
     #include EIGEN_TENSORBASE_PLUGIN
+    #endif
+
+    #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    // Einstein notation
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>::type>
+    inline auto operator()(IndexTypes... indices){
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>::type>
+    inline auto operator()(IndexTypes... indices) const {
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
     #endif
 
  protected:

@@ -214,6 +214,12 @@ template<typename PlainObjectType> class TensorRef : public TensorBase<TensorRef
       const array<Index, num_indices> indices{{firstIndex, otherIndices...}};
       return coeff(indices);
     }
+
+#   if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    //Einstein notation
+    using TensorBase<TensorRef<PlainObjectType> >::operator();
+#   endif
+
     template<typename... IndexTypes> EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Scalar& coeffRef(Index firstIndex, IndexTypes... otherIndices)
     {
