@@ -29,19 +29,20 @@
   * The default implementation is based on kissfft. It is a small, free, and
   * reasonably efficient default.
   *
-  * There are currently four implementation backend:
+  * There are currently four implementation backends:
   *
   * - kissfft(https://github.com/mborgerding/kissfft) : Simple and not so fast, BSD-3-Clause.
   *   It is a mixed-radix Fast Fourier Transform based up on the principle, "Keep It Simple, Stupid."
   *   Notice that:kissfft fails to handle "atypically-sized" inputs(i.e., sizes with large factors),a workaround is using fftw or pocketfft.
   * - fftw (http://www.fftw.org) : faster, GPL -- incompatible with Eigen in LGPL form, bigger code size.
   * - MKL (https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html) : fastest, free -- may be incompatible with Eigen in GPL form.
-  * - pocketfft (https://gitlab.mpcdf.mpg.de/mtr/pocketfft) : faster than kissfft, BSD 3-clause.
+  * - PocketFFT/DUCC (https://gitlab.mpcdf.mpg.de/mtr/pocketfft, https://gitlab.mpcdf.mpg.de/mtr/ducc) : faster than kissfft, BSD 3-clause.
   *   It is a heavily modified implementation of FFTPack, with the following advantages:
   *   1.strictly C++11 compliant
   *   2.more accurate twiddle factor computation
   *   3.very fast plan generation
   *   4.worst case complexity for transform sizes with large prime factors is N*log(N), because Bluestein's algorithm is used for these cases
+  *   According to the author, DUCC contains the "evolution" of pocketfft, though the interface is very similar.
   *
   * \section FFTDesign Design
   *
@@ -97,11 +98,18 @@
    }
 #elif defined EIGEN_POCKETFFT_DEFAULT
 // internal::pocketfft_impl: a heavily modified implementation of FFTPack, with many advantages.
-# include<pocketfft_hdronly.h>
-# include"src/FFT/ei_pocketfft_impl.h"
+# include <pocketfft_hdronly.h>
+# include "src/FFT/ei_pocketfft_impl.h"
   namespace Eigen {
      template <typename T>
       struct default_fft_impl : public internal::pocketfft_impl<T> {};
+  }
+#elif defined EIGEN_DUCCFFT_DEFAULT 
+# include <ducc0/fft/fft.h>
+# include "src/FFT/ei_duccfft_impl.h"
+  namespace Eigen {
+     template <typename T>
+      struct default_fft_impl : public internal::duccfft_impl<T> {};
   }
 #else 
 // internal::kissfft_impl:  small, free, reasonably efficient default, derived from kissfft
@@ -215,7 +223,7 @@ class FFT
         m_impl.fwd(dst,src,static_cast<int>(nfft));
     }
 
-#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_MKL_DEFAULT
+#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || defined EIGEN_MKL_DEFAULT
     inline 
     void fwd2(Complex * dst, const Complex * src, int n0,int n1)
     {
@@ -374,7 +382,7 @@ class FFT
     }
 
 
-#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_MKL_DEFAULT
+#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || defined EIGEN_MKL_DEFAULT
     inline 
     void inv2(Complex * dst, const Complex * src, int n0,int n1)
     {
