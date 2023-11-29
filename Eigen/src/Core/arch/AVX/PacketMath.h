@@ -1208,6 +1208,136 @@ template<> EIGEN_STRONG_INLINE Packet4d ploadu<Packet4d>(const double* from) { E
 template<> EIGEN_STRONG_INLINE Packet8i ploadu<Packet8i>(const int* from) { EIGEN_DEBUG_UNALIGNED_LOAD return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(from)); }
 template<> EIGEN_STRONG_INLINE Packet8ui ploadu<Packet8ui>(const uint32_t* from) { EIGEN_DEBUG_UNALIGNED_LOAD return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(from)); }
 
+template<> EIGEN_STRONG_INLINE Packet4f ploadu_partial<Packet4f>(const float* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm_maskload_ps(from, _mm128_partial_mask<float>(n, offset));
+}
+template<> EIGEN_STRONG_INLINE Packet2d ploadu_partial<Packet2d>(const double* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm_maskload_pd(from, _mm128_partial_mask<double>(n, offset));
+}
+
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<float, Packet4f>(float* to, const Packet4f& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm_maskstore_ps(to, _mm128_partial_mask<float>(n, offset), from);
+}
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<double, Packet2d>(double* to, const Packet2d& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm_maskstore_pd(to, _mm128_partial_mask<double>(n, offset), from);
+}
+
+template <typename Scalar>
+EIGEN_STRONG_INLINE __m256i _mm256_partial_mask(const Index n, const Index offset) {
+  static constexpr int Size = sizeof(Scalar);
+  EIGEN_STATIC_ASSERT(Size >= 4, SIZE OF SCALAR MUST BE GREATER THAN OR EQUAL TO FOUR)
+#ifdef EIGEN_VECTORIZE_AVX2
+  const __m256i cst_lin =
+      _mm256_setr_epi32(0 / Size, 4 / Size, 8 / Size, 12 / Size, 16 / Size, 20 / Size, 24 / Size, 28 / Size);
+  __m256i off = _mm256_set1_epi32(offset);
+  __m256i off_n = _mm256_set1_epi32(offset + n);
+  __m256i off_gt_lin = _mm256_cmpgt_epi32(off, cst_lin);
+  __m256i off_n_gt_lin = _mm256_cmpgt_epi32(off_n, cst_lin);
+  __m256i mask = _mm256_andnot_si256(off_gt_lin, off_n_gt_lin);
+  return mask;
+#else
+  const __m256 cst_lin =
+      _mm256_setr_ps(0 / Size, 4 / Size, 8 / Size, 12 / Size, 16 / Size, 20 / Size, 24 / Size, 28 / Size);
+  __m256 off = _mm256_set1_ps(offset);
+  __m256 off_n = _mm256_set1_ps(offset + n);
+  __m256 lin_ge_off = _mm256_cmp_ps(cst_lin, off, _CMP_GE_OQ);
+  __m256 lin_lt_off_n = _mm256_cmp_ps(cst_lin, off_n, _CMP_LT_OQ);
+  __m256 mask = _mm256_and_ps(lin_ge_off, lin_lt_off_n);
+  return _mm256_castps_si256(mask);
+#endif
+}
+
+template<> EIGEN_STRONG_INLINE Packet8f ploadu_partial<Packet8f>(const float* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_ps(from, _mm256_partial_mask<float>(n, offset));
+}
+template<> EIGEN_STRONG_INLINE Packet4d ploadu_partial<Packet4d>(const double* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_pd(from, _mm256_partial_mask<double>(n, offset));
+}
+
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<float, Packet8f>(float* to, const Packet8f& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_ps(to, _mm256_partial_mask<float>(n, offset), from);
+}
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<double, Packet4d>(double* to, const Packet4d& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_pd(to, _mm256_partial_mask<double>(n, offset), from);
+}
+
+#ifdef EIGEN_VECTORIZE_AVX2
+
+template<> EIGEN_STRONG_INLINE Packet4i ploadu_partial<Packet4i>(const int* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm_maskload_epi32(from, _mm128_partial_mask<int>(n, offset));
+}
+template<> EIGEN_STRONG_INLINE Packet4ui ploadu_partial<Packet4ui>(const uint32_t* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm_maskload_epi32(reinterpret_cast<const int*>(from),
+                                                    _mm128_partial_mask<uint32_t>(n, offset));
+}
+
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<int, Packet4i>(int* to, const Packet4i& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm_maskstore_epi32(to, _mm128_partial_mask<int>(n, offset), from);
+}
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm_maskstore_epi32(reinterpret_cast<int*>(to), _mm128_partial_mask<uint32_t>(n, offset), from);
+}
+
+template<> EIGEN_STRONG_INLINE Packet8i  ploadu_partial<Packet8i>(const int* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi32(from, _mm256_partial_mask<int>(n, offset));
+}
+template<> EIGEN_STRONG_INLINE Packet8ui ploadu_partial<Packet8ui>(const uint32_t* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi32(reinterpret_cast<const int*>(from),
+                                                       _mm256_partial_mask<uint32_t>(n, offset));
+}
+
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<int, Packet8i>(int* to, const Packet8i& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi32(to, _mm256_partial_mask<int>(n, offset), from);
+}
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi32(reinterpret_cast<int*>(to),
+                                                         _mm256_partial_mask<uint32_t>(n, offset), from);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4l ploadu_partial<Packet4l>(const int64_t* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi64(reinterpret_cast<const long long*>(from),
+                                                       _mm256_partial_mask<int64_t>(n, offset));
+}
+template<> EIGEN_STRONG_INLINE Packet4ul ploadu_partial<Packet4ul>(const uint64_t* from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_LOAD return _mm256_maskload_epi64(reinterpret_cast<const long long*>(from),
+                                                       _mm256_partial_mask<uint64_t>(n, offset));
+}
+
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<int64_t, Packet4l>(int64_t* to, const Packet4l& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi64(reinterpret_cast<long long*>(to),
+                                                         _mm256_partial_mask<int64_t>(n, offset), from);
+}
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE return _mm256_maskstore_epi64(reinterpret_cast<long long*>(to),
+                                                         _mm256_partial_mask<uint64_t>(n, offset), from);
+}
+
+#else
+
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<int, Packet8i>(int* to, const Packet8i& from, const Index n, const Index offset) {
+  EIGEN_DEBUG_MASKED_STORE
+  constexpr Index PacketSize = 4;
+  Index lo_offset = numext::mini(PacketSize, offset);
+  Index lo_n = numext::mini(PacketSize, offset + n) - lo_offset;
+  Index hi_offset = numext::maxi(Index(0), offset - PacketSize);
+  Index hi_n = n - lo_n;
+  if (lo_n > 0) {
+    __m128i lo = _mm256_castsi256_si128(from);
+    __m128i lo_mask = _mm128_partial_mask<int>(lo_n, lo_offset);
+    _mm_maskmoveu_si128(lo, lo_mask, reinterpret_cast<char*>(to));
+  }
+  if (hi_n > 0) {
+    __m128i hi = _mm256_extractf128_si256(from, 1);
+    __m128i hi_mask = _mm128_partial_mask<int>(hi_n, hi_offset);
+    _mm_maskmoveu_si128(hi, hi_mask, reinterpret_cast<char*>(to + 4));
+  }
+}
+template<> EIGEN_STRONG_INLINE void pstoreu_partial<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& from, const Index n, const Index offset) {
+  pstoreu_partial<int, Packet8i>(reinterpret_cast<int*>(to), (Packet8i)from, n, offset);
+}
+
+#endif
+
 template<> EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from, uint8_t umask) {
 #ifdef EIGEN_VECTORIZE_AVX512
   __mmask16 mask = static_cast<__mmask16>(umask & 0x00FF);

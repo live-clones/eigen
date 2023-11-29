@@ -962,6 +962,23 @@ template<> EIGEN_STRONG_INLINE void pstoreu<int>(int*       to, const Packet4i& 
 template<> EIGEN_STRONG_INLINE void pstoreu<uint32_t>(uint32_t* to, const Packet4ui& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm_storeu_si128(reinterpret_cast<__m128i*>(to), from); }
 template<> EIGEN_STRONG_INLINE void pstoreu<bool>(bool*     to, const Packet16b& from) { EIGEN_DEBUG_ALIGNED_STORE _mm_storeu_si128(reinterpret_cast<__m128i*>(to), from); }
 
+template <typename Scalar>
+EIGEN_STRONG_INLINE __m128i _mm128_partial_mask(const Index n, const Index offset) {
+  static constexpr int Size = sizeof(Scalar);
+  const __m128i cst_lin =
+      _mm_setr_epi8(
+           0 / Size,  1 / Size,  2 / Size,  3 / Size, 
+           4 / Size,  5 / Size,  6 / Size,  7 / Size, 
+           8 / Size,  9 / Size, 10 / Size, 11 / Size, 
+          12 / Size, 13 / Size, 14 / Size, 15 / Size);
+  __m128i off = _mm_set1_epi8(static_cast<char>(offset));
+  __m128i off_n = _mm_set1_epi8(static_cast<char>(offset + n));
+  __m128i off_gt_lin = _mm_cmpgt_epi8(off, cst_lin);
+  __m128i off_n_gt_lin = _mm_cmpgt_epi8(off_n, cst_lin);
+  __m128i mask = _mm_andnot_si128(off_gt_lin, off_n_gt_lin);
+  return mask;
+}
+
 template<typename Scalar, typename Packet> EIGEN_STRONG_INLINE void pstorel(Scalar* to, const Packet& from);
 template<> EIGEN_STRONG_INLINE void pstorel(float*   to, const Packet4f& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm_storel_pi(reinterpret_cast<__m64*>(to), from); }
 template<> EIGEN_STRONG_INLINE void pstorel(double*  to, const Packet2d& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm_storel_pd(to, from); }

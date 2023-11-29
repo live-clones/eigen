@@ -16,6 +16,8 @@ static int nb_storeu;
 #define EIGEN_DEBUG_UNALIGNED_LOAD  { nb_loadu++;   }
 #define EIGEN_DEBUG_ALIGNED_STORE   { nb_store++;   }
 #define EIGEN_DEBUG_UNALIGNED_STORE { nb_storeu++;  }
+#define EIGEN_DEBUG_GENERIC_MASKED_LOAD  { nb_load--;  }
+#define EIGEN_DEBUG_GENERIC_MASKED_STORE { nb_store--; }
 
 #define VERIFY_ALIGNED_UNALIGNED_COUNT(XPR,AL,UL,AS,US) {\
     nb_load = nb_loadu = nb_store = nb_storeu = 0; \

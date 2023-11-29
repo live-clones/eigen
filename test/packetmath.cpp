@@ -503,7 +503,7 @@ void packetmath() {
       if (N + M > PacketSize) continue;  // Don't read or write past end of Packet
 
       internal::pstore_partial(data2, internal::pload_partial<Packet>(data1, N, M), N, M);
-      VERIFY(test::areApprox(data1, data2, N) && "aligned offset loadN/storeN");
+      VERIFY(test::areApprox(data1 + M, data2 + M, N) && "aligned offset loadN/storeN");
     }
   }
 
