@@ -535,7 +535,7 @@ struct log1p_retval {
  ****************************************************************************/
 
 template <typename ScalarX, typename ScalarY,
-          bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
+          bool IsInteger = NumTraits<ScalarX>::IsInteger&& NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
   // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
@@ -646,7 +646,7 @@ struct random_default_impl<Scalar, false, true> {
   }
 
   static inline Scalar run() {
-#ifdef EIGEN_MAKING_DOCS 
+#ifdef EIGEN_MAKING_DOCS
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
     enum : int {
