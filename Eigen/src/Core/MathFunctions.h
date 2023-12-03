@@ -586,7 +586,10 @@ inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
 template <typename Scalar>
 struct random_default_impl<Scalar, false, false> {
   static inline Scalar run(const Scalar& x, const Scalar& y) {
-    return x + (y - x) * Scalar(std::rand()) / Scalar(RAND_MAX);
+    using UIntT = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+    UIntT uintRand = random_impl<UIntT>::run();
+    Scalar scalarRand = Scalar(uintRand) / Scalar(NumTraits<UIntT>::highest());
+    return x + (y - x) * scalarRand;
   }
   static inline Scalar run() { return run(Scalar(NumTraits<Scalar>::IsSigned ? -1 : 0), Scalar(1)); }
 };
@@ -632,42 +635,29 @@ template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
   static inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    // ScalarU is the unsigned counterpart of Scalar, possibly Scalar itself.
-    typedef typename make_unsigned<Scalar>::type ScalarU;
-    // ScalarX is the widest of ScalarU and unsigned int.
-    // We'll deal only with ScalarX and unsigned int below thus avoiding signed
-    // types and arithmetic and signed overflows (which are undefined behavior).
-    typedef std::conditional_t<(ScalarU(-1) > unsigned(-1)), ScalarU, unsigned> ScalarX;
-    // The following difference doesn't overflow, provided our integer types are two's
-    // complement and have the same number of padding bits in signed and unsigned variants.
-    // This is the case in most modern implementations of C++.
-    ScalarX range = ScalarX(y) - ScalarX(x);
-    ScalarX offset = 0;
-    ScalarX divisor = 1;
-    ScalarX multiplier = 1;
-    const unsigned rand_max = RAND_MAX;
-    if (range <= rand_max)
-      divisor = (rand_max + 1) / (range + 1);
-    else
-      multiplier = 1 + range / (rand_max + 1);
-    // Rejection sampling.
-    do {
-      offset = (unsigned(std::rand()) * multiplier) / divisor;
-    } while (offset > range);
-    return Scalar(ScalarX(x) + offset);
+    if (x == NumTraits<Scalar>::lowest() && y == NumTraits<Scalar>::highest()) return run();
+    using UIntT = typename make_unsigned<Scalar>::type;
+    const UIntT range = (UIntT(y) - UIntT(x)) + 1;
+    const UIntT limit = range * (NumTraits<UIntT>::highest() / range);
+    while (true) {
+      UIntT rand = random_impl<UIntT>::run();
+      if (rand < limit) return x + static_cast<Scalar>(rand % range);
+    }
   }
 
   static inline Scalar run() {
-#ifdef EIGEN_MAKING_DOCS
+#ifdef EIGEN_MAKING_DOCS 
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
-    enum {
-      rand_bits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
-      scalar_bits = sizeof(Scalar) * CHAR_BIT,
-      shift = plain_enum_max(0, int(rand_bits) - int(scalar_bits)),
-      offset = NumTraits<Scalar>::IsSigned ? (1 << (plain_enum_min(rand_bits, scalar_bits) - 1)) : 0
+    enum : int {
+      RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
+      ScalarBits = sizeof(Scalar) * CHAR_BIT
     };
-    return Scalar((std::rand() >> shift) - offset);
+    Scalar result = 0;
+    for (int shift = 0; shift < ScalarBits; shift += RandBits) {
+      result |= static_cast<Scalar>(std::rand()) << shift;
+    }
+    return result;
 #endif
   }
 };
