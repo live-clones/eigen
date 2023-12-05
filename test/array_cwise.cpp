@@ -951,7 +951,6 @@ void array_complex(const ArrayType& m) {
   // Check for larger magnitude complex numbers that expm1 matches exp - 1.
   VERIFY_IS_APPROX(expm1(10. * m1), exp(10. * m1) - 1.);
 
-<<<<<<< HEAD
   VERIFY_IS_APPROX(sinh(m1), 0.5*(exp(m1)-exp(-m1)));
   VERIFY_IS_APPROX(cosh(m1), 0.5*(exp(m1)+exp(-m1)));
   VERIFY_IS_APPROX(tanh(m1), (0.5*(exp(m1)-exp(-m1)))/(0.5*(exp(m1)+exp(-m1))));
@@ -963,12 +962,6 @@ void array_complex(const ArrayType& m) {
     VERIFY_IS_APPROX(logistic(m1), (1.0 / (1.0 + exp(-m1))));
     m1(0, 0) = old_m1_val;  // Restore value for future tests.
   }
-=======
-  VERIFY_IS_APPROX(sinh(m1), 0.5 * (exp(m1) - exp(-m1)));
-  VERIFY_IS_APPROX(cosh(m1), 0.5 * (exp(m1) + exp(-m1)));
-  VERIFY_IS_APPROX(tanh(m1), (0.5 * (exp(m1) - exp(-m1))) / (0.5 * (exp(m1) + exp(-m1))));
-  VERIFY_IS_APPROX(logistic(m1), (1.0 / (1.0 + exp(-m1))));
->>>>>>> 2fb25d405 (Format tests and benchmarks.)
 
   for (Index i = 0; i < m.rows(); ++i)
     for (Index j = 0; j < m.cols(); ++j) m3(i, j) = std::atan2(m1(i, j).imag(), m1(i, j).real());
