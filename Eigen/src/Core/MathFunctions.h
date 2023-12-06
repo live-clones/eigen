@@ -628,6 +628,141 @@ struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus> {
   // no value, error at compile time
 };
 
+// Count leading zeros.
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+  static_assert(std::is_integral<BitsType>::value && std::is_unsigned<BitsType>::value,
+                "BitsType must be an unsigned integer");
+  int n = CHAR_BIT * sizeof(BitsType);
+  int shift = n / 2;
+  while (bits > 0 && shift > 0) {
+    BitsType y = bits >> shift;
+    if (y > 0) {
+      n -= shift;
+      bits = y;
+    }
+    shift /= 2;
+  }
+  if (shift == 0) {
+    --n;
+  }
+  return n;
+}
+
+// Count trailing zeros.
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+  static_assert(std::is_integral<BitsType>::value && std::is_unsigned<BitsType>::value,
+                "BitsType must be an unsigned integer");
+  int n = CHAR_BIT * sizeof(BitsType);
+  int shift = n / 2;
+  while (bits > 0 && shift > 0) {
+    BitsType y = bits << shift;
+    if (y > 0) {
+      n -= shift;
+      bits = y;
+    }
+    shift /= 2;
+  }
+  if (shift == 0) {
+    --n;
+  }
+  return n;
+}
+
+#if EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
+template <>
+EIGEN_DEVICE_FUNC inline int clz<uint8_t>(uint8_t bits) {
+  return bits == 0 ? 8 : __builtin_clz(static_cast<uint32_t>(bits)) - 24;
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline int clz<uint16_t>(uint16_t bits) {
+  return bits == 0 ? 16 : __builtin_clz(static_cast<uint32_t>(bits)) - 16;
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline int clz<uint32_t>(uint32_t bits) {
+  return bits == 0 ? 32 : __builtin_clz(bits);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline int clz<uint64_t>(uint64_t bits) {
+  return bits == 0 ? 64 : __builtin_clzl(bits);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline int ctz<uint8_t>(uint8_t bits) {
+  return bits == 0 ? 8 : __builtin_ctz(bits);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline int ctz<uint16_t>(uint16_t bits) {
+  return bits == 0 ? 16 : __builtin_ctz(bits);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline int ctz<uint32_t>(uint32_t bits) {
+  return bits == 0 ? 32 : __builtin_ctz(bits);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline int ctz<uint64_t>(uint64_t bits) {
+  return bits == 0 ? 64 : __builtin_ctzl(bits);
+}
+
+#elif EIGEN_COMP_MSVC
+
+EIGEN_DEVICE_FUNC inline int clz<uint8_t>(uint8_t bits) {
+  unsigned long out;
+  _BitScanReverse(&out, bits);
+  return bits == 0 ? 8 : out - 24;
+}
+
+EIGEN_DEVICE_FUNC inline int clz<uint16_t>(uint16_t bits) {
+  unsigned long out;
+  _BitScanReverse(&out, bits);
+  return bits == 0 ? 16 : out - 16;
+}
+
+EIGEN_DEVICE_FUNC inline int clz<uint32_t>(uint32_t bits) {
+  unsigned long out;
+  _BitScanReverse(&out, bits);
+  return bits == 0 ? 32 : out;
+}
+
+EIGEN_DEVICE_FUNC inline int ctz<uint64_t>(uint64_t bits) {
+  __int64 out;
+  _BitScanReverse64(&out, bits);
+  return bits == 0 ? 64 : out;
+}
+
+EIGEN_DEVICE_FUNC inline int ctz<uint8_t>(uint8_t bits) {
+  unsigned long out;
+  _BitScanForward(&out, bits);
+  return bits == 0 ? 8 : out;
+}
+
+EIGEN_DEVICE_FUNC inline int ctz<uint16_t>(uint16_t bits) {
+  unsigned long out;
+  _BitScanForward(&out, bits);
+  return bits == 0 ? 16 : out;
+}
+
+EIGEN_DEVICE_FUNC inline int ctz<uint32_t>(uint32_t bits) {
+  unsigned long out;
+  _BitScanForward(&out, bits);
+  return bits == 0 ? 32 : out;
+}
+
+EIGEN_DEVICE_FUNC inline int ctz<uint64_t>(uint64_t bits) {
+  __int64 out;
+  _BitScanForward64(&out, bits);
+  return bits == 0 ? 64 : out;
+}
+
+#endif
+
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
   static inline Scalar run(const Scalar& x, const Scalar& y) {
