@@ -653,6 +653,16 @@ struct random_default_impl<Scalar, false, false> {
   }
 };
 
+// TODO: implement long double
+template <>
+struct random_default_impl<long double, false, false> {
+  using impl = random_default_impl<double, false, false>;
+  static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
+    return static_cast<long double>(impl::run(static_cast<double>(x), static_cast<double>(y)));
+  }
+  static EIGEN_DEVICE_FUNC inline long double run() { return static_cast<long double>(impl::run()); }
+};
+
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
   using BitsType = typename make_unsigned<Scalar>::type;
