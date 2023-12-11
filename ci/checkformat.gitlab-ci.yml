@@ -5,6 +5,6 @@ checkformat:clangformat:
     - apt-get update -y
     - apt-get install -y --no-install-recommends git clang-format-17
   script:
-    - git clang-format --dry-run --Werror --verbose
+    - git clang-format-17 --dry-run --Werror --verbose
   only:
     - merge_requests
