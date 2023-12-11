@@ -535,7 +535,7 @@ struct log1p_retval {
  ****************************************************************************/
 
 template <typename ScalarX, typename ScalarY,
-          bool IsInteger = NumTraits<ScalarX>::IsInteger&& NumTraits<ScalarY>::IsInteger>
+          bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
   // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
@@ -631,7 +631,7 @@ struct random_default_impl<Scalar, false, false> {
     ClearBits = ScalarBits - SetBits
   };
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_unit(); }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(NumTraits<Scalar>::IsSigned ? -1 : 0), Scalar(1)); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(-1), Scalar(1)); }
 
  private:
   static EIGEN_DEVICE_FUNC inline Scalar run_unit() {
@@ -683,7 +683,6 @@ struct random_default_impl<Scalar, false, true> {
 #ifdef EIGEN_MAKING_DOCS
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
-    // generate at least ScalarBits random bits and discard the excess
     Scalar randomBits = Scalar(0);
     for (int shift = 0; shift < ScalarBits; shift += RandBits) {
       int r = std::rand();
