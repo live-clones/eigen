@@ -627,7 +627,7 @@ struct random_default_impl<Scalar, false, false> {
     RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
     ScalarBits = sizeof(Scalar) * CHAR_BIT,
     MantissaBits = NumTraits<Scalar>::digits() - 1,
-    SetBits = RandBits * numext::div_ceil(MantissaBits, RandBits),
+    SetBits = RandBits * ((MantissaBits + RandBits - 1) / RandBits),
     ClearBits = ScalarBits - SetBits
   };
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_unit(); }
