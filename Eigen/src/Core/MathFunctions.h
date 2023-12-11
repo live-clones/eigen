@@ -535,7 +535,7 @@ struct log1p_retval {
  ****************************************************************************/
 
 template <typename ScalarX, typename ScalarY,
-          bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
+          bool IsInteger = NumTraits<ScalarX>::IsInteger&& NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
   // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
@@ -561,37 +561,6 @@ struct pow_impl<ScalarX, ScalarY, true> {
     }
     return res;
   }
-};
-
-/****************************************************************************
- * Implementation of random                                               *
- ****************************************************************************/
-
-template <typename Scalar, bool IsComplex, bool IsInteger>
-struct random_default_impl {};
-
-template <typename Scalar>
-struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
-
-template <typename Scalar>
-struct random_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y);
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
-
-template <typename Scalar>
-struct random_default_impl<Scalar, false, false> {
-  static inline Scalar run(const Scalar& x, const Scalar& y) {
-    using UIntT = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-    UIntT uintRand = random_impl<UIntT>::run();
-    Scalar scalarRand = Scalar(uintRand) / Scalar(NumTraits<UIntT>::highest());
-    return x + (y - x) * scalarRand;
-  }
-  static inline Scalar run() { return run(Scalar(NumTraits<Scalar>::IsSigned ? -1 : 0), Scalar(1)); }
 };
 
 enum { meta_floor_log2_terminate, meta_floor_log2_move_up, meta_floor_log2_move_down, meta_floor_log2_bogus };
@@ -631,43 +600,106 @@ struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus> {
   // no value, error at compile time
 };
 
+/****************************************************************************
+ * Implementation of random                                               *
+ ****************************************************************************/
+
+template <typename Scalar, bool IsComplex, bool IsInteger>
+struct random_default_impl {};
+
+template <typename Scalar>
+struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
+
+template <typename Scalar>
+struct random_retval {
+  typedef Scalar type;
+};
+
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y);
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
+
+template <typename Scalar>
+struct random_default_impl<Scalar, false, false> {
+  using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  enum : int {
+    RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
+    ScalarBits = sizeof(Scalar) * CHAR_BIT,
+    MantissaBits = NumTraits<Scalar>::digits() - 1,
+    SetBits = RandBits * numext::div_ceil(MantissaBits, RandBits),
+    ClearBits = ScalarBits - SetBits
+  };
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_unit(); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(NumTraits<Scalar>::IsSigned ? -1 : 0), Scalar(1)); }
+
+ private:
+  static EIGEN_DEVICE_FUNC inline Scalar run_unit() {
+    const Scalar kOne = Scalar(1);
+    // fill rand with at least MantissaBits worth of random bits
+    BitsType randomBits = BitsType(0);
+    for (int shift = 0; shift < MantissaBits; shift += RandBits) {
+      int r = std::rand();
+      randomBits |= static_cast<BitsType>(r) << shift;
+    }
+    // clear the exponent bits
+    randomBits >>= ClearBits;
+    // set the exponent bits to 1
+    randomBits |= numext::bit_cast<BitsType>(kOne);
+    // randomBits is in the interval [1,2)
+    Scalar result = numext::bit_cast<Scalar>(randomBits) - kOne;
+    // result is in the interval [0,1)
+    return result;
+  }
+};
+
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
-  static inline Scalar run(const Scalar& x, const Scalar& y) {
+  using BitsType = typename make_unsigned<Scalar>::type;
+  enum : int {
+    RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
+    ScalarBits = sizeof(Scalar) * CHAR_BIT
+  };
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    if (x == NumTraits<Scalar>::lowest() && y == NumTraits<Scalar>::highest()) return run();
-    using UIntT = typename make_unsigned<Scalar>::type;
-    const UIntT range = (UIntT(y) - UIntT(x)) + 1;
-    const UIntT limit = range * (NumTraits<UIntT>::highest() / range);
-    while (true) {
-      UIntT rand = random_impl<UIntT>::run();
-      if (rand < limit) return x + static_cast<Scalar>(rand % range);
+    const BitsType count = (BitsType(y) - BitsType(x)) + 1;
+    BitsType randomBits = random_impl<BitsType>::run();
+    // handle two edge cases: 
+    // 1) x and y represent the entire range of Scalar (randomBits is not modified); and
+    // 2) count is a power of two (randomBits is reduced modulo count)
+    if ((count & (count - 1)) == 0) {
+      // apply modulus with bit twiddling
+      return x + static_cast<Scalar>(randomBits & (count - 1));
     }
+    // otherwise, we reject numbers that lie within the biased portion of the distribution
+    const BitsType limit = NumTraits<BitsType>::highest() - (NumTraits<BitsType>::highest() % count);
+    while (randomBits >= limit) {
+      randomBits = random_impl<BitsType>::run();
+    }
+    return x + static_cast<Scalar>(randomBits % count);
   }
 
-  static inline Scalar run() {
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
 #ifdef EIGEN_MAKING_DOCS
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
-    enum : int {
-      RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
-      ScalarBits = sizeof(Scalar) * CHAR_BIT
-    };
-    Scalar result = 0;
+    // generate at least ScalarBits random bits and discard the excess
+    Scalar randomBits = Scalar(0);
     for (int shift = 0; shift < ScalarBits; shift += RandBits) {
-      result |= static_cast<Scalar>(std::rand()) << shift;
+      int r = std::rand();
+      randomBits |= static_cast<Scalar>(r) << shift;
     }
-    return result;
+    return randomBits;
 #endif
   }
 };
 
 template <typename Scalar>
 struct random_default_impl<Scalar, true, false> {
-  static inline Scalar run(const Scalar& x, const Scalar& y) {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     return Scalar(random(x.real(), y.real()), random(x.imag(), y.imag()));
   }
-  static inline Scalar run() {
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
     typedef typename NumTraits<Scalar>::Real RealScalar;
     return Scalar(random<RealScalar>(), random<RealScalar>());
   }
