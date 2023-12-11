@@ -660,7 +660,7 @@ struct random_default_impl<long double, false, false> {
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
     return x + (y - x) * static_cast<long double>(impl::run(0.0, 1.0));
   }
-  static EIGEN_DEVICE_FUNC inline long double run() { static_cast<long double>(impl::run()); }
+  static EIGEN_DEVICE_FUNC inline long double run() { return static_cast<long double>(impl::run()); }
 };
 
 template <typename Scalar>
