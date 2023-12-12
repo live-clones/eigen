@@ -99,12 +99,33 @@ class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conj
  * \code
  * VectorXd x(n), b(n);
  * SparseMatrix<double> A;
- * SparseLU<SparseMatrix<double>, COLAMDOrdering<int> >   solver;
+ * SparseLU<SparseMatrix<double>, COLAMDOrdering<int> > solver;
  * // fill A and b;
  * // Compute the ordering permutation vector from the structural pattern of A
  * solver.analyzePattern(A);
  * // Compute the numerical factorization
  * solver.factorize(A);
+ * //Use the factors to solve the linear system
+ * x = solver.solve(b);
+ * \endcode
+ *
+ * We can directly called compute() instead of analyzePattern() and factorize()
+ * \code
+ * VectorXd x(n), b(n);
+ * SparseMatrix<double> A;
+ * SparseLU<SparseMatrix<double>, COLAMDOrdering<int> > solver;
+ * // fill A and b;
+ * solver.compute(A);
+ * //Use the factors to solve the linear system
+ * x = solver.solve(b);
+ * \endcode
+ *
+ * Or give the matrix to the constructor SparseLU(const MatrixType& matrix)
+ * \code
+ * VectorXd x(n), b(n);
+ * SparseMatrix<double> A;
+ * // fill A and b;
+ * SparseLU<SparseMatrix<double>, COLAMDOrdering<int> > solver(A);
  * //Use the factors to solve the linear system
  * x = solver.solve(b);
  * \endcode
@@ -150,10 +171,18 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
  public:
+  /** \brief Basic constructor of the solver.
+   *
+   * Construct a SparseLU. compute() should be called afterward with a matrix.
+   */
   SparseLU()
       : m_lastError(""), m_Ustore(0, 0, 0, 0, 0, 0), m_symmetricmode(false), m_diagpivotthresh(1.0), m_detPermR(1) {
     initperfvalues();
   }
+  /** \brief Constructor of the solver already based on a specific matrix.
+   *
+   * Construct a SparseLU. compute() is already called with the given matrix.
+   */
   explicit SparseLU(const MatrixType& matrix)
       : m_lastError(""), m_Ustore(0, 0, 0, 0, 0, 0), m_symmetricmode(false), m_diagpivotthresh(1.0), m_detPermR(1) {
     initperfvalues();
@@ -168,9 +197,15 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   void factorize(const MatrixType& matrix);
   void simplicialfactorize(const MatrixType& matrix);
 
-  /**
+  /** \brief Analyze and factorize the matrix so the solver is ready to solve.
+   *
    * Compute the symbolic and numeric factorization of the input sparse matrix.
-   * The input matrix should be in column-major storage.
+   * The input matrix should be in column-major storage, otherwise analyzePattern()
+   * will do a heavy copy.
+   *
+   * Call analyzePattern() followed by factorize()
+   *
+   * \sa analyzePattern(), factorize()
    */
   void compute(const MatrixType& matrix) {
     // Analyze
@@ -179,7 +214,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     factorize(matrix);
   }
 
-  /** \returns an expression of the transposed of the factored matrix.
+  /** \brief Return a solver for the transposed matrix.
+   *
+   * \returns an expression of the transposed of the factored matrix.
    *
    * A typical usage is to solve for the transposed problem A^T x = b:
    * \code
@@ -196,7 +233,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return transposeView;
   }
 
-  /** \returns an expression of the adjoint of the factored matrix
+  /** \brief Return a solver for the transposed matrix.
+   *
+   * \returns an expression of the adjoint of the factored matrix
    *
    * A typical usage is to solve for the adjoint problem A' x = b:
    * \code
@@ -215,19 +254,28 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return adjointView;
   }
 
+  /** \brief Give the number of rows.
+   */
   inline Index rows() const { return m_mat.rows(); }
+  /** \brief Give the numver of columns.
+   */
   inline Index cols() const { return m_mat.cols(); }
-  /** Indicate that the pattern of the input matrix is symmetric */
+  /** \brief Let you set that the pattern of the input matrix is symmetric
+   */
   void isSymmetric(bool sym) { m_symmetricmode = sym; }
 
-  /** \returns an expression of the matrix L, internally stored as supernodes
+  /** \brief Give the matrixL
+   *
+   * \returns an expression of the matrix L, internally stored as supernodes
    * The only operation available with this expression is the triangular solve
    * \code
    * y = b; matrixL().solveInPlace(y);
    * \endcode
    */
   SparseLUMatrixLReturnType<SCMatrix> matrixL() const { return SparseLUMatrixLReturnType<SCMatrix>(m_Lstore); }
-  /** \returns an expression of the matrix U,
+  /** \brief Give the MatrixU
+   *
+   * \returns an expression of the matrix U,
    * The only operation available with this expression is the triangular solve
    * \code
    * y = b; matrixU().solveInPlace(y);
@@ -237,12 +285,14 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return SparseLUMatrixUReturnType<SCMatrix, Map<SparseMatrix<Scalar, ColMajor, StorageIndex>>>(m_Lstore, m_Ustore);
   }
 
-  /**
+  /** \brief Give the row matrix permutation.
+   *
    * \returns a reference to the row matrix permutation \f$ P_r \f$ such that \f$P_r A P_c^T = L U\f$
    * \sa colsPermutation()
    */
   inline const PermutationType& rowsPermutation() const { return m_perm_r; }
-  /**
+  /** \brief Give the column matrix permutation.
+   *
    * \returns a reference to the column matrix permutation\f$ P_c^T \f$ such that \f$P_r A P_c^T = L U\f$
    * \sa rowsPermutation()
    */
@@ -251,7 +301,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   void setPivotThreshold(const RealScalar& thresh) { m_diagpivotthresh = thresh; }
 
 #ifdef EIGEN_PARSED_BY_DOXYGEN
-  /** \returns the solution X of \f$ A X = B \f$ using the current decomposition of A.
+  /** \brief Solve a system \f$ A X = B \f$
+   *
+   * \returns the solution X of \f$ A X = B \f$ using the current decomposition of A.
    *
    * \warning the destination matrix X in X = this->solve(B) must be colmun-major.
    *
@@ -267,14 +319,17 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    *          \c NumericalIssue if the LU factorization reports a problem, zero diagonal for instance
    *          \c InvalidInput if the input matrix is invalid
    *
-   * \sa iparm()
+   * You can get a readable error message with lastErrorMessage().
+   *
+   * \sa lastErrorMessage()
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");
     return m_info;
   }
 
-  /**
+  /** \brief Give a human readable error
+   *
    * \returns A string describing the type of error
    */
   std::string lastErrorMessage() const { return m_lastError; }
@@ -302,7 +357,8 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return true;
   }
 
-  /**
+  /** \brief Give the absolute value of the determinant.
+   *
    * \returns the absolute value of the determinant of the matrix of which
    * *this is the QR decomposition.
    *
@@ -330,7 +386,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return det;
   }
 
-  /** \returns the natural log of the absolute value of the determinant of the matrix
+  /** \brief Give the natural log of the absolute determinant.
+   *
+   * \returns the natural log of the absolute value of the determinant of the matrix
    * of which **this is the QR decomposition
    *
    * \note This method is useful to work around the risk of overflow/underflow that's
@@ -356,7 +414,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return det;
   }
 
-  /** \returns A number representing the sign of the determinant
+  /** \brief Give the sign of the determinant.
+   *
+   * \returns A number representing the sign of the determinant
    *
    * \sa absDeterminant(), logAbsDeterminant()
    */
@@ -380,7 +440,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return det * m_detPermR * m_detPermC;
   }
 
-  /** \returns The determinant of the matrix.
+  /** \brief Give the determinant.
+   *
+   * \returns The determinant of the matrix.
    *
    * \sa absDeterminant(), logAbsDeterminant()
    */
@@ -442,7 +504,8 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
 };  // End class SparseLU
 
 // Functions needed by the anaysis phase
-/**
+/** \brief Compute the column permutation.
+ *
  * Compute the column permutation to minimize the fill-in
  *
  *  - Apply this permutation to the input matrix -
@@ -451,6 +514,11 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
  *
  *  - Postorder the elimination tree and the column permutation
  *
+ * It is possible to call compute() instead of analyzePattern() + factorize().
+ *
+ * If the matrix is row-major this function will do an heavy copy.
+ *
+ * \sa factorize(), compute()
  */
 template <typename MatrixType, typename OrderingType>
 void SparseLU<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
@@ -516,23 +584,16 @@ void SparseLU<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
 
 // Functions needed by the numerical factorization phase
 
-/**
+/** \brief Factorize the matrix to get the solver ready.
+ *
  *  - Numerical factorization
  *  - Interleaved with the symbolic factorization
- * On exit,  info is
  *
- *    = 0: successful factorization
+ * To get error of this function you should check info(), you can get more info of
+ * errors with lastErrorMessage().
  *
- *    > 0: if info = i, and i is
  *
- *       <= A->ncol: U(i,i) is exactly zero. The factorization has
- *          been completed, but the factor U is exactly singular,
- *          and division by zero will occur if it is used to solve a
- *          system of equations.
- *
- *       > A->ncol: number of bytes allocated when memory allocation
- *         failure occurred, plus A->ncol. If lwork = -1, it is
- *         the estimated amount of space needed, plus A->ncol.
+ * \sa analyzePattern(), compute(), SparseLU(), info(), lastErrorMessage()
  */
 template <typename MatrixType, typename OrderingType>
 void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
