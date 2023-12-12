@@ -8,4 +8,4 @@ checkformat:clangformat:
     - apt-get update -y
     - apt-get install -y --no-install-recommends git clang-format-17
   script:
-    - git clang-format-17 --diff
+    - git clang-format-17 --diff --commit master
