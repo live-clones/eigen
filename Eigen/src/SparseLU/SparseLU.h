@@ -233,7 +233,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return transposeView;
   }
 
-  /** \brief Return a solver for the transposed matrix.
+  /** \brief Return a solver for the adjointed matrix.
    *
    * \returns an expression of the adjoint of the factored matrix
    *
@@ -463,7 +463,11 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     return (m_detPermR * m_detPermC) > 0 ? det : -det;
   }
 
+  /** \brief Give the number of non zero in matrix L.
+   */
   Index nnzL() const { return m_nnzL; }
+  /** \brief Give the number of non zero in matrix U.
+   */
   Index nnzU() const { return m_nnzU; }
 
  protected:
