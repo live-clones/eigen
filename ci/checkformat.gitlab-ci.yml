@@ -8,4 +8,6 @@ checkformat:clangformat:
     - apt-get update -y
     - apt-get install -y --no-install-recommends git clang-format-17
   script:
+    - git branch -v
+    - git log --graph --decorate --oneline -n 10
     - git clang-format-17 --diff --commit master
