@@ -8,8 +8,5 @@ checkformat:clangformat:
     - apt-get update -y
     - apt-get install -y --no-install-recommends git clang-format-17
   script:
-    - git branch -v
-    - git remote -v
-    - git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
-    - git log --graph --decorate --oneline -n 10
-    - git clang-format-17 --diff --commit origin/master
+    - echo git clang-format-17 --diff --commit ${CI_MERGE_REQUEST_DIFF_BASE_SHA}
+    - git clang-format-17 --diff --commit ${CI_MERGE_REQUEST_DIFF_BASE_SHA}
