@@ -10,5 +10,6 @@ checkformat:clangformat:
   script:
     - git branch -v
     - git remote -v
+    - git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
     - git log --graph --decorate --oneline -n 10
-    - git clang-format-17 --diff --commit $(git ls-remote origin | grep refs/heads/master | cut -f1)
+    - git clang-format-17 --diff --commit origin/master
