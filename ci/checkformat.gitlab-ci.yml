@@ -11,4 +11,4 @@ checkformat:clangformat:
     - git branch -v
     - git remote -v
     - git log --graph --decorate --oneline -n 10
-    - git clang-format-17 --diff --commit origin/master
+    - git clang-format-17 --diff --commit $(git ls-remote origin | grep refs/heads/master | cut -f1)
