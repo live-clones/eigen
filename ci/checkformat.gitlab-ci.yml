@@ -9,5 +9,6 @@ checkformat:clangformat:
     - apt-get install -y --no-install-recommends git clang-format-17
   script:
     - git branch -v
+    - git remote -v
     - git log --graph --decorate --oneline -n 10
-    - git clang-format-17 --diff --commit master
+    - git clang-format-17 --diff --commit origin/master
