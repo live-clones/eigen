@@ -100,23 +100,23 @@ class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conj
  * VectorXd x(n), b(n);
  * SparseMatrix<double> A;
  * SparseLU<SparseMatrix<double>, COLAMDOrdering<int> > solver;
- * // fill A and b;
- * // Compute the ordering permutation vector from the structural pattern of A
+ * // Fill A and b.
+ * // Compute the ordering permutation vector from the structural pattern of A.
  * solver.analyzePattern(A);
- * // Compute the numerical factorization
+ * // Compute the numerical factorization.
  * solver.factorize(A);
- * //Use the factors to solve the linear system
+ * // Use the factors to solve the linear system.
  * x = solver.solve(b);
  * \endcode
  *
- * We can directly called compute() instead of analyzePattern() and factorize()
+ * We can directly call compute() instead of analyzePattern() and factorize()
  * \code
  * VectorXd x(n), b(n);
  * SparseMatrix<double> A;
  * SparseLU<SparseMatrix<double>, COLAMDOrdering<int> > solver;
- * // fill A and b;
+ * // Fill A and b.
  * solver.compute(A);
- * //Use the factors to solve the linear system
+ * // Use the factors to solve the linear system.
  * x = solver.solve(b);
  * \endcode
  *
@@ -124,9 +124,9 @@ class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conj
  * \code
  * VectorXd x(n), b(n);
  * SparseMatrix<double> A;
- * // fill A and b;
+ * // Fill A and b.
  * SparseLU<SparseMatrix<double>, COLAMDOrdering<int> > solver(A);
- * //Use the factors to solve the linear system
+ * // Use the factors to solve the linear system.
  * x = solver.solve(b);
  * \endcode
  *
@@ -173,7 +173,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
  public:
   /** \brief Basic constructor of the solver.
    *
-   * Construct a SparseLU. compute() should be called afterward with a matrix.
+   * Construct a SparseLU. As no matrix is given as argument, compute() should be called afterward with a matrix.
    */
   SparseLU()
       : m_lastError(""), m_Ustore(0, 0, 0, 0, 0, 0), m_symmetricmode(false), m_diagpivotthresh(1.0), m_detPermR(1) {
