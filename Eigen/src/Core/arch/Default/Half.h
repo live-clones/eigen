@@ -762,14 +762,6 @@ EIGEN_ALWAYS_INLINE std::ostream& operator<<(std::ostream& os, const half& v) {
 namespace internal {
 
 template <>
-struct random_default_impl<half, false, false> {
-  static inline half run(const half& x, const half& y) {
-    return x + (y - x) * half(float(std::rand()) / float(RAND_MAX));
-  }
-  static inline half run() { return run(half(-1.f), half(1.f)); }
-};
-
-template <>
 struct is_arithmetic<half> {
   enum { value = true };
 };

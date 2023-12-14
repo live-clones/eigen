@@ -563,34 +563,6 @@ struct pow_impl<ScalarX, ScalarY, true> {
   }
 };
 
-/****************************************************************************
- * Implementation of random                                               *
- ****************************************************************************/
-
-template <typename Scalar, bool IsComplex, bool IsInteger>
-struct random_default_impl {};
-
-template <typename Scalar>
-struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
-
-template <typename Scalar>
-struct random_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y);
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
-
-template <typename Scalar>
-struct random_default_impl<Scalar, false, false> {
-  static inline Scalar run(const Scalar& x, const Scalar& y) {
-    return x + (y - x) * Scalar(std::rand()) / Scalar(RAND_MAX);
-  }
-  static inline Scalar run() { return run(Scalar(NumTraits<Scalar>::IsSigned ? -1 : 0), Scalar(1)); }
-};
-
 enum { meta_floor_log2_terminate, meta_floor_log2_move_up, meta_floor_log2_move_down, meta_floor_log2_bogus };
 
 template <unsigned int n, int lower, int upper>
@@ -771,46 +743,98 @@ struct count_bits_impl<
 
 #endif  // EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
 
+template <typename BitsType>
+int log2_ceil(BitsType x) {
+  int n = CHAR_BIT * sizeof(BitsType) - clz(x);
+  return x == 0 ? 0 : (1 << n) == x ? n - 1 : n;
+}
+
+template <typename BitsType>
+int log2_floor(BitsType x) {
+  int n = CHAR_BIT * sizeof(BitsType) - clz(x);
+  return x == 0 ? 0 : n - 1;
+}
+
+/****************************************************************************
+ * Implementation of random                                               *
+ ****************************************************************************/
+
+template <typename Scalar, bool IsComplex, bool IsInteger>
+struct random_default_impl {};
+
+template <typename Scalar>
+struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
+
+template <typename Scalar>
+struct random_retval {
+  typedef Scalar type;
+};
+
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y);
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
+
+template <typename Scalar>
+Scalar get_random_bits(int numRandomBits) {
+  using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  enum : int {
+    RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
+    ScalarBits = sizeof(Scalar) * CHAR_BIT
+  };
+  eigen_assert(numRandomBits <= ScalarBits);
+  const BitsType mask = BitsType(-1) >> (ScalarBits - numRandomBits);
+  BitsType randomBits = BitsType(0);
+  for (int shift = 0; shift < numRandomBits; shift += RandBits) {
+    int r = std::rand();
+    randomBits |= static_cast<BitsType>(r) << shift;
+  }
+  // clear the excess bits
+  randomBits &= mask;
+  return numext::bit_cast<Scalar, BitsType>(randomBits);
+}
+
+template <typename Scalar>
+struct random_default_impl<Scalar, false, false> {
+  using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  enum : int { MantissaBits = NumTraits<Scalar>::digits() - 1 };
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_unit(); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(-1), Scalar(1)); }
+ private:
+  static EIGEN_DEVICE_FUNC inline Scalar run_unit() {
+    const Scalar kOne = Scalar(1);
+    BitsType randomBits = get_random_bits<BitsType>(MantissaBits);
+    // set the exponent bits to 1
+    randomBits |= numext::bit_cast<BitsType>(kOne);
+    // randomBits is in the interval [1,2)
+    Scalar result = numext::bit_cast<Scalar>(randomBits) - kOne;
+    // result is in the interval [0,1)
+    return result;
+  }
+};
+
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
-  static inline Scalar run(const Scalar& x, const Scalar& y) {
+  using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  enum : int {
+    ScalarBits = sizeof(Scalar) * CHAR_BIT
+  };
+  static inline Scalar run(const Scalar& x, const Scalar& y) { 
     if (y <= x) return x;
-    // ScalarU is the unsigned counterpart of Scalar, possibly Scalar itself.
-    typedef typename make_unsigned<Scalar>::type ScalarU;
-    // ScalarX is the widest of ScalarU and unsigned int.
-    // We'll deal only with ScalarX and unsigned int below thus avoiding signed
-    // types and arithmetic and signed overflows (which are undefined behavior).
-    typedef std::conditional_t<(ScalarU(-1) > unsigned(-1)), ScalarU, unsigned> ScalarX;
-    // The following difference doesn't overflow, provided our integer types are two's
-    // complement and have the same number of padding bits in signed and unsigned variants.
-    // This is the case in most modern implementations of C++.
-    ScalarX range = ScalarX(y) - ScalarX(x);
-    ScalarX offset = 0;
-    ScalarX divisor = 1;
-    ScalarX multiplier = 1;
-    const unsigned rand_max = RAND_MAX;
-    if (range <= rand_max)
-      divisor = (rand_max + 1) / (range + 1);
-    else
-      multiplier = 1 + range / (rand_max + 1);
-    // Rejection sampling.
+    const BitsType range = static_cast<BitsType>(y) - static_cast<BitsType>(x);
+    const int numRandomBits = log2_ceil(range);
+    BitsType randomBits;
     do {
-      offset = (unsigned(std::rand()) * multiplier) / divisor;
-    } while (offset > range);
-    return Scalar(ScalarX(x) + offset);
+      randomBits = get_random_bits<BitsType>(numRandomBits);
+    } while (randomBits > range);
+    return x + static_cast<Scalar>(randomBits);
   }
 
   static inline Scalar run() {
 #ifdef EIGEN_MAKING_DOCS
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
-    enum {
-      rand_bits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
-      scalar_bits = sizeof(Scalar) * CHAR_BIT,
-      shift = plain_enum_max(0, int(rand_bits) - int(scalar_bits)),
-      offset = NumTraits<Scalar>::IsSigned ? (1 << (plain_enum_min(rand_bits, scalar_bits) - 1)) : 0
-    };
-    return Scalar((std::rand() >> shift) - offset);
+    return get_random_bits<Scalar>(ScalarBits);
 #endif
   }
 };
