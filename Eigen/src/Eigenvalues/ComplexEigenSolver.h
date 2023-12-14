@@ -276,8 +276,7 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
     for (Index i = k - 1; i >= 0; i--) {
       m_matX.coeffRef(i, k) = -m_schur.matrixT().coeff(i, k);
       if (k - i - 1 > 0)
-        m_matX.coeffRef(i, k) -=
-            (m_schur.matrixT().row(i).segment(i + 1, k - i - 1) * m_matX.col(k).segment(i + 1, k - i - 1)).value();
+        m_matX.coeffRef(i, k) -= (m_schur.matrixT().row(i).segment(i + 1, k - i - 1) * m_matX.col(k).segment(i + 1, k - i - 1)).value();
       ComplexScalar z = m_schur.matrixT().coeff(i, i) - m_schur.matrixT().coeff(k, k);
       if (z == ComplexScalar(0)) {
         // If the i-th and k-th eigenvalue are equal, then z equals 0.
