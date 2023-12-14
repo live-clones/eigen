@@ -801,7 +801,7 @@ struct random_default_impl<Scalar, false, false> {
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_unit(); }
   static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(-1), Scalar(1)); }
 
- private:
+ protected:
   static EIGEN_DEVICE_FUNC inline Scalar run_unit() {
     const Scalar kOne = Scalar(1);
     BitsType randomBits = getRandomBits<BitsType>(MantissaBits);
@@ -812,6 +812,15 @@ struct random_default_impl<Scalar, false, false> {
     // result is in the interval [0,1)
     return result;
   }
+};
+
+// TODO: implement long double
+template <>
+struct random_default_impl<long double, false, false> : public random_default_impl<double, false, false> {
+  static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
+    return x + (y - x) * static_cast<long double>(run_unit());
+  }
+  static EIGEN_DEVICE_FUNC inline long double run() { return run(-1.0L, 1.0L); }
 };
 
 template <typename Scalar>
