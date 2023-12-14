@@ -759,7 +759,7 @@ int log2_floor(BitsType x) {
 
 // return a Scalar filled with numRandomBits beginning from the least significant bit
 template <typename Scalar>
-Scalar get_random_bits(int numRandomBits) {
+Scalar getRandomBits(int numRandomBits) {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   enum : int {
     RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
@@ -802,7 +802,7 @@ struct random_default_impl<Scalar, false, false> {
  private:
   static EIGEN_DEVICE_FUNC inline Scalar run_unit() {
     const Scalar kOne = Scalar(1);
-    BitsType randomBits = get_random_bits<BitsType>(MantissaBits);
+    BitsType randomBits = getRandomBits<BitsType>(MantissaBits);
     // set the exponent bits to 1
     randomBits |= numext::bit_cast<BitsType>(kOne);
     // randomBits is in the interval [1,2)
@@ -823,8 +823,8 @@ struct random_default_impl<Scalar, false, true> {
     const int numRandomBits = log2_ceil(range);
     BitsType randomBits;
     do {
-      randomBits = get_random_bits<BitsType>(numRandomBits);
-      // if the random draw is outside the range, try again (rejection sampling)
+      randomBits = getRandomBits<BitsType>(numRandomBits);
+      // if the random draw is outside [0, range], try again (rejection sampling)
       // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
     } while (randomBits > range);
     return x + static_cast<Scalar>(randomBits);
