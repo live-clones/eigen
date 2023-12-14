@@ -744,7 +744,8 @@ struct count_bits_impl<
 template <typename BitsType>
 int log2_ceil(BitsType x) {
   int n = CHAR_BIT * sizeof(BitsType) - clz(x);
-  return x == 0 ? 0 : (1 << n) == x ? n - 1 : n;
+  bool powerOfTwo = (x & (x - 1)) == 0;
+  return x == 0 ? 0 : powerOfTwo ? n - 1 : n;
 }
 
 template <typename BitsType>
@@ -834,7 +835,7 @@ struct random_default_impl<Scalar, false, true> {
 #ifdef EIGEN_MAKING_DOCS
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
-    return get_random_bits<Scalar>(ScalarBits);
+    return getRandomBits<Scalar>(ScalarBits);
 #endif
   }
 };
