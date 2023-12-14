@@ -800,6 +800,7 @@ struct random_default_impl<Scalar, false, false> {
   enum : int { MantissaBits = NumTraits<Scalar>::digits() - 1 };
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_unit(); }
   static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(-1), Scalar(1)); }
+
  private:
   static EIGEN_DEVICE_FUNC inline Scalar run_unit() {
     const Scalar kOne = Scalar(1);
