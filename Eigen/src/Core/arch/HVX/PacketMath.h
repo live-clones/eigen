@@ -89,7 +89,9 @@ struct unpacket_traits<Packet16f> {
   typedef Packet8f half;
   enum {
     size = 16,
-    alignment = Aligned128,
+    // Many code assume alignment on packet size instead of following trait
+    // So we do not use Aligned128 to optimize aligned load/store,
+    alignment = Aligned64,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -102,7 +104,9 @@ struct unpacket_traits<Packet8f> {
   typedef Packet8f half;
   enum {
     size = 8,
-    alignment = Aligned128,
+    // Many code assume alignment on packet size instead of following trait
+    // So we do not use Aligned128 to optimize aligned load/store,
+    alignment = Aligned32,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -165,30 +169,17 @@ EIGEN_STRONG_INLINE Packet8f pset1<Packet8f>(const float& from) {
   return pset1_hvx<PacketType::Quarter>(from);
 }
 
-template <PacketType T>
-EIGEN_STRONG_INLINE HVXPacket<T> pload_hvx(const float* from) {
-  return HVXPacket<T>::Create(HVX_load(from));
-}
 template <>
 EIGEN_STRONG_INLINE Packet32f pload<Packet32f>(const float* from) {
-  return pload_hvx<PacketType::Full>(from);
+  return Packet32f::Create(HVX_load(from));
 }
-template <>
-EIGEN_STRONG_INLINE Packet16f pload<Packet16f>(const float* from) {
-  return pload_hvx<PacketType::Half>(from);
-}
-template <>
-EIGEN_STRONG_INLINE Packet8f pload<Packet8f>(const float* from) {
-  return pload_hvx<PacketType::Quarter>(from);
-}
-
 template <>
 EIGEN_STRONG_INLINE Packet32f ploadu<Packet32f>(const float* from) {
   return Packet32f::Create(HVX_loadu(from));
 }
 
 template <PacketType T>
-EIGEN_STRONG_INLINE HVXPacket<T> ploadu_partial_hvx(const float* from) {
+EIGEN_STRONG_INLINE HVXPacket<T> pload_partial_hvx(const float* from) {
   uintptr_t from_addr = reinterpret_cast<uintptr_t>(from);
   uintptr_t offset = from_addr & (__HVX_LENGTH__ - 1);
   const uint8_t* aligned_from = reinterpret_cast<const uint8_t*>(from) - offset;
@@ -198,46 +189,37 @@ EIGEN_STRONG_INLINE HVXPacket<T> ploadu_partial_hvx(const float* from) {
       __HVX_LENGTH__) {
     value1 = HVX_load(aligned_from + __HVX_LENGTH__);
   }
-  return HVXPacket<T>::Create(Q6_V_valign_VVR(value0, value1, from_addr));
+  return HVXPacket<T>::Create(Q6_V_valign_VVR(value1, value0, from_addr));
+}
+template <>
+EIGEN_STRONG_INLINE Packet16f pload<Packet16f>(const float* from) {
+  return pload_partial_hvx<PacketType::Half>(from);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8f pload<Packet8f>(const float* from) {
+  return pload_partial_hvx<PacketType::Quarter>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f ploadu<Packet16f>(const float* from) {
-  return ploadu_partial_hvx<PacketType::Half>(from);
+  return pload_partial_hvx<PacketType::Half>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from) {
-  return ploadu_partial_hvx<PacketType::Quarter>(from);
+  return pload_partial_hvx<PacketType::Quarter>(from);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet32f& from) {
   HVX_store(to, from.Get());
 }
-
-template <PacketType T>
-EIGEN_STRONG_INLINE void pstore_partial_hvx(float* to,
-                                            const HVXPacket<T>& from) {
-  uint32_t size = unpacket_traits<HVXPacket<T>>::size * sizeof(float);
-  HVX_VectorPred q = Q6_Q_vsetq_R(size);
-  Q6_vmem_QRIV(q, (HVX_Vector*)to, from.Get());
-}
-template <>
-EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet16f& from) {
-  pstore_partial_hvx(to, from);
-}
-template <>
-EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet8f& from) {
-  pstore_partial_hvx(to, from);
-}
-
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet32f& from) {
   HVX_storeu(to, from.Get());
 }
 
 template <PacketType T>
-EIGEN_STRONG_INLINE void pstoreu_partial_hvx(float* to,
-                                             const HVXPacket<T>& from) {
+EIGEN_STRONG_INLINE void pstore_partial_hvx(float* to,
+                                            const HVXPacket<T>& from) {
   // Rotate as needed.
   uintptr_t to_addr = reinterpret_cast<uintptr_t>(to);
   HVX_Vector value = Q6_V_vlalign_VVR(from.Get(), from.Get(), to_addr);
@@ -258,12 +240,20 @@ EIGEN_STRONG_INLINE void pstoreu_partial_hvx(float* to,
   Q6_vmem_QnRIV(ql_not, (HVX_Vector*)to, value);
 }
 template <>
+EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet16f& from) {
+  pstore_partial_hvx(to, from);
+}
+template <>
+EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet8f& from) {
+  pstore_partial_hvx(to, from);
+}
+template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet16f& from) {
-  pstoreu_partial_hvx(to, from);
+  pstore_partial_hvx(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from) {
-  pstoreu_partial_hvx(to, from);
+  pstore_partial_hvx(to, from);
 }
 
 template <PacketType T>
