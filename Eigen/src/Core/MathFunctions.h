@@ -757,22 +757,7 @@ int log2_floor(BitsType x) {
  * Implementation of random                                               *
  ****************************************************************************/
 
-template <typename Scalar, bool IsComplex, bool IsInteger>
-struct random_default_impl {};
-
-template <typename Scalar>
-struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
-
-template <typename Scalar>
-struct random_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y);
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
-
+// return a Scalar filled with numRandomBits beginning from the least significant bit
 template <typename Scalar>
 Scalar get_random_bits(int numRandomBits) {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
@@ -791,6 +776,22 @@ Scalar get_random_bits(int numRandomBits) {
   randomBits &= mask;
   return numext::bit_cast<Scalar, BitsType>(randomBits);
 }
+
+template <typename Scalar, bool IsComplex, bool IsInteger>
+struct random_default_impl {};
+
+template <typename Scalar>
+struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
+
+template <typename Scalar>
+struct random_retval {
+  typedef Scalar type;
+};
+
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y);
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
 
 template <typename Scalar>
 struct random_default_impl<Scalar, false, false> {
@@ -814,16 +815,17 @@ struct random_default_impl<Scalar, false, false> {
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  enum : int {
-    ScalarBits = sizeof(Scalar) * CHAR_BIT
-  };
-  static inline Scalar run(const Scalar& x, const Scalar& y) { 
+  enum : int { ScalarBits = sizeof(Scalar) * CHAR_BIT };
+  static inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
     const BitsType range = static_cast<BitsType>(y) - static_cast<BitsType>(x);
+    // calculate the number of random bits needed to fill range
     const int numRandomBits = log2_ceil(range);
     BitsType randomBits;
     do {
       randomBits = get_random_bits<BitsType>(numRandomBits);
+      // if the random draw is outside the range, try again (rejection sampling)
+      // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
     } while (randomBits > range);
     return x + static_cast<Scalar>(randomBits);
   }
