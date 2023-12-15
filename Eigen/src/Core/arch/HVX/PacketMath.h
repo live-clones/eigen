@@ -34,7 +34,7 @@ EIGEN_STRONG_INLINE void HVX_storeu(void* mem, HVX_Vector v) {
   *((HVX_UVector*)mem) = v;
 }
 
-enum class PacketType {
+enum class HVXPacketSize {
   Full,
   Half,
   Quarter,
@@ -43,7 +43,7 @@ enum class PacketType {
 // Hexagon compiler uses same HVX_Vector to represent all HVX vector types.
 // Wrap different vector type (float32, int32, etc) to different class with
 // explicit constructor and casting back-and-force to HVX_Vector.
-template <PacketType>
+template <HVXPacketSize T>
 class HVXPacket {
  public:
   HVXPacket() = default;
@@ -55,9 +55,9 @@ class HVXPacket {
   HVX_Vector m_val = Q6_V_vzero();
 };
 
-typedef HVXPacket<PacketType::Full> Packet32f;
-typedef HVXPacket<PacketType::Half> Packet16f;
-typedef HVXPacket<PacketType::Quarter> Packet8f;
+typedef HVXPacket<HVXPacketSize::Full> Packet32f;
+typedef HVXPacket<HVXPacketSize::Half> Packet16f;
+typedef HVXPacket<HVXPacketSize::Quarter> Packet8f;
 
 template <>
 struct packet_traits<float> : default_packet_traits {
@@ -67,6 +67,42 @@ struct packet_traits<float> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 32,
+
+    HasCmp = 1,
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 0,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasAbs2 = 0,
+    HasAbsDiff = 0,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 0,
+    HasSetLinear = 0,
+    HasBlend = 0,
+
+    HasDiv = 0,
+    HasFloor = 0,
+    HasCeil = 0,
+    HasRint = 0,
+
+    HasSin = 0,
+    HasCos = 0,
+    HasACos = 0,
+    HasASin = 0,
+    HasATan = 0,
+    HasATanh = 0,
+    HasLog = 0,
+    HasExp = 0,
+    HasSqrt = 0,
+    HasRsqrt = 0,
+    HasTanh = 0,
+    HasErf = 0,
+    HasBessel = 0,
+    HasNdtri = 0
   };
 };
 
@@ -114,7 +150,7 @@ struct unpacket_traits<Packet8f> {
 };
 
 // float32 operations.
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pzero_hvx(const HVXPacket<T>&) {
   return HVXPacket<T>::Create(Q6_V_vzero());
 }
@@ -131,7 +167,7 @@ EIGEN_STRONG_INLINE Packet8f pzero<Packet8f>(const Packet8f&) {
   return pzero_hvx(Packet8f());
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE typename unpacket_traits<HVXPacket<T>>::half
 predux_half_dowto4_hvx(const HVXPacket<T>& a) {
   const int half_size = unpacket_traits<HVXPacket<T>>::size * sizeof(float) / 2;
@@ -147,7 +183,7 @@ EIGEN_STRONG_INLINE Packet8f predux_half_dowto4(const Packet16f& a) {
   return predux_half_dowto4_hvx(a);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pset1_hvx(const float& from) {
   union {
     float f;
@@ -158,15 +194,15 @@ EIGEN_STRONG_INLINE HVXPacket<T> pset1_hvx(const float& from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet32f pset1<Packet32f>(const float& from) {
-  return pset1_hvx<PacketType::Full>(from);
+  return pset1_hvx<HVXPacketSize::Full>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f pset1<Packet16f>(const float& from) {
-  return pset1_hvx<PacketType::Half>(from);
+  return pset1_hvx<HVXPacketSize::Half>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f pset1<Packet8f>(const float& from) {
-  return pset1_hvx<PacketType::Quarter>(from);
+  return pset1_hvx<HVXPacketSize::Quarter>(from);
 }
 
 template <>
@@ -178,7 +214,7 @@ EIGEN_STRONG_INLINE Packet32f ploadu<Packet32f>(const float* from) {
   return Packet32f::Create(HVX_loadu(from));
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pload_partial_hvx(const float* from) {
   uintptr_t from_addr = reinterpret_cast<uintptr_t>(from);
   uintptr_t offset = from_addr & (__HVX_LENGTH__ - 1);
@@ -193,19 +229,19 @@ EIGEN_STRONG_INLINE HVXPacket<T> pload_partial_hvx(const float* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f pload<Packet16f>(const float* from) {
-  return pload_partial_hvx<PacketType::Half>(from);
+  return pload_partial_hvx<HVXPacketSize::Half>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f pload<Packet8f>(const float* from) {
-  return pload_partial_hvx<PacketType::Quarter>(from);
+  return pload_partial_hvx<HVXPacketSize::Quarter>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f ploadu<Packet16f>(const float* from) {
-  return pload_partial_hvx<PacketType::Half>(from);
+  return pload_partial_hvx<HVXPacketSize::Half>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from) {
-  return pload_partial_hvx<PacketType::Quarter>(from);
+  return pload_partial_hvx<HVXPacketSize::Quarter>(from);
 }
 
 template <>
@@ -217,7 +253,7 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet32f& from) {
   HVX_storeu(to, from.Get());
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE void pstore_partial_hvx(float* to,
                                             const HVXPacket<T>& from) {
   // Rotate as needed.
@@ -231,13 +267,13 @@ EIGEN_STRONG_INLINE void pstore_partial_hvx(float* to,
   HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
 
   if (right_off > 128) {
-    Q6_vmem_QRIV(qr, (HVX_Vector*)to + 1, value);
+    Q6_vmem_QRIV(qr, reinterpret_cast<HVX_Vector*>(to) + 1, value);
     // all 1's
     qr = Q6_Q_vcmp_eq_VbVb(value, value);
   }
 
   ql_not = Q6_Q_or_QQn(ql_not, qr);
-  Q6_vmem_QnRIV(ql_not, (HVX_Vector*)to, value);
+  Q6_vmem_QnRIV(ql_not, reinterpret_cast<HVX_Vector*>(to), value);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet16f& from) {
@@ -256,7 +292,7 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from) {
   pstore_partial_hvx(to, from);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pmul_hvx(const HVXPacket<T>& a,
                                           const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(
@@ -278,7 +314,7 @@ EIGEN_STRONG_INLINE Packet8f pmul<Packet8f>(const Packet8f& a,
   return pmul_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> padd_hvx(const HVXPacket<T>& a,
                                           const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(
@@ -300,7 +336,7 @@ EIGEN_STRONG_INLINE Packet8f padd<Packet8f>(const Packet8f& a,
   return padd_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> psub_hvx(const HVXPacket<T>& a,
                                           const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(
@@ -322,7 +358,7 @@ EIGEN_STRONG_INLINE Packet8f psub<Packet8f>(const Packet8f& a,
   return psub_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pnegate_hvx(const HVXPacket<T>& a) {
   return HVXPacket<T>::Create(a.Get() ^ Q6_V_vsplat_R(0x80000000));
 }
@@ -339,7 +375,7 @@ EIGEN_STRONG_INLINE Packet8f pnegate(const Packet8f& a) {
   return pnegate_hvx(a);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pcmp_le_hvx(const HVXPacket<T>& a,
                                              const HVXPacket<T>& b) {
   HVX_Vector v_true = Q6_Vb_vsplat_R(0xff);
@@ -359,7 +395,7 @@ EIGEN_STRONG_INLINE Packet8f pcmp_le(const Packet8f& a, const Packet8f& b) {
   return pcmp_le_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pcmp_eq_hvx(const HVXPacket<T>& a,
                                              const HVXPacket<T>& b) {
   HVX_Vector v_true = Q6_Vb_vsplat_R(0xff);
@@ -379,7 +415,7 @@ EIGEN_STRONG_INLINE Packet8f pcmp_eq(const Packet8f& a, const Packet8f& b) {
   return pcmp_eq_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pcmp_lt_hvx(const HVXPacket<T>& a,
                                              const HVXPacket<T>& b) {
   HVX_Vector v_true = Q6_Vb_vsplat_R(0xff);
@@ -399,7 +435,7 @@ EIGEN_STRONG_INLINE Packet8f pcmp_lt(const Packet8f& a, const Packet8f& b) {
   return pcmp_lt_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pcmp_lt_or_nan_hvx(const HVXPacket<T>& a,
                                                     const HVXPacket<T>& b) {
   HVX_Vector v_true = Q6_Vb_vsplat_R(0xff);
@@ -422,7 +458,7 @@ EIGEN_STRONG_INLINE Packet8f pcmp_lt_or_nan(const Packet8f& a,
   return pcmp_lt_or_nan_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pabs_hvx(const HVXPacket<T>& a) {
   return HVXPacket<T>::Create(a.Get() & Q6_V_vsplat_R(0x7FFFFFFF));
 }
@@ -439,7 +475,7 @@ EIGEN_STRONG_INLINE Packet8f pabs(const Packet8f& a) {
   return pabs_hvx(a);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE float pfirst_hvx(const HVXPacket<T>& a) {
   float vsf[32] __attribute__((aligned(128)));
   pstore(vsf, a);
@@ -861,7 +897,7 @@ EIGEN_STRONG_INLINE float predux<Packet8f>(const Packet8f& a) {
   return pfirst(Packet8f::Create(Q6_Vsf_equals_Vqf32(vsum_16)));
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> ploaddup_hvx(const float* from) {
   HVX_Vector load = HVX_loadu(from);
   HVX_VectorPair dup = Q6_W_vshuff_VVR(load, load, -4);
@@ -869,18 +905,18 @@ EIGEN_STRONG_INLINE HVXPacket<T> ploaddup_hvx(const float* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet32f ploaddup(const float* from) {
-  return ploaddup_hvx<PacketType::Full>(from);
+  return ploaddup_hvx<HVXPacketSize::Full>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f ploaddup(const float* from) {
-  return ploaddup_hvx<PacketType::Half>(from);
+  return ploaddup_hvx<HVXPacketSize::Half>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f ploaddup(const float* from) {
-  return ploaddup_hvx<PacketType::Quarter>(from);
+  return ploaddup_hvx<HVXPacketSize::Quarter>(from);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> ploadquad_hvx(const float* from) {
   HVX_Vector load = HVX_loadu(from);
   HVX_VectorPair dup = Q6_W_vshuff_VVR(load, load, -4);
@@ -890,15 +926,15 @@ EIGEN_STRONG_INLINE HVXPacket<T> ploadquad_hvx(const float* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet32f ploadquad(const float* from) {
-  return ploadquad_hvx<PacketType::Full>(from);
+  return ploadquad_hvx<HVXPacketSize::Full>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f ploadquad(const float* from) {
-  return ploadquad_hvx<PacketType::Half>(from);
+  return ploadquad_hvx<HVXPacketSize::Half>(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f ploadquad(const float* from) {
-  return ploadquad_hvx<PacketType::Quarter>(from);
+  return ploadquad_hvx<HVXPacketSize::Quarter>(from);
 }
 
 template <>
@@ -919,7 +955,7 @@ EIGEN_STRONG_INLINE Packet8f preverse(const Packet8f& a) {
   return Packet8f::Create(Q6_V_vdelta_VV(a.Get(), delta));
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pmin_hvx(const HVXPacket<T>& a,
                                           const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(Q6_Vsf_vmin_VsfVsf(a.Get(), b.Get()));
@@ -937,7 +973,7 @@ EIGEN_STRONG_INLINE Packet8f pmin(const Packet8f& a, const Packet8f& b) {
   return pmin_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pmax_hvx(const HVXPacket<T>& a,
                                           const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(Q6_Vsf_vmax_VsfVsf(a.Get(), b.Get()));
@@ -955,7 +991,7 @@ EIGEN_STRONG_INLINE Packet8f pmax(const Packet8f& a, const Packet8f& b) {
   return pmax_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pand_hvx(const HVXPacket<T>& a,
                                           const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(a.Get() & b.Get());
@@ -973,7 +1009,7 @@ EIGEN_STRONG_INLINE Packet8f pand(const Packet8f& a, const Packet8f& b) {
   return pand_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> por_hvx(const HVXPacket<T>& a,
                                          const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(a.Get() | b.Get());
@@ -991,7 +1027,7 @@ EIGEN_STRONG_INLINE Packet8f por(const Packet8f& a, const Packet8f& b) {
   return por_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pxor_hvx(const HVXPacket<T>& a,
                                           const HVXPacket<T>& b) {
   return HVXPacket<T>::Create(a.Get() ^ b.Get());
@@ -1009,7 +1045,7 @@ EIGEN_STRONG_INLINE Packet8f pxor(const Packet8f& a, const Packet8f& b) {
   return pxor_hvx(a, b);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pnot_hvx(const HVXPacket<T>& a) {
   return HVXPacket<T>::Create(~a.Get());
 }
@@ -1026,7 +1062,7 @@ EIGEN_STRONG_INLINE Packet8f pnot(const Packet8f& a) {
   return pnot_hvx(a);
 }
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pselect_hvx(const HVXPacket<T>& mask,
                                              const HVXPacket<T>& a,
                                              const HVXPacket<T>& b) {
@@ -1128,21 +1164,75 @@ static const float index_vsf[32] __attribute__((aligned(128))) = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
     16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
-template <PacketType T>
+template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> plset_hvx(const float& a) {
   return padd(pload<HVXPacket<T>>(index_vsf), pset1<HVXPacket<T>>(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet32f plset(const float& a) {
-  return plset_hvx<PacketType::Full>(a);
+  return plset_hvx<HVXPacketSize::Full>(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f plset(const float& a) {
-  return plset_hvx<PacketType::Half>(a);
+  return plset_hvx<HVXPacketSize::Half>(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f plset(const float& a) {
-  return plset_hvx<PacketType::Quarter>(a);
+  return plset_hvx<HVXPacketSize::Quarter>(a);
+}
+
+template <HVXPacketSize T>
+EIGEN_STRONG_INLINE void pscatter_hvx(float* to, const HVXPacket<T>& from,
+                                      Index stride) {
+  const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
+  float elements[packet_size] __attribute__((aligned(128)));
+  pstore<float>(elements, from);
+  for (Index i = 0; i < packet_size; ++i) {
+    to[i * stride] = elements[i];
+  }
+}
+template <>
+EIGEN_STRONG_INLINE void pscatter<float, Packet32f>(float* to,
+                                                    const Packet32f& from,
+                                                    Index stride) {
+  pscatter_hvx(to, from, stride);
+}
+template <>
+EIGEN_STRONG_INLINE void pscatter<float, Packet16f>(float* to,
+                                                    const Packet16f& from,
+                                                    Index stride) {
+  pscatter_hvx(to, from, stride);
+}
+template <>
+EIGEN_STRONG_INLINE void pscatter<float, Packet8f>(float* to,
+                                                   const Packet8f& from,
+                                                   Index stride) {
+  pscatter_hvx(to, from, stride);
+}
+
+template <HVXPacketSize T>
+EIGEN_STRONG_INLINE HVXPacket<T> pgather_hvx(const float* from, Index stride) {
+  const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
+  float elements[packet_size] __attribute__((aligned(128)));
+  for (Index i = 0; i < packet_size; i++) {
+    elements[i] = from[i * stride];
+  }
+  return pload<HVXPacket<T>>(elements);
+}
+template <>
+EIGEN_STRONG_INLINE Packet32f pgather<float, Packet32f>(const float* from,
+                                                        Index stride) {
+  return pgather_hvx<HVXPacketSize::Full>(from, stride);
+}
+template <>
+EIGEN_STRONG_INLINE Packet16f pgather<float, Packet16f>(const float* from,
+                                                        Index stride) {
+  return pgather_hvx<HVXPacketSize::Half>(from, stride);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8f pgather<float, Packet8f>(const float* from,
+                                                      Index stride) {
+  return pgather_hvx<HVXPacketSize::Quarter>(from, stride);
 }
 
 }  // end namespace internal
