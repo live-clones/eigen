@@ -132,15 +132,20 @@ EIGEN_DECLARE_TEST(rand) {
   EIGEN_UNUSED_VARIABLE(short_offset);
 
   for (int i = 0; i < g_repeat * 10000; i++) {
-    CALL_SUBTEST_1(check_in_range<float>(10, 11));
+    CALL_SUBTEST_1(check_in_range<float>(10.0f, 11.0f));
     CALL_SUBTEST_1(check_in_range<float>(1.24234523f, 1.24234523f));
-    CALL_SUBTEST_1(check_in_range<float>(-1, 1));
+    CALL_SUBTEST_1(check_in_range<float>(-1.0f, 1.0f));
     CALL_SUBTEST_1(check_in_range<float>(-1432.2352f, -1432.2352f));
 
-    CALL_SUBTEST_2(check_in_range<double>(10, 11));
+    CALL_SUBTEST_2(check_in_range<double>(10.0, 11.0));
     CALL_SUBTEST_2(check_in_range<double>(1.24234523, 1.24234523));
-    CALL_SUBTEST_2(check_in_range<double>(-1, 1));
+    CALL_SUBTEST_2(check_in_range<double>(-1.0, 1.0));
     CALL_SUBTEST_2(check_in_range<double>(-1432.2352, -1432.2352));
+
+    CALL_SUBTEST_2(check_in_range<long double>(10.0L, 11.0L));
+    CALL_SUBTEST_2(check_in_range<long double>(1.24234523L, 1.24234523L));
+    CALL_SUBTEST_2(check_in_range<long double>(-1.0L, 1.0L));
+    CALL_SUBTEST_2(check_in_range<long double>(-1432.2352L, -1432.2352L));
 
     CALL_SUBTEST_3(check_in_range<half>(half(10.0f), half(11.0f)));
     CALL_SUBTEST_3(check_in_range<half>(half(1.24234523f), half(1.24234523f)));
@@ -202,11 +207,11 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_11(
       check_histogram<uint8_t>(Eigen::NumTraits<uint8_t>::lowest(), Eigen::NumTraits<uint8_t>::highest(), /*bins=*/16));
   CALL_SUBTEST_11(check_histogram<uint16_t>(Eigen::NumTraits<uint16_t>::lowest(), Eigen::NumTraits<uint16_t>::highest(),
-                                           /*bins=*/1024));
+                                            /*bins=*/1024));
   CALL_SUBTEST_11(check_histogram<uint32_t>(Eigen::NumTraits<uint32_t>::lowest(), Eigen::NumTraits<uint32_t>::highest(),
-                                           /*bins=*/1024));
+                                            /*bins=*/1024));
   CALL_SUBTEST_11(check_histogram<uint64_t>(Eigen::NumTraits<uint64_t>::lowest(), Eigen::NumTraits<uint64_t>::highest(),
-                                           /*bins=*/1024));
+                                            /*bins=*/1024));
 
   CALL_SUBTEST_12(
       check_histogram<int8_t>(Eigen::NumTraits<int8_t>::lowest(), Eigen::NumTraits<int8_t>::highest(), /*bins=*/16));
@@ -229,7 +234,9 @@ EIGEN_DECLARE_TEST(rand) {
 
   CALL_SUBTEST_15(check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<double>(-10.0, 10.0, /*bins=*/1024));
+  CALL_SUBTEST_15(check_histogram<long double>(-10.0L, 10.0L, /*bins=*/1024));
 
   CALL_SUBTEST_16(check_histogram<float>(/*bins=*/1024));
   CALL_SUBTEST_16(check_histogram<double>(/*bins=*/1024));
+  CALL_SUBTEST_16(check_histogram<long double>(/*bins=*/1024));
 }
