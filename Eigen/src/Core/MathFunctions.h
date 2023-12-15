@@ -535,7 +535,7 @@ struct log1p_retval {
  ****************************************************************************/
 
 template <typename ScalarX, typename ScalarY,
-          bool IsInteger = NumTraits<ScalarX>::IsInteger&& NumTraits<ScalarY>::IsInteger>
+          bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
   // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
@@ -766,7 +766,7 @@ Scalar getRandomBits(int numRandomBits) {
     RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
     ScalarBits = sizeof(Scalar) * CHAR_BIT
   };
-  eigen_assert(numRandomBits >= 0 && numRandomBits <= ScalarBits);
+  eigen_assert((numRandomBits >= 0) && (numRandomBits <= ScalarBits));
   const BitsType mask = BitsType(-1) >> (ScalarBits - numRandomBits);
   BitsType randomBits = BitsType(0);
   for (int shift = 0; shift < numRandomBits; shift += RandBits) {
@@ -828,8 +828,8 @@ struct random_longdouble_impl {
     uint64_t randomBits[2];
     long double result = 1.0L;
     memcpy(&randomBits, &result, sizeof(long double));
-    randomBits[0] |= getRandomBits<uint64_t>(64);
-    randomBits[1] |= getRandomBits<uint64_t>(MantissaBits - 64);
+    randomBits[0] |= getRandomBits<uint64_t>(MantissaBits > 64 ? 64 : MantissaBits);
+    randomBits[1] |= getRandomBits<uint64_t>(MantissaBits > 64 ? MantissaBits - 64 : 0);
     memcpy(&result, &randomBits, sizeof(long double));
     result -= 1.0L;
     return result;
