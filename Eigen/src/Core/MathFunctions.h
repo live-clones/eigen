@@ -535,7 +535,7 @@ struct log1p_retval {
  ****************************************************************************/
 
 template <typename ScalarX, typename ScalarY,
-          bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
+          bool IsInteger = NumTraits<ScalarX>::IsInteger&& NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
   // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
@@ -766,7 +766,7 @@ Scalar getRandomBits(int numRandomBits) {
     RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
     ScalarBits = sizeof(Scalar) * CHAR_BIT
   };
-  eigen_assert(numRandomBits <= ScalarBits);
+  eigen_assert(numRandomBits >= 0 && numRandomBits <= ScalarBits);
   const BitsType mask = BitsType(-1) >> (ScalarBits - numRandomBits);
   BitsType randomBits = BitsType(0);
   for (int shift = 0; shift < numRandomBits; shift += RandBits) {
@@ -814,14 +814,37 @@ struct random_default_impl<Scalar, false, false> {
   }
 };
 
-// TODO: implement long double
+template <bool Specialize = sizeof(double) < sizeof(long double)>
+struct random_longdouble_impl {
+  enum : int { MantissaBits = NumTraits<long double>::digits() - 1 };
+  static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
+    return x + (y - x) * run_unit();
+  }
+  static EIGEN_DEVICE_FUNC inline long double run() { return run(-1.0L, 1.0L); }
+
+ protected:
+  static EIGEN_DEVICE_FUNC inline long double run_unit() {
+    EIGEN_USING_STD(memcpy)
+    uint64_t randomBits[2];
+    long double result = 1.0L;
+    memcpy(&randomBits, &result, sizeof(long double));
+    randomBits[0] |= getRandomBits<uint64_t>(64);
+    randomBits[1] |= getRandomBits<uint64_t>(MantissaBits - 64);
+    memcpy(&result, &randomBits, sizeof(long double));
+    result -= 1.0L;
+    return result;
+  }
+};
 template <>
-struct random_default_impl<long double, false, false> : public random_default_impl<double, false, false> {
+struct random_longdouble_impl<false> : public random_impl<double> {
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
     return x + (y - x) * static_cast<long double>(run_unit());
   }
   static EIGEN_DEVICE_FUNC inline long double run() { return run(-1.0L, 1.0L); }
 };
+
+template <>
+struct random_default_impl<long double, false, false> : random_longdouble_impl<> {};
 
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
