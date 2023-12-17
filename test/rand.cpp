@@ -235,8 +235,12 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_15(check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<double>(-10.0, 10.0, /*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<long double>(-10.0L, 10.0L, /*bins=*/1024));
+  CALL_SUBTEST_15(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/256));
+  CALL_SUBTEST_15(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/32));
 
   CALL_SUBTEST_16(check_histogram<float>(/*bins=*/1024));
   CALL_SUBTEST_16(check_histogram<double>(/*bins=*/1024));
   CALL_SUBTEST_16(check_histogram<long double>(/*bins=*/1024));
+  CALL_SUBTEST_16(check_histogram<half>(/*bins=*/256));
+  CALL_SUBTEST_16(check_histogram<bfloat16>(/*bins=*/32));
 }

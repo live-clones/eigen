@@ -814,7 +814,7 @@ struct random_default_impl<Scalar, false, false> {
   }
 };
 
-template <bool Specialize = sizeof(double) < sizeof(long double)>
+template <bool Specialize = sizeof(long double) == 2 * sizeof(double)>
 struct random_longdouble_impl {
   enum : int { MantissaBits = NumTraits<long double>::digits() - 1 };
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
