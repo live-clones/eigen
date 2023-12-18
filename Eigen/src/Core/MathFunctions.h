@@ -814,9 +814,13 @@ struct random_default_impl<Scalar, false, false> {
   }
 };
 
-template <bool Specialize = sizeof(long double) == 2 * sizeof(double)>
+template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t)>
 struct random_longdouble_impl {
-  enum : int { MantissaBits = NumTraits<long double>::digits() - 1 };
+  enum : int {
+    MantissaBits = NumTraits<long double>::digits() - 1,
+    LowBits = MantissaBits > 64 ? 64 : MantissaBits,
+    HighBits = MantissaBits > 64 ? MantissaBits - 64 : 0
+  };
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
     return x + (y - x) * run_unit();
   }
@@ -828,8 +832,8 @@ struct random_longdouble_impl {
     uint64_t randomBits[2];
     long double result = 1.0L;
     memcpy(&randomBits, &result, sizeof(long double));
-    randomBits[0] |= getRandomBits<uint64_t>(MantissaBits > 64 ? 64 : MantissaBits);
-    randomBits[1] |= getRandomBits<uint64_t>(MantissaBits > 64 ? MantissaBits - 64 : 0);
+    randomBits[0] |= getRandomBits<uint64_t>(LowBits);
+    randomBits[1] |= getRandomBits<uint64_t>(HighBits);
     memcpy(&result, &randomBits, sizeof(long double));
     result -= 1.0L;
     return result;
