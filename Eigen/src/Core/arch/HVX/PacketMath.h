@@ -218,12 +218,11 @@ template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pload_partial_hvx(const float* from) {
   uintptr_t from_addr = reinterpret_cast<uintptr_t>(from);
   uintptr_t offset = from_addr & (__HVX_LENGTH__ - 1);
-  const uint8_t* aligned_from = reinterpret_cast<const uint8_t*>(from) - offset;
-  HVX_Vector value0 = HVX_load(aligned_from);
+  HVX_Vector value0 = HVX_load(from);
   HVX_Vector value1 = value0;
   if (offset + unpacket_traits<HVXPacket<T>>::size * sizeof(float) >
       __HVX_LENGTH__) {
-    value1 = HVX_load(aligned_from + __HVX_LENGTH__);
+    value1 = HVX_load(((HVX_Vector*)from) + 1);
   }
   return HVXPacket<T>::Create(Q6_V_valign_VVR(value1, value0, from_addr));
 }
@@ -259,21 +258,21 @@ EIGEN_STRONG_INLINE void pstore_partial_hvx(float* to,
   // Rotate as needed.
   uintptr_t to_addr = reinterpret_cast<uintptr_t>(to);
   HVX_Vector value = Q6_V_vlalign_VVR(from.Get(), from.Get(), to_addr);
-  uintptr_t left_off = to_addr & 127;
+  uintptr_t left_off = to_addr & (__HVX_LENGTH__ - 1);
   uintptr_t right_off =
       left_off + unpacket_traits<HVXPacket<T>>::size * sizeof(float);
 
   HVX_VectorPred ql_not = Q6_Q_vsetq_R(to_addr);
   HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
 
-  if (right_off > 128) {
-    Q6_vmem_QRIV(qr, reinterpret_cast<HVX_Vector*>(to) + 1, value);
+  if (right_off > __HVX_LENGTH__) {
+    Q6_vmem_QRIV(qr, ((HVX_Vector*)to) + 1, value);
     // all 1's
     qr = Q6_Q_vcmp_eq_VbVb(value, value);
   }
 
   ql_not = Q6_Q_or_QQn(ql_not, qr);
-  Q6_vmem_QnRIV(ql_not, reinterpret_cast<HVX_Vector*>(to), value);
+  Q6_vmem_QnRIV(ql_not, (HVX_Vector*)to, value);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet16f& from) {
@@ -477,7 +476,7 @@ EIGEN_STRONG_INLINE Packet8f pabs(const Packet8f& a) {
 
 template <HVXPacketSize T>
 EIGEN_STRONG_INLINE float pfirst_hvx(const HVXPacket<T>& a) {
-  float vsf[32] __attribute__((aligned(128)));
+  float vsf[32] __attribute__((aligned(__HVX_LENGTH__)));
   pstore(vsf, a);
   return vsf[0];
 }
@@ -1160,7 +1159,7 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8f& a) {
   return predux_generic(a, por<Packet8f>) != 0.0f;
 }
 
-static const float index_vsf[32] __attribute__((aligned(128))) = {
+static const float index_vsf[32] __attribute__((aligned(__HVX_LENGTH__))) = {
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
     16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
@@ -1185,7 +1184,7 @@ template <HVXPacketSize T>
 EIGEN_STRONG_INLINE void pscatter_hvx(float* to, const HVXPacket<T>& from,
                                       Index stride) {
   const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
-  float elements[packet_size] __attribute__((aligned(128)));
+  float elements[packet_size] __attribute__((aligned(__HVX_LENGTH__)));
   pstore<float>(elements, from);
   for (Index i = 0; i < packet_size; ++i) {
     to[i * stride] = elements[i];
@@ -1213,7 +1212,7 @@ EIGEN_STRONG_INLINE void pscatter<float, Packet8f>(float* to,
 template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pgather_hvx(const float* from, Index stride) {
   const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
-  float elements[packet_size] __attribute__((aligned(128)));
+  float elements[packet_size] __attribute__((aligned(__HVX_LENGTH__)));
   for (Index i = 0; i < packet_size; i++) {
     elements[i] = from[i * stride];
   }
