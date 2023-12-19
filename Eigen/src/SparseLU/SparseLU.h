@@ -596,6 +596,14 @@ void SparseLU<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
  * To get error of this function you should check info(), you can get more info of
  * errors with lastErrorMessage().
  *
+ * In the past (before 2012 (git history is not older)), this function was returning an integer.
+ * This exit was 0 if successful factorization.
+ * > 0 if info = i, and i is been completed, but the factor U is exactly singular,
+ * and division by zero will occur if it is used to solve a system of equation.
+ * > A->ncol: number of bytes allocated when memory allocation failure occured, plus A->ncol.
+ * If lwork = -1, it is the estimated amount of space needed, plus A->ncol.
+ *
+ * It seems that A was the name of the matrix in the past.
  *
  * \sa analyzePattern(), compute(), SparseLU(), info(), lastErrorMessage()
  */
@@ -637,6 +645,8 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
   Index maxpanel = m_perfv.panel_size * m;
   // Allocate working storage common to the factor routines
   Index lwork = 0;
+  // Return the size of actually allocated memory when allocation failed,
+  // and 0 on success.
   Index info = Base::memInit(m, n, nnz, lwork, m_perfv.fillfactor, m_perfv.panel_size, m_glu);
   if (info) {
     m_lastError = "UNABLE TO ALLOCATE WORKING MEMORY\n\n";
@@ -721,6 +731,7 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
       // Depth-first-search for the current column
       VectorBlock<IndexVector> panel_lsubk(panel_lsub, k, m);
       VectorBlock<IndexVector> repfnz_k(repfnz, k, m);
+      // Return 0 on success and > 0 number of bytes allocated when run out of space.
       info = Base::column_dfs(m, jj, m_perm_r.indices(), m_perfv.maxsuper, nseg, panel_lsubk, segrep, repfnz_k, xprune,
                               marker, parent, xplore, m_glu);
       if (info) {
@@ -732,6 +743,7 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
       // Numeric updates to this column
       VectorBlock<ScalarVector> dense_k(dense, k, m);
       VectorBlock<IndexVector> segrep_k(segrep, nseg1, m - nseg1);
+      // Return 0 on success and > 0 number of bytes allocated when run out of space.
       info = Base::column_bmod(jj, (nseg - nseg1), dense_k, tempv, segrep_k, repfnz_k, jcol, m_glu);
       if (info) {
         m_lastError = "UNABLE TO EXPAND MEMORY IN COLUMN_BMOD() ";
@@ -741,6 +753,7 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
       }
 
       // Copy the U-segments to ucol(*)
+      // Return 0 on success and > 0 number of bytes allocated when run out of space.
       info = Base::copy_to_ucol(jj, nseg, segrep, repfnz_k, m_perm_r.indices(), dense_k, m_glu);
       if (info) {
         m_lastError = "UNABLE TO EXPAND MEMORY IN COPY_TO_UCOL() ";
@@ -750,6 +763,7 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
       }
 
       // Form the L-segment
+      // Return O if success, i > 0 if U(i, i) is exactly zero.
       info = Base::pivotL(jj, m_diagpivotthresh, m_perm_r.indices(), iperm_c.indices(), pivrow, m_glu);
       if (info) {
         m_lastError = "THE MATRIX IS STRUCTURALLY SINGULAR";
