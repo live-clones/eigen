@@ -37,23 +37,27 @@ template <typename Scalar, typename EnableIf = void>
 class HistogramHelper {
  public:
   HistogramHelper(int nbins) : HistogramHelper(Scalar(-1), Scalar(1), nbins) {}
-  HistogramHelper(Scalar lower, Scalar upper, int nbins)
-      : lower_{lower}, upper_{upper}, num_bins_{nbins}, bin_width_{(upper - lower) / Scalar(nbins)} {}
-  int bin(Scalar v) { return std::min<int>((v - lower_) / bin_width_, num_bins_ - 1); }
+  HistogramHelper(Scalar lower, Scalar upper, int nbins) {
+    lower_ = static_cast<double>(lower);
+    upper_ = static_cast<double>(upper);
+    num_bins_ = nbins;
+    bin_width_ = (upper_ - lower_) / static_cast<double>(nbins);
+  }
+  int bin(Scalar v) { return std::min<int>((static_cast<double>(v) - lower_) / bin_width_, num_bins_ - 1); }
 
   double uniform_bin_probability(int bin) {
-    double range = static_cast<double>(upper_) - static_cast<double>(lower_);
+    double range = upper_ - lower_;
     if (bin < num_bins_ - 1) {
-      return static_cast<double>(bin_width_) / range;
+      return bin_width_ / range;
     }
-    return static_cast<double>(upper_ - (lower_ + Scalar(bin) * bin_width_)) / range;
+    return (upper_ - (lower_ + double(bin) * bin_width_)) / range;
   }
 
  private:
-  Scalar lower_;
-  Scalar upper_;
+  double lower_;
+  double upper_;
   int num_bins_;
-  Scalar bin_width_;
+  double bin_width_;
 };
 
 template <typename Scalar>
@@ -241,6 +245,6 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_16(check_histogram<float>(/*bins=*/1024));
   CALL_SUBTEST_16(check_histogram<double>(/*bins=*/1024));
   CALL_SUBTEST_16(check_histogram<long double>(/*bins=*/1024));
-  CALL_SUBTEST_16(check_histogram<half>(/*bins=*/256));
-  CALL_SUBTEST_16(check_histogram<bfloat16>(/*bins=*/32));
+  CALL_SUBTEST_16(check_histogram<half>(/*bins=*/512));
+  CALL_SUBTEST_16(check_histogram<bfloat16>(/*bins=*/64));
 }
