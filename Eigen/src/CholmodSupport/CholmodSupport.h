@@ -556,8 +556,8 @@ class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimp
   typedef typename MatrixType::RealScalar RealScalar;
   typedef typename MatrixType::StorageIndex StorageIndex;
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef TriangularView<const MatrixType, Eigen::Lower> MatrixL;
-  typedef TriangularView<const typename MatrixType::AdjointReturnType, Eigen::Upper> MatrixU;
+  typedef TriangularView<const MatrixType, Eigen::UnitLower> MatrixL;
+  typedef TriangularView<const typename MatrixType::AdjointReturnType, Eigen::UnitUpper> MatrixU;
 
   CholmodSimplicialLDLT() : Base() { init(); }
 
@@ -583,17 +583,7 @@ class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimp
   }
 
   /** \returns an expression of the factor L */
-  inline MatrixType matrixL() const {
-    auto cholmodL = viewAsEigen<Scalar, StorageIndex>(*Base::m_cholmodFactor);
-    MatrixType L = cholmodL;
-
-    for (Index k = 0; k < L.outerSize(); ++k) {
-      typename decltype(L)::InnerIterator it{L, k};
-      it.value() = 1;
-    }
-
-    return L;
-  }
+  inline MatrixL matrixL() const { return viewAsEigen<Scalar, StorageIndex>(*Base::m_cholmodFactor); }
 
   /** \returns an expression of the factor U (= L^*) */
   inline MatrixU matrixU() const { return matrixL().adjoint(); }
