@@ -775,7 +775,7 @@ struct random_default_impl<half, false, false> : random_default_impl<float, fals
     float result = x_fl + (y_fl - x_fl) * run_canonical(MantissaBits);
     return half(result);
   }
-  static EIGEN_DEVICE_FUNC inline half run() { 
+  static EIGEN_DEVICE_FUNC inline half run() {
     float result = -1.0f + 2.0f * run_canonical(MantissaBits);
     return half(result);
   }
