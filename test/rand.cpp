@@ -43,7 +43,10 @@ class HistogramHelper {
     num_bins_ = nbins;
     bin_width_ = (upper_ - lower_) / static_cast<double>(nbins);
   }
-  int bin(Scalar v) { return std::min<int>((static_cast<double>(v) - lower_) / bin_width_, num_bins_ - 1); }
+  int bin(Scalar v) {
+    double result = (static_cast<double>(v) - lower_) / bin_width_;
+    return std::min<int>(static_cast<int>(result), num_bins_ - 1);
+  }
 
   double uniform_bin_probability(int bin) {
     double range = upper_ - lower_;
@@ -105,6 +108,11 @@ void check_histogram(Scalar x, Scalar y, int bins) {
   // Normalize bins by probability.
   for (int i = 0; i < bins; ++i) {
     hist(i) = hist(i) / n / hist_helper.uniform_bin_probability(i);
+  }
+  bool pass = ((hist.array() - 1.0).abs() < 0.05).all();
+  if (!pass)
+  {
+    std::cout << (hist.array() - 1.0) << "\n";
   }
   VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
 }
@@ -239,8 +247,8 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_15(check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<double>(-10.0, 10.0, /*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<long double>(-10.0L, 10.0L, /*bins=*/1024));
-  CALL_SUBTEST_15(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/256));
-  CALL_SUBTEST_15(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/32));
+  CALL_SUBTEST_15(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/512));
+  CALL_SUBTEST_15(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
 
   CALL_SUBTEST_16(check_histogram<float>(/*bins=*/1024));
   CALL_SUBTEST_16(check_histogram<double>(/*bins=*/1024));
