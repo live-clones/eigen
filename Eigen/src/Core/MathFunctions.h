@@ -763,13 +763,13 @@ template <typename Scalar>
 Scalar getRandomBits(int numRandomBits) {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   enum : int {
-    RandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
+    StdRandBits = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value,
     ScalarBits = sizeof(Scalar) * CHAR_BIT
   };
   eigen_assert((numRandomBits >= 0) && (numRandomBits <= ScalarBits));
   const BitsType mask = BitsType(-1) >> (ScalarBits - numRandomBits);
   BitsType randomBits = BitsType(0);
-  for (int shift = 0; shift < numRandomBits; shift += RandBits) {
+  for (int shift = 0; shift < numRandomBits; shift += StdRandBits) {
     int r = std::rand();
     randomBits |= static_cast<BitsType>(r) << shift;
   }
@@ -802,10 +802,10 @@ struct random_default_impl<Scalar, false, false> {
   static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(-1), Scalar(1)); }
 
  protected:
-  static EIGEN_DEVICE_FUNC inline Scalar run_canonical(int numBits) {
-    eigen_assert(numBits >= 0 && numBits <= MantissaBits);
-    // if we are requesting fewer bits the MantissaBits, shift them to the left
-    BitsType randomBits = getRandomBits<BitsType>(numBits) << (MantissaBits - numBits);
+  static EIGEN_DEVICE_FUNC inline Scalar run_canonical(int numRandomBits) {
+    eigen_assert(numRandomBits >= 0 && numRandomBits <= MantissaBits);
+    // if fewer than MantissaBits are requested, shift them to the left
+    BitsType randomBits = getRandomBits<BitsType>(numRandomBits) << (MantissaBits - numRandomBits);
     // set the exponent bits to 1
     randomBits |= numext::bit_cast<BitsType>(Scalar(1));
     // randomBits is in the interval [1,2)
