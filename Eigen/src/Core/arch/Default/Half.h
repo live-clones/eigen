@@ -766,6 +766,21 @@ struct is_arithmetic<half> {
   enum { value = true };
 };
 
+template <>
+struct random_default_impl<half, false, false> : random_default_impl<float, false, false> {
+  enum : int { MantissaBits = 10 };
+  static EIGEN_DEVICE_FUNC inline half run(const half& x, const half& y) {
+    float x_fl = float(x);
+    float y_fl = float(y);
+    float result = x_fl + (y_fl - x_fl) * run_canonical(MantissaBits);
+    return half(result);
+  }
+  static EIGEN_DEVICE_FUNC inline half run() { 
+    float result = -1.0f + 2.0f * run_canonical(MantissaBits);
+    return half(result);
+  }
+};
+
 }  // end namespace internal
 
 template <>

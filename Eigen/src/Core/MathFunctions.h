@@ -798,17 +798,27 @@ template <typename Scalar>
 struct random_default_impl<Scalar, false, false> {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   enum : int { MantissaBits = NumTraits<Scalar>::digits() - 1 };
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_unit(); }
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_canonical(); }
   static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(-1), Scalar(1)); }
 
  protected:
-  static EIGEN_DEVICE_FUNC inline Scalar run_unit() {
-    const Scalar kOne = Scalar(1);
+  static EIGEN_DEVICE_FUNC inline Scalar run_canonical(int numBits) {
+    eigen_assert(numBits >= 0 && numBits <= MantissaBits);
+    // if we are requesting fewer bits the MantissaBits, shift them to the left
+    BitsType randomBits = getRandomBits<BitsType>(numBits) << (MantissaBits - numBits);
+    // set the exponent bits to 1
+    randomBits |= numext::bit_cast<BitsType>(Scalar(1));
+    // randomBits is in the interval [1,2)
+    Scalar result = numext::bit_cast<Scalar>(randomBits) - Scalar(1);
+    // result is in the interval [0,1)
+    return result;
+  }
+  static EIGEN_DEVICE_FUNC inline Scalar run_canonical() {
     BitsType randomBits = getRandomBits<BitsType>(MantissaBits);
     // set the exponent bits to 1
-    randomBits |= numext::bit_cast<BitsType>(kOne);
+    randomBits |= numext::bit_cast<BitsType>(Scalar(1));
     // randomBits is in the interval [1,2)
-    Scalar result = numext::bit_cast<Scalar>(randomBits) - kOne;
+    Scalar result = numext::bit_cast<Scalar>(randomBits) - Scalar(1);
     // result is in the interval [0,1)
     return result;
   }
@@ -817,24 +827,25 @@ struct random_default_impl<Scalar, false, false> {
 template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t)>
 struct random_longdouble_impl {
   enum : int {
+    Size = sizeof(long double),
     MantissaBits = NumTraits<long double>::digits() - 1,
     LowBits = MantissaBits > 64 ? 64 : MantissaBits,
     HighBits = MantissaBits > 64 ? MantissaBits - 64 : 0
   };
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
-    return x + (y - x) * run_unit();
+    return x + (y - x) * run_canonical();
   }
   static EIGEN_DEVICE_FUNC inline long double run() { return run(-1.0L, 1.0L); }
 
  protected:
-  static EIGEN_DEVICE_FUNC inline long double run_unit() {
+  static EIGEN_DEVICE_FUNC inline long double run_canonical() {
     EIGEN_USING_STD(memcpy)
     uint64_t randomBits[2];
     long double result = 1.0L;
-    memcpy(&randomBits, &result, sizeof(long double));
+    memcpy(&randomBits, &result, Size);
     randomBits[0] |= getRandomBits<uint64_t>(LowBits);
     randomBits[1] |= getRandomBits<uint64_t>(HighBits);
-    memcpy(&result, &randomBits, sizeof(long double));
+    memcpy(&result, &randomBits, Size);
     result -= 1.0L;
     return result;
   }
@@ -842,7 +853,7 @@ struct random_longdouble_impl {
 template <>
 struct random_longdouble_impl<false> : public random_impl<double> {
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
-    return x + (y - x) * static_cast<long double>(run_unit());
+    return x + (y - x) * static_cast<long double>(run_canonical());
   }
   static EIGEN_DEVICE_FUNC inline long double run() { return run(-1.0L, 1.0L); }
 };

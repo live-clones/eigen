@@ -681,6 +681,21 @@ struct is_arithmetic<bfloat16> {
   enum { value = true };
 };
 
+template <>
+struct random_default_impl<bfloat16, false, false> : random_default_impl<float, false, false> {
+  enum : int { MantissaBits = 7 };
+  static EIGEN_DEVICE_FUNC inline bfloat16 run(const bfloat16& x, const bfloat16& y) {
+    float x_fl = float(x);
+    float y_fl = float(y);
+    float result = x_fl + (y_fl - x_fl) * run_canonical(MantissaBits);
+    return bfloat16(result);
+  }
+  static EIGEN_DEVICE_FUNC inline bfloat16 run() {
+    float result = -1.0f + 2.0f * run_canonical(MantissaBits);
+    return bfloat16(result);
+  }
+};
+
 }  // namespace internal
 
 template <>
