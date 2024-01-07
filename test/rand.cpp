@@ -109,11 +109,6 @@ void check_histogram(Scalar x, Scalar y, int bins) {
   for (int i = 0; i < bins; ++i) {
     hist(i) = hist(i) / n / hist_helper.uniform_bin_probability(i);
   }
-  bool pass = ((hist.array() - 1.0).abs() < 0.05).all();
-  if (!pass)
-  {
-    std::cout << (hist.array() - 1.0) << "\n";
-  }
   VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
 }
 
