@@ -142,9 +142,9 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
     cholmod_sparse A;
     A = viewAsCholmod(mat);
     m_rows = matrix.rows();
-    StorageIndex col = matrix.cols();
-    eigen_assert(col == matrix.cols() && "Integer overflow when converting from MatrixType::Index to SPQR::StorageIndex");
-    m_rank = SuiteSparseQR<Scalar>(m_ordering, pivotThreshold, col, &A, &m_cR, &m_E, &m_H, &m_HPinv, &m_HTau, &m_cc);
+    m_rank = SuiteSparseQR<Scalar>(m_ordering, pivotThreshold,
+            internal::convert_index<StorageIndex>(matrix.cols()),
+            &A, &m_cR, &m_E, &m_H, &m_HPinv, &m_HTau, &m_cc);
 
     if (!m_cR) {
       m_info = NumericalIssue;
