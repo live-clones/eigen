@@ -46,23 +46,8 @@ inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& sc
     ssq += (bl * invScale).squaredNorm();
 }
 
-template <typename VectorType>
-typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
-                                                 std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
-  using numext::sqrt;
-
-  typedef typename VectorType::RealScalar RealScalar;
-  RealScalar scale(0);
-  RealScalar invScale(1);
-  RealScalar ssq(0);  // sum of squares
-
-  stable_norm_kernel(vec, ssq, scale, invScale);
-  return scale * sqrt(ssq);
-}
-
 template <typename MatrixType>
-typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
-                                                 std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
+typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
   using numext::sqrt;
 
   typedef typename MatrixType::RealScalar RealScalar;
@@ -70,7 +55,7 @@ typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
   RealScalar invScale(1);
   RealScalar ssq(0);  // sum of squares
 
-  for (Index j = 0; j < mat.outerSize(); ++j) stable_norm_kernel(mat.innerVector(j), ssq, scale, invScale);
+  stable_norm_kernel(mat, ssq, scale, invScale);
   return scale * sqrt(ssq);
 }
 
