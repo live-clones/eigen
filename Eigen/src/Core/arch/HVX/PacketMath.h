@@ -90,11 +90,7 @@ typedef HVXPacket<HVXPacketSize::Quarter> Packet8f;
 template <>
 struct packet_traits<float> : default_packet_traits {
   typedef Packet32f type;
-#ifdef EIGEN_NO_PARTIAL_HVX
-  typedef Packet32f half;
-#else
   typedef Packet16f half;
-#endif
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -141,11 +137,7 @@ struct packet_traits<float> : default_packet_traits {
 template <>
 struct unpacket_traits<Packet32f> {
   typedef float type;
-#ifdef EIGEN_NO_PARTIAL_HVX
-  typedef Packet32f half;
-#else
   typedef Packet16f half;
-#endif
   enum {
     size = 32,
     alignment = Aligned128,
@@ -203,7 +195,6 @@ EIGEN_STRONG_INLINE Packet8f pzero<Packet8f>(const Packet8f&) {
   return pzero_hvx(Packet8f());
 }
 
-#ifndef EIGEN_NO_PARTIAL_HVX
 template <HVXPacketSize T>
 EIGEN_STRONG_INLINE typename unpacket_traits<HVXPacket<T>>::half predux_half_dowto4_hvx(const HVXPacket<T>& a) {
   const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
@@ -218,7 +209,6 @@ template <>
 EIGEN_STRONG_INLINE Packet8f predux_half_dowto4(const Packet16f& a) {
   return predux_half_dowto4_hvx(a);
 }
-#endif
 
 template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> pset1_hvx(const float& from) {
