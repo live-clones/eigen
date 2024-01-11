@@ -197,7 +197,7 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
   const MatrixType matrixR() const {
     eigen_assert(m_isInitialized && " The QR factorization should be computed first, call compute()");
     if (!m_isRUpToDate) {
-      m_R = viewAsEigen<Scalar, ColMajor, typename MatrixType::StorageIndex>(*m_cR);
+      m_R = viewAsEigen<Scalar, StorageIndex>(*m_cR);
       m_isRUpToDate = true;
     }
     return m_R;
