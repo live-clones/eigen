@@ -19,47 +19,78 @@ namespace Eigen {
 namespace internal {
 
 // HVX utilities.
+
+// Force aligned vector load/store through reinterpret_cast to HVX_Vector*.
+// The aligned vector load/store instruction have auto-alignment that ignore
+// the lowest bits of the pointer to always align the load or store to the
+// HVX vector size.
+#define CONST_VMEM(mem) reinterpret_cast<const HVX_Vector*>(mem)
+#define VMEM(mem) reinterpret_cast<HVX_Vector*>(mem)
+
 template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load(const T* mem) {
-  return *reinterpret_cast<const HVX_Vector*>(mem);
+  // Aligned vector load.
+  return *CONST_VMEM(mem);
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const T* mem) {
-  return *reinterpret_cast<const HVX_UVector*>(mem);
+  HVX_Vector vector;
+  memcpy(&vector, mem, __HVX_LENGTH__);
+  return vector;
 }
 
-template <typename T>
-EIGEN_STRONG_INLINE HVX_Vector HVX_load_partial(const T* mem, int /*size*/) {
+template <size_t Size, typename T>
+EIGEN_STRONG_INLINE HVX_Vector HVX_load_partial(const T* mem) {
+#ifdef EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD
+  // Fast partial vector load through aligned vector load.
+  // The load may past end of array but is aligned to prevent memory fault.
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
-  HVX_Vector value0 = *reinterpret_cast<const HVX_Vector*>(mem);
+  // Aligned vector load with auto-alignment on mem.
+  HVX_Vector value0 = HVX_load(mem);
   return Q6_V_valign_VVR(value0, value0, mem_addr);
+#else
+  HVX_Vector vector;
+  memcpy(&vector, mem, Size * sizeof(T));
+  return vector;
+#endif
 }
 
-template <typename T>
-EIGEN_STRONG_INLINE HVX_Vector HVX_loadu_partial(const T* mem, int size) {
+template <size_t Size, typename T>
+EIGEN_STRONG_INLINE HVX_Vector HVX_loadu_partial(const T* mem) {
+#ifdef EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD
+  // Fast partial load through aligned vector load.
+  // The load may past end of array but is aligned to prevent memory fault.
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
   uintptr_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
-  HVX_Vector value0 = *reinterpret_cast<const HVX_Vector*>(mem);
+  // Aligned vector load with auto-alignment on mem.
+  HVX_Vector value0 = HVX_load(mem);
   HVX_Vector value1 = value0;
-  if (left_off + size * sizeof(T) > __HVX_LENGTH__) {
-    value1 = *(reinterpret_cast<const HVX_Vector*>(mem) + 1);
+  if (left_off + Size * sizeof(T) > __HVX_LENGTH__) {
+    // Aligned vector load with auto-alignment on mem.
+    value1 = *(CONST_VMEM(mem) + 1);
   }
   return Q6_V_valign_VVR(value1, value0, mem_addr);
+#else
+  HVX_Vector vector;
+  memcpy(&vector, mem, Size * sizeof(T));
+  return vector;
+#endif
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE void HVX_store(T* mem, HVX_Vector v) {
-  *reinterpret_cast<HVX_Vector*>(mem) = v;
+  // Aligned vector store.
+  *VMEM(mem) = v;
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE void HVX_storeu(T* mem, HVX_Vector v) {
-  *reinterpret_cast<HVX_UVector*>(mem) = v;
+  memcpy(mem, &v, __HVX_LENGTH__);
 }
 
-template <typename T>
-EIGEN_STRONG_INLINE void HVX_store_partial(T* mem, HVX_Vector v, int size) {
+template <size_t size, typename T>
+EIGEN_STRONG_INLINE void HVX_store_partial(T* mem, HVX_Vector v) {
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
   HVX_Vector value = Q6_V_vlalign_VVR(v, v, mem_addr);
   uintptr_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
@@ -69,11 +100,13 @@ EIGEN_STRONG_INLINE void HVX_store_partial(T* mem, HVX_Vector v, int size) {
   HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
 
   ql_not = Q6_Q_or_QQn(ql_not, qr);
-  Q6_vmem_QnRIV(ql_not, reinterpret_cast<HVX_Vector*>(mem), value);
+
+  // Aligned and masked vector store with auto-alignment on mem.
+  Q6_vmem_QnRIV(ql_not, VMEM(mem), value);
 }
 
-template <typename T>
-EIGEN_STRONG_INLINE void HVX_storeu_partial(T* mem, HVX_Vector v, int size) {
+template <size_t size, typename T>
+EIGEN_STRONG_INLINE void HVX_storeu_partial(T* mem, HVX_Vector v) {
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
   HVX_Vector value = Q6_V_vlalign_VVR(v, v, mem_addr);
   uintptr_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
@@ -83,13 +116,14 @@ EIGEN_STRONG_INLINE void HVX_storeu_partial(T* mem, HVX_Vector v, int size) {
   HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
 
   if (right_off > __HVX_LENGTH__) {
-    Q6_vmem_QRIV(qr, reinterpret_cast<HVX_Vector*>(mem) + 1, value);
-    // all 1's
+    // Aligned and masked vector store with auto-alignment on mem.
+    Q6_vmem_QRIV(qr, VMEM(mem) + 1, value);
     qr = Q6_Q_vcmp_eq_VbVb(value, value);
   }
 
   ql_not = Q6_Q_or_QQn(ql_not, qr);
-  Q6_vmem_QnRIV(ql_not, reinterpret_cast<HVX_Vector*>(mem), value);
+  // Aligned and masked vector store with auto-alignment on mem.
+  Q6_vmem_QnRIV(ql_not, VMEM(mem), value);
 }
 
 // Packet definitions.
@@ -270,11 +304,11 @@ EIGEN_STRONG_INLINE Packet32f pload<Packet32f>(const float* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f pload<Packet16f>(const float* from) {
-  return Packet16f::Create(HVX_load_partial(from, unpacket_traits<Packet16f>::size));
+  return Packet16f::Create(HVX_load_partial<unpacket_traits<Packet16f>::size>(from));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f pload<Packet8f>(const float* from) {
-  return Packet8f::Create(HVX_load_partial(from, unpacket_traits<Packet8f>::size));
+  return Packet8f::Create(HVX_load_partial<unpacket_traits<Packet8f>::size>(from));
 }
 
 template <>
@@ -283,11 +317,11 @@ EIGEN_STRONG_INLINE Packet32f ploadu<Packet32f>(const float* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet16f ploadu<Packet16f>(const float* from) {
-  return Packet16f::Create(HVX_loadu_partial(from, unpacket_traits<Packet16f>::size));
+  return Packet16f::Create(HVX_loadu_partial<unpacket_traits<Packet16f>::size>(from));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from) {
-  return Packet8f::Create(HVX_loadu_partial(from, unpacket_traits<Packet8f>::size));
+  return Packet8f::Create(HVX_loadu_partial<unpacket_traits<Packet8f>::size>(from));
 }
 
 template <>
@@ -296,11 +330,11 @@ EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet32f& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet16f& from) {
-  HVX_store_partial(to, from.Get(), unpacket_traits<Packet16f>::size);
+  HVX_store_partial<unpacket_traits<Packet16f>::size>(to, from.Get());
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet8f& from) {
-  HVX_store_partial(to, from.Get(), unpacket_traits<Packet8f>::size);
+  HVX_store_partial<unpacket_traits<Packet8f>::size>(to, from.Get());
 }
 
 template <>
@@ -309,11 +343,11 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet32f& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet16f& from) {
-  HVX_storeu_partial(to, from.Get(), unpacket_traits<Packet16f>::size);
+  HVX_storeu_partial<unpacket_traits<Packet16f>::size>(to, from.Get());
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from) {
-  HVX_storeu_partial(to, from.Get(), unpacket_traits<Packet8f>::size);
+  HVX_storeu_partial<unpacket_traits<Packet8f>::size>(to, from.Get());
 }
 
 template <HVXPacketSize T>
@@ -757,8 +791,8 @@ EIGEN_STRONG_INLINE float predux<Packet8f>(const Packet8f& a) {
 
 template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> ploaddup_hvx(const float* from) {
-  const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
-  HVX_Vector load = HVX_load_partial(from, packet_size / 2);
+  constexpr Index size = unpacket_traits<HVXPacket<T>>::size / 2;
+  HVX_Vector load = HVX_loadu_partial<size>(from);
   HVX_VectorPair dup = Q6_W_vshuff_VVR(load, load, -4);
   return HVXPacket<T>::Create(HEXAGON_HVX_GET_V0(dup));
 }
@@ -777,8 +811,8 @@ EIGEN_STRONG_INLINE Packet8f ploaddup(const float* from) {
 
 template <HVXPacketSize T>
 EIGEN_STRONG_INLINE HVXPacket<T> ploadquad_hvx(const float* from) {
-  const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
-  HVX_Vector load = HVX_load_partial(from, packet_size / 4);
+  constexpr Index size = unpacket_traits<HVXPacket<T>>::size / 4;
+  HVX_Vector load = HVX_loadu_partial<size>(from);
   HVX_VectorPair dup = Q6_W_vshuff_VVR(load, load, -4);
   HVX_VectorPair quad = Q6_W_vshuff_VVR(HEXAGON_HVX_GET_V0(dup), HEXAGON_HVX_GET_V0(dup), -8);
   return HVXPacket<T>::Create(HEXAGON_HVX_GET_V0(quad));
