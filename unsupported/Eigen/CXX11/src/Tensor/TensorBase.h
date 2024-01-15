@@ -934,15 +934,11 @@ class TensorBase<Derived, ReadOnlyAccessors>
     template <Index DimId> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorChippingOp<DimId, const Derived>
     chip(const Index offset) const {
-      EIGEN_STATIC_ASSERT(DimId < Derived::NumDimensions && DimId >= 0, Chip_Dim_out_of_range)
-      eigen_assert(offset < dimension(DimId) && offset >= 0 && "Chip_Offset_out_of_range");
       return TensorChippingOp<DimId, const Derived>(derived(), offset, DimId);
     }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorChippingOp<Dynamic, const Derived>
     chip(const Index offset, const Index dim) const {
-      eigen_assert(dim < Derived::NumDimensions && dim >= 0 && "Chip_Dim_out_of_range");
-      eigen_assert(offset < dimension(DimId) && offset >= 0 && "Chip_Offset_out_of_range");
       return TensorChippingOp<Dynamic, const Derived>(derived(), offset, dim);
     }
     template <typename ReverseDimensions> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
@@ -1136,30 +1132,22 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
     template <DenseIndex DimId> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorChippingOp<DimId, const Derived>
     chip(const Index offset) const {
-      EIGEN_STATIC_ASSERT(DimId < Derived::NumDimensions && DimId >= 0, Chip_Dim_out_of_range)
-      eigen_assert(offset < dimension(DimId) && offset >= 0 && "Chip_Offset_out_of_range");
       return TensorChippingOp<DimId, const Derived>(derived(), offset, DimId);
     }
     template <Index DimId> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     TensorChippingOp<DimId, Derived>
     chip(const Index offset) {
-      EIGEN_STATIC_ASSERT(DimId < Derived::NumDimensions && DimId >= 0, Chip_Dim_out_of_range)
-      eigen_assert(offset < dimension(DimId) && offset >= 0 && "Chip_Offset_out_of_range");
       return TensorChippingOp<DimId, Derived>(derived(), offset, DimId);
     }
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorChippingOp<Dynamic, const Derived>
     chip(const Index offset, const Index dim) const {
-      eigen_assert(dim < Derived::NumDimensions && dim >= 0 && "Chip_Dim_out_of_range");
-      eigen_assert(offset < dimension(DimId) && offset >= 0 && "Chip_Offset_out_of_range");
       return TensorChippingOp<Dynamic, const Derived>(derived(), offset, dim);
     }
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     TensorChippingOp<Dynamic, Derived>
     chip(const Index offset, const Index dim) {
-      eigen_assert(dim < Derived::NumDimensions && dim >= 0 && "Chip_Dim_out_of_range");
-      eigen_assert(offset < dimension(DimId) && offset >= 0 && "Chip_Offset_out_of_range");
       return TensorChippingOp<Dynamic, Derived>(derived(), offset, dim);
     }
 
