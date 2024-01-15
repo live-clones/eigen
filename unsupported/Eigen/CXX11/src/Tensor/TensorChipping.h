@@ -77,6 +77,7 @@ class TensorChippingOp : public TensorBase<TensorChippingOp<DimId, XprType> > {
   typedef typename Eigen::internal::traits<TensorChippingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorChippingOp>::Index Index;
 
+  EIGEN_STATIC_ASSERT(DimId < XprType::NumDimensions && DimId >= 0, Chip_Dim_out_of_range)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorChippingOp(const XprType& expr, const Index offset, const Index dim)
       : m_xpr(expr), m_offset(offset), m_dim(dim) {}
 
