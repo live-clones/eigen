@@ -24,19 +24,28 @@ namespace internal {
 // The aligned vector load/store instruction have auto-alignment that ignore
 // the lowest bits of the pointer to always align the load or store to the
 // HVX vector size.
+#define CONST_VMEM2(mem) reinterpret_cast<const HVX_VectorPair*>(mem)
 #define CONST_VMEM(mem) reinterpret_cast<const HVX_Vector*>(mem)
 #define VMEM(mem) reinterpret_cast<HVX_Vector*>(mem)
 
 template <typename T>
+EIGEN_STRONG_INLINE HVX_VectorPair HVX_load2(const T* mem) {
+  HVX_VectorPair vector;
+  memcpy(&vector, CONST_VMEM2(mem), sizeof(vector));
+  return vector;
+}
+
+template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load(const T* mem) {
-  // Aligned vector load.
-  return *CONST_VMEM(mem);
+  HVX_Vector vector;
+  memcpy(&vector, CONST_VMEM(mem), sizeof(vector));
+  return vector;
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const T* mem) {
   HVX_Vector vector;
-  memcpy(&vector, mem, __HVX_LENGTH__);
+  memcpy(&vector, mem, sizeof(vector));
   return vector;
 }
 
@@ -64,11 +73,16 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_loadu_partial(const T* mem) {
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
   uintptr_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
   // Aligned vector load with auto-alignment on mem.
-  HVX_Vector value0 = HVX_load(mem);
+  HVX_Vector value0;
   HVX_Vector value1 = value0;
   if (left_off + Size * sizeof(T) > __HVX_LENGTH__) {
     // Aligned vector load with auto-alignment on mem.
-    value1 = *(CONST_VMEM(mem) + 1);
+    HVX_VectorPair value_pair = HVX_load2(mem);
+    value0 = HEXAGON_HVX_GET_V0(value_pair));
+    value1 = HEXAGON_HVX_GET_V1(value_pair));
+  } else {
+    value0 = HVX_load(mem);
+    value1 = value0;
   }
   return Q6_V_valign_VVR(value1, value0, mem_addr);
 #else
@@ -81,12 +95,12 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_loadu_partial(const T* mem) {
 template <typename T>
 EIGEN_STRONG_INLINE void HVX_store(T* mem, HVX_Vector v) {
   // Aligned vector store.
-  *VMEM(mem) = v;
+  memcpy(VMEM(mem), &v, sizeof(v));
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE void HVX_storeu(T* mem, HVX_Vector v) {
-  memcpy(mem, &v, __HVX_LENGTH__);
+  memcpy(mem, &v, sizeof(v));
 }
 
 template <size_t size, typename T>
