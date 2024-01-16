@@ -209,6 +209,11 @@ void stable_norm(const MatrixType& m) {
   }
 }
 
+void test_empty() {
+  Eigen::VectorXf empty(0);
+  VERIFY_IS_EQUAL(empty.stableNorm(), 0.0f);
+}
+
 template <typename Scalar>
 void test_hypot() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -235,12 +240,15 @@ void test_hypot() {
 }
 
 EIGEN_DECLARE_TEST(stable_norm) {
+  CALL_SUBTEST_1(test_empty());
+
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_3(test_hypot<double>());
     CALL_SUBTEST_4(test_hypot<float>());
     CALL_SUBTEST_5(test_hypot<std::complex<double> >());
     CALL_SUBTEST_6(test_hypot<std::complex<float> >());
 
+    CALL_SUBTEST_1(stable_norm(Matrix<float, 1, 1>()));
     CALL_SUBTEST_1(stable_norm(Matrix<float, 1, 1>()));
     CALL_SUBTEST_2(stable_norm(Vector4d()));
     CALL_SUBTEST_3(stable_norm(VectorXd(internal::random<int>(10, 2000))));
