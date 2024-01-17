@@ -20,89 +20,85 @@ namespace internal {
 
 // HVX utilities.
 
-// Force aligned vector load/store through reinterpret_cast to HVX_Vector*.
-// The aligned vector load/store instruction have auto-alignment that ignore
-// the lowest bits of the pointer to always align the load or store to the
-// HVX vector size.
-#define CONST_VMEM2(mem) reinterpret_cast<const HVX_VectorPair*>(mem)
-#define CONST_VMEM(mem) reinterpret_cast<const HVX_Vector*>(mem)
-#define VMEM(mem) reinterpret_cast<HVX_Vector*>(mem)
-
-template <typename T>
-EIGEN_STRONG_INLINE HVX_VectorPair HVX_load2(const T* mem) {
-  HVX_VectorPair vector;
-  memcpy(&vector, CONST_VMEM2(mem), sizeof(vector));
-  return vector;
-}
-
 template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load(const T* mem) {
-  HVX_Vector vector;
-  memcpy(&vector, CONST_VMEM(mem), sizeof(vector));
-  return vector;
+  HVX_Vector v;
+#if EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
+  memcpy(&v, __builtin_assume_aligned(mem, __HVX_LENGTH__), __HVX_LENGTH__);
+#else
+  memcpy(&v, mem, __HVX_LENGTH__);
+#endif
+  return v;
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const T* mem) {
-  HVX_Vector vector;
-  memcpy(&vector, mem, sizeof(vector));
-  return vector;
+  HVX_Vector v;
+  memcpy(&v, mem, __HVX_LENGTH__);
+  return v;
 }
 
+// This function assumes data alignment on the partial vector size, but not
+// on full vector size.  Compare to unaligned data, the data will never
+// cross aligned vector boundary.
 template <size_t Size, typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load_partial(const T* mem) {
-#ifdef EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD
+#if EIGEN_COMP_CLANG && defined(EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD)
   // Fast partial vector load through aligned vector load.
   // The load may past end of array but is aligned to prevent memory fault.
+  HVX_Vector v;
+  // Use inlined assembly for aligned vector load on unaligned memory.
+  // Use type cast to HVX_Vector* may mess up with data alignment.
+  __asm__("%0 = vmem(%1)" : "=v"(v) : "r"(mem) : "memory");
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
-  // Aligned vector load with auto-alignment on mem.
-  HVX_Vector value0 = HVX_load(mem);
-  return Q6_V_valign_VVR(value0, value0, mem_addr);
+  return Q6_V_valign_VVR(v, v, mem_addr);
 #else
-  HVX_Vector vector;
-  memcpy(&vector, mem, Size * sizeof(T));
-  return vector;
+  HVX_Vector v;
+  memcpy(&v, mem, Size * sizeof(T));
+  return v;
 #endif
 }
 
 template <size_t Size, typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_loadu_partial(const T* mem) {
-#ifdef EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD
-  // Fast partial load through aligned vector load.
+#if EIGEN_COMP_CLANG && defined(EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD)
+  // Fast partial vector load through aligned vector load.
   // The load may past end of array but is aligned to prevent memory fault.
+  HVX_Vector v0;
+  // Use inlined assembly for aligned vector load on unaligned memory.
+  // Use type cast to HVX_Vector* may mess up with data alignment.
+  __asm__("%0 = vmem(%1)" : "=v"(v0) : "r"(mem) : "memory");
+  HVX_Vector v1 = v0;
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
   uintptr_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
-  // Aligned vector load with auto-alignment on mem.
-  HVX_Vector value0;
-  HVX_Vector value1 = value0;
   if (left_off + Size * sizeof(T) > __HVX_LENGTH__) {
-    // Aligned vector load with auto-alignment on mem.
-    HVX_VectorPair value_pair = HVX_load2(mem);
-    value0 = HEXAGON_HVX_GET_V0(value_pair));
-    value1 = HEXAGON_HVX_GET_V1(value_pair));
-  } else {
-    value0 = HVX_load(mem);
-    value1 = value0;
+    __asm__("%0 = vmem(%1+#1)" : "=v"(v1) : "r"(mem) : "memory");
   }
-  return Q6_V_valign_VVR(value1, value0, mem_addr);
+  return Q6_V_valign_VVR(v1, v0, mem_addr);
 #else
-  HVX_Vector vector;
-  memcpy(&vector, mem, Size * sizeof(T));
-  return vector;
+  HVX_Vector v;
+  memcpy(&v, mem, Size * sizeof(T));
+  return v;
 #endif
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE void HVX_store(T* mem, HVX_Vector v) {
-  // Aligned vector store.
-  memcpy(VMEM(mem), &v, sizeof(v));
+#if EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
+  memcpy(__builtin_assume_aligned(mem, __HVX_LENGTH__), &v, __HVX_LENGTH__);
+#else
+  memcpy(mem, &v, __HVX_LENGTH__);
+#endif
 }
 
 template <typename T>
 EIGEN_STRONG_INLINE void HVX_storeu(T* mem, HVX_Vector v) {
-  memcpy(mem, &v, sizeof(v));
+  memcpy(mem, &v, __HVX_LENGTH__);
 }
 
+// This function assumes data alignment on the partial vector size, but not
+// on full vector size.  Compare to unaligned data, the data will never
+// cross aligned vector boundary.
 template <size_t size, typename T>
 EIGEN_STRONG_INLINE void HVX_store_partial(T* mem, HVX_Vector v) {
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
@@ -116,7 +112,7 @@ EIGEN_STRONG_INLINE void HVX_store_partial(T* mem, HVX_Vector v) {
   ql_not = Q6_Q_or_QQn(ql_not, qr);
 
   // Aligned and masked vector store with auto-alignment on mem.
-  Q6_vmem_QnRIV(ql_not, VMEM(mem), value);
+  Q6_vmem_QnRIV(ql_not, mem, value);
 }
 
 template <size_t size, typename T>
@@ -131,13 +127,13 @@ EIGEN_STRONG_INLINE void HVX_storeu_partial(T* mem, HVX_Vector v) {
 
   if (right_off > __HVX_LENGTH__) {
     // Aligned and masked vector store with auto-alignment on mem.
-    Q6_vmem_QRIV(qr, VMEM(mem) + 1, value);
+    Q6_vmem_QRIV(qr, mem + __HVX_LENGTH__ / sizeof(T), value);
     qr = Q6_Q_vcmp_eq_VbVb(value, value);
   }
 
   ql_not = Q6_Q_or_QQn(ql_not, qr);
   // Aligned and masked vector store with auto-alignment on mem.
-  Q6_vmem_QnRIV(ql_not, VMEM(mem), value);
+  Q6_vmem_QnRIV(ql_not, mem, value);
 }
 
 // Packet definitions.
