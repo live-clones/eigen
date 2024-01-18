@@ -20,16 +20,20 @@ namespace internal {
 
 // HVX utilities.
 
-#if EIGEN_COMP_CLANG && defined(EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD)
-// Use inlined assembly for aligned vmem load on unaligned memory.
-// Use type cast to HVX_Vector* may mess up with compiler data alignment.
 template <int D>
 EIGEN_STRONG_INLINE HVX_Vector HVX_vmem(const void* m) {
   HVX_Vector v;
+#if EIGEN_COMP_CLANG
+  // Use inlined assembly for aligned vmem load on unaligned memory.
+  // Use type cast to HVX_Vector* may mess up with compiler data alignment.
   __asm__("%0 = vmem(%1+#%2)" : "=v"(v) : "r"(m), "i"(D) : "memory");
+#else
+  void* aligned_mem =
+      reinterpret_cast<void*>((reinterpret_cast<uintptr_t>(m) & ~(__HVX_LENGTH__ - 1)) + D * __HVX_LENGTH__);
+  memcpy(&v, aligned_mem, __HVX_LENGTH__);
+#endif
   return v;
 }
-#endif
 
 template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load(const T* mem) {
@@ -45,7 +49,7 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const T* mem) {
 
 template <size_t Size, size_t Alignment, typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load_partial(const T* mem) {
-#if EIGEN_COMP_CLANG && defined(EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD)
+#if defined(EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD)
   // Fast partial vector load through aligned vmem load.
   // The load may past end of array but is aligned to prevent memory fault.
   HVX_Vector v0 = HVX_vmem<0>(mem);
