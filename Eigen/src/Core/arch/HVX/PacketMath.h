@@ -37,7 +37,9 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_vmem(const void* m) {
 
 template <typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load(const T* mem) {
-  return *reinterpret_cast<const HVX_Vector*>(mem);
+  HVX_Vector v;
+  memcpy(&v, reinterpret_cast<const HVX_Vector*>(mem), __HVX_LENGTH__);
+  return v;
 }
 
 template <typename T>
@@ -77,7 +79,7 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_load_partial(const T* mem) {
 
 template <typename T>
 EIGEN_STRONG_INLINE void HVX_store(T* mem, HVX_Vector v) {
-  *reinterpret_cast<HVX_Vector*>(mem) = v;
+  memcpy(reinterpret_cast<HVX_Vector*>(mem), &v, __HVX_LENGTH__);
 }
 
 template <typename T>
@@ -95,10 +97,7 @@ EIGEN_STRONG_INLINE void HVX_store_partial(T* mem, HVX_Vector v) {
   HVX_VectorPred ql_not = Q6_Q_vsetq_R(mem_addr);
   HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
 
-  EIGEN_IF_CONSTEXPR(Size * sizeof(T) <= Alignment) {
-    // Data size less than alignment will never cross multiple aligned vectors.
-  }
-  else {
+  EIGEN_IF_CONSTEXPR(Size * sizeof(T) > Alignment) {
     if (right_off > __HVX_LENGTH__) {
       Q6_vmem_QRIV(qr, mem + __HVX_LENGTH__ / sizeof(T), value);
       qr = Q6_Q_vcmp_eq_VbVb(value, value);
