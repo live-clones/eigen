@@ -289,8 +289,15 @@ endif()
 
 endif()
 
-find_package(CUDA 9.0)
-if(CUDA_FOUND AND EIGEN_TEST_CUDA)
+# These tests needs nvcc
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+  enable_language(CUDA)
+else()
+  message(STATUS "Could NOT find CUDA.")
+endif()
+
+if(CMAKE_CUDA_COMPILER AND EIGEN_TEST_CUDA)
   # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
   # and -fno-check-new flags since they trigger thousands of compilation warnings
   # in the CUDA runtime
