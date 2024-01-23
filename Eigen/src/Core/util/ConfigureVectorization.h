@@ -431,6 +431,11 @@ extern "C" {
 #include <arm_fp16.h>
 #endif
 
+// Enable FMA for ARM.
+#if defined(__ARM_FEATURE_FMA)
+#define EIGEN_VECTORIZE_FMA
+#endif
+
 #if defined(__F16C__) && !defined(EIGEN_GPUCC) && (!EIGEN_COMP_CLANG_STRICT || EIGEN_CLANG_STRICT_AT_LEAST(3, 8, 0))
 // We can use the optimized fp16 to float and float to fp16 conversion routines
 #define EIGEN_HAS_FP16_C
