@@ -216,8 +216,18 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MS
   ei_add_test(cxx11_tensor_uint128)
 endif()
 
-find_package(CUDA 9.0)
-if(CUDA_FOUND AND EIGEN_TEST_CUDA)
+if(CMAKE_VERSION VERSION_LESS "3.10")
+  find_package(CUDA 9.0)
+else()
+  check_language(CUDA)
+  if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+  else()
+    message(STATUS "Could NOT find CUDA.")
+  endif()
+endif()
+
+if((CUDA_FOUND OR CMAKE_CUDA_COMPILER) AND (EIGEN_TEST_CUDA))
   # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
   # and -fno-check-new flags since they trigger thousands of compilation warnings
   # in the CUDA runtime
