@@ -14,6 +14,14 @@ if (POLICY CMP0090)
   endif (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
 endif (POLICY CMP0090)
 
+# NOTE Remove setting the policy once a fix with importing CUDA using enable_language() is working with
+# clang. Most likely that will only happen once the minimum required version is bumped to at least 3.18.
+if (POLICY CMP0146)
+  # Do not generate a warning if CUDA is loaded using find_package() instead of
+  # enable_language().
+  cmake_policy(SET CMP0146 OLD)
+endif ()
+
 project(Eigen3)
 
 # Remove this block after bumping CMake to v3.21.0
