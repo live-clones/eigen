@@ -798,7 +798,7 @@ template <typename Scalar>
 struct random_default_impl<Scalar, false, false> {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   enum : int { MantissaBits = NumTraits<Scalar>::digits() - 1 };
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits = MantissaBits) { 
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits = MantissaBits) {
     Scalar half_x = Scalar(0.5) * x;
     Scalar half_y = Scalar(0.5) * y;
     Scalar result = (half_x + half_y) + (half_y - half_x) * run(numRandomBits);

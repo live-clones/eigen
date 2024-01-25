@@ -687,7 +687,7 @@ struct random_default_impl<bfloat16, false, false> {
   using Impl = random_default_impl<float, false, false>;
   static EIGEN_DEVICE_FUNC inline bfloat16 run(const bfloat16& x, const bfloat16& y) {
     float result = Impl::run(x, y, MantissaBits);
-    return bfloat16(result); 
+    return bfloat16(result);
   }
   static EIGEN_DEVICE_FUNC inline bfloat16 run() {
     float result = Impl::run(MantissaBits);
