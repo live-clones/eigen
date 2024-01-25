@@ -798,28 +798,22 @@ template <typename Scalar>
 struct random_default_impl<Scalar, false, false> {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   enum : int { MantissaBits = NumTraits<Scalar>::digits() - 1 };
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { return x + (y - x) * run_canonical(); }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Scalar(-1), Scalar(1)); }
-
- protected:
-  static EIGEN_DEVICE_FUNC inline Scalar run_canonical(int numRandomBits) {
-    eigen_assert(numRandomBits >= 0 && numRandomBits <= MantissaBits);
-    // if fewer than MantissaBits are requested, shift them to the left
-    BitsType randomBits = getRandomBits<BitsType>(numRandomBits) << (MantissaBits - numRandomBits);
-    // set the exponent bits to 1
-    randomBits |= numext::bit_cast<BitsType>(Scalar(1));
-    // randomBits is in the interval [1,2)
-    Scalar result = numext::bit_cast<Scalar>(randomBits) - Scalar(1);
-    // result is in the interval [0,1)
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits = MantissaBits) { 
+    Scalar half_x = Scalar(0.5) * x;
+    Scalar half_y = Scalar(0.5) * y;
+    Scalar result = (half_x + half_y) + (half_y - half_x) * run(numRandomBits);
+    // result is in the half-open interval [x, y) -- provided that x < y
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run_canonical() {
-    BitsType randomBits = getRandomBits<BitsType>(MantissaBits);
-    // set the exponent bits to 1
-    randomBits |= numext::bit_cast<BitsType>(Scalar(1));
-    // randomBits is in the interval [1,2)
-    Scalar result = numext::bit_cast<Scalar>(randomBits) - Scalar(1);
-    // result is in the interval [0,1)
+  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits = MantissaBits) {
+    eigen_assert(numRandomBits >= 0 && numRandomBits <= MantissaBits);
+    BitsType randomBits = getRandomBits<BitsType>(numRandomBits);
+    // if fewer than MantissaBits is requested, shift them to the left
+    randomBits <<= (MantissaBits - numRandomBits);
+    // randomBits is in the half-open interval [2,4)
+    randomBits |= numext::bit_cast<BitsType>(Scalar(2));
+    // result is in the half-open interval [-1,1)
+    Scalar result = numext::bit_cast<Scalar>(randomBits) - Scalar(3);
     return result;
   }
 };
@@ -833,29 +827,31 @@ struct random_longdouble_impl {
     HighBits = MantissaBits > 64 ? MantissaBits - 64 : 0
   };
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
-    return x + (y - x) * run_canonical();
+    long double half_x = 0.5L * x;
+    long double half_y = 0.5L * y;
+    return (half_x + half_y) + (half_y - half_x) * run();
   }
-  static EIGEN_DEVICE_FUNC inline long double run() { return run(-1.0L, 1.0L); }
-
- protected:
-  static EIGEN_DEVICE_FUNC inline long double run_canonical() {
+  static EIGEN_DEVICE_FUNC inline long double run() {
     EIGEN_USING_STD(memcpy)
     uint64_t randomBits[2];
-    long double result = 1.0L;
+    long double result = 2.0L;
     memcpy(&randomBits, &result, Size);
     randomBits[0] |= getRandomBits<uint64_t>(LowBits);
     randomBits[1] |= getRandomBits<uint64_t>(HighBits);
     memcpy(&result, &randomBits, Size);
-    result -= 1.0L;
+    result -= 3.0L;
     return result;
   }
 };
 template <>
-struct random_longdouble_impl<false> : public random_impl<double> {
+struct random_longdouble_impl<false> {
+  using Impl = random_impl<double>;
   static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
-    return x + (y - x) * static_cast<long double>(run_canonical());
+    long double half_x = 0.5L * x;
+    long double half_y = 0.5L * y;
+    return (half_x + half_y) + (half_y - half_x) * run();
   }
-  static EIGEN_DEVICE_FUNC inline long double run() { return run(-1.0L, 1.0L); }
+  static EIGEN_DEVICE_FUNC inline long double run() { return static_cast<long double>(Impl::run()); }
 };
 
 template <>
