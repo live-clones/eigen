@@ -1199,6 +1199,11 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
       return TensorAsyncDevice<Derived, DeviceType, DoneCallback>(dev, derived(), std::move(done));
     }
 
+    EIGEN_DEVICE_FUNC
+    EIGEN_STRONG_INLINE Derived& derived() { return *static_cast<Derived*>(this); }
+    EIGEN_DEVICE_FUNC
+    EIGEN_STRONG_INLINE const Derived& derived() const { return *static_cast<const Derived*>(this); }
+
     #ifdef EIGEN_TENSORBASE_PLUGIN
     #include EIGEN_TENSORBASE_PLUGIN
     #endif
@@ -1215,10 +1220,6 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
       internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
       return derived();
     }
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Derived& derived() { return *static_cast<Derived*>(this); }
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE const Derived& derived() const { return *static_cast<const Derived*>(this); }
 };
 #endif // EIGEN_PARSED_BY_DOXYGEN
 } // end namespace Eigen
