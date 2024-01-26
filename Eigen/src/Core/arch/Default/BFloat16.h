@@ -682,9 +682,9 @@ struct is_arithmetic<bfloat16> {
 };
 
 template <>
-struct random_default_impl<bfloat16, false, false> {
+struct random_impl<bfloat16> {
   enum : int { MantissaBits = 7 };
-  using Impl = random_default_impl<float, false, false>;
+  using Impl = random_impl<float>;
   static EIGEN_DEVICE_FUNC inline bfloat16 run(const bfloat16& x, const bfloat16& y) {
     float result = Impl::run(x, y, MantissaBits);
     return bfloat16(result);

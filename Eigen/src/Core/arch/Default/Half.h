@@ -767,9 +767,9 @@ struct is_arithmetic<half> {
 };
 
 template <>
-struct random_default_impl<half, false, false> {
+struct random_impl<half> {
   enum : int { MantissaBits = 10 };
-  using Impl = random_default_impl<float, false, false>;
+  using Impl = random_impl<float>;
   static EIGEN_DEVICE_FUNC inline half run(const half& x, const half& y) {
     float result = Impl::run(x, y, MantissaBits);
     return half(result);
