@@ -31,30 +31,25 @@ macro(ei_add_test_internal testname testname_with_suffix)
       hip_add_executable(${targetname} ${filename} HIPCC_OPTIONS -std=c++14)
       target_compile_definitions(${targetname} PRIVATE -DEIGEN_USE_HIP)
       set_property(TARGET ${targetname} PROPERTY HIP_ARCHITECTURES gfx900 gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030)
-    elseif(EIGEN_TEST_CUDA_CLANG)
+    elseif(EIGEN_TEST_CUDA_CLANG_FALLBACK)
       set_source_files_properties(${filename} PROPERTIES LANGUAGE CXX)
-      
-      if(CUDA_64_BIT_DEVICE_CODE AND (EXISTS "${CUDA_TOOLKIT_ROOT_DIR}/lib64"))
-        link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib64")
-      else()
-        link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib")
-      endif()
-
       add_executable(${targetname} ${filename})
       set(CUDA_CLANG_LINK_LIBRARIES "cudart_static" "cuda" "dl" "pthread")
       if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-      set(CUDA_CLANG_LINK_LIBRARIES ${CUDA_CLANG_LINK_LIBRARIES} "rt")
+        set(CUDA_CLANG_LINK_LIBRARIES ${CUDA_CLANG_LINK_LIBRARIES} "rt")
       endif()
       target_link_libraries(${targetname} ${CUDA_CLANG_LINK_LIBRARIES})
+      target_compile_options(${targetname} PRIVATE ${EIGEN_CUDA_CXX_FLAGS})
     else()
-      cuda_add_executable(${targetname} ${filename})
+      add_executable(${targetname} ${filename})
+      target_compile_options(${targetname} PRIVATE ${EIGEN_CUDA_CXX_FLAGS})
     endif()
   else()
     add_executable(${targetname} ${filename})
   endif()
 
   add_dependencies(buildtests ${targetname})
-  
+
   if (is_gpu_test)
     add_dependencies(buildtests_gpu ${targetname})
   endif()
@@ -118,7 +113,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
     # Add gpu tag for testing only GPU tests.
     set_property(TEST ${testname_with_suffix} APPEND PROPERTY LABELS "gpu")
   endif()
-  
+
   if(EIGEN_SYCL)
     # Force include of the SYCL file at the end to avoid errors.
     set_property(TARGET ${targetname} PROPERTY COMPUTECPP_INCLUDE_AFTER 1)
@@ -377,10 +372,10 @@ macro(ei_testing_print_summary)
       message(STATUS "SYCL:              OFF")
     endif()
     if(EIGEN_TEST_CUDA)
-      if(EIGEN_TEST_CUDA_CLANG)
-        message(STATUS "CUDA:              ON (using clang)")
+      if(EIGEN_TEST_CUDA_CLANG_FALLBACK)
+        message(STATUS "CUDA:              ON (using clang fallback)")
       else()
-        message(STATUS "CUDA:              ON (using nvcc)")
+        message(STATUS "CUDA:              ON (using ${CMAKE_CUDA_COMPILER})")
       endif()
     else()
       message(STATUS "CUDA:              OFF")
@@ -510,12 +505,12 @@ macro(ei_get_compilerver_from_cxx_version_string VERSTRING CNAME CVER)
         string(REGEX MATCH "[^0-9][0-9]+\\.[0-9]+" eicver ${VERSTRING})
         if (NOT eicver AND ei_has_mingw)
           # try to extract 1 number plus suffix:
-          string(REGEX MATCH "[^0-9][0-9]+-win32" eicver ${VERSTRING})          
+          string(REGEX MATCH "[^0-9][0-9]+-win32" eicver ${VERSTRING})
         endif()
       endif()
     endif()
   endif()
-  
+
   if (NOT eicver)
     set(eicver " _")
   endif()
@@ -645,7 +640,7 @@ endmacro()
 # The intention behind the existence of this macro is the size of Eigen's
 # testsuite. Together with the relatively big compile-times building all tests
 # can take a substantial amount of time depending on the available hardware.
-# 
+#
 # The last buildtestspartN target will build possible remaining tests.
 #
 # An example:
@@ -689,7 +684,7 @@ macro(ei_split_testsuite num_splits)
     endforeach()
     math(EXPR test_idx "${test_idx} + ${num_tests_per_target}")
   endforeach()
-  
+
   # Handle the possibly remaining tests
   math(EXPR test_idx "${num_splits} * ${num_tests_per_target}")
   math(EXPR target_bound "${eigen_test_count} - 1")
@@ -701,10 +696,10 @@ endmacro(ei_split_testsuite num_splits)
 
 # Defines the custom command buildsmoketests to build a number of tests
 # specified in smoke_test_list.
-# 
+#
 # Test in smoke_test_list can be either test targets (e.g. packetmath) or
 # subtests targets (e.g. packetmath_2). If any of the test are not available
-# in the current configuration they are just skipped. 
+# in the current configuration they are just skipped.
 #
 # All tests added via this macro are labeled with the smoketest label. This
 # allows running smoketests only using ctest.
