@@ -826,11 +826,6 @@ struct random_longdouble_impl {
     LowBits = MantissaBits > 64 ? 64 : MantissaBits,
     HighBits = MantissaBits > 64 ? MantissaBits - 64 : 0
   };
-  static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
-    long double half_x = 0.5L * x;
-    long double half_y = 0.5L * y;
-    return (half_x + half_y) + (half_y - half_x) * run();
-  }
   static EIGEN_DEVICE_FUNC inline long double run() {
     EIGEN_USING_STD(memcpy)
     uint64_t randomBits[2];
@@ -846,36 +841,41 @@ struct random_longdouble_impl {
 template <>
 struct random_longdouble_impl<false> {
   using Impl = random_impl<double>;
-  static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
-    long double half_x = 0.5L * x;
-    long double half_y = 0.5L * y;
-    return (half_x + half_y) + (half_y - half_x) * run();
-  }
   static EIGEN_DEVICE_FUNC inline long double run() { return static_cast<long double>(Impl::run()); }
 };
 
 template <>
-struct random_default_impl<long double, false, false> : random_longdouble_impl<> {};
+struct random_impl<long double> {
+  static EIGEN_DEVICE_FUNC inline long double run(const long double& x, const long double& y) {
+    long double half_x = 0.5L * x;
+    long double half_y = 0.5L * y;
+    long double result = (half_x + half_y) + (half_y - half_x) * run();
+    return result;
+  }
+  static EIGEN_DEVICE_FUNC inline long double run() { return random_longdouble_impl<>::run(); }
+};
 
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   enum : int { ScalarBits = sizeof(Scalar) * CHAR_BIT };
-  static inline Scalar run(const Scalar& x, const Scalar& y) {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    const BitsType range = static_cast<BitsType>(y) - static_cast<BitsType>(x);
+    const BitsType range = static_cast<BitsType>(y) - static_cast<BitsType>(x) + 1;
+    // handle edge case where [x,y] spans the entire range of Scalar
+    if (range == 0) return getRandomBits<Scalar>(ScalarBits);
     // calculate the number of random bits needed to fill range
     const int numRandomBits = log2_ceil(range);
     BitsType randomBits;
     do {
       randomBits = getRandomBits<BitsType>(numRandomBits);
-      // if the random draw is outside [0, range], try again (rejection sampling)
+      // if the random draw is outside [0, range), try again (rejection sampling)
       // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
-    } while (randomBits > range);
+    } while (randomBits >= range);
     return x + static_cast<Scalar>(randomBits);
   }
 
-  static inline Scalar run() {
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
 #ifdef EIGEN_MAKING_DOCS
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
@@ -884,12 +884,21 @@ struct random_default_impl<Scalar, false, true> {
   }
 };
 
+template <>
+struct random_impl<bool> {
+  static EIGEN_DEVICE_FUNC inline bool run(const bool& x, const bool& y) {
+    if (y <= x) return x;
+    return run();
+  }
+  static EIGEN_DEVICE_FUNC inline bool run() { return getRandomBits<int>(1) ? true : false; }
+};
+
 template <typename Scalar>
 struct random_default_impl<Scalar, true, false> {
-  static inline Scalar run(const Scalar& x, const Scalar& y) {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     return Scalar(random(x.real(), y.real()), random(x.imag(), y.imag()));
   }
-  static inline Scalar run() {
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
     typedef typename NumTraits<Scalar>::Real RealScalar;
     return Scalar(random<RealScalar>(), random<RealScalar>());
   }
@@ -1933,13 +1942,6 @@ EIGEN_DEVICE_FUNC inline bool isApproxOrLessThan(
 /******************************************
 ***  The special case of the  bool type ***
 ******************************************/
-
-template <>
-struct random_impl<bool> {
-  static inline bool run() { return random<int>(0, 1) == 0 ? false : true; }
-
-  static inline bool run(const bool& a, const bool& b) { return random<int>(a, b) == 0 ? false : true; }
-};
 
 template <>
 struct scalar_fuzzy_impl<bool> {

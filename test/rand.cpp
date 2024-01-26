@@ -229,12 +229,12 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_12(check_histogram<int64_t>(Eigen::NumTraits<int64_t>::lowest(), Eigen::NumTraits<int64_t>::highest(),
                                            /*bins=*/1024));
 
-  CALL_SUBTEST_13(check_histogram<uint8_t>(/*bins=*/16));
+  CALL_SUBTEST_13(check_histogram<uint8_t>(/*bins=*/256));
   CALL_SUBTEST_13(check_histogram<uint16_t>(/*bins=*/1024));
   CALL_SUBTEST_13(check_histogram<uint32_t>(/*bins=*/1024));
   CALL_SUBTEST_13(check_histogram<uint64_t>(/*bins=*/1024));
 
-  CALL_SUBTEST_14(check_histogram<int8_t>(/*bins=*/16));
+  CALL_SUBTEST_14(check_histogram<int8_t>(/*bins=*/256));
   CALL_SUBTEST_14(check_histogram<int16_t>(/*bins=*/1024));
   CALL_SUBTEST_14(check_histogram<int32_t>(/*bins=*/1024));
   CALL_SUBTEST_14(check_histogram<int64_t>(/*bins=*/1024));
