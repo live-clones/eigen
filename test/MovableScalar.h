@@ -28,6 +28,23 @@ struct MovableScalar : public Base {
 
 template <>
 struct NumTraits<MovableScalar<float>> : GenericNumTraits<float> {};
+
+namespace internal {
+template <typename T>
+struct random_impl<MovableScalar<T>> {
+  using MoveableT = MovableScalar<T>;
+  using Impl = random_impl<T>;
+  static EIGEN_DEVICE_FUNC inline MoveableT run(const MoveableT& x, const MoveableT& y) {
+    MoveableT result = Impl::run(x, y);
+    return result;
+  }
+  static EIGEN_DEVICE_FUNC inline MoveableT run() {
+    MoveableT result = Impl::run();
+    return result;
+  }
+};
+}  // namespace internal
+
 }  // namespace Eigen
 
 #endif
