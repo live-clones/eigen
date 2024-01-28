@@ -818,7 +818,7 @@ struct random_default_impl<Scalar, false, false> {
   }
 };
 
-template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t)>
+template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t) && std::numeric_limits<long double>::is_iec559>
 struct random_longdouble_impl {
   enum : int {
     Size = sizeof(long double),
