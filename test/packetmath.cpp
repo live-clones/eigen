@@ -538,7 +538,7 @@ void packetmath() {
   CHECK_CWISE2_IF(PacketTraits::HasMul, REF_MUL, internal::pmul);
   CHECK_CWISE2_IF(PacketTraits::HasDiv, REF_DIV, internal::pdiv);
 
-  CHECK_CWISE1_IF(PacketTraits::HasNegate, internal::negate, internal::pnegate);
+  CHECK_CWISE1_IF(PacketTraits::HasNegate, test::negate, internal::pnegate);
   CHECK_CWISE1_IF(PacketTraits::HasReciprocal, REF_RECIPROCAL, internal::preciprocal);
   CHECK_CWISE1(numext::conj, internal::pconj);
   CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
@@ -1141,7 +1141,7 @@ void packetmath_real() {
 
       data1[0] = -Scalar(0.);
       h.store(data2, internal::psin(h.load(data1)));
-      VERIFY(internal::biteq(data2[0], data1[0]));
+      VERIFY(test::biteq(data2[0], data1[0]));
       h.store(data2, internal::pcos(h.load(data1)));
       VERIFY_IS_EQUAL(data2[0], Scalar(1));
     }
@@ -1340,6 +1340,8 @@ void packetmath_complex() {
   EIGEN_ALIGN_MAX Scalar data2[PacketSize * 4];
   EIGEN_ALIGN_MAX Scalar ref[PacketSize * 4];
   EIGEN_ALIGN_MAX Scalar pval[PacketSize * 4];
+  EIGEN_ALIGN_MAX RealScalar realdata[PacketSize * 4];
+  EIGEN_ALIGN_MAX RealScalar realref[PacketSize * 4];
 
   for (int i = 0; i < size; ++i) {
     data1[i] = internal::random<Scalar>() * Scalar(1e2);
@@ -1400,6 +1402,47 @@ void packetmath_complex() {
     data1[2] = Scalar(nan, inf);
     data1[3] = Scalar(-inf, nan);
     CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+  }
+  if (PacketTraits::HasLog) {
+    for (int i = 0; i < size; ++i) {
+      data1[i] = Scalar(internal::random<RealScalar>(), internal::random<RealScalar>());
+    }
+    CHECK_CWISE1_N(std::log, internal::plog, size);
+
+    // Test misc. corner cases.
+    const RealScalar zero = RealScalar(0);
+    const RealScalar one = RealScalar(1);
+    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+    const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+    for (RealScalar x : {zero, one, inf}) {
+      for (RealScalar y : {zero, one, inf}) {
+        data1[0] = Scalar(x, y);
+        data1[1] = Scalar(-x, y);
+        data1[2] = Scalar(x, -y);
+        data1[3] = Scalar(-x, -y);
+        CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
+      }
+    }
+    // Set reference results to nan.
+    // Some architectures don't handle IEEE edge cases correctly
+    ref[0] = Scalar(nan, nan);
+    ref[1] = Scalar(nan, nan);
+    ref[2] = Scalar(nan, nan);
+    ref[3] = Scalar(nan, nan);
+    for (RealScalar x : {zero, one}) {
+      data1[0] = Scalar(x, nan);
+      data1[1] = Scalar(-x, nan);
+      data1[2] = Scalar(nan, x);
+      data1[3] = Scalar(nan, -x);
+      for (int j = 0; j < size; j += PacketSize)
+        internal::pstore(data2 + j, internal::plog(internal::pload<Packet>(data1 + j)));
+      VERIFY(test::areApprox(ref, data2, 4));
+    }
+    data1[0] = Scalar(inf, nan);
+    data1[1] = Scalar(-inf, nan);
+    data1[2] = Scalar(nan, inf);
+    data1[3] = Scalar(nan, -inf);
+    CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
   }
 }
 
