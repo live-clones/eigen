@@ -442,7 +442,63 @@ if(EIGEN_TEST_NO_EXCEPTIONS)
 endif()
 
 set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
+set(EIGEN_CUDA_COMPUTE_ARCH 35 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
+
+# CUDA unit tests
+option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
+option(EIGEN_TEST_CUDA_CLANG "Use clang instead of nvcc to compile the CUDA tests" OFF)
+
+# Enable and configure CUDA support.
+# This most be done at the top-level of a project.
+if (EIGEN_TEST_CUDA AND ${PROJECT_IS_TOP_LEVEL})
+
+  if(EIGEN_TEST_CUDA_CLANG)
+    if (NOT "${CMAKE_CXX_COMPILER}" MATCHES "clang")
+      message(WARNING "EIGEN_TEST_CUDA_CLANG is set, but CMAKE_CXX_COMPILER does not appear to be clang.")
+    endif()
+    # For backward compatibility, set the CUDA/HOST compiler.
+    if (NOT CMAKE_CUDA_COMPILER)
+      set(CMAKE_CUDA_COMPILER ${CMAKE_CXX_COMPILER})
+    endif()
+  endif()
+
+  if(NOT CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES ${EIGEN_CUDA_COMPUTE_ARCH})
+  endif()
+
+  include(CheckLanguage)
+  check_language(CUDA)
+
+  if(CMAKE_CUDA_COMPILER)
+    # Force the CUDA host compiler to be the same as the CXX compiler.
+    set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
+
+    # CMake prior to 3.18 clang isn't properly supported as a CUDA compiler,
+    # so we use our pre-existing fallback compilation path.
+    if("${CMAKE_CUDA_COMPILER}" MATCHES "clang" AND CMAKE_VERSION VERSION_LESS "3.18")
+      set(EIGEN_TEST_CUDA_CLANG_FALLBACK "ON")
+      find_package(CUDA 9.0)
+      if (CUDA_FOUND)
+        if(CUDA_64_BIT_DEVICE_CODE AND (EXISTS "${CUDA_TOOLKIT_ROOT_DIR}/lib64"))
+          link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib64")
+        else()
+          link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib")
+        endif()
+        # Required clang-specific flags:
+        list(APPEND EIGEN_CUDA_CXX_FLAGS "--cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
+        foreach(GPU IN LISTS CMAKE_CUDA_ARCHITECTURES)
+          list(APPEND EIGEN_CUDA_CXX_FLAGS "--cuda-gpu-arch=sm_${GPU}")
+        endforeach()
+      endif()
+    else()
+      # Everything should be properly handled by CMake automatically now.
+      enable_language(CUDA)
+    endif()  # CMAKE_VERSION < 3.18
+  else()
+    message(WARNING "No CUDA compiler found, disabling CUDA tests.")
+    set(EIGEN_TEST_CUDA "OFF")
+  endif()
+endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
