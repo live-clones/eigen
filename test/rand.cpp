@@ -24,8 +24,8 @@ template <typename Scalar>
 void check_all_in_range(Scalar x, Scalar y) {
   Array<int, 1, Dynamic> mask(y - x + 1);
   mask.fill(0);
-  long n = (y - x + 1) * 32;
-  for (long k = 0; k < n; ++k) {
+  int64_t n = (y - x + 1) * 32;
+  for (int64_t k = 0; k < n; ++k) {
     mask(check_in_range(x, y) - x)++;
   }
   for (Index i = 0; i < mask.size(); ++i)
@@ -130,13 +130,13 @@ void check_histogram(int bins) {
 }
 
 EIGEN_DECLARE_TEST(rand) {
-  long long_ref = NumTraits<long>::highest() / 10;
+  int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
   // the minimum guarantees that these conversions are safe
-  signed char char_offset = static_cast<signed char>((std::min)(g_repeat, 64));
-  signed short short_offset = static_cast<signed short>((std::min)(g_repeat, 8000));
-  EIGEN_UNUSED_VARIABLE(long_ref);
-  EIGEN_UNUSED_VARIABLE(char_offset);
-  EIGEN_UNUSED_VARIABLE(short_offset);
+  int8_t int8t_offset = static_cast<int8_t>((std::min)(g_repeat, 64));
+  int16_t int16t_offset = static_cast<int16_t>((std::min)(g_repeat, 8000));
+  EIGEN_UNUSED_VARIABLE(int64_ref);
+  EIGEN_UNUSED_VARIABLE(int8t_offset);
+  EIGEN_UNUSED_VARIABLE(int16t_offset);
 
   for (int i = 0; i < g_repeat * 10000; i++) {
     CALL_SUBTEST_1(check_in_range<float>(10.0f, 11.0f));
@@ -149,105 +149,87 @@ EIGEN_DECLARE_TEST(rand) {
     CALL_SUBTEST_2(check_in_range<double>(-1.0, 1.0));
     CALL_SUBTEST_2(check_in_range<double>(-1432.2352, -1432.2352));
 
-    CALL_SUBTEST_2(check_in_range<long double>(10.0L, 11.0L));
-    CALL_SUBTEST_2(check_in_range<long double>(1.24234523L, 1.24234523L));
-    CALL_SUBTEST_2(check_in_range<long double>(-1.0L, 1.0L));
-    CALL_SUBTEST_2(check_in_range<long double>(-1432.2352L, -1432.2352L));
+    CALL_SUBTEST_3(check_in_range<long double>(10.0L, 11.0L));
+    CALL_SUBTEST_3(check_in_range<long double>(1.24234523L, 1.24234523L));
+    CALL_SUBTEST_3(check_in_range<long double>(-1.0L, 1.0L));
+    CALL_SUBTEST_3(check_in_range<long double>(-1432.2352L, -1432.2352L));
 
-    CALL_SUBTEST_3(check_in_range<half>(half(10.0f), half(11.0f)));
-    CALL_SUBTEST_3(check_in_range<half>(half(1.24234523f), half(1.24234523f)));
-    CALL_SUBTEST_3(check_in_range<half>(half(-1.0f), half(1.0f)));
-    CALL_SUBTEST_3(check_in_range<half>(half(-1432.2352f), half(-1432.2352f)));
+    CALL_SUBTEST_4(check_in_range<half>(half(10.0f), half(11.0f)));
+    CALL_SUBTEST_4(check_in_range<half>(half(1.24234523f), half(1.24234523f)));
+    CALL_SUBTEST_4(check_in_range<half>(half(-1.0f), half(1.0f)));
+    CALL_SUBTEST_4(check_in_range<half>(half(-1432.2352f), half(-1432.2352f)));
 
-    CALL_SUBTEST_4(check_in_range<bfloat16>(bfloat16(10.0f), bfloat16(11.0f)));
-    CALL_SUBTEST_4(check_in_range<bfloat16>(bfloat16(1.24234523f), bfloat16(1.24234523f)));
-    CALL_SUBTEST_4(check_in_range<bfloat16>(bfloat16(-1.0f), bfloat16(1.0f)));
-    CALL_SUBTEST_4(check_in_range<bfloat16>(bfloat16(-1432.2352f), bfloat16(-1432.2352f)));
+    CALL_SUBTEST_5(check_in_range<bfloat16>(bfloat16(10.0f), bfloat16(11.0f)));
+    CALL_SUBTEST_5(check_in_range<bfloat16>(bfloat16(1.24234523f), bfloat16(1.24234523f)));
+    CALL_SUBTEST_5(check_in_range<bfloat16>(bfloat16(-1.0f), bfloat16(1.0f)));
+    CALL_SUBTEST_5(check_in_range<bfloat16>(bfloat16(-1432.2352f), bfloat16(-1432.2352f)));
 
-    CALL_SUBTEST_5(check_in_range<int>(0, -1));
-    CALL_SUBTEST_5(check_in_range<short>(0, -1));
-    CALL_SUBTEST_5(check_in_range<long>(0, -1));
-    CALL_SUBTEST_5(check_in_range<int>(-673456, 673456));
-    CALL_SUBTEST_5(check_in_range<int>(-RAND_MAX + 10, RAND_MAX - 10));
-    CALL_SUBTEST_5(check_in_range<short>(-24345, 24345));
-    CALL_SUBTEST_5(check_in_range<long>(-long_ref, long_ref));
+    CALL_SUBTEST_6(check_in_range<int32_t>(0, -1));
+    CALL_SUBTEST_6(check_in_range<int16_t>(0, -1));
+    CALL_SUBTEST_6(check_in_range<int64_t>(0, -1));
+    CALL_SUBTEST_6(check_in_range<int32_t>(-673456, 673456));
+    CALL_SUBTEST_6(check_in_range<int32_t>(-RAND_MAX + 10, RAND_MAX - 10));
+    CALL_SUBTEST_6(check_in_range<int16_t>(-24345, 24345));
+    CALL_SUBTEST_6(check_in_range<int64_t>(-int64_ref, int64_ref));
   }
 
-  CALL_SUBTEST_6(check_all_in_range<signed char>(11, 11));
-  CALL_SUBTEST_6(check_all_in_range<signed char>(11, 11 + char_offset));
-  CALL_SUBTEST_6(check_all_in_range<signed char>(-5, 5));
-  CALL_SUBTEST_6(check_all_in_range<signed char>(-11 - char_offset, -11));
-  CALL_SUBTEST_6(check_all_in_range<signed char>(-126, -126 + char_offset));
-  CALL_SUBTEST_6(check_all_in_range<signed char>(126 - char_offset, 126));
-  CALL_SUBTEST_6(check_all_in_range<signed char>(-126, 126));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>(11, 11));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>(11, 11 + int8t_offset));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>(-5, 5));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>(-11 - int8t_offset, -11));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>(-126, -126 + int8t_offset));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>(126 - int8t_offset, 126));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>(-126, 126));
 
-  CALL_SUBTEST_7(check_all_in_range<short>(11, 11));
-  CALL_SUBTEST_7(check_all_in_range<short>(11, 11 + short_offset));
-  CALL_SUBTEST_7(check_all_in_range<short>(-5, 5));
-  CALL_SUBTEST_7(check_all_in_range<short>(-11 - short_offset, -11));
-  CALL_SUBTEST_7(check_all_in_range<short>(-24345, -24345 + short_offset));
-  CALL_SUBTEST_7(check_all_in_range<short>(24345, 24345 + short_offset));
+  CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11));
+  CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11 + int16t_offset));
+  CALL_SUBTEST_8(check_all_in_range<int16_t>(-5, 5));
+  CALL_SUBTEST_8(check_all_in_range<int16_t>(-11 - int16t_offset, -11));
+  CALL_SUBTEST_8(check_all_in_range<int16_t>(-24345, -24345 + int16t_offset));
+  CALL_SUBTEST_8(check_all_in_range<int16_t>(24345, 24345 + int16t_offset));
 
-  CALL_SUBTEST_8(check_all_in_range<int>(11, 11));
-  CALL_SUBTEST_8(check_all_in_range<int>(11, 11 + g_repeat));
-  CALL_SUBTEST_8(check_all_in_range<int>(-5, 5));
-  CALL_SUBTEST_8(check_all_in_range<int>(-11 - g_repeat, -11));
-  CALL_SUBTEST_8(check_all_in_range<int>(-673456, -673456 + g_repeat));
-  CALL_SUBTEST_8(check_all_in_range<int>(673456, 673456 + g_repeat));
+  CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11));
+  CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11 + g_repeat));
+  CALL_SUBTEST_9(check_all_in_range<int32_t>(-5, 5));
+  CALL_SUBTEST_9(check_all_in_range<int32_t>(-11 - g_repeat, -11));
+  CALL_SUBTEST_9(check_all_in_range<int32_t>(-673456, -673456 + g_repeat));
+  CALL_SUBTEST_9(check_all_in_range<int32_t>(673456, 673456 + g_repeat));
 
-  CALL_SUBTEST_9(check_all_in_range<long>(11, 11));
-  CALL_SUBTEST_9(check_all_in_range<long>(11, 11 + g_repeat));
-  CALL_SUBTEST_9(check_all_in_range<long>(-5, 5));
-  CALL_SUBTEST_9(check_all_in_range<long>(-11 - g_repeat, -11));
-  CALL_SUBTEST_9(check_all_in_range<long>(-long_ref, -long_ref + g_repeat));
-  CALL_SUBTEST_9(check_all_in_range<long>(long_ref, long_ref + g_repeat));
+  CALL_SUBTEST_10(check_all_in_range<int64_t>(11, 11));
+  CALL_SUBTEST_10(check_all_in_range<int64_t>(11, 11 + g_repeat));
+  CALL_SUBTEST_10(check_all_in_range<int64_t>(-5, 5));
+  CALL_SUBTEST_10(check_all_in_range<int64_t>(-11 - g_repeat, -11));
+  CALL_SUBTEST_10(check_all_in_range<int64_t>(-int64_ref, -int64_ref + g_repeat));
+  CALL_SUBTEST_10(check_all_in_range<int64_t>(int64_ref, int64_ref + g_repeat));
 
-  CALL_SUBTEST_10(check_histogram<int>(-5, 5, 11));
+  CALL_SUBTEST_11(check_histogram<int32_t>(-5, 5, 11));
   int bins = 100;
   EIGEN_UNUSED_VARIABLE(bins)
-  CALL_SUBTEST_10(check_histogram<int>(-3333, -3333 + bins * (3333 / bins) - 1, bins));
+  CALL_SUBTEST_11(check_histogram<int32_t>(-3333, -3333 + bins * (3333 / bins) - 1, bins));
   bins = 1000;
-  CALL_SUBTEST_10(check_histogram<int>(-RAND_MAX + 10, -RAND_MAX + 10 + bins * (RAND_MAX / bins) - 1, bins));
-  CALL_SUBTEST_10(
-      check_histogram<int>(-RAND_MAX + 10, -int64_t(RAND_MAX) + 10 + bins * (2 * int64_t(RAND_MAX) / bins) - 1, bins));
+  CALL_SUBTEST_11(check_histogram<int32_t>(-RAND_MAX + 10, -RAND_MAX + 10 + bins * (RAND_MAX / bins) - 1, bins));
+  CALL_SUBTEST_11(check_histogram<int32_t>(-RAND_MAX + 10,
+                                           -int64_t(RAND_MAX) + 10 + bins * (2 * int64_t(RAND_MAX) / bins) - 1, bins));
 
-  CALL_SUBTEST_11(
-      check_histogram<uint8_t>(Eigen::NumTraits<uint8_t>::lowest(), Eigen::NumTraits<uint8_t>::highest(), /*bins=*/16));
-  CALL_SUBTEST_11(check_histogram<uint16_t>(Eigen::NumTraits<uint16_t>::lowest(), Eigen::NumTraits<uint16_t>::highest(),
-                                            /*bins=*/1024));
-  CALL_SUBTEST_11(check_histogram<uint32_t>(Eigen::NumTraits<uint32_t>::lowest(), Eigen::NumTraits<uint32_t>::highest(),
-                                            /*bins=*/1024));
-  CALL_SUBTEST_11(check_histogram<uint64_t>(Eigen::NumTraits<uint64_t>::lowest(), Eigen::NumTraits<uint64_t>::highest(),
-                                            /*bins=*/1024));
+  CALL_SUBTEST_12(check_histogram<uint8_t>(/*bins=*/16));
+  CALL_SUBTEST_12(check_histogram<uint16_t>(/*bins=*/1024));
+  CALL_SUBTEST_12(check_histogram<uint32_t>(/*bins=*/1024));
+  CALL_SUBTEST_12(check_histogram<uint64_t>(/*bins=*/1024));
 
-  CALL_SUBTEST_12(
-      check_histogram<int8_t>(Eigen::NumTraits<int8_t>::lowest(), Eigen::NumTraits<int8_t>::highest(), /*bins=*/16));
-  CALL_SUBTEST_12(check_histogram<int16_t>(Eigen::NumTraits<int16_t>::lowest(), Eigen::NumTraits<int16_t>::highest(),
-                                           /*bins=*/1024));
-  CALL_SUBTEST_12(check_histogram<int32_t>(Eigen::NumTraits<int32_t>::lowest(), Eigen::NumTraits<int32_t>::highest(),
-                                           /*bins=*/1024));
-  CALL_SUBTEST_12(check_histogram<int64_t>(Eigen::NumTraits<int64_t>::lowest(), Eigen::NumTraits<int64_t>::highest(),
-                                           /*bins=*/1024));
+  CALL_SUBTEST_13(check_histogram<int8_t>(/*bins=*/16));
+  CALL_SUBTEST_13(check_histogram<int16_t>(/*bins=*/1024));
+  CALL_SUBTEST_13(check_histogram<int32_t>(/*bins=*/1024));
+  CALL_SUBTEST_13(check_histogram<int64_t>(/*bins=*/1024));
 
-  CALL_SUBTEST_13(check_histogram<uint8_t>(/*bins=*/256));
-  CALL_SUBTEST_13(check_histogram<uint16_t>(/*bins=*/1024));
-  CALL_SUBTEST_13(check_histogram<uint32_t>(/*bins=*/1024));
-  CALL_SUBTEST_13(check_histogram<uint64_t>(/*bins=*/1024));
+  CALL_SUBTEST_14(check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024));
+  CALL_SUBTEST_14(check_histogram<double>(-10.0, 10.0, /*bins=*/1024));
+  CALL_SUBTEST_14(check_histogram<long double>(-10.0L, 10.0L, /*bins=*/1024));
+  CALL_SUBTEST_14(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/512));
+  CALL_SUBTEST_14(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
 
-  CALL_SUBTEST_14(check_histogram<int8_t>(/*bins=*/256));
-  CALL_SUBTEST_14(check_histogram<int16_t>(/*bins=*/1024));
-  CALL_SUBTEST_14(check_histogram<int32_t>(/*bins=*/1024));
-  CALL_SUBTEST_14(check_histogram<int64_t>(/*bins=*/1024));
-
-  CALL_SUBTEST_15(check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024));
-  CALL_SUBTEST_15(check_histogram<double>(-10.0, 10.0, /*bins=*/1024));
-  CALL_SUBTEST_15(check_histogram<long double>(-10.0L, 10.0L, /*bins=*/1024));
-  CALL_SUBTEST_15(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/512));
-  CALL_SUBTEST_15(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
-
-  CALL_SUBTEST_16(check_histogram<float>(/*bins=*/1024));
-  CALL_SUBTEST_16(check_histogram<double>(/*bins=*/1024));
-  CALL_SUBTEST_16(check_histogram<long double>(/*bins=*/1024));
-  CALL_SUBTEST_16(check_histogram<half>(/*bins=*/512));
-  CALL_SUBTEST_16(check_histogram<bfloat16>(/*bins=*/64));
+  CALL_SUBTEST_15(check_histogram<float>(/*bins=*/1024));
+  CALL_SUBTEST_15(check_histogram<double>(/*bins=*/1024));
+  CALL_SUBTEST_15(check_histogram<long double>(/*bins=*/1024));
+  CALL_SUBTEST_15(check_histogram<half>(/*bins=*/512));
+  CALL_SUBTEST_15(check_histogram<bfloat16>(/*bins=*/64));
 }

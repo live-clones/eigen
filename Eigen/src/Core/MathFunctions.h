@@ -818,6 +818,7 @@ struct random_default_impl<Scalar, false, false> {
   }
 };
 
+// TODO: fix this for PPC
 template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t) && !EIGEN_ARCH_PPC>
 struct random_longdouble_impl {
   enum : int {
