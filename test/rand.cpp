@@ -80,7 +80,7 @@ class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteg
     if (bin < num_bins_ - 1) {
       return static_cast<double>(bin_width_) / range;
     }
-    return static_cast<double>(upper_ - (lower_ + bin * bin_width_) + 1) / range;
+    return static_cast<double>(RangeType(upper_) - RangeType((lower_ + bin * bin_width_)) + 1) / range;
   }
 
  private:
