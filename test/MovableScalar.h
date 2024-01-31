@@ -35,8 +35,8 @@ struct random_impl<MovableScalar<T>> {
   using MoveableT = MovableScalar<T>;
   using Impl = random_impl<T>;
   static EIGEN_DEVICE_FUNC inline MoveableT run(const MoveableT& x, const MoveableT& y) {
-    MoveableT result = Impl::run(x, y);
-    return result;
+    T result = Impl::run(x, y);
+    return MoveableT(result);
   }
   static EIGEN_DEVICE_FUNC inline MoveableT run() {
     T result = Impl::run();

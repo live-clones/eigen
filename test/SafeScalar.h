@@ -34,8 +34,8 @@ struct random_impl<SafeScalar<T>> {
   using SafeT = SafeScalar<T>;
   using Impl = random_impl<T>;
   static EIGEN_DEVICE_FUNC inline SafeT run(const SafeT& x, const SafeT& y) {
-    SafeT result = Impl::run(x, y);
-    return result;
+    T result = Impl::run(x, y);
+    return SafeT(result);
   }
   static EIGEN_DEVICE_FUNC inline SafeT run() {
     T result = Impl::run();
