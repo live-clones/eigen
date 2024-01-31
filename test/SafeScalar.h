@@ -38,8 +38,8 @@ struct random_impl<SafeScalar<T>> {
     return result;
   }
   static EIGEN_DEVICE_FUNC inline SafeT run() {
-    SafeT result = Impl::run();
-    return result;
+    T result = Impl::run();
+    return SafeT(result);
   }
 };
 }  // namespace internal

@@ -873,7 +873,8 @@ struct random_default_impl<Scalar, false, true> {
       // if the random draw is outside [0, range), try again (rejection sampling)
       // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
     } while (randomBits >= range);
-    return x + static_cast<Scalar>(randomBits);
+    Scalar result = x + static_cast<Scalar>(randomBits);
+    return result;
   }
 
   static EIGEN_DEVICE_FUNC inline Scalar run() {

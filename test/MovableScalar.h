@@ -39,8 +39,8 @@ struct random_impl<MovableScalar<T>> {
     return result;
   }
   static EIGEN_DEVICE_FUNC inline MoveableT run() {
-    MoveableT result = Impl::run();
-    return result;
+    T result = Impl::run();
+    return MoveableT(result);
   }
 };
 }  // namespace internal
