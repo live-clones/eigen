@@ -188,6 +188,7 @@ EIGEN_DECLARE_TEST(rand) {
     CALL_SUBTEST_6(check_in_range<int16_t>(0, -1));
     CALL_SUBTEST_6(check_in_range<int64_t>(0, -1));
     CALL_SUBTEST_6(check_in_range<int32_t>(-673456, 673456));
+    CALL_SUBTEST_6(check_in_range<int32_t>(-RAND_MAX + 10, RAND_MAX - 10));
     CALL_SUBTEST_6(check_in_range<int16_t>(-24345, 24345));
     CALL_SUBTEST_6(check_in_range<int64_t>(-int64_ref, int64_ref));
   }
