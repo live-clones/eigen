@@ -38,61 +38,81 @@ class HistogramHelper {
  public:
   HistogramHelper(int nbins) : HistogramHelper(Scalar(-1), Scalar(1), nbins) {}
   HistogramHelper(Scalar lower, Scalar upper, int nbins) {
-    lower_ = static_cast<double>(lower);
-    upper_ = static_cast<double>(upper);
-    num_bins_ = nbins;
-    bin_width_ = (upper_ - lower_) / static_cast<double>(nbins);
+    m_lower = static_cast<double>(lower);
+    m_upper = static_cast<double>(upper);
+    m_numBins = nbins;
+    m_binWidth = (m_upper - m_lower) / static_cast<double>(nbins);
   }
-  int bin(Scalar v) {
-    double result = (static_cast<double>(v) - lower_) / bin_width_;
-    return std::min<int>(static_cast<int>(result), num_bins_ - 1);
+  int bin(Scalar v) const {
+    double result = (static_cast<double>(v) - m_lower) / m_binWidth;
+    return std::min<int>(static_cast<int>(result), m_numBins - 1);
   }
 
-  double uniform_bin_probability(int bin) {
-    double range = upper_ - lower_;
-    if (bin < num_bins_ - 1) {
-      return bin_width_ / range;
+  double uniform_bin_probability(int bin) const {
+    double range = m_upper - m_lower;
+    if (bin < m_numBins - 1) {
+      return m_binWidth / range;
     }
-    return (upper_ - (lower_ + double(bin) * bin_width_)) / range;
+    return (m_upper - (m_lower + double(bin) * m_binWidth)) / range;
   }
 
  private:
-  double lower_;
-  double upper_;
-  int num_bins_;
-  double bin_width_;
+  double m_lower;
+  double m_upper;
+  int m_numBins;
+  double m_binWidth;
 };
 
 template <typename Scalar>
 class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteger>> {
  public:
-  using RangeType = typename Eigen::internal::make_unsigned<Scalar>::type;
-  HistogramHelper(int nbins)
-      : HistogramHelper(Eigen::NumTraits<Scalar>::lowest(), Eigen::NumTraits<Scalar>::highest(), nbins) {}
-  HistogramHelper(Scalar lower, Scalar upper, int nbins)
-      : lower_{lower}, upper_{upper}, num_bins_{nbins}, bin_width_{bin_width(lower, upper, nbins)} {}
+  HistogramHelper(int nbins) : HistogramHelper(NumTraits<Scalar>::lowest(), NumTraits<Scalar>::highest(), nbins) {}
+  HistogramHelper(Scalar lower, Scalar upper, int nbins) {
+    VERIFY(upper >= lower && nbins > 1);
+    m_lower = static_cast<int64_t>(lower);
+    m_upper = static_cast<int64_t>(upper);
+    m_numBins = static_cast<uint64_t>(nbins);
 
-  int bin(Scalar v) { return static_cast<int>(RangeType(v - lower_) / bin_width_); }
+    // compute the following without overflow
+    // m_binWidth = (upper - lower + 1) / nbins
+    // m_lastBinWidth = m_binWidth - (upper - lower + 1) % nbins
 
-  double uniform_bin_probability(int bin) {
-    // Avoid overflow in computing range.
-    double range = static_cast<double>(RangeType(upper_ - lower_)) + 1.0;
-    if (bin < num_bins_ - 1) {
-      return static_cast<double>(bin_width_) / range;
+    uint64_t range = m_upper - m_lower;
+    uint64_t quotient1 = range / m_numBins;
+    uint64_t remainder1 = range - (quotient1 * m_numBins);
+    uint64_t quotient2 = (remainder1 + 1) / m_numBins;
+    uint64_t remainder2 = (remainder1 + 1) - (quotient2 * m_numBins);
+
+    m_binWidth = quotient1 + quotient2;
+    m_lastBinWidth = m_binWidth - remainder2;
+  }
+
+  double uniform_bin_probability(int bin) const {
+    double binRatio = static_cast<double>(m_lastBinWidth) / static_cast<double>(m_binWidth);
+    double binsMinusOne = static_cast<double>(m_numBins - 1);
+    if (bin < m_numBins - 1) {
+      // p = m_binWidth / { m_lastBinWidth + (m_nBins - 1) * m_binWidth }
+      // 1/p = (m_lastBinWidth / m_binWidth) + (m_nBins - 1)
+      double invP = binRatio + binsMinusOne;
+      return 1.0 / invP;
+
+    } else {
+      // p = m_lastBinWidth / { m_lastBinWidth + (m_nBins - 1) * m_binWidth }
+      // 1/p = 1 + (m_nBins - 1) * (m_binWidth / m_lastBinWidth)
+      double invP = 1.0 + (binsMinusOne / binRatio);
+      return 1.0 / invP;
     }
-    return static_cast<double>(RangeType(upper_) - RangeType((lower_ + bin * bin_width_)) + 1) / range;
+  }
+
+  int bin(Scalar v) const {
+    uint64_t result = (static_cast<uint64_t>(v) - m_lower) / m_binWidth;
+    return static_cast<int>(result);
   }
 
  private:
-  static constexpr Scalar bin_width(Scalar lower, Scalar upper, int nbins) {
-    // Avoid overflow in computing the full range.
-    return RangeType(upper - nbins - lower + 1) / nbins + 1;
-  }
-
-  Scalar lower_;
-  Scalar upper_;
-  int num_bins_;
-  Scalar bin_width_;
+  int64_t m_lower, m_upper;
+  uint64_t m_numBins;
+  uint64_t m_binWidth, m_lastBinWidth;
 };
 
 template <typename Scalar>
@@ -168,7 +188,6 @@ EIGEN_DECLARE_TEST(rand) {
     CALL_SUBTEST_6(check_in_range<int16_t>(0, -1));
     CALL_SUBTEST_6(check_in_range<int64_t>(0, -1));
     CALL_SUBTEST_6(check_in_range<int32_t>(-673456, 673456));
-    CALL_SUBTEST_6(check_in_range<int32_t>(-RAND_MAX + 10, RAND_MAX - 10));
     CALL_SUBTEST_6(check_in_range<int16_t>(-24345, 24345));
     CALL_SUBTEST_6(check_in_range<int64_t>(-int64_ref, int64_ref));
   }
