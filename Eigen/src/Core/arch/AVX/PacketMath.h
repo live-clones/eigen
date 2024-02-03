@@ -537,6 +537,14 @@ template <int N>
 EIGEN_STRONG_INLINE Packet4l plogical_shift_left(Packet4l a) {
   return _mm256_slli_epi64(a, N);
 }
+template <int N>
+EIGEN_STRONG_INLINE Packet4ul plogical_shift_right(Packet4ul a) {
+  return _mm256_srli_epi64(a, N);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet4ul plogical_shift_left(Packet4ul a) {
+  return _mm256_slli_epi64(a, N);
+}
 #ifdef EIGEN_VECTORIZE_AVX512FP16
 template <int N>
 EIGEN_STRONG_INLINE Packet4l parithmetic_shift_right(Packet4l a) {

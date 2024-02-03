@@ -1271,34 +1271,15 @@ struct psign_impl<Packet, std::enable_if_t<!NumTraits<typename unpacket_traits<P
 
 template <typename Packet>
 struct psign_impl<Packet, std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
-                                           NumTraits<typename unpacket_traits<Packet>::type>::IsSigned &&
                                            NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>> {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  enum : int { Shift = sizeof(Scalar) * CHAR_BIT - 1 };
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
-    using Scalar = typename unpacket_traits<Packet>::type;
-    const Packet cst_one = pset1<Packet>(Scalar(1));
-    const Packet cst_minus_one = pset1<Packet>(Scalar(-1));
-    const Packet cst_zero = pzero(a);
-
-    const Packet positive_mask = pcmp_lt(cst_zero, a);
-    const Packet positive = pand(positive_mask, cst_one);
-    const Packet negative_mask = pcmp_lt(a, cst_zero);
-    const Packet negative = pand(negative_mask, cst_minus_one);
-
-    return por(positive, negative);
-  }
-};
-
-template <typename Packet>
-struct psign_impl<Packet, std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
-                                           !NumTraits<typename unpacket_traits<Packet>::type>::IsSigned &&
-                                           NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>> {
-  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
-    using Scalar = typename unpacket_traits<Packet>::type;
-    const Packet cst_one = pset1<Packet>(Scalar(1));
-    const Packet cst_zero = pzero(a);
-
-    const Packet zero_mask = pcmp_eq(cst_zero, a);
-    return pandnot(cst_one, zero_mask);
+    // -1 (0xffffffff) if a is negative, 0 otherwise
+    const Packet negOneOrZero = psignbit(a);
+    // +1 (0x00000001) if a is positive, 0 otherwise
+    const Packet posOneOrZero = plogical_shift_right<Shift>(pcmp_lt(negOneOrZero, a));
+    return por(negOneOrZero, posOneOrZero);
   }
 };
 
