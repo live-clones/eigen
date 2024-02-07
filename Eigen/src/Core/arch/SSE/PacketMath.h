@@ -677,18 +677,6 @@ template <>
 EIGEN_DEVICE_FUNC inline Packet2d pselect(const Packet2d& mask, const Packet2d& a, const Packet2d& b) {
   return _mm_blendv_pd(b, a, mask);
 }
-
-template <>
-EIGEN_DEVICE_FUNC inline Packet16b pselect(const Packet16b& mask, const Packet16b& a, const Packet16b& b) {
-  return _mm_blendv_epi8(b, a, mask);
-}
-#else
-template <>
-EIGEN_DEVICE_FUNC inline Packet16b pselect(const Packet16b& mask, const Packet16b& a, const Packet16b& b) {
-  Packet16b a_part = _mm_and_si128(mask, a);
-  Packet16b b_part = _mm_andnot_si128(mask, b);
-  return _mm_or_si128(a_part, b_part);
-}
 #endif
 
 template <>
@@ -1356,7 +1344,9 @@ EIGEN_STRONG_INLINE void pstore<uint32_t>(uint32_t* to, const Packet4ui& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<bool>(bool* to, const Packet16b& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm_store_si128(reinterpret_cast<__m128i*>(to), from);
+  // Avoid UB by never storing a non-valid bool value into a bool.
+  const Packet16b kBoolMask = pset1<Packet16b>(true);
+  EIGEN_DEBUG_ALIGNED_STORE _mm_store_si128(reinterpret_cast<__m128i*>(to), pand(from, kBoolMask));
 }
 
 template <>
@@ -1377,7 +1367,9 @@ EIGEN_STRONG_INLINE void pstoreu<uint32_t>(uint32_t* to, const Packet4ui& from) 
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<bool>(bool* to, const Packet16b& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm_storeu_si128(reinterpret_cast<__m128i*>(to), from);
+  // Avoid UB by never storing a non-valid bool value into a bool.
+  const Packet16b kBoolMask = pset1<Packet16b>(true);
+  EIGEN_DEBUG_ALIGNED_STORE _mm_storeu_si128(reinterpret_cast<__m128i*>(to), pand(from, kBoolMask));
 }
 
 template <typename Scalar, typename Packet>
