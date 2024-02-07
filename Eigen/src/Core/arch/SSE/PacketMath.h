@@ -677,19 +677,43 @@ template <>
 EIGEN_DEVICE_FUNC inline Packet2d pselect(const Packet2d& mask, const Packet2d& a, const Packet2d& b) {
   return _mm_blendv_pd(b, a, mask);
 }
+#else
+template <>
+EIGEN_DEVICE_FUNC inline Packet4f pselect(const Packet4f& mask, const Packet4f& a, const Packet4f& b) {
+  Packet4f a_part = _mm_and_si128(mask, a);
+  Packet4f b_part = _mm_andnot_si128(mask, b);
+  return _mm_or_si128(a_part, b_part);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline Packet4i pselect(const Packet4i& mask, const Packet4i& a, const Packet4i& b) {
+  Packet4i a_part = _mm_and_si128(mask, a);
+  Packet4i b_part = _mm_andnot_si128(mask, b);
+  return _mm_or_si128(a_part, b_part);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline Packet4ui pselect(const Packet4ui& mask, const Packet4ui& a, const Packet4ui& b) {
+  Packet4ui a_part = _mm_and_si128(mask, a);
+  Packet4ui b_part = _mm_andnot_si128(mask, b);
+  return _mm_or_si128(a_part, b_part);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline Packet2d pselect(const Packet2d& mask, const Packet2d& a, const Packet2d& b) {
+  Packet2d a_part = _mm_and_si128(mask, a);
+  Packet2d b_part = _mm_andnot_si128(mask, b);
+  return _mm_or_si128(a_part, b_part);
+}
+#endif
 
 template <>
 EIGEN_DEVICE_FUNC inline Packet16b pselect(const Packet16b& mask, const Packet16b& a, const Packet16b& b) {
-  return _mm_blendv_epi8(b, a, mask);
-}
-#else
-template <>
-EIGEN_DEVICE_FUNC inline Packet16b pselect(const Packet16b& mask, const Packet16b& a, const Packet16b& b) {
+  // Note: _mm_blendv_epi8 uses the wrong bit if the mask is populated via a `bool` array.
   Packet16b a_part = _mm_and_si128(mask, a);
   Packet16b b_part = _mm_andnot_si128(mask, b);
   return _mm_or_si128(a_part, b_part);
 }
-#endif
 
 template <>
 EIGEN_STRONG_INLINE Packet4i ptrue<Packet4i>(const Packet4i& a) {
