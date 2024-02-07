@@ -371,7 +371,10 @@ template <typename Packet, typename EnableIf = void>
 struct ptrue_impl {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& /*a*/) {
     Packet b;
-    memset(static_cast<void*>(&b), 0xff, sizeof(Packet));
+    // Avoid UB for setting bool to 0xFF.
+    constexpr uint8_t kTrueByte =
+        std::is_same<typename unpacket_traits<Packet>::type, bool>::value ? static_cast<uint8_t>(true) : 0xFF;
+    memset(static_cast<void*>(&b), kTrueByte, sizeof(Packet));
     return b;
   }
 };
@@ -456,6 +459,32 @@ struct bit_xor {
 template <typename T>
 struct bit_not {
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR EIGEN_ALWAYS_INLINE T operator()(const T& a) const { return ~a; }
+};
+
+template <>
+struct bit_and<bool> {
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const {
+    return a && b;
+  }
+};
+
+template <>
+struct bit_or<bool> {
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const {
+    return a || b;
+  }
+};
+
+template <>
+struct bit_xor<bool> {
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const {
+    return a != b;
+  }
+};
+
+template <>
+struct bit_not<bool> {
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR EIGEN_ALWAYS_INLINE bool operator()(const bool& a) const { return !a; }
 };
 
 // Use operators &, |, ^, ~.
