@@ -662,11 +662,10 @@ void packetmath() {
   {
     for (int i = 0; i < PacketSize; ++i) {
       // "if" mask
-      unsigned char v = internal::random<bool>() ? 0xff : 0;
-      char* bytes = (char*)(data1 + i);
-      for (int k = 0; k < int(sizeof(Scalar)); ++k) {
-        bytes[k] = v;
-      }
+      // Note: it's UB to load 0xFF directly into a `bool`.
+      uint8_t v = internal::random<bool>() ? (std::is_same<Scalar, bool>::value ? static_cast<uint8_t>(true) : 0xff) : 0;
+      // Avoid strict aliasing violation by using memset.
+      memset(data1 + i, v, sizeof(Scalar));
       // "then" packet
       data1[i + PacketSize] = internal::random<Scalar>();
       // "else" packet
