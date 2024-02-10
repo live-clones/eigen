@@ -2350,7 +2350,6 @@ EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
   return por(generic_floor(abs_a), sign_a);
 }
 
-
 }  // end namespace internal
 }  // end namespace Eigen
 
