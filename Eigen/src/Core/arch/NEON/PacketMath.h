@@ -4470,74 +4470,56 @@ EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
   return vrndpq_f32(a);
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet2f ptrunc<Packet2f>(const Packet2f& a) {
+  return vrnd_f32(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
+  return vrndq_f32(a);
+}
+
 #else
 
 template <>
 EIGEN_STRONG_INLINE Packet4f print(const Packet4f& a) {
-  // Adds and subtracts signum(a) * 2^23 to force rounding.
-  const Packet4f limit = pset1<Packet4f>(static_cast<float>(1 << 23));
-  const Packet4f abs_a = pabs(a);
-  Packet4f r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+  return generic_rint<Packet4f>(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f print(const Packet2f& a) {
-  // Adds and subtracts signum(a) * 2^23 to force rounding.
-  const Packet2f limit = pset1<Packet2f>(static_cast<float>(1 << 23));
-  const Packet2f abs_a = pabs(a);
-  Packet2f r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+  return generic_rint<Packet2f>(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
-  const Packet4f cst_1 = pset1<Packet4f>(1.0f);
-  Packet4f tmp = print<Packet4f>(a);
-  // If greater, subtract one.
-  Packet4f mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  return generic_floor<Packet4f>(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pfloor<Packet2f>(const Packet2f& a) {
-  const Packet2f cst_1 = pset1<Packet2f>(1.0f);
-  Packet2f tmp = print<Packet2f>(a);
-  // If greater, subtract one.
-  Packet2f mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  return generic_floor<Packet2f>(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
-  const Packet4f cst_1 = pset1<Packet4f>(1.0f);
-  Packet4f tmp = print<Packet4f>(a);
-  // If smaller, add one.
-  Packet4f mask = pcmp_lt(tmp, a);
-  mask = pand(mask, cst_1);
-  return padd(tmp, mask);
+  return generic_ceil<Packet4f>(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pceil<Packet2f>(const Packet2f& a) {
-  const Packet2f cst_1 = pset1<Packet2f>(1.0);
-  Packet2f tmp = print<Packet2f>(a);
-  // If smaller, add one.
-  Packet2f mask = pcmp_lt(tmp, a);
-  mask = pand(mask, cst_1);
-  return padd(tmp, mask);
+  return generic_ceil<Packet2f>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
+  return generic_trunc<Packet4f>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2f ptrunc<Packet2f>(const Packet2f& a) {
+  return generic_trunc<Packet2f>(a);
 }
 
 #endif
@@ -4981,6 +4963,11 @@ EIGEN_STRONG_INLINE Packet4bf pfloor<Packet4bf>(const Packet4bf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4bf pceil<Packet4bf>(const Packet4bf& a) {
   return F32ToBf16(pceil<Packet4f>(Bf16ToF32(a)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4bf ptrunc<Packet4bf>(const Packet4bf& a) {
+  return F32ToBf16(ptrunc<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
@@ -5461,6 +5448,11 @@ EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
+  return vrndq_f64(a);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d& exponent) {
   return pldexp_generic(a, exponent);
 }
@@ -5789,6 +5781,16 @@ EIGEN_STRONG_INLINE Packet8hf pceil<Packet8hf>(const Packet8hf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4hf pceil<Packet4hf>(const Packet4hf& a) {
   return vrndp_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf ptrunc<Packet8hf>(const Packet8hf& a) {
+  return vrndq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf ptrunc<Packet4hf>(const Packet4hf& a) {
+  return vrnd_f16(a);
 }
 
 template <>

@@ -101,7 +101,8 @@ struct default_packet_traits {
     HasRound = 0,
     HasRint = 0,
     HasFloor = 0,
-    HasCeil = 0
+    HasCeil = 0,
+    HasTrunc = 0
   };
 };
 
@@ -1160,6 +1161,13 @@ template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pceil(const Packet& a) {
   using numext::ceil;
   return ceil(a);
+}
+
+/** \internal \returns the truncation of \a a (coeff-wise) */
+template <typename Packet>
+EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptrunc(const Packet& a) {
+  using numext::trunc;
+  return trunc(a);
 }
 
 template <typename Packet, typename EnableIf = void>

@@ -2283,6 +2283,55 @@ struct unary_pow_impl<Packet, ScalarExponent, true, true, false> {
   }
 };
 
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using IntType = typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type;
+  constexpr int kMantissaBits = NumTraits<Scalar>::digits() - 1;
+  // Adds and subtracts signum(a) * 2^kMantissaBits to force rounding.
+  const Packet limit = pset1<Packet>(static_cast<Scalar>(IntType(1) << kMantissaBits));
+  const Packet abs_a = pabs(a);
+  const Packet sign_a = pandnot(a, abs_a);
+  Packet r = padd(abs_a, limit);
+  // Don't compile-away addition and subtraction.
+  EIGEN_OPTIMIZATION_BARRIER(r);
+  r = psub(r, limit);
+  r = por(r, sign_a);
+  // If greater than limit, simply return a.  Otherwise, account for sign.
+  r = pselect(pcmp_lt(abs_a, limit), r, a);
+  return r;
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  const Packet cst_1 = pset1<Packet>(Scalar(1));
+  Packet tmp = generic_rint(a);
+  // If greater, subtract one.
+  Packet mask = pcmp_le(tmp, a);
+  mask = pandnot(cst_1, mask);
+  return psub(tmp, mask);
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  const Packet cst_1 = pset1<Packet>(Scalar(1));
+  Packet tmp = generic_rint(a);
+  // If smaller, add one.
+  Packet mask = pcmp_lt(tmp, a);
+  mask = pand(mask, cst_1);
+  return padd(tmp, mask);
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
+  const Packet abs_a = pabs(a);
+  const Packet sign_a = pandnot(a, abs_a);
+  return por(generic_floor(abs_a), sign_a);
+}
+
+
 }  // end namespace internal
 }  // end namespace Eigen
 
