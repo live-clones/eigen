@@ -1376,6 +1376,14 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double ceil(const double& x) {
   return ::ceil(x);
 }
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float trunc(const float& x) {
+  return ::truncf(x);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double trunc(const double& x) {
+  return ::trunc(x);
+}
 #endif
 
 // Integer division with rounding up.
