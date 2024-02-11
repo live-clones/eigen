@@ -196,12 +196,12 @@ struct packet_traits<float> : default_packet_traits {
     HasConj = 1,
     HasSetLinear = 1,
     HasBlend = 0,
-
     HasDiv = 1,
     HasFloor = 1,
     HasCeil = 1,
     HasRint = 1,
-
+    HasRound = 1,
+    HasTrunc = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasACos = 1,
@@ -4471,6 +4471,16 @@ EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2f pround<Packet2f>(const Packet2f& a) {
+  return vrnda_f32(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
+  return vrndaq_f32(a);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2f ptrunc<Packet2f>(const Packet2f& a) {
   return vrnd_f32(a);
 }
@@ -4510,6 +4520,16 @@ EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2f pceil<Packet2f>(const Packet2f& a) {
   return generic_ceil<Packet2f>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
+  return generic_round<Packet4f>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2f pround<Packet2f>(const Packet2f& a) {
+  return generic_round<Packet2f>(a);
 }
 
 template <>
@@ -4785,7 +4805,8 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasFloor = 1,
     HasCeil = 1,
     HasRint = 1,
-
+    HasRound = 1,
+    HasTrunc = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
@@ -4963,6 +4984,11 @@ EIGEN_STRONG_INLINE Packet4bf pfloor<Packet4bf>(const Packet4bf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4bf pceil<Packet4bf>(const Packet4bf& a) {
   return F32ToBf16(pceil<Packet4f>(Bf16ToF32(a)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4bf pround<Packet4bf>(const Packet4bf& a) {
+  return F32ToBf16(pround<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
@@ -5158,6 +5184,8 @@ struct packet_traits<double> : default_packet_traits {
     HasFloor = 1,
     HasCeil = 1,
     HasRint = 1,
+    HasRound = 1,
+    HasTrunc = 1,
 
 #if EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG
     HasExp = 1,
@@ -5445,6 +5473,11 @@ EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
   return vrndpq_f64(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2d pround<Packet2d>(const Packet2d& a) {
+  return vrndaq_f64(a);
 }
 
 template <>
@@ -5781,6 +5814,16 @@ EIGEN_STRONG_INLINE Packet8hf pceil<Packet8hf>(const Packet8hf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4hf pceil<Packet4hf>(const Packet4hf& a) {
   return vrndp_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pround<Packet8hf>(const Packet8hf& a) {
+  return vrndaq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pround<Packet4hf>(const Packet4hf& a) {
+  return vrnda_f16(a);
 }
 
 template <>

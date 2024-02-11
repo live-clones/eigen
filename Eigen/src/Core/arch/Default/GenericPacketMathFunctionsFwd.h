@@ -124,6 +124,9 @@ template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a);
 
 template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
+
+template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a);
 
 template <typename Packet, int N>

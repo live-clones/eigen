@@ -185,6 +185,7 @@ void unary_ops_test() {
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(asinh));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(acosh));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(atanh));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(rint));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(floor));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(ceil));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(round));

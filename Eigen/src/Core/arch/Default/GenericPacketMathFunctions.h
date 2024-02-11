@@ -2325,7 +2325,7 @@ template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
-  Packet tmp = generic_rint(a);
+  Packet tmp = print(a);
   // If greater, subtract one.
   Packet mask = pcmp_le(tmp, a);
   mask = pandnot(cst_1, mask);
@@ -2336,7 +2336,7 @@ template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
-  Packet tmp = generic_rint(a);
+  Packet tmp = print(a);
   // If smaller, add one.
   Packet mask = pcmp_lt(tmp, a);
   mask = pand(mask, cst_1);
@@ -2348,6 +2348,17 @@ EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
   const Packet abs_a = pabs(a);
   const Packet sign_a = pandnot(a, abs_a);
   return por(generic_floor(abs_a), sign_a);
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_round(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  const Packet cst_half = pset1<Packet>(Scalar(0.5));
+  const Packet cst_1 = pset1<Packet>(Scalar(1));
+  Packet tmp = generic_floor(a);
+  Packet mask = pcmp_lt(psub(a, tmp), cst_half);
+  mask = pandnot(cst_1, mask);
+  return padd(tmp, mask);
 }
 
 }  // end namespace internal

@@ -174,9 +174,7 @@ struct packet_traits<float> : default_packet_traits {
     HasBlend = 1,
     HasCeil = 1,
     HasFloor = 1,
-#ifdef EIGEN_VECTORIZE_SSE4_1
     HasRound = 1,
-#endif
     HasRint = 1,
     HasTrunc = 1,
     HasSign = 0  // The manually vectorized version is slightly slower for SSE.
@@ -201,9 +199,7 @@ struct packet_traits<double> : default_packet_traits {
     HasBlend = 1,
     HasFloor = 1,
     HasCeil = 1,
-#ifdef EIGEN_VECTORIZE_SSE4_1
     HasRound = 1,
-#endif
     HasRint = 1,
     HasTrunc = 1
   };
@@ -1178,6 +1174,16 @@ EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
   return generic_ceil<Packet2d>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
+  return generic_round<Packet4f>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2d pround<Packet2d>(const Packet2d& a) {
+  return generic_round<Packet2d>(a);
 }
 
 template <>
