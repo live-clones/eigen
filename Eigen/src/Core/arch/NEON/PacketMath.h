@@ -4494,52 +4494,52 @@ EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4f print(const Packet4f& a) {
-  return generic_rint<Packet4f>(a);
+  return generic_rint(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f print(const Packet2f& a) {
-  return generic_rint<Packet2f>(a);
+  return generic_rint(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
-  return generic_floor<Packet4f>(a);
+  return generic_floor(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pfloor<Packet2f>(const Packet2f& a) {
-  return generic_floor<Packet2f>(a);
+  return generic_floor(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
-  return generic_ceil<Packet4f>(a);
+  return generic_ceil(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pceil<Packet2f>(const Packet2f& a) {
-  return generic_ceil<Packet2f>(a);
+  return generic_ceil(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
-  return generic_round<Packet4f>(a);
+  return generic_round(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pround<Packet2f>(const Packet2f& a) {
-  return generic_round<Packet2f>(a);
+  return generic_round(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
-  return generic_trunc<Packet4f>(a);
+  return generic_trunc(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f ptrunc<Packet2f>(const Packet2f& a) {
-  return generic_trunc<Packet2f>(a);
+  return generic_trunc(a);
 }
 
 #endif
