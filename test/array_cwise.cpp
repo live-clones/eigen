@@ -52,7 +52,7 @@ std::vector<Scalar> special_values() {
   const Scalar min = (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
-  return {zero, denorm_min, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan};
+  return {zero, denorm_min, min, eps, sqrt_half, one_half, one, sqrt2, two, three, max_exp, max, inf, nan};
 }
 
 template <typename Scalar>
