@@ -2316,8 +2316,9 @@ EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
   EIGEN_OPTIMIZATION_BARRIER(rint_a);
   rint_a = psub(rint_a, cst_limit);
   rint_a = por(rint_a, sign_a);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  Packet result = pselect(pcmp_lt(abs_a, cst_limit), rint_a, a);
+  // If greater than limit (or NaN), simply return a.
+  Packet mask = pcmp_lt(abs_a, cst_limit);
+  Packet result = pselect(mask, rint_a, a);
   return result;
 }
 
@@ -2361,11 +2362,11 @@ EIGEN_STRONG_INLINE Packet generic_round(const Packet& a) {
   const Packet cst_1 = pset1<Packet>(Scalar(1));
   Packet abs_a = pabs(a);
   Packet sign_a = pandnot(a, abs_a);
-  Packet tmp = pfloor(abs_a);
-  Packet diff = psub(abs_a, tmp);
+  Packet floor_abs_a = pfloor(abs_a);
+  Packet diff = psub(abs_a, floor_abs_a);
   Packet mask = pcmp_le(cst_half, diff);
   Packet offset = pand(cst_1, mask);
-  Packet result = padd(tmp, offset);
+  Packet result = padd(floor_abs_a, offset);
   result = por(result, sign_a);
   return result;
 }
