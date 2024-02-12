@@ -698,7 +698,6 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
   if (rows() != cols()) {
-    //m_scaledMatrix = matrix / scale;
     m_qr_precond_morecols.run(*this, matrix, scale);
     m_qr_precond_morerows.run(*this, matrix, scale);
   } else {
