@@ -125,7 +125,6 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
   typedef typename Eigen::internal::traits<SVDBase>::StorageIndex StorageIndex;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
 
   static constexpr bool ShouldComputeFullU = internal::traits<Derived>::ShouldComputeFullU;
   static constexpr bool ShouldComputeThinU = internal::traits<Derived>::ShouldComputeThinU;
