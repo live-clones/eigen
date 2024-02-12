@@ -2308,46 +2308,50 @@ EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
   using IntType = typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type;
   constexpr int kMantissaBits = NumTraits<Scalar>::digits() - 1;
   // Adds and subtracts signum(a) * 2^kMantissaBits to force rounding.
-  const Packet limit = pset1<Packet>(static_cast<Scalar>(IntType(1) << kMantissaBits));
-  const Packet abs_a = pabs(a);
-  const Packet sign_a = pandnot(a, abs_a);
-  Packet r = padd(abs_a, limit);
+  const Packet cst_limit = pset1<Packet>(static_cast<Scalar>(IntType(1) << kMantissaBits));
+  Packet abs_a = pabs(a);
+  Packet sign_a = pandnot(a, abs_a);
+  Packet rint_a = padd(abs_a, cst_limit);
   // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  r = por(r, sign_a);
+  EIGEN_OPTIMIZATION_BARRIER(rint_a);
+  rint_a = psub(rint_a, cst_limit);
+  rint_a = por(rint_a, sign_a);
   // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), r, a);
-  return r;
+  Packet result = pselect(pcmp_lt(abs_a, cst_limit), rint_a, a);
+  return result;
 }
 
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
-  Packet tmp = print(a);
-  // If greater, subtract one.
-  Packet mask = pcmp_le(tmp, a);
-  mask = pandnot(cst_1, mask);
-  return psub(tmp, mask);
+  Packet rint_a = print(a);
+  // if a < rint(a), then rint(a) == ceil(a)
+  Packet mask = pcmp_lt(a, rint_a);
+  Packet offset = pand(cst_1, mask);
+  Packet result = psub(rint_a, offset);
+  return result;
 }
 
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
-  Packet tmp = print(a);
-  // If smaller, add one.
-  Packet mask = pcmp_lt(tmp, a);
-  mask = pand(cst_1, mask);
-  return padd(tmp, mask);
+  Packet rint_a = print(a);
+  // if rint(a) < a, then rint(a) == floor(a)
+  Packet mask = pcmp_lt(rint_a, a);
+  Packet offset = pand(cst_1, mask);
+  Packet result = padd(rint_a, offset);
+  return result;
 }
 
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
-  const Packet abs_a = pabs(a);
-  const Packet sign_a = pandnot(a, abs_a);
-  return por(pfloor(abs_a), sign_a);
+  Packet abs_a = pabs(a);
+  Packet sign_a = pandnot(a, abs_a);
+  Packet floor_abs_a = pfloor(abs_a);
+  Packet result = por(floor_abs_a, sign_a);
+  return result;
 }
 
 template <typename Packet>
@@ -2355,10 +2359,15 @@ EIGEN_STRONG_INLINE Packet generic_round(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_half = pset1<Packet>(Scalar(0.5));
   const Packet cst_1 = pset1<Packet>(Scalar(1));
-  Packet tmp = pfloor(a);
-  Packet mask = pcmp_lt(psub(a, tmp), cst_half);
-  mask = pandnot(cst_1, mask);
-  return padd(tmp, mask);
+  Packet abs_a = pabs(a);
+  Packet sign_a = pandnot(a, abs_a);
+  Packet tmp = pfloor(abs_a);
+  Packet diff = psub(abs_a, tmp);
+  Packet mask = pcmp_le(cst_half, diff);
+  Packet offset = pand(cst_1, mask);
+  Packet result = padd(tmp, offset);
+  result = por(result, sign_a);
+  return result;
 }
 
 }  // end namespace internal
