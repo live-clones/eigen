@@ -688,16 +688,16 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     return *this;
   }
   if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
+  const RealScalar inverseScale = RealScalar(1) / scale;
 
   /*** step 1. The R-SVD step: we use a QR decomposition to reduce to the case of a square matrix */
 
   if (rows() != cols()) {
-    // m_scaledMatrix = matrix / scale;
-    m_qr_precond_morecols.run(*this, matrix / scale);
-    m_qr_precond_morerows.run(*this, matrix / scale);
+    m_qr_precond_morecols.run(*this, inverseScale * matrix);
+    m_qr_precond_morerows.run(*this, inverseScale * matrix);
   } else {
-    m_workMatrix =
-        matrix.template topLeftCorner<DiagSizeAtCompileTime, DiagSizeAtCompileTime>(diagSize(), diagSize()) / scale;
+    m_workMatrix = inverseScale *
+                   matrix.template topLeftCorner<DiagSizeAtCompileTime, DiagSizeAtCompileTime>(diagSize(), diagSize());
     if (m_computeFullU) m_matrixU.setIdentity(rows(), rows());
     if (m_computeThinU) m_matrixU.setIdentity(rows(), diagSize());
     if (m_computeFullV) m_matrixV.setIdentity(cols(), cols());
