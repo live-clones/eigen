@@ -504,7 +504,6 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
   typedef MatrixType_ MatrixType;
   typedef typename Base::Scalar Scalar;
   typedef typename Base::RealScalar RealScalar;
-  typedef typename Base::Index Index;
   enum : int {
     Options = Options_,
     QRPreconditioner = internal::get_qr_preconditioner(Options),
