@@ -238,6 +238,20 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
    */
   typename MatrixType::RealScalar logAbsDeterminant() const;
 
+  /** \returns the sign of the determinant of the matrix of which
+   * *this is the QR decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the QR decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  typename MatrixType::Scalar signDeterminant() const;
+
   /** \returns the rank of the matrix of which *this is the QR decomposition.
    *
    * \note This method has to determine which pivots should be considered nonzero.
@@ -445,6 +459,16 @@ typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   return m_qr.diagonal().cwiseAbs().array().log().sum();
 }
+
+template <typename MatrixType, typename PermutationIndex>
+typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
+  eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
+  Scalar detQ;
+  internal::householder_determinant<HCoeffsType, Scalar, NumTraits<Scalar>::IsComplex>::run(m_hCoeffs, detQ);
+  return detQ * Scalar(m_det_p) * m_qr.diagonal().cwiseQuotient(m_qr.diagonal().cwiseAbs()).prod();
+}
+
 
 /** Performs the QR factorization of the given matrix \a matrix. The result of
  * the factorization is stored into \c *this, and a reference to \c *this

@@ -221,6 +221,21 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
    */
   typename MatrixType::RealScalar logAbsDeterminant() const;
 
+
+  /** \returns the sign of the determinant of the matrix of which
+   * *this is the QR decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the QR decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \sa determinant(), absDeterminant(), MatrixBase::determinant()
+   */
+  typename MatrixType::Scalar signDeterminant() const;
+
   inline Index rows() const { return m_qr.rows(); }
   inline Index cols() const { return m_qr.cols(); }
 
@@ -304,6 +319,15 @@ typename MatrixType::RealScalar HouseholderQR<MatrixType>::logAbsDeterminant() c
   eigen_assert(m_isInitialized && "HouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   return m_qr.diagonal().cwiseAbs().array().log().sum();
+}
+
+template <typename MatrixType>
+typename MatrixType::Scalar HouseholderQR<MatrixType>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "HouseholderQR is not initialized.");
+  eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
+  Scalar detQ;
+  internal::householder_determinant<HCoeffsType, Scalar, NumTraits<Scalar>::IsComplex>::run(m_hCoeffs, detQ);
+  return detQ * m_qr.diagonal().cwiseQuotient(m_qr.diagonal().cwiseAbs()).prod();
 }
 
 namespace internal {
