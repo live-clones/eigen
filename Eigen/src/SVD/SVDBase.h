@@ -358,7 +358,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
         m_computeThinU(ShouldComputeThinU),
         m_computeFullV(ShouldComputeFullV),
         m_computeThinV(ShouldComputeThinV),
-        m_computationOptions(0),
+        m_computationOptions(internal::traits<Derived>::Options),
         m_nonzeroSingularValues(0),
         m_rows(RowsAtCompileTime),
         m_cols(ColsAtCompileTime),
