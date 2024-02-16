@@ -61,10 +61,10 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices>> : traits<XprType> {
 
     // FIXME we deal with compile-time strides if and only if we have DirectAccessBit flag,
     // but this is too strict regarding negative strides...
-    DirectAccessMask =
-        (int(InnerIncr) != UndefinedIncr && int(OuterIncr) != UndefinedIncr && InnerIncr >= 0 && OuterIncr >= 0)
-            ? DirectAccessBit
-            : 0,
+    DirectAccessMask = 0,
+        // (int(InnerIncr) != UndefinedIncr && int(OuterIncr) != UndefinedIncr && InnerIncr >= 0 && OuterIncr >= 0)
+        //     ? DirectAccessBit
+        //     : 0,
     FlagsRowMajorBit = IsRowMajor ? RowMajorBit : 0,
     FlagsLvalueBit = is_lvalue<XprType>::value ? LvalueBit : 0,
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1) ? LinearAccessBit : 0,
