@@ -19,6 +19,8 @@ foreach(example_src ${examples_SRCS})
   add_dependencies(unsupported_examples example_${example})
 endforeach(example_src)
 
+set_property(TARGET example_TensorIndexed PROPERTY CXX_STANDARD 14)
+
 if(EIGEN_TEST_SYCL)
   add_subdirectory(SYCL)
 endif(EIGEN_TEST_SYCL)
