@@ -26,8 +26,8 @@ struct MovableScalar : public Base {
   operator Scalar() const { return this->size() > 0 ? this->back() : Scalar(); }
 };
 
-template <>
-struct NumTraits<MovableScalar<float>> : GenericNumTraits<float> {
+template <typename Scalar>
+struct NumTraits<MovableScalar<Scalar>> : GenericNumTraits<Scalar> {
   enum { RequireInitialization = 1 };
 };
 
