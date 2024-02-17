@@ -836,6 +836,7 @@ struct random_default_impl<Scalar, false, false, true> {
     Scalar half_x = Scalar(0.5) * x;
     Scalar half_y = Scalar(0.5) * y;
     Scalar result = (half_x + half_y) + (half_y - half_x) * run();
+    return Scalar(result);
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
     const int scalar_mantissa = NumTraits<Scalar>::digits() - 1;
