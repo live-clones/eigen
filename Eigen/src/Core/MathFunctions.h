@@ -778,11 +778,12 @@ Scalar getRandomBits(int numRandomBits) {
   return numext::bit_cast<Scalar, BitsType>(randomBits);
 }
 
-template <typename Scalar, bool IsComplex, bool IsInteger>
+template <typename Scalar, bool IsComplex, bool IsInteger, bool RequiresInitialization>
 struct random_default_impl {};
 
 template <typename Scalar>
-struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
+struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger,
+                                         NumTraits<Scalar>::RequireInitialization> {};
 
 template <typename Scalar>
 struct random_retval {
@@ -795,7 +796,7 @@ template <typename Scalar>
 inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
 
 template <typename Scalar>
-struct random_default_impl<Scalar, false, false> {
+struct random_default_impl<Scalar, false, false, false> {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits) {
     Scalar half_x = Scalar(0.5) * x;
@@ -823,6 +824,25 @@ struct random_default_impl<Scalar, false, false> {
   static EIGEN_DEVICE_FUNC inline Scalar run() {
     const int mantissa_bits = NumTraits<Scalar>::digits() - 1;
     return run(mantissa_bits);
+  }
+};
+
+// if the target Scalar is a floating point type and requires initialization, default to a random double
+// the number of random bits is the minimum of the mantissa bits of the target scalar and that of double
+template <typename Scalar>
+struct random_default_impl<Scalar, false, false, true> {
+  using Impl = random_impl<double>;
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
+    Scalar half_x = Scalar(0.5) * x;
+    Scalar half_y = Scalar(0.5) * y;
+    Scalar result = (half_x + half_y) + (half_y - half_x) * run();
+  }
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
+    const int scalar_mantissa = NumTraits<Scalar>::digits() - 1;
+    const int double_mantissa = NumTraits<double>::digits() - 1;
+    const int mantissa_bits = scalar_mantissa < double_mantissa ? scalar_mantissa : double_mantissa;
+    double result = Impl::run(mantissa_bits);
+    return Scalar(result);
   }
 };
 
@@ -865,7 +885,7 @@ struct random_impl<long double> {
 };
 
 template <typename Scalar>
-struct random_default_impl<Scalar, false, true> {
+struct random_default_impl<Scalar, false, true, false> {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   enum : int { ScalarBits = sizeof(Scalar) * CHAR_BIT };
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
@@ -894,6 +914,25 @@ struct random_default_impl<Scalar, false, true> {
   }
 };
 
+// if the target Scalar is an integer type and requires initialization, default to a random 64-bit integer
+// the result is clamped to the range of the target scalar and the 64-bit integer
+template <typename Scalar>
+struct random_default_impl<Scalar, false, true, true> {
+  using ImplScalar = typename conditional<NumTraits<Scalar>::IsSigned, int64_t, uint64_t>::type;
+  static constexpr ImplScalar Lowest = NumTraits<ImplScalar>::lowest(), Highest = NumTraits<ImplScalar>::higest();
+  using Impl = random_impl<ImplScalar>;
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
+    if (y <= x) return x;
+    ImplScalar low = x > Lowest ? ImplScalar(x) : Lowest;
+    ImplScalar high = x < Highest ? ImplScalar(x) : Highest;
+    ImplScalar result = Impl::run(low, high);
+    return Scalar(result);
+  }
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
+    return run(NumTraits<Scalar>::lowest(), NumTraits<Scalar>::highest());
+  }
+};
+
 template <>
 struct random_impl<bool> {
   static EIGEN_DEVICE_FUNC inline bool run(const bool& x, const bool& y) {
@@ -903,8 +942,8 @@ struct random_impl<bool> {
   static EIGEN_DEVICE_FUNC inline bool run() { return getRandomBits<int>(1) ? true : false; }
 };
 
-template <typename Scalar>
-struct random_default_impl<Scalar, true, false> {
+template <typename Scalar, bool RequiresInitialization>
+struct random_default_impl<Scalar, true, false, RequiresInitialization> {
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     return Scalar(random(x.real(), y.real()), random(x.imag(), y.imag()));
   }
