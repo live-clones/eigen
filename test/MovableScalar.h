@@ -27,7 +27,10 @@ struct MovableScalar : public Base {
 };
 
 template <>
-struct NumTraits<MovableScalar<float>> : GenericNumTraits<float> {};
+struct NumTraits<MovableScalar<float>> : GenericNumTraits<float> {
+  enum { RequireInitialization = 1 };
+};
+
 }  // namespace Eigen
 
 #endif

@@ -26,3 +26,11 @@ class SafeScalar {
   T val_;
   bool initialized_;
 };
+
+namespace Eigen {
+template <typename T>
+struct NumTraits<SafeScalar<T>> : GenericNumTraits<T> {
+  enum { RequireInitialization = 1 };
+};
+
+}  // namespace Eigen
