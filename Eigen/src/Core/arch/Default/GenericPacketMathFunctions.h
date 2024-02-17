@@ -555,7 +555,7 @@ inline float trig_reduce_huge(float xf, Eigen::numext::int32_t* quadrant) {
   return float(double(int64_t(p)) * pio2_62);
 }
 
-template <bool ComputeSine, typename Packet>
+template <bool ComputeSine, typename Packet, bool ComputeBoth = false>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #if EIGEN_COMP_GNUC_STRICT
     __attribute__((optimize("-fno-unsafe-math-optimizations")))
@@ -669,10 +669,21 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   y2 = pmadd(y2, x, x);
 
   // Select the correct result from the two polynomials.
-  y = ComputeSine ? pselect(poly_mask, y2, y1) : pselect(poly_mask, y1, y2);
-
+  if (ComputeBoth) {
+    Packet peven = peven_mask(x);
+    Packet ysin = pselect(poly_mask, y2, y1);
+    Packet ycos = pselect(poly_mask, y1, y2);
+    Packet sign_bit_sin = pxor(_x, preinterpret<Packet>(plogical_shift_left<30>(y_int)));
+    Packet sign_bit_cos = preinterpret<Packet>(plogical_shift_left<30>(padd(y_int, csti_1)));
+    sign_bit_sin = pand(sign_bit_sin, cst_sign_mask);  // clear all but left most bit
+    sign_bit_cos = pand(sign_bit_cos, cst_sign_mask);  // clear all but left most bit
+    y = pselect(peven, pxor(ysin, sign_bit_sin), pxor(ycos, sign_bit_cos));
+  } else {
+    y = ComputeSine ? pselect(poly_mask, y2, y1) : pselect(poly_mask, y1, y2);
+    y = pxor(y, sign_bit);
+  }
   // Update the sign and filter huge inputs
-  return pxor(y, sign_bit);
+  return y;
 }
 
 template <typename Packet>
@@ -917,6 +928,65 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_double(const Pa
   return pxor(p, x_signmask);
 }
 
+/** \internal \returns the hyperbolic tan of \a a (coeff-wise)
+    Doesn't do anything fancy, just a 13/6-degree rational interpolant which
+    is accurate up to a couple of ulps in the (approximate) range [-8, 8],
+    outside of which tanh(x) = +/-1 in single precision. The input is clamped
+    to the range [-c, c]. The value c is chosen as the smallest value where
+    the approximation evaluates to exactly 1. In the reange [-0.0004, 0.0004]
+    the approximation tanh(x) ~= x is used for better accuracy as x tends to zero.
+
+    This implementation works on both scalars and packets.
+*/
+template <typename T>
+T ptanh_float(const T& a_x) {
+  // Clamp the inputs to the range [-c, c]
+#ifdef EIGEN_VECTORIZE_FMA
+  const T plus_clamp = pset1<T>(7.99881172180175781f);
+  const T minus_clamp = pset1<T>(-7.99881172180175781f);
+#else
+  const T plus_clamp = pset1<T>(7.90531110763549805f);
+  const T minus_clamp = pset1<T>(-7.90531110763549805f);
+#endif
+  const T tiny = pset1<T>(0.0004f);
+  const T x = pmax(pmin(a_x, plus_clamp), minus_clamp);
+  const T tiny_mask = pcmp_lt(pabs(a_x), tiny);
+  // The monomial coefficients of the numerator polynomial (odd).
+  const T alpha_1 = pset1<T>(4.89352455891786e-03f);
+  const T alpha_3 = pset1<T>(6.37261928875436e-04f);
+  const T alpha_5 = pset1<T>(1.48572235717979e-05f);
+  const T alpha_7 = pset1<T>(5.12229709037114e-08f);
+  const T alpha_9 = pset1<T>(-8.60467152213735e-11f);
+  const T alpha_11 = pset1<T>(2.00018790482477e-13f);
+  const T alpha_13 = pset1<T>(-2.76076847742355e-16f);
+
+  // The monomial coefficients of the denominator polynomial (even).
+  const T beta_0 = pset1<T>(4.89352518554385e-03f);
+  const T beta_2 = pset1<T>(2.26843463243900e-03f);
+  const T beta_4 = pset1<T>(1.18534705686654e-04f);
+  const T beta_6 = pset1<T>(1.19825839466702e-06f);
+
+  // Since the polynomials are odd/even, we need x^2.
+  const T x2 = pmul(x, x);
+
+  // Evaluate the numerator polynomial p.
+  T p = pmadd(x2, alpha_13, alpha_11);
+  p = pmadd(x2, p, alpha_9);
+  p = pmadd(x2, p, alpha_7);
+  p = pmadd(x2, p, alpha_5);
+  p = pmadd(x2, p, alpha_3);
+  p = pmadd(x2, p, alpha_1);
+  p = pmul(x, p);
+
+  // Evaluate the denominator polynomial q.
+  T q = pmadd(x2, beta_6, beta_4);
+  q = pmadd(x2, q, beta_2);
+  q = pmadd(x2, q, beta_0);
+
+  // Divide the numerator by the denominator.
+  return pselect(tiny_mask, x, pdiv(p, q));
+}
+
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Packet& x) {
   typedef typename unpacket_traits<Packet>::type Scalar;
@@ -990,6 +1060,50 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
 
   Packet xres = pselect(real_mask, Packet(xreal), Packet(ximg));  // log(sqrt(a^2 + b^2)), atan2(b, a)
   return xres;
+}
+
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Packet& a) {
+  typedef typename unpacket_traits<Packet>::as_real RealPacket;
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  typedef typename Scalar::value_type RealScalar;
+  const RealPacket even_mask = peven_mask(a.v);
+  const Packet even_maskp = Packet(even_mask);
+  const RealPacket odd_mask = pcplxflip(Packet(even_mask)).v;
+
+  Packet p0y = Packet(pand(odd_mask, a.v));
+  Packet py0 = pcplxflip(p0y);
+  Packet pyy = padd(p0y, py0);
+
+  RealPacket sincos = psincos_float<false, RealPacket, true>(pyy.v);
+  RealPacket cossin = pcplxflip(Packet(sincos)).v;
+
+  const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
+  const RealPacket cst_neg_inf = pset1<RealPacket>(-NumTraits<RealScalar>::infinity());
+  Packet x_is_inf = Packet(pcmp_eq(a.v, cst_pos_inf));
+  Packet x_is_minf = Packet(pcmp_eq(a.v, cst_neg_inf));
+  Packet x_is_zero = Packet(pcmp_eq(pzero(a).v, a.v));
+  Packet x_real_is_inf = pand(even_maskp, x_is_inf);
+  Packet x_real_is_minf = pand(even_maskp, x_is_minf);
+  Packet inf0 = pset1<Packet>(Scalar(NumTraits<RealScalar>::infinity(), RealScalar(0)));
+  Packet x_is_inf0 = pand(x_real_is_inf, pcplxflip(x_is_zero));
+  x_is_inf0 = por(x_is_inf0, pcplxflip(x_is_inf0));
+  Packet x_imag_goes_zero = pand(por(x_is_minf, x_is_inf), pcplxflip(x_real_is_minf));
+  Packet x_is_nan = Packet(pisnan(a.v));
+  Packet x_real_goes_zero = pand(x_is_nan, pcplxflip(x_real_is_minf));
+
+  RealPacket pexp_real = pexp(a.v);
+  Packet pexp_half = Packet(pand(even_mask, pexp_real));
+  RealPacket xexp_flip_rp = pcplxflip(pexp_half).v;
+  RealPacket xexp = padd(pexp_half.v, xexp_flip_rp);
+  Packet result(pmul(cossin, xexp));
+
+  result = pselect(x_is_inf0, inf0, result);
+  result = pselect(x_real_is_minf, pzero(a), result);
+  result = pselect(x_imag_goes_zero, pzero(a), result);
+  result = pselect(x_real_goes_zero, pzero(a), result);
+
+  return result;
 }
 
 template <typename Packet>
