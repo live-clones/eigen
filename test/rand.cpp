@@ -67,10 +67,16 @@ class HistogramHelper {
   double bin_width_;
 };
 
+// helper class to avoid extending std:: namespace
+template <typename T>
+struct get_range_type : internal::make_unsigned<T> {};
+template <typename T>
+struct get_range_type<SafeScalar<T>> : internal::make_unsigned<T> {};
+
 template <typename Scalar>
 class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteger>> {
  public:
-  using RangeType = typename Eigen::internal::make_unsigned<Scalar>::type;
+  using RangeType = typename get_range_type<Scalar>::type;
   HistogramHelper(int nbins)
       : HistogramHelper(Eigen::NumTraits<Scalar>::lowest(), Eigen::NumTraits<Scalar>::highest(), nbins) {}
   HistogramHelper(Scalar lower, Scalar upper, int nbins)
