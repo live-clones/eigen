@@ -920,12 +920,12 @@ struct random_default_impl<Scalar, false, true, false> {
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true, true> {
   using ImplScalar = typename conditional<NumTraits<Scalar>::IsSigned, int64_t, uint64_t>::type;
-  static constexpr ImplScalar Lowest = NumTraits<ImplScalar>::lowest(), Highest = NumTraits<ImplScalar>::higest();
+  static constexpr ImplScalar Lowest = NumTraits<ImplScalar>::lowest(), Highest = NumTraits<ImplScalar>::highest();
   using Impl = random_impl<ImplScalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
     ImplScalar low = x > Lowest ? ImplScalar(x) : Lowest;
-    ImplScalar high = x < Highest ? ImplScalar(x) : Highest;
+    ImplScalar high = y < Highest ? ImplScalar(y) : Highest;
     ImplScalar result = Impl::run(low, high);
     return Scalar(result);
   }

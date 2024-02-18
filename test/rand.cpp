@@ -9,6 +9,7 @@
 
 #include <cstdlib>
 #include "main.h"
+#include "SafeScalar.h"
 
 // For GCC-6, if this function is inlined then there seems to be an optimization
 // bug that triggers a failure.  This failure goes away if you access `r` in
@@ -218,21 +219,25 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_12(check_histogram<uint16_t>(/*bins=*/1024));
   CALL_SUBTEST_12(check_histogram<uint32_t>(/*bins=*/1024));
   CALL_SUBTEST_12(check_histogram<uint64_t>(/*bins=*/1024));
+  CALL_SUBTEST_12(check_histogram<SafeScalar<uint32_t>>(/*bins=*/1024));
 
   CALL_SUBTEST_13(check_histogram<int8_t>(/*bins=*/16));
   CALL_SUBTEST_13(check_histogram<int16_t>(/*bins=*/1024));
   CALL_SUBTEST_13(check_histogram<int32_t>(/*bins=*/1024));
   CALL_SUBTEST_13(check_histogram<int64_t>(/*bins=*/1024));
+  CALL_SUBTEST_13(check_histogram<SafeScalar<int32_t>>(/*bins=*/1024));
 
   CALL_SUBTEST_14(check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024));
   CALL_SUBTEST_14(check_histogram<double>(-10.0, 10.0, /*bins=*/1024));
   CALL_SUBTEST_14(check_histogram<long double>(-10.0L, 10.0L, /*bins=*/1024));
   CALL_SUBTEST_14(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/512));
   CALL_SUBTEST_14(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
+  CALL_SUBTEST_14(check_histogram<SafeScalar<float>>(-10.0f, 10.0f, /*bins=*/1024));
 
   CALL_SUBTEST_15(check_histogram<float>(/*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<double>(/*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<long double>(/*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<half>(/*bins=*/512));
   CALL_SUBTEST_15(check_histogram<bfloat16>(/*bins=*/64));
+  CALL_SUBTEST_15(check_histogram<SafeScalar<float>>(/*bins=*/1024));
 }

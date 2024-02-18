@@ -32,5 +32,8 @@ template <typename T>
 struct NumTraits<SafeScalar<T>> : GenericNumTraits<T> {
   enum { RequireInitialization = 1 };
 };
-
+namespace internal {
+template <typename T>
+struct make_unsigned<SafeScalar<T>> : make_unsigned<T> {};
+}  // namespace internal
 }  // namespace Eigen
