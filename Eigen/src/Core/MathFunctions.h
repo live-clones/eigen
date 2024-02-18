@@ -836,14 +836,14 @@ struct random_default_impl<Scalar, false, false, true> {
     Scalar half_x = Scalar(0.5) * x;
     Scalar half_y = Scalar(0.5) * y;
     Scalar result = (half_x + half_y) + (half_y - half_x) * run();
-    return Scalar(result);
+    return result;
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
     const int scalar_mantissa = NumTraits<Scalar>::digits() - 1;
     const int double_mantissa = NumTraits<double>::digits() - 1;
     const int mantissa_bits = scalar_mantissa < double_mantissa ? scalar_mantissa : double_mantissa;
     double result = Impl::run(mantissa_bits);
-    return Scalar(result);
+    return static_cast<Scalar>(result);
   }
 };
 
@@ -924,10 +924,10 @@ struct random_default_impl<Scalar, false, true, true> {
   using Impl = random_impl<ImplScalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    ImplScalar low = x > Lowest ? ImplScalar(x) : Lowest;
-    ImplScalar high = y < Highest ? ImplScalar(y) : Highest;
+    ImplScalar low = x > Lowest ? static_cast<ImplScalar>(x) : Lowest;
+    ImplScalar high = y < Highest ? static_cast<ImplScalar>(y) : Highest;
     ImplScalar result = Impl::run(low, high);
-    return Scalar(result);
+    return static_cast<Scalar>(result);
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
     return run(NumTraits<Scalar>::lowest(), NumTraits<Scalar>::highest());

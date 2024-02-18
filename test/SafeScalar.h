@@ -34,6 +34,12 @@ struct NumTraits<SafeScalar<T>> : GenericNumTraits<T> {
 };
 namespace internal {
 template <typename T>
-struct make_unsigned<SafeScalar<T>> : make_unsigned<T> {};
+struct make_unsigned<SafeScalar<T>> {
+ private:
+  using UnsignedT = typename make_unsigned<T>::type;
+
+ public:
+  using type = SafeScalar<UnsignedT>;
+};
 }  // namespace internal
 }  // namespace Eigen
