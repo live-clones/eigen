@@ -4,15 +4,8 @@ template <typename T>
 class SafeScalar {
  public:
   SafeScalar() : initialized_(false) {}
-  SafeScalar(const SafeScalar& other) { *this = other; }
-  SafeScalar& operator=(const SafeScalar& other) {
-    val_ = T(other);
-    initialized_ = true;
-    return *this;
-  }
-
-  SafeScalar(T val) : val_(val), initialized_(true) {}
-  SafeScalar& operator=(T val) {
+  SafeScalar(const T& val) : val_(val), initialized_(true) {}
+  SafeScalar& operator=(const T& val) {
     val_ = val;
     initialized_ = true;
   }
@@ -21,6 +14,14 @@ class SafeScalar {
     VERIFY(initialized_ && "Uninitialized access.");
     return val_;
   }
+
+  template <typename Target>
+  explicit operator Target() const {
+    return static_cast<Target>(this->operator T());
+  }
+
+  template <typename Source>
+  explicit SafeScalar(const Source& val) : SafeScalar(static_cast<T>(val)) {}
 
  private:
   T val_;

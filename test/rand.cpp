@@ -239,6 +239,7 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_14(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/512));
   CALL_SUBTEST_14(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
   CALL_SUBTEST_14(check_histogram<SafeScalar<float>>(-10.0f, 10.0f, /*bins=*/1024));
+  CALL_SUBTEST_14(check_histogram<SafeScalar<bfloat16>>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
 
   CALL_SUBTEST_15(check_histogram<float>(/*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<double>(/*bins=*/1024));
@@ -246,4 +247,5 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_15(check_histogram<half>(/*bins=*/512));
   CALL_SUBTEST_15(check_histogram<bfloat16>(/*bins=*/64));
   CALL_SUBTEST_15(check_histogram<SafeScalar<float>>(/*bins=*/1024));
+  CALL_SUBTEST_15(check_histogram<SafeScalar<bfloat16>>(/*bins=*/64));
 }
