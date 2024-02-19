@@ -90,7 +90,7 @@ constexpr auto sorted_indices_insert(
 }
 template <int... SmallerIndexIds, int IndexId, int... IndexIds, DimensionIndex... PrevBoundDims,
           DimensionIndex BoundDim, DimensionIndex... BoundDims, int NewIndexId, DimensionIndex NewBoundDim,
-          typename std::enable_if<(NewIndexId > IndexId), bool>::type = true>
+          typename std::enable_if_t<(NewIndexId > IndexId), bool> = true>
 constexpr auto sorted_indices_insert(
     sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
     sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, BoundTensorIndex<IndexIds, BoundDims>...>,
@@ -368,7 +368,7 @@ template <int IndexId1, int... IndexIds1, DimensionIndex BoundDim1, DimensionInd
           int... IndexIds2, DimensionIndex BoundDim2, DimensionIndex... BoundDims2, int... UncontractedIndexIds1,
           DimensionIndex... UncontractedBoundDims1, int... UncontractedIndexIds2,
           DimensionIndex... UncontractedBoundDims2, DimensionIndex... ContractedBoundDims1,
-          DimensionIndex... ContractedBoundDims2, typename std::enable_if<(IndexId1 > IndexId2), bool>::type = true>
+          DimensionIndex... ContractedBoundDims2, typename std::enable_if_t<(IndexId1 > IndexId2), bool> = true>
 auto make_contraction_indices(TensorIndexIds<IndexId1, IndexIds1...>, DimensionIds<BoundDim1, BoundDims1...>,
                               TensorIndexIds<IndexId2, IndexIds2...>, DimensionIds<BoundDim2, BoundDims2...>,
                               TensorIndexIds<UncontractedIndexIds1...>, DimensionIds<UncontractedBoundDims1...>,
@@ -379,7 +379,7 @@ template <int IndexId1, int... IndexIds1, DimensionIndex BoundDim1, DimensionInd
           int... IndexIds2, DimensionIndex BoundDim2, DimensionIndex... BoundDims2, int... UncontractedIndexIds1,
           DimensionIndex... UncontractedBoundDims1, int... UncontractedIndexIds2,
           DimensionIndex... UncontractedBoundDims2, DimensionIndex... ContractedBoundDims1,
-          DimensionIndex... ContractedBoundDims2, typename std::enable_if<(IndexId1 < IndexId2), bool>::type = true>
+          DimensionIndex... ContractedBoundDims2, typename std::enable_if_t<(IndexId1 < IndexId2), bool> = true>
 auto make_contraction_indices(TensorIndexIds<IndexId1, IndexIds1...>, DimensionIds<BoundDim1, BoundDims1...>,
                               TensorIndexIds<IndexId2, IndexIds2...>, DimensionIds<BoundDim2, BoundDims2...>,
                               TensorIndexIds<UncontractedIndexIds1...>, DimensionIds<UncontractedBoundDims1...>,
@@ -393,7 +393,7 @@ template <int IndexId1, int... IndexIds1, DimensionIndex BoundDim1, DimensionInd
           int... IndexIds2, DimensionIndex BoundDim2, DimensionIndex... BoundDims2, int... UncontractedIndexIds1,
           DimensionIndex... UncontractedBoundDims1, int... UncontractedIndexIds2,
           DimensionIndex... UncontractedBoundDims2, DimensionIndex... ContractedBoundDims1,
-          DimensionIndex... ContractedBoundDims2, typename std::enable_if<(IndexId1 == IndexId2), bool>::type = true>
+          DimensionIndex... ContractedBoundDims2, typename std::enable_if_t<(IndexId1 == IndexId2), bool> = true>
 auto make_contraction_indices(TensorIndexIds<IndexId1, IndexIds1...>, DimensionIds<BoundDim1, BoundDims1...>,
                               TensorIndexIds<IndexId2, IndexIds2...>, DimensionIds<BoundDim2, BoundDims2...>,
                               TensorIndexIds<UncontractedIndexIds1...>, DimensionIds<UncontractedBoundDims1...>,
