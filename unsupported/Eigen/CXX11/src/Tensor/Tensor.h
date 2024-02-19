@@ -90,13 +90,13 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   struct isOfNormalIndex {
     static const bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
     static const bool is_int = NumTraits<CustomIndices>::IsInteger;
-    #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
-    static constexpr bool is_TensorIndex = internal::is_base_of<TensorIndexBase, 
-                                                                typename internal::remove_all<CustomIndices>::type>::value;
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    static constexpr bool is_TensorIndex =
+        internal::is_base_of<TensorIndexBase, typename internal::remove_all<CustomIndices>::type>::value;
     static constexpr bool value = is_array | is_int | is_TensorIndex;
-    #else
+#else
     static const bool value = is_array | is_int;
-    #endif
+#endif
   };
 
  public:
@@ -214,10 +214,10 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
     return operator()(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
   }
 
-  #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
   // Einstein notation
   using TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> >::operator();
-  #endif
+#endif
 
   // normal indices
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator()(const array<Index, NumIndices>& indices) {

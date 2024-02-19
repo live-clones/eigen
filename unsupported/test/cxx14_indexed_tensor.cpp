@@ -11,13 +11,12 @@
 
 #include <Eigen/CXX11/Tensor>
 
-using Eigen::TensorFixedSize;
 using Eigen::Sizes;
+using Eigen::TensorFixedSize;
 using namespace Eigen::tensor_indices;
 
-template<int DataLayout>
-static void test_indexed_expression()
-{
+template <int DataLayout>
+static void test_indexed_expression() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3, 4, 1>, DataLayout> mat1;
@@ -57,9 +56,8 @@ static void test_indexed_expression()
   }
 }
 
-template<int DataLayout>
-static void test_shuffling()
-{
+template <int DataLayout>
+static void test_shuffling() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3, 4, 1>, DataLayout> mat1;
@@ -78,7 +76,7 @@ static void test_shuffling()
       }
     }
   }
-  
+
   // dynamic size
   {
     Tensor<float, 4, DataLayout> mat1(2, 3, 4, 1);
@@ -99,9 +97,8 @@ static void test_shuffling()
   }
 }
 
-template<int DataLayout>
-static void test_shuffling_map()
-{
+template <int DataLayout>
+static void test_shuffling_map() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3, 4, 1>, DataLayout> mat1;
@@ -121,7 +118,7 @@ static void test_shuffling_map()
       }
     }
   }
-  
+
   // dynamic size
   {
     Tensor<float, 4, DataLayout> mat1(2, 3, 4, 1);
@@ -143,9 +140,8 @@ static void test_shuffling_map()
   }
 }
 
-template<int DataLayout>
-static void test_slicing()
-{
+template <int DataLayout>
+static void test_slicing() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3, 4, 1>, DataLayout> mat1;
@@ -160,7 +156,7 @@ static void test_slicing()
       }
     }
   }
-  
+
   // dynamic size
   {
     Tensor<float, 4, DataLayout> mat1(2, 3, 4, 1);
@@ -177,9 +173,8 @@ static void test_slicing()
   }
 }
 
-template<int DataLayout>
-static void test_slicing2()
-{
+template <int DataLayout>
+static void test_slicing2() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<3, 4, 5>, DataLayout> mat1;
@@ -187,12 +182,12 @@ static void test_slicing2()
 
     TensorFixedSize<float, Sizes<5>, DataLayout> result;
     result(i) = mat1(0, 2, i);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       VERIFY_IS_APPROX(result(ii), mat1(0, 2, ii));
     }
   }
-  
+
   // dynamic size
   {
     Tensor<float, 3, DataLayout> mat1(3, 4, 5);
@@ -202,26 +197,25 @@ static void test_slicing2()
 
     Tensor<float, 1, DataLayout> result(5);
     result(i) = mat1(0, 2, i);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       VERIFY_IS_APPROX(result(ii), mat1(0, 2, ii));
     }
   }
 }
 
-template<int DataLayout>
-static void test_addition()
-{
+template <int DataLayout>
+static void test_addition() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-    
+
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
     result(i, j) = mat1(i, j) + mat2(i, j);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) + mat2(ii, jj));
@@ -234,11 +228,11 @@ static void test_addition()
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-    
+
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
     result(i, j) = mat1(i, j);
     result(i, j) += mat2(i, j);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) + mat2(ii, jj));
@@ -251,27 +245,27 @@ static void test_addition()
     TensorFixedSize<float, Sizes<2, 2>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-    
+
     TensorFixedSize<float, Sizes<2, 2>, DataLayout> result;
     result(i, j) = mat1(i, j) + mat2(j, i);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) + mat2(jj, ii));
       }
     }
   }
-  
+
   // dynamic size
   {
     Tensor<float, 2, DataLayout> mat1(2, 3);
     Tensor<float, 2, DataLayout> mat2(2, 3);
     mat1.setRandom();
     mat2.setRandom();
-    
+
     Tensor<float, 2, DataLayout> result(2, 3);
     result(i, j) = mat1(i, j) + mat2(i, j);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) + mat2(ii, jj));
@@ -284,11 +278,11 @@ static void test_addition()
     Tensor<float, 2, DataLayout> mat2(2, 3);
     mat1.setRandom();
     mat2.setRandom();
-    
+
     Tensor<float, 2, DataLayout> result(2, 3);
     result(i, j) = mat1(i, j);
     result(i, j) += mat2(i, j);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) + mat2(ii, jj));
@@ -301,10 +295,10 @@ static void test_addition()
     Tensor<float, 2, DataLayout> mat2(2, 2);
     mat1.setRandom();
     mat2.setRandom();
-    
+
     Tensor<float, 2, DataLayout> result(2, 2);
     result(i, j) = mat1(i, j) + mat2(j, i);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) + mat2(jj, ii));
@@ -313,19 +307,18 @@ static void test_addition()
   }
 }
 
-template<int DataLayout>
-static void test_substraction()
-{
+template <int DataLayout>
+static void test_substraction() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-   
+
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
     result(i, j) = mat1(i, j) - mat2(i, j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) - mat2(ii, jj));
@@ -338,11 +331,11 @@ static void test_substraction()
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-   
-    TensorFixedSize<float, Sizes<2,3>, DataLayout> result;
+
+    TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
     result(i, j) = mat1(i, j);
     result(i, j) -= mat2(i, j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) - mat2(ii, jj));
@@ -355,10 +348,10 @@ static void test_substraction()
     TensorFixedSize<float, Sizes<2, 2>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-    
+
     TensorFixedSize<float, Sizes<2, 2>, DataLayout> result;
     result(i, j) = mat1(i, j) - mat2(j, i);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) - mat2(jj, ii));
@@ -372,27 +365,27 @@ static void test_substraction()
     Tensor<float, 2, DataLayout> mat2(2, 3);
     mat1.setRandom();
     mat2.setRandom();
-   
+
     Tensor<float, 2, DataLayout> result(2, 3);
     result(i, j) = mat1(i, j) - mat2(i, j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) - mat2(ii, jj));
       }
     }
   }
-  
+
   {
     Tensor<float, 2, DataLayout> mat1(2, 3);
     Tensor<float, 2, DataLayout> mat2(2, 3);
     mat1.setRandom();
     mat2.setRandom();
-   
+
     Tensor<float, 2, DataLayout> result(2, 3);
     result(i, j) = mat1(i, j);
     result(i, j) -= mat2(i, j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) - mat2(ii, jj));
@@ -405,10 +398,10 @@ static void test_substraction()
     Tensor<float, 2, DataLayout> mat2(2, 2);
     mat1.setRandom();
     mat2.setRandom();
-    
+
     Tensor<float, 2, DataLayout> result(2, 2);
     result(i, j) = mat1(i, j) - mat2(j, i);
-    
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) - mat2(jj, ii));
@@ -417,9 +410,8 @@ static void test_substraction()
   }
 }
 
-template<int DataLayout>
-static void test_tensor_product()
-{
+template <int DataLayout>
+static void test_tensor_product() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<3>, DataLayout> mat1;
@@ -429,14 +421,14 @@ static void test_tensor_product()
 
     TensorFixedSize<float, Sizes<3, 3>, DataLayout> result;
     result(i, j) = mat1(i) * mat2(j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
-        VERIFY_IS_APPROX(result(ii, jj),  mat1(ii) * mat2(jj));
+        VERIFY_IS_APPROX(result(ii, jj), mat1(ii) * mat2(jj));
       }
     }
   }
-  
+
   {
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
     TensorFixedSize<float, Sizes<4, 1>, DataLayout> mat2;
@@ -456,7 +448,7 @@ static void test_tensor_product()
       }
     }
   }
-  
+
   // dynamic size
   {
     Tensor<float, 1, DataLayout> mat1(3);
@@ -466,10 +458,10 @@ static void test_tensor_product()
 
     Tensor<float, 2, DataLayout> result(3, 3);
     result(i, j) = mat1(i) * mat2(j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
-        VERIFY_IS_APPROX(result(ii, jj),  mat1(ii) * mat2(jj));
+        VERIFY_IS_APPROX(result(ii, jj), mat1(ii) * mat2(jj));
       }
     }
   }
@@ -495,9 +487,8 @@ static void test_tensor_product()
   }
 }
 
-template<int DataLayout>
-static void test_contraction()
-{
+template <int DataLayout>
+static void test_contraction() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<4, 3, 5>, DataLayout> mat1;
@@ -507,7 +498,7 @@ static void test_contraction()
 
     TensorFixedSize<float, Sizes<4, 5>, DataLayout> result;
     result(i, k) = mat1(i, j, k) * mat2(j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int kk = 0; kk < result.dimension(1); ++kk) {
         float tmp = 0;
@@ -518,16 +509,16 @@ static void test_contraction()
       }
     }
   }
-  
+
   {
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
     TensorFixedSize<float, Sizes<3, 4>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-   
+
     TensorFixedSize<float, Sizes<2, 4>, DataLayout> result;
     result(i, k) = mat1(i, j) * mat2(j, k);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int kk = 0; kk < result.dimension(1); ++kk) {
         float tmp = 0;
@@ -538,16 +529,16 @@ static void test_contraction()
       }
     }
   }
-  
+
   {
     TensorFixedSize<float, Sizes<4, 3>, DataLayout> mat1;
     TensorFixedSize<float, Sizes<3, 4>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-   
+
     float result;
     result = mat1(i, j) * mat2(j, i);
-   
+
     float tmp = 0;
     for (int ii = 0; ii < mat1.dimension(0); ++ii) {
       for (int jj = 0; jj < mat1.dimension(1); ++jj) {
@@ -566,7 +557,7 @@ static void test_contraction()
 
     Tensor<float, 2, DataLayout> result(4, 5);
     result(i, k) = mat1(i, j, k) * mat2(j);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int kk = 0; kk < result.dimension(1); ++kk) {
         float tmp = 0;
@@ -583,10 +574,10 @@ static void test_contraction()
     Tensor<float, 2, DataLayout> mat2(3, 4);
     mat1.setRandom();
     mat2.setRandom();
-   
+
     Tensor<float, 2, DataLayout> result(2, 4);
     result(i, k) = mat1(i, j) * mat2(j, k);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int kk = 0; kk < result.dimension(1); ++kk) {
         float tmp = 0;
@@ -603,10 +594,10 @@ static void test_contraction()
     Tensor<float, 2, DataLayout> mat2(3, 4);
     mat1.setRandom();
     mat2.setRandom();
-   
+
     float result;
     result = mat1(i, j) * mat2(j, i);
-   
+
     float tmp = 0;
     for (int ii = 0; ii < mat1.dimension(0); ++ii) {
       for (int jj = 0; jj < mat1.dimension(1); ++jj) {
@@ -617,9 +608,8 @@ static void test_contraction()
   }
 }
 
-template<int DataLayout>
-static void test_combo()
-{
+template <int DataLayout>
+static void test_combo() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
@@ -630,10 +620,10 @@ static void test_combo()
     mat2.setRandom();
     mat3.setRandom();
     mat4.setRandom();
-   
+
     TensorFixedSize<float, Sizes<2, 2>, DataLayout> result;
     result(i, l) = (mat1(i, j) * mat2(k, j) + mat4(i, k)) * mat3(k, l);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int ll = 0; ll < result.dimension(1); ++ll) {
         float coeff = 0;
@@ -654,7 +644,7 @@ static void test_combo()
     TensorFixedSize<double, Sizes<2, 2>, DataLayout> mat2;
     mat1.setRandom();
     mat2.setRandom();
-   
+
     TensorFixedSize<double, Sizes<2, 2, 2, 2>, DataLayout> result;
     result(i, j, k, l) = mat2(i, j) * mat1(k, l) + mat2(j, l) * mat1(i, k);
 
@@ -662,15 +652,13 @@ static void test_combo()
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         for (int kk = 0; kk < result.dimension(2); ++kk) {
           for (int ll = 0; ll < result.dimension(3); ++ll) {
-            VERIFY_IS_APPROX(result(ii, jj, kk, ll), 
-                             mat2(ii, jj) * mat1(kk, ll) 
-                             + mat2(jj, ll) * mat1(ii, kk));
+            VERIFY_IS_APPROX(result(ii, jj, kk, ll), mat2(ii, jj) * mat1(kk, ll) + mat2(jj, ll) * mat1(ii, kk));
           }
         }
       }
     }
   }
-  
+
   // dynamic size
   {
     Tensor<float, 2, DataLayout> mat1(2, 3);
@@ -681,10 +669,10 @@ static void test_combo()
     mat2.setRandom();
     mat3.setRandom();
     mat4.setRandom();
-   
+
     Tensor<float, 2, DataLayout> result(2, 2);
     result(i, l) = (mat1(i, j) * mat2(k, j) + mat4(i, k)) * mat3(k, l);
-   
+
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int ll = 0; ll < result.dimension(1); ++ll) {
         float coeff = 0;
@@ -705,7 +693,7 @@ static void test_combo()
     Tensor<double, 2, DataLayout> mat2(2, 2);
     mat1.setRandom();
     mat2.setRandom();
-   
+
     Tensor<double, 4, DataLayout> result(2, 2, 2, 2);
     result(i, j, k, l) = mat2(i, j) * mat1(k, l) + mat2(j, l) * mat1(i, k);
 
@@ -713,9 +701,7 @@ static void test_combo()
       for (int jj = 0; jj < result.dimension(1); ++jj) {
         for (int kk = 0; kk < result.dimension(2); ++kk) {
           for (int ll = 0; ll < result.dimension(3); ++ll) {
-            VERIFY_IS_APPROX(result(ii, jj, kk, ll), 
-                             mat2(ii, jj) * mat1(kk, ll) 
-                             + mat2(jj, ll) * mat1(ii, kk));
+            VERIFY_IS_APPROX(result(ii, jj, kk, ll), mat2(ii, jj) * mat1(kk, ll) + mat2(jj, ll) * mat1(ii, kk));
           }
         }
       }
@@ -723,9 +709,8 @@ static void test_combo()
   }
 }
 
-template<int DataLayout>
-static void test_assign_scalar()
-{
+template <int DataLayout>
+static void test_assign_scalar() {
   // fixed size
   {
     // TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
@@ -779,9 +764,8 @@ static void test_assign_scalar()
   }
 }
 
-template<int DataLayout>
-static void test_multiply_scalar()
-{
+template <int DataLayout>
+static void test_multiply_scalar() {
   // fixed size
   {
     TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
@@ -794,7 +778,7 @@ static void test_multiply_scalar()
 
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
-            VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj));
+        VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj));
       }
     }
   }
@@ -811,14 +795,13 @@ static void test_multiply_scalar()
 
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
-            VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj));
+        VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj));
       }
     }
   }
 }
 
-EIGEN_DECLARE_TEST(test_cxx14_indexed_tensor)
-{
+EIGEN_DECLARE_TEST(test_cxx14_indexed_tensor) {
   CALL_SUBTEST_1(test_indexed_expression<ColMajor>());
   CALL_SUBTEST_1(test_indexed_expression<RowMajor>());
   CALL_SUBTEST_2(test_shuffling<ColMajor>());
