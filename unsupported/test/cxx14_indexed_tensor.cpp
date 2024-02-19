@@ -710,6 +710,53 @@ static void test_combo() {
 }
 
 template <int DataLayout>
+static void test_multiply_scalar() {
+  // fixed size
+  {
+    TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
+    mat1.setRandom();
+
+    TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
+
+    result(i, j) = 3 * mat1(i, j);
+    for (int ii = 0; ii < result.dimension(0); ++ii) {
+      for (int jj = 0; jj < result.dimension(1); ++jj) {
+        VERIFY_IS_APPROX(result(ii, jj), 3 * mat1(ii, jj));
+      }
+    }
+    
+    result(i, j) = mat1(i, j) * mat1(0, 1);
+    for (int ii = 0; ii < result.dimension(0); ++ii) {
+      for (int jj = 0; jj < result.dimension(1); ++jj) {
+        VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) * mat1(0, 1));
+      }
+    }
+  }
+
+  // dynamic size
+  {
+    Tensor<float, 2, DataLayout> mat1(2, 3);
+    mat1.setRandom();
+
+    Tensor<float, 2, DataLayout> result(2, 3);
+
+    result(i, j) = 3 * mat1(i, j);
+    for (int ii = 0; ii < result.dimension(0); ++ii) {
+      for (int jj = 0; jj < result.dimension(1); ++jj) {
+        VERIFY_IS_APPROX(result(ii, jj), 3 * mat1(ii, jj));
+      }
+    }
+    
+    result(i, j) = mat1(i, j) * mat1(0, 1);
+    for (int ii = 0; ii < result.dimension(0); ++ii) {
+      for (int jj = 0; jj < result.dimension(1); ++jj) {
+        VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj) * mat1(0, 1));
+      }
+    }
+  }
+}
+
+template <int DataLayout>
 static void test_assign_scalar() {
   // fixed size
   {
@@ -764,43 +811,6 @@ static void test_assign_scalar() {
   }
 }
 
-template <int DataLayout>
-static void test_multiply_scalar() {
-  // fixed size
-  {
-    TensorFixedSize<float, Sizes<2, 3>, DataLayout> mat1;
-    mat1.setRandom();
-
-    TensorFixedSize<float, Sizes<2, 3>, DataLayout> result;
-    result(i, j) = mat1(i, j);
-    // result(i, j) = 3. * mat1(i, j); // not yet
-    // result(i, j) = mat1(0, 1) * mat1(i, j); // not yet
-
-    for (int ii = 0; ii < result.dimension(0); ++ii) {
-      for (int jj = 0; jj < result.dimension(1); ++jj) {
-        VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj));
-      }
-    }
-  }
-
-  // dynamic size
-  {
-    Tensor<float, 2, DataLayout> mat1(2, 3);
-    mat1.setRandom();
-
-    Tensor<float, 2, DataLayout> result(2, 3);
-    result(i, j) = mat1(i, j);
-    // result(i, j) = 3. * mat1(i, j); // not yet
-    // result(i, j) = mat1(0, 1) * mat1(i, j); // not yet
-
-    for (int ii = 0; ii < result.dimension(0); ++ii) {
-      for (int jj = 0; jj < result.dimension(1); ++jj) {
-        VERIFY_IS_APPROX(result(ii, jj), mat1(ii, jj));
-      }
-    }
-  }
-}
-
 EIGEN_DECLARE_TEST(test_cxx14_indexed_tensor) {
   CALL_SUBTEST_1(test_indexed_expression<ColMajor>());
   CALL_SUBTEST_1(test_indexed_expression<RowMajor>());
@@ -822,8 +832,8 @@ EIGEN_DECLARE_TEST(test_cxx14_indexed_tensor) {
   CALL_SUBTEST_9(test_contraction<RowMajor>());
   CALL_SUBTEST_10(test_combo<ColMajor>());
   CALL_SUBTEST_10(test_combo<RowMajor>());
-  CALL_SUBTEST_11(test_assign_scalar<ColMajor>());
-  CALL_SUBTEST_11(test_assign_scalar<RowMajor>());
-  CALL_SUBTEST_12(test_multiply_scalar<ColMajor>());
-  CALL_SUBTEST_12(test_multiply_scalar<RowMajor>());
+  CALL_SUBTEST_11(test_multiply_scalar<ColMajor>());
+  CALL_SUBTEST_11(test_multiply_scalar<RowMajor>());
+  CALL_SUBTEST_12(test_assign_scalar<ColMajor>());
+  CALL_SUBTEST_12(test_assign_scalar<RowMajor>());
 }

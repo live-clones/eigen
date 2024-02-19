@@ -470,6 +470,21 @@ auto operator*(IndexedTensor<Expr1, BoundTensorIndex<IndexIds1, BoundDims1>...> 
   return internal::make_indexed_tensor(a.expression().contract(b.expression(), contracted_indices), remaining_indices);
 }
 
+/** \brief This is the operator* between an indexed tensors and a real number.
+ */
+template <typename Real, typename Expr, int... IndexIds, DimensionIndex... BoundDims,
+          typename EnableIf = typename std::enable_if_t<std::is_arithmetic<Real>::value, bool>>
+auto operator*(Real a, IndexedTensor<Expr, BoundTensorIndex<IndexIds, BoundDims>...> const& b) {
+  return internal::make_indexed_tensor(a * b.expression(),
+                                       internal::sorted_indices_t<BoundTensorIndex<IndexIds, BoundDims>...>{});
+}
+template <typename Real, typename Expr, int... IndexIds, DimensionIndex... BoundDims,
+          typename EnableIf = typename std::enable_if_t<std::is_arithmetic<Real>::value, bool>>
+auto operator*(IndexedTensor<Expr, BoundTensorIndex<IndexIds, BoundDims>...> const& a, Real b) {
+  return internal::make_indexed_tensor(b * a.expression(),
+                                       internal::sorted_indices_t<BoundTensorIndex<IndexIds, BoundDims>...>{});
+}
+
 namespace internal {
 
 // operator+
