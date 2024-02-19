@@ -839,11 +839,10 @@ struct random_default_impl<Scalar, false, false, true> {
     return result;
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
-    const int scalar_mantissa = NumTraits<Scalar>::digits() - 1;
-    const int double_mantissa = NumTraits<double>::digits() - 1;
-    const int mantissa_bits = scalar_mantissa < double_mantissa ? scalar_mantissa : double_mantissa;
-    double result = Impl::run(mantissa_bits);
-    return static_cast<Scalar>(result);
+    const int mantissa_bits = (std::min)(NumTraits<Scalar>::digits(), NumTraits<double>::digits()) - 1;
+    double tmp = Impl::run(mantissa_bits);
+    Scalar result = static_cast<Scalar>(tmp);
+    return result;
   }
 };
 
@@ -924,10 +923,12 @@ struct random_default_impl<Scalar, false, true, true> {
   using Impl = random_impl<ImplScalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
+    const int shift = (std::max)(NumTraits<Scalar>::digits() - NumTraits<ImplScalar>::digits(), 0);
     ImplScalar low = x > Lowest ? static_cast<ImplScalar>(x) : Lowest;
     ImplScalar high = y < Highest ? static_cast<ImplScalar>(y) : Highest;
-    ImplScalar result = Impl::run(low, high);
-    return static_cast<Scalar>(result);
+    ImplScalar tmp = Impl::run(low, high);
+    Scalar result = static_cast<Scalar>(tmp);
+    return result;
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
     return run(NumTraits<Scalar>::lowest(), NumTraits<Scalar>::highest());

@@ -8,6 +8,7 @@ class SafeScalar {
   SafeScalar& operator=(const T& val) {
     val_ = val;
     initialized_ = true;
+    return *this;
   }
 
   operator T() const {
