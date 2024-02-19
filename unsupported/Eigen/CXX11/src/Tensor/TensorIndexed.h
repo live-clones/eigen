@@ -243,7 +243,7 @@ namespace internal {
                            internal::sorted_indices_t<PrevIndices...> prev_indices, 
                            DimensionIndex current_index, Indices... indices)
   {
-    return make_indexed_tensor(tensor_expr.chip(current_index, sizeof...(PrevIndices)), 
+    return make_indexed_tensor(tensor_expr.template chip<sizeof...(PrevIndices)>(current_index), 
                                prev_indices, indices...);
   }
   /** Some dimensions remain to be chipped or linked to a TensorIndex. If the 
