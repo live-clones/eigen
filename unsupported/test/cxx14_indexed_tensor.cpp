@@ -724,7 +724,7 @@ static void test_multiply_scalar() {
         VERIFY_IS_APPROX(result(ii, jj), float(3.) * mat1(ii, jj));
       }
     }
-    
+
     result(i, j) = mat1(i, j) * mat1(0, 1);
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
@@ -746,7 +746,7 @@ static void test_multiply_scalar() {
         VERIFY_IS_APPROX(result(ii, jj), float(3.) * mat1(ii, jj));
       }
     }
-    
+
     result(i, j) = mat1(i, j) * mat1(0, 1);
     for (int ii = 0; ii < result.dimension(0); ++ii) {
       for (int jj = 0; jj < result.dimension(1); ++jj) {
