@@ -159,6 +159,7 @@ class IndexedTensor {
   IndexedTensor(TensorExpr&& t) : m_tensor_expr(std::move(t)) {}
   IndexedTensor(TensorExpr& t) : m_tensor_expr(t) {}
 
+  void operator=(const typename TensorExpr::Scalar& other) { this->expression().setConstant(other); }
   template <typename OtherTensorExpr, typename... OtherBoundIndices>
   void operator=(IndexedTensor<OtherTensorExpr, OtherBoundIndices...> const& other);
   template <typename OtherTensorExpr, typename... OtherBoundIndices>
@@ -470,17 +471,15 @@ auto operator*(IndexedTensor<Expr1, BoundTensorIndex<IndexIds1, BoundDims1>...> 
   return internal::make_indexed_tensor(a.expression().contract(b.expression(), contracted_indices), remaining_indices);
 }
 
-/** \brief This is the operator* between an indexed tensors and a real number.
+/** \brief This is the operator* between an indexed tensors and a real number an vice versa.
  */
-template <typename Real, typename Expr, int... IndexIds, DimensionIndex... BoundDims,
-          typename EnableIf = typename std::enable_if_t<std::is_arithmetic<Real>::value, bool>>
-auto operator*(Real a, IndexedTensor<Expr, BoundTensorIndex<IndexIds, BoundDims>...> const& b) {
+template <typename Expr, int... IndexIds, DimensionIndex... BoundDims, typename Scalar = typename Expr::Scalar>
+auto operator*(const typename Expr::Scalar& a, IndexedTensor<Expr, BoundTensorIndex<IndexIds, BoundDims>...> const& b) {
   return internal::make_indexed_tensor(a * b.expression(),
                                        internal::sorted_indices_t<BoundTensorIndex<IndexIds, BoundDims>...>{});
 }
-template <typename Real, typename Expr, int... IndexIds, DimensionIndex... BoundDims,
-          typename EnableIf = typename std::enable_if_t<std::is_arithmetic<Real>::value, bool>>
-auto operator*(IndexedTensor<Expr, BoundTensorIndex<IndexIds, BoundDims>...> const& a, Real b) {
+template <typename Expr, int... IndexIds, DimensionIndex... BoundDims>
+auto operator*(IndexedTensor<Expr, BoundTensorIndex<IndexIds, BoundDims>...> const& a, const typename Expr::Scalar& b) {
   return internal::make_indexed_tensor(b * a.expression(),
                                        internal::sorted_indices_t<BoundTensorIndex<IndexIds, BoundDims>...>{});
 }
