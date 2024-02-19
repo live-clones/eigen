@@ -71,7 +71,7 @@ namespace internal {
   struct sorted_indices_t 
   {
     template<typename Index>
-    auto insert(Index index) 
+    constexpr auto insert(Index index) 
     {
       return sorted_indices_insert(sorted_indices_t<>{}, *this, index);
     }
@@ -82,10 +82,10 @@ namespace internal {
            DimensionIndex... PrevBoundDims, DimensionIndex BoundDim, DimensionIndex... BoundDims, 
            int NewIndexId, DimensionIndex NewBoundDim, 
            typename EnableIf=typename std::enable_if_t<(NewIndexId <= IndexId), bool>>
-  auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
-              sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, 
-                               BoundTensorIndex<IndexIds, BoundDims>...>,
-                               BoundTensorIndex<NewIndexId, NewBoundDim>) 
+  constexpr auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
+                                       sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, 
+                                                        BoundTensorIndex<IndexIds, BoundDims>...>,
+                                                        BoundTensorIndex<NewIndexId, NewBoundDim>) 
   {
     EIGEN_STATIC_ASSERT(NewIndexId != IndexId, "sorted_indices_t cannot have duplicates");
     return sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>..., 
@@ -97,10 +97,10 @@ namespace internal {
            DimensionIndex... PrevBoundDims, DimensionIndex BoundDim, DimensionIndex... BoundDims, 
            int NewIndexId, DimensionIndex NewBoundDim,
            typename std::enable_if<(NewIndexId > IndexId), bool>::type=true>
-  auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
-                             sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, 
-                             BoundTensorIndex<IndexIds, BoundDims>...>,
-                             BoundTensorIndex<NewIndexId, NewBoundDim>) 
+  constexpr auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
+                                       sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, 
+                                       BoundTensorIndex<IndexIds, BoundDims>...>,
+                                       BoundTensorIndex<NewIndexId, NewBoundDim>) 
   {
     return sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>..., 
                                  BoundTensorIndex<IndexId, BoundDim>>{},
@@ -110,9 +110,9 @@ namespace internal {
   template<int... SmallerIndexIds, 
            DimensionIndex... PrevBoundDims, 
            int NewIndexId, DimensionIndex NewBoundDim>
-  auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
-                             sorted_indices_t<>,
-                             BoundTensorIndex<NewIndexId, NewBoundDim>) 
+  constexpr auto sorted_indices_insert(sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>...>,
+                                       sorted_indices_t<>,
+                                       BoundTensorIndex<NewIndexId, NewBoundDim>) 
   {
     return sorted_indices_t<BoundTensorIndex<SmallerIndexIds, PrevBoundDims>..., 
                             BoundTensorIndex<NewIndexId, NewBoundDim>>{};
@@ -120,15 +120,17 @@ namespace internal {
 
   // Merge two sorted_indices_t.
   template<int... IndexIds2, DimensionIndex... BoundDims2>
-  auto sorted_indices_merge(sorted_indices_t<>, sorted_indices_t<BoundTensorIndex<IndexIds2, BoundDims2>...> b)
+  constexpr auto sorted_indices_merge(sorted_indices_t<>, 
+                                      sorted_indices_t<BoundTensorIndex<IndexIds2, BoundDims2>...> b)
   {
     return b;
   }
   template<int IndexId, DimensionIndex BoundDim, 
            int... IndexIds1, DimensionIndex... BoundDims1, 
            int... IndexIds2, DimensionIndex... BoundDims2>
-  auto sorted_indices_merge(sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, BoundTensorIndex<IndexIds1, BoundDims1>...>, 
-                            sorted_indices_t<BoundTensorIndex<IndexIds2, BoundDims2>...> b) 
+  constexpr auto sorted_indices_merge(sorted_indices_t<BoundTensorIndex<IndexId, BoundDim>, 
+                                      BoundTensorIndex<IndexIds1, BoundDims1>...>, 
+                                      sorted_indices_t<BoundTensorIndex<IndexIds2, BoundDims2>...> b) 
   {
     return sorted_indices_merge(sorted_indices_t<BoundTensorIndex<IndexIds1, BoundDims1>...>{}, 
                                 b.insert(BoundTensorIndex<IndexId, BoundDim>{}));
