@@ -466,7 +466,7 @@ typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::s
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
   internal::householder_determinant<HCoeffsType, Scalar, NumTraits<Scalar>::IsComplex>::run(m_hCoeffs, detQ);
-  return detQ * Scalar(m_det_p) * m_qr.diagonal().cwiseQuotient(m_qr.diagonal().cwiseAbs()).prod();
+  return detQ * Scalar(m_det_p) * m_qr.diagonal().array().sign().prod();
 }
 
 
