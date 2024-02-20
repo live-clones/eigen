@@ -187,6 +187,8 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
    * \warning a determinant can be very big or small, so for matrices
    * of large enough dimension, there is a risk of overflow/underflow.
    * One way to work around that is to use logAbsDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
    *
    * \sa absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
    */
@@ -202,6 +204,8 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
    * \warning a determinant can be very big or small, so for matrices
    * of large enough dimension, there is a risk of overflow/underflow.
    * One way to work around that is to use logAbsDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
    *
    * \sa determinant(), logAbsDeterminant(), MatrixBase::determinant()
    */
@@ -217,6 +221,9 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
    * \note This method is useful to work around the risk of overflow/underflow that's inherent
    * to determinant computation.
    *
+   * \warning Do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
+   *
    * \sa determinant(), absDeterminant(), MatrixBase::determinant()
    */
   typename MatrixType::RealScalar logAbsDeterminant() const;
@@ -231,6 +238,9 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
    *
    * \note This method is useful to work around the risk of overflow/underflow that's inherent
    * to determinant computation.
+   *
+   * \warning Do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
    *
    * \sa determinant(), absDeterminant(), MatrixBase::determinant()
    */
