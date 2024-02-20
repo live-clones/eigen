@@ -228,7 +228,6 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
    */
   typename MatrixType::RealScalar logAbsDeterminant() const;
 
-
   /** \returns the sign of the determinant of the matrix of which
    * *this is the QR decomposition. It has only linear complexity
    * (that is, O(n) where n is the dimension of the square matrix)

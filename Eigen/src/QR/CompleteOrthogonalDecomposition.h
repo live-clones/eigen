@@ -228,7 +228,7 @@ class CompleteOrthogonalDecomposition
    */
   typename MatrixType::RealScalar logAbsDeterminant() const;
 
-   /** \returns the sign of the determinant of the
+  /** \returns the sign of the determinant of the
    * matrix of which *this is the complete orthogonal decomposition. It has
    * only linear complexity (that is, O(n) where n is the dimension of the
    * square matrix) as the complete orthogonal decomposition has already been
@@ -440,8 +440,7 @@ typename MatrixType::RealScalar CompleteOrthogonalDecomposition<MatrixType, Perm
 }
 
 template <typename MatrixType, typename PermutationIndex>
-typename MatrixType::Scalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::signDeterminant()
-    const {
+typename MatrixType::Scalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::signDeterminant() const {
   return m_cpqr.signDeterminant();
 }
 

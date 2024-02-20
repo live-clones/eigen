@@ -460,7 +460,6 @@ typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex
   using RealScalar = typename MatrixType::RealScalar;
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
-
   return isInjective() ? m_qr.diagonal().cwiseAbs().array().log().sum() : -NumTraits<RealScalar>::infinity();
 }
 
@@ -473,7 +472,6 @@ typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::s
   internal::householder_determinant<HCoeffsType, Scalar, NumTraits<Scalar>::IsComplex>::run(m_hCoeffs, detQ);
   return isInjective() ? (detQ * Scalar(m_det_p)) * m_qr.diagonal().array().sign().prod() : Scalar(0);
 }
-
 
 /** Performs the QR factorization of the given matrix \a matrix. The result of
  * the factorization is stored into \c *this, and a reference to \c *this
