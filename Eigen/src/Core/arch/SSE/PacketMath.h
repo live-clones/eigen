@@ -172,11 +172,6 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasBlend = 1,
-    HasCeil = 1,
-    HasFloor = 1,
-    HasRound = 1,
-    HasRint = 1,
-    HasTrunc = 1,
     HasSign = 0  // The manually vectorized version is slightly slower for SSE.
   };
 };
@@ -196,12 +191,7 @@ struct packet_traits<double> : default_packet_traits {
     HasSqrt = 1,
     HasRsqrt = 1,
     HasATan = 1,
-    HasBlend = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRound = 1,
-    HasRint = 1,
-    HasTrunc = 1
+    HasBlend = 1
   };
 };
 template <>
@@ -1144,56 +1134,6 @@ EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
   return _mm_round_pd(a, _MM_FROUND_TRUNC);
-}
-#else
-template <>
-EIGEN_STRONG_INLINE Packet4f print(const Packet4f& a) {
-  return generic_rint(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d print(const Packet2d& a) {
-  return generic_rint(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
-  return generic_floor(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a) {
-  return generic_floor(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
-  return generic_ceil(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
-  return generic_ceil(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
-  return generic_round(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pround<Packet2d>(const Packet2d& a) {
-  return generic_round(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
-  return generic_trunc(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
-  return generic_trunc(a);
 }
 #endif
 

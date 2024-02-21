@@ -92,12 +92,7 @@ struct packet_traits<half> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasTrunc = 1
+    HasBlend = 0
   };
 };
 #endif
@@ -134,12 +129,7 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasTrunc = 1
+    HasDiv = 1
   };
 };
 template <>
@@ -157,12 +147,7 @@ struct packet_traits<double> : default_packet_traits {
     HasExp = 1,
     HasATan = 1,
     HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasTrunc = 1
+    HasDiv = 1
   };
 };
 
@@ -2355,12 +2340,7 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasTrunc = 1
+    HasDiv = 1
   };
 };
 

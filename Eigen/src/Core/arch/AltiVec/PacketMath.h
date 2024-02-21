@@ -195,18 +195,12 @@ struct packet_traits<float> : default_packet_traits {
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasRint = 1,
 #else
     HasSqrt = 0,
     HasRsqrt = 0,
     HasTanh = 0,
     HasErf = 0,
-    HasRint = 0,
 #endif
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasTrunc = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -238,18 +232,12 @@ struct packet_traits<bfloat16> : default_packet_traits {
 #else
     HasRsqrt = 0,
 #endif
-    HasRint = 1,
 #else
     HasSqrt = 0,
     HasRsqrt = 0,
-    HasRint = 0,
 #endif
     HasTanh = 0,
     HasErf = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasTrunc = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -3209,11 +3197,6 @@ struct packet_traits<double> : default_packet_traits {
 #else
     HasRsqrt = 0,
 #endif
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasTrunc = 1,
     HasNegate = 1,
     HasBlend = 1
   };

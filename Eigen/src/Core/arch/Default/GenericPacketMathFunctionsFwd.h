@@ -114,21 +114,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Packet& x, const Packet& y);
 
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a);
-
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a);
-
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a);
-
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
-
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a);
-
 template <typename Packet, int N>
 struct ppolevl;
 

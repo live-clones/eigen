@@ -197,11 +197,6 @@ struct packet_traits<float> : default_packet_traits {
     HasSetLinear = 1,
     HasBlend = 0,
     HasDiv = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasRound = 1,
-    HasTrunc = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasACos = 1,
@@ -4489,59 +4484,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
   return vrndq_f32(a);
 }
-
-#else
-
-template <>
-EIGEN_STRONG_INLINE Packet4f print(const Packet4f& a) {
-  return generic_rint(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2f print(const Packet2f& a) {
-  return generic_rint(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
-  return generic_floor(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2f pfloor<Packet2f>(const Packet2f& a) {
-  return generic_floor(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
-  return generic_ceil(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2f pceil<Packet2f>(const Packet2f& a) {
-  return generic_ceil(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
-  return generic_round(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2f pround<Packet2f>(const Packet2f& a) {
-  return generic_round(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
-  return generic_trunc(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2f ptrunc<Packet2f>(const Packet2f& a) {
-  return generic_trunc(a);
-}
-
 #endif
 
 /**
@@ -4802,11 +4744,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasSetLinear = 1,
     HasBlend = 0,
     HasDiv = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasRound = 1,
-    HasTrunc = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
@@ -5181,11 +5118,6 @@ struct packet_traits<double> : default_packet_traits {
     HasBlend = 0,
 
     HasDiv = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
-    HasRound = 1,
-    HasTrunc = 1,
 
 #if EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG
     HasExp = 1,
@@ -5546,9 +5478,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasInsert = 1,
     HasReduxp = 1,
     HasDiv = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
     HasSin = 0,
     HasCos = 0,
     HasLog = 0,

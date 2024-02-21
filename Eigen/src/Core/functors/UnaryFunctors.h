@@ -879,7 +879,7 @@ template <typename Scalar>
 struct functor_traits<scalar_floor_op<Scalar>> {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasFloor || NumTraits<Scalar>::IsInteger
+    PacketAccess = packet_traits<Scalar>::HasRound || NumTraits<Scalar>::IsInteger
   };
 };
 
@@ -899,7 +899,7 @@ template <typename Scalar>
 struct functor_traits<scalar_rint_op<Scalar>> {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasRint || NumTraits<Scalar>::IsInteger
+    PacketAccess = packet_traits<Scalar>::HasRound || NumTraits<Scalar>::IsInteger
   };
 };
 
@@ -919,7 +919,7 @@ template <typename Scalar>
 struct functor_traits<scalar_ceil_op<Scalar>> {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasCeil || NumTraits<Scalar>::IsInteger
+    PacketAccess = packet_traits<Scalar>::HasRound || NumTraits<Scalar>::IsInteger
   };
 };
 
@@ -939,7 +939,7 @@ template <typename Scalar>
 struct functor_traits<scalar_trunc_op<Scalar>> {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasTrunc || NumTraits<Scalar>::IsInteger
+    PacketAccess = packet_traits<Scalar>::HasRound || NumTraits<Scalar>::IsInteger
   };
 };
 
