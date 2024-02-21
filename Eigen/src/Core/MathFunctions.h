@@ -923,7 +923,6 @@ struct random_default_impl<Scalar, false, true, true> {
   using Impl = random_impl<ImplScalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    const int shift = (std::max)(NumTraits<Scalar>::digits() - NumTraits<ImplScalar>::digits(), 0);
     ImplScalar low = x > Lowest ? static_cast<ImplScalar>(x) : Lowest;
     ImplScalar high = y < Highest ? static_cast<ImplScalar>(y) : Highest;
     ImplScalar tmp = Impl::run(low, high);
