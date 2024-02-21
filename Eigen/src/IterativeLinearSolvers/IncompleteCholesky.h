@@ -110,12 +110,26 @@ class IncompleteCholesky : public SparseSolverBase<IncompleteCholesky<Scalar, Up
   void analyzePattern(const MatrixType& mat) {
     OrderingType ord;
     PermutationType pinv;
-    ord(mat.template selfadjointView<UpLo>(), pinv);
+    m_L.template selfadjointView<Lower>() = mat.template selfadjointView<UpLo>();
+
+    // The algorithm will insert increasingly large shifts on the diagonal until
+    // factorization succeeds. Therefore we have to make sure that there is a
+    // space in the datastructure to store such values, even if the original
+    // matrix has a zero on the diagonal.
+    bool modified = false;
+    for (Index i = 0; i < mat.cols(); ++i) {
+      if (m_L.coeff(i, i) == Scalar(0)) {
+        m_L.insert(i, i) = Scalar(1);
+        modified = true;
+      }
+    }
+    if (modified) m_L.makeCompressed();
+    ord(m_L.template selfadjointView<Lower>(), pinv);
     if (pinv.size() > 0)
       m_perm = pinv.inverse();
     else
       m_perm.resize(0);
-    m_L.resize(mat.rows(), mat.cols());
+    m_L.setZero();
     m_analysisIsOk = true;
     m_isInitialized = true;
     m_info = Success;
