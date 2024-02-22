@@ -220,7 +220,7 @@ void IncompleteCholesky<Scalar, UpLo_, OrderingType>::factorize(const MatrixType
   // matrix has a zero on the diagonal.
   bool modified = false;
   for (Index i = 0; i < mat.cols(); ++i) {
-    if (m_L.coeff(i, i) == Scalar(0)) {
+    if (numext::is_exactly_zero(m_L.coeff(i, i))) {
       m_L.insert(i, i) = Scalar(0);
       modified = true;
     }
