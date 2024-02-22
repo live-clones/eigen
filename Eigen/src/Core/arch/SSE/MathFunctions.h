@@ -25,6 +25,10 @@ namespace internal {
 EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_FLOAT(Packet4f)
 EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(Packet2d)
 
+// TODO Remove once they will be available for all architectures, and will be moved into the generic instatiate
+EIGEN_DOUBLE_PACKET_FUNCTION(sin, Packet2d)
+EIGEN_DOUBLE_PACKET_FUNCTION(cos, Packet2d)
+
 // Notice that for newer processors, it is counterproductive to use Newton
 // iteration for square root. In particular, Skylake and Zen2 processors
 // have approximately doubled throughput of the _mm_sqrt_ps instruction
