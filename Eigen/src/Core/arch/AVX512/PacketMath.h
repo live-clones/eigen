@@ -152,6 +152,9 @@ struct packet_traits<double> : default_packet_traits {
     HasBlend = 1,
     HasSqrt = 1,
     HasRsqrt = 1,
+    // TODO enable sin and cos when Packet8l integer_packet will be implemented
+    HasSin = 0,
+    HasCos = 0,
     HasLog = 1,
     HasExp = 1,
     HasATan = 1,
