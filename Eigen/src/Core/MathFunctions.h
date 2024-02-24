@@ -831,8 +831,8 @@ struct random_longdouble_impl {
   static constexpr int Size = sizeof(long double), MantissaBits = NumTraits<long double>::digits() - 1;
   static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits = MantissaBits) {
     eigen_assert(numRandomBits >= 0 && numRandomBits <= MantissaBits);
-    const int numLowBits = numRandomBits > 64 ? 64 : numRandomBits;
-    const int numHighBits = numRandomBits > 64 ? numRandomBits - 64 : 0;
+    const int numLowBits = std::min(numRandomBits, 64);
+    const int numHighBits = std::max(numRandomBits - 64, 0);
     EIGEN_USING_STD(memcpy)
     uint64_t randomBits[2];
     long double result = 2.0L;

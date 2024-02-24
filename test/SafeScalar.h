@@ -17,7 +17,7 @@ class SafeScalar {
 
   template <typename Target>
   explicit operator Target() const {
-    return this->operator T();
+    return Target(this->operator T());
   }
 
  private:
