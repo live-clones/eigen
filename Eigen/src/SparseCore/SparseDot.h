@@ -17,7 +17,8 @@ namespace Eigen {
 
 template <typename Derived>
 template <typename OtherDerived>
-inline typename internal::traits<Derived>::Scalar SparseMatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const {
+inline typename internal::traits<Derived>::Scalar SparseMatrixBase<Derived>::dot(
+    const MatrixBase<OtherDerived>& other) const {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Derived, OtherDerived)
