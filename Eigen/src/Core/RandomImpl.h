@@ -151,7 +151,7 @@ struct random_bits_impl<BitsType, false> {
 };
 
 template <typename BitsType>
-EIGEN_DEVICE_FUNC inline BitsType getRandomBits(const BitsType& numRandomBits) {
+EIGEN_DEVICE_FUNC inline BitsType getRandomBits(int numRandomBits) {
   return random_bits_impl<BitsType>::run(numRandomBits);
 }
 
