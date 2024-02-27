@@ -21,6 +21,27 @@ namespace internal {
  * Implementation of random                                               *
  ****************************************************************************/
 
+template <typename Scalar, bool IsComplex, bool IsInteger>
+struct random_default_impl {};
+
+template <typename Scalar>
+struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
+
+template <typename Scalar>
+struct random_retval {
+  typedef Scalar type;
+};
+
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y) {
+  return EIGEN_MATHFUNC_IMPL(random, Scalar)::run(x, y);
+}
+
+template <typename Scalar>
+inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random() {
+  return EIGEN_MATHFUNC_IMPL(random, Scalar)::run();
+}
+
 template <typename BitsType>
 EIGEN_DEVICE_FUNC inline int generic_log_radix_floor(const BitsType& x) {
   if (x == 0) return 0;
@@ -70,27 +91,6 @@ int log2_ceil(BitsType x) {
 template <typename BitsType>
 int log2_floor(BitsType x) {
   return log_radix_impl<BitsType>::run_floor(x);
-}
-
-template <typename Scalar, bool IsComplex, bool IsInteger>
-struct random_default_impl {};
-
-template <typename Scalar>
-struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
-
-template <typename Scalar>
-struct random_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y) {
-  return EIGEN_MATHFUNC_IMPL(random, Scalar)::run(x, y);
-}
-
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random() {
-  return EIGEN_MATHFUNC_IMPL(random, Scalar)::run();
 }
 
 // TODO: replace or provide alternatives to this, e.g. std::random_device
@@ -151,7 +151,7 @@ struct random_bits_impl<BitsType, false> {
 };
 
 template <typename BitsType>
-EIGEN_DEVICE_FUNC inline BitsType getRandomBits(int numRandomBits) {
+EIGEN_DEVICE_FUNC inline BitsType getRandomBits(const BitsType& numRandomBits) {
   return random_bits_impl<BitsType>::run(numRandomBits);
 }
 
@@ -162,7 +162,7 @@ struct random_float_impl {
   static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
     const int mantissaBits = NumTraits<Scalar>::digits() - 1;
     eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits);
-    BitsType randomBits = getRandomBits(numRandomBits);
+    BitsType randomBits = getRandomBits<Scalar>(numRandomBits);
     // if fewer than MantissaBits is requested, shift them to the left
     randomBits <<= (mantissaBits - numRandomBits);
     // randomBits is in the half-open interval [2,4)
@@ -258,7 +258,7 @@ struct random_int_impl<Scalar, false, BuiltIn> {
     const int numRandomBits = log2_ceil(count);
     Scalar randomBits;
     do {
-      randomBits = getRandomBits(numRandomBits);
+      randomBits = getRandomBits<Scalar>(numRandomBits);
       // if the random draw is outside [0, range), try again (rejection sampling)
       // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
     } while (randomBits >= count);
@@ -269,7 +269,7 @@ struct random_int_impl<Scalar, false, BuiltIn> {
 #ifdef EIGEN_MAKING_DOCS
     return run(0, 10);
 #else
-    return getRandomBits(NumTraits<Scalar>::digits());
+    return getRandomBits<Scalar>(NumTraits<Scalar>::digits());
 #endif
   }
 };
@@ -293,7 +293,7 @@ struct random_int_impl<Scalar, true, true> {
 #ifdef EIGEN_MAKING_DOCS
     return run(-10, 10);
 #else
-    return getRandomBits(kTotalBits);
+    return getRandomBits<Scalar>(kTotalBits);
 #endif
   }
 };
@@ -308,7 +308,8 @@ struct random_int_impl<Scalar, true, false> {
     bool overflow = (range + x) != y;
     // if `range` overflows, generate a random Scalar in the interval [0, MAX]
     // otherwise, generate a random non-negative Scalar in the interval [0, range]
-    Scalar randomBits = overflow ? getRandomBits(NumTraits<Scalar>::digits()) : RandomUnsignedImpl::run(0, range);
+    Scalar randomBits =
+        overflow ? getRandomBits<Scalar>(NumTraits<Scalar>::digits()) : RandomUnsignedImpl::run(0, range);
     Scalar result = x + randomBits;
     return result;
   }
