@@ -305,7 +305,7 @@ struct random_int_impl<Scalar, true, false> {
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
     Scalar range = y - x;
-    bool overflow = (range + x) != y;
+    bool overflow = (range <= Scalar(0)) || (range + x) != y;
     // if `range` overflows, generate a random Scalar in the interval [0, MAX]
     // otherwise, generate a random non-negative Scalar in the interval [0, range]
     Scalar randomBits =
