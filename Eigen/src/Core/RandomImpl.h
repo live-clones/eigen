@@ -44,9 +44,9 @@ inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random() {
 
 template <typename BitsType>
 EIGEN_DEVICE_FUNC inline int generic_log_radix_floor(const BitsType& x) {
-  if (x == 0) return 0;
+  if (x == BitsType(0)) return 0;
   const int digits = NumTraits<BitsType>::digits();
-  BitsType test = 1;
+  BitsType test = BitsType(1);
   for (int s = 0; s < digits; s++) {
     if (test > x) return s - 1;
     test = test << 1;
@@ -56,7 +56,7 @@ EIGEN_DEVICE_FUNC inline int generic_log_radix_floor(const BitsType& x) {
 template <typename BitsType>
 EIGEN_DEVICE_FUNC inline int generic_log_radix_ceil(const BitsType& x) {
   const int digits = NumTraits<BitsType>::digits();
-  BitsType test = 1;
+  BitsType test = BitsType(1);
   for (int s = 0; s < digits; s++) {
     if (test >= x) return s;
     test = test << 1;
@@ -289,6 +289,7 @@ struct random_int_impl<Scalar, true, true> {
     // Avoid overflow in the case where `x` is negative and there is a large range so
     // `randomBits` would also be negative if cast to `Scalar` first.
     Scalar result = static_cast<Scalar>(static_cast<BitsType>(x) + randomBits);
+    return result;
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
 #ifdef EIGEN_MAKING_DOCS
