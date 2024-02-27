@@ -150,19 +150,6 @@ void check_histogram(int bins) {
 
 template <>
 void check_histogram<bool>(int) {
-  //Eigen::VectorXd hist = Eigen::VectorXd::Zero(bins);
-  //HistogramHelper<Scalar> hist_helper(bins);
-  //int64_t n = static_cast<int64_t>(bins) * 10000;  // Approx 10000 per bin.
-  //for (int64_t k = 0; k < n; ++k) {
-  //  Scalar r = Eigen::internal::random<Scalar>();
-  //  int bin = hist_helper.bin(r);
-  //  hist(bin)++;
-  //}
-  //// Normalize bins by probability.
-  //for (int i = 0; i < bins; ++i) {
-  //  hist(i) = hist(i) / n / hist_helper.uniform_bin_probability(i);
-  //}
-  //VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
   int64_t n = 2 * 10000;  // Approx 10000 per bin.
   int64_t true_count = 0;
    for (int64_t k = 0; k < n; ++k) {
