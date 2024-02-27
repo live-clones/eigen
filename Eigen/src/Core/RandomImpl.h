@@ -162,7 +162,7 @@ struct random_float_impl {
   static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
     const int mantissaBits = NumTraits<Scalar>::digits() - 1;
     eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits);
-    BitsType randomBits = getRandomBits<Scalar>(numRandomBits);
+    BitsType randomBits = getRandomBits<BitsType>(numRandomBits);
     // if fewer than MantissaBits is requested, shift them to the left
     randomBits <<= (mantissaBits - numRandomBits);
     // randomBits is in the half-open interval [2,4)
