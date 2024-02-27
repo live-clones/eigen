@@ -386,6 +386,13 @@ EIGEN_STRONG_INLINE Packet32h pfloor<Packet32h>(const Packet32h& a) {
   return _mm512_roundscale_ph(a, _MM_FROUND_TO_NEG_INF);
 }
 
+// ptrunc
+
+template <>
+EIGEN_STRONG_INLINE Packet32h pfloor<Packet32h>(const Packet32h& a) {
+  return _mm512_roundscale_ph(a, _MM_FROUND_TO_ZERO);
+}
+
 // predux
 template <>
 EIGEN_STRONG_INLINE half predux<Packet32h>(const Packet32h& a) {
