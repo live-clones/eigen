@@ -152,12 +152,12 @@ template <>
 void check_histogram<bool>(int) {
   int64_t n = 2 * 10000;  // Approx 10000 per bin.
   int64_t true_count = 0;
-   for (int64_t k = 0; k < n; ++k) {
+  for (int64_t k = 0; k < n; ++k) {
     bool r = Eigen::internal::random<bool>();
     if (r) true_count++;
   }
-   double p = double(true_count) / double(n);
-   VERIFY(numext::abs(p - 0.5) < 0.05);
+  double p = double(true_count) / double(n);
+  VERIFY(numext::abs(p - 0.5) < 0.05);
 }
 
 EIGEN_DECLARE_TEST(rand) {
