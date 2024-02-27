@@ -101,9 +101,10 @@ struct eigen_random_device {
 };
 
 // implementation to to fill a scalar with numRandomBits beginning from the least significant bit
-// this version is intended to operate on unsigned built-in integer types, e.g. uint32_t
-template <typename BitsType, bool BuiltIn = std::is_integral<BitsType>::value>
+// this version is intended to operate on built-in integer types, e.g. int or uint32_t
+template <typename Scalar, bool BuiltIn = std::is_integral<Scalar>::value>
 struct random_bits_impl {
+  using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   using RandomDevice = eigen_random_device;
   using RandomReturnType = typename RandomDevice::ReturnType;
   static constexpr int kEntropy = RandomDevice::Entropy;
@@ -119,7 +120,7 @@ struct random_bits_impl {
     }
     // clear the excess bits
     randomBits &= mask;
-    return randomBits;
+    return static_cast<Scalar>(randomBits);
   }
 };
 

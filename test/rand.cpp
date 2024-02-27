@@ -148,6 +148,31 @@ void check_histogram(int bins) {
   VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
 }
 
+template <>
+void check_histogram<bool>(int) {
+  //Eigen::VectorXd hist = Eigen::VectorXd::Zero(bins);
+  //HistogramHelper<Scalar> hist_helper(bins);
+  //int64_t n = static_cast<int64_t>(bins) * 10000;  // Approx 10000 per bin.
+  //for (int64_t k = 0; k < n; ++k) {
+  //  Scalar r = Eigen::internal::random<Scalar>();
+  //  int bin = hist_helper.bin(r);
+  //  hist(bin)++;
+  //}
+  //// Normalize bins by probability.
+  //for (int i = 0; i < bins; ++i) {
+  //  hist(i) = hist(i) / n / hist_helper.uniform_bin_probability(i);
+  //}
+  //VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
+  int64_t n = 2 * 10000;  // Approx 10000 per bin.
+  int64_t true_count = 0;
+   for (int64_t k = 0; k < n; ++k) {
+    bool r = Eigen::internal::random<bool>();
+    if (r) true_count++;
+  }
+   double p = double(true_count) / double(n);
+   VERIFY(numext::abs(p - 0.5) < 0.05);
+}
+
 EIGEN_DECLARE_TEST(rand) {
   int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
   // the minimum guarantees that these conversions are safe
@@ -231,6 +256,7 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_11(check_histogram<int32_t>(-RAND_MAX + 10,
                                            -int64_t(RAND_MAX) + 10 + bins * (2 * int64_t(RAND_MAX) / bins) - 1, bins));
 
+  CALL_SUBTEST_12(check_histogram<bool>(/*bins=*/2));
   CALL_SUBTEST_12(check_histogram<uint8_t>(/*bins=*/16));
   CALL_SUBTEST_12(check_histogram<uint16_t>(/*bins=*/1024));
   CALL_SUBTEST_12(check_histogram<uint32_t>(/*bins=*/1024));
