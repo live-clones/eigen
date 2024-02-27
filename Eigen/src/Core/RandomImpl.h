@@ -47,13 +47,13 @@ template <typename BitsType, bool BuiltIn = std::is_integral<BitsType>::value>
 struct log_radix_impl {
   static constexpr int kTotalBits = sizeof(BitsType) * CHAR_BIT;
   static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
-     const int n = kTotalBits - clz(x);
-     bool power_of_two = (x & (x - 1)) == 0;
-     return x == 0 ? 0 : power_of_two ? (n - 1) : n;
+    const int n = kTotalBits - clz(x);
+    bool power_of_two = (x & (x - 1)) == 0;
+    return x == 0 ? 0 : power_of_two ? (n - 1) : n;
   }
   static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
-     const int n = kTotalBits - clz(x);
-     return x == 0 ? 0 : n - 1;
+    const int n = kTotalBits - clz(x);
+    return x == 0 ? 0 : n - 1;
   }
 };
 template <typename BitsType>
@@ -150,6 +150,11 @@ struct random_bits_impl<BitsType, false> {
   }
 };
 
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline BitsType getRandomBits(int numRandomBits) {
+  return random_bits_impl<BitsType>::run(numRandomBits);
+}
+
 // random implementation for a built-in floating point type
 template <typename Scalar, bool BuiltIn = std::is_floating_point<Scalar>::value>
 struct random_float_impl {
@@ -157,7 +162,7 @@ struct random_float_impl {
   static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
     const int mantissaBits = NumTraits<Scalar>::digits() - 1;
     eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits);
-    BitsType randomBits = random_bits_impl<BitsType>::run(numRandomBits);
+    BitsType randomBits = getRandomBits(numRandomBits);
     // if fewer than MantissaBits is requested, shift them to the left
     randomBits <<= (mantissaBits - numRandomBits);
     // randomBits is in the half-open interval [2,4)
@@ -244,7 +249,6 @@ struct random_int_impl;
 // random implementation where Scalar is an unsigned integer type, or Scalar is non-negative at runtime
 template <typename Scalar, bool BuiltIn>
 struct random_int_impl<Scalar, false, BuiltIn> {
-  using RandomBitsImpl = random_bits_impl<Scalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
     const Scalar count = y - x + 1;
@@ -254,7 +258,7 @@ struct random_int_impl<Scalar, false, BuiltIn> {
     const int numRandomBits = log2_ceil(count);
     Scalar randomBits;
     do {
-      randomBits = RandomBitsImpl::run(numRandomBits);
+      randomBits = getRandomBits(numRandomBits);
       // if the random draw is outside [0, range), try again (rejection sampling)
       // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
     } while (randomBits >= count);
@@ -265,7 +269,7 @@ struct random_int_impl<Scalar, false, BuiltIn> {
 #ifdef EIGEN_MAKING_DOCS
     return run(0, 10);
 #else
-    return random_bits_impl<Scalar>::run(NumTraits<Scalar>::digits());
+    return getRandomBits(NumTraits<Scalar>::digits());
 #endif
   }
 };
@@ -289,7 +293,7 @@ struct random_int_impl<Scalar, true, true> {
 #ifdef EIGEN_MAKING_DOCS
     return run(-10, 10);
 #else
-    return random_bits_impl<Scalar>::run(kTotalBits);
+    return getRandomBits(kTotalBits);
 #endif
   }
 };
@@ -297,7 +301,6 @@ struct random_int_impl<Scalar, true, true> {
 // random implementation where Scalar is a custom signed integer type
 template <typename Scalar>
 struct random_int_impl<Scalar, true, false> {
-  using RandomBitsImpl = random_bits_impl<Scalar>;
   using RandomUnsignedImpl = random_int_impl<Scalar, false, false>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
@@ -305,7 +308,7 @@ struct random_int_impl<Scalar, true, false> {
     bool overflow = (range + x) != y;
     // if `range` overflows, generate a random Scalar in the interval [0, MAX]
     // otherwise, generate a random non-negative Scalar in the interval [0, range]
-    Scalar randomBits = overflow ? RandomBitsImpl::run(NumTraits<Scalar>::digits()) : RandomUnsignedImpl::run(0, range);
+    Scalar randomBits = overflow ? getRandomBits(NumTraits<Scalar>::digits()) : RandomUnsignedImpl::run(0, range);
     Scalar result = x + randomBits;
     return result;
   }
