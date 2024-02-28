@@ -208,8 +208,8 @@ struct random_longdouble_impl {
     uint64_t randomBits[2];
     long double result = 2.0L;
     memcpy(&randomBits, &result, Size);
-    randomBits[0] |= random_float_impl<uint64_t>::run(numLowBits);
-    randomBits[1] |= random_float_impl<uint64_t>::run(numHighBits);
+    randomBits[0] |= getRandomBits<uint64_t>(numLowBits);
+    randomBits[1] |= getRandomBits<uint64_t>(numHighBits);
     memcpy(&result, &randomBits, Size);
     result -= 3.0L;
     return result;
