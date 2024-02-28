@@ -311,7 +311,7 @@ struct random_int_impl<Scalar, true, false> {
     // if `range` overflows, generate a random Scalar in the interval [0, MAX]
     // otherwise, generate a random non-negative Scalar in the interval [0, range]
     Scalar randomBits =
-        overflow ? getRandomBits<Scalar>(NumTraits<Scalar>::digits()) : RandomUnsignedImpl::run(BitsType(0), range);
+        overflow ? getRandomBits<Scalar>(NumTraits<Scalar>::digits()) : RandomUnsignedImpl::run(Scalar(0), range);
     Scalar result = x + randomBits;
     return result;
   }
