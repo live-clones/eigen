@@ -745,7 +745,6 @@ struct count_bits_impl<BitsType,
 
 #endif  // EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
 
-
 // Implementation of is* functions
 
 template <typename T>
