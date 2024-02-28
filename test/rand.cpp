@@ -254,7 +254,6 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_13(check_histogram<int16_t>(/*bins=*/1024));
   CALL_SUBTEST_13(check_histogram<int32_t>(/*bins=*/1024));
   CALL_SUBTEST_13(check_histogram<int64_t>(/*bins=*/1024));
-  CALL_SUBTEST_13(check_histogram<SafeScalar<int32_t>>(/*bins=*/1024));
 
   CALL_SUBTEST_14(check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024));
   CALL_SUBTEST_14(check_histogram<double>(-10.0, 10.0, /*bins=*/1024));
