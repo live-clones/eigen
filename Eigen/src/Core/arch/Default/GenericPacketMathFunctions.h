@@ -1070,10 +1070,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   const RealPacket even_mask = peven_mask(a.v);
   const Packet even_maskp = Packet(even_mask);
   const RealPacket odd_mask = pcplxflip(Packet(even_mask)).v;
+  const Packet odd_maskp = Packet(odd_mask);
 
   Packet p0y = Packet(pand(odd_mask, a.v));
   Packet py0 = pcplxflip(p0y);
-  Packet pyy = padd(p0y, py0);
+  Packet pyy = por(p0y, py0);
 
   RealPacket sincos = psincos_float<false, RealPacket, true>(pyy.v);
   RealPacket cossin = pcplxflip(Packet(sincos)).v;
@@ -1091,18 +1092,22 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   Packet x_imag_goes_zero = pand(por(x_is_minf, x_is_inf), pcplxflip(x_real_is_minf));
   Packet x_is_nan = Packet(pisnan(a.v));
   Packet x_real_goes_zero = pand(x_is_nan, pcplxflip(x_real_is_minf));
+  Packet x_is_nan0 = pand(pand(even_maskp, x_is_nan), pcplxflip(x_is_zero));
+  x_is_nan0 = por(x_is_nan0, pcplxflip(x_is_nan0));
 
   RealPacket pexp_real = pexp(a.v);
   Packet pexp_half = Packet(pand(even_mask, pexp_real));
   RealPacket xexp_flip_rp = pcplxflip(pexp_half).v;
   RealPacket xexp = padd(pexp_half.v, xexp_flip_rp);
   Packet result(pmul(cossin, xexp));
-
-  result = pselect(x_is_inf0, inf0, result);
+  
+  const Packet infnan = pset1<Packet>(Scalar(NumTraits<RealScalar>::infinity(), NumTraits<RealScalar>::quiet_NaN()));
+  result = pselect(x_is_inf, infnan, result);
+  result = pselect(x_is_inf0,  por(pand(inf0, even_maskp), pand(a, odd_maskp)), result);
   result = pselect(x_real_is_minf, pzero(a), result);
   result = pselect(x_imag_goes_zero, pzero(a), result);
   result = pselect(x_real_goes_zero, pzero(a), result);
-
+  result = pselect(x_is_nan0, por(pand(result, even_maskp), pand(a, odd_maskp)), result);
   return result;
 }
 

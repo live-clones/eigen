@@ -277,6 +277,7 @@ struct packetmath_pcast_ops_runner<Scalar, Packet, std::enable_if_t<NumTraits<Sc
 
 template <typename Scalar, typename Packet>
 void packetmath_boolean_mask_ops() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const int size = 2 * PacketSize;
   EIGEN_ALIGN_MAX Scalar data1[size];
@@ -289,7 +290,7 @@ void packetmath_boolean_mask_ops() {
   CHECK_CWISE1(internal::ptrue, internal::ptrue);
   CHECK_CWISE2_IF(true, internal::pandnot, internal::pandnot);
   for (int i = 0; i < PacketSize; ++i) {
-    data1[i] = Scalar(i);
+    data1[i] = Scalar(RealScalar(i));
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
 
@@ -1335,6 +1336,41 @@ void test_conj_helper(Scalar* data1, Scalar* data2, Scalar* ref, Scalar* pval) {
 template <typename Scalar, typename Packet, bool HasExp = internal::packet_traits<Scalar>::HasExp>
 struct exp_complex_test_impl {
   typedef typename Scalar::value_type RealScalar;
+
+  static Scalar pexp1(const Scalar& x) {
+    Packet px = internal::pset1<Packet>(x);
+    Packet py = internal::pexp(px);
+    return internal::pfirst(py);
+  }
+
+  static Scalar cis(const RealScalar& x) {
+    return Scalar(numext::cos(x), numext::sin(x));
+  }
+
+  // Verify equality with signed zero.
+  static bool is_exactly_equal(const RealScalar& a, const RealScalar& b) {
+    // NaNs are always unsigned, and always compare not equal directly.
+    if ((numext::isnan)(a)) {
+      return (numext::isnan)(b);
+    }
+    // Signed zero.
+    RealScalar zero(0);
+    if (a == zero) {
+      // Signs are either 0 or NaN, so verify that their comparisons to zero are equal.
+      return (a == b) && ((numext::signbit(a) == zero) == (numext::signbit(b) == zero));
+    }
+    return a == b;
+  }
+
+  // Verify equality with signed zero.
+  static bool is_exactly_equal(const Scalar& a, const Scalar& b) {
+    bool result = is_exactly_equal(numext::real_ref(a), numext::real_ref(b)) && is_exactly_equal(numext::imag_ref(a), numext::imag_ref(b));
+    if (!result) {
+      std::cout << a << " != " << b << std::endl;
+    }
+    return result;
+  }
+
   static void run(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
 
@@ -1343,27 +1379,75 @@ struct exp_complex_test_impl {
     }
     CHECK_CWISE1_N(std::exp, internal::pexp, size);
 
-    // Test misc. corner cases.
+    // Test all corner cases.
     const RealScalar zero = RealScalar(0);
     const RealScalar one = RealScalar(1);
     const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
     const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
-    for (RealScalar x : {zero, one, inf}) {
-      for (RealScalar y : {zero, one, inf}) {
-        data1[0] = Scalar(x, y);
-        data1[1] = Scalar(-x, y);
-        data1[2] = Scalar(x, -y);
-        data1[3] = Scalar(-x, -y);
-        CHECK_CWISE1_N(std::exp, internal::pexp, 4);
-      }
-    }
-    for (RealScalar x : {zero, one, inf}) {
-      data1[0] = Scalar(x, nan);
-      data1[1] = Scalar(-x, nan);
-      data1[2] = Scalar(nan, x);
-      data1[3] = Scalar(nan, -x);
-      CHECK_CWISE1_N(std::exp, internal::pexp, 4);
-    }
+    
+    // std::exp(std::conj(z)) == std::conj(std::exp(z))
+    // If z is (±0,+0), the result is (1,+0)
+    VERIFY(is_exactly_equal(pexp1(Scalar(+zero, zero)), Scalar(one, zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-zero, zero)), Scalar(one, zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+zero, -zero)), Scalar(one, -zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-zero, -zero)), Scalar(one, -zero)));
+    // If z is (x,+∞) (for any finite x), the result is (NaN,NaN) and FE_INVALID is raised.
+    VERIFY(is_exactly_equal(pexp1(Scalar(-one, inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-zero, inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+zero, inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+one, inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-one, -inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-zero, -inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+zero, -inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+one, -inf)), Scalar(nan, nan)));
+    // If z is (x,NaN) (for any finite x), the result is (NaN,NaN) and FE_INVALID may be raised.
+    VERIFY(is_exactly_equal(pexp1(Scalar(-one, nan)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-zero, nan)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+zero, nan)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+one, nan)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-one, -nan)), Scalar(nan, -nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-zero, -nan)), Scalar(nan, -nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+zero, -nan)), Scalar(nan, -nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(+one, -nan)), Scalar(nan, -nan)));
+    // If z is (+∞,+0), the result is (+∞,+0)
+    VERIFY(is_exactly_equal(pexp1(Scalar(inf, zero)), Scalar(inf, zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(inf, -zero)), Scalar(inf, -zero)));
+    // If z is (-∞,y) (for any finite y), the result is +0cis(y)
+    // Note: MSVC seems to mess up +0 * cis(-|x|), returning 0+0i when it should be 0-0i.
+    VERIFY(is_exactly_equal(pexp1(Scalar(-inf, -one)), Scalar(zero, -zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-inf, -zero)), Scalar(zero, -zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-inf, +zero)), Scalar(zero, +zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(-inf, +one)), Scalar(zero, +zero)));
+    // If z is (+∞,y) (for any finite nonzero y), the result is +∞cis(y)
+    VERIFY(is_exactly_equal(pexp1(Scalar(inf, -one)), inf * cis(-one)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(inf, +one)), inf * cis(+one)));
+    // If z is (-∞,+∞), the result is (±0,±0) (signs are unspecified)
+    VERIFY_IS_EQUAL(pexp1(Scalar(-inf, +inf)), Scalar(zero, zero));
+    VERIFY_IS_EQUAL(pexp1(Scalar(-inf, -inf)), Scalar(zero, -zero));
+    // If z is (+∞,+∞), the result is (±∞,NaN) and FE_INVALID is raised (the sign of the real part is unspecified)
+    VERIFY((numext::isinf)(numext::real_ref(pexp1(Scalar(inf, inf)))));
+    VERIFY((numext::isnan)(numext::imag_ref(pexp1(Scalar(inf, inf)))));
+    VERIFY((numext::isinf)(numext::real_ref(pexp1(Scalar(inf, -inf)))));
+    VERIFY((numext::isnan)(numext::imag_ref(pexp1(Scalar(inf, -inf)))));
+    // If z is (-∞,NaN), the result is (±0,±0) (signs are unspecified)
+    VERIFY_IS_EQUAL(pexp1(Scalar(-inf, nan)), Scalar(zero, zero));
+    VERIFY_IS_EQUAL(pexp1(Scalar(-inf, -nan)), Scalar(zero, zero));
+    // If z is (+∞,NaN), the result is (±∞,NaN) (the sign of the real part is unspecified)
+    VERIFY((numext::isinf)(numext::real_ref(pexp1(Scalar(inf, nan)))));
+    VERIFY((numext::isnan)(numext::imag_ref(pexp1(Scalar(inf, nan)))));
+    VERIFY((numext::isinf)(numext::real_ref(pexp1(Scalar(inf, -nan)))));
+    VERIFY((numext::isnan)(numext::imag_ref(pexp1(Scalar(inf, -nan)))));
+    // If z is (NaN,+0), the result is (NaN,+0)
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, zero)), Scalar(nan, zero)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, -zero)), Scalar(nan, -zero)));
+    // If z is (NaN,y) (for any nonzero y), the result is (NaN,NaN) and FE_INVALID may be raised
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, -inf)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, -one)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, one)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, inf)), Scalar(nan, nan)));
+    // If z is (NaN,NaN), the result is (NaN,NaN)
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, nan)), Scalar(nan, nan)));
+    VERIFY(is_exactly_equal(pexp1(Scalar(nan, -nan)), Scalar(nan, -nan)));
   }
 };
 

@@ -164,7 +164,7 @@ struct imag_ref_default_impl {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   EIGEN_DEVICE_FUNC static inline RealScalar& run(Scalar& x) { return reinterpret_cast<RealScalar*>(&x)[1]; }
   EIGEN_DEVICE_FUNC static inline const RealScalar& run(const Scalar& x) {
-    return reinterpret_cast<RealScalar*>(&x)[1];
+    return reinterpret_cast<const RealScalar*>(&x)[1];
   }
 };
 
