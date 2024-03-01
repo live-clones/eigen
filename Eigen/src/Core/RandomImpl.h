@@ -84,12 +84,12 @@ struct log_radix_impl<BitsType, false> {
 };
 
 template <typename BitsType>
-int log2_ceil(BitsType x) {
+int log2_ceil(const BitsType& x) {
   return log_radix_impl<BitsType>::run_ceil(x);
 }
 
 template <typename BitsType>
-int log2_floor(BitsType x) {
+int log2_floor(const BitsType& x) {
   return log_radix_impl<BitsType>::run_floor(x);
 }
 
@@ -124,13 +124,14 @@ struct random_bits_impl {
   }
 };
 
-// specialization for non-built-in integer types
+// specialization for custom integer types
 // mostly the same as above, but does not assume that the number of digits is known at compile time, nor does it assume
-// that the representation is based on two's complement
+// that the representation is two's complement
 template <typename BitsType>
 struct random_bits_impl<BitsType, false> {
   using RandomDevice = eigen_random_device;
   using RandomReturnType = typename RandomDevice::ReturnType;
+  using RandomImpl = random_bits_impl<RandomReturnType, true>;
   static constexpr int kEntropy = RandomDevice::Entropy;
   // return a BitsType filled with numRandomBits beginning from the least significant bit
   static EIGEN_DEVICE_FUNC inline BitsType run(int numRandomBits) {
@@ -144,7 +145,7 @@ struct random_bits_impl<BitsType, false> {
     }
     // defer to the built-in implementation to mask out the excess bits
     if (shift < numRandomBits) {
-      RandomReturnType r = random_bits_impl<RandomReturnType, true>::run(numRandomBits - shift);
+      RandomReturnType r = RandomImpl::run(numRandomBits - shift);
       randomBits = randomBits | (static_cast<BitsType>(r) << shift);
     }
     return randomBits;
@@ -160,48 +161,48 @@ EIGEN_DEVICE_FUNC inline BitsType getRandomBits(int numRandomBits) {
 template <typename Scalar, bool BuiltIn = std::is_floating_point<Scalar>::value>
 struct random_float_impl {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  static EIGEN_DEVICE_FUNC inline int mantissaBits() {
+    const int digits = NumTraits<Scalar>::digits();
+    return digits - 1;
+  }
   static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
-    const int mantissaBits = NumTraits<Scalar>::digits() - 1;
-    eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits);
+    eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits());
     BitsType randomBits = getRandomBits<BitsType>(numRandomBits);
     // if fewer than MantissaBits is requested, shift them to the left
-    randomBits <<= (mantissaBits - numRandomBits);
+    randomBits <<= (mantissaBits() - numRandomBits);
     // randomBits is in the half-open interval [2,4)
     randomBits |= numext::bit_cast<BitsType>(Scalar(2));
     // result is in the half-open interval [-1,1)
     Scalar result = numext::bit_cast<Scalar>(randomBits) - Scalar(3);
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() {
-    const int mantissa_bits = NumTraits<Scalar>::digits() - 1;
-    return run(mantissa_bits);
-  }
+  // static EIGEN_DEVICE_FUNC inline Scalar run() { return run(mantissaBits()); }
 };
 // random implementation for a custom floating point type
 template <typename Scalar>
 struct random_float_impl<Scalar, false> {
-  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
+  static EIGEN_DEVICE_FUNC inline int mantissaBits() {
+    const int digits = NumTraits<Scalar>::digits();
+    constexpr int kDoubleDigits = NumTraits<double>::digits();
     EIGEN_USING_STD(min);
-    const int mantissaBits = (min)(NumTraits<Scalar>::digits(), NumTraits<double>::digits()) - 1;
-    EIGEN_ONLY_USED_FOR_DEBUG(mantissaBits);
-    eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits);
+    return (min)(digits, kDoubleDigits) - 1;
+  }
+  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
+    eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits());
     Scalar result = static_cast<Scalar>(random_float_impl<double>::run(numRandomBits));
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() {
-    EIGEN_USING_STD(min);
-    const int mantissaBits = (min)(NumTraits<Scalar>::digits(), NumTraits<double>::digits()) - 1;
-    return run(mantissaBits);
-  }
+  // static EIGEN_DEVICE_FUNC inline Scalar run() { return run(mantissaBits()); }
 };
 
 // random implementation where Scalar is long double
 // TODO: fix this for PPC
 template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t) && !EIGEN_ARCH_PPC>
 struct random_longdouble_impl {
-  static constexpr int Size = sizeof(long double), MantissaBits = NumTraits<long double>::digits() - 1;
-  static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits = MantissaBits) {
-    eigen_assert(numRandomBits >= 0 && numRandomBits <= MantissaBits);
+  static constexpr int Size = sizeof(long double);
+  static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<long double>::digits() - 1; }
+  static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits) {
+    eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits());
     const int numLowBits = (std::min)(numRandomBits, 64);
     const int numHighBits = (std::max)(numRandomBits - 64, 0);
     EIGEN_USING_STD(memcpy)
@@ -217,8 +218,8 @@ struct random_longdouble_impl {
 };
 template <>
 struct random_longdouble_impl<false> {
-  static constexpr int MantissaBits = NumTraits<double>::digits() - 1;
-  static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits = MantissaBits) {
+  static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<long double>::digits() - 1; }
+  static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits) {
     return static_cast<long double>(random_float_impl<double>::run(numRandomBits));
   }
 };
@@ -227,6 +228,7 @@ struct random_float_impl<long double> : random_longdouble_impl<> {};
 
 template <typename Scalar>
 struct random_default_impl<Scalar, false, false> {
+  using Impl = random_float_impl<Scalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits) {
     Scalar half_x = Scalar(0.5) * x;
     Scalar half_y = Scalar(0.5) * y;
@@ -235,13 +237,10 @@ struct random_default_impl<Scalar, false, false> {
     return result;
   }
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
-    const int mantissaBits = NumTraits<Scalar>::digits() - 1;
-    return run(x, y, mantissaBits);
+    return run(x, y, Impl::mantissaBits());
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
-    return random_float_impl<Scalar>::run(numRandomBits);
-  }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return random_float_impl<Scalar>::run(); }
+  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) { return Impl::run(numRandomBits); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return Impl::run(Impl::mantissaBits()); }
 };
 
 template <typename Scalar, bool IsSigned = NumTraits<Scalar>::IsSigned, bool BuiltIn = std::is_integral<Scalar>::value>
@@ -252,10 +251,11 @@ template <typename Scalar, bool BuiltIn>
 struct random_int_impl<Scalar, false, BuiltIn> {
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    const Scalar count = y - x + 1;
+    const Scalar range = y - x;
     // handle edge case where [x,y] spans the entire range of Scalar
-    if (count == 0) return run();
-    // calculate the number of random bits needed to fill range
+    if (range == NumTraits<Scalar>::highest()) return run();
+    const Scalar count = range + Scalar(1);
+    //  calculate the number of random bits needed to fill range
     const int numRandomBits = log2_ceil(count);
     Scalar randomBits;
     do {
@@ -306,14 +306,28 @@ struct random_int_impl<Scalar, true, false> {
   using RandomUnsignedImpl = random_int_impl<Scalar, false, false>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    Scalar range = y - x;
-    bool overflow = (x < Scalar(0)) && (y > (x + NumTraits<Scalar>::highest()));
-    // if `range` overflows, generate a random Scalar in the interval [0, MAX]
-    // otherwise, generate a random non-negative Scalar in the interval [0, range]
-    Scalar randomBits =
-        overflow ? getRandomBits<Scalar>(NumTraits<Scalar>::digits()) : RandomUnsignedImpl::run(Scalar(0), range);
-    Scalar result = x + randomBits;
-    return result;
+    const Scalar highest = NumTraits<Scalar>::highest();
+    const bool overflow = (x < Scalar(0)) && (y > (x + highest));
+    if (overflow) {
+      const bool highBit = getRandomBits<int>(1);
+      const Scalar a = highBit ? Scalar(1) : Scalar(0);
+      const Scalar b = highBit ? highest : Scalar(0);
+      Scalar result = Scalar(0);
+      do {
+        // randomBits is in the interval [0, highest]
+        Scalar randomBits = getRandomBits<Scalar>(NumTraits<Scalar>::digits());
+        result = x + randomBits;
+        result = result + a;
+        result = result + b;
+        // highBit is either 0 or 1 + highest
+        //if (highBit) result = (result + Scalar(1)) + NumTraits<Scalar>::highest();
+      } while (result < x || result > y);
+      return result;
+    } else {
+      Scalar range = y - x;
+      Scalar randomBits = RandomUnsignedImpl::run(Scalar(0), range);
+      return x + randomBits;
+    }
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
     return run(NumTraits<Scalar>::lowest(), NumTraits<Scalar>::highest());
