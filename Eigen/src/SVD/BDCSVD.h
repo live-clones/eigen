@@ -1230,10 +1230,10 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::deflation44(Index firstColu, Index firstColm, Index firstRowW, Index firstColW,
                                               Index i, Index j, Index size) {
   using numext::abs;
-  using std::conj;
   using numext::pow;
   using numext::sqrt;
-  
+  using std::conj;
+
   RealScalar s = m_computed(firstColm + i, firstColm);
   RealScalar c = m_computed(firstColm + j, firstColm);
   RealScalar r = numext::hypot(c, s);
@@ -1424,8 +1424,7 @@ void BDCSVD<MatrixType, Options>::deflation(Index firstCol, Index lastCol, Index
       if ((diag(i) - diag(i - 1)) < epsilon_strict) {
 #ifdef EIGEN_BDCSVD_DEBUG_VERBOSE
         std::cout << "deflation 4.4 with i = " << i << " because " << diag(i) << " - " << diag(i - 1)
-                  << " == " << (diag(i) - diag(i - 1)) << " < "
-                  << epsilon_strict << "\n";
+                  << " == " << (diag(i) - diag(i - 1)) << " < " << epsilon_strict << "\n";
 #endif
         eigen_internal_assert(abs(diag(i) - diag(i - 1)) < epsilon_coarse &&
                               " diagonal entries are not properly sorted");

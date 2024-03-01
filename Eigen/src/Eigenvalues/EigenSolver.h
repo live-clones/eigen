@@ -366,8 +366,8 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputT
                                                           bool computeEigenvectors) {
   check_template_parameters();
 
-  using numext::isfinite;
   using numext::abs;
+  using numext::isfinite;
   using numext::sqrt;
   eigen_assert(matrix.cols() == matrix.rows());
 

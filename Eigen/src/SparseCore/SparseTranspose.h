@@ -16,7 +16,7 @@
 namespace Eigen {
 
 namespace internal {
-template <typename MatrixType, int CompressedAccess = int(MatrixType::Flags & CompressedAccessBit)>
+template <typename MatrixType, int CompressedAccess = int(MatrixType::Flags& CompressedAccessBit)>
 class SparseTransposeImpl : public SparseMatrixBase<Transpose<MatrixType> > {};
 
 template <typename MatrixType>

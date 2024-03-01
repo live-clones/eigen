@@ -157,8 +157,8 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r,
                                                           internal::true_type) {
-  using numext::conj;
   using numext::abs;
+  using numext::conj;
   using numext::sqrt;
 
   if (q == Scalar(0)) {

@@ -687,9 +687,9 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(con
  */
 template <typename Scalar, int Options>
 EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::UnitRandom() {
-  using numext::sqrt;
-  using numext::sin;
   using numext::cos;
+  using numext::sin;
+  using numext::sqrt;
   const Scalar u1 = internal::random<Scalar>(0, 1), u2 = internal::random<Scalar>(0, 2 * EIGEN_PI),
                u3 = internal::random<Scalar>(0, 2 * EIGEN_PI);
   const Scalar a = sqrt(Scalar(1) - u1), b = sqrt(u1);

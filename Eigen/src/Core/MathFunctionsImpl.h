@@ -152,7 +152,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RealScalar positive_real_hypot(const RealS
   if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
   if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
 
-  using numext::sqrt;;
+  using numext::sqrt;
   RealScalar p, qp;
   p = numext::maxi(x, y);
   if (numext::is_exactly_zero(p)) return RealScalar(0);
@@ -164,7 +164,7 @@ template <typename Scalar>
 struct hypot_impl {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   static EIGEN_DEVICE_FUNC inline RealScalar run(const Scalar& x, const Scalar& y) {
-    using numext::abs;;
+    using numext::abs;
     return positive_real_hypot<RealScalar>(abs(x), abs(y));
   }
 };
@@ -250,7 +250,7 @@ template <typename T>
 EIGEN_DEVICE_FUNC std::complex<T> complex_log(const std::complex<T>& z) {
   // Computes complex log.
   T a = numext::abs(z);
-  using numext::atan2;;
+  using numext::atan2;
   T b = atan2(z.imag(), z.real());
   return std::complex<T>(numext::log(a), b);
 }

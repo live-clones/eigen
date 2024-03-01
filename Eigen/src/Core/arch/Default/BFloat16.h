@@ -583,7 +583,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float bfloat16_to_float(__bfloat16_raw h) 
 // --- standard functions ---
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const bfloat16& a) {
-  using numext::isinf;;
+  using numext::isinf;
 #if defined(EIGEN_USE_HIP_BF16)
   return (isinf)(a);  // Uses HIP hip_bfloat16 isinf operator
 #else
@@ -591,7 +591,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const bfloat16& a) {
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isnan)(const bfloat16& a) {
-  using numext::isnan;;
+  using numext::isnan;
 #if defined(EIGEN_USE_HIP_BF16)
   return (isnan)(a);  // Uses HIP hip_bfloat16 isnan operator
 #else
