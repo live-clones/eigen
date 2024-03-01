@@ -367,8 +367,8 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputT
   check_template_parameters();
 
   using numext::isfinite;
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   eigen_assert(matrix.cols() == matrix.rows());
 
   // Reduce to real Schur form.
@@ -432,7 +432,7 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputT
 
 template <typename MatrixType>
 void EigenSolver<MatrixType>::doComputeEigenvectors() {
-  using std::abs;
+  using numext::abs;
   const Index size = m_eivec.cols();
   const Scalar eps = NumTraits<Scalar>::epsilon();
 

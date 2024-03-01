@@ -91,8 +91,8 @@ class JacobiRotation {
  */
 template <typename Scalar>
 EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, const Scalar& y, const RealScalar& z) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
 
   RealScalar deno = RealScalar(2) * abs(y);
   if (deno < (std::numeric_limits<RealScalar>::min)()) {
@@ -158,8 +158,8 @@ template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r,
                                                           internal::true_type) {
   using numext::conj;
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
 
   if (q == Scalar(0)) {
     m_c = numext::real(p) < 0 ? Scalar(-1) : Scalar(1);
@@ -206,8 +206,8 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r,
                                                           internal::false_type) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   if (numext::is_exactly_zero(q)) {
     m_c = p < Scalar(0) ? Scalar(-1) : Scalar(1);
     m_s = Scalar(0);

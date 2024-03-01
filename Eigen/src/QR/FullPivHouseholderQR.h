@@ -269,7 +269,7 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
    *       setThreshold(const RealScalar&).
    */
   inline Index rank() const {
-    using std::abs;
+    using numext::abs;
     eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
     RealScalar premultiplied_threshold = abs(m_maxpivot) * threshold();
     Index result = 0;
@@ -444,7 +444,7 @@ typename MatrixType::Scalar FullPivHouseholderQR<MatrixType, PermutationIndex>::
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar FullPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
-  using std::abs;
+  using numext::abs;
   eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   return isInjective() ? abs(m_qr.diagonal().prod()) : RealScalar(0);
@@ -484,7 +484,7 @@ FullPivHouseholderQR<MatrixType, PermutationIndex>& FullPivHouseholderQR<MatrixT
 template <typename MatrixType, typename PermutationIndex>
 void FullPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   eigen_assert(m_qr.cols() <= NumTraits<PermutationIndex>::highest());
-  using std::abs;
+  using numext::abs;
   Index rows = m_qr.rows();
   Index cols = m_qr.cols();
   Index size = (std::min)(rows, cols);

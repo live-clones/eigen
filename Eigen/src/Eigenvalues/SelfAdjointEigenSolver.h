@@ -410,7 +410,7 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
     const EigenBase<InputType>& a_matrix, int options) {
   const InputType& matrix(a_matrix.derived());
 
-  EIGEN_USING_STD(abs);
+  using numext::abs;;
   eigen_assert(matrix.cols() == matrix.rows());
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                "invalid option parameter");
@@ -566,10 +566,10 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
    * For numerical stability m.trace() should be near zero and to avoid over- or underflow m should be normalized.
    */
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
-    EIGEN_USING_STD(sqrt)
-    EIGEN_USING_STD(atan2)
-    EIGEN_USING_STD(cos)
-    EIGEN_USING_STD(sin)
+    using numext::sqrt;
+    using numext::atan2;
+    using numext::cos;
+    using numext::sin;
     const Scalar s_inv3 = Scalar(1) / Scalar(3);
     const Scalar s_sqrt3 = sqrt(Scalar(3));
 
@@ -606,8 +606,8 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
 
   EIGEN_DEVICE_FUNC static inline bool extract_kernel(MatrixType& mat, Ref<VectorType> res,
                                                       Ref<VectorType> representative) {
-    EIGEN_USING_STD(abs);
-    EIGEN_USING_STD(sqrt);
+    using numext::abs;;
+    using numext::sqrt;;
     Index i0;
     // Find non-zero column i0 (by construction, there must exist a non zero coefficient on the diagonal):
     mat.diagonal().cwiseAbs().maxCoeff(&i0);
@@ -710,7 +710,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
   typedef typename SolverType::EigenvectorsType EigenvectorsType;
 
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
-    EIGEN_USING_STD(sqrt);
+    using numext::sqrt;;
     const Scalar t0 = Scalar(0.5) * sqrt(numext::abs2(m(0, 0) - m(1, 1)) + Scalar(4) * numext::abs2(m(1, 0)));
     const Scalar t1 = Scalar(0.5) * (m(0, 0) + m(1, 1));
     roots(0) = t1 - t0;
@@ -718,8 +718,8 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
   }
 
   EIGEN_DEVICE_FUNC static inline void run(SolverType& solver, const MatrixType& mat, int options) {
-    EIGEN_USING_STD(sqrt);
-    EIGEN_USING_STD(abs);
+    using numext::sqrt;;
+    using numext::abs;;
 
     eigen_assert(mat.cols() == 2 && mat.cols() == mat.rows());
     eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&

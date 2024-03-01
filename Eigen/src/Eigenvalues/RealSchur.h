@@ -274,7 +274,7 @@ template <typename MatrixType>
 template <typename HessMatrixType, typename OrthMatrixType>
 RealSchur<MatrixType>& RealSchur<MatrixType>::computeFromHessenberg(const HessMatrixType& matrixH,
                                                                     const OrthMatrixType& matrixQ, bool computeU) {
-  using std::abs;
+  using numext::abs;
 
   m_matT = matrixH;
   m_workspaceVector.resize(m_matT.cols());
@@ -354,7 +354,7 @@ inline typename MatrixType::Scalar RealSchur<MatrixType>::computeNormOfT() {
 /** \internal Look for single small sub-diagonal element and returns its index */
 template <typename MatrixType>
 inline Index RealSchur<MatrixType>::findSmallSubdiagEntry(Index iu, const Scalar& considerAsZero) {
-  using std::abs;
+  using numext::abs;
   Index res = iu;
   while (res > 0) {
     Scalar s = abs(m_matT.coeff(res - 1, res - 1)) + abs(m_matT.coeff(res, res));
@@ -370,8 +370,8 @@ inline Index RealSchur<MatrixType>::findSmallSubdiagEntry(Index iu, const Scalar
 /** \internal Update T given that rows iu-1 and iu decouple from the rest. */
 template <typename MatrixType>
 inline void RealSchur<MatrixType>::splitOffTwoRows(Index iu, bool computeU, const Scalar& exshift) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   const Index size = m_matT.cols();
 
   // The eigenvalues of the 2x2 matrix [a b; c d] are
@@ -402,8 +402,8 @@ inline void RealSchur<MatrixType>::splitOffTwoRows(Index iu, bool computeU, cons
 /** \internal Form shift in shiftInfo, and update exshift if an exceptional shift is performed. */
 template <typename MatrixType>
 inline void RealSchur<MatrixType>::computeShift(Index iu, Index iter, Scalar& exshift, Vector3s& shiftInfo) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   shiftInfo.coeffRef(0) = m_matT.coeff(iu, iu);
   shiftInfo.coeffRef(1) = m_matT.coeff(iu - 1, iu - 1);
   shiftInfo.coeffRef(2) = m_matT.coeff(iu, iu - 1) * m_matT.coeff(iu - 1, iu);
@@ -439,7 +439,7 @@ inline void RealSchur<MatrixType>::computeShift(Index iu, Index iter, Scalar& ex
 template <typename MatrixType>
 inline void RealSchur<MatrixType>::initFrancisQRStep(Index il, Index iu, const Vector3s& shiftInfo, Index& im,
                                                      Vector3s& firstHouseholderVector) {
-  using std::abs;
+  using numext::abs;
   Vector3s& v = firstHouseholderVector;  // alias to save typing
 
   for (im = iu - 2; im >= il; --im) {

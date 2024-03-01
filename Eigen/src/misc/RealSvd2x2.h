@@ -21,8 +21,8 @@ namespace internal {
 template <typename MatrixType, typename RealScalar, typename Index>
 void real_2x2_jacobi_svd(const MatrixType &matrix, Index p, Index q, JacobiRotation<RealScalar> *j_left,
                          JacobiRotation<RealScalar> *j_right) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   Matrix<RealScalar, 2, 2> m;
   m << numext::real(matrix.coeff(p, p)), numext::real(matrix.coeff(p, q)), numext::real(matrix.coeff(q, p)),
       numext::real(matrix.coeff(q, q));

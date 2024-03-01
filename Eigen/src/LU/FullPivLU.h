@@ -319,7 +319,7 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
    *       setThreshold(const RealScalar&).
    */
   inline Index rank() const {
-    using std::abs;
+    using numext::abs;
     eigen_assert(m_isInitialized && "LU is not initialized.");
     RealScalar premultiplied_threshold = abs(m_maxpivot) * threshold();
     Index result = 0;
@@ -585,7 +585,7 @@ struct kernel_retval<FullPivLU<MatrixType_, PermutationIndex_> >
 
   template <typename Dest>
   void evalTo(Dest& dst) const {
-    using std::abs;
+    using numext::abs;
     const Index cols = dec().matrixLU().cols(), dimker = cols - rank();
     if (dimker == 0) {
       // The Kernel is just {0}, so it doesn't have a basis properly speaking, but let's
@@ -662,7 +662,7 @@ struct image_retval<FullPivLU<MatrixType_, PermutationIndex_> >
 
   template <typename Dest>
   void evalTo(Dest& dst) const {
-    using std::abs;
+    using numext::abs;
     if (rank() == 0) {
       // The Image is just {0}, so it doesn't have a basis properly speaking, but let's
       // avoid crashing/asserting as that depends on floating point calculations. Let's
