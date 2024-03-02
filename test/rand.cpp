@@ -148,7 +148,6 @@ void check_histogram(int bins) {
   for (int i = 0; i < bins; ++i) {
     hist(i) = hist(i) / n / hist_helper.uniform_bin_probability(i);
   }
-  // std::cout << hist << "\n\n";
   VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
 }
 

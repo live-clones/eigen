@@ -100,8 +100,7 @@ struct eigen_random_device {
   static EIGEN_DEVICE_FUNC inline ReturnType run() { return std::rand(); };
 };
 
-// implementation to to fill a scalar with numRandomBits beginning from the least significant bit
-// this version is intended to operate on built-in integer types, e.g. int or uint32_t
+// Fill a built-in integer with numRandomBits beginning with the least significant bit
 template <typename Scalar, bool BuiltIn = std::is_integral<Scalar>::value>
 struct random_bits_impl {
   using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
@@ -124,7 +123,7 @@ struct random_bits_impl {
   }
 };
 
-// specialization for custom integer types
+// Fill a custom integer with numRandomBits beginning with the least significant bit
 // mostly the same as above, but does not assume that the number of digits is known at compile time, nor does it assume
 // that the representation is two's complement
 template <typename BitsType>
@@ -178,8 +177,8 @@ struct random_float_impl {
   }
 };
 // random implementation for a custom floating point type
-// uses double as the implementation with a mantissa equal to either the target scalar's mantissa or that of double,
-// whichever is smaller
+// uses double as the implementation with a mantissa with a size equal to either the target scalar's mantissa or that of
+// double, whichever is smaller
 template <typename Scalar>
 struct random_float_impl<Scalar, false> {
   static EIGEN_DEVICE_FUNC inline int mantissaBits() {
@@ -195,7 +194,7 @@ struct random_float_impl<Scalar, false> {
   }
 };
 
-// random implementation where Scalar is long double
+// random implementation for long double
 // TODO: fix this for PPC
 template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t) && !EIGEN_ARCH_PPC>
 struct random_longdouble_impl {
@@ -248,7 +247,7 @@ struct random_default_impl<Scalar, false, false> {
 template <typename Scalar, bool IsSigned = NumTraits<Scalar>::IsSigned, bool BuiltIn = std::is_integral<Scalar>::value>
 struct random_int_impl;
 
-// random implementation where Scalar is an unsigned integer type, or Scalar is non-negative at runtime
+// random implementation for an unsigned integer type, or an integer that is non-negative at runtime
 template <typename Scalar, bool BuiltIn>
 struct random_int_impl<Scalar, false, BuiltIn> {
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
@@ -277,7 +276,7 @@ struct random_int_impl<Scalar, false, BuiltIn> {
   }
 };
 
-// random implementation where Scalar is a built-in signed integer type
+// random implementation for a built-in signed integer type
 template <typename Scalar>
 struct random_int_impl<Scalar, true, true> {
   static constexpr int kTotalBits = sizeof(Scalar) * CHAR_BIT;
@@ -302,29 +301,27 @@ struct random_int_impl<Scalar, true, true> {
   }
 };
 
-// random implementation where Scalar is a custom signed integer type
+// random implementation for a custom signed integer type
 template <typename Scalar>
 struct random_int_impl<Scalar, true, false> {
   using RandomUnsignedImpl = random_int_impl<Scalar, false, false>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
-    const Scalar highest = NumTraits<Scalar>::highest();
-    bool overflow = (x < Scalar(0)) && (y > (x + highest));
+    bool overflow = (x < Scalar(0)) && (y > (x + NumTraits<Scalar>::highest()));
     if (overflow) {
       // if the range is greater than `highest`, generate an extra random bit
       // this bit implicitly represents 0 or highest + 1
-      // the resulting random integer is in the interval [0, 2*highest + 1]
       bool highBit = getRandomBits<int>(1);
-      Scalar a = highBit ? Scalar(1) : Scalar(0);
-      Scalar b = highBit ? highest : Scalar(0);
       Scalar result = Scalar(0);
       do {
         // randomBits is in the interval [0, highest]
         Scalar randomBits = getRandomBits<Scalar>(NumTraits<Scalar>::digits());
         result = x + randomBits;
-        // if highBit is set, then add 1 + highest (without intermediate overflow)
-        result = result + a;
-        result = result + b;
+        // if highBit is set, add highest + 1
+        if (highBit) {
+          result = result + Scalar(1);
+          result = result + NumTraits<Scalar>::highest();
+        }
       } while (result < x || result > y);
       return result;
     } else {
@@ -355,8 +352,14 @@ template <typename Scalar>
 struct random_default_impl<Scalar, true, false> {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   using Impl = random_impl<RealScalar>;
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits) {
+    return Scalar(Impl::run(x.real(), y.real(), numRandomBits), Impl::run(x.imag(), y.imag(), numRandomBits));
+  }
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     return Scalar(Impl::run(x.real(), y.real()), Impl::run(x.imag(), y.imag()));
+  }
+  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
+    return Scalar(Impl::run(numRandomBits), Impl::run(numRandomBits));
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() { return Scalar(Impl::run(), Impl::run()); }
 };
