@@ -33,7 +33,7 @@ void check_all_in_range(Scalar x, Scalar y) {
   uint64_t count = static_cast<uint64_t>(y) - static_cast<uint64_t>(x) + 1;
   ArrayX<bool> mask(count);
   // ensure that `count` does not overflow the return type of `mask.size()`
-  VERIFY(count == mask.size());
+  VERIFY(count == static_cast<uint64_t>(mask.size()));
   mask.setConstant(false);
   for (uint64_t k = 0; k < count; k++)
     for (int repeat = 0; repeat < repeats; repeat++) {
