@@ -29,15 +29,28 @@ EIGEN_DONT_INLINE Scalar check_in_range(Scalar x, Scalar y) {
 
 template <typename Scalar>
 void check_all_in_range(Scalar x, Scalar y) {
-  Array<int, 1, Dynamic> mask(y - x + 1);
-  mask.fill(0);
-  int64_t n = (y - x + 1) * 32;
-  for (int64_t k = 0; k < n; ++k) {
-    mask(check_in_range(x, y) - x)++;
-  }
+  constexpr int repeats = 32;
+  uint64_t count = static_cast<uint64_t>(y) - static_cast<uint64_t>(x) + 1;
+  ArrayX<bool> mask(count);
+  // ensure that `count` does not overflow the return type of `mask.size()`
+  VERIFY(count == mask.size());
+  mask.setConstant(false);
+  for (uint64_t k = 0; k < count; k++)
+    for (int repeat = 0; repeat < repeats; repeat++) {
+      Scalar r = check_in_range(x, y);
+      Index i = static_cast<Index>(r) - static_cast<Index>(x);
+      mask(i) = true;
+    }
   for (Index i = 0; i < mask.size(); ++i)
-    if (mask(i) == 0) std::cout << "WARNING: value " << x + i << " not reached." << std::endl;
-  VERIFY((mask > 0).all());
+    if (mask(i) == false) std::cout << "WARNING: value " << x + i << " not reached." << std::endl;
+  VERIFY(mask.cwiseEqual(true).all());
+}
+
+template <typename Scalar>
+void check_all_in_range() {
+  const Scalar x = NumTraits<Scalar>::lowest();
+  const Scalar y = NumTraits<Scalar>::highest();
+  check_all_in_range(x, y);
 }
 
 template <typename Scalar, typename EnableIf = void>
@@ -119,47 +132,56 @@ class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteg
 
 template <typename Scalar>
 void check_histogram(Scalar x, Scalar y, int bins) {
+  constexpr int repeats = 10000;
+  double count = double(bins) * double(repeats);
   Eigen::VectorXd hist = Eigen::VectorXd::Zero(bins);
   HistogramHelper<Scalar> hist_helper(x, y, bins);
-  int64_t n = static_cast<int64_t>(bins) * 10000;  // Approx 10000 per bin.
-  for (int64_t k = 0; k < n; ++k) {
-    Scalar r = check_in_range(x, y);
-    int bin = hist_helper.bin(r);
-    hist(bin)++;
-  }
-  // Normalize bins by probability.
+  for (int k = 0; k < bins; k++)
+    for (int repeat = 0; repeat < repeats; repeat++) {
+      Scalar r = check_in_range(x, y);
+      int bin = hist_helper.bin(r);
+      hist(bin)++;
+    }
+  //  Normalize bins by probability.
+  hist /= count;
   for (int i = 0; i < bins; ++i) {
-    hist(i) = hist(i) / n / hist_helper.uniform_bin_probability(i);
+    hist(i) = hist(i) / hist_helper.uniform_bin_probability(i);
   }
   VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
 }
 
 template <typename Scalar>
 void check_histogram(int bins) {
+  constexpr int repeats = 10000;
+  double count = double(bins) * double(repeats);
   Eigen::VectorXd hist = Eigen::VectorXd::Zero(bins);
   HistogramHelper<Scalar> hist_helper(bins);
-  int64_t n = static_cast<int64_t>(bins) * 10000;  // Approx 10000 per bin.
-  for (int64_t k = 0; k < n; ++k) {
-    Scalar r = Eigen::internal::random<Scalar>();
-    int bin = hist_helper.bin(r);
-    hist(bin)++;
-  }
-  // Normalize bins by probability.
+  for (int k = 0; k < bins; k++)
+    for (int repeat = 0; repeat < repeats; repeat++) {
+      Scalar r = Eigen::internal::random<Scalar>();
+      int bin = hist_helper.bin(r);
+      hist(bin)++;
+    }
+  //  Normalize bins by probability.
+  hist /= count;
   for (int i = 0; i < bins; ++i) {
-    hist(i) = hist(i) / n / hist_helper.uniform_bin_probability(i);
+    hist(i) = hist(i) / hist_helper.uniform_bin_probability(i);
   }
   VERIFY(((hist.array() - 1.0).abs() < 0.05).all());
 }
 
 template <>
 void check_histogram<bool>(int) {
-  int64_t n = 2 * 10000;  // Approx 10000 per bin.
+  constexpr int bins = 2;
+  constexpr int repeats = 10000;
+  double count = double(bins) * double(repeats);
   double true_count = 0.0;
-  for (int64_t k = 0; k < n; ++k) {
-    bool r = Eigen::internal::random<bool>();
-    if (r) true_count++;
-  }
-  double p = true_count / double(n);
+  for (int k = 0; k < bins; k++)
+    for (int repeat = 0; repeat < repeats; repeat++) {
+      bool r = Eigen::internal::random<bool>();
+      if (r) true_count += 1.0;
+    }
+  double p = true_count / count;
   VERIFY(numext::abs(p - 0.5) < 0.05);
 }
 
@@ -214,16 +236,16 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_7(check_all_in_range<int8_t>(-11 - int8t_offset, -11));
   CALL_SUBTEST_7(check_all_in_range<int8_t>(-126, -126 + int8t_offset));
   CALL_SUBTEST_7(check_all_in_range<int8_t>(126 - int8t_offset, 126));
-  CALL_SUBTEST_7(check_all_in_range<int8_t>(-126, 126));
-  CALL_SUBTEST_7(check_all_in_range<SafeScalar<int8_t>>(-126, 126));
+  CALL_SUBTEST_7(check_all_in_range<int8_t>());
+  CALL_SUBTEST_7(check_all_in_range<SafeScalar<int8_t>>());
 
   CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11));
   CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11 + int16t_offset));
   CALL_SUBTEST_8(check_all_in_range<int16_t>(-5, 5));
   CALL_SUBTEST_8(check_all_in_range<int16_t>(-11 - int16t_offset, -11));
   CALL_SUBTEST_8(check_all_in_range<int16_t>(-24345, -24345 + int16t_offset));
-  CALL_SUBTEST_8(check_all_in_range<int16_t>(24345, 24345 + int16t_offset));
-  CALL_SUBTEST_8(check_all_in_range<SafeScalar<int16_t>>(24345, 24345 + int16t_offset));
+  CALL_SUBTEST_8(check_all_in_range<int16_t>());
+  CALL_SUBTEST_8(check_all_in_range<SafeScalar<int16_t>>());
 
   CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11));
   CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11 + g_repeat));
@@ -269,6 +291,7 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_14(check_histogram<half>(half(-10.0f), half(10.0f), /*bins=*/512));
   CALL_SUBTEST_14(check_histogram<bfloat16>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
   CALL_SUBTEST_14(check_histogram<SafeScalar<float>>(-10.0f, 10.0f, /*bins=*/1024));
+  CALL_SUBTEST_14(check_histogram<SafeScalar<half>>(half(-10.0f), half(10.0f), /*bins=*/512));
   CALL_SUBTEST_14(check_histogram<SafeScalar<bfloat16>>(bfloat16(-10.0f), bfloat16(10.0f), /*bins=*/64));
 
   CALL_SUBTEST_15(check_histogram<float>(/*bins=*/1024));
@@ -277,5 +300,6 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_15(check_histogram<half>(/*bins=*/512));
   CALL_SUBTEST_15(check_histogram<bfloat16>(/*bins=*/64));
   CALL_SUBTEST_15(check_histogram<SafeScalar<float>>(/*bins=*/1024));
+  CALL_SUBTEST_15(check_histogram<SafeScalar<half>>(/*bins=*/512));
   CALL_SUBTEST_15(check_histogram<SafeScalar<bfloat16>>(/*bins=*/64));
 }
