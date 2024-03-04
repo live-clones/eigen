@@ -51,7 +51,7 @@ void alignedbox(const BoxType& box) {
   kill_extra_precision(p0);
   kill_extra_precision(p1);
 
-  VERIFY(b0.volume() == Scalar(0));
+  VERIFY(numext::equal_strict(b0.volume(), Scalar(0)));
 
   b0.extend(p0);
   b0.extend(p1);
@@ -425,7 +425,7 @@ void alignedboxCastTests(const BoxType& box) {
 
   BoxType b0(dim);
 
-  VERIFY(b0.volume() == Scalar(0));
+  VERIFY(numext::equal_strict(b0.volume(), Scalar(0)));
 
   b0.extend(p0);
   b0.extend(p1);
