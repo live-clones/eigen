@@ -140,7 +140,7 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
       RealScalar(pow(RealScalar(ibeta), RealScalar((2 - iemin) / 2)));  // scaling factor for lower range
   static const RealScalar s2m =
       RealScalar(pow(RealScalar(ibeta), RealScalar(-((iemax + it) / 2))));  // scaling factor for upper range
-  static const RealScalar eps = RealScalar(pow(double(ibeta), 1 - it));
+  static const RealScalar eps = RealScalar(pow(double(ibeta), double(1 - it)));
   static const RealScalar relerr = sqrt(eps);  // tolerance for neglecting asml
 
   const Derived& vec(_vec.derived());
