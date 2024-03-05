@@ -312,16 +312,17 @@ struct random_int_impl<Scalar, true, false> {
       // if the range is greater than `highest`, generate an extra random bit
       // this bit implicitly represents 0 or highest + 1
       bool highBit = getRandomBits<int>(1);
+      Scalar offset = x;
+      if (highBit) {
+        offset = offset + NumTraits<Scalar>::highest();
+        offset = offset + Scalar(1);
+      }
       Scalar result = Scalar(0);
       do {
         // randomBits is in the interval [0, highest]
         Scalar randomBits = getRandomBits<Scalar>(NumTraits<Scalar>::digits());
-        result = x + randomBits;
+        result = offset + randomBits;
         // if highBit is set, add highest + 1
-        if (highBit) {
-          result = result + Scalar(1);
-          result = result + NumTraits<Scalar>::highest();
-        }
       } while (result < x || result > y);
       return result;
     } else {
