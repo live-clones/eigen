@@ -1218,7 +1218,6 @@ EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
   return a;
 }
 
-
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
 EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
@@ -1755,7 +1754,6 @@ EIGEN_STRONG_INLINE void prefetch<uint32_t>(const uint32_t* addr) {
   _mm_prefetch((SsePrefetchPtrType)(addr), _MM_HINT_T0);
 }
 #endif
-
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pfrexp<Packet4f>(const Packet4f& a, Packet4f& exponent) {
