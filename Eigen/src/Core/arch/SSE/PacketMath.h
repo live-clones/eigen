@@ -1780,6 +1780,10 @@ EIGEN_STRONG_INLINE void prefetch<int>(const int* addr) {
   _mm_prefetch((SsePrefetchPtrType)(addr), _MM_HINT_T0);
 }
 template <>
+EIGEN_STRONG_INLINE void prefetch<int64_t>(const int64_t* addr) {
+  _mm_prefetch((SsePrefetchPtrType)(addr), _MM_HINT_T0);
+}
+template <>
 EIGEN_STRONG_INLINE void prefetch<uint32_t>(const uint32_t* addr) {
   _mm_prefetch((SsePrefetchPtrType)(addr), _MM_HINT_T0);
 }
@@ -1810,6 +1814,7 @@ EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f&
 
 // We specialize pldexp here, since the generic implementation uses Packet2l, which is not well
 // supported by SSE, and has more range than is needed for exponents.
+// TODO(rmlarsen): Remove this specialization once Packet2l has support or casting.
 template <>
 EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d& exponent) {
   // Clamp exponent to [-2099, 2099]
