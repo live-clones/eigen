@@ -724,27 +724,27 @@ EIGEN_STRONG_INLINE Packet2d pmadds<Packet2d>(const Packet2d& a, const Packet2d&
 
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
-EIGEN_DEVICE_FUNC inline Packet4f pselect(const Packet4f& mask, const Packet4f& a, const Packet4f& b) {
+EIGEN_STRONG_INLINE Packet4f pselect(const Packet4f& mask, const Packet4f& a, const Packet4f& b) {
   return _mm_blendv_ps(b, a, mask);
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet2l pselect(const Packet2l& mask, const Packet2l& a, const Packet2l& b) {
+EIGEN_STRONG_INLINE Packet2l pselect(const Packet2l& mask, const Packet2l& a, const Packet2l& b) {
   return _mm_castpd_si128(_mm_blendv_pd(_mm_castsi128_pd(b), _mm_castsi128_pd(a), _mm_castsi128_pd(mask)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet4i pselect(const Packet4i& mask, const Packet4i& a, const Packet4i& b) {
+EIGEN_STRONG_INLINE Packet4i pselect(const Packet4i& mask, const Packet4i& a, const Packet4i& b) {
   return _mm_castps_si128(_mm_blendv_ps(_mm_castsi128_ps(b), _mm_castsi128_ps(a), _mm_castsi128_ps(mask)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet4ui pselect(const Packet4ui& mask, const Packet4ui& a, const Packet4ui& b) {
+EIGEN_STRONG_INLINE Packet4ui pselect(const Packet4ui& mask, const Packet4ui& a, const Packet4ui& b) {
   return _mm_castps_si128(_mm_blendv_ps(_mm_castsi128_ps(b), _mm_castsi128_ps(a), _mm_castsi128_ps(mask)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet2d pselect(const Packet2d& mask, const Packet2d& a, const Packet2d& b) {
+EIGEN_STRONG_INLINE Packet2d pselect(const Packet2d& mask, const Packet2d& a, const Packet2d& b) {
   return _mm_blendv_pd(b, a, mask);
 }
 #endif
@@ -1679,29 +1679,29 @@ EIGEN_STRONG_INLINE bool pfirst<Packet16b>(const Packet16b& a) {
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
+EIGEN_STRONG_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
   return _mm_set_ps(from[3 * stride], from[2 * stride], from[1 * stride], from[0 * stride]);
 }
 template <>
-EIGEN_DEVICE_FUNC inline Packet2d pgather<double, Packet2d>(const double* from, Index stride) {
+EIGEN_STRONG_INLINE Packet2d pgather<double, Packet2d>(const double* from, Index stride) {
   return _mm_set_pd(from[1 * stride], from[0 * stride]);
 }
 template <>
-EIGEN_DEVICE_FUNC inline Packet2l pgather<int64_t, Packet2l>(const int64_t* from, Index stride) {
+EIGEN_STRONG_INLINE Packet2l pgather<int64_t, Packet2l>(const int64_t* from, Index stride) {
   return _mm_set_epi64x(from[1 * stride], from[0 * stride]);
 }
 template <>
-EIGEN_DEVICE_FUNC inline Packet4i pgather<int, Packet4i>(const int* from, Index stride) {
+EIGEN_STRONG_INLINE Packet4i pgather<int, Packet4i>(const int* from, Index stride) {
   return _mm_set_epi32(from[3 * stride], from[2 * stride], from[1 * stride], from[0 * stride]);
 }
 template <>
-EIGEN_DEVICE_FUNC inline Packet4ui pgather<uint32_t, Packet4ui>(const uint32_t* from, Index stride) {
+EIGEN_STRONG_INLINE Packet4ui pgather<uint32_t, Packet4ui>(const uint32_t* from, Index stride) {
   return _mm_set_epi32(numext::bit_cast<int32_t>(from[3 * stride]), numext::bit_cast<int32_t>(from[2 * stride]),
                        numext::bit_cast<int32_t>(from[1 * stride]), numext::bit_cast<int32_t>(from[0 * stride]));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet16b pgather<bool, Packet16b>(const bool* from, Index stride) {
+EIGEN_STRONG_INLINE Packet16b pgather<bool, Packet16b>(const bool* from, Index stride) {
   return _mm_set_epi8(from[15 * stride], from[14 * stride], from[13 * stride], from[12 * stride], from[11 * stride],
                       from[10 * stride], from[9 * stride], from[8 * stride], from[7 * stride], from[6 * stride],
                       from[5 * stride], from[4 * stride], from[3 * stride], from[2 * stride], from[1 * stride],
@@ -1709,38 +1709,38 @@ EIGEN_DEVICE_FUNC inline Packet16b pgather<bool, Packet16b>(const bool* from, In
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pscatter<float, Packet4f>(float* to, const Packet4f& from, Index stride) {
+EIGEN_STRONG_INLINE void pscatter<float, Packet4f>(float* to, const Packet4f& from, Index stride) {
   to[stride * 0] = pfirst(from);
   to[stride * 1] = pfirst(_mm_shuffle_ps(from, from, 1));
   to[stride * 2] = pfirst(_mm_shuffle_ps(from, from, 2));
   to[stride * 3] = pfirst(_mm_shuffle_ps(from, from, 3));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pscatter<double, Packet2d>(double* to, const Packet2d& from, Index stride) {
+EIGEN_STRONG_INLINE void pscatter<double, Packet2d>(double* to, const Packet2d& from, Index stride) {
   to[stride * 0] = pfirst(from);
   to[stride * 1] = pfirst(preverse(from));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pscatter<int64_t, Packet2l>(int64_t* to, const Packet2l& from, Index stride) {
+EIGEN_STRONG_INLINE void pscatter<int64_t, Packet2l>(int64_t* to, const Packet2l& from, Index stride) {
   to[stride * 0] = pfirst(from);
   to[stride * 1] = pfirst(preverse(from));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pscatter<int, Packet4i>(int* to, const Packet4i& from, Index stride) {
+EIGEN_STRONG_INLINE void pscatter<int, Packet4i>(int* to, const Packet4i& from, Index stride) {
   to[stride * 0] = _mm_cvtsi128_si32(from);
   to[stride * 1] = _mm_cvtsi128_si32(_mm_shuffle_epi32(from, 1));
   to[stride * 2] = _mm_cvtsi128_si32(_mm_shuffle_epi32(from, 2));
   to[stride * 3] = _mm_cvtsi128_si32(_mm_shuffle_epi32(from, 3));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pscatter<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, Index stride) {
+EIGEN_STRONG_INLINE void pscatter<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, Index stride) {
   to[stride * 0] = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(from));
   to[stride * 1] = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(from, 1)));
   to[stride * 2] = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(from, 2)));
   to[stride * 3] = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(from, 3)));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pscatter<bool, Packet16b>(bool* to, const Packet16b& from, Index stride) {
+EIGEN_STRONG_INLINE void pscatter<bool, Packet16b>(bool* to, const Packet16b& from, Index stride) {
   to[4 * stride * 0] = _mm_cvtsi128_si32(from);
   to[4 * stride * 1] = _mm_cvtsi128_si32(_mm_shuffle_epi32(from, 1));
   to[4 * stride * 2] = _mm_cvtsi128_si32(_mm_shuffle_epi32(from, 2));
@@ -2080,23 +2080,23 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& x) {
   return _mm_movemask_ps(_mm_castsi128_ps(x)) != 0x0;
 }
 
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4f, 4>& kernel) {
+EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet4f, 4>& kernel) {
   _MM_TRANSPOSE4_PS(kernel.packet[0], kernel.packet[1], kernel.packet[2], kernel.packet[3]);
 }
 
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet2d, 2>& kernel) {
+EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet2d, 2>& kernel) {
   __m128d tmp = _mm_unpackhi_pd(kernel.packet[0], kernel.packet[1]);
   kernel.packet[0] = _mm_unpacklo_pd(kernel.packet[0], kernel.packet[1]);
   kernel.packet[1] = tmp;
 }
 
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet2l, 2>& kernel) {
+EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet2l, 2>& kernel) {
   __m128i tmp = _mm_unpackhi_epi64(kernel.packet[0], kernel.packet[1]);
   kernel.packet[0] = _mm_unpacklo_epi64(kernel.packet[0], kernel.packet[1]);
   kernel.packet[1] = tmp;
 }
 
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4i, 4>& kernel) {
+EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet4i, 4>& kernel) {
   __m128i T0 = _mm_unpacklo_epi32(kernel.packet[0], kernel.packet[1]);
   __m128i T1 = _mm_unpacklo_epi32(kernel.packet[2], kernel.packet[3]);
   __m128i T2 = _mm_unpackhi_epi32(kernel.packet[0], kernel.packet[1]);
@@ -2107,11 +2107,11 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4i, 4>& kernel) {
   kernel.packet[2] = _mm_unpacklo_epi64(T2, T3);
   kernel.packet[3] = _mm_unpackhi_epi64(T2, T3);
 }
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4ui, 4>& kernel) {
+EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet4ui, 4>& kernel) {
   ptranspose((PacketBlock<Packet4i, 4>&)kernel);
 }
 
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16b, 4>& kernel) {
+EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 4>& kernel) {
   __m128i T0 = _mm_unpacklo_epi8(kernel.packet[0], kernel.packet[1]);
   __m128i T1 = _mm_unpackhi_epi8(kernel.packet[0], kernel.packet[1]);
   __m128i T2 = _mm_unpacklo_epi8(kernel.packet[2], kernel.packet[3]);
@@ -2122,7 +2122,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16b, 4>& kernel) {
   kernel.packet[3] = _mm_unpackhi_epi16(T1, T3);
 }
 
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
+EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
   // If we number the elements in the input thus:
   // kernel.packet[ 0] = {00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 0a, 0b, 0c, 0d, 0e, 0f}
   // kernel.packet[ 1] = {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 1a, 1b, 1c, 1d, 1e, 1f}
