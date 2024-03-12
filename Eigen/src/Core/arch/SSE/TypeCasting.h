@@ -40,9 +40,9 @@ struct type_casting_traits<int, double> : vectorized_type_casting_traits<int, do
 
 #ifndef EIGEN_VECTORIZE_AVX2
 template <>
-struct type_casting_traits<double, int64_t> : vectorized_type_casting_traits<int, int64_t> {};
+struct type_casting_traits<double, int64_t> : vectorized_type_casting_traits<double, int64_t> {};
 template <>
-struct type_casting_traits<int64_t, double> : vectorized_type_casting_traits<int64_t, int> {};
+struct type_casting_traits<int64_t, double> : vectorized_type_casting_traits<int64_t, double> {};
 #endif
 #endif
 
