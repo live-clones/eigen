@@ -197,7 +197,7 @@ EIGEN_STRONG_INLINE Packet4ui preinterpret<Packet4ui, Packet8ui>(const Packet8ui
 #ifdef EIGEN_VECTORIZE_AVX2
 template <>
 EIGEN_STRONG_INLINE Packet4l pcast<Packet4d, Packet4l>(const Packet4d& a) {
-#if defined(EIGEN_VECTORIZE_AVX512) and defined(EIGEN_VECTORIZE_AVS512VL)
+#if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_VECTORIZE_AVS512VL)
   return _mm256_cvttpd_epi64(a);
 #else
   EIGEN_ALIGN16 double aux[4];
@@ -209,7 +209,7 @@ EIGEN_STRONG_INLINE Packet4l pcast<Packet4d, Packet4l>(const Packet4d& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4d pcast<Packet4l, Packet4d>(const Packet4l& a) {
-#if defined(EIGEN_VECTORIZE_AVX512) and defined(EIGEN_VECTORIZE_AVS512VL)
+#if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_VECTORIZE_AVS512VL)
   return _mm256_cvtepi64_pd(a);
 #else
   EIGEN_ALIGN16 int64_t aux[4];
