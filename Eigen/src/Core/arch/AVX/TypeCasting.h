@@ -209,7 +209,7 @@ EIGEN_STRONG_INLINE Packet4l pcast<Packet4d, Packet4l>(const Packet4d& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4d pcast<Packet4l, Packet4d>(const Packet4l& a) {
-#if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_VECTORIZE_AVS512VL)
+#if defined(EIGEN_VECTORIZE_AVX512DQ) && defined(EIGEN_VECTORIZE_AVS512VL)
   return _mm256_cvtepi64_pd(a);
 #else
   EIGEN_ALIGN16 int64_t aux[4];
