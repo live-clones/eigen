@@ -88,9 +88,7 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet2d, Packet4i>(const Packet2d& a, const 
 
 template <>
 EIGEN_STRONG_INLINE Packet2l pcast<Packet2d, Packet2l>(const Packet2d& a) {
-  EIGEN_ALIGN16 double aux[2];
-  pstore(aux, a);
-  return _mm_set_epi64x(static_cast<int64_t>(aux[1]), static_cast<int64_t>(aux[0]));
+  return _mm_set_epi64x(_mm_cvtsd_si64(preverse(a)), _mm_cvtsd_si64(a));
 }
 
 template <>
