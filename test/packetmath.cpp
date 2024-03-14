@@ -1346,13 +1346,25 @@ struct exp_complex_test_impl {
   static Scalar cis(const RealScalar& x) { return Scalar(numext::cos(x), numext::sin(x)); }
 
   // Verify equality with signed zero.
-  static bool is_exactly_equal(const RealScalar& a, const RealScalar& b) {
+  static bool is_exactly_equal(RealScalar a, RealScalar b) {
     // NaNs are always unsigned, and always compare not equal directly.
     if ((numext::isnan)(a)) {
       return (numext::isnan)(b);
     }
-    // Signed zero.
+
     RealScalar zero(0);
+#ifdef EIGEN_ARCH_ARM
+    // ARM automatically flushes denormals to zero.
+    // Preserve sign by multiplying by +0.
+    if (numext::abs(a) < (std::numeric_limits<RealScalar>::min)()) {
+      a = a * zero;
+    }
+    if (numext::abs(b) < (std::numeric_limits<RealScalar>::min)()) {
+      b = b * zero;
+    }
+#endif
+
+    // Signed zero.
     if (a == zero) {
       // Signs are either 0 or NaN, so verify that their comparisons to zero are equal.
       return (a == b) && ((numext::signbit(a) == zero) == (numext::signbit(b) == zero));
@@ -1566,7 +1578,7 @@ void packetmath_complex() {
     data1[1] = Scalar(-inf, nan);
     data1[2] = Scalar(nan, inf);
     data1[3] = Scalar(nan, -inf);
-    CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
+    CHECK_CWISE1_IM1ULP_N(numext::log, internal::plog, 4);
   }
   exp_complex_test<Scalar, Packet>(data1, data2, ref, size);
 }
