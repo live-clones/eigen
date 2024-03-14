@@ -789,15 +789,17 @@ struct log_2_impl {
 
 template <typename BitsType>
 struct log_2_impl<BitsType, false> {
+  // use the largest built-in integer of the same sign-ness to prevent unsafe comparisons
+  using BuiltInType = typename conditional<NumTraits<BitsType>::IsSigned, int64_t, uint64_t>::type;
   static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
-    if (x <= NumTraits<uint64_t>::highest())
-      return log_2_impl<uint64_t>::run_floor(static_cast<uint64_t>(x));
+    if (x <= NumTraits<BuiltInType>::highest())
+      return log_2_impl<BuiltInType>::run_floor(static_cast<BuiltInType>(x));
     else
       return generic_log_2_floor(x);
   }
   static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
-    if (x <= NumTraits<uint64_t>::highest())
-      return log_2_impl<uint64_t>::run_ceil(static_cast<uint64_t>(x));
+    if (x <= NumTraits<BuiltInType>::highest())
+      return log_2_impl<BuiltInType>::run_ceil(static_cast<BuiltInType>(x));
     else
       return generic_log_2_ceil(x);
   }
