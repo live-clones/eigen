@@ -195,6 +195,8 @@ struct GenericNumTraits {
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static inline int digits() { return internal::default_digits_impl<T>::run(); }
 
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static inline int radix() { return numext::numeric_limits<T>::radix; }
+
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static inline int min_exponent() { return numext::numeric_limits<T>::min_exponent; }
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static inline int max_exponent() { return numext::numeric_limits<T>::max_exponent; }

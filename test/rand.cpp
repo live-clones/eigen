@@ -237,7 +237,9 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_7(check_all_in_range<int8_t>(-126, -126 + int8t_offset));
   CALL_SUBTEST_7(check_all_in_range<int8_t>(126 - int8t_offset, 126));
   CALL_SUBTEST_7(check_all_in_range<int8_t>());
+  CALL_SUBTEST_7(check_all_in_range<uint8_t>());
   CALL_SUBTEST_7(check_all_in_range<SafeScalar<int8_t>>());
+  CALL_SUBTEST_7(check_all_in_range<SafeScalar<uint8_t>>());
 
   CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11));
   CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11 + int16t_offset));
@@ -245,7 +247,9 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_8(check_all_in_range<int16_t>(-11 - int16t_offset, -11));
   CALL_SUBTEST_8(check_all_in_range<int16_t>(-24345, -24345 + int16t_offset));
   CALL_SUBTEST_8(check_all_in_range<int16_t>());
+  CALL_SUBTEST_8(check_all_in_range<uint16_t>());
   CALL_SUBTEST_8(check_all_in_range<SafeScalar<int16_t>>());
+  CALL_SUBTEST_8(check_all_in_range<SafeScalar<uint16_t>>());
 
   CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11));
   CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11 + g_repeat));

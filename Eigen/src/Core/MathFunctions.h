@@ -605,7 +605,7 @@ struct count_bits_impl {
   static_assert(NumTraits<BitsType>::IsInteger && !NumTraits<BitsType>::IsSigned,
                 "BitsType must be an unsigned integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
-    int n = NumTraits<BitsType>::digits();
+    int n = CHAR_BIT * sizeof(BitsType);
     int shift = n / 2;
     while (bits > 0 && shift > 0) {
       BitsType y = bits >> shift;
@@ -622,7 +622,7 @@ struct count_bits_impl {
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
-    int n = NumTraits<BitsType>::digits();
+    int n = CHAR_BIT * sizeof(BitsType);
     int shift = n / 2;
     while (bits > 0 && shift > 0) {
       BitsType y = bits << shift;
@@ -744,6 +744,74 @@ struct count_bits_impl<BitsType,
 #endif  // _WIN64
 
 #endif  // EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
+
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int generic_log_2_floor(const BitsType& x) {
+  eigen_assert(x >= BitsType(0));
+  const BitsType kTwo = BitsType(2);
+  BitsType test = kTwo;
+  int s = 1;
+  while (test < x) {
+    test = test * kTwo;
+    s++;
+  }
+  if (test == x)
+    return s;
+  else
+    return s - 1;
+}
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int generic_log_2_ceil(const BitsType& x) {
+  eigen_assert(x >= BitsType(0));
+  const BitsType kTwo = BitsType(2);
+  BitsType test = BitsType(1);
+  int s = 0;
+  while (test < x) {
+    test = test * kTwo;
+    s++;
+  }
+  return s;
+}
+
+template <typename BitsType, bool BuiltIn = std::is_integral<BitsType>::value>
+struct log_2_impl {
+  static constexpr int kTotalBits = sizeof(BitsType) * CHAR_BIT;
+  static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
+    const int n = kTotalBits - clz(x);
+    bool power_of_two = (x & (x - 1)) == 0;
+    return x == 0 ? 0 : power_of_two ? (n - 1) : n;
+  }
+  static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
+    const int n = kTotalBits - clz(x);
+    return x == 0 ? 0 : n - 1;
+  }
+};
+
+template <typename BitsType>
+struct log_2_impl<BitsType, false> {
+  static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
+    if (x <= NumTraits<uint64_t>::highest())
+      return log_2_impl<uint64_t>::run_floor(static_cast<uint64_t>(x));
+    else
+      return generic_log_2_floor(x);
+  }
+  static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
+    if (x <= NumTraits<uint64_t>::highest())
+      return log_2_impl<uint64_t>::run_ceil(static_cast<uint64_t>(x));
+    else
+      return generic_log_2_ceil(x);
+  }
+};
+
+template <typename BitsType>
+int log2_ceil(const BitsType& x) {
+  return log_2_impl<BitsType>::run_ceil(x);
+}
+
+template <typename BitsType>
+int log2_floor(const BitsType& x) {
+  return log_2_impl<BitsType>::run_floor(x);
+}
 
 // Implementation of is* functions
 
