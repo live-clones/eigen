@@ -8,12 +8,10 @@
 #ifndef EIGEN_FORMAT_MODULE_H
 #define EIGEN_FORMAT_MODULE_H
 
-#include <version>
-
 #include "../../Eigen/Core"
 #include "../../Eigen/SparseCore"
 
-#if defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
+#if __cplusplus >= 202002
 
 #include <concepts>
 #include <format>
