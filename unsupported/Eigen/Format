@@ -11,8 +11,6 @@
 #include "../../Eigen/Core"
 #include "../../Eigen/SparseCore"
 
-#include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
-
 #if __cpp_lib_format >= 201907L
 
 #include <concepts>
