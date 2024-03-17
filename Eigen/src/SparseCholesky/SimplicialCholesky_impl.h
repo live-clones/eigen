@@ -110,7 +110,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
     /* compute numerical values kth row of L (a sparse triangular solve) */
 
     DiagonalScalar d =
-        getDiag(y[k]) * m_shiftScale + m_shiftOffset; // get D(k,k), apply the shift function, and clear Y(k)
+        getDiag(y[k]) * m_shiftScale + m_shiftOffset;  // get D(k,k), apply the shift function, and clear Y(k)
     y[k] = Scalar(0);
     for (; top < size; ++top) {
       Index i = pattern[top]; /* pattern[top:n-1] is pattern of L(:,k) */
