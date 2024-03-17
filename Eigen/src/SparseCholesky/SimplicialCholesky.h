@@ -187,7 +187,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
     ConstCholMatrixPtr pmat;
     ordering<NonHermitian>(matrix, pmat, tmp);
     analyzePattern_preordered(*pmat, DoLDLT);
-    factorize_preordered<DoLDLT,NonHermitian>(*pmat);
+    factorize_preordered<DoLDLT, NonHermitian>(*pmat);
   }
 
   template <bool DoLDLT, bool NonHermitian>
@@ -201,11 +201,11 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
       // If there is no ordering, try to directly use the input matrix without any copy
       internal::simplicial_cholesky_grab_input<CholMatrixType, MatrixType>::run(a, pmat, tmp);
     } else {
-      internal::permute_symm_to_symm<UpLo,Upper,NonHermitian>(a, tmp, m_P.indices().data());
+      internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, tmp, m_P.indices().data());
       pmat = &tmp;
     }
 
-    factorize_preordered<DoLDLT,NonHermitian>(*pmat);
+    factorize_preordered<DoLDLT, NonHermitian>(*pmat);
   }
 
   template <bool DoLDLT, bool NonHermitian>
@@ -225,12 +225,8 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
   template <bool NonHermitian>
   void ordering(const MatrixType& a, ConstCholMatrixPtr& pmat, CholMatrixType& ap);
 
-  inline DiagonalScalar getDiag(Scalar x) {
-    return internal::traits<Derived>::getDiag(x);
-  }
-  inline Scalar getSymm(Scalar x) {
-    return internal::traits<Derived>::getSymm(x);
-  }
+  inline DiagonalScalar getDiag(Scalar x) { return internal::traits<Derived>::getDiag(x); }
+  inline Scalar getSymm(Scalar x) { return internal::traits<Derived>::getSymm(x); }
 
   /** keeps off-diagonal entries; drops diagonal entries */
   struct keep_diag {
@@ -406,7 +402,7 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
 
   /** Computes the sparse Cholesky decomposition of \a matrix */
   SimplicialLLT& compute(const MatrixType& matrix) {
-    Base::template compute<false,false>(matrix);
+    Base::template compute<false, false>(matrix);
     return *this;
   }
 
@@ -416,7 +412,7 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
    *
    * \sa factorize()
    */
-  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<false,false>(a); }
+  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<false, false>(a); }
 
   /** Performs a numeric decomposition of \a matrix
    *
@@ -424,7 +420,7 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
    *
    * \sa analyzePattern()
    */
-  void factorize(const MatrixType& a) { Base::template factorize<false,false>(a); }
+  void factorize(const MatrixType& a) { Base::template factorize<false, false>(a); }
 
   /** \returns the determinant of the underlying matrix from the current factorization */
   Scalar determinant() const {
@@ -494,7 +490,7 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
 
   /** Computes the sparse Cholesky decomposition of \a matrix */
   SimplicialLDLT& compute(const MatrixType& matrix) {
-    Base::template compute<true,false>(matrix);
+    Base::template compute<true, false>(matrix);
     return *this;
   }
 
@@ -504,7 +500,7 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
    *
    * \sa factorize()
    */
-  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<true,false>(a); }
+  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<true, false>(a); }
 
   /** Performs a numeric decomposition of \a matrix
    *
@@ -512,7 +508,7 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
    *
    * \sa analyzePattern()
    */
-  void factorize(const MatrixType& a) { Base::template factorize<true,false>(a); }
+  void factorize(const MatrixType& a) { Base::template factorize<true, false>(a); }
 
   /** \returns the determinant of the underlying matrix from the current factorization */
   Scalar determinant() const { return Base::m_diag.prod(); }
@@ -539,7 +535,8 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
  * \sa class SimplicialNonHermitianLDLT, SimplicialLLT, class AMDOrdering, class NaturalOrdering
  */
 template <typename MatrixType_, int UpLo_, typename Ordering_>
-class SimplicialNonHermitianLLT : public SimplicialCholeskyBase<SimplicialNonHermitianLLT<MatrixType_, UpLo_, Ordering_> > {
+class SimplicialNonHermitianLLT
+    : public SimplicialCholeskyBase<SimplicialNonHermitianLLT<MatrixType_, UpLo_, Ordering_> > {
  public:
   typedef MatrixType_ MatrixType;
   enum { UpLo = UpLo_ };
@@ -574,7 +571,7 @@ class SimplicialNonHermitianLLT : public SimplicialCholeskyBase<SimplicialNonHer
 
   /** Computes the sparse Cholesky decomposition of \a matrix */
   SimplicialNonHermitianLLT& compute(const MatrixType& matrix) {
-    Base::template compute<false,true>(matrix);
+    Base::template compute<false, true>(matrix);
     return *this;
   }
 
@@ -584,7 +581,7 @@ class SimplicialNonHermitianLLT : public SimplicialCholeskyBase<SimplicialNonHer
    *
    * \sa factorize()
    */
-  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<false,true>(a); }
+  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<false, true>(a); }
 
   /** Performs a numeric decomposition of \a matrix
    *
@@ -592,7 +589,7 @@ class SimplicialNonHermitianLLT : public SimplicialCholeskyBase<SimplicialNonHer
    *
    * \sa analyzePattern()
    */
-  void factorize(const MatrixType& a) { Base::template factorize<false,true>(a); }
+  void factorize(const MatrixType& a) { Base::template factorize<false, true>(a); }
 
   /** \returns the determinant of the underlying matrix from the current factorization */
   Scalar determinant() const {
@@ -622,7 +619,8 @@ class SimplicialNonHermitianLLT : public SimplicialCholeskyBase<SimplicialNonHer
  * \sa class SimplicialNonHermitianLLT, SimplicialLDLT, class AMDOrdering, class NaturalOrdering
  */
 template <typename MatrixType_, int UpLo_, typename Ordering_>
-class SimplicialNonHermitianLDLT : public SimplicialCholeskyBase<SimplicialNonHermitianLDLT<MatrixType_, UpLo_, Ordering_> > {
+class SimplicialNonHermitianLDLT
+    : public SimplicialCholeskyBase<SimplicialNonHermitianLDLT<MatrixType_, UpLo_, Ordering_> > {
  public:
   typedef MatrixType_ MatrixType;
   enum { UpLo = UpLo_ };
@@ -662,7 +660,7 @@ class SimplicialNonHermitianLDLT : public SimplicialCholeskyBase<SimplicialNonHe
 
   /** Computes the sparse Cholesky decomposition of \a matrix */
   SimplicialNonHermitianLDLT& compute(const MatrixType& matrix) {
-    Base::template compute<true,true>(matrix);
+    Base::template compute<true, true>(matrix);
     return *this;
   }
 
@@ -672,7 +670,7 @@ class SimplicialNonHermitianLDLT : public SimplicialCholeskyBase<SimplicialNonHe
    *
    * \sa factorize()
    */
-  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<true,true>(a); }
+  void analyzePattern(const MatrixType& a) { Base::template analyzePattern<true, true>(a); }
 
   /** Performs a numeric decomposition of \a matrix
    *
@@ -680,7 +678,7 @@ class SimplicialNonHermitianLDLT : public SimplicialCholeskyBase<SimplicialNonHe
    *
    * \sa analyzePattern()
    */
-  void factorize(const MatrixType& a) { Base::template factorize<true,true>(a); }
+  void factorize(const MatrixType& a) { Base::template factorize<true, true>(a); }
 
   /** \returns the determinant of the underlying matrix from the current factorization */
   Scalar determinant() const { return Base::m_diag.prod(); }
@@ -738,9 +736,9 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
   /** Computes the sparse Cholesky decomposition of \a matrix */
   SimplicialCholesky& compute(const MatrixType& matrix) {
     if (m_LDLT)
-      Base::template compute<true,false>(matrix);
+      Base::template compute<true, false>(matrix);
     else
-      Base::template compute<false,false>(matrix);
+      Base::template compute<false, false>(matrix);
     return *this;
   }
 
@@ -752,9 +750,9 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
    */
   void analyzePattern(const MatrixType& a) {
     if (m_LDLT)
-      Base::template analyzePattern<true,false>(a);
+      Base::template analyzePattern<true, false>(a);
     else
-      Base::template analyzePattern<false,false>(a);
+      Base::template analyzePattern<false, false>(a);
   }
 
   /** Performs a numeric decomposition of \a matrix
@@ -765,9 +763,9 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
    */
   void factorize(const MatrixType& a) {
     if (m_LDLT)
-      Base::template factorize<true,false>(a);
+      Base::template factorize<true, false>(a);
     else
-      Base::template factorize<false,false>(a);
+      Base::template factorize<false, false>(a);
   }
 
   /** \internal */
@@ -835,7 +833,7 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
   if (!internal::is_same<OrderingType, NaturalOrdering<Index> >::value) {
     {
       CholMatrixType C;
-      internal::permute_symm_to_fullsymm<UpLo,NonHermitian>(a, C, NULL);
+      internal::permute_symm_to_fullsymm<UpLo, NonHermitian>(a, C, NULL);
 
       OrderingType ordering;
       ordering(C, m_Pinv);
@@ -847,14 +845,14 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
       m_P.resize(0);
 
     ap.resize(size, size);
-    internal::permute_symm_to_symm<UpLo,Upper,NonHermitian>(a, ap, m_P.indices().data());
+    internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, ap, m_P.indices().data());
   } else {
     m_Pinv.resize(0);
     m_P.resize(0);
     if (int(UpLo) == int(Lower) || MatrixType::IsRowMajor) {
       // we have to transpose the lower part to to the upper one
       ap.resize(size, size);
-      internal::permute_symm_to_symm<UpLo,Upper,NonHermitian>(a, ap, NULL);
+      internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, ap, NULL);
     } else
       internal::simplicial_cholesky_grab_input<CholMatrixType, MatrixType>::run(a, pmat, ap);
   }

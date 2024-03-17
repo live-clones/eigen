@@ -486,7 +486,7 @@ void check_sparse_spd_determinant(Solver& solver) {
 
 template <typename Solver, typename DenseMat>
 int generate_sparse_nonhermitian_problem(Solver&, typename Solver::MatrixType& A, typename Solver::MatrixType& halfA,
-                                DenseMat& dA, int maxSize = 300) {
+                                         DenseMat& dA, int maxSize = 300) {
   typedef typename Solver::MatrixType Mat;
   typedef typename Mat::Scalar Scalar;
   typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
@@ -513,7 +513,7 @@ int generate_sparse_nonhermitian_problem(Solver&, typename Solver::MatrixType& A
 
 template <typename Solver>
 void check_sparse_nonhermitian_solving(Solver& solver, int maxSize = (std::min)(300, EIGEN_TEST_MAX_SIZE),
-                              int maxRealWorldSize = 100000) {
+                                       int maxRealWorldSize = 100000) {
   typedef typename Solver::MatrixType Mat;
   typedef typename Mat::Scalar Scalar;
   typedef typename Mat::StorageIndex StorageIndex;
