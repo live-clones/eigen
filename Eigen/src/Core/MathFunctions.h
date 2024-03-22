@@ -746,34 +746,6 @@ struct count_bits_impl<BitsType,
 #endif  // EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
 
 template <typename BitsType>
-EIGEN_DEVICE_FUNC inline int generic_log_2_floor(const BitsType& x) {
-  eigen_assert(x >= BitsType(0));
-  const BitsType kTwo = BitsType(2);
-  BitsType test = kTwo;
-  int s = 1;
-  while (test < x) {
-    test = test * kTwo;
-    s++;
-  }
-  if (test == x)
-    return s;
-  else
-    return s - 1;
-}
-template <typename BitsType>
-EIGEN_DEVICE_FUNC inline int generic_log_2_ceil(const BitsType& x) {
-  eigen_assert(x >= BitsType(0));
-  const BitsType kTwo = BitsType(2);
-  BitsType test = BitsType(1);
-  int s = 0;
-  while (test < x) {
-    test = test * kTwo;
-    s++;
-  }
-  return s;
-}
-
-template <typename BitsType, bool BuiltIn = std::is_integral<BitsType>::value>
 struct log_2_impl {
   static constexpr int kTotalBits = sizeof(BitsType) * CHAR_BIT;
   static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
@@ -784,24 +756,6 @@ struct log_2_impl {
   static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
     const int n = kTotalBits - clz(x);
     return x == 0 ? 0 : n - 1;
-  }
-};
-
-template <typename BitsType>
-struct log_2_impl<BitsType, false> {
-  // use the largest built-in integer of the same sign-ness to prevent unsafe comparisons
-  using BuiltInType = typename conditional<NumTraits<BitsType>::IsSigned, int64_t, uint64_t>::type;
-  static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
-    if (x <= NumTraits<BuiltInType>::highest())
-      return log_2_impl<BuiltInType>::run_floor(static_cast<BuiltInType>(x));
-    else
-      return generic_log_2_floor(x);
-  }
-  static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
-    if (x <= NumTraits<BuiltInType>::highest())
-      return log_2_impl<BuiltInType>::run_ceil(static_cast<BuiltInType>(x));
-    else
-      return generic_log_2_ceil(x);
   }
 };
 
