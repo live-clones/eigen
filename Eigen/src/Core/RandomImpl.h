@@ -50,21 +50,22 @@ struct eigen_random_device {
   static EIGEN_DEVICE_FUNC inline ReturnType run() { return std::rand(); };
 };
 
-// Fill a built-in integer with numRandomBits beginning with the least significant bit
-template <typename BitsType, bool BuiltIn = std::is_unsigned<BitsType>::value>
+// Fill a built-in unsigned integer with numRandomBits beginning with the least significant bit
+template <typename Scalar>
 struct random_bits_impl {
+  EIGEN_STATIC_ASSERT(std::is_unsigned<Scalar>::value, SCALAR MUST BE A BUILT-IN UNSIGNED INTEGER);
   using RandomDevice = eigen_random_device;
   using RandomReturnType = typename RandomDevice::ReturnType;
   static constexpr int kEntropy = RandomDevice::Entropy;
-  static constexpr int kTotalBits = sizeof(BitsType) * CHAR_BIT;
-  // return a BitsType filled with numRandomBits beginning from the least significant bit
-  static EIGEN_DEVICE_FUNC inline BitsType run(int numRandomBits) {
+  static constexpr int kTotalBits = sizeof(Scalar) * CHAR_BIT;
+  // return a Scalar filled with numRandomBits beginning from the least significant bit
+  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
     eigen_assert((numRandomBits >= 0) && (numRandomBits <= kTotalBits));
-    const BitsType mask = BitsType(-1) >> ((kTotalBits - numRandomBits) & (kTotalBits - 1));
-    BitsType randomBits = BitsType(0);
+    const Scalar mask = Scalar(-1) >> ((kTotalBits - numRandomBits) & (kTotalBits - 1));
+    Scalar randomBits = 0;
     for (int shift = 0; shift < numRandomBits; shift += kEntropy) {
       RandomReturnType r = RandomDevice::run();
-      randomBits |= static_cast<BitsType>(r) << shift;
+      randomBits |= static_cast<Scalar>(r) << shift;
     }
     // clear the excess bits
     randomBits &= mask;
@@ -123,11 +124,9 @@ struct random_longdouble_impl {
   static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<long double>::digits() - 1; }
   static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits) {
     eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits());
-    EIGEN_USING_STD(min);
-    EIGEN_USING_STD(max);
     EIGEN_USING_STD(memcpy);
-    int numLowBits = (min)(numRandomBits, 64);
-    int numHighBits = (max)(numRandomBits - 64, 0);
+    int numLowBits = numext::mini(numRandomBits, 64);
+    int numHighBits = numext::maxi(numRandomBits - 64, 0);
     uint64_t randomBits[2];
     long double result = 2.0L;
     memcpy(&randomBits, &result, Size);
@@ -217,26 +216,17 @@ struct random_int_impl<Scalar, true, true> {
 #ifdef EIGEN_MAKING_DOCS
     return run(-10, 10);
 #else
-    return getRandomBits<Scalar>(kTotalBits);
+    return numext::bit_cast<Scalar>(getRandomBits<BitsType>(kTotalBits));
 #endif
   }
 };
 
 // todo: custom integers
-template <typename Scalar>
-struct random_int_impl<Scalar, false, false> {
+template <typename Scalar, bool IsSigned>
+struct random_int_impl<Scalar, IsSigned, false> {
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar&, const Scalar&) { return run(); }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
-    eigen_assert(std::false_type::value && "RANDOM FOR CUSTOM UNSIGNED INTEGERS NOT YET SUPPORTED");
-    return Scalar(0);
-  }
-};
-
-template <typename Scalar>
-struct random_int_impl<Scalar, true, false> {
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar&, const Scalar&) { return run(); }
-  static EIGEN_DEVICE_FUNC inline Scalar run() {
-    eigen_assert(std::false_type::value && "RANDOM FOR CUSTOM UNSIGNED INTEGERS NOT YET SUPPORTED");
+    eigen_assert(std::false_type::value && "RANDOM FOR CUSTOM INTEGERS NOT YET SUPPORTED");
     return Scalar(0);
   }
 };

@@ -535,7 +535,7 @@ struct log1p_retval {
  ****************************************************************************/
 
 template <typename ScalarX, typename ScalarY,
-          bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
+          bool IsInteger = NumTraits<ScalarX>::IsInteger&& NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
   // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
@@ -602,7 +602,7 @@ struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus> {
 
 template <typename BitsType, typename EnableIf = void>
 struct count_bits_impl {
-  static_assert(NumTraits<BitsType>::IsInteger && !NumTraits<BitsType>::IsSigned,
+  static_assert(std::is_integral<BitsType>::value && std::is_unsigned<BitsType>::value,
                 "BitsType must be an unsigned integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
     int n = CHAR_BIT * sizeof(BitsType);
