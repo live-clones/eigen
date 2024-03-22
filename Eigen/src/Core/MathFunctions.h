@@ -535,7 +535,7 @@ struct log1p_retval {
  ****************************************************************************/
 
 template <typename ScalarX, typename ScalarY,
-          bool IsInteger = NumTraits<ScalarX>::IsInteger&& NumTraits<ScalarY>::IsInteger>
+          bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
   // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
