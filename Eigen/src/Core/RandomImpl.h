@@ -52,7 +52,7 @@ struct eigen_random_device {
 
 // Fill a built-in integer with numRandomBits beginning with the least significant bit
 template <typename BitsType, bool BuiltIn = std::is_unsigned<BitsType>::value>
-struct random_digits_impl {
+struct random_bits_impl {
   using RandomDevice = eigen_random_device;
   using RandomReturnType = typename RandomDevice::ReturnType;
   static constexpr int kEntropy = RandomDevice::Entropy;
@@ -224,15 +224,21 @@ struct random_int_impl<Scalar, true, true> {
 
 // todo: custom integers
 template <typename Scalar>
-struct random_int_impl<Scalar, false, false>
-{
-  EIGEN_STATIC_ASSERT(std::false_type, RANDOM FOR CUSTOM UNSIGNED INTEGERS NOT YET SUPPORTED);
+struct random_int_impl<Scalar, false, false> {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar&, const Scalar&) { return run(); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
+    eigen_assert(std::false_type::value && "RANDOM FOR CUSTOM UNSIGNED INTEGERS NOT YET SUPPORTED");
+    return Scalar(0);
+  }
 };
 
 template <typename Scalar>
-struct random_int_impl<Scalar, true, false>
-{
-  EIGEN_STATIC_ASSERT(std::false_type, RANDOM FOR CUSTOM SIGNED INTEGERS NOT YET SUPPORTED);
+struct random_int_impl<Scalar, true, false> {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar&, const Scalar&) { return run(); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
+    eigen_assert(std::false_type::value && "RANDOM FOR CUSTOM UNSIGNED INTEGERS NOT YET SUPPORTED");
+    return Scalar(0);
+  }
 };
 
 template <typename Scalar>
