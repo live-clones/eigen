@@ -116,7 +116,7 @@ struct random_float_impl<Scalar, false> {
 };
 
 // random implementation for long double
-// do not specialize if long double is a double-double
+// this specialization is not compatible with double-double scalars
 template <bool Specialize = (sizeof(long double) == 2 * sizeof(uint64_t)) &&
                             ((std::numeric_limits<long double>::digits != (2 * std::numeric_limits<double>::digits)))>
 struct random_longdouble_impl {
