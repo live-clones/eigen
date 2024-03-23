@@ -117,8 +117,9 @@ struct random_float_impl<Scalar, false> {
 };
 
 // random implementation for long double
-// TODO: fix this for PPC
-template <bool Specialize = sizeof(long double) == 2 * sizeof(uint64_t) && !EIGEN_ARCH_PPC>
+// do not specialize if long double is a double-double
+template <bool Specialize = (sizeof(long double) == 2 * sizeof(uint64_t)) &&
+                            ((std::numeric_limits<long double>::digits != (2 * std::numeric_limits<double>::digits)))>
 struct random_longdouble_impl {
   static constexpr int Size = sizeof(long double);
   static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<long double>::digits() - 1; }
