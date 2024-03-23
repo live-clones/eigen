@@ -106,8 +106,7 @@ struct random_float_impl<Scalar, false> {
   static EIGEN_DEVICE_FUNC inline int mantissaBits() {
     const int digits = NumTraits<Scalar>::digits();
     constexpr int kDoubleDigits = NumTraits<double>::digits();
-    EIGEN_USING_STD(min);
-    return (min)(digits, kDoubleDigits) - 1;
+    return numext::mini(digits, kDoubleDigits) - 1;
   }
   static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
     eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits());
@@ -162,7 +161,7 @@ struct random_default_impl<Scalar, false, false> {
     return run(x, y, Impl::mantissaBits());
   }
   static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) { return Impl::run(numRandomBits); }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return Impl::run(Impl::mantissaBits()); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return run(Impl::mantissaBits()); }
 };
 
 template <typename Scalar, bool IsSigned = NumTraits<Scalar>::IsSigned, bool BuiltIn = std::is_integral<Scalar>::value>
@@ -189,20 +188,14 @@ struct random_int_impl<Scalar, false, true> {
     Scalar result = x + randomBits;
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() {
-#ifdef EIGEN_MAKING_DOCS
-    return run(0, 10);
-#else
-    return getRandomBits<Scalar>(kTotalBits);
-#endif
-  }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return getRandomBits<Scalar>(kTotalBits); }
 };
 
 // random implementation for a built-in signed integer type
 template <typename Scalar>
 struct random_int_impl<Scalar, true, true> {
   static constexpr int kTotalBits = sizeof(Scalar) * CHAR_BIT;
-  using BitsType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  using BitsType = typename make_unsigned<Scalar>::type;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
     // Avoid overflow by representing `range` as an unsigned type
@@ -213,13 +206,7 @@ struct random_int_impl<Scalar, true, true> {
     Scalar result = static_cast<Scalar>(static_cast<BitsType>(x) + randomBits);
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() {
-#ifdef EIGEN_MAKING_DOCS
-    return run(-10, 10);
-#else
-    return numext::bit_cast<Scalar>(getRandomBits<BitsType>(kTotalBits));
-#endif
-  }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return numext::bit_cast<Scalar>(getRandomBits<BitsType>(kTotalBits)); }
 };
 
 // todo: custom integers
