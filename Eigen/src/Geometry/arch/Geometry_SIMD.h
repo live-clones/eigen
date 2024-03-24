@@ -18,6 +18,8 @@ namespace Eigen {
 
 namespace internal {
 
+#if (defined EIGEN_VECTORIZE_SSE) || (defined EIGEN_VECTORIZE_NEON)
+
 template <class Derived, class OtherDerived>
 struct quat_product<Architecture::Target, Derived, OtherDerived, float> {
   enum {
@@ -75,6 +77,8 @@ struct cross3_impl<Architecture::Target, VectorLhs, VectorRhs, float, true> {
     return res;
   }
 };
+
+#endif
 
 #if (defined EIGEN_VECTORIZE_SSE) || (EIGEN_ARCH_ARM64)
 
