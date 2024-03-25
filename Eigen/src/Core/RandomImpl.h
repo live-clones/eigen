@@ -206,7 +206,7 @@ struct random_int_impl<Scalar, true, true> {
     Scalar result = static_cast<Scalar>(static_cast<BitsType>(x) + randomBits);
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return numext::bit_cast<Scalar>(getRandomBits<BitsType>(kTotalBits)); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return static_cast<Scalar>(getRandomBits<BitsType>(kTotalBits)); }
 };
 
 // todo: custom integers
