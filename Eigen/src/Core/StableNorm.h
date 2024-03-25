@@ -81,8 +81,8 @@ void stable_norm_impl_inner_step(const VectorType& vec, RealScalar& ssq, RealSca
 template <typename VectorType>
 typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
                                                  std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
 
   Index n = vec.size();
 
@@ -101,7 +101,7 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
 template <typename MatrixType>
 typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
                                                  std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
-  using std::sqrt;
+  using numext::sqrt;
 
   typedef typename MatrixType::RealScalar RealScalar;
   RealScalar scale(0);
@@ -115,9 +115,9 @@ typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
 template <typename Derived>
 inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(const EigenBase<Derived>& _vec) {
   typedef typename Derived::RealScalar RealScalar;
-  using std::abs;
-  using std::pow;
-  using std::sqrt;
+  using numext::abs;
+  using numext::pow;
+  using numext::sqrt;
 
   // This program calculates the machine-dependent constants
   // bl, b2, slm, s2m, relerr overfl
@@ -140,7 +140,7 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
       RealScalar(pow(RealScalar(ibeta), RealScalar((2 - iemin) / 2)));  // scaling factor for lower range
   static const RealScalar s2m =
       RealScalar(pow(RealScalar(ibeta), RealScalar(-((iemax + it) / 2))));  // scaling factor for upper range
-  static const RealScalar eps = RealScalar(pow(double(ibeta), 1 - it));
+  static const RealScalar eps = RealScalar(pow(double(ibeta), double(1 - it)));
   static const RealScalar relerr = sqrt(eps);  // tolerance for neglecting asml
 
   const Derived& vec(_vec.derived());

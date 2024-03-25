@@ -260,7 +260,7 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
    * are skipped.
    */
   explicit Iterator(const AmbiVector& vec, const RealScalar& epsilon = 0) : m_vector(vec) {
-    using std::abs;
+    using numext::abs;
     m_epsilon = epsilon;
     m_isDense = m_vector.m_mode == IsDense;
     if (m_isDense) {
@@ -289,7 +289,7 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
   operator bool() const { return m_cachedIndex >= 0; }
 
   Iterator& operator++() {
-    using std::abs;
+    using numext::abs;
     if (m_isDense) {
       do {
         ++m_cachedIndex;

@@ -77,9 +77,9 @@ static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& r
   res.finalize();
 }
 
-template <typename Lhs, typename Rhs, typename ResultType, int LhsStorageOrder = traits<Lhs>::Flags & RowMajorBit,
-          int RhsStorageOrder = traits<Rhs>::Flags & RowMajorBit,
-          int ResStorageOrder = traits<ResultType>::Flags & RowMajorBit>
+template <typename Lhs, typename Rhs, typename ResultType, int LhsStorageOrder = traits<Lhs>::Flags& RowMajorBit,
+          int RhsStorageOrder = traits<Rhs>::Flags& RowMajorBit,
+          int ResStorageOrder = traits<ResultType>::Flags& RowMajorBit>
 struct sparse_sparse_product_with_pruning_selector;
 
 template <typename Lhs, typename Rhs, typename ResultType>

@@ -372,8 +372,8 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   static bool run(typename SVD::WorkMatrixType& work_matrix, SVD& svd, Index p, Index q, RealScalar& maxDiagEntry) {
-    using std::abs;
-    using std::sqrt;
+    using numext::abs;
+    using numext::sqrt;
     Scalar z;
     JacobiRotation<Scalar> rot;
     RealScalar n = sqrt(numext::abs2(work_matrix.coeff(p, p)) + numext::abs2(work_matrix.coeff(q, p)));
@@ -664,7 +664,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
 template <typename MatrixType, int Options>
 JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(const MatrixType& matrix,
                                                                              unsigned int computationOptions) {
-  using std::abs;
+  using numext::abs;
 
   allocate(matrix.rows(), matrix.cols(), computationOptions);
 

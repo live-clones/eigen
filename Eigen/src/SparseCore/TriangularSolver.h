@@ -18,9 +18,9 @@ namespace Eigen {
 namespace internal {
 
 template <typename Lhs, typename Rhs, int Mode,
-          int UpLo = (Mode & Lower)   ? Lower
-                     : (Mode & Upper) ? Upper
-                                      : -1,
+          int UpLo = (Mode & Lower)  ? Lower
+                     : (Mode& Upper) ? Upper
+                                     : -1,
           int StorageOrder = int(traits<Lhs>::Flags) & RowMajorBit>
 struct sparse_solve_triangular_selector;
 
@@ -170,9 +170,9 @@ void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(MatrixBase<O
 namespace internal {
 
 template <typename Lhs, typename Rhs, int Mode,
-          int UpLo = (Mode & Lower)   ? Lower
-                     : (Mode & Upper) ? Upper
-                                      : -1,
+          int UpLo = (Mode & Lower)  ? Lower
+                     : (Mode& Upper) ? Upper
+                                     : -1,
           int StorageOrder = int(Lhs::Flags) & (RowMajorBit)>
 struct sparse_solve_triangular_sparse_selector;
 

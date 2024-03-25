@@ -200,7 +200,7 @@ class sparse_matrix_block_impl : public SparseCompressedBase<Block<SparseMatrixT
     return derived();
   }
 
-  inline BlockType& operator=(const BlockType& other) { return operator= <BlockType>(other); }
+  inline BlockType& operator=(const BlockType& other) { return operator=<BlockType>(other); }
 
   inline const Scalar* valuePtr() const { return m_matrix.valuePtr(); }
   inline Scalar* valuePtr() { return m_matrix.valuePtr(); }
