@@ -53,7 +53,7 @@ struct eigen_random_device {
 // Fill a built-in unsigned integer with numRandomBits beginning with the least significant bit
 template <typename Scalar>
 struct random_bits_impl {
-  EIGEN_STATIC_ASSERT(std::is_unsigned<Scalar>::value, SCALAR MUST BE A BUILT - IN UNSIGNED INTEGER);
+  EIGEN_STATIC_ASSERT(std::is_unsigned<Scalar>::value, SCALAR MUST BE A BUILT - IN UNSIGNED INTEGER)
   using RandomDevice = eigen_random_device;
   using RandomReturnType = typename RandomDevice::ReturnType;
   static constexpr int kEntropy = RandomDevice::Entropy;
