@@ -951,22 +951,23 @@ void sparse_basic(const SparseMatrixType& ref) {
 
   // test move
   {
+    using TransposedType = SparseMatrix<Scalar, SparseMatrixType::IsRowMajor ? ColMajor : RowMajor,
+                                        typename SparseMatrixType::StorageIndex>;
     DenseMatrix refMat1 = DenseMatrix::Random(rows, cols);
     SparseMatrixType m1(rows, cols);
     initSparse<Scalar>(density, refMat1, m1);
-
     // test move ctor
     SparseMatrixType m2(std::move(m1));
     VERIFY_IS_APPROX(m2, refMat1);
-    // test that m1 is in a useable state
-    m1.resize(rows, rows);
-    m1.setIdentity();
-    VERIFY_IS_APPROX(m1, DenseMatrix::Identity(rows,rows));
-
     // test move assignment
-    SparseMatrixType m3(rows + 1, cols + 2);
-    m3 = std::move(m2);
-    VERIFY_IS_APPROX(m3, refMat1);
+    m1 = std::move(m2);
+    VERIFY_IS_APPROX(m1, refMat1);
+    // test move ctor (SparseMatrixBase)
+    TransposedType m3(std::move(m1.transpose()));
+    VERIFY_IS_APPROX(m3, refMat1.transpose());
+    // test move assignment (SparseMatrixBase)
+    m2 = std::move(m3.transpose());
+    VERIFY_IS_APPROX(m2, refMat1);
   }
 }
 

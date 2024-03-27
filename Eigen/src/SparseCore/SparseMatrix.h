@@ -789,10 +789,10 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   }
 
   /** Move constructor */
-  inline SparseMatrix(SparseMatrix&& other) { this->swap(other); }
+  inline SparseMatrix(SparseMatrix&& other) : SparseMatrix() { this->swap(other); }
 
   template <typename OtherDerived>
-  inline SparseMatrix(SparseMatrixBase<OtherDerived>&& other) {
+  inline SparseMatrix(SparseMatrixBase<OtherDerived>&& other) : SparseMatrix() {
     *this = other.derived().markAsRValue();
   }
 
