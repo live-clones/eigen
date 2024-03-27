@@ -792,7 +792,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   inline SparseMatrix(SparseMatrix&& other) : SparseMatrix() { this->swap(other); }
 
   template <typename OtherDerived>
-  inline SparseMatrix(SparseMatrixBase<OtherDerived>&& other) : SparseMatrix() {
+  inline SparseMatrix(SparseCompressedBase<OtherDerived>&& other) : SparseMatrix() {
     *this = other.derived().markAsRValue();
   }
 
@@ -879,7 +879,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   EIGEN_DONT_INLINE SparseMatrix& operator=(const SparseMatrixBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  inline SparseMatrix& operator=(SparseMatrixBase<OtherDerived>&& other) {
+  inline SparseMatrix& operator=(SparseCompressedBase<OtherDerived>&& other) {
     *this = other.derived().markAsRValue();
     return *this;
   }
