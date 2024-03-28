@@ -500,6 +500,9 @@ struct stem_function {
 };
 }  // namespace internal
 
+template <typename XprType, typename Device>
+struct DeviceWrapper;
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_FORWARDDECLARATIONS_H

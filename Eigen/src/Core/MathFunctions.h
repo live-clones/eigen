@@ -1384,11 +1384,29 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double ceil(const double& x) {
 // T is assumed to be an integer type with a>=0, and b>0
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE EIGEN_CONSTEXPR T div_ceil(T a, T b) {
+  using UnsignedT = typename internal::make_unsigned<T>::type;
   EIGEN_STATIC_ASSERT((NumTraits<T>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
   eigen_assert(a >= 0);
   eigen_assert(b > 0);
+  // Note: explicitly declaring a,b as non-negative enables several compiler optimizations
+  const UnsignedT ua = UnsignedT(a);
+  const UnsignedT ub = UnsignedT(b);
   // Note: This form is used because it cannot overflow.
-  return a == 0 ? 0 : (a - 1) / b + 1;
+  return ua == 0 ? 0 : (ua - 1) / ub + 1;
+}
+
+// Integer round down to nearest power of b
+// T is assumed to be an integer type with a>=0, and b>0
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE EIGEN_CONSTEXPR T round_down(T a, T b) {
+  using UnsignedT = typename internal::make_unsigned<T>::type;
+  EIGEN_STATIC_ASSERT((NumTraits<T>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
+  eigen_assert(a >= 0);
+  eigen_assert(b > 0);
+  // Note: explicitly declaring a,b as non-negative enables several compiler optimizations
+  const UnsignedT ua = UnsignedT(a);
+  const UnsignedT ub = UnsignedT(b);
+  return ub * (ua / ub);
 }
 
 /** Log base 2 for 32 bits positive integers.
