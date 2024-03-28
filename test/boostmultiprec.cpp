@@ -73,6 +73,7 @@
 #include <boost/multiprecision/number.hpp>
 #include <boost/math/special_functions.hpp>
 #include <boost/math/complex.hpp>
+#include <boost/random.hpp>
 
 typedef boost::multiprecision::number<boost::multiprecision::cpp_dec_float<100>, boost::multiprecision::et_on> Real;
 
@@ -101,6 +102,27 @@ template <>
 struct cast_impl<Real, std::complex<Real> > {
   static inline std::complex<Real> run(const Real& x) { return std::complex<Real>(x); }
 };
+
+template <>
+struct random_default_impl<Real, false, false> {
+  
+  using Scalar = Real;
+  enum : int { MantissaBits = NumTraits<Scalar>::digits() - 1 };
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits = MantissaBits) {
+    Scalar half_x = Scalar(0.5) * x;
+    Scalar half_y = Scalar(0.5) * y;
+    Scalar result = (half_x + half_y) + (half_y - half_x) * run(numRandomBits);
+    // result is in the half-open interval [x, y) -- provided that x < y
+    return result;
+  }
+  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits = MantissaBits) {
+    eigen_assert(numRandomBits >= 0 && numRandomBits <= MantissaBits);
+    static boost::random::mt19937 gen; // TODO: missing seed here
+    auto num = boost::random::generate_canonical<Scalar, MantissaBits>(gen);
+    return num*2 - 1; // map from [0,1) -> [-1,1)
+  }
+};
+
 }  // namespace internal
 }  // namespace Eigen
 
