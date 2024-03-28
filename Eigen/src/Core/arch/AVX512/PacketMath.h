@@ -89,8 +89,9 @@ struct packet_traits<half> : default_packet_traits {
     HasExpm1 = 1,
     HasBessel = 1,
     HasNdtri = 1,
-    HasSin = EIGEN_FAST_MATH,
-    HasCos = EIGEN_FAST_MATH,
+    // TODO enable sin and cos when Packet8l integer_packet is implemented
+    HasSin = 0,
+    HasCos = 0,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasBlend = 0,
