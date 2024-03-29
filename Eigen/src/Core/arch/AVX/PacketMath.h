@@ -1802,12 +1802,12 @@ EIGEN_STRONG_INLINE Packet4ul preverse(const Packet4ul& a) {
 // pabs should be ok
 template <>
 EIGEN_STRONG_INLINE Packet8f pabs(const Packet8f& a) {
-  const Packet8f mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFF'FFFF));
+  const Packet8f mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
   return _mm256_and_ps(a, mask);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4d pabs(const Packet4d& a) {
-  const Packet4d mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x7FFF'FFFF'FFFF'FFFF));
+  const Packet4d mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x7FFFFFFFFFFFFFFF));
   return _mm256_and_pd(a, mask);
 }
 template <>
