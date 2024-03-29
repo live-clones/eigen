@@ -200,6 +200,13 @@ EIGEN_STRONG_INLINE Packet4l pcast<Packet4d, Packet4l>(const Packet4d& a) {
 #if defined(EIGEN_VECTORIZE_AVX512DQ) && defined(EIGEN_VECTORIZE_AVS512VL)
   return _mm256_cvttpd_epi64(a);
 #else
+
+  // if 'a' exceeds the numerical limits of int64_t, the behavior is undefined
+
+  // e <= 0 corresponds to |a| < 1, which should result in zero. incidentally, intel intrinsics with shift arguments
+  // greater than or equal to 64 produce zero. furthermore, negative shifts appear to be interpreted as large positive
+  // shifts (two's complement), which also result in zero. therefore, e does not need to be clamped to [0, 64)
+
   constexpr int kTotalBits = sizeof(double) * CHAR_BIT, kMantissaBits = std::numeric_limits<double>::digits - 1,
                 kExponentBits = kTotalBits - kMantissaBits - 1, kBias = (1 << (kExponentBits - 1)) - 1;
 
@@ -211,10 +218,6 @@ EIGEN_STRONG_INLINE Packet4l pcast<Packet4d, Packet4l>(const Packet4d& a) {
   // shift left by 1 to clear the sign bit, and shift right by kMantissaBits + 1 to recover biased exponent
   __m256i biased_e = _mm256_srli_epi64(_mm256_slli_epi64(a_bits, 1), kMantissaBits + 1);
   __m256i e = _mm256_sub_epi64(biased_e, cst_bias);
-
-  // e <= 0 corresponds to |a| < 1, which should result in zero. incidentally, intel intrinsics with shift arguments
-  // greater than or equal to 64 produce zero. furthermore, negative shifts appear to be interpreted as large positive
-  // shifts (two's complement), which also result in zero. therefore, e does not need to be clamped to [0, 64)
 
   // shift to the left by kExponentBits + 1 to clear the sign and exponent bits
   __m256i shifted_mantissa = _mm256_slli_epi64(a_bits, kExponentBits + 1);
