@@ -402,21 +402,6 @@ struct unpacket_traits<Packet8bf> {
   };
 };
 
-// Work around lack of extract/cvt for epi64 when compiling for 32-bit.
-#if EIGEN_ARCH_x86_64
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_0(const __m128i& a) { return _mm_cvtsi128_si64(a); }
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) { return _mm_extract_epi64(a, 1); }
-#else
-// epi64 instructions are not available.  The following seems to generate the same instructions
-// with -O2 in GCC/Clang.
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_0(const __m128i& a) {
-  return numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_castsi128_pd(a)));
-}
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) {
-  return numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_shuffle_pd(_mm_castsi128_pd(a), _mm_castsi128_pd(a), 0x1)));
-}
-#endif
-
 // Helper function for bit packing snippet of low precision comparison.
 // It packs the flags from 16x16 to 8x16.
 EIGEN_STRONG_INLINE __m128i Pack16To8(Packet8f rf) {
@@ -575,7 +560,7 @@ EIGEN_STRONG_INLINE std::enable_if_t<(N >= 32) && (N < 63), Packet4l> parithmeti
 }
 template <int N>
 EIGEN_STRONG_INLINE std::enable_if_t<(N == 63), Packet4l> parithmetic_shift_right(Packet4l a) {
-  return _mm256_shuffle_epi32(_mm256_srai_epi32(a, 31), (shuffle_mask<1, 1, 3, 3>::mask));
+  return _mm256_cmpgt_epi64(_mm256_setzero_si256(), a);
 }
 template <int N>
 EIGEN_STRONG_INLINE std::enable_if_t<(N < 0) || (N > 63), Packet4l> parithmetic_shift_right(Packet4l a) {
@@ -1817,14 +1802,12 @@ EIGEN_STRONG_INLINE Packet4ul preverse(const Packet4ul& a) {
 // pabs should be ok
 template <>
 EIGEN_STRONG_INLINE Packet8f pabs(const Packet8f& a) {
-  const Packet8f mask = _mm256_castsi256_ps(_mm256_setr_epi32(0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF,
-                                                              0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF));
+  const Packet8f mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
   return _mm256_and_ps(a, mask);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4d pabs(const Packet4d& a) {
-  const Packet4d mask = _mm256_castsi256_pd(_mm256_setr_epi32(0xFFFFFFFF, 0x7FFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF,
-                                                              0xFFFFFFFF, 0x7FFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF));
+  const Packet4d mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x7FFFFFFFFFFFFFFF));
   return _mm256_and_pd(a, mask);
 }
 template <>
@@ -1844,28 +1827,28 @@ EIGEN_STRONG_INLINE Packet8ui pabs(const Packet8ui& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8h psignbit(const Packet8h& a) {
-  return _mm_srai_epi16(a, 15);
+  return _mm_cmpgt_epi16(_mm_setzero_si128(), a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8bf psignbit(const Packet8bf& a) {
-  return _mm_srai_epi16(a, 15);
+  return _mm_cmpgt_epi16(_mm_setzero_si128(), a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8f psignbit(const Packet8f& a) {
-  return _mm256_castsi256_ps(parithmetic_shift_right<31>((Packet8i)_mm256_castps_si256(a)));
+  return _mm256_castsi256_ps(_mm256_cmpgt_epi32(_mm256_setzero_si256(), _mm256_castps_si256(a)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8ui psignbit(const Packet8ui& a) {
-  return pzero(a);
+  return _mm256_setzero_si256();
 }
 #ifdef EIGEN_VECTORIZE_AVX2
 template <>
 EIGEN_STRONG_INLINE Packet4d psignbit(const Packet4d& a) {
-  return _mm256_castsi256_pd(parithmetic_shift_right<63>((Packet4l)_mm256_castpd_si256(a)));
+  return _mm256_castsi256_pd(_mm256_cmpgt_epi64(_mm256_setzero_si256(), _mm256_castpd_si256(a)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ul psignbit(const Packet4ul& a) {
-  return pzero(a);
+  return _mm256_setzero_si256();
 }
 #endif
 
