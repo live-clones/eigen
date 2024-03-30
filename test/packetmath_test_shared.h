@@ -24,7 +24,7 @@ namespace test {
 
 template <typename T>
 T negate(const T& x) {
-  return -x;
+  return T(0) - x;
 }
 
 template <typename T>

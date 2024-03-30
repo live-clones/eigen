@@ -34,11 +34,11 @@ inline T REF_MSUB(const T& a, const T& b, const T& c) {
 }
 template <typename T>
 inline T REF_NMADD(const T& a, const T& b, const T& c) {
-  return (-a * b) + c;
+  return ((T(0) - a) * b) + c;
 }
 template <typename T>
 inline T REF_NMSUB(const T& a, const T& b, const T& c) {
-  return (-a * b) - c;
+  return ((T(0) - a) * b) - c;
 }
 template <typename T>
 inline T REF_DIV(const T& a, const T& b) {
@@ -698,7 +698,7 @@ void packetmath() {
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = numext::abs(internal::random<Scalar>());
     data1[i + PacketSize] = numext::abs(internal::random<Scalar>());
-    data1[i + 2 * PacketSize] = -numext::abs(internal::random<Scalar>());
+    data1[i + 2 * PacketSize] = Scalar(0) - numext::abs(internal::random<Scalar>());
   }
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
     CHECK_CWISE3_IF(true, REF_MSUB, internal::pmsub);
