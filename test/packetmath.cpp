@@ -34,11 +34,11 @@ inline T REF_MSUB(const T& a, const T& b, const T& c) {
 }
 template <typename T>
 inline T REF_NMADD(const T& a, const T& b, const T& c) {
-  return ((T(0) - a) * b) + c;
+  return (test::negate(a) * b) + c;
 }
 template <typename T>
 inline T REF_NMSUB(const T& a, const T& b, const T& c) {
-  return ((T(0) - a) * b) - c;
+  return (test::negate(a) * b) - c;
 }
 template <typename T>
 inline T REF_DIV(const T& a, const T& b) {

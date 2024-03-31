@@ -335,7 +335,7 @@ EIGEN_DEVICE_FUNC inline Packet psub(const Packet& a, const Packet& b) {
 /** \internal \returns -a (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnegate(const Packet& a) {
-  return Packet(0) - a;
+  return numext::negate(a);
 }
 
 template <>
@@ -1119,7 +1119,7 @@ template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2(const Packet& a) {
   using Scalar = typename internal::unpacket_traits<Packet>::type;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  return pmul(pset1<Packet>(RealScalar(EIGEN_LOG2E)), plog(a));
+  return pmul(pset1<Packet>(Scalar(RealScalar(EIGEN_LOG2E))), plog(a));
 }
 
 /** \internal \returns the square-root of \a a (coeff-wise) */

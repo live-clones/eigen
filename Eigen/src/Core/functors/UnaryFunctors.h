@@ -24,7 +24,7 @@ namespace internal {
  */
 template <typename Scalar>
 struct scalar_opposite_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return Scalar(0) - a; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return negate_impl<Scalar>::run(a); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const {
     return internal::pnegate(a);
@@ -457,7 +457,7 @@ template <typename Scalar>
 struct scalar_log2_op {
   using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC inline const Scalar operator()(const Scalar& a) const {
-    return RealScalar(EIGEN_LOG2E) * numext::log(a);
+    return Scalar(RealScalar(EIGEN_LOG2E)) * numext::log(a);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
