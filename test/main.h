@@ -682,8 +682,7 @@ template <typename T, typename U>
 bool test_is_equal(const T& actual, const U& expected, bool expect_equal) {
   if (numext::equal_strict(actual, expected) == expect_equal) return true;
   // false:
-  std::cerr << "\n    actual   = " << +actual << "\n    expected " << (+expect_equal ? "= " : "!=") << +expected
-            << "\n\n";
+  std::cerr << "\n    actual   = " << actual << "\n    expected " << (expect_equal ? "= " : "!=") << expected << "\n\n";
   return false;
 }
 
