@@ -40,7 +40,7 @@ void check_negate() {
     T val = i == 0 ? T(0) : internal::random<T>(T(0), NumTraits<T>::highest());
     T neg_val = numext::negate(val);
     T zero = val + neg_val;
-    VERIFY(internal::is_identically_zero(zero));
+    VERIFY(numext::is_exactly_zero(zero));
   }
 }
 
