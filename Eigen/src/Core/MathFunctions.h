@@ -869,14 +869,19 @@ struct sign_retval {
 // suppress "unary minus operator applied to unsigned type, result still unsigned" warnings on MSVC
 // note: '-a' is distinct from 'Scalar(0) - a' for floating point types
 
-template <typename Scalar, bool IsSigned = NumTraits<Scalar>::IsSigned>
+template <typename Scalar, bool IsInteger = NumTraits<Scalar>::IsInteger>
 struct negate_impl {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return -a; }
 };
 
 template <typename Scalar>
-struct negate_impl<Scalar, false> {
+struct negate_impl<Scalar, true> {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
+};
+
+template <>
+struct negate_impl<bool, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool run(const bool& a) { return !a; }
 };
 
 template <typename Scalar>
