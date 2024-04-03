@@ -155,7 +155,7 @@ struct is_scalar {
 // 2) the packets differ only in sign.
 // In both of these cases, preinterpret (bit_cast) is equivalent to pcast (static_cast)
 template <typename SrcPacket, typename TgtPacket,
-          bool Scalar = is_scalar<SrcPacket>::value&& is_scalar<TgtPacket>::value>
+          bool Scalar = is_scalar<SrcPacket>::value && is_scalar<TgtPacket>::value>
 struct is_degenerate_helper : is_same<SrcPacket, TgtPacket> {};
 template <>
 struct is_degenerate_helper<int8_t, uint8_t, true> : std::true_type {};
