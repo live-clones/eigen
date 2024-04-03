@@ -867,7 +867,7 @@ struct sign_retval {
 };
 
 // suppress "unary minus operator applied to unsigned type, result still unsigned" warnings on MSVC
-// note: '-a' is distinct from 'Scalar(0) - a' for floating point types
+// note: `0 - a` is distinct from `-a` when Scalar is a floating point type and `a` is zero
 
 template <typename Scalar, bool IsInteger = NumTraits<Scalar>::IsInteger>
 struct negate_impl {
@@ -876,12 +876,8 @@ struct negate_impl {
 
 template <typename Scalar>
 struct negate_impl<Scalar, true> {
+  EIGEN_STATIC_ASSERT((!is_same<Scalar,bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
-};
-
-template <>
-struct negate_impl<bool, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool run(const bool& a) { return !a; }
 };
 
 template <typename Scalar>

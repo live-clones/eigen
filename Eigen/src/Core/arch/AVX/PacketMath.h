@@ -2715,12 +2715,6 @@ EIGEN_STRONG_INLINE Packet8bf pconj(const Packet8bf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8bf pnegate(const Packet8bf& a) {
-  Packet8bf sign_mask = _mm_set1_epi16(static_cast<numext::uint16_t>(0x8000));
-  return _mm_xor_si128(a, sign_mask);
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet8bf padd<Packet8bf>(const Packet8bf& a, const Packet8bf& b) {
   return F32ToBf16(padd<Packet8f>(Bf16ToF32(a), Bf16ToF32(b)));
 }

@@ -39,15 +39,9 @@ void check_negate() {
   for (Index i = 0; i < size; i++) {
     T val = i == 0 ? T(0) : internal::random<T>(T(0), NumTraits<T>::highest());
     T neg_val = numext::negate(val);
-    T zero = val + neg_val;
-    VERIFY(numext::is_exactly_zero(zero));
+    VERIFY_IS_EQUAL(T(val + neg_val), T(0));
+    VERIFY_IS_EQUAL(numext::negate(neg_val), val);
   }
-}
-
-template <>
-void check_negate<bool>() {
-  VERIFY_IS_EQUAL(numext::negate(true), false);
-  VERIFY_IS_EQUAL(numext::negate(false), true);
 }
 
 template <typename T>
@@ -61,13 +55,22 @@ void check_abs() {
 
   for (int k = 0; k < 100; ++k) {
     T x = internal::random<T>();
-    if (!internal::is_same<T, bool>::value) x = x / Real(2);
+    x = x / Real(2);
     if (NumTraits<T>::IsSigned) {
       VERIFY_IS_EQUAL(numext::abs(x), numext::abs(numext::negate(x)));
       VERIFY(numext::abs(numext::negate(x)) >= zero);
     }
     VERIFY(numext::abs(x) >= zero);
     VERIFY_IS_APPROX(numext::abs2(x), numext::abs2(numext::abs(x)));
+  }
+}
+
+template <>
+void check_abs<bool>() {
+  for (bool x : {true, false}) {
+    VERIFY_IS_EQUAL(numext::abs(x), x);
+    VERIFY(numext::abs(x) >= false);
+    VERIFY_IS_EQUAL(numext::abs2(x), numext::abs2(numext::abs(x)));
   }
 }
 
@@ -291,7 +294,6 @@ void check_signbit() {
 
 EIGEN_DECLARE_TEST(numext) {
   for (int k = 0; k < g_repeat; ++k) {
-    CALL_SUBTEST(check_negate<bool>());
     CALL_SUBTEST(check_negate<signed char>());
     CALL_SUBTEST(check_negate<unsigned char>());
     CALL_SUBTEST(check_negate<short>());
