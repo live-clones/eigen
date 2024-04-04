@@ -1291,13 +1291,13 @@ EIGEN_DEVICE_FUNC inline Packet pmsub(const Packet& a, const Packet& b, const Pa
 /** \internal \returns -(a * b) + c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
-  return padd(pnegate(pmul(a, b)), c);
+  return psub(c, pmul(a, b));
 }
 
 /** \internal \returns -(a * b) - c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
-  return psub(pnegate(pmul(a, b)), c);
+  return pnegate(pmadd(a, b, c));
 }
 
 /** \internal copy a packet with constant coefficient \a a (e.g., [a,a,a,a]) to \a *to. \a to must be 16 bytes aligned
