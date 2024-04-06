@@ -1019,7 +1019,6 @@ EIGEN_STRONG_INLINE Packet16f ploaddup<Packet16f>(const float* from) {
   return pairs;
 }
 
-
 // Loads 4 doubles from memory a returns the packet {a0, a0,  a1, a1, a2, a2, a3,
 // a3}
 template <>
@@ -1813,7 +1812,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16f, 4>& kernel) {
   OUTPUT[INDEX] = _mm512_insertf64x4(OUTPUT[INDEX], INPUT[(2 * INDEX)], 0); \
   OUTPUT[INDEX] = _mm512_insertf64x4(OUTPUT[INDEX], INPUT[(2 * INDEX) + STRIDE], 1);
 
-#define PACK_OUTPUT_L(OUTPUT, INPUT, INDEX, STRIDE)                     \
+#define PACK_OUTPUT_L(OUTPUT, INPUT, INDEX, STRIDE)                         \
   OUTPUT[INDEX] = _mm512_inserti64x4(OUTPUT[INDEX], INPUT[(2 * INDEX)], 0); \
   OUTPUT[INDEX] = _mm512_inserti64x4(OUTPUT[INDEX], INPUT[(2 * INDEX) + STRIDE], 1);
 
@@ -1896,10 +1895,14 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet8d, 8>& kernel) {
 }
 
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet8l, 4>& kernel) {
-  __m512i T0 = _mm512_castpd_si512(_mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[0]), _mm512_castsi512_pd(kernel.packet[1]), 0));
-  __m512i T1 = _mm512_castpd_si512(_mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[0]), _mm512_castsi512_pd(kernel.packet[1]), 0xff));
-  __m512i T2 = _mm512_castpd_si512(_mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[2]), _mm512_castsi512_pd(kernel.packet[3]), 0));
-  __m512i T3 = _mm512_castpd_si512(_mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[2]), _mm512_castsi512_pd(kernel.packet[3]), 0xff));
+  __m512i T0 = _mm512_castpd_si512(
+      _mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[0]), _mm512_castsi512_pd(kernel.packet[1]), 0));
+  __m512i T1 = _mm512_castpd_si512(
+      _mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[0]), _mm512_castsi512_pd(kernel.packet[1]), 0xff));
+  __m512i T2 = _mm512_castpd_si512(
+      _mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[2]), _mm512_castsi512_pd(kernel.packet[3]), 0));
+  __m512i T3 = _mm512_castpd_si512(
+      _mm512_shuffle_pd(_mm512_castsi512_pd(kernel.packet[2]), _mm512_castsi512_pd(kernel.packet[3]), 0xff));
 
   PacketBlock<Packet4l, 8> tmp;
 
