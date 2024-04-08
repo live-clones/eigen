@@ -35,7 +35,6 @@ typedef __m512 Packet16f;
 typedef __m512i Packet16i;
 typedef __m512d Packet8d;
 typedef eigen_packet_wrapper<__m512i, 1> Packet8l;
-// TODO(rmlarsen): Add support for Packet8l.
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 typedef eigen_packet_wrapper<__m256i, 1> Packet16h;
 #endif
@@ -1097,11 +1096,11 @@ EIGEN_STRONG_INLINE void pstore<double>(double* to, const Packet8d& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int>(int* to, const Packet16i& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm512_storeu_si512(reinterpret_cast<__m512i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm512_store_si512(reinterpret_cast<__m512i*>(to), from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int64_t>(int64_t* to, const Packet8l& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm512_storeu_si512(reinterpret_cast<__m512i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm512_store_si512(reinterpret_cast<__m512i*>(to), from);
 }
 
 template <>
