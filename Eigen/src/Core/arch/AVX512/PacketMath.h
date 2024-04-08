@@ -1267,19 +1267,19 @@ EIGEN_STRONG_INLINE void prefetch<int>(const int* addr) {
 
 template <>
 EIGEN_STRONG_INLINE float pfirst<Packet16f>(const Packet16f& a) {
-  return _mm_cvtss_f32(_mm512_extractf32x4_ps(a, 0));
+  return _mm512_cvtss_f32(a);
 }
 template <>
 EIGEN_STRONG_INLINE double pfirst<Packet8d>(const Packet8d& a) {
-  return _mm_cvtsd_f64(_mm256_extractf128_pd(_mm512_extractf64x4_pd(a, 0), 0));
+  return _mm512_cvtsd_f64(a);
 }
 template <>
 EIGEN_STRONG_INLINE int64_t pfirst<Packet8l>(const Packet8l& a) {
-  return _mm_extract_epi64(_mm512_extracti32x4_epi32(a, 0), 0);
+  return _mm_cvtsi128_si64x(_mm512_extracti32x4_epi32(a, 0));
 }
 template <>
 EIGEN_STRONG_INLINE int pfirst<Packet16i>(const Packet16i& a) {
-  return _mm_extract_epi32(_mm512_extracti32x4_epi32(a, 0), 0);
+  return _mm512_cvtsi512_si32(a);
 }
 
 template <>
