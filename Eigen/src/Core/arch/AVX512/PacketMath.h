@@ -1464,27 +1464,12 @@ EIGEN_STRONG_INLINE double predux<Packet8d>(const Packet8d& a) {
 
 template <>
 EIGEN_STRONG_INLINE int64_t predux<Packet8l>(const Packet8l& a) {
-  __m256i lane0 = _mm512_extracti64x4_epi64(a, 0);
-  __m256i lane1 = _mm512_extracti64x4_epi64(a, 1);
-  __m256i sum = _mm256_add_epi64(lane0, lane1);
-  return predux<Packet4l>(sum);
+  return _mm512_reduce_add_epi64(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE int predux<Packet16i>(const Packet16i& a) {
-#ifdef EIGEN_VECTORIZE_AVX512DQ
-  __m256i lane0 = _mm512_extracti32x8_epi32(a, 0);
-  __m256i lane1 = _mm512_extracti32x8_epi32(a, 1);
-  Packet8i x = _mm256_add_epi32(lane0, lane1);
-  return predux<Packet8i>(x);
-#else
-  __m128i lane0 = _mm512_extracti32x4_epi32(a, 0);
-  __m128i lane1 = _mm512_extracti32x4_epi32(a, 1);
-  __m128i lane2 = _mm512_extracti32x4_epi32(a, 2);
-  __m128i lane3 = _mm512_extracti32x4_epi32(a, 3);
-  __m128i sum = _mm_add_epi32(_mm_add_epi32(lane0, lane1), _mm_add_epi32(lane2, lane3));
-  return predux<Packet4i>(sum);
-#endif
+  return _mm512_reduce_add_epi32(a);
 }
 
 template <>
