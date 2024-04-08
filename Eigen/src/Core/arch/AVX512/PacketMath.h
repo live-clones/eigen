@@ -10,11 +10,6 @@
 #ifndef EIGEN_PACKET_MATH_AVX512_H
 #define EIGEN_PACKET_MATH_AVX512_H
 
-#if EIGEN_COMP_MSVC
-#include <intrin.h>
-#endif
-#include <immintrin.h>
-
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
@@ -1280,7 +1275,8 @@ EIGEN_STRONG_INLINE double pfirst<Packet8d>(const Packet8d& a) {
 }
 template <>
 EIGEN_STRONG_INLINE int64_t pfirst<Packet8l>(const Packet8l& a) {
-  return _mm_cvtsi128_si64x(_mm512_extracti32x4_epi32(a, 0));
+  int64_t x = _mm_extract_epi64_0(_mm512_extracti32x4_epi32(a, 0));
+  return x;
 }
 template <>
 EIGEN_STRONG_INLINE int pfirst<Packet16i>(const Packet16i& a) {
