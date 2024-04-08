@@ -1275,7 +1275,7 @@ EIGEN_STRONG_INLINE double pfirst<Packet8d>(const Packet8d& a) {
 }
 template <>
 EIGEN_STRONG_INLINE int64_t pfirst<Packet8l>(const Packet8l& a) {
-  return _mm256_extract_epi64(_mm512_extracti64x4_epi64(a, 0), 0);
+  return _mm_extract_epi64(_mm512_extracti32x4_epi32(a, 0), 0);
 }
 template <>
 EIGEN_STRONG_INLINE int pfirst<Packet16i>(const Packet16i& a) {
