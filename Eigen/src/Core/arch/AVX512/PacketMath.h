@@ -13,6 +13,7 @@
 #if EIGEN_COMP_MSVC
 #include <intrin.h>
 #endif
+#include <immintrin.h>
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
