@@ -10,6 +10,10 @@
 #ifndef EIGEN_PACKET_MATH_AVX512_H
 #define EIGEN_PACKET_MATH_AVX512_H
 
+#if EIGEN_COMP_MSVC
+#include <intrin.h>
+#endif
+
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
