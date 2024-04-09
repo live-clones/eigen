@@ -1251,6 +1251,11 @@ EIGEN_STRONG_INLINE void pstore1<Packet16i>(int* to, const int& a) {
   Packet16i pa = pset1<Packet16i>(a);
   pstore(to, pa);
 }
+template <>
+EIGEN_STRONG_INLINE void pstore1<Packet8l>(int64_t* to, const int64_t& a) {
+  Packet8l pa = pset1<Packet8l>(a);
+  pstore(to, pa);
+}
 
 template <>
 EIGEN_STRONG_INLINE void prefetch<float>(const float* addr) {
@@ -1547,6 +1552,14 @@ EIGEN_STRONG_INLINE double predux_mul<Packet8d>(const Packet8d& a) {
   res = pmul(res, _mm256_permute2f128_pd(res, res, 1));
   return pfirst(pmul(res, _mm256_shuffle_pd(res, res, 1)));
 }
+template <>
+EIGEN_STRONG_INLINE int predux_mul<Packet16i>(const Packet16i& a) {
+  return _mm512_reduce_mul_epi32(a);
+}
+template <>
+EIGEN_STRONG_INLINE int64_t predux_mul<Packet8l>(const Packet8l& a) {
+  return _mm512_reduce_mul_epi64(a);
+}
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<Packet16f>(const Packet16f& a) {
@@ -1565,6 +1578,14 @@ EIGEN_STRONG_INLINE double predux_min<Packet8d>(const Packet8d& a) {
   __m256d res = _mm256_min_pd(lane0, lane1);
   res = _mm256_min_pd(res, _mm256_permute2f128_pd(res, res, 1));
   return pfirst(_mm256_min_pd(res, _mm256_shuffle_pd(res, res, 1)));
+}
+template <>
+EIGEN_STRONG_INLINE int predux_min<Packet16i>(const Packet16i& a) {
+  return _mm512_reduce_min_epi32(a);
+}
+template <>
+EIGEN_STRONG_INLINE int64_t predux_min<Packet8l>(const Packet8l& a) {
+  return _mm512_reduce_min_epi64(a);
 }
 
 template <>
@@ -1585,6 +1606,14 @@ EIGEN_STRONG_INLINE double predux_max<Packet8d>(const Packet8d& a) {
   __m256d res = _mm256_max_pd(lane0, lane1);
   res = _mm256_max_pd(res, _mm256_permute2f128_pd(res, res, 1));
   return pfirst(_mm256_max_pd(res, _mm256_shuffle_pd(res, res, 1)));
+}
+template <>
+EIGEN_STRONG_INLINE int predux_max<Packet16i>(const Packet16i& a) {
+  return _mm512_reduce_max_epi32(a);
+}
+template <>
+EIGEN_STRONG_INLINE int64_t predux_max<Packet8l>(const Packet8l& a) {
+  return _mm512_reduce_max_epi64(a);
 }
 
 template <>
