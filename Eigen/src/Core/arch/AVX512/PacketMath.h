@@ -1012,7 +1012,7 @@ template <>
 EIGEN_STRONG_INLINE Packet16f ploaddup<Packet16f>(const float* from) {
   // an unaligned load is required here as there is no requirement
   // on the alignment of input pointer 'from'
-  __m256i low_half = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(from));
+  __m256i low_half = _mm256_castps_si256(_mm256_loadu_ps(from));
   __m512 even_elements = _mm512_castsi512_ps(_mm512_cvtepu32_epi64(low_half));
   __m512 pairs = _mm512_permute_ps(even_elements, _MM_SHUFFLE(2, 2, 0, 0));
   return pairs;
@@ -1040,7 +1040,7 @@ EIGEN_STRONG_INLINE Packet8l ploaddup<Packet8l>(const int64_t* from) {
 // {a0, a0  a1, a1, a2, a2, a3, a3, a4, a4, a5, a5, a6, a6, a7, a7}
 template <>
 EIGEN_STRONG_INLINE Packet16i ploaddup<Packet16i>(const int* from) {
-  __m256i low_half = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(from));
+  __m256i low_half = _mm256_load_si256(reinterpret_cast<const __m256i*>(from));
   __m512 even_elements = _mm512_castsi512_ps(_mm512_cvtepu32_epi64(low_half));
   __m512 pairs = _mm512_permute_ps(even_elements, _MM_SHUFFLE(2, 2, 0, 0));
   return _mm512_castps_si512(pairs);
@@ -1096,11 +1096,11 @@ EIGEN_STRONG_INLINE void pstore<double>(double* to, const Packet8d& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int>(int* to, const Packet16i& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm512_store_si512(reinterpret_cast<__m512i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm512_store_epi32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int64_t>(int64_t* to, const Packet8l& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm512_store_si512(reinterpret_cast<__m512i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm512_store_epi64(to, from);
 }
 
 template <>
@@ -1113,11 +1113,11 @@ EIGEN_STRONG_INLINE void pstoreu<double>(double* to, const Packet8d& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<int>(int* to, const Packet16i& from) {
-  EIGEN_DEBUG_UNALIGNED_STORE _mm512_storeu_si512(reinterpret_cast<__m512i*>(to), from);
+  EIGEN_DEBUG_UNALIGNED_STORE _mm512_storeu_epi32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<int64_t>(int64_t* to, const Packet8l& from) {
-  EIGEN_DEBUG_UNALIGNED_STORE _mm512_storeu_si512(reinterpret_cast<__m512i*>(to), from);
+  EIGEN_DEBUG_UNALIGNED_STORE _mm512_storeu_epi64(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet16f& from, uint16_t umask) {
