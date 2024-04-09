@@ -87,8 +87,9 @@ EIGEN_STRONG_INLINE Packet8l pcast<Packet8d, Packet8l>(const Packet8d& a) {
 #else
   EIGEN_ALIGN16 double aux[8];
   pstore(aux, a);
-  return _mm512_set_epi64(static_cast<int64_t>(aux[7]), static_cast<int64_t>(aux[6]), static_cast<int64_t>(aux[5]), static_cast<int64_t>(aux[4]),
-                          static_cast<int64_t>(aux[3]), static_cast<int64_t>(aux[2]), static_cast<int64_t>(aux[1]), static_cast<int64_t>(aux[0]));
+  return _mm512_set_epi64(static_cast<int64_t>(aux[7]), static_cast<int64_t>(aux[6]), static_cast<int64_t>(aux[5]),
+                          static_cast<int64_t>(aux[4]), static_cast<int64_t>(aux[3]), static_cast<int64_t>(aux[2]),
+                          static_cast<int64_t>(aux[1]), static_cast<int64_t>(aux[0]));
 #endif
 }
 
@@ -114,8 +115,9 @@ EIGEN_STRONG_INLINE Packet8d pcast<Packet8l, Packet8d>(const Packet8l& a) {
 #else
   EIGEN_ALIGN16 int64_t aux[8];
   pstore(aux, a);
-  return _mm512_set_pd(static_cast<double>(aux[7]), static_cast<double>(aux[6]), static_cast<double>(aux[5]), static_cast<double>(aux[4]),
-                       static_cast<double>(aux[3]), static_cast<double>(aux[2]), static_cast<double>(aux[1]), static_cast<double>(aux[0]));
+  return _mm512_set_pd(static_cast<double>(aux[7]), static_cast<double>(aux[6]), static_cast<double>(aux[5]),
+                       static_cast<double>(aux[4]), static_cast<double>(aux[3]), static_cast<double>(aux[2]),
+                       static_cast<double>(aux[1]), static_cast<double>(aux[0]));
 #endif
 }
 
