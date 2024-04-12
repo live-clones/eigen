@@ -1294,7 +1294,7 @@ EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const P
   return psub(c, pmul(a, b));
 }
 
-/** \internal \returns -(a * b) - c (coeff-wise) */
+/** \internal \returns -((a * b + c) (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
   return pnegate(pmadd(a, b, c));
