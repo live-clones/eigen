@@ -3,6 +3,11 @@ cmake_minimum_required(VERSION 3.10.0)
 #==============================================================================
 # CMake Policy issues.
 #==============================================================================
+# Allow overriding options in a parent project via `set` before including Eigen.
+if (POLICY CMP0077)
+  cmake_policy (SET CMP0077 NEW)
+endif (POLICY CMP0077)
+
 # NOTE Remove setting the policy once the minimum required CMake version is
 # increased to at least 3.15. Retain enabling the export to package registry.
 if (POLICY CMP0090)
@@ -60,7 +65,7 @@ if (EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK)
     set(EIGEN_BUILD_LAPACK OFF)
   else()
     # Determine if we should build shared libraries for BLAS/LAPACK on this platform.
-    get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS) 
+    get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
   endif()
 endif()
 
@@ -146,104 +151,109 @@ set(Eigen_BINARY_DIR ${Eigen3_BINARY_DIR})
 # Install Configuration.
 #==============================================================================
 
-# Configure install settings only if top level.
-if (PROJECT_IS_TOP_LEVEL)
-  include(GNUInstallDirs)
-  # Backward compatibility support for EIGEN_INCLUDE_INSTALL_DIR
-  if(EIGEN_INCLUDE_INSTALL_DIR)
-    message(WARNING "EIGEN_INCLUDE_INSTALL_DIR is deprecated. Use INCLUDE_INSTALL_DIR instead.")
-  endif()
+# Unconditionally allow install of targets to support nested dependency
+# installations.
+#
+# Note: projects that depend on Eigen should _probably_ exclude installing
+# Eigen by default (e.g. by using EXCLUDE_FROM_ALL when using
+# FetchContent_Declare or add_subdirectory) to avoid overwriting a previous
+# installation.
 
-  if(EIGEN_INCLUDE_INSTALL_DIR AND NOT INCLUDE_INSTALL_DIR)
-    set(INCLUDE_INSTALL_DIR ${EIGEN_INCLUDE_INSTALL_DIR}
-        CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where Eigen header files are installed")
-  else()
-    set(INCLUDE_INSTALL_DIR
-        "${CMAKE_INSTALL_INCLUDEDIR}/eigen3"
-        CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where Eigen header files are installed"
-        )
-  endif()
-  set(CMAKEPACKAGE_INSTALL_DIR
-      "${CMAKE_INSTALL_DATADIR}/eigen3/cmake"
-      CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where Eigen3Config.cmake is installed"
+include(GNUInstallDirs)
+# Backward compatibility support for EIGEN_INCLUDE_INSTALL_DIR
+if(EIGEN_INCLUDE_INSTALL_DIR)
+  message(WARNING "EIGEN_INCLUDE_INSTALL_DIR is deprecated. Use INCLUDE_INSTALL_DIR instead.")
+endif()
+
+if(EIGEN_INCLUDE_INSTALL_DIR AND NOT INCLUDE_INSTALL_DIR)
+  set(INCLUDE_INSTALL_DIR ${EIGEN_INCLUDE_INSTALL_DIR}
+      CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where Eigen header files are installed")
+else()
+  set(INCLUDE_INSTALL_DIR
+      "${CMAKE_INSTALL_INCLUDEDIR}/eigen3"
+      CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where Eigen header files are installed"
       )
-  set(PKGCONFIG_INSTALL_DIR
-      "${CMAKE_INSTALL_DATADIR}/pkgconfig"
-      CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where eigen3.pc is installed"
-      )
-
-  foreach(var INCLUDE_INSTALL_DIR CMAKEPACKAGE_INSTALL_DIR PKGCONFIG_INSTALL_DIR)
-    # If an absolute path is specified, make it relative to "{CMAKE_INSTALL_PREFIX}".
-    if(IS_ABSOLUTE "${${var}}")
-      file(RELATIVE_PATH "${var}" "${CMAKE_INSTALL_PREFIX}" "${${var}}")
-    endif()
-  endforeach()
-
-  install(FILES
-    signature_of_eigen3_matrix_library
-    DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel
+endif()
+set(CMAKEPACKAGE_INSTALL_DIR
+    "${CMAKE_INSTALL_DATADIR}/eigen3/cmake"
+    CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where Eigen3Config.cmake is installed"
+    )
+set(PKGCONFIG_INSTALL_DIR
+    "${CMAKE_INSTALL_DATADIR}/pkgconfig"
+    CACHE PATH "The directory relative to CMAKE_INSTALL_PREFIX where eigen3.pc is installed"
     )
 
-  if(EIGEN_BUILD_PKGCONFIG)
-      configure_file(eigen3.pc.in eigen3.pc @ONLY)
-      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/eigen3.pc
-          DESTINATION ${PKGCONFIG_INSTALL_DIR})
+foreach(var INCLUDE_INSTALL_DIR CMAKEPACKAGE_INSTALL_DIR PKGCONFIG_INSTALL_DIR)
+  # If an absolute path is specified, make it relative to "{CMAKE_INSTALL_PREFIX}".
+  if(IS_ABSOLUTE "${${var}}")
+    file(RELATIVE_PATH "${var}" "${CMAKE_INSTALL_PREFIX}" "${${var}}")
   endif()
+endforeach()
 
-  install(DIRECTORY Eigen DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
+install(FILES
+  signature_of_eigen3_matrix_library
+  DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel
+  )
 
-  install(TARGETS eigen EXPORT Eigen3Targets)
+if(EIGEN_BUILD_PKGCONFIG)
+    configure_file(eigen3.pc.in eigen3.pc @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/eigen3.pc
+        DESTINATION ${PKGCONFIG_INSTALL_DIR})
+endif()
 
-  if(EIGEN_BUILD_CMAKE_PACKAGE)
-    include (CMakePackageConfigHelpers)
-    configure_package_config_file (
-      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Eigen3Config.cmake.in
-      ${CMAKE_CURRENT_BINARY_DIR}/Eigen3Config.cmake
-      INSTALL_DESTINATION ${CMAKEPACKAGE_INSTALL_DIR}
-      NO_SET_AND_CHECK_MACRO # Eigen does not provide legacy style defines
-      NO_CHECK_REQUIRED_COMPONENTS_MACRO # Eigen does not provide components
-    )
+install(DIRECTORY Eigen DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
 
-    # NOTE Remove the first code path once the minimum required CMake version is
-    # bumped to 3.14 or above.
-    if (CMAKE_VERSION VERSION_LESS 3.14)
-      # Remove CMAKE_SIZEOF_VOID_P from Eigen3ConfigVersion.cmake since Eigen does
-      # not depend on architecture specific settings or libraries. More
-      # specifically, an Eigen3Config.cmake generated from a 64 bit target can be
-      # used for 32 bit targets as well (and vice versa).
-      set (_Eigen3_CMAKE_SIZEOF_VOID_P ${CMAKE_SIZEOF_VOID_P})
-      unset (CMAKE_SIZEOF_VOID_P)
-      write_basic_package_version_file (Eigen3ConfigVersion.cmake
-                                        VERSION ${EIGEN_VERSION_NUMBER}
-                                        COMPATIBILITY SameMajorVersion)
-      set (CMAKE_SIZEOF_VOID_P ${_Eigen3_CMAKE_SIZEOF_VOID_P})
-    else (CMAKE_VERSION VERSION_LESS 3.14)
-      write_basic_package_version_file (Eigen3ConfigVersion.cmake
-                                        VERSION ${EIGEN_VERSION_NUMBER}
-                                        COMPATIBILITY SameMajorVersion
-                                        ARCH_INDEPENDENT)
-    endif (CMAKE_VERSION VERSION_LESS 3.14)
+install(TARGETS eigen EXPORT Eigen3Targets)
 
-    # The Eigen target will be located in the Eigen3 namespace. Other CMake
-    # targets can refer to it using Eigen3::Eigen.
-    export (TARGETS eigen NAMESPACE Eigen3:: FILE Eigen3Targets.cmake)
-    # Export Eigen3 package to CMake registry such that it can be easily found by
-    # CMake even if it has not been installed to a standard directory.
-    export (PACKAGE Eigen3)
+if(EIGEN_BUILD_CMAKE_PACKAGE)
+  include (CMakePackageConfigHelpers)
+  configure_package_config_file (
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Eigen3Config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Eigen3Config.cmake
+    INSTALL_DESTINATION ${CMAKEPACKAGE_INSTALL_DIR}
+    NO_SET_AND_CHECK_MACRO # Eigen does not provide legacy style defines
+    NO_CHECK_REQUIRED_COMPONENTS_MACRO # Eigen does not provide components
+  )
 
-    install (EXPORT Eigen3Targets NAMESPACE Eigen3:: DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
+  # NOTE Remove the first code path once the minimum required CMake version is
+  # bumped to 3.14 or above.
+  if (CMAKE_VERSION VERSION_LESS 3.14)
+    # Remove CMAKE_SIZEOF_VOID_P from Eigen3ConfigVersion.cmake since Eigen does
+    # not depend on architecture specific settings or libraries. More
+    # specifically, an Eigen3Config.cmake generated from a 64 bit target can be
+    # used for 32 bit targets as well (and vice versa).
+    set (_Eigen3_CMAKE_SIZEOF_VOID_P ${CMAKE_SIZEOF_VOID_P})
+    unset (CMAKE_SIZEOF_VOID_P)
+    write_basic_package_version_file (Eigen3ConfigVersion.cmake
+                                      VERSION ${EIGEN_VERSION_NUMBER}
+                                      COMPATIBILITY SameMajorVersion)
+    set (CMAKE_SIZEOF_VOID_P ${_Eigen3_CMAKE_SIZEOF_VOID_P})
+  else (CMAKE_VERSION VERSION_LESS 3.14)
+    write_basic_package_version_file (Eigen3ConfigVersion.cmake
+                                      VERSION ${EIGEN_VERSION_NUMBER}
+                                      COMPATIBILITY SameMajorVersion
+                                      ARCH_INDEPENDENT)
+  endif (CMAKE_VERSION VERSION_LESS 3.14)
 
-    install (FILES ${CMAKE_CURRENT_BINARY_DIR}/Eigen3Config.cmake
-                  ${CMAKE_CURRENT_BINARY_DIR}/Eigen3ConfigVersion.cmake
-            DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
+  # The Eigen target will be located in the Eigen3 namespace. Other CMake
+  # targets can refer to it using Eigen3::Eigen.
+  export (TARGETS eigen NAMESPACE Eigen3:: FILE Eigen3Targets.cmake)
+  # Export Eigen3 package to CMake registry such that it can be easily found by
+  # CMake even if it has not been installed to a standard directory.
+  export (PACKAGE Eigen3)
 
-    # Add uninstall target
-    if(NOT TARGET uninstall)
-      add_custom_target ( uninstall
-          COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EigenUninstall.cmake)
-    endif()
+  install (EXPORT Eigen3Targets NAMESPACE Eigen3:: DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
+
+  install (FILES ${CMAKE_CURRENT_BINARY_DIR}/Eigen3Config.cmake
+                ${CMAKE_CURRENT_BINARY_DIR}/Eigen3ConfigVersion.cmake
+          DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
+
+  # Add uninstall target
+  if(NOT TARGET uninstall)
+    add_custom_target ( uninstall
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EigenUninstall.cmake)
   endif()
-endif(PROJECT_IS_TOP_LEVEL)
+endif()
 
 #==============================================================================
 # General Build Configuration.
@@ -674,7 +684,7 @@ if (EIGEN_BUILD_TESTING)
 
   if (EIGEN_SPLIT_TESTSUITE)
     ei_split_testsuite("${EIGEN_SPLIT_TESTSUITE}")
-  endif() 
+  endif()
 endif(EIGEN_BUILD_TESTING)
 
 #==============================================================================

@@ -1,10 +1,8 @@
-if (PROJECT_IS_TOP_LEVEL)
-  set(Eigen_CXX11_HEADERS Tensor TensorSymmetry ThreadPool)
+set(Eigen_CXX11_HEADERS Tensor TensorSymmetry ThreadPool)
 
-  install(FILES
-    ${Eigen_CXX11_HEADERS}
-    DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen/CXX11 COMPONENT Devel
-    )
+install(FILES
+  ${Eigen_CXX11_HEADERS}
+  DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen/CXX11 COMPONENT Devel
+  )
 
-  install(DIRECTORY src DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen/CXX11 COMPONENT Devel FILES_MATCHING PATTERN "*.h")
-endif()
+install(DIRECTORY src DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen/CXX11 COMPONENT Devel FILES_MATCHING PATTERN "*.h")
