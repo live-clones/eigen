@@ -1401,6 +1401,12 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet, 1>& /*kernel*/) {
 template <size_t N>
 struct Selector {
   bool select[N];
+  template<typename MaskType = int>
+  MaskType mask(size_t begin = 0, size_t end = N) const {
+    MaskType res = 0;
+    for (size_t i = begin; i < end; i++) res |= (static_cast<MaskType>(select[i]) << i);
+    return res;
+  }
 };
 
 template <typename Packet>
