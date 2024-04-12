@@ -724,7 +724,6 @@ void packetmath() {
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = numext::abs(internal::random<Scalar>());
     data1[i + PacketSize] = numext::abs(internal::random<Scalar>());
-    //data1[i + 2 * PacketSize] = numext::negate(numext::abs(internal::random<Scalar>()));
     data1[i + 2 * PacketSize] = Scalar(0) - numext::abs(internal::random<Scalar>());
   }
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
