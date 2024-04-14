@@ -166,14 +166,6 @@ EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) {
 }
 #endif
 
-template <size_t N>
-EIGEN_STRONG_INLINE int blend_mask_16(const Selector<N>& ifPacket) {
-  alignas(__m128i) uint8_t aux[sizeof(__m128i)];
-  for (size_t i = 0; i < N; i++) aux[i] = static_cast<uint8_t>(ifPacket.select[i]);
-  __m128i paux = _mm_sub_epi8(_mm_setzero_si128(), _mm_load_si128(reinterpret_cast<const __m128i*>(aux)));
-  return _mm_movemask_epi8(paux);
-}
-
 // Use the packet_traits defined in AVX/PacketMath.h instead if we're going
 // to leverage AVX instructions.
 #ifndef EIGEN_VECTORIZE_AVX
