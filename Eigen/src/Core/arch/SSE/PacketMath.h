@@ -2261,15 +2261,15 @@ template <>
 EIGEN_STRONG_INLINE Packet4f pblend(const Selector<4>& ifPacket, const Packet4f& thenPacket,
                                     const Packet4f& elsePacket) {
   const __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m128 true_mask = _mm_castsi128_ps(_mm_sub_epi32(_mm_setzero_si128(), select));
-  return pselect<Packet4f>(true_mask, thenPacket, elsePacket);
+  const __m128i true_mask = _mm_sub_epi32(_mm_setzero_si128(), select);
+  return pselect<Packet4f>(_mm_castsi128_ps(true_mask), thenPacket, elsePacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, const Packet2d& thenPacket,
                                     const Packet2d& elsePacket) {
   const __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
-  const __m128d true_mask = _mm_castsi128_pd(_mm_sub_epi64(_mm_setzero_si128(), select));
-  return pselect<Packet2d>(true_mask, thenPacket, elsePacket);
+  const __m128i true_mask = _mm_sub_epi64(_mm_setzero_si128(), select);
+  return pselect<Packet2d>(_mm_castsi128_pd(true_mask), thenPacket, elsePacket);
 }
 
 // Scalar path for pmadd with FMA to ensure consistency with vectorized path.
