@@ -166,6 +166,14 @@ EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) {
 }
 #endif
 
+template <size_t N>
+EIGEN_STRONG_INLINE int blend_mask_16(const Selector<N>& ifPacket) {
+  alignas(__m128i) uint8_t aux[sizeof(__m128i)];
+  for (size_t i = 0; i < N; i++) aux[i] = static_cast<uint8_t>(ifPacket.select[i]);
+  __m128i paux = _mm_sub_epi8(_mm_setzero_si128(), _mm_load_si128(reinterpret_cast<const __m128i*>(aux)));
+  return _mm_movemask_epi8(paux);
+}
+
 // Use the packet_traits defined in AVX/PacketMath.h instead if we're going
 // to leverage AVX instructions.
 #ifndef EIGEN_VECTORIZE_AVX
@@ -2233,26 +2241,16 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
 template <>
 EIGEN_STRONG_INLINE Packet2l pblend(const Selector<2>& ifPacket, const Packet2l& thenPacket,
                                     const Packet2l& elsePacket) {
-  const __m128i zero = _mm_setzero_si128();
   const __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
-  __m128i false_mask = pcmp_eq<Packet2l>(select, zero);
-#ifdef EIGEN_VECTORIZE_SSE4_1
-  return _mm_blendv_epi8(thenPacket, elsePacket, false_mask);
-#else
-  return _mm_or_si128(_mm_andnot_si128(false_mask, thenPacket), _mm_and_si128(false_mask, elsePacket));
-#endif
+  const __m128i true_mask = _mm_sub_epi64(_mm_setzero_si128(), select);
+  return pselect<Packet2l>(true_mask, thenPacket, elsePacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i pblend(const Selector<4>& ifPacket, const Packet4i& thenPacket,
                                     const Packet4i& elsePacket) {
-  const __m128i zero = _mm_setzero_si128();
   const __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  __m128i false_mask = _mm_cmpeq_epi32(select, zero);
-#ifdef EIGEN_VECTORIZE_SSE4_1
-  return _mm_blendv_epi8(thenPacket, elsePacket, false_mask);
-#else
-  return _mm_or_si128(_mm_andnot_si128(false_mask, thenPacket), _mm_and_si128(false_mask, elsePacket));
-#endif
+  const __m128i true_mask = _mm_sub_epi32(_mm_setzero_si128(), select);
+  return pselect<Packet4i>(true_mask, thenPacket, elsePacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ui pblend(const Selector<4>& ifPacket, const Packet4ui& thenPacket,
@@ -2262,26 +2260,16 @@ EIGEN_STRONG_INLINE Packet4ui pblend(const Selector<4>& ifPacket, const Packet4u
 template <>
 EIGEN_STRONG_INLINE Packet4f pblend(const Selector<4>& ifPacket, const Packet4f& thenPacket,
                                     const Packet4f& elsePacket) {
-  const __m128 zero = _mm_setzero_ps();
-  const __m128 select = _mm_set_ps(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  __m128 false_mask = _mm_cmpeq_ps(select, zero);
-#ifdef EIGEN_VECTORIZE_SSE4_1
-  return _mm_blendv_ps(thenPacket, elsePacket, false_mask);
-#else
-  return _mm_or_ps(_mm_andnot_ps(false_mask, thenPacket), _mm_and_ps(false_mask, elsePacket));
-#endif
+  const __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  const __m128 true_mask = _mm_castsi128_ps(_mm_sub_epi32(_mm_setzero_si128(), select));
+  return pselect<Packet4f>(true_mask, thenPacket, elsePacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, const Packet2d& thenPacket,
                                     const Packet2d& elsePacket) {
-  const __m128d zero = _mm_setzero_pd();
-  const __m128d select = _mm_set_pd(ifPacket.select[1], ifPacket.select[0]);
-  __m128d false_mask = _mm_cmpeq_pd(select, zero);
-#ifdef EIGEN_VECTORIZE_SSE4_1
-  return _mm_blendv_pd(thenPacket, elsePacket, false_mask);
-#else
-  return _mm_or_pd(_mm_andnot_pd(false_mask, thenPacket), _mm_and_pd(false_mask, elsePacket));
-#endif
+  const __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
+  const __m128d true_mask = _mm_castsi128_pd(_mm_sub_epi64(_mm_setzero_si128(), select));
+  return pselect<Packet2d>(true_mask, thenPacket, elsePacket);
 }
 
 // Scalar path for pmadd with FMA to ensure consistency with vectorized path.
