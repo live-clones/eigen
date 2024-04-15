@@ -871,8 +871,12 @@ struct negate_impl {
 
 template <typename Scalar>
 struct negate_impl<Scalar, true> {
-  EIGEN_STATIC_ASSERT((!is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
+};
+
+template <>
+struct negate_impl<bool, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool run(const bool& a) { return a; }
 };
 
 template <typename Scalar>
