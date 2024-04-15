@@ -2143,9 +2143,8 @@ EIGEN_STRONG_INLINE Packet8f pblend(const Selector<8>& ifPacket, const Packet8f&
                        ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
   const __m256 true_mask = _mm256_castsi256_ps(_mm256_sub_epi32(_mm256_setzero_si256(), select));
 #else
-  const __m256 select =
-      _mm256_set_ps(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
-                    ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  const __m256 select = _mm256_set_ps(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
+                                      ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
   const __m256 true_mask = _mm256_cmp_ps(select, _mm256_setzero_ps(), _CMP_NEQ_UQ);
 #endif
 
