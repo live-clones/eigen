@@ -116,7 +116,8 @@ struct random_digits_impl<Scalar, false> {
     for (; shift + kRandomDigits <= numRandomDigits; shift += kRandomDigits) {
       RandomReturnType r = RandomImpl::run(0, kHighest);
       randomDigits = randomDigits + (static_cast<Scalar>(r) * shifter);
-      shifter = (shifter * kFullShift) + shifter;
+      // avoid overflowing shifter
+      if (shift + kRandomDigits < numRandomDigits) shifter = (shifter * kFullShift) + shifter;
     }
     if (shift < numRandomDigits) {
       RandomReturnType partialHighest = 0;
@@ -194,7 +195,7 @@ struct random_longdouble_impl {
 };
 template <>
 struct random_longdouble_impl<false> {
-  static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<long double>::digits() - 1; }
+  static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<double>::digits() - 1; }
   static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits) {
     return static_cast<long double>(random_float_impl<double>::run(numRandomBits));
   }
@@ -229,8 +230,8 @@ struct random_int_impl<Scalar, false, true> {
     // handle edge case where [x,y] spans the entire range of Scalar
     if (range == NumTraits<Scalar>::highest()) return run();
     Scalar count = range + 1;
-    // calculate the number of random bits needed to fill range
-    int numRandomBits = log2_ceil(count);
+    // calculate the number of random bits needed to fill the range
+    int numRandomBits = log_radix_ceil(count);
     Scalar randomBits;
     do {
       randomBits = getRandomDigits<Scalar>(numRandomBits);
@@ -261,22 +262,50 @@ struct random_int_impl<Scalar, true, true> {
   static EIGEN_DEVICE_FUNC inline Scalar run() { return static_cast<Scalar>(getRandomDigits<BitsType>(kTotalBits)); }
 };
 
-// random implementation for a customn unsigned integer type
+// random implementation for a custom unsigned integer type
 template <typename Scalar>
 struct random_int_impl<Scalar, false, false> {
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) { 
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
     if (y <= x) return x;
     Scalar range = y - x;
     // handle edge case where [x,y] spans the entire range of Scalar
     if (range == NumTraits<Scalar>::highest()) return run();
     Scalar count = range + 1;
-    // calculate the number of random bits needed to fill range
-    //int numRandomBits = log2_ceil(count);
-    // log_radix_ceil
+    // calculate the number of random digits needed to fill the range
+    int numRandomDigits = log_radix_ceil(count);
+    Scalar randomDigits = Scalar(0);
+    do {
+      randomDigits = getRandomDigits<Scalar>(numRandomDigits);
+    } while (randomDigits >= count);
+    Scalar result = x + randomDigits;
+    return result;
+  }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return getRandomDigits<Scalar>(NumTraits<Scalar>::digits()); }
+};
+
+// random implementation for a custom signed integer type
+template <typename Scalar>
+struct random_int_impl<Scalar, true, false> {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y) {
+    if (y <= x) return x;
+    bool overflow = (x < Scalar(0)) && (y > (x + NumTraits<Scalar>::highest()));
+    if (overflow) {
+      // it is assumed that |lowest| >= highest
+      // it is not possible to represent y - x explicitly
+      // y - x = y - (x + highest) + highest
+      // 9999 / 10 = 999 * 10 = 
+      bool highDigit = random<bool>();
+      Scalar offset = x;
+      if (highDigit) offset = offset + NumTraits<Scalar>::highest();
+      Scalar randomDigits = random_int_impl<Scalar, false, false>::run(x + NumTraits<Scalar>::highest(), y);
+      Scalar result = offset + randomDigits;
+      return result;
+    } else
+      // y - x doesn't overflow, so it can be treated like an unsigned integer
+      return random_int_impl<Scalar, false, false>::run(x, y);
   }
   static EIGEN_DEVICE_FUNC inline Scalar run() {
-    const int digits = NumTraits<Scalar>::digits();
-    return getRandomDigits<Scalar>(digits);
+    return run(NumTraits<Scalar>::lowest(), NumTraits<Scalar>::highest());
   }
 };
 
