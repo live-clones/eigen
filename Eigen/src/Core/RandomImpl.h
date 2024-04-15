@@ -293,7 +293,6 @@ struct random_int_impl<Scalar, true, false> {
       // it is assumed that |lowest| >= highest
       // it is not possible to represent y - x explicitly
       // y - x = y - (x + highest) + highest
-      // 9999 / 10 = 999 * 10 = 
       bool highDigit = random<bool>();
       Scalar offset = x;
       if (highDigit) offset = offset + NumTraits<Scalar>::highest();
