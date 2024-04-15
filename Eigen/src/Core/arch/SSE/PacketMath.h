@@ -596,10 +596,13 @@ template <>
 EIGEN_STRONG_INLINE Packet2l pnegate(const Packet2l& a) {
   return psub(pzero(a), a);
 }
-
 template <>
 EIGEN_STRONG_INLINE Packet4i pnegate(const Packet4i& a) {
   return psub(pzero(a), a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet16b pnegate(const Packet16b& a) {
+  return a;
 }
 
 template <>
