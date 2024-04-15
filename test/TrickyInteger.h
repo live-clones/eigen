@@ -1,5 +1,5 @@
 
-// An Scalar that simulates an integer with arbitrary numerical properties
+// A Scalar that simulates an integer with arbitrary numerical properties
 template <int Radix, int Digits, bool Signed>
 struct TrickyInteger {
   using DataType = std::conditional_t<Signed, int64_t, uint64_t>;
