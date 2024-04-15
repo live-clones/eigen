@@ -335,12 +335,9 @@ EIGEN_DEVICE_FUNC inline Packet psub(const Packet& a, const Packet& b) {
 /** \internal \returns -a (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnegate(const Packet& a) {
-  return -a;
-}
-
-template <>
-EIGEN_DEVICE_FUNC inline bool pnegate(const bool& a) {
-  return !a;
+  EIGEN_STATIC_ASSERT((!is_same<typename unpacket_traits<Packet>::type, bool>::value),
+                      NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
+  return numext::negate(a);
 }
 
 /** \internal \returns conj(a) (coeff-wise) */
@@ -1117,8 +1114,9 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10(const Packet&
 /** \internal \returns the log10 of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2(const Packet& a) {
-  typedef typename internal::unpacket_traits<Packet>::type Scalar;
-  return pmul(pset1<Packet>(Scalar(EIGEN_LOG2E)), plog(a));
+  using Scalar = typename internal::unpacket_traits<Packet>::type;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  return pmul(pset1<Packet>(Scalar(RealScalar(EIGEN_LOG2E))), plog(a));
 }
 
 /** \internal \returns the square-root of \a a (coeff-wise) */
@@ -1293,13 +1291,13 @@ EIGEN_DEVICE_FUNC inline Packet pmsub(const Packet& a, const Packet& b, const Pa
 /** \internal \returns -(a * b) + c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
-  return padd(pnegate(pmul(a, b)), c);
+  return psub(c, pmul(a, b));
 }
 
-/** \internal \returns -(a * b) - c (coeff-wise) */
+/** \internal \returns -((a * b + c) (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
-  return psub(pnegate(pmul(a, b)), c);
+  return pnegate(pmadd(a, b, c));
 }
 
 /** \internal copy a packet with constant coefficient \a a (e.g., [a,a,a,a]) to \a *to. \a to must be 16 bytes aligned
@@ -1403,6 +1401,12 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet, 1>& /*kernel*/) {
 template <size_t N>
 struct Selector {
   bool select[N];
+  template <typename MaskType = int>
+  EIGEN_DEVICE_FUNC inline MaskType mask(size_t begin = 0, size_t end = N) const {
+    MaskType res = 0;
+    for (size_t i = begin; i < end; i++) res |= (static_cast<MaskType>(select[i]) << i);
+    return res;
+  }
 };
 
 template <typename Packet>

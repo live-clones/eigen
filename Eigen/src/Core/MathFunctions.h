@@ -657,7 +657,6 @@ template <typename BitsType>
 struct count_bits_impl<
     BitsType, std::enable_if_t<std::is_integral<BitsType>::value && sizeof(BitsType) <= sizeof(unsigned int)>> {
   static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
     static constexpr int kLeadingBitsOffset = (sizeof(unsigned int) - sizeof(BitsType)) * CHAR_BIT;
     return bits == 0 ? kNumBits : __builtin_clz(static_cast<unsigned int>(bits)) - kLeadingBitsOffset;
@@ -673,7 +672,6 @@ struct count_bits_impl<BitsType,
                        std::enable_if_t<std::is_integral<BitsType>::value && sizeof(unsigned int) < sizeof(BitsType) &&
                                         sizeof(BitsType) <= sizeof(unsigned long)>> {
   static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
     static constexpr int kLeadingBitsOffset = (sizeof(unsigned long) - sizeof(BitsType)) * CHAR_BIT;
     return bits == 0 ? kNumBits : __builtin_clzl(static_cast<unsigned long>(bits)) - kLeadingBitsOffset;
@@ -689,7 +687,6 @@ struct count_bits_impl<BitsType,
                        std::enable_if_t<std::is_integral<BitsType>::value && sizeof(unsigned long) < sizeof(BitsType) &&
                                         sizeof(BitsType) <= sizeof(unsigned long long)>> {
   static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
     static constexpr int kLeadingBitsOffset = (sizeof(unsigned long long) - sizeof(BitsType)) * CHAR_BIT;
     return bits == 0 ? kNumBits : __builtin_clzll(static_cast<unsigned long long>(bits)) - kLeadingBitsOffset;
@@ -706,7 +703,6 @@ template <typename BitsType>
 struct count_bits_impl<
     BitsType, std::enable_if_t<std::is_integral<BitsType>::value && sizeof(BitsType) <= sizeof(unsigned long)>> {
   static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
     unsigned long out;
     _BitScanReverse(&out, static_cast<unsigned long>(bits));
@@ -727,7 +723,6 @@ struct count_bits_impl<BitsType,
                        std::enable_if_t<std::is_integral<BitsType>::value && sizeof(unsigned long) < sizeof(BitsType) &&
                                         sizeof(BitsType) <= sizeof(__int64)>> {
   static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
     unsigned long out;
     _BitScanReverse64(&out, static_cast<unsigned __int64>(bits));
@@ -908,6 +903,25 @@ struct sign_impl<bool, false, true> {
 
 template <typename Scalar>
 struct sign_retval {
+  typedef Scalar type;
+};
+
+// suppress "unary minus operator applied to unsigned type, result still unsigned" warnings on MSVC
+// note: `0 - a` is distinct from `-a` when Scalar is a floating point type and `a` is zero
+
+template <typename Scalar, bool IsInteger = NumTraits<Scalar>::IsInteger>
+struct negate_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return -a; }
+};
+
+template <typename Scalar>
+struct negate_impl<Scalar, true> {
+  EIGEN_STATIC_ASSERT((!is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
+};
+
+template <typename Scalar>
+struct negate_retval {
   typedef Scalar type;
 };
 
@@ -1114,6 +1128,11 @@ EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(conj, Scalar) conj(const Scalar& 
 template <typename Scalar>
 EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(sign, Scalar) sign(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(sign, Scalar)::run(x);
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(negate, Scalar) negate(const Scalar& x) {
+  return EIGEN_MATHFUNC_IMPL(negate, Scalar)::run(x);
 }
 
 template <typename Scalar>

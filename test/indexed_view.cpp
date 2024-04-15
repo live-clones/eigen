@@ -447,7 +447,7 @@ void check_indexed_view() {
 
   // Check compilation of varying integer types as index types:
   Index i = n / 2;
-  short i_short(i);
+  short i_short = static_cast<short>(i);
   std::size_t i_sizet(i);
   VERIFY_IS_EQUAL(a(i), a.coeff(i_short));
   VERIFY_IS_EQUAL(a(i), a.coeff(i_sizet));
@@ -790,6 +790,7 @@ void check_tutorial_examples() {
     VERIFY_IS_EQUAL(int(slice1.SizeAtCompileTime), 6);
     VERIFY_IS_EQUAL(int(slice2.SizeAtCompileTime), 6);
     auto slice3 = A(all, seq(fix<0>, last, fix<2>));
+    TEST_SET_BUT_UNUSED_VARIABLE(slice3)
     VERIFY_IS_EQUAL(int(slice3.RowsAtCompileTime), kRows);
     VERIFY_IS_EQUAL(int(slice3.ColsAtCompileTime), (kCols + 1) / 2);
   }
@@ -812,7 +813,7 @@ void check_tutorial_examples() {
   {
     std::vector<int> ind{4, 2, 5, 5, 3};
     auto slice1 = A(all, ind);
-    for (int i = 0; i < ind.size(); ++i) {
+    for (size_t i = 0; i < ind.size(); ++i) {
       VERIFY_IS_EQUAL(slice1.col(i), A.col(ind[i]));
     }
 
