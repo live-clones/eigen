@@ -79,61 +79,6 @@ struct random_digits_impl {
   }
 };
 
-// determines the number of random radix digits that can be generated from a base-2 random number generator
-template <typename T, T rand_highest, int radix, int radix_digits = 0, T radix_highest = 0,
-          bool done = (radix_highest > ((rand_highest - (radix - 1)) / radix))>
-struct random_digits_helper;
-template <typename T, T rand_highest, int radix, int radix_digits, T radix_highest>
-struct random_digits_helper<T, rand_highest, radix, radix_digits, radix_highest, false> {
-  static constexpr int next_radix_digits = radix_digits + 1;
-  static constexpr T next_radix_highest = (radix_highest * radix) + (radix - 1);
-  using Next = random_digits_helper<T, rand_highest, radix, next_radix_digits, next_radix_highest>;
-  static constexpr int digits = Next::digits;
-  static constexpr T highest = Next::highest;
-};
-template <typename T, T rand_highest, int radix, int radix_digits, T radix_highest>
-struct random_digits_helper<T, rand_highest, radix, radix_digits, radix_highest, true> {
-  static constexpr int digits = radix_digits;
-  static constexpr T highest = radix_highest;
-};
-
-// Fill a custom scalar with numRandomDigits beginning with the least significant bit
-template <typename Scalar>
-struct random_digits_impl<Scalar, false> {
-  using RandomDevice = eigen_random_device;
-  using RandomReturnType = typename RandomDevice::ReturnType;
-  using RandomImpl = random_int_impl<RandomReturnType>;
-  static constexpr int kRadix = NumTraits<Scalar>::radix();
-  using Helper = random_digits_helper<RandomReturnType, RandomDevice::Highest, kRadix>;
-  static constexpr int kRandomDigits = Helper::digits;
-  static constexpr RandomReturnType kHighest = Helper::highest;
-  // return a Scalar filled with numRandomDigits beginning from the least significant bit
-  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomDigits) {
-    const Scalar kFullShift = static_cast<Scalar>(kHighest);
-    Scalar shifter = Scalar(1);
-    Scalar randomDigits = Scalar(0);
-    int shift = 0;
-    for (; shift + kRandomDigits <= numRandomDigits; shift += kRandomDigits) {
-      RandomReturnType r = RandomImpl::run(0, kHighest);
-      randomDigits = randomDigits + (static_cast<Scalar>(r) * shifter);
-      // avoid overflowing shifter
-      if (shift + kRandomDigits < numRandomDigits) shifter = (shifter * kFullShift) + shifter;
-    }
-    if (shift < numRandomDigits) {
-      RandomReturnType partialHighest = 0;
-      for (; shift < numRandomDigits; shift++) partialHighest = (partialHighest * kRadix) + (kRadix - 1);
-      RandomReturnType r = RandomImpl::run(0, partialHighest);
-      randomDigits = randomDigits + (static_cast<Scalar>(r) * shifter);
-    }
-    return randomDigits;
-  }
-};
-
-template <typename Scalar>
-EIGEN_DEVICE_FUNC inline Scalar getRandomDigits(int numRandomDigits) {
-  return random_digits_impl<Scalar>::run(numRandomDigits);
-}
-
 // random implementation for a built-in floating point type
 template <typename Scalar>
 struct random_float_impl<Scalar, true> {
@@ -144,7 +89,7 @@ struct random_float_impl<Scalar, true> {
   }
   static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomBits) {
     eigen_assert(numRandomBits >= 0 && numRandomBits <= mantissaBits());
-    BitsType randomBits = getRandomDigits<BitsType>(numRandomBits);
+    BitsType randomBits = random_digits_impl<BitsType>::run(numRandomBits);
     // if fewer than MantissaBits is requested, shift them to the left
     randomBits <<= (mantissaBits() - numRandomBits);
     // randomBits is in the half-open interval [2,4)
@@ -186,8 +131,8 @@ struct random_longdouble_impl {
     uint64_t randomBits[2];
     long double result = 2.0L;
     memcpy(&randomBits, &result, Size);
-    randomBits[0] |= getRandomDigits<uint64_t>(numLowBits);
-    randomBits[1] |= getRandomDigits<uint64_t>(numHighBits);
+    randomBits[0] |= random_digits_impl<uint64_t>::run(numLowBits);
+    randomBits[1] |= random_digits_impl<uint64_t>::run(numHighBits);
     memcpy(&result, &randomBits, Size);
     result -= 3.0L;
     return result;
@@ -234,14 +179,14 @@ struct random_int_impl<Scalar, false, true> {
     int numRandomBits = log_radix_ceil(count);
     Scalar randomBits;
     do {
-      randomBits = getRandomDigits<Scalar>(numRandomBits);
+      randomBits = random_digits_impl<Scalar>::run(numRandomBits);
       // if the random draw is outside [0, range), try again (rejection sampling)
       // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
     } while (randomBits >= count);
     Scalar result = x + randomBits;
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return getRandomDigits<Scalar>(kTotalBits); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return random_digits_impl<Scalar>::run(kTotalBits); }
 };
 
 // random implementation for a built-in signed integer type
@@ -259,7 +204,59 @@ struct random_int_impl<Scalar, true, true> {
     Scalar result = static_cast<Scalar>(static_cast<BitsType>(x) + randomBits);
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return static_cast<Scalar>(getRandomDigits<BitsType>(kTotalBits)); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() {
+    return static_cast<Scalar>(random_digits_impl<BitsType>::run(kTotalBits));
+  }
+};
+
+// determines the number of random radix digits that can be generated from a base-2 random number generator
+template <typename T, T rand_highest, int radix, int radix_digits = 0, T radix_highest = 0,
+          bool done = (radix_highest > ((rand_highest - (radix - 1)) / radix))>
+struct random_digits_helper;
+template <typename T, T rand_highest, int radix, int radix_digits, T radix_highest>
+struct random_digits_helper<T, rand_highest, radix, radix_digits, radix_highest, false> {
+  static constexpr int next_radix_digits = radix_digits + 1;
+  static constexpr T next_radix_highest = (radix_highest * radix) + (radix - 1);
+  using Next = random_digits_helper<T, rand_highest, radix, next_radix_digits, next_radix_highest>;
+  static constexpr int digits = Next::digits;
+  static constexpr T highest = Next::highest;
+};
+template <typename T, T rand_highest, int radix, int radix_digits, T radix_highest>
+struct random_digits_helper<T, rand_highest, radix, radix_digits, radix_highest, true> {
+  static constexpr int digits = radix_digits;
+  static constexpr T highest = radix_highest;
+};
+
+// Fill a custom scalar with numRandomDigits beginning with the least significant bit
+template <typename Scalar>
+struct random_digits_impl<Scalar, false> {
+  using RandomDevice = eigen_random_device;
+  using RandomReturnType = typename RandomDevice::ReturnType;
+  using RandomImpl = random_int_impl<RandomReturnType, true>;
+  static constexpr int kRadix = NumTraits<Scalar>::radix();
+  using Helper = random_digits_helper<RandomReturnType, RandomDevice::Highest, kRadix>;
+  static constexpr int kRandomDigits = Helper::digits;
+  static constexpr RandomReturnType kHighest = Helper::highest;
+  // return a Scalar filled with numRandomDigits beginning from the least significant bit
+  static EIGEN_DEVICE_FUNC inline Scalar run(int numRandomDigits) {
+    const Scalar kFullShift = static_cast<Scalar>(kHighest);
+    Scalar shifter = Scalar(1);
+    Scalar randomDigits = Scalar(0);
+    int shift = 0;
+    for (; shift + kRandomDigits <= numRandomDigits; shift += kRandomDigits) {
+      RandomReturnType r = RandomImpl::run(0, kHighest);
+      randomDigits = randomDigits + (static_cast<Scalar>(r) * shifter);
+      // avoid overflowing shifter
+      if (shift + kRandomDigits < numRandomDigits) shifter = (shifter * kFullShift) + shifter;
+    }
+    if (shift < numRandomDigits) {
+      RandomReturnType partialHighest = 0;
+      for (; shift < numRandomDigits; shift++) partialHighest = (partialHighest * kRadix) + (kRadix - 1);
+      RandomReturnType r = RandomImpl::run(0, partialHighest);
+      randomDigits = randomDigits + (static_cast<Scalar>(r) * shifter);
+    }
+    return randomDigits;
+  }
 };
 
 // random implementation for a custom unsigned integer type
@@ -275,12 +272,12 @@ struct random_int_impl<Scalar, false, false> {
     int numRandomDigits = log_radix_ceil(count);
     Scalar randomDigits = Scalar(0);
     do {
-      randomDigits = getRandomDigits<Scalar>(numRandomDigits);
+      randomDigits = random_digits_impl<Scalar>::run(numRandomDigits);
     } while (randomDigits >= count);
     Scalar result = x + randomDigits;
     return result;
   }
-  static EIGEN_DEVICE_FUNC inline Scalar run() { return getRandomDigits<Scalar>(NumTraits<Scalar>::digits()); }
+  static EIGEN_DEVICE_FUNC inline Scalar run() { return random_digits_impl<Scalar>::run(NumTraits<Scalar>::digits()); }
 };
 
 // random implementation for a custom signed integer type
@@ -317,7 +314,7 @@ struct random_impl<bool> {
     if (y <= x) return x;
     return run();
   }
-  static EIGEN_DEVICE_FUNC inline bool run() { return getRandomDigits<unsigned>(1) ? true : false; }
+  static EIGEN_DEVICE_FUNC inline bool run() { return random_digits_impl<unsigned>::run(1) ? true : false; }
 };
 
 template <typename Scalar>
