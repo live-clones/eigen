@@ -2244,8 +2244,7 @@ EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<N>& ifPacket) {
 template <>
 EIGEN_STRONG_INLINE Packet2l pblend(const Selector<2>& ifPacket, const Packet2l& thenPacket,
                                     const Packet2l& elsePacket) {
-  const __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
-  const __m128i true_mask = _mm_sub_epi64(_mm_setzero_si128(), select);
+  const __m128i true_mask = sse_blend_mask(ifPacket);
   return pselect<Packet2l>(true_mask, thenPacket, elsePacket);
 }
 template <>
