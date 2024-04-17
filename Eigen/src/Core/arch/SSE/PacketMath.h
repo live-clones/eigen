@@ -2233,19 +2233,11 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
 }
 
 EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<2>& ifPacket) {
-  __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
-  return _mm_sub_epi64(_mm_setzero_si128(), select);
+  return _mm_set_epi64x(0 - ifPacket.select[1], 0 - ifPacket.select[0]);
 }
 
 EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<4>& ifPacket) {
-  __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  return _mm_sub_epi32(_mm_setzero_si128(), select);
-}
-
-EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<8>& ifPacket) {
-  __m128i select = _mm_set_epi16(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
-                                 ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  return _mm_sub_epi16(_mm_setzero_si128(), select);
+  return _mm_set_epi32(0 - ifPacket.select[3], 0 - ifPacket.select[2], 0 - ifPacket.select[1], 0 - ifPacket.select[0]);
 }
 
 template <>
