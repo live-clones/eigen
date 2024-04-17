@@ -2134,13 +2134,29 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4d, 4>& kernel) {
   kernel.packet[2] = _mm256_permute2f128_pd(T1, T3, 49);
 }
 
-template <size_t N>
-EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<N>& ifPacket) {
-  constexpr int Size = sizeof(__m256i) / N;
-  using T = typename numext::get_integer_by_size<Size>::signed_type;
-  alignas(__m256i) T aux[N];
-  blend_mask_helper<N>::run(ifPacket, aux);
-  return _mm256_load_si256(reinterpret_cast<const __m256i*>(aux));
+EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<4>& ifPacket) {
+#ifdef EIGEN_VECTORIZE_AVX2
+  __m256i select = _mm256_set_epi64x(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  return _mm256_sub_epi64(_mm256_setzero_si256(), select);
+#else
+  __m128i sse_mask = sse_blend_mask(ifPacket);
+  __m128i result_lo = _mm_unpacklo_epi32(sse_mask, sse_mask);
+  __m128i result_hi = _mm_unpackhi_epi32(sse_mask, sse_mask);
+  return _mm256_set_m128i(result_hi, result_lo);
+#endif
+}
+
+EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<8>& ifPacket) {
+#ifdef EIGEN_VECTORIZE_AVX2
+  __m256i select = _mm256_set_epi32(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
+                                    ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  return _mm256_sub_epi32(_mm256_setzero_si256(), select);
+#else
+  __m128i sse_mask = sse_blend_mask(ifPacket);
+  __m128i result_lo = _mm_unpacklo_epi16(sse_mask, sse_mask);
+  __m128i result_hi = _mm_unpackhi_epi16(sse_mask, sse_mask);
+  return _mm256_set_m128i(result_hi, result_lo);
+#endif
 }
 
 template <>

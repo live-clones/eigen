@@ -2232,13 +2232,20 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
   kernel.packet[15] = _mm_unpackhi_epi64(u7, uf);
 }
 
-template <size_t N>
-EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<N>& ifPacket) {
-  constexpr int Size = sizeof(__m128i) / N;
-  using T = typename numext::get_integer_by_size<Size>::signed_type;
-  alignas(__m128i) T aux[N];
-  blend_mask_helper<N>::run(ifPacket, aux);
-  return _mm_load_si128(reinterpret_cast<const __m128i*>(aux));
+EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<2>& ifPacket) {
+  __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
+  return _mm_sub_epi64(_mm_setzero_si128(), select);
+}
+
+EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<4>& ifPacket) {
+  __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  return _mm_sub_epi32(_mm_setzero_si128(), select);
+}
+
+EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<8>& ifPacket) {
+  __m128i select = _mm_set_epi16(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
+                                 ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  return _mm_sub_epi16(_mm_setzero_si128(), select);
 }
 
 template <>
