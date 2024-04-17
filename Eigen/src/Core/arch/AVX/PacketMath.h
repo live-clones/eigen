@@ -2138,7 +2138,7 @@ template <size_t N>
 EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<N>& ifPacket) {
   constexpr int Size = sizeof(__m256i) / N;
   using T = typename numext::get_integer_by_size<Size>::signed_type;
-  alignas(__m256i) T aux[sizeof(__m256i)];
+  alignas(__m256i) T aux[N];
   blend_mask_helper<N>::run(ifPacket, aux);
   return _mm256_load_si256(reinterpret_cast<const __m256i*>(aux));
 }
