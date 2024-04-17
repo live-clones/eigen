@@ -1410,6 +1410,26 @@ struct Selector {
   bool select[N];
 };
 
+// loop unroller to efficiently convert an array of bool to a bitmask
+template <size_t N, size_t M = 0>
+struct blend_mask_helper {
+  template <typename T>
+  inline static void run(const Selector<N>& ifPacket, T* aux) {
+    // zero extension (if T is not byte-sized)
+    aux[M] = static_cast<T>(ifPacket.select[M]);
+    // convert from 0 / 1 to 0x00 / 0xff
+    aux[M] = 0 - aux[M];
+    // separating these steps allows the compiler to autovectorize the operation
+    blend_mask_helper<N, M + 1>::run(ifPacket, aux);
+  }
+};
+
+template <size_t N>
+struct blend_mask_helper<N, N> {
+  template <typename T>
+  inline static void run(const Selector<N>&, T*) {}
+};
+
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pblend(const Selector<unpacket_traits<Packet>::size>& ifPacket,
                                        const Packet& thenPacket, const Packet& elsePacket) {

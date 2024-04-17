@@ -2134,35 +2134,26 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4d, 4>& kernel) {
   kernel.packet[2] = _mm256_permute2f128_pd(T1, T3, 49);
 }
 
+template <size_t N>
+EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<N>& ifPacket) {
+  constexpr int Size = sizeof(__m256i) / N;
+  using T = typename numext::get_integer_by_size<Size>::signed_type;
+  alignas(__m256i) T aux[sizeof(__m256i)];
+  blend_mask_helper<N>::run(ifPacket, aux);
+  return _mm256_load_si256(reinterpret_cast<const __m256i*>(aux));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet8f pblend(const Selector<8>& ifPacket, const Packet8f& thenPacket,
                                     const Packet8f& elsePacket) {
-#ifdef EIGEN_VECTORIZE_AVX2
-  const __m256i select =
-      _mm256_set_epi32(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
-                       ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m256 true_mask = _mm256_castsi256_ps(_mm256_sub_epi32(_mm256_setzero_si256(), select));
-#else
-  const __m256 select = _mm256_set_ps(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
-                                      ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m256 true_mask = _mm256_cmp_ps(select, _mm256_setzero_ps(), _CMP_NEQ_UQ);
-#endif
-
+  const __m256 true_mask = _mm256_castsi256_ps(avx_blend_mask(ifPacket));
   return pselect<Packet8f>(true_mask, thenPacket, elsePacket);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4d pblend(const Selector<4>& ifPacket, const Packet4d& thenPacket,
                                     const Packet4d& elsePacket) {
-#ifdef EIGEN_VECTORIZE_AVX2
-  const __m256i select =
-      _mm256_set_epi64x(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m256d true_mask = _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), select));
-#else
-  const __m256d select = _mm256_set_pd(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  __m256d true_mask = _mm256_cmp_pd(select, _mm256_setzero_pd(), _CMP_NEQ_UQ);
-#endif
-
+  const __m256d true_mask = _mm256_castsi256_pd(avx_blend_mask(ifPacket));
   return pselect<Packet4d>(true_mask, thenPacket, elsePacket);
 }
 

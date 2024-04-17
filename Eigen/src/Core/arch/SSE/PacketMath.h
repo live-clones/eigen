@@ -2232,6 +2232,15 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
   kernel.packet[15] = _mm_unpackhi_epi64(u7, uf);
 }
 
+template <size_t N>
+EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<N>& ifPacket) {
+  constexpr int Size = sizeof(__m128i) / N;
+  using T = typename numext::get_integer_by_size<Size>::signed_type;
+  alignas(__m128i) T aux[sizeof(__m128i)];
+  blend_mask_helper<N>::run(ifPacket, aux);
+  return _mm_load_si128(reinterpret_cast<const __m128i*>(aux));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet2l pblend(const Selector<2>& ifPacket, const Packet2l& thenPacket,
                                     const Packet2l& elsePacket) {
@@ -2242,8 +2251,7 @@ EIGEN_STRONG_INLINE Packet2l pblend(const Selector<2>& ifPacket, const Packet2l&
 template <>
 EIGEN_STRONG_INLINE Packet4i pblend(const Selector<4>& ifPacket, const Packet4i& thenPacket,
                                     const Packet4i& elsePacket) {
-  const __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m128i true_mask = _mm_sub_epi32(_mm_setzero_si128(), select);
+  const __m128i true_mask = sse_blend_mask(ifPacket);
   return pselect<Packet4i>(true_mask, thenPacket, elsePacket);
 }
 template <>
