@@ -1241,7 +1241,7 @@ struct scalar_unary_pow_op {
   typedef typename ScalarBinaryOpTraits<Scalar, PromotedExponent, scalar_unary_pow_op>::ReturnType result_type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE scalar_unary_pow_op(const ExponentScalar& exponent) : m_exponent(exponent) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const Scalar& a) const {
-    EIGEN_USING_STD(pow);
+    using numext::pow;
     return static_cast<result_type>(pow(a, m_exponent));
   }
 
@@ -1279,7 +1279,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, false, false> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    EIGEN_USING_STD(pow);
+    using numext::pow;
     return static_cast<Scalar>(pow(a, m_exponent));
   }
   template <typename Packet>

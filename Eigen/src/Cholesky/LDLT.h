@@ -278,7 +278,7 @@ template <>
 struct ldlt_inplace<Lower> {
   template <typename MatrixType, typename TranspositionType, typename Workspace>
   static bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp, SignMatrix& sign) {
-    using std::abs;
+    using numext::abs;
     typedef typename MatrixType::Scalar Scalar;
     typedef typename MatrixType::RealScalar RealScalar;
     typedef typename TranspositionType::StorageIndex IndexType;
@@ -551,7 +551,7 @@ void LDLT<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstTyp
   // dst = D^-* (L^-1 P b)
   // dst = D^-1 (L^-*T P b)
   // more precisely, use pseudo-inverse of D (see bug 241)
-  using std::abs;
+  using numext::abs;
   const typename Diagonal<const MatrixType>::RealReturnType vecD(vectorD());
   // In some previous versions, tolerance was set to the max of 1/highest (or rather numeric_limits::min())
   // and the maximal diagonal entry * epsilon as motivated by LAPACK's xGELSS:

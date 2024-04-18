@@ -219,7 +219,7 @@ struct llt_inplace;
 template <typename MatrixType, typename VectorType>
 static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
                                    const typename MatrixType::RealScalar& sigma) {
-  using std::sqrt;
+  using numext::sqrt;
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   typedef typename MatrixType::ColXpr ColXpr;
@@ -284,7 +284,7 @@ struct llt_inplace<Scalar, Lower> {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   template <typename MatrixType>
   static Index unblocked(MatrixType& mat) {
-    using std::sqrt;
+    using numext::sqrt;
 
     eigen_assert(mat.rows() == mat.cols());
     const Index size = mat.rows();

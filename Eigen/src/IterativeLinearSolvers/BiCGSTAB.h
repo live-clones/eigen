@@ -31,8 +31,8 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
               typename Dest::RealScalar& tol_error) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
   typedef Matrix<Scalar, Dynamic, 1> VectorType;

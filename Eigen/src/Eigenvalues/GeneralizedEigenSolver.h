@@ -276,8 +276,8 @@ template <typename MatrixType>
 GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(const MatrixType& A,
                                                                                 const MatrixType& B,
                                                                                 bool computeEigenvectors) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   eigen_assert(A.cols() == A.rows() && B.cols() == A.rows() && B.cols() == B.rows());
   Index size = A.cols();
   // Reduce to generalized real Schur form:
