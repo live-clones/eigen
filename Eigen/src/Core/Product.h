@@ -95,15 +95,16 @@ class Product
 
  private:
   using LhsTransposeType = Transpose<const LhsNestedCleaned>;
-  using LhsScalar = typename LhsNestedCleaned::Scalar;
+  using LhsScalar = typename internal::traits<LhsNestedCleaned>::Scalar;
   using LhsConjugateTransposeType = CwiseUnaryOp<internal::scalar_conjugate_op<LhsScalar>, LhsTransposeType>;
   using LhsAdjointType =
-      std::conditional_t<NumTraits<LhsScalar>::IsComplex, LhsConjugateTransposeType, LhsTransposeType>;
+      std::conditional_t<is_complex_helper<LhsScalar>::value, LhsConjugateTransposeType, LhsTransposeType>;
+
   using RhsTransposeType = Transpose<const RhsNestedCleaned>;
-  using RhsScalar = typename RhsNestedCleaned::Scalar;
+  using RhsScalar = typename internal::traits<RhsNestedCleaned>::Scalar;
   using RhsConjugateTransposeType = CwiseUnaryOp<internal::scalar_conjugate_op<RhsScalar>, RhsTransposeType>;
   using RhsAdjointType =
-      std::conditional_t<NumTraits<RhsScalar>::IsComplex, RhsConjugateTransposeType, RhsTransposeType>;
+      std::conditional_t<is_complex_helper<RhsScalar>::value, RhsConjugateTransposeType, RhsTransposeType>;
 
  public:
   using TransposeReturnType = Product<RhsTransposeType, LhsTransposeType, Option>;
