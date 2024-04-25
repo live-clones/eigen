@@ -623,6 +623,14 @@ void packetmath() {
     VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half_dowto4");
   }
 
+  // Avoid overflows.
+  if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned) {
+    Scalar limit = static_cast<Scalar>(std::pow(static_cast<double>(NumTraits<Scalar>::highest()),
+                                                1.0 / Eigen::internal::unpacket_traits<Packet>::size));
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = internal::random<Scalar>(-limit, limit);
+    }
+  }
   ref[0] = Scalar(1);
   for (int i = 0; i < PacketSize; ++i) ref[0] = REF_MUL(ref[0], data1[i]);
   VERIFY(internal::isApprox(ref[0], internal::predux_mul(internal::pload<Packet>(data1))) && "internal::predux_mul");
