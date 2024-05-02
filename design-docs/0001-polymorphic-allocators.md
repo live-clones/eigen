@@ -75,8 +75,16 @@ User defined memory resources must inherit from this class. See the information 
 #### Polymorphic Allocator
 
 `Eigen::polymorphic_allocator` is an interface class, allowing dynamic memory allocation to be customized by user-defined strategies.
-The design of `Eigen::polymorphic_allocator` is based on [`std::pmr::polymorphic_allocator`](https://en.cppreference.com/w/cpp/memory/polymorphic_allocator).
+The design of `Eigen::polymorphic_allocator` is based on [`std::pmr::polymorphic_allocator`](https://en.cppreference.com/w/cpp/memory/polymorphic_allocator), but with type erasure.
+Unlike, `std::pmr::polymorphic_allocator`, there is no template to specify what this allocator should allocate. Instead, types are provided when performing the allocation inside of Eigen types.
 
+```c++
+
+Eigen::monotonic_buffer mem;
+Eigen::polymorphic_allocator x(&mem);
+double* p = x.template allocate<double>(10);
+x.deallocate(p, 10);
+```
 
 #### Allocator-aware Eigen Types
 
@@ -110,7 +118,7 @@ int main() {
   int iterations = 1000;  // Number of iterations
   // Set the initial size for the monotonic buffer
   Eigen::monotonic_buffer_resource mono_buff(2 << 16);
-  Eigen::polymorphic_allocator<double> alloc(&mono_buff)
+  Eigen::polymorphic_allocator alloc(&mono_buff)
   Eigen::VectorXd res_err = std::numeric_limits<double>::infinity()
   double abs_err = 1e-8;
 
@@ -150,7 +158,7 @@ class my_memory_resource : public Eigen::memory_resource {
    * Equivalent to `do_allocate(bytes, alignment);``.
    */
   void* allocate(std::size_t bytes,
-    std::size_t alignment = alignof(std::max_align_t) );
+    std::size_t alignment = std::max(alignof(std::max_align_t), EIGEN_ALIGN_MAX));
   /**
    * Deallocates the storage pointed to by p. p shall have been
    * returned by a prior call to `allocate(bytes, alignment)`
@@ -161,7 +169,7 @@ class my_memory_resource : public Eigen::memory_resource {
    */
   void deallocate(void* p,
     std::size_t bytes,
-    std::size_t alignment = alignof(std::max_align_t) );
+    std::size_t alignment = std::max(alignof(std::max_align_t), EIGEN_ALIGN_MAX) );
 
   /**
    * Compares `*this` with `other` for equality.
@@ -257,7 +265,7 @@ An `Eigen::polymorphic_allocator` will be added inside of `DenseStorage`
 // purely dynamic matrix.
 template <typename T, int Options_>
 class DenseStorage<T, Dynamic, Dynamic, Dynamic, Options_> {
-  Eigen::polymorphic_allocator<T> m_allocator;
+  Eigen::polymorphic_allocator m_allocator;
 // ...
 ```
 
@@ -291,20 +299,11 @@ class DenseStorage<T, Dynamic, Dynamic, Dynamic, Options_> {
 
 ```
 
-Inside of function such as `call_dense_assignment_loop` and `call_assignment`, Eigen will check whether the source expression uses the non-default allocator, and if so the destination's allocator will be checked.
-If the destination uses the default allocator and is uninitialized then the destination will be resized and allocated into the expressions allocator. This is an odd sounding rule but is what allows for one liner declarations that still use the expressions allocator.
+There should not be any changes need in functions such as `call_assignment` and friends as the left hand side will have already been allocated via an allocator or the left hand side will be initialized by the right hand side.
+
+Eigen's `polymorphic_allocator` will have an interface that follows the C++17 standards `std::pmr::polymorphic_allocator`, but with the exception of not having a template parameter for the class. Using type erasure will make it easier to allow mixed scalar type operations.
 
 ```c++
-Eigen::MatrixXd Z = X * Y;
-```
-
-In the above, assignment will check that `Z` both uses the default allocator and is currently uninitialized.
-Both would be true in this case and so `Z`'s memory would be allocated by the right hand side expressions allocator.
-
-Eigen's `polymorphic_allocator` will have an interface that follows the C++17 standards `std::pmr::polymorphic_allocator`
-
-```c++
-template <typename T>
 class polymorphic_allocator {
   /**
    * Constructs a polymorphic_allocator using the return
@@ -320,13 +319,6 @@ class polymorphic_allocator {
   polymorphic_allocator( const polymorphic_allocator& other ) = default;
 
   /**
-   * Constructs a polymorphic_allocator using
-   * `other.resource()` as the underlying memory resource.
-   */
-  template<typename U>
-  polymorphic_allocator( const polymorphic_allocator<U>& other ) noexcept;
-
-  /**
    * Constructs a polymorphic_allocator using `r`` as the
    * underlying memory resource. This constructor
    * provides an implicit conversion from
@@ -339,7 +331,8 @@ class polymorphic_allocator {
    * @param n	the number of objects to allocate storage for
    * @return A pointer to the allocated storage.
    */
-  T* allocate( std::size_t n );
+  template <typename T>
+  T* allocate(std::size_t n, std::size_t alignment = std::max(alignof(std::max_align_t), EIGEN_ALIGN_MAX));
 
   /**
    * Deallocates the storage pointed to by p, which must have
@@ -347,7 +340,9 @@ class polymorphic_allocator {
    * compares equal to `*resource()`` using
    *  `x.allocate(n * sizeof(T), alignof(T))`.
    */
-  void deallocate( T* p, std::size_t n );
+  template <typename T>
+  void deallocate( T* p, std::size_t n,
+    std::size_t alignment = std::max(alignof(std::max_align_t), EIGEN_ALIGN_MAX));
 
   /**
    * Creates an object of the given type U by means of
@@ -360,7 +355,9 @@ class polymorphic_allocator {
    * constructor of T
    */
   template<typename U, typename... Args >
-  void construct(U* p, Args&&... args );
+  void construct(U* p,
+    std::size_t alignment = std::max(alignof(std::max_align_t), EIGEN_ALIGN_MAX),
+    Args&&... args );
 
   /**
    * Destroys the object pointed to by p, as if by calling p->~U().
@@ -372,10 +369,29 @@ class polymorphic_allocator {
   void destroy(U* p );
 
   /**
-   * NOTE REVIEWERS: This does not contain the members defined
-   * for `polymorphic_allocators` in c++20. Should we
-   * include those or just use c++17's members?
+   * Allocates nbytes bytes of storage at specified alignment alignment using the
+   * underlying memory resource. Equivalent to
+   * `return resource()->allocate(nbytes, alignment);`
+   * @param nbytes The number of bytes to allocate
+   * @param alignment The alignment to use
    */
+  void* allocate_bytes( std::size_t nbytes,
+        std::size_t alignment = std::max(alignof(std::max_align_t), EIGEN_ALIGN_MAX));
+
+  /**
+   * Deallocates the storage pointed to by p, which must have been
+   * allocated from a `Eigen::memory_resource` x that compares equal
+   * to `*resource()`, using `x.allocate(nbytes, alignment)`,
+   * typically through a call to `allocate_bytes(nbytes, alignment)`.
+   * `Equivalent to resource()->deallocate(p, nbytes, alignment);`.
+   *
+   * @param p pointer to memory to deallocate
+   * @param nbytes The number of bytes originally allocated
+   * @param alignment The alignment originally allocated
+   */
+  void deallocate_bytes(void* p,
+    std::size_t nbytes,
+    std::size_t alignment = std::max(alignof(std::max_align_t), EIGEN_ALIGN_MAX));
 };
 ```
 
