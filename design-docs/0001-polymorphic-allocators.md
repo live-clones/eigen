@@ -23,7 +23,7 @@ Eigen::MatrixXd Z(arena_alloc);
 Z = X * Y;
 
 // Assign and use allocator on one line
-Eigen::MatrixXd H = assign(arena_alloc, X * Y);
+Eigen::MatrixXd H = (X * Y).with_allocator(arena_alloc);
 
 alloc.resource()->release();
 
@@ -119,6 +119,8 @@ int main() {
   // Set the initial size for the monotonic buffer
   Eigen::monotonic_buffer_resource mono_buff(2 << 16);
   Eigen::polymorphic_allocator alloc(&mono_buff)
+  Eigen::monotonic_buffer_resource mono_buff(2 << 16);
+  Eigen::polymorphic_allocator scratch_alloc(&mono_buff)
   Eigen::VectorXd res_err = std::numeric_limits<double>::infinity()
   double abs_err = 1e-8;
 
@@ -127,10 +129,10 @@ int main() {
     // Use mono buffer for intermediate memory
     VectorXd predictions(5, alloc);
     predictions = X * theta;
-    // Can also use `assign()` to set the allocator
-    VectorXd errors = assign(alloc, predictions - y);
-    VectorXd gradient = assign(alloc, X.transpose() * errors);
-    theta -= alpha * gradient;
+    // Can also use `with_allocator()` to set the allocator
+    VectorXd errors = (predictions - y).with_allocator(alloc, scratch_alloc);
+    VectorXd gradient = (X.transpose() * errors).with_allocator(alloc, scratch_alloc);
+    theta -= (alpha * gradient).with_allocator(alloc, scratch_alloc);
     // Reset the monotonic buffer to reuse the memory
     alloc.resource()->release();
   }
@@ -395,6 +397,19 @@ class polymorphic_allocator {
 };
 ```
 
+A new member function `with_allocator` will be added that accepts either one or two allocators. In the of one argument, any temporaries made in the expression will also be allocated with the allocator and the end destination matrix will be allocated in the allocator.
+
+```c++
+VectorXd gradient = (X.transpose() * errors).with_allocator(alloc);
+```
+
+For the two argument version of `with_allocator`, the second argument will be an allocator used for temporary allocations and will be cleared after the expression and assignment have finished.
+
+```c++
+VectorXd gradient = (X.transpose() * errors).with_allocator(alloc, scratch_allocator);
+```
+
+
 # Drawbacks
 [drawbacks]: #drawbacks
 
@@ -454,35 +469,6 @@ The main precedent here is c++17's `std::pmr` namespace. This design doc is pret
 > - What parts of the design do you expect to resolve through the RFC process before this gets merged?
 > - What parts of the design do you expect to resolve through the implementation of this feature before stabilization?
 > - What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
-
--------------------
-
-How should resolution be done when two matrices have different allocators?
-
-i.e. if `X` has `alloc_a` and `Y` has `alloc_b`, how should the memory for `Eigen::MatrixXd Z = X * Y` be allocated?
-
-This question also comes up in code like in the gradient descent example in the guide docs.
-
-```c++
-VectorXd gradient = assign(alloc, X.transpose() * errors);
-```
-
-Here `errors` uses a custom allocator, but `X` does not.
-Therefore I thought it appropriate to have an `assign` function the explicitly states what allocator should be used for `gradient`.
-If it's possible to make a nice rule for when custom allocators are used over the default allocator then the above line would remove the `assign` function which does look nice.
-
-```c++
-// uses errors.allocator() for `gradient`
-VectorXd gradient = X.transpose() * errors;
-```
-
--------------------
-
-Should we just require users to use `std::pmr`'s `polymorphic_allocator` and `memory_resource`?
-That would remove the need to support a lot of code here that duplicates these classes.
-The codebase would still likely need an `Eigen::polymorphic_allocator`, but it could just be an alias for `std::pmr::polymorphic_allocator` when c++17 is available and a default that uses Eigen's already existing malloc/free when not available.
-When c++17 is not available and someone tries to use a custom resource we would need to check that and throw an error, hopefully at compile time.
-
 
 -------------------
 
