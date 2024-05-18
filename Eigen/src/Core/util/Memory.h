@@ -766,7 +766,7 @@ void swap(scoped_array<T>& a, scoped_array<T>& b) {
 // If alloca is already aligned, the compiler should be smart enough to optimize away the re-alignment.
 
 #if (EIGEN_COMP_GNUC || EIGEN_COMP_CLANG)
-#define EIGEN_ALIGNED_ALLOCA(SIZE) __builtin_alloca_with_align(SIZE, CHAR_BIT * EIGEN_DEFAULT_ALIGN_BYTES)
+#define EIGEN_ALIGNED_ALLOCA(SIZE) __builtin_alloca_with_align(SIZE, CHAR_BIT* EIGEN_DEFAULT_ALIGN_BYTES)
 #else
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* ptr) {
   constexpr std::uintptr_t mask = EIGEN_DEFAULT_ALIGN_BYTES - 1;
@@ -777,6 +777,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 }
 #define EIGEN_ALIGNED_ALLOCA(SIZE) eigen_aligned_alloca_helper(EIGEN_ALLOCA(SIZE + EIGEN_DEFAULT_ALIGN_BYTES - 1))
 #endif
+
 #else
 #define EIGEN_ALIGNED_ALLOCA(SIZE) EIGEN_ALLOCA(SIZE)
 #endif
