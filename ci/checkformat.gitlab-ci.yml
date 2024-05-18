@@ -7,7 +7,6 @@ checkformat:clangformat:
   before_script:
     - export DEBIAN_FRONTEND=noninteractive
     - apt-get update -y
-    - apt-get install -y --no-install-recommends git clang-format-17
+    - apt-get install -y --no-install-recommends git clang-format clang-format-17
   script:
-    - ./scripts/format.sh
-    - git --no-pager diff --exit-code HEAD
+    - git clang-format-17 --diff --commit ${CI_MERGE_REQUEST_DIFF_BASE_SHA}
