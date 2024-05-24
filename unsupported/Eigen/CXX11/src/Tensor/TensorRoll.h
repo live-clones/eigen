@@ -94,22 +94,14 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
-
   typedef internal::TensorIntDivisor<Index> IndexDivisor;
-
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
-
-  typedef typename TensorEvaluator<const ArgType, Device>::TensorBlock ArgTensorBlock;
-
-  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
+  typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_rolls(op.roll()), m_device(device) {
-    // Reversing a scalar isn't supported yet. It would be a no-op anyway.
-    EIGEN_STATIC_ASSERT((NumDims > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
+    EIGEN_STATIC_ASSERT((NumDims > 0), Must_Have_At_Least_One_Dimension_To_Roll);
 
     // Compute strides
     m_dimensions = m_impl.dimensions();
@@ -194,66 +186,6 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
     return rslt;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
-    const size_t target_size = m_device.lastLevelCacheSize();
-    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size).addCostPerCoeff({0, 0, 24});
-  }
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
-                                                          bool /*root_of_expr_ast*/ = false) const {
-    static const bool isColMajor = static_cast<int>(Layout) == static_cast<int>(ColMajor);
-    static const Index inner_dim_idx = isColMajor ? 0 : NumDims - 1;
-
-    // Offset in the output block.
-    Index block_offset = 0;
-
-    // Offset in the input Tensor.
-    Index input_offset = rollIndex(desc.offset());
-
-    // Initialize output block iterator state. Dimension in this array are
-    // always in inner_most -> outer_most order (col major layout).
-    array<BlockIteratorState, NumDims> it;
-    for (int i = 0; i < NumDims; ++i) {
-      const int dim = isColMajor ? i : NumDims - 1 - i;
-      it[i].size = desc.dimension(dim);
-      it[i].count = 0;
-      it[i].roll = m_rolls[dim];
-
-      it[i].block_stride = i == 0 ? 1 : (it[i - 1].size * it[i - 1].block_stride);
-      it[i].block_span = it[i].block_stride * (it[i].size - 1);
-
-      it[i].input_stride = m_strides[dim];
-      it[i].input_span = it[i].input_stride * (it[i].size - 1);
-    }
-    const Index inner_dim_size = it[inner_dim_idx].size;
-
-    const typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
-    CoeffReturnType* block_buffer = block_storage.data();
-
-    while (it[NumDims - 1].count < it[NumDims - 1].size) {
-      Index dst = block_offset;
-      Index src = input_offset;
-      for (Index i = 0; i < inner_dim_size; ++i) {
-        block_buffer[dst] = m_impl.coeff(src);
-        ++dst;
-        ++src;
-      }
-
-      for (Index i = inner_dim_idx + 1; i < NumDims; ++i) {
-        if (++it[i].count < it[i].size) {
-          block_offset += it[i].block_stride;
-          input_offset += it[i].input_stride;
-          break;
-        }
-        if (i != NumDims - 1) it[i].count = 0;
-        block_offset -= it[i].block_span;
-        input_offset -= it[i].input_span;
-      }
-    }
-
-    return block_storage.AsTensorMaterializedBlock();
-  }
-
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     double compute_cost = NumDims * (2 * TensorOpCost::AddCost<Index>() + 2 * TensorOpCost::MulCost<Index>() +
                                      TensorOpCost::DivCost<Index>());
@@ -272,21 +204,7 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
   TensorEvaluator<ArgType, Device> m_impl;
   RollDimensions m_rolls;
   const Device EIGEN_DEVICE_REF m_device;
-
- private:
-  struct BlockIteratorState {
-    BlockIteratorState() : size(0), count(0), roll(0), block_stride(0), block_span(0), input_stride(0), input_span(0) {}
-
-    Index size;
-    Index count;
-    Index roll;
-    Index block_stride;
-    Index block_span;
-    Index input_stride;
-    Index input_span;
-  };
 };
-
 // Eval as lvalue
 
 template <typename RollDimensions, typename ArgType, typename Device>
