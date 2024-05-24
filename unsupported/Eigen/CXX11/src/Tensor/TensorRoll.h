@@ -89,8 +89,8 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = NumDims > 0,
-    PreferBlockAccess = true,
+    BlockAccess = false,
+    PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
