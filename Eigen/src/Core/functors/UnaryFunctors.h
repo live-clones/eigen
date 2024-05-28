@@ -1045,7 +1045,7 @@ struct scalar_isfinite_op<Scalar, true> {
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
-    return por(pisnan(a), pisinf(a));
+    return pandnot(pcmp_eq(a, a), pisinf(a));
   }
 };
 template <typename Scalar, bool UseTypedPredicate>
