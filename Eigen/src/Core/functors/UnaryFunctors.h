@@ -1045,7 +1045,8 @@ struct scalar_isfinite_op<Scalar, true> {
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
-    return pandnot(pcmp_eq(a, a), pisinf(a));
+    constexpr Scalar inf = NumTraits<Scalar>::infinity();
+    return pcmp_lt(pabs(a), pset1<Packet>(inf));
   }
 };
 template <typename Scalar, bool UseTypedPredicate>
