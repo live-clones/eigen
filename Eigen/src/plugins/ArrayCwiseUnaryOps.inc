@@ -416,7 +416,9 @@ EIGEN_DEVICE_FUNC inline const IsInfReturnType isInf() const { return IsInfRetur
  * \sa isnan(), isinf()
  */
 EIGEN_DEVICE_FUNC inline const IsFiniteReturnType isFinite() const { return IsFiniteReturnType(derived()); }
-EIGEN_DEVICE_FUNC inline const IsFiniteTypedReturnType isFiniteTyped() const { return IsFiniteTypedReturnType(derived()); }
+EIGEN_DEVICE_FUNC inline const IsFiniteTypedReturnType isFiniteTyped() const {
+  return IsFiniteTypedReturnType(derived());
+}
 
 /** \returns an expression of the coefficient-wise ! operator of *this
  *
