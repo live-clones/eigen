@@ -19,8 +19,8 @@ namespace Eigen {
 namespace internal {
 
 template <typename MatrixType, typename RealScalar, typename Index>
-void real_2x2_jacobi_svd(const MatrixType &matrix, Index p, Index q, JacobiRotation<RealScalar> *j_left,
-                         JacobiRotation<RealScalar> *j_right) {
+constexpr void real_2x2_jacobi_svd(const MatrixType &matrix, Index p, Index q, JacobiRotation<RealScalar> *j_left,
+                                   JacobiRotation<RealScalar> *j_right) {
   using std::abs;
   using std::sqrt;
   Matrix<RealScalar, 2, 2> m;

@@ -117,19 +117,19 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
   typedef AngleAxis<Scalar> AngleAxisType;   /*!< the equivalent angle-axis type */
 
   /** \returns the axis vector of the first (alpha) rotation */
-  static Vector3 AlphaAxisVector() {
+  static constexpr Vector3 AlphaAxisVector() {
     const Vector3& u = Vector3::Unit(System::AlphaAxisAbs - 1);
     return System::IsAlphaOpposite ? -u : u;
   }
 
   /** \returns the axis vector of the second (beta) rotation */
-  static Vector3 BetaAxisVector() {
+  static constexpr Vector3 BetaAxisVector() {
     const Vector3& u = Vector3::Unit(System::BetaAxisAbs - 1);
     return System::IsBetaOpposite ? -u : u;
   }
 
   /** \returns the axis vector of the third (gamma) rotation */
-  static Vector3 GammaAxisVector() {
+  static constexpr Vector3 GammaAxisVector() {
     const Vector3& u = Vector3::Unit(System::GammaAxisAbs - 1);
     return System::IsGammaOpposite ? -u : u;
   }
@@ -139,13 +139,13 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
 
  public:
   /** Default constructor without initialization. */
-  EulerAngles() {}
+  constexpr EulerAngles() = default;
   /** Constructs and initialize an EulerAngles (\p alpha, \p beta, \p gamma). */
-  EulerAngles(const Scalar& alpha, const Scalar& beta, const Scalar& gamma) : m_angles(alpha, beta, gamma) {}
+  constexpr EulerAngles(const Scalar& alpha, const Scalar& beta, const Scalar& gamma) : m_angles(alpha, beta, gamma) {}
 
   // TODO: Test this constructor
   /** Constructs and initialize an EulerAngles from the array data {alpha, beta, gamma} */
-  explicit EulerAngles(const Scalar* data) : m_angles(data) {}
+  constexpr explicit EulerAngles(const Scalar* data) : m_angles(data) {}
 
   /** Constructs and initializes an EulerAngles from either:
    *  - a 3x3 rotation matrix expression(i.e. pure orthogonal matrix with determinant of +1),
@@ -160,7 +160,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
    *     - If the beta axis is negative, the beta angle will be in the range [-PI, 0]
    */
   template <typename Derived>
-  explicit EulerAngles(const MatrixBase<Derived>& other) {
+  constexpr explicit EulerAngles(const MatrixBase<Derived>& other) {
     *this = other;
   }
 
@@ -176,7 +176,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
    *     - If the beta axis is negative, the beta angle will be in the range [-PI, 0]
    */
   template <typename Derived>
-  EulerAngles(const RotationBase<Derived, 3>& rot) {
+  constexpr EulerAngles(const RotationBase<Derived, 3>& rot) {
     System::CalcEulerAngles(*this, rot.toRotationMatrix());
   }
 
@@ -195,29 +195,29 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
   }*/
 
   /** \returns The angle values stored in a vector (alpha, beta, gamma). */
-  const Vector3& angles() const { return m_angles; }
+  constexpr const Vector3& angles() const { return m_angles; }
   /** \returns A read-write reference to the angle values stored in a vector (alpha, beta, gamma). */
-  Vector3& angles() { return m_angles; }
+  constexpr Vector3& angles() { return m_angles; }
 
   /** \returns The value of the first angle. */
-  Scalar alpha() const { return m_angles[0]; }
+  constexpr Scalar alpha() const { return m_angles[0]; }
   /** \returns A read-write reference to the angle of the first angle. */
-  Scalar& alpha() { return m_angles[0]; }
+  constexpr Scalar& alpha() { return m_angles[0]; }
 
   /** \returns The value of the second angle. */
-  Scalar beta() const { return m_angles[1]; }
+  constexpr Scalar beta() const { return m_angles[1]; }
   /** \returns A read-write reference to the angle of the second angle. */
-  Scalar& beta() { return m_angles[1]; }
+  constexpr Scalar& beta() { return m_angles[1]; }
 
   /** \returns The value of the third angle. */
-  Scalar gamma() const { return m_angles[2]; }
+  constexpr Scalar gamma() const { return m_angles[2]; }
   /** \returns A read-write reference to the angle of the third angle. */
-  Scalar& gamma() { return m_angles[2]; }
+  constexpr Scalar& gamma() { return m_angles[2]; }
 
   /** \returns The Euler angles rotation inverse (which is as same as the negative),
    *  (-alpha, -beta, -gamma).
    */
-  EulerAngles inverse() const {
+  constexpr EulerAngles inverse() const {
     EulerAngles res;
     res.m_angles = -m_angles;
     return res;
@@ -226,7 +226,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
   /** \returns The Euler angles rotation negative (which is as same as the inverse),
    *  (-alpha, -beta, -gamma).
    */
-  EulerAngles operator-() const { return inverse(); }
+  constexpr EulerAngles operator-() const { return inverse(); }
 
   /** Set \c *this from either:
    *  - a 3x3 rotation matrix expression(i.e. pure orthogonal matrix with determinant of +1),
@@ -236,7 +236,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
    *  angles ranges output.
    */
   template <class Derived>
-  EulerAngles& operator=(const MatrixBase<Derived>& other) {
+  constexpr EulerAngles& operator=(const MatrixBase<Derived>& other) {
     EIGEN_STATIC_ASSERT(
         (internal::is_same<Scalar, typename Derived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
@@ -253,7 +253,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
    *  angles ranges output.
    */
   template <typename Derived>
-  EulerAngles& operator=(const RotationBase<Derived, 3>& rot) {
+  constexpr EulerAngles& operator=(const RotationBase<Derived, 3>& rot) {
     System::CalcEulerAngles(*this, rot.toRotationMatrix());
     return *this;
   }
@@ -262,18 +262,19 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
    * determined by \a prec.
    *
    * \sa MatrixBase::isApprox() */
-  bool isApprox(const EulerAngles& other, const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const {
+  constexpr bool isApprox(const EulerAngles& other,
+                          const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const {
     return angles().isApprox(other.angles(), prec);
   }
 
   /** \returns an equivalent 3x3 rotation matrix. */
-  Matrix3 toRotationMatrix() const {
+  constexpr Matrix3 toRotationMatrix() const {
     // TODO: Calc it faster
     return static_cast<QuaternionType>(*this).toRotationMatrix();
   }
 
   /** Convert the Euler angles to quaternion. */
-  operator QuaternionType() const {
+  constexpr operator QuaternionType() const {
     return AngleAxisType(alpha(), AlphaAxisVector()) * AngleAxisType(beta(), BetaAxisVector()) *
            AngleAxisType(gamma(), GammaAxisVector());
   }
@@ -285,7 +286,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
 
   /** \returns \c *this with scalar type casted to \a NewScalarType */
   template <typename NewScalarType>
-  EulerAngles<NewScalarType, System> cast() const {
+  constexpr EulerAngles<NewScalarType, System> cast() const {
     EulerAngles<NewScalarType, System> e;
     e.angles() = angles().template cast<NewScalarType>();
     return e;
@@ -325,14 +326,14 @@ struct traits<EulerAngles<Scalar_, _System> > {
 template <class System, class Other>
 struct eulerangles_assign_impl<System, Other, 3, 3> {
   typedef typename Other::Scalar Scalar;
-  static void run(EulerAngles<Scalar, System>& e, const Other& m) { System::CalcEulerAngles(e, m); }
+  static constexpr void run(EulerAngles<Scalar, System>& e, const Other& m) { System::CalcEulerAngles(e, m); }
 };
 
 // set from a vector of Euler angles
 template <class System, class Other>
 struct eulerangles_assign_impl<System, Other, 3, 1> {
   typedef typename Other::Scalar Scalar;
-  static void run(EulerAngles<Scalar, System>& e, const Other& vec) { e.angles() = vec; }
+  static constexpr void run(EulerAngles<Scalar, System>& e, const Other& vec) { e.angles() = vec; }
 };
 }  // namespace internal
 }  // namespace Eigen

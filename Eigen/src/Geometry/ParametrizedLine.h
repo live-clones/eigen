@@ -40,72 +40,73 @@ class ParametrizedLine {
   typedef Matrix<Scalar, AmbientDimAtCompileTime, 1, Options> VectorType;
 
   /** Default constructor without initialization */
-  EIGEN_DEVICE_FUNC inline ParametrizedLine() {}
+  EIGEN_DEVICE_FUNC inline constexpr ParametrizedLine() = default;
 
   template <int OtherOptions>
-  EIGEN_DEVICE_FUNC ParametrizedLine(const ParametrizedLine<Scalar, AmbientDimAtCompileTime, OtherOptions>& other)
+  EIGEN_DEVICE_FUNC constexpr ParametrizedLine(
+      const ParametrizedLine<Scalar, AmbientDimAtCompileTime, OtherOptions>& other)
       : m_origin(other.origin()), m_direction(other.direction()) {}
 
   /** Constructs a dynamic-size line with \a _dim the dimension
    * of the ambient space */
-  EIGEN_DEVICE_FUNC inline explicit ParametrizedLine(Index _dim) : m_origin(_dim), m_direction(_dim) {}
+  EIGEN_DEVICE_FUNC inline constexpr explicit ParametrizedLine(Index _dim) : m_origin(_dim), m_direction(_dim) {}
 
   /** Initializes a parametrized line of direction \a direction and origin \a origin.
    * \warning the vector direction is assumed to be normalized.
    */
-  EIGEN_DEVICE_FUNC ParametrizedLine(const VectorType& origin, const VectorType& direction)
+  EIGEN_DEVICE_FUNC constexpr ParametrizedLine(const VectorType& origin, const VectorType& direction)
       : m_origin(origin), m_direction(direction) {}
 
   template <int OtherOptions>
-  EIGEN_DEVICE_FUNC explicit ParametrizedLine(const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane);
+  EIGEN_DEVICE_FUNC constexpr explicit ParametrizedLine(
+      const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane);
 
   /** Constructs a parametrized line going from \a p0 to \a p1. */
-  EIGEN_DEVICE_FUNC static inline ParametrizedLine Through(const VectorType& p0, const VectorType& p1) {
+  EIGEN_DEVICE_FUNC static inline constexpr ParametrizedLine Through(const VectorType& p0, const VectorType& p1) {
     return ParametrizedLine(p0, (p1 - p0).normalized());
   }
 
-  EIGEN_DEVICE_FUNC ~ParametrizedLine() {}
-
   /** \returns the dimension in which the line holds */
-  EIGEN_DEVICE_FUNC inline Index dim() const { return m_direction.size(); }
+  EIGEN_DEVICE_FUNC inline constexpr Index dim() const { return m_direction.size(); }
 
-  EIGEN_DEVICE_FUNC const VectorType& origin() const { return m_origin; }
-  EIGEN_DEVICE_FUNC VectorType& origin() { return m_origin; }
+  EIGEN_DEVICE_FUNC constexpr const VectorType& origin() const { return m_origin; }
+  EIGEN_DEVICE_FUNC constexpr VectorType& origin() { return m_origin; }
 
-  EIGEN_DEVICE_FUNC const VectorType& direction() const { return m_direction; }
-  EIGEN_DEVICE_FUNC VectorType& direction() { return m_direction; }
+  EIGEN_DEVICE_FUNC constexpr const VectorType& direction() const { return m_direction; }
+  EIGEN_DEVICE_FUNC constexpr VectorType& direction() { return m_direction; }
 
   /** \returns the squared distance of a point \a p to its projection onto the line \c *this.
    * \sa distance()
    */
-  EIGEN_DEVICE_FUNC RealScalar squaredDistance(const VectorType& p) const {
+  EIGEN_DEVICE_FUNC constexpr RealScalar squaredDistance(const VectorType& p) const {
     VectorType diff = p - origin();
     return (diff - direction().dot(diff) * direction()).squaredNorm();
   }
   /** \returns the distance of a point \a p to its projection onto the line \c *this.
    * \sa squaredDistance()
    */
-  EIGEN_DEVICE_FUNC RealScalar distance(const VectorType& p) const {
+  EIGEN_DEVICE_FUNC constexpr RealScalar distance(const VectorType& p) const {
     EIGEN_USING_STD(sqrt) return sqrt(squaredDistance(p));
   }
 
   /** \returns the projection of a point \a p onto the line \c *this. */
-  EIGEN_DEVICE_FUNC VectorType projection(const VectorType& p) const {
+  EIGEN_DEVICE_FUNC constexpr VectorType projection(const VectorType& p) const {
     return origin() + direction().dot(p - origin()) * direction();
   }
 
-  EIGEN_DEVICE_FUNC VectorType pointAt(const Scalar& t) const;
+  EIGEN_DEVICE_FUNC constexpr VectorType pointAt(const Scalar& t) const;
 
   template <int OtherOptions>
-  EIGEN_DEVICE_FUNC Scalar
-  intersectionParameter(const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const;
+  EIGEN_DEVICE_FUNC constexpr Scalar intersectionParameter(
+      const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const;
 
   template <int OtherOptions>
-  EIGEN_DEVICE_FUNC Scalar intersection(const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const;
+  EIGEN_DEVICE_FUNC constexpr Scalar intersection(
+      const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const;
 
   template <int OtherOptions>
-  EIGEN_DEVICE_FUNC VectorType
-  intersectionPoint(const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const;
+  EIGEN_DEVICE_FUNC constexpr VectorType intersectionPoint(
+      const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const;
 
   /** Applies the transformation matrix \a mat to \c *this and returns a reference to \c *this.
    *
@@ -114,8 +115,8 @@ class ParametrizedLine {
    *               or a more generic #Affine transformation. The default is #Affine.
    */
   template <typename XprType>
-  EIGEN_DEVICE_FUNC inline ParametrizedLine& transform(const MatrixBase<XprType>& mat,
-                                                       TransformTraits traits = Affine) {
+  EIGEN_DEVICE_FUNC inline constexpr ParametrizedLine& transform(const MatrixBase<XprType>& mat,
+                                                                 TransformTraits traits = Affine) {
     if (traits == Affine)
       direction() = (mat * direction()).normalized();
     else if (traits == Isometry)
@@ -135,7 +136,7 @@ class ParametrizedLine {
    *               Other kind of transformations are not supported.
    */
   template <int TrOptions>
-  EIGEN_DEVICE_FUNC inline ParametrizedLine& transform(
+  EIGEN_DEVICE_FUNC inline constexpr ParametrizedLine& transform(
       const Transform<Scalar, AmbientDimAtCompileTime, Affine, TrOptions>& t, TransformTraits traits = Affine) {
     transform(t.linear(), traits);
     origin() += t.translation();
@@ -148,7 +149,7 @@ class ParametrizedLine {
    * then this function smartly returns a const reference to \c *this.
    */
   template <typename NewScalarType>
-  EIGEN_DEVICE_FUNC inline
+  EIGEN_DEVICE_FUNC inline constexpr
       typename internal::cast_return_type<ParametrizedLine,
                                           ParametrizedLine<NewScalarType, AmbientDimAtCompileTime, Options> >::type
       cast() const {
@@ -158,7 +159,7 @@ class ParametrizedLine {
 
   /** Copy constructor with scalar type conversion */
   template <typename OtherScalarType, int OtherOptions>
-  EIGEN_DEVICE_FUNC inline explicit ParametrizedLine(
+  EIGEN_DEVICE_FUNC inline constexpr explicit ParametrizedLine(
       const ParametrizedLine<OtherScalarType, AmbientDimAtCompileTime, OtherOptions>& other) {
     m_origin = other.origin().template cast<Scalar>();
     m_direction = other.direction().template cast<Scalar>();
@@ -168,8 +169,9 @@ class ParametrizedLine {
    * determined by \a prec.
    *
    * \sa MatrixBase::isApprox() */
-  EIGEN_DEVICE_FUNC bool isApprox(const ParametrizedLine& other, const typename NumTraits<Scalar>::Real& prec =
-                                                                     NumTraits<Scalar>::dummy_precision()) const {
+  EIGEN_DEVICE_FUNC constexpr bool isApprox(
+      const ParametrizedLine& other,
+      const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
     return m_origin.isApprox(other.m_origin, prec) && m_direction.isApprox(other.m_direction, prec);
   }
 
@@ -183,7 +185,7 @@ class ParametrizedLine {
  */
 template <typename Scalar_, int AmbientDim_, int Options_>
 template <int OtherOptions>
-EIGEN_DEVICE_FUNC inline ParametrizedLine<Scalar_, AmbientDim_, Options_>::ParametrizedLine(
+EIGEN_DEVICE_FUNC inline constexpr ParametrizedLine<Scalar_, AmbientDim_, Options_>::ParametrizedLine(
     const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorType, 2)
   direction() = hyperplane.normal().unitOrthogonal();
@@ -193,7 +195,7 @@ EIGEN_DEVICE_FUNC inline ParametrizedLine<Scalar_, AmbientDim_, Options_>::Param
 /** \returns the point at \a t along this line
  */
 template <typename Scalar_, int AmbientDim_, int Options_>
-EIGEN_DEVICE_FUNC inline typename ParametrizedLine<Scalar_, AmbientDim_, Options_>::VectorType
+EIGEN_DEVICE_FUNC inline constexpr typename ParametrizedLine<Scalar_, AmbientDim_, Options_>::VectorType
 ParametrizedLine<Scalar_, AmbientDim_, Options_>::pointAt(const Scalar_& t) const {
   return origin() + (direction() * t);
 }
@@ -202,7 +204,7 @@ ParametrizedLine<Scalar_, AmbientDim_, Options_>::pointAt(const Scalar_& t) cons
  */
 template <typename Scalar_, int AmbientDim_, int Options_>
 template <int OtherOptions>
-EIGEN_DEVICE_FUNC inline Scalar_ ParametrizedLine<Scalar_, AmbientDim_, Options_>::intersectionParameter(
+EIGEN_DEVICE_FUNC inline constexpr Scalar_ ParametrizedLine<Scalar_, AmbientDim_, Options_>::intersectionParameter(
     const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const {
   return -(hyperplane.offset() + hyperplane.normal().dot(origin())) / hyperplane.normal().dot(direction());
 }
@@ -212,7 +214,7 @@ EIGEN_DEVICE_FUNC inline Scalar_ ParametrizedLine<Scalar_, AmbientDim_, Options_
  */
 template <typename Scalar_, int AmbientDim_, int Options_>
 template <int OtherOptions>
-EIGEN_DEVICE_FUNC inline Scalar_ ParametrizedLine<Scalar_, AmbientDim_, Options_>::intersection(
+EIGEN_DEVICE_FUNC inline constexpr Scalar_ ParametrizedLine<Scalar_, AmbientDim_, Options_>::intersection(
     const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const {
   return intersectionParameter(hyperplane);
 }
@@ -221,7 +223,7 @@ EIGEN_DEVICE_FUNC inline Scalar_ ParametrizedLine<Scalar_, AmbientDim_, Options_
  */
 template <typename Scalar_, int AmbientDim_, int Options_>
 template <int OtherOptions>
-EIGEN_DEVICE_FUNC inline typename ParametrizedLine<Scalar_, AmbientDim_, Options_>::VectorType
+EIGEN_DEVICE_FUNC inline constexpr typename ParametrizedLine<Scalar_, AmbientDim_, Options_>::VectorType
 ParametrizedLine<Scalar_, AmbientDim_, Options_>::intersectionPoint(
     const Hyperplane<Scalar_, AmbientDim_, OtherOptions>& hyperplane) const {
   return pointAt(intersectionParameter(hyperplane));

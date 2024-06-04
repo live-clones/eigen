@@ -18,7 +18,7 @@ namespace Eigen {
 namespace internal {
 
 template <typename ExpressionType, typename Scalar>
-inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& scale, Scalar& invScale) {
+inline constexpr void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& scale, Scalar& invScale) {
   Scalar maxCoeff = bl.cwiseAbs().maxCoeff();
 
   if (maxCoeff > scale) {
@@ -47,7 +47,8 @@ inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& sc
 }
 
 template <typename VectorType, typename RealScalar>
-void stable_norm_impl_inner_step(const VectorType& vec, RealScalar& ssq, RealScalar& scale, RealScalar& invScale) {
+constexpr void stable_norm_impl_inner_step(const VectorType& vec, RealScalar& ssq, RealScalar& scale,
+                                           RealScalar& invScale) {
   const Index blockSize = 4096;
 
   Index n = vec.size();
@@ -61,8 +62,8 @@ void stable_norm_impl_inner_step(const VectorType& vec, RealScalar& ssq, RealSca
 }
 
 template <typename VectorType>
-typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
-                                                 std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
+constexpr typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
+                                                           std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
   using std::abs;
   using std::sqrt;
 
@@ -80,8 +81,8 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
 }
 
 template <typename MatrixType>
-typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
-                                                 std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
+constexpr typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
+                                                           std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
   using std::sqrt;
 
   typedef typename MatrixType::RealScalar RealScalar;
@@ -94,7 +95,8 @@ typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
 }
 
 template <typename Derived>
-inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(const EigenBase<Derived>& _vec) {
+inline constexpr typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
+    const EigenBase<Derived>& _vec) {
   typedef typename Derived::RealScalar RealScalar;
   using std::abs;
   using std::pow;
@@ -108,21 +110,21 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
   // For portability, the PORT subprograms "ilmaeh" and "rlmach"
   // are used. For any specific computer, each of the assignment
   // statements can be replaced
-  static const int ibeta = std::numeric_limits<RealScalar>::radix;  // base for floating-point numbers
-  static const int it = NumTraits<RealScalar>::digits();            // number of base-beta digits in mantissa
-  static const int iemin = NumTraits<RealScalar>::min_exponent();   // minimum exponent
-  static const int iemax = NumTraits<RealScalar>::max_exponent();   // maximum exponent
-  static const RealScalar rbig = NumTraits<RealScalar>::highest();  // largest floating-point number
-  static const RealScalar b1 =
-      RealScalar(pow(RealScalar(ibeta), RealScalar(-((1 - iemin) / 2))));  // lower boundary of midrange
-  static const RealScalar b2 =
-      RealScalar(pow(RealScalar(ibeta), RealScalar((iemax + 1 - it) / 2)));  // upper boundary of midrange
-  static const RealScalar s1m =
-      RealScalar(pow(RealScalar(ibeta), RealScalar((2 - iemin) / 2)));  // scaling factor for lower range
-  static const RealScalar s2m =
-      RealScalar(pow(RealScalar(ibeta), RealScalar(-((iemax + it) / 2))));  // scaling factor for upper range
-  static const RealScalar eps = RealScalar(pow(double(ibeta), 1 - it));
-  static const RealScalar relerr = sqrt(eps);  // tolerance for neglecting asml
+  constexpr int ibeta = std::numeric_limits<RealScalar>::radix;  // base for floating-point numbers
+  constexpr int it = NumTraits<RealScalar>::digits();            // number of base-beta digits in mantissa
+  constexpr int iemin = NumTraits<RealScalar>::min_exponent();   // minimum exponent
+  constexpr int iemax = NumTraits<RealScalar>::max_exponent();   // maximum exponent
+  constexpr RealScalar rbig = NumTraits<RealScalar>::highest();  // largest floating-point number
+  constexpr RealScalar b1 =
+      RealScalar(gcem::pow(RealScalar(ibeta), RealScalar(-((1 - iemin) / 2))));  // lower boundary of midrange
+  constexpr RealScalar b2 =
+      RealScalar(gcem::pow(RealScalar(ibeta), RealScalar((iemax + 1 - it) / 2)));  // upper boundary of midrange
+  constexpr RealScalar s1m =
+      RealScalar(gcem::pow(RealScalar(ibeta), RealScalar((2 - iemin) / 2)));  // scaling factor for lower range
+  constexpr RealScalar s2m =
+      RealScalar(gcem::pow(RealScalar(ibeta), RealScalar(-((iemax + it) / 2))));  // scaling factor for upper range
+  constexpr RealScalar eps = RealScalar(gcem::pow(double(ibeta), 1 - it));
+  constexpr RealScalar relerr = gcem::sqrt(eps);  // tolerance for neglecting asml
 
   const Derived& vec(_vec.derived());
   Index n = vec.size();
@@ -181,7 +183,8 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
  * \sa norm(), blueNorm(), hypotNorm()
  */
 template <typename Derived>
-inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::stableNorm() const {
+inline constexpr typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::stableNorm()
+    const {
   return internal::stable_norm_impl(derived());
 }
 
@@ -195,7 +198,8 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Matr
  * \sa norm(), stableNorm(), hypotNorm()
  */
 template <typename Derived>
-inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::blueNorm() const {
+inline constexpr typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::blueNorm()
+    const {
   return internal::blueNorm_impl(*this);
 }
 
@@ -205,7 +209,8 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Matr
  * \sa norm(), stableNorm()
  */
 template <typename Derived>
-inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::hypotNorm() const {
+inline constexpr typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::hypotNorm()
+    const {
   if (size() == 1)
     return numext::abs(coeff(0, 0));
   else

@@ -51,10 +51,10 @@ std::ostream& print_matrix(std::ostream& s, const Derived& _m, const IOFormat& f
  */
 struct IOFormat {
   /** Default constructor, see class IOFormat for the meaning of the parameters */
-  IOFormat(int _precision = StreamPrecision, int _flags = 0, const std::string& _coeffSeparator = " ",
-           const std::string& _rowSeparator = "\n", const std::string& _rowPrefix = "",
-           const std::string& _rowSuffix = "", const std::string& _matPrefix = "", const std::string& _matSuffix = "",
-           const char _fill = ' ')
+  constexpr IOFormat(int _precision = StreamPrecision, int _flags = 0, const std::string& _coeffSeparator = " ",
+                     const std::string& _rowSeparator = "\n", const std::string& _rowPrefix = "",
+                     const std::string& _rowSuffix = "", const std::string& _matPrefix = "",
+                     const std::string& _matSuffix = "", const char _fill = ' ')
       : matPrefix(_matPrefix),
         matSuffix(_matSuffix),
         rowPrefix(_rowPrefix),
@@ -100,7 +100,7 @@ struct IOFormat {
 template <typename ExpressionType>
 class WithFormat {
  public:
-  WithFormat(const ExpressionType& matrix, const IOFormat& format) : m_matrix(matrix), m_format(format) {}
+  constexpr WithFormat(const ExpressionType& matrix, const IOFormat& format) : m_matrix(matrix), m_format(format) {}
 
   friend std::ostream& operator<<(std::ostream& s, const WithFormat& wf) {
     return internal::print_matrix(s, wf.m_matrix.eval(), wf.m_format);
@@ -118,7 +118,7 @@ namespace internal {
 //       call max_digits10().
 template <typename Scalar>
 struct significant_decimals_impl {
-  static inline int run() { return NumTraits<Scalar>::max_digits10(); }
+  static inline constexpr int run() { return NumTraits<Scalar>::max_digits10(); }
 };
 
 /** \internal

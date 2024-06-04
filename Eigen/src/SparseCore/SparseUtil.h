@@ -21,27 +21,27 @@ namespace Eigen {
 #define EIGEN_DBG_SPARSE(X) X
 #endif
 
-#define EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(Derived, Op)                                    \
-  template <typename OtherDerived>                                                               \
-  EIGEN_STRONG_INLINE Derived& operator Op(const Eigen::SparseMatrixBase<OtherDerived>& other) { \
-    return Base::operator Op(other.derived());                                                   \
-  }                                                                                              \
-  EIGEN_STRONG_INLINE Derived& operator Op(const Derived & other) { return Base::operator Op(other); }
+#define EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(Derived, Op)                                              \
+  template <typename OtherDerived>                                                                         \
+  EIGEN_STRONG_INLINE constexpr Derived& operator Op(const Eigen::SparseMatrixBase<OtherDerived>& other) { \
+    return Base::operator Op(other.derived());                                                             \
+  }                                                                                                        \
+  EIGEN_STRONG_INLINE constexpr Derived& operator Op(const Derived& other) { return Base::operator Op(other); }
 
-#define EIGEN_SPARSE_INHERIT_SCALAR_ASSIGNMENT_OPERATOR(Derived, Op) \
-  template <typename Other>                                          \
-  EIGEN_STRONG_INLINE Derived& operator Op(const Other & scalar) {   \
-    return Base::operator Op(scalar);                                \
+#define EIGEN_SPARSE_INHERIT_SCALAR_ASSIGNMENT_OPERATOR(Derived, Op)        \
+  template <typename Other>                                                 \
+  EIGEN_STRONG_INLINE constexpr Derived& operator Op(const Other& scalar) { \
+    return Base::operator Op(scalar);                                       \
   }
 
 #define EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATORS(Derived) EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(Derived, =)
 
 #define EIGEN_SPARSE_PUBLIC_INTERFACE(Derived) EIGEN_GENERIC_PUBLIC_INTERFACE(Derived)
 
-const int CoherentAccessPattern = 0x1;
-const int InnerRandomAccessPattern = 0x2 | CoherentAccessPattern;
-const int OuterRandomAccessPattern = 0x4 | CoherentAccessPattern;
-const int RandomAccessPattern = 0x8 | OuterRandomAccessPattern | InnerRandomAccessPattern;
+inline constexpr int CoherentAccessPattern = 0x1;
+inline constexpr int InnerRandomAccessPattern = 0x2 | CoherentAccessPattern;
+inline constexpr int OuterRandomAccessPattern = 0x4 | CoherentAccessPattern;
+inline constexpr int RandomAccessPattern = 0x8 | OuterRandomAccessPattern | InnerRandomAccessPattern;
 
 template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int>
 class SparseMatrix;
@@ -150,10 +150,10 @@ struct generic_xpr_base<Derived, MatrixXpr, Sparse> {
 };
 
 struct SparseTriangularShape {
-  static std::string debugName() { return "SparseTriangularShape"; }
+  static constexpr std::string debugName() { return "SparseTriangularShape"; }
 };
 struct SparseSelfAdjointShape {
-  static std::string debugName() { return "SparseSelfAdjointShape"; }
+  static constexpr std::string debugName() { return "SparseSelfAdjointShape"; }
 };
 
 template <>
@@ -167,10 +167,10 @@ struct glue_shapes<SparseShape, TriangularShape> {
 
 // return type of SparseCompressedBase::lower_bound;
 struct LowerBoundIndex {
-  LowerBoundIndex() : value(-1), found(false) {}
-  LowerBoundIndex(Index val, bool ok) : value(val), found(ok) {}
-  Index value;
-  bool found;
+  constexpr LowerBoundIndex() = default;
+  constexpr LowerBoundIndex(Index val, bool ok) : value(val), found(ok) {}
+  Index value = -1;
+  bool found = false;
 };
 
 }  // end namespace internal
@@ -186,22 +186,23 @@ struct LowerBoundIndex {
 template <typename Scalar, typename StorageIndex = typename SparseMatrix<Scalar>::StorageIndex>
 class Triplet {
  public:
-  Triplet() : m_row(0), m_col(0), m_value(0) {}
+  constexpr Triplet() = default;
 
-  Triplet(const StorageIndex& i, const StorageIndex& j, const Scalar& v = Scalar(0)) : m_row(i), m_col(j), m_value(v) {}
+  constexpr Triplet(const StorageIndex& i, const StorageIndex& j, const Scalar& v = Scalar(0))
+      : m_row(i), m_col(j), m_value(v) {}
 
   /** \returns the row index of the element */
-  const StorageIndex& row() const { return m_row; }
+  constexpr const StorageIndex& row() const { return m_row; }
 
   /** \returns the column index of the element */
-  const StorageIndex& col() const { return m_col; }
+  constexpr const StorageIndex& col() const { return m_col; }
 
   /** \returns the value of the element */
-  const Scalar& value() const { return m_value; }
+  constexpr const Scalar& value() const { return m_value; }
 
  protected:
-  StorageIndex m_row, m_col;
-  Scalar m_value;
+  StorageIndex m_row = 0, m_col = 0;
+  Scalar m_value = 0;
 };
 
 }  // end namespace Eigen
