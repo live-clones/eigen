@@ -31,7 +31,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, RowMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = 0; i < lhs.rows(); ++i) {
@@ -61,7 +61,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, RowMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = lhs.rows() - 1; i >= 0; --i) {
@@ -94,7 +94,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = 0; i < lhs.cols(); ++i) {
@@ -123,7 +123,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = lhs.cols() - 1; i >= 0; --i) {
@@ -154,7 +154,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
 
 template <typename ExpressionType, unsigned int Mode>
 template <typename OtherDerived>
-void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(MatrixBase<OtherDerived>& other) const {
+constexpr void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(MatrixBase<OtherDerived>& other) const {
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 
@@ -198,15 +198,15 @@ using rhs_matching_slice = std::integral_constant<
 // in solve order -- ascending for lower (no-op), descending for upper (reverse).
 template <bool Ordered, bool Upper, typename StorageIndex>
 struct reach_reorder {  // Ordered == false: unordered pointer/DFS reach
-  static void run(StorageIndex* first, StorageIndex* last) { std::sort(first, last); }
+  static constexpr void run(StorageIndex* first, StorageIndex* last) { std::sort(first, last); }
 };
 template <typename StorageIndex>
 struct reach_reorder<true, false, StorageIndex> {  // iterator reach, lower: already ascending
-  static void run(StorageIndex* /*first*/, StorageIndex* /*last*/) {}
+  static constexpr void run(StorageIndex* /*first*/, StorageIndex* /*last*/) {}
 };
 template <typename StorageIndex>
 struct reach_reorder<true, true, StorageIndex> {  // iterator reach, upper: descending
-  static void run(StorageIndex* first, StorageIndex* last) { std::reverse(first, last); }
+  static constexpr void run(StorageIndex* first, StorageIndex* last) { std::reverse(first, last); }
 };
 
 // Common per-column finish: reorder the reach xi[top..n) to ascending inner index,
@@ -216,7 +216,8 @@ struct reach_reorder<true, true, StorageIndex> {  // iterator reach, upper: desc
 // insertion. This matches the AmbiVector path, which pruned zeros, and keeps a zero rhs
 // from materializing O(|reach|) stored zeros. xwork and mark are cleared regardless.
 template <bool Ordered, bool Upper, typename Res, typename StorageIndex, typename Scalar>
-void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index n, Scalar* xwork, uint8_t* mark) {
+constexpr void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index n, Scalar* xwork,
+                                   uint8_t* mark) {
   reach_reorder<Ordered, Upper, StorageIndex>::run(xi + top, xi + n);
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
@@ -231,7 +232,7 @@ void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index
 // -- no bIdx copy, so iwork is just 2n (xi | pstack).
 template <bool Upper, bool UnitDiag, typename Lhs, typename Rhs, typename Res, typename Scalar,
           std::enable_if_t<rhs_matching_slice<Lhs, Rhs>::value, int> = 0>
-void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
+constexpr void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
   typedef typename traits<Lhs>::StorageIndex StorageIndex;
   Matrix<StorageIndex, Dynamic, 1> iwork(2 * n);  // xi | pstack
   StorageIndex* xi = iwork.data();
@@ -256,7 +257,7 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
 // mismatched index type.
 template <bool Upper, bool UnitDiag, typename Lhs, typename Rhs, typename Res, typename Scalar,
           std::enable_if_t<!rhs_matching_slice<Lhs, Rhs>::value, int> = 0>
-void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
+constexpr void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
   typedef typename traits<Lhs>::StorageIndex StorageIndex;
   Matrix<StorageIndex, Dynamic, 1> iwork(3 * n);  // xi | pstack | bIdx
   StorageIndex* xi = iwork.data();
@@ -285,7 +286,7 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
 // reach_insert_column reads the values out and restores mark/xwork. Only mark and
 // xwork need zeroing -- iwork is entirely written before read.
 template <bool Upper, typename Lhs, typename Rhs, int Mode>
-void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
+constexpr void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
   typedef typename Rhs::Scalar Scalar;
   Index n = lhs.rows();
   Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(n);
@@ -300,7 +301,7 @@ void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
 // forward and backward substitution, col-major
 template <typename Lhs, typename Rhs, int Mode, int UpLo>
 struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     run_sparse_reach_triangular_solve<UpLo == Upper, Lhs, Rhs, Mode>(lhs, other);
   }
 };
@@ -310,7 +311,8 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename ExpressionType, unsigned int Mode>
 template <typename OtherDerived>
-void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(SparseMatrixBase<OtherDerived>& other) const {
+constexpr void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(
+    SparseMatrixBase<OtherDerived>& other) const {
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 

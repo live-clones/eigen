@@ -22,7 +22,7 @@ namespace internal {
 template <typename Derived, bool IsComplex>
 struct eigenvalues_selector {
   // this is the implementation for the case IsComplex = true
-  static inline typename MatrixBase<Derived>::EigenvaluesReturnType const run(const MatrixBase<Derived>& m) {
+  static constexpr typename MatrixBase<Derived>::EigenvaluesReturnType const run(const MatrixBase<Derived>& m) {
     typedef typename Derived::PlainObject PlainObject;
     PlainObject m_eval(m);
     return ComplexEigenSolver<PlainObject>(m_eval, false).eigenvalues();
@@ -31,7 +31,7 @@ struct eigenvalues_selector {
 
 template <typename Derived>
 struct eigenvalues_selector<Derived, false> {
-  static inline typename MatrixBase<Derived>::EigenvaluesReturnType const run(const MatrixBase<Derived>& m) {
+  static constexpr typename MatrixBase<Derived>::EigenvaluesReturnType const run(const MatrixBase<Derived>& m) {
     typedef typename Derived::PlainObject PlainObject;
     PlainObject m_eval(m);
     return EigenSolver<PlainObject>(m_eval, false).eigenvalues();
@@ -61,7 +61,7 @@ struct eigenvalues_selector<Derived, false> {
  *     SelfAdjointView::eigenvalues()
  */
 template <typename Derived>
-inline typename MatrixBase<Derived>::EigenvaluesReturnType MatrixBase<Derived>::eigenvalues() const {
+constexpr typename MatrixBase<Derived>::EigenvaluesReturnType MatrixBase<Derived>::eigenvalues() const {
   return internal::eigenvalues_selector<Derived, NumTraits<Scalar>::IsComplex>::run(derived());
 }
 
@@ -80,7 +80,7 @@ inline typename MatrixBase<Derived>::EigenvaluesReturnType MatrixBase<Derived>::
  * \sa SelfAdjointEigenSolver::eigenvalues(), MatrixBase::eigenvalues()
  */
 template <typename MatrixType, unsigned int UpLo>
-EIGEN_DEVICE_FUNC inline typename SelfAdjointView<MatrixType, UpLo>::EigenvaluesReturnType
+EIGEN_DEVICE_FUNC constexpr typename SelfAdjointView<MatrixType, UpLo>::EigenvaluesReturnType
 SelfAdjointView<MatrixType, UpLo>::eigenvalues() const {
   PlainObject thisAsMatrix(*this);
   return SelfAdjointEigenSolver<PlainObject>(thisAsMatrix, false).eigenvalues();
@@ -109,7 +109,7 @@ SelfAdjointView<MatrixType, UpLo>::eigenvalues() const {
  * \sa SelfAdjointView::eigenvalues(), SelfAdjointView::operatorNorm()
  */
 template <typename Derived>
-inline typename MatrixBase<Derived>::RealScalar MatrixBase<Derived>::operatorNorm() const {
+constexpr typename MatrixBase<Derived>::RealScalar MatrixBase<Derived>::operatorNorm() const {
   using std::sqrt;
   typename Derived::PlainObject m_eval(derived());
   // FIXME: if eigenvalues are guaranteed to be sorted, comparing the first and last is sufficient.
@@ -132,7 +132,7 @@ inline typename MatrixBase<Derived>::RealScalar MatrixBase<Derived>::operatorNor
  * \sa eigenvalues(), MatrixBase::operatorNorm()
  */
 template <typename MatrixType, unsigned int UpLo>
-EIGEN_DEVICE_FUNC inline typename SelfAdjointView<MatrixType, UpLo>::RealScalar
+EIGEN_DEVICE_FUNC constexpr typename SelfAdjointView<MatrixType, UpLo>::RealScalar
 SelfAdjointView<MatrixType, UpLo>::operatorNorm() const {
   return eigenvalues().cwiseAbs().maxCoeff();
 }

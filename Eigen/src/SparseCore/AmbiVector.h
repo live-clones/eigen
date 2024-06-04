@@ -29,38 +29,38 @@ class AmbiVector {
   typedef Scalar_ Scalar;
   typedef StorageIndex_ StorageIndex;
 
-  explicit AmbiVector(Index size)
+  constexpr explicit AmbiVector(Index size)
       : m_buffer(0), m_zero(0), m_size(0), m_end(0), m_allocatedSize(0), m_allocatedElements(0), m_mode(-1) {
     resize(size);
   }
 
-  void init(double estimatedDensity);
-  void init(int mode);
+  constexpr void init(double estimatedDensity);
+  constexpr void init(int mode);
 
-  Index nonZeros() const;
+  constexpr Index nonZeros() const;
 
   /** Specifies a sub-vector to work on */
-  void setBounds(Index start, Index end) {
+  constexpr void setBounds(Index start, Index end) {
     m_start = convert_index(start);
     m_end = convert_index(end);
   }
 
-  void setZero();
+  constexpr void setZero();
 
-  void restart();
-  Scalar& coeffRef(Index i);
-  Scalar& coeff(Index i);
+  constexpr void restart();
+  constexpr Scalar& coeffRef(Index i);
+  constexpr Scalar& coeff(Index i);
 
   class Iterator;
 
   ~AmbiVector() { delete[] m_buffer; }
 
-  void resize(Index size) {
+  constexpr void resize(Index size) {
     if (m_allocatedSize < size) reallocate(size);
     m_size = convert_index(size);
   }
 
-  StorageIndex size() const { return m_size; }
+  constexpr StorageIndex size() const { return m_size; }
 
  protected:
   // element type of the linked list
@@ -70,12 +70,14 @@ class AmbiVector {
     Scalar value;
   };
 
-  StorageIndex convert_index(Index idx) { return internal::convert_index<StorageIndex>(idx); }
+  constexpr StorageIndex convert_index(Index idx) { return internal::convert_index<StorageIndex>(idx); }
 
-  ListEl* listElements() { return static_cast<ListEl*>(static_cast<void*>(m_buffer)); }
-  const ListEl* listElements() const { return static_cast<const ListEl*>(static_cast<const void*>(m_buffer)); }
+  constexpr ListEl* listElements() { return static_cast<ListEl*>(static_cast<void*>(m_buffer)); }
+  constexpr const ListEl* listElements() const {
+    return static_cast<const ListEl*>(static_cast<const void*>(m_buffer));
+  }
 
-  void reallocate(Index size) {
+  constexpr void reallocate(Index size) {
     // if the size of the matrix is not too large, let's allocate a bit more than needed such
     // that we can handle dense vector even in sparse mode.
     delete[] m_buffer;
@@ -92,7 +94,7 @@ class AmbiVector {
     m_end = m_size;
   }
 
-  void reallocateSparse() {
+  constexpr void reallocateSparse() {
     Index copyElements = m_allocatedElements;
     m_allocatedElements = (std::min)(StorageIndex(m_allocatedElements * 1.5), m_size);
     Index allocSize = m_allocatedElements * sizeof(ListEl);
@@ -121,7 +123,7 @@ class AmbiVector {
 
 /** \returns the number of non zeros in the current sub vector */
 template <typename Scalar_, typename StorageIndex_>
-Index AmbiVector<Scalar_, StorageIndex_>::nonZeros() const {
+constexpr Index AmbiVector<Scalar_, StorageIndex_>::nonZeros() const {
   if (m_mode == IsSparse)
     return m_llSize;
   else
@@ -129,7 +131,7 @@ Index AmbiVector<Scalar_, StorageIndex_>::nonZeros() const {
 }
 
 template <typename Scalar_, typename StorageIndex_>
-void AmbiVector<Scalar_, StorageIndex_>::init(double estimatedDensity) {
+constexpr void AmbiVector<Scalar_, StorageIndex_>::init(double estimatedDensity) {
   if (estimatedDensity > 0.1)
     init(IsDense);
   else
@@ -137,7 +139,7 @@ void AmbiVector<Scalar_, StorageIndex_>::init(double estimatedDensity) {
 }
 
 template <typename Scalar_, typename StorageIndex_>
-void AmbiVector<Scalar_, StorageIndex_>::init(int mode) {
+constexpr void AmbiVector<Scalar_, StorageIndex_>::init(int mode) {
   m_mode = mode;
   // This is only necessary in sparse mode, but we set these unconditionally to avoid some maybe-uninitialized warnings
   // if (m_mode==IsSparse)
@@ -153,13 +155,13 @@ void AmbiVector<Scalar_, StorageIndex_>::init(int mode) {
  * Don't worry, this function is extremely cheap.
  */
 template <typename Scalar_, typename StorageIndex_>
-void AmbiVector<Scalar_, StorageIndex_>::restart() {
+constexpr void AmbiVector<Scalar_, StorageIndex_>::restart() {
   m_llCurrent = m_llStart;
 }
 
 /** Set all coefficients of current subvector to zero */
 template <typename Scalar_, typename StorageIndex_>
-void AmbiVector<Scalar_, StorageIndex_>::setZero() {
+constexpr void AmbiVector<Scalar_, StorageIndex_>::setZero() {
   if (m_mode == IsDense) {
     for (Index i = m_start; i < m_end; ++i) m_buffer[i] = Scalar(0);
   } else {
@@ -170,7 +172,7 @@ void AmbiVector<Scalar_, StorageIndex_>::setZero() {
 }
 
 template <typename Scalar_, typename StorageIndex_>
-Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
+constexpr Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
   if (m_mode == IsDense)
     return m_buffer[i];
   else {
@@ -228,7 +230,7 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
 }
 
 template <typename Scalar_, typename StorageIndex_>
-Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeff(Index i) {
+constexpr Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeff(Index i) {
   if (m_mode == IsDense)
     return m_buffer[i];
   else {
@@ -261,7 +263,7 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
    * In practice, all coefficients having a magnitude smaller than \a epsilon
    * are skipped.
    */
-  explicit Iterator(const AmbiVector& vec, const RealScalar& epsilon = 0) : m_vector(vec) {
+  constexpr explicit Iterator(const AmbiVector& vec, const RealScalar& epsilon = 0) : m_vector(vec) {
     using std::abs;
     m_epsilon = epsilon;
     m_isDense = m_vector.m_mode == IsDense;
@@ -285,12 +287,12 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
     }
   }
 
-  StorageIndex index() const { return m_cachedIndex; }
-  Scalar value() const { return m_cachedValue; }
+  constexpr StorageIndex index() const { return m_cachedIndex; }
+  constexpr Scalar value() const { return m_cachedValue; }
 
-  operator bool() const { return m_cachedIndex >= 0; }
+  constexpr operator bool() const { return m_cachedIndex >= 0; }
 
-  Iterator& operator++() {
+  constexpr Iterator& operator++() {
     using std::abs;
     if (m_isDense) {
       do {
