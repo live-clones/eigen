@@ -151,32 +151,33 @@ class MatrixBase : public DenseBase<Derived> {
   EIGEN_DEVICE_FUNC constexpr Derived& operator=(const ReturnByValue<OtherDerived>& other);
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator+=(const MatrixBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator+=(const MatrixBase<OtherDerived>& other);
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator-=(const MatrixBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator-=(const MatrixBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC const Product<Derived, OtherDerived> operator*(const MatrixBase<OtherDerived>& other) const;
-
-  template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC const Product<Derived, OtherDerived, LazyProduct> lazyProduct(
+  EIGEN_DEVICE_FUNC constexpr const Product<Derived, OtherDerived> operator*(
       const MatrixBase<OtherDerived>& other) const;
 
   template <typename OtherDerived>
-  Derived& operator*=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC constexpr const Product<Derived, OtherDerived, LazyProduct> lazyProduct(
+      const MatrixBase<OtherDerived>& other) const;
 
   template <typename OtherDerived>
-  void applyOnTheLeft(const EigenBase<OtherDerived>& other);
+  constexpr Derived& operator*=(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  void applyOnTheRight(const EigenBase<OtherDerived>& other);
+  constexpr void applyOnTheLeft(const EigenBase<OtherDerived>& other);
+
+  template <typename OtherDerived>
+  constexpr void applyOnTheRight(const EigenBase<OtherDerived>& other);
 
   template <typename DiagonalDerived>
-  EIGEN_DEVICE_FUNC const Product<Derived, DiagonalDerived, LazyProduct> operator*(
+  EIGEN_DEVICE_FUNC constexpr const Product<Derived, DiagonalDerived, LazyProduct> operator*(
       const DiagonalBase<DiagonalDerived>& diagonal) const;
 
   template <typename SkewDerived>
-  EIGEN_DEVICE_FUNC const Product<Derived, SkewDerived, LazyProduct> operator*(
+  EIGEN_DEVICE_FUNC constexpr const Product<Derived, SkewDerived, LazyProduct> operator*(
       const SkewSymmetricBase<SkewDerived>& skew) const;
 
   template <typename OtherDerived>
@@ -185,17 +186,17 @@ class MatrixBase : public DenseBase<Derived> {
   dot(const MatrixBase<OtherDerived>& other) const;
 
   EIGEN_DEVICE_FUNC constexpr RealScalar squaredNorm() const;
-  EIGEN_DEVICE_FUNC RealScalar norm() const;
-  RealScalar stableNorm() const;
-  RealScalar blueNorm() const;
-  RealScalar hypotNorm() const;
-  EIGEN_DEVICE_FUNC const PlainObject normalized() const;
-  EIGEN_DEVICE_FUNC const PlainObject stableNormalized() const;
-  EIGEN_DEVICE_FUNC void normalize();
-  EIGEN_DEVICE_FUNC void stableNormalize();
+  EIGEN_DEVICE_FUNC constexpr RealScalar norm() const;
+  constexpr RealScalar stableNorm() const;
+  constexpr RealScalar blueNorm() const;
+  constexpr RealScalar hypotNorm() const;
+  EIGEN_DEVICE_FUNC constexpr const PlainObject normalized() const;
+  EIGEN_DEVICE_FUNC constexpr const PlainObject stableNormalized() const;
+  EIGEN_DEVICE_FUNC constexpr void normalize();
+  EIGEN_DEVICE_FUNC constexpr void stableNormalize();
 
   EIGEN_DEVICE_FUNC constexpr const AdjointReturnType adjoint() const;
-  EIGEN_DEVICE_FUNC void adjointInPlace();
+  EIGEN_DEVICE_FUNC constexpr void adjointInPlace();
 
   typedef Diagonal<Derived> DiagonalReturnType;
   EIGEN_DEVICE_FUNC constexpr DiagonalReturnType diagonal();
@@ -240,39 +241,39 @@ class MatrixBase : public DenseBase<Derived> {
   template <unsigned int UpLo>
   EIGEN_DEVICE_FUNC constexpr typename ConstSelfAdjointViewReturnType<UpLo>::Type selfadjointView() const;
 
-  const SparseView<Derived> sparseView(
+  constexpr const SparseView<Derived> sparseView(
       const Scalar& m_reference = Scalar(0),
       const typename NumTraits<Scalar>::Real& m_epsilon = NumTraits<Scalar>::dummy_precision()) const;
-  EIGEN_DEVICE_FUNC static const IdentityReturnType Identity();
-  EIGEN_DEVICE_FUNC static const IdentityReturnType Identity(Index rows, Index cols);
-  EIGEN_DEVICE_FUNC static const BasisReturnType Unit(Index size, Index i);
-  EIGEN_DEVICE_FUNC static const BasisReturnType Unit(Index i);
-  EIGEN_DEVICE_FUNC static const BasisReturnType UnitX();
-  EIGEN_DEVICE_FUNC static const BasisReturnType UnitY();
-  EIGEN_DEVICE_FUNC static const BasisReturnType UnitZ();
-  EIGEN_DEVICE_FUNC static const BasisReturnType UnitW();
+  EIGEN_DEVICE_FUNC static constexpr const IdentityReturnType Identity();
+  EIGEN_DEVICE_FUNC static constexpr const IdentityReturnType Identity(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC static constexpr const BasisReturnType Unit(Index size, Index i);
+  EIGEN_DEVICE_FUNC static constexpr const BasisReturnType Unit(Index i);
+  EIGEN_DEVICE_FUNC static constexpr const BasisReturnType UnitX();
+  EIGEN_DEVICE_FUNC static constexpr const BasisReturnType UnitY();
+  EIGEN_DEVICE_FUNC static constexpr const BasisReturnType UnitZ();
+  EIGEN_DEVICE_FUNC static constexpr const BasisReturnType UnitW();
 
   EIGEN_DEVICE_FUNC constexpr const DiagonalWrapper<const Derived> asDiagonal() const;
-  const PermutationWrapper<const Derived> asPermutation() const;
+  constexpr const PermutationWrapper<const Derived> asPermutation() const;
   EIGEN_DEVICE_FUNC constexpr const SkewSymmetricWrapper<const Derived> asSkewSymmetric() const;
 
-  EIGEN_DEVICE_FUNC Derived& setIdentity();
-  EIGEN_DEVICE_FUNC Derived& setIdentity(Index rows, Index cols);
-  EIGEN_DEVICE_FUNC Derived& setUnit(Index i);
-  EIGEN_DEVICE_FUNC Derived& setUnit(Index newSize, Index i);
+  EIGEN_DEVICE_FUNC constexpr Derived& setIdentity();
+  EIGEN_DEVICE_FUNC constexpr Derived& setIdentity(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC constexpr Derived& setUnit(Index i);
+  EIGEN_DEVICE_FUNC constexpr Derived& setUnit(Index newSize, Index i);
 
-  bool isIdentity(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
-  bool isDiagonal(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr bool isIdentity(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr bool isDiagonal(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
-  bool isUpperTriangular(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
-  bool isLowerTriangular(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr bool isUpperTriangular(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr bool isLowerTriangular(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
-  bool isSkewSymmetric(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr bool isSkewSymmetric(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
   template <typename OtherDerived>
-  bool isOrthogonal(const MatrixBase<OtherDerived>& other,
-                    const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
-  bool isUnitary(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr bool isOrthogonal(const MatrixBase<OtherDerived>& other,
+                              const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr bool isUnitary(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
   /* diagonalView */
   template <int DiagIndex_ = 0>
@@ -290,7 +291,7 @@ class MatrixBase : public DenseBase<Derived> {
    *          fuzzy comparison such as isApprox()
    * \sa isApprox(), operator!= */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline bool operator==(const MatrixBase<OtherDerived>& other) const {
+  EIGEN_DEVICE_FUNC constexpr bool operator==(const MatrixBase<OtherDerived>& other) const {
     return (this->rows() == other.rows()) && (this->cols() == other.cols()) && cwiseEqual(other).all();
   }
 
@@ -299,11 +300,11 @@ class MatrixBase : public DenseBase<Derived> {
    *          fuzzy comparison such as isApprox()
    * \sa isApprox(), operator== */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline bool operator!=(const MatrixBase<OtherDerived>& other) const {
+  EIGEN_DEVICE_FUNC constexpr bool operator!=(const MatrixBase<OtherDerived>& other) const {
     return !(*this == other);
   }
 
-  NoAlias<Derived, Eigen::MatrixBase> EIGEN_DEVICE_FUNC noalias();
+  constexpr NoAlias<Derived, Eigen::MatrixBase> EIGEN_DEVICE_FUNC noalias();
 
   // TODO forceAlignedAccess is temporarily disabled
   // Need to find a nicer workaround.
@@ -318,10 +319,10 @@ class MatrixBase : public DenseBase<Derived> {
     return derived();
   }
 
-  EIGEN_DEVICE_FUNC Scalar trace() const;
+  EIGEN_DEVICE_FUNC constexpr Scalar trace() const;
 
   template <int p>
-  EIGEN_DEVICE_FUNC RealScalar lpNorm() const;
+  EIGEN_DEVICE_FUNC constexpr RealScalar lpNorm() const;
 
   EIGEN_DEVICE_FUNC constexpr MatrixBase<Derived>& matrix() { return *this; }
   EIGEN_DEVICE_FUNC constexpr const MatrixBase<Derived>& matrix() const { return *this; }
@@ -340,76 +341,76 @@ class MatrixBase : public DenseBase<Derived> {
   /////////// LU module ///////////
 
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline FullPivLU<PlainObject, PermutationIndex> fullPivLu() const;
+  constexpr FullPivLU<PlainObject, PermutationIndex> fullPivLu() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline PartialPivLU<PlainObject, PermutationIndex> partialPivLu() const;
+  constexpr PartialPivLU<PlainObject, PermutationIndex> partialPivLu() const;
 
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline PartialPivLU<PlainObject, PermutationIndex> lu() const;
+  constexpr PartialPivLU<PlainObject, PermutationIndex> lu() const;
 
-  EIGEN_DEVICE_FUNC inline Inverse<Derived> inverse() const;
+  EIGEN_DEVICE_FUNC constexpr Inverse<Derived> inverse() const;
 
   template <typename ResultType>
-  inline void computeInverseAndDetWithCheck(
+  constexpr void computeInverseAndDetWithCheck(
       ResultType& inverse, typename ResultType::Scalar& determinant, bool& invertible,
       const RealScalar& absDeterminantThreshold = NumTraits<Scalar>::dummy_precision()) const;
 
   template <typename ResultType>
-  inline void computeInverseWithCheck(
+  constexpr void computeInverseWithCheck(
       ResultType& inverse, bool& invertible,
       const RealScalar& absDeterminantThreshold = NumTraits<Scalar>::dummy_precision()) const;
 
-  EIGEN_DEVICE_FUNC Scalar determinant() const;
+  EIGEN_DEVICE_FUNC constexpr Scalar determinant() const;
 
   /////////// Cholesky module ///////////
 
-  inline LLT<PlainObject> llt() const;
-  inline LDLT<PlainObject> ldlt() const;
+  constexpr LLT<PlainObject> llt() const;
+  constexpr LDLT<PlainObject> ldlt() const;
 
   /////////// QR module ///////////
 
-  inline HouseholderQR<PlainObject> householderQr() const;
+  constexpr HouseholderQR<PlainObject> householderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline ColPivHouseholderQR<PlainObject, PermutationIndex> colPivHouseholderQr() const;
+  constexpr ColPivHouseholderQR<PlainObject, PermutationIndex> colPivHouseholderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline FullPivHouseholderQR<PlainObject, PermutationIndex> fullPivHouseholderQr() const;
+  constexpr FullPivHouseholderQR<PlainObject, PermutationIndex> fullPivHouseholderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
-  inline CompleteOrthogonalDecomposition<PlainObject, PermutationIndex> completeOrthogonalDecomposition() const;
+  constexpr CompleteOrthogonalDecomposition<PlainObject, PermutationIndex> completeOrthogonalDecomposition() const;
 
   /////////// Eigenvalues module ///////////
 
-  inline EigenvaluesReturnType eigenvalues() const;
-  inline RealScalar operatorNorm() const;
+  constexpr EigenvaluesReturnType eigenvalues() const;
+  constexpr RealScalar operatorNorm() const;
 
   /////////// SVD module ///////////
 
   template <int Options = 0>
-  inline JacobiSVD<PlainObject, Options> jacobiSvd() const;
+  constexpr JacobiSVD<PlainObject, Options> jacobiSvd() const;
   template <int Options = 0>
   EIGEN_DEPRECATED_WITH_REASON("Options should be specified using method's template parameter.")
-  inline JacobiSVD<PlainObject, Options> jacobiSvd(unsigned int computationOptions) const;
+  constexpr JacobiSVD<PlainObject, Options> jacobiSvd(unsigned int computationOptions) const;
 
   template <int Options = 0>
-  inline BDCSVD<PlainObject, Options> bdcSvd() const;
+  constexpr BDCSVD<PlainObject, Options> bdcSvd() const;
   template <int Options = 0>
   EIGEN_DEPRECATED_WITH_REASON("Options should be specified using method's template parameter.")
-  inline BDCSVD<PlainObject, Options> bdcSvd(unsigned int computationOptions) const;
+  constexpr BDCSVD<PlainObject, Options> bdcSvd(unsigned int computationOptions) const;
 
   /////////// Geometry module ///////////
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline typename internal::cross_impl<Derived, OtherDerived>::return_type cross(
+  EIGEN_DEVICE_FUNC constexpr typename internal::cross_impl<Derived, OtherDerived>::return_type cross(
       const MatrixBase<OtherDerived>& other) const;
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline PlainObject cross3(const MatrixBase<OtherDerived>& other) const;
+  EIGEN_DEVICE_FUNC constexpr PlainObject cross3(const MatrixBase<OtherDerived>& other) const;
 
-  EIGEN_DEVICE_FUNC inline PlainObject unitOrthogonal(void) const;
+  EIGEN_DEVICE_FUNC constexpr PlainObject unitOrthogonal(void) const;
 
   EIGEN_DEPRECATED_WITH_REASON("Use .canonicalEulerAngles() instead.")
-  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 3, 1> eulerAngles(Index a0, Index a1, Index a2) const;
+  EIGEN_DEVICE_FUNC constexpr Matrix<Scalar, 3, 1> eulerAngles(Index a0, Index a1, Index a2) const;
 
-  EIGEN_DEVICE_FUNC inline Matrix<Scalar, 3, 1> canonicalEulerAngles(Index a0, Index a1, Index a2) const;
+  EIGEN_DEVICE_FUNC constexpr Matrix<Scalar, 3, 1> canonicalEulerAngles(Index a0, Index a1, Index a2) const;
 
   enum {
     HomogeneousReturnTypeDirection =
@@ -419,38 +420,39 @@ class MatrixBase : public DenseBase<Derived> {
                                  : Horizontal
   };
   typedef Homogeneous<Derived, HomogeneousReturnTypeDirection> HomogeneousReturnType;
-  EIGEN_DEVICE_FUNC inline HomogeneousReturnType homogeneous() const;
+  EIGEN_DEVICE_FUNC constexpr HomogeneousReturnType homogeneous() const;
 
   enum { SizeMinusOne = SizeAtCompileTime == Dynamic ? Dynamic : SizeAtCompileTime - 1 };
   typedef Block<const Derived, internal::traits<Derived>::ColsAtCompileTime == 1 ? SizeMinusOne : 1,
                 internal::traits<Derived>::ColsAtCompileTime == 1 ? 1 : SizeMinusOne>
       ConstStartMinusOne;
   typedef EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(ConstStartMinusOne, Scalar, quotient) HNormalizedReturnType;
-  EIGEN_DEVICE_FUNC inline const HNormalizedReturnType hnormalized() const;
+  EIGEN_DEVICE_FUNC constexpr const HNormalizedReturnType hnormalized() const;
 
   ////////// Householder module ///////////
 
-  EIGEN_DEVICE_FUNC void makeHouseholderInPlace(Scalar& tau, RealScalar& beta);
+  EIGEN_DEVICE_FUNC constexpr void makeHouseholderInPlace(Scalar& tau, RealScalar& beta);
   template <typename EssentialPart>
-  EIGEN_DEVICE_FUNC void makeHouseholder(EssentialPart& essential, Scalar& tau, RealScalar& beta) const;
+  EIGEN_DEVICE_FUNC constexpr void makeHouseholder(EssentialPart& essential, Scalar& tau, RealScalar& beta) const;
   template <typename EssentialPart>
-  EIGEN_DEVICE_FUNC void applyHouseholderOnTheLeft(const EssentialPart& essential, const Scalar& tau,
-                                                   Scalar* workspace);
+  EIGEN_DEVICE_FUNC constexpr void applyHouseholderOnTheLeft(const EssentialPart& essential, const Scalar& tau,
+                                                             Scalar* workspace);
   template <typename EssentialPart>
-  EIGEN_DEVICE_FUNC void applyHouseholderOnTheRight(const EssentialPart& essential, const Scalar& tau,
-                                                    Scalar* workspace);
+  EIGEN_DEVICE_FUNC constexpr void applyHouseholderOnTheRight(const EssentialPart& essential, const Scalar& tau,
+                                                              Scalar* workspace);
 
   ///////// Jacobi module /////////
 
   template <typename OtherScalar>
-  EIGEN_DEVICE_FUNC void applyOnTheLeft(Index p, Index q, const JacobiRotation<OtherScalar>& j);
+  EIGEN_DEVICE_FUNC constexpr void applyOnTheLeft(Index p, Index q, const JacobiRotation<OtherScalar>& j);
   template <typename OtherScalar>
-  EIGEN_DEVICE_FUNC void applyOnTheRight(Index p, Index q, const JacobiRotation<OtherScalar>& j);
+  EIGEN_DEVICE_FUNC constexpr void applyOnTheRight(Index p, Index q, const JacobiRotation<OtherScalar>& j);
 
   ///////// SparseCore module /////////
 
   template <typename OtherDerived>
-  EIGEN_STRONG_INLINE const typename SparseMatrixBase<OtherDerived>::template CwiseProductDenseReturnType<Derived>::Type
+  EIGEN_STRONG_INLINE constexpr const typename SparseMatrixBase<OtherDerived>::template CwiseProductDenseReturnType<
+      Derived>::Type
   cwiseProduct(const SparseMatrixBase<OtherDerived>& other) const {
     return other.cwiseProduct(derived());
   }
@@ -462,17 +464,17 @@ class MatrixBase : public DenseBase<Derived> {
   /** \returns an expression of the matrix Description of \c *this. \brief This function requires the <a            \
    * href="unsupported/group__MatrixFunctions__Module.html"> unsupported MatrixFunctions module</a>. To compute the \
    * coefficient-wise Description use ArrayBase::##Name . */                                                        \
-  const ReturnType<Derived> Name() const;
+  constexpr const ReturnType<Derived> Name() const;
 #define EIGEN_MATRIX_FUNCTION_1(ReturnType, Name, Description, Argument)                                            \
   /** \returns an expression of the matrix Description of \c *this. \brief This function requires the <a            \
    * href="unsupported/group__MatrixFunctions__Module.html"> unsupported MatrixFunctions module</a>. To compute the \
    * coefficient-wise Description use ArrayBase::##Name . */                                                        \
-  const ReturnType<Derived> Name(Argument) const;
+  constexpr const ReturnType<Derived> Name(Argument) const;
 
   EIGEN_MATRIX_FUNCTION(MatrixExponentialReturnValue, exp, exponential)
   /** \brief Helper function for the <a href="unsupported/group__MatrixFunctions__Module.html"> unsupported
    * MatrixFunctions module</a>.*/
-  const MatrixFunctionReturnValue<Derived> matrixFunction(StemFunction f) const;
+  constexpr const MatrixFunctionReturnValue<Derived> matrixFunction(StemFunction f) const;
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, cosh, hyperbolic cosine)
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, sinh, hyperbolic sine)
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, atanh, inverse hyperbolic cosine)
@@ -486,26 +488,26 @@ class MatrixBase : public DenseBase<Derived> {
   EIGEN_MATRIX_FUNCTION_1(MatrixComplexPowerReturnValue, pow, power to \c p, const internal::make_complex_t<Scalar>& p)
 
  protected:
-  EIGEN_DEFAULT_COPY_CONSTRUCTOR(MatrixBase)
-  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(MatrixBase)
+  EIGEN_DEVICE_FUNC constexpr MatrixBase(const MatrixBase&) = default;
+  EIGEN_DEVICE_FUNC constexpr MatrixBase() = default;
 
  private:
-  EIGEN_DEVICE_FUNC explicit MatrixBase(int);
-  EIGEN_DEVICE_FUNC MatrixBase(int, int);
+  EIGEN_DEVICE_FUNC constexpr explicit MatrixBase(int);
+  EIGEN_DEVICE_FUNC constexpr MatrixBase(int, int);
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC explicit MatrixBase(const MatrixBase<OtherDerived>&);
+  EIGEN_DEVICE_FUNC constexpr explicit MatrixBase(const MatrixBase<OtherDerived>&);
 
  protected:
   // mixing arrays and matrices is not legal
   template <typename OtherDerived>
-  Derived& operator+=(const ArrayBase<OtherDerived>&) {
+  constexpr Derived& operator+=(const ArrayBase<OtherDerived>&) {
     EIGEN_STATIC_ASSERT(std::ptrdiff_t(sizeof(typename OtherDerived::Scalar)) == -1,
                         YOU_CANNOT_MIX_ARRAYS_AND_MATRICES);
     return *this;
   }
   // mixing arrays and matrices is not legal
   template <typename OtherDerived>
-  Derived& operator-=(const ArrayBase<OtherDerived>&) {
+  constexpr Derived& operator-=(const ArrayBase<OtherDerived>&) {
     EIGEN_STATIC_ASSERT(std::ptrdiff_t(sizeof(typename OtherDerived::Scalar)) == -1,
                         YOU_CANNOT_MIX_ARRAYS_AND_MATRICES);
     return *this;
@@ -525,7 +527,7 @@ class MatrixBase : public DenseBase<Derived> {
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& other) {
+constexpr Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheRight(derived());
   return derived();
 }
@@ -537,7 +539,7 @@ inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& o
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& other) {
+constexpr void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheRight(derived());
 }
 
@@ -548,7 +550,7 @@ inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& 
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline void MatrixBase<Derived>::applyOnTheLeft(const EigenBase<OtherDerived>& other) {
+constexpr void MatrixBase<Derived>::applyOnTheLeft(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheLeft(derived());
 }
 

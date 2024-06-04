@@ -20,7 +20,7 @@
 namespace Eigen {
 
 template <typename FunctorType>
-LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeOneStep(FVectorType &x) {
+constexpr LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeOneStep(FVectorType &x) {
   using std::abs;
   using std::sqrt;
   RealScalar temp, temp1, temp2;

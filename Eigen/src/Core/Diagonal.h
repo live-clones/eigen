@@ -91,36 +91,36 @@ class Diagonal : public internal::dense_xpr_base<Diagonal<MatrixType, DiagIndex_
 
   typedef std::conditional_t<internal::is_lvalue<MatrixType>::value, Scalar, const Scalar> ScalarWithConstIfNotLvalue;
 
-  EIGEN_DEVICE_FUNC inline ScalarWithConstIfNotLvalue* data() {
+  EIGEN_DEVICE_FUNC constexpr ScalarWithConstIfNotLvalue* data() {
     return rows() > 0 ? &(m_matrix.coeffRef(rowOffset(), colOffset())) : nullptr;
   }
-  EIGEN_DEVICE_FUNC inline const Scalar* data() const {
+  EIGEN_DEVICE_FUNC constexpr const Scalar* data() const {
     return rows() > 0 ? &(m_matrix.coeffRef(rowOffset(), colOffset())) : nullptr;
   }
 
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index row, Index) {
+  EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index row, Index) {
     EIGEN_STATIC_ASSERT_LVALUE(MatrixType)
     return m_matrix.coeffRef(row + rowOffset(), row + colOffset());
   }
 
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index row, Index) const {
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index row, Index) const {
     return m_matrix.coeffRef(row + rowOffset(), row + colOffset());
   }
 
-  EIGEN_DEVICE_FUNC inline CoeffReturnType coeff(Index row, Index) const {
+  EIGEN_DEVICE_FUNC constexpr CoeffReturnType coeff(Index row, Index) const {
     return m_matrix.coeff(row + rowOffset(), row + colOffset());
   }
 
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index idx) {
+  EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index idx) {
     EIGEN_STATIC_ASSERT_LVALUE(MatrixType)
     return m_matrix.coeffRef(idx + rowOffset(), idx + colOffset());
   }
 
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index idx) const {
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index idx) const {
     return m_matrix.coeffRef(idx + rowOffset(), idx + colOffset());
   }
 
-  EIGEN_DEVICE_FUNC inline CoeffReturnType coeff(Index idx) const {
+  EIGEN_DEVICE_FUNC constexpr CoeffReturnType coeff(Index idx) const {
     return m_matrix.coeff(idx + rowOffset(), idx + colOffset());
   }
 

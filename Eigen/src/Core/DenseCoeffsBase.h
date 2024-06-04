@@ -246,19 +246,19 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   // So we add dummy methods here with these names, so that "using... " doesn't fail.
   // It's not private so that the child class DenseBase can access them, and it's not public
   // either since it's an implementation detail, so has to be protected.
-  void coeffRef();
-  void coeffRefByOuterInner();
+  constexpr void coeffRef();
+  constexpr void coeffRefByOuterInner();
   void writePacket();
   void writePacketByOuterInner();
-  void copyCoeff();
-  void copyCoeffByOuterInner();
+  constexpr void copyCoeff();
+  constexpr void copyCoeffByOuterInner();
   void copyPacket();
   void copyPacketByOuterInner();
-  void stride();
-  void innerStride();
-  void outerStride();
-  void rowStride();
-  void colStride();
+  constexpr void stride();
+  constexpr void innerStride();
+  constexpr void outerStride();
+  constexpr void rowStride();
+  constexpr void colStride();
 };
 
 /** \brief Base class providing read/write coefficient access to matrices and arrays.
@@ -532,7 +532,7 @@ struct first_aligned_impl {
 
 template <int Alignment, typename Derived>
 struct first_aligned_impl<Alignment, Derived, false> {
-  static inline Index run(const Derived& m) { return internal::first_aligned<Alignment>(m.data(), m.size()); }
+  static constexpr Index run(const Derived& m) { return internal::first_aligned<Alignment>(m.data(), m.size()); }
 };
 
 /** \internal \returns the index of the first element of the array stored by \a m that is properly aligned with respect
@@ -544,13 +544,13 @@ struct first_aligned_impl<Alignment, Derived, false> {
  * documentation.
  */
 template <int Alignment, typename Derived>
-static inline Index first_aligned(const DenseBase<Derived>& m) {
+static constexpr Index first_aligned(const DenseBase<Derived>& m) {
   enum { ReturnZero = (int(evaluator<Derived>::Alignment) >= Alignment) || !(Derived::Flags & DirectAccessBit) };
   return first_aligned_impl<Alignment, Derived, ReturnZero>::run(m.derived());
 }
 
 template <typename Derived>
-static inline Index first_default_aligned(const DenseBase<Derived>& m) {
+static constexpr Index first_default_aligned(const DenseBase<Derived>& m) {
   typedef typename Derived::Scalar Scalar;
   typedef typename packet_traits<Scalar>::type DefaultPacketType;
   return internal::first_aligned<int(unpacket_traits<DefaultPacketType>::alignment), Derived>(m);
