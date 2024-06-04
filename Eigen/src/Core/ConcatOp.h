@@ -316,7 +316,8 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
  * \sa vcat(), Concat
  */
 template <typename Lhs, typename Rhs>
-EIGEN_DEVICE_FUNC inline const Concat<Horizontal, Lhs, Rhs> hcat(const DenseBase<Lhs>& lhs, const DenseBase<Rhs>& rhs) {
+EIGEN_DEVICE_FUNC constexpr const Concat<Horizontal, Lhs, Rhs> hcat(const DenseBase<Lhs>& lhs,
+                                                                    const DenseBase<Rhs>& rhs) {
   return Concat<Horizontal, Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
@@ -335,7 +336,8 @@ EIGEN_DEVICE_FUNC inline const Concat<Horizontal, Lhs, Rhs> hcat(const DenseBase
  * \sa hcat(), Concat
  */
 template <typename Lhs, typename Rhs>
-EIGEN_DEVICE_FUNC inline const Concat<Vertical, Lhs, Rhs> vcat(const DenseBase<Lhs>& lhs, const DenseBase<Rhs>& rhs) {
+EIGEN_DEVICE_FUNC constexpr const Concat<Vertical, Lhs, Rhs> vcat(const DenseBase<Lhs>& lhs,
+                                                                  const DenseBase<Rhs>& rhs) {
   return Concat<Vertical, Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 

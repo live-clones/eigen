@@ -31,7 +31,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, RowMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = 0; i < lhs.rows(); ++i) {
@@ -61,7 +61,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, RowMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = lhs.rows() - 1; i >= 0; --i) {
@@ -94,7 +94,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = 0; i < lhs.cols(); ++i) {
@@ -123,7 +123,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef evaluator<Lhs> LhsEval;
   typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index i = lhs.cols() - 1; i >= 0; --i) {
@@ -154,7 +154,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
 
 template <typename ExpressionType, unsigned int Mode>
 template <typename OtherDerived>
-void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(MatrixBase<OtherDerived>& other) const {
+constexpr void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(MatrixBase<OtherDerived>& other) const {
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 
@@ -188,7 +188,7 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
   typedef typename Rhs::Scalar Scalar;
   typedef typename promote_index_type<typename traits<Lhs>::StorageIndex, typename traits<Rhs>::StorageIndex>::type
       StorageIndex;
-  static void run(const Lhs& lhs, Rhs& other) {
+  static constexpr void run(const Lhs& lhs, Rhs& other) {
     const bool IsLower = (UpLo == Lower);
     AmbiVector<Scalar, StorageIndex> tempVector(other.rows() * 2);
     tempVector.setBounds(0, other.rows());
@@ -248,7 +248,8 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename ExpressionType, unsigned int Mode>
 template <typename OtherDerived>
-void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(SparseMatrixBase<OtherDerived>& other) const {
+constexpr void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(
+    SparseMatrixBase<OtherDerived>& other) const {
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 

@@ -37,7 +37,7 @@ class AMDOrdering {
    * This routine is much faster if the input matrix is column-major.
    */
   template <typename MatrixType>
-  void operator()(const MatrixType& mat, PermutationType& perm) const {
+  constexpr void operator()(const MatrixType& mat, PermutationType& perm) const {
     // AMD only reads the sparsity pattern. Build a column-major view of mat,
     // then materialize \c pattern(mat + mat^T) directly into a
     // SparseMatrix<signed char> (1-byte placeholder values), bypassing
@@ -54,7 +54,7 @@ class AMDOrdering {
    * Only the sparsity pattern is used; scalar values are not.
    */
   template <typename SrcType, unsigned int SrcUpLo>
-  void operator()(const SparseSelfAdjointView<SrcType, SrcUpLo>& mat, PermutationType& perm) const {
+  constexpr void operator()(const SparseSelfAdjointView<SrcType, SrcUpLo>& mat, PermutationType& perm) const {
     // Build a column-major pattern view of the underlying matrix and expand
     // its UpLo triangle to the full symmetric pattern in one pass, bypassing
     // Eigen's generic selfadjointView assignment evaluator.
@@ -83,7 +83,7 @@ class NaturalOrdering {
 
   /** Compute the permutation vector from a column-major sparse matrix */
   template <typename MatrixType>
-  void operator()(const MatrixType& /*mat*/, PermutationType& perm) const {
+  constexpr void operator()(const MatrixType& /*mat*/, PermutationType& perm) const {
     perm.resize(0);
   }
 };
@@ -106,7 +106,7 @@ class COLAMDOrdering {
    * \warning The input sparse matrix \a mat must be in compressed mode (see SparseMatrix::makeCompressed()).
    */
   template <typename MatrixType>
-  void operator()(const MatrixType& mat, PermutationType& perm) const {
+  constexpr void operator()(const MatrixType& mat, PermutationType& perm) const {
     eigen_assert(mat.isCompressed() &&
                  "COLAMDOrdering requires a sparse matrix in compressed mode. Call .makeCompressed() before passing it "
                  "to COLAMDOrdering");

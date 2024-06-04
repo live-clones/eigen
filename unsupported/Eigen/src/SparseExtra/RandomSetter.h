@@ -32,7 +32,7 @@ struct StdMapTraits {
   typedef std::map<KeyType, Scalar> Type;
   enum { IsSorted = 1 };
 
-  static void setInvalidKey(Type&, const KeyType&) {}
+  static constexpr void setInvalidKey(Type&, const KeyType&) {}
 };
 
 /** Represents a std::unordered_map
@@ -44,7 +44,7 @@ struct StdUnorderedMapTraits {
   typedef std::unordered_map<KeyType, Scalar> Type;
   enum { IsSorted = 0 };
 
-  static void setInvalidKey(Type&, const KeyType&) {}
+  static constexpr void setInvalidKey(Type&, const KeyType&) {}
 };
 
 #if defined(EIGEN_GOOGLEHASH_SUPPORT)
@@ -77,7 +77,7 @@ struct GoogleDenseHashMapTraits {
   typedef typename google::DenseHashMap<KeyType, Scalar>::type Type;
   enum { IsSorted = 0 };
 
-  static void setInvalidKey(Type& map, const KeyType& k) { map.set_empty_key(k); }
+  static constexpr void setInvalidKey(Type& map, const KeyType& k) { map.set_empty_key(k); }
 };
 
 /** Represents a google::sparse_hash_map
@@ -90,7 +90,7 @@ struct GoogleSparseHashMapTraits {
   typedef typename google::SparseHashMap<KeyType, Scalar>::type Type;
   enum { IsSorted = 0 };
 
-  static void setInvalidKey(Type&, const KeyType&) {}
+  static constexpr void setInvalidKey(Type&, const KeyType&) {}
 };
 #endif
 
@@ -159,7 +159,7 @@ class RandomSetter {
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
 
   struct ScalarWrapper {
-    ScalarWrapper() : value(0) {}
+    constexpr ScalarWrapper() : value(0) {}
     Scalar value;
   };
   typedef typename MapTraits<ScalarWrapper>::KeyType KeyType;
@@ -178,7 +178,7 @@ class RandomSetter {
    * a sparse matrix from scratch, then you must set it to zero first using the
    * setZero() function.
    */
-  inline RandomSetter(SparseMatrixType& target) : m_target(&target) {
+  constexpr RandomSetter(SparseMatrixType& target) : m_target(&target) {
     const Index outerSize = SwapStorage ? target.innerSize() : target.outerSize();
     const Index innerSize = SwapStorage ? target.outerSize() : target.innerSize();
     m_outerPackets = outerSize >> OuterPacketBits;
@@ -272,7 +272,7 @@ class RandomSetter {
   }
 
   /** \returns a reference to the coefficient at given coordinates \a row, \a col */
-  Scalar& operator()(Index row, Index col) {
+  constexpr Scalar& operator()(Index row, Index col) {
     const Index outer = SetterRowMajor ? row : col;
     const Index inner = SetterRowMajor ? col : row;
     const Index outerMajor = outer >> OuterPacketBits;  // index of the packet/map
@@ -283,7 +283,7 @@ class RandomSetter {
 
 #ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
   /** \returns a reference to the coefficient at given coordinates \a row, \a col */
-  Scalar& operator[](Index row, Index col) { return operator()(row, col); }
+  constexpr Scalar& operator[](Index row, Index col) { return operator()(row, col); }
 #endif
 
   /** \returns the number of non zero coefficients
@@ -291,7 +291,7 @@ class RandomSetter {
    * \note According to the underlying map/hash_map implementation,
    * this function might be quite expensive.
    */
-  Index nonZeros() const {
+  constexpr Index nonZeros() const {
     Index nz = 0;
     for (Index k = 0; k < m_outerPackets; ++k) nz += static_cast<Index>(m_hashmaps[k].size());
     return nz;

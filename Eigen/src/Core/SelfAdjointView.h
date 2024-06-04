@@ -71,44 +71,44 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   };
   typedef typename MatrixType::PlainObject PlainObject;
 
-  EIGEN_DEVICE_FUNC explicit inline SelfAdjointView(MatrixType& matrix) : m_matrix(matrix) {}
+  EIGEN_DEVICE_FUNC explicit constexpr SelfAdjointView(MatrixType& matrix) : m_matrix(matrix) {}
   using Base::operator*;
   EIGEN_DEFAULT_COPY_CONSTRUCTOR(SelfAdjointView)
 
   /** Assigns a matrix expression to the referenced triangular part of the selfadjoint matrix. */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const MatrixBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& operator=(const MatrixBase<OtherDerived>& other) {
     m_matrix.template triangularView<UpLo>() = other;
     return *this;
   }
 
   /** Assigns a triangular or selfadjoint expression without materializing a dense temporary. */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const TriangularBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& operator=(const TriangularBase<OtherDerived>& other) {
     other.evalToLazy(m_matrix);
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const SelfAdjointView& other) {
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& operator=(const SelfAdjointView& other) {
     return *this = static_cast<const Base&>(other);
   }
 
   /** \sa MatrixBase::operator+=() */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC SelfAdjointView& operator+=(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& operator+=(const DenseBase<OtherDerived>& other) {
     m_matrix.template triangularView<UpLo>() += other;
     return *this;
   }
 
   /** \sa MatrixBase::operator-=() */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC SelfAdjointView& operator-=(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& operator-=(const DenseBase<OtherDerived>& other) {
     m_matrix.template triangularView<UpLo>() -= other;
     return *this;
   }
 
   /** \sa MatrixBase::operator*=() */
-  EIGEN_DEVICE_FUNC SelfAdjointView& operator*=(const Scalar& other) {
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& operator*=(const Scalar& other) {
     eigen_assert(numext::imag(other) == typename NumTraits<Scalar>::Real(0) &&
                  "SelfAdjointView in-place scaling requires a real scalar; "
                  "scaling only the stored triangle by a non-real scalar would "
@@ -118,7 +118,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   }
 
   /** \sa DenseBase::operator/=() */
-  EIGEN_DEVICE_FUNC SelfAdjointView& operator/=(const Scalar& other) {
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& operator/=(const Scalar& other) {
     eigen_assert(numext::imag(other) == typename NumTraits<Scalar>::Real(0) &&
                  "SelfAdjointView in-place division requires a real scalar; "
                  "dividing only the stored triangle by a non-real scalar would "
@@ -133,15 +133,15 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& nestedExpression() const noexcept { return m_matrix; }
   EIGEN_DEVICE_FUNC constexpr MatrixTypeNestedCleaned& nestedExpression() noexcept { return m_matrix; }
 
-  EIGEN_DEVICE_FUNC const
-      SelfAdjointView<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, product), UpLo>
-      operator*(const Scalar& s) const {
+  EIGEN_DEVICE_FUNC constexpr const SelfAdjointView<
+      const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, product), UpLo>
+  operator*(const Scalar& s) const {
     return (nestedExpression() * s).template selfadjointView<UpLo>();
   }
 
-  friend EIGEN_DEVICE_FUNC const
-      SelfAdjointView<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, product), UpLo>
-      operator*(const Scalar& s, const SelfAdjointView& mat) {
+  friend EIGEN_DEVICE_FUNC constexpr const SelfAdjointView<
+      const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, product), UpLo>
+  operator*(const Scalar& s, const SelfAdjointView& mat) {
     return (s * mat.nestedExpression()).template selfadjointView<UpLo>();
   }
 
@@ -156,8 +156,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * \sa rankUpdate(const MatrixBase<DerivedU>&, Scalar)
    */
   template <typename DerivedU, typename DerivedV>
-  EIGEN_DEVICE_FUNC SelfAdjointView& rankUpdate(const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v,
-                                                const Scalar& alpha = Scalar(1));
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& rankUpdate(const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v,
+                                                          const Scalar& alpha = Scalar(1));
 
   /** Perform a symmetric rank K update of the selfadjoint matrix \c *this:
    * \f$ this = this + \alpha ( u u^* ) \f$ where \a u is a vector or matrix.
@@ -170,7 +170,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * \sa rankUpdate(const MatrixBase<DerivedU>&, const MatrixBase<DerivedV>&, Scalar)
    */
   template <typename DerivedU>
-  EIGEN_DEVICE_FUNC SelfAdjointView& rankUpdate(const MatrixBase<DerivedU>& u, const Scalar& alpha = Scalar(1));
+  EIGEN_DEVICE_FUNC constexpr SelfAdjointView& rankUpdate(const MatrixBase<DerivedU>& u,
+                                                          const Scalar& alpha = Scalar(1));
 
   /** \returns an expression of a triangular view extracted from the current selfadjoint view of a given triangular part
    *
@@ -184,10 +185,10 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * \sa MatrixBase::triangularView(), class TriangularView
    */
   template <unsigned int TriMode>
-  EIGEN_DEVICE_FUNC
-      std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), TriangularView<MatrixType, TriMode>,
-                         TriangularView<typename MatrixType::AdjointReturnType, TriMode> >
-      triangularView() const {
+  EIGEN_DEVICE_FUNC constexpr std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)),
+                                                 TriangularView<MatrixType, TriMode>,
+                                                 TriangularView<typename MatrixType::AdjointReturnType, TriMode> >
+  triangularView() const {
     std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), MatrixType&,
                        typename MatrixType::ConstTransposeReturnType>
         tmp1(m_matrix);
@@ -204,7 +205,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * This method simply returns the diagonal of the nested expression, thus by-passing the SelfAdjointView decorator.
    *
    * \sa MatrixBase::diagonal(), class Diagonal */
-  EIGEN_DEVICE_FUNC typename MatrixType::ConstDiagonalReturnType diagonal() const {
+  EIGEN_DEVICE_FUNC constexpr typename MatrixType::ConstDiagonalReturnType diagonal() const {
     return typename MatrixType::ConstDiagonalReturnType(m_matrix);
   }
 
@@ -213,7 +214,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * (complex) scalars the unstored entries are conjugates of stored ones, and
    * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
    */
-  EIGEN_DEVICE_FUNC typename NumTraits<Scalar>::Real l1Norm() const {
+  EIGEN_DEVICE_FUNC constexpr typename NumTraits<Scalar>::Real l1Norm() const {
     typedef typename NumTraits<Scalar>::Real RealScalar_;
     RealScalar_ norm = RealScalar_(0);
     const Index n = m_matrix.rows();
@@ -232,8 +233,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /////////// Cholesky module ///////////
 
-  LLT<PlainObject, UpLo> llt() const;
-  LDLT<PlainObject, UpLo> ldlt() const;
+  constexpr LLT<PlainObject, UpLo> llt() const;
+  constexpr LDLT<PlainObject, UpLo> ldlt() const;
 
   /////////// Eigenvalue module ///////////
 
@@ -242,8 +243,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   /** Return type of eigenvalues() */
   typedef Matrix<RealScalar, internal::traits<MatrixType>::ColsAtCompileTime, 1> EigenvaluesReturnType;
 
-  EIGEN_DEVICE_FUNC EigenvaluesReturnType eigenvalues() const;
-  EIGEN_DEVICE_FUNC RealScalar operatorNorm() const;
+  EIGEN_DEVICE_FUNC constexpr EigenvaluesReturnType eigenvalues() const;
+  EIGEN_DEVICE_FUNC constexpr RealScalar operatorNorm() const;
 
  protected:
   MatrixTypeNested m_matrix;
@@ -282,11 +283,11 @@ class triangular_dense_assignment_kernel<UpLo, SelfAdjoint, SetOpposite, DstEval
   typedef typename Base::Scalar Scalar;
   typedef typename Base::AssignmentTraits AssignmentTraits;
 
-  EIGEN_DEVICE_FUNC triangular_dense_assignment_kernel(DstEvaluatorType& dst, const SrcEvaluatorType& src,
-                                                       const Functor& func, DstXprType& dstExpr)
+  EIGEN_DEVICE_FUNC constexpr triangular_dense_assignment_kernel(DstEvaluatorType& dst, const SrcEvaluatorType& src,
+                                                                 const Functor& func, DstXprType& dstExpr)
       : Base(dst, src, func, dstExpr) {}
 
-  EIGEN_DEVICE_FUNC void assignCoeff(Index row, Index col) {
+  EIGEN_DEVICE_FUNC constexpr void assignCoeff(Index row, Index col) {
     eigen_internal_assert(row != col);
     Scalar tmp = m_src.coeff(row, col);
     m_functor.assignCoeff(m_dst.coeffRef(row, col), tmp);
@@ -295,15 +296,17 @@ class triangular_dense_assignment_kernel<UpLo, SelfAdjoint, SetOpposite, DstEval
 
   // Override to ensure the SelfAdjoint assignCoeff (which mirrors conjugates) is called,
   // not the base class version (which is a plain copy).
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeffByOuterInner(Index outer, Index inner) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignCoeffByOuterInner(Index outer, Index inner) {
     Index row = Base::rowIndexByOuterInner(outer, inner);
     Index col = Base::colIndexByOuterInner(outer, inner);
     assignCoeff(row, col);
   }
 
-  EIGEN_DEVICE_FUNC void assignDiagonalCoeff(Index id) { Base::assignCoeff(id, id); }
+  EIGEN_DEVICE_FUNC constexpr void assignDiagonalCoeff(Index id) { Base::assignCoeff(id, id); }
 
-  EIGEN_DEVICE_FUNC void assignOppositeCoeff(Index, Index) { eigen_internal_assert(false && "should never be called"); }
+  EIGEN_DEVICE_FUNC constexpr void assignOppositeCoeff(Index, Index) {
+    eigen_internal_assert(false && "should never be called");
+  }
 };
 
 }  // end namespace internal

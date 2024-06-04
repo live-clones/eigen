@@ -109,7 +109,7 @@ class KLU : public SparseSolverBase<KLU<MatrixType_> > {
    * \returns \c Success if computation was successful,
    *          \c NumericalIssue if the matrix.appears to be negative.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");
     return m_info;
   }

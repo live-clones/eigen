@@ -24,8 +24,8 @@ namespace internal {
 /** \internal */
 // This variant avoid modifications in vectors
 template <typename TriangularFactorType, typename VectorsType, typename CoeffsType>
-void make_block_householder_triangular_factor(TriangularFactorType& triFactor, const VectorsType& vectors,
-                                              const CoeffsType& hCoeffs) {
+constexpr void make_block_householder_triangular_factor(TriangularFactorType& triFactor, const VectorsType& vectors,
+                                                        const CoeffsType& hCoeffs) {
   const Index nbVecs = vectors.cols();
   eigen_assert(triFactor.rows() == nbVecs && triFactor.cols() == nbVecs && vectors.rows() >= nbVecs);
 
@@ -57,8 +57,8 @@ void make_block_householder_triangular_factor(TriangularFactorType& triFactor, c
  * general_matrix_matrix_product, which parallelizes under OpenMP / EIGEN_GEMM_THREADPOOL.
  */
 template <typename MatrixType, typename VectorsType, typename CoeffsType>
-void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vectors, const CoeffsType& hCoeffs,
-                                         bool forward) {
+constexpr void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vectors,
+                                                   const CoeffsType& hCoeffs, bool forward) {
   enum { TFactorSize = VectorsType::ColsAtCompileTime };
   const Index nbVecs = vectors.cols();
   const Index nbBelow = vectors.rows() - nbVecs;
@@ -98,8 +98,8 @@ void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vec
  * otherwise perform         mat = mat * H2 * H1 * H0
  */
 template <typename MatrixType, typename VectorsType, typename CoeffsType>
-void apply_block_householder_on_the_right(MatrixType& mat, const VectorsType& vectors, const CoeffsType& hCoeffs,
-                                          bool forward) {
+constexpr void apply_block_householder_on_the_right(MatrixType& mat, const VectorsType& vectors,
+                                                    const CoeffsType& hCoeffs, bool forward) {
   enum { TFactorSize = VectorsType::ColsAtCompileTime };
   const Index nbVecs = vectors.cols();
   const Index nbBelow = vectors.rows() - nbVecs;

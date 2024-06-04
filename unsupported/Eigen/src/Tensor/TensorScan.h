@@ -56,14 +56,14 @@ class TensorScanOp : public TensorBase<TensorScanOp<Op, XprType>, ReadOnlyAccess
   typedef typename Eigen::internal::traits<TensorScanOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorScanOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorScanOp(const XprType& expr, const Index& axis, bool exclusive = false,
-                                                     const Op& op = Op())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorScanOp(const XprType& expr, const Index& axis,
+                                                               bool exclusive = false, const Op& op = Op())
       : m_expr(expr), m_axis(axis), m_accumulator(op), m_exclusive(exclusive) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Index axis() const { return m_axis; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const XprType& expression() const { return m_expr; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Op accumulator() const { return m_accumulator; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool exclusive() const { return m_exclusive; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Index axis() const { return m_axis; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const XprType& expression() const { return m_expr; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Op accumulator() const { return m_accumulator; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool exclusive() const { return m_exclusive; }
 
  protected:
   typename XprType::Nested m_expr;
@@ -75,7 +75,7 @@ class TensorScanOp : public TensorBase<TensorScanOp<Op, XprType>, ReadOnlyAccess
 namespace internal {
 
 template <typename Self>
-EIGEN_STRONG_INLINE void ReduceScalar(Self& self, Index offset, typename Self::CoeffReturnType* data) {
+EIGEN_STRONG_INLINE constexpr void ReduceScalar(Self& self, Index offset, typename Self::CoeffReturnType* data) {
   // Compute the scan along the axis, starting at the given offset
   typename Self::CoeffReturnType accum = self.accumulator().initialize();
   if (self.stride() == 1) {
@@ -108,7 +108,7 @@ EIGEN_STRONG_INLINE void ReduceScalar(Self& self, Index offset, typename Self::C
 }
 
 template <typename Self>
-EIGEN_STRONG_INLINE void ReducePacket(Self& self, Index offset, typename Self::CoeffReturnType* data) {
+EIGEN_STRONG_INLINE constexpr void ReducePacket(Self& self, Index offset, typename Self::CoeffReturnType* data) {
   using Scalar = typename Self::CoeffReturnType;
   using Packet = typename Self::PacketReturnType;
   // Compute the scan along the axis, starting at the calculated offset
@@ -144,7 +144,7 @@ EIGEN_STRONG_INLINE void ReducePacket(Self& self, Index offset, typename Self::C
 
 template <typename Self, bool Vectorize, bool Parallel>
 struct ReduceBlock {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
+  EIGEN_STRONG_INLINE constexpr void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     for (Index idx2 = 0; idx2 < self.stride(); idx2++) {
       // Calculate the starting offset for the scan
       Index offset = idx1 + idx2;
@@ -156,7 +156,7 @@ struct ReduceBlock {
 // Specialization for vectorized reduction.
 template <typename Self>
 struct ReduceBlock<Self, /*Vectorize=*/true, /*Parallel=*/false> {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
+  EIGEN_STRONG_INLINE constexpr void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     using Packet = typename Self::PacketReturnType;
     const int PacketSize = internal::unpacket_traits<Packet>::size;
     Index idx2 = 0;
@@ -178,7 +178,7 @@ template <typename Self, typename Reducer, typename Device,
           bool Vectorize = (TensorEvaluator<typename Self::ChildTypeNoConst, Device>::PacketAccess &&
                             internal::reducer_traits<Reducer, Device>::PacketAccess)>
 struct ScanLauncher {
-  void operator()(Self& self, typename Self::CoeffReturnType* data) const {
+  constexpr void operator()(Self& self, typename Self::CoeffReturnType* data) const {
     Index total_size = internal::array_prod(self.dimensions());
 
     // We fix the index along the scan axis to 0 and perform a
@@ -197,7 +197,7 @@ struct ScanLauncher {
 // Adjust block_size to avoid false sharing of cachelines among
 // threads. Currently set to twice the cache line size on Intel and ARM
 // processors.
-EIGEN_STRONG_INLINE Index AdjustBlockSize(Index item_size, Index block_size) {
+EIGEN_STRONG_INLINE constexpr Index AdjustBlockSize(Index item_size, Index block_size) {
   constexpr Index kBlockAlignment = 128;
   const Index items_per_cacheline = numext::maxi<Index>(1, kBlockAlignment / item_size);
   return items_per_cacheline * numext::div_ceil(block_size, items_per_cacheline);
@@ -205,7 +205,7 @@ EIGEN_STRONG_INLINE Index AdjustBlockSize(Index item_size, Index block_size) {
 
 template <typename Self>
 struct ReduceBlock<Self, /*Vectorize=*/true, /*Parallel=*/true> {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
+  EIGEN_STRONG_INLINE constexpr void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     using Scalar = typename Self::CoeffReturnType;
     using Packet = typename Self::PacketReturnType;
     const int PacketSize = internal::unpacket_traits<Packet>::size;
@@ -244,7 +244,7 @@ struct ReduceBlock<Self, /*Vectorize=*/true, /*Parallel=*/true> {
 
 template <typename Self>
 struct ReduceBlock<Self, /*Vectorize=*/false, /*Parallel=*/true> {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
+  EIGEN_STRONG_INLINE constexpr void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     using Scalar = typename Self::CoeffReturnType;
     self.device().parallelFor(
         self.stride(), TensorOpCost(self.size(), self.size(), 16 * self.size()),
@@ -262,7 +262,7 @@ struct ReduceBlock<Self, /*Vectorize=*/false, /*Parallel=*/true> {
 // Specialization for multi-threaded execution.
 template <typename Self, typename Reducer, bool Vectorize>
 struct ScanLauncher<Self, Reducer, ThreadPoolDevice, Vectorize> {
-  void operator()(Self& self, typename Self::CoeffReturnType* data) const {
+  constexpr void operator()(Self& self, typename Self::CoeffReturnType* data) const {
     using Scalar = typename Self::CoeffReturnType;
     using Packet = typename Self::PacketReturnType;
     const int PacketSize = internal::unpacket_traits<Packet>::size;
@@ -383,7 +383,7 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
   typedef typename internal::TensorMaterializedBlock<Scalar, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device),
         m_device(device),
         m_exclusive(op.exclusive()),
@@ -414,23 +414,25 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_impl.dimensions(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_impl.dimensions(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Index& stride() const { return m_stride; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Index& stride() const { return m_stride; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Index& consume_dim() const { return m_consume_dim; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Index& consume_dim() const { return m_consume_dim; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Index& size() const { return m_size; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Index& size() const { return m_size; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Op& accumulator() const { return m_accumulator; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Op& accumulator() const { return m_accumulator; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool exclusive() const { return m_exclusive; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool exclusive() const { return m_exclusive; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const TensorEvaluator<ArgType, Device>& inner() const { return m_impl; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const TensorEvaluator<ArgType, Device>& inner() const {
+    return m_impl;
+  }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Device& device() const { return m_device; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Device& device() const { return m_device; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     m_impl.evalSubExprsIfNeeded(NULL);
     internal::ScanLauncher<Self, Op, Device> launcher;
     if (data) {
@@ -450,25 +452,26 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
     return internal::ploadt<PacketReturnType, LoadMode>(m_output + index);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr internal::TensorBlockResourceRequirements getResourceRequirements()
+      const {
     return internal::TensorBlockResourceRequirements::any();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
-                                                          bool /*root_of_expr_ast*/ = false) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                                    bool /*root_of_expr_ast*/ = false) const {
     eigen_assert(m_output != nullptr);
     return TensorBlock::materialize(m_output, m_impl.dimensions(), desc, scratch);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EvaluatorPointerType data() const { return m_output; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr EvaluatorPointerType data() const { return m_output; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_output[index]; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const { return m_output[index]; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool) const {
     return TensorOpCost(sizeof(CoeffReturnType), 0, 0);
   }
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     if (m_output) {
       m_device.deallocate_temp(m_output);
       m_output = NULL;
