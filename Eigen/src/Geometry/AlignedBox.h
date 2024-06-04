@@ -105,59 +105,57 @@ class AlignedBox {
   };
 
   /** Default constructor initializing a null box. */
-  EIGEN_DEVICE_FUNC inline AlignedBox() {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox() {
     if (EIGEN_CONST_CONDITIONAL(AmbientDimAtCompileTime != Dynamic)) setEmpty();
   }
 
   /** Constructs a null box with \a _dim the dimension of the ambient space. */
-  EIGEN_DEVICE_FUNC inline explicit AlignedBox(Index _dim) : m_min(_dim), m_max(_dim) { setEmpty(); }
+  EIGEN_DEVICE_FUNC inline constexpr explicit AlignedBox(Index _dim) : m_min(_dim), m_max(_dim) { setEmpty(); }
 
   /** Constructs a box with extremities \a _min and \a _max.
    * \warning If either component of \a _min is larger than the same component of \a _max, the constructed box is empty.
    */
   template <typename OtherVectorType1, typename OtherVectorType2>
-  EIGEN_DEVICE_FUNC inline AlignedBox(const OtherVectorType1& _min, const OtherVectorType2& _max)
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox(const OtherVectorType1& _min, const OtherVectorType2& _max)
       : m_min(_min), m_max(_max) {}
 
   /** Constructs a box containing a single point \a p. */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline explicit AlignedBox(const MatrixBase<Derived>& p) : m_min(p), m_max(m_min) {}
-
-  EIGEN_DEVICE_FUNC ~AlignedBox() {}
+  EIGEN_DEVICE_FUNC inline constexpr explicit AlignedBox(const MatrixBase<Derived>& p) : m_min(p), m_max(m_min) {}
 
   /** \returns the dimension in which the box holds */
-  EIGEN_DEVICE_FUNC inline Index dim() const {
+  EIGEN_DEVICE_FUNC inline constexpr Index dim() const {
     return AmbientDimAtCompileTime == Dynamic ? m_min.size() : Index(AmbientDimAtCompileTime);
   }
 
   /** \deprecated use isEmpty() */
-  EIGEN_DEVICE_FUNC inline bool isNull() const { return isEmpty(); }
+  EIGEN_DEVICE_FUNC inline constexpr bool isNull() const { return isEmpty(); }
 
   /** \deprecated use setEmpty() */
-  EIGEN_DEVICE_FUNC inline void setNull() { setEmpty(); }
+  EIGEN_DEVICE_FUNC inline constexpr void setNull() { setEmpty(); }
 
   /** \returns true if the box is empty.
    * \sa setEmpty */
-  EIGEN_DEVICE_FUNC inline bool isEmpty() const { return (m_min.array() > m_max.array()).any(); }
+  EIGEN_DEVICE_FUNC inline constexpr bool isEmpty() const { return (m_min.array() > m_max.array()).any(); }
 
   /** Makes \c *this an empty box.
    * \sa isEmpty */
-  EIGEN_DEVICE_FUNC inline void setEmpty() {
+  EIGEN_DEVICE_FUNC inline constexpr void setEmpty() {
     m_min.setConstant(ScalarTraits::highest());
     m_max.setConstant(ScalarTraits::lowest());
   }
 
   /** \returns the minimal corner */
-  EIGEN_DEVICE_FUNC inline const VectorType&(min)() const { return m_min; }
+  EIGEN_DEVICE_FUNC inline constexpr const VectorType&(min)() const { return m_min; }
   /** \returns a non const reference to the minimal corner */
-  EIGEN_DEVICE_FUNC inline VectorType&(min)() { return m_min; }
+  EIGEN_DEVICE_FUNC inline constexpr VectorType&(min)() { return m_min; }
   /** \returns the maximal corner */
-  EIGEN_DEVICE_FUNC inline const VectorType&(max)() const { return m_max; }
+  EIGEN_DEVICE_FUNC inline constexpr const VectorType&(max)() const { return m_max; }
   /** \returns a non const reference to the maximal corner */
-  EIGEN_DEVICE_FUNC inline VectorType&(max)() { return m_max; }
+  EIGEN_DEVICE_FUNC inline constexpr VectorType&(max)() { return m_max; }
 
   /** \returns the center of the box */
-  EIGEN_DEVICE_FUNC inline const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(VectorTypeSum, RealScalar, quotient)
+  EIGEN_DEVICE_FUNC inline constexpr const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(VectorTypeSum, RealScalar, quotient)
       center() const {
     return (m_min + m_max) / RealScalar(2);
   }
@@ -166,21 +164,21 @@ class AlignedBox {
    * Note that this function does not get the same
    * result for integral or floating scalar types: see
    */
-  EIGEN_DEVICE_FUNC inline const CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>, const VectorType,
-                                               const VectorType>
+  EIGEN_DEVICE_FUNC inline constexpr const CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>,
+                                                         const VectorType, const VectorType>
   sizes() const {
     return m_max - m_min;
   }
 
   /** \returns the volume of the bounding box */
-  EIGEN_DEVICE_FUNC inline Scalar volume() const { return isEmpty() ? Scalar(0) : sizes().prod(); }
+  EIGEN_DEVICE_FUNC inline constexpr Scalar volume() const { return isEmpty() ? Scalar(0) : sizes().prod(); }
 
   /** \returns an expression for the bounding box diagonal vector
    * if the length of the diagonal is needed: diagonal().norm()
    * will provide it.
    */
-  EIGEN_DEVICE_FUNC inline CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>, const VectorType,
-                                         const VectorType>
+  EIGEN_DEVICE_FUNC inline constexpr CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>, const VectorType,
+                                                   const VectorType>
   diagonal() const {
     return sizes();
   }
@@ -194,7 +192,7 @@ class AlignedBox {
    * For 3D bounding boxes, the following names are added:
    * BottomLeftCeil, BottomRightCeil, TopLeftCeil, TopRightCeil.
    */
-  EIGEN_DEVICE_FUNC inline VectorType corner(CornerType corner) const {
+  EIGEN_DEVICE_FUNC inline constexpr VectorType corner(CornerType corner) const {
     EIGEN_STATIC_ASSERT(AmbientDim_ <= 3, THIS_METHOD_IS_ONLY_FOR_VECTORS_OF_A_SPECIFIC_SIZE);
 
     VectorType res;
@@ -212,7 +210,7 @@ class AlignedBox {
 
   /** \returns a random point inside the bounding box sampled with
    * a uniform distribution */
-  EIGEN_DEVICE_FUNC inline VectorType sample() const {
+  EIGEN_DEVICE_FUNC inline constexpr VectorType sample() const {
     VectorType r(dim());
     for (Index d = 0; d < dim(); ++d) {
       if (!ScalarTraits::IsInteger) {
@@ -225,26 +223,26 @@ class AlignedBox {
 
   /** \returns true if the point \a p is inside the box \c *this. */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline bool contains(const MatrixBase<Derived>& p) const {
+  EIGEN_DEVICE_FUNC inline constexpr bool contains(const MatrixBase<Derived>& p) const {
     typename internal::nested_eval<Derived, 2>::type p_n(p.derived());
     return (m_min.array() <= p_n.array()).all() && (p_n.array() <= m_max.array()).all();
   }
 
   /** \returns true if the box \a b is entirely inside the box \c *this. */
-  EIGEN_DEVICE_FUNC inline bool contains(const AlignedBox& b) const {
+  EIGEN_DEVICE_FUNC inline constexpr bool contains(const AlignedBox& b) const {
     return (m_min.array() <= (b.min)().array()).all() && ((b.max)().array() <= m_max.array()).all();
   }
 
   /** \returns true if the box \a b is intersecting the box \c *this.
    * \sa intersection, clamp */
-  EIGEN_DEVICE_FUNC inline bool intersects(const AlignedBox& b) const {
+  EIGEN_DEVICE_FUNC inline constexpr bool intersects(const AlignedBox& b) const {
     return (m_min.array() <= (b.max)().array()).all() && ((b.min)().array() <= m_max.array()).all();
   }
 
   /** Extends \c *this such that it contains the point \a p and returns a reference to \c *this.
    * \sa extend(const AlignedBox&) */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline AlignedBox& extend(const MatrixBase<Derived>& p) {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox& extend(const MatrixBase<Derived>& p) {
     typename internal::nested_eval<Derived, 2>::type p_n(p.derived());
     m_min = m_min.cwiseMin(p_n);
     m_max = m_max.cwiseMax(p_n);
@@ -253,7 +251,7 @@ class AlignedBox {
 
   /** Extends \c *this such that it contains the box \a b and returns a reference to \c *this.
    * \sa merged, extend(const MatrixBase&) */
-  EIGEN_DEVICE_FUNC inline AlignedBox& extend(const AlignedBox& b) {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox& extend(const AlignedBox& b) {
     m_min = m_min.cwiseMin(b.m_min);
     m_max = m_max.cwiseMax(b.m_max);
     return *this;
@@ -262,7 +260,7 @@ class AlignedBox {
   /** Clamps \c *this by the box \a b and returns a reference to \c *this.
    * \note If the boxes don't intersect, the resulting box is empty.
    * \sa intersection(), intersects() */
-  EIGEN_DEVICE_FUNC inline AlignedBox& clamp(const AlignedBox& b) {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox& clamp(const AlignedBox& b) {
     m_min = m_min.cwiseMax(b.m_min);
     m_max = m_max.cwiseMin(b.m_max);
     return *this;
@@ -271,20 +269,20 @@ class AlignedBox {
   /** Returns an AlignedBox that is the intersection of \a b and \c *this
    * \note If the boxes don't intersect, the resulting box is empty.
    * \sa intersects(), clamp, contains()  */
-  EIGEN_DEVICE_FUNC inline AlignedBox intersection(const AlignedBox& b) const {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox intersection(const AlignedBox& b) const {
     return AlignedBox(m_min.cwiseMax(b.m_min), m_max.cwiseMin(b.m_max));
   }
 
   /** Returns an AlignedBox that is the union of \a b and \c *this.
    * \note Merging with an empty box may result in a box bigger than \c *this.
    * \sa extend(const AlignedBox&) */
-  EIGEN_DEVICE_FUNC inline AlignedBox merged(const AlignedBox& b) const {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox merged(const AlignedBox& b) const {
     return AlignedBox(m_min.cwiseMin(b.m_min), m_max.cwiseMax(b.m_max));
   }
 
   /** Translate \c *this by the vector \a t and returns a reference to \c *this. */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline AlignedBox& translate(const MatrixBase<Derived>& a_t) {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox& translate(const MatrixBase<Derived>& a_t) {
     const typename internal::nested_eval<Derived, 2>::type t(a_t.derived());
     m_min += t;
     m_max += t;
@@ -293,7 +291,7 @@ class AlignedBox {
 
   /** \returns a copy of \c *this translated by the vector \a t. */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline AlignedBox translated(const MatrixBase<Derived>& a_t) const {
+  EIGEN_DEVICE_FUNC inline constexpr AlignedBox translated(const MatrixBase<Derived>& a_t) const {
     AlignedBox result(m_min, m_max);
     result.translate(a_t);
     return result;
@@ -304,20 +302,20 @@ class AlignedBox {
    * \sa exteriorDistance(const MatrixBase&), squaredExteriorDistance(const AlignedBox&)
    */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline Scalar squaredExteriorDistance(const MatrixBase<Derived>& p) const;
+  EIGEN_DEVICE_FUNC inline constexpr Scalar squaredExteriorDistance(const MatrixBase<Derived>& p) const;
 
   /** \returns the squared distance between the boxes \a b and \c *this,
    * and zero if the boxes intersect.
    * \sa exteriorDistance(const AlignedBox&), squaredExteriorDistance(const MatrixBase&)
    */
-  EIGEN_DEVICE_FUNC inline Scalar squaredExteriorDistance(const AlignedBox& b) const;
+  EIGEN_DEVICE_FUNC inline constexpr Scalar squaredExteriorDistance(const AlignedBox& b) const;
 
   /** \returns the distance between the point \a p and the box \c *this,
    * and zero if \a p is inside the box.
    * \sa squaredExteriorDistance(const MatrixBase&), exteriorDistance(const AlignedBox&)
    */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline NonInteger exteriorDistance(const MatrixBase<Derived>& p) const {
+  EIGEN_DEVICE_FUNC inline constexpr NonInteger exteriorDistance(const MatrixBase<Derived>& p) const {
     EIGEN_USING_STD(sqrt) return sqrt(NonInteger(squaredExteriorDistance(p)));
   }
 
@@ -325,7 +323,7 @@ class AlignedBox {
    * and zero if the boxes intersect.
    * \sa squaredExteriorDistance(const AlignedBox&), exteriorDistance(const MatrixBase&)
    */
-  EIGEN_DEVICE_FUNC inline NonInteger exteriorDistance(const AlignedBox& b) const {
+  EIGEN_DEVICE_FUNC inline constexpr NonInteger exteriorDistance(const AlignedBox& b) const {
     EIGEN_USING_STD(sqrt) return sqrt(NonInteger(squaredExteriorDistance(b)));
   }
 
@@ -333,7 +331,7 @@ class AlignedBox {
    * Specialization of transform for pure translation.
    */
   template <int Mode, int Options>
-  EIGEN_DEVICE_FUNC inline void transform(
+  EIGEN_DEVICE_FUNC inline constexpr void transform(
       const typename Transform<Scalar, AmbientDimAtCompileTime, Mode, Options>::TranslationType& translation) {
     this->translate(translation);
   }
@@ -345,7 +343,8 @@ class AlignedBox {
    * \note This method is provided under BSD license (see the top of this file).
    */
   template <int Mode, int Options>
-  EIGEN_DEVICE_FUNC inline void transform(const Transform<Scalar, AmbientDimAtCompileTime, Mode, Options>& transform) {
+  EIGEN_DEVICE_FUNC inline constexpr void transform(
+      const Transform<Scalar, AmbientDimAtCompileTime, Mode, Options>& transform) {
     // Only Affine and Isometry transforms are currently supported.
     EIGEN_STATIC_ASSERT(Mode == Affine || Mode == AffineCompact || Mode == Isometry,
                         THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS);
@@ -370,8 +369,8 @@ class AlignedBox {
    * still be an axis-aligned box.
    */
   template <int Mode, int Options>
-  EIGEN_DEVICE_FUNC AlignedBox
-  transformed(const Transform<Scalar, AmbientDimAtCompileTime, Mode, Options>& transform) const {
+  EIGEN_DEVICE_FUNC constexpr AlignedBox transformed(
+      const Transform<Scalar, AmbientDimAtCompileTime, Mode, Options>& transform) const {
     AlignedBox result(m_min, m_max);
     result.transform(transform);
     return result;
@@ -383,7 +382,7 @@ class AlignedBox {
    * then this function smartly returns a const reference to \c *this.
    */
   template <typename NewScalarType>
-  EIGEN_DEVICE_FUNC inline
+  EIGEN_DEVICE_FUNC inline constexpr
       typename internal::cast_return_type<AlignedBox, AlignedBox<NewScalarType, AmbientDimAtCompileTime> >::type
       cast() const {
     return typename internal::cast_return_type<AlignedBox, AlignedBox<NewScalarType, AmbientDimAtCompileTime> >::type(
@@ -392,7 +391,8 @@ class AlignedBox {
 
   /** Copy constructor with scalar type conversion */
   template <typename OtherScalarType>
-  EIGEN_DEVICE_FUNC inline explicit AlignedBox(const AlignedBox<OtherScalarType, AmbientDimAtCompileTime>& other) {
+  EIGEN_DEVICE_FUNC inline constexpr explicit AlignedBox(
+      const AlignedBox<OtherScalarType, AmbientDimAtCompileTime>& other) {
     m_min = (other.min)().template cast<Scalar>();
     m_max = (other.max)().template cast<Scalar>();
   }
@@ -401,8 +401,8 @@ class AlignedBox {
    * determined by \a prec.
    *
    * \sa MatrixBase::isApprox() */
-  EIGEN_DEVICE_FUNC bool isApprox(const AlignedBox& other,
-                                  const RealScalar& prec = ScalarTraits::dummy_precision()) const {
+  EIGEN_DEVICE_FUNC constexpr bool isApprox(const AlignedBox& other,
+                                            const RealScalar& prec = ScalarTraits::dummy_precision()) const {
     return m_min.isApprox(other.m_min, prec) && m_max.isApprox(other.m_max, prec);
   }
 
@@ -412,7 +412,7 @@ class AlignedBox {
 
 template <typename Scalar, int AmbientDim>
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline Scalar AlignedBox<Scalar, AmbientDim>::squaredExteriorDistance(
+EIGEN_DEVICE_FUNC inline constexpr Scalar AlignedBox<Scalar, AmbientDim>::squaredExteriorDistance(
     const MatrixBase<Derived>& a_p) const {
   typename internal::nested_eval<Derived, 2 * AmbientDim>::type p(a_p.derived());
   Scalar dist2(0);
@@ -430,7 +430,8 @@ EIGEN_DEVICE_FUNC inline Scalar AlignedBox<Scalar, AmbientDim>::squaredExteriorD
 }
 
 template <typename Scalar, int AmbientDim>
-EIGEN_DEVICE_FUNC inline Scalar AlignedBox<Scalar, AmbientDim>::squaredExteriorDistance(const AlignedBox& b) const {
+EIGEN_DEVICE_FUNC inline constexpr Scalar AlignedBox<Scalar, AmbientDim>::squaredExteriorDistance(
+    const AlignedBox& b) const {
   Scalar dist2(0);
   Scalar aux;
   for (Index k = 0; k < dim(); ++k) {

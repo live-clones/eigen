@@ -42,35 +42,36 @@ class InnerIterator {
 
  public:
   /** Construct an iterator over the \a outerId -th row or column of \a xpr */
-  InnerIterator(const XprType &xpr, const Index &outerId) : m_eval(xpr), m_iter(m_eval, outerId, xpr.innerSize()) {}
+  constexpr InnerIterator(const XprType &xpr, const Index &outerId)
+      : m_eval(xpr), m_iter(m_eval, outerId, xpr.innerSize()) {}
 
   /// \returns the value of the current coefficient.
-  EIGEN_STRONG_INLINE Scalar value() const { return m_iter.value(); }
+  EIGEN_STRONG_INLINE constexpr Scalar value() const { return m_iter.value(); }
   /** Increment the iterator \c *this to the next non-zero coefficient.
    * Explicit zeros are not skipped over. To skip explicit zeros, see class SparseView
    */
-  EIGEN_STRONG_INLINE InnerIterator &operator++() {
+  EIGEN_STRONG_INLINE constexpr InnerIterator &operator++() {
     m_iter.operator++();
     return *this;
   }
-  EIGEN_STRONG_INLINE InnerIterator &operator+=(Index i) {
+  EIGEN_STRONG_INLINE constexpr InnerIterator &operator+=(Index i) {
     m_iter.operator+=(i);
     return *this;
   }
-  EIGEN_STRONG_INLINE InnerIterator operator+(Index i) {
+  EIGEN_STRONG_INLINE constexpr InnerIterator operator+(Index i) {
     InnerIterator result(*this);
     result += i;
     return result;
   }
 
   /// \returns the column or row index of the current coefficient.
-  EIGEN_STRONG_INLINE Index index() const { return m_iter.index(); }
+  EIGEN_STRONG_INLINE constexpr Index index() const { return m_iter.index(); }
   /// \returns the row index of the current coefficient.
-  EIGEN_STRONG_INLINE Index row() const { return m_iter.row(); }
+  EIGEN_STRONG_INLINE constexpr Index row() const { return m_iter.row(); }
   /// \returns the column index of the current coefficient.
-  EIGEN_STRONG_INLINE Index col() const { return m_iter.col(); }
+  EIGEN_STRONG_INLINE constexpr Index col() const { return m_iter.col(); }
   /// \returns \c true if the iterator \c *this still references a valid coefficient.
-  EIGEN_STRONG_INLINE operator bool() const { return m_iter; }
+  EIGEN_STRONG_INLINE constexpr operator bool() const { return m_iter; }
 
  protected:
   EvaluatorType m_eval;
@@ -81,7 +82,7 @@ class InnerIterator {
   //   SparseMatrix<double,RowMajor> A;
   //   SparseMatrix<double>::InnerIterator it(A,0);
   template <typename T>
-  InnerIterator(const EigenBase<T> &, Index outer);
+  constexpr InnerIterator(const EigenBase<T> &, Index outer);
 };
 
 namespace internal {
@@ -95,10 +96,11 @@ class inner_iterator_selector<XprType, IndexBased> {
   enum { IsRowMajor = (XprType::Flags & RowMajorBit) == RowMajorBit };
 
  public:
-  EIGEN_STRONG_INLINE inner_iterator_selector(const EvaluatorType &eval, const Index &outerId, const Index &innerSize)
+  EIGEN_STRONG_INLINE constexpr inner_iterator_selector(const EvaluatorType &eval, const Index &outerId,
+                                                        const Index &innerSize)
       : m_eval(eval), m_inner(0), m_outer(outerId), m_end(innerSize) {}
 
-  EIGEN_STRONG_INLINE Scalar value() const {
+  EIGEN_STRONG_INLINE constexpr Scalar value() const {
     return (IsRowMajor) ? m_eval.coeff(m_outer, m_inner) : m_eval.coeff(m_inner, m_outer);
   }
 
@@ -107,11 +109,11 @@ class inner_iterator_selector<XprType, IndexBased> {
     return *this;
   }
 
-  EIGEN_STRONG_INLINE Index index() const { return m_inner; }
-  inline Index row() const { return IsRowMajor ? m_outer : index(); }
-  inline Index col() const { return IsRowMajor ? index() : m_outer; }
+  EIGEN_STRONG_INLINE constexpr Index index() const { return m_inner; }
+  inline constexpr Index row() const { return IsRowMajor ? m_outer : index(); }
+  inline constexpr Index col() const { return IsRowMajor ? index() : m_outer; }
 
-  EIGEN_STRONG_INLINE operator bool() const { return m_inner < m_end && m_inner >= 0; }
+  EIGEN_STRONG_INLINE constexpr operator bool() const { return m_inner < m_end && m_inner >= 0; }
 
  protected:
   const EvaluatorType &m_eval;
@@ -129,8 +131,8 @@ class inner_iterator_selector<XprType, IteratorBased> : public evaluator<XprType
   typedef evaluator<XprType> EvaluatorType;
 
  public:
-  EIGEN_STRONG_INLINE inner_iterator_selector(const EvaluatorType &eval, const Index &outerId,
-                                              const Index & /*innerSize*/)
+  EIGEN_STRONG_INLINE constexpr inner_iterator_selector(const EvaluatorType &eval, const Index &outerId,
+                                                        const Index & /*innerSize*/)
       : Base(eval, outerId) {}
 };
 

@@ -51,27 +51,27 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
   }
 
   template <int K = 0, bool Empty = (K == UnrollCount), std::enable_if_t<Empty, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived&, Visitor&) {}
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived&, Visitor&) {}
 
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && Initialize && !DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     visitor.init(mat.coeff(0, 0), 0, 0);
     run<1>(mat, visitor);
   }
 
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && !Initialize && !DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
-    static constexpr int R = RowMajor ? (K / ColsAtCompileTime) : (K % RowsAtCompileTime);
-    static constexpr int C = RowMajor ? (K % ColsAtCompileTime) : (K / RowsAtCompileTime);
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
+    constexpr int R = RowMajor ? (K / ColsAtCompileTime) : (K % RowsAtCompileTime);
+    constexpr int C = RowMajor ? (K % ColsAtCompileTime) : (K / RowsAtCompileTime);
     visitor(mat.coeff(R, C), R, C);
     run<K + 1>(mat, visitor);
   }
 
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && Initialize && DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     Packet P = mat.template packet<Packet>(0, 0);
     visitor.initpacket(P, 0, 0);
     run<PacketSize>(mat, visitor);
@@ -79,9 +79,9 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
 
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && !Initialize && DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
-    static constexpr int R = RowMajor ? (K / ColsAtCompileTime) : (K % RowsAtCompileTime);
-    static constexpr int C = RowMajor ? (K % ColsAtCompileTime) : (K / RowsAtCompileTime);
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
+    constexpr int R = RowMajor ? (K / ColsAtCompileTime) : (K % RowsAtCompileTime);
+    constexpr int C = RowMajor ? (K % ColsAtCompileTime) : (K / RowsAtCompileTime);
     Packet P = mat.template packet<Packet>(R, C);
     visitor.packet(P, R, C);
     run<K + PacketSize>(mat, visitor);
@@ -100,12 +100,12 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, true, ShortCircuit
 
   // empty
   template <int K = 0, bool Empty = (K == UnrollCount), std::enable_if_t<Empty, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived&, Visitor&) {}
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived&, Visitor&) {}
 
   // scalar initialization
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && Initialize && !DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     visitor.init(mat.coeff(0), 0);
     run<1>(mat, visitor);
   }
@@ -113,7 +113,7 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, true, ShortCircuit
   // scalar iteration
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && !Initialize && !DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     visitor(mat.coeff(K), K);
     run<K + 1>(mat, visitor);
   }
@@ -121,7 +121,7 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, true, ShortCircuit
   // vector initialization
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && Initialize && DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     Packet P = mat.template packet<Packet>(0);
     visitor.initpacket(P, 0);
     run<PacketSize>(mat, visitor);
@@ -130,7 +130,7 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, true, ShortCircuit
   // vector iteration
   template <int K = 0, bool Empty = (K == UnrollCount), bool Initialize = (K == 0), bool DoVectorOp = CanVectorize(K),
             std::enable_if_t<!Empty && !Initialize && DoVectorOp, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     Packet P = mat.template packet<Packet>(K);
     visitor.packet(P, K);
     run<K + PacketSize>(mat, visitor);
@@ -143,7 +143,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAcce
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   static constexpr bool RowMajor = Derived::IsRowMajor;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     const Index innerSize = RowMajor ? mat.cols() : mat.rows();
     const Index outerSize = RowMajor ? mat.rows() : mat.cols();
     if (innerSize == 0 || outerSize == 0) return;
@@ -177,7 +177,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
   static constexpr bool RowMajor = Derived::IsRowMajor;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     const Index innerSize = RowMajor ? mat.cols() : mat.rows();
     const Index outerSize = RowMajor ? mat.rows() : mat.cols();
     if (innerSize == 0 || outerSize == 0) return;
@@ -230,7 +230,7 @@ template <typename Visitor, typename Derived, bool ShortCircuitEvaluation>
 struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/false, /*LinearAccess=*/true, ShortCircuitEvaluation> {
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     const Index size = mat.size();
     if (size == 0) return;
     visitor.init(mat.coeff(0), 0);
@@ -250,7 +250,7 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
   static constexpr int PacketSize = packet_traits<Scalar>::size;
   using short_circuit = short_circuit_eval_impl<Visitor, ShortCircuitEvaluation>;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& mat, Visitor& visitor) {
     const Index size = mat.size();
     if (size == 0) return;
     Index k = 0;
@@ -292,13 +292,13 @@ class visitor_evaluator {
   static constexpr int XprAlignment = Evaluator::Alignment;
   static constexpr int CoeffReadCost = Evaluator::CoeffReadCost;
 
-  EIGEN_DEVICE_FUNC explicit visitor_evaluator(const XprType& xpr) : m_evaluator(xpr), m_xpr(xpr) {}
+  EIGEN_DEVICE_FUNC constexpr explicit visitor_evaluator(const XprType& xpr) : m_evaluator(xpr), m_xpr(xpr) {}
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_xpr.rows(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_xpr.cols(); }
   EIGEN_DEVICE_FUNC constexpr Index size() const noexcept { return m_xpr.size(); }
   // outer-inner access
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index row, Index col) const {
     return m_evaluator.coeff(row, col);
   }
   template <typename Packet, int Alignment = Unaligned>
@@ -306,7 +306,9 @@ class visitor_evaluator {
     return m_evaluator.template packet<Alignment, Packet>(row, col);
   }
   // linear access
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_evaluator.coeff(index); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
+    return m_evaluator.coeff(index);
+  }
   template <typename Packet, int Alignment = XprAlignment>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index index) const {
     return m_evaluator.template packet<Alignment, Packet>(index);
@@ -348,7 +350,7 @@ struct visit_impl {
 
   using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, LinearAccess, ShortCircuitEvaulation>;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const DenseBase<Derived>& mat, Visitor& visitor) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const DenseBase<Derived>& mat, Visitor& visitor) {
     Evaluator evaluator(mat.derived());
     impl::run(evaluator, visitor);
   }
@@ -377,7 +379,7 @@ struct visit_impl {
  */
 template <typename Derived>
 template <typename Visitor>
-EIGEN_DEVICE_FUNC void DenseBase<Derived>::visit(Visitor& visitor) const {
+EIGEN_DEVICE_FUNC constexpr void DenseBase<Derived>::visit(Visitor& visitor) const {
   using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ false>;
   impl::run(derived(), visitor);
 }
@@ -388,16 +390,18 @@ template <typename Scalar>
 struct all_visitor {
   using result_type = bool;
   using Packet = typename packet_traits<Scalar>::type;
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC inline constexpr void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC inline constexpr void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return !predux_any(pcmp_eq(p, pzero(p))); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = all_predux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = all_predux(p); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) { res = res && (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index) { res = res && (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC inline constexpr void operator()(const Scalar& value, Index, Index) {
+    res = res && (value != Scalar(0));
+  }
+  EIGEN_DEVICE_FUNC inline constexpr void operator()(const Scalar& value, Index) { res = res && (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index, Index) { res = res && all_predux(p); }
   EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index) { res = res && all_predux(p); }
-  EIGEN_DEVICE_FUNC inline bool done() const { return !res; }
+  EIGEN_DEVICE_FUNC inline constexpr bool done() const { return !res; }
   bool res = true;
 };
 template <typename Scalar>
@@ -409,18 +413,20 @@ template <typename Scalar>
 struct any_visitor {
   using result_type = bool;
   using Packet = typename packet_traits<Scalar>::type;
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC inline constexpr void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC inline constexpr void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC inline bool any_predux(const Packet& p) const {
     return predux_any(pandnot(ptrue(p), pcmp_eq(p, pzero(p))));
   }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = any_predux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = any_predux(p); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) { res = res || (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index) { res = res || (value != Scalar(0)); }
+  EIGEN_DEVICE_FUNC inline constexpr void operator()(const Scalar& value, Index, Index) {
+    res = res || (value != Scalar(0));
+  }
+  EIGEN_DEVICE_FUNC inline constexpr void operator()(const Scalar& value, Index) { res = res || (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index, Index) { res = res || any_predux(p); }
   EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index) { res = res || any_predux(p); }
-  EIGEN_DEVICE_FUNC inline bool done() const { return res; }
+  EIGEN_DEVICE_FUNC inline constexpr bool done() const { return res; }
   bool res = false;
 };
 template <typename Scalar>
@@ -432,9 +438,9 @@ template <typename Scalar>
 struct count_visitor {
   using result_type = Index;
   using Packet = typename packet_traits<Scalar>::type;
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = value != Scalar(0) ? 1 : 0; }
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = value != Scalar(0) ? 1 : 0; }
-  EIGEN_DEVICE_FUNC inline Index count_redux(const Packet& p) const {
+  EIGEN_DEVICE_FUNC inline constexpr void init(const Scalar& value, Index, Index) { res = value != Scalar(0) ? 1 : 0; }
+  EIGEN_DEVICE_FUNC inline constexpr void init(const Scalar& value, Index) { res = value != Scalar(0) ? 1 : 0; }
+  EIGEN_DEVICE_FUNC inline constexpr Index count_redux(const Packet& p) const {
     const Packet cst_one = pset1<Packet>(Scalar(1));
     Packet true_vals = pandnot(cst_one, pcmp_eq(p, pzero(p)));
     Scalar num_true = predux(true_vals);
@@ -442,10 +448,10 @@ struct count_visitor {
   }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = count_redux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = count_redux(p); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) {
+  EIGEN_DEVICE_FUNC inline constexpr void operator()(const Scalar& value, Index, Index) {
     if (value != Scalar(0)) res++;
   }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index) {
+  EIGEN_DEVICE_FUNC inline constexpr void operator()(const Scalar& value, Index) {
     if (value != Scalar(0)) res++;
   }
   EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index, Index) { res += count_redux(p); }
@@ -484,7 +490,7 @@ struct all_finite_impl<Derived, false> {
  * \sa any(), Cwise::operator<()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::all() const {
+EIGEN_DEVICE_FUNC inline constexpr bool DenseBase<Derived>::all() const {
   using Visitor = internal::all_visitor<Scalar>;
   using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ true>;
   Visitor visitor;
@@ -497,7 +503,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::all() const {
  * \sa all()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::any() const {
+EIGEN_DEVICE_FUNC inline constexpr bool DenseBase<Derived>::any() const {
   using Visitor = internal::any_visitor<Scalar>;
   using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ true>;
   Visitor visitor;
@@ -510,7 +516,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::any() const {
  * \sa all(), any()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC Index DenseBase<Derived>::count() const {
+EIGEN_DEVICE_FUNC constexpr Index DenseBase<Derived>::count() const {
   using Visitor = internal::count_visitor<Scalar>;
   using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ false>;
   Visitor visitor;
@@ -519,7 +525,7 @@ EIGEN_DEVICE_FUNC Index DenseBase<Derived>::count() const {
 }
 
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::hasNaN() const {
+EIGEN_DEVICE_FUNC constexpr bool DenseBase<Derived>::hasNaN() const {
   return derived().cwiseTypedNotEqual(derived()).any();
 }
 
@@ -528,7 +534,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::hasNaN() const {
  * \sa hasNaN()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::allFinite() const {
+EIGEN_DEVICE_FUNC constexpr bool DenseBase<Derived>::allFinite() const {
   return internal::all_finite_impl<Derived>::run(derived());
 }
 

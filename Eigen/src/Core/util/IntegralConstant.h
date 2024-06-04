@@ -143,9 +143,9 @@ class FixedInt {
 template <int N>
 class VariableAndFixedInt {
  public:
-  static const int value = N;
-  operator int() const { return m_value; }
-  VariableAndFixedInt(int val) { m_value = val; }
+  static constexpr int value = N;
+  constexpr operator int() const { return m_value; }
+  constexpr VariableAndFixedInt(int val) { m_value = val; }
 
  protected:
   int m_value;
@@ -153,26 +153,26 @@ class VariableAndFixedInt {
 
 template <typename T, int Default = Dynamic>
 struct get_fixed_value {
-  static const int value = Default;
+  static constexpr int value = Default;
 };
 
 template <int N, int Default>
 struct get_fixed_value<FixedInt<N>, Default> {
-  static const int value = N;
+  static constexpr int value = N;
 };
 
 template <int N, int Default>
 struct get_fixed_value<VariableAndFixedInt<N>, Default> {
-  static const int value = N;
+  static constexpr int value = N;
 };
 
 template <typename T, int N, int Default>
 struct get_fixed_value<variable_if_dynamic<T, N>, Default> {
-  static const int value = N;
+  static constexpr int value = N;
 };
 
 template <typename T>
-EIGEN_DEVICE_FUNC Index get_runtime_value(const T &x) {
+EIGEN_DEVICE_FUNC constexpr Index get_runtime_value(const T &x) {
   return x;
 }
 
@@ -238,7 +238,7 @@ constexpr internal::FixedInt<N> fix{};
  * \sa fix<N>(int), seq, seqN
  */
 template <int N>
-static const auto fix();
+static constexpr auto fix();
 
 /** \fn fix<N>(int)
  * \ingroup Core_Module
@@ -270,7 +270,7 @@ static const auto fix();
  * \sa fix, seqN, class ArithmeticSequence
  */
 template <int N>
-static const auto fix(int val);
+static constexpr auto fix(int val);
 
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 

@@ -39,7 +39,7 @@ constexpr bool should_svd_compute_thin_v(int options) { return (options & Comput
 constexpr bool should_svd_compute_full_v(int options) { return (options & ComputeFullV) != 0; }
 
 template <typename MatrixType, int Options>
-void check_svd_options_assertions(unsigned int computationOptions, Index rows, Index cols) {
+constexpr void check_svd_options_assertions(unsigned int computationOptions, Index rows, Index cols) {
   EIGEN_STATIC_ASSERT((Options & ComputationOptionsBits) == 0,
                       "SVDBase: Cannot request U or V using both static and runtime options, even if they match. "
                       "Requesting unitaries at runtime is DEPRECATED: "
@@ -157,8 +157,8 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
 
   typedef typename internal::plain_diag_type<MatrixType, RealScalar>::type SingularValuesType;
 
-  Derived& derived() { return *static_cast<Derived*>(this); }
-  const Derived& derived() const { return *static_cast<const Derived*>(this); }
+  constexpr Derived& derived() { return *static_cast<Derived*>(this); }
+  constexpr const Derived& derived() const { return *static_cast<const Derived*>(this); }
 
   /** \returns the \a U matrix.
    *
@@ -170,7 +170,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    *
    * This method asserts that you asked for \a U to be computed.
    */
-  const MatrixUType& matrixU() const {
+  constexpr const MatrixUType& matrixU() const {
     _check_compute_assertions();
     eigen_assert(computeU() && "This SVD decomposition didn't compute U. Did you ask for it?");
     return m_matrixU;
@@ -186,7 +186,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    *
    * This method asserts that you asked for \a V to be computed.
    */
-  const MatrixVType& matrixV() const {
+  constexpr const MatrixVType& matrixV() const {
     _check_compute_assertions();
     eigen_assert(computeV() && "This SVD decomposition didn't compute V. Did you ask for it?");
     return m_matrixV;
@@ -197,13 +197,13 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    * For the SVD decomposition of a n-by-p matrix, letting \a m be the minimum of \a n and \a p, the
    * returned vector has size \a m.  Singular values are always sorted in decreasing order.
    */
-  const SingularValuesType& singularValues() const {
+  constexpr const SingularValuesType& singularValues() const {
     _check_compute_assertions();
     return m_singularValues;
   }
 
   /** \returns the number of singular values that are not exactly 0 */
-  Index nonzeroSingularValues() const {
+  constexpr Index nonzeroSingularValues() const {
     _check_compute_assertions();
     return m_nonzeroSingularValues;
   }
@@ -214,7 +214,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    *       For that, it uses the threshold value that you can control by calling
    *       setThreshold(const RealScalar&).
    */
-  inline Index rank() const {
+  inline constexpr Index rank() const {
     using std::abs;
     _check_compute_assertions();
     if (m_singularValues.size() == 0) return 0;
@@ -239,7 +239,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    *
    * If you want to come back to the default behavior, call setThreshold(Default_t)
    */
-  Derived& setThreshold(const RealScalar& threshold) {
+  constexpr Derived& setThreshold(const RealScalar& threshold) {
     m_usePrescribedThreshold = true;
     m_prescribedThreshold = threshold;
     return derived();
@@ -253,7 +253,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    *
    * See the documentation of setThreshold(const RealScalar&).
    */
-  Derived& setThreshold(Default_t) {
+  constexpr Derived& setThreshold(Default_t) {
     m_usePrescribedThreshold = false;
     return derived();
   }
@@ -262,7 +262,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    *
    * See the documentation of setThreshold(const RealScalar&).
    */
-  RealScalar threshold() const {
+  constexpr RealScalar threshold() const {
     eigen_assert(m_isInitialized || m_usePrescribedThreshold);
     // this temporary is needed to workaround a MSVC issue
     Index diagSize = (std::max<Index>)(1, m_diagSize);
@@ -270,13 +270,13 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
   }
 
   /** \returns true if \a U (full or thin) is asked for in this SVD decomposition */
-  inline bool computeU() const { return m_computeFullU || m_computeThinU; }
+  inline constexpr bool computeU() const { return m_computeFullU || m_computeThinU; }
   /** \returns true if \a V (full or thin) is asked for in this SVD decomposition */
-  inline bool computeV() const { return m_computeFullV || m_computeThinV; }
+  inline constexpr bool computeV() const { return m_computeFullV || m_computeThinV; }
 
-  inline Index rows() const { return m_rows.value(); }
-  inline Index cols() const { return m_cols.value(); }
-  inline Index diagSize() const { return m_diagSize.value(); }
+  inline constexpr Index rows() const { return m_rows.value(); }
+  inline constexpr Index cols() const { return m_cols.value(); }
+  inline constexpr Index diagSize() const { return m_diagSize.value(); }
 
 #ifdef EIGEN_PARSED_BY_DOXYGEN
   /** \returns a (least squares) solution of \f$ A x = b \f$ using the current SVD decomposition of A.
@@ -290,33 +290,33 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    * A x - b \Vert \f$.
    */
   template <typename Rhs>
-  inline const Solve<Derived, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline constexpr const Solve<Derived, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful.
    */
-  EIGEN_DEVICE_FUNC ComputationInfo info() const {
+  EIGEN_DEVICE_FUNC constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "SVD is not initialized.");
     return m_info;
   }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
-  void _solve_impl(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl(const RhsType& rhs, DstType& dst) const;
 
   template <bool Conjugate, typename RhsType, typename DstType>
-  void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
 #endif
 
  protected:
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
-  void _check_compute_assertions() const { eigen_assert(m_isInitialized && "SVD is not initialized."); }
+  constexpr void _check_compute_assertions() const { eigen_assert(m_isInitialized && "SVD is not initialized."); }
 
   template <bool Transpose_, typename Rhs>
-  void _check_solve_assertion(const Rhs& b) const {
+  constexpr void _check_solve_assertion(const Rhs& b) const {
     EIGEN_ONLY_USED_FOR_DEBUG(b);
     _check_compute_assertions();
     eigen_assert(computeU() && computeV() &&
@@ -326,50 +326,33 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
   }
 
   // return true if already allocated
-  bool allocate(Index rows, Index cols, unsigned int computationOptions);
+  constexpr bool allocate(Index rows, Index cols, unsigned int computationOptions);
 
   MatrixUType m_matrixU;
   MatrixVType m_matrixV;
   SingularValuesType m_singularValues;
-  ComputationInfo m_info;
-  bool m_isInitialized, m_isAllocated, m_usePrescribedThreshold;
-  bool m_computeFullU, m_computeThinU;
-  bool m_computeFullV, m_computeThinV;
-  unsigned int m_computationOptions;
-  Index m_nonzeroSingularValues;
-  internal::variable_if_dynamic<Index, RowsAtCompileTime> m_rows;
-  internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols;
-  internal::variable_if_dynamic<Index, DiagSizeAtCompileTime> m_diagSize;
-  RealScalar m_prescribedThreshold;
+  ComputationInfo m_info = Success;
+  bool m_isInitialized = false, m_isAllocated = false, m_usePrescribedThreshold = false;
+  bool m_computeFullU = ShouldComputeFullU, m_computeThinU = ShouldComputeThinU;
+  bool m_computeFullV = ShouldComputeFullV, m_computeThinV = ShouldComputeThinV;
+  unsigned int m_computationOptions = internal::traits<Derived>::Options;
+  Index m_nonzeroSingularValues = 0;
+  internal::variable_if_dynamic<Index, RowsAtCompileTime> m_rows{int(RowsAtCompileTime)};
+  internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols{int(ColsAtCompileTime)};
+  internal::variable_if_dynamic<Index, DiagSizeAtCompileTime> m_diagSize{int(DiagSizeAtCompileTime)};
+  RealScalar m_prescribedThreshold = 0;
 
   /** \brief Default Constructor.
    *
    * Default constructor of SVDBase
    */
-  SVDBase()
-      : m_matrixU(MatrixUType()),
-        m_matrixV(MatrixVType()),
-        m_singularValues(SingularValuesType()),
-        m_info(Success),
-        m_isInitialized(false),
-        m_isAllocated(false),
-        m_usePrescribedThreshold(false),
-        m_computeFullU(ShouldComputeFullU),
-        m_computeThinU(ShouldComputeThinU),
-        m_computeFullV(ShouldComputeFullV),
-        m_computeThinV(ShouldComputeThinV),
-        m_computationOptions(internal::traits<Derived>::Options),
-        m_nonzeroSingularValues(0),
-        m_rows(RowsAtCompileTime),
-        m_cols(ColsAtCompileTime),
-        m_diagSize(DiagSizeAtCompileTime),
-        m_prescribedThreshold(0) {}
+  constexpr SVDBase() = default;
 };
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename Derived>
 template <typename RhsType, typename DstType>
-void SVDBase<Derived>::_solve_impl(const RhsType& rhs, DstType& dst) const {
+constexpr void SVDBase<Derived>::_solve_impl(const RhsType& rhs, DstType& dst) const {
   // A = U S V^*
   // So A^{-1} = V S^{-1} U^*
 
@@ -384,7 +367,7 @@ void SVDBase<Derived>::_solve_impl(const RhsType& rhs, DstType& dst) const {
 
 template <typename Derived>
 template <bool Conjugate, typename RhsType, typename DstType>
-void SVDBase<Derived>::_solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
+constexpr void SVDBase<Derived>::_solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
   // A = U S V^*
   // So  A^{-*} = U S^{-1} V^*
   // And A^{-T} = U_conj S^{-1} V^T
@@ -400,7 +383,7 @@ void SVDBase<Derived>::_solve_impl_transposed(const RhsType& rhs, DstType& dst) 
 #endif
 
 template <typename Derived>
-bool SVDBase<Derived>::allocate(Index rows, Index cols, unsigned int computationOptions) {
+constexpr bool SVDBase<Derived>::allocate(Index rows, Index cols, unsigned int computationOptions) {
   eigen_assert(rows >= 0 && cols >= 0);
 
   if (m_isAllocated && rows == m_rows.value() && cols == m_cols.value() && computationOptions == m_computationOptions) {

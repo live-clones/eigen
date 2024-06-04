@@ -94,7 +94,7 @@ namespace internal {
 template <typename Expr, int SizeAtCompileTime, typename EnableIf = void>
 struct SymbolicExpressionEvaluator {
   static constexpr Index ValueAtCompileTime = Undefined;
-  static Index eval(const Expr& expr, Index /*size*/) { return static_cast<Index>(expr); }
+  static constexpr Index eval(const Expr& expr, Index /*size*/) { return static_cast<Index>(expr); }
 };
 
 // Symbolic expression with size known at compile-time.
@@ -102,7 +102,7 @@ template <typename Expr, int SizeAtCompileTime>
 struct SymbolicExpressionEvaluator<Expr, SizeAtCompileTime, std::enable_if_t<symbolic::is_symbolic<Expr>::value>> {
   static constexpr Index ValueAtCompileTime =
       Expr::Derived::eval_at_compile_time(Eigen::placeholders::last = fix<SizeAtCompileTime - 1>);
-  static Index eval(const Expr& expr, Index /*size*/) {
+  static constexpr Index eval(const Expr& expr, Index /*size*/) {
     return expr.eval(Eigen::placeholders::last = fix<SizeAtCompileTime - 1>);
   }
 };
@@ -111,14 +111,14 @@ struct SymbolicExpressionEvaluator<Expr, SizeAtCompileTime, std::enable_if_t<sym
 template <typename Expr>
 struct SymbolicExpressionEvaluator<Expr, Dynamic, std::enable_if_t<symbolic::is_symbolic<Expr>::value>> {
   static constexpr Index ValueAtCompileTime = Undefined;
-  static Index eval(const Expr& expr, Index size) { return expr.eval(Eigen::placeholders::last = size - 1); }
+  static constexpr Index eval(const Expr& expr, Index size) { return expr.eval(Eigen::placeholders::last = size - 1); }
 };
 
 // Fixed int.
 template <int N, int SizeAtCompileTime>
 struct SymbolicExpressionEvaluator<FixedInt<N>, SizeAtCompileTime, void> {
   static constexpr Index ValueAtCompileTime = static_cast<Index>(N);
-  static Index eval(const FixedInt<N>& /*expr*/, Index /*size*/) { return ValueAtCompileTime; }
+  static constexpr Index eval(const FixedInt<N>& /*expr*/, Index /*size*/) { return ValueAtCompileTime; }
 };
 
 //--------------------------------------------------------------------------------
@@ -129,7 +129,7 @@ struct SymbolicExpressionEvaluator<FixedInt<N>, SizeAtCompileTime, void> {
 template <typename Indices, int NestedSizeAtCompileTime, typename EnableIf = void>
 struct IndexedViewHelperIndicesWrapper {
   using type = Indices;
-  static const type& CreateIndexSequence(const Indices& indices, Index /*nested_size*/) { return indices; }
+  static constexpr const type& CreateIndexSequence(const Indices& indices, Index /*nested_size*/) { return indices; }
 };
 
 // Extract compile-time and runtime first, size, increments.
@@ -187,7 +187,7 @@ struct IndexedViewHelperIndicesWrapper<ArithmeticSequence<FirstType, SizeType, I
   using Indices = ArithmeticSequence<FirstType, SizeType, IncrType>;
   using type = ArithmeticSequenceRange<FirstAtCompileTime, SizeAtCompileTime, IncrAtCompileTime>;
 
-  static type CreateIndexSequence(const Indices& indices, Index nested_size) {
+  static constexpr type CreateIndexSequence(const Indices& indices, Index nested_size) {
     Index first =
         SymbolicExpressionEvaluator<FirstType, NestedSizeAtCompileTime>::eval(indices.firstObject(), nested_size);
     Index size =
@@ -205,9 +205,9 @@ struct IndexedViewHelper<ArithmeticSequenceRange<FirstAtCompileTime_, SizeAtComp
   static constexpr Index FirstAtCompileTime = Indices::FirstAtCompileTime;
   static constexpr Index SizeAtCompileTime = Indices::SizeAtCompileTime;
   static constexpr Index IncrAtCompileTime = Indices::IncrAtCompileTime;
-  static Index first(const Indices& indices) { return indices.first(); }
-  static Index size(const Indices& indices) { return indices.size(); }
-  static Index incr(const Indices& indices) { return indices.incr(); }
+  static constexpr Index first(const Indices& indices) { return indices.first(); }
+  static constexpr Index size(const Indices& indices) { return indices.size(); }
+  static constexpr Index incr(const Indices& indices) { return indices.incr(); }
 };
 
 //--------------------------------------------------------------------------------
@@ -246,7 +246,7 @@ struct IndexedViewHelperIndicesWrapper<
   static constexpr Index ValueAtCompileTime =
       (int(EvalValueAtCompileTime) == Undefined) ? Index(DynamicIndex) : EvalValueAtCompileTime;
   using type = SingleRange<ValueAtCompileTime>;
-  static type CreateIndexSequence(const SingleIndex& index, Index nested_size) {
+  static constexpr type CreateIndexSequence(const SingleIndex& index, Index nested_size) {
     return type(SymbolicExpressionEvaluator<SingleIndex, NestedSizeAtCompileTime>::eval(index, nested_size));
   }
 };
@@ -254,7 +254,7 @@ struct IndexedViewHelperIndicesWrapper<
 template <int N, int NestedSizeAtCompileTime>
 struct IndexedViewHelperIndicesWrapper<FixedInt<N>, NestedSizeAtCompileTime, void> {
   using type = SingleRange<Index(N)>;
-  static type CreateIndexSequence(const FixedInt<N>& /*index*/) { return type(Index(N)); }
+  static constexpr type CreateIndexSequence(const FixedInt<N>& /*index*/) { return type(Index(N)); }
 };
 
 template <Index ValueAtCompileTime>
@@ -293,7 +293,7 @@ class AllRange {
 template <int NestedSizeAtCompileTime>
 struct IndexedViewHelperIndicesWrapper<all_t, NestedSizeAtCompileTime, void> {
   using type = AllRange<Index(NestedSizeAtCompileTime)>;
-  static type CreateIndexSequence(const all_t& /*indices*/, Index nested_size) { return type(nested_size); }
+  static constexpr type CreateIndexSequence(const all_t& /*indices*/, Index nested_size) { return type(nested_size); }
 };
 
 template <Index SizeAtCompileTime_>
@@ -303,9 +303,9 @@ struct IndexedViewHelper<AllRange<SizeAtCompileTime_>, void> {
   static constexpr Index SizeAtCompileTime = Indices::SizeAtCompileTime;
   static constexpr Index IncrAtCompileTime = Indices::IncrAtCompileTime;
 
-  static Index first(const Indices& indices) { return indices.first(); }
-  static Index size(const Indices& indices) { return indices.size(); }
-  static Index incr(const Indices& indices) { return indices.incr(); }
+  static constexpr Index first(const Indices& indices) { return indices.first(); }
+  static constexpr Index size(const Indices& indices) { return indices.size(); }
+  static constexpr Index incr(const Indices& indices) { return indices.incr(); }
 };
 
 // this helper class assumes internal::valid_indexed_view_overload<RowIndices, ColIndices>::value == true
@@ -316,7 +316,7 @@ template <typename Indices, int SizeAtCompileTime>
 using IvcType = typename internal::IndexedViewHelperIndicesWrapper<Indices, SizeAtCompileTime>::type;
 
 template <int SizeAtCompileTime, typename Indices>
-inline IvcType<Indices, SizeAtCompileTime> CreateIndexSequence(size_t size, const Indices& indices) {
+inline constexpr IvcType<Indices, SizeAtCompileTime> CreateIndexSequence(size_t size, const Indices& indices) {
   return internal::IndexedViewHelperIndicesWrapper<Indices, SizeAtCompileTime>::CreateIndexSequence(indices, size);
 }
 
@@ -331,12 +331,12 @@ struct IndexedViewSelector<Derived, RowIndices, ColIndices,
   using ConstReturnType = IndexedView<const Derived, IvcType<RowIndices, Derived::RowsAtCompileTime>,
                                       IvcType<ColIndices, Derived::ColsAtCompileTime>>;
 
-  static inline ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
+  static inline constexpr ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
     return ReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices),
                       CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices));
   }
-  static inline ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
-                                    const ColIndices& colIndices) {
+  static inline constexpr ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
+                                              const ColIndices& colIndices) {
     return ConstReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices),
                            CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices));
   }
@@ -357,14 +357,14 @@ struct IndexedViewSelector<
   using RowHelper = internal::IndexedViewHelper<ActualRowIndices>;
   using ColHelper = internal::IndexedViewHelper<ActualColIndices>;
 
-  static inline ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
+  static inline constexpr ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
     auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
     auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
     return ReturnType(derived, RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices),
                       RowHelper::size(actualRowIndices), ColHelper::size(actualColIndices));
   }
-  static inline ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
-                                    const ColIndices& colIndices) {
+  static inline constexpr ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
+                                              const ColIndices& colIndices) {
     auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
     auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
     return ConstReturnType(derived, RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices),
@@ -384,13 +384,13 @@ struct IndexedViewSelector<
   using ActualColIndices = IvcType<ColIndices, Derived::ColsAtCompileTime>;
   using RowHelper = internal::IndexedViewHelper<ActualRowIndices>;
   using ColHelper = internal::IndexedViewHelper<ActualColIndices>;
-  static inline ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
+  static inline constexpr ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
     auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
     auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
     return derived(RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices));
   }
-  static inline ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
-                                    const ColIndices& colIndices) {
+  static inline constexpr ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
+                                              const ColIndices& colIndices) {
     auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
     auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
     return derived(RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices));
@@ -421,22 +421,22 @@ struct VectorIndexedViewSelector<
       typename internal::conditional<IsRowMajor, ConstRowMajorReturnType, ConstColMajorReturnType>::type;
 
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
-  static inline RowMajorReturnType run(Derived& derived, const Indices& indices) {
+  static inline constexpr RowMajorReturnType run(Derived& derived, const Indices& indices) {
     return RowMajorReturnType(derived, ZeroIndex(0),
                               CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), indices));
   }
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
-  static inline ConstRowMajorReturnType run(const Derived& derived, const Indices& indices) {
+  static inline constexpr ConstRowMajorReturnType run(const Derived& derived, const Indices& indices) {
     return ConstRowMajorReturnType(derived, ZeroIndex(0),
                                    CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), indices));
   }
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
-  static inline ColMajorReturnType run(Derived& derived, const Indices& indices) {
+  static inline constexpr ColMajorReturnType run(Derived& derived, const Indices& indices) {
     return ColMajorReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), indices),
                               ZeroIndex(0));
   }
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
-  static inline ConstColMajorReturnType run(const Derived& derived, const Indices& indices) {
+  static inline constexpr ConstColMajorReturnType run(const Derived& derived, const Indices& indices) {
     return ConstColMajorReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), indices),
                                    ZeroIndex(0));
   }
@@ -452,11 +452,11 @@ struct VectorIndexedViewSelector<
   using Helper = internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>;
   using ReturnType = VectorBlock<Derived, Helper::SizeAtCompileTime>;
   using ConstReturnType = VectorBlock<const Derived, Helper::SizeAtCompileTime>;
-  static inline ReturnType run(Derived& derived, const Indices& indices) {
+  static inline constexpr ReturnType run(Derived& derived, const Indices& indices) {
     auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
     return ReturnType(derived, Helper::first(actualIndices), Helper::size(actualIndices));
   }
-  static inline ConstReturnType run(const Derived& derived, const Indices& indices) {
+  static inline constexpr ConstReturnType run(const Derived& derived, const Indices& indices) {
     auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
     return ConstReturnType(derived, Helper::first(actualIndices), Helper::size(actualIndices));
   }
@@ -470,11 +470,11 @@ struct VectorIndexedViewSelector<
   using ReturnType = typename DenseBase<Derived>::Scalar&;
   using ConstReturnType = typename DenseBase<Derived>::CoeffReturnType;
   using Helper = internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>;
-  static inline ReturnType run(Derived& derived, const Indices& indices) {
+  static inline constexpr ReturnType run(Derived& derived, const Indices& indices) {
     auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
     return derived(Helper::first(actualIndices));
   }
-  static inline ConstReturnType run(const Derived& derived, const Indices& indices) {
+  static inline constexpr ConstReturnType run(const Derived& derived, const Indices& indices) {
     auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
     return derived(Helper::first(actualIndices));
   }

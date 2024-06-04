@@ -23,7 +23,7 @@ struct vector_int_pair {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar, Dim)
   typedef Matrix<Scalar, Dim, 1> VectorType;
 
-  vector_int_pair(const VectorType &v, int i) : first(v), second(i) {}
+  constexpr vector_int_pair(const VectorType &v, int i) : first(v), second(i) {}
 
   VectorType first;
   int second;
@@ -33,7 +33,7 @@ struct vector_int_pair {
 // iterator range or using bounding_box in a unified way
 template <typename ObjectList, typename VolumeList, typename BoxIter>
 struct get_boxes_helper {
-  void operator()(const ObjectList &objects, BoxIter boxBegin, BoxIter boxEnd, VolumeList &outBoxes) {
+  constexpr void operator()(const ObjectList &objects, BoxIter boxBegin, BoxIter boxEnd, VolumeList &outBoxes) {
     outBoxes.insert(outBoxes.end(), boxBegin, boxEnd);
     eigen_assert(outBoxes.size() == objects.size());
     EIGEN_ONLY_USED_FOR_DEBUG(objects);
@@ -42,7 +42,7 @@ struct get_boxes_helper {
 
 template <typename ObjectList, typename VolumeList>
 struct get_boxes_helper<ObjectList, VolumeList, int> {
-  void operator()(const ObjectList &objects, int, int, VolumeList &outBoxes) {
+  constexpr void operator()(const ObjectList &objects, int, int, VolumeList &outBoxes) {
     outBoxes.reserve(objects.size());
     for (int i = 0; i < (int)objects.size(); ++i) outBoxes.push_back(bounding_box(objects[i]));
   }
@@ -77,33 +77,33 @@ class KdBVH {
   typedef const int *VolumeIterator;  // the iterators are just pointers into the tree's vectors
   typedef const Object *ObjectIterator;
 
-  KdBVH() {}
+  constexpr KdBVH() = default;
 
   /** Given an iterator range over \a Object references, constructs the BVH.  Requires that bounding_box(Object) return
    * a Volume. */
   template <typename Iter>
-  KdBVH(Iter begin, Iter end) {
+  constexpr KdBVH(Iter begin, Iter end) {
     init(begin, end, 0, 0);
   }  // int is recognized by init as not being an iterator type
 
   /** Given an iterator range over \a Object references and an iterator range over their bounding boxes, constructs the
    * BVH */
   template <typename OIter, typename BIter>
-  KdBVH(OIter begin, OIter end, BIter boxBegin, BIter boxEnd) {
+  constexpr KdBVH(OIter begin, OIter end, BIter boxBegin, BIter boxEnd) {
     init(begin, end, boxBegin, boxEnd);
   }
 
   /** Given an iterator range over \a Object references, constructs the BVH, overwriting whatever is in there currently.
    * Requires that bounding_box(Object) return a Volume. */
   template <typename Iter>
-  void init(Iter begin, Iter end) {
+  constexpr void init(Iter begin, Iter end) {
     init(begin, end, 0, 0);
   }
 
   /** Given an iterator range over \a Object references and an iterator range over their bounding boxes,
    * constructs the BVH, overwriting whatever is in there currently. */
   template <typename OIter, typename BIter>
-  void init(OIter begin, OIter end, BIter boxBegin, BIter boxEnd) {
+  constexpr void init(OIter begin, OIter end, BIter boxBegin, BIter boxEnd) {
     objects.clear();
     boxes.clear();
     children.clear();
@@ -133,12 +133,12 @@ class KdBVH {
   }
 
   /** \returns the index of the root of the hierarchy */
-  inline Index getRootIndex() const { return (int)boxes.size() - 1; }
+  inline constexpr Index getRootIndex() const { return (int)boxes.size() - 1; }
 
   /** Given an \a index of a node, on exit, \a outVBegin and \a outVEnd range over the indices of the volume children of
    * the node and \a outOBegin and \a outOEnd range over the object children of the node */
-  EIGEN_STRONG_INLINE void getChildren(Index index, VolumeIterator &outVBegin, VolumeIterator &outVEnd,
-                                       ObjectIterator &outOBegin, ObjectIterator &outOEnd)
+  EIGEN_STRONG_INLINE constexpr void getChildren(Index index, VolumeIterator &outVBegin, VolumeIterator &outVEnd,
+                                                 ObjectIterator &outOBegin, ObjectIterator &outOEnd)
       const {  // inlining this function should open lots of optimization opportunities to the compiler
     if (index < 0) {
       outVBegin = outVEnd;
@@ -167,7 +167,7 @@ class KdBVH {
   }
 
   /** \returns the bounding box of the node at \a index */
-  inline const Volume &getVolume(Index index) const { return boxes[index]; }
+  inline constexpr const Volume &getVolume(Index index) const { return boxes[index]; }
 
  private:
   typedef internal::vector_int_pair<Scalar, Dim> VIPair;
@@ -175,15 +175,15 @@ class KdBVH {
   typedef Matrix<Scalar, Dim, 1> VectorType;
   struct VectorComparator  // compares vectors, or more specifically, VIPairs along a particular dimension
   {
-    VectorComparator(int inDim) : dim(inDim) {}
-    inline bool operator()(const VIPair &v1, const VIPair &v2) const { return v1.first[dim] < v2.first[dim]; }
+    constexpr VectorComparator(int inDim) : dim(inDim) {}
+    inline constexpr bool operator()(const VIPair &v1, const VIPair &v2) const { return v1.first[dim] < v2.first[dim]; }
     int dim;
   };
 
   // Build the part of the tree between objects[from] and objects[to] (not including objects[to]).
   // This routine partitions the objCenters in [from, to) along the dimension dim, recursively constructs
   // the two halves, and adds their parent node.  TODO: a cache-friendlier layout
-  void build(VIPairList &objCenters, int from, int to, const VolumeList &objBoxes, int dim) {
+  constexpr void build(VIPairList &objCenters, int from, int to, const VolumeList &objBoxes, int dim) {
     eigen_assert(to - from > 1);
     if (to - from == 2) {
       boxes.push_back(objBoxes[objCenters[from].second].merged(objBoxes[objCenters[from + 1].second]));
