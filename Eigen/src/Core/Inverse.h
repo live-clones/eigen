@@ -68,8 +68,8 @@ class InverseImpl : public internal::generic_xpr_base<Inverse<XprType> >::type {
   typedef typename XprType::Scalar Scalar;
 
  private:
-  Scalar coeff(Index row, Index col) const;
-  Scalar coeff(Index i) const;
+  constexpr Scalar coeff(Index row, Index col) const;
+  constexpr Scalar coeff(Index i) const;
 };
 
 namespace internal {
@@ -92,7 +92,7 @@ struct unary_evaluator<Inverse<ArgType> > : public evaluator<typename Inverse<Ar
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 
-  EIGEN_DEVICE_FUNC unary_evaluator(const InverseType& inv_xpr) : m_result(inv_xpr.rows(), inv_xpr.cols()) {
+  EIGEN_DEVICE_FUNC constexpr unary_evaluator(const InverseType& inv_xpr) : m_result(inv_xpr.rows(), inv_xpr.cols()) {
     internal::construct_at<Base>(this, m_result);
     internal::call_assignment_no_alias(m_result, inv_xpr);
   }

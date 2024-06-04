@@ -50,9 +50,10 @@ namespace internal {
  *
  */
 template <typename Scalar, typename StorageIndex>
-Index SparseLUImpl<Scalar, StorageIndex>::copy_to_ucol(const Index jcol, const Index nseg, IndexVector& segrep,
-                                                       BlockIndexVector repfnz, IndexVector& perm_r,
-                                                       BlockScalarVector dense, GlobalLU_t& glu) {
+constexpr Index SparseLUImpl<Scalar, StorageIndex>::copy_to_ucol(const Index jcol, const Index nseg,
+                                                                 IndexVector& segrep, BlockIndexVector repfnz,
+                                                                 IndexVector& perm_r, BlockScalarVector dense,
+                                                                 GlobalLU_t& glu) {
   Index ksub, krep, ksupno;
 
   Index jsupno = glu.supno(jcol);

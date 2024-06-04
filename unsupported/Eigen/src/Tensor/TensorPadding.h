@@ -59,14 +59,17 @@ class TensorPaddingOp : public TensorBase<TensorPaddingOp<PaddingDimensions, Xpr
   typedef typename Eigen::internal::traits<TensorPaddingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorPaddingOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorPaddingOp(const XprType& expr, const PaddingDimensions& padding_dims,
-                                                        const Scalar padding_value)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorPaddingOp(const XprType& expr,
+                                                                  const PaddingDimensions& padding_dims,
+                                                                  const Scalar padding_value)
       : m_xpr(expr), m_padding_dims(padding_dims), m_padding_value(padding_value) {}
 
-  EIGEN_DEVICE_FUNC const PaddingDimensions& padding() const { return m_padding_dims; }
-  EIGEN_DEVICE_FUNC Scalar padding_value() const { return m_padding_value; }
+  EIGEN_DEVICE_FUNC constexpr const PaddingDimensions& padding() const { return m_padding_dims; }
+  EIGEN_DEVICE_FUNC constexpr Scalar padding_value() const { return m_padding_value; }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& expression() const {
+    return m_xpr;
+  }
 
  protected:
   typename XprType::Nested m_xpr;
@@ -107,7 +110,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
   typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_padding(op.padding()), m_paddingValue(op.padding_value()), m_device(device) {
     // The padding op doesn't change the rank of the tensor. Directly padding a scalar would lead
     // to a vector, which doesn't make sense. Instead one should reshape the scalar into a vector
@@ -139,23 +142,23 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_impl.evalSubExprsIfNeeded(NULL);
     return true;
   }
 
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
-  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+  EIGEN_STRONG_INLINE constexpr void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
     m_impl.evalSubExprsIfNeededAsync(nullptr, [done](bool) { done(true); });
   }
 #endif  // EIGEN_USE_THREADS
 
-  EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
+  EIGEN_STRONG_INLINE constexpr void cleanup() { m_impl.cleanup(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     eigen_assert(index < dimensions().TotalSize());
     Index inputIndex = 0;
     if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
@@ -210,14 +213,15 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     return cost;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr internal::TensorBlockResourceRequirements getResourceRequirements()
+      const {
     const size_t target_size = m_device.lastLevelCacheSize();
     return internal::TensorBlockResourceRequirements::merge(
         internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size), m_impl.getResourceRequirements());
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
-                                                          bool /*root_of_expr_ast*/ = false) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                                    bool /*root_of_expr_ast*/ = false) const {
     // If one of the dimensions is zero, return empty block view.
     if (desc.size() == 0) {
       return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
@@ -442,36 +446,36 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     return block_storage.AsTensorMaterializedBlock();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr EvaluatorPointerType data() const { return NULL; }
 
  private:
   struct BlockIteratorState {
-    BlockIteratorState() : count(0), size(0), input_stride(0), input_span(0), output_stride(0), output_span(0) {}
+    constexpr BlockIteratorState() = default;
 
-    Index count;
-    Index size;
-    Index input_stride;
-    Index input_span;
-    Index output_stride;
-    Index output_span;
+    Index count = 0;
+    Index size = 0;
+    Index input_stride = 0;
+    Index input_span = 0;
+    Index output_stride = 0;
+    Index output_span = 0;
   };
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool isPaddingAtIndexForDim(Index index, int dim_index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr bool isPaddingAtIndexForDim(Index index, int dim_index) const {
     return (!internal::index_pair_first_statically_eq<PaddingDimensions>(dim_index, 0) &&
             index < m_padding[dim_index].first) ||
            (!internal::index_pair_second_statically_eq<PaddingDimensions>(dim_index, 0) &&
             index >= m_dimensions[dim_index] - m_padding[dim_index].second);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool isLeftPaddingCompileTimeZero(int dim_index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr bool isLeftPaddingCompileTimeZero(int dim_index) const {
     return internal::index_pair_first_statically_eq<PaddingDimensions>(dim_index, 0);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool isRightPaddingCompileTimeZero(int dim_index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr bool isRightPaddingCompileTimeZero(int dim_index) const {
     return internal::index_pair_second_statically_eq<PaddingDimensions>(dim_index, 0);
   }
 
-  void updateCostPerDimension(TensorOpCost& cost, int i, bool first) const {
+  constexpr void updateCostPerDimension(TensorOpCost& cost, int i, bool first) const {
     const double in = static_cast<double>(m_impl.dimensions()[i]);
     const double out = in + m_padding[i].first + m_padding[i].second;
     if (out == 0) return;
@@ -487,7 +491,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
   }
 
  protected:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packetColMajor(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PacketReturnType packetColMajor(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
     const Index initialIndex = index;
@@ -540,7 +544,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     return packetWithPossibleZero(initialIndex);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packetRowMajor(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PacketReturnType packetRowMajor(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
     const Index initialIndex = index;
@@ -594,7 +598,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     return packetWithPossibleZero(initialIndex);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packetWithPossibleZero(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PacketReturnType packetWithPossibleZero(Index index) const {
     EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {

@@ -17,7 +17,8 @@ namespace Eigen {
 
 template <typename Derived>
 template <typename OtherDerived>
-bool SparseMatrixBase<Derived>::isApprox(const SparseMatrixBase<OtherDerived>& other, const RealScalar& prec) const {
+constexpr bool SparseMatrixBase<Derived>::isApprox(const SparseMatrixBase<OtherDerived>& other,
+                                                   const RealScalar& prec) const {
   const typename internal::nested_eval<Derived, 2, PlainObject>::type actualA(derived());
   std::conditional_t<bool(IsRowMajor) == bool(OtherDerived::IsRowMajor),
                      const typename internal::nested_eval<OtherDerived, 2, PlainObject>::type, const PlainObject>

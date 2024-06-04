@@ -28,7 +28,7 @@ struct MakePointer {
 };
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* constCast(const T* data) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr T* constCast(const T* data) {
   return const_cast<T*>(data);
 }
 
@@ -44,11 +44,11 @@ struct StorageMemory : MakePointer<T> {};
 namespace internal {
 template <typename A, typename B>
 struct Pointer_type_promotion {
-  static const bool val = false;
+  static constexpr bool val = false;
 };
 template <typename A>
 struct Pointer_type_promotion<A, A> {
-  static const bool val = true;
+  static constexpr bool val = true;
 };
 template <typename A, typename B>
 struct TypeConversion {

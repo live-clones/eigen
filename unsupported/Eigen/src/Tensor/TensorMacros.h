@@ -80,6 +80,6 @@
  */
 #define EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(Derived) \
   EIGEN_TENSOR_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)  \
-  EIGEN_DEFAULT_COPY_CONSTRUCTOR(Derived)
+  EIGEN_DEVICE_FUNC constexpr Derived(const Derived&) = default;
 
 #endif

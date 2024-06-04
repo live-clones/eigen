@@ -220,7 +220,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * remain row-vectors and vectors remain vectors.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix& operator=(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix& operator=(const DenseBase<OtherDerived>& other) {
     return Base::_set(other);
   }
 
@@ -229,12 +229,12 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * \copydetails DenseBase::operator=(const EigenBase<OtherDerived> &other)
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix& operator=(const EigenBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix& operator=(const EigenBase<OtherDerived>& other) {
     return Base::operator=(other);
   }
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix& operator=(const ReturnByValue<OtherDerived>& func) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix& operator=(const ReturnByValue<OtherDerived>& func) {
     return Base::operator=(func);
   }
 
@@ -280,8 +280,8 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * \sa Matrix(const std::initializer_list<std::initializer_list<Scalar>>&)
    */
   template <typename... ArgTypes>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix(const Scalar& a0, const Scalar& a1, const Scalar& a2, const Scalar& a3,
-                                               const ArgTypes&... args)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix(const Scalar& a0, const Scalar& a1, const Scalar& a2,
+                                                         const Scalar& a3, const ArgTypes&... args)
       : Base(a0, a1, a2, a3, args...) {}
 
   /** \brief Constructs a Matrix and initializes it from the coefficients given as initializer-lists grouped by row.
@@ -327,7 +327,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
 
 #else
   /** \brief Constructs a fixed-sized matrix initialized with coefficients starting at \a data */
-  EIGEN_DEVICE_FUNC explicit Matrix(const Scalar* data);
+  EIGEN_DEVICE_FUNC constexpr explicit Matrix(const Scalar* data);
 
   /** \brief Constructs a vector or row-vector with given dimension. \only_for_vectors
    *
@@ -341,10 +341,10 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * constructor Matrix() instead, especially when using one of the non standard
    * \c EIGEN_INITIALIZE_MATRICES_BY_{ZERO,\c NAN} macros (see \ref TopicPreprocessorDirectives).
    */
-  EIGEN_STRONG_INLINE explicit Matrix(Index dim);
+  EIGEN_STRONG_INLINE constexpr explicit Matrix(Index dim);
   /** \brief Constructs an initialized 1x1 matrix with the given coefficient
    * \sa Matrix(const Scalar&, const Scalar&, const Scalar&,  const Scalar&, const ArgTypes&...) */
-  Matrix(const Scalar& x);
+  constexpr Matrix(const Scalar& x);
   /** \brief Constructs an uninitialized matrix with \a rows rows and \a cols columns.
    *
    * This is useful for dynamic-size matrices. For fixed-size matrices,
@@ -357,11 +357,11 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * constructor Matrix() instead, especially when using one of the non standard
    * \c EIGEN_INITIALIZE_MATRICES_BY_{ZERO,\c NAN} macros (see \ref TopicPreprocessorDirectives).
    */
-  EIGEN_DEVICE_FUNC Matrix(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC constexpr Matrix(Index rows, Index cols);
 
   /** \brief Constructs an initialized 2D vector with given coefficients
    * \sa Matrix(const Scalar&, const Scalar&, const Scalar&,  const Scalar&, const ArgTypes&...) */
-  Matrix(const Scalar& x, const Scalar& y);
+  constexpr Matrix(const Scalar& x, const Scalar& y);
 #endif  // end EIGEN_PARSED_BY_DOXYGEN
 
   /** \brief Constructs an initialized 3D vector with given coefficients
@@ -401,9 +401,9 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   /////////// Geometry module ///////////
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC explicit Matrix(const RotationBase<OtherDerived, ColsAtCompileTime>& r);
+  EIGEN_DEVICE_FUNC constexpr explicit Matrix(const RotationBase<OtherDerived, ColsAtCompileTime>& r);
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC Matrix& operator=(const RotationBase<OtherDerived, ColsAtCompileTime>& r);
+  EIGEN_DEVICE_FUNC constexpr Matrix& operator=(const RotationBase<OtherDerived, ColsAtCompileTime>& r);
 
 // allow to extend Matrix outside Eigen
 #ifdef EIGEN_MATRIX_PLUGIN

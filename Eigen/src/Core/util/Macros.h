@@ -1176,23 +1176,23 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 #endif
 
 #if EIGEN_COMP_CLANG  // workaround clang bug (see http://forum.kde.org/viewtopic.php?f=74&t=102653)
-#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                                           \
-  using Base::operator=;                                                                           \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) {                 \
-    Base::operator=(other);                                                                        \
-    return *this;                                                                                  \
-  }                                                                                                \
-  template <typename OtherDerived>                                                                 \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const DenseBase<OtherDerived>& other) { \
-    Base::operator=(other.derived());                                                              \
-    return *this;                                                                                  \
+#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                                                     \
+  using Base::operator=;                                                                                     \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator=(const Derived& other) {                 \
+    Base::operator=(other);                                                                                  \
+    return *this;                                                                                            \
+  }                                                                                                          \
+  template <typename OtherDerived>                                                                           \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator=(const DenseBase<OtherDerived>& other) { \
+    Base::operator=(other.derived());                                                                        \
+    return *this;                                                                                            \
   }
 #else
-#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                           \
-  using Base::operator=;                                                           \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { \
-    Base::operator=(other);                                                        \
-    return *this;                                                                  \
+#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                                     \
+  using Base::operator=;                                                                     \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator=(const Derived& other) { \
+    Base::operator=(other);                                                                  \
+    return *this;                                                                            \
   }
 #endif
 
@@ -1201,7 +1201,7 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
  * \brief Macro to explicitly define the default copy constructor.
  * This is necessary, because the implicit definition is deprecated if the copy-assignment is overridden.
  */
-#define EIGEN_DEFAULT_COPY_CONSTRUCTOR(CLASS) EIGEN_DEVICE_FUNC CLASS(const CLASS&) = default;
+#define EIGEN_DEFAULT_COPY_CONSTRUCTOR(CLASS) EIGEN_DEVICE_FUNC constexpr CLASS(const CLASS&) = default;
 
 /** \internal
  * \brief Macro to manually inherit assignment operators.

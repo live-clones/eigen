@@ -60,9 +60,9 @@ namespace internal {
  *
  */
 template <typename Scalar, typename StorageIndex>
-Index SparseLUImpl<Scalar, StorageIndex>::pivotL(const Index jcol, const RealScalar& diagpivotthresh,
-                                                 IndexVector& perm_r, IndexVector& iperm_c, Index& pivrow,
-                                                 GlobalLU_t& glu) {
+constexpr Index SparseLUImpl<Scalar, StorageIndex>::pivotL(const Index jcol, const RealScalar& diagpivotthresh,
+                                                           IndexVector& perm_r, IndexVector& iperm_c, Index& pivrow,
+                                                           GlobalLU_t& glu) {
   Index fsupc = (glu.xsup)((glu.supno)(jcol));  // First column in the supernode containing the column jcol
   Index nsupc = jcol - fsupc;                   // Number of columns in the supernode portion, excluding jcol; nsupc >=0
   Index lptr = glu.xlsub(fsupc);  // pointer to the starting location of the row subscripts for this supernode portion

@@ -21,31 +21,31 @@
     \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_##NAME">Math functions</a>, class CwiseUnaryOp   \
     */                                                                                                          \
   template <typename Derived>                                                                                   \
-  inline const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived> NAME(     \
+  constexpr const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived> NAME(  \
       const Eigen::ArrayBase<Derived>& x);
 
 #else
 
 #define EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(NAME, FUNCTOR, DOC_OP, DOC_DETAILS)                                    \
   template <typename Derived>                                                                                   \
-  inline const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived>(NAME)(    \
+  constexpr const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived>(NAME)( \
       const Eigen::ArrayBase<Derived>& x) {                                                                     \
     return Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived>(x.derived()); \
   }
 
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 
-#define EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(NAME, FUNCTOR)                                                  \
-                                                                                                               \
-  template <typename Derived>                                                                                  \
-  struct NAME##_retval<ArrayBase<Derived> > {                                                                  \
-    typedef const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived> type; \
-  };                                                                                                           \
-  template <typename Derived>                                                                                  \
-  struct NAME##_impl<ArrayBase<Derived> > {                                                                    \
-    static inline typename NAME##_retval<ArrayBase<Derived> >::type run(const Eigen::ArrayBase<Derived>& x) {  \
-      return typename NAME##_retval<ArrayBase<Derived> >::type(x.derived());                                   \
-    }                                                                                                          \
+#define EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(NAME, FUNCTOR)                                                    \
+                                                                                                                 \
+  template <typename Derived>                                                                                    \
+  struct NAME##_retval<ArrayBase<Derived> > {                                                                    \
+    typedef const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived> type;   \
+  };                                                                                                             \
+  template <typename Derived>                                                                                    \
+  struct NAME##_impl<ArrayBase<Derived> > {                                                                      \
+    static constexpr typename NAME##_retval<ArrayBase<Derived> >::type run(const Eigen::ArrayBase<Derived>& x) { \
+      return typename NAME##_retval<ArrayBase<Derived> >::type(x.derived());                                     \
+    }                                                                                                            \
   };
 
 // IWYU pragma: private
@@ -153,7 +153,7 @@ EIGEN_DEVICE_FUNC constexpr inline const GlobalUnaryPowReturnType<Derived, Scala
  * \relates ArrayBase
  */
 template <typename Derived, typename ExponentDerived>
-inline const Eigen::CwiseBinaryOp<
+constexpr const Eigen::CwiseBinaryOp<
     Eigen::internal::scalar_pow_op<typename Derived::Scalar, typename ExponentDerived::Scalar>, const Derived,
     const ExponentDerived>
 pow(const Eigen::ArrayBase<Derived>& x, const Eigen::ArrayBase<ExponentDerived>& exponents) {
@@ -178,11 +178,11 @@ pow(const Eigen::ArrayBase<Derived>& x, const Eigen::ArrayBase<ExponentDerived>&
  */
 #ifdef EIGEN_PARSED_BY_DOXYGEN
 template <typename Scalar, typename Derived>
-inline const CwiseBinaryOp<internal::scalar_pow_op<Scalar, Derived::Scalar>, Constant<Scalar>, Derived> pow(
+constexpr const CwiseBinaryOp<internal::scalar_pow_op<Scalar, Derived::Scalar>, Constant<Scalar>, Derived> pow(
     const Scalar& x, const Eigen::ArrayBase<Derived>& x);
 #else
 template <typename Scalar, typename Derived>
-EIGEN_DEVICE_FUNC inline const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
+EIGEN_DEVICE_FUNC constexpr const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
     typename internal::promote_scalar_arg<typename Derived::Scalar EIGEN_COMMA Scalar EIGEN_COMMA
                                               EIGEN_SCALAR_BINARY_SUPPORTED(pow, Scalar,
                                                                             typename Derived::Scalar)>::type,
@@ -207,7 +207,7 @@ EIGEN_DEVICE_FUNC inline const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
  * \relates ArrayBase
  */
 template <typename LhsDerived, typename RhsDerived>
-inline const std::enable_if_t<
+constexpr const std::enable_if_t<
     std::is_same<typename LhsDerived::Scalar, typename RhsDerived::Scalar>::value,
     Eigen::CwiseBinaryOp<Eigen::internal::scalar_atan2_op<typename LhsDerived::Scalar, typename RhsDerived::Scalar>,
                          const LhsDerived, const RhsDerived> >

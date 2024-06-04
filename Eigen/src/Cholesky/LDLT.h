@@ -84,7 +84,7 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * The default constructor is useful in cases in which the user intends to
    * perform decompositions via LDLT::compute(const MatrixType&).
    */
-  LDLT()
+  constexpr LDLT()
       : m_matrix(),
         m_l1_norm(0),
         m_transpositions(),
@@ -98,7 +98,7 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * according to the specified problem \a size.
    * \sa LDLT()
    */
-  explicit LDLT(Index size)
+  constexpr explicit LDLT(Index size)
       : m_matrix(size, size),
         m_l1_norm(0),
         m_transpositions(size),
@@ -114,7 +114,7 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * \sa LDLT(Index size)
    */
   template <typename InputType>
-  explicit LDLT(const EigenBase<InputType>& matrix)
+  constexpr explicit LDLT(const EigenBase<InputType>& matrix)
       : m_matrix(matrix.rows(), matrix.cols()),
         m_l1_norm(0),
         m_transpositions(matrix.rows()),
@@ -133,7 +133,7 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * \sa LDLT(const EigenBase&)
    */
   template <typename InputType>
-  explicit LDLT(EigenBase<InputType>& matrix)
+  constexpr explicit LDLT(EigenBase<InputType>& matrix)
       : m_matrix(matrix.derived()),
         m_l1_norm(0),
         m_transpositions(matrix.rows()),
@@ -147,41 +147,41 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
   /** Clear any existing decomposition
    * \sa rankUpdate(w,sigma)
    */
-  void setZero() { m_isInitialized = false; }
+  constexpr void setZero() { m_isInitialized = false; }
 
   /** \returns a view of the upper triangular matrix U */
-  inline typename Traits::MatrixU matrixU() const {
+  constexpr typename Traits::MatrixU matrixU() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return Traits::getU(m_matrix);
   }
 
   /** \returns a view of the lower triangular matrix L */
-  inline typename Traits::MatrixL matrixL() const {
+  constexpr typename Traits::MatrixL matrixL() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return Traits::getL(m_matrix);
   }
 
   /** \returns the permutation matrix P as a transposition sequence.
    */
-  inline const TranspositionType& transpositionsP() const {
+  constexpr const TranspositionType& transpositionsP() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return m_transpositions;
   }
 
   /** \returns the coefficients of the diagonal matrix D */
-  inline Diagonal<const MatrixType> vectorD() const {
+  constexpr Diagonal<const MatrixType> vectorD() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return m_matrix.diagonal();
   }
 
   /** \returns true if the matrix is positive (semidefinite) */
-  inline bool isPositive() const {
+  constexpr bool isPositive() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return m_sign == internal::PositiveSemiDef || m_sign == internal::ZeroSign;
   }
 
   /** \returns true if the matrix is negative (semidefinite) */
-  inline bool isNegative(void) const {
+  constexpr bool isNegative(void) const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return m_sign == internal::NegativeSemiDef || m_sign == internal::ZeroSign;
   }
@@ -203,36 +203,36 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * \sa MatrixBase::ldlt(), SelfAdjointView::ldlt()
    */
   template <typename Rhs>
-  inline Solve<LDLT, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  constexpr Solve<LDLT, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   template <typename Derived>
-  bool solveInPlace(MatrixBase<Derived>& bAndX) const;
+  constexpr bool solveInPlace(MatrixBase<Derived>& bAndX) const;
 
   template <typename InputType>
-  LDLT& compute(const EigenBase<InputType>& matrix);
+  constexpr LDLT& compute(const EigenBase<InputType>& matrix);
 
   /** \returns an estimate of the reciprocal condition number of the matrix of
    *  which \c *this is the LDLT decomposition.
    */
-  RealScalar rcond() const {
+  constexpr RealScalar rcond() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return internal::rcond_estimate_helper(m_l1_norm, *this);
   }
 
   template <typename Derived>
-  LDLT& rankUpdate(const MatrixBase<Derived>& w, const RealScalar& alpha = 1);
+  constexpr LDLT& rankUpdate(const MatrixBase<Derived>& w, const RealScalar& alpha = 1);
 
   /** \returns the internal LDLT decomposition matrix
    *
    * TODO: document the storage layout.
    */
-  inline const MatrixType& matrixLDLT() const {
+  constexpr const MatrixType& matrixLDLT() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return m_matrix;
   }
 
-  MatrixType reconstructedMatrix() const;
+  constexpr MatrixType reconstructedMatrix() const;
 
   /** \returns the adjoint of \c *this, that is, a const reference to the decomposition itself as the underlying matrix
    * is self-adjoint.
@@ -240,7 +240,7 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * This method is provided for compatibility with other matrix decompositions, thus enabling generic code such as:
    * \code x = decomposition.adjoint().solve(b) \endcode
    */
-  const LDLT& adjoint() const { return *this; }
+  constexpr const LDLT& adjoint() const { return *this; }
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_matrix.rows(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_matrix.cols(); }
@@ -250,17 +250,17 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * \returns \c Success if computation was successful,
    *          \c NumericalIssue if the factorization failed because of a zero pivot.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
     return m_info;
   }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
-  void _solve_impl(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl(const RhsType& rhs, DstType& dst) const;
 
   template <bool Conjugate, typename RhsType, typename DstType>
-  void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
 #endif
 
  protected:
@@ -289,7 +289,8 @@ struct ldlt_inplace;
 template <>
 struct ldlt_inplace<Lower> {
   template <typename MatrixType, typename TranspositionType, typename Workspace>
-  static bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp, SignMatrix& sign) {
+  static constexpr bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp,
+                                  SignMatrix& sign) {
     using std::abs;
     typedef typename MatrixType::Scalar Scalar;
     typedef typename MatrixType::RealScalar RealScalar;
@@ -401,8 +402,8 @@ struct ldlt_inplace<Lower> {
   // Here only rank-1 updates are implemented, to reduce the
   // requirement for intermediate storage and improve accuracy
   template <typename MatrixType, typename WDerived>
-  static bool updateInPlace(MatrixType& mat, MatrixBase<WDerived>& w,
-                            const typename MatrixType::RealScalar& sigma = 1) {
+  static constexpr bool updateInPlace(MatrixType& mat, MatrixBase<WDerived>& w,
+                                      const typename MatrixType::RealScalar& sigma = 1) {
     using numext::isfinite;
     typedef typename MatrixType::Scalar Scalar;
     typedef typename MatrixType::RealScalar RealScalar;
@@ -435,8 +436,8 @@ struct ldlt_inplace<Lower> {
   }
 
   template <typename MatrixType, typename TranspositionType, typename Workspace, typename WType>
-  static bool update(MatrixType& mat, const TranspositionType& transpositions, Workspace& tmp, const WType& w,
-                     const typename MatrixType::RealScalar& sigma = 1) {
+  static constexpr bool update(MatrixType& mat, const TranspositionType& transpositions, Workspace& tmp, const WType& w,
+                               const typename MatrixType::RealScalar& sigma = 1) {
     // Apply the permutation to the input w
     tmp = transpositions * w;
 
@@ -447,15 +448,15 @@ struct ldlt_inplace<Lower> {
 template <>
 struct ldlt_inplace<Upper> {
   template <typename MatrixType, typename TranspositionType, typename Workspace>
-  static EIGEN_STRONG_INLINE bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp,
-                                            SignMatrix& sign) {
+  static EIGEN_STRONG_INLINE constexpr bool unblocked(MatrixType& mat, TranspositionType& transpositions,
+                                                      Workspace& temp, SignMatrix& sign) {
     Transpose<MatrixType> matt(mat);
     return ldlt_inplace<Lower>::unblocked(matt, transpositions, temp, sign);
   }
 
   template <typename MatrixType, typename TranspositionType, typename Workspace, typename WType>
-  static EIGEN_STRONG_INLINE bool update(MatrixType& mat, TranspositionType& transpositions, Workspace& tmp, WType& w,
-                                         const typename MatrixType::RealScalar& sigma = 1) {
+  static EIGEN_STRONG_INLINE constexpr bool update(MatrixType& mat, TranspositionType& transpositions, Workspace& tmp,
+                                                   WType& w, const typename MatrixType::RealScalar& sigma = 1) {
     Transpose<MatrixType> matt(mat);
     return ldlt_inplace<Lower>::update(matt, transpositions, tmp, w.conjugate(), sigma);
   }
@@ -465,16 +466,16 @@ template <typename MatrixType>
 struct LDLT_Traits<MatrixType, Lower> {
   typedef const TriangularView<const MatrixType, UnitLower> MatrixL;
   typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper> MatrixU;
-  static inline MatrixL getL(const MatrixType& m) { return MatrixL(m); }
-  static inline MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
+  static constexpr MatrixL getL(const MatrixType& m) { return MatrixL(m); }
+  static constexpr MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
 };
 
 template <typename MatrixType>
 struct LDLT_Traits<MatrixType, Upper> {
   typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower> MatrixL;
   typedef const TriangularView<const MatrixType, UnitUpper> MatrixU;
-  static inline MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
-  static inline MatrixU getU(const MatrixType& m) { return MatrixU(m); }
+  static constexpr MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
+  static constexpr MatrixU getU(const MatrixType& m) { return MatrixU(m); }
 };
 
 }  // end namespace internal
@@ -483,7 +484,7 @@ struct LDLT_Traits<MatrixType, Upper> {
  */
 template <typename MatrixType, int UpLo_>
 template <typename InputType>
-LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
+constexpr LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
   eigen_assert(a.rows() == a.cols());
   const Index size = a.rows();
 
@@ -522,7 +523,7 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::compute(const EigenBase<InputT
  */
 template <typename MatrixType, int UpLo_>
 template <typename Derived>
-LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
+constexpr LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
     const MatrixBase<Derived>& w, const typename LDLT<MatrixType, UpLo_>::RealScalar& sigma) {
   typedef typename TranspositionType::StorageIndex IndexType;
   const Index size = w.rows();
@@ -546,13 +547,13 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename MatrixType_, int UpLo_>
 template <typename RhsType, typename DstType>
-void LDLT<MatrixType_, UpLo_>::_solve_impl(const RhsType& rhs, DstType& dst) const {
+constexpr void LDLT<MatrixType_, UpLo_>::_solve_impl(const RhsType& rhs, DstType& dst) const {
   _solve_impl_transposed<true>(rhs, dst);
 }
 
 template <typename MatrixType_, int UpLo_>
 template <bool Conjugate, typename RhsType, typename DstType>
-void LDLT<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
+constexpr void LDLT<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
   // dst = P b
   dst = m_transpositions * rhs;
 
@@ -604,7 +605,7 @@ void LDLT<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstTyp
  */
 template <typename MatrixType, int UpLo_>
 template <typename Derived>
-bool LDLT<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) const {
+constexpr bool LDLT<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) const {
   eigen_assert(m_isInitialized && "LDLT is not initialized.");
   eigen_assert(m_matrix.rows() == bAndX.rows());
 
@@ -617,7 +618,7 @@ bool LDLT<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) const {
  * i.e., it returns the product: P^T L D L^* P.
  * This function is provided for debug purpose. */
 template <typename MatrixType, int UpLo_>
-MatrixType LDLT<MatrixType, UpLo_>::reconstructedMatrix() const {
+constexpr MatrixType LDLT<MatrixType, UpLo_>::reconstructedMatrix() const {
   eigen_assert(m_isInitialized && "LDLT is not initialized.");
   const Index size = m_matrix.rows();
   MatrixType res(size, size);
@@ -642,7 +643,7 @@ MatrixType LDLT<MatrixType, UpLo_>::reconstructedMatrix() const {
  * \sa MatrixBase::ldlt()
  */
 template <typename MatrixType, unsigned int UpLo>
-inline LDLT<typename SelfAdjointView<MatrixType, UpLo>::PlainObject, UpLo> SelfAdjointView<MatrixType, UpLo>::ldlt()
+constexpr LDLT<typename SelfAdjointView<MatrixType, UpLo>::PlainObject, UpLo> SelfAdjointView<MatrixType, UpLo>::ldlt()
     const {
   return LDLT<PlainObject, UpLo>(m_matrix);
 }
@@ -652,7 +653,7 @@ inline LDLT<typename SelfAdjointView<MatrixType, UpLo>::PlainObject, UpLo> SelfA
  * \sa SelfAdjointView::ldlt()
  */
 template <typename Derived>
-inline LDLT<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::ldlt() const {
+constexpr LDLT<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::ldlt() const {
   return LDLT<PlainObject>(derived());
 }
 

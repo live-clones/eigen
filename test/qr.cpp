@@ -106,6 +106,19 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
+#if EIGEN_COMP_CXXVER >= 20
+void qr_constexpr() {
+  constexpr Matrix3d a({{1, 2, 3}, {4, 5, 6}, {7, 8, 9}});
+  constexpr HouseholderQR<Matrix3d> qrOfA(a);
+
+  constexpr Matrix3d q = qrOfA.householderQ();
+  VERIFY_IS_UNITARY(q);
+
+  constexpr Matrix3d r = qrOfA.matrixQR().template triangularView<Upper>();
+  VERIFY_IS_APPROX(a, qrOfA.householderQ() * r);
+}
+#endif  // EIGEN_COMP_CXXVER >= 20
+
 EIGEN_DECLARE_TEST(qr) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(
@@ -134,4 +147,9 @@ EIGEN_DECLARE_TEST(qr) {
 
   // Test problem size constructors
   CALL_SUBTEST_12(HouseholderQR<MatrixXf>(10, 20));
+
+#if EIGEN_COMP_CXXVER >= 20
+  // Test constexpr
+  CALL_SUBTEST_13(qr_constexpr());
+#endif  // EIGEN_COMP_CXXVER >= 20
 }

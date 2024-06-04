@@ -19,12 +19,12 @@ template <bool cond>
 struct Cond {};
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T1& choose(Cond<true>, const T1& first, const T2&) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const T1& choose(Cond<true>, const T1& first, const T2&) {
   return first;
 }
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T2& choose(Cond<false>, const T1&, const T2& second) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const T2& choose(Cond<false>, const T1&, const T2& second) {
   return second;
 }
 
@@ -124,7 +124,9 @@ struct Vectorise<OutScalar, Device, true> {
   typedef typename Eigen::PacketType<OutScalar, Device>::type PacketReturnType;
 };
 
-static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index roundUp(Index x, Index y) { return ((((x) + (y)-1) / (y)) * (y)); }
+static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Index roundUp(Index x, Index y) {
+  return ((((x) + (y)-1) / (y)) * (y));
+}
 
 }  // namespace internal
 }  // namespace TensorSycl
@@ -216,7 +218,7 @@ struct Pair {
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Pair(const U& f, const V& s) : first(f), second(s) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void swap(Pair& rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(Pair& rhs) {
     using numext::swap;
     swap(first, rhs.first);
     swap(second, rhs.second);
@@ -281,7 +283,7 @@ struct is_base_of {
   static yes check(D*, T);
   static no check(B*, int);
 
-  static const bool value = sizeof(check(Host<B, D>(), int())) == sizeof(yes);
+  static constexpr bool value = sizeof(check(Host<B, D>(), int())) == sizeof(yes);
 };
 
 }  // namespace internal
