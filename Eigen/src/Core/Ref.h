@@ -84,7 +84,7 @@ class RefBase : public MapBase<Derived> {
                                                      : this->rows();
   }
 
-  EIGEN_DEVICE_FUNC RefBase()
+  EIGEN_DEVICE_FUNC constexpr RefBase()
       : Base(0, RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime,
              ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime),
         // Stride<> does not allow default ctor for Dynamic strides, so let' initialize it with dummy values:
@@ -108,7 +108,7 @@ class RefBase : public MapBase<Derived> {
   // Returns true if construction is valid, false if there is a stride mismatch,
   // and fails if there is a size mismatch.
   template <typename Expression>
-  EIGEN_DEVICE_FUNC bool construct(Expression& expr) {
+  EIGEN_DEVICE_FUNC constexpr bool construct(Expression& expr) {
     // Check matrix sizes.  If this is a compile-time vector, we do allow
     // implicitly transposing.
     EIGEN_STATIC_ASSERT(EIGEN_PREDICATE_SAME_MATRIX_SIZE(PlainObjectType, Expression)
@@ -360,7 +360,7 @@ class Ref<const TPlainObjectType, Options, StrideType>
 
  protected:
   template <typename Expression>
-  EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::true_type) {
+  EIGEN_DEVICE_FUNC constexpr void construct(const Expression& expr, internal::true_type) {
     // Check if we can use the underlying expr's storage directly, otherwise call the copy version.
     if (!Base::construct(expr)) {
       construct(expr, internal::false_type());
@@ -368,7 +368,7 @@ class Ref<const TPlainObjectType, Options, StrideType>
   }
 
   template <typename Expression>
-  EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::false_type) {
+  EIGEN_DEVICE_FUNC constexpr void construct(const Expression& expr, internal::false_type) {
     internal::call_assignment_no_alias(m_object, expr, internal::assign_op<Scalar, Scalar>());
     const bool success = Base::construct(m_object);
     EIGEN_ONLY_USED_FOR_DEBUG(success)

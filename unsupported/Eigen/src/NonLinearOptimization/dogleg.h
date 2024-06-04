@@ -6,8 +6,8 @@ namespace Eigen {
 namespace internal {
 
 template <typename Scalar>
-void dogleg(const Matrix<Scalar, Dynamic, Dynamic> &qrfac, const Matrix<Scalar, Dynamic, 1> &diag,
-            const Matrix<Scalar, Dynamic, 1> &qtb, Scalar delta, Matrix<Scalar, Dynamic, 1> &x) {
+constexpr void dogleg(const Matrix<Scalar, Dynamic, Dynamic> &qrfac, const Matrix<Scalar, Dynamic, 1> &diag,
+                      const Matrix<Scalar, Dynamic, 1> &qtb, Scalar delta, Matrix<Scalar, Dynamic, 1> &x) {
   using std::abs;
   using std::sqrt;
 
