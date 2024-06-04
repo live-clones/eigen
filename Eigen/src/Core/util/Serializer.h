@@ -36,7 +36,7 @@ class Serializer<T, typename std::enable_if_t<std::is_trivial<T>::value && std::
    * \param value the value to serialize.
    * \return the required size.
    */
-  EIGEN_DEVICE_FUNC size_t size(const T& value) const { return sizeof(value); }
+  EIGEN_DEVICE_FUNC constexpr size_t size(const T& value) const { return sizeof(value); }
 
   /**
    * Serializes a value to a byte buffer.
@@ -45,7 +45,7 @@ class Serializer<T, typename std::enable_if_t<std::is_trivial<T>::value && std::
    * \param value the value to serialize.
    * \return the next memory address past the end of the serialized data.
    */
-  EIGEN_DEVICE_FUNC uint8_t* serialize(uint8_t* dest, uint8_t* end, const T& value) {
+  EIGEN_DEVICE_FUNC constexpr uint8_t* serialize(uint8_t* dest, uint8_t* end, const T& value) {
     if (EIGEN_PREDICT_FALSE(dest == nullptr)) return nullptr;
     if (EIGEN_PREDICT_FALSE(dest + sizeof(value) > end)) return nullptr;
     EIGEN_USING_STD(memcpy)
@@ -60,7 +60,7 @@ class Serializer<T, typename std::enable_if_t<std::is_trivial<T>::value && std::
    * \param value the value to populate.
    * \return the next unprocessed memory address; nullptr if parsing errors are detected.
    */
-  EIGEN_DEVICE_FUNC const uint8_t* deserialize(const uint8_t* src, const uint8_t* end, T& value) const {
+  EIGEN_DEVICE_FUNC constexpr const uint8_t* deserialize(const uint8_t* src, const uint8_t* end, T& value) const {
     if (EIGEN_PREDICT_FALSE(src == nullptr)) return nullptr;
     if (EIGEN_PREDICT_FALSE(src + sizeof(value) > end)) return nullptr;
     EIGEN_USING_STD(memcpy)
@@ -81,9 +81,11 @@ class Serializer<DenseBase<Derived>, void> {
     typename Derived::Index cols;
   };
 
-  EIGEN_DEVICE_FUNC size_t size(const Derived& value) const { return sizeof(Header) + sizeof(Scalar) * value.size(); }
+  EIGEN_DEVICE_FUNC constexpr size_t size(const Derived& value) const {
+    return sizeof(Header) + sizeof(Scalar) * value.size();
+  }
 
-  EIGEN_DEVICE_FUNC uint8_t* serialize(uint8_t* dest, uint8_t* end, const Derived& value) {
+  EIGEN_DEVICE_FUNC constexpr uint8_t* serialize(uint8_t* dest, uint8_t* end, const Derived& value) {
     if (EIGEN_PREDICT_FALSE(dest == nullptr)) return nullptr;
     if (EIGEN_PREDICT_FALSE(dest + size(value) > end)) return nullptr;
     const size_t header_bytes = sizeof(Header);
@@ -96,7 +98,7 @@ class Serializer<DenseBase<Derived>, void> {
     return dest + data_bytes;
   }
 
-  EIGEN_DEVICE_FUNC const uint8_t* deserialize(const uint8_t* src, const uint8_t* end, Derived& value) const {
+  EIGEN_DEVICE_FUNC constexpr const uint8_t* deserialize(const uint8_t* src, const uint8_t* end, Derived& value) const {
     if (EIGEN_PREDICT_FALSE(src == nullptr)) return nullptr;
     if (EIGEN_PREDICT_FALSE(src + sizeof(Header) > end)) return nullptr;
     const size_t header_bytes = sizeof(Header);
@@ -130,21 +132,22 @@ template <size_t N, typename T1, typename... Ts>
 struct serialize_impl<N, T1, Ts...> {
   using Serializer = Eigen::Serializer<typename std::decay<T1>::type>;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE size_t serialize_size(const T1& value, const Ts&... args) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr size_t serialize_size(const T1& value, const Ts&... args) {
     Serializer serializer;
     size_t size = serializer.size(value);
     return size + serialize_impl<N - 1, Ts...>::serialize_size(args...);
   }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t* serialize(uint8_t* dest, uint8_t* end, const T1& value,
-                                                                  const Ts&... args) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr uint8_t* serialize(uint8_t* dest, uint8_t* end,
+                                                                            const T1& value, const Ts&... args) {
     Serializer serializer;
     dest = serializer.serialize(dest, end, value);
     return serialize_impl<N - 1, Ts...>::serialize(dest, end, args...);
   }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const uint8_t* deserialize(const uint8_t* src, const uint8_t* end,
-                                                                          T1& value, Ts&... args) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const uint8_t* deserialize(const uint8_t* src,
+                                                                                    const uint8_t* end, T1& value,
+                                                                                    Ts&... args) {
     Serializer serializer;
     src = serializer.deserialize(src, end, value);
     return serialize_impl<N - 1, Ts...>::deserialize(src, end, args...);
@@ -154,11 +157,14 @@ struct serialize_impl<N, T1, Ts...> {
 // Base case.
 template <>
 struct serialize_impl<0> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE size_t serialize_size() { return 0; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr size_t serialize_size() { return 0; }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t* serialize(uint8_t* dest, uint8_t* /*end*/) { return dest; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr uint8_t* serialize(uint8_t* dest, uint8_t* /*end*/) {
+    return dest;
+  }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const uint8_t* deserialize(const uint8_t* src, const uint8_t* /*end*/) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const uint8_t* deserialize(const uint8_t* src,
+                                                                                    const uint8_t* /*end*/) {
     return src;
   }
 };
@@ -172,7 +178,7 @@ struct serialize_impl<0> {
  * \return the total size of the required buffer.
  */
 template <typename... Args>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE size_t serialize_size(const Args&... args) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr size_t serialize_size(const Args&... args) {
   return internal::serialize_impl<sizeof...(args), Args...>::serialize_size(args...);
 }
 
@@ -185,7 +191,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE size_t serialize_size(const Args&... args)
  * \return the next address after all serialized values.
  */
 template <typename... Args>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t* serialize(uint8_t* dest, uint8_t* end, const Args&... args) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr uint8_t* serialize(uint8_t* dest, uint8_t* end, const Args&... args) {
   return internal::serialize_impl<sizeof...(args), Args...>::serialize(dest, end, args...);
 }
 
@@ -198,8 +204,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t* serialize(uint8_t* dest, uint8_t*
  * \return the next address after all parsed values; nullptr if parsing errors are detected.
  */
 template <typename... Args>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const uint8_t* deserialize(const uint8_t* src, const uint8_t* end,
-                                                                 Args&... args) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const uint8_t* deserialize(const uint8_t* src, const uint8_t* end,
+                                                                           Args&... args) {
   return internal::serialize_impl<sizeof...(args), Args...>::deserialize(src, end, args...);
 }
 

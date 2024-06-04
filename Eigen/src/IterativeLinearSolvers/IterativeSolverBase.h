@@ -23,9 +23,9 @@ struct is_ref_compatible_impl {
   template <typename T0>
   struct any_conversion {
     template <typename T>
-    any_conversion(const volatile T&);
+    constexpr any_conversion(const volatile T&);
     template <typename T>
-    any_conversion(T&);
+    constexpr any_conversion(T&);
   };
   struct yes {
     int a[1];
@@ -35,9 +35,9 @@ struct is_ref_compatible_impl {
   };
 
   template <typename T>
-  static yes test(const Ref<const T>&, int);
+  static constexpr yes test(const Ref<const T>&, int);
   template <typename T>
-  static no test(any_conversion<T>, ...);
+  static constexpr no test(any_conversion<T>, ...);
 
  public:
   static MatrixType ms_from;
@@ -64,20 +64,20 @@ class generic_matrix_wrapper<MatrixType, false> {
 
   enum { MatrixFree = false };
 
-  generic_matrix_wrapper() : m_dummy(0, 0), m_matrix(m_dummy) {}
+  constexpr generic_matrix_wrapper() : m_dummy(0, 0), m_matrix(m_dummy) {}
 
   template <typename InputType>
-  generic_matrix_wrapper(const InputType& mat) : m_matrix(mat) {}
+  constexpr generic_matrix_wrapper(const InputType& mat) : m_matrix(mat) {}
 
-  const ActualMatrixType& matrix() const { return m_matrix; }
+  constexpr const ActualMatrixType& matrix() const { return m_matrix; }
 
   template <typename MatrixDerived>
-  void grab(const EigenBase<MatrixDerived>& mat) {
+  constexpr void grab(const EigenBase<MatrixDerived>& mat) {
     internal::destroy_at(&m_matrix);
     internal::construct_at(&m_matrix, mat.derived());
   }
 
-  void grab(const Ref<const MatrixType>& mat) {
+  constexpr void grab(const Ref<const MatrixType>& mat) {
     if (&(mat.derived()) != &m_matrix) {
       internal::destroy_at(&m_matrix);
       internal::construct_at(&m_matrix, mat);
@@ -101,16 +101,16 @@ class generic_matrix_wrapper<MatrixType, true> {
 
   enum { MatrixFree = true };
 
-  generic_matrix_wrapper() : mp_matrix(0) {}
+  constexpr generic_matrix_wrapper() = default;
 
-  generic_matrix_wrapper(const MatrixType& mat) : mp_matrix(&mat) {}
+  constexpr generic_matrix_wrapper(const MatrixType& mat) : mp_matrix(&mat) {}
 
-  const ActualMatrixType& matrix() const { return *mp_matrix; }
+  constexpr const ActualMatrixType& matrix() const { return *mp_matrix; }
 
-  void grab(const MatrixType& mat) { mp_matrix = &mat; }
+  constexpr void grab(const MatrixType& mat) { mp_matrix = &mat; }
 
  protected:
-  const ActualMatrixType* mp_matrix;
+  const ActualMatrixType* mp_matrix = nullptr;
 };
 
 }  // namespace internal
@@ -139,7 +139,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   using Base::derived;
 
   /** Default constructor. */
-  IterativeSolverBase() { init(); }
+  constexpr IterativeSolverBase() { init(); }
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -152,14 +152,12 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  explicit IterativeSolverBase(const EigenBase<MatrixDerived>& A) : m_matrixWrapper(A.derived()) {
+  constexpr explicit IterativeSolverBase(const EigenBase<MatrixDerived>& A) : m_matrixWrapper(A.derived()) {
     init();
     compute(matrix());
   }
 
-  IterativeSolverBase(IterativeSolverBase&&) = default;
-
-  ~IterativeSolverBase() {}
+  constexpr IterativeSolverBase(IterativeSolverBase&&) = default;
 
   /** Initializes the iterative solver for the sparsity pattern of the matrix \a A for further solving \c Ax=b problems.
    *
@@ -167,7 +165,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
    * we might, for instance, implement column reordering for faster matrix vector products.
    */
   template <typename MatrixDerived>
-  Derived& analyzePattern(const EigenBase<MatrixDerived>& A) {
+  constexpr Derived& analyzePattern(const EigenBase<MatrixDerived>& A) {
     grab(A.derived());
     m_preconditioner.analyzePattern(matrix());
     m_isInitialized = true;
@@ -187,7 +185,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  Derived& factorize(const EigenBase<MatrixDerived>& A) {
+  constexpr Derived& factorize(const EigenBase<MatrixDerived>& A) {
     eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");
     grab(A.derived());
     m_preconditioner.factorize(matrix());
@@ -207,7 +205,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  Derived& compute(const EigenBase<MatrixDerived>& A) {
+  constexpr Derived& compute(const EigenBase<MatrixDerived>& A) {
     grab(A.derived());
     m_preconditioner.compute(matrix());
     m_isInitialized = true;
@@ -226,40 +224,40 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   /** \returns the tolerance threshold used by the stopping criteria.
    * \sa setTolerance()
    */
-  RealScalar tolerance() const { return m_tolerance; }
+  constexpr RealScalar tolerance() const { return m_tolerance; }
 
   /** Sets the tolerance threshold used by the stopping criteria.
    *
    * This value is used as an upper bound to the relative residual error: |Ax-b|/|b|.
    * The default value is the machine precision given by NumTraits<Scalar>::epsilon()
    */
-  Derived& setTolerance(const RealScalar& tolerance) {
+  constexpr Derived& setTolerance(const RealScalar& tolerance) {
     m_tolerance = tolerance;
     return derived();
   }
 
   /** \returns a read-write reference to the preconditioner for custom configuration. */
-  Preconditioner& preconditioner() { return m_preconditioner; }
+  constexpr Preconditioner& preconditioner() { return m_preconditioner; }
 
   /** \returns a read-only reference to the preconditioner. */
-  const Preconditioner& preconditioner() const { return m_preconditioner; }
+  constexpr const Preconditioner& preconditioner() const { return m_preconditioner; }
 
   /** \returns the max number of iterations.
    * It is either the value set by setMaxIterations or, by default,
    * twice the number of columns of the matrix.
    */
-  Index maxIterations() const { return (m_maxIterations < 0) ? 2 * matrix().cols() : m_maxIterations; }
+  constexpr Index maxIterations() const { return (m_maxIterations < 0) ? 2 * matrix().cols() : m_maxIterations; }
 
   /** Sets the max number of iterations.
    * Default is twice the number of columns of the matrix.
    */
-  Derived& setMaxIterations(Index maxIters) {
+  constexpr Derived& setMaxIterations(Index maxIters) {
     m_maxIterations = maxIters;
     return derived();
   }
 
   /** \returns the number of iterations performed during the last solve */
-  Index iterations() const {
+  constexpr Index iterations() const {
     eigen_assert(m_isInitialized && "IterativeSolverBase is not initialized.");
     return m_iterations;
   }
@@ -267,7 +265,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   /** \returns the tolerance error reached during the last solve.
    * It is a close approximation of the true relative residual error |Ax-b|/|b|.
    */
-  RealScalar error() const {
+  constexpr RealScalar error() const {
     eigen_assert(m_isInitialized && "IterativeSolverBase is not initialized.");
     return m_error;
   }
@@ -278,21 +276,22 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
    * \sa solve(), compute()
    */
   template <typename Rhs, typename Guess>
-  inline const SolveWithGuess<Derived, Rhs, Guess> solveWithGuess(const MatrixBase<Rhs>& b, const Guess& x0) const {
+  inline constexpr const SolveWithGuess<Derived, Rhs, Guess> solveWithGuess(const MatrixBase<Rhs>& b,
+                                                                            const Guess& x0) const {
     eigen_assert(m_isInitialized && "Solver is not initialized.");
     eigen_assert(derived().rows() == b.rows() && "solve(): invalid number of rows of the right hand side matrix b");
     return SolveWithGuess<Derived, Rhs, Guess>(derived(), b.derived(), x0);
   }
 
   /** \returns Success if the iterations converged, and NoConvergence otherwise. */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "IterativeSolverBase is not initialized.");
     return m_info;
   }
 
   /** \internal */
   template <typename Rhs, typename DestDerived>
-  void _solve_with_guess_impl(const Rhs& b, SparseMatrixBase<DestDerived>& aDest) const {
+  constexpr void _solve_with_guess_impl(const Rhs& b, SparseMatrixBase<DestDerived>& aDest) const {
     eigen_assert(rows() == b.rows());
 
     Index rhsCols = b.cols();
@@ -324,7 +323,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   }
 
   template <typename Rhs, typename DestDerived>
-  std::enable_if_t<Rhs::ColsAtCompileTime != 1 && DestDerived::ColsAtCompileTime != 1> _solve_with_guess_impl(
+  constexpr std::enable_if_t<Rhs::ColsAtCompileTime != 1 && DestDerived::ColsAtCompileTime != 1> _solve_with_guess_impl(
       const Rhs& b, MatrixBase<DestDerived>& aDest) const {
     eigen_assert(rows() == b.rows());
 
@@ -347,20 +346,20 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   }
 
   template <typename Rhs, typename DestDerived>
-  std::enable_if_t<Rhs::ColsAtCompileTime == 1 || DestDerived::ColsAtCompileTime == 1> _solve_with_guess_impl(
+  constexpr std::enable_if_t<Rhs::ColsAtCompileTime == 1 || DestDerived::ColsAtCompileTime == 1> _solve_with_guess_impl(
       const Rhs& b, MatrixBase<DestDerived>& dest) const {
     derived()._solve_vector_with_guess_impl(b, dest.derived());
   }
 
   /** \internal default initial guess = 0 */
   template <typename Rhs, typename Dest>
-  void _solve_impl(const Rhs& b, Dest& x) const {
+  constexpr void _solve_impl(const Rhs& b, Dest& x) const {
     x.setZero();
     derived()._solve_with_guess_impl(b, x);
   }
 
  protected:
-  void init() {
+  constexpr void init() {
     m_isInitialized = false;
     m_analysisIsOk = false;
     m_factorizationIsOk = false;
@@ -371,10 +370,10 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   typedef internal::generic_matrix_wrapper<MatrixType> MatrixWrapper;
   typedef typename MatrixWrapper::ActualMatrixType ActualMatrixType;
 
-  const ActualMatrixType& matrix() const { return m_matrixWrapper.matrix(); }
+  constexpr const ActualMatrixType& matrix() const { return m_matrixWrapper.matrix(); }
 
   template <typename InputType>
-  void grab(const InputType& A) {
+  constexpr void grab(const InputType& A) {
     m_matrixWrapper.grab(A);
   }
 

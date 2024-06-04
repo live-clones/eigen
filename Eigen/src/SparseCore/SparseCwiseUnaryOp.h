@@ -30,12 +30,12 @@ struct unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>
     Flags = XprType::Flags
   };
 
-  explicit unary_evaluator(const XprType& op) : m_functor(op.functor()), m_argImpl(op.nestedExpression()) {
+  constexpr explicit unary_evaluator(const XprType& op) : m_functor(op.functor()), m_argImpl(op.nestedExpression()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<UnaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
+  inline constexpr Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
 
  protected:
   typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
@@ -52,7 +52,7 @@ class unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>::InnerItera
   typedef typename unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>::EvalIterator Base;
 
  public:
-  EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& unaryOp, Index outer)
+  EIGEN_STRONG_INLINE constexpr InnerIterator(const unary_evaluator& unaryOp, Index outer)
       : Base(unaryOp.m_argImpl, outer), m_functor(unaryOp.m_functor) {}
 
   EIGEN_STRONG_INLINE InnerIterator& operator++() {
@@ -60,7 +60,7 @@ class unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>::InnerItera
     return *this;
   }
 
-  EIGEN_STRONG_INLINE Scalar value() const { return m_functor(Base::value()); }
+  EIGEN_STRONG_INLINE constexpr Scalar value() const { return m_functor(Base::value()); }
 
  protected:
   const UnaryOp m_functor;
@@ -82,7 +82,7 @@ struct unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>
     Flags = XprType::Flags
   };
 
-  explicit unary_evaluator(const XprType& op) : m_functor(op.functor()), m_argImpl(op.nestedExpression()) {
+  constexpr explicit unary_evaluator(const XprType& op) : m_functor(op.functor()), m_argImpl(op.nestedExpression()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<ViewOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
@@ -102,16 +102,16 @@ class unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::InnerIter
   typedef typename unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::EvalIterator Base;
 
  public:
-  EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& unaryOp, Index outer)
+  EIGEN_STRONG_INLINE constexpr InnerIterator(const unary_evaluator& unaryOp, Index outer)
       : Base(unaryOp.m_argImpl, outer), m_functor(unaryOp.m_functor) {}
 
-  EIGEN_STRONG_INLINE InnerIterator& operator++() {
+  EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
     Base::operator++();
     return *this;
   }
 
-  EIGEN_STRONG_INLINE Scalar value() const { return m_functor(Base::value()); }
-  EIGEN_STRONG_INLINE Scalar& valueRef() { return m_functor(Base::valueRef()); }
+  EIGEN_STRONG_INLINE constexpr Scalar value() const { return m_functor(Base::value()); }
+  EIGEN_STRONG_INLINE constexpr Scalar& valueRef() { return m_functor(Base::valueRef()); }
 
  protected:
   const ViewOp m_functor;
@@ -120,7 +120,7 @@ class unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::InnerIter
 }  // end namespace internal
 
 template <typename Derived>
-EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator*=(const Scalar& other) {
+EIGEN_STRONG_INLINE constexpr Derived& SparseMatrixBase<Derived>::operator*=(const Scalar& other) {
   typedef typename internal::evaluator<Derived>::InnerIterator EvalIterator;
   internal::evaluator<Derived> thisEval(derived());
   for (Index j = 0; j < outerSize(); ++j)
@@ -129,7 +129,7 @@ EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator*=(const Scalar&
 }
 
 template <typename Derived>
-EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator/=(const Scalar& other) {
+EIGEN_STRONG_INLINE constexpr Derived& SparseMatrixBase<Derived>::operator/=(const Scalar& other) {
   typedef typename internal::evaluator<Derived>::InnerIterator EvalIterator;
   internal::evaluator<Derived> thisEval(derived());
   for (Index j = 0; j < outerSize(); ++j)
