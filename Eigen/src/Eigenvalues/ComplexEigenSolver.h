@@ -93,7 +93,8 @@ class ComplexEigenSolver {
    * The default constructor is useful in cases in which the user intends to
    * perform decompositions via compute().
    */
-  ComplexEigenSolver() : m_eivec(), m_eivalues(), m_schur(), m_isInitialized(false), m_eigenvectorsOk(false) {}
+  constexpr ComplexEigenSolver()
+      : m_eivec(), m_eivalues(), m_schur(), m_isInitialized(false), m_eigenvectorsOk(false) {}
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -101,7 +102,7 @@ class ComplexEigenSolver {
    * according to the specified problem \a size.
    * \sa ComplexEigenSolver()
    */
-  explicit ComplexEigenSolver(Index size)
+  constexpr explicit ComplexEigenSolver(Index size)
       : m_eivec(size, size), m_eivalues(size), m_schur(size), m_isInitialized(false), m_eigenvectorsOk(false) {}
 
   /** \brief Constructor; computes eigendecomposition of given matrix.
@@ -114,7 +115,7 @@ class ComplexEigenSolver {
    * This constructor computes the eigendecomposition as compute() does.
    */
   template <typename InputType>
-  explicit ComplexEigenSolver(const EigenBase<InputType>& matrix, bool computeEigenvectors = true)
+  constexpr explicit ComplexEigenSolver(const EigenBase<InputType>& matrix, bool computeEigenvectors = true)
       : m_eivec(matrix.rows(), matrix.cols()),
         m_eivalues(matrix.cols()),
         m_schur(matrix.derived(), computeEigenvectors),
@@ -164,7 +165,7 @@ class ComplexEigenSolver {
    * Example: \include ComplexEigenSolver_eigenvectors.cpp
    * Output: \verbinclude ComplexEigenSolver_eigenvectors.out
    */
-  const EigenvectorType& eigenvectors() const {
+  constexpr const EigenvectorType& eigenvectors() const {
     eigen_assert(m_isInitialized && "ComplexEigenSolver is not initialized.");
     eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
     return m_eivec;
@@ -188,7 +189,7 @@ class ComplexEigenSolver {
    * Example: \include ComplexEigenSolver_eigenvalues.cpp
    * Output: \verbinclude ComplexEigenSolver_eigenvalues.out
    */
-  const EigenvalueType& eigenvalues() const {
+  constexpr const EigenvalueType& eigenvalues() const {
     eigen_assert(m_isInitialized && "ComplexEigenSolver is not initialized.");
     return m_eivalues;
   }
@@ -218,25 +219,25 @@ class ComplexEigenSolver {
    * Output: \verbinclude ComplexEigenSolver_compute.out
    */
   template <typename InputType>
-  ComplexEigenSolver& compute(const EigenBase<InputType>& matrix, bool computeEigenvectors = true);
+  constexpr ComplexEigenSolver& compute(const EigenBase<InputType>& matrix, bool computeEigenvectors = true);
 
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "ComplexEigenSolver is not initialized.");
     return m_schur.info();
   }
 
   /** \brief Sets the maximum number of iterations allowed. */
-  ComplexEigenSolver& setMaxIterations(Index maxIters) {
+  constexpr ComplexEigenSolver& setMaxIterations(Index maxIters) {
     m_schur.setMaxIterations(maxIters);
     return *this;
   }
 
   /** \brief Returns the maximum number of iterations. */
-  Index getMaxIterations() const { return m_schur.getMaxIterations(); }
+  constexpr Index getMaxIterations() const { return m_schur.getMaxIterations(); }
 
  protected:
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
@@ -249,15 +250,15 @@ class ComplexEigenSolver {
   bool m_eigenvectorsOk;
 
  private:
-  ComplexEigenSolver& computeFromSchur(bool computeEigenvectors);
-  void doComputeEigenvectors(RealScalar matrixnorm);
-  void sortEigenvalues(bool computeEigenvectors);
+  constexpr ComplexEigenSolver& computeFromSchur(bool computeEigenvectors);
+  constexpr void doComputeEigenvectors(RealScalar matrixnorm);
+  constexpr void sortEigenvalues(bool computeEigenvectors);
 };
 
 template <typename MatrixType>
 template <typename InputType>
-ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix,
-                                                                        bool computeEigenvectors) {
+constexpr ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix,
+                                                                                  bool computeEigenvectors) {
   // this code is inspired from Jampack
   eigen_assert(matrix.cols() == matrix.rows());
 
@@ -270,7 +271,7 @@ ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::compute(const Ei
 /** \internal Computes the eigenvalues, and the eigenvectors when requested, from the Schur decomposition held by
  * m_schur. */
 template <typename MatrixType>
-ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::computeFromSchur(bool computeEigenvectors) {
+constexpr ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::computeFromSchur(bool computeEigenvectors) {
   if (m_schur.info() == Success) {
     m_eivalues = m_schur.matrixT().diagonal();
     if (computeEigenvectors) doComputeEigenvectors(m_schur.matrixT().norm());
@@ -283,7 +284,7 @@ ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::computeFromSchur
 }
 
 template <typename MatrixType>
-void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm) {
+constexpr void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm) {
   const Index n = m_eivalues.size();
 
   // Compute X such that T = X D X^(-1), where D is the diagonal of T.
@@ -319,7 +320,7 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
 }
 
 template <typename MatrixType>
-void ComplexEigenSolver<MatrixType>::sortEigenvalues(bool computeEigenvectors) {
+constexpr void ComplexEigenSolver<MatrixType>::sortEigenvalues(bool computeEigenvectors) {
   const Index n = m_eivalues.size();
   for (Index i = 0; i < n; i++) {
     Index k;

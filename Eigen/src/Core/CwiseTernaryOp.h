@@ -113,8 +113,8 @@ class CwiseTernaryOp : public CwiseTernaryOpImpl<TernaryOp, Arg1Type, Arg2Type, 
   using Arg2Nested_ = std::remove_reference_t<Arg2Nested>;
   using Arg3Nested_ = std::remove_reference_t<Arg3Nested>;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CwiseTernaryOp(const Arg1& a1, const Arg2& a2, const Arg3& a3,
-                                                       const TernaryOp& func = TernaryOp())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CwiseTernaryOp(const Arg1& a1, const Arg2& a2, const Arg3& a3,
+                                                                 const TernaryOp& func = TernaryOp())
       : m_arg1(a1), m_arg2(a2), m_arg3(a3), m_functor(func) {
     eigen_assert(a1.rows() == a2.rows() && a1.cols() == a2.cols() && a1.rows() == a3.rows() && a1.cols() == a3.cols());
   }

@@ -40,19 +40,19 @@ struct householder_rescale;
 
 template <typename Scalar, typename Accumulator>
 struct householder_rescale<Scalar, Accumulator, false> {
-  EIGEN_DEVICE_FUNC static Scalar run(const Scalar& value, const Accumulator& scale) {
+  EIGEN_DEVICE_FUNC static constexpr Scalar run(const Scalar& value, const Accumulator& scale) {
     return Scalar(Accumulator(value) / scale);
   }
 
   // This overload only keeps the shared C++14 call site well-formed; real inputs return before reaching it.
-  EIGEN_DEVICE_FUNC static Scalar zero_tail_tau(const Accumulator& scaledReal, const Accumulator&,
-                                                const Scalar& scaledBeta) {
+  EIGEN_DEVICE_FUNC static constexpr Scalar zero_tail_tau(const Accumulator& scaledReal, const Accumulator&,
+                                                          const Scalar& scaledBeta) {
     return Scalar(1) - Scalar(scaledReal) / scaledBeta;
   }
 
   template <typename EssentialPart, typename TailView>
-  EIGEN_DEVICE_FUNC static void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
-                                    const Scalar& denominator) {
+  EIGEN_DEVICE_FUNC static constexpr void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
+                                              const Scalar& denominator) {
     essential = ((tail.template cast<Accumulator>().array() / scale) / Accumulator(denominator))
                     .matrix()
                     .template cast<Scalar>();
@@ -63,34 +63,34 @@ template <typename Scalar, typename Accumulator>
 struct householder_rescale<Scalar, Accumulator, true> {
   using RealScalar = typename NumTraits<Scalar>::Real;
 
-  EIGEN_DEVICE_FUNC static Scalar run(const Scalar& value, const Accumulator& scale) {
+  EIGEN_DEVICE_FUNC static constexpr Scalar run(const Scalar& value, const Accumulator& scale) {
     return Scalar(RealScalar(Accumulator(numext::real(value)) / scale),
                   RealScalar(Accumulator(numext::imag(value)) / scale));
   }
 
-  EIGEN_DEVICE_FUNC static Scalar zero_tail_tau(const Accumulator& scaledReal, const Accumulator& scaledImag,
-                                                const RealScalar& scaledBeta) {
+  EIGEN_DEVICE_FUNC static constexpr Scalar zero_tail_tau(const Accumulator& scaledReal, const Accumulator& scaledImag,
+                                                          const RealScalar& scaledBeta) {
     return Scalar(RealScalar(1) - RealScalar(scaledReal) / scaledBeta, RealScalar(scaledImag) / scaledBeta);
   }
 
   template <typename EssentialPart, typename TailView>
-  EIGEN_DEVICE_FUNC static void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
-                                    const Scalar& denominator) {
+  EIGEN_DEVICE_FUNC static constexpr void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
+                                              const Scalar& denominator) {
     run(essential, tail, scale, denominator, complex_array_access<Scalar>());
   }
 
  private:
   template <typename EssentialPart, typename TailView>
-  EIGEN_DEVICE_FUNC static void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
-                                    const Scalar& denominator, std::true_type) {
+  EIGEN_DEVICE_FUNC static constexpr void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
+                                              const Scalar& denominator, std::true_type) {
     essential.realView().array() =
         (tail.realView().array().template cast<Accumulator>() / scale).template cast<RealScalar>();
     essential.array() /= denominator;
   }
 
   template <typename EssentialPart, typename TailView>
-  EIGEN_DEVICE_FUNC static void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
-                                    const Scalar& denominator, std::false_type) {
+  EIGEN_DEVICE_FUNC static constexpr void run(EssentialPart& essential, const TailView& tail, const Accumulator& scale,
+                                              const Scalar& denominator, std::false_type) {
     for (Index i = 0; i < tail.size(); ++i) essential.coeffRef(i) = run(tail.coeff(i), scale) / denominator;
   }
 };
@@ -113,7 +113,7 @@ struct householder_rescale<Scalar, Accumulator, true> {
  *     MatrixBase::applyHouseholderOnTheRight()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, RealScalar& beta) {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, RealScalar& beta) {
   VectorBlock<Derived, internal::decrement_size<Base::SizeAtCompileTime>::value> essentialPart(derived(), 1,
                                                                                                size() - 1);
   makeHouseholder(essentialPart, tau, beta);
@@ -136,8 +136,8 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, 
  */
 template <typename Derived>
 template <typename EssentialPart>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essential, Scalar& tau,
-                                                            RealScalar& beta) const {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::makeHouseholder(EssentialPart& essential, Scalar& tau,
+                                                                      RealScalar& beta) const {
   using numext::conj;
 
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(EssentialPart)
@@ -243,8 +243,8 @@ template <typename Derived, typename EssentialPart,
                        (EssentialPart::RowsAtCompileTime == 1 || EssentialPart::RowsAtCompileTime == 2)>
 struct householder_apply_left_impl {
   using Scalar = typename Derived::Scalar;
-  static EIGEN_DEVICE_FUNC void run(MatrixBase<Derived>& mat, const EssentialPart& essential, const Scalar& tau,
-                                    Scalar* workspace) {
+  static EIGEN_DEVICE_FUNC constexpr void run(MatrixBase<Derived>& mat, const EssentialPart& essential,
+                                              const Scalar& tau, Scalar* workspace) {
     Map<typename plain_row_type<typename Derived::PlainObject>::type> tmp(workspace, mat.cols());
     Block<Derived, EssentialPart::SizeAtCompileTime, Derived::ColsAtCompileTime> bottom(mat.derived(), 1, 0,
                                                                                         mat.rows() - 1, mat.cols());
@@ -260,8 +260,8 @@ struct householder_apply_left_impl {
 template <typename Derived, typename EssentialPart>
 struct householder_apply_left_impl<Derived, EssentialPart, true> {
   using Scalar = typename Derived::Scalar;
-  static EIGEN_DEVICE_FUNC void run(MatrixBase<Derived>& mat, const EssentialPart& essential, const Scalar& tau,
-                                    Scalar*) {
+  static EIGEN_DEVICE_FUNC constexpr void run(MatrixBase<Derived>& mat, const EssentialPart& essential,
+                                              const Scalar& tau, Scalar*) {
     // Evaluated once so that the column loop reads plain coefficients; tau may reference a coefficient of mat.
     const Matrix<Scalar, EssentialPart::RowsAtCompileTime, 1> v = essential;
     const Scalar tauValue = tau;
@@ -294,8 +294,8 @@ struct householder_apply_left_impl<Derived, EssentialPart, true> {
  */
 template <typename Derived>
 template <typename EssentialPart>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const EssentialPart& essential, const Scalar& tau,
-                                                                      Scalar* workspace) {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::applyHouseholderOnTheLeft(const EssentialPart& essential,
+                                                                                const Scalar& tau, Scalar* workspace) {
   if (rows() == 1) {
     *this *= Scalar(1) - tau;
   } else if (!numext::is_exactly_zero(tau)) {
@@ -320,8 +320,8 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const Esse
  */
 template <typename Derived>
 template <typename EssentialPart>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheRight(const EssentialPart& essential,
-                                                                       const Scalar& tau, Scalar* workspace) {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::applyHouseholderOnTheRight(const EssentialPart& essential,
+                                                                                 const Scalar& tau, Scalar* workspace) {
   if (cols() == 1) {
     *this *= Scalar(1) - tau;
   } else if (!numext::is_exactly_zero(tau)) {

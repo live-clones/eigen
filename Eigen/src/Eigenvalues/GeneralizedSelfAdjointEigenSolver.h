@@ -62,7 +62,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * can only be used if \p MatrixType_ is a fixed-size matrix; use
    * GeneralizedSelfAdjointEigenSolver(Index) for dynamic-size matrices.
    */
-  GeneralizedSelfAdjointEigenSolver() : Base(), m_cholB(), m_matC() {}
+  constexpr GeneralizedSelfAdjointEigenSolver() = default;
 
   /** \brief Constructor, pre-allocates memory for dynamic-size matrices.
    *
@@ -76,7 +76,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa compute() for an example
    */
-  explicit GeneralizedSelfAdjointEigenSolver(Index size) : Base(size), m_cholB(size), m_matC(size, size) {}
+  constexpr explicit GeneralizedSelfAdjointEigenSolver(Index size) : Base(size), m_cholB(size), m_matC(size, size) {}
 
   /** \brief Constructor; computes generalized eigendecomposition of given matrix pencil.
    *
@@ -106,8 +106,8 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * \sa compute(const MatrixType&, const MatrixType&, int)
    */
   template <typename InputTypeA, typename InputTypeB>
-  GeneralizedSelfAdjointEigenSolver(const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB,
-                                    int options = ComputeEigenvectors | Ax_lBx)
+  constexpr GeneralizedSelfAdjointEigenSolver(const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB,
+                                              int options = ComputeEigenvectors | Ax_lBx)
       : Base(matA.cols()) {
     compute(matA.derived(), matB.derived(), options);
   }
@@ -128,8 +128,8 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    */
   template <typename InputTypeA, typename InputTypeB, bool IsRef = internal::is_ref<MatrixType>::value,
             std::enable_if_t<IsRef, int> = 0>
-  GeneralizedSelfAdjointEigenSolver(EigenBase<InputTypeA>& matA, EigenBase<InputTypeB>& matB,
-                                    int options = ComputeEigenvectors | Ax_lBx)
+  constexpr GeneralizedSelfAdjointEigenSolver(EigenBase<InputTypeA>& matA, EigenBase<InputTypeB>& matB,
+                                              int options = ComputeEigenvectors | Ax_lBx)
       : Base(matA, typename Base::BindStorageTag()), m_cholB(matB.derived()), m_matC(matA.derived()) {
     // Complete the upper triangle from the referenced lower one.
     m_matC = m_matC.template selfadjointView<Lower>();
@@ -179,8 +179,9 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * \sa GeneralizedSelfAdjointEigenSolver(const MatrixType&, const MatrixType&, int)
    */
   template <typename InputTypeA, typename InputTypeB>
-  GeneralizedSelfAdjointEigenSolver& compute(const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB,
-                                             int options = ComputeEigenvectors | Ax_lBx);
+  constexpr GeneralizedSelfAdjointEigenSolver& compute(const EigenBase<InputTypeA>& matA,
+                                                       const EigenBase<InputTypeB>& matB,
+                                                       int options = ComputeEigenvectors | Ax_lBx);
 
  protected:
   // Reused across compute() calls so that a solver constructed with its size,
@@ -189,12 +190,12 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
   MatrixType m_matC;
 
  private:
-  GeneralizedSelfAdjointEigenSolver& computeInPlace(int options);
+  constexpr GeneralizedSelfAdjointEigenSolver& computeInPlace(int options);
 };
 
 template <typename MatrixType>
 template <typename InputTypeA, typename InputTypeB>
-GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::compute(
+constexpr GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::compute(
     const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB, int options) {
   eigen_assert(matA.cols() == matA.rows() && matB.rows() == matA.rows() && matB.cols() == matB.rows());
 
@@ -207,7 +208,7 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
 /** \internal Computes the generalized eigendecomposition from the Cholesky factor of B held by m_cholB and the
  * selfadjoint matrix A held in full by m_matC, which is overwritten by the transformed matrix C. */
 template <typename MatrixType>
-GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::computeInPlace(
+constexpr GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::computeInPlace(
     int options) {
   eigen_assert(m_matC.cols() == m_matC.rows() && m_cholB.rows() == m_matC.rows());
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
