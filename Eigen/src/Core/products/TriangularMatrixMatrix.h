@@ -52,9 +52,10 @@ template <typename Scalar, typename Index, int Mode, bool LhsIsTriangular, int L
           int RhsStorageOrder, bool ConjugateRhs, int ResInnerStride, int Version>
 struct product_triangular_matrix_matrix<Scalar, Index, Mode, LhsIsTriangular, LhsStorageOrder, ConjugateLhs,
                                         RhsStorageOrder, ConjugateRhs, RowMajor, ResInnerStride, Version> {
-  static EIGEN_STRONG_INLINE void run(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride,
-                                      const Scalar* rhs, Index rhsStride, Scalar* res, Index resIncr, Index resStride,
-                                      const Scalar& alpha, level3_blocking<Scalar, Scalar>& blocking) {
+  static EIGEN_STRONG_INLINE constexpr void run(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride,
+                                                const Scalar* rhs, Index rhsStride, Scalar* res, Index resIncr,
+                                                Index resStride, const Scalar& alpha,
+                                                level3_blocking<Scalar, Scalar>& blocking) {
     product_triangular_matrix_matrix<Scalar, Index, (Mode & (UnitDiag | ZeroDiag)) | ((Mode & Upper) ? Lower : Upper),
                                      (!LhsIsTriangular), RhsStorageOrder == RowMajor ? ColMajor : RowMajor,
                                      ConjugateRhs, LhsStorageOrder == RowMajor ? ColMajor : RowMajor, ConjugateLhs,
@@ -75,18 +76,20 @@ struct product_triangular_matrix_matrix<Scalar, Index, Mode, true, LhsStorageOrd
     SetDiag = (Mode & (ZeroDiag | UnitDiag)) ? 0 : 1
   };
 
-  static EIGEN_DONT_INLINE void run(Index _rows, Index _cols, Index _depth, const Scalar* lhs_, Index lhsStride,
-                                    const Scalar* rhs_, Index rhsStride, Scalar* res, Index resIncr, Index resStride,
-                                    const Scalar& alpha, level3_blocking<Scalar, Scalar>& blocking);
+  static constexpr void run(Index _rows, Index _cols, Index _depth, const Scalar* lhs_, Index lhsStride,
+                            const Scalar* rhs_, Index rhsStride, Scalar* res, Index resIncr, Index resStride,
+                            const Scalar& alpha, level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int Mode, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder,
           bool ConjugateRhs, int ResInnerStride, int Version>
-EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
-    Scalar, Index, Mode, true, LhsStorageOrder, ConjugateLhs, RhsStorageOrder, ConjugateRhs, ColMajor, ResInnerStride,
-    Version>::run(Index _rows, Index _cols, Index _depth, const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
-                  Index rhsStride, Scalar* res_, Index resIncr, Index resStride, const Scalar& alpha,
-                  level3_blocking<Scalar, Scalar>& blocking) {
+constexpr void product_triangular_matrix_matrix<Scalar, Index, Mode, true, LhsStorageOrder, ConjugateLhs,
+                                                RhsStorageOrder, ConjugateRhs, ColMajor, ResInnerStride,
+                                                Version>::run(Index _rows, Index _cols, Index _depth,
+                                                              const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
+                                                              Index rhsStride, Scalar* res_, Index resIncr,
+                                                              Index resStride, const Scalar& alpha,
+                                                              level3_blocking<Scalar, Scalar>& blocking) {
   // strip zeros
   Index diagSize = (std::min)(_rows, _depth);
   Index rows = IsLower ? _rows : diagSize;
@@ -204,18 +207,20 @@ struct product_triangular_matrix_matrix<Scalar, Index, Mode, false, LhsStorageOr
     SetDiag = (Mode & (ZeroDiag | UnitDiag)) ? 0 : 1
   };
 
-  static EIGEN_DONT_INLINE void run(Index _rows, Index _cols, Index _depth, const Scalar* lhs_, Index lhsStride,
-                                    const Scalar* rhs_, Index rhsStride, Scalar* res, Index resIncr, Index resStride,
-                                    const Scalar& alpha, level3_blocking<Scalar, Scalar>& blocking);
+  static constexpr void run(Index _rows, Index _cols, Index _depth, const Scalar* lhs_, Index lhsStride,
+                            const Scalar* rhs_, Index rhsStride, Scalar* res, Index resIncr, Index resStride,
+                            const Scalar& alpha, level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int Mode, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder,
           bool ConjugateRhs, int ResInnerStride, int Version>
-EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
-    Scalar, Index, Mode, false, LhsStorageOrder, ConjugateLhs, RhsStorageOrder, ConjugateRhs, ColMajor, ResInnerStride,
-    Version>::run(Index _rows, Index _cols, Index _depth, const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
-                  Index rhsStride, Scalar* res_, Index resIncr, Index resStride, const Scalar& alpha,
-                  level3_blocking<Scalar, Scalar>& blocking) {
+constexpr void product_triangular_matrix_matrix<Scalar, Index, Mode, false, LhsStorageOrder, ConjugateLhs,
+                                                RhsStorageOrder, ConjugateRhs, ColMajor, ResInnerStride,
+                                                Version>::run(Index _rows, Index _cols, Index _depth,
+                                                              const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
+                                                              Index rhsStride, Scalar* res_, Index resIncr,
+                                                              Index resStride, const Scalar& alpha,
+                                                              level3_blocking<Scalar, Scalar>& blocking) {
   const Index PacketBytes = packet_traits<Scalar>::size * sizeof(Scalar);
   // strip zeros
   Index diagSize = (std::min)(_cols, _depth);
@@ -327,7 +332,7 @@ namespace internal {
 template <int Mode, bool LhsIsTriangular, typename Lhs, typename Rhs>
 struct triangular_product_impl<Mode, LhsIsTriangular, Lhs, false, Rhs, false> {
   template <typename Dest>
-  static void run(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const typename Dest::Scalar& alpha) {
+  static constexpr void run(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const typename Dest::Scalar& alpha) {
     typedef typename Lhs::Scalar LhsScalar;
     typedef typename Rhs::Scalar RhsScalar;
     typedef typename Dest::Scalar Scalar;
