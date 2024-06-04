@@ -47,27 +47,26 @@ class MatrixMarketIterator {
   typedef SparseMatrix<Scalar, ColMajor> MatrixType;
 
  public:
-  MatrixMarketIterator(const std::string& folder)
-      : m_sym(0), m_isvalid(false), m_matIsLoaded(false), m_hasRhs(false), m_hasrefX(false), m_folder(folder) {
+  constexpr MatrixMarketIterator(const std::string& folder) : m_folder(folder) {
     m_folder_id = opendir(folder.c_str());
     if (m_folder_id) Getnextvalidmatrix();
   }
 
-  ~MatrixMarketIterator() {
+  constexpr ~MatrixMarketIterator() {
     if (m_folder_id) closedir(m_folder_id);
   }
 
-  inline MatrixMarketIterator& operator++() {
+  inline constexpr MatrixMarketIterator& operator++() {
     m_matIsLoaded = false;
     m_hasrefX = false;
     m_hasRhs = false;
     Getnextvalidmatrix();
     return *this;
   }
-  inline operator bool() const { return m_isvalid; }
+  inline constexpr operator bool() const { return m_isvalid; }
 
   /** Return the sparse matrix corresponding to the current file */
-  inline MatrixType& matrix() {
+  inline constexpr MatrixType& matrix() {
     // Read the matrix
     if (m_matIsLoaded) return m_mat;
 
@@ -100,7 +99,7 @@ class MatrixMarketIterator {
   /** Return the right hand side corresponding to the current matrix.
    * If the rhs file is not provided, a random rhs is generated
    */
-  inline VectorType& rhs() {
+  inline constexpr VectorType& rhs() {
     // Get the right hand side
     if (m_hasRhs) return m_rhs;
 
@@ -129,7 +128,7 @@ class MatrixMarketIterator {
    * where A and b are the matrix and the rhs.
    * Note that when a rhs is provided, refX is not available
    */
-  inline VectorType& refX() {
+  inline constexpr VectorType& refX() {
     // Check if a reference solution is provided
     if (m_hasrefX) return m_refX;
 
@@ -144,16 +143,16 @@ class MatrixMarketIterator {
     return m_refX;
   }
 
-  inline std::string& matname() { return m_matname; }
+  inline constexpr std::string& matname() { return m_matname; }
 
-  inline int sym() { return m_sym; }
+  inline constexpr int sym() { return m_sym; }
 
-  bool hasRhs() { return m_hasRhs; }
-  bool hasrefX() { return m_hasrefX; }
-  bool isFolderValid() { return bool(m_folder_id); }
+  constexpr bool hasRhs() { return m_hasRhs; }
+  constexpr bool hasrefX() { return m_hasrefX; }
+  constexpr bool isFolderValid() { return bool(m_folder_id); }
 
  protected:
-  inline bool Fileexists(std::string file) {
+  inline constexpr bool Fileexists(std::string file) {
     std::ifstream file_id(file.c_str());
     if (!file_id.good()) {
       return false;
@@ -163,7 +162,7 @@ class MatrixMarketIterator {
     }
   }
 
-  void Getnextvalidmatrix() {
+  constexpr void Getnextvalidmatrix() {
     m_isvalid = false;
     // Here, we return with the next valid matrix in the folder
     while ((m_curs_id = readdir(m_folder_id)) != NULL) {
@@ -201,18 +200,18 @@ class MatrixMarketIterator {
       break;
     }
   }
-  int m_sym;              // Symmetry of the matrix
+  int m_sym = 0;          // Symmetry of the matrix
   MatrixType m_mat;       // Current matrix
   VectorType m_rhs;       // Current vector
   VectorType m_refX;      // The reference solution, if exists
   std::string m_matname;  // Matrix Name
-  bool m_isvalid;
-  bool m_matIsLoaded;  // Determine if the matrix has already been loaded from the file
-  bool m_hasRhs;       // The right hand side exists
-  bool m_hasrefX;      // A reference solution is provided
+  bool m_isvalid = false;
+  bool m_matIsLoaded = false;  // Determine if the matrix has already been loaded from the file
+  bool m_hasRhs = false;       // The right hand side exists
+  bool m_hasrefX = false;      // A reference solution is provided
   std::string m_folder;
-  DIR* m_folder_id;
-  struct dirent* m_curs_id;
+  DIR* m_folder_id = nullptr;
+  struct dirent* m_curs_id = nullptr;
 };
 
 }  // end namespace Eigen

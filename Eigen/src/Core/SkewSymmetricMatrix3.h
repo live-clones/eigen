@@ -55,24 +55,24 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   typedef SkewSymmetricMatrix3<Scalar> PlainObject;
 
   /** \returns a reference to the derived object. */
-  EIGEN_DEVICE_FUNC inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
+  EIGEN_DEVICE_FUNC inline constexpr const Derived& derived() const { return *static_cast<const Derived*>(this); }
   /** \returns a const reference to the derived object. */
-  EIGEN_DEVICE_FUNC inline Derived& derived() { return *static_cast<Derived*>(this); }
+  EIGEN_DEVICE_FUNC inline constexpr Derived& derived() { return *static_cast<Derived*>(this); }
 
   /**
    * Constructs a dense matrix from \c *this. Note, this directly returns a dense matrix type,
    * not an expression.
    * \returns A dense matrix, with its entries set from the the derived object. */
-  EIGEN_DEVICE_FUNC DenseMatrixType toDenseMatrix() const { return derived(); }
+  EIGEN_DEVICE_FUNC constexpr DenseMatrixType toDenseMatrix() const { return derived(); }
 
   /** Determinant vanishes */
   EIGEN_DEVICE_FUNC constexpr Scalar determinant() const { return 0; }
 
   /** A.transpose() = -A */
-  EIGEN_DEVICE_FUNC PlainObject transpose() const { return (-vector()).asSkewSymmetric(); }
+  EIGEN_DEVICE_FUNC constexpr PlainObject transpose() const { return (-vector()).asSkewSymmetric(); }
 
   /** \returns the exponential of this matrix using Rodrigues’ formula */
-  EIGEN_DEVICE_FUNC DenseMatrixType exponential() const {
+  EIGEN_DEVICE_FUNC constexpr DenseMatrixType exponential() const {
     DenseMatrixType retVal = DenseMatrixType::Identity();
     const SkewSymmetricVectorType& v = vector();
     if (v.isZero()) {
@@ -86,9 +86,9 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   }
 
   /** \returns a reference to the derived object's vector of coefficients. */
-  EIGEN_DEVICE_FUNC inline const SkewSymmetricVectorType& vector() const { return derived().vector(); }
+  EIGEN_DEVICE_FUNC inline constexpr const SkewSymmetricVectorType& vector() const { return derived().vector(); }
   /** \returns a const reference to the derived object's vector of coefficients. */
-  EIGEN_DEVICE_FUNC inline SkewSymmetricVectorType& vector() { return derived().vector(); }
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricVectorType& vector() { return derived().vector(); }
 
   /** \returns the number of rows. */
   EIGEN_DEVICE_FUNC constexpr Index rows() const { return 3; }
@@ -97,14 +97,14 @@ class SkewSymmetricBase : public EigenBase<Derived> {
 
   /** \returns the matrix product of \c *this by the dense matrix, \a matrix */
   template <typename MatrixDerived>
-  EIGEN_DEVICE_FUNC Product<Derived, MatrixDerived, LazyProduct> operator*(
+  EIGEN_DEVICE_FUNC constexpr Product<Derived, MatrixDerived, LazyProduct> operator*(
       const MatrixBase<MatrixDerived>& matrix) const {
     return Product<Derived, MatrixDerived, LazyProduct>(derived(), matrix.derived());
   }
 
   /** \returns the matrix product of \c *this by the skew symmetric matrix, \a matrix */
   template <typename MatrixDerived>
-  EIGEN_DEVICE_FUNC Product<Derived, MatrixDerived, LazyProduct> operator*(
+  EIGEN_DEVICE_FUNC constexpr Product<Derived, MatrixDerived, LazyProduct> operator*(
       const SkewSymmetricBase<MatrixDerived>& matrix) const {
     return Product<Derived, MatrixDerived, LazyProduct>(derived(), matrix.derived());
   }
@@ -116,7 +116,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   /** \returns the wedge product of \c *this by the skew symmetric matrix \a other
    *  A wedge B = AB - BA */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC SkewSymmetricProductReturnType<OtherDerived> wedge(
+  EIGEN_DEVICE_FUNC constexpr SkewSymmetricProductReturnType<OtherDerived> wedge(
       const SkewSymmetricBase<OtherDerived>& other) const {
     return vector().cross(other.vector()).asSkewSymmetric();
   }
@@ -125,7 +125,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
       SkewSymmetricWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(SkewSymmetricVectorType, Scalar, product)>;
 
   /** \returns the product of \c *this by the scalar \a scalar */
-  EIGEN_DEVICE_FUNC inline SkewSymmetricScaleReturnType operator*(const Scalar& scalar) const {
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricScaleReturnType operator*(const Scalar& scalar) const {
     return (vector() * scalar).asSkewSymmetric();
   }
 
@@ -133,8 +133,8 @@ class SkewSymmetricBase : public EigenBase<Derived> {
       SkewSymmetricWrapper<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, SkewSymmetricVectorType, product)>;
 
   /** \returns the product of a scalar and the skew symmetric matrix \a other */
-  EIGEN_DEVICE_FUNC friend inline ScaleSkewSymmetricReturnType operator*(const Scalar& scalar,
-                                                                         const SkewSymmetricBase& other) {
+  EIGEN_DEVICE_FUNC friend inline constexpr ScaleSkewSymmetricReturnType operator*(const Scalar& scalar,
+                                                                                   const SkewSymmetricBase& other) {
     return (scalar * other.vector()).asSkewSymmetric();
   }
 
@@ -144,7 +144,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
 
   /** \returns the sum of \c *this and the skew symmetric matrix \a other */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline SkewSymmetricSumReturnType<OtherDerived> operator+(
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricSumReturnType<OtherDerived> operator+(
       const SkewSymmetricBase<OtherDerived>& other) const {
     return (vector() + other.vector()).asSkewSymmetric();
   }
@@ -155,7 +155,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
 
   /** \returns the difference of \c *this and the skew symmetric matrix \a other */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline SkewSymmetricDifferenceReturnType<OtherDerived> operator-(
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricDifferenceReturnType<OtherDerived> operator-(
       const SkewSymmetricBase<OtherDerived>& other) const {
     return (vector() - other.vector()).asSkewSymmetric();
   }
@@ -195,37 +195,39 @@ class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scala
 
  public:
   /** const version of vector(). */
-  EIGEN_DEVICE_FUNC inline const SkewSymmetricVectorType& vector() const { return m_vector; }
+  EIGEN_DEVICE_FUNC inline constexpr const SkewSymmetricVectorType& vector() const { return m_vector; }
   /** \returns a reference to the stored vector of coefficients. */
-  EIGEN_DEVICE_FUNC inline SkewSymmetricVectorType& vector() { return m_vector; }
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricVectorType& vector() { return m_vector; }
 
   /** Default constructor without initialization */
-  EIGEN_DEVICE_FUNC inline SkewSymmetricMatrix3() {}
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricMatrix3() = default;
 
   /** Constructor from three scalars */
-  EIGEN_DEVICE_FUNC inline SkewSymmetricMatrix3(const Scalar& x, const Scalar& y, const Scalar& z)
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricMatrix3(const Scalar& x, const Scalar& y, const Scalar& z)
       : m_vector(x, y, z) {}
 
   /** \brief Constructs a SkewSymmetricMatrix3 from an r-value vector type */
-  EIGEN_DEVICE_FUNC explicit inline SkewSymmetricMatrix3(SkewSymmetricVectorType&& vec) : m_vector(std::move(vec)) {}
+  EIGEN_DEVICE_FUNC explicit inline constexpr SkewSymmetricMatrix3(SkewSymmetricVectorType&& vec)
+      : m_vector(std::move(vec)) {}
 
   /** generic constructor from expression of the coefficients */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC explicit inline SkewSymmetricMatrix3(const MatrixBase<OtherDerived>& other) : m_vector(other) {}
+  EIGEN_DEVICE_FUNC explicit inline constexpr SkewSymmetricMatrix3(const MatrixBase<OtherDerived>& other)
+      : m_vector(other) {}
 
   /** Copy constructor. */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline SkewSymmetricMatrix3(const SkewSymmetricBase<OtherDerived>& other)
+  EIGEN_DEVICE_FUNC inline constexpr SkewSymmetricMatrix3(const SkewSymmetricBase<OtherDerived>& other)
       : m_vector(other.vector()) {}
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   /** copy constructor. prevent a default copy constructor from hiding the other templated constructor */
-  inline SkewSymmetricMatrix3(const SkewSymmetricMatrix3& other) : m_vector(other.vector()) {}
+  inline constexpr SkewSymmetricMatrix3(const SkewSymmetricMatrix3& other) : m_vector(other.vector()) {}
 #endif
 
   /** Copy operator. */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC SkewSymmetricMatrix3& operator=(const SkewSymmetricBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr SkewSymmetricMatrix3& operator=(const SkewSymmetricBase<OtherDerived>& other) {
     m_vector = other.vector();
     return *this;
   }
@@ -234,7 +236,7 @@ class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scala
   /** This is a special case of the templated operator=. Its purpose is to
    * prevent a default operator= from hiding the templated operator=.
    */
-  EIGEN_DEVICE_FUNC SkewSymmetricMatrix3& operator=(const SkewSymmetricMatrix3& other) {
+  EIGEN_DEVICE_FUNC constexpr SkewSymmetricMatrix3& operator=(const SkewSymmetricMatrix3& other) {
     m_vector = other.vector();
     return *this;
   }
@@ -244,10 +246,12 @@ class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scala
       InitializeReturnType;
 
   /** Initializes a skew symmetric matrix with coefficients set to zero */
-  EIGEN_DEVICE_FUNC static InitializeReturnType Zero() { return SkewSymmetricVectorType::Zero().asSkewSymmetric(); }
+  EIGEN_DEVICE_FUNC static constexpr InitializeReturnType Zero() {
+    return SkewSymmetricVectorType::Zero().asSkewSymmetric();
+  }
 
   /** Sets all coefficients to zero. */
-  EIGEN_DEVICE_FUNC inline void setZero() { m_vector.setZero(); }
+  EIGEN_DEVICE_FUNC inline constexpr void setZero() { m_vector.setZero(); }
 };
 
 /** \class SkewSymmetricWrapper
@@ -292,10 +296,11 @@ class SkewSymmetricWrapper : public SkewSymmetricBase<SkewSymmetricWrapper<SkewS
 #endif
 
   /** Constructor from expression of coefficients to wrap. */
-  EIGEN_DEVICE_FUNC explicit inline SkewSymmetricWrapper(SkewSymmetricVectorType& a_vector) : m_vector(a_vector) {}
+  EIGEN_DEVICE_FUNC explicit inline constexpr SkewSymmetricWrapper(SkewSymmetricVectorType& a_vector)
+      : m_vector(a_vector) {}
 
   /** \returns a const reference to the wrapped expression of coefficients. */
-  EIGEN_DEVICE_FUNC const SkewSymmetricVectorType& vector() const { return m_vector; }
+  EIGEN_DEVICE_FUNC constexpr const SkewSymmetricVectorType& vector() const { return m_vector; }
 
  protected:
   typename SkewSymmetricVectorType::Nested m_vector;
@@ -308,7 +313,8 @@ class SkewSymmetricWrapper : public SkewSymmetricBase<SkewSymmetricWrapper<SkewS
  * \sa class SkewSymmetricWrapper, class SkewSymmetricMatrix3, vector(), isSkewSymmetric()
  **/
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline const SkewSymmetricWrapper<const Derived> MatrixBase<Derived>::asSkewSymmetric() const {
+EIGEN_DEVICE_FUNC inline constexpr const SkewSymmetricWrapper<const Derived> MatrixBase<Derived>::asSkewSymmetric()
+    const {
   return SkewSymmetricWrapper<const Derived>(derived());
 }
 
@@ -316,7 +322,7 @@ EIGEN_DEVICE_FUNC inline const SkewSymmetricWrapper<const Derived> MatrixBase<De
  *          within the precision given by \a prec.
  */
 template <typename Derived>
-bool MatrixBase<Derived>::isSkewSymmetric(const RealScalar& prec) const {
+constexpr bool MatrixBase<Derived>::isSkewSymmetric(const RealScalar& prec) const {
   if (cols() != rows()) return false;
   return (this->transpose() + *this).isZero(prec);
 }
@@ -325,7 +331,7 @@ bool MatrixBase<Derived>::isSkewSymmetric(const RealScalar& prec) const {
  */
 template <typename Derived>
 template <typename SkewDerived>
-EIGEN_DEVICE_FUNC inline const Product<Derived, SkewDerived, LazyProduct> MatrixBase<Derived>::operator*(
+EIGEN_DEVICE_FUNC inline constexpr const Product<Derived, SkewDerived, LazyProduct> MatrixBase<Derived>::operator*(
     const SkewSymmetricBase<SkewDerived>& skew) const {
   return Product<Derived, SkewDerived, LazyProduct>(derived(), skew.derived());
 }
@@ -347,7 +353,7 @@ struct AssignmentKind<DenseShape, SkewSymmetricShape> {
 // SkewSymmetric matrix to Dense assignment
 template <typename DstXprType, typename SrcXprType, typename Functor>
 struct Assignment<DstXprType, SrcXprType, Functor, SkewSymmetric2Dense> {
-  EIGEN_DEVICE_FUNC static void run(
+  EIGEN_DEVICE_FUNC static constexpr void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& /*func*/) {
     if ((dst.rows() != 3) || (dst.cols() != 3)) {
@@ -362,13 +368,13 @@ struct Assignment<DstXprType, SrcXprType, Functor, SkewSymmetric2Dense> {
     dst(1, 2) = -v(0);
     dst(2, 1) = v(0);
   }
-  EIGEN_DEVICE_FUNC static void run(
+  EIGEN_DEVICE_FUNC static constexpr void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& /*func*/) {
     dst.vector() += src.vector();
   }
 
-  EIGEN_DEVICE_FUNC static void run(
+  EIGEN_DEVICE_FUNC static constexpr void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& /*func*/) {
     dst.vector() -= src.vector();

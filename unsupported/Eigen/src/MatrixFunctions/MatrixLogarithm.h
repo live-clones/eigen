@@ -38,7 +38,7 @@ struct matrix_log_max_pade_degree {
 
 /** \brief Compute logarithm of 2x2 triangular matrix. */
 template <typename MatrixType>
-void matrix_log_compute_2x2(const MatrixType& A, MatrixType& result) {
+constexpr void matrix_log_compute_2x2(const MatrixType& A, MatrixType& result) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   using std::abs;
@@ -66,7 +66,7 @@ void matrix_log_compute_2x2(const MatrixType& A, MatrixType& result) {
 }
 
 /* \brief Get suitable degree for Pade approximation. (specialized for RealScalar = float) */
-inline int matrix_log_get_pade_degree(float normTminusI) {
+inline constexpr int matrix_log_get_pade_degree(float normTminusI) {
   const float maxNormForPade[] = {2.5111573934555054e-1 /* degree = 3 */, 4.0535837411880493e-1, 5.3149729967117310e-1};
   const int minPadeDegree = matrix_log_min_pade_degree<float>::value;
   const int maxPadeDegree = matrix_log_max_pade_degree<float>::value;
@@ -77,7 +77,7 @@ inline int matrix_log_get_pade_degree(float normTminusI) {
 }
 
 /* \brief Get suitable degree for Pade approximation. (specialized for RealScalar = double) */
-inline int matrix_log_get_pade_degree(double normTminusI) {
+inline constexpr int matrix_log_get_pade_degree(double normTminusI) {
   const double maxNormForPade[] = {1.6206284795015624e-2 /* degree = 3 */, 5.3873532631381171e-2, 1.1352802267628681e-1,
                                    1.8662860613541288e-1, 2.642960831111435e-1};
   const int minPadeDegree = matrix_log_min_pade_degree<double>::value;
@@ -89,7 +89,7 @@ inline int matrix_log_get_pade_degree(double normTminusI) {
 }
 
 /* \brief Get suitable degree for Pade approximation. (specialized for RealScalar = long double) */
-inline int matrix_log_get_pade_degree(long double normTminusI) {
+inline constexpr int matrix_log_get_pade_degree(long double normTminusI) {
 #if LDBL_MANT_DIG == 53  // double precision
   const long double maxNormForPade[] = {1.6206284795015624e-2L /* degree = 3 */, 5.3873532631381171e-2L,
                                         1.1352802267628681e-1L, 1.8662860613541288e-1L, 2.642960831111435e-1L};
@@ -130,7 +130,7 @@ inline int matrix_log_get_pade_degree(long double normTminusI) {
 
 /* \brief Compute Pade approximation to matrix logarithm */
 template <typename MatrixType>
-void matrix_log_compute_pade(MatrixType& result, const MatrixType& T, int degree) {
+constexpr void matrix_log_compute_pade(MatrixType& result, const MatrixType& T, int degree) {
   typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
   const int minPadeDegree = 3;
   const int maxPadeDegree = 11;
@@ -223,7 +223,7 @@ void matrix_log_compute_pade(MatrixType& result, const MatrixType& T, int degree
 /** \brief Compute logarithm of triangular matrices with size > 2.
  * \details This uses a inverse scale-and-square algorithm. */
 template <typename MatrixType>
-void matrix_log_compute_big(const MatrixType& A, MatrixType& result) {
+constexpr void matrix_log_compute_big(const MatrixType& A, MatrixType& result) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
   using std::pow;
@@ -275,11 +275,11 @@ class MatrixLogarithmAtomic {
    * \param[in]  A  argument of matrix logarithm, should be upper triangular and atomic
    * \returns  The logarithm of \p A.
    */
-  MatrixType compute(const MatrixType& A);
+  constexpr MatrixType compute(const MatrixType& A);
 };
 
 template <typename MatrixType>
-MatrixType MatrixLogarithmAtomic<MatrixType>::compute(const MatrixType& A) {
+constexpr MatrixType MatrixLogarithmAtomic<MatrixType>::compute(const MatrixType& A) {
   using std::log;
   MatrixType result(A.rows(), A.rows());
   if (A.rows() == 1)
@@ -319,14 +319,14 @@ class MatrixLogarithmReturnValue : public ReturnByValue<MatrixLogarithmReturnVal
    *
    * \param[in]  A  %Matrix (expression) forming the argument of the matrix logarithm.
    */
-  explicit MatrixLogarithmReturnValue(const Derived& A) : m_A(A) {}
+  constexpr explicit MatrixLogarithmReturnValue(const Derived& A) : m_A(A) {}
 
   /** \brief Compute the matrix logarithm.
    *
    * \param[out]  result  Logarithm of \c A, where \c A is as specified in the constructor.
    */
   template <typename ResultType>
-  inline void evalTo(ResultType& result) const {
+  inline constexpr void evalTo(ResultType& result) const {
     typedef typename internal::nested_eval<Derived, 10>::type DerivedEvalType;
     typedef internal::remove_all_t<DerivedEvalType> DerivedEvalTypeClean;
     typedef internal::traits<DerivedEvalTypeClean> Traits;
@@ -339,8 +339,8 @@ class MatrixLogarithmReturnValue : public ReturnByValue<MatrixLogarithmReturnVal
     internal::matrix_function_compute<typename DerivedEvalTypeClean::PlainObject>::run(m_A, atomic, result);
   }
 
-  Index rows() const { return m_A.rows(); }
-  Index cols() const { return m_A.cols(); }
+  constexpr Index rows() const { return m_A.rows(); }
+  constexpr Index cols() const { return m_A.cols(); }
 
  private:
   const DerivedNested m_A;
@@ -356,7 +356,7 @@ struct traits<MatrixLogarithmReturnValue<Derived> > {
 /********** MatrixBase method **********/
 
 template <typename Derived>
-const MatrixLogarithmReturnValue<Derived> MatrixBase<Derived>::log() const {
+constexpr const MatrixLogarithmReturnValue<Derived> MatrixBase<Derived>::log() const {
   eigen_assert(rows() == cols());
   return MatrixLogarithmReturnValue<Derived>(derived());
 }

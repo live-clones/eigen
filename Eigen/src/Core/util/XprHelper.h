@@ -20,7 +20,7 @@ namespace internal {
 
 // useful for unsigned / signed integer comparisons when idx is intended to be non-negative
 template <typename IndexType>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename make_unsigned<IndexType>::type returnUnsignedIndexValue(
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr typename make_unsigned<IndexType>::type returnUnsignedIndexValue(
     const IndexType& idx) {
   EIGEN_STATIC_ASSERT((NumTraits<IndexType>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
   eigen_internal_assert(idx >= 0 && "Index value is negative and target type is unsigned");
@@ -33,7 +33,7 @@ template <typename IndexDest, typename IndexSrc, bool IndexDestIsInteger = NumTr
           bool IndexSrcIsInteger = NumTraits<IndexSrc>::IsInteger,
           bool IndexSrcIsSigned = NumTraits<IndexSrc>::IsSigned>
 struct convert_index_impl {
-  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
+  static inline EIGEN_DEVICE_FUNC constexpr IndexDest run(const IndexSrc& idx) {
     eigen_internal_assert(idx <= NumTraits<IndexDest>::highest() && "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
   }
@@ -42,7 +42,7 @@ template <typename IndexDest, typename IndexSrc>
 struct convert_index_impl<IndexDest, IndexSrc, true, true, true, false> {
   // IndexDest is a signed integer
   // IndexSrc is an unsigned integer
-  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
+  static inline EIGEN_DEVICE_FUNC constexpr IndexDest run(const IndexSrc& idx) {
     eigen_internal_assert(idx <= returnUnsignedIndexValue(NumTraits<IndexDest>::highest()) &&
                           "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
@@ -52,7 +52,7 @@ template <typename IndexDest, typename IndexSrc>
 struct convert_index_impl<IndexDest, IndexSrc, true, false, true, true> {
   // IndexDest is an unsigned integer
   // IndexSrc is a signed integer
-  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
+  static inline EIGEN_DEVICE_FUNC constexpr IndexDest run(const IndexSrc& idx) {
     eigen_internal_assert(returnUnsignedIndexValue(idx) <= NumTraits<IndexDest>::highest() &&
                           "Index value is too big for target type");
     return static_cast<IndexDest>(idx);
@@ -60,7 +60,7 @@ struct convert_index_impl<IndexDest, IndexSrc, true, false, true, true> {
 };
 
 template <typename IndexDest, typename IndexSrc>
-EIGEN_DEVICE_FUNC inline IndexDest convert_index(const IndexSrc& idx) {
+EIGEN_DEVICE_FUNC inline constexpr IndexDest convert_index(const IndexSrc& idx) {
   return convert_index_impl<IndexDest, IndexSrc>::run(idx);
 }
 
@@ -136,8 +136,8 @@ class no_assignment_operator {
   no_assignment_operator& operator=(const no_assignment_operator&);
 
  protected:
-  EIGEN_DEFAULT_COPY_CONSTRUCTOR(no_assignment_operator)
-  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(no_assignment_operator)
+  EIGEN_DEVICE_FUNC constexpr no_assignment_operator(const no_assignment_operator&) = default;
+  EIGEN_DEVICE_FUNC constexpr no_assignment_operator() = default;
 };
 
 /** \internal return the index type with the largest number of bits */
@@ -153,14 +153,14 @@ struct promote_index_type {
 template <typename T, int Value>
 class variable_if_dynamic {
  public:
-  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(variable_if_dynamic)
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit variable_if_dynamic(T v) {
+  EIGEN_DEVICE_FUNC constexpr variable_if_dynamic() = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit constexpr variable_if_dynamic(T v) {
     EIGEN_ONLY_USED_FOR_DEBUG(v);
     eigen_assert(v == T(Value));
   }
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T value() { return T(Value); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr operator T() const { return T(Value); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setValue(T v) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void setValue(T v) const {
     EIGEN_ONLY_USED_FOR_DEBUG(v);
     eigen_assert(v == T(Value));
   }
@@ -171,10 +171,10 @@ class variable_if_dynamic<T, Dynamic> {
   T m_value;
 
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit variable_if_dynamic(T value = 0) noexcept : m_value(value) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T value() const { return m_value; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator T() const { return m_value; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setValue(T value) { m_value = value; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit variable_if_dynamic(T value = 0) noexcept : m_value(value) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr T value() const { return m_value; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr operator T() const { return m_value; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void setValue(T value) { m_value = value; }
 };
 
 /** \internal like variable_if_dynamic but for DynamicIndex
@@ -182,23 +182,23 @@ class variable_if_dynamic<T, Dynamic> {
 template <typename T, int Value>
 class variable_if_dynamicindex {
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit variable_if_dynamicindex(T v) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit variable_if_dynamicindex(T v) {
     EIGEN_ONLY_USED_FOR_DEBUG(v);
     eigen_assert(v == T(Value));
   }
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T value() { return T(Value); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setValue(T) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void setValue(T) {}
 };
 
 template <typename T>
 class variable_if_dynamicindex<T, DynamicIndex> {
   T m_value;
-  EIGEN_DEVICE_FUNC variable_if_dynamicindex() { eigen_assert(false); }
+  EIGEN_DEVICE_FUNC constexpr variable_if_dynamicindex() { eigen_assert(false); }
 
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit variable_if_dynamicindex(T value) : m_value(value) {}
-  EIGEN_DEVICE_FUNC T EIGEN_STRONG_INLINE value() const { return m_value; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setValue(T value) { m_value = value; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit variable_if_dynamicindex(T value) : m_value(value) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr T value() const { return m_value; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void setValue(T value) { m_value = value; }
 };
 
 template <typename T>
@@ -550,7 +550,7 @@ struct nested_eval {
 };
 
 template <typename T>
-EIGEN_DEVICE_FUNC inline T* const_cast_ptr(const T* ptr) {
+EIGEN_DEVICE_FUNC inline constexpr T* const_cast_ptr(const T* ptr) {
   return const_cast<T*>(ptr);
 }
 
@@ -866,14 +866,15 @@ struct possibly_same_dense {
 };
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC bool is_same_dense(const T1& mat1, const T2& mat2,
-                                     std::enable_if_t<possibly_same_dense<T1, T2>::value>* = 0) {
+EIGEN_DEVICE_FUNC constexpr bool is_same_dense(const T1& mat1, const T2& mat2,
+                                               std::enable_if_t<possibly_same_dense<T1, T2>::value>* = 0) {
   return (mat1.data() == mat2.data()) && (mat1.innerStride() == mat2.innerStride()) &&
          (mat1.outerStride() == mat2.outerStride());
 }
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC bool is_same_dense(const T1&, const T2&, std::enable_if_t<!possibly_same_dense<T1, T2>::value>* = 0) {
+EIGEN_DEVICE_FUNC constexpr bool is_same_dense(const T1&, const T2&,
+                                               std::enable_if_t<!possibly_same_dense<T1, T2>::value>* = 0) {
   return false;
 }
 
@@ -903,7 +904,7 @@ struct scalar_div_cost<unsigned long, Vectorized, std::conditional_t<sizeof(long
 };
 
 #ifdef EIGEN_DEBUG_ASSIGN
-std::string demangle_traversal(int t) {
+constexpr std::string demangle_traversal(int t) {
   if (t == DefaultTraversal) return "DefaultTraversal";
   if (t == LinearTraversal) return "LinearTraversal";
   if (t == InnerVectorizedTraversal) return "InnerVectorizedTraversal";
@@ -911,13 +912,13 @@ std::string demangle_traversal(int t) {
   if (t == SliceVectorizedTraversal) return "SliceVectorizedTraversal";
   return "?";
 }
-std::string demangle_unrolling(int t) {
+constexpr std::string demangle_unrolling(int t) {
   if (t == NoUnrolling) return "NoUnrolling";
   if (t == InnerUnrolling) return "InnerUnrolling";
   if (t == CompleteUnrolling) return "CompleteUnrolling";
   return "?";
 }
-std::string demangle_flags(int f) {
+constexpr std::string demangle_flags(int f) {
   std::string res;
   if (f & RowMajorBit) res += " | RowMajor";
   if (f & PacketAccessBit) res += " | Packet";
@@ -951,12 +952,12 @@ struct block_xpr_helper {
 
   // Only enable non-const base function if XprType is not const (otherwise we get a duplicate definition).
   template <typename T = XprType, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE BaseType& base(XprType& xpr) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr BaseType& base(XprType& xpr) {
     return xpr;
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const BaseType& base(const XprType& xpr) { return xpr; }
-  static constexpr EIGEN_ALWAYS_INLINE Index row(const XprType& /*xpr*/, Index r) { return r; }
-  static constexpr EIGEN_ALWAYS_INLINE Index col(const XprType& /*xpr*/, Index c) { return c; }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const BaseType& base(const XprType& xpr) { return xpr; }
+  static EIGEN_ALWAYS_INLINE constexpr Index row(const XprType& /*xpr*/, Index r) { return r; }
+  static EIGEN_ALWAYS_INLINE constexpr Index col(const XprType& /*xpr*/, Index c) { return c; }
 };
 
 template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
@@ -972,16 +973,16 @@ struct block_xpr_helper<Block<XprType, BlockRows, BlockCols, InnerPanel>> {
 
   // Only enable non-const base function if XprType is not const (otherwise we get a duplicates definition).
   template <typename T = XprType, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE BaseType& base(BlockXprType& xpr) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr BaseType& base(BlockXprType& xpr) {
     return NestedXprHelper::base(xpr.nestedExpression());
   }
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const BaseType& base(const BlockXprType& xpr) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const BaseType& base(const BlockXprType& xpr) {
     return NestedXprHelper::base(xpr.nestedExpression());
   }
-  static constexpr EIGEN_ALWAYS_INLINE Index row(const BlockXprType& xpr, Index r) {
+  static EIGEN_ALWAYS_INLINE constexpr Index row(const BlockXprType& xpr, Index r) {
     return xpr.startRow() + NestedXprHelper::row(xpr.nestedExpression(), r);
   }
-  static constexpr EIGEN_ALWAYS_INLINE Index col(const BlockXprType& xpr, Index c) {
+  static EIGEN_ALWAYS_INLINE constexpr Index col(const BlockXprType& xpr, Index c) {
     return xpr.startCol() + NestedXprHelper::col(xpr.nestedExpression(), c);
   }
 };
