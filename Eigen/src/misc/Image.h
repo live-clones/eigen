@@ -41,17 +41,17 @@ struct image_retval_base : public ReturnByValue<image_retval_base<DecompositionT
   typedef typename DecompositionType::MatrixType MatrixType;
   typedef ReturnByValue<image_retval_base> Base;
 
-  image_retval_base(const DecompositionType& dec, const MatrixType& originalMatrix)
+  constexpr image_retval_base(const DecompositionType& dec, const MatrixType& originalMatrix)
       : m_dec(dec), m_rank(dec.rank()), m_cols(m_rank == 0 ? 1 : m_rank), m_originalMatrix(originalMatrix) {}
 
-  inline Index rows() const { return m_dec.rows(); }
-  inline Index cols() const { return m_cols; }
-  inline Index rank() const { return m_rank; }
-  inline const DecompositionType& dec() const { return m_dec; }
-  inline const MatrixType& originalMatrix() const { return m_originalMatrix; }
+  inline constexpr Index rows() const { return m_dec.rows(); }
+  inline constexpr Index cols() const { return m_cols; }
+  inline constexpr Index rank() const { return m_rank; }
+  inline constexpr const DecompositionType& dec() const { return m_dec; }
+  inline constexpr const MatrixType& originalMatrix() const { return m_originalMatrix; }
 
   template <typename Dest>
-  inline void evalTo(Dest& dst) const {
+  inline constexpr void evalTo(Dest& dst) const {
     static_cast<const image_retval<DecompositionType>*>(this)->evalTo(dst);
   }
 
@@ -73,7 +73,7 @@ struct image_retval_base : public ReturnByValue<image_retval_base<DecompositionT
   using Base::rank;                                                   \
   using Base::rows;                                                   \
   using Base::cols;                                                   \
-  image_retval(const DecompositionType& dec, const MatrixType& originalMatrix) : Base(dec, originalMatrix) {}
+  constexpr image_retval(const DecompositionType& dec, const MatrixType& originalMatrix) : Base(dec, originalMatrix) {}
 
 }  // end namespace Eigen
 

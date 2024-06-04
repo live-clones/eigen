@@ -42,21 +42,21 @@ class PolynomialSolverBase {
 
  protected:
   template <typename OtherPolynomial>
-  inline void setPolynomial(const OtherPolynomial& poly) {
+  inline constexpr void setPolynomial(const OtherPolynomial& poly) {
     m_roots.resize(poly.size() - 1);
   }
 
  public:
   template <typename OtherPolynomial>
-  inline PolynomialSolverBase(const OtherPolynomial& poly) {
+  inline constexpr PolynomialSolverBase(const OtherPolynomial& poly) {
     setPolynomial(poly());
   }
 
-  inline PolynomialSolverBase() {}
+  inline constexpr PolynomialSolverBase() = default;
 
  public:
   /** \returns the complex roots of the polynomial */
-  inline const RootsType& roots() const { return m_roots; }
+  inline constexpr const RootsType& roots() const { return m_roots; }
 
  public:
   /** Clear and fills the back insertion sequence with the real roots of the polynomial
@@ -70,8 +70,8 @@ class PolynomialSolverBase {
    *  number that is considered as real.
    * */
   template <typename Stl_back_insertion_sequence>
-  inline void realRoots(Stl_back_insertion_sequence& bi_seq,
-                        const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
+  inline constexpr void realRoots(Stl_back_insertion_sequence& bi_seq, const RealScalar& absImaginaryThreshold =
+                                                                           NumTraits<Scalar>::dummy_precision()) const {
     using std::abs;
     bi_seq.clear();
     for (Index i = 0; i < m_roots.size(); ++i) {
@@ -83,7 +83,7 @@ class PolynomialSolverBase {
 
  protected:
   template <typename squaredNormBinaryPredicate>
-  inline const RootType& selectComplexRoot_withRespectToNorm(squaredNormBinaryPredicate& pred) const {
+  inline constexpr const RootType& selectComplexRoot_withRespectToNorm(squaredNormBinaryPredicate& pred) const {
     Index res = 0;
     RealScalar norm2 = numext::abs2(m_roots[0]);
     for (Index i = 1; i < m_roots.size(); ++i) {
@@ -100,7 +100,7 @@ class PolynomialSolverBase {
   /**
    * \returns the complex root with greatest norm.
    */
-  inline const RootType& greatestRoot() const {
+  inline constexpr const RootType& greatestRoot() const {
     std::greater<RealScalar> greater;
     return selectComplexRoot_withRespectToNorm(greater);
   }
@@ -108,14 +108,14 @@ class PolynomialSolverBase {
   /**
    * \returns the complex root with smallest norm.
    */
-  inline const RootType& smallestRoot() const {
+  inline constexpr const RootType& smallestRoot() const {
     std::less<RealScalar> less;
     return selectComplexRoot_withRespectToNorm(less);
   }
 
  protected:
   template <typename squaredRealPartBinaryPredicate>
-  inline const RealScalar& selectRealRoot_withRespectToAbsRealPart(
+  inline constexpr const RealScalar& selectRealRoot_withRespectToAbsRealPart(
       squaredRealPartBinaryPredicate& pred, bool& hasArealRoot,
       const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     using std::abs;
@@ -146,7 +146,7 @@ class PolynomialSolverBase {
   }
 
   template <typename RealPartBinaryPredicate>
-  inline const RealScalar& selectRealRoot_withRespectToRealPart(
+  inline constexpr const RealScalar& selectRealRoot_withRespectToRealPart(
       RealPartBinaryPredicate& pred, bool& hasArealRoot,
       const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     using std::abs;
@@ -191,7 +191,7 @@ class PolynomialSolverBase {
    * \param[in] absImaginaryThreshold : threshold on the absolute imaginary part to decide
    *  whether or not a root is real.
    */
-  inline const RealScalar& absGreatestRealRoot(
+  inline constexpr const RealScalar& absGreatestRealRoot(
       bool& hasArealRoot, const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     std::greater<RealScalar> greater;
     return selectRealRoot_withRespectToAbsRealPart(greater, hasArealRoot, absImaginaryThreshold);
@@ -211,7 +211,7 @@ class PolynomialSolverBase {
    * \param[in] absImaginaryThreshold : threshold on the absolute imaginary part to decide
    *  whether or not a root is real.
    */
-  inline const RealScalar& absSmallestRealRoot(
+  inline constexpr const RealScalar& absSmallestRealRoot(
       bool& hasArealRoot, const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     std::less<RealScalar> less;
     return selectRealRoot_withRespectToAbsRealPart(less, hasArealRoot, absImaginaryThreshold);
@@ -231,7 +231,7 @@ class PolynomialSolverBase {
    * \param[in] absImaginaryThreshold : threshold on the absolute imaginary part to decide
    *  whether or not a root is real.
    */
-  inline const RealScalar& greatestRealRoot(
+  inline constexpr const RealScalar& greatestRealRoot(
       bool& hasArealRoot, const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     std::greater<RealScalar> greater;
     return selectRealRoot_withRespectToRealPart(greater, hasArealRoot, absImaginaryThreshold);
@@ -251,7 +251,7 @@ class PolynomialSolverBase {
    * \param[in] absImaginaryThreshold : threshold on the absolute imaginary part to decide
    *  whether or not a root is real.
    */
-  inline const RealScalar& smallestRealRoot(
+  inline constexpr const RealScalar& smallestRealRoot(
       bool& hasArealRoot, const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     std::less<RealScalar> less;
     return selectRealRoot_withRespectToRealPart(less, hasArealRoot, absImaginaryThreshold);
@@ -313,7 +313,7 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
  public:
   /** Computes the complex roots of a new polynomial. */
   template <typename OtherPolynomial>
-  void compute(const OtherPolynomial& poly) {
+  constexpr void compute(const OtherPolynomial& poly) {
     eigen_assert(Scalar(0) != poly[poly.size() - 1]);
     eigen_assert(poly.size() > 1);
     if (poly.size() > 2) {
@@ -344,11 +344,11 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
 
  public:
   template <typename OtherPolynomial>
-  inline PolynomialSolver(const OtherPolynomial& poly) {
+  inline constexpr PolynomialSolver(const OtherPolynomial& poly) {
     compute(poly);
   }
 
-  inline PolynomialSolver() {}
+  inline constexpr PolynomialSolver() = default;
 
  protected:
   using PS_Base::m_roots;
@@ -364,7 +364,7 @@ class PolynomialSolver<Scalar_, 1> : public PolynomialSolverBase<Scalar_, 1> {
  public:
   /** Computes the complex roots of a new polynomial. */
   template <typename OtherPolynomial>
-  void compute(const OtherPolynomial& poly) {
+  constexpr void compute(const OtherPolynomial& poly) {
     eigen_assert(poly.size() == 2);
     eigen_assert(Scalar(0) != poly[1]);
     m_roots[0] = -poly[0] / poly[1];
@@ -372,11 +372,11 @@ class PolynomialSolver<Scalar_, 1> : public PolynomialSolverBase<Scalar_, 1> {
 
  public:
   template <typename OtherPolynomial>
-  inline PolynomialSolver(const OtherPolynomial& poly) {
+  inline constexpr PolynomialSolver(const OtherPolynomial& poly) {
     compute(poly);
   }
 
-  inline PolynomialSolver() {}
+  inline constexpr PolynomialSolver() = default;
 
  protected:
   using PS_Base::m_roots;

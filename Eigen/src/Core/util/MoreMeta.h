@@ -590,21 +590,21 @@ struct h_instantiate_by_c_array;
 
 template <class InstType, typename ArrType, std::size_t N, typename... Ps>
 struct h_instantiate_by_c_array<InstType, ArrType, N, false, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
+  static constexpr InstType run(ArrType* arr, Ps... args) {
     return h_instantiate_by_c_array<InstType, ArrType, N - 1, false, Ps..., ArrType>::run(arr + 1, args..., arr[0]);
   }
 };
 
 template <class InstType, typename ArrType, std::size_t N, typename... Ps>
 struct h_instantiate_by_c_array<InstType, ArrType, N, true, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
+  static constexpr InstType run(ArrType* arr, Ps... args) {
     return h_instantiate_by_c_array<InstType, ArrType, N - 1, false, ArrType, Ps...>::run(arr + 1, arr[0], args...);
   }
 };
 
 template <class InstType, typename ArrType, typename... Ps>
 struct h_instantiate_by_c_array<InstType, ArrType, 0, false, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
+  static constexpr InstType run(ArrType* arr, Ps... args) {
     (void)arr;
     return InstType(args...);
   }
@@ -612,14 +612,14 @@ struct h_instantiate_by_c_array<InstType, ArrType, 0, false, Ps...> {
 
 template <class InstType, typename ArrType, typename... Ps>
 struct h_instantiate_by_c_array<InstType, ArrType, 0, true, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
+  static constexpr InstType run(ArrType* arr, Ps... args) {
     (void)arr;
     return InstType(args...);
   }
 };
 
 template <class InstType, typename ArrType, std::size_t N, bool Reverse = false>
-InstType instantiate_by_c_array(ArrType* arr) {
+constexpr InstType instantiate_by_c_array(ArrType* arr) {
   return h_instantiate_by_c_array<InstType, ArrType, N, Reverse>::run(arr);
 }
 

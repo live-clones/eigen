@@ -31,32 +31,32 @@ class TensorOpCost {
   // model based on minimal reciprocal throughput numbers from Intel or
   // Agner Fog's tables would be better than what is there now.
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int MulCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int MulCost() {
     return internal::functor_traits<internal::scalar_product_op<ArgType, ArgType> >::Cost;
   }
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int AddCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int AddCost() {
     return internal::functor_traits<internal::scalar_sum_op<ArgType> >::Cost;
   }
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int DivCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int DivCost() {
     return internal::functor_traits<internal::scalar_quotient_op<ArgType, ArgType> >::Cost;
   }
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int ModCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int ModCost() {
     return internal::functor_traits<internal::scalar_mod_op<ArgType> >::Cost;
   }
   template <typename SrcType, typename TargetType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int CastCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int CastCost() {
     return internal::functor_traits<internal::scalar_cast_op<SrcType, TargetType> >::Cost;
   }
 
-  EIGEN_DEVICE_FUNC TensorOpCost() : bytes_loaded_(0), bytes_stored_(0), compute_cycles_(0) {}
-  EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles)
+  EIGEN_DEVICE_FUNC constexpr TensorOpCost() : bytes_loaded_(0), bytes_stored_(0), compute_cycles_(0) {}
+  EIGEN_DEVICE_FUNC constexpr TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles)
       : bytes_loaded_(bytes_loaded), bytes_stored_(bytes_stored), compute_cycles_(compute_cycles) {}
 
-  EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles, bool vectorized,
-                                 double packet_size)
+  EIGEN_DEVICE_FUNC constexpr TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles,
+                                           bool vectorized, double packet_size)
       : bytes_loaded_(bytes_loaded),
         bytes_stored_(bytes_stored),
         compute_cycles_(vectorized ? compute_cycles / packet_size : compute_cycles) {
@@ -65,23 +65,23 @@ class TensorOpCost {
     eigen_assert(compute_cycles >= 0 && (numext::isfinite)(compute_cycles));
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double bytes_loaded() const { return bytes_loaded_; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double bytes_stored() const { return bytes_stored_; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double compute_cycles() const { return compute_cycles_; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double total_cost(double load_cost, double store_cost,
-                                                          double compute_cost) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double bytes_loaded() const { return bytes_loaded_; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double bytes_stored() const { return bytes_stored_; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double compute_cycles() const { return compute_cycles_; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double total_cost(double load_cost, double store_cost,
+                                                                    double compute_cost) const {
     return load_cost * bytes_loaded_ + store_cost * bytes_stored_ + compute_cost * compute_cycles_;
   }
 
   // Drop memory access component. Intended for cases when memory accesses are
   // sequential or are completely masked by computations.
-  EIGEN_DEVICE_FUNC void dropMemoryCost() {
+  EIGEN_DEVICE_FUNC constexpr void dropMemoryCost() {
     bytes_loaded_ = 0;
     bytes_stored_ = 0;
   }
 
   // TODO(rmlarsen): Define min in terms of total cost, not elementwise.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost cwiseMin(const TensorOpCost& rhs) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost cwiseMin(const TensorOpCost& rhs) const {
     double bytes_loaded = numext::mini(bytes_loaded_, rhs.bytes_loaded());
     double bytes_stored = numext::mini(bytes_stored_, rhs.bytes_stored());
     double compute_cycles = numext::mini(compute_cycles_, rhs.compute_cycles());
@@ -89,36 +89,37 @@ class TensorOpCost {
   }
 
   // TODO(rmlarsen): Define max in terms of total cost, not elementwise.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost cwiseMax(const TensorOpCost& rhs) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost cwiseMax(const TensorOpCost& rhs) const {
     double bytes_loaded = numext::maxi(bytes_loaded_, rhs.bytes_loaded());
     double bytes_stored = numext::maxi(bytes_stored_, rhs.bytes_stored());
     double compute_cycles = numext::maxi(compute_cycles_, rhs.compute_cycles());
     return TensorOpCost(bytes_loaded, bytes_stored, compute_cycles);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost& operator+=(const TensorOpCost& rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost& operator+=(const TensorOpCost& rhs) {
     bytes_loaded_ += rhs.bytes_loaded();
     bytes_stored_ += rhs.bytes_stored();
     compute_cycles_ += rhs.compute_cycles();
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost& operator*=(double rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost& operator*=(double rhs) {
     bytes_loaded_ *= rhs;
     bytes_stored_ *= rhs;
     compute_cycles_ *= rhs;
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend TensorOpCost operator+(TensorOpCost lhs, const TensorOpCost& rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend constexpr TensorOpCost operator+(TensorOpCost lhs,
+                                                                                const TensorOpCost& rhs) {
     lhs += rhs;
     return lhs;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend TensorOpCost operator*(TensorOpCost lhs, double rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend constexpr TensorOpCost operator*(TensorOpCost lhs, double rhs) {
     lhs *= rhs;
     return lhs;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend TensorOpCost operator*(double lhs, TensorOpCost rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend constexpr TensorOpCost operator*(double lhs, TensorOpCost rhs) {
     rhs *= lhs;
     return rhs;
   }
@@ -151,8 +152,9 @@ class TensorCostModel {
   // Returns the number of threads in [1:max_threads] to use for
   // evaluating an expression with the given output size and cost per
   // coefficient.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads(double output_size, const TensorOpCost& cost_per_coeff,
-                                                              int max_threads) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int numThreads(double output_size,
+                                                                        const TensorOpCost& cost_per_coeff,
+                                                                        int max_threads) {
     double cost = totalCost(output_size, cost_per_coeff);
     double threads = (cost - kStartupCycles) / kPerThreadCycles + 0.9;
     // Make sure we don't invoke undefined behavior when we convert to an int.
@@ -167,8 +169,8 @@ class TensorCostModel {
     return totalCost(output_size, cost_per_coeff) / kTaskSize;
   }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double totalCost(double output_size,
-                                                                const TensorOpCost& cost_per_coeff) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double totalCost(double output_size,
+                                                                          const TensorOpCost& cost_per_coeff) {
     // Cost of memory fetches from L2 cache. 64 is typical cache line size.
     // 11 is L2 cache latency on Haswell.
     // We don't know whether data is in L1, L2 or L3. But we are most interested

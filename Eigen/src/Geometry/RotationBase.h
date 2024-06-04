@@ -40,27 +40,30 @@ class RotationBase {
   typedef Matrix<Scalar, Dim, 1> VectorType;
 
  public:
-  EIGEN_DEVICE_FUNC inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
-  EIGEN_DEVICE_FUNC inline Derived& derived() { return *static_cast<Derived*>(this); }
+  EIGEN_DEVICE_FUNC inline constexpr const Derived& derived() const { return *static_cast<const Derived*>(this); }
+  EIGEN_DEVICE_FUNC inline constexpr Derived& derived() { return *static_cast<Derived*>(this); }
 
   /** \returns an equivalent rotation matrix */
-  EIGEN_DEVICE_FUNC inline RotationMatrixType toRotationMatrix() const { return derived().toRotationMatrix(); }
+  EIGEN_DEVICE_FUNC inline constexpr RotationMatrixType toRotationMatrix() const {
+    return derived().toRotationMatrix();
+  }
 
   /** \returns an equivalent rotation matrix
    * This function is added to be conform with the Transform class' naming scheme.
    */
-  EIGEN_DEVICE_FUNC inline RotationMatrixType matrix() const { return derived().toRotationMatrix(); }
+  EIGEN_DEVICE_FUNC inline constexpr RotationMatrixType matrix() const { return derived().toRotationMatrix(); }
 
   /** \returns the inverse rotation */
-  EIGEN_DEVICE_FUNC inline Derived inverse() const { return derived().inverse(); }
+  EIGEN_DEVICE_FUNC inline constexpr Derived inverse() const { return derived().inverse(); }
 
   /** \returns the concatenation of the rotation \c *this with a translation \a t */
-  EIGEN_DEVICE_FUNC inline Transform<Scalar, Dim, Isometry> operator*(const Translation<Scalar, Dim>& t) const {
+  EIGEN_DEVICE_FUNC inline constexpr Transform<Scalar, Dim, Isometry> operator*(
+      const Translation<Scalar, Dim>& t) const {
     return Transform<Scalar, Dim, Isometry>(*this) * t;
   }
 
   /** \returns the concatenation of the rotation \c *this with a uniform scaling \a s */
-  EIGEN_DEVICE_FUNC inline RotationMatrixType operator*(const UniformScaling<Scalar>& s) const {
+  EIGEN_DEVICE_FUNC inline constexpr RotationMatrixType operator*(const UniformScaling<Scalar>& s) const {
     return toRotationMatrix() * s.factor();
   }
 
@@ -71,7 +74,7 @@ class RotationBase {
    *  - a vector of size Dim
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr
       typename internal::rotation_base_generic_product_selector<Derived, OtherDerived,
                                                                 OtherDerived::IsVectorAtCompileTime>::ReturnType
       operator*(const EigenBase<OtherDerived>& e) const {
@@ -80,13 +83,14 @@ class RotationBase {
 
   /** \returns the concatenation of a linear transformation \a l with the rotation \a r */
   template <typename OtherDerived>
-  friend EIGEN_DEVICE_FUNC inline RotationMatrixType operator*(const EigenBase<OtherDerived>& l, const Derived& r) {
+  friend EIGEN_DEVICE_FUNC inline constexpr RotationMatrixType operator*(const EigenBase<OtherDerived>& l,
+                                                                         const Derived& r) {
     return l.derived() * r.toRotationMatrix();
   }
 
   /** \returns the concatenation of a scaling \a l with the rotation \a r */
-  EIGEN_DEVICE_FUNC friend inline Transform<Scalar, Dim, Affine> operator*(const DiagonalMatrix<Scalar, Dim>& l,
-                                                                           const Derived& r) {
+  EIGEN_DEVICE_FUNC friend inline constexpr Transform<Scalar, Dim, Affine> operator*(
+      const DiagonalMatrix<Scalar, Dim>& l, const Derived& r) {
     Transform<Scalar, Dim, Affine> res(r);
     res.linear().applyOnTheLeft(l);
     return res;
@@ -94,13 +98,13 @@ class RotationBase {
 
   /** \returns the concatenation of the rotation \c *this with a transformation \a t */
   template <int Mode, int Options>
-  EIGEN_DEVICE_FUNC inline Transform<Scalar, Dim, Mode> operator*(
+  EIGEN_DEVICE_FUNC inline constexpr Transform<Scalar, Dim, Mode> operator*(
       const Transform<Scalar, Dim, Mode, Options>& t) const {
     return toRotationMatrix() * t;
   }
 
   template <typename OtherVectorType>
-  EIGEN_DEVICE_FUNC inline VectorType _transformVector(const OtherVectorType& v) const {
+  EIGEN_DEVICE_FUNC inline constexpr VectorType _transformVector(const OtherVectorType& v) const {
     return toRotationMatrix() * v;
   }
 };
@@ -112,7 +116,7 @@ template <typename RotationDerived, typename MatrixType>
 struct rotation_base_generic_product_selector<RotationDerived, MatrixType, false> {
   enum { Dim = RotationDerived::Dim };
   typedef Matrix<typename RotationDerived::Scalar, Dim, Dim> ReturnType;
-  EIGEN_DEVICE_FUNC static inline ReturnType run(const RotationDerived& r, const MatrixType& m) {
+  EIGEN_DEVICE_FUNC static inline constexpr ReturnType run(const RotationDerived& r, const MatrixType& m) {
     return r.toRotationMatrix() * m;
   }
 };
@@ -120,8 +124,8 @@ struct rotation_base_generic_product_selector<RotationDerived, MatrixType, false
 template <typename RotationDerived, typename Scalar, int Dim, int MaxDim>
 struct rotation_base_generic_product_selector<RotationDerived, DiagonalMatrix<Scalar, Dim, MaxDim>, false> {
   typedef Transform<Scalar, Dim, Affine> ReturnType;
-  EIGEN_DEVICE_FUNC static inline ReturnType run(const RotationDerived& r,
-                                                 const DiagonalMatrix<Scalar, Dim, MaxDim>& m) {
+  EIGEN_DEVICE_FUNC static inline constexpr ReturnType run(const RotationDerived& r,
+                                                           const DiagonalMatrix<Scalar, Dim, MaxDim>& m) {
     ReturnType res(r);
     res.linear() *= m;
     return res;
@@ -132,7 +136,8 @@ template <typename RotationDerived, typename OtherVectorType>
 struct rotation_base_generic_product_selector<RotationDerived, OtherVectorType, true> {
   enum { Dim = RotationDerived::Dim };
   typedef Matrix<typename RotationDerived::Scalar, Dim, 1> ReturnType;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE ReturnType run(const RotationDerived& r, const OtherVectorType& v) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr ReturnType run(const RotationDerived& r,
+                                                                        const OtherVectorType& v) {
     return r._transformVector(v);
   }
 };
@@ -145,7 +150,7 @@ struct rotation_base_generic_product_selector<RotationDerived, OtherVectorType, 
  */
 template <typename Scalar_, int Rows_, int Cols_, int Storage_, int MaxRows_, int MaxCols_>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC Matrix<Scalar_, Rows_, Cols_, Storage_, MaxRows_, MaxCols_>::Matrix(
+EIGEN_DEVICE_FUNC constexpr Matrix<Scalar_, Rows_, Cols_, Storage_, MaxRows_, MaxCols_>::Matrix(
     const RotationBase<OtherDerived, ColsAtCompileTime>& r) {
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Matrix, int(OtherDerived::Dim), int(OtherDerived::Dim))
   *this = r.toRotationMatrix();
@@ -157,7 +162,7 @@ EIGEN_DEVICE_FUNC Matrix<Scalar_, Rows_, Cols_, Storage_, MaxRows_, MaxCols_>::M
  */
 template <typename Scalar_, int Rows_, int Cols_, int Storage_, int MaxRows_, int MaxCols_>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC Matrix<Scalar_, Rows_, Cols_, Storage_, MaxRows_, MaxCols_>&
+EIGEN_DEVICE_FUNC constexpr Matrix<Scalar_, Rows_, Cols_, Storage_, MaxRows_, MaxCols_>&
 Matrix<Scalar_, Rows_, Cols_, Storage_, MaxRows_, MaxCols_>::operator=(
     const RotationBase<OtherDerived, ColsAtCompileTime>& r) {
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Matrix, int(OtherDerived::Dim), int(OtherDerived::Dim))
@@ -185,18 +190,20 @@ namespace internal {
  * \sa class Transform, class Rotation2D, class Quaternion, class AngleAxis
  */
 template <typename Scalar, int Dim>
-EIGEN_DEVICE_FUNC static inline Matrix<Scalar, 2, 2> toRotationMatrix(const Scalar& s) {
+EIGEN_DEVICE_FUNC static inline constexpr Matrix<Scalar, 2, 2> toRotationMatrix(const Scalar& s) {
   EIGEN_STATIC_ASSERT(Dim == 2, YOU_MADE_A_PROGRAMMING_MISTAKE)
   return Rotation2D<Scalar>(s).toRotationMatrix();
 }
 
 template <typename Scalar, int Dim, typename OtherDerived>
-EIGEN_DEVICE_FUNC static inline Matrix<Scalar, Dim, Dim> toRotationMatrix(const RotationBase<OtherDerived, Dim>& r) {
+EIGEN_DEVICE_FUNC static inline constexpr Matrix<Scalar, Dim, Dim> toRotationMatrix(
+    const RotationBase<OtherDerived, Dim>& r) {
   return r.toRotationMatrix();
 }
 
 template <typename Scalar, int Dim, typename OtherDerived>
-EIGEN_DEVICE_FUNC static inline const MatrixBase<OtherDerived>& toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
+EIGEN_DEVICE_FUNC static inline constexpr const MatrixBase<OtherDerived>& toRotationMatrix(
+    const MatrixBase<OtherDerived>& mat) {
   EIGEN_STATIC_ASSERT(OtherDerived::RowsAtCompileTime == Dim && OtherDerived::ColsAtCompileTime == Dim,
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
   return mat;

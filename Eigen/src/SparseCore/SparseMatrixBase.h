@@ -52,7 +52,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
   typedef Matrix<Scalar, Dynamic, 1> ScalarVector;
 
   template <typename OtherDerived>
-  Derived& operator=(const EigenBase<OtherDerived>& other);
+  constexpr Derived& operator=(const EigenBase<OtherDerived>& other);
 
   enum {
 
@@ -141,9 +141,11 @@ class SparseMatrixBase : public EigenBase<Derived> {
                  internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime)>
       SquareMatrixType;
 
-  inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
-  inline Derived& derived() { return *static_cast<Derived*>(this); }
-  inline Derived& const_cast_derived() const { return *static_cast<Derived*>(const_cast<SparseMatrixBase*>(this)); }
+  inline constexpr const Derived& derived() const { return *static_cast<const Derived*>(this); }
+  inline constexpr Derived& derived() { return *static_cast<Derived*>(this); }
+  inline constexpr Derived& const_cast_derived() const {
+    return *static_cast<Derived*>(const_cast<SparseMatrixBase*>(this));
+  }
 
   typedef EigenBase<Derived> Base;
 
@@ -179,47 +181,47 @@ class SparseMatrixBase : public EigenBase<Derived> {
 #undef EIGEN_DOC_BLOCK_ADDONS_INNER_PANEL_IF
 
   /** \returns the number of rows. \sa cols() */
-  inline Index rows() const { return derived().rows(); }
+  inline constexpr Index rows() const { return derived().rows(); }
   /** \returns the number of columns. \sa rows() */
-  inline Index cols() const { return derived().cols(); }
+  inline constexpr Index cols() const { return derived().cols(); }
   /** \returns the number of coefficients, which is \a rows()*cols().
    * \sa rows(), cols(). */
-  inline Index size() const { return rows() * cols(); }
+  inline constexpr Index size() const { return rows() * cols(); }
   /** \returns true if either the number of rows or the number of columns is equal to 1.
    * In other words, this function returns
    * \code rows()==1 || cols()==1 \endcode
    * \sa rows(), cols(), IsVectorAtCompileTime. */
-  inline bool isVector() const { return rows() == 1 || cols() == 1; }
+  inline constexpr bool isVector() const { return rows() == 1 || cols() == 1; }
   /** \returns the size of the storage major dimension,
    * i.e., the number of columns for a columns major matrix, and the number of rows otherwise */
-  Index outerSize() const { return (int(Flags) & RowMajorBit) ? this->rows() : this->cols(); }
+  constexpr Index outerSize() const { return (int(Flags) & RowMajorBit) ? this->rows() : this->cols(); }
   /** \returns the size of the inner dimension according to the storage order,
    * i.e., the number of rows for a columns major matrix, and the number of cols otherwise */
-  Index innerSize() const { return (int(Flags) & RowMajorBit) ? this->cols() : this->rows(); }
+  constexpr Index innerSize() const { return (int(Flags) & RowMajorBit) ? this->cols() : this->rows(); }
 
-  bool isRValue() const { return m_isRValue; }
-  Derived& markAsRValue() {
+  constexpr bool isRValue() const { return m_isRValue; }
+  constexpr Derived& markAsRValue() {
     m_isRValue = true;
     return derived();
   }
 
-  SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */
+  constexpr SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */
   }
 
   template <typename OtherDerived>
-  Derived& operator=(const ReturnByValue<OtherDerived>& other);
+  constexpr Derived& operator=(const ReturnByValue<OtherDerived>& other);
 
   template <typename OtherDerived>
-  inline Derived& operator=(const SparseMatrixBase<OtherDerived>& other);
+  inline constexpr Derived& operator=(const SparseMatrixBase<OtherDerived>& other);
 
-  inline Derived& operator=(const Derived& other);
+  inline constexpr Derived& operator=(const Derived& other);
 
  protected:
   template <typename OtherDerived>
-  inline Derived& assign(const OtherDerived& other);
+  inline constexpr Derived& assign(const OtherDerived& other);
 
   template <typename OtherDerived>
-  inline void assignGeneric(const OtherDerived& other);
+  inline constexpr void assignGeneric(const OtherDerived& other);
 
  public:
 #ifndef EIGEN_NO_IO
@@ -261,22 +263,22 @@ class SparseMatrixBase : public EigenBase<Derived> {
 #endif
 
   template <typename OtherDerived>
-  Derived& operator+=(const SparseMatrixBase<OtherDerived>& other);
+  constexpr Derived& operator+=(const SparseMatrixBase<OtherDerived>& other);
   template <typename OtherDerived>
-  Derived& operator-=(const SparseMatrixBase<OtherDerived>& other);
+  constexpr Derived& operator-=(const SparseMatrixBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  Derived& operator+=(const DiagonalBase<OtherDerived>& other);
+  constexpr Derived& operator+=(const DiagonalBase<OtherDerived>& other);
   template <typename OtherDerived>
-  Derived& operator-=(const DiagonalBase<OtherDerived>& other);
+  constexpr Derived& operator-=(const DiagonalBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  Derived& operator+=(const EigenBase<OtherDerived>& other);
+  constexpr Derived& operator+=(const EigenBase<OtherDerived>& other);
   template <typename OtherDerived>
-  Derived& operator-=(const EigenBase<OtherDerived>& other);
+  constexpr Derived& operator-=(const EigenBase<OtherDerived>& other);
 
-  Derived& operator*=(const Scalar& other);
-  Derived& operator/=(const Scalar& other);
+  constexpr Derived& operator*=(const Scalar& other);
+  constexpr Derived& operator/=(const Scalar& other);
 
   template <typename OtherDerived>
   struct CwiseProductDenseReturnType {
@@ -288,50 +290,51 @@ class SparseMatrixBase : public EigenBase<Derived> {
   };
 
   template <typename OtherDerived>
-  EIGEN_STRONG_INLINE const typename CwiseProductDenseReturnType<OtherDerived>::Type cwiseProduct(
+  EIGEN_STRONG_INLINE constexpr const typename CwiseProductDenseReturnType<OtherDerived>::Type cwiseProduct(
       const MatrixBase<OtherDerived>& other) const;
 
   // sparse * diagonal
   template <typename OtherDerived>
-  const Product<Derived, OtherDerived> operator*(const DiagonalBase<OtherDerived>& other) const {
+  constexpr const Product<Derived, OtherDerived> operator*(const DiagonalBase<OtherDerived>& other) const {
     return Product<Derived, OtherDerived>(derived(), other.derived());
   }
 
   // diagonal * sparse
   template <typename OtherDerived>
-  friend const Product<OtherDerived, Derived> operator*(const DiagonalBase<OtherDerived>& lhs,
-                                                        const SparseMatrixBase& rhs) {
+  friend constexpr const Product<OtherDerived, Derived> operator*(const DiagonalBase<OtherDerived>& lhs,
+                                                                  const SparseMatrixBase& rhs) {
     return Product<OtherDerived, Derived>(lhs.derived(), rhs.derived());
   }
 
   // sparse * sparse
   template <typename OtherDerived>
-  const Product<Derived, OtherDerived, AliasFreeProduct> operator*(const SparseMatrixBase<OtherDerived>& other) const;
+  constexpr const Product<Derived, OtherDerived, AliasFreeProduct> operator*(
+      const SparseMatrixBase<OtherDerived>& other) const;
 
   // sparse * dense
   template <typename OtherDerived>
-  const Product<Derived, OtherDerived> operator*(const MatrixBase<OtherDerived>& other) const {
+  constexpr const Product<Derived, OtherDerived> operator*(const MatrixBase<OtherDerived>& other) const {
     return Product<Derived, OtherDerived>(derived(), other.derived());
   }
 
   // dense * sparse
   template <typename OtherDerived>
-  friend const Product<OtherDerived, Derived> operator*(const MatrixBase<OtherDerived>& lhs,
-                                                        const SparseMatrixBase& rhs) {
+  friend constexpr const Product<OtherDerived, Derived> operator*(const MatrixBase<OtherDerived>& lhs,
+                                                                  const SparseMatrixBase& rhs) {
     return Product<OtherDerived, Derived>(lhs.derived(), rhs.derived());
   }
 
   /** \returns an expression of P H P^-1 where H is the matrix represented by \c *this */
-  SparseSymmetricPermutationProduct<Derived, Upper | Lower> twistedBy(
+  constexpr SparseSymmetricPermutationProduct<Derived, Upper | Lower> twistedBy(
       const PermutationMatrix<Dynamic, Dynamic, StorageIndex>& perm) const {
     return SparseSymmetricPermutationProduct<Derived, Upper | Lower>(derived(), perm);
   }
 
   template <typename OtherDerived>
-  Derived& operator*=(const SparseMatrixBase<OtherDerived>& other);
+  constexpr Derived& operator*=(const SparseMatrixBase<OtherDerived>& other);
 
   template <int Mode>
-  inline const TriangularView<const Derived, Mode> triangularView() const;
+  inline constexpr const TriangularView<const Derived, Mode> triangularView() const;
 
   template <unsigned int UpLo>
   struct SelfAdjointViewReturnType {
@@ -343,31 +346,31 @@ class SparseMatrixBase : public EigenBase<Derived> {
   };
 
   template <unsigned int UpLo>
-  inline typename ConstSelfAdjointViewReturnType<UpLo>::Type selfadjointView() const;
+  inline constexpr typename ConstSelfAdjointViewReturnType<UpLo>::Type selfadjointView() const;
   template <unsigned int UpLo>
-  inline typename SelfAdjointViewReturnType<UpLo>::Type selfadjointView();
+  inline constexpr typename SelfAdjointViewReturnType<UpLo>::Type selfadjointView();
 
   template <typename OtherDerived>
-  Scalar dot(const MatrixBase<OtherDerived>& other) const;
+  constexpr Scalar dot(const MatrixBase<OtherDerived>& other) const;
   template <typename OtherDerived>
-  Scalar dot(const SparseMatrixBase<OtherDerived>& other) const;
-  RealScalar squaredNorm() const;
-  RealScalar norm() const;
-  RealScalar blueNorm() const;
+  constexpr Scalar dot(const SparseMatrixBase<OtherDerived>& other) const;
+  constexpr RealScalar squaredNorm() const;
+  constexpr RealScalar norm() const;
+  constexpr RealScalar blueNorm() const;
 
-  TransposeReturnType transpose() { return TransposeReturnType(derived()); }
-  const ConstTransposeReturnType transpose() const { return ConstTransposeReturnType(derived()); }
-  const AdjointReturnType adjoint() const { return AdjointReturnType(transpose()); }
+  constexpr TransposeReturnType transpose() { return TransposeReturnType(derived()); }
+  constexpr const ConstTransposeReturnType transpose() const { return ConstTransposeReturnType(derived()); }
+  constexpr const AdjointReturnType adjoint() const { return AdjointReturnType(transpose()); }
 
-  DenseMatrixType toDense() const { return DenseMatrixType(derived()); }
-
-  template <typename OtherDerived>
-  bool isApprox(const SparseMatrixBase<OtherDerived>& other,
-                const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  constexpr DenseMatrixType toDense() const { return DenseMatrixType(derived()); }
 
   template <typename OtherDerived>
-  bool isApprox(const MatrixBase<OtherDerived>& other,
-                const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const {
+  constexpr bool isApprox(const SparseMatrixBase<OtherDerived>& other,
+                          const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+
+  template <typename OtherDerived>
+  constexpr bool isApprox(const MatrixBase<OtherDerived>& other,
+                          const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const {
     return toDense().isApprox(other, prec);
   }
 
@@ -376,23 +379,25 @@ class SparseMatrixBase : public EigenBase<Derived> {
    * Notice that in the case of a plain matrix or vector (not an expression) this function just returns
    * a const reference, in order to avoid a useless copy.
    */
-  inline const typename internal::eval<Derived>::type eval() const {
+  inline constexpr const typename internal::eval<Derived>::type eval() const {
     return typename internal::eval<Derived>::type(derived());
   }
 
-  Scalar sum() const;
+  constexpr Scalar sum() const;
 
-  inline const SparseView<Derived> pruned(const Scalar& reference = Scalar(0),
-                                          const RealScalar& epsilon = NumTraits<Scalar>::dummy_precision()) const;
+  inline constexpr const SparseView<Derived> pruned(
+      const Scalar& reference = Scalar(0), const RealScalar& epsilon = NumTraits<Scalar>::dummy_precision()) const;
 
  protected:
   bool m_isRValue;
 
-  static inline StorageIndex convert_index(const Index idx) { return internal::convert_index<StorageIndex>(idx); }
+  static inline constexpr StorageIndex convert_index(const Index idx) {
+    return internal::convert_index<StorageIndex>(idx);
+  }
 
  private:
   template <typename Dest>
-  void evalTo(Dest&) const;
+  constexpr void evalTo(Dest&) const;
 };
 
 }  // end namespace Eigen

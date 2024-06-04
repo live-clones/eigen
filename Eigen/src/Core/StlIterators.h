@@ -36,134 +36,134 @@ class indexed_based_stl_iterator_base {
   typedef Index difference_type;
   typedef std::random_access_iterator_tag iterator_category;
 
-  indexed_based_stl_iterator_base() EIGEN_NO_THROW : mp_xpr(0), m_index(0) {}
-  indexed_based_stl_iterator_base(XprType& xpr, Index index) EIGEN_NO_THROW : mp_xpr(&xpr), m_index(index) {}
+  constexpr indexed_based_stl_iterator_base() EIGEN_NO_THROW = default;
+  constexpr indexed_based_stl_iterator_base(XprType& xpr, Index index) EIGEN_NO_THROW : mp_xpr(&xpr), m_index(index) {}
 
-  indexed_based_stl_iterator_base(const non_const_iterator& other) EIGEN_NO_THROW : mp_xpr(other.mp_xpr),
-                                                                                    m_index(other.m_index) {}
+  constexpr indexed_based_stl_iterator_base(const non_const_iterator& other) EIGEN_NO_THROW : mp_xpr(other.mp_xpr),
+                                                                                              m_index(other.m_index) {}
 
-  indexed_based_stl_iterator_base& operator=(const non_const_iterator& other) {
+  constexpr indexed_based_stl_iterator_base& operator=(const non_const_iterator& other) {
     mp_xpr = other.mp_xpr;
     m_index = other.m_index;
     return *this;
   }
 
-  Derived& operator++() {
+  constexpr Derived& operator++() {
     ++m_index;
     return derived();
   }
-  Derived& operator--() {
+  constexpr Derived& operator--() {
     --m_index;
     return derived();
   }
 
-  Derived operator++(int) {
+  constexpr Derived operator++(int) {
     Derived prev(derived());
     operator++();
     return prev;
   }
-  Derived operator--(int) {
+  constexpr Derived operator--(int) {
     Derived prev(derived());
     operator--();
     return prev;
   }
 
-  friend Derived operator+(const indexed_based_stl_iterator_base& a, Index b) {
+  friend constexpr Derived operator+(const indexed_based_stl_iterator_base& a, Index b) {
     Derived ret(a.derived());
     ret += b;
     return ret;
   }
-  friend Derived operator-(const indexed_based_stl_iterator_base& a, Index b) {
+  friend constexpr Derived operator-(const indexed_based_stl_iterator_base& a, Index b) {
     Derived ret(a.derived());
     ret -= b;
     return ret;
   }
-  friend Derived operator+(Index a, const indexed_based_stl_iterator_base& b) {
+  friend constexpr Derived operator+(Index a, const indexed_based_stl_iterator_base& b) {
     Derived ret(b.derived());
     ret += a;
     return ret;
   }
-  friend Derived operator-(Index a, const indexed_based_stl_iterator_base& b) {
+  friend constexpr Derived operator-(Index a, const indexed_based_stl_iterator_base& b) {
     Derived ret(b.derived());
     ret -= a;
     return ret;
   }
 
-  Derived& operator+=(Index b) {
+  constexpr Derived& operator+=(Index b) {
     m_index += b;
     return derived();
   }
-  Derived& operator-=(Index b) {
+  constexpr Derived& operator-=(Index b) {
     m_index -= b;
     return derived();
   }
 
-  difference_type operator-(const indexed_based_stl_iterator_base& other) const {
+  constexpr difference_type operator-(const indexed_based_stl_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index - other.m_index;
   }
 
-  difference_type operator-(const other_iterator& other) const {
+  constexpr difference_type operator-(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index - other.m_index;
   }
 
-  bool operator==(const indexed_based_stl_iterator_base& other) const {
+  constexpr bool operator==(const indexed_based_stl_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index == other.m_index;
   }
-  bool operator!=(const indexed_based_stl_iterator_base& other) const {
+  constexpr bool operator!=(const indexed_based_stl_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index != other.m_index;
   }
-  bool operator<(const indexed_based_stl_iterator_base& other) const {
+  constexpr bool operator<(const indexed_based_stl_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index < other.m_index;
   }
-  bool operator<=(const indexed_based_stl_iterator_base& other) const {
+  constexpr bool operator<=(const indexed_based_stl_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index <= other.m_index;
   }
-  bool operator>(const indexed_based_stl_iterator_base& other) const {
+  constexpr bool operator>(const indexed_based_stl_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index > other.m_index;
   }
-  bool operator>=(const indexed_based_stl_iterator_base& other) const {
+  constexpr bool operator>=(const indexed_based_stl_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index >= other.m_index;
   }
 
-  bool operator==(const other_iterator& other) const {
+  constexpr bool operator==(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index == other.m_index;
   }
-  bool operator!=(const other_iterator& other) const {
+  constexpr bool operator!=(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index != other.m_index;
   }
-  bool operator<(const other_iterator& other) const {
+  constexpr bool operator<(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index < other.m_index;
   }
-  bool operator<=(const other_iterator& other) const {
+  constexpr bool operator<=(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index <= other.m_index;
   }
-  bool operator>(const other_iterator& other) const {
+  constexpr bool operator>(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index > other.m_index;
   }
-  bool operator>=(const other_iterator& other) const {
+  constexpr bool operator>=(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index >= other.m_index;
   }
 
  protected:
-  Derived& derived() { return static_cast<Derived&>(*this); }
-  const Derived& derived() const { return static_cast<const Derived&>(*this); }
+  constexpr Derived& derived() { return static_cast<Derived&>(*this); }
+  constexpr const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  XprType* mp_xpr;
-  Index m_index;
+  XprType* mp_xpr = nullptr;
+  Index m_index = 0;
 };
 
 template <typename Derived>
@@ -182,134 +182,134 @@ class indexed_based_stl_reverse_iterator_base {
   typedef Index difference_type;
   typedef std::random_access_iterator_tag iterator_category;
 
-  indexed_based_stl_reverse_iterator_base() : mp_xpr(0), m_index(0) {}
-  indexed_based_stl_reverse_iterator_base(XprType& xpr, Index index) : mp_xpr(&xpr), m_index(index) {}
+  constexpr indexed_based_stl_reverse_iterator_base() = default;
+  constexpr indexed_based_stl_reverse_iterator_base(XprType& xpr, Index index) : mp_xpr(&xpr), m_index(index) {}
 
-  indexed_based_stl_reverse_iterator_base(const non_const_iterator& other)
+  constexpr indexed_based_stl_reverse_iterator_base(const non_const_iterator& other)
       : mp_xpr(other.mp_xpr), m_index(other.m_index) {}
 
-  indexed_based_stl_reverse_iterator_base& operator=(const non_const_iterator& other) {
+  constexpr indexed_based_stl_reverse_iterator_base& operator=(const non_const_iterator& other) {
     mp_xpr = other.mp_xpr;
     m_index = other.m_index;
     return *this;
   }
 
-  Derived& operator++() {
+  constexpr Derived& operator++() {
     --m_index;
     return derived();
   }
-  Derived& operator--() {
+  constexpr Derived& operator--() {
     ++m_index;
     return derived();
   }
 
-  Derived operator++(int) {
+  constexpr Derived operator++(int) {
     Derived prev(derived());
     operator++();
     return prev;
   }
-  Derived operator--(int) {
+  constexpr Derived operator--(int) {
     Derived prev(derived());
     operator--();
     return prev;
   }
 
-  friend Derived operator+(const indexed_based_stl_reverse_iterator_base& a, Index b) {
+  friend constexpr Derived operator+(const indexed_based_stl_reverse_iterator_base& a, Index b) {
     Derived ret(a.derived());
     ret += b;
     return ret;
   }
-  friend Derived operator-(const indexed_based_stl_reverse_iterator_base& a, Index b) {
+  friend constexpr Derived operator-(const indexed_based_stl_reverse_iterator_base& a, Index b) {
     Derived ret(a.derived());
     ret -= b;
     return ret;
   }
-  friend Derived operator+(Index a, const indexed_based_stl_reverse_iterator_base& b) {
+  friend constexpr Derived operator+(Index a, const indexed_based_stl_reverse_iterator_base& b) {
     Derived ret(b.derived());
     ret += a;
     return ret;
   }
-  friend Derived operator-(Index a, const indexed_based_stl_reverse_iterator_base& b) {
+  friend constexpr Derived operator-(Index a, const indexed_based_stl_reverse_iterator_base& b) {
     Derived ret(b.derived());
     ret -= a;
     return ret;
   }
 
-  Derived& operator+=(Index b) {
+  constexpr Derived& operator+=(Index b) {
     m_index -= b;
     return derived();
   }
-  Derived& operator-=(Index b) {
+  constexpr Derived& operator-=(Index b) {
     m_index += b;
     return derived();
   }
 
-  difference_type operator-(const indexed_based_stl_reverse_iterator_base& other) const {
+  constexpr difference_type operator-(const indexed_based_stl_reverse_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return other.m_index - m_index;
   }
 
-  difference_type operator-(const other_iterator& other) const {
+  constexpr difference_type operator-(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return other.m_index - m_index;
   }
 
-  bool operator==(const indexed_based_stl_reverse_iterator_base& other) const {
+  constexpr bool operator==(const indexed_based_stl_reverse_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index == other.m_index;
   }
-  bool operator!=(const indexed_based_stl_reverse_iterator_base& other) const {
+  constexpr bool operator!=(const indexed_based_stl_reverse_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index != other.m_index;
   }
-  bool operator<(const indexed_based_stl_reverse_iterator_base& other) const {
+  constexpr bool operator<(const indexed_based_stl_reverse_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index > other.m_index;
   }
-  bool operator<=(const indexed_based_stl_reverse_iterator_base& other) const {
+  constexpr bool operator<=(const indexed_based_stl_reverse_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index >= other.m_index;
   }
-  bool operator>(const indexed_based_stl_reverse_iterator_base& other) const {
+  constexpr bool operator>(const indexed_based_stl_reverse_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index < other.m_index;
   }
-  bool operator>=(const indexed_based_stl_reverse_iterator_base& other) const {
+  constexpr bool operator>=(const indexed_based_stl_reverse_iterator_base& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index <= other.m_index;
   }
 
-  bool operator==(const other_iterator& other) const {
+  constexpr bool operator==(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index == other.m_index;
   }
-  bool operator!=(const other_iterator& other) const {
+  constexpr bool operator!=(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index != other.m_index;
   }
-  bool operator<(const other_iterator& other) const {
+  constexpr bool operator<(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index > other.m_index;
   }
-  bool operator<=(const other_iterator& other) const {
+  constexpr bool operator<=(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index >= other.m_index;
   }
-  bool operator>(const other_iterator& other) const {
+  constexpr bool operator>(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index < other.m_index;
   }
-  bool operator>=(const other_iterator& other) const {
+  constexpr bool operator>=(const other_iterator& other) const {
     eigen_assert(mp_xpr == other.mp_xpr);
     return m_index <= other.m_index;
   }
 
  protected:
-  Derived& derived() { return static_cast<Derived&>(*this); }
-  const Derived& derived() const { return static_cast<const Derived&>(*this); }
+  constexpr Derived& derived() { return static_cast<Derived&>(*this); }
+  constexpr const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  XprType* mp_xpr;
-  Index m_index;
+  XprType* mp_xpr = nullptr;
+  Index m_index = 0;
 };
 
 template <typename XprType>
@@ -335,96 +335,98 @@ class pointer_based_stl_iterator {
   typedef std::conditional_t<bool(is_lvalue), value_type*, const value_type*> pointer;
   typedef std::conditional_t<bool(is_lvalue), value_type&, const value_type&> reference;
 
-  pointer_based_stl_iterator() EIGEN_NO_THROW : m_ptr(0) {}
-  pointer_based_stl_iterator(XprType& xpr, Index index) EIGEN_NO_THROW : m_incr(xpr.innerStride()) {
+  constexpr pointer_based_stl_iterator() EIGEN_NO_THROW = default;
+  constexpr pointer_based_stl_iterator(XprType& xpr, Index index) EIGEN_NO_THROW : m_incr(xpr.innerStride()) {
     m_ptr = xpr.data() + index * m_incr.value();
   }
 
-  pointer_based_stl_iterator(const non_const_iterator& other) EIGEN_NO_THROW : m_ptr(other.m_ptr),
-                                                                               m_incr(other.m_incr) {}
+  constexpr pointer_based_stl_iterator(const non_const_iterator& other) EIGEN_NO_THROW : m_ptr(other.m_ptr),
+                                                                                         m_incr(other.m_incr) {}
 
-  pointer_based_stl_iterator& operator=(const non_const_iterator& other) EIGEN_NO_THROW {
+  constexpr pointer_based_stl_iterator& operator=(const non_const_iterator& other) EIGEN_NO_THROW {
     m_ptr = other.m_ptr;
     m_incr.setValue(other.m_incr);
     return *this;
   }
 
-  reference operator*() const { return *m_ptr; }
-  reference operator[](Index i) const { return *(m_ptr + i * m_incr.value()); }
-  pointer operator->() const { return m_ptr; }
+  constexpr reference operator*() const { return *m_ptr; }
+  constexpr reference operator[](Index i) const { return *(m_ptr + i * m_incr.value()); }
+  constexpr pointer operator->() const { return m_ptr; }
 
-  pointer_based_stl_iterator& operator++() {
+  constexpr pointer_based_stl_iterator& operator++() {
     m_ptr += m_incr.value();
     return *this;
   }
-  pointer_based_stl_iterator& operator--() {
+  constexpr pointer_based_stl_iterator& operator--() {
     m_ptr -= m_incr.value();
     return *this;
   }
 
-  pointer_based_stl_iterator operator++(int) {
+  constexpr pointer_based_stl_iterator operator++(int) {
     pointer_based_stl_iterator prev(*this);
     operator++();
     return prev;
   }
-  pointer_based_stl_iterator operator--(int) {
+  constexpr pointer_based_stl_iterator operator--(int) {
     pointer_based_stl_iterator prev(*this);
     operator--();
     return prev;
   }
 
-  friend pointer_based_stl_iterator operator+(const pointer_based_stl_iterator& a, Index b) {
+  friend constexpr pointer_based_stl_iterator operator+(const pointer_based_stl_iterator& a, Index b) {
     pointer_based_stl_iterator ret(a);
     ret += b;
     return ret;
   }
-  friend pointer_based_stl_iterator operator-(const pointer_based_stl_iterator& a, Index b) {
+  friend constexpr pointer_based_stl_iterator operator-(const pointer_based_stl_iterator& a, Index b) {
     pointer_based_stl_iterator ret(a);
     ret -= b;
     return ret;
   }
-  friend pointer_based_stl_iterator operator+(Index a, const pointer_based_stl_iterator& b) {
+  friend constexpr pointer_based_stl_iterator operator+(Index a, const pointer_based_stl_iterator& b) {
     pointer_based_stl_iterator ret(b);
     ret += a;
     return ret;
   }
-  friend pointer_based_stl_iterator operator-(Index a, const pointer_based_stl_iterator& b) {
+  friend constexpr pointer_based_stl_iterator operator-(Index a, const pointer_based_stl_iterator& b) {
     pointer_based_stl_iterator ret(b);
     ret -= a;
     return ret;
   }
 
-  pointer_based_stl_iterator& operator+=(Index b) {
+  constexpr pointer_based_stl_iterator& operator+=(Index b) {
     m_ptr += b * m_incr.value();
     return *this;
   }
-  pointer_based_stl_iterator& operator-=(Index b) {
+  constexpr pointer_based_stl_iterator& operator-=(Index b) {
     m_ptr -= b * m_incr.value();
     return *this;
   }
 
-  difference_type operator-(const pointer_based_stl_iterator& other) const {
+  constexpr difference_type operator-(const pointer_based_stl_iterator& other) const {
     return (m_ptr - other.m_ptr) / m_incr.value();
   }
 
-  difference_type operator-(const other_iterator& other) const { return (m_ptr - other.m_ptr) / m_incr.value(); }
+  constexpr difference_type operator-(const other_iterator& other) const {
+    return (m_ptr - other.m_ptr) / m_incr.value();
+  }
 
-  bool operator==(const pointer_based_stl_iterator& other) const { return m_ptr == other.m_ptr; }
-  bool operator!=(const pointer_based_stl_iterator& other) const { return m_ptr != other.m_ptr; }
-  bool operator<(const pointer_based_stl_iterator& other) const { return m_ptr < other.m_ptr; }
-  bool operator<=(const pointer_based_stl_iterator& other) const { return m_ptr <= other.m_ptr; }
-  bool operator>(const pointer_based_stl_iterator& other) const { return m_ptr > other.m_ptr; }
-  bool operator>=(const pointer_based_stl_iterator& other) const { return m_ptr >= other.m_ptr; }
+  constexpr bool operator==(const pointer_based_stl_iterator& other) const { return m_ptr == other.m_ptr; }
+  constexpr bool operator!=(const pointer_based_stl_iterator& other) const { return m_ptr != other.m_ptr; }
+  constexpr bool operator<(const pointer_based_stl_iterator& other) const { return m_ptr < other.m_ptr; }
+  constexpr bool operator<=(const pointer_based_stl_iterator& other) const { return m_ptr <= other.m_ptr; }
+  constexpr bool operator>(const pointer_based_stl_iterator& other) const { return m_ptr > other.m_ptr; }
+  constexpr bool operator>=(const pointer_based_stl_iterator& other) const { return m_ptr >= other.m_ptr; }
 
-  bool operator==(const other_iterator& other) const { return m_ptr == other.m_ptr; }
-  bool operator!=(const other_iterator& other) const { return m_ptr != other.m_ptr; }
-  bool operator<(const other_iterator& other) const { return m_ptr < other.m_ptr; }
-  bool operator<=(const other_iterator& other) const { return m_ptr <= other.m_ptr; }
-  bool operator>(const other_iterator& other) const { return m_ptr > other.m_ptr; }
-  bool operator>=(const other_iterator& other) const { return m_ptr >= other.m_ptr; }
+  constexpr bool operator==(const other_iterator& other) const { return m_ptr == other.m_ptr; }
+  constexpr bool operator!=(const other_iterator& other) const { return m_ptr != other.m_ptr; }
+  constexpr bool operator<(const other_iterator& other) const { return m_ptr < other.m_ptr; }
+  constexpr bool operator<=(const other_iterator& other) const { return m_ptr <= other.m_ptr; }
+  constexpr bool operator>(const other_iterator& other) const { return m_ptr > other.m_ptr; }
+  constexpr bool operator>=(const other_iterator& other) const { return m_ptr >= other.m_ptr; }
 
  protected:
-  pointer m_ptr;
+  pointer m_ptr = nullptr;
   internal::variable_if_dynamic<Index, XprType::InnerStrideAtCompileTime> m_incr;
 };
 
@@ -460,14 +462,14 @@ class generic_randaccess_stl_iterator
   typedef std::conditional_t<bool(is_lvalue), value_type*, const value_type*> pointer;
   typedef std::conditional_t<bool(is_lvalue), value_type&, read_only_ref_t> reference;
 
-  generic_randaccess_stl_iterator() : Base() {}
-  generic_randaccess_stl_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
-  generic_randaccess_stl_iterator(const typename Base::non_const_iterator& other) : Base(other) {}
+  constexpr generic_randaccess_stl_iterator() = default;
+  constexpr generic_randaccess_stl_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
+  constexpr generic_randaccess_stl_iterator(const typename Base::non_const_iterator& other) : Base(other) {}
   using Base::operator=;
 
-  reference operator*() const { return (*mp_xpr)(m_index); }
-  reference operator[](Index i) const { return (*mp_xpr)(m_index + i); }
-  pointer operator->() const { return &((*mp_xpr)(m_index)); }
+  constexpr reference operator*() const { return (*mp_xpr)(m_index); }
+  constexpr reference operator[](Index i) const { return (*mp_xpr)(m_index + i); }
+  constexpr pointer operator->() const { return &((*mp_xpr)(m_index)); }
 };
 
 template <typename XprType_, DirectionType Direction>
@@ -497,8 +499,8 @@ class subvector_stl_iterator : public indexed_based_stl_iterator_base<subvector_
  private:
   class subvector_stl_iterator_ptr {
    public:
-    subvector_stl_iterator_ptr(const reference& subvector) : m_subvector(subvector) {}
-    reference* operator->() { return &m_subvector; }
+    constexpr subvector_stl_iterator_ptr(const reference& subvector) : m_subvector(subvector) {}
+    constexpr reference* operator->() { return &m_subvector; }
 
    private:
     reference m_subvector;
@@ -507,12 +509,12 @@ class subvector_stl_iterator : public indexed_based_stl_iterator_base<subvector_
  public:
   typedef subvector_stl_iterator_ptr pointer;
 
-  subvector_stl_iterator() : Base() {}
-  subvector_stl_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
+  constexpr subvector_stl_iterator() = default;
+  constexpr subvector_stl_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
 
-  reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
-  reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
-  pointer operator->() const { return (*mp_xpr).template subVector<Direction>(m_index); }
+  constexpr reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
+  constexpr reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
+  constexpr pointer operator->() const { return (*mp_xpr).template subVector<Direction>(m_index); }
 };
 
 template <typename XprType_, DirectionType Direction>
@@ -543,8 +545,8 @@ class subvector_stl_reverse_iterator
  private:
   class subvector_stl_reverse_iterator_ptr {
    public:
-    subvector_stl_reverse_iterator_ptr(const reference& subvector) : m_subvector(subvector) {}
-    reference* operator->() { return &m_subvector; }
+    constexpr subvector_stl_reverse_iterator_ptr(const reference& subvector) : m_subvector(subvector) {}
+    constexpr reference* operator->() { return &m_subvector; }
 
    private:
     reference m_subvector;
@@ -553,12 +555,12 @@ class subvector_stl_reverse_iterator
  public:
   typedef subvector_stl_reverse_iterator_ptr pointer;
 
-  subvector_stl_reverse_iterator() : Base() {}
-  subvector_stl_reverse_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
+  constexpr subvector_stl_reverse_iterator() = default;
+  constexpr subvector_stl_reverse_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
 
-  reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
-  reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
-  pointer operator->() const { return (*mp_xpr).template subVector<Direction>(m_index); }
+  constexpr reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
+  constexpr reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
+  constexpr pointer operator->() const { return (*mp_xpr).template subVector<Direction>(m_index); }
 };
 
 }  // namespace internal
@@ -568,14 +570,14 @@ class subvector_stl_reverse_iterator
  * \sa end(), cbegin()
  */
 template <typename Derived>
-inline typename DenseBase<Derived>::iterator DenseBase<Derived>::begin() {
+inline constexpr typename DenseBase<Derived>::iterator DenseBase<Derived>::begin() {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived);
   return iterator(derived(), 0);
 }
 
 /** const version of begin() */
 template <typename Derived>
-inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::begin() const {
+inline constexpr typename DenseBase<Derived>::const_iterator DenseBase<Derived>::begin() const {
   return cbegin();
 }
 
@@ -584,7 +586,7 @@ inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::begin() c
  * \sa cend(), begin()
  */
 template <typename Derived>
-inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::cbegin() const {
+inline constexpr typename DenseBase<Derived>::const_iterator DenseBase<Derived>::cbegin() const {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived);
   return const_iterator(derived(), 0);
 }
@@ -594,14 +596,14 @@ inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::cbegin() 
  * \sa begin(), cend()
  */
 template <typename Derived>
-inline typename DenseBase<Derived>::iterator DenseBase<Derived>::end() {
+inline constexpr typename DenseBase<Derived>::iterator DenseBase<Derived>::end() {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived);
   return iterator(derived(), size());
 }
 
 /** const version of end() */
 template <typename Derived>
-inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::end() const {
+inline constexpr typename DenseBase<Derived>::const_iterator DenseBase<Derived>::end() const {
   return cend();
 }
 
@@ -610,7 +612,7 @@ inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::end() con
  * \sa begin(), cend()
  */
 template <typename Derived>
-inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::cend() const {
+inline constexpr typename DenseBase<Derived>::const_iterator DenseBase<Derived>::cend() const {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived);
   return const_iterator(derived(), size());
 }
