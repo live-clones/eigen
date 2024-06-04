@@ -159,8 +159,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
                       INVALID_MATRIX_TEMPLATE_PARAMETERS)
   EIGEN_STATIC_ASSERT(((Options & (DontAlign | RowMajor)) == Options), INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
-  EIGEN_DEVICE_FUNC Base& base() { return *static_cast<Base*>(this); }
-  EIGEN_DEVICE_FUNC const Base& base() const { return *static_cast<const Base*>(this); }
+  EIGEN_DEVICE_FUNC constexpr Base& base() { return *static_cast<Base*>(this); }
+  EIGEN_DEVICE_FUNC constexpr const Base& base() const { return *static_cast<const Base*>(this); }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const noexcept { return m_storage.rows(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const noexcept { return m_storage.cols(); }
@@ -343,7 +343,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * remain row-vectors and vectors remain vectors.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void resizeLike(const EigenBase<OtherDerived>& _other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resizeLike(const EigenBase<OtherDerived>& _other) {
     const OtherDerived& other = _other.derived();
 #ifndef EIGEN_NO_DEBUG
     internal::check_rows_cols_for_overflow<MaxSizeAtCompileTime, MaxRowsAtCompileTime, MaxColsAtCompileTime>::run(
@@ -369,7 +369,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * Matrices are resized relative to the top-left element. In case values need to be
    * appended to the matrix they will be uninitialized.
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void conservativeResize(Index rows, Index cols) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index rows, Index cols) {
     internal::conservative_resize_like_impl<Derived>::run(*this, rows, cols);
   }
 
@@ -380,7 +380,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * In case the matrix is growing, new rows will be uninitialized.
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void conservativeResize(Index rows, NoChange_t) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index rows, NoChange_t) {
     // Note: see the comment in conservativeResize(Index,Index)
     conservativeResize(rows, cols());
   }
@@ -392,7 +392,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * In case the matrix is growing, new columns will be uninitialized.
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void conservativeResize(NoChange_t, Index cols) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(NoChange_t, Index cols) {
     // Note: see the comment in conservativeResize(Index,Index)
     conservativeResize(rows(), cols);
   }
@@ -405,7 +405,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * When values are appended, they will be uninitialized.
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void conservativeResize(Index size) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index size) {
     internal::conservative_resize_like_impl<Derived>::run(*this, size);
   }
 
@@ -419,7 +419,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * appended to the matrix they will copied from \c other.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void conservativeResizeLike(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResizeLike(const DenseBase<OtherDerived>& other) {
     internal::conservative_resize_like_impl<Derived, OtherDerived>::run(*this, other);
   }
 
@@ -432,13 +432,13 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** \sa MatrixBase::lazyAssign() */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& lazyAssign(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& lazyAssign(const DenseBase<OtherDerived>& other) {
     _resize_to_match(other);
     return Base::lazyAssign(other.derived());
   }
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const ReturnByValue<OtherDerived>& func) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator=(const ReturnByValue<OtherDerived>& func) {
     resize(func.rows(), func.cols());
     return Base::operator=(func);
   }
@@ -457,7 +457,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** Copy constructor */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const PlainObjectBase&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(Index size, Index rows, Index cols)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(Index size, Index rows, Index cols)
       : m_storage(size, rows, cols) {}
 
   /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
@@ -470,9 +470,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * constructor must match the the fixed number of rows (resp. columns) of \c *this.
    */
   template <typename... ArgTypes>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(const Scalar& a0, const Scalar& a1, const Scalar& a2,
-                                                        const Scalar& a3, const ArgTypes&... args)
-      : m_storage() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const Scalar& a0, const Scalar& a1, const Scalar& a2,
+                                                                  const Scalar& a3, const ArgTypes&... args) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, sizeof...(args) + 4);
     m_storage.data()[0] = a0;
     m_storage.data()[1] = a1;
@@ -487,8 +486,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * lists
    */
   EIGEN_DEVICE_FUNC explicit constexpr EIGEN_STRONG_INLINE PlainObjectBase(
-      const std::initializer_list<std::initializer_list<Scalar>>& list)
-      : m_storage() {
+      const std::initializer_list<std::initializer_list<Scalar>>& list) {
     size_t list_size = 0;
     if (list.begin() != list.end()) {
       list_size = list.begin()->size();
@@ -524,20 +522,20 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** \sa PlainObjectBase::operator=(const EigenBase<OtherDerived>&) */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(const DenseBase<OtherDerived>& other) : m_storage() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const DenseBase<OtherDerived>& other) {
     resizeLike(other);
     _set_noalias(other);
   }
 
   /** \sa PlainObjectBase::operator=(const EigenBase<OtherDerived>&) */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(const EigenBase<OtherDerived>& other) : m_storage() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const EigenBase<OtherDerived>& other) {
     resizeLike(other);
     *this = other.derived();
   }
   /** \brief Copy constructor with in-place evaluation */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(const ReturnByValue<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const ReturnByValue<OtherDerived>& other) {
     // FIXME this does not automatically transpose vectors if necessary
     resize(other.rows(), other.cols());
     other.evalTo(this->derived());
@@ -548,7 +546,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * \copydetails DenseBase::operator=(const EigenBase<OtherDerived> &other)
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const EigenBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator=(const EigenBase<OtherDerived>& other) {
     _resize_to_match(other);
     Base::operator=(other.derived());
     return this->derived();
@@ -566,106 +564,108 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * \see class Map
    */
   ///@{
-  static inline ConstMapType Map(const Scalar* data) { return ConstMapType(data); }
-  static inline MapType Map(Scalar* data) { return MapType(data); }
-  static inline ConstMapType Map(const Scalar* data, Index size) { return ConstMapType(data, size); }
-  static inline MapType Map(Scalar* data, Index size) { return MapType(data, size); }
-  static inline ConstMapType Map(const Scalar* data, Index rows, Index cols) { return ConstMapType(data, rows, cols); }
-  static inline MapType Map(Scalar* data, Index rows, Index cols) { return MapType(data, rows, cols); }
+  static inline constexpr ConstMapType Map(const Scalar* data) { return ConstMapType(data); }
+  static inline constexpr MapType Map(Scalar* data) { return MapType(data); }
+  static inline constexpr ConstMapType Map(const Scalar* data, Index size) { return ConstMapType(data, size); }
+  static inline constexpr MapType Map(Scalar* data, Index size) { return MapType(data, size); }
+  static inline constexpr ConstMapType Map(const Scalar* data, Index rows, Index cols) {
+    return ConstMapType(data, rows, cols);
+  }
+  static inline constexpr MapType Map(Scalar* data, Index rows, Index cols) { return MapType(data, rows, cols); }
 
-  static inline ConstAlignedMapType MapAligned(const Scalar* data) { return ConstAlignedMapType(data); }
-  static inline AlignedMapType MapAligned(Scalar* data) { return AlignedMapType(data); }
-  static inline ConstAlignedMapType MapAligned(const Scalar* data, Index size) {
+  static inline constexpr ConstAlignedMapType MapAligned(const Scalar* data) { return ConstAlignedMapType(data); }
+  static inline constexpr AlignedMapType MapAligned(Scalar* data) { return AlignedMapType(data); }
+  static inline constexpr ConstAlignedMapType MapAligned(const Scalar* data, Index size) {
     return ConstAlignedMapType(data, size);
   }
-  static inline AlignedMapType MapAligned(Scalar* data, Index size) { return AlignedMapType(data, size); }
-  static inline ConstAlignedMapType MapAligned(const Scalar* data, Index rows, Index cols) {
+  static inline constexpr AlignedMapType MapAligned(Scalar* data, Index size) { return AlignedMapType(data, size); }
+  static inline constexpr ConstAlignedMapType MapAligned(const Scalar* data, Index rows, Index cols) {
     return ConstAlignedMapType(data, rows, cols);
   }
-  static inline AlignedMapType MapAligned(Scalar* data, Index rows, Index cols) {
+  static inline constexpr AlignedMapType MapAligned(Scalar* data, Index rows, Index cols) {
     return AlignedMapType(data, rows, cols);
   }
 
   template <int Outer, int Inner>
-  static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(const Scalar* data,
-                                                                             const Stride<Outer, Inner>& stride) {
+  static inline constexpr typename StridedConstMapType<Stride<Outer, Inner>>::type Map(
+      const Scalar* data, const Stride<Outer, Inner>& stride) {
     return typename StridedConstMapType<Stride<Outer, Inner>>::type(data, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data,
-                                                                        const Stride<Outer, Inner>& stride) {
+  static inline constexpr typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data,
+                                                                                  const Stride<Outer, Inner>& stride) {
     return typename StridedMapType<Stride<Outer, Inner>>::type(data, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(const Scalar* data, Index size,
-                                                                             const Stride<Outer, Inner>& stride) {
+  static inline constexpr typename StridedConstMapType<Stride<Outer, Inner>>::type Map(
+      const Scalar* data, Index size, const Stride<Outer, Inner>& stride) {
     return typename StridedConstMapType<Stride<Outer, Inner>>::type(data, size, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data, Index size,
-                                                                        const Stride<Outer, Inner>& stride) {
+  static inline constexpr typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data, Index size,
+                                                                                  const Stride<Outer, Inner>& stride) {
     return typename StridedMapType<Stride<Outer, Inner>>::type(data, size, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedConstMapType<Stride<Outer, Inner>>::type Map(const Scalar* data, Index rows, Index cols,
-                                                                             const Stride<Outer, Inner>& stride) {
+  static inline constexpr typename StridedConstMapType<Stride<Outer, Inner>>::type Map(
+      const Scalar* data, Index rows, Index cols, const Stride<Outer, Inner>& stride) {
     return typename StridedConstMapType<Stride<Outer, Inner>>::type(data, rows, cols, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data, Index rows, Index cols,
-                                                                        const Stride<Outer, Inner>& stride) {
+  static inline constexpr typename StridedMapType<Stride<Outer, Inner>>::type Map(Scalar* data, Index rows, Index cols,
+                                                                                  const Stride<Outer, Inner>& stride) {
     return typename StridedMapType<Stride<Outer, Inner>>::type(data, rows, cols, stride);
   }
 
   template <int Outer, int Inner>
-  static inline typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
+  static inline constexpr typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
       const Scalar* data, const Stride<Outer, Inner>& stride) {
     return typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type(data, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
+  static inline constexpr typename StridedAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
       Scalar* data, const Stride<Outer, Inner>& stride) {
     return typename StridedAlignedMapType<Stride<Outer, Inner>>::type(data, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
+  static inline constexpr typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
       const Scalar* data, Index size, const Stride<Outer, Inner>& stride) {
     return typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type(data, size, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
+  static inline constexpr typename StridedAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
       Scalar* data, Index size, const Stride<Outer, Inner>& stride) {
     return typename StridedAlignedMapType<Stride<Outer, Inner>>::type(data, size, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
+  static inline constexpr typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
       const Scalar* data, Index rows, Index cols, const Stride<Outer, Inner>& stride) {
     return typename StridedConstAlignedMapType<Stride<Outer, Inner>>::type(data, rows, cols, stride);
   }
   template <int Outer, int Inner>
-  static inline typename StridedAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
+  static inline constexpr typename StridedAlignedMapType<Stride<Outer, Inner>>::type MapAligned(
       Scalar* data, Index rows, Index cols, const Stride<Outer, Inner>& stride) {
     return typename StridedAlignedMapType<Stride<Outer, Inner>>::type(data, rows, cols, stride);
   }
   ///@}
 
   using Base::setConstant;
-  EIGEN_DEVICE_FUNC Derived& setConstant(Index size, const Scalar& val);
-  EIGEN_DEVICE_FUNC Derived& setConstant(Index rows, Index cols, const Scalar& val);
-  EIGEN_DEVICE_FUNC Derived& setConstant(NoChange_t, Index cols, const Scalar& val);
-  EIGEN_DEVICE_FUNC Derived& setConstant(Index rows, NoChange_t, const Scalar& val);
+  EIGEN_DEVICE_FUNC constexpr Derived& setConstant(Index size, const Scalar& val);
+  EIGEN_DEVICE_FUNC constexpr Derived& setConstant(Index rows, Index cols, const Scalar& val);
+  EIGEN_DEVICE_FUNC constexpr Derived& setConstant(NoChange_t, Index cols, const Scalar& val);
+  EIGEN_DEVICE_FUNC constexpr Derived& setConstant(Index rows, NoChange_t, const Scalar& val);
 
   using Base::setZero;
-  EIGEN_DEVICE_FUNC Derived& setZero(Index size);
-  EIGEN_DEVICE_FUNC Derived& setZero(Index rows, Index cols);
-  EIGEN_DEVICE_FUNC Derived& setZero(NoChange_t, Index cols);
-  EIGEN_DEVICE_FUNC Derived& setZero(Index rows, NoChange_t);
+  EIGEN_DEVICE_FUNC constexpr Derived& setZero(Index size);
+  EIGEN_DEVICE_FUNC constexpr Derived& setZero(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC constexpr Derived& setZero(NoChange_t, Index cols);
+  EIGEN_DEVICE_FUNC constexpr Derived& setZero(Index rows, NoChange_t);
 
   using Base::setOnes;
-  EIGEN_DEVICE_FUNC Derived& setOnes(Index size);
-  EIGEN_DEVICE_FUNC Derived& setOnes(Index rows, Index cols);
-  EIGEN_DEVICE_FUNC Derived& setOnes(NoChange_t, Index cols);
-  EIGEN_DEVICE_FUNC Derived& setOnes(Index rows, NoChange_t);
+  EIGEN_DEVICE_FUNC constexpr Derived& setOnes(Index size);
+  EIGEN_DEVICE_FUNC constexpr Derived& setOnes(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC constexpr Derived& setOnes(NoChange_t, Index cols);
+  EIGEN_DEVICE_FUNC constexpr Derived& setOnes(Index rows, NoChange_t);
 
   using Base::setRandom;
   Derived& setRandom(Index size);
@@ -686,7 +686,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * remain row-vectors and vectors remain vectors.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _resize_to_match(const EigenBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _resize_to_match(const EigenBase<OtherDerived>& other) {
 #ifdef EIGEN_NO_AUTOMATIC_RESIZING
     eigen_assert((this->size() == 0 || (IsVectorAtCompileTime ? (this->size() == other.size())
                                                               : (rows() == other.rows() && cols() == other.cols()))) &&
@@ -737,23 +737,23 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   }
 
   template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init2(Index rows, Index cols,
-                                                    std::enable_if_t<Base::SizeAtCompileTime != 2, T0>* = 0) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init2(Index rows, Index cols,
+                                                              std::enable_if_t<Base::SizeAtCompileTime != 2, T0>* = 0) {
     EIGEN_STATIC_ASSERT(internal::is_valid_index_type<T0>::value && internal::is_valid_index_type<T1>::value,
                         T0 AND T1 MUST BE INTEGER TYPES)
     resize(rows, cols);
   }
 
   template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init2(const T0& val0, const T1& val1,
-                                                    std::enable_if_t<Base::SizeAtCompileTime == 2, T0>* = 0) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init2(const T0& val0, const T1& val1,
+                                                              std::enable_if_t<Base::SizeAtCompileTime == 2, T0>* = 0) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 2)
     m_storage.data()[0] = Scalar(val0);
     m_storage.data()[1] = Scalar(val1);
   }
 
   template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init2(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init2(
       const Index& val0, const Index& val1,
       std::enable_if_t<(!internal::is_same<Index, Scalar>::value) && (internal::is_same<T0, Index>::value) &&
                            (internal::is_same<T1, Index>::value) && Base::SizeAtCompileTime == 2,
@@ -766,7 +766,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   // The argument is convertible to the Index type and we either have a non 1x1 Matrix, or a dynamic-sized Array,
   // then the argument is meant to be the size of the object.
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(
       Index size,
       std::enable_if_t<(Base::SizeAtCompileTime != 1 || !internal::is_convertible<T, Scalar>::value) &&
                            ((!internal::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value ||
@@ -782,7 +782,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   // We have a 1x1 matrix/array => the argument is interpreted as the value of the unique coefficient (case where scalar
   // type can be implicitly converted)
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(
       const Scalar& val0,
       std::enable_if_t<Base::SizeAtCompileTime == 1 && internal::is_convertible<T, Scalar>::value, T>* = 0) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 1)
@@ -792,7 +792,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   // We have a 1x1 matrix/array => the argument is interpreted as the value of the unique coefficient (case where scalar
   // type match the index type)
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(
       const Index& val0,
       std::enable_if_t<(!internal::is_same<Index, Scalar>::value) && (internal::is_same<Index, T>::value) &&
                            Base::SizeAtCompileTime == 1 && internal::is_convertible<T, Scalar>::value,
@@ -803,42 +803,42 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   // Initialize a fixed size matrix from a pointer to raw data
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(const Scalar* data) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(const Scalar* data) {
     this->_set_noalias(ConstMapType(data));
   }
 
   // Initialize an arbitrary matrix from a dense expression
   template <typename T, typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(const DenseBase<OtherDerived>& other) {
     this->_set_noalias(other);
   }
 
   // Initialize an arbitrary matrix from an object convertible to the Derived type.
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(const Derived& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(const Derived& other) {
     this->_set_noalias(other);
   }
 
   // Initialize an arbitrary matrix from a generic Eigen expression
   template <typename T, typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(const EigenBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(const EigenBase<OtherDerived>& other) {
     this->derived() = other;
   }
 
   template <typename T, typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(const ReturnByValue<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(const ReturnByValue<OtherDerived>& other) {
     resize(other.rows(), other.cols());
     other.evalTo(this->derived());
   }
 
   template <typename T, typename OtherDerived, int ColsAtCompileTime>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(const RotationBase<OtherDerived, ColsAtCompileTime>& r) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(const RotationBase<OtherDerived, ColsAtCompileTime>& r) {
     this->derived() = r;
   }
 
   // For fixed-size Array<Scalar,...>
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(
       const Scalar& val0,
       std::enable_if_t<Base::SizeAtCompileTime != Dynamic && Base::SizeAtCompileTime != 1 &&
                            internal::is_convertible<T, Scalar>::value &&
@@ -849,7 +849,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   // For fixed-size Array<Index,...>
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _init1(
       const Index& val0,
       std::enable_if_t<(!internal::is_same<Index, Scalar>::value) && (internal::is_same<Index, T>::value) &&
                            Base::SizeAtCompileTime != Dynamic && Base::SizeAtCompileTime != 1 &&
@@ -869,7 +869,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * of same type it is enough to swap the data pointers.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void swap(DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseBase<OtherDerived>& other) {
     enum {SwapPointers = internal::is_same<Derived, OtherDerived>::value && Base::SizeAtCompileTime == Dynamic};
     internal::matrix_swap_impl<Derived, OtherDerived, bool(SwapPointers)>::run(this->derived(), other.derived());
   }
@@ -878,7 +878,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * \brief const version forwarded to DenseBase::swap
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void swap(DenseBase<OtherDerived> const& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseBase<OtherDerived> const& other) {
     Base::swap(other.derived());
   }
 
@@ -904,7 +904,7 @@ namespace internal {
 template <typename Derived, typename OtherDerived, bool IsVector>
 struct conservative_resize_like_impl {
   static constexpr bool IsRelocatable = std::is_trivially_copyable<typename Derived::Scalar>::value;
-  static void run(DenseBase<Derived>& _this, Index rows, Index cols) {
+  static constexpr void run(DenseBase<Derived>& _this, Index rows, Index cols) {
     if (_this.rows() == rows && _this.cols() == cols) return;
     EIGEN_STATIC_ASSERT_DYNAMIC_SIZE(Derived)
 
@@ -927,7 +927,7 @@ struct conservative_resize_like_impl {
     }
   }
 
-  static void run(DenseBase<Derived>& _this, const DenseBase<OtherDerived>& other) {
+  static constexpr void run(DenseBase<Derived>& _this, const DenseBase<OtherDerived>& other) {
     if (_this.rows() == other.rows() && _this.cols() == other.cols()) return;
 
     // Note: Here is space for improvement. Basically, for conservativeResize(Index,Index),
@@ -970,7 +970,7 @@ struct conservative_resize_like_impl<Derived, OtherDerived, true>
   using Base::IsRelocatable;
   using Base::run;
 
-  static void run(DenseBase<Derived>& _this, Index size) {
+  static constexpr void run(DenseBase<Derived>& _this, Index size) {
     const Index new_rows = Derived::RowsAtCompileTime == 1 ? 1 : size;
     const Index new_cols = Derived::RowsAtCompileTime == 1 ? size : 1;
     if (IsRelocatable)
@@ -979,7 +979,7 @@ struct conservative_resize_like_impl<Derived, OtherDerived, true>
       Base::run(_this.derived(), new_rows, new_cols);
   }
 
-  static void run(DenseBase<Derived>& _this, const DenseBase<OtherDerived>& other) {
+  static constexpr void run(DenseBase<Derived>& _this, const DenseBase<OtherDerived>& other) {
     if (_this.rows() == other.rows() && _this.cols() == other.cols()) return;
 
     const Index num_new_elements = other.size() - _this.size();
@@ -997,12 +997,12 @@ struct conservative_resize_like_impl<Derived, OtherDerived, true>
 
 template <typename MatrixTypeA, typename MatrixTypeB, bool SwapPointers>
 struct matrix_swap_impl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(MatrixTypeA& a, MatrixTypeB& b) { a.base().swap(b); }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(MatrixTypeA& a, MatrixTypeB& b) { a.base().swap(b); }
 };
 
 template <typename MatrixTypeA, typename MatrixTypeB>
 struct matrix_swap_impl<MatrixTypeA, MatrixTypeB, true> {
-  EIGEN_DEVICE_FUNC static inline void run(MatrixTypeA& a, MatrixTypeB& b) {
+  EIGEN_DEVICE_FUNC static inline constexpr void run(MatrixTypeA& a, MatrixTypeB& b) {
     static_cast<typename MatrixTypeA::Base&>(a).m_storage.swap(static_cast<typename MatrixTypeB::Base&>(b).m_storage);
   }
 };

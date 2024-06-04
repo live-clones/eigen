@@ -20,8 +20,8 @@ namespace internal {
 template <typename Index, typename InputDims, int NumKernelDims, int Layout>
 class IndexMapper {
  public:
-  IndexMapper(const InputDims& input_dims, const array<Index, NumKernelDims>& kernel_dims,
-              const array<Index, NumKernelDims>& indices) {
+  constexpr IndexMapper(const InputDims& input_dims, const array<Index, NumKernelDims>& kernel_dims,
+                        const array<Index, NumKernelDims>& indices) {
     array<Index, NumDims> dimensions = input_dims;
     for (int i = 0; i < NumKernelDims; ++i) {
       const Index index = indices[i];
@@ -100,7 +100,7 @@ class IndexMapper {
     }
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputPlaneToTensorInputOffset(Index p) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuInputPlaneToTensorInputOffset(Index p) const {
     Index inputIndex = 0;
     if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int d = NumDims - 1; d > NumKernelDims; --d) {
@@ -126,7 +126,7 @@ class IndexMapper {
     return inputIndex;
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputPlaneToTensorOutputOffset(Index p) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuOutputPlaneToTensorOutputOffset(Index p) const {
     Index outputIndex = 0;
     if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int d = NumDims - 1; d > NumKernelDims; --d) {
@@ -152,32 +152,34 @@ class IndexMapper {
     return outputIndex;
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputKernelToTensorInputOffset(Index i) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuInputKernelToTensorInputOffset(Index i) const {
     const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - NumKernelDims;
     return i * m_inputStrides[offset];
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputKernelToTensorOutputOffset(Index i) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuOutputKernelToTensorOutputOffset(Index i) const {
     const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - NumKernelDims;
     return i * m_outputStrides[offset];
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputKernelToTensorInputOffset(Index i, Index j) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuInputKernelToTensorInputOffset(Index i, Index j) const {
     const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - NumKernelDims;
     return i * m_inputStrides[offset] + j * m_inputStrides[offset + 1];
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputKernelToTensorOutputOffset(Index i, Index j) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuOutputKernelToTensorOutputOffset(Index i, Index j) const {
     const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - NumKernelDims;
     return i * m_outputStrides[offset] + j * m_outputStrides[offset + 1];
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuInputKernelToTensorInputOffset(Index i, Index j, Index k) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuInputKernelToTensorInputOffset(Index i, Index j,
+                                                                                             Index k) const {
     const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - NumKernelDims;
     return i * m_inputStrides[offset] + j * m_inputStrides[offset + 1] + k * m_inputStrides[offset + 2];
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Index mapGpuOutputKernelToTensorOutputOffset(Index i, Index j, Index k) const {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Index mapGpuOutputKernelToTensorOutputOffset(Index i, Index j,
+                                                                                               Index k) const {
     const size_t offset = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - NumKernelDims;
     return i * m_outputStrides[offset] + j * m_outputStrides[offset + 1] + k * m_outputStrides[offset + 2];
   }
@@ -239,20 +241,20 @@ class TensorConvolutionOp
   typedef typename Eigen::internal::traits<TensorConvolutionOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorConvolutionOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorConvolutionOp(const InputXprType& input, const KernelXprType& kernel,
-                                                            const Indices& dims)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorConvolutionOp(const InputXprType& input,
+                                                                      const KernelXprType& kernel, const Indices& dims)
       : m_input_xpr(input), m_kernel_xpr(kernel), m_indices(dims) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Indices& indices() const { return m_indices; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Indices& indices() const { return m_indices; }
 
   /** \returns the nested expressions */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::remove_all_t<typename InputXprType::Nested>& inputExpression()
-      const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const internal::remove_all_t<typename InputXprType::Nested>&
+  inputExpression() const {
     return m_input_xpr;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::remove_all_t<typename KernelXprType::Nested>& kernelExpression()
-      const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const internal::remove_all_t<typename KernelXprType::Nested>&
+  kernelExpression() const {
     return m_kernel_xpr;
   }
 
@@ -295,7 +297,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_inputImpl(op.inputExpression(), device),
         m_kernelImpl(op.kernelExpression(), device),
         m_kernelArg(op.kernelExpression()),
@@ -363,14 +365,14 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(Scalar*) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(Scalar*) {
     m_inputImpl.evalSubExprsIfNeeded(NULL);
     preloadKernel();
     return true;
   }
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     m_inputImpl.cleanup();
     if (m_local_kernel) {
       m_device.deallocate((void*)m_kernel);
@@ -379,7 +381,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     m_kernel = NULL;
   }
 
-  void evalTo(typename XprType::Scalar* buffer) {
+  constexpr void evalTo(typename XprType::Scalar* buffer) {
     evalSubExprsIfNeeded(NULL);
     for (int i = 0; i < dimensions().TotalSize(); ++i) {
       buffer[i] += coeff(i);
@@ -387,7 +389,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     cleanup();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     CoeffReturnType result = CoeffReturnType(0);
     convolve(firstInput(index), 0, NumKernelDims - 1, result);
     return result;
@@ -437,7 +439,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     const double kernel_size = m_kernelImpl.dimensions().TotalSize();
     // We ignore the use of fused multiply-add.
     const double convolve_compute_cost = TensorOpCost::AddCost<Scalar>() + TensorOpCost::MulCost<Scalar>();
@@ -449,10 +451,10 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
                           TensorOpCost(0, 0, convolve_compute_cost, vectorized, PacketSize));
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return NULL; }
 
  private:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index firstInput(Index index) const {
     Index startInput = 0;
     if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = NumDims - 1; i > 0; --i) {
@@ -471,7 +473,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     return startInput;
   }
 
-  EIGEN_DEVICE_FUNC void convolve(Index firstIndex, Index firstKernel, int DimIndex, CoeffReturnType& accum) const {
+  EIGEN_DEVICE_FUNC constexpr void convolve(Index firstIndex, Index firstKernel, int DimIndex,
+                                            CoeffReturnType& accum) const {
     for (int j = 0; j < m_kernelImpl.dimensions()[DimIndex]; ++j) {
       const Index input = firstIndex + j * m_indexStride[DimIndex];
       const Index kernel = firstKernel + j * m_kernelStride[DimIndex];
@@ -484,7 +487,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   }
 
   template <typename Packet>
-  EIGEN_DEVICE_FUNC void convolvePacket(Index firstIndex, Index firstKernel, int DimIndex, Packet& accum) const {
+  EIGEN_DEVICE_FUNC constexpr void convolvePacket(Index firstIndex, Index firstKernel, int DimIndex,
+                                                  Packet& accum) const {
     for (int j = 0; j < m_kernelImpl.dimensions()[DimIndex]; ++j) {
       const Index input = firstIndex + j * m_indexStride[DimIndex];
       const Index kernel = firstKernel + j * m_kernelStride[DimIndex];
@@ -497,7 +501,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void preloadKernel() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void preloadKernel() {
     // Don't make a local copy of the kernel unless we have to (i.e. it's an
     // expression that needs to be evaluated)
     const Scalar* in_place = m_kernelImpl.data();
@@ -537,15 +541,17 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
 template <int StaticKernelSize>
 struct GetKernelSize {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(const int /*kernelSize*/) const { return StaticKernelSize; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int operator()(const int /*kernelSize*/) const {
+    return StaticKernelSize;
+  }
 };
 template <>
 struct GetKernelSize<Dynamic> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(const int kernelSize) const { return kernelSize; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int operator()(const int kernelSize) const { return kernelSize; }
 };
 
 template <typename InputEvaluator, typename Index, typename InputDims, int StaticKernelSize>
-__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel1D(
+__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 constexpr void EigenConvolutionKernel1D(
     InputEvaluator eval, const internal::IndexMapper<Index, InputDims, 1, InputEvaluator::Layout> indexMapper,
     const float* __restrict kernel, const int numPlanes, const int numX, const int maxX, const int kernelSize,
     float* buffer) {
@@ -594,7 +600,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel1D(
 };
 
 template <typename InputEvaluator, typename Index, typename InputDims, int StaticKernelSizeX, int StaticKernelSizeY>
-__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel2D(
+__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 constexpr void EigenConvolutionKernel2D(
     InputEvaluator eval, const internal::IndexMapper<Index, InputDims, 2, InputEvaluator::Layout> indexMapper,
     const float* __restrict kernel, const int numPlanes, const int numX, const int maxX, const int numY, const int maxY,
     const int kernelSizeX, const int kernelSizeY, float* buffer) {
@@ -663,7 +669,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel2D(
 };
 
 template <typename InputEvaluator, typename Index, typename InputDims>
-__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
+__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 constexpr void EigenConvolutionKernel3D(
     InputEvaluator eval, const internal::IndexMapper<Index, InputDims, 3, InputEvaluator::Layout> indexMapper,
     const float* __restrict kernel, const size_t numPlanes, const size_t numX, const size_t maxX, const size_t numY,
     const size_t maxY, const size_t numZ, const size_t maxZ, const size_t kernelSizeX, const size_t kernelSizeY,
@@ -757,7 +763,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  TensorEvaluator(const XprType& op, const GpuDevice& device)
+  constexpr TensorEvaluator(const XprType& op, const GpuDevice& device)
       : m_inputImpl(op.inputExpression(), device),
         m_kernelImpl(op.kernelExpression(), device),
         m_kernelArg(op.kernelExpression()),
@@ -788,9 +794,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   typedef typename InputArgType::Scalar Scalar;
   static constexpr int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
 
-  EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(Scalar* data) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(Scalar* data) {
     preloadKernel();
     m_inputImpl.evalSubExprsIfNeeded(NULL);
     if (data) {
@@ -803,7 +809,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
   }
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     m_inputImpl.cleanup();
     if (m_buf) {
       m_device.deallocate(m_buf);
@@ -816,7 +822,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     m_kernel = NULL;
   }
 
-  EIGEN_STRONG_INLINE void preloadKernel() {
+  EIGEN_STRONG_INLINE constexpr void preloadKernel() {
     // Don't make a local copy of the kernel unless we have to (i.e. it's an
     // expression that needs to be evaluated)
     const Scalar* in_place = m_kernelImpl.data();
@@ -836,7 +842,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
   }
 
-  static unsigned int ceil(unsigned int num, unsigned int denom) {
+  static constexpr unsigned int ceil(unsigned int num, unsigned int denom) {
     const unsigned int rounded_toward_zero = num / denom;
     if (num > rounded_toward_zero * denom) {
       return rounded_toward_zero + 1;
@@ -844,7 +850,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     return rounded_toward_zero;
   }
 
-  void executeEval(Scalar* data) const {
+  constexpr void executeEval(Scalar* data) const {
     typedef typename TensorEvaluator<InputArgType, GpuDevice>::Dimensions InputDims;
 
     const int maxSharedMem = m_device.sharedMemPerBlock();
@@ -1073,7 +1079,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     eigen_assert(m_buf);
     eigen_assert(index < m_dimensions.TotalSize());
     return m_buf[index];
@@ -1086,7 +1092,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     return internal::ploadt<PacketReturnType, LoadMode>(m_buf + index);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     // TODO(rmlarsen): FIXME: For now, this is just a copy of the CPU cost
     // model.
     const double kernel_size = m_kernelImpl.dimensions().TotalSize();

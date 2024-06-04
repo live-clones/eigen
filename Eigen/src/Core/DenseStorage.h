@@ -360,7 +360,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Cols, Options> {
     other.m_data = nullptr;
     other.m_rows = 0;
   }
-  EIGEN_DEVICE_FUNC ~DenseStorage_impl() { conditional_aligned_delete_auto<T, Align>(m_data, size()); }
+  EIGEN_DEVICE_FUNC constexpr ~DenseStorage_impl() { conditional_aligned_delete_auto<T, Align>(m_data, size()); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl& operator=(const DenseStorage_impl& other) {
     resize(other.size(), other.rows(), other.cols());
     smart_copy(other.m_data, other.m_data + other.size(), m_data);

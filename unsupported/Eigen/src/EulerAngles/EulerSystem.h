@@ -163,7 +163,7 @@ class EulerSystem {
   EIGEN_EULER_ANGLES_CLASS_STATIC_ASSERT((unsigned)BetaAxisAbs != (unsigned)GammaAxisAbs,
                                          BETA_AXIS_CANT_BE_EQUAL_TO_GAMMA_AXIS);
 
-  static const int
+  static constexpr int
       // I, J, K are the pivot indexes permutation for the rotation matrix, that match this Euler system.
       // They are used in this class converters.
       // They are always different from each other, and their possible values are: 0, 1, or 2.
@@ -172,8 +172,8 @@ class EulerSystem {
 
   // TODO: Get @mat parameter in form that avoids double evaluation.
   template <typename Derived>
-  static void CalcEulerAngles_imp(Matrix<typename MatrixBase<Derived>::Scalar, 3, 1>& res,
-                                  const MatrixBase<Derived>& mat, internal::true_type /*isTaitBryan*/) {
+  static constexpr void CalcEulerAngles_imp(Matrix<typename MatrixBase<Derived>::Scalar, 3, 1>& res,
+                                            const MatrixBase<Derived>& mat, internal::true_type /*isTaitBryan*/) {
     using std::atan2;
     using std::sqrt;
 
@@ -207,8 +207,8 @@ class EulerSystem {
   }
 
   template <typename Derived>
-  static void CalcEulerAngles_imp(Matrix<typename MatrixBase<Derived>::Scalar, 3, 1>& res,
-                                  const MatrixBase<Derived>& mat, internal::false_type /*isTaitBryan*/) {
+  static constexpr void CalcEulerAngles_imp(Matrix<typename MatrixBase<Derived>::Scalar, 3, 1>& res,
+                                            const MatrixBase<Derived>& mat, internal::false_type /*isTaitBryan*/) {
     using std::atan2;
     using std::sqrt;
 
@@ -241,8 +241,8 @@ class EulerSystem {
   }
 
   template <typename Scalar>
-  static void CalcEulerAngles(EulerAngles<Scalar, EulerSystem>& res,
-                              const typename EulerAngles<Scalar, EulerSystem>::Matrix3& mat) {
+  static constexpr void CalcEulerAngles(EulerAngles<Scalar, EulerSystem>& res,
+                                        const typename EulerAngles<Scalar, EulerSystem>::Matrix3& mat) {
     CalcEulerAngles_imp(res.angles(), mat,
                         std::conditional_t<IsTaitBryan, internal::true_type, internal::false_type>());
 

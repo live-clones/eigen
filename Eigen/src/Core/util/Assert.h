@@ -81,8 +81,8 @@ namespace internal {
 // Generic default assert handler.
 template <typename EnableIf = void, typename... EmptyArgs>
 struct assert_handler_impl {
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static inline void run(const char* expression, const char* file, unsigned line,
-                                                             const char* function) {
+  EIGEN_DEVICE_FUNC static inline constexpr void run(const char* expression, const char* file, unsigned line,
+                                                     const char* function) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
     // GPU device code doesn't allow stderr or abort, so use printf and raise an
     // illegal instruction exception to trigger a kernel failure.
@@ -122,15 +122,15 @@ struct assert_handler_impl<void_t<decltype(__assert_fail((const char*)nullptr,  
                                                                                        // for SFINAE.
                                                          ))>,
                            EmptyArgs...> {
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static inline void run(const char* expression, const char* file, unsigned line,
-                                                             const char* function) {
+  EIGEN_DEVICE_FUNC static inline constexpr void run(const char* expression, const char* file, unsigned line,
+                                                     const char* function) {
     // GCC requires this call to be dependent on the template parameters.
     __assert_fail(expression, file, line, function, std::declval<EmptyArgs>()...);
   }
 };
 
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE inline void __assert_handler(const char* expression, const char* file,
-                                                                 unsigned line, const char* function) {
+EIGEN_DEVICE_FUNC inline constexpr void __assert_handler(const char* expression, const char* file, unsigned line,
+                                                         const char* function) {
   assert_handler_impl<>::run(expression, file, line, function);
 }
 
