@@ -67,14 +67,14 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   using Base::rows;
   using Base::size;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rowIndexByOuterInner(Index outer, Index inner) const {
     return int(Derived::RowsAtCompileTime) == 1   ? 0
            : int(Derived::ColsAtCompileTime) == 1 ? inner
            : int(Derived::Flags) & RowMajorBit    ? outer
                                                   : inner;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index colIndexByOuterInner(Index outer, Index inner) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index colIndexByOuterInner(Index outer, Index inner) const {
     return int(Derived::ColsAtCompileTime) == 1   ? 0
            : int(Derived::RowsAtCompileTime) == 1 ? inner
            : int(Derived::Flags) & RowMajorBit    ? inner
@@ -248,19 +248,19 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   // So we add dummy methods here with these names, so that "using... " doesn't fail.
   // It's not private so that the child class DenseBase can access them, and it's not public
   // either since it's an implementation detail, so has to be protected.
-  void coeffRef();
-  void coeffRefByOuterInner();
+  constexpr void coeffRef();
+  constexpr void coeffRefByOuterInner();
   void writePacket();
   void writePacketByOuterInner();
-  void copyCoeff();
-  void copyCoeffByOuterInner();
+  constexpr void copyCoeff();
+  constexpr void copyCoeffByOuterInner();
   void copyPacket();
   void copyPacketByOuterInner();
-  void stride();
-  void innerStride();
-  void outerStride();
-  void rowStride();
-  void colStride();
+  constexpr void stride();
+  constexpr void innerStride();
+  constexpr void outerStride();
+  constexpr void rowStride();
+  constexpr void colStride();
 };
 
 /** \brief Base class providing read/write coefficient access to matrices and arrays.
@@ -318,7 +318,7 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
     return internal::evaluator<Derived>(derived()).coeffRef(row, col);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRefByOuterInner(Index outer, Index inner) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRefByOuterInner(Index outer, Index inner) {
     return coeffRef(rowIndexByOuterInner(outer, inner), colIndexByOuterInner(outer, inner));
   }
 
@@ -536,7 +536,7 @@ struct first_aligned_impl {
 
 template <int Alignment, typename Derived>
 struct first_aligned_impl<Alignment, Derived, false> {
-  static inline Index run(const Derived& m) { return internal::first_aligned<Alignment>(m.data(), m.size()); }
+  static inline constexpr Index run(const Derived& m) { return internal::first_aligned<Alignment>(m.data(), m.size()); }
 };
 
 /** \internal \returns the index of the first element of the array stored by \a m that is properly aligned with respect
@@ -548,13 +548,13 @@ struct first_aligned_impl<Alignment, Derived, false> {
  * documentation.
  */
 template <int Alignment, typename Derived>
-static inline Index first_aligned(const DenseBase<Derived>& m) {
+static inline constexpr Index first_aligned(const DenseBase<Derived>& m) {
   enum { ReturnZero = (int(evaluator<Derived>::Alignment) >= Alignment) || !(Derived::Flags & DirectAccessBit) };
   return first_aligned_impl<Alignment, Derived, ReturnZero>::run(m.derived());
 }
 
 template <typename Derived>
-static inline Index first_default_aligned(const DenseBase<Derived>& m) {
+static inline constexpr Index first_default_aligned(const DenseBase<Derived>& m) {
   typedef typename Derived::Scalar Scalar;
   typedef typename packet_traits<Scalar>::type DefaultPacketType;
   return internal::first_aligned<int(unpacket_traits<DefaultPacketType>::alignment), Derived>(m);

@@ -242,15 +242,15 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
   EIGEN_DEVICE_FUNC Scalar* data() { return reinterpret_cast<Scalar*>(m_xpr.data()); }
   EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
-  EIGEN_DEVICE_FUNC RealView(const RealView&) = default;
+  EIGEN_DEVICE_FUNC constexpr RealView(const RealView&) = default;
 
-  EIGEN_DEVICE_FUNC RealView& operator=(const RealView& other);
-
-  template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC RealView& operator=(const RealView<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC constexpr RealView& operator=(const RealView& other);
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC RealView& operator=(const DenseBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC constexpr RealView& operator=(const RealView<OtherDerived>& other);
+
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC constexpr RealView& operator=(const DenseBase<OtherDerived>& other);
 
  protected:
   friend struct internal::evaluator<RealView>;
@@ -258,32 +258,32 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
 };
 
 template <typename Xpr>
-EIGEN_DEVICE_FUNC RealView<Xpr>& RealView<Xpr>::operator=(const RealView& other) {
+EIGEN_DEVICE_FUNC constexpr RealView<Xpr>& RealView<Xpr>::operator=(const RealView& other) {
   internal::call_assignment(*this, other);
   return *this;
 }
 
 template <typename Xpr>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC RealView<Xpr>& RealView<Xpr>::operator=(const RealView<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC constexpr RealView<Xpr>& RealView<Xpr>::operator=(const RealView<OtherDerived>& other) {
   internal::call_assignment(*this, other);
   return *this;
 }
 
 template <typename Xpr>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC RealView<Xpr>& RealView<Xpr>::operator=(const DenseBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC constexpr RealView<Xpr>& RealView<Xpr>::operator=(const DenseBase<OtherDerived>& other) {
   internal::call_assignment(*this, other.derived());
   return *this;
 }
 
 template <typename Derived>
-EIGEN_DEVICE_FUNC typename DenseBase<Derived>::RealViewReturnType DenseBase<Derived>::realView() {
+EIGEN_DEVICE_FUNC constexpr typename DenseBase<Derived>::RealViewReturnType DenseBase<Derived>::realView() {
   return RealViewReturnType(derived());
 }
 
 template <typename Derived>
-EIGEN_DEVICE_FUNC typename DenseBase<Derived>::ConstRealViewReturnType DenseBase<Derived>::realView() const {
+EIGEN_DEVICE_FUNC constexpr typename DenseBase<Derived>::ConstRealViewReturnType DenseBase<Derived>::realView() const {
   return ConstRealViewReturnType(derived());
 }
 

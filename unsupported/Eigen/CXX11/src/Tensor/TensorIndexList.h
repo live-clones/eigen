@@ -19,7 +19,7 @@ template <Index n>
 struct type2index {
   static constexpr Index value = n;
   EIGEN_DEVICE_FUNC constexpr operator Index() const { return n; }
-  EIGEN_DEVICE_FUNC void set(Index val) { eigen_assert(val == n); }
+  EIGEN_DEVICE_FUNC constexpr void set(Index val) { eigen_assert(val == n); }
 };
 
 // This can be used with IndexPairList to get compile-time constant pairs,
@@ -31,7 +31,7 @@ struct type2indexpair {
 
   constexpr EIGEN_DEVICE_FUNC operator IndexPair<Index>() const { return IndexPair<Index>(f, s); }
 
-  EIGEN_DEVICE_FUNC void set(const IndexPair<Index>& val) {
+  EIGEN_DEVICE_FUNC constexpr void set(const IndexPair<Index>& val) {
     eigen_assert(val.first == f);
     eigen_assert(val.second == s);
   }
@@ -50,20 +50,20 @@ struct NumTraits<type2index<n>> {
 
 namespace internal {
 template <typename T>
-EIGEN_DEVICE_FUNC void update_value(T& val, Index new_val) {
+EIGEN_DEVICE_FUNC constexpr void update_value(T& val, Index new_val) {
   val = internal::convert_index<T>(new_val);
 }
 template <Index n>
-EIGEN_DEVICE_FUNC void update_value(type2index<n>& val, Index new_val) {
+EIGEN_DEVICE_FUNC constexpr void update_value(type2index<n>& val, Index new_val) {
   val.set(new_val);
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC void update_value(T& val, IndexPair<Index> new_val) {
+EIGEN_DEVICE_FUNC constexpr void update_value(T& val, IndexPair<Index> new_val) {
   val = new_val;
 }
 template <Index f, Index s>
-EIGEN_DEVICE_FUNC void update_value(type2indexpair<f, s>& val, IndexPair<Index> new_val) {
+EIGEN_DEVICE_FUNC constexpr void update_value(type2indexpair<f, s>& val, IndexPair<Index> new_val) {
   val.set(new_val);
 }
 
@@ -146,7 +146,7 @@ struct IndexTupleExtractor<N, T, O...> {
     return IndexTupleExtractor<N - 1, O...>::get_val(val.others);
   }
   template <typename V>
-  EIGEN_DEVICE_FUNC static void set_val(IndexTuple<T, O...>& val, V& new_val) {
+  EIGEN_DEVICE_FUNC static constexpr void set_val(IndexTuple<T, O...>& val, V& new_val) {
     IndexTupleExtractor<N - 1, O...>::set_val(val.others, new_val);
   }
 };
@@ -158,7 +158,7 @@ struct IndexTupleExtractor<0, T, O...> {
   EIGEN_DEVICE_FUNC static constexpr ValType& get_val(IndexTuple<T, O...>& val) { return val.head; }
   EIGEN_DEVICE_FUNC static constexpr const ValType& get_val(const IndexTuple<T, O...>& val) { return val.head; }
   template <typename V>
-  EIGEN_DEVICE_FUNC static void set_val(IndexTuple<T, O...>& val, V& new_val) {
+  EIGEN_DEVICE_FUNC static constexpr void set_val(IndexTuple<T, O...>& val, V& new_val) {
     val.head = new_val;
   }
 };
@@ -189,7 +189,7 @@ struct tuple_coeff {
     return (i == Idx ? array_get<Idx>(t) : tuple_coeff<Idx - 1, ValueT>::get(i, t));
   }
   template <typename... T>
-  EIGEN_DEVICE_FUNC static void set(const Index i, IndexTuple<T...>& t, const ValueT& value) {
+  EIGEN_DEVICE_FUNC static constexpr void set(const Index i, IndexTuple<T...>& t, const ValueT& value) {
     if (i == Idx) {
       update_value(array_get<Idx>(t), value);
     } else {
@@ -226,7 +226,7 @@ struct tuple_coeff<0, ValueT> {
     return array_get<0>(t) /* * (i == 0)*/;
   }
   template <typename... T>
-  EIGEN_DEVICE_FUNC static void set(const Index i, IndexTuple<T...>& t, const ValueT value) {
+  EIGEN_DEVICE_FUNC static constexpr void set(const Index i, IndexTuple<T...>& t, const ValueT value) {
     eigen_assert(i == 0);
     update_value(array_get<0>(t), value);
   }
@@ -326,7 +326,7 @@ struct IndexPairList : internal::IndexTuple<FirstType, OtherTypes...> {
     return internal::tuple_coeff<internal::array_size<internal::IndexTuple<FirstType, OtherTypes...>>::value - 1,
                                  IndexPair<Index>>::get(i, *this);
   }
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC void set(const Index i, const IndexPair<Index> value) {
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr void set(const Index i, const IndexPair<Index> value) {
     return internal::tuple_coeff<internal::array_size<internal::IndexTuple<FirstType, OtherTypes...>>::value - 1,
                                  IndexPair<Index>>::set(i, *this, value);
   }
@@ -344,7 +344,7 @@ struct IndexPairList : internal::IndexTuple<FirstType, OtherTypes...> {
 namespace internal {
 
 template <typename FirstType, typename... OtherTypes>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index array_prod(const IndexList<FirstType, OtherTypes...>& sizes) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index array_prod(const IndexList<FirstType, OtherTypes...>& sizes) {
   Index result = 1;
   EIGEN_UNROLL_LOOP
   for (size_t i = 0; i < array_size<IndexList<FirstType, OtherTypes...>>::value; ++i) {
