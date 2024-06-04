@@ -50,11 +50,11 @@ struct DenseFunctor {
   typedef ColPivHouseholderQR<JacobianType> QRSolver;
   const int m_inputs, m_values;
 
-  DenseFunctor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
-  DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
+  constexpr DenseFunctor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
+  constexpr DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
 
-  int inputs() const { return m_inputs; }
-  int values() const { return m_values; }
+  constexpr int inputs() const { return m_inputs; }
+  constexpr int values() const { return m_values; }
 
   // int operator()(const InputType &x, ValueType& fvec) { }
   //  should be defined in derived classes
@@ -73,10 +73,10 @@ struct SparseFunctor {
   typedef SparseQR<JacobianType, COLAMDOrdering<int> > QRSolver;
   enum { InputsAtCompileTime = Dynamic, ValuesAtCompileTime = Dynamic };
 
-  SparseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
+  constexpr SparseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
 
-  int inputs() const { return m_inputs; }
-  int values() const { return m_values; }
+  constexpr int inputs() const { return m_inputs; }
+  constexpr int values() const { return m_values; }
 
   const int m_inputs, m_values;
   // int operator()(const InputType &x, ValueType& fvec) { }
@@ -87,8 +87,8 @@ struct SparseFunctor {
 };
 namespace internal {
 template <typename QRSolver, typename VectorType>
-void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, typename VectorType::Scalar m_delta,
-            typename VectorType::Scalar &par, VectorType &x);
+constexpr void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb,
+                      typename VectorType::Scalar m_delta, typename VectorType::Scalar &par, VectorType &x);
 }
 /**
  * \ingroup NonLinearOptimization_Module
@@ -111,7 +111,7 @@ class LevenbergMarquardt : internal::no_assignment_operator {
   typedef PermutationMatrix<Dynamic, Dynamic, int> PermutationType;
 
  public:
-  LevenbergMarquardt(FunctorType &functor)
+  constexpr LevenbergMarquardt(FunctorType &functor)
       : m_functor(functor),
         m_nfev(0),
         m_njev(0),
@@ -123,15 +123,16 @@ class LevenbergMarquardt : internal::no_assignment_operator {
     m_useExternalScaling = false;
   }
 
-  LevenbergMarquardtSpace::Status minimize(FVectorType &x);
-  LevenbergMarquardtSpace::Status minimizeInit(FVectorType &x);
-  LevenbergMarquardtSpace::Status minimizeOneStep(FVectorType &x);
-  LevenbergMarquardtSpace::Status lmder1(FVectorType &x, const Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon()));
-  static LevenbergMarquardtSpace::Status lmdif1(FunctorType &functor, FVectorType &x, Index *nfev,
-                                                const Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon()));
+  constexpr LevenbergMarquardtSpace::Status minimize(FVectorType &x);
+  constexpr LevenbergMarquardtSpace::Status minimizeInit(FVectorType &x);
+  constexpr LevenbergMarquardtSpace::Status minimizeOneStep(FVectorType &x);
+  constexpr LevenbergMarquardtSpace::Status lmder1(FVectorType &x,
+                                                   const Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon()));
+  static constexpr LevenbergMarquardtSpace::Status lmdif1(FunctorType &functor, FVectorType &x, Index *nfev,
+                                                          const Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon()));
 
   /** Sets the default parameters */
-  void resetParameters() {
+  constexpr void resetParameters() {
     using std::sqrt;
 
     m_factor = 100.;
@@ -143,81 +144,81 @@ class LevenbergMarquardt : internal::no_assignment_operator {
   }
 
   /** Sets the tolerance for the norm of the solution vector*/
-  void setXtol(RealScalar xtol) { m_xtol = xtol; }
+  constexpr void setXtol(RealScalar xtol) { m_xtol = xtol; }
 
   /** Sets the tolerance for the norm of the vector function*/
-  void setFtol(RealScalar ftol) { m_ftol = ftol; }
+  constexpr void setFtol(RealScalar ftol) { m_ftol = ftol; }
 
   /** Sets the tolerance for the norm of the gradient of the error vector*/
-  void setGtol(RealScalar gtol) { m_gtol = gtol; }
+  constexpr void setGtol(RealScalar gtol) { m_gtol = gtol; }
 
   /** Sets the step bound for the diagonal shift */
-  void setFactor(RealScalar factor) { m_factor = factor; }
+  constexpr void setFactor(RealScalar factor) { m_factor = factor; }
 
   /** Sets the error precision  */
-  void setEpsilon(RealScalar epsfcn) { m_epsfcn = epsfcn; }
+  constexpr void setEpsilon(RealScalar epsfcn) { m_epsfcn = epsfcn; }
 
   /** Sets the maximum number of function evaluation */
-  void setMaxfev(Index maxfev) { m_maxfev = maxfev; }
+  constexpr void setMaxfev(Index maxfev) { m_maxfev = maxfev; }
 
   /** Use an external Scaling. If set to true, pass a nonzero diagonal to diag() */
-  void setExternalScaling(bool value) { m_useExternalScaling = value; }
+  constexpr void setExternalScaling(bool value) { m_useExternalScaling = value; }
 
   /** \returns the tolerance for the norm of the solution vector */
-  RealScalar xtol() const { return m_xtol; }
+  constexpr RealScalar xtol() const { return m_xtol; }
 
   /** \returns the tolerance for the norm of the vector function */
-  RealScalar ftol() const { return m_ftol; }
+  constexpr RealScalar ftol() const { return m_ftol; }
 
   /** \returns the tolerance for the norm of the gradient of the error vector */
-  RealScalar gtol() const { return m_gtol; }
+  constexpr RealScalar gtol() const { return m_gtol; }
 
   /** \returns the step bound for the diagonal shift */
-  RealScalar factor() const { return m_factor; }
+  constexpr RealScalar factor() const { return m_factor; }
 
   /** \returns the error precision */
-  RealScalar epsilon() const { return m_epsfcn; }
+  constexpr RealScalar epsilon() const { return m_epsfcn; }
 
   /** \returns the maximum number of function evaluation */
-  Index maxfev() const { return m_maxfev; }
+  constexpr Index maxfev() const { return m_maxfev; }
 
   /** \returns a reference to the diagonal of the jacobian */
-  FVectorType &diag() { return m_diag; }
+  constexpr FVectorType &diag() { return m_diag; }
 
   /** \returns the number of iterations performed */
-  Index iterations() { return m_iter; }
+  constexpr Index iterations() { return m_iter; }
 
   /** \returns the number of functions evaluation */
-  Index nfev() { return m_nfev; }
+  constexpr Index nfev() { return m_nfev; }
 
   /** \returns the number of jacobian evaluation */
-  Index njev() { return m_njev; }
+  constexpr Index njev() { return m_njev; }
 
   /** \returns the norm of current vector function */
-  RealScalar fnorm() { return m_fnorm; }
+  constexpr RealScalar fnorm() { return m_fnorm; }
 
   /** \returns the norm of the gradient of the error */
-  RealScalar gnorm() { return m_gnorm; }
+  constexpr RealScalar gnorm() { return m_gnorm; }
 
   /** \returns the LevenbergMarquardt parameter */
-  RealScalar lm_param(void) { return m_par; }
+  constexpr RealScalar lm_param(void) { return m_par; }
 
   /** \returns a reference to the  current vector function
    */
-  FVectorType &fvec() { return m_fvec; }
+  constexpr FVectorType &fvec() { return m_fvec; }
 
   /** \returns a reference to the matrix where the current Jacobian matrix is stored
    */
-  JacobianType &jacobian() { return m_fjac; }
+  constexpr JacobianType &jacobian() { return m_fjac; }
 
   /** \returns a reference to the triangular matrix R from the QR of the jacobian matrix.
    * \sa jacobian()
    */
-  JacobianType &matrixR() { return m_rfactor; }
+  constexpr JacobianType &matrixR() { return m_rfactor; }
 
   /** the permutation used in the QR factorization
    */
-  PermutationType permutation() { return m_permutation; }
+  constexpr PermutationType permutation() { return m_permutation; }
 
   /**
    * \brief Reports whether the minimization was successful
@@ -228,7 +229,7 @@ class LevenbergMarquardt : internal::no_assignment_operator {
    *          the maximum number of function evaluation allowed
    *          \c InvalidInput if the input matrix is invalid
    */
-  ComputationInfo info() const { return m_info; }
+  constexpr ComputationInfo info() const { return m_info; }
 
  private:
   JacobianType m_fjac;
@@ -258,7 +259,7 @@ class LevenbergMarquardt : internal::no_assignment_operator {
 };
 
 template <typename FunctorType>
-LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimize(FVectorType &x) {
+constexpr LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimize(FVectorType &x) {
   LevenbergMarquardtSpace::Status status = minimizeInit(x);
   if (status == LevenbergMarquardtSpace::ImproperInputParameters) {
     m_isInitialized = true;
@@ -273,7 +274,7 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimize(FVecto
 }
 
 template <typename FunctorType>
-LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeInit(FVectorType &x) {
+constexpr LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeInit(FVectorType &x) {
   n = x.size();
   m = m_functor.values();
 
@@ -321,7 +322,7 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeInit(FV
 }
 
 template <typename FunctorType>
-LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::lmder1(FVectorType &x, const Scalar tol) {
+constexpr LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::lmder1(FVectorType &x, const Scalar tol) {
   n = x.size();
   m = m_functor.values();
 
@@ -337,8 +338,8 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::lmder1(FVectorT
 }
 
 template <typename FunctorType>
-LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::lmdif1(FunctorType &functor, FVectorType &x,
-                                                                        Index *nfev, const Scalar tol) {
+constexpr LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::lmdif1(FunctorType &functor, FVectorType &x,
+                                                                                  Index *nfev, const Scalar tol) {
   Index n = x.size();
   Index m = functor.values();
 

@@ -81,7 +81,7 @@ class CompleteOrthogonalDecomposition
    * perform decompositions via
    * \c CompleteOrthogonalDecomposition::compute(const* MatrixType&).
    */
-  CompleteOrthogonalDecomposition() : m_cpqr(), m_zCoeffs(), m_temp() {}
+  constexpr CompleteOrthogonalDecomposition() : m_cpqr(), m_zCoeffs(), m_temp() {}
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -89,7 +89,7 @@ class CompleteOrthogonalDecomposition
    * according to the specified problem \a size.
    * \sa CompleteOrthogonalDecomposition()
    */
-  CompleteOrthogonalDecomposition(Index rows, Index cols)
+  constexpr CompleteOrthogonalDecomposition(Index rows, Index cols)
       : m_cpqr(rows, cols), m_zCoeffs((std::min)(rows, cols)), m_temp(cols) {}
 
   /** \brief Constructs a complete orthogonal decomposition from a given
@@ -109,7 +109,7 @@ class CompleteOrthogonalDecomposition
    * \sa compute()
    */
   template <typename InputType>
-  explicit CompleteOrthogonalDecomposition(const EigenBase<InputType>& matrix)
+  constexpr explicit CompleteOrthogonalDecomposition(const EigenBase<InputType>& matrix)
       : m_cpqr(matrix.rows(), matrix.cols()),
         m_zCoeffs((std::min)(matrix.rows(), matrix.cols())),
         m_temp(matrix.cols()) {
@@ -124,7 +124,7 @@ class CompleteOrthogonalDecomposition
    * \sa CompleteOrthogonalDecomposition(const EigenBase&)
    */
   template <typename InputType>
-  explicit CompleteOrthogonalDecomposition(EigenBase<InputType>& matrix)
+  constexpr explicit CompleteOrthogonalDecomposition(EigenBase<InputType>& matrix)
       : m_cpqr(matrix.derived()), m_zCoeffs((std::min)(matrix.rows(), matrix.cols())), m_temp(matrix.cols()) {
     computeInPlace();
   }
@@ -140,15 +140,15 @@ class CompleteOrthogonalDecomposition
    *
    */
   template <typename Rhs>
-  inline const Solve<CompleteOrthogonalDecomposition, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline constexpr const Solve<CompleteOrthogonalDecomposition, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
-  HouseholderSequenceType householderQ(void) const;
-  HouseholderSequenceType matrixQ(void) const { return m_cpqr.householderQ(); }
+  constexpr HouseholderSequenceType householderQ(void) const;
+  constexpr HouseholderSequenceType matrixQ(void) const { return m_cpqr.householderQ(); }
 
   /** \returns the matrix \b Z.
    */
-  MatrixType matrixZ() const {
+  constexpr MatrixType matrixZ() const {
     MatrixType Z = MatrixType::Identity(m_cpqr.cols(), m_cpqr.cols());
     applyZOnTheLeftInPlace<false>(Z);
     return Z;
@@ -157,7 +157,7 @@ class CompleteOrthogonalDecomposition
   /** \returns a reference to the matrix where the complete orthogonal
    * decomposition is stored
    */
-  const MatrixType& matrixQTZ() const { return m_cpqr.matrixQR(); }
+  constexpr const MatrixType& matrixQTZ() const { return m_cpqr.matrixQR(); }
 
   /** \returns a reference to the matrix where the complete orthogonal
    * decomposition is stored.
@@ -170,10 +170,10 @@ class CompleteOrthogonalDecomposition
    * matrixT().topLeftCorner(rank(), rank()).template triangularView<Upper>()
    * \endcode
    */
-  const MatrixType& matrixT() const { return m_cpqr.matrixQR(); }
+  constexpr const MatrixType& matrixT() const { return m_cpqr.matrixQR(); }
 
   template <typename InputType>
-  CompleteOrthogonalDecomposition& compute(const EigenBase<InputType>& matrix) {
+  constexpr CompleteOrthogonalDecomposition& compute(const EigenBase<InputType>& matrix) {
     // Compute the column pivoted QR factorization A P = Q R.
     m_cpqr.compute(matrix);
     computeInPlace();
@@ -181,7 +181,7 @@ class CompleteOrthogonalDecomposition
   }
 
   /** \returns a const reference to the column permutation matrix */
-  const PermutationType& colsPermutation() const { return m_cpqr.colsPermutation(); }
+  constexpr const PermutationType& colsPermutation() const { return m_cpqr.colsPermutation(); }
 
   /** \returns the determinant of the matrix of which
    * *this is the complete orthogonal decomposition. It has only linear
@@ -196,7 +196,7 @@ class CompleteOrthogonalDecomposition
    *
    * \sa absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
    */
-  typename MatrixType::Scalar determinant() const;
+  constexpr typename MatrixType::Scalar determinant() const;
 
   /** \returns the absolute value of the determinant of the matrix of which
    * *this is the complete orthogonal decomposition. It has only linear
@@ -211,7 +211,7 @@ class CompleteOrthogonalDecomposition
    *
    * \sa determinant(), logAbsDeterminant(), MatrixBase::determinant()
    */
-  typename MatrixType::RealScalar absDeterminant() const;
+  constexpr typename MatrixType::RealScalar absDeterminant() const;
 
   /** \returns the natural log of the absolute value of the determinant of the
    * matrix of which *this is the complete orthogonal decomposition. It has
@@ -226,7 +226,7 @@ class CompleteOrthogonalDecomposition
    *
    * \sa determinant(), absDeterminant(), MatrixBase::determinant()
    */
-  typename MatrixType::RealScalar logAbsDeterminant() const;
+  constexpr typename MatrixType::RealScalar logAbsDeterminant() const;
 
   /** \returns the sign of the determinant of the
    * matrix of which *this is the complete orthogonal decomposition. It has
@@ -241,7 +241,7 @@ class CompleteOrthogonalDecomposition
    *
    * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
    */
-  typename MatrixType::Scalar signDeterminant() const;
+  constexpr typename MatrixType::Scalar signDeterminant() const;
 
   /** \returns the rank of the matrix of which *this is the complete orthogonal
    * decomposition.
@@ -250,7 +250,7 @@ class CompleteOrthogonalDecomposition
    * nonzero. For that, it uses the threshold value that you can control by
    * calling setThreshold(const RealScalar&).
    */
-  inline Index rank() const { return m_cpqr.rank(); }
+  constexpr inline Index rank() const { return m_cpqr.rank(); }
 
   /** \returns the dimension of the kernel of the matrix of which *this is the
    * complete orthogonal decomposition.
@@ -259,7 +259,7 @@ class CompleteOrthogonalDecomposition
    * nonzero. For that, it uses the threshold value that you can control by
    * calling setThreshold(const RealScalar&).
    */
-  inline Index dimensionOfKernel() const { return m_cpqr.dimensionOfKernel(); }
+  inline constexpr Index dimensionOfKernel() const { return m_cpqr.dimensionOfKernel(); }
 
   /** \returns true if the matrix of which *this is the decomposition represents
    * an injective linear map, i.e. has trivial kernel; false otherwise.
@@ -268,7 +268,7 @@ class CompleteOrthogonalDecomposition
    * nonzero. For that, it uses the threshold value that you can control by
    * calling setThreshold(const RealScalar&).
    */
-  inline bool isInjective() const { return m_cpqr.isInjective(); }
+  inline constexpr bool isInjective() const { return m_cpqr.isInjective(); }
 
   /** \returns true if the matrix of which *this is the decomposition represents
    * a surjective linear map; false otherwise.
@@ -277,7 +277,7 @@ class CompleteOrthogonalDecomposition
    * nonzero. For that, it uses the threshold value that you can control by
    * calling setThreshold(const RealScalar&).
    */
-  inline bool isSurjective() const { return m_cpqr.isSurjective(); }
+  inline constexpr bool isSurjective() const { return m_cpqr.isSurjective(); }
 
   /** \returns true if the matrix of which *this is the complete orthogonal
    * decomposition is invertible.
@@ -286,34 +286,34 @@ class CompleteOrthogonalDecomposition
    * nonzero. For that, it uses the threshold value that you can control by
    * calling setThreshold(const RealScalar&).
    */
-  inline bool isInvertible() const { return m_cpqr.isInvertible(); }
+  inline constexpr bool isInvertible() const { return m_cpqr.isInvertible(); }
 
   /** \returns the pseudo-inverse of the matrix of which *this is the complete
    * orthogonal decomposition.
    * \warning: Do not compute \c this->pseudoInverse()*rhs to solve a linear systems.
    * It is more efficient and numerically stable to call \c this->solve(rhs).
    */
-  inline const Inverse<CompleteOrthogonalDecomposition> pseudoInverse() const {
+  inline constexpr const Inverse<CompleteOrthogonalDecomposition> pseudoInverse() const {
     eigen_assert(m_cpqr.m_isInitialized && "CompleteOrthogonalDecomposition is not initialized.");
     return Inverse<CompleteOrthogonalDecomposition>(*this);
   }
 
-  inline Index rows() const { return m_cpqr.rows(); }
-  inline Index cols() const { return m_cpqr.cols(); }
+  inline constexpr Index rows() const { return m_cpqr.rows(); }
+  inline constexpr Index cols() const { return m_cpqr.cols(); }
 
   /** \returns a const reference to the vector of Householder coefficients used
    * to represent the factor \c Q.
    *
    * For advanced uses only.
    */
-  inline const HCoeffsType& hCoeffs() const { return m_cpqr.hCoeffs(); }
+  inline constexpr const HCoeffsType& hCoeffs() const { return m_cpqr.hCoeffs(); }
 
   /** \returns a const reference to the vector of Householder coefficients
    * used to represent the factor \c Z.
    *
    * For advanced uses only.
    */
-  const HCoeffsType& zCoeffs() const { return m_zCoeffs; }
+  constexpr const HCoeffsType& zCoeffs() const { return m_zCoeffs; }
 
   /** Allows to prescribe a threshold to be used by certain methods, such as
    * rank(), who need to determine when pivots are to be considered nonzero.
@@ -334,7 +334,7 @@ class CompleteOrthogonalDecomposition
    * If you want to come back to the default behavior, call
    * setThreshold(Default_t)
    */
-  CompleteOrthogonalDecomposition& setThreshold(const RealScalar& threshold) {
+  constexpr CompleteOrthogonalDecomposition& setThreshold(const RealScalar& threshold) {
     m_cpqr.setThreshold(threshold);
     return *this;
   }
@@ -347,7 +347,7 @@ class CompleteOrthogonalDecomposition
    *
    * See the documentation of setThreshold(const RealScalar&).
    */
-  CompleteOrthogonalDecomposition& setThreshold(Default_t) {
+  constexpr CompleteOrthogonalDecomposition& setThreshold(Default_t) {
     m_cpqr.setThreshold(Default);
     return *this;
   }
@@ -356,7 +356,7 @@ class CompleteOrthogonalDecomposition
    *
    * See the documentation of setThreshold(const RealScalar&).
    */
-  RealScalar threshold() const { return m_cpqr.threshold(); }
+  constexpr RealScalar threshold() const { return m_cpqr.threshold(); }
 
   /** \returns the number of nonzero pivots in the complete orthogonal
    * decomposition. Here nonzero is meant in the exact sense, not in a
@@ -365,12 +365,12 @@ class CompleteOrthogonalDecomposition
    *
    * \sa rank()
    */
-  inline Index nonzeroPivots() const { return m_cpqr.nonzeroPivots(); }
+  inline constexpr Index nonzeroPivots() const { return m_cpqr.nonzeroPivots(); }
 
   /** \returns the absolute value of the biggest pivot, i.e. the biggest
    *          diagonal coefficient of R.
    */
-  inline RealScalar maxPivot() const { return m_cpqr.maxPivot(); }
+  inline constexpr RealScalar maxPivot() const { return m_cpqr.maxPivot(); }
 
   /** \brief Reports whether the complete orthogonal decomposition was
    * successful.
@@ -380,43 +380,43 @@ class CompleteOrthogonalDecomposition
    * with other factorization routines.
    * \returns \c Success
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_cpqr.m_isInitialized && "Decomposition is not initialized.");
     return Success;
   }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
-  void _solve_impl(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl(const RhsType& rhs, DstType& dst) const;
 
   template <bool Conjugate, typename RhsType, typename DstType>
-  void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
 #endif
 
  protected:
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
   template <bool Transpose_, typename Rhs>
-  void _check_solve_assertion(const Rhs& b) const {
+  constexpr void _check_solve_assertion(const Rhs& b) const {
     EIGEN_ONLY_USED_FOR_DEBUG(b);
     eigen_assert(m_cpqr.m_isInitialized && "CompleteOrthogonalDecomposition is not initialized.");
     eigen_assert((Transpose_ ? derived().cols() : derived().rows()) == b.rows() &&
                  "CompleteOrthogonalDecomposition::solve(): invalid number of rows of the right hand side matrix b");
   }
 
-  void computeInPlace();
+  constexpr void computeInPlace();
 
   /** Overwrites \b rhs with \f$ \mathbf{Z} * \mathbf{rhs} \f$ or
    *  \f$ \mathbf{\overline Z} * \mathbf{rhs} \f$ if \c Conjugate
    *  is set to \c true.
    */
   template <bool Conjugate, typename Rhs>
-  void applyZOnTheLeftInPlace(Rhs& rhs) const;
+  constexpr void applyZOnTheLeftInPlace(Rhs& rhs) const;
 
   /** Overwrites \b rhs with \f$ \mathbf{Z}^* * \mathbf{rhs} \f$.
    */
   template <typename Rhs>
-  void applyZAdjointOnTheLeftInPlace(Rhs& rhs) const;
+  constexpr void applyZAdjointOnTheLeftInPlace(Rhs& rhs) const;
 
   ColPivHouseholderQR<MatrixType, PermutationIndex> m_cpqr;
   HCoeffsType m_zCoeffs;
@@ -424,23 +424,26 @@ class CompleteOrthogonalDecomposition
 };
 
 template <typename MatrixType, typename PermutationIndex>
-typename MatrixType::Scalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::determinant() const {
+constexpr typename MatrixType::Scalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::determinant()
+    const {
   return m_cpqr.determinant();
 }
 
 template <typename MatrixType, typename PermutationIndex>
-typename MatrixType::RealScalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::absDeterminant() const {
+constexpr typename MatrixType::RealScalar
+CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::absDeterminant() const {
   return m_cpqr.absDeterminant();
 }
 
 template <typename MatrixType, typename PermutationIndex>
-typename MatrixType::RealScalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::logAbsDeterminant()
-    const {
+constexpr typename MatrixType::RealScalar
+CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::logAbsDeterminant() const {
   return m_cpqr.logAbsDeterminant();
 }
 
 template <typename MatrixType, typename PermutationIndex>
-typename MatrixType::Scalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::signDeterminant() const {
+constexpr typename MatrixType::Scalar CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::signDeterminant()
+    const {
   return m_cpqr.signDeterminant();
 }
 
@@ -452,7 +455,7 @@ typename MatrixType::Scalar CompleteOrthogonalDecomposition<MatrixType, Permutat
  * CompleteOrthogonalDecomposition(const MatrixType&)
  */
 template <typename MatrixType, typename PermutationIndex>
-void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::computeInPlace() {
+constexpr void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::computeInPlace() {
   eigen_assert(m_cpqr.cols() <= NumTraits<PermutationIndex>::highest());
 
   const Index rank = m_cpqr.rank();
@@ -501,7 +504,7 @@ void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::computeInPla
 
 template <typename MatrixType, typename PermutationIndex>
 template <bool Conjugate, typename Rhs>
-void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::applyZOnTheLeftInPlace(Rhs& rhs) const {
+constexpr void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::applyZOnTheLeftInPlace(Rhs& rhs) const {
   const Index cols = this->cols();
   const Index nrhs = rhs.cols();
   const Index rank = this->rank();
@@ -521,7 +524,8 @@ void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::applyZOnTheL
 
 template <typename MatrixType, typename PermutationIndex>
 template <typename Rhs>
-void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::applyZAdjointOnTheLeftInPlace(Rhs& rhs) const {
+constexpr void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::applyZAdjointOnTheLeftInPlace(
+    Rhs& rhs) const {
   const Index cols = this->cols();
   const Index nrhs = rhs.cols();
   const Index rank = this->rank();
@@ -541,8 +545,8 @@ void CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::applyZAdjoin
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename MatrixType_, typename PermutationIndex_>
 template <typename RhsType, typename DstType>
-void CompleteOrthogonalDecomposition<MatrixType_, PermutationIndex_>::_solve_impl(const RhsType& rhs,
-                                                                                  DstType& dst) const {
+constexpr void CompleteOrthogonalDecomposition<MatrixType_, PermutationIndex_>::_solve_impl(const RhsType& rhs,
+                                                                                            DstType& dst) const {
   const Index rank = this->rank();
   if (rank == 0) {
     dst.setZero();
@@ -570,8 +574,8 @@ void CompleteOrthogonalDecomposition<MatrixType_, PermutationIndex_>::_solve_imp
 
 template <typename MatrixType_, typename PermutationIndex_>
 template <bool Conjugate, typename RhsType, typename DstType>
-void CompleteOrthogonalDecomposition<MatrixType_, PermutationIndex_>::_solve_impl_transposed(const RhsType& rhs,
-                                                                                             DstType& dst) const {
+constexpr void CompleteOrthogonalDecomposition<MatrixType_, PermutationIndex_>::_solve_impl_transposed(
+    const RhsType& rhs, DstType& dst) const {
   const Index rank = this->rank();
 
   if (rank == 0) {
@@ -614,8 +618,8 @@ struct Assignment<DstXprType, Inverse<CompleteOrthogonalDecomposition<MatrixType
                   Dense2Dense> {
   typedef CompleteOrthogonalDecomposition<MatrixType, PermutationIndex> CodType;
   typedef Inverse<CodType> SrcXprType;
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
+  static constexpr void run(DstXprType& dst, const SrcXprType& src,
+                            const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
     typedef Matrix<typename CodType::Scalar, CodType::RowsAtCompileTime, CodType::RowsAtCompileTime, 0,
                    CodType::MaxRowsAtCompileTime, CodType::MaxRowsAtCompileTime>
         IdentityMatrixType;
@@ -627,7 +631,7 @@ struct Assignment<DstXprType, Inverse<CompleteOrthogonalDecomposition<MatrixType
 
 /** \returns the matrix Q as a sequence of householder transformations */
 template <typename MatrixType, typename PermutationIndex>
-typename CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::HouseholderSequenceType
+constexpr typename CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::HouseholderSequenceType
 CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::householderQ() const {
   return m_cpqr.householderQ();
 }
@@ -638,7 +642,7 @@ CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::householderQ() co
  */
 template <typename Derived>
 template <typename PermutationIndex>
-const CompleteOrthogonalDecomposition<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
+constexpr const CompleteOrthogonalDecomposition<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
 MatrixBase<Derived>::completeOrthogonalDecomposition() const {
   return CompleteOrthogonalDecomposition<PlainObject>(eval());
 }
