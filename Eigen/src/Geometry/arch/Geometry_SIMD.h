@@ -25,7 +25,8 @@ struct quat_product<Architecture::Target, Derived, OtherDerived, float> {
     BAlignment = traits<OtherDerived>::Alignment,
     ResAlignment = traits<Quaternion<float> >::Alignment
   };
-  static inline Quaternion<float> run(const QuaternionBase<Derived>& _a, const QuaternionBase<OtherDerived>& _b) {
+  static inline constexpr Quaternion<float> run(const QuaternionBase<Derived>& _a,
+                                                const QuaternionBase<OtherDerived>& _b) {
     evaluator<typename Derived::Coefficients> ae(_a.coeffs());
     evaluator<typename OtherDerived::Coefficients> be(_b.coeffs());
     Quaternion<float> res;
@@ -48,7 +49,7 @@ struct quat_product<Architecture::Target, Derived, OtherDerived, float> {
 template <class Derived>
 struct quat_conj<Architecture::Target, Derived, float> {
   enum { ResAlignment = traits<Quaternion<float> >::Alignment };
-  static inline Quaternion<float> run(const QuaternionBase<Derived>& q) {
+  static inline constexpr Quaternion<float> run(const QuaternionBase<Derived>& q) {
     evaluator<typename Derived::Coefficients> qe(q.coeffs());
     Quaternion<float> res;
     const float neg_zero = numext::bit_cast<float>(0x80000000u);
@@ -66,7 +67,7 @@ struct cross3_impl<Architecture::Target, VectorLhs, VectorRhs, float, true> {
   static constexpr int DstAlignment = evaluator<DstPlainType>::Alignment;
   static constexpr int LhsAlignment = evaluator<VectorLhs>::Alignment;
   static constexpr int RhsAlignment = evaluator<VectorRhs>::Alignment;
-  static inline DstPlainType run(const VectorLhs& lhs, const VectorRhs& rhs) {
+  static inline constexpr DstPlainType run(const VectorLhs& lhs, const VectorRhs& rhs) {
     evaluator<VectorLhs> lhs_eval(lhs);
     evaluator<VectorRhs> rhs_eval(rhs);
     Packet4f a = lhs_eval.template packet<LhsAlignment, Packet4f>(0);
@@ -87,7 +88,8 @@ template <class Derived, class OtherDerived>
 struct quat_product<Architecture::Target, Derived, OtherDerived, double> {
   enum { BAlignment = traits<OtherDerived>::Alignment, ResAlignment = traits<Quaternion<double> >::Alignment };
 
-  static inline Quaternion<double> run(const QuaternionBase<Derived>& _a, const QuaternionBase<OtherDerived>& _b) {
+  static inline constexpr Quaternion<double> run(const QuaternionBase<Derived>& _a,
+                                                 const QuaternionBase<OtherDerived>& _b) {
     Quaternion<double> res;
 
     evaluator<typename Derived::Coefficients> ae(_a.coeffs());
@@ -129,7 +131,7 @@ struct quat_product<Architecture::Target, Derived, OtherDerived, double> {
 template <class Derived>
 struct quat_conj<Architecture::Target, Derived, double> {
   enum { ResAlignment = traits<Quaternion<double> >::Alignment };
-  static inline Quaternion<double> run(const QuaternionBase<Derived>& q) {
+  static inline constexpr Quaternion<double> run(const QuaternionBase<Derived>& q) {
     evaluator<typename Derived::Coefficients> qe(q.coeffs());
     Quaternion<double> res;
     const double neg_zero = numext::bit_cast<double>(0x8000000000000000ull);
