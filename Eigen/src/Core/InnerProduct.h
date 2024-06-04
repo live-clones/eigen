@@ -25,11 +25,11 @@ struct inner_product_assert {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Rhs)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Lhs, Rhs)
 #ifndef EIGEN_NO_DEBUG
-  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs& lhs, const Rhs& rhs) {
     eigen_assert((lhs.size() == rhs.size()) && "Inner product: lhs and rhs vectors must have same size");
   }
 #else
-  static EIGEN_DEVICE_FUNC void run(const Lhs&, const Rhs&) {}
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs&, const Rhs&) {}
 #endif
 };
 
@@ -50,19 +50,19 @@ struct inner_product_evaluator {
       bool(LhsFlags & RhsFlags & PacketAccessBit) && Func::PacketAccess &&
       ((MaxSizeAtCompileTime == Dynamic) || (unpacket_traits<Packet>::size <= MaxSizeAtCompileTime));
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit inner_product_evaluator(const Lhs& lhs, const Rhs& rhs,
-                                                                         Func func = Func())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit inner_product_evaluator(const Lhs& lhs, const Rhs& rhs,
+                                                                                   Func func = Func())
       : m_func(func), m_lhs(lhs), m_rhs(rhs), m_size(lhs.size()) {
     inner_product_assert<Lhs, Rhs>::run(lhs, rhs);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_size.value(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index size() const { return m_size.value(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar coeff(Index index) const {
     return m_func.coeff(m_lhs.coeff(index), m_rhs.coeff(index));
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& value, Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar coeff(const Scalar& value, Index index) const {
     return m_func.coeff(value, m_lhs.coeff(index), m_rhs.coeff(index));
   }
 
@@ -91,7 +91,7 @@ struct inner_product_impl;
 template <typename Evaluator>
 struct inner_product_impl<Evaluator, false> {
   using Scalar = typename Evaluator::Scalar;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar run(const Evaluator& eval) {
     const Index size = eval.size();
     if (size == 0) return Scalar(0);
 
@@ -194,11 +194,20 @@ struct scalar_inner_product_op<
     std::enable_if_t<std::is_same<typename ScalarBinaryOpTraits<Scalar, Scalar>::ReturnType, Scalar>::value, Scalar>,
     Conj> {
   using result_type = Scalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& a, const Scalar& b) const {
-    return pmul(conj_if<Conj>()(a), b);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar coeff(const Scalar& a, const Scalar& b) const {
+    if (internal::is_constant_evaluated()) {
+      return conj_if<Conj>()(a) * b;
+    } else {
+      return pmul(conj_if<Conj>()(a), b);
+    }
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& accum, const Scalar& a, const Scalar& b) const {
-    return pmadd(conj_if<Conj>()(a), b, accum);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar coeff(const Scalar& accum, const Scalar& a,
+                                                               const Scalar& b) const {
+    if (internal::is_constant_evaluated()) {
+      return conj_if<Conj>()(a) * b + accum;
+    } else {
+      return pmadd(conj_if<Conj>()(a), b, accum);
+    }
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(const Packet& a, const Packet& b) const {
@@ -219,9 +228,14 @@ struct default_inner_product_impl {
   using Op = scalar_inner_product_op<LhsScalar, RhsScalar, Conj>;
   using Evaluator = inner_product_evaluator<Op, Lhs, Rhs>;
   using result_type = typename Evaluator::Scalar;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type run(const MatrixBase<Lhs>& a,
+                                                                         const MatrixBase<Rhs>& b) {
     Evaluator eval(a.derived(), b.derived(), Op());
-    return inner_product_impl<Evaluator>::run(eval);
+    if (internal::is_constant_evaluated()) {
+      return inner_product_impl<Evaluator, false>::run(eval);
+    } else {
+      return inner_product_impl<Evaluator>::run(eval);
+    }
   }
 };
 
@@ -280,7 +294,8 @@ struct inner_product_dispatch<Lhs, Rhs, Conj, true> {
   using Impl = default_inner_product_impl<Lhs, Rhs, Conj>;
   using result_type = typename Impl::result_type;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type run(const MatrixBase<Lhs>& a,
+                                                                         const MatrixBase<Rhs>& b) {
     EIGEN_IF_CONSTEXPR (Conj) {
       return run_general(a, b);
     }
@@ -298,13 +313,13 @@ struct inner_product_dispatch<Lhs, Rhs, Conj, true> {
   }
 
   // Keep the larger product kernel out of tiny callers, while dot() retains its existing inlining.
-  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE result_type run_large_product(const MatrixBase<Lhs>& a,
-                                                                           const MatrixBase<Rhs>& b) {
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE constexpr result_type run_large_product(const MatrixBase<Lhs>& a,
+                                                                                     const MatrixBase<Rhs>& b) {
     return run_general(a, b);
   }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run_general(const MatrixBase<Lhs>& a,
-                                                                       const MatrixBase<Rhs>& b) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type run_general(const MatrixBase<Lhs>& a,
+                                                                                 const MatrixBase<Rhs>& b) {
     using LhsUnwrapper = unwrap_unary<Lhs>;
     using RhsUnwrapper = unwrap_unary<Rhs>;
     using LhsInner = typename LhsUnwrapper::type;

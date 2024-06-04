@@ -40,8 +40,8 @@ struct symm_pack_lhs {
   using MirroredPacker =
       gemm_pack_lhs<Scalar, Index, TransposedMapper, Pack1, Pack2, PacketType, TransposedStorageOrder, true, false>;
 
-  void pack_panel(Scalar* blockA, const Mapper& lhs, const TransposedMapper& lhs_t, Index cols, Index i, Index bw,
-                  Index& count) const {
+  constexpr void pack_panel(Scalar* blockA, const Mapper& lhs, const TransposedMapper& lhs_t, Index cols, Index i,
+                            Index bw, Index& count) const {
     Scalar* panel = blockA + count;
     const Index band_end = i + bw;
     if (i > 0) DirectPacker()(panel, lhs.getSubMapper(i, 0), i, bw);
@@ -58,7 +58,7 @@ struct symm_pack_lhs {
     count += bw * numext::maxi(cols, band_end);
   }
 
-  void operator()(Scalar* blockA, const Scalar* lhs_, Index lhsStride, Index cols, Index rows) const {
+  constexpr void operator()(Scalar* blockA, const Scalar* lhs_, Index lhsStride, Index cols, Index rows) const {
     using HalfPacket = typename unpacket_traits<PacketType>::half;
     using QuarterPacket = typename unpacket_traits<HalfPacket>::half;
     constexpr int HalfPacketSize = unpacket_traits<HalfPacket>::size;
@@ -109,8 +109,8 @@ struct symm_pack_rhs {
   // One nr-wide panel the diagonal crosses: a conjugated-mirror head above the
   // diagonal, the Width x Width band packed per row, and a direct tail below.
   template <int Width>
-  void pack_diagonal_panel(Scalar* blockB, const Mapper& rhs, const TransposedMapper& rhs_t, Index k2, Index end_k,
-                           Index j2, Index& count) const {
+  constexpr void pack_diagonal_panel(Scalar* blockB, const Mapper& rhs, const TransposedMapper& rhs_t, Index k2,
+                                     Index end_k, Index j2, Index& count) const {
     const Index band_end = j2 + Width;
     if (j2 > k2) {
       MirroredPacker()(blockB + count, rhs_t.getSubMapper(k2, j2), j2 - k2, Width);
@@ -130,7 +130,8 @@ struct symm_pack_rhs {
     }
   }
 
-  void operator()(Scalar* blockB, const Scalar* rhs_, Index rhsStride, Index rows, Index cols, Index k2) const {
+  constexpr void operator()(Scalar* blockB, const Scalar* rhs_, Index rhsStride, Index rows, Index cols,
+                            Index k2) const {
     const Index end_k = k2 + rows;
     const Mapper rhs(rhs_, rhsStride);
     const TransposedMapper rhs_t(rhs_, rhsStride);
@@ -211,9 +212,10 @@ template <typename Scalar, typename Index, int LhsStorageOrder, bool LhsSelfAdjo
           int RhsStorageOrder, bool RhsSelfAdjoint, bool ConjugateRhs, int ResInnerStride>
 struct product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, LhsSelfAdjoint, ConjugateLhs, RhsStorageOrder,
                                   RhsSelfAdjoint, ConjugateRhs, RowMajor, ResInnerStride> {
-  static EIGEN_STRONG_INLINE void run(Index rows, Index cols, const Scalar* lhs, Index lhsStride, const Scalar* rhs,
-                                      Index rhsStride, Scalar* res, Index resIncr, Index resStride, const Scalar& alpha,
-                                      level3_blocking<Scalar, Scalar>& blocking) {
+  static EIGEN_STRONG_INLINE constexpr void run(Index rows, Index cols, const Scalar* lhs, Index lhsStride,
+                                                const Scalar* rhs, Index rhsStride, Scalar* res, Index resIncr,
+                                                Index resStride, const Scalar& alpha,
+                                                level3_blocking<Scalar, Scalar>& blocking) {
     product_selfadjoint_matrix<
         Scalar, Index, logical_xor(RhsSelfAdjoint, RhsStorageOrder == RowMajor) ? ColMajor : RowMajor, RhsSelfAdjoint,
         NumTraits<Scalar>::IsComplex && logical_xor(RhsSelfAdjoint, ConjugateRhs),
@@ -227,14 +229,14 @@ template <typename Scalar, typename Index, int LhsStorageOrder, bool ConjugateLh
           bool ConjugateRhs, int ResInnerStride>
 struct product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, true, ConjugateLhs, RhsStorageOrder, false,
                                   ConjugateRhs, ColMajor, ResInnerStride> {
-  static EIGEN_DONT_INLINE void run(Index rows, Index cols, const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
-                                    Index rhsStride, Scalar* res, Index resIncr, Index resStride, const Scalar& alpha,
-                                    level3_blocking<Scalar, Scalar>& blocking);
+  static constexpr void run(Index rows, Index cols, const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
+                            Index rhsStride, Scalar* res, Index resIncr, Index resStride, const Scalar& alpha,
+                            level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder,
           bool ConjugateRhs, int ResInnerStride>
-EIGEN_DONT_INLINE void
+constexpr void
 product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, true, ConjugateLhs, RhsStorageOrder, false, ConjugateRhs,
                            ColMajor, ResInnerStride>::run(Index rows, Index cols, const Scalar* lhs_, Index lhsStride,
                                                           const Scalar* rhs_, Index rhsStride, Scalar* res_,
@@ -312,14 +314,14 @@ template <typename Scalar, typename Index, int LhsStorageOrder, bool ConjugateLh
           bool ConjugateRhs, int ResInnerStride>
 struct product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, false, ConjugateLhs, RhsStorageOrder, true,
                                   ConjugateRhs, ColMajor, ResInnerStride> {
-  static EIGEN_DONT_INLINE void run(Index rows, Index cols, const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
-                                    Index rhsStride, Scalar* res, Index resIncr, Index resStride, const Scalar& alpha,
-                                    level3_blocking<Scalar, Scalar>& blocking);
+  static constexpr void run(Index rows, Index cols, const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
+                            Index rhsStride, Scalar* res, Index resIncr, Index resStride, const Scalar& alpha,
+                            level3_blocking<Scalar, Scalar>& blocking);
 };
 
 template <typename Scalar, typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder,
           bool ConjugateRhs, int ResInnerStride>
-EIGEN_DONT_INLINE void
+constexpr void
 product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, false, ConjugateLhs, RhsStorageOrder, true, ConjugateRhs,
                            ColMajor, ResInnerStride>::run(Index rows, Index cols, const Scalar* lhs_, Index lhsStride,
                                                           const Scalar* rhs_, Index rhsStride, Scalar* res_,
@@ -387,7 +389,7 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, RhsMode, false> {
   };
 
   template <typename Dest>
-  static void run(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const Scalar& alpha) {
+  static constexpr void run(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const Scalar& alpha) {
     eigen_assert(dst.rows() == a_lhs.rows() && dst.cols() == a_rhs.cols());
 
     add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
