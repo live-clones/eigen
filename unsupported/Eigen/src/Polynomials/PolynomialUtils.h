@@ -27,7 +27,7 @@ namespace Eigen {
  *   \f$ |x| \le 1 \f$
  */
 template <typename Polynomials, typename T>
-inline T poly_eval_horner(const Polynomials& poly, const T& x) {
+inline constexpr T poly_eval_horner(const Polynomials& poly, const T& x) {
   T val = poly[poly.size() - 1];
   for (DenseIndex i = poly.size() - 2; i >= 0; --i) {
     val = val * x + poly[i];
@@ -44,7 +44,7 @@ inline T poly_eval_horner(const Polynomials& poly, const T& x) {
  * \param[in] x : the value to evaluate the polynomial at.
  */
 template <typename Polynomials, typename T>
-inline T poly_eval(const Polynomials& poly, const T& x) {
+inline constexpr T poly_eval(const Polynomials& poly, const T& x) {
   typedef typename NumTraits<T>::Real Real;
 
   if (numext::abs2(x) <= Real(1)) {
@@ -71,7 +71,7 @@ inline T poly_eval(const Polynomials& poly, const T& x) {
  *   the leading coefficient of the input polynomial poly must be non zero
  */
 template <typename Polynomial>
-inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_max_bound(const Polynomial& poly) {
+inline constexpr typename NumTraits<typename Polynomial::Scalar>::Real cauchy_max_bound(const Polynomial& poly) {
   using std::abs;
   typedef typename Polynomial::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real Real;
@@ -93,7 +93,7 @@ inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_max_bound(co
  *  e.g. \f$ 1 + 3x^2 \f$ is stored as a vector \f$ [ 1, 0, 3 ] \f$.
  */
 template <typename Polynomial>
-inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_min_bound(const Polynomial& poly) {
+inline constexpr typename NumTraits<typename Polynomial::Scalar>::Real cauchy_min_bound(const Polynomial& poly) {
   using std::abs;
   typedef typename Polynomial::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real Real;
@@ -125,7 +125,7 @@ inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_min_bound(co
  *  e.g. \f$ 3 + x^2 \f$ is stored as a vector \f$ [ 3, 0, 1 ] \f$.
  */
 template <typename RootVector, typename Polynomial>
-void roots_to_monicPolynomial(const RootVector& rv, Polynomial& poly) {
+constexpr void roots_to_monicPolynomial(const RootVector& rv, Polynomial& poly) {
   typedef typename Polynomial::Scalar Scalar;
 
   poly.setZero(rv.size() + 1);

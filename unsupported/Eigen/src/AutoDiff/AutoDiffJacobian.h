@@ -18,12 +18,12 @@ namespace Eigen {
 template <typename Functor>
 class AutoDiffJacobian : public Functor {
  public:
-  AutoDiffJacobian() : Functor() {}
-  AutoDiffJacobian(const Functor& f) : Functor(f) {}
+  constexpr AutoDiffJacobian() = default;
+  constexpr AutoDiffJacobian(const Functor& f) : Functor(f) {}
 
   // forward constructors
   template <typename... T>
-  AutoDiffJacobian(const T&... Values) : Functor(Values...) {}
+  constexpr AutoDiffJacobian(const T&... Values) : Functor(Values...) {}
 
   typedef typename Functor::InputType InputType;
   typedef typename Functor::ValueType ValueType;
@@ -42,9 +42,9 @@ class AutoDiffJacobian : public Functor {
 
   // Some compilers don't accept variadic parameters after a default parameter,
   // i.e., we can't just write _jac=0 but we need to overload operator():
-  EIGEN_STRONG_INLINE void operator()(const InputType& x, ValueType* v) const { this->operator()(x, v, 0); }
+  EIGEN_STRONG_INLINE constexpr void operator()(const InputType& x, ValueType* v) const { this->operator()(x, v, 0); }
   template <typename... ParamsType>
-  void operator()(const InputType& x, ValueType* v, JacobianType* _jac, const ParamsType&... Params) const {
+  constexpr void operator()(const InputType& x, ValueType* v, JacobianType* _jac, const ParamsType&... Params) const {
     eigen_assert(v != 0);
 
     if (!_jac) {

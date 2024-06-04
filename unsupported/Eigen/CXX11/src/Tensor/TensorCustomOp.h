@@ -55,12 +55,14 @@ class TensorCustomUnaryOp : public TensorBase<TensorCustomUnaryOp<CustomUnaryFun
   typedef typename internal::traits<TensorCustomUnaryOp>::StorageKind StorageKind;
   typedef typename internal::traits<TensorCustomUnaryOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCustomUnaryOp(const XprType& expr, const CustomUnaryFunc& func)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorCustomUnaryOp(const XprType& expr, const CustomUnaryFunc& func)
       : m_expr(expr), m_func(func) {}
 
-  EIGEN_DEVICE_FUNC const CustomUnaryFunc& func() const { return m_func; }
+  EIGEN_DEVICE_FUNC constexpr const CustomUnaryFunc& func() const { return m_func; }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_expr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& expression() const {
+    return m_expr;
+  }
 
  protected:
   typename XprType::Nested m_expr;
@@ -96,14 +98,14 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const ArgType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const ArgType& op, const Device& device)
       : m_op(op), m_device(device), m_result(NULL) {
     m_dimensions = op.func().dimensions(op.expression());
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     if (data) {
       evalTo(data);
       return false;
@@ -115,29 +117,29 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
     }
   }
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     if (m_result) {
       m_device.deallocate_temp(m_result);
       m_result = NULL;
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_result[index]; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const { return m_result[index]; }
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
     return internal::ploadt<PacketReturnType, LoadMode>(m_result + index);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     // TODO(rmlarsen): Extend CustomOp API to return its cost estimate.
     return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_result; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return m_result; }
 
  protected:
-  void evalTo(EvaluatorPointerType data) {
+  constexpr void evalTo(EvaluatorPointerType data) {
     TensorMap<Tensor<CoeffReturnType, NumDims, Layout, Index> > result(m_device.get(data), m_dimensions);
     m_op.func().eval(m_op.expression(), result, m_device);
   }
@@ -199,18 +201,18 @@ class TensorCustomBinaryOp
   typedef typename internal::traits<TensorCustomBinaryOp>::StorageKind StorageKind;
   typedef typename internal::traits<TensorCustomBinaryOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCustomBinaryOp(const LhsXprType& lhs, const RhsXprType& rhs,
-                                                             const CustomBinaryFunc& func)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorCustomBinaryOp(const LhsXprType& lhs, const RhsXprType& rhs,
+                                                                       const CustomBinaryFunc& func)
 
       : m_lhs_xpr(lhs), m_rhs_xpr(rhs), m_func(func) {}
 
-  EIGEN_DEVICE_FUNC const CustomBinaryFunc& func() const { return m_func; }
+  EIGEN_DEVICE_FUNC constexpr const CustomBinaryFunc& func() const { return m_func; }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {
     return m_lhs_xpr;
   }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename RhsXprType::Nested>& rhsExpression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename RhsXprType::Nested>& rhsExpression() const {
     return m_rhs_xpr;
   }
 
@@ -250,14 +252,14 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_op(op), m_device(device), m_result(NULL) {
     m_dimensions = op.func().dimensions(op.lhsExpression(), op.rhsExpression());
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     if (data) {
       evalTo(data);
       return false;
@@ -269,29 +271,29 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
     }
   }
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     if (m_result != NULL) {
       m_device.deallocate_temp(m_result);
       m_result = NULL;
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_result[index]; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const { return m_result[index]; }
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
     return internal::ploadt<PacketReturnType, LoadMode>(m_result + index);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     // TODO(rmlarsen): Extend CustomOp API to return its cost estimate.
     return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_result; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return m_result; }
 
  protected:
-  void evalTo(EvaluatorPointerType data) {
+  constexpr void evalTo(EvaluatorPointerType data) {
     TensorMap<Tensor<CoeffReturnType, NumDims, Layout> > result(m_device.get(data), m_dimensions);
     m_op.func().eval(m_op.lhsExpression(), m_op.rhsExpression(), result, m_device);
   }

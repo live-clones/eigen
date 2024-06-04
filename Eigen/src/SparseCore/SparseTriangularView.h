@@ -40,7 +40,7 @@ class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<Tri
 
  protected:
   // dummy solve function to make TriangularView happy.
-  void solve() const;
+  constexpr void solve() const;
 
   typedef SparseMatrixBase<TriangularViewType> Base;
 
@@ -52,7 +52,7 @@ class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<Tri
   typedef internal::remove_all_t<MatrixTypeNested> MatrixTypeNestedCleaned;
 
   template <typename RhsType, typename DstType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _solve_impl(const RhsType& rhs, DstType& dst) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void _solve_impl(const RhsType& rhs, DstType& dst) const {
     if (!(internal::is_same<RhsType, DstType>::value && internal::extract_data(dst) == internal::extract_data(rhs)))
       dst = rhs;
     this->solveInPlace(dst);
@@ -60,11 +60,11 @@ class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<Tri
 
   /** Applies the inverse of \c *this to the dense vector or matrix \a other, "in-place" */
   template <typename OtherDerived>
-  void solveInPlace(MatrixBase<OtherDerived>& other) const;
+  constexpr void solveInPlace(MatrixBase<OtherDerived>& other) const;
 
   /** Applies the inverse of \c *this to the sparse vector or matrix \a other, "in-place" */
   template <typename OtherDerived>
-  void solveInPlace(SparseMatrixBase<OtherDerived>& other) const;
+  constexpr void solveInPlace(SparseMatrixBase<OtherDerived>& other) const;
 };
 
 namespace internal {
@@ -89,15 +89,16 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
  public:
   enum { CoeffReadCost = evaluator<ArgType>::CoeffReadCost, Flags = XprType::Flags };
 
-  explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_arg(xpr.nestedExpression()) {}
+  constexpr explicit unary_evaluator(const XprType& xpr)
+      : m_argImpl(xpr.nestedExpression()), m_arg(xpr.nestedExpression()) {}
 
-  inline Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
+  inline constexpr Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
 
   class InnerIterator : public EvalIterator {
     typedef EvalIterator Base;
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& xprEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const unary_evaluator& xprEval, Index outer)
         : Base(xprEval.m_argImpl, outer),
           m_returnOne(false),
           m_containsDiag(Base::outer() < xprEval.m_arg.innerSize()) {
@@ -111,7 +112,7 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
       }
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       if (HasUnitDiag && m_returnOne)
         m_returnOne = false;
       else {
@@ -124,7 +125,7 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
       return *this;
     }
 
-    EIGEN_STRONG_INLINE operator bool() const {
+    EIGEN_STRONG_INLINE constexpr operator bool() const {
       if (HasUnitDiag && m_returnOne) return true;
       if (SkipFirst)
         return Base::operator bool();
@@ -136,15 +137,15 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
       }
     }
 
-    inline Index row() const { return (ArgType::Flags & RowMajorBit ? Base::outer() : this->index()); }
-    inline Index col() const { return (ArgType::Flags & RowMajorBit ? this->index() : Base::outer()); }
-    inline StorageIndex index() const {
+    inline constexpr Index row() const { return (ArgType::Flags & RowMajorBit ? Base::outer() : this->index()); }
+    inline constexpr Index col() const { return (ArgType::Flags & RowMajorBit ? this->index() : Base::outer()); }
+    inline constexpr StorageIndex index() const {
       if (HasUnitDiag && m_returnOne)
         return internal::convert_index<StorageIndex>(Base::outer());
       else
         return Base::index();
     }
-    inline Scalar value() const {
+    inline constexpr Scalar value() const {
       if (HasUnitDiag && m_returnOne)
         return Scalar(1);
       else
@@ -156,7 +157,7 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
     bool m_containsDiag;
 
    private:
-    Scalar& valueRef();
+    constexpr Scalar& valueRef();
   };
 
  protected:
@@ -168,7 +169,7 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
 
 template <typename Derived>
 template <int Mode>
-inline const TriangularView<const Derived, Mode> SparseMatrixBase<Derived>::triangularView() const {
+inline constexpr const TriangularView<const Derived, Mode> SparseMatrixBase<Derived>::triangularView() const {
   return TriangularView<const Derived, Mode>(derived());
 }
 
