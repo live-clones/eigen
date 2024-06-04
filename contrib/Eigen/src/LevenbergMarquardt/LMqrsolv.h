@@ -24,9 +24,9 @@ namespace Eigen {
 namespace internal {
 
 template <typename Scalar, int Rows, int Cols, typename PermIndex>
-void lmqrsolv(Matrix<Scalar, Rows, Cols> &s, const PermutationMatrix<Dynamic, Dynamic, PermIndex> &iPerm,
-              const Matrix<Scalar, Dynamic, 1> &diag, const Matrix<Scalar, Dynamic, 1> &qtb,
-              Matrix<Scalar, Dynamic, 1> &x, Matrix<Scalar, Dynamic, 1> &sdiag) {
+constexpr void lmqrsolv(Matrix<Scalar, Rows, Cols> &s, const PermutationMatrix<Dynamic, Dynamic, PermIndex> &iPerm,
+                        const Matrix<Scalar, Dynamic, 1> &diag, const Matrix<Scalar, Dynamic, 1> &qtb,
+                        Matrix<Scalar, Dynamic, 1> &x, Matrix<Scalar, Dynamic, 1> &sdiag) {
   /* Local variables */
   Index i, j, k;
   Scalar temp;

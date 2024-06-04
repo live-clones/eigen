@@ -29,7 +29,7 @@ struct MakePointer {
 };
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* constCast(const T* data) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr T* constCast(const T* data) {
   return const_cast<T*>(data);
 }
 
