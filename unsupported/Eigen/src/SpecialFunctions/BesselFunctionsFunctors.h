@@ -26,7 +26,7 @@ namespace internal {
  */
 template <typename Scalar>
 struct scalar_bessel_i0_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_i0;
     return bessel_i0(x);
   }
@@ -51,7 +51,7 @@ struct functor_traits<scalar_bessel_i0_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_i0e_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_i0e;
     return bessel_i0e(x);
   }
@@ -75,7 +75,7 @@ struct functor_traits<scalar_bessel_i0e_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_i1_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_i1;
     return bessel_i1(x);
   }
@@ -100,7 +100,7 @@ struct functor_traits<scalar_bessel_i1_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_i1e_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_i1e;
     return bessel_i1e(x);
   }
@@ -124,7 +124,7 @@ struct functor_traits<scalar_bessel_i1e_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_j0_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_j0;
     return bessel_j0(x);
   }
@@ -149,7 +149,7 @@ struct functor_traits<scalar_bessel_j0_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_y0_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_y0;
     return bessel_y0(x);
   }
@@ -174,7 +174,7 @@ struct functor_traits<scalar_bessel_y0_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_j1_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_j1;
     return bessel_j1(x);
   }
@@ -199,7 +199,7 @@ struct functor_traits<scalar_bessel_j1_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_y1_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_y1;
     return bessel_y1(x);
   }
@@ -224,7 +224,7 @@ struct functor_traits<scalar_bessel_y1_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_k0_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_k0;
     return bessel_k0(x);
   }
@@ -249,7 +249,7 @@ struct functor_traits<scalar_bessel_k0_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_k0e_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_k0e;
     return bessel_k0e(x);
   }
@@ -274,7 +274,7 @@ struct functor_traits<scalar_bessel_k0e_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_k1_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_k1;
     return bessel_k1(x);
   }
@@ -299,7 +299,7 @@ struct functor_traits<scalar_bessel_k1_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_bessel_k1e_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar operator()(const Scalar& x) const {
     using numext::bessel_k1e;
     return bessel_k1e(x);
   }
