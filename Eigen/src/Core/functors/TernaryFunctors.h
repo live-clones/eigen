@@ -25,12 +25,13 @@ struct scalar_boolean_select_op {
   EIGEN_STATIC_ASSERT(ThenElseAreSame, THEN AND ELSE MUST BE SAME TYPE)
   using Scalar = ThenScalar;
   using result_type = Scalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const ThenScalar& a, const ElseScalar& b,
-                                                          const ConditionScalar& cond) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar operator()(const ThenScalar& a, const ElseScalar& b,
+                                                                    const ConditionScalar& cond) const {
     return cond == ConditionScalar(0) ? b : a;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b, const Packet& cond) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Packet packetOp(const Packet& a, const Packet& b,
+                                                                  const Packet& cond) const {
     return pselect(pcmp_eq(cond, pzero(cond)), b, a);
   }
 };

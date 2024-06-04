@@ -66,19 +66,27 @@ EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& x) {
 namespace numext {
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float sqrt(const float& x) {
-  return internal::pfirst(internal::Packet4f(_mm_sqrt_ss(_mm_set_ss(x))));
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr float sqrt(const float& x) {
+  if (internal::is_constant_evaluated()) {
+    return gcem::sqrt(x);
+  } else {
+    return internal::pfirst(internal::Packet4f(_mm_sqrt_ss(_mm_set_ss(x))));
+  }
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double sqrt(const double& x) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr double sqrt(const double& x) {
+  if (internal::is_constant_evaluated()) {
+    return gcem::sqrt(x);
+  } else {
 #if EIGEN_COMP_GNUC_STRICT
-  // This works around a GCC bug generating poor code for _mm_sqrt_pd
-  // See https://gitlab.com/libeigen/eigen/commit/8dca9f97e38970
-  return internal::pfirst(internal::Packet2d(__builtin_ia32_sqrtsd(_mm_set_sd(x))));
+    // This works around a GCC bug generating poor code for _mm_sqrt_pd
+    // See https://gitlab.com/libeigen/eigen/commit/8dca9f97e38970
+    return internal::pfirst(internal::Packet2d(__builtin_ia32_sqrtsd(_mm_set_sd(x))));
 #else
-  return internal::pfirst(internal::Packet2d(_mm_sqrt_pd(_mm_set_sd(x))));
+    return internal::pfirst(internal::Packet2d(_mm_sqrt_pd(_mm_set_sd(x))));
 #endif
+  }
 }
 
 }  // namespace numext
