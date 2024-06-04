@@ -118,7 +118,7 @@ namespace internal {
 //       call max_digits10().
 template <typename Scalar>
 struct significant_decimals_impl {
-  static inline int run() { return NumTraits<Scalar>::max_digits10(); }
+  static inline constexpr int run() { return NumTraits<Scalar>::max_digits10(); }
 };
 
 /** \internal

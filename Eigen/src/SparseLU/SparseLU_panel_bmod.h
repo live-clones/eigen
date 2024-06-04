@@ -56,9 +56,10 @@ namespace internal {
  *
  */
 template <typename Scalar, typename StorageIndex>
-void SparseLUImpl<Scalar, StorageIndex>::panel_bmod(const Index m, const Index w, const Index jcol, const Index nseg,
-                                                    ScalarVector& dense, ScalarVector& tempv, IndexVector& segrep,
-                                                    IndexVector& repfnz, GlobalLU_t& glu) {
+constexpr void SparseLUImpl<Scalar, StorageIndex>::panel_bmod(const Index m, const Index w, const Index jcol,
+                                                              const Index nseg, ScalarVector& dense,
+                                                              ScalarVector& tempv, IndexVector& segrep,
+                                                              IndexVector& repfnz, GlobalLU_t& glu) {
   Index ksub, jj, nextl_col;
   Index fsupc, nsupc, nsupr, nrow;
   Index krep, kfnz;

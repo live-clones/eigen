@@ -26,7 +26,8 @@ struct selfadjoint_rank2_update_selector;
 
 template <typename Scalar, typename Index, typename UType, typename VType>
 struct selfadjoint_rank2_update_selector<Scalar, Index, UType, VType, Lower> {
-  static EIGEN_DEVICE_FUNC void run(Scalar* mat, Index stride, const UType& u, const VType& v, const Scalar& alpha) {
+  static EIGEN_DEVICE_FUNC constexpr void run(Scalar* mat, Index stride, const UType& u, const VType& v,
+                                              const Scalar& alpha) {
     const Index size = u.size();
     for (Index i = 0; i < size; ++i) {
       Map<Matrix<Scalar, Dynamic, 1>>(mat + stride * i + i, size - i) +=
@@ -38,7 +39,7 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, UType, VType, Lower> {
 
 template <typename Scalar, typename Index, typename UType, typename VType>
 struct selfadjoint_rank2_update_selector<Scalar, Index, UType, VType, Upper> {
-  static void run(Scalar* mat, Index stride, const UType& u, const VType& v, const Scalar& alpha) {
+  static constexpr void run(Scalar* mat, Index stride, const UType& u, const VType& v, const Scalar& alpha) {
     const Index size = u.size();
     for (Index i = 0; i < size; ++i)
       Map<Matrix<Scalar, Dynamic, 1>>(mat + stride * i, i + 1) +=
@@ -55,7 +56,7 @@ using conj_expr_if =
 
 template <typename MatrixType, unsigned int UpLo>
 template <typename DerivedU, typename DerivedV>
-EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
+EIGEN_DEVICE_FUNC constexpr SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
     const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v, const Scalar& alpha) {
   typedef internal::blas_traits<DerivedU> UBlasTraits;
   typedef typename UBlasTraits::DirectLinearAccessType ActualUType;
