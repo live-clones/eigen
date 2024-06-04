@@ -60,12 +60,13 @@ class TensorTraceOp : public TensorBase<TensorTraceOp<Dims, XprType> > {
   typedef typename Eigen::internal::traits<TensorTraceOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorTraceOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorTraceOp(const XprType& expr, const Dims& dims)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorTraceOp(const XprType& expr, const Dims& dims)
       : m_xpr(expr), m_dims(dims) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dims& dims() const { return m_dims; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dims& dims() const { return m_dims; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::remove_all_t<typename XprType::Nested>& expression() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const internal::remove_all_t<typename XprType::Nested>& expression()
+      const {
     return m_xpr;
   }
 
@@ -105,7 +106,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_traceDim(1), m_device(device) {
     EIGEN_STATIC_ASSERT((NumOutputDims >= 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
     EIGEN_STATIC_ASSERT((NumReducedDims >= 2) || ((NumReducedDims == 0) && (NumInputDims == 0)),
@@ -200,18 +201,18 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
     m_impl.evalSubExprsIfNeeded(NULL);
     return true;
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return nullptr; }
 
-  EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
+  EIGEN_STRONG_INLINE constexpr void cleanup() { m_impl.cleanup(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     // Initialize the result
     CoeffReturnType result = internal::cast<int, CoeffReturnType>(0);
     Index index_stride = 0;
@@ -244,7 +245,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
 
  protected:
   // Given the output index, finds the first index in the input tensor used to compute the trace
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index firstInput(Index index) const {
     Index startInput = 0;
     if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = NumOutputDims - 1; i > 0; --i) {

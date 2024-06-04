@@ -31,15 +31,13 @@ class CompressedStorage {
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
  public:
-  CompressedStorage() : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0) {}
+  constexpr CompressedStorage() = default;
 
-  explicit CompressedStorage(Index size) : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0) { resize(size); }
+  constexpr explicit CompressedStorage(Index size) { resize(size); }
 
-  CompressedStorage(const CompressedStorage& other) : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0) {
-    *this = other;
-  }
+  constexpr CompressedStorage(const CompressedStorage& other) { *this = other; }
 
-  CompressedStorage& operator=(const CompressedStorage& other) {
+  constexpr CompressedStorage& operator=(const CompressedStorage& other) {
     resize(other.size());
     if (other.size() > 0) {
       internal::smart_copy(other.m_values, other.m_values + m_size, m_values);
@@ -48,28 +46,28 @@ class CompressedStorage {
     return *this;
   }
 
-  void swap(CompressedStorage& other) {
+  constexpr void swap(CompressedStorage& other) {
     std::swap(m_values, other.m_values);
     std::swap(m_indices, other.m_indices);
     std::swap(m_size, other.m_size);
     std::swap(m_allocatedSize, other.m_allocatedSize);
   }
 
-  ~CompressedStorage() {
+  constexpr ~CompressedStorage() {
     conditional_aligned_delete_auto<Scalar, true>(m_values, m_allocatedSize);
     conditional_aligned_delete_auto<StorageIndex, true>(m_indices, m_allocatedSize);
   }
 
-  void reserve(Index size) {
+  constexpr void reserve(Index size) {
     Index newAllocatedSize = m_size + size;
     if (newAllocatedSize > m_allocatedSize) reallocate(newAllocatedSize);
   }
 
-  void squeeze() {
+  constexpr void squeeze() {
     if (m_allocatedSize > m_size) reallocate(m_size);
   }
 
-  void resize(Index size, double reserveSizeFactor = 0) {
+  constexpr void resize(Index size, double reserveSizeFactor = 0) {
     if (m_allocatedSize < size) {
       // Avoid underflow on the std::min<Index> call by choosing the smaller index type.
       using SmallerIndexType =
@@ -84,51 +82,51 @@ class CompressedStorage {
     m_size = size;
   }
 
-  void append(const Scalar& v, Index i) {
+  constexpr void append(const Scalar& v, Index i) {
     Index id = m_size;
     resize(m_size + 1, 1);
     m_values[id] = v;
     m_indices[id] = internal::convert_index<StorageIndex>(i);
   }
 
-  inline Index size() const { return m_size; }
-  inline Index allocatedSize() const { return m_allocatedSize; }
-  inline void clear() { m_size = 0; }
+  inline constexpr Index size() const { return m_size; }
+  inline constexpr Index allocatedSize() const { return m_allocatedSize; }
+  inline constexpr void clear() { m_size = 0; }
 
-  const Scalar* valuePtr() const { return m_values; }
-  Scalar* valuePtr() { return m_values; }
-  const StorageIndex* indexPtr() const { return m_indices; }
-  StorageIndex* indexPtr() { return m_indices; }
+  constexpr const Scalar* valuePtr() const { return m_values; }
+  constexpr Scalar* valuePtr() { return m_values; }
+  constexpr const StorageIndex* indexPtr() const { return m_indices; }
+  constexpr StorageIndex* indexPtr() { return m_indices; }
 
-  inline Scalar& value(Index i) {
+  inline constexpr Scalar& value(Index i) {
     eigen_internal_assert(m_values != 0);
     return m_values[i];
   }
-  inline const Scalar& value(Index i) const {
+  inline constexpr const Scalar& value(Index i) const {
     eigen_internal_assert(m_values != 0);
     return m_values[i];
   }
 
-  inline StorageIndex& index(Index i) {
+  inline constexpr StorageIndex& index(Index i) {
     eigen_internal_assert(m_indices != 0);
     return m_indices[i];
   }
-  inline const StorageIndex& index(Index i) const {
+  inline constexpr const StorageIndex& index(Index i) const {
     eigen_internal_assert(m_indices != 0);
     return m_indices[i];
   }
 
   /** \returns the largest \c k such that for all \c j in [0,k) index[\c j]\<\a key */
-  inline Index searchLowerIndex(Index key) const { return searchLowerIndex(0, m_size, key); }
+  inline constexpr Index searchLowerIndex(Index key) const { return searchLowerIndex(0, m_size, key); }
 
   /** \returns the largest \c k in [start,end) such that for all \c j in [start,k) index[\c j]\<\a key */
-  inline Index searchLowerIndex(Index start, Index end, Index key) const {
+  inline constexpr Index searchLowerIndex(Index start, Index end, Index key) const {
     return static_cast<Index>(std::distance(m_indices, std::lower_bound(m_indices + start, m_indices + end, key)));
   }
 
   /** \returns the stored value at index \a key
    * If the value does not exist, then the value \a defaultValue is returned without any insertion. */
-  inline Scalar at(Index key, const Scalar& defaultValue = Scalar(0)) const {
+  inline constexpr Scalar at(Index key, const Scalar& defaultValue = Scalar(0)) const {
     if (m_size == 0)
       return defaultValue;
     else if (key == m_indices[m_size - 1])
@@ -140,7 +138,7 @@ class CompressedStorage {
   }
 
   /** Like at(), but the search is performed in the range [start,end) */
-  inline Scalar atInRange(Index start, Index end, Index key, const Scalar& defaultValue = Scalar(0)) const {
+  inline constexpr Scalar atInRange(Index start, Index end, Index key, const Scalar& defaultValue = Scalar(0)) const {
     if (start >= end)
       return defaultValue;
     else if (end > start && key == m_indices[end - 1])
@@ -154,7 +152,7 @@ class CompressedStorage {
   /** \returns a reference to the value at index \a key
    * If the value does not exist, then the value \a defaultValue is inserted
    * such that the keys are sorted. */
-  inline Scalar& atWithInsertion(Index key, const Scalar& defaultValue = Scalar(0)) {
+  inline constexpr Scalar& atWithInsertion(Index key, const Scalar& defaultValue = Scalar(0)) {
     Index id = searchLowerIndex(0, m_size, key);
     if (id >= m_size || m_indices[id] != key) {
       if (m_allocatedSize < m_size + 1) {
@@ -175,14 +173,14 @@ class CompressedStorage {
     return m_values[id];
   }
 
-  inline void moveChunk(Index from, Index to, Index chunkSize) {
+  inline constexpr void moveChunk(Index from, Index to, Index chunkSize) {
     eigen_internal_assert(chunkSize >= 0 && to + chunkSize <= m_size);
     internal::smart_memmove(m_values + from, m_values + from + chunkSize, m_values + to);
     internal::smart_memmove(m_indices + from, m_indices + from + chunkSize, m_indices + to);
   }
 
  protected:
-  inline void reallocate(Index size) {
+  inline constexpr void reallocate(Index size) {
 #ifdef EIGEN_SPARSE_COMPRESSED_STORAGE_REALLOCATE_PLUGIN
     EIGEN_SPARSE_COMPRESSED_STORAGE_REALLOCATE_PLUGIN
 #endif
@@ -193,10 +191,10 @@ class CompressedStorage {
   }
 
  protected:
-  Scalar* m_values;
-  StorageIndex* m_indices;
-  Index m_size;
-  Index m_allocatedSize;
+  Scalar* m_values = nullptr;
+  StorageIndex* m_indices = nullptr;
+  Index m_size = 0;
+  Index m_allocatedSize = 0;
 };
 
 }  // end namespace internal

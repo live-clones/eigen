@@ -74,7 +74,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, Iterat
  public:
   class InnerIterator {
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const binary_evaluator& aEval, Index outer)
         : m_lhsIter(aEval.m_lhsImpl, outer),
           m_rhsIter(aEval.m_rhsImpl, outer),
           m_functor(aEval.m_functor),
@@ -82,7 +82,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, Iterat
       this->operator++();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       if (m_lhsIter && m_rhsIter && (m_lhsIter.index() == m_rhsIter.index())) {
         m_id = m_lhsIter.index();
         m_value = m_functor(m_lhsIter.value(), m_rhsIter.value());
@@ -102,14 +102,14 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, Iterat
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const { return m_value; }
+    EIGEN_STRONG_INLINE constexpr Scalar value() const { return m_value; }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_id; }
-    EIGEN_STRONG_INLINE Index outer() const { return m_lhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return Lhs::IsRowMajor ? m_lhsIter.row() : index(); }
-    EIGEN_STRONG_INLINE Index col() const { return Lhs::IsRowMajor ? index() : m_lhsIter.col(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_id; }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return Lhs::IsRowMajor ? m_lhsIter.row() : index(); }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return Lhs::IsRowMajor ? index() : m_lhsIter.col(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_id >= 0; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_id >= 0; }
 
    protected:
     LhsIterator m_lhsIter;
@@ -125,12 +125,15 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, Iterat
     Flags = XprType::Flags
   };
 
-  explicit binary_evaluator(const XprType& xpr) : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
+  constexpr explicit binary_evaluator(const XprType& xpr)
+      : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_lhsImpl.nonZerosEstimate() + m_rhsImpl.nonZerosEstimate(); }
+  inline constexpr Index nonZerosEstimate() const {
+    return m_lhsImpl.nonZerosEstimate() + m_rhsImpl.nonZerosEstimate();
+  }
 
  protected:
   const BinaryOp m_functor;
@@ -153,7 +156,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IteratorB
     enum { IsRowMajor = (int(Rhs::Flags) & RowMajorBit) == RowMajorBit };
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const binary_evaluator& aEval, Index outer)
         : m_lhsEval(aEval.m_lhsImpl),
           m_rhsIter(aEval.m_rhsImpl, outer),
           m_functor(aEval.m_functor),
@@ -163,7 +166,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IteratorB
       this->operator++();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       ++m_id;
       if (m_id < m_innerSize) {
         Scalar lhsVal = m_lhsEval.coeff(IsRowMajor ? m_rhsIter.outer() : m_id, IsRowMajor ? m_id : m_rhsIter.outer());
@@ -177,17 +180,17 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IteratorB
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const {
+    EIGEN_STRONG_INLINE constexpr Scalar value() const {
       eigen_internal_assert(m_id < m_innerSize);
       return m_value;
     }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_id; }
-    EIGEN_STRONG_INLINE Index outer() const { return m_rhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return IsRowMajor ? m_rhsIter.outer() : m_id; }
-    EIGEN_STRONG_INLINE Index col() const { return IsRowMajor ? m_id : m_rhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_id; }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_rhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return IsRowMajor ? m_rhsIter.outer() : m_id; }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return IsRowMajor ? m_id : m_rhsIter.outer(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_id < m_innerSize; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_id < m_innerSize; }
 
    protected:
     const evaluator<Lhs>& m_lhsEval;
@@ -204,13 +207,13 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IteratorB
     Flags = XprType::Flags
   };
 
-  explicit binary_evaluator(const XprType& xpr)
+  constexpr explicit binary_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()), m_expr(xpr) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_expr.size(); }
+  inline constexpr Index nonZerosEstimate() const { return m_expr.size(); }
 
  protected:
   const BinaryOp m_functor;
@@ -234,7 +237,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, IndexB
     enum { IsRowMajor = (int(Lhs::Flags) & RowMajorBit) == RowMajorBit };
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const binary_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const binary_evaluator& aEval, Index outer)
         : m_lhsIter(aEval.m_lhsImpl, outer),
           m_rhsEval(aEval.m_rhsImpl),
           m_functor(aEval.m_functor),
@@ -244,7 +247,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, IndexB
       this->operator++();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       ++m_id;
       if (m_id < m_innerSize) {
         Scalar rhsVal = m_rhsEval.coeff(IsRowMajor ? m_lhsIter.outer() : m_id, IsRowMajor ? m_id : m_lhsIter.outer());
@@ -258,17 +261,17 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, IndexB
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const {
+    EIGEN_STRONG_INLINE constexpr Scalar value() const {
       eigen_internal_assert(m_id < m_innerSize);
       return m_value;
     }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_id; }
-    EIGEN_STRONG_INLINE Index outer() const { return m_lhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return IsRowMajor ? m_lhsIter.outer() : m_id; }
-    EIGEN_STRONG_INLINE Index col() const { return IsRowMajor ? m_id : m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_id; }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return IsRowMajor ? m_lhsIter.outer() : m_id; }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return IsRowMajor ? m_id : m_lhsIter.outer(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_id < m_innerSize; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_id < m_innerSize; }
 
    protected:
     LhsIterator m_lhsIter;
@@ -285,13 +288,13 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, IndexB
     Flags = XprType::Flags
   };
 
-  explicit binary_evaluator(const XprType& xpr)
+  constexpr explicit binary_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()), m_expr(xpr) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_expr.size(); }
+  inline constexpr Index nonZerosEstimate() const { return m_expr.size(); }
 
  protected:
   const BinaryOp m_functor;
@@ -312,7 +315,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs>, Iter
     : sparse_conjunction_evaluator<CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs> XprType;
   typedef sparse_conjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 // "dense .* sparse"
 template <typename T1, typename T2, typename Lhs, typename Rhs>
@@ -320,7 +323,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs>, Inde
     : sparse_conjunction_evaluator<CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs> XprType;
   typedef sparse_conjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 // "sparse .* dense"
 template <typename T1, typename T2, typename Lhs, typename Rhs>
@@ -328,7 +331,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs>, Iter
     : sparse_conjunction_evaluator<CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_product_op<T1, T2>, Lhs, Rhs> XprType;
   typedef sparse_conjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
 // "sparse ./ dense"
@@ -337,7 +340,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_quotient_op<T1, T2>, Lhs, Rhs>, Ite
     : sparse_conjunction_evaluator<CwiseBinaryOp<scalar_quotient_op<T1, T2>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_quotient_op<T1, T2>, Lhs, Rhs> XprType;
   typedef sparse_conjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
 // "sparse && sparse"
@@ -346,7 +349,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs>, It
     : sparse_conjunction_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs> XprType;
   typedef sparse_conjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 // "dense && sparse"
 template <typename Lhs, typename Rhs>
@@ -354,7 +357,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs>, In
     : sparse_conjunction_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs> XprType;
   typedef sparse_conjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 // "sparse && dense"
 template <typename Lhs, typename Rhs>
@@ -362,7 +365,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs>, It
     : sparse_conjunction_evaluator<CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_boolean_and_op<bool>, Lhs, Rhs> XprType;
   typedef sparse_conjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
 // The conjunction "^" evaluator performs a logical "and" or set "intersection" operation on two input arrays.
@@ -387,7 +390,7 @@ struct sparse_conjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
  public:
   class InnerIterator {
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
         : m_lhsIter(aEval.m_lhsImpl, outer), m_rhsIter(aEval.m_rhsImpl, outer), m_functor(aEval.m_functor) {
       while (m_lhsIter && m_rhsIter && (m_lhsIter.index() != m_rhsIter.index())) {
         if (m_lhsIter.index() < m_rhsIter.index())
@@ -397,7 +400,7 @@ struct sparse_conjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
       }
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       ++m_lhsIter;
       ++m_rhsIter;
       while (m_lhsIter && m_rhsIter && (m_lhsIter.index() != m_rhsIter.index())) {
@@ -409,14 +412,14 @@ struct sparse_conjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const { return m_functor(m_lhsIter.value(), m_rhsIter.value()); }
+    EIGEN_STRONG_INLINE constexpr Scalar value() const { return m_functor(m_lhsIter.value(), m_rhsIter.value()); }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_lhsIter.index(); }
-    EIGEN_STRONG_INLINE Index outer() const { return m_lhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return m_lhsIter.row(); }
-    EIGEN_STRONG_INLINE Index col() const { return m_lhsIter.col(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_lhsIter.index(); }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return m_lhsIter.row(); }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return m_lhsIter.col(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return (m_lhsIter && m_rhsIter); }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return (m_lhsIter && m_rhsIter); }
 
    protected:
     LhsIterator m_lhsIter;
@@ -430,13 +433,13 @@ struct sparse_conjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
     Flags = XprType::Flags
   };
 
-  explicit sparse_conjunction_evaluator(const XprType& xpr)
+  constexpr explicit sparse_conjunction_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const {
+  inline constexpr Index nonZerosEstimate() const {
     return (std::min)(m_lhsImpl.nonZerosEstimate(), m_rhsImpl.nonZerosEstimate());
   }
 
@@ -463,26 +466,26 @@ struct sparse_conjunction_evaluator<XprType, IndexBased, IteratorBased> : evalua
     enum { IsRowMajor = (int(RhsArg::Flags) & RowMajorBit) == RowMajorBit };
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
         : m_lhsEval(aEval.m_lhsImpl), m_rhsIter(aEval.m_rhsImpl, outer), m_functor(aEval.m_functor), m_outer(outer) {}
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       ++m_rhsIter;
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const {
+    EIGEN_STRONG_INLINE constexpr Scalar value() const {
       return m_functor(
           m_lhsEval.coeff(IsRowMajor ? m_outer : m_rhsIter.index(), IsRowMajor ? m_rhsIter.index() : m_outer),
           m_rhsIter.value());
     }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_rhsIter.index(); }
-    EIGEN_STRONG_INLINE Index outer() const { return m_rhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return m_rhsIter.row(); }
-    EIGEN_STRONG_INLINE Index col() const { return m_rhsIter.col(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_rhsIter.index(); }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_rhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return m_rhsIter.row(); }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return m_rhsIter.col(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_rhsIter; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_rhsIter; }
 
    protected:
     const LhsEvaluator& m_lhsEval;
@@ -497,13 +500,13 @@ struct sparse_conjunction_evaluator<XprType, IndexBased, IteratorBased> : evalua
     Flags = XprType::Flags
   };
 
-  explicit sparse_conjunction_evaluator(const XprType& xpr)
+  constexpr explicit sparse_conjunction_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_rhsImpl.nonZerosEstimate(); }
+  inline constexpr Index nonZerosEstimate() const { return m_rhsImpl.nonZerosEstimate(); }
 
  protected:
   const BinaryOp m_functor;
@@ -528,25 +531,25 @@ struct sparse_conjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
     enum { IsRowMajor = (int(LhsArg::Flags) & RowMajorBit) == RowMajorBit };
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const sparse_conjunction_evaluator& aEval, Index outer)
         : m_lhsIter(aEval.m_lhsImpl, outer), m_rhsEval(aEval.m_rhsImpl), m_functor(aEval.m_functor), m_outer(outer) {}
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       ++m_lhsIter;
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const {
+    EIGEN_STRONG_INLINE constexpr Scalar value() const {
       return m_functor(m_lhsIter.value(), m_rhsEval.coeff(IsRowMajor ? m_outer : m_lhsIter.index(),
                                                           IsRowMajor ? m_lhsIter.index() : m_outer));
     }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_lhsIter.index(); }
-    EIGEN_STRONG_INLINE Index outer() const { return m_lhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return m_lhsIter.row(); }
-    EIGEN_STRONG_INLINE Index col() const { return m_lhsIter.col(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_lhsIter.index(); }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return m_lhsIter.row(); }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return m_lhsIter.col(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_lhsIter; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_lhsIter; }
 
    protected:
     LhsIterator m_lhsIter;
@@ -561,13 +564,13 @@ struct sparse_conjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
     Flags = XprType::Flags
   };
 
-  explicit sparse_conjunction_evaluator(const XprType& xpr)
+  constexpr explicit sparse_conjunction_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_lhsImpl.nonZerosEstimate(); }
+  inline constexpr Index nonZerosEstimate() const { return m_lhsImpl.nonZerosEstimate(); }
 
  protected:
   const BinaryOp m_functor;
@@ -603,7 +606,7 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
  public:
   class InnerIterator {
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const sparse_disjunction_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const sparse_disjunction_evaluator& aEval, Index outer)
         : m_lhsIter(aEval.m_lhsImpl, outer),
           m_rhsIter(aEval.m_rhsImpl, outer),
           m_functor(aEval.m_functor),
@@ -611,7 +614,7 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
       this->operator++();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       if (m_lhsIter && m_rhsIter && (m_lhsIter.index() == m_rhsIter.index())) {
         m_id = m_lhsIter.index();
         m_value = m_functor(m_lhsIter.value(), m_rhsIter.value());
@@ -631,14 +634,14 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const { return m_value; }
+    EIGEN_STRONG_INLINE constexpr Scalar value() const { return m_value; }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_id; }
-    EIGEN_STRONG_INLINE Index outer() const { return m_lhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return LhsArg::IsRowMajor ? m_lhsIter.row() : index(); }
-    EIGEN_STRONG_INLINE Index col() const { return LhsArg::IsRowMajor ? index() : m_lhsIter.col(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_id; }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return LhsArg::IsRowMajor ? m_lhsIter.row() : index(); }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return LhsArg::IsRowMajor ? index() : m_lhsIter.col(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_id >= 0; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_id >= 0; }
 
    protected:
     LhsIterator m_lhsIter;
@@ -654,13 +657,15 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IteratorBased> : eva
     Flags = XprType::Flags
   };
 
-  explicit sparse_disjunction_evaluator(const XprType& xpr)
+  constexpr explicit sparse_disjunction_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_lhsImpl.nonZerosEstimate() + m_rhsImpl.nonZerosEstimate(); }
+  inline constexpr Index nonZerosEstimate() const {
+    return m_lhsImpl.nonZerosEstimate() + m_rhsImpl.nonZerosEstimate();
+  }
 
  protected:
   const BinaryOp m_functor;
@@ -685,7 +690,7 @@ struct sparse_disjunction_evaluator<XprType, IndexBased, IteratorBased> : evalua
     enum { IsRowMajor = (int(RhsArg::Flags) & RowMajorBit) == RowMajorBit };
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const sparse_disjunction_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const sparse_disjunction_evaluator& aEval, Index outer)
         : m_lhsEval(aEval.m_lhsImpl),
           m_rhsIter(aEval.m_rhsImpl, outer),
           m_functor(aEval.m_functor),
@@ -695,7 +700,7 @@ struct sparse_disjunction_evaluator<XprType, IndexBased, IteratorBased> : evalua
       this->operator++();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       ++m_id;
       if (m_id < m_innerSize) {
         Scalar lhsVal = m_lhsEval.coeff(IsRowMajor ? m_rhsIter.outer() : m_id, IsRowMajor ? m_id : m_rhsIter.outer());
@@ -709,17 +714,17 @@ struct sparse_disjunction_evaluator<XprType, IndexBased, IteratorBased> : evalua
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const {
+    EIGEN_STRONG_INLINE constexpr Scalar value() const {
       eigen_internal_assert(m_id < m_innerSize);
       return m_value;
     }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_id; }
-    EIGEN_STRONG_INLINE Index outer() const { return m_rhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return IsRowMajor ? m_rhsIter.outer() : m_id; }
-    EIGEN_STRONG_INLINE Index col() const { return IsRowMajor ? m_id : m_rhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_id; }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_rhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return IsRowMajor ? m_rhsIter.outer() : m_id; }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return IsRowMajor ? m_id : m_rhsIter.outer(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_id < m_innerSize; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_id < m_innerSize; }
 
    protected:
     const evaluator<LhsArg>& m_lhsEval;
@@ -736,13 +741,13 @@ struct sparse_disjunction_evaluator<XprType, IndexBased, IteratorBased> : evalua
     Flags = XprType::Flags
   };
 
-  explicit sparse_disjunction_evaluator(const XprType& xpr)
+  constexpr explicit sparse_disjunction_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()), m_expr(xpr) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_expr.size(); }
+  inline constexpr Index nonZerosEstimate() const { return m_expr.size(); }
 
  protected:
   const BinaryOp m_functor;
@@ -768,7 +773,7 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
     enum { IsRowMajor = (int(LhsArg::Flags) & RowMajorBit) == RowMajorBit };
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const sparse_disjunction_evaluator& aEval, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const sparse_disjunction_evaluator& aEval, Index outer)
         : m_lhsIter(aEval.m_lhsImpl, outer),
           m_rhsEval(aEval.m_rhsImpl),
           m_functor(aEval.m_functor),
@@ -778,7 +783,7 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
       this->operator++();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       ++m_id;
       if (m_id < m_innerSize) {
         Scalar rhsVal = m_rhsEval.coeff(IsRowMajor ? m_lhsIter.outer() : m_id, IsRowMajor ? m_id : m_lhsIter.outer());
@@ -792,17 +797,17 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const {
+    EIGEN_STRONG_INLINE constexpr Scalar value() const {
       eigen_internal_assert(m_id < m_innerSize);
       return m_value;
     }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_id; }
-    EIGEN_STRONG_INLINE Index outer() const { return m_lhsIter.outer(); }
-    EIGEN_STRONG_INLINE Index row() const { return IsRowMajor ? m_lhsIter.outer() : m_id; }
-    EIGEN_STRONG_INLINE Index col() const { return IsRowMajor ? m_id : m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_id; }
+    EIGEN_STRONG_INLINE constexpr Index outer() const { return m_lhsIter.outer(); }
+    EIGEN_STRONG_INLINE constexpr Index row() const { return IsRowMajor ? m_lhsIter.outer() : m_id; }
+    EIGEN_STRONG_INLINE constexpr Index col() const { return IsRowMajor ? m_id : m_lhsIter.outer(); }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_id < m_innerSize; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_id < m_innerSize; }
 
    protected:
     LhsIterator m_lhsIter;
@@ -819,13 +824,13 @@ struct sparse_disjunction_evaluator<XprType, IteratorBased, IndexBased> : evalua
     Flags = XprType::Flags
   };
 
-  explicit sparse_disjunction_evaluator(const XprType& xpr)
+  constexpr explicit sparse_disjunction_evaluator(const XprType& xpr)
       : m_functor(xpr.functor()), m_lhsImpl(xpr.lhs()), m_rhsImpl(xpr.rhs()), m_expr(xpr) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<BinaryOp>::Cost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  inline Index nonZerosEstimate() const { return m_expr.size(); }
+  inline constexpr Index nonZerosEstimate() const { return m_expr.size(); }
 
  protected:
   const BinaryOp m_functor;
@@ -840,7 +845,7 @@ struct binary_evaluator<CwiseBinaryOp<scalar_disjunction_op<DupFunc, T1, T2>, Lh
     : sparse_disjunction_evaluator<CwiseBinaryOp<scalar_disjunction_op<DupFunc, T1, T2>, Lhs, Rhs> > {
   typedef CwiseBinaryOp<scalar_disjunction_op<DupFunc, T1, T2>, Lhs, Rhs> XprType;
   typedef sparse_disjunction_evaluator<XprType> Base;
-  explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
+  constexpr explicit binary_evaluator(const XprType& xpr) : Base(xpr) {}
 };
 }  // namespace internal
 
@@ -850,33 +855,35 @@ struct binary_evaluator<CwiseBinaryOp<scalar_disjunction_op<DupFunc, T1, T2>, Lh
 
 template <typename Derived>
 template <typename OtherDerived>
-Derived& SparseMatrixBase<Derived>::operator+=(const EigenBase<OtherDerived>& other) {
+constexpr Derived& SparseMatrixBase<Derived>::operator+=(const EigenBase<OtherDerived>& other) {
   call_assignment(derived(), other.derived(), internal::add_assign_op<Scalar, typename OtherDerived::Scalar>());
   return derived();
 }
 
 template <typename Derived>
 template <typename OtherDerived>
-Derived& SparseMatrixBase<Derived>::operator-=(const EigenBase<OtherDerived>& other) {
+constexpr Derived& SparseMatrixBase<Derived>::operator-=(const EigenBase<OtherDerived>& other) {
   call_assignment(derived(), other.derived(), internal::assign_op<Scalar, typename OtherDerived::Scalar>());
   return derived();
 }
 
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator-=(const SparseMatrixBase<OtherDerived>& other) {
+EIGEN_STRONG_INLINE constexpr Derived& SparseMatrixBase<Derived>::operator-=(
+    const SparseMatrixBase<OtherDerived>& other) {
   return derived() = derived() - other.derived();
 }
 
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator+=(const SparseMatrixBase<OtherDerived>& other) {
+EIGEN_STRONG_INLINE constexpr Derived& SparseMatrixBase<Derived>::operator+=(
+    const SparseMatrixBase<OtherDerived>& other) {
   return derived() = derived() + other.derived();
 }
 
 template <typename Derived>
 template <typename OtherDerived>
-Derived& SparseMatrixBase<Derived>::operator+=(const DiagonalBase<OtherDerived>& other) {
+constexpr Derived& SparseMatrixBase<Derived>::operator+=(const DiagonalBase<OtherDerived>& other) {
   call_assignment_no_alias(derived(), other.derived(),
                            internal::add_assign_op<Scalar, typename OtherDerived::Scalar>());
   return derived();
@@ -884,7 +891,7 @@ Derived& SparseMatrixBase<Derived>::operator+=(const DiagonalBase<OtherDerived>&
 
 template <typename Derived>
 template <typename OtherDerived>
-Derived& SparseMatrixBase<Derived>::operator-=(const DiagonalBase<OtherDerived>& other) {
+constexpr Derived& SparseMatrixBase<Derived>::operator-=(const DiagonalBase<OtherDerived>& other) {
   call_assignment_no_alias(derived(), other.derived(),
                            internal::sub_assign_op<Scalar, typename OtherDerived::Scalar>());
   return derived();
@@ -892,43 +899,44 @@ Derived& SparseMatrixBase<Derived>::operator-=(const DiagonalBase<OtherDerived>&
 
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_STRONG_INLINE const typename SparseMatrixBase<Derived>::template CwiseProductDenseReturnType<OtherDerived>::Type
+EIGEN_STRONG_INLINE constexpr const typename SparseMatrixBase<Derived>::template CwiseProductDenseReturnType<
+    OtherDerived>::Type
 SparseMatrixBase<Derived>::cwiseProduct(const MatrixBase<OtherDerived>& other) const {
   return typename CwiseProductDenseReturnType<OtherDerived>::Type(derived(), other.derived());
 }
 
 template <typename DenseDerived, typename SparseDerived>
-EIGEN_STRONG_INLINE const
-    CwiseBinaryOp<internal::scalar_sum_op<typename DenseDerived::Scalar, typename SparseDerived::Scalar>,
-                  const DenseDerived, const SparseDerived>
-    operator+(const MatrixBase<DenseDerived>& a, const SparseMatrixBase<SparseDerived>& b) {
+EIGEN_STRONG_INLINE constexpr const CwiseBinaryOp<
+    internal::scalar_sum_op<typename DenseDerived::Scalar, typename SparseDerived::Scalar>, const DenseDerived,
+    const SparseDerived>
+operator+(const MatrixBase<DenseDerived>& a, const SparseMatrixBase<SparseDerived>& b) {
   return CwiseBinaryOp<internal::scalar_sum_op<typename DenseDerived::Scalar, typename SparseDerived::Scalar>,
                        const DenseDerived, const SparseDerived>(a.derived(), b.derived());
 }
 
 template <typename SparseDerived, typename DenseDerived>
-EIGEN_STRONG_INLINE const
-    CwiseBinaryOp<internal::scalar_sum_op<typename SparseDerived::Scalar, typename DenseDerived::Scalar>,
-                  const SparseDerived, const DenseDerived>
-    operator+(const SparseMatrixBase<SparseDerived>& a, const MatrixBase<DenseDerived>& b) {
+EIGEN_STRONG_INLINE constexpr const CwiseBinaryOp<
+    internal::scalar_sum_op<typename SparseDerived::Scalar, typename DenseDerived::Scalar>, const SparseDerived,
+    const DenseDerived>
+operator+(const SparseMatrixBase<SparseDerived>& a, const MatrixBase<DenseDerived>& b) {
   return CwiseBinaryOp<internal::scalar_sum_op<typename SparseDerived::Scalar, typename DenseDerived::Scalar>,
                        const SparseDerived, const DenseDerived>(a.derived(), b.derived());
 }
 
 template <typename DenseDerived, typename SparseDerived>
-EIGEN_STRONG_INLINE const
-    CwiseBinaryOp<internal::scalar_difference_op<typename DenseDerived::Scalar, typename SparseDerived::Scalar>,
-                  const DenseDerived, const SparseDerived>
-    operator-(const MatrixBase<DenseDerived>& a, const SparseMatrixBase<SparseDerived>& b) {
+EIGEN_STRONG_INLINE constexpr const CwiseBinaryOp<
+    internal::scalar_difference_op<typename DenseDerived::Scalar, typename SparseDerived::Scalar>, const DenseDerived,
+    const SparseDerived>
+operator-(const MatrixBase<DenseDerived>& a, const SparseMatrixBase<SparseDerived>& b) {
   return CwiseBinaryOp<internal::scalar_difference_op<typename DenseDerived::Scalar, typename SparseDerived::Scalar>,
                        const DenseDerived, const SparseDerived>(a.derived(), b.derived());
 }
 
 template <typename SparseDerived, typename DenseDerived>
-EIGEN_STRONG_INLINE const
-    CwiseBinaryOp<internal::scalar_difference_op<typename SparseDerived::Scalar, typename DenseDerived::Scalar>,
-                  const SparseDerived, const DenseDerived>
-    operator-(const SparseMatrixBase<SparseDerived>& a, const MatrixBase<DenseDerived>& b) {
+EIGEN_STRONG_INLINE constexpr const CwiseBinaryOp<
+    internal::scalar_difference_op<typename SparseDerived::Scalar, typename DenseDerived::Scalar>, const SparseDerived,
+    const DenseDerived>
+operator-(const SparseMatrixBase<SparseDerived>& a, const MatrixBase<DenseDerived>& b) {
   return CwiseBinaryOp<internal::scalar_difference_op<typename SparseDerived::Scalar, typename DenseDerived::Scalar>,
                        const SparseDerived, const DenseDerived>(a.derived(), b.derived());
 }
