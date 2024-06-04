@@ -24,23 +24,23 @@ class TensorOpCost {
   // model based on minimal reciprocal throughput numbers from Intel or
   // Agner Fog's tables would be better than what is there now.
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int MulCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int MulCost() {
     return internal::functor_traits<internal::scalar_product_op<ArgType, ArgType> >::Cost;
   }
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int AddCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int AddCost() {
     return internal::functor_traits<internal::scalar_sum_op<ArgType> >::Cost;
   }
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int DivCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int DivCost() {
     return internal::functor_traits<internal::scalar_quotient_op<ArgType, ArgType> >::Cost;
   }
   template <typename ArgType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int ModCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int ModCost() {
     return internal::functor_traits<internal::scalar_mod_op<ArgType> >::Cost;
   }
   template <typename SrcType, typename TargetType>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int CastCost() {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int CastCost() {
     return internal::functor_traits<internal::scalar_cast_op<SrcType, TargetType> >::Cost;
   }
 
@@ -48,8 +48,8 @@ class TensorOpCost {
   constexpr EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles)
       : bytes_loaded_(bytes_loaded), bytes_stored_(bytes_stored), compute_cycles_(compute_cycles) {}
 
-  EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles, bool vectorized,
-                                 double packet_size)
+  EIGEN_DEVICE_FUNC constexpr TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles,
+                                           bool vectorized, double packet_size)
       : bytes_loaded_(bytes_loaded),
         bytes_stored_(bytes_stored),
         compute_cycles_(vectorized ? compute_cycles / packet_size : compute_cycles) {
@@ -69,13 +69,13 @@ class TensorOpCost {
 
   // Drop memory access component. Intended for cases when memory accesses are
   // sequential or are completely masked by computations.
-  EIGEN_DEVICE_FUNC void dropMemoryCost() {
+  EIGEN_DEVICE_FUNC constexpr void dropMemoryCost() {
     bytes_loaded_ = 0;
     bytes_stored_ = 0;
   }
 
   // TODO(rmlarsen): Define min in terms of total cost, not elementwise.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost cwiseMin(const TensorOpCost& rhs) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost cwiseMin(const TensorOpCost& rhs) const {
     double bytes_loaded = numext::mini(bytes_loaded_, rhs.bytes_loaded());
     double bytes_stored = numext::mini(bytes_stored_, rhs.bytes_stored());
     double compute_cycles = numext::mini(compute_cycles_, rhs.compute_cycles());
@@ -83,36 +83,37 @@ class TensorOpCost {
   }
 
   // TODO(rmlarsen): Define max in terms of total cost, not elementwise.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost cwiseMax(const TensorOpCost& rhs) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost cwiseMax(const TensorOpCost& rhs) const {
     double bytes_loaded = numext::maxi(bytes_loaded_, rhs.bytes_loaded());
     double bytes_stored = numext::maxi(bytes_stored_, rhs.bytes_stored());
     double compute_cycles = numext::maxi(compute_cycles_, rhs.compute_cycles());
     return TensorOpCost(bytes_loaded, bytes_stored, compute_cycles);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost& operator+=(const TensorOpCost& rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost& operator+=(const TensorOpCost& rhs) {
     bytes_loaded_ += rhs.bytes_loaded();
     bytes_stored_ += rhs.bytes_stored();
     compute_cycles_ += rhs.compute_cycles();
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost& operator*=(double rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost& operator*=(double rhs) {
     bytes_loaded_ *= rhs;
     bytes_stored_ *= rhs;
     compute_cycles_ *= rhs;
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend TensorOpCost operator+(TensorOpCost lhs, const TensorOpCost& rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend constexpr TensorOpCost operator+(TensorOpCost lhs,
+                                                                                const TensorOpCost& rhs) {
     lhs += rhs;
     return lhs;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend TensorOpCost operator*(TensorOpCost lhs, double rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend constexpr TensorOpCost operator*(TensorOpCost lhs, double rhs) {
     lhs *= rhs;
     return lhs;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend TensorOpCost operator*(double lhs, TensorOpCost rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend constexpr TensorOpCost operator*(double lhs, TensorOpCost rhs) {
     rhs *= lhs;
     return rhs;
   }
@@ -174,8 +175,9 @@ class TensorCostModel {
   // Returns the number of threads in [1:max_threads] to use for
   // evaluating an expression with the given output size and cost per
   // coefficient.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int numThreads(double output_size, const TensorOpCost& cost_per_coeff,
-                                                              int max_threads) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int numThreads(double output_size,
+                                                                        const TensorOpCost& cost_per_coeff,
+                                                                        int max_threads) {
     if (max_threads <= 1) return 1;
 
     double mem = memoryTime(cost_per_coeff);
@@ -218,13 +220,14 @@ class TensorCostModel {
   // taskSize assesses parallel task size.
   // Value of 1.0 means ideal parallel task size. Values < 1.0 mean that task
   // granularity needs to be increased to mitigate parallelization overheads.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double taskSize(double output_size, const TensorOpCost& cost_per_coeff) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double taskSize(double output_size,
+                                                                         const TensorOpCost& cost_per_coeff) {
     return totalCost(output_size, cost_per_coeff) / kTaskSize;
   }
 
   // Roofline model: cost is the max of memory time and compute time.
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double totalCost(double output_size,
-                                                                const TensorOpCost& cost_per_coeff) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double totalCost(double output_size,
+                                                                          const TensorOpCost& cost_per_coeff) {
     double mem_cost = memoryTime(cost_per_coeff);
     double comp_cost = computeTime(cost_per_coeff);
     return output_size * numext::maxi(mem_cost, comp_cost);
@@ -237,11 +240,11 @@ class TensorCostModel {
   // For L1/L2-resident data, compute typically dominates anyway.
   static constexpr double kByteCost = 1.0 / 16.0;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double memoryTime(const TensorOpCost& cost) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double memoryTime(const TensorOpCost& cost) {
     return cost.total_bytes() * kByteCost;
   }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double computeTime(const TensorOpCost& cost) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr double computeTime(const TensorOpCost& cost) {
     return cost.compute_cycles() * kDeviceCyclesPerComputeCycle;
   }
 };
