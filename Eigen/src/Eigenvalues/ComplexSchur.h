@@ -106,7 +106,7 @@ class ComplexSchur {
    *
    * \sa compute() for an example.
    */
-  explicit ComplexSchur(Index size = RowsAtCompileTime == Dynamic ? 1 : RowsAtCompileTime)
+  constexpr explicit ComplexSchur(Index size = RowsAtCompileTime == Dynamic ? 1 : RowsAtCompileTime)
       : m_matT(size, size),
         m_matU(size, size),
         m_hess(size),
@@ -124,7 +124,7 @@ class ComplexSchur {
    * \sa matrixT() and matrixU() for examples.
    */
   template <typename InputType>
-  explicit ComplexSchur(const EigenBase<InputType>& matrix, bool computeU = true)
+  constexpr explicit ComplexSchur(const EigenBase<InputType>& matrix, bool computeU = true)
       : m_matT(matrix.rows(), matrix.cols()),
         m_matU(matrix.rows(), matrix.cols()),
         m_hess(matrix.rows()),
@@ -168,7 +168,7 @@ class ComplexSchur {
    * Example: \include ComplexSchur_matrixU.cpp
    * Output: \verbinclude ComplexSchur_matrixU.out
    */
-  const ComplexMatrixType& matrixU() const {
+  constexpr const ComplexMatrixType& matrixU() const {
     eigen_assert(m_isInitialized && "ComplexSchur is not initialized.");
     eigen_assert(m_matUisUptodate && "The matrix U has not been computed during the ComplexSchur decomposition.");
     return m_matU;
@@ -191,7 +191,7 @@ class ComplexSchur {
    * Example: \include ComplexSchur_matrixT.cpp
    * Output: \verbinclude ComplexSchur_matrixT.out
    */
-  const MatrixTType& matrixT() const {
+  constexpr const MatrixTType& matrixT() const {
     eigen_assert(m_isInitialized && "ComplexSchur is not initialized.");
     return m_matT;
   }
@@ -218,7 +218,7 @@ class ComplexSchur {
     * \sa compute(const MatrixType&, bool, Index)
     */
   template <typename InputType>
-  ComplexSchur& compute(const EigenBase<InputType>& matrix, bool computeU = true);
+  constexpr ComplexSchur& compute(const EigenBase<InputType>& matrix, bool computeU = true);
 
   /** \brief Compute Schur decomposition from a given Hessenberg matrix
    *  \param[in] matrixH Matrix in Hessenberg form H
@@ -238,14 +238,14 @@ class ComplexSchur {
    * \sa compute(const MatrixType&, bool)
    */
   template <typename HessMatrixType, typename OrthMatrixType>
-  ComplexSchur& computeFromHessenberg(const HessMatrixType& matrixH, const OrthMatrixType& matrixQ,
-                                      bool computeU = true);
+  constexpr ComplexSchur& computeFromHessenberg(const HessMatrixType& matrixH, const OrthMatrixType& matrixQ,
+                                                bool computeU = true);
 
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "ComplexSchur is not initialized.");
     return m_info;
   }
@@ -255,20 +255,20 @@ class ComplexSchur {
    * If not specified by the user, the maximum number of iterations is m_maxIterationsPerRow times the size
    * of the matrix.
    */
-  ComplexSchur& setMaxIterations(Index maxIters) {
+  constexpr ComplexSchur& setMaxIterations(Index maxIters) {
     m_maxIters = maxIters;
     return *this;
   }
 
   /** \brief Returns the maximum number of iterations. */
-  Index getMaxIterations() const { return m_maxIters; }
+  constexpr Index getMaxIterations() const { return m_maxIters; }
 
   /** \brief Maximum number of iterations per row.
    *
    * If not otherwise specified, the maximum number of iterations is this number times the size of the
    * matrix. It is currently set to 30.
    */
-  static const int m_maxIterationsPerRow = 30;
+  static constexpr int m_maxIterationsPerRow = 30;
 
  protected:
   EIGEN_STATIC_ASSERT(NumTraits<Scalar>::IsComplex || !internal::is_ref<MatrixType>::value,
@@ -286,10 +286,10 @@ class ComplexSchur {
   // ComplexEigenSolver computes the eigenvectors of T within this storage.
   friend class ComplexEigenSolver<MatrixType>;
 
-  ComplexSchur& computeInPlace(bool computeU);
-  bool subdiagonalEntryIsNeglegible(Index i);
-  ComplexScalar computeShift(Index iu, Index iter);
-  void reduceToTriangularForm(bool computeU);
+  constexpr ComplexSchur& computeInPlace(bool computeU);
+  constexpr bool subdiagonalEntryIsNeglegible(Index i);
+  constexpr ComplexScalar computeShift(Index iu, Index iter);
+  constexpr void reduceToTriangularForm(bool computeU);
   friend struct internal::complex_schur_reduce_to_hessenberg<MatrixType, NumTraits<Scalar>::IsComplex>;
 };
 
@@ -297,7 +297,7 @@ class ComplexSchur {
  * compared to m_matT(i,i) and m_matT(j,j), then set it to zero and
  * return true, else return false. */
 template <typename MatrixType>
-inline bool ComplexSchur<MatrixType>::subdiagonalEntryIsNeglegible(Index i) {
+constexpr bool ComplexSchur<MatrixType>::subdiagonalEntryIsNeglegible(Index i) {
   RealScalar d = numext::norm1(m_matT.coeff(i, i)) + numext::norm1(m_matT.coeff(i + 1, i + 1));
   RealScalar sd = numext::norm1(m_matT.coeff(i + 1, i));
   if (internal::isMuchSmallerThan(sd, d, NumTraits<RealScalar>::epsilon())) {
@@ -309,7 +309,8 @@ inline bool ComplexSchur<MatrixType>::subdiagonalEntryIsNeglegible(Index i) {
 
 /** Compute the shift in the current QR iteration. */
 template <typename MatrixType>
-typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::computeShift(Index iu, Index iter) {
+constexpr typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::computeShift(Index iu,
+                                                                                                  Index iter) {
   using std::abs;
   if ((iter == 10 || iter == 20) && iu > 1) {
     // exceptional shift, taken from http://www.netlib.org/eispack/comqr.f
@@ -347,7 +348,8 @@ typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::compu
 
 template <typename MatrixType>
 template <typename InputType>
-ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<InputType>& matrix, bool computeU) {
+constexpr ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<InputType>& matrix,
+                                                                      bool computeU) {
   m_matUisUptodate = false;
   eigen_assert(matrix.cols() == matrix.rows());
 
@@ -379,7 +381,7 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
 
 /** \internal Computes the Schur decomposition of the complex matrix held in m_matT, which is overwritten by T. */
 template <typename MatrixType>
-ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU) {
+constexpr ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU) {
   m_matUisUptodate = false;
   eigen_assert(m_matT.cols() == m_matT.rows());
 
@@ -403,9 +405,9 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU
 
 template <typename MatrixType>
 template <typename HessMatrixType, typename OrthMatrixType>
-ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeFromHessenberg(const HessMatrixType& matrixH,
-                                                                          const OrthMatrixType& matrixQ,
-                                                                          bool computeU) {
+constexpr ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeFromHessenberg(const HessMatrixType& matrixH,
+                                                                                    const OrthMatrixType& matrixQ,
+                                                                                    bool computeU) {
   if (!internal::is_same_dense(m_matT, matrixH)) m_matT = matrixH;
   if (computeU && !internal::is_same_dense(m_matU, matrixQ)) m_matU = matrixQ;
   reduceToTriangularForm(computeU);
@@ -425,17 +427,17 @@ struct complex_schur_reduce_to_hessenberg {
   using WorkspaceType =
       Matrix<Scalar, Schur::ColsAtCompileTime, 1, Schur::Options & ~RowMajor, Schur::MaxColsAtCompileTime, 1>;
 
-  explicit complex_schur_reduce_to_hessenberg(Index size) : m_workspace(size) {
+  explicit constexpr complex_schur_reduce_to_hessenberg(Index size) : m_workspace(size) {
     if (size > 1) m_hCoeffs.resize(size - 1);
   }
 
   template <typename InputType>
-  void run(Schur& _this, const InputType& matrix, bool computeU) {
+  constexpr void run(Schur& _this, const InputType& matrix, bool computeU) {
     _this.m_matT = matrix;
     runInPlace(_this, computeU);
   }
 
-  void runInPlace(Schur& _this, bool computeU) {
+  constexpr void runInPlace(Schur& _this, bool computeU) {
     hessenberg_decomposition_inplace(_this.m_matT, m_hCoeffs, m_workspace, _this.m_matU, computeU);
   }
 
@@ -447,10 +449,10 @@ template <typename MatrixType>
 struct complex_schur_reduce_to_hessenberg<MatrixType, false> {
   using Schur = ComplexSchur<MatrixType>;
 
-  explicit complex_schur_reduce_to_hessenberg(Index size) : m_hess(size) {}
+  explicit constexpr complex_schur_reduce_to_hessenberg(Index size) : m_hess(size) {}
 
   template <typename InputType>
-  void run(Schur& _this, const InputType& matrix, bool computeU) {
+  constexpr void run(Schur& _this, const InputType& matrix, bool computeU) {
     using ComplexScalar = typename Schur::ComplexScalar;
 
     // Note: m_hess is over RealScalar; m_matT and m_matU is over ComplexScalar
@@ -470,7 +472,7 @@ struct complex_schur_reduce_to_hessenberg<MatrixType, false> {
 
 // Reduce the Hessenberg matrix m_matT to triangular form by QR iteration.
 template <typename MatrixType>
-void ComplexSchur<MatrixType>::reduceToTriangularForm(bool computeU) {
+constexpr void ComplexSchur<MatrixType>::reduceToTriangularForm(bool computeU) {
   Index maxIters = m_maxIters;
   if (maxIters == -1) maxIters = m_maxIterationsPerRow * m_matT.rows();
 

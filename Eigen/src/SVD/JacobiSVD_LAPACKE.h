@@ -44,7 +44,7 @@ namespace Eigen {
 #define EIGEN_LAPACKE_SVD(EIGTYPE, LAPACKE_TYPE, LAPACKE_RTYPE, LAPACKE_PREFIX, EIGCOLROW, LAPACKE_COLROW, OPTIONS) \
   template <>                                                                                                       \
   template <typename Derived>                                                                                       \
-  inline JacobiSVD<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, OPTIONS>&                        \
+  constexpr JacobiSVD<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, OPTIONS>&                     \
   JacobiSVD<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, OPTIONS>::compute_impl(                 \
       const MatrixBase<Derived>& matrix, unsigned int computationOptions) {                                         \
     /*typedef MatrixType::Scalar Scalar;*/                                                                          \

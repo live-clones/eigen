@@ -44,7 +44,7 @@ namespace Eigen {
 #define EIGEN_LAPACKE_EIG_SELFADJ_2(EIGTYPE, LAPACKE_TYPE, LAPACKE_RTYPE, LAPACKE_NAME, EIGCOLROW)                   \
   template <>                                                                                                        \
   template <typename InputType>                                                                                      \
-  inline SelfAdjointEigenSolver<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >&                                      \
+  constexpr SelfAdjointEigenSolver<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >&                                   \
   SelfAdjointEigenSolver<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >::compute(const EigenBase<InputType>& matrix, \
                                                                                  int options) {                      \
     eigen_assert(matrix.cols() == matrix.rows());                                                                    \
