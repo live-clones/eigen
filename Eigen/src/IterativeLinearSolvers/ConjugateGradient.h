@@ -28,8 +28,8 @@ namespace internal {
  * \param tol_error On input the tolerance error, on output an estimation of the relative error.
  */
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
-EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond,
-                                          Index& iters, typename Dest::RealScalar& tol_error) {
+constexpr void conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond,
+                                  Index& iters, typename Dest::RealScalar& tol_error) {
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
   // Use Dest's plain (owning) type as VectorType. For CPU Matrix/Map this
@@ -177,7 +177,7 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
 
  public:
   /** Default constructor. */
-  ConjugateGradient() : Base() {}
+  constexpr ConjugateGradient() = default;
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -190,11 +190,11 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  explicit ConjugateGradient(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
+  constexpr explicit ConjugateGradient(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
   /** \internal */
   template <typename Rhs, typename Dest>
-  void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
+  constexpr void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
     typedef typename Base::MatrixWrapper MatrixWrapper;
     typedef typename Base::ActualMatrixType ActualMatrixType;
     enum {
