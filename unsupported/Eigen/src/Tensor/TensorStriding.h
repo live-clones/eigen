@@ -51,12 +51,14 @@ class TensorStridingOp : public TensorBase<TensorStridingOp<Strides, XprType> > 
   typedef typename Eigen::internal::traits<TensorStridingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorStridingOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorStridingOp(const XprType& expr, const Strides& dims)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorStridingOp(const XprType& expr, const Strides& dims)
       : m_xpr(expr), m_dims(dims) {}
 
-  EIGEN_DEVICE_FUNC const Strides& strides() const { return m_dims; }
+  EIGEN_DEVICE_FUNC constexpr const Strides& strides() const { return m_dims; }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& expression() const {
+    return m_xpr;
+  }
 
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorStridingOp)
 
@@ -99,7 +101,8 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : m_impl(op.expression(), device) {
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
+      : m_impl(op.expression(), device) {
     m_dimensions = m_impl.dimensions();
     m_is_identity = true;
     for (int i = 0; i < NumDims; ++i) {
@@ -129,15 +132,15 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
     m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
-  EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
+  EIGEN_STRONG_INLINE constexpr void cleanup() { m_impl.cleanup(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     if (m_is_identity) {
       return m_impl.coeff(index);
     }
@@ -188,7 +191,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
     return internal::pload<PacketReturnType>(values);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     const double compute_cost = m_is_identity
                                     ? TensorOpCost::AddCost<Index>()
                                     : (NumDims - 1) * (TensorOpCost::AddCost<Index>() + TensorOpCost::MulCost<Index>() +
@@ -209,14 +212,14 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
            TensorOpCost(0, 0, compute_cost, vectorized && packets_stay_in_inner, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return nullptr; }
+  EIGEN_DEVICE_FUNC constexpr typename Storage::Type data() const { return nullptr; }
 
  protected:
   // Computes the input index of output index `index` and, as a by-product of
   // the same walk, the output's inner-dimension coordinate. The packet paths
   // use the latter to test whether a whole packet stays inside one inner-most
   // run without spending an extra division on it.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeffInner(Index index, Index& inner_pos) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index srcCoeffInner(Index index, Index& inner_pos) const {
     Index inputIndex = 0;
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       EIGEN_UNROLL_LOOP
@@ -284,9 +287,9 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
     RawAccess = false
   };
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRef(Index index) const {
     if (this->m_is_identity) return this->m_impl.coeffRef(index);
     return this->m_impl.coeffRef(this->srcCoeff(index));
   }

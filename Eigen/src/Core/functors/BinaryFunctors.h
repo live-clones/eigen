@@ -13,6 +13,7 @@
 
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
+#include "Eigen/Core"
 
 namespace Eigen {
 
@@ -35,7 +36,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_sum_op : binary_op_base<LhsScalar, RhsScalar> {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_sum_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_sum_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_sum_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -81,7 +82,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_product_op : binary_op_base<LhsScalar, RhsScalar> {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_product_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_product_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_product_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -122,15 +123,21 @@ struct functor_is_commutative<scalar_product_op<Scalar, Scalar>>
 template <typename LhsScalar, typename RhsScalar>
 struct fast_mult_op : scalar_product_op<LhsScalar, RhsScalar> {
   using result_type = typename scalar_product_op<LhsScalar, RhsScalar>::result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
     return mul(a, b, bool_constant<std::is_same<LhsScalar, RhsScalar>::value>());
   }
 
  private:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type mul(const LhsScalar& a, const RhsScalar& b, std::true_type) const {
-    return pmul(a, b);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type mul(const LhsScalar& a, const RhsScalar& b,
+                                                                  std::true_type) const {
+    if (internal::is_constant_evaluated()) {
+      return a * b;
+    } else {
+      return pmul(a, b);
+    }
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type mul(const LhsScalar& a, const RhsScalar& b, std::false_type) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type mul(const LhsScalar& a, const RhsScalar& b,
+                                                                  std::false_type) const {
     return a * b;
   }
 };
@@ -138,7 +145,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct functor_traits<fast_mult_op<LhsScalar, RhsScalar>> : functor_traits<scalar_product_op<LhsScalar, RhsScalar>> {};
 
 template <>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_product_op<bool, bool>::operator()(const bool& a,
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr bool scalar_product_op<bool, bool>::operator()(const bool& a,
                                                                                                const bool& b) const {
   return a && b;
 }
@@ -180,8 +187,13 @@ struct functor_traits<scalar_conj_product_op<LhsScalar, RhsScalar>> {
 template <typename LhsScalar, typename RhsScalar, int NaNPropagation>
 struct scalar_min_op : binary_op_base<LhsScalar, RhsScalar> {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_min_op>::ReturnType;
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
-    return internal::pmin<NaNPropagation>(a, b);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
+    if (internal::is_constant_evaluated()) {
+      using std::min;
+      return min(a, b);
+    } else {
+      return internal::pmin<NaNPropagation>(a, b);
+    }
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
@@ -219,7 +231,12 @@ template <typename LhsScalar, typename RhsScalar, int NaNPropagation>
 struct scalar_max_op : binary_op_base<LhsScalar, RhsScalar> {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_max_op>::ReturnType;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
-    return internal::pmax<NaNPropagation>(a, b);
+    if (internal::is_constant_evaluated()) {
+      using std::max;
+      return max(a, b);
+    } else {
+      return internal::pmax<NaNPropagation>(a, b);
+    }
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
@@ -417,7 +434,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_difference_op : binary_op_base<LhsScalar, RhsScalar> {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_difference_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -466,7 +483,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_quotient_op : binary_op_base<LhsScalar, RhsScalar> {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_quotient_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_quotient_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_quotient_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -695,7 +712,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_absolute_difference_op : binary_op_base<LhsScalar, RhsScalar> {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_absolute_difference_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_absolute_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_absolute_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
