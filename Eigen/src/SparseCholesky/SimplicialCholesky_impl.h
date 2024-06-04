@@ -26,7 +26,7 @@ the Mozilla Public License v. 2.0, as stated at the top of this file.
 namespace Eigen {
 
 template <typename Derived>
-void SimplicialCholeskyBase<Derived>::analyzePattern_preordered(const CholMatrixType& ap, bool doLDLT) {
+constexpr void SimplicialCholeskyBase<Derived>::analyzePattern_preordered(const CholMatrixType& ap, bool doLDLT) {
   const StorageIndex size = StorageIndex(ap.rows());
   m_matrix.resize(size, size);
   m_parent.resize(size);
@@ -68,7 +68,7 @@ void SimplicialCholeskyBase<Derived>::analyzePattern_preordered(const CholMatrix
 
 template <typename Derived>
 template <bool DoLDLT, bool NonHermitian>
-void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType& ap) {
+constexpr void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType& ap) {
   using std::sqrt;
 
   eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");

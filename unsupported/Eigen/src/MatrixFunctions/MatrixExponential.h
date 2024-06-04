@@ -29,13 +29,13 @@ struct MatrixExponentialScalingOp {
    *
    * \param[in] squarings  The integer \f$ s \f$ in this document.
    */
-  MatrixExponentialScalingOp(int squarings) : m_squarings(squarings) {}
+  constexpr MatrixExponentialScalingOp(int squarings) : m_squarings(squarings) {}
 
   /** \brief Scale a matrix coefficient.
    *
    * \param[in,out] x  The scalar to be scaled, becoming \f$ 2^{-s} x \f$.
    */
-  inline const RealScalar operator()(const RealScalar& x) const {
+  inline constexpr const RealScalar operator()(const RealScalar& x) const {
     using std::ldexp;
     return ldexp(x, -m_squarings);
   }
@@ -46,7 +46,7 @@ struct MatrixExponentialScalingOp {
    *
    * \param[in,out] x  The scalar to be scaled, becoming \f$ 2^{-s} x \f$.
    */
-  inline const ComplexScalar operator()(const ComplexScalar& x) const {
+  inline constexpr const ComplexScalar operator()(const ComplexScalar& x) const {
     using std::ldexp;
     return ComplexScalar(ldexp(x.real(), -m_squarings), ldexp(x.imag(), -m_squarings));
   }
@@ -61,7 +61,7 @@ struct MatrixExponentialScalingOp {
  *  approximant of \f$ \exp(A) \f$ around \f$ A = 0 \f$.
  */
 template <typename MatA, typename MatU, typename MatV>
-void matrix_exp_pade3(const MatA& A, MatU& U, MatV& V) {
+constexpr void matrix_exp_pade3(const MatA& A, MatU& U, MatV& V) {
   typedef typename MatA::PlainObject MatrixType;
   typedef typename NumTraits<typename traits<MatA>::Scalar>::Real RealScalar;
   const RealScalar b[] = {120.L, 60.L, 12.L, 1.L};
@@ -77,7 +77,7 @@ void matrix_exp_pade3(const MatA& A, MatU& U, MatV& V) {
  *  approximant of \f$ \exp(A) \f$ around \f$ A = 0 \f$.
  */
 template <typename MatA, typename MatU, typename MatV>
-void matrix_exp_pade5(const MatA& A, MatU& U, MatV& V) {
+constexpr void matrix_exp_pade5(const MatA& A, MatU& U, MatV& V) {
   typedef typename MatA::PlainObject MatrixType;
   typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
   const RealScalar b[] = {30240.L, 15120.L, 3360.L, 420.L, 30.L, 1.L};
@@ -94,7 +94,7 @@ void matrix_exp_pade5(const MatA& A, MatU& U, MatV& V) {
  *  approximant of \f$ \exp(A) \f$ around \f$ A = 0 \f$.
  */
 template <typename MatA, typename MatU, typename MatV>
-void matrix_exp_pade7(const MatA& A, MatU& U, MatV& V) {
+constexpr void matrix_exp_pade7(const MatA& A, MatU& U, MatV& V) {
   typedef typename MatA::PlainObject MatrixType;
   typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
   const RealScalar b[] = {17297280.L, 8648640.L, 1995840.L, 277200.L, 25200.L, 1512.L, 56.L, 1.L};
@@ -112,7 +112,7 @@ void matrix_exp_pade7(const MatA& A, MatU& U, MatV& V) {
  *  approximant of \f$ \exp(A) \f$ around \f$ A = 0 \f$.
  */
 template <typename MatA, typename MatU, typename MatV>
-void matrix_exp_pade9(const MatA& A, MatU& U, MatV& V) {
+constexpr void matrix_exp_pade9(const MatA& A, MatU& U, MatV& V) {
   typedef typename MatA::PlainObject MatrixType;
   typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
   const RealScalar b[] = {17643225600.L, 8821612800.L, 2075673600.L, 302702400.L, 30270240.L,
@@ -133,7 +133,7 @@ void matrix_exp_pade9(const MatA& A, MatU& U, MatV& V) {
  *  approximant of \f$ \exp(A) \f$ around \f$ A = 0 \f$.
  */
 template <typename MatA, typename MatU, typename MatV>
-void matrix_exp_pade13(const MatA& A, MatU& U, MatV& V) {
+constexpr void matrix_exp_pade13(const MatA& A, MatU& U, MatV& V) {
   typedef typename MatA::PlainObject MatrixType;
   typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
   const RealScalar b[] = {64764752532480000.L,
@@ -171,7 +171,7 @@ void matrix_exp_pade13(const MatA& A, MatU& U, MatV& V) {
  */
 #if LDBL_MANT_DIG > 64
 template <typename MatA, typename MatU, typename MatV>
-void matrix_exp_pade17(const MatA& A, MatU& U, MatV& V) {
+constexpr void matrix_exp_pade17(const MatA& A, MatU& U, MatV& V) {
   typedef typename MatA::PlainObject MatrixType;
   typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
   const RealScalar b[] = {830034394580628357120000.L,
@@ -215,13 +215,13 @@ struct matrix_exp_computeUV {
    * denotes the matrix \c arg. The degree of the Pad&eacute; approximant and the value of squarings
    * are chosen such that the approximation error is no more than the round-off error.
    */
-  static void run(const MatrixType& arg, MatrixType& U, MatrixType& V, int& squarings);
+  static constexpr void run(const MatrixType& arg, MatrixType& U, MatrixType& V, int& squarings);
 };
 
 template <typename MatrixType>
 struct matrix_exp_computeUV<MatrixType, float> {
   template <typename ArgType>
-  static void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
+  static constexpr void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
     using std::frexp;
     using std::pow;
     const float l1norm = arg.cwiseAbs().colwise().sum().maxCoeff();
@@ -244,7 +244,7 @@ template <typename MatrixType>
 struct matrix_exp_computeUV<MatrixType, double> {
   typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
   template <typename ArgType>
-  static void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
+  static constexpr void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
     using std::frexp;
     using std::pow;
     const RealScalar l1norm = arg.cwiseAbs().colwise().sum().maxCoeff();
@@ -270,7 +270,7 @@ struct matrix_exp_computeUV<MatrixType, double> {
 template <typename MatrixType>
 struct matrix_exp_computeUV<MatrixType, long double> {
   template <typename ArgType>
-  static void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
+  static constexpr void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
 #if LDBL_MANT_DIG == 53  // double precision
     matrix_exp_computeUV<MatrixType, double>::run(arg, U, V, squarings);
 
@@ -361,7 +361,7 @@ struct is_exp_known_type<long double> : true_type {};
 #endif
 
 template <typename ArgType, typename ResultType>
-void matrix_exp_compute(const ArgType& arg, ResultType& result, true_type)  // natively supported scalar type
+constexpr void matrix_exp_compute(const ArgType& arg, ResultType& result, true_type)  // natively supported scalar type
 {
   typedef typename ArgType::PlainObject MatrixType;
   MatrixType U, V;
@@ -379,7 +379,7 @@ void matrix_exp_compute(const ArgType& arg, ResultType& result, true_type)  // n
  * \param result variable in which result will be stored
  */
 template <typename ArgType, typename ResultType>
-void matrix_exp_compute(const ArgType& arg, ResultType& result, false_type)  // default
+constexpr void matrix_exp_compute(const ArgType& arg, ResultType& result, false_type)  // default
 {
   typedef typename ArgType::PlainObject MatrixType;
   typedef typename traits<MatrixType>::Scalar Scalar;
@@ -407,20 +407,20 @@ struct MatrixExponentialReturnValue : public ReturnByValue<MatrixExponentialRetu
    *
    * \param src %Matrix (expression) forming the argument of the matrix exponential.
    */
-  MatrixExponentialReturnValue(const Derived& src) : m_src(src) {}
+  constexpr MatrixExponentialReturnValue(const Derived& src) : m_src(src) {}
 
   /** \brief Compute the matrix exponential.
    *
    * \param result the matrix exponential of \p src in the constructor.
    */
   template <typename ResultType>
-  inline void evalTo(ResultType& result) const {
+  inline constexpr void evalTo(ResultType& result) const {
     const typename internal::nested_eval<Derived, 10>::type tmp(m_src);
     internal::matrix_exp_compute(tmp, result, internal::is_exp_known_type<typename Derived::RealScalar>());
   }
 
-  Index rows() const { return m_src.rows(); }
-  Index cols() const { return m_src.cols(); }
+  constexpr Index rows() const { return m_src.rows(); }
+  constexpr Index cols() const { return m_src.cols(); }
 
  protected:
   const typename internal::ref_selector<Derived>::type m_src;
@@ -434,7 +434,7 @@ struct traits<MatrixExponentialReturnValue<Derived> > {
 }  // namespace internal
 
 template <typename Derived>
-const MatrixExponentialReturnValue<Derived> MatrixBase<Derived>::exp() const {
+constexpr const MatrixExponentialReturnValue<Derived> MatrixBase<Derived>::exp() const {
   eigen_assert(rows() == cols());
   return MatrixExponentialReturnValue<Derived>(derived());
 }

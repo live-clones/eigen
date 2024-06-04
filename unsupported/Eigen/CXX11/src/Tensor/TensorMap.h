@@ -71,39 +71,41 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   static constexpr int Layout = PlainObjectType::Layout;
   enum { IsAligned = ((int(Options_) & Aligned) == Aligned), CoordAccess = true, RawAccess = true };
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorMap(StoragePointerType dataPtr) : m_data(dataPtr), m_dimensions() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorMap(StoragePointerType dataPtr)
+      : m_data(dataPtr), m_dimensions() {
     // The number of dimensions used to construct a tensor must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT((0 == NumIndices || NumIndices == Dynamic), YOU_MADE_A_PROGRAMMING_MISTAKE)
   }
 
   template <typename... IndexTypes>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorMap(StoragePointerType dataPtr, Index firstDimension,
-                                                  IndexTypes... otherDimensions)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorMap(StoragePointerType dataPtr, Index firstDimension,
+                                                            IndexTypes... otherDimensions)
       : m_data(dataPtr), m_dimensions(firstDimension, otherDimensions...) {
     // The number of dimensions used to construct a tensor must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT((sizeof...(otherDimensions) + 1 == NumIndices || NumIndices == Dynamic),
                         YOU_MADE_A_PROGRAMMING_MISTAKE)
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorMap(StoragePointerType dataPtr,
-                                                  const array<Index, NumIndices>& dimensions)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorMap(StoragePointerType dataPtr,
+                                                            const array<Index, NumIndices>& dimensions)
       : m_data(dataPtr), m_dimensions(dimensions) {}
 
   template <typename Dimensions>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorMap(StoragePointerType dataPtr, const Dimensions& dimensions)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorMap(StoragePointerType dataPtr, const Dimensions& dimensions)
       : m_data(dataPtr), m_dimensions(dimensions) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorMap(PlainObjectType& tensor)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorMap(PlainObjectType& tensor)
       : m_data(tensor.data()), m_dimensions(tensor.dimensions()) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return m_dimensions.rank(); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index dimension(Index n) const { return m_dimensions[n]; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_dimensions.TotalSize(); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StoragePointerType data() { return m_data; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StoragePointerType data() const { return m_data; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rank() const { return m_dimensions.rank(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index dimension(Index n) const { return m_dimensions[n]; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index size() const { return m_dimensions.TotalSize(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StoragePointerType data() { return m_data; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StoragePointerType data() const { return m_data; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(const array<Index, NumIndices>& indices) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()(
+      const array<Index, NumIndices>& indices) const {
     //      eigen_assert(checkIndexRange(indices));
     if (PlainObjectType::Options & RowMajor) {
       const Index index = m_dimensions.IndexOfRowMajor(indices);
@@ -114,19 +116,19 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()() const {
     EIGEN_STATIC_ASSERT(NumIndices == 0, YOU_MADE_A_PROGRAMMING_MISTAKE)
     return m_data[0];
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()(Index index) const {
     eigen_internal_assert(index >= 0 && index < size());
     return m_data[index];
   }
 
   template <typename... IndexTypes>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(Index firstIndex, Index secondIndex,
-                                                                  IndexTypes... otherIndices) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()(Index firstIndex, Index secondIndex,
+                                                                            IndexTypes... otherIndices) const {
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
     eigen_assert(internal::all((Eigen::NumTraits<Index>::highest() >= otherIndices)...));
     if (PlainObjectType::Options & RowMajor) {
@@ -140,7 +142,7 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(const array<Index, NumIndices>& indices) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()(const array<Index, NumIndices>& indices) {
     //      eigen_assert(checkIndexRange(indices));
     if (PlainObjectType::Options & RowMajor) {
       const Index index = m_dimensions.IndexOfRowMajor(indices);
@@ -151,19 +153,19 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()() {
     EIGEN_STATIC_ASSERT(NumIndices == 0, YOU_MADE_A_PROGRAMMING_MISTAKE)
     return m_data[0];
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(Index index) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()(Index index) {
     eigen_internal_assert(index >= 0 && index < size());
     return m_data[index];
   }
 
   template <typename... IndexTypes>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(Index firstIndex, Index secondIndex,
-                                                                  IndexTypes... otherIndices) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr StorageRefType operator()(Index firstIndex, Index secondIndex,
+                                                                            IndexTypes... otherIndices) {
     static_assert(sizeof...(otherIndices) + 2 == NumIndices || NumIndices == Dynamic,
                   "Number of indices used to access a tensor coefficient must be equal to the rank of the tensor.");
     eigen_assert(internal::all((Eigen::NumTraits<Index>::highest() >= otherIndices)...));

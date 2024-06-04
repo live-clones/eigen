@@ -46,23 +46,24 @@ struct CoherentPadOp : public dense_xpr_base<CoherentPadOp<XprType, SizeAtCompil
   using XprNested_ = typename traits<CoherentPadOp>::XprNested_;
   using NestedExpression = XprNested_;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoherentPadOp() = delete;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoherentPadOp(const CoherentPadOp&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoherentPadOp(CoherentPadOp&& other) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoherentPadOp() = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoherentPadOp(const CoherentPadOp&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoherentPadOp(CoherentPadOp&& other) = default;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoherentPadOp(const XprType& xpr, Index size) : xpr_(xpr), size_(size) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoherentPadOp(const XprType& xpr, Index size)
+      : xpr_(xpr), size_(size) {
     static_assert(XprNested_::IsVectorAtCompileTime, "input type must be a vector");
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const XprNested_& nestedExpression() const { return xpr_; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const XprNested_& nestedExpression() const { return xpr_; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return size_.value(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index size() const { return size_.value(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rows() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const {
     return traits<CoherentPadOp>::IsRowMajor ? Index(1) : size();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index cols() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const {
     return traits<CoherentPadOp>::IsRowMajor ? size() : Index(1);
   }
 
@@ -87,10 +88,10 @@ struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
     Alignment = evaluator<ArgTypeNestedCleaned>::Alignment
   };
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit unary_evaluator(const XprType& pad)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit unary_evaluator(const XprType& pad)
       : m_arg(pad.nestedExpression()), m_argImpl(m_arg), m_size(pad.nestedExpression().size()) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index row, Index col) const {
     EIGEN_IF_CONSTEXPR(XprType::IsRowMajor) {
       if (col < m_size.value()) {
         return m_argImpl.coeff(1, col);
@@ -104,7 +105,7 @@ struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
     return CoeffReturnType(0);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     if (index < m_size.value()) {
       return m_argImpl.coeff(index);
     }

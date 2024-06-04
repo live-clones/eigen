@@ -86,7 +86,7 @@ class RealQZ {
    *
    * \sa compute() for an example.
    */
-  explicit RealQZ(Index size = RowsAtCompileTime == Dynamic ? 1 : RowsAtCompileTime)
+  constexpr explicit RealQZ(Index size = RowsAtCompileTime == Dynamic ? 1 : RowsAtCompileTime)
       : m_S(size, size),
         m_T(size, size),
         m_Q(size, size),
@@ -104,7 +104,7 @@ class RealQZ {
    *
    * This constructor calls compute() to compute the QZ decomposition.
    */
-  RealQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true)
+  constexpr RealQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true)
       : m_S(A.rows(), A.cols()),
         m_T(A.rows(), A.cols()),
         m_Q(A.rows(), A.cols()),
@@ -120,7 +120,7 @@ class RealQZ {
    *
    * \returns A const reference to the matrix Q.
    */
-  const MatrixType& matrixQ() const {
+  constexpr const MatrixType& matrixQ() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Q;
@@ -130,7 +130,7 @@ class RealQZ {
    *
    * \returns A const reference to the matrix Z.
    */
-  const MatrixType& matrixZ() const {
+  constexpr const MatrixType& matrixZ() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Z;
@@ -140,7 +140,7 @@ class RealQZ {
    *
    * \returns A const reference to the matrix S.
    */
-  const MatrixType& matrixS() const {
+  constexpr const MatrixType& matrixS() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     return m_S;
   }
@@ -149,7 +149,7 @@ class RealQZ {
    *
    * \returns A const reference to the matrix S.
    */
-  const MatrixType& matrixT() const {
+  constexpr const MatrixType& matrixT() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     return m_T;
   }
@@ -161,20 +161,20 @@ class RealQZ {
    * \param[in]  computeQZ  If false, A and Z are not computed.
    * \returns    Reference to \c *this
    */
-  RealQZ& compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
+  constexpr RealQZ& compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
 
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     return m_info;
   }
 
   /** \brief Returns number of performed QR-like iterations.
    */
-  Index iterations() const {
+  constexpr Index iterations() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     return m_global_iter;
   }
@@ -182,7 +182,7 @@ class RealQZ {
   /** Sets the maximal number of iterations allowed to converge to one eigenvalue
    * or decouple the problem.
    */
-  RealQZ& setMaxIterations(Index maxIters) {
+  constexpr RealQZ& setMaxIterations(Index maxIters) {
     m_maxIters = maxIters;
     return *this;
   }
@@ -202,19 +202,19 @@ class RealQZ {
   typedef Matrix<Scalar, 2, 2> Matrix2s;
   typedef JacobiRotation<Scalar> JRs;
 
-  void hessenbergTriangular();
-  void computeNorms();
-  Index findSmallSubdiagEntry(Index iu);
-  Index findSmallDiagEntry(Index f, Index l);
-  void splitOffTwoRows(Index i);
-  void pushDownZero(Index z, Index f, Index l);
-  void step(Index f, Index l, Index iter);
+  constexpr void hessenbergTriangular();
+  constexpr void computeNorms();
+  constexpr Index findSmallSubdiagEntry(Index iu);
+  constexpr Index findSmallDiagEntry(Index f, Index l);
+  constexpr void splitOffTwoRows(Index i);
+  constexpr void pushDownZero(Index z, Index f, Index l);
+  constexpr void step(Index f, Index l, Index iter);
 
 };  // RealQZ
 
 /** \internal Reduces S and T to upper Hessenberg - triangular form */
 template <typename MatrixType>
-void RealQZ<MatrixType>::hessenbergTriangular() {
+constexpr void RealQZ<MatrixType>::hessenbergTriangular() {
   const Index dim = m_S.cols();
 
   // perform QR decomposition of T, overwrite T with R, save Q
@@ -254,7 +254,7 @@ void RealQZ<MatrixType>::hessenbergTriangular() {
 
 /** \internal Computes vector L1 norms of S and T when in Hessenberg-Triangular form already */
 template <typename MatrixType>
-inline void RealQZ<MatrixType>::computeNorms() {
+inline constexpr void RealQZ<MatrixType>::computeNorms() {
   const Index size = m_S.cols();
   m_normOfS = Scalar(0.0);
   m_normOfT = Scalar(0.0);
@@ -266,7 +266,7 @@ inline void RealQZ<MatrixType>::computeNorms() {
 
 /** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0) */
 template <typename MatrixType>
-inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
+inline constexpr Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
   using std::abs;
   Index res = iu;
   while (res > 0) {
@@ -280,7 +280,7 @@ inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
 
 /** \internal Look for single small diagonal element T(res, res) for res between f and l, and return res (or f-1)  */
 template <typename MatrixType>
-inline Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l) {
+inline constexpr Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l) {
   using std::abs;
   Index res = l;
   while (res >= f) {
@@ -292,7 +292,7 @@ inline Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l) {
 
 /** \internal decouple 2x2 diagonal block in rows i, i+1 if eigenvalues are real */
 template <typename MatrixType>
-inline void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
+inline constexpr void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
   using std::abs;
   using std::sqrt;
   const Index dim = m_S.cols();
@@ -335,7 +335,7 @@ inline void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
 
 /** \internal use zero in T(z,z) to zero S(l,l-1), working in block f..l */
 template <typename MatrixType>
-inline void RealQZ<MatrixType>::pushDownZero(Index z, Index f, Index l) {
+inline constexpr void RealQZ<MatrixType>::pushDownZero(Index z, Index f, Index l) {
   JRs G;
   const Index dim = m_S.cols();
   for (Index zz = z; zz < l; zz++) {
@@ -368,7 +368,7 @@ inline void RealQZ<MatrixType>::pushDownZero(Index z, Index f, Index l) {
 
 /** \internal QR-like iterative step for block f..l */
 template <typename MatrixType>
-inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
+inline constexpr void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
   using std::abs;
   const Index dim = m_S.cols();
 
@@ -499,7 +499,8 @@ inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
 }
 
 template <typename MatrixType>
-RealQZ<MatrixType>& RealQZ<MatrixType>::compute(const MatrixType& A_in, const MatrixType& B_in, bool computeQZ) {
+constexpr RealQZ<MatrixType>& RealQZ<MatrixType>::compute(const MatrixType& A_in, const MatrixType& B_in,
+                                                          bool computeQZ) {
   const Index dim = A_in.cols();
 
   eigen_assert(A_in.rows() == dim && A_in.cols() == dim && B_in.rows() == dim && B_in.cols() == dim &&

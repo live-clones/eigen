@@ -27,7 +27,7 @@ namespace internal {
  * FIXME: The values should not be considered here
  */
 template <typename MatrixType>
-void ordering_helper_at_plus_a(const MatrixType& A, MatrixType& symmat) {
+constexpr void ordering_helper_at_plus_a(const MatrixType& A, MatrixType& symmat) {
   MatrixType C;
   C = A.transpose();  // NOTE: Could be  costly
   for (int i = 0; i < C.rows(); i++) {
@@ -55,7 +55,7 @@ class AMDOrdering {
    * This routine is much faster if the input matrix is column-major
    */
   template <typename MatrixType>
-  void operator()(const MatrixType& mat, PermutationType& perm) {
+  constexpr void operator()(const MatrixType& mat, PermutationType& perm) {
     // Compute the symmetric pattern
     SparseMatrix<typename MatrixType::Scalar, ColMajor, StorageIndex> symm;
     internal::ordering_helper_at_plus_a(mat, symm);
@@ -67,7 +67,7 @@ class AMDOrdering {
 
   /** Compute the permutation with a selfadjoint matrix */
   template <typename SrcType, unsigned int SrcUpLo>
-  void operator()(const SparseSelfAdjointView<SrcType, SrcUpLo>& mat, PermutationType& perm) {
+  constexpr void operator()(const SparseSelfAdjointView<SrcType, SrcUpLo>& mat, PermutationType& perm) {
     SparseMatrix<typename SrcType::Scalar, ColMajor, StorageIndex> C;
     C = mat;
 
@@ -92,7 +92,7 @@ class NaturalOrdering {
 
   /** Compute the permutation vector from a column-major sparse matrix */
   template <typename MatrixType>
-  void operator()(const MatrixType& /*mat*/, PermutationType& perm) {
+  constexpr void operator()(const MatrixType& /*mat*/, PermutationType& perm) {
     perm.resize(0);
   }
 };
@@ -115,7 +115,7 @@ class COLAMDOrdering {
    * \warning The input sparse matrix \a mat must be in compressed mode (see SparseMatrix::makeCompressed()).
    */
   template <typename MatrixType>
-  void operator()(const MatrixType& mat, PermutationType& perm) {
+  constexpr void operator()(const MatrixType& mat, PermutationType& perm) {
     eigen_assert(mat.isCompressed() &&
                  "COLAMDOrdering requires a sparse matrix in compressed mode. Call .makeCompressed() before passing it "
                  "to COLAMDOrdering");

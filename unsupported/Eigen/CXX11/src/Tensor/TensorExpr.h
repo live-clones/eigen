@@ -55,12 +55,15 @@ class TensorCwiseNullaryOp : public TensorBase<TensorCwiseNullaryOp<NullaryOp, X
   typedef typename Eigen::internal::traits<TensorCwiseNullaryOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorCwiseNullaryOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseNullaryOp(const XprType& xpr, const NullaryOp& func = NullaryOp())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorCwiseNullaryOp(const XprType& xpr,
+                                                                       const NullaryOp& func = NullaryOp())
       : m_xpr(xpr), m_functor(func) {}
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& nestedExpression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& nestedExpression() const {
+    return m_xpr;
+  }
 
-  EIGEN_DEVICE_FUNC const NullaryOp& functor() const { return m_functor; }
+  EIGEN_DEVICE_FUNC constexpr const NullaryOp& functor() const { return m_functor; }
 
  protected:
   typename XprType::Nested m_xpr;
@@ -105,13 +108,16 @@ class TensorCwiseUnaryOp : public TensorBase<TensorCwiseUnaryOp<UnaryOp, XprType
   typedef typename Eigen::internal::traits<TensorCwiseUnaryOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorCwiseUnaryOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseUnaryOp(const XprType& xpr, const UnaryOp& func = UnaryOp())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorCwiseUnaryOp(const XprType& xpr,
+                                                                     const UnaryOp& func = UnaryOp())
       : m_xpr(xpr), m_functor(func) {}
 
-  EIGEN_DEVICE_FUNC const UnaryOp& functor() const { return m_functor; }
+  EIGEN_DEVICE_FUNC constexpr const UnaryOp& functor() const { return m_functor; }
 
   /** \returns the nested expression */
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& nestedExpression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& nestedExpression() const {
+    return m_xpr;
+  }
 
  protected:
   typename XprType::Nested m_xpr;
@@ -170,18 +176,18 @@ class TensorCwiseBinaryOp
   typedef typename Eigen::internal::traits<TensorCwiseBinaryOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorCwiseBinaryOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseBinaryOp(const LhsXprType& lhs, const RhsXprType& rhs,
-                                                            const BinaryOp& func = BinaryOp())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorCwiseBinaryOp(const LhsXprType& lhs, const RhsXprType& rhs,
+                                                                      const BinaryOp& func = BinaryOp())
       : m_lhs_xpr(lhs), m_rhs_xpr(rhs), m_functor(func) {}
 
-  EIGEN_DEVICE_FUNC const BinaryOp& functor() const { return m_functor; }
+  EIGEN_DEVICE_FUNC constexpr const BinaryOp& functor() const { return m_functor; }
 
   /** \returns the nested expressions */
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {
     return m_lhs_xpr;
   }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename RhsXprType::Nested>& rhsExpression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename RhsXprType::Nested>& rhsExpression() const {
     return m_rhs_xpr;
   }
 
@@ -239,23 +245,23 @@ class TensorCwiseTernaryOp
   typedef typename Eigen::internal::traits<TensorCwiseTernaryOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorCwiseTernaryOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseTernaryOp(const Arg1XprType& arg1, const Arg2XprType& arg2,
-                                                             const Arg3XprType& arg3,
-                                                             const TernaryOp& func = TernaryOp())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorCwiseTernaryOp(const Arg1XprType& arg1, const Arg2XprType& arg2,
+                                                                       const Arg3XprType& arg3,
+                                                                       const TernaryOp& func = TernaryOp())
       : m_arg1_xpr(arg1), m_arg2_xpr(arg2), m_arg3_xpr(arg3), m_functor(func) {}
 
-  EIGEN_DEVICE_FUNC const TernaryOp& functor() const { return m_functor; }
+  EIGEN_DEVICE_FUNC constexpr const TernaryOp& functor() const { return m_functor; }
 
   /** \returns the nested expressions */
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename Arg1XprType::Nested>& arg1Expression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename Arg1XprType::Nested>& arg1Expression() const {
     return m_arg1_xpr;
   }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename Arg2XprType::Nested>& arg2Expression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename Arg2XprType::Nested>& arg2Expression() const {
     return m_arg2_xpr;
   }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename Arg3XprType::Nested>& arg3Expression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename Arg3XprType::Nested>& arg3Expression() const {
     return m_arg3_xpr;
   }
 
@@ -309,14 +315,15 @@ class TensorSelectOp : public TensorBase<TensorSelectOp<IfXprType, ThenXprType, 
   typedef typename Eigen::internal::traits<TensorSelectOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorSelectOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC TensorSelectOp(const IfXprType& a_condition, const ThenXprType& a_then, const ElseXprType& a_else)
+  EIGEN_DEVICE_FUNC constexpr TensorSelectOp(const IfXprType& a_condition, const ThenXprType& a_then,
+                                             const ElseXprType& a_else)
       : m_condition(a_condition), m_then(a_then), m_else(a_else) {}
 
-  EIGEN_DEVICE_FUNC const IfXprType& ifExpression() const { return m_condition; }
+  EIGEN_DEVICE_FUNC constexpr const IfXprType& ifExpression() const { return m_condition; }
 
-  EIGEN_DEVICE_FUNC const ThenXprType& thenExpression() const { return m_then; }
+  EIGEN_DEVICE_FUNC constexpr const ThenXprType& thenExpression() const { return m_then; }
 
-  EIGEN_DEVICE_FUNC const ElseXprType& elseExpression() const { return m_else; }
+  EIGEN_DEVICE_FUNC constexpr const ElseXprType& elseExpression() const { return m_else; }
 
  protected:
   typename IfXprType::Nested m_condition;

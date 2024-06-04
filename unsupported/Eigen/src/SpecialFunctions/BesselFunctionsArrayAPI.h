@@ -29,9 +29,9 @@ namespace Eigen {
  * \sa ArrayBase::bessel_i0()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i0_op<typename Derived::Scalar>, const Derived>
-    bessel_i0(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i0_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_i0(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i0_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -51,9 +51,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_i0e()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i0e_op<typename Derived::Scalar>, const Derived>
-    bessel_i0e(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i0e_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_i0e(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i0e_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -72,9 +72,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_i1()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i1_op<typename Derived::Scalar>, const Derived>
-    bessel_i1(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i1_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_i1(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i1_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -94,9 +94,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_i1e()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i1e_op<typename Derived::Scalar>, const Derived>
-    bessel_i1e(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i1e_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_i1e(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_i1e_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -115,9 +115,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_k0()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k0_op<typename Derived::Scalar>, const Derived>
-    bessel_k0(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k0_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_k0(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k0_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -137,9 +137,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_k0e()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k0e_op<typename Derived::Scalar>, const Derived>
-    bessel_k0e(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k0e_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_k0e(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k0e_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -158,9 +158,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_k1()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k1_op<typename Derived::Scalar>, const Derived>
-    bessel_k1(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k1_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_k1(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k1_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -180,9 +180,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_k1e()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k1e_op<typename Derived::Scalar>, const Derived>
-    bessel_k1e(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k1e_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_k1e(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_k1e_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -201,9 +201,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_j0()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_j0_op<typename Derived::Scalar>, const Derived>
-    bessel_j0(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_j0_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_j0(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_j0_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -222,9 +222,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_y0()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_y0_op<typename Derived::Scalar>, const Derived>
-    bessel_y0(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_y0_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_y0(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_y0_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -243,9 +243,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_j1()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_j1_op<typename Derived::Scalar>, const Derived>
-    bessel_j1(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_j1_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_j1(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_j1_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }
@@ -264,9 +264,9 @@ EIGEN_STRONG_INLINE const
  * \sa ArrayBase::bessel_y1()
  */
 template <typename Derived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_y1_op<typename Derived::Scalar>, const Derived>
-    bessel_y1(const Eigen::ArrayBase<Derived>& x) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_y1_op<typename Derived::Scalar>,
+                                                        const Derived>
+bessel_y1(const Eigen::ArrayBase<Derived>& x) {
   return Eigen::CwiseUnaryOp<Eigen::internal::scalar_bessel_y1_op<typename Derived::Scalar>, const Derived>(
       x.derived());
 }

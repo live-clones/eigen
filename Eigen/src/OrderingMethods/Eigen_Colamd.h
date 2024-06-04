@@ -60,10 +60,10 @@ namespace Colamd {
 /* ========================================================================== */
 
 /* size of the knobs [ ] array.  Only knobs [0..1] are currently used. */
-const int NKnobs = 20;
+inline constexpr int NKnobs = 20;
 
 /* number of output statistics.  Only stats [0..6] are currently used. */
-const int NStats = 20;
+inline constexpr int NStats = 20;
 
 /* Indices into knobs and stats array. */
 enum KnobsStatsIndex {
@@ -111,7 +111,7 @@ IndexType ones_complement(const IndexType r) {
 }
 
 /* -------------------------------------------------------------------------- */
-const int Empty = -1;
+inline constexpr int Empty = -1;
 
 /* Row and column status */
 enum RowColumnStatus { Alive = 0, Dead = -1 };
@@ -151,15 +151,15 @@ struct ColStructure {
     IndexType hash_next;   /* next column, if col is in a hash list */
   } shared4;
 
-  inline bool is_dead() const { return start < Alive; }
+  inline constexpr bool is_dead() const { return start < Alive; }
 
-  inline bool is_alive() const { return start >= Alive; }
+  inline constexpr bool is_alive() const { return start >= Alive; }
 
-  inline bool is_dead_principal() const { return start == DeadPrincipal; }
+  inline constexpr bool is_dead_principal() const { return start == DeadPrincipal; }
 
-  inline void kill_principal() { start = DeadPrincipal; }
+  inline constexpr void kill_principal() { start = DeadPrincipal; }
 
-  inline void kill_non_principal() { start = DeadNonPrincipal; }
+  inline constexpr void kill_non_principal() { start = DeadNonPrincipal; }
 };
 
 template <typename IndexType>
@@ -175,11 +175,11 @@ struct RowStructure {
     IndexType first_column; /* first column in row (used in garbage collection) */
   } shared2;
 
-  inline bool is_dead() const { return shared2.mark < Alive; }
+  inline constexpr bool is_dead() const { return shared2.mark < Alive; }
 
-  inline bool is_alive() const { return shared2.mark >= Alive; }
+  inline constexpr bool is_alive() const { return shared2.mark >= Alive; }
 
-  inline void kill() { shared2.mark = Dead; }
+  inline constexpr void kill() { shared2.mark = Dead; }
 };
 
 /* ========================================================================== */
@@ -201,43 +201,44 @@ struct RowStructure {
   gcc -pedantic warning messages.
 */
 template <typename IndexType>
-inline IndexType colamd_c(IndexType n_col) {
+inline constexpr IndexType colamd_c(IndexType n_col) {
   return IndexType(((n_col) + 1) * sizeof(ColStructure<IndexType>) / sizeof(IndexType));
 }
 
 template <typename IndexType>
-inline IndexType colamd_r(IndexType n_row) {
+inline constexpr IndexType colamd_r(IndexType n_row) {
   return IndexType(((n_row) + 1) * sizeof(RowStructure<IndexType>) / sizeof(IndexType));
 }
 
 // Prototypes of non-user callable routines
 template <typename IndexType>
-static IndexType init_rows_cols(IndexType n_row, IndexType n_col, RowStructure<IndexType> Row[],
-                                ColStructure<IndexType> col[], IndexType A[], IndexType p[], IndexType stats[NStats]);
+static constexpr IndexType init_rows_cols(IndexType n_row, IndexType n_col, RowStructure<IndexType> Row[],
+                                          ColStructure<IndexType> col[], IndexType A[], IndexType p[],
+                                          IndexType stats[NStats]);
 
 template <typename IndexType>
-static void init_scoring(IndexType n_row, IndexType n_col, RowStructure<IndexType> Row[], ColStructure<IndexType> Col[],
-                         IndexType A[], IndexType head[], double knobs[NKnobs], IndexType *p_n_row2,
-                         IndexType *p_n_col2, IndexType *p_max_deg);
+static constexpr void init_scoring(IndexType n_row, IndexType n_col, RowStructure<IndexType> Row[],
+                                   ColStructure<IndexType> Col[], IndexType A[], IndexType head[], double knobs[NKnobs],
+                                   IndexType *p_n_row2, IndexType *p_n_col2, IndexType *p_max_deg);
 
 template <typename IndexType>
-static IndexType find_ordering(IndexType n_row, IndexType n_col, IndexType Alen, RowStructure<IndexType> Row[],
-                               ColStructure<IndexType> Col[], IndexType A[], IndexType head[], IndexType n_col2,
-                               IndexType max_deg, IndexType pfree);
+static constexpr IndexType find_ordering(IndexType n_row, IndexType n_col, IndexType Alen,
+                                         RowStructure<IndexType> Row[], ColStructure<IndexType> Col[], IndexType A[],
+                                         IndexType head[], IndexType n_col2, IndexType max_deg, IndexType pfree);
 
 template <typename IndexType>
-static void order_children(IndexType n_col, ColStructure<IndexType> Col[], IndexType p[]);
+static constexpr void order_children(IndexType n_col, ColStructure<IndexType> Col[], IndexType p[]);
 
 template <typename IndexType>
-static void detect_super_cols(ColStructure<IndexType> Col[], IndexType A[], IndexType head[], IndexType row_start,
-                              IndexType row_length);
+static constexpr void detect_super_cols(ColStructure<IndexType> Col[], IndexType A[], IndexType head[],
+                                        IndexType row_start, IndexType row_length);
 
 template <typename IndexType>
-static IndexType garbage_collection(IndexType n_row, IndexType n_col, RowStructure<IndexType> Row[],
-                                    ColStructure<IndexType> Col[], IndexType A[], IndexType *pfree);
+static constexpr IndexType garbage_collection(IndexType n_row, IndexType n_col, RowStructure<IndexType> Row[],
+                                              ColStructure<IndexType> Col[], IndexType A[], IndexType *pfree);
 
 template <typename IndexType>
-static inline IndexType clear_mark(IndexType n_row, RowStructure<IndexType> Row[]);
+static inline constexpr IndexType clear_mark(IndexType n_row, RowStructure<IndexType> Row[]);
 
 /* === No debugging ========================================================= */
 
@@ -264,7 +265,7 @@ static inline IndexType clear_mark(IndexType n_row, RowStructure<IndexType> Row[
  * \return recommended value of Alen for use by colamd
  */
 template <typename IndexType>
-inline IndexType recommended(IndexType nnz, IndexType n_row, IndexType n_col) {
+inline constexpr IndexType recommended(IndexType nnz, IndexType n_row, IndexType n_col) {
   if ((nnz) < 0 || (n_row) < 0 || (n_col) < 0)
     return (-1);
   else
@@ -292,7 +293,7 @@ inline IndexType recommended(IndexType nnz, IndexType n_row, IndexType n_col) {
  * \param knobs parameter settings for colamd
  */
 
-static inline void set_defaults(double knobs[NKnobs]) {
+static inline constexpr void set_defaults(double knobs[NKnobs]) {
   /* === Local variables ================================================== */
 
   int i;
@@ -325,8 +326,8 @@ static inline void set_defaults(double knobs[NKnobs]) {
  * \param stats colamd output statistics and error codes
  */
 template <typename IndexType>
-static bool compute_ordering(IndexType n_row, IndexType n_col, IndexType Alen, IndexType *A, IndexType *p,
-                             double knobs[NKnobs], IndexType stats[NStats]) {
+static constexpr bool compute_ordering(IndexType n_row, IndexType n_col, IndexType Alen, IndexType *A, IndexType *p,
+                                       double knobs[NKnobs], IndexType stats[NStats]) {
   /* === Local variables ================================================== */
 
   IndexType i;                          /* loop index */
@@ -475,7 +476,7 @@ static bool compute_ordering(IndexType n_row, IndexType n_col, IndexType Alen, I
   true otherwise.  Not user-callable.
 */
 template <typename IndexType>
-static IndexType init_rows_cols /* returns true if OK, or false otherwise */
+static constexpr IndexType init_rows_cols /* returns true if OK, or false otherwise */
     (
         /* === Parameters ======================================================= */
 
@@ -665,7 +666,7 @@ static IndexType init_rows_cols /* returns true if OK, or false otherwise */
   each column, and places all columns in the degree lists.  Not user-callable.
 */
 template <typename IndexType>
-static void init_scoring(
+static constexpr void init_scoring(
     /* === Parameters ======================================================= */
 
     IndexType n_row,               /* number of rows of A */
@@ -871,7 +872,7 @@ static void init_scoring(
   degree ordering method.  Not user-callable.
 */
 template <typename IndexType>
-static IndexType find_ordering /* return the number of garbage collections */
+static constexpr IndexType find_ordering /* return the number of garbage collections */
     (
         /* === Parameters ======================================================= */
 
@@ -1337,7 +1338,7 @@ static IndexType find_ordering /* return the number of garbage collections */
   columns.  Not user-callable.
 */
 template <typename IndexType>
-static inline void order_children(
+static inline constexpr void order_children(
     /* === Parameters ======================================================= */
 
     IndexType n_col,               /* number of columns of A */
@@ -1430,7 +1431,7 @@ static inline void order_children(
   Not user-callable.
 */
 template <typename IndexType>
-static void detect_super_cols(
+static constexpr void detect_super_cols(
     /* === Parameters ======================================================= */
 
     ColStructure<IndexType> Col[], /* of size n_col+1 */
@@ -1561,7 +1562,7 @@ static void detect_super_cols(
   Not user-callable.
 */
 template <typename IndexType>
-static IndexType garbage_collection /* returns the new value of pfree */
+static constexpr IndexType garbage_collection /* returns the new value of pfree */
     (
         /* === Parameters ======================================================= */
 
@@ -1665,7 +1666,7 @@ static IndexType garbage_collection /* returns the new value of pfree */
   Return value is the new tag_mark.  Not user-callable.
 */
 template <typename IndexType>
-static inline IndexType clear_mark /* return the new value for tag_mark */
+static inline constexpr IndexType clear_mark /* return the new value for tag_mark */
     (
         /* === Parameters ======================================================= */
 

@@ -181,6 +181,9 @@ using std::ptrdiff_t;
 #include "src/Core/util/EmulateArray.h"
 #include "src/Core/util/MoreMeta.h"
 
+// for compile-time math
+#include "src/gcem/gcem.hpp"
+
 #include "src/Core/NumTraits.h"
 #include "src/Core/MathFunctions.h"
 #include "src/Core/RandomImpl.h"
