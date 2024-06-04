@@ -170,7 +170,7 @@ FFT<RealScalar> structured_fft_engine() {
  * circulant embedding of a Toeplitz matrix. The {2,3,5}-smooth numbers are dense
  * enough that the linear search returns after only a handful of steps.
  */
-inline Index fft_next_good_size(Index n) {
+constexpr Index fft_next_good_size(Index n) {
   if (n < 1) return 1;
   for (Index m = n;; ++m) {
     Index r = m;
@@ -189,7 +189,7 @@ inline Index fft_next_good_size(Index n) {
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct structured_scalar_part_impl {
   template <typename Xpr>
-  static const Xpr& run(const Xpr& xpr) {
+  static constexpr const Xpr& run(const Xpr& xpr) {
     return xpr;
   }
   static const Scalar& run_scalar(const Scalar& x) { return x; }
@@ -198,7 +198,7 @@ struct structured_scalar_part_impl {
 template <typename Scalar>
 struct structured_scalar_part_impl<Scalar, false> {
   template <typename Xpr>
-  static typename Xpr::RealReturnType run(const Xpr& xpr) {
+  static constexpr typename Xpr::RealReturnType run(const Xpr& xpr) {
     return xpr.real();
   }
   static Scalar run_scalar(const std::complex<Scalar>& x) { return numext::real(x); }
@@ -313,9 +313,10 @@ struct structured_symbol_multiply {
  */
 template <typename Scalar, typename Dest, typename Rhs, typename DirectColumn,
           typename Pointwise = structured_symbol_multiply>
-void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
-                          Index outSize, const Rhs& rhs, const Scalar& alpha, DirectColumn&& directColumn,
-                          Pointwise pointwise = Pointwise(), Index outExpAdjust = 0) {
+constexpr void structured_fft_apply(Dest& dst,
+                                    const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
+                                    Index outSize, const Rhs& rhs, const Scalar& alpha, DirectColumn&& directColumn,
+                                    Pointwise pointwise = Pointwise(), Index outExpAdjust = 0) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Complex = std::complex<RealScalar>;
   using ComplexVector = Matrix<Complex, Dynamic, 1>;
@@ -449,7 +450,7 @@ struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_p
   }
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static constexpr void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
     lhs.addProduct(dst, rhs, alpha);
   }
 };

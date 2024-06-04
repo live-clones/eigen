@@ -172,7 +172,7 @@ EIGEN_MAKE_CWISE_BINARY_OP(atan2, internal::scalar_atan2_op)
   EIGEN_DEVICE_FUNC constexpr inline const RCmp##RCOMPARATOR##ReturnType OP(const Scalar &s) const {                  \
     return Derived::PlainObject::Constant(rows(), cols(), s).R_OP(*this);                                             \
   }                                                                                                                   \
-  friend inline const Cmp##RCOMPARATOR##ReturnType OP(const Scalar &s, const Derived &d) {                            \
+  friend constexpr inline const Cmp##RCOMPARATOR##ReturnType OP(const Scalar &s, const Derived &d) {                  \
     return d.R_OP(Derived::PlainObject::Constant(d.rows(), d.cols(), s));                                             \
   }
 
@@ -257,13 +257,14 @@ EIGEN_MAKE_SCALAR_BINARY_OP(operator+, internal::scalar_sum_op)
  * \sa operator+=(), operator-()
  */
 template <typename T>
-const CwiseBinaryOp<internal::scalar_sum_op<Scalar, T>, Derived, Constant<T> > operator+(const T &scalar) const;
+constexpr const CwiseBinaryOp<internal::scalar_sum_op<Scalar, T>, Derived, Constant<T> > operator+(
+    const T &scalar) const;
 /** \returns an expression of \a expr with each coeff incremented by the constant \a scalar
  *
  * \tparam T is the scalar type of \a scalar. It must be compatible with the scalar type of the given expression.
  */
 template <typename T>
-friend const CwiseBinaryOp<internal::scalar_sum_op<T, Scalar>, Constant<T>, Derived> operator+(
+friend constexpr const CwiseBinaryOp<internal::scalar_sum_op<T, Scalar>, Constant<T>, Derived> operator+(
     const T &scalar, const StorageBaseType &expr);
 #endif
 
@@ -280,13 +281,14 @@ EIGEN_MAKE_SCALAR_BINARY_OP(operator-, internal::scalar_difference_op)
  * \sa operator+=(), operator-()
  */
 template <typename T>
-const CwiseBinaryOp<internal::scalar_difference_op<Scalar, T>, Derived, Constant<T> > operator-(const T &scalar) const;
+constexpr const CwiseBinaryOp<internal::scalar_difference_op<Scalar, T>, Derived, Constant<T> > operator-(
+    const T &scalar) const;
 /** \returns an expression of the constant matrix of value \a scalar decremented by the coefficients of \a expr
  *
  * \tparam T is the scalar type of \a scalar. It must be compatible with the scalar type of the given expression.
  */
 template <typename T>
-friend const CwiseBinaryOp<internal::scalar_difference_op<T, Scalar>, Constant<T>, Derived> operator-(
+friend constexpr const CwiseBinaryOp<internal::scalar_difference_op<T, Scalar>, Constant<T>, Derived> operator-(
     const T &scalar, const StorageBaseType &expr);
 #endif
 
@@ -300,7 +302,7 @@ EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/, internal::scalar_quotient_op)
  * (\c Derived::Scalar).
  */
 template <typename T>
-friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Constant<T>, Derived> operator/(
+friend inline constexpr const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Constant<T>, Derived> operator/(
     const T &s, const StorageBaseType &a);
 #endif
 
@@ -321,7 +323,7 @@ friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Const
  * \sa Eigen::zeta()
  */
 template <typename DerivedQ>
-inline const CwiseBinaryOp<internal::scalar_zeta_op<Scalar>, const Derived, const DerivedQ> zeta(
+inline constexpr const CwiseBinaryOp<internal::scalar_zeta_op<Scalar>, const Derived, const DerivedQ> zeta(
     const EIGEN_CURRENT_STORAGE_BASE_CLASS<DerivedQ> &q) const {
   return CwiseBinaryOp<internal::scalar_zeta_op<Scalar>, const Derived, const DerivedQ>(this->derived(), q.derived());
 }

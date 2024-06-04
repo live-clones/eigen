@@ -34,17 +34,17 @@ struct LU_kernel_bmod {
    * \param no_zeros Number of nonzeros elements before the diagonal part of the supernode
    */
   template <typename BlockScalarVector, typename ScalarVector, typename IndexVector>
-  static EIGEN_DONT_INLINE void run(const Index segsize, BlockScalarVector& dense, ScalarVector& tempv,
-                                    ScalarVector& lusup, Index& luptr, const Index lda, const Index nrow,
-                                    IndexVector& lsub, const Index lptr, const Index no_zeros);
+  static constexpr void run(const Index segsize, BlockScalarVector& dense, ScalarVector& tempv, ScalarVector& lusup,
+                            Index& luptr, const Index lda, const Index nrow, IndexVector& lsub, const Index lptr,
+                            const Index no_zeros);
 };
 
 template <int SegSizeAtCompileTime>
 template <typename BlockScalarVector, typename ScalarVector, typename IndexVector>
-EIGEN_DONT_INLINE void LU_kernel_bmod<SegSizeAtCompileTime>::run(const Index segsize, BlockScalarVector& dense,
-                                                                 ScalarVector& tempv, ScalarVector& lusup, Index& luptr,
-                                                                 const Index lda, const Index nrow, IndexVector& lsub,
-                                                                 const Index lptr, const Index no_zeros) {
+constexpr void LU_kernel_bmod<SegSizeAtCompileTime>::run(const Index segsize, BlockScalarVector& dense,
+                                                         ScalarVector& tempv, ScalarVector& lusup, Index& luptr,
+                                                         const Index lda, const Index nrow, IndexVector& lsub,
+                                                         const Index lptr, const Index no_zeros) {
   using Scalar = typename ScalarVector::Scalar;
   // First, copy U[*,j] segment from dense(*) to tempv(*)
   // The result of triangular solve is in tempv[*];
@@ -96,16 +96,15 @@ EIGEN_DONT_INLINE void LU_kernel_bmod<SegSizeAtCompileTime>::run(const Index seg
 template <>
 struct LU_kernel_bmod<1> {
   template <typename BlockScalarVector, typename ScalarVector, typename IndexVector>
-  static EIGEN_DONT_INLINE void run(const Index /*segsize*/, BlockScalarVector& dense, ScalarVector& /*tempv*/,
-                                    ScalarVector& lusup, Index& luptr, const Index lda, const Index nrow,
-                                    IndexVector& lsub, const Index lptr, const Index no_zeros);
+  static constexpr void run(const Index /*segsize*/, BlockScalarVector& dense, ScalarVector& /*tempv*/,
+                            ScalarVector& lusup, Index& luptr, const Index lda, const Index nrow, IndexVector& lsub,
+                            const Index lptr, const Index no_zeros);
 };
 
 template <typename BlockScalarVector, typename ScalarVector, typename IndexVector>
-EIGEN_DONT_INLINE void LU_kernel_bmod<1>::run(const Index /*segsize*/, BlockScalarVector& dense,
-                                              ScalarVector& /*tempv*/, ScalarVector& lusup, Index& luptr,
-                                              const Index lda, const Index nrow, IndexVector& lsub, const Index lptr,
-                                              const Index no_zeros) {
+constexpr void LU_kernel_bmod<1>::run(const Index /*segsize*/, BlockScalarVector& dense, ScalarVector& /*tempv*/,
+                                      ScalarVector& lusup, Index& luptr, const Index lda, const Index nrow,
+                                      IndexVector& lsub, const Index lptr, const Index no_zeros) {
   using Scalar = typename ScalarVector::Scalar;
   using StorageIndex = typename IndexVector::Scalar;
   Scalar f = dense(lsub(lptr + no_zeros));
