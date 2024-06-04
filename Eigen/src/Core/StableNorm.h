@@ -20,12 +20,12 @@ namespace internal {
 
 template <typename Accumulator, bool = std::is_floating_point<Accumulator>::value>
 struct stable_norm_unscaled_predicate {
-  static inline bool run(const Accumulator&, const Accumulator&) { return false; }
+  static constexpr bool run(const Accumulator&, const Accumulator&) { return false; }
 };
 
 template <typename Accumulator>
 struct stable_norm_unscaled_predicate<Accumulator, true> {
-  static inline bool run(const Accumulator& maxCoeff, const Accumulator& invScale) {
+  static constexpr bool run(const Accumulator& maxCoeff, const Accumulator& invScale) {
     using std::sqrt;
     // A block has at most 8192 real components. These bounds keep the error
     // from flushed component squares below one epsilon.
@@ -39,8 +39,8 @@ struct stable_norm_unscaled_predicate<Accumulator, true> {
 };
 
 template <typename ExpressionType, typename Accumulator>
-inline Accumulator stable_norm_squared_norm(const ExpressionType& block, const Accumulator& invScale,
-                                            const Accumulator& maxCoeff) {
+constexpr Accumulator stable_norm_squared_norm(const ExpressionType& block, const Accumulator& invScale,
+                                               const Accumulator& maxCoeff) {
   if (stable_norm_unscaled_predicate<Accumulator>::run(maxCoeff, invScale)) {
     return block.realView().template cast<Accumulator>().squaredNorm() * numext::abs2(invScale);
   }
@@ -48,8 +48,8 @@ inline Accumulator stable_norm_squared_norm(const ExpressionType& block, const A
 }
 
 template <typename ExpressionType, typename Accumulator>
-inline void stable_norm_kernel(const ExpressionType& block, Accumulator& ssq, Accumulator& scale,
-                               Accumulator& invScale) {
+constexpr void stable_norm_kernel(const ExpressionType& block, Accumulator& ssq, Accumulator& scale,
+                                  Accumulator& invScale) {
   // Component-wise maxima give the required scale without complex hypot calls.
   Accumulator maxCoeff = block.realView().template cast<Accumulator>().cwiseAbs().template maxCoeff<PropagateNaN>();
 
@@ -78,7 +78,8 @@ inline void stable_norm_kernel(const ExpressionType& block, Accumulator& ssq, Ac
 }
 
 template <typename VectorType, typename Accumulator>
-void stable_norm_impl_inner_step(const VectorType& vec, Accumulator& ssq, Accumulator& scale, Accumulator& invScale) {
+constexpr void stable_norm_impl_inner_step(const VectorType& vec, Accumulator& ssq, Accumulator& scale,
+                                           Accumulator& invScale) {
   const Index blockSize = 4096;
 
   Index n = vec.size();
@@ -152,8 +153,8 @@ struct stable_norm_matrix_dispatch<MatrixType, Accumulator, true> {
 };
 
 template <typename VectorType>
-typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
-                                                 std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
+constexpr typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
+                                                           std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
   using std::sqrt;
 
   Index n = vec.size();
@@ -171,8 +172,8 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
 }
 
 template <typename MatrixType>
-typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
-                                                 std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
+constexpr typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
+                                                           std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
   using std::sqrt;
 
   typedef typename MatrixType::RealScalar RealScalar;
@@ -226,7 +227,7 @@ struct blue_norm_accumulate_scalar<Scalar, Accumulator, true> {
 };
 
 template <typename Derived>
-inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(const EigenBase<Derived>& _vec) {
+constexpr typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(const EigenBase<Derived>& _vec) {
   typedef typename Derived::RealScalar RealScalar;
   typedef typename stable_norm_accumulator<RealScalar>::type Accumulator;
   typedef typename traits<Derived>::Scalar Scalar;
@@ -304,7 +305,7 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
  * \sa norm(), blueNorm(), hypotNorm()
  */
 template <typename Derived>
-inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::stableNorm() const {
+constexpr typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::stableNorm() const {
   typedef typename internal::nested_eval<Derived, 2>::type Nested;
   Nested nested(derived());
   return internal::stable_norm_impl(nested);
@@ -321,7 +322,7 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Matr
  * \sa norm(), stableNorm(), hypotNorm()
  */
 template <typename Derived>
-inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::blueNorm() const {
+constexpr typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::blueNorm() const {
   return internal::blueNorm_impl(*this);
 }
 
@@ -331,7 +332,7 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Matr
  * \sa norm(), stableNorm()
  */
 template <typename Derived>
-inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::hypotNorm() const {
+constexpr typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::hypotNorm() const {
   typedef typename internal::stable_norm_accumulator<RealScalar>::type Accumulator;
   if (size() == 0) return RealScalar(0);
   // Component reduction avoids rounded complex magnitudes and permits promoted accumulation.

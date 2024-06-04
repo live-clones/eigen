@@ -52,9 +52,9 @@ namespace internal {
 // so column j ends at outerIndexPtr[j]+innerNonZeroPtr[j]; pass nullptr (compressed) to
 // end at outerIndexPtr[j+1].
 template <bool Upper, typename StorageIndex>
-Index triangular_reach(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr,
-                       const StorageIndex* innerNonZeroPtr, const StorageIndex* bIdx, Index bCount, StorageIndex* xi,
-                       StorageIndex* pstack, uint8_t* mark, Index n) {
+constexpr Index triangular_reach(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr,
+                                 const StorageIndex* innerNonZeroPtr, const StorageIndex* bIdx, Index bCount,
+                                 StorageIndex* xi, StorageIndex* pstack, uint8_t* mark, Index n) {
   Index top = n;
   for (Index r = 0; r < bCount; ++r) {
     StorageIndex root = bIdx[r];
@@ -108,9 +108,9 @@ Index triangular_reach(const StorageIndex* outerIndexPtr, const StorageIndex* in
 // accumulate in the complex type. The arithmetic runs in RhsScalar; LhsScalar values
 // promote to it (e.g. double -> complex<double>).
 template <bool Upper, bool UnitDiag, typename StorageIndex, typename LhsScalar, typename RhsScalar>
-void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr,
-                                 const LhsScalar* valuePtr, const StorageIndex* innerNonZeroPtr, const StorageIndex* xi,
-                                 Index top, Index n, RhsScalar* x) {
+constexpr void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr,
+                                           const LhsScalar* valuePtr, const StorageIndex* innerNonZeroPtr,
+                                           const StorageIndex* xi, Index top, Index n, RhsScalar* x) {
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
     Index colBeg = outerIndexPtr[j];
@@ -174,9 +174,10 @@ void triangular_solve_over_reach(const StorageIndex* outerIndexPtr, const Storag
 // `innerNonZeroPtr` is nullptr for a compressed T, or the per-column nonzero count for
 // an uncompressed T (columns then end at outerIndexPtr[j]+innerNonZeroPtr[j]).
 template <bool Upper, bool UnitDiag, typename StorageIndex, typename LhsScalar, typename RhsScalar>
-Index reach_solve_dense(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr, const LhsScalar* valuePtr,
-                        const StorageIndex* innerNonZeroPtr, Index n, const StorageIndex* bIdx, Index bCount,
-                        StorageIndex* iwork, uint8_t* mark, RhsScalar* xwork) {
+constexpr Index reach_solve_dense(const StorageIndex* outerIndexPtr, const StorageIndex* innerIndexPtr,
+                                  const LhsScalar* valuePtr, const StorageIndex* innerNonZeroPtr, Index n,
+                                  const StorageIndex* bIdx, Index bCount, StorageIndex* iwork, uint8_t* mark,
+                                  RhsScalar* xwork) {
   Index top =
       triangular_reach<Upper>(outerIndexPtr, innerIndexPtr, innerNonZeroPtr, bIdx, bCount, iwork, iwork + n, mark, n);
   triangular_solve_over_reach<Upper, UnitDiag>(outerIndexPtr, innerIndexPtr, valuePtr, innerNonZeroPtr, iwork, top, n,
@@ -199,8 +200,8 @@ Index reach_solve_dense(const StorageIndex* outerIndexPtr, const StorageIndex* i
 // reach flagged out). Returns top; xi[top..n) is sorted into the topological order for
 // the solve direction.
 template <bool Upper, typename Eval, typename StorageIndex>
-Index triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Index bCount, StorageIndex* xi, uint8_t* mark,
-                            Index n) {
+constexpr Index triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Index bCount, StorageIndex* xi,
+                                      uint8_t* mark, Index n) {
   Index top = n;
   Index sp = 0;
   for (Index r = 0; r < bCount; ++r) {
@@ -233,7 +234,8 @@ Index triangular_reach_iter(const Eval& mat, const StorageIndex* bIdx, Index bCo
 // skipped so the diagonal is the first remaining entry; for upper the diagonal is found
 // by scan and only the entries with index < j are updated.
 template <bool Upper, bool UnitDiag, typename Eval, typename StorageIndex, typename Scalar>
-void triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, Index top, Index n, Scalar* x) {
+constexpr void triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, Index top, Index n,
+                                                Scalar* x) {
   for (Index k = top; k < n; ++k) {
     StorageIndex j = xi[k];
     EIGEN_IF_CONSTEXPR (Upper) {
@@ -272,8 +274,8 @@ void triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, I
 // n(bytes) / n workspace layout (the pstack half of iwork is left unused), so the two
 // general paths share one workspace contract.
 template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index reach_solve_dense_iter(const LhsType& lhs, Index n, const StorageIndex* bIdx, Index bCount, StorageIndex* iwork,
-                             uint8_t* mark, Scalar* xwork) {
+constexpr Index reach_solve_dense_iter(const LhsType& lhs, Index n, const StorageIndex* bIdx, Index bCount,
+                                       StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
   evaluator<LhsType> mat(lhs);
   Index top = triangular_reach_iter<Upper>(mat, bIdx, bCount, iwork, mark, n);
   triangular_solve_over_reach_iter<Upper, UnitDiag>(mat, iwork, top, n, xwork);
@@ -292,14 +294,16 @@ Index reach_solve_dense_iter(const LhsType& lhs, Index n, const StorageIndex* bI
 // exactly when compressed (columns end at outerIndexPtr[j+1]) and the per-column count
 // otherwise (columns end at outerIndexPtr[j]+innerNonZeroPtr[j]).
 template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index reach_solve_dense_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n, const StorageIndex* bIdx,
-                                 Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+constexpr Index reach_solve_dense_dispatch(std::true_type /*compressed*/, const LhsType& lhs, Index n,
+                                           const StorageIndex* bIdx, Index bCount, StorageIndex* iwork, uint8_t* mark,
+                                           Scalar* xwork) {
   return reach_solve_dense<Upper, UnitDiag>(lhs.outerIndexPtr(), lhs.innerIndexPtr(), lhs.valuePtr(),
                                             lhs.innerNonZeroPtr(), n, bIdx, bCount, iwork, mark, xwork);
 }
 template <bool Upper, bool UnitDiag, typename LhsType, typename StorageIndex, typename Scalar>
-Index reach_solve_dense_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n, const StorageIndex* bIdx,
-                                 Index bCount, StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+constexpr Index reach_solve_dense_dispatch(std::false_type /*iterator*/, const LhsType& lhs, Index n,
+                                           const StorageIndex* bIdx, Index bCount, StorageIndex* iwork, uint8_t* mark,
+                                           Scalar* xwork) {
   return reach_solve_dense_iter<Upper, UnitDiag>(lhs, n, bIdx, bCount, iwork, mark, xwork);
 }
 
@@ -309,8 +313,8 @@ Index reach_solve_dense_dispatch(std::false_type /*iterator*/, const LhsType& lh
 // iwork[top..n) (see reach_solve_dense). This is what the sparse selector uses -- it
 // scatters the rhs as it reads it and consumes xwork directly, so no bVal/outIdx/outVal.
 template <bool Upper, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
-Index reach_solve_dense(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, Index bCount,
-                        StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
+constexpr Index reach_solve_dense(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, Index bCount,
+                                  StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
   return reach_solve_dense_dispatch<Upper, UnitDiag>(
       std::integral_constant<bool, has_compressed_access<LhsDerived>::value>{}, lhs.derived(), lhs.rows(), bIdx, bCount,
       iwork, mark, xwork);
