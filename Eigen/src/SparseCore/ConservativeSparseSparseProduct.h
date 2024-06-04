@@ -18,8 +18,8 @@ namespace Eigen {
 namespace internal {
 
 template <typename Lhs, typename Rhs, typename ResultType>
-static void conservative_sparse_sparse_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res,
-                                                    bool sortedInsertion = false) {
+static constexpr void conservative_sparse_sparse_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res,
+                                                              bool sortedInsertion = false) {
   typedef typename remove_all_t<Lhs>::Scalar LhsScalar;
   typedef typename remove_all_t<Rhs>::Scalar RhsScalar;
   typedef typename remove_all_t<ResultType>::Scalar ResScalar;
@@ -121,7 +121,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajo
   typedef remove_all_t<Lhs> LhsCleaned;
   typedef typename LhsCleaned::Scalar Scalar;
 
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using RowMajorMatrix = WithStorageOrder<ResultType, RowMajor>;
     using ColMajorMatrixAux = WithStorageOrder<ResultType, ColMajor>;
 
@@ -147,7 +147,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajo
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajor, ColMajor, ColMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using RowMajorRhs = WithStorageOrder<Rhs, RowMajor>;
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorRhs rhsRow = rhs;
@@ -159,7 +159,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajor, RowMajor, ColMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using RowMajorLhs = WithStorageOrder<Lhs, RowMajor>;
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorLhs lhsRow = lhs;
@@ -171,7 +171,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajo
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajor, RowMajor, ColMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorRes resRow(lhs.rows(), rhs.cols());
     internal::conservative_sparse_sparse_product_impl<Rhs, Lhs, RowMajorRes>(rhs, lhs, resRow);
@@ -183,7 +183,7 @@ template <typename Lhs, typename Rhs, typename ResultType>
 struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajor, ColMajor, RowMajor> {
   typedef typename traits<remove_all_t<Lhs>>::Scalar Scalar;
 
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using ColMajorRes = WithStorageOrder<ResultType, ColMajor>;
     ColMajorRes resCol(lhs.rows(), rhs.cols());
     internal::conservative_sparse_sparse_product_impl<Lhs, Rhs, ColMajorRes>(lhs, rhs, resCol);
@@ -193,7 +193,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajo
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajor, ColMajor, RowMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using ColMajorLhs = WithStorageOrder<Lhs, ColMajor>;
     using ColMajorRes = WithStorageOrder<ResultType, ColMajor>;
     ColMajorLhs lhsCol = lhs;
@@ -205,7 +205,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajor, RowMajor, RowMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using ColMajorRhs = WithStorageOrder<Rhs, ColMajor>;
     using ColMajorRes = WithStorageOrder<ResultType, ColMajor>;
     ColMajorRhs rhsCol = rhs;
@@ -217,7 +217,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajo
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajor, RowMajor, RowMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using ColMajorRes = WithStorageOrder<ResultType, ColMajor>;
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorRes resRow(lhs.rows(), rhs.cols());
@@ -229,7 +229,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
 };
 
 template <typename Lhs, typename Rhs, typename ResultType>
-static void sparse_sparse_to_dense_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+static constexpr void sparse_sparse_to_dense_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
   typedef typename remove_all_t<Lhs>::Scalar LhsScalar;
   typedef typename remove_all_t<Rhs>::Scalar RhsScalar;
   Index cols = rhs.outerSize();
@@ -262,14 +262,14 @@ struct sparse_sparse_to_dense_product_selector;
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct sparse_sparse_to_dense_product_selector<Lhs, Rhs, ResultType, ColMajor, ColMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     internal::sparse_sparse_to_dense_product_impl<Lhs, Rhs, ResultType>(lhs, rhs, res);
   }
 };
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct sparse_sparse_to_dense_product_selector<Lhs, Rhs, ResultType, RowMajor, ColMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using ColMajorLhs = WithStorageOrder<Lhs, ColMajor>;
     ColMajorLhs lhsCol(lhs);
     internal::sparse_sparse_to_dense_product_impl<ColMajorLhs, Rhs, ResultType>(lhsCol, rhs, res);
@@ -278,7 +278,7 @@ struct sparse_sparse_to_dense_product_selector<Lhs, Rhs, ResultType, RowMajor, C
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct sparse_sparse_to_dense_product_selector<Lhs, Rhs, ResultType, ColMajor, RowMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using ColMajorRhs = WithStorageOrder<Rhs, ColMajor>;
     ColMajorRhs rhsCol(rhs);
     internal::sparse_sparse_to_dense_product_impl<Lhs, ColMajorRhs, ResultType>(lhs, rhsCol, res);
@@ -287,7 +287,7 @@ struct sparse_sparse_to_dense_product_selector<Lhs, Rhs, ResultType, ColMajor, R
 
 template <typename Lhs, typename Rhs, typename ResultType>
 struct sparse_sparse_to_dense_product_selector<Lhs, Rhs, ResultType, RowMajor, RowMajor> {
-  static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
+  static constexpr void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     Transpose<ResultType> trRes(res);
     internal::sparse_sparse_to_dense_product_impl<Rhs, Lhs, Transpose<ResultType>>(rhs, lhs, trRes);
   }

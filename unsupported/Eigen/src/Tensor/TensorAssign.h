@@ -63,15 +63,15 @@ class TensorAssignOp : public TensorBase<TensorAssignOp<LhsXprType, RhsXprType> 
 
   static constexpr int NumDims = Eigen::internal::traits<TensorAssignOp>::NumDimensions;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorAssignOp(LhsXprType& lhs, const RhsXprType& rhs)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorAssignOp(LhsXprType& lhs, const RhsXprType& rhs)
       : m_lhs_xpr(lhs), m_rhs_xpr(rhs) {}
 
   /** \returns the nested expressions */
-  EIGEN_DEVICE_FUNC internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {
+  EIGEN_DEVICE_FUNC constexpr internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {
     return *((internal::remove_all_t<typename LhsXprType::Nested>*)&m_lhs_xpr);
   }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename RhsXprType::Nested>& rhsExpression() const {
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename RhsXprType::Nested>& rhsExpression() const {
     return m_rhs_xpr;
   }
 
@@ -114,21 +114,21 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
   typedef typename TensorEvaluator<const RightArgType, Device>::TensorBlock RightTensorBlock;
   //===--------------------------------------------------------------------===//
 
-  TensorEvaluator(const XprType& op, const Device& device)
+  constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_leftImpl(op.lhsExpression(), device), m_rightImpl(op.rhsExpression(), device) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
                          static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout)),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
   }
 
-  EIGEN_DEVICE_FUNC const Dimensions& dimensions() const {
+  EIGEN_DEVICE_FUNC constexpr const Dimensions& dimensions() const {
     // The dimensions of the lhs and the rhs tensors should be equal to prevent
     // overflows and ensure the result is fully initialized.
     // TODO: use left impl instead if right impl dimensions are known at compile time.
     return m_rightImpl.dimensions();
   }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     eigen_assert(dimensions_match(m_leftImpl.dimensions(), m_rightImpl.dimensions()));
     m_leftImpl.evalSubExprsIfNeeded(NULL);
     // If the lhs provides raw access to its storage area (i.e. if m_leftImpl.data() returns a non
@@ -140,33 +140,33 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
 
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
-  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+  EIGEN_STRONG_INLINE constexpr void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
     m_leftImpl.evalSubExprsIfNeededAsync(nullptr, [this, done](bool) {
       m_rightImpl.evalSubExprsIfNeededAsync(m_leftImpl.data(), [done](bool need_assign) { done(need_assign); });
     });
   }
 #endif  // EIGEN_USE_THREADS
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     m_leftImpl.cleanup();
     m_rightImpl.cleanup();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalScalar(Index i) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void evalScalar(Index i) const {
     m_leftImpl.coeffRef(i) = m_rightImpl.coeff(i);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalPacket(Index i) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void evalPacket(Index i) const {
     const int LhsStoreMode = TensorEvaluator<LeftArgType, Device>::IsAligned ? Aligned : Unaligned;
     const int RhsLoadMode = TensorEvaluator<RightArgType, Device>::IsAligned ? Aligned : Unaligned;
     m_leftImpl.template writePacket<LhsStoreMode>(i, m_rightImpl.template packet<RhsLoadMode>(i));
   }
-  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index index) const { return m_leftImpl.coeff(index); }
+  EIGEN_DEVICE_FUNC CoeffReturnType constexpr coeff(Index index) const { return m_leftImpl.coeff(index); }
   template <int LoadMode>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
     return m_leftImpl.template packet<LoadMode>(index);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     // We assume that evalPacket or evalScalar is called to perform the
     // assignment and account for the cost of the write here, but reduce left
     // cost by one load because we are using m_leftImpl.coeffRef.
@@ -177,12 +177,13 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
            TensorOpCost(0, sizeof(CoeffReturnType), 0, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr internal::TensorBlockResourceRequirements getResourceRequirements()
+      const {
     return internal::TensorBlockResourceRequirements::merge(m_leftImpl.getResourceRequirements(),
                                                             m_rightImpl.getResourceRequirements());
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalBlock(TensorBlockDesc& desc, TensorBlockScratch& scratch) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void evalBlock(TensorBlockDesc& desc, TensorBlockScratch& scratch) {
     if (TensorEvaluator<LeftArgType, Device>::RawAccess && m_leftImpl.data() != NULL) {
       // If destination has raw data access, we pass it as a potential
       // destination for a block descriptor evaluation.
@@ -199,7 +200,7 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
     block.cleanup();
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_leftImpl.data(); }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return m_leftImpl.data(); }
 
  private:
   TensorEvaluator<LeftArgType, Device> m_leftImpl;

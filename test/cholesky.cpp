@@ -22,7 +22,7 @@ typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
 }
 
 template <typename MatrixType, template <typename, int> class CholType>
-void test_chol_update(const MatrixType& symm) {
+constexpr void test_chol_update(const MatrixType& symm) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
@@ -52,7 +52,7 @@ void test_chol_update(const MatrixType& symm) {
 }
 
 template <typename MatrixType>
-void cholesky(const MatrixType& m) {
+constexpr void cholesky(const MatrixType& m) {
   /* this test covers the following files:
      LLT.h LDLT.h
   */
@@ -268,7 +268,7 @@ void cholesky(const MatrixType& m) {
 }
 
 template <typename MatrixType>
-void cholesky_cplx(const MatrixType& m) {
+constexpr void cholesky_cplx(const MatrixType& m) {
   // classic test
   cholesky(m);
 
@@ -341,7 +341,7 @@ void cholesky_bug241(const MatrixType& m) {
 // This test checks that LDLT reports correctly that matrix is indefinite.
 // See http://forum.kde.org/viewtopic.php?f=74&t=106942 and bug 736
 template <typename MatrixType>
-void cholesky_definiteness(const MatrixType& m) {
+constexpr void cholesky_definiteness(const MatrixType& m) {
   eigen_assert(m.rows() == 2 && m.cols() == 2);
   MatrixType mat;
   LDLT<MatrixType> ldlt(2);
@@ -389,7 +389,7 @@ void cholesky_definiteness(const MatrixType& m) {
 }
 
 template <typename>
-void cholesky_faillure_cases() {
+constexpr void cholesky_faillure_cases() {
   MatrixXd mat;
   LDLT<MatrixXd> ldlt;
 
@@ -438,7 +438,7 @@ void cholesky_faillure_cases() {
 }
 
 template <typename MatrixType>
-void cholesky_verify_assert() {
+constexpr void cholesky_verify_assert() {
   MatrixType tmp;
 
   LLT<MatrixType> llt;

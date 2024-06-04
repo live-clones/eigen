@@ -17,26 +17,26 @@ namespace Eigen {
 
 class DynamicSGroup {
  public:
-  inline explicit DynamicSGroup() : m_numIndices(1), m_elements(), m_generators(), m_globalFlags(0) {
+  constexpr explicit DynamicSGroup() : m_numIndices(1), m_elements(), m_generators(), m_globalFlags(0) {
     m_elements.push_back(ge(Generator(0, 0, 0)));
   }
-  inline DynamicSGroup(const DynamicSGroup& o)
+  constexpr DynamicSGroup(const DynamicSGroup& o)
       : m_numIndices(o.m_numIndices),
         m_elements(o.m_elements),
         m_generators(o.m_generators),
         m_globalFlags(o.m_globalFlags) {}
-  inline DynamicSGroup(DynamicSGroup&& o)
+  constexpr DynamicSGroup(DynamicSGroup&& o)
       : m_numIndices(o.m_numIndices), m_elements(), m_generators(o.m_generators), m_globalFlags(o.m_globalFlags) {
     std::swap(m_elements, o.m_elements);
   }
-  inline DynamicSGroup& operator=(const DynamicSGroup& o) {
+  constexpr DynamicSGroup& operator=(const DynamicSGroup& o) {
     m_numIndices = o.m_numIndices;
     m_elements = o.m_elements;
     m_generators = o.m_generators;
     m_globalFlags = o.m_globalFlags;
     return *this;
   }
-  inline DynamicSGroup& operator=(DynamicSGroup&& o) {
+  constexpr DynamicSGroup& operator=(DynamicSGroup&& o) {
     m_numIndices = o.m_numIndices;
     std::swap(m_elements, o.m_elements);
     m_generators = o.m_generators;
@@ -44,19 +44,19 @@ class DynamicSGroup {
     return *this;
   }
 
-  void add(int one, int two, int flags = 0);
+  constexpr void add(int one, int two, int flags = 0);
 
   template <typename Gen_>
-  inline void add(Gen_) {
+  constexpr void add(Gen_) {
     add(Gen_::One, Gen_::Two, Gen_::Flags);
   }
-  inline void addSymmetry(int one, int two) { add(one, two, 0); }
-  inline void addAntiSymmetry(int one, int two) { add(one, two, NegationFlag); }
-  inline void addHermiticity(int one, int two) { add(one, two, ConjugationFlag); }
-  inline void addAntiHermiticity(int one, int two) { add(one, two, NegationFlag | ConjugationFlag); }
+  constexpr void addSymmetry(int one, int two) { add(one, two, 0); }
+  constexpr void addAntiSymmetry(int one, int two) { add(one, two, NegationFlag); }
+  constexpr void addHermiticity(int one, int two) { add(one, two, ConjugationFlag); }
+  constexpr void addAntiHermiticity(int one, int two) { add(one, two, NegationFlag | ConjugationFlag); }
 
   template <typename Op, typename RV, typename Index, std::size_t N, typename... Args>
-  inline RV apply(const std::array<Index, N>& idx, RV initial, Args&&... args) const {
+  constexpr RV apply(const std::array<Index, N>& idx, RV initial, Args&&... args) const {
     eigen_assert(N >= m_numIndices &&
                  "Can only apply symmetry group to objects that have at least the required amount of indices.");
     for (std::size_t i = 0; i < size(); i++)
@@ -66,7 +66,7 @@ class DynamicSGroup {
   }
 
   template <typename Op, typename RV, typename Index, typename... Args>
-  inline RV apply(const std::vector<Index>& idx, RV initial, Args&&... args) const {
+  constexpr RV apply(const std::vector<Index>& idx, RV initial, Args&&... args) const {
     eigen_assert(idx.size() >= m_numIndices &&
                  "Can only apply symmetry group to objects that have at least the required amount of indices.");
     for (std::size_t i = 0; i < size(); i++)
@@ -74,20 +74,19 @@ class DynamicSGroup {
     return initial;
   }
 
-  inline int globalFlags() const { return m_globalFlags; }
-  inline std::size_t size() const { return m_elements.size(); }
+  constexpr int globalFlags() const { return m_globalFlags; }
+  constexpr std::size_t size() const { return m_elements.size(); }
 
   template <typename Tensor_, typename... IndexTypes>
-  inline internal::tensor_symmetry_value_setter<Tensor_, DynamicSGroup> operator()(Tensor_& tensor,
-                                                                                   typename Tensor_::Index firstIndex,
-                                                                                   IndexTypes... otherIndices) const {
+  constexpr internal::tensor_symmetry_value_setter<Tensor_, DynamicSGroup> operator()(
+      Tensor_& tensor, typename Tensor_::Index firstIndex, IndexTypes... otherIndices) const {
     static_assert(sizeof...(otherIndices) + 1 == Tensor_::NumIndices,
                   "Number of indices used to access a tensor coefficient must be equal to the rank of the tensor.");
     return operator()(tensor, std::array<typename Tensor_::Index, Tensor_::NumIndices>{{firstIndex, otherIndices...}});
   }
 
   template <typename Tensor_>
-  inline internal::tensor_symmetry_value_setter<Tensor_, DynamicSGroup> operator()(
+  constexpr internal::tensor_symmetry_value_setter<Tensor_, DynamicSGroup> operator()(
       Tensor_& tensor, std::array<typename Tensor_::Index, Tensor_::NumIndices> const& indices) const {
     return internal::tensor_symmetry_value_setter<Tensor_, DynamicSGroup>(tensor, *this, indices);
   }
@@ -96,7 +95,7 @@ class DynamicSGroup {
   struct GroupElement {
     std::vector<int> representation;
     int flags;
-    bool isId() const {
+    constexpr bool isId() const {
       for (std::size_t i = 0; i < representation.size(); i++)
         if (i != (size_t)representation[i]) return false;
       return true;
@@ -115,13 +114,13 @@ class DynamicSGroup {
   int m_globalFlags;
 
   template <typename Index, std::size_t N, int... n>
-  inline std::array<Index, N> h_permute(std::size_t which, const std::array<Index, N>& idx,
-                                        internal::numeric_list<int, n...>) const {
+  constexpr std::array<Index, N> h_permute(std::size_t which, const std::array<Index, N>& idx,
+                                           internal::numeric_list<int, n...>) const {
     return std::array<Index, N>{{idx[n >= m_numIndices ? n : m_elements[which].representation[n]]...}};
   }
 
   template <typename Index>
-  inline std::vector<Index> h_permute(std::size_t which, std::vector<Index> idx) const {
+  constexpr std::vector<Index> h_permute(std::size_t which, std::vector<Index> idx) const {
     std::vector<Index> result;
     result.reserve(idx.size());
     for (auto k : m_elements[which].representation) result.push_back(idx[k]);
@@ -129,7 +128,7 @@ class DynamicSGroup {
     return result;
   }
 
-  inline GroupElement ge(Generator const& g) const {
+  constexpr GroupElement ge(Generator const& g) const {
     GroupElement result;
     result.representation.reserve(m_numIndices);
     result.flags = g.flags;
@@ -144,50 +143,50 @@ class DynamicSGroup {
     return result;
   }
 
-  GroupElement mul(GroupElement, GroupElement) const;
-  inline GroupElement mul(Generator g1, GroupElement g2) const { return mul(ge(g1), g2); }
+  constexpr GroupElement mul(GroupElement, GroupElement) const;
+  constexpr GroupElement mul(Generator g1, GroupElement g2) const { return mul(ge(g1), g2); }
 
-  inline GroupElement mul(GroupElement g1, Generator g2) const { return mul(g1, ge(g2)); }
+  constexpr GroupElement mul(GroupElement g1, Generator g2) const { return mul(g1, ge(g2)); }
 
-  inline GroupElement mul(Generator g1, Generator g2) const { return mul(ge(g1), ge(g2)); }
+  constexpr GroupElement mul(Generator g1, Generator g2) const { return mul(ge(g1), ge(g2)); }
 
-  inline int findElement(GroupElement e) const {
+  constexpr int findElement(GroupElement e) const {
     for (auto ee : m_elements) {
       if (ee.representation == e.representation) return ee.flags ^ e.flags;
     }
     return -1;
   }
 
-  void updateGlobalFlags(int flagDiffOfSameGenerator);
+  constexpr void updateGlobalFlags(int flagDiffOfSameGenerator);
 };
 
 // dynamic symmetry group that auto-adds the template parameters in the constructor
 template <typename... Gen>
 class DynamicSGroupFromTemplateArgs : public DynamicSGroup {
  public:
-  inline DynamicSGroupFromTemplateArgs() : DynamicSGroup() { add_all(internal::type_list<Gen...>()); }
-  inline DynamicSGroupFromTemplateArgs(DynamicSGroupFromTemplateArgs const& other) : DynamicSGroup(other) {}
-  inline DynamicSGroupFromTemplateArgs(DynamicSGroupFromTemplateArgs&& other) : DynamicSGroup(other) {}
-  inline DynamicSGroupFromTemplateArgs<Gen...>& operator=(const DynamicSGroupFromTemplateArgs<Gen...>& o) {
+  constexpr DynamicSGroupFromTemplateArgs() : DynamicSGroup() { add_all(internal::type_list<Gen...>()); }
+  constexpr DynamicSGroupFromTemplateArgs(DynamicSGroupFromTemplateArgs const& other) : DynamicSGroup(other) {}
+  constexpr DynamicSGroupFromTemplateArgs(DynamicSGroupFromTemplateArgs&& other) : DynamicSGroup(other) {}
+  constexpr DynamicSGroupFromTemplateArgs<Gen...>& operator=(const DynamicSGroupFromTemplateArgs<Gen...>& o) {
     DynamicSGroup::operator=(o);
     return *this;
   }
-  inline DynamicSGroupFromTemplateArgs<Gen...>& operator=(DynamicSGroupFromTemplateArgs<Gen...>&& o) {
+  constexpr DynamicSGroupFromTemplateArgs<Gen...>& operator=(DynamicSGroupFromTemplateArgs<Gen...>&& o) {
     DynamicSGroup::operator=(o);
     return *this;
   }
 
  private:
   template <typename Gen1, typename... GenNext>
-  inline void add_all(internal::type_list<Gen1, GenNext...>) {
+  constexpr void add_all(internal::type_list<Gen1, GenNext...>) {
     add(Gen1());
     add_all(internal::type_list<GenNext...>());
   }
 
-  inline void add_all(internal::type_list<>) {}
+  constexpr void add_all(internal::type_list<>) {}
 };
 
-inline DynamicSGroup::GroupElement DynamicSGroup::mul(GroupElement g1, GroupElement g2) const {
+constexpr DynamicSGroup::GroupElement DynamicSGroup::mul(GroupElement g1, GroupElement g2) const {
   eigen_internal_assert(g1.representation.size() == m_numIndices);
   eigen_internal_assert(g2.representation.size() == m_numIndices);
 
@@ -202,7 +201,7 @@ inline DynamicSGroup::GroupElement DynamicSGroup::mul(GroupElement g1, GroupElem
   return result;
 }
 
-inline void DynamicSGroup::add(int one, int two, int flags) {
+constexpr void DynamicSGroup::add(int one, int two, int flags) {
   eigen_assert(one >= 0);
   eigen_assert(two >= 0);
   eigen_assert(one != two);
@@ -261,7 +260,7 @@ inline void DynamicSGroup::add(int one, int two, int flags) {
   } while (coset_rep < m_elements.size());
 }
 
-inline void DynamicSGroup::updateGlobalFlags(int flagDiffOfSameGenerator) {
+constexpr void DynamicSGroup::updateGlobalFlags(int flagDiffOfSameGenerator) {
   switch (flagDiffOfSameGenerator) {
     case 0:
     default:
