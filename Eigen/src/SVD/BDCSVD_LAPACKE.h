@@ -139,7 +139,7 @@ BDCSVD<MatrixType_, Options>& BDCSVD_wrapper(BDCSVD<MatrixType_, Options>& svd, 
 #define EIGEN_LAPACKE_SDD(EIGTYPE, EIGCOLROW, OPTIONS)                                           \
   template <>                                                                                    \
   template <typename Derived>                                                                    \
-  inline BDCSVD<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, OPTIONS>&        \
+  constexpr BDCSVD<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, OPTIONS>&     \
   BDCSVD<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW, Dynamic, Dynamic>, OPTIONS>::compute_impl( \
       const MatrixBase<Derived>& matrix, unsigned int computationOptions) {                      \
     return internal::lapacke_helpers::BDCSVD_wrapper(*this, matrix, computationOptions);         \

@@ -49,18 +49,18 @@ using structured_exponent_type = numext::int64_t;
  * std::complex<double>, where a flush-to-zero comparison would read a subnormal
  * component as zero. */
 template <typename Scalar>
-typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::true_type) {
+constexpr typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::true_type) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Binary = binary_floating_point_traits<RealScalar>;
   return numext::bit_cast<RealScalar>(
       larger_magnitude_bits<RealScalar>(Binary::magnitude(numext::real(z)), Binary::magnitude(numext::imag(z))));
 }
 template <typename Scalar>
-typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::false_type) {
+constexpr typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::false_type) {
   return numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
 }
 template <typename Scalar>
-typename NumTraits<Scalar>::Real structured_component_magnitude(const Scalar& z) {
+constexpr typename NumTraits<Scalar>::Real structured_component_magnitude(const Scalar& z) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   return structured_component_magnitude_impl(z,
                                              bool_constant < complex_array_access<Scalar>::value &&
@@ -85,14 +85,14 @@ template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct structured_balance_impl {
   using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename Exponent>
-  static Scalar run(const Scalar& z, Exponent& exponent) {
+  static constexpr Scalar run(const Scalar& z, Exponent& exponent) {
     const RealScalar mag = structured_component_magnitude(z);
     if (numext::is_exactly_zero_no_flush(mag) || !(numext::isfinite)(mag)) return z;
     const int e = frexp_exponent_preserving_subnormals(mag);
     exponent += e;
     return apply_exponent(z, -e);
   }
-  static Scalar apply_exponent(const Scalar& z, int e) {
+  static constexpr Scalar apply_exponent(const Scalar& z, int e) {
     return Scalar(ldexp_preserving_subnormals(numext::real(z), e), ldexp_preserving_subnormals(numext::imag(z), e));
   }
 };
@@ -100,17 +100,17 @@ struct structured_balance_impl {
 template <typename Scalar>
 struct structured_balance_impl<Scalar, false> {
   template <typename Exponent>
-  static Scalar run(const Scalar& x, Exponent& exponent) {
+  static constexpr Scalar run(const Scalar& x, Exponent& exponent) {
     if (numext::is_exactly_zero_no_flush(x) || !(numext::isfinite)(x)) return x;
     const int e = frexp_exponent_preserving_subnormals(x);
     exponent += e;
     return apply_exponent(x, -e);
   }
-  static Scalar apply_exponent(const Scalar& x, int e) { return ldexp_preserving_subnormals(x, e); }
+  static constexpr Scalar apply_exponent(const Scalar& x, int e) { return ldexp_preserving_subnormals(x, e); }
 };
 
 template <typename Scalar, typename Exponent>
-Scalar structured_balance(const Scalar& z, Exponent& exponent) {
+constexpr Scalar structured_balance(const Scalar& z, Exponent& exponent) {
   return structured_balance_impl<Scalar>::run(z, exponent);
 }
 
@@ -119,7 +119,7 @@ Scalar structured_balance(const Scalar& z, Exponent& exponent) {
  * infinity (preserving signs) once the exponent leaves the representable
  * range; the clamp only guards the narrowing to int. */
 template <typename Scalar, typename Exponent>
-Scalar structured_ldexp_clamped(const Scalar& z, Exponent exponent) {
+constexpr Scalar structured_ldexp_clamped(const Scalar& z, Exponent exponent) {
   constexpr Exponent kMaxExponent = Exponent(1) << 24;
   const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
   return structured_balance_impl<Scalar>::apply_exponent(z, e);
@@ -132,7 +132,7 @@ Scalar structured_ldexp_clamped(const Scalar& z, Exponent exponent) {
  * order last (comparing through NaN directly would break the strict weak
  * ordering std::stable_sort requires). */
 template <typename RealVectorType>
-std::vector<Index> structured_svd_permutation(const RealVectorType& mods) {
+constexpr std::vector<Index> structured_svd_permutation(const RealVectorType& mods) {
   using RealScalar = typename RealVectorType::Scalar;
   std::vector<Index> perm;
   perm.reserve(static_cast<std::size_t>(mods.size()));
@@ -161,13 +161,13 @@ std::vector<Index> structured_svd_permutation(const RealVectorType& mods) {
  * the engine with `auto&&`, which works for both signatures. */
 #ifndef EIGEN_AVOID_THREAD_LOCAL
 template <typename RealScalar>
-FFT<RealScalar>& structured_fft_engine() {
+constexpr FFT<RealScalar>& structured_fft_engine() {
   static thread_local FFT<RealScalar> fft;
   return fft;
 }
 #else
 template <typename RealScalar>
-FFT<RealScalar> structured_fft_engine() {
+constexpr FFT<RealScalar> structured_fft_engine() {
   return FFT<RealScalar>();
 }
 #endif
@@ -180,7 +180,7 @@ FFT<RealScalar> structured_fft_engine() {
  * circulant embedding of a Toeplitz matrix. The {2,3,5}-smooth numbers are dense
  * enough that the linear search returns after only a handful of steps.
  */
-inline Index fft_next_good_size(Index n) {
+constexpr Index fft_next_good_size(Index n) {
   if (n < 1) return 1;
   for (Index m = n;; ++m) {
     Index r = m;
@@ -199,19 +199,19 @@ inline Index fft_next_good_size(Index n) {
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct structured_scalar_part_impl {
   template <typename Xpr>
-  static const Xpr& run(const Xpr& xpr) {
+  static constexpr const Xpr& run(const Xpr& xpr) {
     return xpr;
   }
-  static const Scalar& run_scalar(const Scalar& x) { return x; }
+  static constexpr const Scalar& run_scalar(const Scalar& x) { return x; }
 };
 
 template <typename Scalar>
 struct structured_scalar_part_impl<Scalar, false> {
   template <typename Xpr>
-  static typename Xpr::RealReturnType run(const Xpr& xpr) {
+  static constexpr typename Xpr::RealReturnType run(const Xpr& xpr) {
     return xpr.real();
   }
-  static Scalar run_scalar(const std::complex<Scalar>& x) { return numext::real(x); }
+  static constexpr Scalar run_scalar(const std::complex<Scalar>& x) { return numext::real(x); }
 };
 
 /** \internal Computes an exponent bound \c e with \c max_k|x[k]| < 2^e (0 when
@@ -232,7 +232,7 @@ struct structured_scalar_part_impl<Scalar, false> {
  * up a coeff*NaN term, and the transforms propagate NaN just the same -- so
  * missing a NaN here cannot change the result. */
 template <typename Xpr>
-bool structured_exponent_bound_finite(const Xpr& x, int& e) {
+constexpr bool structured_exponent_bound_finite(const Xpr& x, int& e) {
   using ScalarTraits = NumTraits<typename Xpr::Scalar>;
   using RealScalar = typename ScalarTraits::Real;
   // maxCoeff() asserts on an empty input, and a degenerate operand -- a rank-0
@@ -263,7 +263,7 @@ bool structured_exponent_bound_finite(const Xpr& x, int& e) {
 /** \internal The exponent bound alone (see structured_exponent_bound_finite()),
  * for callers that handle non-finite data separately: the bound is 0 there. */
 template <typename Xpr>
-int structured_exponent_bound(const Xpr& x) {
+constexpr int structured_exponent_bound(const Xpr& x) {
   int e;
   structured_exponent_bound_finite(x, e);
   return e;
@@ -273,30 +273,30 @@ int structured_exponent_bound(const Xpr& x) {
 // forming a possibly unrepresentable 2^e; for std::complex storage, realView()
 // exposes both components to the real ldexp packets.
 template <typename Xpr, std::enable_if_t<!NumTraits<typename Xpr::Scalar>::IsComplex, bool> = true>
-void structured_ldexp_entries_packet(Xpr& M, int e) {
+constexpr void structured_ldexp_entries_packet(Xpr& M, int e) {
   M.array() = M.array().ldexp(e);
 }
 
 template <typename Xpr, std::enable_if_t<complex_array_access<typename Xpr::Scalar>::value, bool> = true>
-void structured_ldexp_entries_packet(Xpr& M, int e) {
+constexpr void structured_ldexp_entries_packet(Xpr& M, int e) {
   M.realView().array() = M.realView().array().ldexp(e);
 }
 
 template <typename Xpr, std::enable_if_t<NumTraits<typename Xpr::Scalar>::IsComplex &&
                                              !complex_array_access<typename Xpr::Scalar>::value,
                                          bool> = true>
-void structured_ldexp_entries_packet(Xpr& M, int e) {
+constexpr void structured_ldexp_entries_packet(Xpr& M, int e) {
   using Scalar = typename Xpr::Scalar;
   M = M.unaryExpr([e](const Scalar& z) { return structured_ldexp_clamped(z, Index(e)); });
 }
 
 template <typename Xpr>
-void structured_ldexp_entries_impl(Xpr& M, int e, int, std::false_type) {
+constexpr void structured_ldexp_entries_impl(Xpr& M, int e, int, std::false_type) {
   structured_ldexp_entries_packet(M, e);
 }
 
 template <typename Xpr>
-void structured_ldexp_entries_impl(Xpr& M, int e, int bound, std::true_type) {
+constexpr void structured_ldexp_entries_impl(Xpr& M, int e, int bound, std::true_type) {
   using Scalar = typename Xpr::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
   // The largest component is at least 2^(componentBound - 1): a complex bound
@@ -322,7 +322,7 @@ void structured_ldexp_entries_impl(Xpr& M, int e, int bound, std::true_type) {
  * below the largest may still flush under FTZ/DAZ. See
  * structured_ldexp_entries_exact() for data where every coefficient matters. */
 template <typename Xpr>
-void structured_ldexp_entries(Xpr& M, int e, int bound) {
+constexpr void structured_ldexp_entries(Xpr& M, int e, int bound) {
   if (e == 0) return;
   using Scalar = typename Xpr::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -334,17 +334,17 @@ void structured_ldexp_entries(Xpr& M, int e, int bound) {
  * whose bound the caller does not track, such as a result being folded back
  * from a normalized frame. */
 template <typename Xpr>
-void structured_ldexp_entries(Xpr& M, int e) {
+constexpr void structured_ldexp_entries(Xpr& M, int e) {
   if (e == 0) return;
   structured_ldexp_entries(M, e, structured_exponent_bound(M));
 }
 
 template <typename Xpr>
-void structured_ldexp_entries_exact_impl(Xpr& M, int e, std::false_type) {
+constexpr void structured_ldexp_entries_exact_impl(Xpr& M, int e, std::false_type) {
   structured_ldexp_entries_packet(M, e);
 }
 template <typename Xpr>
-void structured_ldexp_entries_exact_impl(Xpr& M, int e, std::true_type) {
+constexpr void structured_ldexp_entries_exact_impl(Xpr& M, int e, std::true_type) {
   using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
   M = M.unaryExpr(scale_by_exponent_op<RealScalar>(e));
 }
@@ -355,7 +355,7 @@ void structured_ldexp_entries_exact_impl(Xpr& M, int e, std::true_type) {
  * matters, and the packet path may flush it under FTZ/DAZ. The pass is scalar;
  * use it where it precedes a factorization or covers O(n) data. */
 template <typename Xpr>
-void structured_ldexp_entries_exact(Xpr& M, int e) {
+constexpr void structured_ldexp_entries_exact(Xpr& M, int e) {
   if (e == 0) return;
   using Scalar = typename Xpr::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -369,7 +369,7 @@ void structured_ldexp_entries_exact(Xpr& M, int e) {
  * both a circulant generator and the circulant embedding of a Toeplitz matrix.
  * An empty symbol (small operator, nothing cached) stays empty. */
 template <typename ComplexVectorType>
-ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
+constexpr ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
   const Index p = symbol.size();
   ComplexVectorType reversed(p);
   if (p > 0) {
@@ -390,8 +390,9 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
  * intermediates even when the result is representable, and a single Inf or NaN
  * makes the whole output column non-finite. */
 template <typename Scalar, typename Dest, typename Rhs>
-void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
-                          Index outSize, const Rhs& rhs, const Scalar& alpha) {
+constexpr void structured_fft_apply(Dest& dst,
+                                    const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
+                                    Index outSize, const Rhs& rhs, const Scalar& alpha) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Complex = std::complex<RealScalar>;
   using ComplexVector = Matrix<Complex, Dynamic, 1>;
@@ -424,7 +425,7 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
  * plain products. A NaN entry fails the comparison and stays in the inverted set,
  * so it propagates instead of being silently truncated. */
 template <typename SymbolType, typename ModsType, typename RealScalar>
-SymbolType structured_pinv_symbol(const SymbolType& symbol, const ModsType& mods, const RealScalar& tol) {
+constexpr SymbolType structured_pinv_symbol(const SymbolType& symbol, const ModsType& mods, const RealScalar& tol) {
   using Complex = typename SymbolType::Scalar;
   const auto w = (mods.array() < tol).select(RealScalar(0), mods.array().inverse()).template cast<Complex>().eval();
   return (symbol.array().conjugate() * w * w).matrix();
@@ -436,7 +437,7 @@ SymbolType structured_pinv_symbol(const SymbolType& symbol, const ModsType& mods
  * entry whose modulus overflows would make the threshold infinite and truncate
  * every mode, so that rare case takes the maximum from the halved symbol. */
 template <typename SymbolType, typename ModsType>
-typename ModsType::Scalar structured_rank_threshold(const SymbolType& symbol, const ModsType& mods) {
+constexpr typename ModsType::Scalar structured_rank_threshold(const SymbolType& symbol, const ModsType& mods) {
   using RealScalar = typename ModsType::Scalar;
   const RealScalar factor = RealScalar(mods.size()) * NumTraits<RealScalar>::epsilon();
   RealScalar tol = factor * mods.maxCoeff();
@@ -460,13 +461,13 @@ struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_p
   using Scalar = typename Product<Op, Rhs>::Scalar;
 
   template <typename Dest>
-  static void evalTo(Dest& dst, const Op& lhs, const Rhs& rhs) {
+  static constexpr void evalTo(Dest& dst, const Op& lhs, const Rhs& rhs) {
     dst.setZero();
     scaleAndAddTo(dst, lhs, rhs, Scalar(1));
   }
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
+  static constexpr void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
     using RhsNested = typename nested_eval<Rhs, Op::RowsAtCompileTime>::type;
     RhsNested actualRhs(rhs);
     lhs.addProduct(dst, actualRhs, alpha);

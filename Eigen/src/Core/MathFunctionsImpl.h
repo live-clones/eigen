@@ -13,6 +13,7 @@
 #define EIGEN_MATHFUNCTIONSIMPL_H
 
 // IWYU pragma: private
+#include <limits>
 #include "./InternalHeaderCheck.h"
 
 namespace Eigen {
@@ -37,7 +38,7 @@ namespace internal {
 template <typename Packet, int Steps>
 struct generic_reciprocal_newton_step {
   static_assert(Steps > 0, "Steps must be at least 1.");
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& a, const Packet& approx_a_recip) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& a, const Packet& approx_a_recip) {
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet one = pset1<Packet>(Scalar(1));
     // Refine the approximation using one Newton-Raphson step:
@@ -55,7 +56,8 @@ struct generic_reciprocal_newton_step {
 
 template <typename Packet>
 struct generic_reciprocal_newton_step<Packet, 0> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& /*unused*/, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& /*unused*/,
+                                                                    const Packet& approx_rsqrt) {
     return approx_rsqrt;
   }
 };
@@ -79,7 +81,7 @@ template <typename Packet, int Steps>
 struct generic_rsqrt_newton_step {
   static_assert(Steps > 0, "Steps must be at least 1.");
   using Scalar = typename unpacket_traits<Packet>::type;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& a, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& a, const Packet& approx_rsqrt) {
     const Scalar kMinusHalf = Scalar(-1) / Scalar(2);
     const Packet cst_minus_half = pset1<Packet>(kMinusHalf);
     const Packet cst_minus_one = pset1<Packet>(Scalar(-1));
@@ -105,7 +107,8 @@ struct generic_rsqrt_newton_step {
 
 template <typename Packet>
 struct generic_rsqrt_newton_step<Packet, 0> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& /*unused*/, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& /*unused*/,
+                                                                    const Packet& approx_rsqrt) {
     return approx_rsqrt;
   }
 };
@@ -129,7 +132,7 @@ template <typename Packet, int Steps = 1>
 struct generic_sqrt_newton_step {
   static_assert(Steps > 0, "Steps must be at least 1.");
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& a, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& a, const Packet& approx_rsqrt) {
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet one_point_five = pset1<Packet>(Scalar(1.5));
     const Packet minus_half = pset1<Packet>(Scalar(-0.5));
@@ -157,20 +160,80 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(c
   if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
   if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
 
-  EIGEN_USING_STD(sqrt);
   RealScalar p = numext::maxi(x, y);
   if (numext::is_exactly_zero(p)) return RealScalar(0);
   RealScalar qp = numext::mini(y, x) / p;
-  return p * sqrt(RealScalar(1) + qp * qp);
+  return p * numext::sqrt(RealScalar(1) + qp * qp);
 }
 
 template <typename Scalar>
 struct hypot_impl {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  static EIGEN_DEVICE_FUNC inline RealScalar run(const Scalar& x, const Scalar& y) {
+  static EIGEN_DEVICE_FUNC constexpr RealScalar run(const Scalar& x, const Scalar& y) {
     return positive_real_hypot<RealScalar>(numext::abs(x), numext::abs(y));
   }
 };
+
+template <typename T>
+EIGEN_DEVICE_FUNC constexpr T real_sqrt(const T& x) {
+  if ((numext::isnan)(x) || x < T(0)) {
+    return NumTraits<T>::quiet_NaN();
+  }
+
+  if ((numext::isinf)(x)) {
+    return x;
+  }
+
+  T x_scaled = x;
+  T scale = T(1);
+
+  while (x_scaled > T(1e+08)) {
+    x_scaled /= T(1e+08);
+    scale *= T(1e+04);
+  }
+  while (x_scaled > T(1e+06)) {
+    x_scaled /= T(1e+06);
+    scale *= T(1e+03);
+  }
+  while (x_scaled > T(1e+04)) {
+    x_scaled /= T(1e+04);
+    scale *= T(1e+02);
+  }
+  while (x_scaled > T(1e+02)) {
+    x_scaled /= T(1e+02);
+    scale *= T(1e+01);
+  }
+  while (x_scaled > T(4)) {
+    x_scaled /= T(4);
+    scale *= T(2);
+  }
+
+  // Initial guess is x/2
+  T x_n;
+  T x_n1 = x_scaled / T(2);
+
+  int i = 0;
+  do {
+    x_n = x_n1;
+
+    // sqrt(a) is equivalent to finding the root of f(x) = x² - a.
+    //
+    //   xₙ₊₁ = xₙ − f(xₙ)/f'(xₙ)
+    //   xₙ₊₁ = xₙ − (xₙ² - a)/2xₙ
+    //   xₙ₊₁ = xₙ − (xₙ/2 - a/2xₙ)
+    //   xₙ₊₁ = xₙ − xₙ/2 + a/2xₙ
+    //   xₙ₊₁ = xₙ/2 + a/2xₙ
+    //   xₙ₊₁ = 0.5(xₙ + a/xₙ)
+    x_n1 = T(0.5) * (x_n + x_scaled / x_n);
+
+    if (i == 1000) {
+      break;
+    }
+    ++i;
+  } while (numext::abs(x_n1 - x_n) > (std::numeric_limits<T>::min)() * numext::abs(x_n1));
+
+  return scale * x_n1;
+}
 
 template <typename ComplexT, bool Reciprocal>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE ComplexT complex_sqrt_extreme(const ComplexT& z) {

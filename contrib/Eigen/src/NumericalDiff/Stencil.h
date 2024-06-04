@@ -81,10 +81,10 @@ class Stencil {
   }
 
   /** \returns the weights, in the same order as points(). */
-  ArrayType weights() const { return Map<const ArrayType>(m_weights); }
+  constexpr ArrayType weights() const { return Map<const ArrayType>(m_weights); }
 
   /** \returns the grid points, in the order originally supplied. */
-  ArrayType points() const { return Map<const ArrayType>(m_points); }
+  constexpr ArrayType points() const { return Map<const ArrayType>(m_points); }
 
   /** \returns the weight of points()[i]. Unlike weights()[i], usable in a constant expression: it
    * indexes the underlying storage directly rather than through Map, whose constructor is not
