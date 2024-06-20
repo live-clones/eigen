@@ -169,6 +169,7 @@
 // /std:c++17                           C++17     201703L
 // /std:c++latest                       >C++17    >201703L
 
+
 /// \internal EIGEN_COMP_MSVC_STRICT set to 1 if the compiler is really Microsoft Visual C++ and not ,e.g., ICC or
 /// clang-cl
 #if EIGEN_COMP_MSVC && !(EIGEN_COMP_ICC || EIGEN_COMP_LLVM || EIGEN_COMP_CLANG)
@@ -948,6 +949,12 @@
 #define EIGEN_UNUSED __attribute__((unused))
 #else
 #define EIGEN_UNUSED
+#endif
+
+#if EIGEN_COMP_GNUC
+#define EIGEN_COLD __attribute__((cold))
+#else
+#define EIGEN_COLD
 #endif
 
 #if EIGEN_COMP_GNUC
