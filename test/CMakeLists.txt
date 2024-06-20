@@ -173,7 +173,7 @@ add_custom_target(BuildOfficial)
 
 ei_add_test(allocator)
 ei_add_test(allocator_cpp17)
-set_property(TARGET allocator PROPERTY CXX_STANDARD 17)
+set_property(TARGET allocator_cpp17 PROPERTY CXX_STANDARD 17)
 ei_add_test(clz)
 ei_add_test(rand)
 ei_add_test(meta)
