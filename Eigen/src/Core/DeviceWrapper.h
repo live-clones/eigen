@@ -152,4 +152,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> Eigen
   return DeviceWrapper<const Derived, Device>(derived(), device);
 }
 }  // namespace Eigen
+<<<<<<< HEAD
 #endif
+=======
+#endif
+>>>>>>> f1ce4629f (Add polymorphic allocator and memory resource)
