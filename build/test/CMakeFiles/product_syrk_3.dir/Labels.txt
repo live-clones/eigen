@@ -1,4 +1,0 @@
-# Target labels
- BuildOfficial
-# Source files and their labels
-/home/sbronder/open_source/eigen/test/product_syrk.cpp

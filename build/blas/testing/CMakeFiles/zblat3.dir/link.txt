@@ -1,1 +1,0 @@
-/mnt/sw/nix/store/6560mkp838syd8jpp6gdyyisczwcvs67-gcc-11.4.0/bin/gfortran -O3 -DNDEBUG -O3 CMakeFiles/zblat3.dir/zblat3.f.o -o zblat3  -Wl,-rpath,/home/sbronder/open_source/eigen/build/blas ../libeigen_blas.so 

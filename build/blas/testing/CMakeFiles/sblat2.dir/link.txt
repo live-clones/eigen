@@ -1,1 +1,0 @@
-/mnt/sw/nix/store/6560mkp838syd8jpp6gdyyisczwcvs67-gcc-11.4.0/bin/gfortran -O3 -DNDEBUG -O3 CMakeFiles/sblat2.dir/sblat2.f.o -o sblat2  -Wl,-rpath,/home/sbronder/open_source/eigen/build/blas ../libeigen_blas.so 
