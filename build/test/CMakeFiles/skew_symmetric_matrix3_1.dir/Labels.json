@@ -1,0 +1,16 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/sbronder/open_source/eigen/test/skew_symmetric_matrix3.cpp"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildOfficial"
+		],
+		"name" : "skew_symmetric_matrix3_1"
+	}
+}

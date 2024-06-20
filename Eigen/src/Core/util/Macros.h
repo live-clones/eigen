@@ -169,7 +169,6 @@
 // /std:c++17                           C++17     201703L
 // /std:c++latest                       >C++17    >201703L
 
-
 /// \internal EIGEN_COMP_MSVC_STRICT set to 1 if the compiler is really Microsoft Visual C++ and not ,e.g., ICC or
 /// clang-cl
 #if EIGEN_COMP_MSVC && !(EIGEN_COMP_ICC || EIGEN_COMP_LLVM || EIGEN_COMP_CLANG)
