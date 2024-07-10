@@ -55,7 +55,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     thread_data_.resize(num_threads_);
     for (int i = 0; i < num_threads_; i++) {
       SetStealPartition(i, EncodePartition(0, num_threads_));
-      thread_data_[i].thread.reset(env_.CreateThread([this, i]() { WorkerLoop(i); }));
+      thread_data_[i].thread.reset(
+          env_.CreateThread([this, i]() { WorkerLoop(i); }));
     }
 #ifndef EIGEN_THREAD_LOCAL
     // Wait for workers to initialize per_thread_map_. Otherwise we might race
@@ -97,7 +98,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     }
   }
 
-  void Schedule(std::function<void()> fn) EIGEN_OVERRIDE { ScheduleWithHint(std::move(fn), 0, num_threads_); }
+  void Schedule(std::function<void()> fn) EIGEN_OVERRIDE {
+    ScheduleWithHint(std::move(fn), 0, num_threads_);
+  }
 
   void ScheduleWithHint(std::function<void()> fn, int start, int limit) override {
     Task t = env_.CreateTask(std::move(fn));
@@ -165,12 +168,14 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   // Exposed publicly as static functions so that external callers can reuse
   // this encode/decode logic for maintaining their own thread-safe copies of
   // scheduling and steal domain(s).
-  static const int kMaxPartitionBits = 16;
-  static const int kMaxThreads = 1 << kMaxPartitionBits;
+  static constexpr int kMaxPartitionBits = 16;
+  static constexpr int kMaxThreads = 1 << kMaxPartitionBits;
 
-  inline unsigned EncodePartition(unsigned start, unsigned limit) { return (start << kMaxPartitionBits) | limit; }
+  unsigned EncodePartition(unsigned start, unsigned limit) {
+    return (start << kMaxPartitionBits) | limit;
+  }
 
-  inline void DecodePartition(unsigned val, unsigned* start, unsigned* limit) {
+  void DecodePartition(unsigned val, unsigned* start, unsigned* limit) {
     *limit = val & (kMaxThreads - 1);
     val >>= kMaxPartitionBits;
     *start = val;
@@ -182,11 +187,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     eigen_plain_assert(end <= num_threads_);
   }
 
-  inline void SetStealPartition(size_t i, unsigned val) {
+  void SetStealPartition(size_t i, unsigned val) {
     thread_data_[i].steal_partition.store(val, std::memory_order_relaxed);
   }
 
-  inline unsigned GetStealPartition(int i) { return thread_data_[i].steal_partition.load(std::memory_order_relaxed); }
+  unsigned GetStealPartition(int i) {
+    return thread_data_[i].steal_partition.load(std::memory_order_relaxed);
+  }
 
   void ComputeCoprimes(int N, MaxSizeVector<unsigned>* coprimes) {
     for (int i = 1; i <= N; i++) {
@@ -211,10 +218,6 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     ThreadPoolTempl* pool;  // Parent pool, or null for normal threads.
     uint64_t rand;          // Random generator state.
     int thread_id;          // Worker thread index in pool.
-#ifndef EIGEN_THREAD_LOCAL
-    // Prevent false sharing.
-    char pad_[128];
-#endif
   };
 
   struct ThreadData {
@@ -231,10 +234,12 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   MaxSizeVector<MaxSizeVector<unsigned>> all_coprimes_;
   MaxSizeVector<EventCount::Waiter> waiters_;
   unsigned global_steal_partition_;
-  std::atomic<unsigned> blocked_;
-  std::atomic<bool> spinning_;
-  std::atomic<bool> done_;
-  std::atomic<bool> cancelled_;
+
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned> blocked_;
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<bool> spinning_;
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<bool> done_;
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<bool> cancelled_;
+
   EventCount ec_;
 #ifndef EIGEN_THREAD_LOCAL
   std::unique_ptr<Barrier> init_barrier_;

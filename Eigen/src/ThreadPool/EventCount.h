@@ -78,7 +78,7 @@ class EventCount {
   // CommitWait commits waiting after Prewait.
   void CommitWait(Waiter* w) {
     eigen_plain_assert((w->epoch & ~kEpochMask) == 0);
-    w->state = Waiter::kNotSignaled;
+    w->state = Waiter::State::kNotSignaled;
     const uint64_t me = (w - &waiters_[0]) | w->epoch;
     uint64_t state = state_.load(std::memory_order_seq_cst);
     for (;;) {
@@ -156,19 +156,20 @@ class EventCount {
   }
 
   class Waiter {
-    friend class EventCount;
-    // Align to 128 byte boundary to prevent false sharing with other Waiter
-    // objects in the same vector.
-    EIGEN_ALIGN_TO_BOUNDARY(128) std::atomic<uint64_t> next;
-    EIGEN_MUTEX mu;
-    EIGEN_CONDVAR cv;
-    uint64_t epoch = 0;
-    unsigned state = kNotSignaled;
-    enum {
+    enum class State {
       kNotSignaled,
       kWaiting,
       kSignaled,
     };
+
+    friend class EventCount;
+    EIGEN_MUTEX mu;
+    EIGEN_CONDVAR cv;
+
+    EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<uint64_t> next;
+
+    uint64_t epoch = 0;
+    State state = State::kNotSignaled;
   };
 
  private:
@@ -180,19 +181,20 @@ class EventCount {
   // - next kWaiterBits is count of pending signals.
   // - remaining bits are ABA counter for the stack.
   //   (stored in Waiter node and incremented on push).
-  static const uint64_t kWaiterBits = 14;
-  static const uint64_t kStackMask = (1ull << kWaiterBits) - 1;
-  static const uint64_t kWaiterShift = kWaiterBits;
-  static const uint64_t kWaiterMask = ((1ull << kWaiterBits) - 1) << kWaiterShift;
-  static const uint64_t kWaiterInc = 1ull << kWaiterShift;
-  static const uint64_t kSignalShift = 2 * kWaiterBits;
-  static const uint64_t kSignalMask = ((1ull << kWaiterBits) - 1) << kSignalShift;
-  static const uint64_t kSignalInc = 1ull << kSignalShift;
-  static const uint64_t kEpochShift = 3 * kWaiterBits;
-  static const uint64_t kEpochBits = 64 - kEpochShift;
-  static const uint64_t kEpochMask = ((1ull << kEpochBits) - 1) << kEpochShift;
-  static const uint64_t kEpochInc = 1ull << kEpochShift;
-  std::atomic<uint64_t> state_;
+  static constexpr uint64_t kWaiterBits = 14;
+  static constexpr uint64_t kStackMask = (1ull << kWaiterBits) - 1;
+  static constexpr uint64_t kWaiterShift = kWaiterBits;
+  static constexpr uint64_t kWaiterMask = ((1ull << kWaiterBits) - 1) << kWaiterShift;
+  static constexpr uint64_t kWaiterInc = 1ull << kWaiterShift;
+  static constexpr uint64_t kSignalShift = 2 * kWaiterBits;
+  static constexpr uint64_t kSignalMask = ((1ull << kWaiterBits) - 1) << kSignalShift;
+  static constexpr uint64_t kSignalInc = 1ull << kSignalShift;
+  static constexpr uint64_t kEpochShift = 3 * kWaiterBits;
+  static constexpr uint64_t kEpochBits = 64 - kEpochShift;
+  static constexpr uint64_t kEpochMask = ((1ull << kEpochBits) - 1) << kEpochShift;
+  static constexpr uint64_t kEpochInc = 1ull << kEpochShift;
+
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<uint64_t> state_;
   MaxSizeVector<Waiter>& waiters_;
 
   static void CheckState(uint64_t state, bool waiter = false) {
@@ -208,8 +210,8 @@ class EventCount {
 
   void Park(Waiter* w) {
     EIGEN_MUTEX_LOCK lock(w->mu);
-    while (w->state != Waiter::kSignaled) {
-      w->state = Waiter::kWaiting;
+    while (w->state != Waiter::State::kSignaled) {
+      w->state = Waiter::State::kWaiting;
       w->cv.wait(lock);
     }
   }
@@ -218,14 +220,14 @@ class EventCount {
     for (Waiter* next; w; w = next) {
       uint64_t wnext = w->next.load(std::memory_order_relaxed) & kStackMask;
       next = wnext == kStackMask ? nullptr : &waiters_[internal::convert_index<size_t>(wnext)];
-      unsigned state;
+      Waiter::State state;
       {
         EIGEN_MUTEX_LOCK lock(w->mu);
         state = w->state;
-        w->state = Waiter::kSignaled;
+        w->state = Waiter::State::kSignaled;
       }
       // Avoid notifying if it wasn't waiting.
-      if (state == Waiter::kWaiting) w->cv.notify_one();
+      if (state == Waiter::State::kWaiting) w->cv.notify_one();
     }
   }
 
