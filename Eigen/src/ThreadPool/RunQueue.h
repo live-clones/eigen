@@ -131,8 +131,7 @@ class RunQueue {
       Elem* e = &array_[mid & kMask];
       State s = e->state.load(std::memory_order_relaxed);
       if (n == 0) {
-        if (s != State::kReady ||
-            !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
+        if (s != State::kReady || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
           continue;
         }
         start = mid;
