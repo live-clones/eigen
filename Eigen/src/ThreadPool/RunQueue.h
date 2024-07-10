@@ -58,8 +58,7 @@ class RunQueue {
     unsigned front = front_.load(std::memory_order_relaxed);
     Elem* e = &array_[front & kMask];
     State s = e->state.load(std::memory_order_relaxed);
-    if (s != State::kEmpty || !e->state.compare_exchange_strong(
-                                  s, State::kBusy, std::memory_order_acquire)) {
+    if (s != State::kEmpty || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
       return w;
     }
     front_.store(front + 1 + (kSize << 1), std::memory_order_relaxed);
