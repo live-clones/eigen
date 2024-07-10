@@ -55,8 +55,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     thread_data_.resize(num_threads_);
     for (int i = 0; i < num_threads_; i++) {
       SetStealPartition(i, EncodePartition(0, num_threads_));
-      thread_data_[i].thread.reset(
-          env_.CreateThread([this, i]() { WorkerLoop(i); }));
+      thread_data_[i].thread.reset(env_.CreateThread([this, i]() { WorkerLoop(i); }));
     }
 #ifndef EIGEN_THREAD_LOCAL
     // Wait for workers to initialize per_thread_map_. Otherwise we might race
@@ -98,9 +97,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     }
   }
 
-  void Schedule(std::function<void()> fn) EIGEN_OVERRIDE {
-    ScheduleWithHint(std::move(fn), 0, num_threads_);
-  }
+  void Schedule(std::function<void()> fn) EIGEN_OVERRIDE { ScheduleWithHint(std::move(fn), 0, num_threads_); }
 
   void ScheduleWithHint(std::function<void()> fn, int start, int limit) override {
     Task t = env_.CreateTask(std::move(fn));
@@ -171,9 +168,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   static constexpr int kMaxPartitionBits = 16;
   static constexpr int kMaxThreads = 1 << kMaxPartitionBits;
 
-  unsigned EncodePartition(unsigned start, unsigned limit) {
-    return (start << kMaxPartitionBits) | limit;
-  }
+  unsigned EncodePartition(unsigned start, unsigned limit) { return (start << kMaxPartitionBits) | limit; }
 
   void DecodePartition(unsigned val, unsigned* start, unsigned* limit) {
     *limit = val & (kMaxThreads - 1);
@@ -191,9 +186,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     thread_data_[i].steal_partition.store(val, std::memory_order_relaxed);
   }
 
-  unsigned GetStealPartition(int i) {
-    return thread_data_[i].steal_partition.load(std::memory_order_relaxed);
-  }
+  unsigned GetStealPartition(int i) { return thread_data_[i].steal_partition.load(std::memory_order_relaxed); }
 
   void ComputeCoprimes(int N, MaxSizeVector<unsigned>* coprimes) {
     for (int i = 1; i <= N; i++) {

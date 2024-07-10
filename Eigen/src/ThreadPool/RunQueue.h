@@ -74,8 +74,7 @@ class RunQueue {
     unsigned front = front_.load(std::memory_order_relaxed);
     Elem* e = &array_[(front - 1) & kMask];
     State s = e->state.load(std::memory_order_relaxed);
-    if (s != State::kReady || !e->state.compare_exchange_strong(
-                                  s, State::kBusy, std::memory_order_acquire)) {
+    if (s != State::kReady || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
       return Work();
     }
     Work w = std::move(e->w);
@@ -92,8 +91,7 @@ class RunQueue {
     unsigned back = back_.load(std::memory_order_relaxed);
     Elem* e = &array_[(back - 1) & kMask];
     State s = e->state.load(std::memory_order_relaxed);
-    if (s != State::kEmpty || !e->state.compare_exchange_strong(
-                                  s, State::kBusy, std::memory_order_acquire)) {
+    if (s != State::kEmpty || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
       return w;
     }
     back = ((back - 1) & kMask2) | (back & ~kMask2);
@@ -110,8 +108,7 @@ class RunQueue {
     unsigned back = back_.load(std::memory_order_relaxed);
     Elem* e = &array_[back & kMask];
     State s = e->state.load(std::memory_order_relaxed);
-    if (s != State::kReady || !e->state.compare_exchange_strong(
-                                  s, State::kBusy, std::memory_order_acquire)) {
+    if (s != State::kReady || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
       return Work();
     }
     Work w = std::move(e->w);
@@ -136,8 +133,7 @@ class RunQueue {
       State s = e->state.load(std::memory_order_relaxed);
       if (n == 0) {
         if (s != State::kReady ||
-            !e->state.compare_exchange_strong(s, State::kBusy,
-                                              std::memory_order_acquire)) {
+            !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
           continue;
         }
         start = mid;
@@ -187,8 +183,7 @@ class RunQueue {
   };
 
 #if EIGEN_COMP_CXXVER >= 17
-  static_assert(std::atomic<State>::is_always_lock_free,
-                "State atomic must be lock free");
+  static_assert(std::atomic<State>::is_always_lock_free, "State atomic must be lock free");
 #endif
 
   Elem array_[kSize];
@@ -235,8 +230,7 @@ class RunQueue {
     }
   }
 
-  EIGEN_ALWAYS_INLINE unsigned CalculateSize(unsigned front,
-                                             unsigned back) const {
+  EIGEN_ALWAYS_INLINE unsigned CalculateSize(unsigned front, unsigned back) const {
     int size = (front & kMask2) - (back & kMask2);
     // Fix overflow.
     if (size < 0) size += 2 * kSize;
