@@ -144,7 +144,7 @@ class RunQueue {
       } else {
         // Note: no need to store temporal kBusy, we exclusively own these
         // elements.
-        eigen_plain_assert(s == kReady);
+        eigen_plain_assert(s == State::kReady);
       }
       result->push_back(std::move(e->w));
       e->state.store(State::kEmpty, std::memory_order_release);
