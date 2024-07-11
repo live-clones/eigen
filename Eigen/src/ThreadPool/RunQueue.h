@@ -177,7 +177,7 @@ class RunQueue {
 
   struct Elem {
     EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<State> state;
-    EIGEN_ALIGN_TO_AVOID_FALSE_SHARING Work w;
+    Work w;
   };
 
 #if EIGEN_COMP_CXXVER >= 17
