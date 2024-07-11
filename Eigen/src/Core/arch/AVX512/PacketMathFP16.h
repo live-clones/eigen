@@ -17,6 +17,16 @@ namespace Eigen {
 
 namespace internal {
 
+// Convert to half/FP16
+constexpr _Float16 operator""_h(long double v)
+{
+    return static_cast<_Float16>(v);
+}
+constexpr _Float16 operator""_h(unsigned long long v)
+{
+    return static_cast<_Float16>(v);
+}
+
 typedef __m512h Packet32h;
 typedef eigen_packet_wrapper<__m256i, 1> Packet16h;
 typedef eigen_packet_wrapper<__m128i, 2> Packet8h;
@@ -209,10 +219,10 @@ EIGEN_STRONG_INLINE Packet32h pmax<Packet32h>(const Packet32h& a, const Packet32
 // plset
 template <>
 EIGEN_STRONG_INLINE Packet32h plset<Packet32h>(const half& a) {
-  return _mm512_add_ph(_mm512_set1_ph(a),
-                       _mm512_set_ph(31.0f, 30.0f, 29.0f, 28.0f, 27.0f, 26.0f, 25.0f, 24.0f, 23.0f, 22.0f, 21.0f, 20.0f,
-                                     19.0f, 18.0f, 17.0f, 16.0f, 15.0f, 14.0f, 13.0f, 12.0f, 11.0f, 10.0f, 9.0f, 8.0f,
-                                     7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.0f, 0.0f));
+  return _mm512_add_ph(_mm512_set1_ph(static_cast<_Float16>(a)),
+                       _mm512_set_ph(31_h, 30_h, 29_h, 28_h, 27_h, 26_h, 25_h, 24_h, 23_h, 22_h, 21_h, 20_h,
+                                     19_h, 18_h, 17_h, 16_h, 15_h, 14_h, 13_h, 12_h, 11_h, 10_h, 9_h, 8_h,
+                                     7_h, 6_h, 5_h, 4_h, 3_h, 2_h, 1_h, 0_h));
 }
 
 // por
@@ -510,7 +520,7 @@ EIGEN_STRONG_INLINE Packet8h pnmsub(const Packet8h& a, const Packet8h& b, const 
 
 template <>
 EIGEN_STRONG_INLINE Packet32h pnegate<Packet32h>(const Packet32h& a) {
-  return _mm512_sub_ph(_mm512_set1_ph(0.0), a);
+  return _mm512_sub_ph(_mm512_set1_ph(0_h), a);
 }
 
 // pconj
