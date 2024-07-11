@@ -207,7 +207,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   typedef typename Environment::EnvThread Thread;
 
   struct PerThread {
-    constexpr PerThread() : pool(NULL), rand(0), thread_id(-1) {}
+    constexpr PerThread() : pool(nullptr), rand(0), thread_id(-1) {}
     ThreadPoolTempl* pool;  // Parent pool, or null for normal threads.
     uint64_t rand;          // Random generator state.
     int thread_id;          // Worker thread index in pool.
