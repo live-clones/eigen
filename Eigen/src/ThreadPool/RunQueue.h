@@ -45,7 +45,9 @@ class RunQueue {
     eigen_plain_assert((kSize & (kSize - 1)) == 0);
     eigen_plain_assert(kSize > 2);            // why would you do this?
     eigen_plain_assert(kSize <= (64 << 10));  // leave enough space for counter
-    for (unsigned i = 0; i < kSize; i++) array_[i].state.store(kEmpty, std::memory_order_relaxed);
+    for (unsigned i = 0; i < kSize; i++) {
+      array_[i].state.store(State::kEmpty, std::memory_order_relaxed);
+    }
   }
 
   ~RunQueue() { eigen_plain_assert(Size() == 0); }
@@ -55,11 +57,13 @@ class RunQueue {
   Work PushFront(Work w) {
     unsigned front = front_.load(std::memory_order_relaxed);
     Elem* e = &array_[front & kMask];
-    uint8_t s = e->state.load(std::memory_order_relaxed);
-    if (s != kEmpty || !e->state.compare_exchange_strong(s, kBusy, std::memory_order_acquire)) return w;
+    State s = e->state.load(std::memory_order_relaxed);
+    if (s != State::kEmpty || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
+      return w;
+    }
     front_.store(front + 1 + (kSize << 1), std::memory_order_relaxed);
     e->w = std::move(w);
-    e->state.store(kReady, std::memory_order_release);
+    e->state.store(State::kReady, std::memory_order_release);
     return Work();
   }
 
@@ -68,10 +72,12 @@ class RunQueue {
   Work PopFront() {
     unsigned front = front_.load(std::memory_order_relaxed);
     Elem* e = &array_[(front - 1) & kMask];
-    uint8_t s = e->state.load(std::memory_order_relaxed);
-    if (s != kReady || !e->state.compare_exchange_strong(s, kBusy, std::memory_order_acquire)) return Work();
+    State s = e->state.load(std::memory_order_relaxed);
+    if (s != State::kReady || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
+      return Work();
+    }
     Work w = std::move(e->w);
-    e->state.store(kEmpty, std::memory_order_release);
+    e->state.store(State::kEmpty, std::memory_order_release);
     front = ((front - 1) & kMask2) | (front & ~kMask2);
     front_.store(front, std::memory_order_relaxed);
     return w;
@@ -83,12 +89,14 @@ class RunQueue {
     EIGEN_MUTEX_LOCK lock(mutex_);
     unsigned back = back_.load(std::memory_order_relaxed);
     Elem* e = &array_[(back - 1) & kMask];
-    uint8_t s = e->state.load(std::memory_order_relaxed);
-    if (s != kEmpty || !e->state.compare_exchange_strong(s, kBusy, std::memory_order_acquire)) return w;
+    State s = e->state.load(std::memory_order_relaxed);
+    if (s != State::kEmpty || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
+      return w;
+    }
     back = ((back - 1) & kMask2) | (back & ~kMask2);
     back_.store(back, std::memory_order_relaxed);
     e->w = std::move(w);
-    e->state.store(kReady, std::memory_order_release);
+    e->state.store(State::kReady, std::memory_order_release);
     return Work();
   }
 
@@ -98,10 +106,12 @@ class RunQueue {
     EIGEN_MUTEX_LOCK lock(mutex_);
     unsigned back = back_.load(std::memory_order_relaxed);
     Elem* e = &array_[back & kMask];
-    uint8_t s = e->state.load(std::memory_order_relaxed);
-    if (s != kReady || !e->state.compare_exchange_strong(s, kBusy, std::memory_order_acquire)) return Work();
+    State s = e->state.load(std::memory_order_relaxed);
+    if (s != State::kReady || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
+      return Work();
+    }
     Work w = std::move(e->w);
-    e->state.store(kEmpty, std::memory_order_release);
+    e->state.store(State::kEmpty, std::memory_order_release);
     back_.store(back + 1 + (kSize << 1), std::memory_order_relaxed);
     return w;
   }
@@ -119,20 +129,24 @@ class RunQueue {
     unsigned start = 0;
     for (; static_cast<int>(mid - back) >= 0; mid--) {
       Elem* e = &array_[mid & kMask];
-      uint8_t s = e->state.load(std::memory_order_relaxed);
+      State s = e->state.load(std::memory_order_relaxed);
       if (n == 0) {
-        if (s != kReady || !e->state.compare_exchange_strong(s, kBusy, std::memory_order_acquire)) continue;
+        if (s != State::kReady || !e->state.compare_exchange_strong(s, State::kBusy, std::memory_order_acquire)) {
+          continue;
+        }
         start = mid;
       } else {
         // Note: no need to store temporal kBusy, we exclusively own these
         // elements.
-        eigen_plain_assert(s == kReady);
+        eigen_plain_assert(s == State::kReady);
       }
       result->push_back(std::move(e->w));
-      e->state.store(kEmpty, std::memory_order_release);
+      e->state.store(State::kEmpty, std::memory_order_release);
       n++;
     }
-    if (n != 0) back_.store(start + 1 + (kSize << 1), std::memory_order_relaxed);
+    if (n != 0) {
+      back_.store(start + 1 + (kSize << 1), std::memory_order_relaxed);
+    }
     return n;
   }
 
@@ -152,18 +166,28 @@ class RunQueue {
   }
 
  private:
-  static const unsigned kMask = kSize - 1;
-  static const unsigned kMask2 = (kSize << 1) - 1;
-  struct Elem {
-    std::atomic<uint8_t> state;
-    Work w;
-  };
-  enum {
+  static constexpr unsigned kMask = kSize - 1;
+  static constexpr unsigned kMask2 = (kSize << 1) - 1;
+
+  enum class State : uint8_t {
     kEmpty,
     kBusy,
     kReady,
   };
+
+  struct Elem {
+    EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<State> state;
+    Work w;
+  };
+
+#if EIGEN_COMP_CXXVER >= 17
+  static_assert(std::atomic<State>::is_always_lock_free, "State atomic must be lock free");
+#endif
+
+  Elem array_[kSize];
+
   EIGEN_MUTEX mutex_;
+
   // Low log(kSize) + 1 bits in front_ and back_ contain rolling index of
   // front/back, respectively. The remaining bits contain modification counters
   // that are incremented on Push operations. This allows us to (1) distinguish
@@ -171,9 +195,8 @@ class RunQueue {
   // position, these conditions would be indistinguishable); (2) obtain
   // consistent snapshot of front_/back_ for Size operation using the
   // modification counters.
-  std::atomic<unsigned> front_;
-  std::atomic<unsigned> back_;
-  Elem array_[kSize];
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned> front_;
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned> back_;
 
   // SizeOrNotEmpty returns current queue size; if NeedSizeEstimate is false,
   // only whether the size is 0 is guaranteed to be correct.
