@@ -156,17 +156,19 @@ class EventCount {
   }
 
   class Waiter {
+    friend class EventCount;
+
     enum class State {
       kNotSignaled,
       kWaiting,
       kSignaled,
     };
 
-    friend class EventCount;
+    // Avoid sharing a cache line with the next Waiter in the `waiters_` vector.
+    EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<uint64_t> next;
+
     EIGEN_MUTEX mu;
     EIGEN_CONDVAR cv;
-
-    EIGEN_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<uint64_t> next;
 
     uint64_t epoch = 0;
     State state = State::kNotSignaled;
