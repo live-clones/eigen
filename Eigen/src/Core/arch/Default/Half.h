@@ -187,8 +187,9 @@ struct half : public half_impl::half_base {
     return half_impl::half_to_float(*this);
   }
 
+// TODO: Allow everywhere _Float16/std::float16_t is available
 #if defined (EIGEN_VECTORIZE_AVX512FP16)
-  explicit operator _Float16() const {
+  _Float16 as_float16() const {
     /* half_raw is bit compatible */
     return numext::bit_cast<_Float16>(*this);
   }
