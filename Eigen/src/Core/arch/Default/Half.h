@@ -187,14 +187,6 @@ struct half : public half_impl::half_base {
     return half_impl::half_to_float(*this);
   }
 
-// TODO: Allow everywhere _Float16/std::float16_t is available
-#if defined (EIGEN_VECTORIZE_AVX512FP16)
-  _Float16 as_float16() const {
-    /* half_raw is bit compatible */
-    return numext::bit_cast<_Float16>(*this);
-  }
-#endif
-
 #if defined(EIGEN_HAS_GPU_FP16) && !defined(EIGEN_GPU_COMPILE_PHASE)
   EIGEN_DEVICE_FUNC operator __half() const {
     ::__half_raw hr;

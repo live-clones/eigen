@@ -119,7 +119,8 @@ struct unpacket_traits<Packet8h> {
 
 template <>
 EIGEN_STRONG_INLINE Packet32h pset1<Packet32h>(const Eigen::half& from) {
-  return _mm512_set1_ph(from.as_float16());
+  // half/half_raw is bit compatible
+  return _mm512_set1_ph(numext::bit_cast<_Float16>(from));
 }
 
 // pset1frombits
@@ -219,7 +220,7 @@ EIGEN_STRONG_INLINE Packet32h pmax<Packet32h>(const Packet32h& a, const Packet32
 // plset
 template <>
 EIGEN_STRONG_INLINE Packet32h plset<Packet32h>(const half& a) {
-  return _mm512_add_ph(_mm512_set1_ph(a.as_float16()),
+  return _mm512_add_ph(_mm512_set1_ph(numext::bit_cast<_Float16>(a)),
                        _mm512_set_ph(31_h, 30_h, 29_h, 28_h, 27_h, 26_h, 25_h, 24_h, 23_h, 22_h, 21_h, 20_h,
                                      19_h, 18_h, 17_h, 16_h, 15_h, 14_h, 13_h, 12_h, 11_h, 10_h, 9_h, 8_h,
                                      7_h, 6_h, 5_h, 4_h, 3_h, 2_h, 1_h, 0_h));
