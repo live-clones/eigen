@@ -86,9 +86,13 @@ EIGEN_STRONG_INLINE Packet4cf pconj(const Packet4cf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4cf pmul<Packet4cf>(const Packet4cf& a, const Packet4cf& b) {
-  __m256 tmp1 = _mm256_mul_ps(_mm256_moveldup_ps(a.v), b.v);
-  __m256 tmp2 = _mm256_mul_ps(_mm256_movehdup_ps(a.v), _mm256_permute_ps(b.v, _MM_SHUFFLE(2, 3, 0, 1)));
-  __m256 result = _mm256_addsub_ps(tmp1, tmp2);
+  __m256 tmp1 = _mm256_mul_ps(_mm256_movehdup_ps(a.v), _mm256_permute_ps(b.v, _MM_SHUFFLE(2, 3, 0, 1)));
+  __m256 tmp2 = _mm256_moveldup_ps(a.v);
+#ifdef __FMA__
+  __m256 result = _mm256_fmaddsub_ps(tmp2, b.v, tmp1);
+#else
+  __m256 result = _mm256_addsub_ps(_mm256_mul_ps(tmp2, b.v), tmp1);
+#endif
   return Packet4cf(result);
 }
 
@@ -283,13 +287,15 @@ EIGEN_STRONG_INLINE Packet2cd pconj(const Packet2cd& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2cd pmul<Packet2cd>(const Packet2cd& a, const Packet2cd& b) {
-  __m256d tmp1 = _mm256_shuffle_pd(a.v, a.v, 0x0);
-  __m256d even = _mm256_mul_pd(tmp1, b.v);
-  __m256d tmp2 = _mm256_shuffle_pd(a.v, a.v, 0xF);
-  __m256d tmp3 = _mm256_shuffle_pd(b.v, b.v, 0x5);
-  __m256d odd = _mm256_mul_pd(tmp2, tmp3);
-  return Packet2cd(_mm256_addsub_pd(even, odd));
+EIGEN_STRONG_INLINE Packet2cd pmul(const Packet2cd& a, const Packet2cd& b) {
+  __m256d tmp1 = _mm256_mul_pd(_mm256_permute_pd(a.v, 0xF), _mm256_permute_pd(b.v, 0x5));
+  __m256d tmp2 = _mm256_movedup_pd(a.v);
+#ifdef __FMA__
+  __m256d result = _mm256_fmaddsub_pd(tmp2, b.v, tmp1);
+#else
+  __m256d result = _mm256_addsub_pd(_mm256_mul_pd(tmp2, b.v), tmp1);
+#endif
+  return Packet2cd(result);
 }
 
 template <>
