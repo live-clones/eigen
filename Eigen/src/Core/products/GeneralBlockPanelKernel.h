@@ -3131,7 +3131,7 @@ inline std::ptrdiff_t l2CacheSize() {
 }
 
 /** \returns the currently set level 3 cpu cache size (in bytes) used to estimate the ideal blocking size parameters.
-* \sa setCpuCacheSize */
+ * \sa setCpuCacheSize */
 inline std::ptrdiff_t l3CacheSize() {
   std::ptrdiff_t l1, l2, l3;
   internal::manage_caching_sizes(GetAction, &l1, &l2, &l3);
