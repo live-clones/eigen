@@ -229,10 +229,10 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   // divided by the number of threads, to get spin count for each thread).
   static constexpr int kSpinCount = 5000;
 
-  // If there are enough active threads with an empty pending task queues, there
-  // is no need for spinning before parking a thread that is out of work to do,
-  // because these active threads will go into a steal loop after finishing with
-  // their current tasks.
+  // If there are enough active threads with empty pending-task queues, a thread
+  // that runs out of work can just be parked without spinning, because these
+  // active threads will go into a steal loop after finishing their current
+  // tasks.
   //
   // In the worst case when all active threads are executing long/expensive
   // tasks, the next Schedule() will have to wait until one of the parked
@@ -316,7 +316,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     EventCount::Waiter* waiter = &waiters_[thread_id];
     // TODO(dvyukov,rmlarsen): The time spent in NonEmptyQueueIndex() is
     // proportional to num_threads_ and we assume that new work is scheduled at
-    // a constant rate, so we divide `kSpingCount` by number of threads and
+    // a constant rate, so we divide `kSpintCount` by number of threads and
     // number of spinning threads. The constant was picked based on a fair dice
     // roll, tune it.
     const int spin_count = allow_spinning_ && num_threads_ > 0
@@ -369,7 +369,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
             }
 
             // Notify `spinning_state_` that we are no longer spinning.
-            bool stopped_spinning = StopSpinning();
+            bool has_no_notify_task = StopSpinning();
 
             // If a task was submitted to the queue without a call to
             // `ec_.Notify()` (if `IsNotifyParkedThreadRequired()` returned
@@ -377,7 +377,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
             // steal one more time, to make sure that this task will be
             // executed. We will not necessarily find it, because it might
             // have been already stolen by some other thread.
-            if (stopped_spinning && !t.f) {
+            if (has_no_notify_task && !t.f) {
               t = GlobalSteal();
             }
           }
@@ -515,7 +515,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   }
 
   // StartSpinning() checks if the number of threads in the spin loop is less
-  // than the allowed maximum, if so increments the number of spinning threads
+  // than the allowed maximum. If so, increments the number of spinning threads
   // by one and returns true (caller must enter the spin loop). Otherwise
   // returns false, and the caller must not enter the spin loop.
   bool StartSpinning() {
@@ -543,7 +543,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   // StopSpinning() decrements the number of spinning threads by one. It also
   // checks if there were any tasks submitted into the pool without notifying
   // parked threads, and decrements the count by one. Returns true if the number
-  // of tasks submitted without notification was decremented, in this case
+  // of tasks submitted without notification was decremented. In this case,
   // caller thread might have to call Steal() one more time.
   bool StopSpinning() {
     uint64_t spinning = spinning_state_.load(std::memory_order_relaxed);
