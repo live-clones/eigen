@@ -113,6 +113,11 @@ EIGEN_STRONG_INLINE Packet32h pset1<Packet32h>(const Eigen::half& from) {
   return _mm512_set1_ph(numext::bit_cast<_Float16>(from));
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet32h pzero(const Packet32h& /*a*/) {
+  return _mm512_setzero_ph();
+}
+
 // pset1frombits
 template <>
 EIGEN_STRONG_INLINE Packet32h pset1frombits<Packet32h>(unsigned short from) {
@@ -511,7 +516,7 @@ EIGEN_STRONG_INLINE Packet8h pnmsub(const Packet8h& a, const Packet8h& b, const 
 
 template <>
 EIGEN_STRONG_INLINE Packet32h pnegate<Packet32h>(const Packet32h& a) {
-  return _mm512_sub_ph(_mm512_set1_ph(0), a);
+  return psub(pzero(a), a);
 }
 
 // pconj
