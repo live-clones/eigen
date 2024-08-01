@@ -83,13 +83,13 @@ struct SumReducer {
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalize(const T accum) const { return accum; }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vaccum) const {
-    return vaccum;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vacuum) const {
+    return vacuum;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vaccum) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vacuum) const {
     internal::scalar_sum_op<T> sum_op;
-    return sum_op(saccum, predux(vaccum));
+    return sum_op(saccum, predux(vacuum));
   }
 };
 
@@ -131,14 +131,14 @@ struct MeanReducer {
     return quotient_op(accum, T(scalarCount_));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vaccum) const {
-    return pdiv(vaccum, pset1<Packet>(T(packetCount_)));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vacuum) const {
+    return pdiv(vacuum, pset1<Packet>(T(packetCount_)));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vaccum) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vacuum) const {
     internal::scalar_sum_op<T> sum_op;
     internal::scalar_quotient_op<T> quotient_op;
-    return quotient_op(sum_op(saccum, predux(vaccum)), T(scalarCount_ + packetCount_ * unpacket_traits<Packet>::size));
+    return quotient_op(sum_op(saccum, predux(vacuum)), T(scalarCount_ + packetCount_ * unpacket_traits<Packet>::size));
   }
 
  protected:
@@ -193,13 +193,13 @@ struct MaxReducer {
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalize(const T accum) const { return accum; }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vaccum) const {
-    return vaccum;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vacuum) const {
+    return vacuum;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vaccum) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vacuum) const {
     scalar_max_op<T, T, NaNPropagation> op;
-    return op(saccum, op.predux(vaccum));
+    return op(saccum, op.predux(vacuum));
   }
 };
 
@@ -233,13 +233,13 @@ struct MinReducer {
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalize(const T accum) const { return accum; }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vaccum) const {
-    return vaccum;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vacuum) const {
+    return vacuum;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vaccum) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vacuum) const {
     scalar_min_op<T, T, NaNPropagation> op;
-    return op(saccum, op.predux(vaccum));
+    return op(saccum, op.predux(vacuum));
   }
 };
 
@@ -273,13 +273,13 @@ struct ProdReducer {
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalize(const T accum) const { return accum; }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vaccum) const {
-    return vaccum;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vacuum) const {
+    return vacuum;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vaccum) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T finalizeBoth(const T saccum, const Packet& vacuum) const {
     internal::scalar_product_op<T> prod_op;
-    return prod_op(saccum, predux_mul(vaccum));
+    return prod_op(saccum, predux_mul(vacuum));
   }
 };
 
