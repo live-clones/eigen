@@ -15,7 +15,7 @@
 static void test_create_destroy_empty_pool() {
   // Just create and destroy the pool. This will wind up and tear down worker
   // threads. Ensure there are no issues in that logic.
-  for (int i = 0; i < 16; ++i) {
+  for (int i = 1; i < 16; ++i) {
     ThreadPool tp(i);
   }
 }
