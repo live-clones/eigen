@@ -261,8 +261,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // Decodes `spinning_state_` value.
     static SpinningState Decode(uint64_t state) {
       uint64_t num_spinning = (state & kNumSpinningMask);
-      uint64_t num_no_notification =
-          (state & kNumNoNotifyMask) >> kNumNoNotifyShift;
+      uint64_t num_no_notification = (state & kNumNoNotifyMask) >> kNumNoNotifyShift;
 
       assert(num_no_notification <= num_spinning);
       return {num_spinning, num_no_notification};
@@ -319,9 +318,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // a constant rate, so we divide `kSpintCount` by number of threads and
     // number of spinning threads. The constant was picked based on a fair dice
     // roll, tune it.
-    const int spin_count = allow_spinning_ && num_threads_ > 0
-                               ? kSpinCount / kMaxSpinningThreads / num_threads_
-                               : 0;
+    const int spin_count = allow_spinning_ && num_threads_ > 0 ? kSpinCount / kMaxSpinningThreads / num_threads_ : 0;
     if (num_threads_ == 1) {
       // For num_threads_ == 1 there is no point in going through the expensive
       // steal loop. Moreover, since NonEmptyQueueIndex() calls PopBack() on the
@@ -525,16 +522,14 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     for (;;) {
       SpinningState state = SpinningState::Decode(spinning);
 
-      if ((state.num_spinning - state.num_no_notification) >=
-          kMaxSpinningThreads) {
+      if ((state.num_spinning - state.num_no_notification) >= kMaxSpinningThreads) {
         return false;
       }
 
       // Increment the number of spinning threads.
       ++state.num_spinning;
 
-      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(),
-                                                std::memory_order_relaxed)) {
+      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(), std::memory_order_relaxed)) {
         return true;
       }
     }
@@ -557,8 +552,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       bool has_no_notify_task = state.num_no_notification > 0;
       if (has_no_notify_task) --state.num_no_notification;
 
-      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(),
-                                                std::memory_order_relaxed)) {
+      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(), std::memory_order_relaxed)) {
         return has_no_notify_task;
       }
     }
@@ -581,8 +575,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // Increment the number of tasks submitted without notification.
       ++state.num_no_notification;
 
-      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(),
-                                                std::memory_order_relaxed)) {
+      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(), std::memory_order_relaxed)) {
         return false;
       }
     }
