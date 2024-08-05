@@ -822,8 +822,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   Packet sign_bit, sFinalRes;
   if (ComputeBoth) {
     Packet peven = peven_mask(x);
-    sign_bit = pselect((s), sign_sin, sign_cos);
-    sFinalRes = pselect(pxor(peven, poly_mask), ssin, scos);
+    sign_bit = pselect(peven, sign_sin, sign_cos);
+    sFinalRes = pselect(pxor(peven, poly_mask), scos, ssin);
   } else {
     sign_bit = ComputeSine ? sign_sin : sign_cos;
     sFinalRes = ComputeSine ? pselect(poly_mask, ssin, scos) : pselect(poly_mask, scos, ssin);
@@ -852,6 +852,16 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     sFinalRes = ploadu<Packet>(sincos_vals);
   }
   return sFinalRes;
+}
+
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psincos_aux_float(const Packet& x) {
+  return psincos_float<true, Packet, true>(x);
+}
+
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psincos_aux_double(const Packet& x) {
+  return psincos_double<false, Packet, true>(x);
 }
 
 template <typename Packet>
@@ -1249,7 +1259,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   // cis(y):
   RealPacket y = pand(odd_mask, a.v);
   y = por(y, pcplxflip(Packet(y)).v);
-  RealPacket cisy = psincos_float<false, RealPacket, true>(y);
+  RealPacket cisy = psincos_aux(y);
   cisy = pcplxflip(Packet(cisy)).v;  // cos(y) + i * sin(y)
 
   const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());

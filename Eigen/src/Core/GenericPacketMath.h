@@ -1024,6 +1024,14 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcos(const Packet& a
   return cos(a);
 }
 
+/** \internal \returns the sine cosine of \a a (coeff-wise) */
+template <typename Packet>
+EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psincos_aux(const Packet& a) {
+  EIGEN_USING_STD(sin);
+  EIGEN_USING_STD(cos);
+  return pselect(peven_mask(a), sin(a), cos(a));
+}
+
 /** \internal \returns the tan of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptan(const Packet& a) {
