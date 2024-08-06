@@ -242,6 +242,11 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
     return pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x);
   }
 
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, const int& partial_store_alignment) {
+    return pstoret_partial<Scalar, PacketType>(const_cast<Scalar*>(m_d.data) + index, x, partial_store_alignment);
+  }
+
  protected:
   plainobjectbase_evaluator_data<Scalar, OuterStrideAtCompileTime> m_d;
 };
@@ -315,6 +320,10 @@ struct unary_evaluator<Transpose<ArgType>, IndexBased> : evaluator_base<Transpos
     m_argImpl.template writePacket<StoreMode, PacketType>(index, x);
   }
 
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, const int& partial_store_alignment) {
+    m_argImpl.template writePartialPacket<StoreMode, PacketType>(index, x, partial_store_alignment);
+  }
  protected:
   evaluator<ArgType> m_argImpl;
 };
@@ -1051,6 +1060,12 @@ struct mapbase_evaluator : evaluator_base<Derived> {
     internal::pstoret<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x);
   }
 
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, const int& partial_store_alignment) {
+    internal::pstoret_partial<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x,
+                                                             partial_store_alignment, 0);
+  }
+
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Index rowStride() const EIGEN_NOEXCEPT {
     return XprType::IsRowMajor ? m_outerStride.value() : m_innerStride.value();
@@ -1454,6 +1469,12 @@ struct evaluator_wrapper_base : evaluator_base<XprType> {
     m_argImpl.template writePacket<StoreMode>(index, x);
   }
 
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, const int& partial_store_alignment) {
+    m_argImpl.template writePartialPacket<StoreMode>(index, x, partial_store_alignment);
+  }
+
  protected:
   evaluator<ArgType> m_argImpl;
 };
@@ -1568,6 +1589,13 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
   EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
     enum { PacketSize = unpacket_traits<PacketType>::size };
     m_argImpl.template writePacket<LoadMode>(m_rows.value() * m_cols.value() - index - PacketSize, preverse(x));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, const int& partial_store_alignment) {
+    enum { PacketSize = unpacket_traits<PacketType>::size };
+    m_argImpl.template writePartialPacket<LoadMode>(m_rows.value() * m_cols.value() - index - PacketSize, preverse(x),
+                                                    partial_store_alignment);
   }
 
  protected:

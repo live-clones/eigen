@@ -57,6 +57,15 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
     m_dst.template writePacket<StoreMode>(index, tmp);
   }
 
+  template <int StoreMode, int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE void assignPartialPacket(Index index, const int &partial_alignment) {
+    if (partial_alignment <= 0) return;
+    PacketType tmp = m_src.template packet<LoadMode, PacketType>(index);
+    const_cast<SrcEvaluatorTypeT &>(m_src).template writePartialPacket<LoadMode>(
+        index, m_dst.template packet<StoreMode, PacketType>(index), partial_alignment);
+    m_dst.template writePartialPacket<StoreMode>(index, tmp, partial_alignment);
+  }
+
   // TODO find a simple way not to have to copy/paste this function from generic_dense_assignment_kernel, by simple I
   // mean no CRTP (Gael)
   template <int StoreMode, int LoadMode, typename PacketType>

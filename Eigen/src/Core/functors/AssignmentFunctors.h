@@ -29,6 +29,11 @@ struct assign_op {
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
     internal::pstoret<DstScalar, Packet, Alignment>(a, b);
   }
+
+  template <int Alignment, typename Packet>
+  EIGEN_STRONG_INLINE void assignPartialPacket(DstScalar* a, const Packet& b, const int& partial_alignment) const {
+    internal::pstoret_partial<DstScalar, Packet, Alignment>(a, b, partial_alignment, 0);
+  }
 };
 
 // Empty overload for void type (used by PermutationMatrix)
@@ -56,6 +61,12 @@ struct add_assign_op {
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
     internal::pstoret<DstScalar, Packet, Alignment>(a, internal::padd(internal::ploadt<Packet, Alignment>(a), b));
   }
+
+  template <int Alignment, typename Packet>
+  EIGEN_STRONG_INLINE void assignPartialPacket(DstScalar* a, const Packet& b, const int& partial_alignment) const {
+    internal::pstoret_partial<DstScalar, Packet, Alignment>(
+        a, internal::padd(internal::ploadt<Packet, Alignment>(a), b), partial_alignment, 0);
+  }
 };
 template <typename DstScalar, typename SrcScalar>
 struct functor_traits<add_assign_op<DstScalar, SrcScalar> > {
@@ -76,6 +87,12 @@ struct sub_assign_op {
   template <int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
     internal::pstoret<DstScalar, Packet, Alignment>(a, internal::psub(internal::ploadt<Packet, Alignment>(a), b));
+  }
+
+  template <int Alignment, typename Packet>
+  EIGEN_STRONG_INLINE void assignPartialPacket(DstScalar* a, const Packet& b, const int& partial_alignment) const {
+    internal::pstoret_partial<DstScalar, Packet, Alignment>(
+        a, internal::psub(internal::ploadt<Packet, Alignment>(a), b), partial_alignment, 0);
   }
 };
 template <typename DstScalar, typename SrcScalar>
@@ -98,6 +115,12 @@ struct mul_assign_op {
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
     internal::pstoret<DstScalar, Packet, Alignment>(a, internal::pmul(internal::ploadt<Packet, Alignment>(a), b));
   }
+
+  template <int Alignment, typename Packet>
+  EIGEN_STRONG_INLINE void assignPartialPacket(DstScalar* a, const Packet& b, const int& partial_alignment) const {
+    internal::pstoret_partial<DstScalar, Packet, Alignment>(
+        a, internal::pmul(internal::ploadt<Packet, Alignment>(a), b), partial_alignment, 0);
+  }
 };
 template <typename DstScalar, typename SrcScalar>
 struct functor_traits<mul_assign_op<DstScalar, SrcScalar> > {
@@ -118,6 +141,12 @@ struct div_assign_op {
   template <int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
     internal::pstoret<DstScalar, Packet, Alignment>(a, internal::pdiv(internal::ploadt<Packet, Alignment>(a), b));
+  }
+
+  template <int Alignment, typename Packet>
+  EIGEN_STRONG_INLINE void assignPartialPacket(DstScalar* a, const Packet& b, const int& partial_alignment) const {
+    internal::pstoret_partial<DstScalar, Packet, Alignment>(
+        a, internal::pdiv(internal::ploadt<Packet, Alignment>(a), b), partial_alignment, 0);
   }
 };
 template <typename DstScalar, typename SrcScalar>

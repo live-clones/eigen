@@ -49,6 +49,34 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const T* mem) {
   return v;
 }
 
+// This function stores the first n bytes from vector v to address 'mem'.
+// n must be in range 1..128 and mem may have any alignment. Does one or
+// two masked stores
+template <size_t Alignment, typename T>
+EIGEN_STRONG_INLINE void vstu_variable(T* mem, uint32_t n, HVX_Vector vin) {
+  // Rotate as needed.
+  uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
+
+  vin = Q6_V_vlalign_VVR(vin, vin, mem_addr);
+
+  uint32_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
+  uint32_t right_off = left_off + n;
+
+  HVX_VectorPred ql_not = Q6_Q_vsetq_R(mem_addr);
+  HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
+
+  EIGEN_IF_CONSTEXPR(n > Alignment) {
+    if (right_off > __HVX_LENGTH__) {
+      Q6_vmem_QRIV(qr, mem + __HVX_LENGTH__ / sizeof(T), vin);
+      qr = Q6_Q_vcmp_eq_VbVb(vin, vin);
+    }
+  }
+
+  ql_not = Q6_Q_or_QQn(ql_not, qr);
+  Q6_vmem_QnRIV(ql_not, (HVX_Vector*)mem, vin);
+}
+
+
 template <size_t Size, size_t Alignment, typename T>
 EIGEN_STRONG_INLINE HVX_Vector HVX_load_partial(const T* mem) {
 #if defined(EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD)
@@ -329,6 +357,22 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet16f& from) {
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from) {
   HVX_store_partial<unpacket_traits<Packet8f>::size, 0>(to, from.Get());
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstoreu_partial<float>(float* to, const Packet32f& from, const Index n, const Index offset) {
+  const Index packet_size = unpacket_traits<Packet32f>::size;
+  eigen_assert(n <= packet_size && "number of elements plus offset will write past end of packet");
+  Index store_size = numext::mini(n, packet_size - offset);
+  vstu_variable<0>(to, sizeof(float) * store_size, Q6_V_valign_VVR(from.Get(), from.Get(), offset * sizeof(float)));
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstore_partial<float>(float* to, const Packet32f& from, const Index n, const Index offset) {
+  const Index packet_size = unpacket_traits<Packet32f>::size;
+  eigen_assert(n <= packet_size && "number of elements plus offset will write past end of packet");
+  Index store_size = numext::mini(n, packet_size - offset);
+  vstu_variable<0>(to, sizeof(float) * store_size, Q6_V_valign_VVR(from.Get(), from.Get(), offset * sizeof(float)));
 }
 
 template <HVXPacketSize T>

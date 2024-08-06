@@ -419,12 +419,21 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
         dstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + ((size - alignedStart) / packetSize) * packetSize;
 
+#ifdef EIGEN_VECTORIZE_PARTIAL
+    if (alignedStart > 0) kernel.template assignPartialPacket<0, 0, PacketType>(0, alignedStart);
+#else
     unaligned_dense_assignment_loop<dstIsAligned != 0>::run(kernel, 0, alignedStart);
+#endif  // EIGEN_VECTORIZE_PARTIAL
 
-    for (Index index = alignedStart; index < alignedEnd; index += packetSize)
+    Index index = alignedStart;
+    for (; index < alignedEnd; index += packetSize)
       kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
-
+#ifdef EIGEN_VECTORIZE_PARTIAL
+    Index leftover = size - alignedEnd;
+    if (leftover > 0) kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(index, leftover);
+#else
     unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
+#endif  // EIGEN_VECTORIZE_PARTIAL
   }
 };
 
@@ -639,6 +648,13 @@ class generic_dense_assignment_kernel {
   template <int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index index) {
     m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(index), m_src.template packet<LoadMode, Packet>(index));
+  }
+
+  template <int StoreMode, int LoadMode, typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPartialPacket(Index index, const int& partial_alignment) {
+    if (partial_alignment <= 0) return;
+    m_functor.template assignPartialPacket<StoreMode, Packet>(
+        &m_dst.coeffRef(index), m_src.template packet<LoadMode, Packet>(index), partial_alignment);
   }
 
   template <int StoreMode, int LoadMode, typename Packet>
