@@ -19,9 +19,13 @@ void test_parallelize_gemm() {
   c.noalias() = a * b;
 
   ThreadPool pool(num_threads);
+  //Eigen::setGemmThreadPool(&pool);
   MatrixXf c_threaded(n, n);
   c_threaded.noalias() = a * b;
 
+  VERIFY_IS_APPROX(c, c_threaded);
+  c_threaded.setRandom();
+  c_threaded.device(pool).noalias() = a * b;
   VERIFY_IS_APPROX(c, c_threaded);
 }
 
