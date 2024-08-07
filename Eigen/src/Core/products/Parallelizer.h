@@ -281,6 +281,16 @@ struct AssignmentWithDevice<DstXprType, Product<Lhs, Rhs, Options>, Functor, Thr
     Base::run(dst, src, func);
   };
 };
+template <typename DstXprType, typename Lhs, typename Rhs, int Options, typename Functor, typename Weak>
+struct AssignmentWithDevice<DstXprType, Product<Lhs, Rhs, Options>, Functor, CoreThreadPoolDevice, Dense2Dense, Weak> {
+  using SrcXprType = Product<Lhs, Rhs, Options>;
+  using Base = Assignment<DstXprType, SrcXprType, Functor>;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src, const Functor& func,
+                                                        CoreThreadPoolDevice& device) {
+    setGemmThreadPool(&device.m_pool);
+    Base::run(dst, src, func);
+  };
+};
 #endif  // EIGEN_GEMM_THREADPOOL
 
 }  // end namespace internal
