@@ -24,6 +24,9 @@ void test_parallelize_gemm() {
   c_threaded.noalias() = a * b;
 
   VERIFY_IS_APPROX(c, c_threaded);
+  c_threaded.setRandom();
+  c_threaded.device(pool).noalias() = a * b;
+  VERIFY_IS_APPROX(c, c_threaded);
 }
 
 EIGEN_DECLARE_TEST(product_threaded) { CALL_SUBTEST(test_parallelize_gemm()); }
