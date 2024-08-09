@@ -1,4 +1,3 @@
-
 macro(ei_add_property prop value)
   get_property(previous GLOBAL PROPERTY ${prop})
   if ((NOT previous) OR (previous STREQUAL ""))
@@ -75,7 +74,11 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   # let the user pass flags.
   if(${ARGC} GREATER 2)
-    target_compile_options(${targetname} PRIVATE ${ARGV2})
+    if(HEXAGON)
+      target_compile_options(${targetname} PRIVATE "SHELL:${ARGV2}")
+    else()
+      target_compile_options(${targetname} PRIVATE ${ARGV2})
+    endif()
   endif()
 
   if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
@@ -106,7 +109,11 @@ macro(ei_add_test_internal testname testname_with_suffix)
     endif()
   endif()
 
-  add_test(${testname_with_suffix} "${targetname}")
+  if(HEXAGON)
+    add_test(NAME ${testname_with_suffix} COMMAND "${targetname}")
+  else()
+    add_test(${testname_with_suffix} "${targetname}")
+  endif()
 
   # Specify target and test labels according to EIGEN_CURRENT_SUBPROJECT
   get_property(current_subproject GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT)
