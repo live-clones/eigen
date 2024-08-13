@@ -92,6 +92,7 @@
 #include <algorithm>
 
 #include <array>
+#include <thread>
 #include <vector>
 
 // for std::is_nothrow_move_assignable
@@ -118,7 +119,6 @@
 #include <map>
 #include <memory>
 #include <utility>
-#include <thread>
 #ifndef EIGEN_SYCL_LOCAL_THREAD_DIM0
 #define EIGEN_SYCL_LOCAL_THREAD_DIM0 16
 #endif
