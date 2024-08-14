@@ -49,9 +49,14 @@ inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& sc
 template <typename VectorType, typename RealScalar>
 void stable_norm_impl_inner_step(const VectorType& vec, RealScalar& ssq, RealScalar& scale, RealScalar& invScale) {
   const Index blockSize = 4096;
+
   Index n = vec.size();
-  for (Index bi = 0; bi < n; bi += blockSize) {
-    internal::stable_norm_kernel(vec.segment(bi, numext::mini(blockSize, n - bi)), ssq, scale, invScale);
+  Index blockEnd = numext::round_down(n, blockSize);
+  for (Index i = 0; i < blockEnd; i += blockSize) {
+    internal::stable_norm_kernel(vec.template segment<blockSize>(i), ssq, scale, invScale);
+  }
+  if (n > blockEnd) {
+    internal::stable_norm_kernel(vec.tail(n - blockEnd), ssq, scale, invScale);
   }
 }
 
@@ -62,8 +67,7 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
   using std::sqrt;
 
   Index n = vec.size();
-
-  if (n == 1) return abs(vec.coeff(0));
+  if (EIGEN_PREDICT_FALSE(n == 1)) return abs(vec.coeff(0));
 
   typedef typename VectorType::RealScalar RealScalar;
   RealScalar scale(0);
