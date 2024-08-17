@@ -20,24 +20,16 @@ namespace internal {
 // helper function for dot(). The problem is that if we put that in the body of dot(), then upon calling dot
 // with mismatched types, the compiler emits errors about failing to instantiate cwiseProduct BEFORE
 // looking at the static assertions. Thus this is a trick to get better compile errors.
-template <typename T, typename U,
-          bool NeedToTranspose = T::IsVectorAtCompileTime && U::IsVectorAtCompileTime &&
-                                 ((int(T::RowsAtCompileTime) == 1 && int(U::ColsAtCompileTime) == 1) ||
-                                  (int(T::ColsAtCompileTime) == 1 && int(U::RowsAtCompileTime) == 1))>
-struct dot_nocheck {
-  typedef scalar_conj_product_op<typename traits<T>::Scalar, typename traits<U>::Scalar> conj_prod;
-  typedef typename conj_prod::result_type ResScalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static ResScalar run(const MatrixBase<T>& a, const MatrixBase<U>& b) {
-    return a.template binaryExpr<conj_prod>(b).sum();
-  }
-};
-
 template <typename T, typename U>
-struct dot_nocheck<T, U, true> {
-  typedef scalar_conj_product_op<typename traits<T>::Scalar, typename traits<U>::Scalar> conj_prod;
-  typedef typename conj_prod::result_type ResScalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static ResScalar run(const MatrixBase<T>& a, const MatrixBase<U>& b) {
-    return a.transpose().template binaryExpr<conj_prod>(b).sum();
+struct dot_nocheck {
+  using LhsScalar = typename traits<T>::Scalar;
+  using RhsScalar = typename traits<U>::Scalar;
+  using scalar_op = scalar_dot_op<LhsScalar, RhsScalar>;
+  using dot_evaluator = binary_redux_evaluator<scalar_op, T, U>;
+  using result_type = typename scalar_op::result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static result_type run(const MatrixBase<T>& a, const MatrixBase<U>& b) {
+    dot_evaluator eval(a.derived(), b.derived());
+    return binary_redux_impl<dot_evaluator>::run(eval);
   }
 };
 
@@ -236,9 +228,9 @@ struct lpNorm_selector<Derived, Infinity> {
 }  // end namespace internal
 
 /** \returns the \b coefficient-wise \f$ \ell^p \f$ norm of \c *this, that is, returns the p-th root of the sum of the
- * p-th powers of the absolute values of the coefficients of \c *this. If \a p is the special value \a Eigen::Infinity,
- * this function returns the \f$ \ell^\infty \f$ norm, that is the maximum of the absolute values of the coefficients of
- * \c *this.
+ * p-th powers of the absolute values of the coefficients of \c *this. If \a p is the special value \a
+ * Eigen::Infinity, this function returns the \f$ \ell^\infty \f$ norm, that is the maximum of the absolute values of
+ * the coefficients of \c *this.
  *
  * In all cases, if \c *this is empty, then the value 0 is returned.
  *
