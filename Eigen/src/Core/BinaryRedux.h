@@ -17,35 +17,27 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Lhs, typename Rhs, bool VectorXpr = Lhs::IsVectorAtCompileTime && Rhs::IsVectorAtCompileTime>
-struct binary_redux_traits {
-  // non-vector expression: operation has strict dimensional requirements
-  static constexpr int LhsFlags = evaluator<Lhs>::Flags, RhsFlags = evaluator<Rhs>::Flags,
-                       LhsRowsAtCompileTime = Lhs::RowsAtCompileTime, RhsRowsAtCompileTime = Rhs::RowsAtCompileTime,
-                       LhsColsAtCompileTime = Lhs::ColsAtCompileTime, RhsColsAtCompileTime = Rhs::ColsAtCompileTime,
-                       LhsSizeAtCompileTime = Lhs::SizeAtCompileTime, RhsSizeAtCompileTime = Rhs::SizeAtCompileTime;
-
-  static constexpr bool IsRowMajor = Lhs::IsRowMajor,
-                        StorageOrdersAgree = (LhsFlags & RowMajorBit) == (RhsFlags & RowMajorBit),
-                        LinearAccess = StorageOrdersAgree && (LhsFlags & RhsFlags & LinearAccessBit),
-                        MaybePacketAccess = (LhsFlags & RhsFlags & PacketAccessBit);
-
-  static constexpr int RowsAtCompileTime = min_size_prefer_fixed(LhsRowsAtCompileTime, RhsRowsAtCompileTime),
-                       ColsAtCompileTime = min_size_prefer_fixed(LhsColsAtCompileTime, RhsColsAtCompileTime),
-                       OuterSizeAtCompileTime = IsRowMajor ? RowsAtCompileTime : ColsAtCompileTime,
-                       InnerSizeAtCompileTime = IsRowMajor ? ColsAtCompileTime : RowsAtCompileTime,
-                       SizeAtCompileTime = size_at_compile_time(OuterSizeAtCompileTime, InnerSizeAtCompileTime);
-};
-
 template <typename Lhs, typename Rhs>
-struct binary_redux_traits<Lhs, Rhs, true> {
-  // vector expression: operation is allowed, provided that both operands are the same size
-  static constexpr bool LinearAccess = true, MaybePacketAccess = true;
+struct binary_redux_traits {
+  static constexpr int LhsFlags = evaluator<Lhs>::Flags, RhsFlags = evaluator<Rhs>::Flags;
 
-  static constexpr int LhsSizeAtCompileTime = Lhs::SizeAtCompileTime, RhsSizeAtCompileTime = Rhs::SizeAtCompileTime,
-                       OuterSizeAtCompileTime = 1,
-                       InnerSizeAtCompileTime = min_size_prefer_fixed(LhsSizeAtCompileTime, RhsSizeAtCompileTime),
-                       SizeAtCompileTime = InnerSizeAtCompileTime;
+  static constexpr bool VectorXpr = Lhs::IsVectorAtCompileTime && Rhs::IsVectorAtCompileTime,
+                        IsRowMajor = Lhs::IsRowMajor,
+                        StorageOrdersAgree = (LhsFlags & RowMajorBit) == (RhsFlags & RowMajorBit),
+                        LinearAccess = VectorXpr || (StorageOrdersAgree && (LhsFlags & RhsFlags & LinearAccessBit)),
+                        MaybePacketAccess = LhsFlags & RhsFlags & PacketAccessBit;
+
+  static constexpr int LhsRowsAtCompileTime = Lhs::RowsAtCompileTime, RhsRowsAtCompileTime = Rhs::RowsAtCompileTime,
+                       LhsColsAtCompileTime = Lhs::ColsAtCompileTime, RhsColsAtCompileTime = Rhs::ColsAtCompileTime,
+                       RowsAtCompileTime = min_size_prefer_fixed(LhsRowsAtCompileTime, RhsRowsAtCompileTime),
+                       ColsAtCompileTime = min_size_prefer_fixed(LhsColsAtCompileTime, RhsColsAtCompileTime),
+                       SizeAtCompileTime = size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
+                       OuterSizeAtCompileTime = VectorXpr    ? 1
+                                                : IsRowMajor ? RowsAtCompileTime
+                                                             : ColsAtCompileTime,
+                       InnerSizeAtCompileTime = VectorXpr    ? SizeAtCompileTime
+                                                : IsRowMajor ? ColsAtCompileTime
+                                                             : RowsAtCompileTime;
 };
 
 template <typename Func, typename Lhs, typename Rhs>
@@ -54,16 +46,17 @@ struct binary_redux_evaluator {
   using PacketType = typename packet_traits<Scalar>::type;
   using Traits = binary_redux_traits<Lhs, Rhs>;
 
-  static constexpr bool IsVectorAtCompileTime = Lhs::IsVectorAtCompileTime && Rhs::IsVectorAtCompileTime,
-                        IsRowMajor = Lhs::IsRowMajor, LinearAccess = Traits::LinearAccess,
-                        PacketAccess = Traits::MaybePacketAccess && Func::PacketAccess,
-                        UseAlignedMode =
-                            LinearAccess ||
-                            (Traits::InnerSizeAtCompileTime != Dynamic) &&
-                                ((Traits::InnerSizeAtCompileTime % unpacket_traits<PacketType>::size) == 0);
+  static constexpr int OuterSizeAtCompileTime = Traits::OuterSizeAtCompileTime,
+                       InnerSizeAtCompileTime = Traits::InnerSizeAtCompileTime,
+                       SizeAtCompileTime = Traits::SizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size;
 
-  static constexpr int LhsAlignment = UseAlignedMode ? evaluator<Lhs>::Alignment : Unaligned,
-                       RhsAlignment = UseAlignedMode ? evaluator<Rhs>::Alignment : Unaligned;
+  static constexpr bool IsRowMajor = Traits::IsRowMajor, LinearAccess = Traits::LinearAccess,
+                        PacketAccess = Traits::MaybePacketAccess && Func::PacketAccess,
+                        UseAlignedMode = LinearAccess || ((InnerSizeAtCompileTime != Dynamic) &&
+                                                          ((InnerSizeAtCompileTime % PacketSize) == 0));
+
+  static constexpr int LhsAlignment = UseAlignedMode ? int(evaluator<Lhs>::Alignment) : int(Unaligned),
+                       RhsAlignment = UseAlignedMode ? int(evaluator<Rhs>::Alignment) : int(Unaligned);
 
   static constexpr TraversalType PreferredTraversal =
       PacketAccess ? (LinearAccess ? LinearVectorizedTraversal : SliceVectorizedTraversal)
@@ -77,11 +70,8 @@ struct binary_redux_evaluator {
         m_outerSize(lhs.outerSize()),
         m_innerSize(lhs.innerSize()),
         m_size(lhs.size()) {
-    bool sizesMatch = lhs.size() == rhs.size();
-    bool dimensionsMatch = (lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols());
-    EIGEN_UNUSED_VARIABLE(sizesMatch)
-    EIGEN_UNUSED_VARIABLE(dimensionsMatch)
-    eigen_assert((IsVectorAtCompileTime ? sizesMatch : dimensionsMatch) && "Incompatible dimensions");
+    EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
+    eigen_assert(checkSizes() && "Incompatible dimensions");
   }
 
   Index innerSize() const { return m_innerSize.value(); }
@@ -90,14 +80,10 @@ struct binary_redux_evaluator {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar initialize() const { return m_func.initialize(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& value, Index row, Index col) const {
-    return m_func(value, m_lhs.coeff(row, col), m_rhs.coeff(row, col));
-  }
-
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeffByOuterInner(const Scalar& value, Index outer, Index inner) const {
     Index row = IsRowMajor ? outer : inner;
     Index col = IsRowMajor ? inner : outer;
-    return coeff(value, row, col);
+    return m_func(value, m_lhs.coeff(row, col), m_rhs.coeff(row, col));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& value, Index index) const {
@@ -105,16 +91,11 @@ struct binary_redux_evaluator {
   }
 
   template <typename PacketType, int LhsMode = LhsAlignment, int RhsMode = RhsAlignment>
-  EIGEN_STRONG_INLINE PacketType packet(PacketType value, Index row, Index col) const {
-    return m_func.packetOp(value, m_lhs.template packet<LhsMode, PacketType>(row, col),
-                           m_rhs.template packet<RhsMode, PacketType>(row, col));
-  }
-
-  template <typename PacketType, int LhsMode = LhsAlignment, int RhsMode = RhsAlignment>
   EIGEN_STRONG_INLINE PacketType packetByOuterInner(PacketType value, Index outer, Index inner) const {
     Index row = IsRowMajor ? outer : inner;
     Index col = IsRowMajor ? inner : outer;
-    return packet<PacketType, LhsMode, RhsMode>(value, row, col);
+    return m_func.packetOp(value, m_lhs.template packet<LhsMode, PacketType>(row, col),
+                           m_rhs.template packet<RhsMode, PacketType>(row, col));
   }
 
   template <typename PacketType, int LhsMode = LhsAlignment, int RhsMode = RhsAlignment>
@@ -139,9 +120,17 @@ struct binary_redux_evaluator {
   const Func m_func;
   const evaluator<Lhs> m_lhs;
   const evaluator<Rhs> m_rhs;
-  const variable_if_dynamic<Index, Traits::OuterSizeAtCompileTime> m_outerSize;
-  const variable_if_dynamic<Index, Traits::InnerSizeAtCompileTime> m_innerSize;
-  const variable_if_dynamic<Index, Traits::SizeAtCompileTime> m_size;
+  const variable_if_dynamic<Index, OuterSizeAtCompileTime> m_outerSize;
+  const variable_if_dynamic<Index, InnerSizeAtCompileTime> m_innerSize;
+  const variable_if_dynamic<Index, SizeAtCompileTime> m_size;
+
+ private:
+  bool checkSizes() const {
+    if (Traits::VectorXpr)
+      return m_lhs.size() == m_rhs.size();
+    else
+      return (m_lhs.rows() == m_rhs.rows()) && (m_lhs.cols() == m_rhs.cols());
+  }
 };
 
 template <typename BinaryEvaluator, TraversalType Traversal = BinaryEvaluator::PreferredTraversal>
@@ -184,12 +173,11 @@ struct binary_redux_impl<BinaryEvaluator, LinearVectorizedTraversal> {
   static Scalar run(const BinaryEvaluator& eval) {
     const Index size = eval.size();
     const Index packetEnd = numext::round_down(size, kPacketSize);
-    Scalar scalarAccum = eval.initialize();
-    Packet packetAccum = pset1<Packet>(scalarAccum);
+    Packet packetAccum = pset1<Packet>(eval.initialize());
     for (Index k = 0; k < packetEnd; k += kPacketSize) {
       packetAccum = eval.packet(packetAccum, k);
     }
-    scalarAccum = eval.predux(packetAccum);
+    Scalar scalarAccum = eval.predux(packetAccum);
     for (Index k = packetEnd; k < size; k++) {
       scalarAccum = eval.coeff(scalarAccum, k);
     }
@@ -207,7 +195,7 @@ struct binary_redux_impl<BinaryEvaluator, SliceVectorizedTraversal> {
     const Index innerSize = eval.innerSize();
     const Index packetEnd = numext::round_down(innerSize, kPacketSize);
     Scalar scalarAccum = eval.initialize();
-    Packet packetAccum = pset1<Packet>(eval.initialize());
+    Packet packetAccum = pset1<Packet>(scalarAccum);
     for (Index j = 0; j < outerSize; j++) {
       for (Index i = 0; i < packetEnd; i += kPacketSize) {
         packetAccum = eval.packet(packetAccum, j, i);
