@@ -19,12 +19,12 @@ namespace internal {
 
 template <typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_dot_op {
-  using scalar_op = scalar_conj_product_op<LhsScalar, RhsScalar>;
-  using result_type = typename scalar_op::result_type;
+  using conj_product_op = scalar_conj_product_op<LhsScalar, RhsScalar>;
+  using result_type = typename conj_product_op::result_type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type initialize() const { return result_type(0); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const result_type& accum, const LhsScalar& a,
                                                                const RhsScalar& b) const {
-    return scalar_op()(a, b) + accum;
+    return conj_product_op()(a, b) + accum;
   }
   static constexpr bool PacketAccess = false;
 };
@@ -58,9 +58,9 @@ template <typename T, typename U>
 struct dot_nocheck {
   using LhsScalar = typename traits<T>::Scalar;
   using RhsScalar = typename traits<U>::Scalar;
-  using scalar_op = scalar_dot_op<LhsScalar, RhsScalar>;
-  using dot_evaluator = binary_redux_evaluator<scalar_op, T, U>;
-  using result_type = typename scalar_op::result_type;
+  using dot_op = scalar_dot_op<LhsScalar, RhsScalar>;
+  using dot_evaluator = binary_redux_evaluator<dot_op, T, U>;
+  using result_type = typename dot_op::result_type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static result_type run(const MatrixBase<T>& a, const MatrixBase<U>& b) {
     dot_evaluator eval(a.derived(), b.derived());
     return binary_redux_impl<dot_evaluator>::run(eval);
