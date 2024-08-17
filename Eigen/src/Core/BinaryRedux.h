@@ -20,14 +20,27 @@ namespace internal {
 template <typename Lhs, typename Rhs, bool VectorXpr>
 struct binary_redux_assert {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
-  static void run() {}
+#ifndef EIGEN_NO_DEBUG
+  static void run(const Lhs& lhs, const Rhs& rhs) {
+    eigen_assert((lhs.size() == rhs.size()) && "Binary redux: lhs and rhs vectors must have same size");
+  }
+#else
+  static void run(const Lhs&, const Rhs&) {}
+#endif
 };
 template <typename Lhs, typename Rhs>
 struct binary_redux_assert<Lhs, Rhs, true> {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Lhs)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Rhs)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Lhs, Rhs)
-  static void run() {}
+#ifndef EIGEN_NO_DEBUG
+  static void run(const Lhs& lhs, const Rhs& rhs) {
+    eigen_assert(((lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols())) &&
+                 "Binary redux: lhs and rhs matrices must have same dimensions");
+  }
+#else
+  static void run(const Lhs&, const Rhs&) {}
+#endif
 };
 
 template <typename Lhs, typename Rhs>
@@ -83,8 +96,7 @@ struct binary_redux_evaluator {
         m_rhs(rhs),
         m_outerSize(VectorXpr ? 1 : lhs.outerSize()),
         m_innerSize(VectorXpr ? lhs.size() : lhs.innerSize()) {
-    binary_redux_assert<Lhs, Rhs, VectorXpr>::run();
-    eigen_assert(checkSizes(lhs, rhs) && "Incompatible dimensions");
+    binary_redux_assert<Lhs, Rhs, VectorXpr>::run(lhs, rhs);
   }
 
   Index outerSize() const { return m_outerSize.value(); }
@@ -132,14 +144,6 @@ struct binary_redux_evaluator {
   const evaluator<Rhs> m_rhs;
   const variable_if_dynamic<Index, OuterSizeAtCompileTime> m_outerSize;
   const variable_if_dynamic<Index, InnerSizeAtCompileTime> m_innerSize;
-
- private:
-  static bool checkSizes(const Lhs& lhs, const Rhs& rhs) {
-    if (VectorXpr)
-      return lhs.size() == rhs.size();
-    else
-      return (lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols());
-  }
 };
 
 template <typename BinaryEvaluator, TraversalType Traversal = BinaryEvaluator::PreferredTraversal>
