@@ -17,13 +17,13 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Lhs, typename Rhs, bool VectorXpr = Lhs::IsVectorAtCompileTime && Rhs::IsVectorAtCompileTime>
+template <typename Lhs, typename Rhs, bool VectorXpr>
 struct binary_redux_assert {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
   static void run() {}
 };
 template <typename Lhs, typename Rhs>
-struct binary_redux_assert<Lhs,Rhs,true> {
+struct binary_redux_assert<Lhs, Rhs, true> {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Lhs)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Rhs)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Lhs, Rhs)
@@ -83,7 +83,7 @@ struct binary_redux_evaluator {
         m_rhs(rhs),
         m_outerSize(VectorXpr ? 1 : lhs.outerSize()),
         m_innerSize(VectorXpr ? lhs.size() : lhs.innerSize()) {
-    binary_redux_assert<Lhs, Rhs>::run();
+    binary_redux_assert<Lhs, Rhs, VectorXpr>::run();
     eigen_assert(checkSizes(lhs, rhs) && "Incompatible dimensions");
   }
 
