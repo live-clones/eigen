@@ -29,9 +29,10 @@ struct binary_redux_traits {
 
   static constexpr int LhsRowsAtCompileTime = Lhs::RowsAtCompileTime, RhsRowsAtCompileTime = Rhs::RowsAtCompileTime,
                        LhsColsAtCompileTime = Lhs::ColsAtCompileTime, RhsColsAtCompileTime = Rhs::ColsAtCompileTime,
+                       LhsSizeAtCompileTime = Lhs::SizeAtCompileTime, RhsSizeAtCompileTime = Rhs::SizeAtCompileTime,
                        RowsAtCompileTime = min_size_prefer_fixed(LhsRowsAtCompileTime, RhsRowsAtCompileTime),
                        ColsAtCompileTime = min_size_prefer_fixed(LhsColsAtCompileTime, RhsColsAtCompileTime),
-                       SizeAtCompileTime = size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
+                       SizeAtCompileTime = min_size_prefer_fixed(LhsSizeAtCompileTime, RhsSizeAtCompileTime),
                        OuterSizeAtCompileTime = VectorXpr    ? 1
                                                 : IsRowMajor ? RowsAtCompileTime
                                                              : ColsAtCompileTime,
@@ -48,9 +49,10 @@ struct binary_redux_evaluator {
 
   static constexpr int OuterSizeAtCompileTime = Traits::OuterSizeAtCompileTime,
                        InnerSizeAtCompileTime = Traits::InnerSizeAtCompileTime,
-                       SizeAtCompileTime = Traits::SizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size;
+                       PacketSize = unpacket_traits<PacketType>::size;
 
-  static constexpr bool IsRowMajor = Traits::IsRowMajor, LinearAccess = Traits::LinearAccess,
+  static constexpr bool VectorXpr = Traits::VectorXpr, IsRowMajor = Traits::IsRowMajor,
+                        LinearAccess = Traits::LinearAccess,
                         PacketAccess = Traits::MaybePacketAccess && Func::PacketAccess,
                         UseAlignedMode = LinearAccess || (InnerSizeAtCompileTime % PacketSize) == 0;
 
@@ -63,9 +65,13 @@ struct binary_redux_evaluator {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit binary_redux_evaluator(const Lhs& lhs, const Rhs& rhs,
                                                                         Func func = Func())
-      : m_func(func), m_lhs(lhs), m_rhs(rhs), m_outerSize(lhs.outerSize()), m_innerSize(lhs.innerSize()) {
+      : m_func(func),
+        m_lhs(lhs),
+        m_rhs(rhs),
+        m_outerSize(VectorXpr ? 1 : lhs.outerSize()),
+        m_innerSize(VectorXpr ? lhs.size() : lhs.innerSize()) {
     EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
-    eigen_assert(checkSizes() && "Incompatible dimensions");
+    eigen_assert(checkSizes(lhs, rhs) && "Incompatible dimensions");
   }
 
   Index outerSize() const { return m_outerSize.value(); }
@@ -108,9 +114,6 @@ struct binary_redux_evaluator {
     return m_func.preduxOp(packetAccum, scalarAccum);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Func& func() { return m_func; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Func& func() const { return m_func; }
-
   const Func m_func;
   const evaluator<Lhs> m_lhs;
   const evaluator<Rhs> m_rhs;
@@ -118,11 +121,11 @@ struct binary_redux_evaluator {
   const variable_if_dynamic<Index, InnerSizeAtCompileTime> m_innerSize;
 
  private:
-  bool checkSizes() const {
-    if (Traits::VectorXpr)
-      return m_lhs.size() == m_rhs.size();
+  static bool checkSizes(const Lhs& lhs, const Rhs& rhs) {
+    if (VectorXpr)
+      return lhs.size() == rhs.size();
     else
-      return (m_lhs.rows() == m_rhs.rows()) && (m_lhs.cols() == m_rhs.cols());
+      return (lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols());
   }
 };
 
