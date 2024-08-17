@@ -54,19 +54,20 @@ struct binary_redux_evaluator {
   using PacketType = typename packet_traits<Scalar>::type;
   using Traits = binary_redux_traits<Lhs, Rhs>;
 
-  static constexpr bool IsRowMajor = Lhs::IsRowMajor, LinearAccess = Traits::LinearAccess,
+  static constexpr bool IsVectorAtCompileTime = Lhs::IsVectorAtCompileTime && Rhs::IsVectorAtCompileTime,
+                        IsRowMajor = Lhs::IsRowMajor, LinearAccess = Traits::LinearAccess,
                         PacketAccess = Traits::MaybePacketAccess && Func::PacketAccess,
                         UseAlignedMode =
                             LinearAccess ||
                             (Traits::InnerSizeAtCompileTime != Dynamic) &&
                                 ((Traits::InnerSizeAtCompileTime % unpacket_traits<PacketType>::size) == 0);
+
   static constexpr int LhsAlignment = UseAlignedMode ? evaluator<Lhs>::Alignment : Unaligned,
                        RhsAlignment = UseAlignedMode ? evaluator<Rhs>::Alignment : Unaligned;
+
   static constexpr TraversalType PreferredTraversal =
       PacketAccess ? (LinearAccess ? LinearVectorizedTraversal : SliceVectorizedTraversal)
                    : (LinearAccess ? LinearTraversal : DefaultTraversal);
-
-  // static constexpr bool UseAlignedMode =
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit binary_redux_evaluator(const Lhs& lhs, const Rhs& rhs,
                                                                         Func func = Func())
@@ -75,7 +76,13 @@ struct binary_redux_evaluator {
         m_rhs(rhs),
         m_outerSize(lhs.outerSize()),
         m_innerSize(lhs.innerSize()),
-        m_size(lhs.size()) {}
+        m_size(lhs.size()) {
+    bool sizesMatch = lhs.size() == rhs.size();
+    bool dimensionsMatch = (lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols());
+    EIGEN_UNUSED_VARIABLE(sizesMatch)
+    EIGEN_UNUSED_VARIABLE(dimensionsMatch)
+    eigen_assert((IsVectorAtCompileTime ? sizesMatch : dimensionsMatch) && "Incompatible dimensions");
+  }
 
   Index innerSize() const { return m_innerSize.value(); }
   Index outerSize() const { return m_outerSize.value(); }
@@ -250,4 +257,4 @@ struct scalar_dot_op<Scalar, Scalar> {
 }  // namespace internal
 }  // namespace Eigen
 
-#endif  // EIGEN_REDUX_H
+#endif  // EIGEN_BINARY_REDUX_H
