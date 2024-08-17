@@ -52,8 +52,7 @@ struct binary_redux_evaluator {
 
   static constexpr bool IsRowMajor = Traits::IsRowMajor, LinearAccess = Traits::LinearAccess,
                         PacketAccess = Traits::MaybePacketAccess && Func::PacketAccess,
-                        UseAlignedMode = LinearAccess || ((InnerSizeAtCompileTime != Dynamic) &&
-                                                          ((InnerSizeAtCompileTime % PacketSize) == 0));
+                        UseAlignedMode = LinearAccess || (InnerSizeAtCompileTime % PacketSize) == 0;
 
   static constexpr int LhsAlignment = UseAlignedMode ? int(evaluator<Lhs>::Alignment) : int(Unaligned),
                        RhsAlignment = UseAlignedMode ? int(evaluator<Rhs>::Alignment) : int(Unaligned);
@@ -64,19 +63,14 @@ struct binary_redux_evaluator {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit binary_redux_evaluator(const Lhs& lhs, const Rhs& rhs,
                                                                         Func func = Func())
-      : m_func(func),
-        m_lhs(lhs),
-        m_rhs(rhs),
-        m_outerSize(lhs.outerSize()),
-        m_innerSize(lhs.innerSize()),
-        m_size(lhs.size()) {
+      : m_func(func), m_lhs(lhs), m_rhs(rhs), m_outerSize(lhs.outerSize()), m_innerSize(lhs.innerSize()) {
     EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
     eigen_assert(checkSizes() && "Incompatible dimensions");
   }
 
-  Index innerSize() const { return m_innerSize.value(); }
   Index outerSize() const { return m_outerSize.value(); }
-  Index size() const { return m_size.value(); }
+  Index innerSize() const { return m_innerSize.value(); }
+  Index size() const { return m_outerSize.value() * m_innerSize.value(); }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar initialize() const { return m_func.initialize(); }
 
@@ -122,7 +116,6 @@ struct binary_redux_evaluator {
   const evaluator<Rhs> m_rhs;
   const variable_if_dynamic<Index, OuterSizeAtCompileTime> m_outerSize;
   const variable_if_dynamic<Index, InnerSizeAtCompileTime> m_innerSize;
-  const variable_if_dynamic<Index, SizeAtCompileTime> m_size;
 
  private:
   bool checkSizes() const {
