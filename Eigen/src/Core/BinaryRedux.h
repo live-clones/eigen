@@ -220,40 +220,6 @@ struct binary_redux_impl<BinaryEvaluator, SliceVectorizedTraversal> {
     return scalarAccum;
   };
 };
-
-template <typename LhsScalar, typename RhsScalar = LhsScalar>
-struct scalar_dot_op {
-  using scalar_op = scalar_conj_product_op<LhsScalar, RhsScalar>;
-  using result_type = typename scalar_op::result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type initialize() const { return result_type(0); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const result_type& accum, const LhsScalar& a,
-                                                               const RhsScalar& b) const {
-    return scalar_op()(a, b) + accum;
-  }
-  static constexpr bool PacketAccess = false;
-};
-
-template <typename Scalar>
-struct scalar_dot_op<Scalar, Scalar> {
-  using result_type = Scalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar initialize() const { return Scalar(0); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& accum, const Scalar& a, const Scalar& b) const {
-    return pmadd(pconj(a), b, accum);
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& accum, const Packet& a, const Packet& b) const {
-    return pmadd(pconj(a), b, accum);
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar preduxOp(const Packet& accum) const {
-    return predux(accum);
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar preduxOp(const Packet& packetAccun, const Scalar& scalarAccum) const {
-    return predux(packetAccun) + scalarAccum;
-  }
-  static constexpr bool PacketAccess = packet_traits<Scalar>::HasMul && packet_traits<Scalar>::HasAdd;
-};
 }  // namespace internal
 }  // namespace Eigen
 
