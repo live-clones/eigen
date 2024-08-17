@@ -22,7 +22,8 @@ struct binary_redux_assert {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
 #ifndef EIGEN_NO_DEBUG
   static void run(const Lhs& lhs, const Rhs& rhs) {
-    eigen_assert((lhs.size() == rhs.size()) && "Binary redux: lhs and rhs vectors must have same size");
+    eigen_assert(((lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols())) &&
+                 "Binary redux: lhs and rhs matrices must have same dimensions");
   }
 #else
   static void run(const Lhs&, const Rhs&) {}
@@ -35,8 +36,7 @@ struct binary_redux_assert<Lhs, Rhs, true> {
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Lhs, Rhs)
 #ifndef EIGEN_NO_DEBUG
   static void run(const Lhs& lhs, const Rhs& rhs) {
-    eigen_assert(((lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols())) &&
-                 "Binary redux: lhs and rhs matrices must have same dimensions");
+    eigen_assert((lhs.size() == rhs.size()) && "Binary redux: lhs and rhs vectors must have same size");
   }
 #else
   static void run(const Lhs&, const Rhs&) {}
@@ -221,6 +221,76 @@ struct binary_redux_impl<BinaryEvaluator, SliceVectorizedTraversal> {
     return scalarAccum;
   };
 };
+
+template <typename Scalar, bool Conj>
+struct conditional_conj;
+
+template <typename Scalar>
+struct conditional_conj<Scalar, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar conj(const Scalar& a) { return numext::conj(a); }
+  template <typename Packet>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pconj(const Packet& a) {
+    return pconj(a);
+  }
+};
+
+template <typename Scalar>
+struct conditional_conj<Scalar, false> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar conj(const Scalar& a) { return a; }
+  template <typename Packet>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pconj(const Packet& a) {
+    return a;
+  }
+};
+
+template <typename LhsScalar, typename RhsScalar, bool Conj>
+struct scalar_inner_product_op {
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+  using conj_helper = conditional_conj<LhsScalar, Conj>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type initialize() const { return result_type(0); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const result_type& accum, const LhsScalar& a,
+                                                               const RhsScalar& b) const {
+    return (conj_helper::conj(a) * b) + accum;
+  }
+  static constexpr bool PacketAccess = false;
+};
+
+template <typename Scalar, bool Conj>
+struct scalar_inner_product_op<Scalar, Scalar, Conj> {
+  using result_type = Scalar;
+  using conj_helper = conditional_conj<Scalar, Conj>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar initialize() const { return Scalar(0); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& accum, const Scalar& a, const Scalar& b) const {
+    return pmadd(conj_helper::conj(a), b, accum);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& accum, const Packet& a, const Packet& b) const {
+    return pmadd(conj_helper::pconj(a), b, accum);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar preduxOp(const Packet& accum) const {
+    return predux(accum);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar preduxOp(const Packet& packetAccun, const Scalar& scalarAccum) const {
+    return predux(packetAccun) + scalarAccum;
+  }
+  static constexpr bool PacketAccess = packet_traits<Scalar>::HasMul && packet_traits<Scalar>::HasAdd;
+};
+
+template <typename Lhs, typename Rhs, bool Conj>
+struct inner_product_impl {
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using inner_product_op = scalar_inner_product_op<LhsScalar, RhsScalar, Conj>;
+  using inner_product_evaluator = binary_redux_evaluator<inner_product_op, Lhs, Rhs>;
+  using result_type = typename inner_product_op::result_type;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static result_type run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    inner_product_evaluator eval(a.derived(), b.derived());
+    return binary_redux_impl<inner_product_evaluator>::run(eval);
+  }
+};
+
 }  // namespace internal
 }  // namespace Eigen
 

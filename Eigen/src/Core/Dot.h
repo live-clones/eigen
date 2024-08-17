@@ -17,53 +17,15 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename LhsScalar, typename RhsScalar = LhsScalar>
-struct scalar_dot_op {
-  using conj_product_op = scalar_conj_product_op<LhsScalar, RhsScalar>;
-  using result_type = typename conj_product_op::result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type initialize() const { return result_type(0); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const result_type& accum, const LhsScalar& a,
-                                                               const RhsScalar& b) const {
-    return conj_product_op()(a, b) + accum;
-  }
-  static constexpr bool PacketAccess = false;
-};
-
-template <typename Scalar>
-struct scalar_dot_op<Scalar, Scalar> {
-  using result_type = Scalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar initialize() const { return Scalar(0); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& accum, const Scalar& a, const Scalar& b) const {
-    return pmadd(pconj(a), b, accum);
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& accum, const Packet& a, const Packet& b) const {
-    return pmadd(pconj(a), b, accum);
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar preduxOp(const Packet& accum) const {
-    return predux(accum);
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar preduxOp(const Packet& packetAccun, const Scalar& scalarAccum) const {
-    return predux(packetAccun) + scalarAccum;
-  }
-  static constexpr bool PacketAccess = packet_traits<Scalar>::HasMul && packet_traits<Scalar>::HasAdd;
-};
-
 // helper function for dot(). The problem is that if we put that in the body of dot(), then upon calling dot
 // with mismatched types, the compiler emits errors about failing to instantiate cwiseProduct BEFORE
 // looking at the static assertions. Thus this is a trick to get better compile errors.
 template <typename T, typename U>
 struct dot_nocheck {
-  using LhsScalar = typename traits<T>::Scalar;
-  using RhsScalar = typename traits<U>::Scalar;
-  using dot_op = scalar_dot_op<LhsScalar, RhsScalar>;
-  using dot_evaluator = binary_redux_evaluator<dot_op, T, U>;
-  using result_type = typename dot_op::result_type;
+  using impl = inner_product_impl<T, U, true>;
+  using result_type = typename impl::result_type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static result_type run(const MatrixBase<T>& a, const MatrixBase<U>& b) {
-    dot_evaluator eval(a.derived(), b.derived());
-    return binary_redux_impl<dot_evaluator>::run(eval);
+    return impl::run(a.derived(), b.derived());
   }
 };
 
