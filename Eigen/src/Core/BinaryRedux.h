@@ -21,7 +21,7 @@ template <typename Lhs, typename Rhs, bool VectorXpr>
 struct binary_redux_assert {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
 #ifndef EIGEN_NO_DEBUG
-  static void run(const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, const Rhs& rhs) {
     eigen_assert(((lhs.rows() == rhs.rows()) && (lhs.cols() == rhs.cols())) &&
                  "Binary redux: lhs and rhs matrices must have same dimensions");
   }
@@ -35,7 +35,7 @@ struct binary_redux_assert<Lhs, Rhs, true> {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Rhs)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Lhs, Rhs)
 #ifndef EIGEN_NO_DEBUG
-  static void run(const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, const Rhs& rhs) {
     eigen_assert((lhs.size() == rhs.size()) && "Binary redux: lhs and rhs vectors must have same size");
   }
 #else
@@ -99,9 +99,9 @@ struct binary_redux_evaluator {
     binary_redux_assert<Lhs, Rhs, VectorXpr>::run(lhs, rhs);
   }
 
-  Index outerSize() const { return m_outerSize.value(); }
-  Index innerSize() const { return m_innerSize.value(); }
-  Index size() const { return m_outerSize.value() * m_innerSize.value(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index outerSize() const { return m_outerSize.value(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index innerSize() const { return m_innerSize.value(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_outerSize.value() * m_innerSize.value(); }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar initialize() const { return m_func.initialize(); }
 
@@ -152,7 +152,7 @@ struct binary_redux_impl;
 template <typename BinaryEvaluator>
 struct binary_redux_impl<BinaryEvaluator, DefaultTraversal> {
   using Scalar = typename BinaryEvaluator::Scalar;
-  static Scalar run(const BinaryEvaluator& eval) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const BinaryEvaluator& eval) {
     const Index outerSize = eval.outerSize();
     const Index innerSize = eval.innerSize();
     Scalar scalarAccum = eval.initialize();
@@ -168,7 +168,7 @@ struct binary_redux_impl<BinaryEvaluator, DefaultTraversal> {
 template <typename BinaryEvaluator>
 struct binary_redux_impl<BinaryEvaluator, LinearTraversal> {
   using Scalar = typename BinaryEvaluator::Scalar;
-  static Scalar run(const BinaryEvaluator& eval) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const BinaryEvaluator& eval) {
     const Index size = eval.size();
     Scalar scalarAccum = eval.initialize();
     for (Index k = 0; k < size; k++) {
@@ -183,7 +183,7 @@ struct binary_redux_impl<BinaryEvaluator, LinearVectorizedTraversal> {
   using Scalar = typename BinaryEvaluator::Scalar;
   using Packet = typename BinaryEvaluator::PacketType;
   static constexpr int kPacketSize = unpacket_traits<Packet>::size;
-  static Scalar run(const BinaryEvaluator& eval) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const BinaryEvaluator& eval) {
     const Index size = eval.size();
     const Index packetEnd = numext::round_down(size, kPacketSize);
     Packet packetAccum = pset1<Packet>(eval.initialize());
@@ -203,7 +203,7 @@ struct binary_redux_impl<BinaryEvaluator, SliceVectorizedTraversal> {
   using Scalar = typename BinaryEvaluator::Scalar;
   using Packet = typename BinaryEvaluator::PacketType;
   static constexpr int kPacketSize = unpacket_traits<Packet>::size;
-  static Scalar run(const BinaryEvaluator& eval) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const BinaryEvaluator& eval) {
     const Index outerSize = eval.outerSize();
     const Index innerSize = eval.innerSize();
     const Index packetEnd = numext::round_down(innerSize, kPacketSize);
@@ -285,8 +285,8 @@ struct inner_product_impl {
   using inner_product_op = scalar_inner_product_op<LhsScalar, RhsScalar, Conj>;
   using inner_product_evaluator = binary_redux_evaluator<inner_product_op, Lhs, Rhs>;
   using result_type = typename inner_product_op::result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static result_type run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
-    inner_product_evaluator eval(a.derived(), b.derived());
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    inner_product_evaluator eval(a.derived(), b.derived(), inner_product_op());
     return binary_redux_impl<inner_product_evaluator>::run(eval);
   }
 };
