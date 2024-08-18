@@ -227,18 +227,18 @@ struct conditional_conj;
 
 template <typename Scalar>
 struct conditional_conj<Scalar, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar conj(const Scalar& a) { return numext::conj(a); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& a) { return numext::conj(a); }
   template <typename Packet>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pconj(const Packet& a) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(const Packet& a) {
     return pconj(a);
   }
 };
 
 template <typename Scalar>
 struct conditional_conj<Scalar, false> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar conj(const Scalar& a) { return a; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& a) { return a; }
   template <typename Packet>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pconj(const Packet& a) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(const Packet& a) {
     return a;
   }
 };
@@ -250,7 +250,7 @@ struct scalar_inner_product_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type initialize() const { return result_type(0); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const result_type& accum, const LhsScalar& a,
                                                                const RhsScalar& b) const {
-    return (conj_helper::conj(a) * b) + accum;
+    return (conj_helper::coeff(a) * b) + accum;
   }
   static constexpr bool PacketAccess = false;
 };
@@ -261,11 +261,11 @@ struct scalar_inner_product_op<Scalar, Scalar, Conj> {
   using conj_helper = conditional_conj<Scalar, Conj>;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar initialize() const { return Scalar(0); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& accum, const Scalar& a, const Scalar& b) const {
-    return pmadd(conj_helper::conj(a), b, accum);
+    return pmadd(conj_helper::coeff(a), b, accum);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& accum, const Packet& a, const Packet& b) const {
-    return pmadd(conj_helper::pconj(a), b, accum);
+    return pmadd(conj_helper::packet(a), b, accum);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar preduxOp(const Packet& accum) const {
