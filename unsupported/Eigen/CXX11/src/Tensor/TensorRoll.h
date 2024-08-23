@@ -98,18 +98,15 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
   typedef internal::TensorIntDivisor<Index> IndexDivisor;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
-
-  typedef typename TensorEvaluator<const ArgType, Device>::TensorBlock ArgTensorBlock;
-
-  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
+  using ArgTensorBlock = typename TensorEvaluator<const ArgType, Device>::TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_rolls(op.roll()), m_device(device) {
-    // Reversing a scalar isn't supported yet. It would be a no-op anyway.
-    EIGEN_STATIC_ASSERT((NumDims > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
+    EIGEN_STATIC_ASSERT((NumDims > 0), Must_Have_At_Least_One_Dimension_To_Roll);
 
     // Compute strides
     m_dimensions = m_impl.dimensions();
@@ -144,35 +141,45 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
 
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rollIndex(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index roll(Index const i, Index const r, Index const n) {
+    auto const tmp = (i + r) % n;
+    if (tmp < 0) {
+      return tmp + n;
+    } else {
+      return tmp;
+    }
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE array<Index, NumDims> rollCoords(array<Index, NumDims> const& coords) const {
+    array<Index, NumDims> rolledCoords;
+    for (int id = 0; id < NumDims; id++) {
+      eigen_assert(coords[id] < m_dimensions[id]);
+      rolledCoords[id] = roll(coords[id], m_rolls[id], m_dimensions[id]);
+    }
+    return rolledCoords;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rollIndex(Index const index) const {
     eigen_assert(index < dimensions().TotalSize());
-    Index inputIndex = 0;
-    auto Wrap = [](Index const i, Index const d) {
-      auto const tmp = i % d;
-      if (tmp < 0) {
-        return tmp + d;
-      } else {
-        return tmp;
-      }
-    };
+    Index rolledIndex = 0;
     if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         Index idx = index / m_fastStrides[i];
         index -= idx * m_strides[i];
-        inputIndex += Wrap(idx + m_rolls[i], m_dimensions[i]) * m_strides[i];
+        rolledIndex += roll(idx, m_rolls[i], m_dimensions[i]) * m_strides[i];
       }
-      inputIndex += Wrap(index + m_rolls[0], m_dimensions[0]);
+      rolledIndex += roll(index, m_rolls[0], m_dimensions[0]);
     } else {
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < NumDims - 1; ++i) {
         Index idx = index / m_fastStrides[i];
         index -= idx * m_strides[i];
-        inputIndex += Wrap(idx + m_rolls[i], m_dimensions[i]) * m_strides[i];
+        rolledIndex += roll(idx, m_rolls[i], m_dimensions[i]) * m_strides[i];
       }
-      inputIndex += Wrap(index + m_rolls[NumDims - 1], m_dimensions[NumDims - 1]);
+      rolledIndex += roll(index, m_rolls[NumDims - 1], m_dimensions[NumDims - 1]);
     }
-    return inputIndex;
+    return rolledIndex;
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
@@ -182,9 +189,6 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
-
-    // TODO(ndjaitly): write a better packing routine that uses
-    // local structure.
     EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
@@ -201,53 +205,55 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    static const bool isColMajor = static_cast<int>(Layout) == static_cast<int>(ColMajor);
-    static const Index inner_dim_idx = isColMajor ? 0 : NumDims - 1;
+    static const bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
-    // Offset in the output block.
-    Index block_offset = 0;
-
-    // Offset in the input Tensor.
-    Index input_offset = rollIndex(desc.offset());
+    // Compute spatial coordinates for the first block element.
+    array<Index, NumDims> coords;
+    extract_coordinates(desc.offset(), coords);
+    array<Index, NumDims> initial_coords = coords;
+    Index offset = 0;  // Offset in the output block buffer.
 
     // Initialize output block iterator state. Dimension in this array are
     // always in inner_most -> outer_most order (col major layout).
     array<BlockIteratorState, NumDims> it;
     for (int i = 0; i < NumDims; ++i) {
-      const int dim = isColMajor ? i : NumDims - 1 - i;
+      const int dim = is_col_major ? i : NumDims - 1 - i;
       it[i].size = desc.dimension(dim);
+      it[i].stride = i == 0 ? 1 : (it[i - 1].size * it[i - 1].stride);
+      it[i].span = it[i].stride * (it[i].size - 1);
       it[i].count = 0;
-      it[i].roll = m_rolls[dim];
-
-      it[i].block_stride = i == 0 ? 1 : (it[i - 1].size * it[i - 1].block_stride);
-      it[i].block_span = it[i].block_stride * (it[i].size - 1);
-
-      it[i].input_stride = m_strides[dim];
-      it[i].input_span = it[i].input_stride * (it[i].size - 1);
     }
-    const Index inner_dim_size = it[inner_dim_idx].size;
+    eigen_assert(it[0].stride == 1);
 
+    // Prepare storage for the materialized generator result.
     const typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
     CoeffReturnType* block_buffer = block_storage.data();
 
-    while (it[NumDims - 1].count < it[NumDims - 1].size) {
-      Index dst = block_offset;
-      Index src = input_offset;
-      for (Index i = 0; i < inner_dim_size; ++i) {
-        block_buffer[dst] = m_impl.coeff(src);
-        ++dst;
-        ++src;
-      }
+    static const int packet_size = PacketType<CoeffReturnType, Device>::size;
+    static const int inner_dim = is_col_major ? 0 : NumDims - 1;
+    const Index inner_dim_size = it[0].size;
+    const Index inner_dim_vectorized = inner_dim_size - packet_size;
 
-      for (Index i = inner_dim_idx + 1; i < NumDims; ++i) {
+    while (it[NumDims - 1].count < it[NumDims - 1].size) {
+      Index i = 0;
+      for (; i < inner_dim_size; ++i) {
+        *(block_buffer + offset + i) = m_impl(rollCoords(coords));
+        coords[inner_dim]++;
+      }
+      coords[inner_dim] = initial_coords[inner_dim];
+      
+      if (NumDims == 1) break; // For the 1d tensor we need to generate only one inner-most dimension.
+
+      // Update offset.
+      for (i = 1; i < NumDims; ++i) {
         if (++it[i].count < it[i].size) {
-          block_offset += it[i].block_stride;
-          input_offset += it[i].input_stride;
+          offset += it[i].stride;
+          coords[is_col_major ? i : NumDims - 1 - i]++;
           break;
         }
         if (i != NumDims - 1) it[i].count = 0;
-        block_offset -= it[i].block_span;
-        input_offset -= it[i].input_span;
+        coords[is_col_major ? i : NumDims - 1 - i] = initial_coords[is_col_major ? i : NumDims - 1 - i];
+        offset -= it[i].span;
       }
     }
 
@@ -302,9 +308,9 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = false,
-    CoordAccess = false,  // to be implemented
+    BlockAccess = NumDims > 0,
+    PreferBlockAccess = true,
+    CoordAccess = false,
     RawAccess = false
   };
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
