@@ -128,7 +128,7 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -269,7 +269,7 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
     return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost, false /* vectorized */, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return NULL; }
+  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return nullptr; }
 
  protected:
   Dimensions m_dimensions;
@@ -333,8 +333,6 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
-
-    // This code is pilfered from TensorMorphing.h
     EIGEN_ALIGN_MAX CoeffReturnType values[PacketSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     EIGEN_UNROLL_LOOP
