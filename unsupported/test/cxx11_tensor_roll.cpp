@@ -22,8 +22,8 @@ static void test_simple_roll() {
   array<Index, 4> dim_roll;
   dim_roll[0] = 0;
   dim_roll[1] = 1;
-  dim_roll[2] = 2;
-  dim_roll[3] = 3;
+  dim_roll[2] = 4;
+  dim_roll[3] = 8;
 
   Tensor<float, 4, DataLayout> rolled_tensor;
   rolled_tensor = tensor.roll(dim_roll);
@@ -37,7 +37,7 @@ static void test_simple_roll() {
     for (int j = 0; j < 3; ++j) {
       for (int k = 0; k < 5; ++k) {
         for (int l = 0; l < 7; ++l) {
-          VERIFY_IS_EQUAL(tensor(i, (j + 1) % 3, (k + 2) % 5, (l + 3) % 7), rolled_tensor(i, j, k, l));
+          VERIFY_IS_EQUAL(tensor(i, (j + 1) % 3, (k + 4) % 5, (l + 8) % 7), rolled_tensor(i, j, k, l));
         }
       }
     }
