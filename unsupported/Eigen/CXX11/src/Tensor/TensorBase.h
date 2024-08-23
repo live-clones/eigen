@@ -1182,7 +1182,6 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
       return TensorRollOp<const Rolls, Derived>(derived(), roll);
     }
 
-
     template <typename Shuffle> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorShufflingOp<const Shuffle, const Derived>
     shuffle(const Shuffle& shfl) const {
