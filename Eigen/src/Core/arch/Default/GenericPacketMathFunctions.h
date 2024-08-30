@@ -1222,9 +1222,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Pa
   const Packet x_gt_half = pcmp_le(half, pabs(x));
   const Packet x_eq_one = pcmp_eq(one, pabs(x));
   const Packet x_gt_one = pcmp_lt(one, pabs(x));
-  const Packet nan = pset1<Packet>(std::numeric_limits<float>::quiet_NaN());
   const Packet inf = pset1<Packet>(std::numeric_limits<float>::infinity());
-  return pselect(x_eq_one, por(psignbit(x), inf), pselect(x_gt_one, nan, pselect(x_gt_half, r, p)));
+  return por(x_gt_one, pselect(x_eq_one, por(psignbit(x), inf), pselect(x_gt_half, r, p)));
 }
 
 template <typename Packet>
@@ -1268,9 +1267,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
   const Packet x_gt_half = pcmp_le(half, pabs(x));
   const Packet x_eq_one = pcmp_eq(one, pabs(x));
   const Packet x_gt_one = pcmp_lt(one, pabs(x));
-  const Packet nan = pset1<Packet>(std::numeric_limits<double>::quiet_NaN());
   const Packet inf = pset1<Packet>(std::numeric_limits<double>::infinity());
-  return pselect(x_eq_one, por(psignbit(x), inf), pselect(x_gt_one, nan, pselect(x_gt_half, y_large, y_small)));
+  return por(x_gt_one, pselect(x_eq_one, por(psignbit(x), inf), pselect(x_gt_half, y_large, y_small)));
 }
 
 
