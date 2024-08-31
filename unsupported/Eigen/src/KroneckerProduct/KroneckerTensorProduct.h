@@ -28,13 +28,14 @@ template <typename Derived>
 class KroneckerProductBase : public ReturnByValue<Derived> {
  private:
   typedef typename internal::traits<Derived> Traits;
-  typedef typename Traits::Scalar Scalar;
 
  protected:
   typedef typename Traits::Lhs Lhs;
   typedef typename Traits::Rhs Rhs;
 
  public:
+  typedef typename Traits::Scalar Scalar;
+  
   /*! \brief Constructor. */
   KroneckerProductBase(const Lhs& A, const Rhs& B) : m_A(A), m_B(B) {}
 
