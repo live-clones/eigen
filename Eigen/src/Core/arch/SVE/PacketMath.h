@@ -662,7 +662,7 @@ EIGEN_STRONG_INLINE PacketXf pldexp<PacketXf>(const PacketXf& a, const PacketXf&
 
 template <>
 EIGEN_STRONG_INLINE PacketXf psqrt<PacketXf>(const PacketXf& a) {
-  return svrintm_f32_x(svptrue_b32(), a);
+  return svsqrt_f32_x(svptrue_b32(), a);
 }
 
 }  // namespace internal
