@@ -131,6 +131,8 @@ struct inner_product_impl<Evaluator, true> {
   static constexpr int PacketSize = unpacket_traits<Packet>::size;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval) {
     const UnsignedIndex size = static_cast<UnsignedIndex>(eval.size());
+    if (size < PacketSize) return inner_product_impl<Evaluator, false>::run(eval);
+
     const UnsignedIndex packetEnd = numext::round_down(size, PacketSize);
     const UnsignedIndex quadEnd = numext::round_down(size, 4 * PacketSize);
     const UnsignedIndex numPackets = size / PacketSize;
@@ -138,9 +140,7 @@ struct inner_product_impl<Evaluator, true> {
 
     Packet presult0, presult1, presult2, presult3;
 
-    Scalar result = Scalar(0);
-
-    if (numPackets >= 1) presult0 = eval.template packet<Packet>(0 * PacketSize);
+    presult0 = eval.template packet<Packet>(0 * PacketSize);
     if (numPackets >= 2) presult1 = eval.template packet<Packet>(1 * PacketSize);
     if (numPackets >= 3) presult2 = eval.template packet<Packet>(2 * PacketSize);
     if (numPackets >= 4) {
@@ -162,8 +162,8 @@ struct inner_product_impl<Evaluator, true> {
 
     if (numPackets >= 3) presult1 = padd(presult1, presult2);
     if (numPackets >= 2) presult0 = padd(presult0, presult1);
-    if (numPackets >= 1) result = predux(presult0);
 
+    Scalar result = predux(presult0);
     for (UnsignedIndex k = packetEnd; k < size; k++) {
       result = eval.coeff(result, k);
     }
