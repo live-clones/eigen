@@ -1,11 +1,15 @@
 # see URLs below to create QPM login, download QPM deb package, and sign agreements needed to build this image
-# build image with your Qualcomm credentials via "docker build --build-arg QPM_USER=foo --build-arg QPM_PASS=bar -t eigen-hex ."
-# run eigen test suite with hexagon simulator via "docker run --rm -it eigen-hex"
+# build image with your Qualcomm credentials via "docker build --build-arg QPM_USER=foo --build-arg QPM_PASS=bar -t eigen-hex -f hexagon.dockerfile ."
+# run eigen test suite with hexagon simulator via "docker run --rm -it eigen-hex -- -j 32"
 
 FROM ubuntu:22.04
 # create a qualcomm account at https://myaccount.qualcomm.com/signup
 ARG QPM_USER
 ARG QPM_PASS
+
+# override default eigen url/branch for testing MR
+ARG REPO_URL=https://gitlab.com/libeigen/eigen.git
+ARG REPO_BRANCH=master
 
 # install qpm dependencies
 RUN apt-get update && \
@@ -43,12 +47,12 @@ RUN apt-get update && \
 
 # clone repo, compile tests
 SHELL ["/bin/bash", "-c"]
-RUN git clone --filter=blob:none https://gitlab.com/libeigen/eigen.git /eigen && \
+RUN git clone --filter=blob:none -b $REPO_BRANCH $REPO_URL /eigen && \
     mkdir /build  && \
     cd /build &&\
-    source /local/mnt/workspace/Qualcomm/Hexagon_SDK/5.5.0.1/setup_sdk_env.source && \
+    source /local/mnt/workspace/Qualcomm/Hexagon_SDK/5.*/setup_sdk_env.source && \
     cmake ../eigen -DCMAKE_TOOLCHAIN_FILE=../eigen/cmake/HexagonToolchain.cmake -DBUILD_TESTING=ON && \
     make -j 40 buildtests
 
 WORKDIR /build
-CMD ctest -j 40
+ENTRYPOINT ["ctest"]
