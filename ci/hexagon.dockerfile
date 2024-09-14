@@ -21,7 +21,7 @@ RUN apt-get update && \
 ADD qpm3.deb /
 RUN dpkg -i qpm3.deb
 
-# login to qpm and install hexagon sdk 5.x
+# login to qpm and install hexagon sdk 6.x
 # sign agreements at https://www.qualcomm.com/agreements
 # hexagon installs to /local/mnt/workspace/Qualcomm/...
 RUN mkdir -p /local/mnt/workspace
@@ -31,8 +31,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends python-is-python3 unzip && \
     rm -rf /var/lib/apt/lists/*
 RUN qpm-cli --login $QPM_USER $QPM_PASS && \
-    qpm-cli --license-activate hexagonsdk5.x && \
-    echo y | qpm-cli --install hexagonsdk5.x && \
+    qpm-cli --license-activate hexagonsdk6.x && \
+    echo y | qpm-cli --install hexagonsdk6.x && \
     rm -rf /tmp/*
 
 # install hexagon-sim dependencies
@@ -50,7 +50,7 @@ SHELL ["/bin/bash", "-c"]
 RUN git clone --filter=blob:none -b $REPO_BRANCH $REPO_URL /eigen && \
     mkdir /build  && \
     cd /build &&\
-    source /local/mnt/workspace/Qualcomm/Hexagon_SDK/5.*/setup_sdk_env.source && \
+    source /local/mnt/workspace/Qualcomm/Hexagon_SDK/6.*/setup_sdk_env.source && \
     cmake ../eigen -DCMAKE_TOOLCHAIN_FILE=../eigen/cmake/HexagonToolchain.cmake -DBUILD_TESTING=ON && \
     make -j 40 buildtests
 
