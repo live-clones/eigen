@@ -279,7 +279,6 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       res[i] += alpha * c0;
     }
 #endif  // EIGEN_VECTORIZE_PARTIAL
-
   }
 }
 

@@ -370,8 +370,7 @@ EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet32f pload_partial<Packet32f>(const float* from, const Index n, const Index offset) {
-  return Packet32f::Create(
-      vload_variable<unpacket_traits<Packet32f>::alignment>(from, n * sizeof(float), offset));
+  return Packet32f::Create(vload_variable<unpacket_traits<Packet32f>::alignment>(from, n * sizeof(float), offset));
 }
 
 template <>
@@ -407,7 +406,7 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore_partial<float>(float* to, const Packet32f& from, const Index n, const Index offset) {
-   if(offset!=0){
+  if (offset != 0) {
     EIGEN_USING_STD(memcpy);
     constexpr Index PacketSize = unpacket_traits<Packet32f>::size;
     alignas(alignof(Packet32f)) float elements[PacketSize];
@@ -415,15 +414,14 @@ EIGEN_STRONG_INLINE void pstore_partial<float>(float* to, const Packet32f& from,
     for (Index i = 0; i < numext::mini(n, PacketSize - offset); i++) {
       to[i] = elements[i + offset];
     }
-  }
-  else{
+  } else {
     vstu_variable<unpacket_traits<Packet32f>::alignment, float>(to, sizeof(float) * n, from.Get());
   }
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu_partial<float>(float* to, const Packet32f& from, const Index n, const Index offset) {
-  if(offset!=0){
+  if (offset != 0) {
     EIGEN_USING_STD(memcpy);
     constexpr Index PacketSize = unpacket_traits<Packet32f>::size;
     alignas(alignof(Packet32f)) float elements[PacketSize];
@@ -431,8 +429,7 @@ EIGEN_STRONG_INLINE void pstoreu_partial<float>(float* to, const Packet32f& from
     for (Index i = 0; i < numext::mini(n, PacketSize - offset); i++) {
       to[i] = elements[i + offset];
     }
-  }
-  else{
+  } else {
     vstu_variable<0, float>(to, sizeof(float) * n, from.Get());
   }
 }

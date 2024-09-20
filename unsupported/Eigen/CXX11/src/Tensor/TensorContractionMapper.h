@@ -314,7 +314,7 @@ class BaseTensorContractionMapper
   }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartial(Index i, Index j, Index n, Index offset=0) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartial(Index i, Index j, Index n, Index offset = 0) const {
     const Index requested_packet_size = internal::unpacket_traits<PacketT>::size;
     EIGEN_ALIGN_MAX Scalar data[requested_packet_size];
 
@@ -339,7 +339,7 @@ class BaseTensorContractionMapper
   }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartialPacket(Index i, Index j, Index n, Index offset=0) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartialPacket(Index i, Index j, Index n, Index offset = 0) const {
     return this->loadPartial<PacketT, AlignmentType>(i, j, n, offset);
   }
 };
@@ -368,7 +368,7 @@ class BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, con
   }
 
   template <typename PacketT, int>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartialPacket(Index i, Index j, Index n, Index offset=0) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartialPacket(Index i, Index j, Index n, Index offset = 0) const {
     EIGEN_ALIGN_MAX Scalar data[1];
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload_partial<PacketT>(data, n, offset);
@@ -382,7 +382,7 @@ class BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, con
   }
 
   template <typename PacketT, int>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartial(Index i, Index j, Index n, Index offset=0) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartial(Index i, Index j, Index n, Index offset = 0) const {
     EIGEN_ALIGN_MAX Scalar data[1];
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload_partial<PacketT>(data, n, offset);
@@ -500,7 +500,7 @@ class TensorContractionSubMapper {
   }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPartial(Index i, Index n, Index offset=0) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPartial(Index i, Index n, Index offset = 0) const {
     EIGEN_STATIC_ASSERT((internal::is_same<PacketT, PacketT>::value), YOU_MADE_A_PROGRAMMING_MISTAKE);
     const int ActualAlignment = (AlignmentType == Aligned) && (Alignment == Aligned) ? Aligned : Unaligned;
     if (UseDirectOffsets) {

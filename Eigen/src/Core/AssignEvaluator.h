@@ -488,7 +488,6 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
 #else
     unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
 #endif  // EIGEN_VECTORIZE_PARTIAL
-
   }
 };
 
@@ -505,11 +504,11 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrollin
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, AlignedSize>::run(kernel);
-//#if defined(EIGEN_VECTORIZE_PARTIAL)
-//    copy_using_evaluator_linearvec_CompleteUnrolling_partial<Kernel, AlignedSize, Size>::run(kernel);
-//#else
+    // #if defined(EIGEN_VECTORIZE_PARTIAL)
+    //     copy_using_evaluator_linearvec_CompleteUnrolling_partial<Kernel, AlignedSize, Size>::run(kernel);
+    // #else
     copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, AlignedSize, Size>::run(kernel);
-//#endif  // EIGEN_VECTORIZE_PARTIAL
+    // #endif  // EIGEN_VECTORIZE_PARTIAL
   }
 };
 
@@ -581,13 +580,11 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     typedef typename Kernel::Scalar Scalar;
     typedef typename Kernel::PacketType PacketType;
-    enum {
-      packetSize = unpacket_traits<PacketType>::size,
-      requestedAlignment = int(Kernel::AssignmentTraits::InnerRequiredAlignment),
-      alignable =
-          packet_traits<Scalar>::AlignedOnScalar || int(Kernel::AssignmentTraits::DstAlignment) >= sizeof(Scalar),
-      dstAlignment = alignable ? int(requestedAlignment) : int(Kernel::AssignmentTraits::DstAlignment)
-    };
+    enum {packetSize = unpacket_traits<PacketType>::size,
+          requestedAlignment = int(Kernel::AssignmentTraits::InnerRequiredAlignment),
+          alignable =
+              packet_traits<Scalar>::AlignedOnScalar || int(Kernel::AssignmentTraits::DstAlignment) >= sizeof(Scalar),
+          dstAlignment = alignable ? int(requestedAlignment) : int(Kernel::AssignmentTraits::DstAlignment)};
 
     const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index outerStride = kernel.outerStride();

@@ -1845,16 +1845,16 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
-    //using impl = reverse_packet_cond<PacketType, ReversePacket>;
-    //static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    //static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
-    //static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+    // using impl = reverse_packet_cond<PacketType, ReversePacket>;
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    // static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    // static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
 
-    //Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
-    //Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
-    //Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
+    // Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    // Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    // Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
 
-    //return impl::run(m_argImpl.template partialPacket<LoadMode, PacketType>(actualRow, actualCol, n, actualOffset));
+    // return impl::run(m_argImpl.template partialPacket<LoadMode, PacketType>(actualRow, actualCol, n, actualOffset));
 
     Index OffsetRow = ReverseRow && IsColMajor ? n : 1;
     Index OffsetCol = ReverseCol && IsRowMajor ? n : 1;
@@ -1867,9 +1867,9 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
-    //static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    //Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
-    //Index actualOffset = PacketSize - n - offset;
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    // Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    // Index actualOffset = PacketSize - n - offset;
 
     return preverse_partial<Scalar>(
         m_argImpl.template partialPacket<LoadMode, PacketType>(m_rows.value() * m_cols.value() - index - n, n, offset),
@@ -1878,16 +1878,16 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
-    //using impl = reverse_packet_cond<PacketType, ReversePacket>;
-    //static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    //static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
-    //static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+    // using impl = reverse_packet_cond<PacketType, ReversePacket>;
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    // static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    // static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
 
-    //Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
-    //Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
-    //Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
+    // Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    // Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    // Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
 
-    //m_argImpl.template writePartialPacket<LoadMode>(actualRow, actualCol, impl::run(x), n, actualOffset);
+    // m_argImpl.template writePartialPacket<LoadMode>(actualRow, actualCol, impl::run(x), n, actualOffset);
     Index OffsetRow = ReverseRow && IsColMajor ? n : 1;
     Index OffsetCol = ReverseCol && IsRowMajor ? n : 1;
     typedef internal::reverse_packetpartial_cond<Scalar, PacketType, ReversePacket> reverse_packet;
@@ -1898,10 +1898,10 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
-    //static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
 
-    //Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
-    //Index actualOffset = PacketSize - n - offset;
+    // Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    // Index actualOffset = PacketSize - n - offset;
 
     m_argImpl.template writePartialPacket<LoadMode>(m_rows.value() * m_cols.value() - index - n,
                                                     preverse_partial<Scalar>(x, n), n, offset);

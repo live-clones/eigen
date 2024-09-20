@@ -65,7 +65,7 @@ class BlasVectorMapper {
   }
 
   template <typename Packet, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet loadPartial(Index i, Index n, Index offset=0) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet loadPartial(Index i, Index n, Index offset = 0) const {
     return ploadt_partial<Packet, AlignmentType>(m_data + i, n, offset);
   }
 

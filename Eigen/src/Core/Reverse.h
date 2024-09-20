@@ -58,7 +58,6 @@ struct reverse_packetpartial_cond<Scalar, PacketType, false> {
   }
 };
 
-
 }  // end namespace internal
 
 /** \class Reverse
