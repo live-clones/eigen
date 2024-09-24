@@ -325,8 +325,12 @@ MatrixType EigenSolver<MatrixType>::pseudoEigenvalueMatrix() const {
     if (internal::isMuchSmallerThan(numext::imag(m_eivalues.coeff(i)), numext::real(m_eivalues.coeff(i)), precision))
       matD.coeffRef(i, i) = numext::real(m_eivalues.coeff(i));
     else {
-      matD.template block<2, 2>(i, i) << numext::real(m_eivalues.coeff(i)), numext::imag(m_eivalues.coeff(i)),
-          -numext::imag(m_eivalues.coeff(i)), numext::real(m_eivalues.coeff(i));
+      //matD.template block<2, 2>(i, i) << numext::real(m_eivalues.coeff(i)), numext::imag(m_eivalues.coeff(i)),
+      //    -numext::imag(m_eivalues.coeff(i)), numext::real(m_eivalues.coeff(i));
+      matD.coeffRef(i, i) = numext::real(m_eivalues.coeff(i));
+      matD.coeffRef(i, i + 1) = numext::imag(m_eivalues.coeff(i));
+      matD.coeffRef(i + 1, i) = -numext::imag(m_eivalues.coeff(i));
+      matD.coeffRef(i + 1, i + 1) = numext::real(m_eivalues.coeff(i));
       ++i;
     }
   }
