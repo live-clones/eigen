@@ -304,6 +304,20 @@ friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Const
     const T &s, const StorageBaseType &a);
 #endif
 
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, modulus)
+#else
+/**
+ * \brief Component-wise modulus of the scalar \a s by array elements of \a a.
+ *
+ * \tparam Scalar is the scalar type of \a x. It must be compatible with the scalar type of the given array expression
+ * (\c Derived::Scalar).
+ */
+template <typename T>
+friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Constant<T>, Derived> operator/(
+    const T &s, const StorageBaseType &a);
+#endif
+
 // NOTE disabled until we agree on argument order
 #if 0
 /** \cpp11 \returns an expression of the coefficient-wise polygamma function.
