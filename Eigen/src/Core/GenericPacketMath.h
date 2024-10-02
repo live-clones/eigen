@@ -369,6 +369,14 @@ EIGEN_DEVICE_FUNC inline Packet pdiv(const Packet& a, const Packet& b) {
   return a / b;
 }
 
+/** \internal \returns a % b (coeff-wise) */
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pmod(const Packet& a, const Packet& b) {
+  EIGEN_STATIC_ASSERT((std::is_integral<typename unpacket_traits<Packet>::type>::value),
+                      MOD IS DEFINED ONLY FOR INTEGRAL TYPES)
+  return a.m_val % b.m_val;
+}
+
 // In the generic case, memset to all one bits.
 template <typename Packet, typename EnableIf = void>
 struct ptrue_impl {

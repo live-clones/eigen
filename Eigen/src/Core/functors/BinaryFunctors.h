@@ -453,6 +453,41 @@ struct functor_traits<scalar_quotient_op<LhsScalar, RhsScalar>> {
 };
 
 /** \internal
+ * \brief Template functor to compute the modulus of two scalars
+ *
+ * \sa class CwiseBinaryOp, Cwise::operator%()
+ */
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
+  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_modulus_op>::ReturnType result_type;
+
+  static constexpr bool Enable = std::is_same<LhsScalar, RhsScalar>::value && NumTraits<LhsScalar>::IsInteger;
+  EIGEN_STATIC_ASSERT(Enable, "LhsScalar and RhsScalar must be the same integral type")
+
+#ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
+  scalar_modulus_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+#endif
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type
+  operator()(const LhsScalar& a, const RhsScalar& b) const {
+      maybe_raise_div_by_zero<RhsScalar>::run(b);
+      return a % b;
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+    maybe_raise_div_by_zero<Packet>::run(b);
+    return internal::pmod(a,b);
+  }
+};
+template <typename LhsScalar, typename RhsScalar>
+struct functor_traits<scalar_modulus_op<LhsScalar, RhsScalar>> {
+  typedef typename scalar_modulus_op<LhsScalar, RhsScalar>::result_type result_type;
+  enum {
+    PacketAccess = is_same<LhsScalar, RhsScalar>::value,
+    Cost = scalar_div_cost<result_type, PacketAccess>::value
+  };
+};
+
+/** \internal
  * \brief Template functor to compute the and of two scalars as if they were booleans
  *
  * \sa class CwiseBinaryOp, ArrayBase::operator&&
