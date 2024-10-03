@@ -474,7 +474,7 @@ struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
     maybe_raise_div_by_zero<Packet>::run(b);
-    return internal::pmod(a,b);
+    return internal::pmod(a, b);
   }
 };
 template <typename LhsScalar, typename RhsScalar>

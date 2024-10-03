@@ -314,7 +314,7 @@ EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, modulus)
  * (\c Derived::Scalar).
  */
 template <typename T>
-friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Constant<T>, Derived> operator/(
+friend inline const CwiseBinaryOp<internal::scalar_modulus_op<T, Scalar>, Constant<T>, Derived> operator%(
     const T &s, const StorageBaseType &a);
 #endif
 

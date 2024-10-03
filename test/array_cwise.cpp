@@ -474,7 +474,7 @@ void signbit_tests() {
 
 template <typename Scalar>
 void array_modulus_test(std::vector<Scalar> left_args, std::vector<Scalar> ret_vals, Scalar d) {
-  ArrayXX<Scalar> m(1,3), n(1,3);
+  ArrayXX<Scalar> m(1, 3), n(1, 3);
   m << left_args[0], left_args[1], left_args[2];
   n << ret_vals[0], ret_vals[1], ret_vals[2];
   VERIFY_IS_CWISE_EQUAL(n, m % d);
