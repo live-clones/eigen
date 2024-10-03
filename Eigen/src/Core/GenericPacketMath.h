@@ -374,7 +374,7 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmod(const Packet& a, const Packet& b) {
   EIGEN_STATIC_ASSERT((std::is_integral<typename unpacket_traits<Packet>::type>::value),
                       MOD IS DEFINED ONLY FOR INTEGRAL TYPES)
-  return a.m_val % b.m_val;
+  return psub(a, pmul(b, pdiv(a, b)));
 }
 
 // In the generic case, memset to all one bits.

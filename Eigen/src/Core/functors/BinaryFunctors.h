@@ -469,8 +469,7 @@ struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
 #endif
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
-      maybe_raise_div_by_zero<RhsScalar>::run(b);
-      return a % b;
+    return a % b;
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
@@ -482,7 +481,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct functor_traits<scalar_modulus_op<LhsScalar, RhsScalar>> {
   typedef typename scalar_modulus_op<LhsScalar, RhsScalar>::result_type result_type;
   enum {
-    PacketAccess = is_same<LhsScalar, RhsScalar>::value,
+    PacketAccess = is_same<LhsScalar, RhsScalar>::value && packet_traits<LhsScalar>::HasDiv,
     Cost = scalar_div_cost<result_type, PacketAccess>::value
   };
 };
