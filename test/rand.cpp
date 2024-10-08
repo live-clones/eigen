@@ -10,6 +10,17 @@
 #include <cstdlib>
 #include "main.h"
 #include "SafeScalar.h"
+#include "TrickyInteger.h"
+
+// helper class to avoid extending std:: namespace
+template <typename T>
+struct get_range_type : internal::make_unsigned<T> {};
+template <typename T>
+struct get_range_type<SafeScalar<T>> : internal::make_unsigned<T> {};
+template <int Radix, int Digits, bool Signed>
+struct get_range_type<TrickyInteger<Radix, Digits, Signed>> {
+  using type = uint64_t;
+};
 
 // SafeScalar<T> is used to simulate custom Scalar types, which use a more generalized approach to generate random
 // numbers
@@ -82,12 +93,6 @@ class HistogramHelper {
   int num_bins_;
   double bin_width_;
 };
-
-// helper class to avoid extending std:: namespace
-template <typename T>
-struct get_range_type : internal::make_unsigned<T> {};
-template <typename T>
-struct get_range_type<SafeScalar<T>> : internal::make_unsigned<T> {};
 
 template <typename Scalar>
 class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteger>> {
@@ -185,6 +190,13 @@ void check_histogram<bool>(int) {
   VERIFY(numext::abs(p - 0.5) < 0.05);
 }
 
+// simulated decimal integer with a maximum value of 99999
+using UnsignedDecimalInteger = TrickyInteger<10, 5, false>;
+using SignedDecimalInteger = TrickyInteger<10, 5, true>;
+// a binary integer that uses the custom random path
+using UnsignedBinaryInteger = TrickyInteger<2, internal::eigen_random_device::Entropy + 1, false>;
+using SignedBinaryInteger = TrickyInteger<2, internal::eigen_random_device::Entropy + 1, true>;
+
 EIGEN_DECLARE_TEST(rand) {
   int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
   // the minimum guarantees that these conversions are safe
@@ -237,6 +249,8 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_7(check_all_in_range<int8_t>(126 - int8t_offset, 126));
   CALL_SUBTEST_7(check_all_in_range<int8_t>());
   CALL_SUBTEST_7(check_all_in_range<uint8_t>());
+  CALL_SUBTEST_7(check_all_in_range<UnsignedBinaryInteger>());
+  CALL_SUBTEST_7(check_all_in_range<SignedBinaryInteger>());
 
   CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11));
   CALL_SUBTEST_8(check_all_in_range<int16_t>(11, 11 + int16t_offset));
@@ -245,6 +259,12 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_8(check_all_in_range<int16_t>(-24345, -24345 + int16t_offset));
   CALL_SUBTEST_8(check_all_in_range<int16_t>());
   CALL_SUBTEST_8(check_all_in_range<uint16_t>());
+  CALL_SUBTEST_8(check_all_in_range<UnsignedDecimalInteger>(NumTraits<UnsignedDecimalInteger>::highest() / 5,
+                                                            NumTraits<UnsignedDecimalInteger>::highest() / 2));
+  CALL_SUBTEST_8(check_all_in_range<SignedDecimalInteger>(NumTraits<SignedDecimalInteger>::lowest() / 4,
+                                                          NumTraits<SignedDecimalInteger>::highest() / 3));
+  CALL_SUBTEST_8(check_all_in_range<UnsignedDecimalInteger>());
+  CALL_SUBTEST_8(check_all_in_range<SignedDecimalInteger>());
 
   CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11));
   CALL_SUBTEST_9(check_all_in_range<int32_t>(11, 11 + g_repeat));

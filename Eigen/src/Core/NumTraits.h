@@ -92,6 +92,17 @@ struct default_max_digits10_impl<T, false, true>  // Integer
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static int run() { return 0; }
 };
 
+template <typename T, bool use_numeric_limits = std::numeric_limits<T>::is_specialized>
+struct default_radix_impl {
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static int run() { return std::numeric_limits<T>::radix; }
+};
+
+// unless otherwise specified, assume radix is 2
+template <typename T>
+struct default_radix_impl<T, false> {
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static int run() { return 2; }
+};
+
 }  // end namespace internal
 
 namespace numext {
@@ -184,6 +195,8 @@ struct GenericNumTraits {
   typedef std::conditional_t<IsInteger, std::conditional_t<sizeof(T) <= 2, float, double>, T> NonInteger;
   typedef T Nested;
   typedef T Literal;
+
+  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static inline int radix() { return internal::default_radix_impl<T>::run(); }
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR static inline Real epsilon() { return numext::numeric_limits<T>::epsilon(); }
 
