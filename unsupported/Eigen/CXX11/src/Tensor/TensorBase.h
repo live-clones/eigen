@@ -1007,6 +1007,18 @@ class TensorBase<Derived, ReadOnlyAccessors>
     #include EIGEN_READONLY_TENSORBASE_PLUGIN
     #endif
 
+    #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    // Einstein notation
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if_t<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>>
+    inline auto operator()(IndexTypes... indices){
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if_t<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>>
+    inline auto operator()(IndexTypes... indices)const{
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
+    #endif
+
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const Derived& derived() const { return *static_cast<const Derived*>(this); }
 
@@ -1207,6 +1219,18 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 
     #ifdef EIGEN_TENSORBASE_PLUGIN
     #include EIGEN_TENSORBASE_PLUGIN
+    #endif
+
+    #if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    // Einstein notation
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>::type>
+    inline auto operator()(IndexTypes... indices){
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
+    template<typename... IndexTypes, typename EnableIf=typename std::enable_if<internal::reduce_any<std::is_base_of<TensorIndexBase, IndexTypes>::value...>::value>::type>
+    inline auto operator()(IndexTypes... indices) const {
+      return internal::make_indexed_tensor(derived(), internal::sorted_indices_t<>{}, indices...);
+    }
     #endif
 
  protected:

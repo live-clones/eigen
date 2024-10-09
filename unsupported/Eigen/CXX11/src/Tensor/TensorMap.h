@@ -103,6 +103,11 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StoragePointerType data() { return m_data; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StoragePointerType data() const { return m_data; }
 
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+  // Einstein notation
+  using TensorBase<TensorMap<PlainObjectType, Options_, MakePointer_> >::operator();
+#endif
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(const array<Index, NumIndices>& indices) const {
     //      eigen_assert(checkIndexRange(indices));
     if (PlainObjectType::Options & RowMajor) {

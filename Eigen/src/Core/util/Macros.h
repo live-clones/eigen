@@ -750,6 +750,23 @@
 
 #define EIGEN_CONSTEXPR constexpr
 
+#ifndef EIGEN_HAS_CXX14_RETURN_TYPE_DEDUCTION
+#if defined(__cpp_return_type_deduction)
+#define EIGEN_HAS_CXX14_RETURN_TYPE_DEDUCTION 1
+#else
+#define EIGEN_HAS_CXX14_RETURN_TYPE_DEDUCTION 0
+#endif
+#endif
+
+#ifndef EIGEN_HAS_CXX14_LIB_INTEGER_SEQUENCE
+#include <utility>
+#if defined(__cpp_lib_integer_sequence)
+#define EIGEN_HAS_CXX14_LIB_INTEGER_SEQUENCE 1
+#else
+#define EIGEN_HAS_CXX14_LIB_INTEGER_SEQUENCE 0
+#endif
+#endif
+
 // NOTE: the required Apple's clang version is very conservative
 //       and it could be that XCode 9 works just fine.
 // NOTE: the MSVC version is based on https://en.cppreference.com/w/cpp/compiler_support

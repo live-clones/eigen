@@ -216,6 +216,11 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MS
   ei_add_test(cxx11_tensor_uint128)
 endif()
 
+if(True)
+  set(CMAKE_CXX_STANDARD 14)
+  ei_add_test(cxx14_indexed_tensor)
+endif()
+
 find_package(CUDA 9.0)
 if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
