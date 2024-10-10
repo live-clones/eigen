@@ -934,6 +934,12 @@
 #endif
 
 #if EIGEN_COMP_GNUC
+#define EIGEN_COLD __attribute__((cold))
+#else
+#define EIGEN_COLD
+#endif
+
+#if EIGEN_COMP_GNUC
 #define EIGEN_PRAGMA(tokens) _Pragma(#tokens)
 #define EIGEN_DIAGNOSTICS(tokens) EIGEN_PRAGMA(GCC diagnostic tokens)
 #define EIGEN_DIAGNOSTICS_OFF(msc, gcc) EIGEN_DIAGNOSTICS(gcc)
