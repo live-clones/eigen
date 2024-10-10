@@ -986,6 +986,20 @@ EIGEN_DEVICE_FUNC inline Packet preverse(const Packet& a) {
   return a;
 }
 
+/** \internal \returns the reversed partial first n elements of \a a*/
+template <typename Scalar, typename Packet>
+EIGEN_DEVICE_FUNC inline Packet preverse_partial(const Packet& a, const Index n) {
+  const Index packet_size = unpacket_traits<Packet>::size;
+  eigen_assert(n <= packet_size && "number of elements will reverse past end of packet");
+  EIGEN_ALIGN_MAX Scalar elements[packet_size];
+  pstore<Scalar>(elements, a);
+  EIGEN_USING_STD(swap);
+  for (Index i = n - 1; i >= n / 2; i--) {
+    swap(elements[i], elements[n - 1 - i]);
+  }
+  return pload<Packet>(elements);
+}
+
 /** \internal \returns \a a with real and imaginary part flipped (for complex type only) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pcplxflip(const Packet& a) {

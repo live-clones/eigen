@@ -84,6 +84,11 @@
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 #endif
 
+#if defined __HVX__ && (__HVX_LENGTH__ == 128)
+// Need to prevent conflict FORBIDDEN_IDENTIFIER B0.
+#include <hexagon_types.h>
+#endif
+
 // To test that all calls from Eigen code to std::min() and std::max() are
 // protected by parenthesis against macro expansion, the min()/max() macros
 // are defined here and any not-parenthesized min/max call will cause a
