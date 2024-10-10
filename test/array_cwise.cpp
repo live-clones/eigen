@@ -471,6 +471,20 @@ void signbit_tests() {
   signbit_test<int64_t>();
 }
 
+template <typename Scalar>
+void array_modulus_test(std::vector<Scalar> left_args, std::vector<Scalar> ret_vals, Scalar d) {
+  ArrayXX<Scalar> m(1, 3), n(1, 3);
+  m << left_args[0], left_args[1], left_args[2];
+  n << ret_vals[0], ret_vals[1], ret_vals[2];
+  VERIFY_IS_CWISE_EQUAL(n, m % d);
+}
+void array_modulus_tests() {
+  array_modulus_test<char>({0, 17, 23}, {0, 1, 3}, 4);
+  array_modulus_test<int>({0, 17, 23}, {0, 1, 3}, 4);
+  array_modulus_test<long>({0, 17, 23}, {0, 1, 3}, 4);
+  array_modulus_test<bool>({false, true, true}, {false, false, false}, true);
+}
+
 template <typename ArrayType>
 void array_generic(const ArrayType& m) {
   typedef typename ArrayType::Scalar Scalar;
@@ -1409,6 +1423,7 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_31((cast_test<9, 1>()));
     CALL_SUBTEST_32((cast_test<17, 1>()));
     CALL_SUBTEST_33((cast_test<Dynamic, 1>()));
+    CALL_SUBTEST_34(array_modulus_tests());
   }
 
   VERIFY((internal::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
