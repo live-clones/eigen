@@ -21,6 +21,18 @@ operator/(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
                        const OtherDerived>(derived(), other.derived());
 }
 
+/** \returns an expression of the coefficient wise modulus of \c *this and \a other
+ *
+ * \sa MatrixBase::cwiseModulus
+ */
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const CwiseBinaryOp<
+    internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived, const OtherDerived>
+operator%(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
+  return CwiseBinaryOp<internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived,
+                       const OtherDerived>(derived(), other.derived());
+}
+
 /** \returns an expression of the coefficient-wise min of \c *this and \a other
  *
  * Example: \include Cwise_min.cpp

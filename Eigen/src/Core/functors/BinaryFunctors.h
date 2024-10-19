@@ -461,7 +461,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_modulus_op>::ReturnType result_type;
 
-  static constexpr bool Enable = std::is_same<LhsScalar, RhsScalar>::value && NumTraits<LhsScalar>::IsInteger;
+  static constexpr bool Enable = std::is_same<LhsScalar, RhsScalar>::value && !std::is_floating_point<LhsScalar>::value;
   EIGEN_STATIC_ASSERT(Enable, "LhsScalar and RhsScalar must be the same integral type")
 
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
