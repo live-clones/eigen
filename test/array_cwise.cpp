@@ -483,7 +483,12 @@ void array_modulus_tests() {
   array_modulus_test<char>({0, 17, 23}, {0, 1, 3}, 4);
   array_modulus_test<int>({0, 17, 23}, {0, 1, 3}, 4);
   array_modulus_test<long>({0, 17, 23}, {0, 1, 3}, 4);
-  array_modulus_test<bool>({false, true, true}, {false, false, false}, true);
+
+  VectorX<uint64_t> a(3), b(3), c(3);
+  a << 0, 17, 23;
+  c << 0, 1, 3;
+  b = a % 4;
+  VERIFY_IS_CWISE_EQUAL(c, b);
 }
 
 template <typename ArrayType>
