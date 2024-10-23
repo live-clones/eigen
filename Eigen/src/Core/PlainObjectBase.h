@@ -473,7 +473,18 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
   // by making all its constructor protected. See bug 1074.
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase() = default;
+
+  /** Move constructor */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(PlainObjectBase&&) = default;
+
+  /**
+   * \brief Moves the value of the expression \a other into \c *this.
+   *
+   * \c *this will hold the storage of \a other after the calling this function and \a other will be a null matrix (not
+   * initialized).
+   *
+   * \internal
+   */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase& operator=(PlainObjectBase&&) = default;
 
   /** Copy constructor */
@@ -718,8 +729,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
   /**
    * \brief Copies the value of the expression \a other into \c *this with automatic resizing.
    *
-   * *this might be resized to match the dimensions of \a other. If *this was a null matrix (not already initialized),
-   * it will be initialized.
+   * \c *this might be resized to match the dimensions of \a other. If \c *this was a null matrix (not already
+   * initialized), it will be initialized.
    *
    * Note that copying a row-vector into a vector (and conversely) is allowed.
    * The resizing, if any, is then done in the appropriate way so that row-vectors
