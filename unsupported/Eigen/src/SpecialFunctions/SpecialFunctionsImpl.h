@@ -389,6 +389,75 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_float(const T& x) {
   return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
 }
 
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
+  const T x_abs = pmin(pabs(x), pset1<T>(27.0));
+  const T one = pset1<T>(1.0);
+  const T x_abs_gt_one_mask = pcmp_lt(one, x_abs);
+
+  // erfc(x) = 1 + x * S(x^2) / T(x^2), |x| <= 1.
+  //
+  // Coefficients for S and T generated with Rminimax command:
+  //  ./ratapprox --function="erfc(x)-1" --dom='[-1,1]' --type=[9,10]
+  //  --num="odd" --numF="[D]" --den="even" --denF="[D]" --log --dispCoeff="dec"
+  constexpr double alpha[] = {-1.9493725660006057018823477644531294572516344487667083740234375e-04,
+                              -1.8272566210022942682217328425053892715368419885635375976562500e-03,
+                              -4.5303363351690106863856044583371840417385101318359375000000000e-02,
+                              -1.4215015503619179981775744181504705920815467834472656250000000e-01,
+                              -1.1283791670955125585606992899556644260883331298828125000000000e+00};
+  constexpr double beta[] = {2.0294484101083099089526257108317963684385176748037338256835938e-05,
+                             6.8117805899186819641732970609382391558028757572174072265625000e-04,
+                             1.0582026056098614921752165685120417037978768348693847656250000e-02,
+                             9.3252603143757495374188692949246615171432495117187500000000000e-02,
+                             4.5931062818368939559832142549566924571990966796875000000000000e-01,
+                             1.0};
+  const T x2 = pmul(x, x);
+  const T num_small = ppolevl<T, 4>::run(x2, alpha);
+  const T denom_small = ppolevl<T, 5>::run(x2, beta);
+  const T erfc_small = pmadd(x, pdiv(num_small, denom_small), one);
+
+  // Return early if we don't need the more expensive approximation for any
+  // entry in a.
+  if (!predux_any(x_abs_gt_one_mask)) return erfc_small;
+
+  // erfc(x) = exp(-x^2) * 1/x * P(x) / Q(x), 1 < x < 27.
+  //
+  // Coefficients for P and Q generated with Rminimax command:
+  //  ./ratapprox --function="erfc(1/sqrt(x))*exp(1/x)/sqrt(x)"
+  //  --dom='[0.037,1]' --type=[9,9] --numF="[D]" --denF="[D]" --log
+  //  --dispCoeff="dec"
+  constexpr double gamma[] = {1.5252844933226974316088642158462107545346952974796295166015625e-04,
+                              1.0909912393738931124520519233556115068495273590087890625000000e-02,
+                              1.0628604636755033252537572252549580298364162445068359375000000e-01,
+                              3.3492472973137982217295416376146022230386734008789062500000000e-01,
+                              4.5065776215933289750026347064704168587923049926757812500000000e-01,
+                              2.9433039130294824659017649537418037652969360351562500000000000e-01,
+                              9.8792676360600226170838311645638896152377128601074218750000000e-02,
+                              1.7095935395503719655962981960328761488199234008789062500000000e-02,
+                              1.4249109729504577659398023570247460156679153442382812500000000e-03,
+                              4.4567378313647954771875570045835956989321857690811157226562500e-05};
+  constexpr double delta[] = {2.041985103115789845773520028160419315099716186523437500000000e-03,
+                              5.316030659946043707142493417450168635696172714233398437500000e-02,
+                              3.426242193784684864077405563875799998641014099121093750000000e-01,
+                              8.565637124308049799026321124983951449394226074218750000000000e-01,
+                              1.000000000000000000000000000000000000000000000000000000000000e+00,
+                              5.968805280570776972126623149961233139038085937500000000000000e-01,
+                              1.890922854723317836356244470152887515723705291748046875000000e-01,
+                              3.152505418656005586885981983868987299501895904541015625000000e-02,
+                              2.565085751861882583380047861965067568235099315643310546875000e-03,
+                              7.899362131678837697403017248376499992446042597293853759765625e-05};
+  const T z = pexp(pnegate(x2));
+  const T q2 = preciprocal(x2);
+  const T num_large = ppolevl<T, 9>::run(q2, gamma);
+  const T denom_large = pmul(x_abs, ppolevl<T, 9>::run(q2, delta));
+  const T r = pdiv(num_large, denom_large);
+  // If x < -1 then use erfc(x) = 2 - erfc(|x|).
+  const T x_negative = pcmp_lt(x, pset1<T>(0.0f));
+  const T erfc_large = pselect(x_negative, pnmadd(z, r, pset1<T>(2.0f)), pmul(z, r));
+
+  return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
+}
+
 template <typename Scalar>
 struct erfc_impl {
   EIGEN_STATIC_ASSERT((internal::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
@@ -419,7 +488,7 @@ struct erfc_impl<double> {
 #if defined(SYCL_DEVICE_ONLY)
     return cl::sycl::erfc(x);
 #else
-    return ::erfc(x);
+    return generic_fast_erfc_double(x);
 #endif
   }
 };
