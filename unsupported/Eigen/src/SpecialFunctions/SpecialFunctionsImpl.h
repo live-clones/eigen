@@ -423,9 +423,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
   // erfc(x) = exp(-x^2) * 1/x * P(x) / Q(x), 1 < x < 27.
   //
   // Coefficients for P and Q generated with Rminimax command:
-  //  ./ratapprox --function="erfc(1/sqrt(x))*exp(1/x)/sqrt(x)"
-  //  --dom='[0.037,1]' --type=[9,9] --numF="[D]" --denF="[D]" --log
-  //  --dispCoeff="dec"
+  //  ./ratapprox --function="erfc(1/sqrt(x))*exp(1/x)/sqrt(x)"  --dom='[0.0013717,1]' --type=[9,9] --numF="[D]"
+  //  --denF="[D]" --log --dispCoeff="dec"
   constexpr double gamma[] = {1.5252844933226974316088642158462107545346952974796295166015625e-04,
                               1.0909912393738931124520519233556115068495273590087890625000000e-02,
                               1.0628604636755033252537572252549580298364162445068359375000000e-01,
