@@ -451,8 +451,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
   const T denom_large = pmul(x_abs, ppolevl<T, 9>::run(q2, delta));
   const T r = pdiv(num_large, denom_large);
   // If x < -1 then use erfc(x) = 2 - erfc(|x|).
-  const T x_negative = pcmp_lt(x, pset1<T>(0.0f));
-  const T erfc_large = pselect(x_negative, pnmadd(z, r, pset1<T>(2.0f)), pmul(z, r));
+  const T x_negative = pcmp_lt(x, pset1<T>(0.0));
+  const T erfc_large = pselect(x_negative, pnmadd(z, r, pset1<T>(2.0)), pmul(z, r));
 
   return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
 }
