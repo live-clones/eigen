@@ -2002,6 +2002,11 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8f& x) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4d& x) {
+  return _mm256_movemask_pd(x) != 0;
+}
+
+template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8i& x) {
   return _mm256_movemask_ps(_mm256_castsi256_ps(x)) != 0;
 }
