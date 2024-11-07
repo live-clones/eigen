@@ -1640,22 +1640,22 @@ EIGEN_STRONG_INLINE int64_t predux_max<Packet8l>(const Packet8l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet16f& x) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet16f& a) {
   return _mm512_reduce_or_epi32(_mm512_castps_si512(a)) != 0;
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet16i& x) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet16i& a) {
   return _mm512_reduce_or_epi32(a) != 0;
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8d& x) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet8d& a) {
   return _mm512_reduce_or_epi64(_mm512_castpd_si512(a)) != 0;
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8l& x) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet8l& a) {
   return _mm512_reduce_or_epi64(a) != 0;
 }
 
