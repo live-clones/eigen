@@ -661,11 +661,11 @@ EIGEN_STRONG_INLINE uint64_t predux<Packet4ul>(const Packet4ul& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any<Packet4l>(const Packet4l& a) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet4l& a) {
   return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0;
 }
 template <>
-EIGEN_STRONG_INLINE bool predux_any<Packet4ul>(const Packet4ul& a) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet4ul& a) {
   return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0;
 }
 
