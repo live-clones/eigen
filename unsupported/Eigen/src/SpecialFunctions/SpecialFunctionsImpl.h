@@ -391,10 +391,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_float(const T& x) {
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
-  const T x_abs = pmin(pabs(x), pset1<T>(27.0));
-  const T one = pset1<T>(1.0);
-  const T x_abs_gt_one_mask = pcmp_lt(one, x_abs);
-
   // erfc(x) = 1 + x * S(x^2) / T(x^2), |x| <= 1.
   //
   // Coefficients for S and T generated with Rminimax command:
@@ -411,13 +407,17 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
                              9.3252603143757495374188692949246615171432495117187500000000000e-02,
                              4.5931062818368939559832142549566924571990966796875000000000000e-01,
                              1.0};
+  // Clamp x^2 to 27^2 to avoid computing Inf/Inf for large values of x.
+  // Erfc is below the underflow boundary at x = 27.
   const T x2 = pmul(x, x);
   const T num_small = ppolevl<T, 4>::run(x2, alpha);
   const T denom_small = ppolevl<T, 5>::run(x2, beta);
+  const T one = pset1<T>(1.0);
   const T erfc_small = pmadd(x, pdiv(num_small, denom_small), one);
 
   // Return early if we don't need the more expensive approximation for any
   // entry in a.
+  const T x_abs_gt_one_mask = pcmp_lt(one, x2);
   if (!predux_any(x_abs_gt_one_mask)) return erfc_small;
 
   // erfc(x) = exp(-x^2) * 1/x * P(x) / Q(x), 1 < x < 27.
@@ -448,12 +448,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
   const T z = pexp(pnegate(x2));
   const T q2 = preciprocal(x2);
   const T num_large = ppolevl<T, 9>::run(q2, gamma);
-  const T denom_large = pmul(x_abs, ppolevl<T, 9>::run(q2, delta));
+  const T denom_large = pmul(x, ppolevl<T, 9>::run(q2, delta));
   const T r = pdiv(num_large, denom_large);
-  // If x < -1 then use erfc(x) = 2 - erfc(|x|).
+  // If x < -1 then use erfc(x) = 2 - erfc(-x).
   const T x_negative = pcmp_lt(x, pset1<T>(0.0));
-  const T erfc_large = pselect(x_negative, pnmadd(z, r, pset1<T>(2.0)), pmul(z, r));
-
+  const T erfc_large = pselect(x_negative, pmadd(z, r, pset1<T>(2.0)), pmul(z, r));
   return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
 }
 
