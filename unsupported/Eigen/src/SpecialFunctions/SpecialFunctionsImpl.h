@@ -345,8 +345,15 @@ struct erf_impl<double> {
 /***************************************************************************
  * Implementation of erfc, requires C++11/C99                               *
  ****************************************************************************/
+template <typename Scalar>
+struct generic_fast_erfc {
+  template <typename T>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T run(const T& x_in);
+};
+
+template <>
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_float(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<float>::run(const T& x) {
   const T x_abs = pmin(pabs(x), pset1<T>(10.0f));
   const T one = pset1<T>(1.0f);
   const T x_abs_gt_one_mask = pcmp_lt(one, x_abs);
@@ -389,8 +396,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_float(const T& x) {
   return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
 }
 
+template <>
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& x_in) {
+  // Clamp x to [-27:27] beyond which erfc(x) is either two or zero (below the underflow threshold).
+  // This avoids having to deal with twoprod(x,x) producing NaN for sufficient large x.
+  constexpr double kClamp = 27.0;
+  const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
+
   // erfc(x) = 1 + x * S(x^2) / T(x^2), |x| <= 1.
   //
   // Coefficients for S and T generated with Rminimax command:
@@ -407,8 +420,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
                              9.3252603143757495374188692949246615171432495117187500000000000e-02,
                              4.5931062818368939559832142549566924571990966796875000000000000e-01,
                              1.0};
-  // Clamp x^2 to 27^2 to avoid computing Inf/Inf for large values of x.
-  // Erfc is below the underflow boundary at x = 27.
   const T x2 = pmul(x, x);
   const T num_small = ppolevl<T, 4>::run(x2, alpha);
   const T denom_small = ppolevl<T, 5>::run(x2, beta);
@@ -445,22 +456,28 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc_double(const T& x) {
                               3.152505418656005586885981983868987299501895904541015625000000e-02,
                               2.565085751861882583380047861965067568235099315643310546875000e-03,
                               7.899362131678837697403017248376499992446042597293853759765625e-05};
-  const T z = pexp(pnegate(x2));
+
+  const T x2_lo = twoprod_low(x, x, x2);
+  // Here we use that
+  //   exp(-x^2) = exp(-(x2+x2_lo)^2) ~= exp(-x2)*exp(-x2_lo) ~= exp(-x2)*(1-x2_lo)
+  // since x2_lo < 27*eps << 1 in the region we care about. This trick reduces the max error
+  // from 258 ulps to below 7 ulps.
+  const T exp2_hi = pexp(pnegate(x2));
+  const T z = pnmadd(exp2_hi, x2_lo, exp2_hi);
   const T q2 = preciprocal(x2);
   const T num_large = ppolevl<T, 9>::run(q2, gamma);
   const T denom_large = pmul(x, ppolevl<T, 9>::run(q2, delta));
   const T r = pdiv(num_large, denom_large);
   // If x < -1 then use erfc(x) = 2 - erfc(-x).
-  const T x_negative = pcmp_lt(x, pset1<T>(0.0));
-  const T erfc_large = pselect(x_negative, pmadd(z, r, pset1<T>(2.0)), pmul(z, r));
+  const T maybe_two = pand(pcmp_lt(x, pset1<T>(0.0)), pset1<T>(2.0));
+  const T erfc_large = pmadd(z, r, maybe_two);
   return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
 }
 
-template <typename Scalar>
+template <typename T>
 struct erfc_impl {
-  EIGEN_STATIC_ASSERT((internal::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar) { return Scalar(0); }
+  typedef typename unpacket_traits<T>::type Scalar;
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return generic_fast_erfc<Scalar>::run(x); }
 };
 
 template <typename Scalar>
@@ -475,7 +492,7 @@ struct erfc_impl<float> {
 #if defined(SYCL_DEVICE_ONLY)
     return cl::sycl::erfc(x);
 #else
-    return generic_fast_erfc_float(x);
+    return generic_fast_erfc<float>::run(x);
 #endif
   }
 };
@@ -486,7 +503,7 @@ struct erfc_impl<double> {
 #if defined(SYCL_DEVICE_ONLY)
     return cl::sycl::erfc(x);
 #else
-    return generic_fast_erfc_double(x);
+    return generic_fast_erfc<double>::run(x);
 #endif
   }
 };
