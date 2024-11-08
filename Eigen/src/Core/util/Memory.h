@@ -473,7 +473,7 @@ EIGEN_DEVICE_FUNC inline T* conditional_aligned_realloc_new(T* pts, std::size_t 
 
 template <typename T, bool Align>
 EIGEN_DEVICE_FUNC inline T* conditional_aligned_new_auto(std::size_t size) {
-  if (size == 0) return 0;  // short-cut. Also fixes Bug 884
+  if (size == 0) return nullptr;  // short-cut. Also fixes Bug 884
   check_size_for_overflow<T>(size);
   T* result = static_cast<T*>(conditional_aligned_malloc<Align>(sizeof(T) * size));
   if (NumTraits<T>::RequireInitialization) {

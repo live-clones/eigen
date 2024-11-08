@@ -26,6 +26,13 @@ static_assert(std::is_trivially_copy_assignable<DenseStorageD3x3>::value, "Dense
 static_assert(std::is_trivially_copyable<DenseStorageD3x3>::value, "DenseStorage not trivially_copyable");
 #endif
 
+static_assert(std::is_standard_layout<Matrix4f>::value, "Matrix4f not standard_layout");
+static_assert(std::is_standard_layout<Array4f>::value, "Array4f not standard_layout");
+static_assert(std::is_standard_layout<VectorXf>::value, "VectorXf not standard_layout");
+static_assert(std::is_standard_layout<ArrayXf>::value, "ArrayXf not standard_layout");
+static_assert(std::is_standard_layout<MatrixXf>::value, "MatrixXf not standard_layout");
+static_assert(std::is_standard_layout<ArrayXXf>::value, "ArrayXXf not standard_layout");
+
 static_assert(std::is_trivially_move_constructible<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
 static_assert(std::is_trivially_move_constructible<Array4f>::value, "Array4f not trivially_move_constructible");
 #if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
