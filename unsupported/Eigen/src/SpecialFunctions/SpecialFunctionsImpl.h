@@ -400,7 +400,7 @@ template <>
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& x_in) {
   // Clamp x to [-27:27] beyond which erfc(x) is either two or zero (below the underflow threshold).
-  // This avoids having to deal with twoprod(x,x) producing NaN for sufficient large x.
+  // This avoids having to deal with twoprod(x,x) producing NaN for sufficiently large x.
   constexpr double kClamp = 27.0;
   const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
 
