@@ -353,10 +353,9 @@ struct generic_fast_erfc {
 
 template <>
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<float>::run(const T& x) {
-  const T x_abs = pmin(pabs(x), pset1<T>(10.0f));
-  const T one = pset1<T>(1.0f);
-  const T x_abs_gt_one_mask = pcmp_lt(one, x_abs);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<float>::run(const T& x_in) {
+  constexpr float kClamp = 11.0f;
+  const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
 
   // erfc(x) = 1 + x * S(x^2), |x| <= 1.
   //
@@ -367,10 +366,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<float>::run(const T& x
                              2.67075151205062866210937500000e-02, -1.12800106406211853027343750000e-01,
                              3.76122951507568359375000000000e-01, -1.12837910652160644531250000000e+00};
   const T x2 = pmul(x, x);
+  const T one = pset1<T>(1.0);
   const T erfc_small = pmadd(x, ppolevl<T, 5>::run(x2, alpha), one);
 
   // Return early if we don't need the more expensive approximation for any
   // entry in a.
+  const T x_abs_gt_one_mask = pcmp_lt(one, x2);
   if (!predux_any(x_abs_gt_one_mask)) return erfc_small;
 
   // erfc(x) = exp(-x^2) * 1/x * P(1/x^2) / Q(1/x^2), 1 < x < 9.
@@ -384,15 +385,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<float>::run(const T& x
   constexpr float delta[] = {1.7251677811145782470703125e-02f, 3.9137163758277893066406250e-01f,
                              1.0000000000000000000000000e+00f, 6.2173241376876831054687500e-01f,
                              9.5662862062454223632812500e-02f};
-  const T z = pexp(pnegate(x2));
+  const T x2_lo = twoprod_low(x, x, x2);
+  // Here we use that
+  //   exp(-x^2) = exp(-(x2+x2_lo)^2) ~= exp(-x2)*exp(-x2_lo) ~= exp(-x2)*(1-x2_lo)
+  // since x2_lo < kClamp * eps << 1 in the region we care about. This trick reduces the max error
+  // from 34 ulps to below 5 ulps.
+  const T exp2_hi = pexp(pnegate(x2));
+  const T z = pnmadd(exp2_hi, x2_lo, exp2_hi);
   const T q2 = preciprocal(x2);
   const T num = ppolevl<T, 3>::run(q2, gamma);
-  const T denom = pmul(x_abs, ppolevl<T, 4>::run(q2, delta));
+  const T denom = pmul(x, ppolevl<T, 4>::run(q2, delta));
   const T r = pdiv(num, denom);
-  // If x < -1 then use erfc(x) = 2 - erfc(|x|).
-  const T x_negative = pcmp_lt(x, pset1<T>(0.0f));
-  const T erfc_large = pselect(x_negative, pnmadd(z, r, pset1<T>(2.0f)), pmul(z, r));
-
+  const T maybe_two = pand(pcmp_lt(x, pset1<T>(0.0)), pset1<T>(2.0));
+  const T erfc_large = pmadd(z, r, maybe_two);
   return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
 }
 
@@ -401,7 +406,7 @@ template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& x_in) {
   // Clamp x to [-27:27] beyond which erfc(x) is either two or zero (below the underflow threshold).
   // This avoids having to deal with twoprod(x,x) producing NaN for sufficiently large x.
-  constexpr double kClamp = 27.0;
+  constexpr double kClamp = 28.0;
   const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
 
   // erfc(x) = 1 + x * S(x^2) / T(x^2), |x| <= 1.
@@ -460,7 +465,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& 
   const T x2_lo = twoprod_low(x, x, x2);
   // Here we use that
   //   exp(-x^2) = exp(-(x2+x2_lo)^2) ~= exp(-x2)*exp(-x2_lo) ~= exp(-x2)*(1-x2_lo)
-  // since x2_lo < 27*eps << 1 in the region we care about. This trick reduces the max error
+  // since x2_lo < kClamp *eps << 1 in the region we care about. This trick reduces the max error
   // from 258 ulps to below 7 ulps.
   const T exp2_hi = pexp(pnegate(x2));
   const T z = pnmadd(exp2_hi, x2_lo, exp2_hi);
@@ -468,7 +473,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& 
   const T num_large = ppolevl<T, 9>::run(q2, gamma);
   const T denom_large = pmul(x, ppolevl<T, 9>::run(q2, delta));
   const T r = pdiv(num_large, denom_large);
-  // If x < -1 then use erfc(x) = 2 - erfc(-x).
   const T maybe_two = pand(pcmp_lt(x, pset1<T>(0.0)), pset1<T>(2.0));
   const T erfc_large = pmadd(z, r, maybe_two);
   return pselect(x_abs_gt_one_mask, erfc_large, erfc_small);
