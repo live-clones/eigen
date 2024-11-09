@@ -241,8 +241,11 @@ class DenseStorage<T, Size, Dynamic, Dynamic, Options> {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     internal::smart_copy(other.m_data.m_array, other.m_data.m_array + size, m_data.m_array);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(Index /*size*/, Index rows, Index cols)
-      : m_rows(rows), m_cols(cols) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(Index size, Index rows, Index cols)
+      : m_rows(rows), m_cols(cols) {
+    EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
+    EIGEN_UNUSED_VARIABLE(size)
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other)
       : m_rows(other.m_rows), m_cols(other.m_cols) {
     Index size = other.size();
