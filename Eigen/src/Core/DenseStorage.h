@@ -146,7 +146,7 @@ class DenseStorage<T, Size, Dynamic, Cols, Options> {
   Index m_rows = 0;
 
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseStorage() = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(const DenseStorage& other) : m_rows(other.m_rows) {
     internal::smart_copy(other.m_data.m_array, other.m_data.m_array + size(), m_data.m_array);
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN(Index size = Size)
@@ -192,7 +192,7 @@ class DenseStorage<T, Size, Rows, Dynamic, Options> {
   Index m_cols = 0;
 
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseStorage() = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(const DenseStorage& other) : m_cols(other.m_cols) {
     internal::smart_copy(other.m_data.m_array, other.m_data.m_array + size(), m_data.m_array);
   }
@@ -236,7 +236,7 @@ class DenseStorage<T, Size, Dynamic, Dynamic, Options> {
   Index m_cols = 0;
 
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseStorage() = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(const DenseStorage& other)
       : m_rows(other.m_rows), m_cols(other.m_cols) {
     internal::smart_copy(other.m_data.m_array, other.m_data.m_array + size(), m_data.m_array);
