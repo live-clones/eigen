@@ -147,7 +147,7 @@ EIGEN_DEVICE_FUNC inline void* handmade_aligned_malloc(std::size_t size,
   check_that_malloc_is_allowed();
   EIGEN_USING_STD(malloc)
   void* original = malloc(size + alignment);
-  if (original == 0) return 0;
+  if (original == nullptr) return nullptr;
   uint8_t offset = static_cast<uint8_t>(alignment - (reinterpret_cast<std::size_t>(original) & (alignment - 1)));
   void* aligned = static_cast<void*>(static_cast<uint8_t*>(original) + offset);
   *(static_cast<uint8_t*>(aligned) - 1) = offset;
@@ -391,7 +391,8 @@ EIGEN_DEVICE_FUNC inline T* move_construct_elements_of_array(T* ptr, T* src, std
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void check_size_for_overflow(std::size_t size) {
-  if (size > std::size_t(-1) / sizeof(T)) throw_std_bad_alloc();
+  constexpr std::size_t max_elements = PTRDIFF_MAX / sizeof(T);
+  if (size > max_elements) throw_std_bad_alloc();
 }
 
 /** \internal Allocates \a size objects of type T. The returned pointer is guaranteed to have 16 bytes alignment.
