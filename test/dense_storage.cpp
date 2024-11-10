@@ -255,30 +255,26 @@ EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<AnnoyingScalar>();
   for (int i = 0; i < g_repeat; i++) {
     plaintype_tests<Matrix<float, 0, 0, ColMajor>>();
-    plaintype_tests<Matrix<float, 0, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 0, 0>>();
 
     plaintype_tests<Matrix<float, 16, 16, ColMajor>>();
     plaintype_tests<Matrix<float, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<float, 16, Dynamic, ColMajor, 16, Dynamic>>();
     plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 16, 16>>();
 
     plaintype_tests<Matrix<SafeScalar<float>, 16, 16, ColMajor>>();
     plaintype_tests<Matrix<SafeScalar<float>, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<SafeScalar<float>, 16, Dynamic, ColMajor, 16, Dynamic>>();
     plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
 
     plaintype_tests<Matrix<MovableScalar<float>, 16, 16, ColMajor>>();
     plaintype_tests<Matrix<MovableScalar<float>, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<MovableScalar<float>, 16, Dynamic, ColMajor, 16, Dynamic>>();
     plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
 
     plaintype_tests<Matrix<AnnoyingScalar, 16, 16, ColMajor>>();
     plaintype_tests<Matrix<AnnoyingScalar, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<AnnoyingScalar, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<AnnoyingScalar, 16, Dynamic, ColMajor, 16, Dynamic>>();
     plaintype_tests<Matrix<AnnoyingScalar, Dynamic, Dynamic, ColMajor, 16, 16>>();
   }
 }
