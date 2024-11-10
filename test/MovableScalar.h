@@ -16,7 +16,7 @@ struct MovableScalar {
   MovableScalar() : m_data(new Scalar) {}
   ~MovableScalar() { delete m_data; }
   MovableScalar(const MovableScalar& other) : m_data(new Scalar) { set(other.get()); }
-  MovableScalar(MovableScalar&& other) : m_data(other.m_data) { other.m_data = nullptr; }
+  MovableScalar(MovableScalar&& other) noexcept : m_data(other.m_data) { other.m_data = nullptr; }
   MovableScalar& operator=(const MovableScalar& other) {
     set(other.get());
     return *this;
