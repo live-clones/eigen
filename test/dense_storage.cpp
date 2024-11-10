@@ -50,7 +50,7 @@ void dense_storage_copy(int rows, int cols) {
   const int size = rows * cols;
   DenseStorageType reference(size, rows, cols);
   T* raw_reference = reference.data();
-  for (int i = 0; i < size; ++i) raw_reference[i] = static_cast<T>(i);
+  for (int i = 0; i < size; ++i) raw_reference[i] = internal::random<T>();
 
   DenseStorageType copied_reference(reference);
   const T* raw_copied_reference = copied_reference.data();
@@ -64,7 +64,7 @@ void dense_storage_assignment(int rows, int cols) {
   const int size = rows * cols;
   DenseStorageType reference(size, rows, cols);
   T* raw_reference = reference.data();
-  for (int i = 0; i < size; ++i) raw_reference[i] = static_cast<T>(i);
+  for (int i = 0; i < size; ++i) raw_reference[i] = internal::random<T>();
 
   DenseStorageType copied_reference;
   copied_reference = reference;
@@ -73,30 +73,25 @@ void dense_storage_assignment(int rows, int cols) {
 }
 
 template <typename T, int Size, int Rows, int Cols>
-void dense_storage_swap(int rows0, int cols0, int rows1, int cols1) {
+void dense_storage_swap(int rowsa, int colsa, int rowsb, int colsb) {
   typedef DenseStorage<T, Size, Rows, Cols, 0> DenseStorageType;
 
-  const int size0 = rows0 * cols0;
-  DenseStorageType a(size0, rows0, cols0);
-  for (int i = 0; i < size0; ++i) {
-    a.data()[i] = static_cast<T>(i);
-  }
+  const int sizea = rowsa * colsa;
+  ArrayX<T> referencea(sizea);
+  referencea.setRandom();
+  DenseStorageType a(sizea, rowsa, colsa);
+  for (int i = 0; i < sizea; ++i) a.data()[i] = referencea(i);
 
-  const int size1 = rows1 * cols1;
-  DenseStorageType b(size1, rows1, cols1);
-  for (int i = 0; i < size1; ++i) {
-    b.data()[i] = static_cast<T>(-i);
-  }
+  const int sizeb = rowsb * colsb;
+  ArrayX<T> referenceb(sizeb);
+  referenceb.setRandom();
+  DenseStorageType b(sizeb, rowsb, colsb);
+  for (int i = 0; i < sizeb; ++i) b.data()[i] = referenceb(i);
 
   a.swap(b);
 
-  for (int i = 0; i < size0; ++i) {
-    VERIFY_IS_EQUAL(b.data()[i], static_cast<T>(i));
-  }
-
-  for (int i = 0; i < size1; ++i) {
-    VERIFY_IS_EQUAL(a.data()[i], static_cast<T>(-i));
-  }
+  for (int i = 0; i < sizea; i++) VERIFY_IS_EQUAL(b.data()[i], referencea(i));
+  for (int i = 0; i < sizeb; i++) VERIFY_IS_EQUAL(a.data()[i], referenceb(i));
 }
 
 template <typename T, int Size, std::size_t Alignment>

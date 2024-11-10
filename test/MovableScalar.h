@@ -35,11 +35,13 @@ struct MovableScalar {
  private:
   void setValue(const Scalar& value) {
     eigen_assert(m_data != nullptr);
-    *m_data = value;
+    // suppress compiler warnings
+    if (m_data != nullptr) *m_data = value;
   }
   const Scalar& getValue() const {
     eigen_assert(m_data != nullptr);
-    return *m_data;
+    // suppress compiler warnings
+    return m_data == nullptr ? Scalar() : *m_data;
   }
   Scalar* m_data = nullptr;
 };
