@@ -11,6 +11,7 @@
 
 #include "main.h"
 #include "AnnoyingScalar.h"
+#include "MovableScalar.h"
 #include "SafeScalar.h"
 
 #include <Eigen/Core>
@@ -111,12 +112,12 @@ void dense_storage_alignment() {
   };
   VERIFY_IS_EQUAL(std::alignment_of<Nested1>::value, Alignment);
 
-  VERIFY_IS_EQUAL((std::alignment_of<internal::plain_array<T, Size, AutoAlign, Alignment> >::value), Alignment);
+  VERIFY_IS_EQUAL((std::alignment_of<internal::plain_array<T, Size, AutoAlign, Alignment>>::value), Alignment);
 
   const std::size_t default_alignment = internal::compute_default_alignment<T, Size>::value;
   if (default_alignment > 0) {
-    VERIFY_IS_EQUAL((std::alignment_of<DenseStorage<T, Size, 1, 1, AutoAlign> >::value), default_alignment);
-    VERIFY_IS_EQUAL((std::alignment_of<Matrix<T, Size, 1, AutoAlign> >::value), default_alignment);
+    VERIFY_IS_EQUAL((std::alignment_of<DenseStorage<T, Size, 1, 1, AutoAlign>>::value), default_alignment);
+    VERIFY_IS_EQUAL((std::alignment_of<Matrix<T, Size, 1, AutoAlign>>::value), default_alignment);
     struct Nested2 {
       Matrix<T, Size, 1, AutoAlign> mat;
     };
@@ -192,11 +193,98 @@ void dense_storage_tests() {
   dense_storage_alignment<T, 16, 64>();
 }
 
+template <typename PlainType>
+void plaintype_tests() {
+  constexpr int RowsAtCompileTime = PlainType::RowsAtCompileTime;
+  constexpr int ColsAtCompileTime = PlainType::ColsAtCompileTime;
+  constexpr int MaxRowsAtCompileTime = PlainType::MaxRowsAtCompileTime;
+  constexpr int MaxColsAtCompileTime = PlainType::MaxColsAtCompileTime;
+  const Index expectedDefaultRows = RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime;
+  const Index expectedDefaultCols = ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime;
+  const Index minRows = RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime;
+  const Index minCols = ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime;
+  const Index maxRows = MaxRowsAtCompileTime == Dynamic ? 100 : MaxRowsAtCompileTime;
+  const Index maxCols = MaxColsAtCompileTime == Dynamic ? 100 : MaxColsAtCompileTime;
+  const Index rows = internal::random<Index>(minRows, maxRows);
+  const Index cols = internal::random<Index>(minCols, maxCols);
+  // default construction
+  PlainType m0;
+  VERIFY_IS_EQUAL(m0.rows(), expectedDefaultRows);
+  VERIFY_IS_EQUAL(m0.cols(), expectedDefaultCols);
+  m0.resize(rows, cols);
+  m0.setRandom();
+  // copy construction
+  PlainType m1(m0);
+  VERIFY_IS_EQUAL(m1.rows(), m0.rows());
+  VERIFY_IS_EQUAL(m1.cols(), m0.cols());
+  VERIFY_IS_CWISE_EQUAL(m1, m0);
+  // move construction
+  PlainType m2(std::move(m1));
+  VERIFY_IS_EQUAL(m2.rows(), m0.rows());
+  VERIFY_IS_EQUAL(m2.cols(), m0.cols());
+  VERIFY_IS_CWISE_EQUAL(m2, m0);
+  // check that object is usable after move construction
+  m1.resize(minRows, minCols);
+  m1.setRandom();
+  // copy assignment
+  m1 = m0;
+  VERIFY_IS_EQUAL(m1.rows(), m0.rows());
+  VERIFY_IS_EQUAL(m1.cols(), m0.cols());
+  VERIFY_IS_CWISE_EQUAL(m1, m0);
+  // move assignment
+  m2.resize(minRows, minCols);
+  m2.setRandom();
+  m2 = std::move(m1);
+  VERIFY_IS_EQUAL(m2.rows(), m0.rows());
+  VERIFY_IS_EQUAL(m2.cols(), m0.cols());
+  VERIFY_IS_CWISE_EQUAL(m2, m0);
+  // check that object is usable after move assignment
+  m1.resize(minRows, minCols);
+  m1.setRandom();
+  m1.resize(rows, minCols);
+  m1.setRandom();
+  m1.resize(minRows, cols);
+  m1.setRandom();
+  m1 = m2;
+  VERIFY_IS_EQUAL(m1.rows(), m0.rows());
+  VERIFY_IS_EQUAL(m1.cols(), m0.cols());
+  VERIFY_IS_CWISE_EQUAL(m1, m0);
+}
+
 EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<int>();
   dense_storage_tests<float>();
-  dense_storage_tests<SafeScalar<float> >();
+  dense_storage_tests<SafeScalar<float>>();
+  dense_storage_tests<MovableScalar<float>>();
   dense_storage_tests<AnnoyingScalar>();
+  for (int i = 0; i < g_repeat; i++) {
+    plaintype_tests<Matrix<float, 0, 0, ColMajor>>();
+    plaintype_tests<Matrix<float, 0, Dynamic, ColMajor>>();
+
+    plaintype_tests<Matrix<float, 16, 16, ColMajor>>();
+    plaintype_tests<Matrix<float, 16, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<float, 16, Dynamic, ColMajor, 16, Dynamic>>();
+    plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 16, 16>>();
+
+    plaintype_tests<Matrix<SafeScalar<float>, 16, 16, ColMajor>>();
+    plaintype_tests<Matrix<SafeScalar<float>, 16, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<SafeScalar<float>, 16, Dynamic, ColMajor, 16, Dynamic>>();
+    plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
+
+    plaintype_tests<Matrix<MovableScalar<float>, 16, 16, ColMajor>>();
+    plaintype_tests<Matrix<MovableScalar<float>, 16, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<MovableScalar<float>, 16, Dynamic, ColMajor, 16, Dynamic>>();
+    plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
+
+    plaintype_tests<Matrix<AnnoyingScalar, 16, 16, ColMajor>>();
+    plaintype_tests<Matrix<AnnoyingScalar, 16, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<AnnoyingScalar, Dynamic, Dynamic, ColMajor>>();
+    plaintype_tests<Matrix<AnnoyingScalar, 16, Dynamic, ColMajor, 16, Dynamic>>();
+    plaintype_tests<Matrix<AnnoyingScalar, Dynamic, Dynamic, ColMajor, 16, 16>>();
+  }
 }
 
 #undef EIGEN_TESTING_PLAINOBJECT_CTOR

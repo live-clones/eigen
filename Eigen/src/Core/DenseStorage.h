@@ -30,10 +30,10 @@ namespace internal {
 #if defined(EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT)
 #define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(Alignment)
 #else
-#define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(Alignment)                                                \
+#define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(Alignment)                                              \
   eigen_assert((internal::is_constant_evaluated() || (std::uintptr_t(array) % Alignment == 0)) && \
-               "this assertion is explained here: "                                                 \
-               "http://eigen.tuxfamily.org/dox-devel/group__TopicUnalignedArrayAssert.html"         \
+               "this assertion is explained here: "                                               \
+               "http://eigen.tuxfamily.org/dox-devel/group__TopicUnalignedArrayAssert.html"       \
                " **** READ THIS WEB PAGE !!! ****");
 #endif
 
@@ -48,6 +48,25 @@ namespace internal {
  * Static array. If the MatrixOrArrayOptions require auto-alignment, the array will be automatically aligned:
  * to 16 bytes boundary if the total size is a multiple of 16 bytes.
  */
+
+// dummy class that conditionally deletes move constructor and assignment
+template <bool Disable>
+struct disable_move {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move() = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(const disable_move&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(disable_move&&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(const disable_move&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(disable_move&&) = default;
+};
+template <>
+struct disable_move<true> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move() = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(const disable_move&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(disable_move&&) = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(const disable_move&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(disable_move&&) = delete;
+};
+
 template <typename T, int Size, int MatrixOrArrayOptions,
           int Alignment = (MatrixOrArrayOptions & DontAlign) ? 0 : compute_default_alignment<T, Size>::value>
 struct plain_array {
@@ -82,12 +101,12 @@ template <typename T, int Size, int Options, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap_plain_array(plain_array<T, Size, Options, Alignment>& a,
                                                                       plain_array<T, Size, Options, Alignment>& b,
                                                                       Index a_size, Index b_size) {
-  Index commonSize = numext::mini(a_size, b_size);
-  std::swap_ranges(a.array, a.array + commonSize, b.array);
+  Index common_size = numext::mini(a_size, b_size);
+  std::swap_ranges(a.array, a.array + common_size, b.array);
   if (a_size > b_size)
-    std::move(a.array + commonSize, a.array + a_size, b.array + commonSize);
+    smart_copy(a.array + common_size, a.array + a_size, b.array + common_size);
   else if (b_size > a_size)
-    std::move(b.array + commonSize, b.array + b_size, a.array + commonSize);
+    smart_copy(b.array + common_size, b.array + b_size, a.array + common_size);
 }
 
 }  // end namespace internal
@@ -105,7 +124,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap_plain_array(plain_arra
  * \sa Matrix
  */
 template <typename T, int Size, int Rows, int Cols, int Options>
-class DenseStorage {
+class DenseStorage : internal::disable_move<NumTraits<T>::RequireInitialization> {
   internal::plain_array<T, Size, Options> m_data;
 
  public:
@@ -150,21 +169,13 @@ class DenseStorage<T, Size, Dynamic, Cols, Options> {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     EIGEN_UNUSED_VARIABLE(size)
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other) : m_rows(other.m_rows) {
-    std::move(other.m_data.array, other.m_data.array + other.size(), m_data.array);
-    other.m_rows = 0;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = delete;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage& other) {
     internal::smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
     m_rows = other.m_rows;
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
-    std::move(other.m_data.array, other.m_data.array + other.size(), m_data.array);
-    m_rows = other.m_rows;
-    other.m_rows = 0;
-    return *this;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = delete;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
     internal::swap_plain_array(m_data, other.m_data, size(), other.size());
     numext::swap(m_rows, other.m_rows);
@@ -196,23 +207,15 @@ class DenseStorage<T, Size, Rows, Dynamic, Options> {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     EIGEN_UNUSED_VARIABLE(size)
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other) : m_cols(other.m_cols) {
-    std::move(other.m_data.array, other.m_data.array + other.size(), m_data.array);
-    other.m_cols = 0;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = delete;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage& other) {
     internal::smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
     m_cols = other.m_cols;
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
-    std::move(other.m_data.array, other.m_data.array + other.size(), m_data.array);
-    m_cols = other.m_cols;
-    other.m_cols = 0;
-    return *this;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = delete;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
-    internal::swap_plain_array(m_data, other.m_data, this->size(), other.size());
+    internal::swap_plain_array(m_data, other.m_data, size(), other.size());
     numext::swap(m_cols, other.m_cols);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index /*size*/, Index /*rows*/, Index cols) {
@@ -245,28 +248,16 @@ class DenseStorage<T, Size, Dynamic, Dynamic, Options> {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     EIGEN_UNUSED_VARIABLE(size)
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other)
-      : m_rows(other.m_rows), m_cols(other.m_cols) {
-    std::move(other.m_data.array, other.m_data.array + other.size(), m_data.array);
-    other.m_rows = 0;
-    other.m_cols = 0;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = delete;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage& other) {
     internal::smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
     m_rows = other.m_rows;
     m_cols = other.m_cols;
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
-    std::move(other.m_data.array, other.m_data.array + other.size(), m_data.array);
-    m_rows = other.m_rows;
-    m_cols = other.m_cols;
-    other.m_rows = 0;
-    other.m_cols = 0;
-    return *this;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = delete;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
-    internal::swap_plain_array(m_data, other.m_data, this->size(), other.size());
+    internal::swap_plain_array(m_data, other.m_data, size(), other.size());
     numext::swap(m_rows, other.m_rows);
     numext::swap(m_cols, other.m_cols);
   }

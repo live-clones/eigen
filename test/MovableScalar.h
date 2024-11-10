@@ -13,17 +13,25 @@
 #include <vector>
 
 namespace Eigen {
-template <typename Scalar, typename Base = std::vector<Scalar>>
-struct MovableScalar : public Base {
-  MovableScalar() = default;
-  ~MovableScalar() = default;
-  MovableScalar(const MovableScalar&) = default;
-  MovableScalar(MovableScalar&& other) = default;
-  MovableScalar& operator=(const MovableScalar&) = default;
-  MovableScalar& operator=(MovableScalar&& other) = default;
-  MovableScalar(Scalar scalar) : Base(100, scalar) {}
+template <typename Scalar>
+struct MovableScalar {
+  MovableScalar() : m_data(new Scalar) {}
+  ~MovableScalar() { delete m_data; }
+  MovableScalar(const MovableScalar& other) : m_data(new Scalar) { *m_data = *other.m_data; }
+  MovableScalar(MovableScalar&& other) : m_data(other.m_data) { other.m_data = nullptr; }
+  MovableScalar& operator=(const MovableScalar& other) {
+    *m_data = *other.m_data;
+    return *this;
+  }
+  MovableScalar& operator=(MovableScalar&& other) {
+    m_data = other.m_data;
+    other.m_data = nullptr;
+    return *this;
+  }
+  MovableScalar(Scalar scalar) : m_data(new Scalar) { *m_data = scalar; }
 
-  operator Scalar() const { return this->size() > 0 ? this->back() : Scalar(); }
+  operator Scalar() const { return m_data == nullptr ? Scalar() : *m_data; }
+  Scalar* m_data = nullptr;
 };
 
 template <typename Scalar>
