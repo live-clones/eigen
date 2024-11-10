@@ -38,7 +38,7 @@ struct MovableScalar {
     // suppress compiler warnings
     if (m_data != nullptr) *m_data = value;
   }
-  const Scalar& getValue() const {
+  const Scalar getValue() const {
     eigen_assert(m_data != nullptr);
     // suppress compiler warnings
     return m_data == nullptr ? Scalar() : *m_data;
