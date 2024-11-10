@@ -305,7 +305,9 @@ class DenseStorage<T, 0, Dynamic, Cols, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) { numext::swap(m_rows, other.m_rows); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) noexcept {
+    numext::swap(m_rows, other.m_rows);
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index /*size*/, Index rows, Index /*cols*/) {
     m_rows = rows;
   }
@@ -330,7 +332,9 @@ class DenseStorage<T, 0, Rows, Dynamic, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) { numext::swap(m_cols, other.m_cols); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) noexcept {
+    numext::swap(m_cols, other.m_cols);
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index /*size*/, Index /*rows*/, Index cols) {
     m_cols = cols;
   }
@@ -356,7 +360,7 @@ class DenseStorage<T, 0, Dynamic, Dynamic, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) noexcept {
     numext::swap(m_rows, other.m_rows);
     numext::swap(m_cols, other.m_cols);
   }
@@ -407,11 +411,11 @@ class DenseStorage<T, Dynamic, Dynamic, Cols, Options> {
     internal::smart_copy(other.m_data, other.m_data + other.size(), m_data);
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) noexcept {
     this->swap(other);
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) noexcept {
     numext::swap(m_data, other.m_data);
     numext::swap(m_rows, other.m_rows);
   }
@@ -463,11 +467,11 @@ class DenseStorage<T, Dynamic, Rows, Dynamic, Options> {
     internal::smart_copy(other.m_data, other.m_data + other.size(), m_data);
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) noexcept {
     this->swap(other);
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) noexcept {
     numext::swap(m_data, other.m_data);
     numext::swap(m_cols, other.m_cols);
   }
@@ -523,11 +527,11 @@ class DenseStorage<T, Dynamic, Dynamic, Dynamic, Options> {
     internal::smart_copy(other.m_data, other.m_data + other.size(), m_data);
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) noexcept {
     this->swap(other);
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) noexcept {
     numext::swap(m_data, other.m_data);
     numext::swap(m_rows, other.m_rows);
     numext::swap(m_cols, other.m_cols);
