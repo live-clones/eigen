@@ -17,10 +17,10 @@ template <typename Scalar>
 struct MovableScalar {
   MovableScalar() : m_data(new Scalar) {}
   ~MovableScalar() { delete m_data; }
-  MovableScalar(const MovableScalar& other) : m_data(new Scalar) { *m_data = *other.m_data; }
+  MovableScalar(const MovableScalar& other) : m_data(new Scalar) { setValue(other.getValue()); }
   MovableScalar(MovableScalar&& other) : m_data(other.m_data) { other.m_data = nullptr; }
   MovableScalar& operator=(const MovableScalar& other) {
-    *m_data = *other.m_data;
+    setValue(other.getValue());
     return *this;
   }
   MovableScalar& operator=(MovableScalar&& other) {
@@ -28,9 +28,19 @@ struct MovableScalar {
     other.m_data = nullptr;
     return *this;
   }
-  MovableScalar(Scalar scalar) : m_data(new Scalar) { *m_data = scalar; }
+  MovableScalar(Scalar scalar) : m_data(new Scalar) { setValue(scalar); }
 
-  operator Scalar() const { return m_data == nullptr ? Scalar() : *m_data; }
+  operator Scalar() const { return getValue(); }
+
+ private:
+  void setValue(const Scalar& value) {
+    eigen_assert(m_data != nullptr);
+    *m_data = value;
+  }
+  const Scalar& getValue() const {
+    eigen_assert(m_data != nullptr);
+    return *m_data;
+  }
   Scalar* m_data = nullptr;
 };
 

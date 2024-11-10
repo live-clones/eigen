@@ -49,23 +49,21 @@ namespace internal {
  * to 16 bytes boundary if the total size is a multiple of 16 bytes.
  */
 
-// dummy class that conditionally deletes move constructor and assignment
+/*
+Empty class that conditionally deletes the move constructor and assignment operator. Move semantics are disabled for
+fixed-size objects that have dynamic dimensions, or fixed-size objects whose scalars require initialization.
+ */
 template <bool Disable>
 struct disable_move {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(const disable_move&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(disable_move&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(const disable_move&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(disable_move&&) = default;
-};
-template <>
-struct disable_move<true> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move() = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(const disable_move&) = default;
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(disable_move&&) = delete;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(const disable_move&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(disable_move&&) = delete;
 };
+template <>
+struct disable_move<false> {};
 
 template <typename T, int Size, int MatrixOrArrayOptions,
           int Alignment = (MatrixOrArrayOptions & DontAlign) ? 0 : compute_default_alignment<T, Size>::value>

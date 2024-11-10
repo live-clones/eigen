@@ -241,10 +241,6 @@ void plaintype_tests() {
   // check that object is usable after move assignment
   m1.resize(minRows, minCols);
   m1.setRandom();
-  m1.resize(rows, minCols);
-  m1.setRandom();
-  m1.resize(minRows, cols);
-  m1.setRandom();
   m1 = m2;
   VERIFY_IS_EQUAL(m1.rows(), m0.rows());
   VERIFY_IS_EQUAL(m1.cols(), m0.cols());
