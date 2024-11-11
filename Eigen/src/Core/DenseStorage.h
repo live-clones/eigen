@@ -49,22 +49,6 @@ namespace internal {
  * to 16 bytes boundary if the total size is a multiple of 16 bytes.
  */
 
-/*
-Empty class that conditionally deletes the move constructor and assignment operator. Move semantics are disabled for
-fixed-size objects that have dynamic dimensions, or fixed-size objects whose scalars require initialization.
- */
-template <bool Disable>
-struct disable_move {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move() = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(const disable_move&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(const disable_move&) = default;
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move(disable_move&&) = delete;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr disable_move& operator=(disable_move&&) = delete;
-};
-template <>
-struct disable_move<false> {};
-
 template <typename T, int Size, int MatrixOrArrayOptions,
           int Alignment = (MatrixOrArrayOptions & DontAlign) ? 0 : compute_default_alignment<T, Size>::value>
 struct plain_array {
@@ -122,7 +106,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap_plain_array(plain_arra
  * \sa Matrix
  */
 template <typename T, int Size, int Rows, int Cols, int Options>
-class DenseStorage : internal::disable_move<NumTraits<T>::RequireInitialization> {
+class DenseStorage {
   internal::plain_array<T, Size, Options> m_data;
 
  public:
@@ -139,9 +123,15 @@ class DenseStorage : internal::disable_move<NumTraits<T>::RequireInitialization>
   }
 #endif
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(Index /*size*/, Index /*rows*/, Index /*cols*/) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other) noexcept(
+      std::is_nothrow_move_assignable<T>::value)
+      : DenseStorage(static_cast<const DenseStorage&>(other)) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) noexcept(
+      std::is_nothrow_move_assignable<T>::value) {
+    *this = other;
+    return *this;
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) { numext::swap(m_data, other.m_data); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index /*size*/, Index /*rows*/,
                                                                           Index /*cols*/) {}
@@ -167,13 +157,17 @@ class DenseStorage<T, Size, Dynamic, Cols, Options> {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     EIGEN_UNUSED_VARIABLE(size)
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other)
+      : DenseStorage(static_cast<const DenseStorage&>(other)) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage& other) {
     internal::smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
     m_rows = other.m_rows;
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
+    *this = other;
+    return *this;
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
     internal::swap_plain_array(m_data, other.m_data, size(), other.size());
     numext::swap(m_rows, other.m_rows);
@@ -205,13 +199,17 @@ class DenseStorage<T, Size, Rows, Dynamic, Options> {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     EIGEN_UNUSED_VARIABLE(size)
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other)
+      : DenseStorage(static_cast<const DenseStorage&>(other)) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage& other) {
     internal::smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
     m_cols = other.m_cols;
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) {
+    *this = other;
+    return *this;
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
     internal::swap_plain_array(m_data, other.m_data, size(), other.size());
     numext::swap(m_cols, other.m_cols);
@@ -246,14 +244,20 @@ class DenseStorage<T, Size, Dynamic, Dynamic, Options> {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     EIGEN_UNUSED_VARIABLE(size)
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&&) = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage(DenseStorage&& other) noexcept(
+      std::is_nothrow_move_assignable<T>::value)
+      : DenseStorage(static_cast<const DenseStorage&>(other)) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(const DenseStorage& other) {
     internal::smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
     m_rows = other.m_rows;
     m_cols = other.m_cols;
     return *this;
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&&) = delete;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage& operator=(DenseStorage&& other) noexcept(
+      std::is_nothrow_move_assignable<T>::value) {
+    *this = other;
+    return *this;
+  }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage& other) {
     internal::swap_plain_array(m_data, other.m_data, size(), other.size());
     numext::swap(m_rows, other.m_rows);
