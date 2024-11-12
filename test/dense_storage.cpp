@@ -20,22 +20,29 @@ using DenseStorageD3x3 = Eigen::DenseStorage<double, 9, 3, 3, 0>;
 #if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
 static_assert(std::is_trivially_copy_constructible<DenseStorageD3x3>::value,
               "DenseStorage not trivially_copy_constructible");
+static_assert(std::is_trivially_move_constructible<DenseStorageD3x3>::value,
+              "DenseStorage not trivially_move_constructible");
 static_assert(std::is_trivially_copy_assignable<DenseStorageD3x3>::value, "DenseStorage not trivially_copy_assignable");
+static_assert(std::is_trivially_move_assignable<DenseStorageD3x3>::value, "DenseStorage not trivially_move_assignable");
 #endif
-
+// all plain object types conform to standard layout
 static_assert(std::is_standard_layout<Matrix4f>::value, "Matrix4f not standard_layout");
 static_assert(std::is_standard_layout<Array4f>::value, "Array4f not standard_layout");
 static_assert(std::is_standard_layout<VectorXf>::value, "VectorXf not standard_layout");
 static_assert(std::is_standard_layout<ArrayXf>::value, "ArrayXf not standard_layout");
 static_assert(std::is_standard_layout<MatrixXf>::value, "MatrixXf not standard_layout");
 static_assert(std::is_standard_layout<ArrayXXf>::value, "ArrayXXf not standard_layout");
-
+// all fixed-size, fixed-dimension plain object types are trivially default constructible
+static_assert(std::is_trivially_default_constructible<Matrix4f>::value, "Matrix4f not trivially_default_constructible");
+static_assert(std::is_trivially_default_constructible<Array4f>::value, "Array4f not trivially_default_constructible");
+// all fixed-size, fixed-dimension plain object types are trivially move constructible
+static_assert(std::is_trivially_move_constructible<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
+static_assert(std::is_trivially_move_constructible<Array4f>::value, "Array4f not trivially_move_constructible");
 #if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
+// all fixed-size, fixed-dimension plain object types are trivially copy constructible
 static_assert(std::is_trivially_copy_constructible<Matrix4f>::value, "Matrix4f not trivially_copy_constructible");
 static_assert(std::is_trivially_copy_constructible<Array4f>::value, "Array4f not trivially_copy_constructible");
 #endif
-static_assert(std::is_trivially_default_constructible<Matrix4f>::value, "Matrix4f not trivially_default_constructible");
-static_assert(std::is_trivially_default_constructible<Array4f>::value, "Array4f not trivially_default_constructible");
 
 template <typename T, int Size, int Rows, int Cols>
 void dense_storage_copy(int rows, int cols) {
