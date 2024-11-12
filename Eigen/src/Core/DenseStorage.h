@@ -109,6 +109,7 @@ class DenseStorage_impl {
   }
 #endif
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(Index /*size*/, Index /*rows*/, Index /*cols*/) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl& operator=(const DenseStorage_impl&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorage_impl& other) {
     numext::swap(m_data, other.m_data);
   }
