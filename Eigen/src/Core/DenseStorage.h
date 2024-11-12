@@ -344,12 +344,12 @@ class DenseStorage_impl<T, Dynamic, Rows, Cols, Options> {};
 // dynamic-sized variants
 template <typename T, int Cols, int Options>
 class DenseStorage_impl<T, Dynamic, Dynamic, Cols, Options> {
-  static constexpr int Size = Dynamic;
   static constexpr bool Align = (Options & DontAlign) == 0;
   T* m_data = nullptr;
   Index m_rows = 0;
 
  public:
+  static constexpr int Size = Dynamic;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(const DenseStorage_impl& other)
       : m_data(conditional_aligned_new_auto<T, Align>(other.size())), m_rows(other.m_rows) {
@@ -400,12 +400,12 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Cols, Options> {
 };
 template <typename T, int Rows, int Options>
 class DenseStorage_impl<T, Dynamic, Rows, Dynamic, Options> {
-  static constexpr int Size = Dynamic;
   static constexpr bool Align = (Options & DontAlign) == 0;
   T* m_data = nullptr;
   Index m_cols = 0;
 
  public:
+  static constexpr int Size = Dynamic;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(const DenseStorage_impl& other)
       : m_data(conditional_aligned_new_auto<T, Align>(other.size())), m_cols(other.m_cols) {
@@ -456,13 +456,13 @@ class DenseStorage_impl<T, Dynamic, Rows, Dynamic, Options> {
 };
 template <typename T, int Options>
 class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
-  static constexpr int Size = Dynamic;
   static constexpr bool Align = (Options & DontAlign) == 0;
   T* m_data = nullptr;
   Index m_rows = 0;
   Index m_cols = 0;
 
  public:
+  static constexpr int Size = Dynamic;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(const DenseStorage_impl& other)
       : m_data(conditional_aligned_new_auto<T, Align>(other.size())), m_rows(other.m_rows), m_cols(other.m_cols) {
