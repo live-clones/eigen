@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXd A = MatrixXd::Random(6, 6);
 cout << "Here is a random 6x6 matrix, A:" << endl << A << endl << endl;
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 # Find Visual Studio installation directory.
 $VS_INSTALL_DIR = &"${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
 

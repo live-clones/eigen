@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #include "../Eigen/Sparse"
 using namespace Eigen;
 

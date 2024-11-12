@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #ifndef GPU_TEST_HELPER_H
 #define GPU_TEST_HELPER_H
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 cmake_minimum_required(VERSION 3.4.3)
 
 if(CMAKE_COMPILER_IS_GNUCXX)

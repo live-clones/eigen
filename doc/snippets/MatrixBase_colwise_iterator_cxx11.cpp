@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix3i m = Matrix3i::Random();
 cout << "Here is the initial matrix m:" << endl << m << endl;
 int i = -1;

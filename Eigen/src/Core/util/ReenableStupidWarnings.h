@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #ifdef EIGEN_WARNINGS_DISABLED_2
 // "DisableStupidWarnings.h" was included twice recursively: Do not re-enable warnings yet!
 #undef EIGEN_WARNINGS_DISABLED_2

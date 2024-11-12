@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXcf a = MatrixXcf::Random(2, 2);
 cout << "Here is the matrix a\n" << a << endl;
 

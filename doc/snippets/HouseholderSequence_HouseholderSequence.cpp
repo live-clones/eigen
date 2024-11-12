@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix3d v = Matrix3d::Random();
 cout << "The matrix v is:" << endl;
 cout << v << endl;

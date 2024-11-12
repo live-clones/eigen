@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix3d m = 10000 * Matrix3d::Identity();
 m(0, 2) = 1;
 cout << "Here's the matrix m:" << endl << m << endl;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 
 // generate a table of contents in the side-nav based on the h1/h2 tags of the current page.
 function generate_autotoc() {

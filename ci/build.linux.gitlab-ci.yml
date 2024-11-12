@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 # Base configuration for linux cross-compilation.
 .build:linux:cross:
   extends: .common:linux:cross

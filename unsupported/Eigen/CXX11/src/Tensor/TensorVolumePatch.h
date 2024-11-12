@@ -1,5 +1,6 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_VOLUME_PATCH_H
 #define EIGEN_CXX11_TENSOR_TENSOR_VOLUME_PATCH_H

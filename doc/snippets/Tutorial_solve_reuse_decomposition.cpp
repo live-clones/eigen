@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix3f A(3, 3);
 A << 1, 2, 3, 4, 5, 6, 7, 8, 10;
 PartialPivLU<Matrix3f> luOfA(A);  // compute LU decomposition of A

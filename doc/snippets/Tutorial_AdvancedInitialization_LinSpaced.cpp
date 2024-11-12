@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 ArrayXXf table(10, 4);
 table.col(0) = ArrayXf::LinSpaced(10, 0, 90);
 table.col(1) = M_PI / 180 * table.col(0);

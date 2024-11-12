@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 // Silence warnings about using the deprecated non-canonical .eulerAngles(), which are still being tested.
 #define EIGEN_NO_DEPRECATED_WARNING

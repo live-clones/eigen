@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #ifndef TEST_PACKET_OSTREAM
 #define TEST_PACKET_OSTREAM
 

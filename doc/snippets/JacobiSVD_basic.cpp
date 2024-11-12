@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXf m = MatrixXf::Random(3, 2);
 cout << "Here is the matrix m:" << endl << m << endl;
 JacobiSVD<MatrixXf, ComputeThinU | ComputeThinV> svd(m);

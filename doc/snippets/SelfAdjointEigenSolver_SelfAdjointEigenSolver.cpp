@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 SelfAdjointEigenSolver<Matrix4f> es;
 Matrix4f X = Matrix4f::Random(4, 4);
 Matrix4f A = X + X.transpose();

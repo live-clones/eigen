@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXi m(2, 2);
 m << 1, 0, 1, 1;
 cout << "Comparing m with identity matrix:" << endl;

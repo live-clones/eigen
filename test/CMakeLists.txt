@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 # The file split_test_helper.h was generated at first run,
 # it is now included in test/
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
