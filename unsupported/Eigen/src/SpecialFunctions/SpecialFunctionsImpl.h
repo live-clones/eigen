@@ -332,10 +332,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<float>::run(const T& x
 // Computes erf(x)/x for |x| <= 1. Used by both erf and erfc implementations.
 // Takes x2 = x^2 as input.
 //
-// PRECONDITION: |x2| <= 1.
+// PRECONDITION: x2 <= 1.
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T erf_over_x_double_small(const T& x2) {
-  // erf(x)/x =  S(x^2) / T(x^2), |x| <= 1.
+  // erf(x)/x =  S(x^2) / T(x^2), x^2 <= 1.
   //
   // Coefficients for S and T generated with Rminimax command:
   //  ./ratapprox --function="erf(x)" --dom='[-1,1]' --type=[9,10]
@@ -359,7 +359,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T erf_over_x_double_small(const T& x2) {
 template <>
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& x_in) {
-  // Clamp x to [-27:27] beyond which erfc(x) is either two or zero (below the underflow threshold).
+  // Clamp x to [-28:28] beyond which erfc(x) is either two or zero (below the underflow threshold).
   // This avoids having to deal with twoprod(x,x) producing NaN for sufficiently large x.
   constexpr double kClamp = 28.0;
   const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
@@ -374,7 +374,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& 
   const T x_abs_gt_one_mask = pcmp_lt(one, x2);
   if (!predux_any(x_abs_gt_one_mask)) return erfc_small;
 
-  // erfc(x) = exp(-x^2) * 1/x * P(x) / Q(x), 1 < x < 27.
+  // erfc(x) = exp(-x^2) * 1/x * P(x) / Q(x), 1 < x < 28.
   //
   // Coefficients for P and Q generated with Rminimax command:
   //  ./ratapprox --function="erfc(1/sqrt(x))*exp(1/x)/sqrt(x)"  --dom='[0.0013717,1]' --type=[9,9] --numF="[D]"
