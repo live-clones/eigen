@@ -114,8 +114,8 @@ constexpr static inline std::array<Index, N> tensor_static_symgroup_index_permut
 }
 
 template <typename Index, int... ii>
-static inline std::vector<Index> tensor_static_symgroup_index_permute(std::vector<Index> idx,
-                                                                      internal::numeric_list<int, ii...>) {
+static inline constexpr std::vector<Index> tensor_static_symgroup_index_permute(std::vector<Index> idx,
+                                                                                internal::numeric_list<int, ii...>) {
   std::vector<Index> result{{idx[ii]...}};
   std::size_t target_size = idx.size();
   for (std::size_t i = result.size(); i < target_size; i++) result.push_back(idx[i]);
@@ -129,7 +129,7 @@ template <typename first, typename... next>
 struct tensor_static_symgroup_do_apply<internal::type_list<first, next...>> {
   template <typename Op, typename RV, std::size_t SGNumIndices, typename Index, std::size_t NumIndices,
             typename... Args>
-  static inline RV run(const std::array<Index, NumIndices>& idx, RV initial, Args&&... args) {
+  static inline constexpr RV run(const std::array<Index, NumIndices>& idx, RV initial, Args&&... args) {
     static_assert(NumIndices >= SGNumIndices,
                   "Can only apply symmetry group to objects that have at least the required amount of indices.");
     typedef typename internal::gen_numeric_list<int, NumIndices - SGNumIndices, SGNumIndices>::type remaining_indices;
@@ -140,7 +140,7 @@ struct tensor_static_symgroup_do_apply<internal::type_list<first, next...>> {
   }
 
   template <typename Op, typename RV, std::size_t SGNumIndices, typename Index, typename... Args>
-  static inline RV run(const std::vector<Index>& idx, RV initial, Args&&... args) {
+  static inline constexpr RV run(const std::vector<Index>& idx, RV initial, Args&&... args) {
     eigen_assert(idx.size() >= SGNumIndices &&
                  "Can only apply symmetry group to objects that have at least the required amount of indices.");
     initial = Op::run(tensor_static_symgroup_index_permute(idx, typename first::indices()), first::flags, initial,
@@ -154,13 +154,13 @@ template <EIGEN_TPL_PP_SPEC_HACK_DEF(typename, empty)>
 struct tensor_static_symgroup_do_apply<internal::type_list<EIGEN_TPL_PP_SPEC_HACK_USE(empty)>> {
   template <typename Op, typename RV, std::size_t SGNumIndices, typename Index, std::size_t NumIndices,
             typename... Args>
-  static inline RV run(const std::array<Index, NumIndices>&, RV initial, Args&&...) {
+  static inline constexpr RV run(const std::array<Index, NumIndices>&, RV initial, Args&&...) {
     // do nothing
     return initial;
   }
 
   template <typename Op, typename RV, std::size_t SGNumIndices, typename Index, typename... Args>
-  static inline RV run(const std::vector<Index>&, RV initial, Args&&...) {
+  static inline constexpr RV run(const std::vector<Index>&, RV initial, Args&&...) {
     // do nothing
     return initial;
   }
@@ -179,17 +179,17 @@ class StaticSGroup {
   typedef typename group_elements::type ge;
 
  public:
-  constexpr inline StaticSGroup() {}
-  constexpr inline StaticSGroup(const StaticSGroup<Gen...>&) {}
-  constexpr inline StaticSGroup(StaticSGroup<Gen...>&&) {}
+  constexpr inline StaticSGroup() = default;
+  constexpr inline StaticSGroup(const StaticSGroup<Gen...>&) = default;
+  constexpr inline StaticSGroup(StaticSGroup<Gen...>&&) = default;
 
   template <typename Op, typename RV, typename Index, std::size_t N, typename... Args>
-  static inline RV apply(const std::array<Index, N>& idx, RV initial, Args&&... args) {
+  static inline constexpr RV apply(const std::array<Index, N>& idx, RV initial, Args&&... args) {
     return internal::tensor_static_symgroup_do_apply<ge>::template run<Op, RV, NumIndices>(idx, initial, args...);
   }
 
   template <typename Op, typename RV, typename Index, typename... Args>
-  static inline RV apply(const std::vector<Index>& idx, RV initial, Args&&... args) {
+  static inline constexpr RV apply(const std::vector<Index>& idx, RV initial, Args&&... args) {
     eigen_assert(idx.size() == NumIndices);
     return internal::tensor_static_symgroup_do_apply<ge>::template run<Op, RV, NumIndices>(idx, initial, args...);
   }
@@ -200,7 +200,7 @@ class StaticSGroup {
   constexpr static inline int globalFlags() { return group_elements::global_flags; }
 
   template <typename Tensor_, typename... IndexTypes>
-  inline internal::tensor_symmetry_value_setter<Tensor_, StaticSGroup<Gen...>> operator()(
+  inline constexpr internal::tensor_symmetry_value_setter<Tensor_, StaticSGroup<Gen...>> operator()(
       Tensor_& tensor, typename Tensor_::Index firstIndex, IndexTypes... otherIndices) const {
     static_assert(sizeof...(otherIndices) + 1 == Tensor_::NumIndices,
                   "Number of indices used to access a tensor coefficient must be equal to the rank of the tensor.");
@@ -208,7 +208,7 @@ class StaticSGroup {
   }
 
   template <typename Tensor_>
-  inline internal::tensor_symmetry_value_setter<Tensor_, StaticSGroup<Gen...>> operator()(
+  inline constexpr internal::tensor_symmetry_value_setter<Tensor_, StaticSGroup<Gen...>> operator()(
       Tensor_& tensor, std::array<typename Tensor_::Index, Tensor_::NumIndices> const& indices) const {
     return internal::tensor_symmetry_value_setter<Tensor_, StaticSGroup<Gen...>>(tensor, *this, indices);
   }

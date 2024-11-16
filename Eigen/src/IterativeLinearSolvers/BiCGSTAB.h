@@ -29,8 +29,8 @@ namespace internal {
  * \return false in the case of numerical issue, for example a break down of BiCGSTAB.
  */
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
-bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
-              typename Dest::RealScalar& tol_error) {
+constexpr bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
+                        typename Dest::RealScalar& tol_error) {
   using std::abs;
   using std::sqrt;
   typedef typename Dest::RealScalar RealScalar;
@@ -166,7 +166,7 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
 
  public:
   /** Default constructor. */
-  BiCGSTAB() : Base() {}
+  constexpr BiCGSTAB() = default;
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -179,13 +179,11 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  explicit BiCGSTAB(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
-
-  ~BiCGSTAB() {}
+  constexpr explicit BiCGSTAB(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
   /** \internal */
   template <typename Rhs, typename Dest>
-  void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
+  constexpr void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
     m_iterations = Base::maxIterations();
     m_error = Base::m_tolerance;
 
@@ -193,8 +191,6 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
 
     m_info = (!ret) ? NumericalIssue : m_error <= Base::m_tolerance ? Success : NoConvergence;
   }
-
- protected:
 };
 
 }  // end namespace Eigen
