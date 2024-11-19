@@ -740,10 +740,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment
 // Specialization for filling the destination with a constant value.
 #if !EIGEN_COMP_MSVC
 #ifndef EIGEN_GPU_COMPILE_PHASE
-template <typename DstXprType, typename SrxXprType>
+template <typename DstXprType, typename SrcXprType>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_dense_assignment_loop(
     DstXprType& dst,
-    const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<typename DstXprType::Scalar>, SrxXprType>& src,
+    const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<typename DstXprType::Scalar>, SrcXprType>& src,
     const internal::assign_op<typename DstXprType::Scalar, typename DstXprType::Scalar>& func) {
   resize_if_allowed(dst, src, func);
   std::fill_n(dst.data(), dst.size(), src.functor()());
