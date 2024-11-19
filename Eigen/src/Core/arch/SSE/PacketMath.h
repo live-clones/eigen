@@ -1800,7 +1800,7 @@ EIGEN_STRONG_INLINE Packet2d pldexp_fast<Packet2d>(const Packet2d& a, const Pack
 
   // Compute 2^e multiply:
   const Packet4i bias = _mm_set_epi32(0, 1023, 0, 1023);
-  const Packet2d c = _mm_castsi128_pd(_mm_slli_epi64(padd(ei, bias), 52)); // 2^e
+  const Packet2d c = _mm_castsi128_pd(_mm_slli_epi64(padd(ei, bias), 52));  // 2^e
   return pmul(a, c);
 }
 

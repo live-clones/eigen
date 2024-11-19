@@ -279,7 +279,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_fast(const Packet& a, const 
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename unpacket_traits<PacketI>::type ScalarI;
   static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
-                    ExponentBits = TotalBits - MantissaBits - 1;
+                       ExponentBits = TotalBits - MantissaBits - 1;
 
   const Packet bias = pset1<Packet>(Scalar((ScalarI(1) << (ExponentBits - 1)) - ScalarI(1)));  // 127
   const Packet limit = pset1<Packet>(Scalar((ScalarI(1) << ExponentBits) - ScalarI(1)));       // 255
@@ -547,12 +547,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   y = pmadd(r2, y, p_low);
 
   // Return 2^m * exp(r).
-  const Packet fast_pldexp_unsafe =
-      pandnot(pcmp_lt(x, pset1<Packet>(-87.0)), zero_mask);
+  const Packet fast_pldexp_unsafe = pandnot(pcmp_lt(x, pset1<Packet>(-87.0)), zero_mask);
   if (!predux_any(fast_pldexp_unsafe)) {
     // For x >= -87, we can safely use the fast version of pldexp.
-    return pselect(zero_mask, cst_zero,
-                   pmax(pldexp_fast(y, m), _x));
+    return pselect(zero_mask, cst_zero, pmax(pldexp_fast(y, m), _x));
   }
   return pselect(zero_mask, cst_zero, pmax(pldexp(y, m), _x));
 }
@@ -620,12 +618,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
 
   // Construct the result 2^n * exp(g) = e * x. The max is used to catch
   // non-finite values in the input.
-  const Packet fast_pldexp_unsafe =
-      pandnot(pcmp_lt(_x, pset1<Packet>(-708.0)), zero_mask);
+  const Packet fast_pldexp_unsafe = pandnot(pcmp_lt(_x, pset1<Packet>(-708.0)), zero_mask);
   if (!predux_any(fast_pldexp_unsafe)) {
     // For x >= -708, we can safely use the fast version of pldexp.
-    return pselect(zero_mask, cst_zero,
-                   pmax(pldexp_fast(x, fx), _x));
+    return pselect(zero_mask, cst_zero, pmax(pldexp_fast(x, fx), _x));
   }
   return pselect(zero_mask, cst_zero, pmax(pldexp(x, fx), _x));
 }
