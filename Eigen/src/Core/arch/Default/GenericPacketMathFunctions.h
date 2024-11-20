@@ -2068,8 +2068,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, c
 
   // Since we know that e_r is in [1/sqrt(2); sqrt(2)], we can use the fast version
   // of pldexp to multiply by 2**{n_z} when |n_z| is sufficiently small.
-  constexpr Scalar kPldExpTresh = std::numeric_limits<Scalar>::max_exponent - 2;
-  const Packet pldexp_fast_unsafe = pcmp_lt(pset1<Packet>(kPldExpTresh), pabs(n_z));
+  constexpr Scalar kPldExpThresh = std::numeric_limits<Scalar>::max_exponent - 2;
+  const Packet pldexp_fast_unsafe = pcmp_lt(pset1<Packet>(kPldExpThresh), pabs(n_z));
   if (predux_any(pldexp_fast_unsafe)) {
     return pldexp(e_r, n_z);
   }
