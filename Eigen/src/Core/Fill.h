@@ -33,6 +33,10 @@ template <typename Xpr, int BlockRows, int BlockCols>
 struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ false>>
     : std::integral_constant<bool, Xpr::IsRowMajor ? (BlockRows == 1) : (BlockCols == 1)> {};
 
+template <typename Xpr, int Options, typename StrideType>
+struct eigen_fill_helper<Map<Xpr, Options, StrideType>>
+    : std::integral_constant<bool, traits<Map<Xpr, Options, StrideType>>::InnerStrideAtCompileTime == 1> {};
+
 template <typename Xpr, bool use_fill = eigen_fill_helper<Xpr>::value>
 struct eigen_fill_impl {
   using Scalar = typename Xpr::Scalar;
