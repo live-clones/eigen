@@ -33,8 +33,12 @@ template <typename Xpr, int BlockRows, int BlockCols>
 struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ false>>
     : std::integral_constant<bool, Xpr::IsRowMajor ? (BlockRows == 1) : (BlockCols == 1)> {};
 
-template <typename Xpr, int Options>
-struct eigen_fill_helper<Map<Xpr, Options, Stride<0, 0>>> : std::true_type {};
+template <typename Xpr, int Options, typename StrideType>
+struct eigen_fill_helper<Map<Xpr, Options, StrideType>> {
+  using MapType = Map<Xpr, Options, StrideType>;
+  static constexpr bool value = eigen_fill_helper<Xpr>::value && (MapType::InnerStrideAtCompileTime == 1) &&
+                                (StrideType::OuterStrideAtCompileTime == 0);
+};
 
 template <typename Xpr, bool use_fill = eigen_fill_helper<Xpr>::value>
 struct eigen_fill_impl {
@@ -61,11 +65,11 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
 #endif
 
 template <typename Xpr>
-struct eigen_zero_helper {
-  static constexpr bool value = std::is_arithmetic<typename Xpr::Scalar>::value && eigen_fill_helper<Xpr>::value;
+struct eigen_memset_helper {
+  static constexpr bool value = is_arithmetic<typename Xpr::Scalar>::value && eigen_fill_helper<Xpr>::value;
 };
 
-template <typename Xpr, bool use_memset = eigen_zero_helper<Xpr>::value>
+template <typename Xpr, bool use_memset = eigen_memset_helper<Xpr>::value>
 struct eigen_zero_impl {
   using Scalar = typename Xpr::Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) { eigen_fill_impl<Xpr, false>::run(dst, Scalar(0)); }
