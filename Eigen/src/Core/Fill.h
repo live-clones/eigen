@@ -29,6 +29,10 @@ struct eigen_fill_helper<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> :
 template <typename Xpr, int BlockRows, int BlockCols>
 struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ true>> : std::true_type {};
 
+template <typename Xpr, int BlockRows, int BlockCols>
+struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ false>>
+    : std::integral_constant<bool, Xpr::IsRowMajor ? (BlockRows == 1) : (BlockCols == 1)> {};
+
 template <typename Xpr, bool use_fill = eigen_fill_helper<Xpr>::value>
 struct eigen_fill_impl {
   using Scalar = typename Xpr::Scalar;
