@@ -77,7 +77,9 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
   static constexpr size_t max_bytes = (std::numeric_limits<std::ptrdiff_t>::max)();
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
     const size_t num_bytes = dst.size() * sizeof(Scalar);
-    eigen_assert(num_bytes <= max_bytes && "num_bytes exceeds maximum object size");
+#ifndef EIGEN_NO_DEBUG
+    if (num_bytes > max_bytes) throw_std_bad_alloc();
+#endif
     EIGEN_USING_STD(memset);
     memset(dst.data(), 0, num_bytes);
   }
