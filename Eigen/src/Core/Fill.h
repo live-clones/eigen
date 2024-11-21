@@ -59,7 +59,7 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
 
 template <typename Xpr>
 struct eigen_zero_helper {
-  static constexpr bool value = std::is_trivial<typename Xpr::Scalar>::value && eigen_fill_helper<Xpr>::value;
+  static constexpr bool value = std::is_arithmetic<typename Xpr::Scalar>::value && eigen_fill_helper<Xpr>::value;
 };
 
 template <typename Xpr, bool use_memset = eigen_zero_helper<Xpr>::value>
