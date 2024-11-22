@@ -1,7 +1,7 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
-// Copyright (C) 2008-2010 Gael Guennebaud <gael.guennebaud@inria.fr>
+// Copyright (C) 2024 Charles Schlosser <cs.schlosser@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
@@ -36,8 +36,12 @@ struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ false>>
 template <typename Xpr, int Options, typename StrideType>
 struct eigen_fill_helper<Map<Xpr, Options, StrideType>> {
   using MapType = Map<Xpr, Options, StrideType>;
-  static constexpr bool value = eigen_fill_helper<Xpr>::value && (MapType::InnerStrideAtCompileTime == 1) &&
-                                (StrideType::OuterStrideAtCompileTime == 0);
+  static constexpr bool InnerStrideIsCompatible = MapType::InnerStrideAtCompileTime == 1;
+  static constexpr bool OuterStrideIsCompatible =
+      (StrideType::OuterStrideAtCompileTime != Dynamic) &&
+      ((StrideType::OuterStrideAtCompileTime == 0) ||
+       (StrideType::OuterStrideAtCompileTime == Xpr::InnerSizeAtCompileTime));
+  static constexpr bool value = eigen_fill_helper<Xpr>::value && InnerStrideIsCompatible && OuterStrideIsCompatible;
 };
 
 template <typename Xpr, bool use_fill = eigen_fill_helper<Xpr>::value>
