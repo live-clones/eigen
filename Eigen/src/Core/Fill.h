@@ -27,23 +27,17 @@ template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int Max
 struct eigen_fill_helper<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
 
 template <typename Xpr, int BlockRows, int BlockCols>
-struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ true>> : std::true_type {};
+struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ true>> : eigen_fill_helper<Xpr> {};
 
 template <typename Xpr, int BlockRows, int BlockCols>
 struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ false>>
-    : std::integral_constant<bool, Xpr::IsRowMajor ? (BlockRows == 1) : (BlockCols == 1)> {};
+    : std::integral_constant<bool, eigen_fill_helper<Xpr>::value &&
+                                       (Xpr::IsRowMajor ? (BlockRows == 1) : (BlockCols == 1))> {};
 
 template <typename Xpr, int Options, typename StrideType>
-struct eigen_fill_helper<Map<Xpr, Options, StrideType>> {
-  using MapType = Map<Xpr, Options, StrideType>;
-  static constexpr int InnerStrideAtCompileTime = StrideType::InnerStrideAtCompileTime;
-  static constexpr int OuterStrideAtCompileTime = StrideType::OuterStrideAtCompileTime;
-  static constexpr int InnerSizeAtCompileTime = Xpr::InnerSizeAtCompileTime;
-  static constexpr bool InnerStrideIsCompatible = InnerStrideAtCompileTime == 1;
-  static constexpr bool OuterStrideIsCompatible =
-      (OuterStrideAtCompileTime == 0) || enum_eq_not_dynamic(OuterStrideAtCompileTime, InnerSizeAtCompileTime);
-  static constexpr bool value = eigen_fill_helper<Xpr>::value && InnerStrideIsCompatible && OuterStrideIsCompatible;
-};
+struct eigen_fill_helper<Map<Xpr, Options, StrideType>>
+    : std::integral_constant<bool, eigen_fill_helper<Xpr>::value &&
+                                       (evaluator<Map<Xpr, Options, StrideType>>::Flags & LinearAccessBit)> {};
 
 template <typename Xpr, bool use_fill = eigen_fill_helper<Xpr>::value>
 struct eigen_fill_impl {
