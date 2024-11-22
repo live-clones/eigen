@@ -36,11 +36,12 @@ struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ false>>
 template <typename Xpr, int Options, typename StrideType>
 struct eigen_fill_helper<Map<Xpr, Options, StrideType>> {
   using MapType = Map<Xpr, Options, StrideType>;
-  static constexpr bool InnerStrideIsCompatible = MapType::InnerStrideAtCompileTime == 1;
+  static constexpr int InnerStrideAtCompileTime = StrideType::InnerStrideAtCompileTime;
+  static constexpr int OuterStrideAtCompileTime = StrideType::OuterStrideAtCompileTime;
+  static constexpr int InnerSizeAtCompileTime = Xpr::InnerSizeAtCompileTime;
+  static constexpr bool InnerStrideIsCompatible = InnerStrideAtCompileTime == 1;
   static constexpr bool OuterStrideIsCompatible =
-      (StrideType::OuterStrideAtCompileTime != Dynamic) &&
-      ((StrideType::OuterStrideAtCompileTime == 0) ||
-       (StrideType::OuterStrideAtCompileTime == Xpr::InnerSizeAtCompileTime));
+      (OuterStrideAtCompileTime == 0) || enum_eq_not_dynamic(OuterStrideAtCompileTime, InnerSizeAtCompileTime);
   static constexpr bool value = eigen_fill_helper<Xpr>::value && InnerStrideIsCompatible && OuterStrideIsCompatible;
 };
 
