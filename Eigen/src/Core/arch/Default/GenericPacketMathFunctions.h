@@ -1869,12 +1869,12 @@ struct accurate_log2<float> {
         -1.7892272770404815673828125e-01, 2.0505344867706298828125000e-01,  -2.4046677350997924804687500e-01,
         2.8857553005218505859375000e-01,  -3.6067414283752441406250000e-01, 4.8089790344238281250000000e-01};
 
-    // Evaluate the linear and higher order terms in the polynomial using
+    // Evaluate the higher order terms in the polynomial using
     // standard arithmetic.
     const Packet one = pset1<Packet>(1.0f);
     const Packet x = psub(z, one);
     Packet p = ppolevl<Packet, 8>::run(x, c);
-    // Evaluate the final step in Horner's rule using double-word arithmetic.
+    // Evaluate the final two step in Horner's rule using double-word arithmetic.
     Packet p_hi, p_lo;
     twoprod(x, p, p_hi, p_lo);
     fast_twosum(c1_hi, c1_lo, p_hi, p_lo, p_hi, p_lo);
