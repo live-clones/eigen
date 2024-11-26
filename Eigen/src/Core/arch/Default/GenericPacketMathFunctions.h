@@ -2072,9 +2072,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
   const Packet y_is_int = pandnot(pcmp_eq(pfloor(y), y), y_abs_is_inf);
   const Packet y_div_2 = pmul(y, pset1<Packet>(Scalar(0.5)));
   const Packet y_is_even = pcmp_eq(pround(y_div_2), y_div_2);
-  constexpr Scalar kLargestOddIntegerPlusOne = Scalar(1ll << std::numeric_limits<Scalar>::digits);
-  const Packet y_is_odd_int =
-      pand(y_is_int, pandnot(pcmp_lt(y_abs, pset1<Packet>(kLargestOddIntegerPlusOne)), y_is_even));
+  const Packet y_is_odd_int = pandnot(y_is_int, y_is_even);
+  // Smallest exponent for which (1 + epsilon) overflows to infinity.
   EIGEN_CONSTEXPR Scalar huge_exponent =
       (NumTraits<Scalar>::max_exponent() * Scalar(EIGEN_LN2)) / NumTraits<Scalar>::epsilon();
   const Packet y_abs_is_huge = pcmp_le(pset1<Packet>(huge_exponent), y_abs);
