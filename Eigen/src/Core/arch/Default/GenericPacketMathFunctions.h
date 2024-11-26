@@ -2068,10 +2068,13 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
   const Packet y_is_negative = pcmp_lt(y, cst_zero);
   const Packet y_is_zero = pcmp_eq(y, cst_zero);
   const Packet y_is_one = pcmp_eq(y, cst_one);
-  // Predicates for whether y is integer and/or even.
+  // Predicates for whether y is integer and odd/even.
   const Packet y_is_int = pandnot(pcmp_eq(pfloor(y), y), y_abs_is_inf);
   const Packet y_div_2 = pmul(y, pset1<Packet>(Scalar(0.5)));
   const Packet y_is_even = pcmp_eq(pround(y_div_2), y_div_2);
+  constexpr Scalar kLargestOddIntegerPlusOne = Scalar(1ll << std::numeric_limits<Scalar>::digits);
+  const Packet y_is_odd_int =
+      pand(y_is_int, pandnot(pcmp_lt(y_abs, pset1<Packet>(kLargestOddIntegerPlusOne)), y_is_even));
   EIGEN_CONSTEXPR Scalar huge_exponent =
       (NumTraits<Scalar>::max_exponent() * Scalar(EIGEN_LN2)) / NumTraits<Scalar>::epsilon();
   const Packet y_abs_is_huge = pcmp_le(pset1<Packet>(huge_exponent), y_abs);
@@ -2093,7 +2096,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
 
   // pow(base, exp) returns -pow(abs(base), exp) if base has the sign bit set,
   // and exp is an odd integer exponent.
-  pow = pselect(pandnot(x_has_signbit, y_is_even), pnegate(pow), pow);
+  pow = pselect(pand(x_has_signbit, y_is_odd_int), pnegate(pow), pow);
 
   // * pow(base, -∞) returns +∞ for any |base|<1
   // * pow(base, -∞) returns +0 for any |base|>1
@@ -2114,7 +2117,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
   // * pow(-∞, exp) returns +∞ if exp is a positive non-integer or positive
   //     even integer.
   auto x_pos_inf_value = pselect(y_is_negative, cst_zero, cst_inf);
-  auto x_neg_inf_value = pselect(y_is_even, x_pos_inf_value, pnegate(x_pos_inf_value));
+  auto x_neg_inf_value = pselect(y_is_odd_int, pnegate(x_pos_inf_value), x_pos_inf_value);
   pow = pselect(x_abs_is_inf, pselect(x_is_negative, x_neg_inf_value, x_pos_inf_value), pow);
 
   // All cases of NaN inputs return NaN, except the two below.
@@ -2327,12 +2330,9 @@ struct unary_pow_impl<Packet, ScalarExponent, false, false, ExponentIsSigned> {
     if (exponent_is_integer) {
       // The simple recursive doubling implementation is only accurate to 3 ulps
       // for integer exponents in [-3:7]. Since this is a common case, we
-      // specialize it here. We also use recursive doubling for large integers
-      // that cannot be represented in the Scalar type.
-      const Scalar kMaxInteger = std::scalbn(Scalar(1), std::numeric_limits<Scalar>::digits);
+      // specialize it here.
       bool use_repeated_squaring =
-          (exponent <= ScalarExponent(7) && (!ExponentIsSigned || exponent >= ScalarExponent(-3))) ||
-          (std::abs(exponent) >= kMaxInteger);
+          (exponent <= ScalarExponent(7) && (!ExponentIsSigned || exponent >= ScalarExponent(-3)));
       return use_repeated_squaring ? unary_pow::int_pow(x, exponent) : generic_pow(x, pset1<Packet>(exponent));
     } else {
       Packet result = unary_pow::gen_pow(x, exponent);
@@ -2346,15 +2346,7 @@ template <typename Packet, typename ScalarExponent, bool ExponentIsSigned>
 struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
-    const Scalar kMaxInteger = std::scalbn(Scalar(1), std::numeric_limits<Scalar>::digits);
-    bool use_repeated_squaring =
-        (exponent <= ScalarExponent(7) && (!ExponentIsSigned || exponent >= ScalarExponent(-3))) ||
-        (std::abs(exponent) >= kMaxInteger);
-    // The simple recursive doubling implementation is only accurate to 3 ulps
-    // for integer exponents in [-3:7]. Since this is a common case, we
-    // specialize it here. We also use recursive doubling for large integers
-    // that cannot be represented in the Scalar type.
-    return use_repeated_squaring ? unary_pow::int_pow(x, exponent) : generic_pow(x, pset1<Packet>(exponent));
+    return unary_pow::int_pow(x, exponent);
   }
 };
 
