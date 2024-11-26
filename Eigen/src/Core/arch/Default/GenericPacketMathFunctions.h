@@ -2305,8 +2305,7 @@ struct unary_pow_impl<Packet, ScalarExponent, false, false, ExponentIsSigned> {
     if (exponent_is_integer) {
       // The simple recursive doubling implementation is only accurate to 3 ulps for
       // integer exponents in [-3:7]. Since this is a common case, we specialize it here.
-      if (exponent <= ScalarExponent(7) &&
-          (!ExponentIsSigned || exponent >= ScalarExponent(-3))) {
+      if (exponent <= ScalarExponent(7) && (!ExponentIsSigned || exponent >= ScalarExponent(-3))) {
         return unary_pow::int_pow(x, exponent);
       }
       // TODO(rmlarsen): Implement more efficient special case handling.
@@ -2325,8 +2324,7 @@ struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     // The simple recursive doubling implementation is only sufficiently accurate to 3 ulps for
     // integer exponents in [-3:7]. Since this is a common case, we specialize it here.
-    if (exponent <= ScalarExponent(7) &&
-        (!ExponentIsSigned || exponent >= ScalarExponent(-3))) {
+    if (exponent <= ScalarExponent(7) && (!ExponentIsSigned || exponent >= ScalarExponent(-3))) {
       return unary_pow::int_pow(x, exponent);
     }
     // TODO(rmlarsen): Implement more efficient special case handling.
