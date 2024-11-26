@@ -199,6 +199,12 @@ struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, true
     pcast_array<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio>::cast(data1, DataSize, data2);
 
     VERIFY(test::areApprox(ref, data2, DataSize) && "internal::pcast<>");
+
+    // Test that pcast<SrcScalar, TgtScalar> generates the same result.
+    for (int i = 0; i < DataSize; ++i) {
+      data2[i] = internal::pcast<SrcScalar, TgtScalar>(data1[i]);
+    }
+    VERIFY(test::areApprox(ref, data2, DataSize) && "internal::pcast<>");
   }
 };
 
