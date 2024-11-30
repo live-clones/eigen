@@ -243,6 +243,34 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
     return pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x);
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    if (IsRowMajor)
+      return ploadt_partial<PacketType, LoadMode>(m_d.data + row * m_d.outerStride() + col, n, offset);
+    else
+      return ploadt_partial<PacketType, LoadMode>(m_d.data + row + col * m_d.outerStride(), n, offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    return ploadt_partial<PacketType, LoadMode>(m_d.data + index, n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
+    if (IsRowMajor)
+      pstoret_partial<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row * m_d.outerStride() + col, x,
+                                                     n, offset);
+    else
+      pstoret_partial<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row + col * m_d.outerStride(), x,
+                                                     n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
+    pstoret_partial<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x, n, offset);
+  }
+
  protected:
   plainobjectbase_evaluator_data<Scalar, OuterStrideAtCompileTime> m_d;
 };
@@ -316,6 +344,26 @@ struct unary_evaluator<Transpose<ArgType>, IndexBased> : evaluator_base<Transpos
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
     m_argImpl.template writePacket<StoreMode, PacketType>(index, x);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(col, row, n, offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(index, n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
+    m_argImpl.template writePartialPacket<StoreMode, PacketType>(col, row, x, n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
+    m_argImpl.template writePartialPacket<StoreMode, PacketType>(index, x, n, offset);
   }
 
  protected:
@@ -502,6 +550,16 @@ struct evaluator<CwiseNullaryOp<NullaryOp, PlainObjectType>>
     return m_wrapper.template packetOp<PacketType>(m_functor, index);
   }
 
+  template <int LoadMode, typename PacketType, typename IndexType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(IndexType row, IndexType col, Index, Index) const {
+    return packet<LoadMode, PacketType, IndexType>(row, col);
+  }
+
+  template <int LoadMode, typename PacketType, typename IndexType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(IndexType index, Index, Index) const {
+    return packet<LoadMode, PacketType, IndexType>(index);
+  }
+
  protected:
   const NullaryOp m_functor;
   const internal::nullary_wrapper<CoeffReturnType, NullaryOp> m_wrapper;
@@ -544,6 +602,16 @@ struct unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IndexBased> : evaluator_b
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
     return m_d.func().packetOp(m_d.argImpl.template packet<LoadMode, PacketType>(index));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    return m_d.func().packetOp(m_d.argImpl.template partialPacket<LoadMode, PacketType>(row, col, n, offset));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    return m_d.func().packetOp(m_d.argImpl.template partialPacket<LoadMode, PacketType>(index, n, offset));
   }
 
  protected:
@@ -645,30 +713,43 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     return m_argImpl.template packet<LoadMode, PacketType>(actualIndex);
   }
 
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_STRONG_INLINE PacketType srcPartialPacket(Index row, Index col, Index offset, Index n, Index loadOffset) const {
+    constexpr Index PacketSize = unpacket_traits<PacketType>::size;
+    Index packetStart = offset * PacketSize;
+    Index actualRow = IsRowMajor ? row : row + packetStart;
+    Index actualCol = IsRowMajor ? col + packetStart : col;
+    Index start = numext::mini(numext::maxi(loadOffset - packetStart, Index(0)), PacketSize);
+    Index end = numext::mini(numext::maxi(loadOffset + n - packetStart, Index(0)), PacketSize);
+    if (end == start) return pzero<PacketType>(PacketType());
+    eigen_assert(check_array_bounds(actualRow + start, actualCol + start, end - start) && "Array index out of bounds");
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(actualRow, actualCol, end - start, start);
+  }
+
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_STRONG_INLINE PacketType srcPartialPacket(Index index, Index offset, Index n, Index loadOffset) const {
+    constexpr Index PacketSize = unpacket_traits<PacketType>::size;
+    Index packetStart = offset * PacketSize;
+    Index actualIndex = index + packetStart;
+    Index start = numext::mini(numext::maxi(loadOffset - packetStart, Index(0)), PacketSize);
+    Index end = numext::mini(numext::maxi(loadOffset + n - packetStart, Index(0)), PacketSize);
+    if (end == start) return pzero<PacketType>(PacketType());
+    eigen_assert(check_array_bounds(actualIndex + start, end - start) && "Array index out of bounds");
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(actualIndex, end - start, start);
+  }
+
   // There is no source packet type with equal or fewer elements than DstPacketType.
   // This is problematic as the evaluation loop may attempt to access data outside the bounds of the array.
   // For example, consider the cast utilizing pcast<Packet4f,Packet2d> with an array of size 4: {0.0f,1.0f,2.0f,3.0f}.
   // The first iteration of the evaluation loop will load 16 bytes: {0.0f,1.0f,2.0f,3.0f} and cast to {0.0,1.0}, which
   // is acceptable. The second iteration will load 16 bytes: {2.0f,3.0f,?,?}, which is outside the bounds of the array.
 
-  // Instead, perform runtime check to determine if the load would access data outside the bounds of the array.
-  // If not, perform full load. Otherwise, revert to a scalar loop to perform a partial load.
-  // In either case, perform a vectorized cast of the source packet.
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    SrcPacketType src;
-    if (EIGEN_PREDICT_TRUE(check_array_bounds(row, col, SrcPacketSize))) {
-      src = srcPacket<SrcLoadMode>(row, col, 0);
-    } else {
-      Array<SrcType, SrcPacketSize, 1> srcArray;
-      for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(row, col, k);
-      for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
-      src = pload<SrcPacketType>(srcArray.data());
-    }
-    return pcast<SrcPacketType, DstPacketType>(src);
+    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(row, col, 0, DstPacketSize, 0));
   }
   // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
@@ -704,22 +785,52 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
         srcPacket<SrcLoadMode>(row, col, 6), srcPacket<SrcLoadMode>(row, col, 7));
   }
 
-  // Analogous routines for linear access.
+  template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(row, col, 0, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SizedSrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode, SizedSrcPacketType>(row, col, 0, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(row, col, 0, n, offset),
+                                               srcPartialPacket<SrcLoadMode>(row, col, 1, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode>(row, col, 0, n, offset), srcPartialPacket<SrcLoadMode>(row, col, 1, n, offset),
+        srcPartialPacket<SrcLoadMode>(row, col, 2, n, offset), srcPartialPacket<SrcLoadMode>(row, col, 3, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode>(row, col, 0, n, offset), srcPartialPacket<SrcLoadMode>(row, col, 1, n, offset),
+        srcPartialPacket<SrcLoadMode>(row, col, 2, n, offset), srcPartialPacket<SrcLoadMode>(row, col, 3, n, offset),
+        srcPartialPacket<SrcLoadMode>(row, col, 4, n, offset), srcPartialPacket<SrcLoadMode>(row, col, 5, n, offset),
+        srcPartialPacket<SrcLoadMode>(row, col, 6, n, offset), srcPartialPacket<SrcLoadMode>(row, col, 7, n, offset));
+  }
+
+  // Analagous routines for linear access.
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    SrcPacketType src;
-    if (EIGEN_PREDICT_TRUE(check_array_bounds(index, SrcPacketSize))) {
-      src = srcPacket<SrcLoadMode>(index, 0);
-    } else {
-      Array<SrcType, SrcPacketSize, 1> srcArray;
-      for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(index, k);
-      for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
-      src = pload<SrcPacketType>(srcArray.data());
-    }
-    return pcast<SrcPacketType, DstPacketType>(src);
+    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(index, 0, DstPacketSize, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
@@ -747,6 +858,45 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
                                                srcPacket<SrcLoadMode>(index, 2), srcPacket<SrcLoadMode>(index, 3),
                                                srcPacket<SrcLoadMode>(index, 4), srcPacket<SrcLoadMode>(index, 5),
                                                srcPacket<SrcLoadMode>(index, 6), srcPacket<SrcLoadMode>(index, 7));
+  }
+
+  template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode, SrcPacketType>(index, 0, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SizedSrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode, SizedSrcPacketType>(index, 0, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(srcPartialPacket<SrcLoadMode>(index, 0, n, offset),
+                                               srcPartialPacket<SrcLoadMode>(index, 1, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode>(index, 0, n, offset), srcPartialPacket<SrcLoadMode>(index, 1, n, offset),
+        srcPartialPacket<SrcLoadMode>(index, 2, n, offset), srcPartialPacket<SrcLoadMode>(index, 3, n, offset));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType partialPacket(Index index, Index n, Index offset) const {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(
+        srcPartialPacket<SrcLoadMode>(index, 0, n, offset), srcPartialPacket<SrcLoadMode>(index, 1, n, offset),
+        srcPartialPacket<SrcLoadMode>(index, 2, n, offset), srcPartialPacket<SrcLoadMode>(index, 3, n, offset),
+        srcPartialPacket<SrcLoadMode>(index, 4, n, offset), srcPartialPacket<SrcLoadMode>(index, 5, n, offset),
+        srcPartialPacket<SrcLoadMode>(index, 6, n, offset), srcPartialPacket<SrcLoadMode>(index, 7, n, offset));
   }
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rows() const { return m_rows; }
@@ -824,6 +974,20 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
     return m_d.func().packetOp(m_d.arg1Impl.template packet<LoadMode, PacketType>(index),
                                m_d.arg2Impl.template packet<LoadMode, PacketType>(index),
                                m_d.arg3Impl.template packet<LoadMode, PacketType>(index));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    return m_d.func().packetOp(m_d.arg1Impl.template partialPacket<LoadMode, PacketType>(row, col, n, offset),
+                               m_d.arg2Impl.template partialPacket<LoadMode, PacketType>(row, col, n, offset),
+                               m_d.arg3Impl.template partialPacket<LoadMode, PacketType>(row, col, n, offset));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    return m_d.func().packetOp(m_d.arg1Impl.template partialPacket<LoadMode, PacketType>(index, n, offset),
+                               m_d.arg2Impl.template partialPacket<LoadMode, PacketType>(index, n, offset),
+                               m_d.arg3Impl.template partialPacket<LoadMode, PacketType>(index, n, offset));
   }
 
  protected:
@@ -920,6 +1084,18 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
     return m_d.func().packetOp(m_d.lhsImpl.template packet<LoadMode, PacketType>(index),
                                m_d.rhsImpl.template packet<LoadMode, PacketType>(index));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    return m_d.func().packetOp(m_d.lhsImpl.template partialPacket<LoadMode, PacketType>(row, col, n, offset),
+                               m_d.rhsImpl.template partialPacket<LoadMode, PacketType>(row, col, n, offset));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    return m_d.func().packetOp(m_d.lhsImpl.template partialPacket<LoadMode, PacketType>(index, n, offset),
+                               m_d.rhsImpl.template partialPacket<LoadMode, PacketType>(index, n, offset));
   }
 
  protected:
@@ -1052,6 +1228,28 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
     internal::pstoret<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    PointerType ptr = m_data + row * rowStride() + col * colStride();
+    return internal::ploadt_partial<PacketType, LoadMode>(ptr, n, offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    return internal::ploadt_partial<PacketType, LoadMode>(m_data + index * m_innerStride.value(), n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
+    PointerType ptr = m_data + row * rowStride() + col * colStride();
+    return internal::pstoret_partial<Scalar, PacketType, StoreMode>(ptr, x, n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
+    internal::pstoret_partial<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x, n, offset);
   }
 
  protected:
@@ -1246,6 +1444,37 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
                                                 x);
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(m_startRow.value() + row, m_startCol.value() + col, n,
+                                                                  offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    if (ForwardLinearAccess)
+      return m_argImpl.template partialPacket<LoadMode, PacketType>(m_linear_offset.value() + index, n, offset);
+    else
+      return partialPacket<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0,
+                                                 n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
+    return m_argImpl.template writePartialPacket<StoreMode, PacketType>(m_startRow.value() + row,
+                                                                        m_startCol.value() + col, x, n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
+    if (ForwardLinearAccess)
+      return m_argImpl.template writePartialPacket<StoreMode, PacketType>(m_linear_offset.value() + index, x, n,
+                                                                          offset);
+    else
+      return writePartialPacket<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
+                                                       RowsAtCompileTime == 1 ? index : 0, x, n, offset);
+  }
+
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType
   linear_coeff_impl(Index index, internal::true_type /* ForwardLinearAccess */) const {
@@ -1401,6 +1630,27 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor>>
     return m_argImpl.template packet<LoadMode, PacketType>(actual_index);
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    const Index actual_row = internal::traits<XprType>::RowsAtCompileTime == 1 ? 0
+                             : RowFactor == 1                                  ? row
+                                                                               : row % m_rows.value();
+    const Index actual_col = internal::traits<XprType>::ColsAtCompileTime == 1 ? 0
+                             : ColFactor == 1                                  ? col
+                                                                               : col % m_cols.value();
+
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(actual_row, actual_col, n, offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    const Index actual_index = internal::traits<XprType>::RowsAtCompileTime == 1
+                                   ? (ColFactor == 1 ? index : index % m_cols.value())
+                                   : (RowFactor == 1 ? index : index % m_rows.value());
+
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(actual_index, n, offset);
+  }
+
  protected:
   const ArgTypeNested m_arg;
   evaluator<ArgTypeNestedCleaned> m_argImpl;
@@ -1457,6 +1707,26 @@ struct evaluator_wrapper_base : evaluator_base<XprType> {
     m_argImpl.template writePacket<StoreMode>(index, x);
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(row, col, n, offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    return m_argImpl.template partialPacket<LoadMode, PacketType>(index, n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
+    m_argImpl.template writePartialPacket<StoreMode>(row, col, x, n, offset);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
+    m_argImpl.template writePartialPacket<StoreMode>(index, x, n, offset);
+  }
+
  protected:
   evaluator<ArgType> m_argImpl;
 };
@@ -1482,6 +1752,9 @@ struct unary_evaluator<ArrayWrapper<TArgType>> : evaluator_wrapper_base<ArrayWra
 // defined in Reverse.h:
 template <typename PacketType, bool ReversePacket>
 struct reverse_packet_cond;
+
+template <typename Scalar, typename PacketType, bool ReversePacket>
+struct reverse_packetpartial_cond;
 
 template <typename ArgType, int Direction>
 struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<ArgType, Direction>> {
@@ -1571,6 +1844,70 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
     enum { PacketSize = unpacket_traits<PacketType>::size };
     m_argImpl.template writePacket<LoadMode>(m_rows.value() * m_cols.value() - index - PacketSize, preverse(x));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index row, Index col, Index n, Index offset) const {
+    // using impl = reverse_packet_cond<PacketType, ReversePacket>;
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    // static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    // static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+
+    // Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    // Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    // Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
+
+    // return impl::run(m_argImpl.template partialPacket<LoadMode, PacketType>(actualRow, actualCol, n, actualOffset));
+
+    Index OffsetRow = ReverseRow && IsColMajor ? n : 1;
+    Index OffsetCol = ReverseCol && IsRowMajor ? n : 1;
+    typedef internal::reverse_packetpartial_cond<Scalar, PacketType, ReversePacket> reverse_packet;
+    return reverse_packet::run(m_argImpl.template partialPacket<LoadMode, PacketType>(
+                                   ReverseRow ? m_rows.value() - row - OffsetRow : row,
+                                   ReverseCol ? m_cols.value() - col - OffsetCol : col, n, offset),
+                               n);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE PacketType partialPacket(Index index, Index n, Index offset) const {
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    // Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    // Index actualOffset = PacketSize - n - offset;
+
+    return preverse_partial<Scalar>(
+        m_argImpl.template partialPacket<LoadMode, PacketType>(m_rows.value() * m_cols.value() - index - n, n, offset),
+        n);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index row, Index col, const PacketType& x, Index n, Index offset) {
+    // using impl = reverse_packet_cond<PacketType, ReversePacket>;
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    // static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    // static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+
+    // Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    // Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    // Index actualOffset = ReversePacket ? (PacketSize - n - offset) : offset;
+
+    // m_argImpl.template writePartialPacket<LoadMode>(actualRow, actualCol, impl::run(x), n, actualOffset);
+    Index OffsetRow = ReverseRow && IsColMajor ? n : 1;
+    Index OffsetCol = ReverseCol && IsRowMajor ? n : 1;
+    typedef internal::reverse_packetpartial_cond<Scalar, PacketType, ReversePacket> reverse_packet;
+    m_argImpl.template writePartialPacket<LoadMode>(ReverseRow ? m_rows.value() - row - OffsetRow : row,
+                                                    ReverseCol ? m_cols.value() - col - OffsetCol : col,
+                                                    reverse_packet::run(x, n), n, offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE void writePartialPacket(Index index, const PacketType& x, Index n, Index offset) {
+    // static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+
+    // Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    // Index actualOffset = PacketSize - n - offset;
+
+    m_argImpl.template writePartialPacket<LoadMode>(m_rows.value() * m_cols.value() - index - n,
+                                                    preverse_partial<Scalar>(x, n), n, offset);
   }
 
  protected:

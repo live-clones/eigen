@@ -508,6 +508,13 @@
 #define EIGEN_OS_SOLARIS 0
 #endif
 
+/// \internal EIGEN_OS_QURT set to 1 if the OS is Qualcomm DSP QURT
+#if defined(__QDSP6_RTOS__)
+#define EIGEN_OS_QURT 1
+#else
+#define EIGEN_OS_QURT 0
+#endif
+
 //------------------------------------------------------------------------------------------
 // Detect GPU compilers and architectures
 //------------------------------------------------------------------------------------------
