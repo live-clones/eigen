@@ -8,6 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #define TEST_ENABLE_TEMPORARY_TRACKING
+#define TEST_IGNORE_STACK_ALLOCATED_TEMPORARY
 
 #include "main.h"
 
@@ -65,6 +66,8 @@ void product_notemporary(const MatrixType& m) {
 
   VERIFY_EVALUATION_COUNT(m3 = (m1 * m2.adjoint()), 1);
   VERIFY_EVALUATION_COUNT(m3 = (m1 * m2.adjoint()).transpose(), 1);
+  VERIFY_EVALUATION_COUNT(m3.noalias() = (m1 * m2.adjoint()).transpose(), 0);
+  VERIFY_EVALUATION_COUNT(m3.noalias() = (m1 * m2.transpose()).adjoint(), 0);
   VERIFY_EVALUATION_COUNT(m3.noalias() = m1 * m2.adjoint(), 0);
 
   VERIFY_EVALUATION_COUNT(m3 = s1 * (m1 * m2.transpose()), 1);
@@ -75,6 +78,8 @@ void product_notemporary(const MatrixType& m) {
   VERIFY_EVALUATION_COUNT(m3 = m3 - (m1 * m2.adjoint()), 1);
 
   VERIFY_EVALUATION_COUNT(m3 = m3 + (m1 * m2.adjoint()).transpose(), 1);
+  VERIFY_EVALUATION_COUNT(m3.noalias() = m3 + (m1 * m2.adjoint()).transpose(), 0);
+  VERIFY_EVALUATION_COUNT(m3.noalias() = m3 + (m1 * m2.transpose()).adjoint(), 0);
   VERIFY_EVALUATION_COUNT(m3.noalias() = m3 + m1 * m2.transpose(), 0);
   VERIFY_EVALUATION_COUNT(m3.noalias() += m3 + m1 * m2.transpose(), 0);
   VERIFY_EVALUATION_COUNT(m3.noalias() -= m3 + m1 * m2.transpose(), 0);

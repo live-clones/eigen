@@ -193,17 +193,13 @@ struct packet_traits<float> : default_packet_traits {
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasRint = 1,
+    HasErfc = EIGEN_FAST_MATH,
 #else
     HasSqrt = 0,
     HasRsqrt = 0,
     HasTanh = 0,
     HasErf = 0,
-    HasRint = 0,
 #endif
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -235,17 +231,12 @@ struct packet_traits<bfloat16> : default_packet_traits {
 #else
     HasRsqrt = 0,
 #endif
-    HasRint = 1,
 #else
     HasSqrt = 0,
     HasRsqrt = 0,
-    HasRint = 0,
 #endif
     HasTanh = 0,
     HasErf = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -1506,6 +1497,10 @@ template <>
 EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
   return vec_floor(a);
 }
+template <>
+EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
+  return vec_trunc(a);
+}
 #ifdef EIGEN_VECTORIZE_VSX
 template <>
 EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a) {
@@ -2316,6 +2311,11 @@ EIGEN_STRONG_INLINE Packet8bf pexp<Packet8bf>(const Packet8bf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8bf pexp2<Packet8bf>(const Packet8bf& a) {
+  BF16_TO_F32_UNARY_OP_WRAPPER(generic_exp2, a);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f& exponent) {
   return pldexp_generic(a, exponent);
 }
@@ -2363,6 +2363,10 @@ EIGEN_STRONG_INLINE Packet8bf pceil<Packet8bf>(const Packet8bf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8bf pround<Packet8bf>(const Packet8bf& a) {
   BF16_TO_F32_UNARY_OP_WRAPPER(pround<Packet4f>, a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8bf ptrunc<Packet8bf>(const Packet8bf& a) {
+  BF16_TO_F32_UNARY_OP_WRAPPER(ptrunc<Packet4f>, a);
 }
 #ifdef EIGEN_VECTORIZE_VSX
 template <>
@@ -2439,13 +2443,11 @@ EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
 
 template <>
 EIGEN_STRONG_INLINE int predux<Packet4i>(const Packet4i& a) {
-  Packet4i sum;
-  sum = vec_sums(a, p4i_ZERO);
-#ifdef _BIG_ENDIAN
-  sum = vec_sld(sum, p4i_ZERO, 12);
-#else
-  sum = vec_sld(p4i_ZERO, sum, 4);
-#endif
+  Packet4i b, sum;
+  b = vec_sld(a, a, 8);
+  sum = a + b;
+  b = vec_sld(sum, sum, 4);
+  sum += b;
   return pfirst(sum);
 }
 
@@ -3178,8 +3180,12 @@ struct packet_traits<double> : default_packet_traits {
     HasMin = 1,
     HasMax = 1,
     HasAbs = 1,
-    HasSin = 0,
-    HasCos = 0,
+    HasSin = EIGEN_FAST_MATH,
+    HasCos = EIGEN_FAST_MATH,
+    HasTanh = EIGEN_FAST_MATH,
+    HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
+    HasATanh = 1,
     HasATan = 0,
     HasLog = 0,
     HasExp = 1,
@@ -3189,10 +3195,6 @@ struct packet_traits<double> : default_packet_traits {
 #else
     HasRsqrt = 0,
 #endif
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -3201,6 +3203,7 @@ struct packet_traits<double> : default_packet_traits {
 template <>
 struct unpacket_traits<Packet2d> {
   typedef double type;
+  typedef Packet2l integer_packet;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -3209,6 +3212,18 @@ struct unpacket_traits<Packet2d> {
     masked_store_available = false
   };
   typedef Packet2d half;
+};
+template <>
+struct unpacket_traits<Packet2l> {
+  typedef int64_t type;
+  typedef Packet2l half;
+  enum {
+    size = 2,
+    alignment = Aligned16,
+    vectorizable = false,
+    masked_load_available = false,
+    masked_store_available = false
+  };
 };
 
 inline std::ostream& operator<<(std::ostream& s, const Packet2l& v) {
@@ -3257,6 +3272,11 @@ EIGEN_ALWAYS_INLINE void pstore_partial<double>(double* to, const Packet2d& from
 template <>
 EIGEN_STRONG_INLINE Packet2d pset1<Packet2d>(const double& from) {
   Packet2d v = {from, from};
+  return v;
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pset1<Packet2l>(const int64_t& from) {
+  Packet2l v = {from, from};
   return v;
 }
 
@@ -3380,6 +3400,10 @@ EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
   return reinterpret_cast<Packet2d>(vec_cmpeq(a, b));
 }
 template <>
+EIGEN_STRONG_INLINE Packet2l pcmp_eq(const Packet2l& a, const Packet2l& b) {
+  return reinterpret_cast<Packet2l>(vec_cmpeq(a, b));
+}
+template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_lt_or_nan(const Packet2d& a, const Packet2d& b) {
   Packet2d c = reinterpret_cast<Packet2d>(vec_cmpge(a, b));
   return vec_nor(c, c);
@@ -3422,6 +3446,10 @@ EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a) {
   return vec_floor(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
+  return vec_trunc(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d print<Packet2d>(const Packet2d& a) {

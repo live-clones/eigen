@@ -199,6 +199,12 @@ struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, true
     pcast_array<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio>::cast(data1, DataSize, data2);
 
     VERIFY(test::areApprox(ref, data2, DataSize) && "internal::pcast<>");
+
+    // Test that pcast<SrcScalar, TgtScalar> generates the same result.
+    for (int i = 0; i < DataSize; ++i) {
+      data2[i] = internal::pcast<SrcScalar, TgtScalar>(data1[i]);
+    }
+    VERIFY(test::areApprox(ref, data2, DataSize) && "internal::pcast<>");
   }
 };
 
@@ -450,7 +456,7 @@ void negate_test(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
 
 template <typename Scalar, typename Packet>
 void nmsub_test(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
-  negate_test_impl<Scalar, Packet>::run_negate(data1, data2, ref, size);
+  negate_test_impl<Scalar, Packet>::run_nmsub(data1, data2, ref, size);
 }
 
 template <typename Scalar, typename Packet>
@@ -623,6 +629,16 @@ void packetmath() {
     VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half_dowto4");
   }
 
+  // Avoid overflows.
+  if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned &&
+      Eigen::internal::unpacket_traits<Packet>::size > 1) {
+    Scalar limit =
+        static_cast<Scalar>(std::pow(static_cast<double>(numext::real(NumTraits<Scalar>::highest())),
+                                     1.0 / static_cast<double>(Eigen::internal::unpacket_traits<Packet>::size)));
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = internal::random<Scalar>(-limit, limit);
+    }
+  }
   ref[0] = Scalar(1);
   for (int i = 0; i < PacketSize; ++i) ref[0] = REF_MUL(ref[0], data1[i]);
   VERIFY(internal::isApprox(ref[0], internal::predux_mul(internal::pload<Packet>(data1))) && "internal::predux_mul");
@@ -856,15 +872,16 @@ void packetmath_real() {
   CHECK_CWISE1_IF(PacketTraits::HasTan, std::tan, internal::ptan);
 
   CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::round, internal::pround);
-  CHECK_CWISE1_EXACT_IF(PacketTraits::HasCeil, numext::ceil, internal::pceil);
-  CHECK_CWISE1_EXACT_IF(PacketTraits::HasFloor, numext::floor, internal::pfloor);
-  CHECK_CWISE1_EXACT_IF(PacketTraits::HasRint, numext::rint, internal::print);
+  CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::ceil, internal::pceil);
+  CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::floor, internal::pfloor);
+  CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::rint, internal::print);
+  CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::trunc, internal::ptrunc);
   CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
 
   packetmath_boolean_mask_ops_real<Scalar, Packet>();
 
   // Rounding edge cases.
-  if (PacketTraits::HasRound || PacketTraits::HasCeil || PacketTraits::HasFloor || PacketTraits::HasRint) {
+  if (PacketTraits::HasRound) {
     typedef typename internal::make_integer<Scalar>::type IntType;
     // Start with values that cannot fit inside an integer, work down to less than one.
     Scalar val =
@@ -898,9 +915,10 @@ void packetmath_real() {
     for (size_t k = 0; k < values.size(); ++k) {
       data1[0] = values[k];
       CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::round, internal::pround);
-      CHECK_CWISE1_EXACT_IF(PacketTraits::HasCeil, numext::ceil, internal::pceil);
-      CHECK_CWISE1_EXACT_IF(PacketTraits::HasFloor, numext::floor, internal::pfloor);
-      CHECK_CWISE1_EXACT_IF(PacketTraits::HasRint, numext::rint, internal::print);
+      CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::ceil, internal::pceil);
+      CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::floor, internal::pfloor);
+      CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::rint, internal::print);
+      CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::trunc, internal::ptrunc);
     }
   }
 
@@ -919,6 +937,7 @@ void packetmath_real() {
     data1[0] = -NumTraits<Scalar>::infinity();
   }
   CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp, internal::pexp);
+  CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp2, internal::pexp2);
 
   CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
   if (PacketTraits::HasExp) {
@@ -1483,7 +1502,7 @@ struct exp_complex_test_impl {
 template <typename Scalar, typename Packet>
 struct exp_complex_test_impl<Scalar, Packet, false> {
   typedef typename Scalar::value_type RealScalar;
-  static void run(Scalar*, Scalar*, Scalar*, int){};
+  static void run(Scalar*, Scalar*, Scalar*, int) {};
 };
 
 template <typename Scalar, typename Packet>

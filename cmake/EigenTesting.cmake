@@ -75,7 +75,8 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   # let the user pass flags.
   if(${ARGC} GREATER 2)
-    target_compile_options(${targetname} PRIVATE ${ARGV2})
+    separate_arguments(compile_options NATIVE_COMMAND ${ARGV2})
+    target_compile_options(${targetname} PRIVATE ${compile_options})
   endif()
 
   if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
@@ -91,6 +92,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
   if(EIGEN_TEST_CUSTOM_LINKER_FLAGS)
     target_link_libraries(${targetname} ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
   endif()
+  target_link_libraries(${targetname} Eigen3::Eigen)
 
   if(${ARGC} GREATER 3)
     set(libs_to_link ${ARGV3})

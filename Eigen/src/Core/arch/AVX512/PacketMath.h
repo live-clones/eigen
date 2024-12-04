@@ -97,11 +97,7 @@ struct packet_traits<half> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasBlend = 0
   };
 };
 #endif
@@ -137,12 +133,9 @@ struct packet_traits<float> : default_packet_traits {
     HasReciprocal = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
     HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasDiv = 1
   };
 };
 template <>
@@ -161,12 +154,12 @@ struct packet_traits<double> : default_packet_traits {
     HasLog = 1,
     HasExp = 1,
     HasATan = 1,
+    HasTanh = EIGEN_FAST_MATH,
+    HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
+    HasATanh = 1,
     HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasDiv = 1
   };
 };
 
@@ -584,7 +577,7 @@ EIGEN_STRONG_INLINE Packet8l pmax<Packet8l>(const Packet8l& a, const Packet8l& b
   return _mm512_max_epi64(b, a);
 }
 
-// Add specializations for min/max with prescribed NaN progation.
+// Add specializations for min/max with prescribed NaN propagation.
 template <>
 EIGEN_STRONG_INLINE Packet16f pmin<PropagateNumbers, Packet16f>(const Packet16f& a, const Packet16f& b) {
   return pminmax_propagate_numbers(a, b, pmin<Packet16f>);
@@ -779,6 +772,15 @@ EIGEN_STRONG_INLINE Packet16f pfloor<Packet16f>(const Packet16f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8d pfloor<Packet8d>(const Packet8d& a) {
   return _mm512_roundscale_pd(a, _MM_FROUND_TO_NEG_INF);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16f ptrunc<Packet16f>(const Packet16f& a) {
+  return _mm512_roundscale_ps(a, _MM_FROUND_TO_ZERO);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8d ptrunc<Packet8d>(const Packet8d& a) {
+  return _mm512_roundscale_pd(a, _MM_FROUND_TO_ZERO);
 }
 
 template <>
@@ -1562,10 +1564,28 @@ template <>
 EIGEN_STRONG_INLINE int predux_mul<Packet16i>(const Packet16i& a) {
   return _mm512_reduce_mul_epi32(a);
 }
+
+#if EIGEN_COMP_MSVC
+// MSVC's _mm512_reduce_mul_epi64 is borked, at least up to and including 1939.
+//    alignas(64) int64_t data[] = { 1,1,-1,-1,1,-1,-1,-1 };
+//    int64_t out = _mm512_reduce_mul_epi64(_mm512_load_epi64(data));
+// produces garbage: 4294967295.  It seems to happen whenever the output is supposed to be negative.
+// Fall back to a manual approach:
+template <>
+EIGEN_STRONG_INLINE int64_t predux_mul<Packet8l>(const Packet8l& a) {
+  Packet4l lane0 = _mm512_extracti64x4_epi64(a, 0);
+  Packet4l lane1 = _mm512_extracti64x4_epi64(a, 1);
+  Packet4l res = pmul(lane0, lane1);
+  res = pmul(res, Packet4l(_mm256_permute2x128_si256(res, res, 1)));
+  res = pmul(res, Packet4l(_mm256_shuffle_epi32(res, 0xE)));
+  return pfirst(res);
+}
+#else
 template <>
 EIGEN_STRONG_INLINE int64_t predux_mul<Packet8l>(const Packet8l& a) {
   return _mm512_reduce_mul_epi64(a);
 }
+#endif
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<Packet16f>(const Packet16f& a) {
@@ -1623,16 +1643,23 @@ EIGEN_STRONG_INLINE int64_t predux_max<Packet8l>(const Packet8l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet16f& x) {
-  Packet16i xi = _mm512_castps_si512(x);
-  __mmask16 tmp = _mm512_test_epi32_mask(xi, xi);
-  return !_mm512_kortestz(tmp, tmp);
+EIGEN_STRONG_INLINE bool predux_any(const Packet16f& a) {
+  return _mm512_reduce_or_epi32(_mm512_castps_si512(a)) != 0;
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet16i& x) {
-  __mmask16 tmp = _mm512_test_epi32_mask(x, x);
-  return !_mm512_kortestz(tmp, tmp);
+EIGEN_STRONG_INLINE bool predux_any(const Packet16i& a) {
+  return _mm512_reduce_or_epi32(a) != 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8d& a) {
+  return _mm512_reduce_or_epi64(_mm512_castpd_si512(a)) != 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8l& a) {
+  return _mm512_reduce_or_epi64(a) != 0;
 }
 
 #define PACK_OUTPUT(OUTPUT, INPUT, INDEX, STRIDE) \
@@ -2305,6 +2332,11 @@ EIGEN_STRONG_INLINE Packet16h pfloor<Packet16h>(const Packet16h& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet16h ptrunc<Packet16h>(const Packet16h& a) {
+  return float2half(ptrunc<Packet16f>(half2float(a)));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet16h pcmp_eq(const Packet16h& a, const Packet16h& b) {
   Packet16f af = half2float(a);
   Packet16f bf = half2float(b);
@@ -2801,6 +2833,11 @@ EIGEN_STRONG_INLINE Packet16bf pceil<Packet16bf>(const Packet16bf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet16bf pfloor<Packet16bf>(const Packet16bf& a) {
   return F32ToBf16(pfloor<Packet16f>(Bf16ToF32(a)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16bf ptrunc<Packet16bf>(const Packet16bf& a) {
+  return F32ToBf16(ptrunc<Packet16f>(Bf16ToF32(a)));
 }
 
 template <>

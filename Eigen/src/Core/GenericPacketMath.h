@@ -57,6 +57,9 @@ struct default_packet_traits {
     HasConj = 1,
     HasSetLinear = 1,
     HasSign = 1,
+    // By default, the nearest integer functions (rint, round, floor, ceil, trunc) are enabled for all scalar and packet
+    // types
+    HasRound = 1,
 
     HasArg = 0,
     HasAbsDiff = 0,
@@ -64,10 +67,6 @@ struct default_packet_traits {
     // This flag is used to indicate whether packet comparison is supported.
     // pcmp_eq, pcmp_lt and pcmp_le should be defined for it to be true.
     HasCmp = 0,
-    HasRound = 0,
-    HasRint = 0,
-    HasFloor = 0,
-    HasCeil = 0,
 
     HasDiv = 0,
     HasReciprocal = 0,
@@ -135,7 +134,14 @@ template <typename T>
 struct unpacket_traits {
   typedef T type;
   typedef T half;
-  enum { size = 1, alignment = 1, vectorizable = false, masked_load_available = false, masked_store_available = false };
+  typedef typename numext::get_integer_by_size<sizeof(T)>::signed_type integer_packet;
+  enum {
+    size = 1,
+    alignment = alignof(T),
+    vectorizable = false,
+    masked_load_available = false,
+    masked_store_available = false
+  };
 };
 
 template <typename T>
@@ -188,7 +194,7 @@ struct is_half {
   static constexpr int Size = unpacket_traits<Packet>::size;
   using DefaultPacket = typename packet_traits<Scalar>::type;
   static constexpr int DefaultSize = unpacket_traits<DefaultPacket>::size;
-  static constexpr bool value = Size < DefaultSize;
+  static constexpr bool value = Size != 1 && Size < DefaultSize;
 };
 
 template <typename Src, typename Tgt>
@@ -201,7 +207,7 @@ struct type_casting_traits {
   };
 };
 
-// provides a succint template to define vectorized casting traits with respect to the largest accessible packet types
+// provides a succinct template to define vectorized casting traits with respect to the largest accessible packet types
 template <typename Src, typename Tgt>
 struct vectorized_type_casting_traits {
   enum : int {
@@ -573,12 +579,6 @@ EIGEN_DEVICE_FUNC inline Packet pandnot(const Packet& a, const Packet& b) {
   return pand(a, pnot(b));
 }
 
-/** \internal \returns isnan(a) */
-template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pisnan(const Packet& a) {
-  return pandnot(ptrue(a), pcmp_eq(a, a));
-}
-
 // In the general case, use bitwise select.
 template <typename Packet, typename EnableIf = void>
 struct pselect_impl {
@@ -703,33 +703,21 @@ EIGEN_DEVICE_FUNC inline Packet parg(const Packet& a) {
 }
 
 /** \internal \returns \a a arithmetically shifted by N bits to the right */
-template <int N>
-EIGEN_DEVICE_FUNC inline int parithmetic_shift_right(const int& a) {
-  return a >> N;
-}
-template <int N>
-EIGEN_DEVICE_FUNC inline long int parithmetic_shift_right(const long int& a) {
-  return a >> N;
+template <int N, typename T>
+EIGEN_DEVICE_FUNC inline T parithmetic_shift_right(const T& a) {
+  return numext::arithmetic_shift_right(a, N);
 }
 
 /** \internal \returns \a a logically shifted by N bits to the right */
-template <int N>
-EIGEN_DEVICE_FUNC inline int plogical_shift_right(const int& a) {
-  return static_cast<int>(static_cast<unsigned int>(a) >> N);
-}
-template <int N>
-EIGEN_DEVICE_FUNC inline long int plogical_shift_right(const long int& a) {
-  return static_cast<long>(static_cast<unsigned long>(a) >> N);
+template <int N, typename T>
+EIGEN_DEVICE_FUNC inline T plogical_shift_right(const T& a) {
+  return numext::logical_shift_right(a, N);
 }
 
 /** \internal \returns \a a shifted by N bits to the left */
-template <int N>
-EIGEN_DEVICE_FUNC inline int plogical_shift_left(const int& a) {
-  return a << N;
-}
-template <int N>
-EIGEN_DEVICE_FUNC inline long int plogical_shift_left(const long int& a) {
-  return a << N;
+template <int N, typename T>
+EIGEN_DEVICE_FUNC inline T plogical_shift_left(const T& a) {
+  return numext::logical_shift_left(a, N);
 }
 
 /** \internal \returns the significant and exponent of the underlying floating point numbers
@@ -1008,6 +996,20 @@ EIGEN_DEVICE_FUNC inline Packet pcplxflip(const Packet& a) {
  * Special math functions
  ***************************/
 
+/** \internal \returns isnan(a) */
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pisnan(const Packet& a) {
+  return pandnot(ptrue(a), pcmp_eq(a, a));
+}
+
+/** \internal \returns isinf(a) */
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pisinf(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  constexpr Scalar inf = NumTraits<Scalar>::infinity();
+  return pcmp_eq(pabs(a), pset1<Packet>(inf));
+}
+
 /** \internal \returns the sine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psin(const Packet& a) {
@@ -1081,8 +1083,13 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh(const Packet&
 /** \internal \returns the exp of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp(const Packet& a) {
-  EIGEN_USING_STD(exp);
-  return exp(a);
+  return numext::exp(a);
+}
+
+/** \internal \returns the exp2 of \a a (coeff-wise) */
+template <typename Packet>
+EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp2(const Packet& a) {
+  return numext::exp2(a);
 }
 
 /** \internal \returns the expm1 of \a a (coeff-wise) */
@@ -1111,7 +1118,7 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10(const Packet&
   return log10(a);
 }
 
-/** \internal \returns the log10 of \a a (coeff-wise) */
+/** \internal \returns the log2 of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2(const Packet& a) {
   using Scalar = typename internal::unpacket_traits<Packet>::type;
@@ -1131,33 +1138,45 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt(const Packet& 
   return numext::cbrt(a);
 }
 
+template <typename Packet, bool IsScalar = is_scalar<Packet>::value,
+          bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
+struct nearest_integer_packetop_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_floor(const Packet& x) { return numext::floor(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_ceil(const Packet& x) { return numext::ceil(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_rint(const Packet& x) { return numext::rint(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_round(const Packet& x) { return numext::round(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_trunc(const Packet& x) { return numext::trunc(x); }
+};
+
 /** \internal \returns the rounded value of \a a (coeff-wise) */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pround(const Packet& a) {
-  using numext::round;
-  return round(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pround(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_round(a);
 }
 
 /** \internal \returns the floor of \a a (coeff-wise) */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pfloor(const Packet& a) {
-  using numext::floor;
-  return floor(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pfloor(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_floor(a);
 }
 
 /** \internal \returns the rounded value of \a a (coeff-wise) with current
  * rounding mode */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet print(const Packet& a) {
-  using numext::rint;
-  return rint(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet print(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_rint(a);
 }
 
 /** \internal \returns the ceil of \a a (coeff-wise) */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pceil(const Packet& a) {
-  using numext::ceil;
-  return ceil(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pceil(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_ceil(a);
+}
+
+/** \internal \returns the truncation of \a a (coeff-wise) */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet ptrunc(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_trunc(a);
 }
 
 template <typename Packet, typename EnableIf = void>

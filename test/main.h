@@ -12,11 +12,13 @@
 #include <cerrno>
 #include <ctime>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <string>
 #include <sstream>
 #include <vector>
 #include <typeinfo>
+#include <type_traits>
 #include <functional>
 #ifdef EIGEN_USE_SYCL
 #include <CL/sycl.hpp>
@@ -52,9 +54,6 @@
 #if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 #include <random>
 #include <chrono>
-#ifdef EIGEN_USE_THREADS
-#include <future>
-#endif
 #endif
 #if __cplusplus > 201703L
 // libstdc++ 9's <memory> indirectly uses max() via <bit>.
@@ -144,14 +143,20 @@ struct imag {};
 static long int nb_temporaries;
 static long int nb_temporaries_on_assert = -1;
 
-inline void on_temporary_creation(long int size) {
+#ifdef TEST_IGNORE_STACK_ALLOCATED_TEMPORARY
+inline void on_temporary_creation(long int size, int SizeAtCompileTime) {
+  // ignore stack-allocated temporaries
+  if (SizeAtCompileTime != -1) return;
+#else
+inline void on_temporary_creation(long int size, int) {
+#endif
   // here's a great place to set a breakpoint when debugging failures in this test!
   if (size != 0) nb_temporaries++;
   if (nb_temporaries_on_assert > 0) assert(nb_temporaries < nb_temporaries_on_assert);
 }
 
 #define EIGEN_DENSE_STORAGE_CTOR_PLUGIN \
-  { on_temporary_creation(size); }
+  { on_temporary_creation(size, Size); }
 
 #define VERIFY_EVALUATION_COUNT(XPR, N)                            \
   {                                                                \
@@ -219,7 +224,6 @@ class EigenTest {
 }  // namespace Eigen
 
 #define TRACK std::cerr << __FILE__ << " " << __LINE__ << std::endl
-// #define TRACK while()
 
 #define EIGEN_DEFAULT_IO_FORMAT IOFormat(4, 0, "  ", "\n", "", "", "", "")
 
@@ -336,7 +340,9 @@ static std::vector<std::string> eigen_assert_list;
 
 #endif  // EIGEN_NO_ASSERTION_CHECKING
 
+#if !defined(EIGEN_TESTING_CONSTEXPR) && !defined(EIGEN_TESTING_PLAINOBJECT_CTOR)
 #define EIGEN_INTERNAL_DEBUGGING
+#endif
 #include <Eigen/QR>  // required for createRandomPIMatrixOfRank and generateRandomMatrixSvs
 
 inline void verify_impl(bool condition, const char* testname, const char* file, int line,
@@ -743,40 +749,80 @@ struct GetDifferentType<std::complex<T> > {
 };
 
 template <typename T>
-std::string type_name() {
-  return "other";
+std::string type_name(T) {
+  return typeid(T).name();
 }
 template <>
-std::string type_name<float>() {
+std::string type_name<float>(float) {
   return "float";
 }
 template <>
-std::string type_name<double>() {
+std::string type_name<double>(double) {
   return "double";
 }
 template <>
-std::string type_name<long double>() {
+std::string type_name<long double>(long double) {
   return "long double";
 }
 template <>
-std::string type_name<int>() {
-  return "int";
+std::string type_name<Eigen::half>(Eigen::half) {
+  return "half";
 }
 template <>
-std::string type_name<std::complex<float> >() {
+std::string type_name<Eigen::bfloat16>(Eigen::bfloat16) {
+  return "bfloat16";
+}
+template <>
+std::string type_name<int8_t>(int8_t) {
+  return "int8_t";
+}
+template <>
+std::string type_name<int16_t>(int16_t) {
+  return "int16_t";
+}
+template <>
+std::string type_name<int32_t>(int32_t) {
+  return "int32_t";
+}
+template <>
+std::string type_name<int64_t>(int64_t) {
+  return "int64_t";
+}
+template <>
+std::string type_name<uint8_t>(uint8_t) {
+  return "uint8_t";
+}
+template <>
+std::string type_name<uint16_t>(uint16_t) {
+  return "uint16_t";
+}
+template <>
+std::string type_name<uint32_t>(uint32_t) {
+  return "uint32_t";
+}
+template <>
+std::string type_name<uint64_t>(uint64_t) {
+  return "uint64_t";
+}
+template <>
+std::string type_name<std::complex<float> >(std::complex<float>) {
   return "complex<float>";
 }
 template <>
-std::string type_name<std::complex<double> >() {
+std::string type_name<std::complex<double> >(std::complex<double>) {
   return "complex<double>";
 }
 template <>
-std::string type_name<std::complex<long double> >() {
+std::string type_name<std::complex<long double> >(std::complex<long double>) {
   return "complex<long double>";
 }
 template <>
-std::string type_name<std::complex<int> >() {
+std::string type_name<std::complex<int> >(std::complex<int>) {
   return "complex<int>";
+}
+template <typename T>
+std::string type_name() {
+  return type_name(T());
 }
 
 using namespace Eigen;
