@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: MPL-2.0
-
 # Base configuration for windows builds.
 .build:windows:
   extends: .common:windows

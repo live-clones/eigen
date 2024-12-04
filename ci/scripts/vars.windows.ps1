@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: MPL-2.0
-
 # Initialize default variables used by the CI.
 $EIGEN_CI_ADDITIONAL_ARGS       = ""
 $EIGEN_CI_BEFORE_SCRIPT         = ""

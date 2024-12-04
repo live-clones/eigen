@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: MPL-2.0
-
 # Base configuration for linux builds and tests.
 .common:linux:cross:
   image: ubuntu:20.04

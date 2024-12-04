@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# SPDX-License-Identifier: MPL-2.0
-
 set -x
 
 # Enter build directory.

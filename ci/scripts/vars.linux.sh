@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# SPDX-License-Identifier: MPL-2.0
-
 # Initialize default variables used by the CI.
 export EIGEN_CI_ADDITIONAL_ARGS=""
 export EIGEN_CI_BEFORE_SCRIPT=""

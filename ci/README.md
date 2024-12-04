@@ -1,7 +1,3 @@
-<!--
-SPDX-License-Identifier: MPL-2.0
--->
-
 ## Eigen CI infrastructure
 
 Eigen's CI infrastructure uses three stages:

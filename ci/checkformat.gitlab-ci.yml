@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: MPL-2.0
-
 checkformat:clangformat:
   stage: checkformat
   image: ubuntu:latest

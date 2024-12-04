@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: MPL-2.0
-
 # Change to build directory.
 $rootdir = Get-Location
 cd $EIGEN_CI_BUILDDIR
