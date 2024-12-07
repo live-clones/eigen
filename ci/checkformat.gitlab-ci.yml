@@ -7,4 +7,4 @@ checkformat:clangformat:
   before_script:
     - apk add --no-cache git clang17-extra-tools
   script:
-    - git clang-format-17 --diff --commit ${CI_MERGE_REQUEST_DIFF_BASE_SHA}
+    - git clang-format --diff --commit ${CI_MERGE_REQUEST_DIFF_BASE_SHA}
