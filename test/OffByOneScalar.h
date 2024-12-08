@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 
 // A Scalar with internal representation T+1 so that zero is internally
 // represented by T(1). This is used to test memory fill.

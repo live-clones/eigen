@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #ifndef EIGEN_ACCELERATESUPPORT_H
 #define EIGEN_ACCELERATESUPPORT_H
 

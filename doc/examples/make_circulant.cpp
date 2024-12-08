@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 /*
 This program is presented in several fragments in the doc page.
 Every fragment is in its own file; this file simply combines them.
