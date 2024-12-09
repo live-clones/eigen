@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #ifndef LAPACK_H
 #define LAPACK_H
 

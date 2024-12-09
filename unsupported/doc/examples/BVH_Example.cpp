@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #include <Eigen/StdVector>
 #include <unsupported/Eigen/BVH>
 #include <iostream>

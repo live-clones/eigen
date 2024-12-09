@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 ################ CMake Uninstall Template #######################
 # CMake Template file for uninstallation of files
 # mentioned in 'install_manifest.txt'

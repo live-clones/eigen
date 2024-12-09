@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXi m = MatrixXi::Random(3, 4);
 cout << "Here is the matrix m:" << endl << m << endl;
 cout << "Here is the rowwise reverse of m:" << endl << m.rowwise().reverse() << endl;

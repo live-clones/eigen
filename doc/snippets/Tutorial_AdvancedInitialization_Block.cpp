@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXf matA(2, 2);
 matA << 1, 2, 3, 4;
 MatrixXf matB(4, 4);

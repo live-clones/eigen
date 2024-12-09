@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXd A = MatrixXd::Random(3, 3);
 MatrixXd B = MatrixXd::Random(3, 2);
 cout << "Here is the invertible matrix A:" << endl << A << endl;
