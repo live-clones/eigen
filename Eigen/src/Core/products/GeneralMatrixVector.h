@@ -146,6 +146,16 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   ResPacketHalf palpha_half = pset1<ResPacketHalf>(alpha);
   ResPacketQuarter palpha_quarter = pset1<ResPacketQuarter>(alpha);
 
+#if defined(EIGEN_VECTORIZE_PARTIAL)
+  EIGEN_UNUSED_VARIABLE(cj);
+  EIGEN_UNUSED_VARIABLE(pcj_half);
+  EIGEN_UNUSED_VARIABLE(pcj_quarter);
+  EIGEN_UNUSED_VARIABLE(n_half);
+  EIGEN_UNUSED_VARIABLE(n_quarter);
+  EIGEN_UNUSED_VARIABLE(palpha_half);
+  EIGEN_UNUSED_VARIABLE(palpha_quarter);
+#endif  // EIGEN_VECTORIZE_PARTIAL
+
   for (Index j2 = 0; j2 < cols; j2 += block_cols) {
     Index jend = numext::mini(j2 + block_cols, cols);
     Index i = 0;
@@ -230,6 +240,19 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       pstoreu(res + i + ResPacketSize * 0, pmadd(c0, palpha, ploadu<ResPacket>(res + i + ResPacketSize * 0)));
       i += ResPacketSize;
     }
+#if defined(EIGEN_VECTORIZE_PARTIAL)
+    if (i < rows) {
+      Index leftover = rows - i;
+      ResPacket c0 = pset1<ResPacket>(ResScalar(0));
+      for (Index j = j2; j < jend; j += 1) {
+        RhsPacket b0 = pset1<RhsPacket>(rhs(j, 0));
+        c0 = pcj.pmadd(lhs.template loadPartial<LhsPacket, LhsAlignment>(i + 0, j, leftover, 0), b0, c0);
+      }
+      pstoreu_partial(res + i + ResPacketSize * 0,
+                      pmadd(c0, palpha, ploadu_partial<ResPacket>(res + i + ResPacketSize * 0, leftover, 0)), leftover,
+                      0);
+    }
+#else
     if (HasHalf && i < n_half) {
       ResPacketHalf c0 = pset1<ResPacketHalf>(ResScalar(0));
       for (Index j = j2; j < jend; j += 1) {
@@ -255,6 +278,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       for (Index j = j2; j < jend; j += 1) c0 += cj.pmul(lhs(i, j), rhs(j, 0));
       res[i] += alpha * c0;
     }
+#endif  // EIGEN_VECTORIZE_PARTIAL
   }
 }
 
