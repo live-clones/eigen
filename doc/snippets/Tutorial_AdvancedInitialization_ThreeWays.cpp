@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 const int size = 6;
 MatrixXd mat1(size, size);
 mat1.topLeftCorner(size / 2, size / 2) = MatrixXd::Zero(size / 2, size / 2);

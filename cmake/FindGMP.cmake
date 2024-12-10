@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 # Try to find the GNU Multiple Precision Arithmetic Library (GMP)
 # See http://gmplib.org/
 

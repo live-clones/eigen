@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXf A = MatrixXf::Random(4, 4);
 MatrixXf B = MatrixXf::Random(4, 4);
 RealQZ<MatrixXf> qz(4);  // preallocate space for 4x4 matrices

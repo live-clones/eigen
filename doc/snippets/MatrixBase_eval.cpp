@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix2f M = Matrix2f::Random();
 Matrix2f m;
 m = M;

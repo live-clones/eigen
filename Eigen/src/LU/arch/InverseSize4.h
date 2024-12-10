@@ -8,6 +8,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 //
 // The algorithm below is a reimplementation of former \src\LU\Inverse_SSE.h using PacketMath.
 // inv(M) = M#/|M|, where inv(M), M# and |M| denote the inverse of M,
