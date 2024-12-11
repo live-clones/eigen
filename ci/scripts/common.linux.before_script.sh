@@ -17,7 +17,9 @@ export | grep EIGEN
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y > /dev/null
 apt-get install -y --no-install-recommends software-properties-common ninja-build cmake git > /dev/null
-add-apt-repository -y ppa:ubuntu-toolchain-r/test > /dev/null
+if [[ "$ARCH" != "loongarch64" ]]; then
+  add-apt-repository -y ppa:ubuntu-toolchain-r/test > /dev/null
+fi
 apt-get update -y > /dev/null
 
 # Install required dependencies and set up compilers.
