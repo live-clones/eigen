@@ -21,6 +21,18 @@ operator/(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
                        const OtherDerived>(derived(), other.derived());
 }
 
+/** \returns an expression of the coefficient wise modulus of \c *this and \a other
+ *
+ * \sa MatrixBase::cwiseModulus
+ */
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const CwiseBinaryOp<
+    internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived, const OtherDerived>
+operator%(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
+  return CwiseBinaryOp<internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived,
+                       const OtherDerived>(derived(), other.derived());
+}
+
 /** \returns an expression of the coefficient-wise min of \c *this and \a other
  *
  * Example: \include Cwise_min.cpp
@@ -301,6 +313,20 @@ EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/, quotient)
  */
 template <typename T>
 friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Constant<T>, Derived> operator/(
+    const T &s, const StorageBaseType &a);
+#endif
+
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, modulus)
+#else
+/**
+ * \brief Component-wise modulus of the scalar \a s by array elements of \a a.
+ *
+ * \tparam Scalar is the scalar type of \a x. It must be compatible with the scalar type of the given array expression
+ * (\c Derived::Scalar).
+ */
+template <typename T>
+friend inline const CwiseBinaryOp<internal::scalar_modulus_op<T, Scalar>, Constant<T>, Derived> operator%(
     const T &s, const StorageBaseType &a);
 #endif
 
