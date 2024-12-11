@@ -407,6 +407,18 @@ template <bool... values>
 using reduce_any = std::integral_constant<bool, !std::is_same<std::integer_sequence<bool, values..., false>,
                                                               std::integer_sequence<bool, false, values...>>::value>;
 
+// Reduces a sequence of bools and returns the number of trues.
+template <bool... values>
+struct reduce_count;
+template <>
+struct reduce_count<> {
+  static const unsigned value = 0;
+};
+template <bool first, bool... values>
+struct reduce_count<first, values...> {
+  static const unsigned value = first + reduce_count<values...>::value;
+};
+
 struct meta_yes {
   char a[1];
 };

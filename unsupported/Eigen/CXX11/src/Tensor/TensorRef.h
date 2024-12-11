@@ -195,6 +195,11 @@ class TensorRef : public TensorBase<TensorRef<PlainObjectType> > {
     return coeffRef(indices);
   }
 
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+  // Einstein notation
+  using TensorBase<TensorRef<PlainObjectType> >::operator();
+#endif
+
   template <std::size_t NumIndices>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar coeff(const array<Index, NumIndices>& indices) const {
     const Dimensions& dims = this->dimensions();
