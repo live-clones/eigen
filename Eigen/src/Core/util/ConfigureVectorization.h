@@ -408,6 +408,22 @@ extern "C" {
 #error "Eigen requires a fixed SVE lector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
+// We currently require RVV to be enabled explicitly via EIGEN_RISCV64_USE_RVV and
+// will not select the backend automatically
+#elif (defined EIGEN_RISCV64_USE_RVV10)
+
+#define EIGEN_VECTORIZE
+#define EIGEN_VECTORIZE_RVV10
+#include <riscv_vector.h>
+
+// Since we depend on knowing RVV vector lengths at compile-time, we need
+// to ensure a fixed lengths is set
+#if defined(__riscv_v_fixed_vlen)
+#define EIGEN_RISCV64_RVV_VL __riscv_v_fixed_vlen
+#else
+#error "Eigen requires a fixed RVV vector length but -mrvv-vector-bits=zvl is not set."
+#endif
+
 #elif (defined __s390x__ && defined __VEC__)
 
 #define EIGEN_VECTORIZE
