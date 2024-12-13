@@ -59,9 +59,14 @@ struct eigen_fill_impl {
   using Scalar = typename Xpr::Scalar;
   using Func = scalar_constant_op<Scalar>;
   using PlainObject = typename Xpr::PlainObject;
-  using Constant = CwiseNullaryOp<Func, PlainObject>;
+  using Constant = typename PlainObject::ConstantReturnType;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const Scalar& val) {
-    call_dense_assignment_loop(dst, Constant(dst.rows(), dst.cols(), val));
+    const Constant src(dst.rows(), dst.cols(), val);
+    run(dst, src);
+  }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    call_dense_assignment_loop(dst, src, assign_op<Scalar, Scalar>());
   }
 };
 
@@ -74,6 +79,12 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
     EIGEN_USING_STD(fill_n);
     fill_n(dst.data(), dst.size(), val);
   }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    resize_if_allowed(dst, src, assign_op<Scalar, Scalar>());
+    const Scalar& val = src.functor()();
+    run(dst, val);
+  }
 };
 #endif
 #endif
@@ -85,8 +96,16 @@ struct eigen_memset_helper {
 
 template <typename Xpr, bool use_memset = eigen_memset_helper<Xpr>::value>
 struct eigen_zero_impl {
-  using Scalar = typename Xpr::Scalar;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) { eigen_fill_impl<Xpr, false>::run(dst, Scalar(0)); }
+  using PlainObject = typename Xpr::PlainObject;
+  using Zero = typename PlainObject::ZeroReturnType;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
+    const Zero src(dst.rows(), dst.cols());
+    run(dst, src);
+  }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    eigen_fill_impl<Xpr>::run(dst, src);
+  }
 };
 
 template <typename Xpr>
@@ -103,6 +122,11 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
 #endif
     EIGEN_USING_STD(memset);
     memset(dst_ptr, 0, num_bytes);
+  }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    resize_if_allowed(dst, src, assign_op<Scalar, Scalar>());
+    run(dst);
   }
 };
 

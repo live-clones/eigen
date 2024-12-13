@@ -897,8 +897,7 @@ struct Assignment<DstXprType, CwiseNullaryOp<scalar_constant_op<typename DstXprT
   using Functor = assign_op<Scalar, Scalar>;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
                                                         const Functor& /*func*/) {
-    resize_if_allowed(dst, src, Functor());
-    dst.setConstant(src.functor()());
+    eigen_fill_impl<DstXprType>::run(dst, src);
   }
 };
 
@@ -911,8 +910,7 @@ struct Assignment<DstXprType, CwiseNullaryOp<scalar_zero_op<typename DstXprType:
   using Functor = assign_op<Scalar, Scalar>;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
                                                         const Functor& /*func*/) {
-    resize_if_allowed(dst, src, Functor());
-    dst.setZero();
+    eigen_zero_impl<DstXprType>::run(dst, src);
   }
 };
 
