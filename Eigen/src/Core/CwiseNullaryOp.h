@@ -73,7 +73,7 @@ class CwiseNullaryOp : public internal::dense_xpr_base<CwiseNullaryOp<NullaryOp,
   }
   EIGEN_DEVICE_FUNC CwiseNullaryOp(Index size, const NullaryOp& func = NullaryOp())
       : CwiseNullaryOp(RowsAtCompileTime == 1 ? 1 : size, RowsAtCompileTime == 1 ? size : 1, func) {
-    EIGEN_STATIC_ASSERT_VECTOR_ONLY(CwiseNullaryOp)
+    EIGEN_STATIC_ASSERT(CwiseNullaryOp::IsVectorAtCompileTime, YOU_TRIED_CALLING_A_VECTOR_METHOD_ON_A_MATRIX);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Index rows() const { return m_rows.value(); }

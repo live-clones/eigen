@@ -17,9 +17,6 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Xpr>
-struct eigen_fill_helper : std::false_type {};
-
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct eigen_fill_helper<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
 
@@ -54,8 +51,8 @@ template <typename Xpr, int Options, int OuterStride_>
 struct eigen_fill_helper<Map<Xpr, Options, OuterStride<OuterStride_>>>
     : eigen_fill_helper<Map<Xpr, Options, Stride<OuterStride_, 0>>> {};
 
-template <typename Xpr, bool use_fill = eigen_fill_helper<Xpr>::value>
-struct eigen_fill_impl {
+template <typename Xpr>
+struct eigen_fill_impl<Xpr, /*use_fill*/ false> {
   using Scalar = typename Xpr::Scalar;
   using Func = scalar_constant_op<Scalar>;
   using PlainObject = typename Xpr::PlainObject;
@@ -90,12 +87,7 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
 #endif
 
 template <typename Xpr>
-struct eigen_memset_helper {
-  static constexpr bool value = std::is_trivial<typename Xpr::Scalar>::value && eigen_fill_helper<Xpr>::value;
-};
-
-template <typename Xpr, bool use_memset = eigen_memset_helper<Xpr>::value>
-struct eigen_zero_impl {
+struct eigen_zero_impl<Xpr, /*use_memset*/ false> {
   using PlainObject = typename Xpr::PlainObject;
   using Zero = typename PlainObject::ZeroReturnType;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
