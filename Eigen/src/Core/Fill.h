@@ -61,7 +61,7 @@ struct eigen_fill_impl {
   using PlainObject = typename Xpr::PlainObject;
   using Constant = CwiseNullaryOp<Func, PlainObject>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const Scalar& val) {
-    dst = Constant(dst.rows(), dst.cols(), Func(val));
+    call_dense_assignment_loop(dst, Constant(dst.rows(), dst.cols(), val));
   }
 };
 
