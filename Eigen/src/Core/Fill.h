@@ -70,8 +70,10 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ false> {
   }
 };
 
-#if !EIGEN_COMP_MSVC
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_COMP_MSVC || defined(EIGEN_GPU_COMPILE_PHASE)
+template <typename Xpr>
+struct eigen_fill_impl<Xpr, /*use_fill*/ true> : eigen_fill_impl<Xpr, /*use_fill*/ false> {};
+#else
 template <typename Xpr>
 struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
   using Scalar = typename Xpr::Scalar;
@@ -86,7 +88,6 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
     run(dst, val);
   }
 };
-#endif
 #endif
 
 template <typename Xpr>
