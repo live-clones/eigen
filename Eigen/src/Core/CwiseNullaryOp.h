@@ -523,7 +523,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ZeroRet
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ZeroReturnType DenseBase<Derived>::Zero() {
-  return ZeroReturnType();
+  return ZeroReturnType(RowsAtCompileTime, ColsAtCompileTime);
 }
 
 /** \returns true if *this is approximately equal to the zero matrix,

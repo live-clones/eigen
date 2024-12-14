@@ -17,6 +17,9 @@ namespace Eigen {
 
 namespace internal {
 
+template <typename Xpr>
+struct eigen_fill_helper : std::false_type {};
+
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct eigen_fill_helper<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
 
@@ -85,6 +88,11 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
 };
 #endif
 #endif
+
+template <typename Xpr>
+struct eigen_memset_helper {
+  static constexpr bool value = std::is_trivial<typename Xpr::Scalar>::value && eigen_fill_helper<Xpr>::value;
+};
 
 template <typename Xpr>
 struct eigen_zero_impl<Xpr, /*use_memset*/ false> {
