@@ -253,7 +253,7 @@ class DiagonalMatrix : public DiagonalBase<DiagonalMatrix<Scalar_, SizeAtCompile
   }
 #endif
 
-  typedef DiagonalWrapper<const CwiseNullaryOp<internal::scalar_constant_op<Scalar>, DiagonalVectorType>>
+  typedef DiagonalWrapper<const CwiseNullaryOp<internal::scalar_zero_op<Scalar>, DiagonalVectorType>>
       InitializeReturnType;
 
   /** Initializes a diagonal matrix of size SizeAtCompileTime with coefficients set to zero */
