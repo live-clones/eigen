@@ -97,6 +97,7 @@ struct eigen_memset_helper {
 
 template <typename Xpr>
 struct eigen_zero_impl<Xpr, /*use_memset*/ false> {
+  using Scalar = typename Xpr::Scalar;
   using PlainObject = typename Xpr::PlainObject;
   using Zero = typename PlainObject::ZeroReturnType;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
@@ -105,7 +106,7 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ false> {
   }
   template <typename SrcXpr>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
-    eigen_fill_impl<Xpr>::run(dst, src);
+    call_dense_assignment_loop(dst, src, assign_op<Scalar, Scalar>());
   }
 };
 
