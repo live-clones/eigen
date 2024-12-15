@@ -36,4 +36,3 @@
     paths:
       - ${EIGEN_CI_BUILDDIR}/
     expire_in: 5 days
-

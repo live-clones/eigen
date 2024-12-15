@@ -318,7 +318,7 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
   extends: .build:linux:cross
   image: alpine:3.15
   before_script:
-    - . ci/scripts/common.linux.alpine.before_script.sh
+    - . /scripts/common.linux.alpine.before_script.sh
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   cache:
