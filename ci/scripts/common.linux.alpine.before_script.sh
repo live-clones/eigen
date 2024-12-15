@@ -12,7 +12,7 @@ echo "arch=$ARCH, target=${EIGEN_CI_TARGET_ARCH}"
 echo "Processors: ${NPROC}"
 echo "CI Variables:"
 export | grep EIGEN
-BLAH BLAH BLAH BLAH BLAH BLAH
+
 apk add ninja-build cmake git ${EIGEN_CI_INSTALL}
 
 export EIGEN_CI_CXX_IMPLICIT_INCLUDE_DIRECTORIES="";
