@@ -316,35 +316,35 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
 
 .build:linux:alpine:
   extends: .build:linux:cross
-  image: alpine:3.18
+  image: alpine:3.15
   before_script:
     - . ci/scripts/common.linux.alpine.before_script.sh
 
-# GCC-12.2.1 (Alpine 3.18)
-build:linux:alpine:gcc-12:
+# GCC-10.3.1 (Alpine 3.15)
+build:linux:alpine:gcc-10:
   extends: .build:linux:alpine
   variables:
     EIGEN_CI_INSTALL: g++
     EIGEN_CI_C_COMPILER: gcc
     EIGEN_CI_CXX_COMPILER: g++
 
-# Clang-14.0.6 (Alpine 3.18)
-build:linux:alpine:clang-14:
+# Clang-12.0.1 (Alpine 3.15)
+build:linux:alpine:clang-12:
   extends: .build:linux:alpine
   variables:
-    EIGEN_CI_INSTALL: clang14
-    EIGEN_CI_C_COMPILER: clang-14
-    EIGEN_CI_CXX_COMPILER: clang++-14
+    EIGEN_CI_INSTALL: clang
+    EIGEN_CI_C_COMPILER: clang
+    EIGEN_CI_CXX_COMPILER: clang++
 
-build:linux:alpine:gcc-12:smoketest:
-  extends: build:linux:alpine:gcc-12
+build:linux:alpine:gcc-10:smoketest:
+  extends: build:linux:alpine:gcc-10
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   
-build:linux:alpine:clang-14:smoketest:
-  extends: build:linux:alpine:clang-14
+build:linux:alpine:clang-12:smoketest:
+  extends: build:linux:alpine:clang-12
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
