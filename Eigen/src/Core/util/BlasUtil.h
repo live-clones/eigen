@@ -64,6 +64,11 @@ class BlasVectorMapper {
     return ploadt<Packet, AlignmentType>(m_data + i);
   }
 
+  template <typename Packet, int AlignmentType>
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet loadPartial(Index i, Index n, Index offset = 0) const {
+    return ploadt_partial<Packet, AlignmentType>(m_data + i, n, offset);
+  }
+
   template <typename Packet>
   EIGEN_DEVICE_FUNC bool aligned(Index i) const {
     return (std::uintptr_t(m_data + i) % sizeof(Packet)) == 0;
@@ -101,6 +106,11 @@ class BlasLinearMapper<Scalar, Index, AlignmentType> {
   template <typename PacketType, int AlignmentT>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketType load(Index i) const {
     return ploadt<PacketType, AlignmentT>(m_data + i);
+  }
+
+  template <typename PacketType, int AlignmentT>
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketType loadPartial(Index i, Index n, Index offset = 0) const {
+    return ploadt_partial<PacketType, AlignmentT>(m_data + i, n, offset);
   }
 
   template <typename PacketType>
@@ -216,6 +226,11 @@ class blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, 1> {
   template <typename PacketT, int AlignmentT>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT load(Index i, Index j) const {
     return ploadt<PacketT, AlignmentT>(&operator()(i, j));
+  }
+
+  template <typename PacketT, int AlignmentT>
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPartial(Index i, Index j, Index n, Index offset = 0) const {
+    return ploadt_partial<PacketT, AlignmentT>(&operator()(i, j), n, offset);
   }
 
   template <typename PacketType>
@@ -337,6 +352,11 @@ class blas_data_mapper {
   template <typename PacketT, int AlignmentT>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT load(Index i, Index j) const {
     return pgather<Scalar, PacketT>(&operator()(i, j), m_incr.value());
+  }
+
+  template <typename PacketT, int AlignmentT>
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPartial(Index i, Index j, Index n, Index /*offset*/ = 0) const {
+    return pgather_partial<Scalar, PacketT>(&operator()(i, j), m_incr.value(), n);
   }
 
   template <typename PacketType>
