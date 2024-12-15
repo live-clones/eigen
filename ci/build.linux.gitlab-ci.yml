@@ -323,6 +323,7 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
   tags:
     - linux
     - eigen-runner
+    - cross-compiler
   cache:
     key: "$CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG-BUILD"
     paths:
