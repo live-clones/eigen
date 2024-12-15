@@ -37,10 +37,3 @@
       - ${EIGEN_CI_BUILDDIR}/
     expire_in: 5 days
 
-# Base configuration for Alpine Linux builds and tests.
-.common:linux:alpine:
-  extends: .common:linux:cross
-  image: alpine:3.15
-  before_script:
-    - . ci/scripts/common.linux.alpine.before_script.sh
-
