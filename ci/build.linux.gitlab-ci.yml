@@ -317,7 +317,7 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
   extends: .common:linux:alpine
   stage: build
   variables:
-    EIGEN_CI_BUILD_TARGET: buildtests
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
   script:
     - . ci/scripts/build.linux.script.sh
   tags:
