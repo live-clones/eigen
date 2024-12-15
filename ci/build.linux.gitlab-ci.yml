@@ -311,14 +311,14 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-build:linux:cross:x86-64:clang-12:avx2:smoketest:
+  
+someothertest:
   extends: build:linux:cross:x86-64:clang-12:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
- 
+
 ######## Alpine MR Smoke Tests #################################################
 .build:linux:alpine:
   extends: .common:linux:alpine
