@@ -416,7 +416,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
     EIGEN_CI_TEST_LABEL: Unsupported
 
 ##### MR Smoke Tests ###########################################################
-  
+
 test:linux:x86-64:gcc-10:default:smoketest:
   extends: .test:linux:x86-64:gcc-10:default
   needs: [ build:linux:cross:x86-64:gcc-10:default:smoketest ]
