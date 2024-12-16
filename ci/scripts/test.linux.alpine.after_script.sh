@@ -7,7 +7,6 @@ rootdir=`pwd`
 cd ${EIGEN_CI_BUILDDIR}
 
 # Install xml processor.
-apt-get update -y
 apk add libxslt
 
 # Generate test results.
