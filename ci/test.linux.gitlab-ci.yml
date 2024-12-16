@@ -419,7 +419,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
 
 .test:linux:alpine:
   extends: .test:linux
-  image: alpine:3.15
+  image: alpine:edge
   variables:
     EIGEN_CI_PACKAGES: cmake
   before_script:
