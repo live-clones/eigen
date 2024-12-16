@@ -420,6 +420,8 @@ test:linux:ppc64le:clang-12:default:unsupported:
 .test:linux:alpine:
   extends: .test:linux
   image: alpine:3.15
+  before_script:
+    - null
   after_script:
     - . ci/scripts/test.linux.alpine.after_script.sh
 
