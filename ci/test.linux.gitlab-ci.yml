@@ -421,7 +421,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
   extends: .test:linux
   image: alpine:3.15
   variables:
-    EIGEN_CI_PACKAGES: cmake
+    EIGEN_CI_PACKAGES: cmake libxslt
   before_script:
     - . ci/scripts/common.linux.alpine.before_script.sh
   after_script:
