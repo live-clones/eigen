@@ -13,7 +13,7 @@ echo "Processors: ${NPROC}"
 echo "CI Variables:"
 export | grep EIGEN
 
-apk add samurai cmake git ${EIGEN_CI_INSTALL}
+apk add ${EIGEN_CI_PACKAGES} ${EIGEN_CI_INSTALL}
 
 export EIGEN_CI_CXX_IMPLICIT_INCLUDE_DIRECTORIES="";
 export EIGEN_CI_CXX_COMPILER_TARGET="";

@@ -420,9 +420,10 @@ test:linux:ppc64le:clang-12:default:unsupported:
 .test:linux:alpine:
   extends: .test:linux
   image: alpine:3.15
+  variables:
+    EIGEN_CI_PACKAGES: cmake
   before_script:
-    - apk add cmake
-  #   - . ci/scripts/common.linux.alpine.before_script.sh
+    - . ci/scripts/common.linux.alpine.before_script.sh
   after_script:
     - . ci/scripts/test.linux.alpine.after_script.sh
   tags:
