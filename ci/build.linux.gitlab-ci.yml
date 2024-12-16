@@ -332,7 +332,7 @@ build:linux:alpine:gcc-10:
 build:linux:alpine:clang-12:
   extends: .build:linux:alpine
   variables:
-    EIGEN_CI_INSTALL: clang
+    EIGEN_CI_INSTALL: clang g++
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
 
