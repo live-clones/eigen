@@ -330,7 +330,7 @@ build:linux:alpine:gcc-10:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   
-test:linux:alpine:clang-12:smoketest:
+build:linux:alpine:clang-12:smoketest:
   extends: .build:linux:alpine:clang-12
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
