@@ -323,14 +323,14 @@ build:linux:cross:ppc64le:clang-12:default:
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
 
-build:linux:gcc-10:smoketest:
+build:linux:alpine:gcc-10:smoketest:
   extends: .build:linux:alpine:gcc-10
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   
-build:linux:clang-12:smoketest:
+test:linux:alpine:clang-12:smoketest:
   extends: .build:linux:alpine:clang-12
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests

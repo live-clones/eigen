@@ -447,7 +447,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
 
 test:linux:alpine:gcc-10:smoketest:
   extends: .test:linux:alpine:gcc-10
-  needs: [ build:linux:alpine:gcc-10:smoketest ]
+  needs: [ build:linux:gcc-10:smoketest ]
   variables:
     EIGEN_CI_BUILD_TARGET: smoketest
   rules:
@@ -455,7 +455,7 @@ test:linux:alpine:gcc-10:smoketest:
   
 test:linux:alpine:clang-12:smoketest:
   extends: .test:linux:alpine:clang-12
-  needs: [ build:linux:alpine:clang-12:smoketest ]
+  needs: [ build:linux:clang-12:smoketest ]
   variables:
     EIGEN_CI_BUILD_TARGET: smoketest
   rules:
