@@ -298,22 +298,6 @@ build:linux:cross:ppc64le:clang-12:default:
 
 ######## MR Smoke Tests ########################################################
 
-build:linux:cross:x86-64:gcc-10:default:smoketest:
-  extends: build:linux:cross:x86-64:gcc-10:default
-  variables:
-    EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-build:linux:cross:x86-64:clang-12:default:smoketest:
-  extends: build:linux:cross:x86-64:clang-12:default
-  variables:
-    EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-######## Alpine MR Smoke Tests #################################################
-
 .build:linux:alpine:
   extends: .build:linux:cross
   image: alpine:3.15
@@ -321,7 +305,7 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
     - . ci/scripts/common.linux.alpine.before_script.sh
 
 # GCC-10.3.1 (Alpine 3.15)
-build:linux:alpine:gcc-10:
+.build:linux:alpine:gcc-10:
   extends: .build:linux:alpine
   variables:
     EIGEN_CI_INSTALL: g++
@@ -329,7 +313,7 @@ build:linux:alpine:gcc-10:
     EIGEN_CI_CXX_COMPILER: g++
 
 # Clang-12.0.1 (Alpine 3.15)
-build:linux:alpine:clang-12:
+.build:linux:alpine:clang-12:
   extends: .build:linux:alpine
   variables:
     EIGEN_CI_INSTALL: clang g++
@@ -337,14 +321,14 @@ build:linux:alpine:clang-12:
     EIGEN_CI_CXX_COMPILER: clang++
 
 build:linux:alpine:gcc-10:smoketest:
-  extends: build:linux:alpine:gcc-10
+  extends: .build:linux:alpine:gcc-10
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   
 build:linux:alpine:clang-12:smoketest:
-  extends: build:linux:alpine:clang-12
+  extends: .build:linux:alpine:clang-12
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
