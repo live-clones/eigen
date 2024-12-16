@@ -302,7 +302,7 @@ build:linux:cross:ppc64le:clang-12:default:
   extends: .build:linux:cross
   image: alpine:3.15
   variables:
-    EIGEN_CI_PACKAGES: samurai cmake git
+    EIGEN_CI_PACKAGES: cmake git samurai
   before_script:
     - . ci/scripts/common.linux.alpine.before_script.sh
   tags:

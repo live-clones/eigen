@@ -434,7 +434,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
 .test:linux:alpine:gcc-10:
   extends: .test:linux:alpine
   variables:
-    EIGEN_CI_INSTALL: g++
+    EIGEN_CI_INSTALL: ''
     EIGEN_CI_C_COMPILER: gcc
     EIGEN_CI_CXX_COMPILER: g++
 
@@ -442,7 +442,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
 .test:linux:alpine:clang-12:
   extends: .test:linux:alpine
   variables:
-    EIGEN_CI_INSTALL: clang g++
+    EIGEN_CI_INSTALL: ''
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
 
