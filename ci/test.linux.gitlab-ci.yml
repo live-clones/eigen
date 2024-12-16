@@ -422,7 +422,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
   image: alpine:3.15
   before_script:
     - apk add cmake
-    - . ci/scripts/common.linux.alpine.before_script.sh
+  #   - . ci/scripts/common.linux.alpine.before_script.sh
   after_script:
     - . ci/scripts/test.linux.alpine.after_script.sh
   tags:
@@ -449,7 +449,7 @@ test:linux:alpine:gcc-10:smoketest:
   extends: .test:linux:alpine:gcc-10
   needs: [ build:linux:alpine:gcc-10:smoketest ]
   variables:
-    EIGEN_CI_BUILD_TARGET: smoketest
+    EIGEN_CI_TEST_LABEL: smoketest
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   
@@ -457,6 +457,6 @@ test:linux:alpine:clang-12:smoketest:
   extends: .test:linux:alpine:clang-12
   needs: [ build:linux:alpine:clang-12:smoketest ]
   variables:
-    EIGEN_CI_BUILD_TARGET: smoketest
+    EIGEN_CI_TEST_LABEL: smoketest
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
