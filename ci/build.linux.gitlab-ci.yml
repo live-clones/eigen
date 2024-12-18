@@ -46,7 +46,7 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu mold
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
-    EIGEN_CI_ADDITIONAL_ARGS: '-DCMAKE_JOB_POOLS:STRING=link=1' -DCMAKE_JOB_POOL_LINK:STRING=link DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
+    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_JOB_POOLS:STRING='link=1' -DCMAKE_JOB_POOL_LINK:STRING=link DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
 
 build:linux:cross:x86-64:gcc-10:avx:
   extends: build:linux:cross:x86-64:gcc-10:default
@@ -82,7 +82,7 @@ build:linux:cross:x86-64:clang-12:default:
     EIGEN_CI_C_COMPILER: clang-12
     EIGEN_CI_CXX_COMPILER: clang++-12
     EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu clang-12 mold
-    EIGEN_CI_ADDITIONAL_ARGS: '-DCMAKE_JOB_POOLS:STRING=link=1' -DCMAKE_JOB_POOL_LINK:STRING=link DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
+    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_JOB_POOLS:STRING='link=1' -DCMAKE_JOB_POOL_LINK:STRING=link DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
 
 build:linux:cross:x86-64:clang-12:avx:
   extends: build:linux:cross:x86-64:clang-12:default
