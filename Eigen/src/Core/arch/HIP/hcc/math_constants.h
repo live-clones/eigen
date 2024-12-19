@@ -1,4 +1,5 @@
 /*
+ * SPDX-License-Identifier: MPL-2.0
  * math_constants.h -
  *  HIP equivalent of the CUDA header of the same name
  */

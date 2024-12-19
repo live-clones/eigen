@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #include "../Eigen/Eigenvalues"
 
 #ifdef EIGEN_SHOULD_FAIL_TO_BUILD

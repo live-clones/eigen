@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 
 #if defined(__clang__) || defined(__GNUC__)
 #warning \

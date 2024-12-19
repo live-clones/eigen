@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 typedef Matrix<float, Dynamic, 2> DataMatrix;
 // let's generate some samples on the 3D plane of equation z = 2x+3y (with some noise)
 DataMatrix samples = DataMatrix::Random(12, 2);

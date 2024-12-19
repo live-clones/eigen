@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 if(NOT EIGEN_TEST_NOQT)
   find_package(Qt4)
   if(QT4_FOUND)
