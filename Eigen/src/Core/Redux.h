@@ -414,6 +414,13 @@ class redux_evaluator : public internal::evaluator<XprType_> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetByOuterInner(Index outer, Index inner) const {
     return Base::template packet<LoadMode, PacketType>(IsRowMajor ? outer : inner, IsRowMajor ? inner : outer);
   }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType partialPacketByOuterInner(Index outer, Index inner, Index n,
+                                                                             Index offset) const {
+    return Base::template partialPacket<LoadMode, PacketType>(IsRowMajor ? outer : inner, IsRowMajor ? inner : outer, n,
+                                                              offset);
+  }
 };
 
 }  // end namespace internal

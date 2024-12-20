@@ -15,6 +15,9 @@
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #endif
 
+#ifndef EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD
+#define EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD
+#endif
 namespace Eigen {
 namespace internal {
 
@@ -47,6 +50,66 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_loadu(const T* mem) {
   HVX_Vector v;
   memcpy(&v, mem, __HVX_LENGTH__);
   return v;
+}
+
+// This function stores the first n bytes from vector v to address 'mem'.
+// n must be in range 1..128 and mem may have any alignment.
+template <size_t Alignment, typename T>
+EIGEN_STRONG_INLINE void vstu_variable(T* mem, const size_t& n, HVX_Vector vin) {
+  // Rotate as needed.
+  uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
+
+  vin = Q6_V_vlalign_VVR(vin, vin, mem_addr);
+
+  size_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
+  size_t right_off = left_off + n;
+
+  HVX_VectorPred ql_not = Q6_Q_vsetq_R(mem_addr);
+  HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
+
+  EIGEN_IF_CONSTEXPR(n > Alignment) {
+    if (right_off > __HVX_LENGTH__) {
+      Q6_vmem_QRIV(qr, mem + __HVX_LENGTH__ / sizeof(T), vin);
+      qr = Q6_Q_vcmp_eq_VbVb(vin, vin);
+    }
+  }
+
+  ql_not = Q6_Q_or_QQn(ql_not, qr);
+  Q6_vmem_QnRIV(ql_not, mem, vin);
+}
+
+// This function load the first n bytes from vector v to address 'mem'.
+// n must be in range 1..128 and mem may have any alignment.
+// All elements after the last element loaded will initialized with zero
+template <size_t Alignment, typename T>
+EIGEN_STRONG_INLINE HVX_Vector vload_variable(const T* mem, const size_t& n, const size_t& offset) {
+#if defined(EIGEN_HVX_FAST_PARTIAL_VECTOR_LOAD)
+  // Fast partial vector load through aligned vmem load.
+  // The load may past end of array but is aligned to prevent memory fault.
+  HVX_Vector v0 = HVX_vmem<0>(mem);
+  HVX_Vector v1 = v0;
+  uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
+  EIGEN_IF_CONSTEXPR(n <= Alignment) {
+    // Data size less than alignment will never cross multiple aligned vectors.
+    v1 = v0;
+  }
+  else {
+    uintptr_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
+    if (left_off + n > __HVX_LENGTH__) {
+      v1 = HVX_vmem<1>(mem);
+    } else {
+      v1 = v0;
+    }
+  }
+  v0 = Q6_V_valign_VVR(v1, v0, mem_addr);
+  v0 = Q6_V_valign_VVR(v0, Q6_V_vzero(), n);
+  return Q6_V_valign_VVR(Q6_V_vzero(), v0, __HVX_LENGTH__ - n - offset * sizeof(T));
+#else
+  HVX_Vector v;
+  memcpy(&v, mem, n);
+  v = Q6_V_valign_VVR(v, Q6_V_vzero(), n);
+  return Q6_V_valign_VVR(Q6_V_vzero(), v, __HVX_LENGTH__ - n - offset * sizeof(T));
+#endif
 }
 
 template <size_t Size, size_t Alignment, typename T>
@@ -306,6 +369,16 @@ EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet32f pload_partial<Packet32f>(const float* from, const Index n, const Index offset) {
+  return Packet32f::Create(vload_variable<unpacket_traits<Packet32f>::alignment>(from, n * sizeof(float), offset));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet32f ploadu_partial<Packet32f>(const float* from, const Index n, const Index offset) {
+  return Packet32f::Create(vload_variable<0>(from, n * sizeof(float), offset));
+}
+
+template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet32f& from) {
   HVX_store(to, from.Get());
 }
@@ -329,6 +402,36 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet16f& from) {
 template <>
 EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from) {
   HVX_store_partial<unpacket_traits<Packet8f>::size, 0>(to, from.Get());
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstore_partial<float>(float* to, const Packet32f& from, const Index n, const Index offset) {
+  if (offset != 0) {
+    EIGEN_USING_STD(memcpy);
+    constexpr Index PacketSize = unpacket_traits<Packet32f>::size;
+    alignas(alignof(Packet32f)) float elements[PacketSize];
+    pstore<float>(elements, from);
+    for (Index i = 0; i < numext::mini(n, PacketSize - offset); i++) {
+      to[i] = elements[i + offset];
+    }
+  } else {
+    vstu_variable<unpacket_traits<Packet32f>::alignment, float>(to, sizeof(float) * n, from.Get());
+  }
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstoreu_partial<float>(float* to, const Packet32f& from, const Index n, const Index offset) {
+  if (offset != 0) {
+    EIGEN_USING_STD(memcpy);
+    constexpr Index PacketSize = unpacket_traits<Packet32f>::size;
+    alignas(alignof(Packet32f)) float elements[PacketSize];
+    pstore<float>(elements, from);
+    for (Index i = 0; i < numext::mini(n, PacketSize - offset); i++) {
+      to[i] = elements[i + offset];
+    }
+  } else {
+    vstu_variable<0, float>(to, sizeof(float) * n, from.Get());
+  }
 }
 
 template <HVXPacketSize T>
@@ -777,10 +880,12 @@ EIGEN_STRONG_INLINE HVXPacket<T> ploaddup_hvx(const float* from) {
   HVX_VectorPair dup = Q6_W_vshuff_VVR(load, load, -4);
   return HVXPacket<T>::Create(HEXAGON_HVX_GET_V0(dup));
 }
+
 template <>
 EIGEN_STRONG_INLINE Packet32f ploaddup(const float* from) {
   return ploaddup_hvx<HVXPacketSize::Full>(from);
 }
+
 template <>
 EIGEN_STRONG_INLINE Packet16f ploaddup(const float* from) {
   return ploaddup_hvx<HVXPacketSize::Half>(from);
@@ -827,6 +932,12 @@ template <>
 EIGEN_STRONG_INLINE Packet8f preverse(const Packet8f& a) {
   HVX_Vector delta = Q6_Vb_vsplat_R(0x1c);
   return Packet8f::Create(Q6_V_vdelta_VV(a.Get(), delta));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet32f preverse_partial<float, Packet32f>(const Packet32f& a, const Index n) {
+  Packet32f reverse_a = preverse(a);
+  return Packet32f::Create(Q6_V_vlalign_VVR(reverse_a.Get(), reverse_a.Get(), n * sizeof(float)));
 }
 
 template <HVXPacketSize T>
