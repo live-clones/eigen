@@ -415,6 +415,24 @@ test:linux:ppc64le:clang-12:default:unsupported:
   variables:
     EIGEN_CI_TEST_LABEL: Unsupported
 
+##### loongarch64 ###################################################################
+.test:linux:loongarch64:
+  extends: .test:linux
+  variables:
+    EIGEN_CI_TARGET_ARCH: loongarch64
+    EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
+  tags:
+    - linux
+    - eigen-runner
+    - loongarch64
+
+# GCC-8 (Loongnix 20)
+test:linux:loongarch64:gcc-8:default:
+  extends: .test:linux:loongarch64
+  image: Loongnix 20
+  needs: [ build:linux:cross:loongarch64:gcc-8:default ]
+  variables:
+    EIGEN_CI_TEST_LABEL: default
 ##### MR Smoke Tests ###########################################################
 
 test:linux:x86-64:gcc-10:default:smoketest:
