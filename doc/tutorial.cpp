@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #include <Eigen/Array>
 
 int main(int argc, char *argv[]) {

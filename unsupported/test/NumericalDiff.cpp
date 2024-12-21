@@ -2,6 +2,7 @@
 // for linear algebra.
 //
 // Copyright (C) 2009 Thomas Capricelli <orzel@freehackers.org>
+// SPDX-License-Identifier: MPL-2.0
 
 #include <stdio.h>
 

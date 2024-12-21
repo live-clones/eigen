@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXf mat(2, 2);
 mat << 1, 2, 4, 7;
 cout << "Here is the matrix mat:\n" << mat << endl << endl;

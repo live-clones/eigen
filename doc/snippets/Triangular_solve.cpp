@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix3d m = Matrix3d::Zero();
 m.triangularView<Eigen::Upper>().setOnes();
 cout << "Here is the matrix m:\n" << m << endl;

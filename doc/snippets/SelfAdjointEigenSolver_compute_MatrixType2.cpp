@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXd X = MatrixXd::Random(5, 5);
 MatrixXd A = X * X.transpose();
 X = MatrixXd::Random(5, 5);

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #define EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
 #include "sparse_solver.h"
 
