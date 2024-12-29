@@ -43,7 +43,7 @@ build:linux:cross:x86-64:gcc-10:default:
   variables:
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
-    EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu mold
+    EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu mold gpg-agent
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
     EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_JOB_POOLS:STRING='link=1' -DCMAKE_JOB_POOL_LINK:STRING=link DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
@@ -61,7 +61,7 @@ build:linux:cross:x86-64:gcc-10:avx2:
 build:linux:cross:x86-64:gcc-10:avx512dq:
   extends: build:linux:cross:x86-64:gcc-10:default
   variables:
-    EIGEN_CI_ADDITIONAL_ARGS: ${EIGEN_CI_ADDITIONAL_ARGS} "-DEIGEN_TEST_AVX512DQ=on"
+    EIGEN_CI_ADDITIONAL_ARGS: ${EIGEN_CI_ADDITIONAL_ARGS} "-DEIGEN_TEST_AVX512DQ=on"W
 
 # Clang-6 (minimum on Ubuntu 20.04)
 build:linux:cross:x86-64:clang-6:default:
@@ -78,10 +78,10 @@ build:linux:cross:x86-64:clang-6:default:
 build:linux:cross:x86-64:clang-12:default:
   extends: .build:linux:cross:x86-64
   variables:
-    EIGEN_CI_INSTALL: clang-12 mold
+    EIGEN_CI_INSTALL: clang-12 mold gpg-agent
     EIGEN_CI_C_COMPILER: clang-12
     EIGEN_CI_CXX_COMPILER: clang++-12
-    EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu clang-12 mold
+    EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu clang-12 mold gpg-agent
     EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_JOB_POOLS:STRING='link=1' -DCMAKE_JOB_POOL_LINK:STRING=link DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
 
 build:linux:cross:x86-64:clang-12:avx:
