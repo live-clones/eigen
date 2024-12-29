@@ -15,10 +15,10 @@ export | grep EIGEN
 # Set noninteractive, otherwise tzdata may be installed and prompt for a
 # geographical region.
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y > /dev/null
+# apt-get update -y > /dev/null
 apt-get install -y --no-install-recommends software-properties-common ninja-build cmake git > /dev/null
-add-apt-repository -y ppa:ubuntu-toolchain-r/test > /dev/null
-apt-get update -y > /dev/null
+# add-apt-repository -y ppa:ubuntu-toolchain-r/test > /dev/null
+# apt-get update -y > /dev/null
 
 # Install required dependencies and set up compilers.
 # These are required even for testing to ensure that dynamic runtime libraries
