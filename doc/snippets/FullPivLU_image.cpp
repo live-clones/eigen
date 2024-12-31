@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix3d m;
 m << 1, 1, 0, 1, 3, 2, 0, 1, 1;
 cout << "Here is the matrix m:" << endl << m << endl;

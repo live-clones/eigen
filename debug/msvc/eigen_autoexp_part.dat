@@ -2,6 +2,7 @@
 ; * Eigen Visualizer
 ; *
 ; * Author: Hauke Heibel <hauke.heibel@gmail.com>
+; * SPDX-License-Identifier: MPL-2.0
 ; *
 ; * Support the enhanced debugging of the following Eigen
 ; * types (*: any, +:fixed dimension) :

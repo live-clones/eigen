@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #if defined(_MSC_VER) && (_MSC_VER == 1800)
 // This unit test takes forever to compile in Release mode with MSVC 2013,
