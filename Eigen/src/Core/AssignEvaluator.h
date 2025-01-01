@@ -291,6 +291,21 @@ struct copy_using_evaluator_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlign
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&, Index) {}
 };
 
+template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment>
+struct copy_using_evaluator_innervec_InnerUnrolling_partial {
+  using PacketType = typename Kernel::PacketType;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, Index outer) {
+    kernel.template assignPartialPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, Start, Stop - Start,
+                                                                                            0);
+  }
+};
+
+template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
+struct copy_using_evaluator_innervec_InnerUnrolling_partial<Kernel, Stop, Stop, SrcAlignment, DstAlignment> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&, Index) {}
+};
+
 /***************************************************************************
  * Part 3 : implementation of all cases
  ***************************************************************************/
@@ -354,7 +369,7 @@ struct dense_assignment_loop<Kernel, DefaultTraversal, InnerUnrolling> {
 ***************************/
 
 // The goal of unaligned_dense_assignment_loop is simply to factorize the handling
-// of the non vectorizable beginning and ending parts
+// of the non-aligned beginning parts
 
 template <bool IsAligned = false>
 struct unaligned_dense_assignment_loop {
@@ -368,7 +383,7 @@ struct unaligned_dense_assignment_loop<false> {
   // MSVC must not inline this functions. If it does, it fails to optimize the
   // packet access path.
   // FIXME check which version exhibits this issue
-#if EIGEN_COMP_MSVC
+#if EIGEN_COMP_MSVC < 1936
   template <typename Kernel>
   static EIGEN_DONT_INLINE void run(Kernel& kernel, Index start, Index end)
 #else
@@ -376,7 +391,22 @@ struct unaligned_dense_assignment_loop<false> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end)
 #endif
   {
+#if defined(EIGEN_VECTORIZE_PARTIAL)
+    using PacketType = typename Kernel::PacketType;
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+
+    const Index unalignedPacketOps = (end - start) / PacketSize;
+    const Index unalignedPacketEnd = start + (unalignedPacketOps * PacketSize);
+
+    for (Index index = start; index < unalignedPacketEnd; index += PacketSize)
+      kernel.template assignPacket<Unaligned, SrcAlignment, PacketType>(index);
+    if (end > unalignedPacketEnd)
+      kernel.template assignPartialPacket<Unaligned, SrcAlignment, PacketType>(unalignedPacketEnd,
+                                                                               end - unalignedPacketEnd, 0);
+#else
     for (Index index = start; index < end; ++index) kernel.assignCoeff(index);
+#endif  // EIGEN_VECTORIZE_PARTIAL
   }
 };
 
@@ -401,6 +431,25 @@ struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
+template <typename Kernel, int Index, int Stop>
+struct copy_using_evaluator_linearvec_CompleteUnrolling_partial {
+  typedef typename Kernel::DstEvaluatorType DstEvaluatorType;
+  typedef typename DstEvaluatorType::XprType DstXprType;
+  typedef typename Kernel::PacketType PacketType;
+
+  static constexpr int SrcAlignment = Kernel::AssignmentTraits::SrcAlignment;
+  static constexpr int DstAlignment = Kernel::AssignmentTraits::DstAlignment;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
+    kernel.template assignPartialPacket<DstAlignment, SrcAlignment, PacketType>(Index, Stop - Index, 0);
+  }
+};
+
+template <typename Kernel, int Stop>
+struct copy_using_evaluator_linearvec_CompleteUnrolling_partial<Kernel, Stop, Stop> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&) {}
+};
+
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
@@ -419,29 +468,47 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
         dstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + ((size - alignedStart) / packetSize) * packetSize;
 
+#if defined(EIGEN_VECTORIZE_PARTIAL)
+    if (alignedStart > 0) {
+      if (alignedStart <= packetSize)
+        kernel.template assignPartialPacket<Unaligned, srcAlignment, PacketType>(0, alignedStart, 0);
+      else
+        unaligned_dense_assignment_loop<dstIsAligned != 0>::run(kernel, 0, alignedStart);
+    }
+#else
     unaligned_dense_assignment_loop<dstIsAligned != 0>::run(kernel, 0, alignedStart);
+#endif  // EIGEN_VECTORIZE_PARTIAL
 
-    for (Index index = alignedStart; index < alignedEnd; index += packetSize)
+    Index index = alignedStart;
+    for (; index < alignedEnd; index += packetSize)
       kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
-
+#if defined(EIGEN_VECTORIZE_PARTIAL)
+    Index leftover = size - alignedEnd;
+    if (leftover > 0) kernel.template assignPartialPacket<dstAlignment, srcAlignment, PacketType>(index, leftover, 0);
+#else
     unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
+#endif  // EIGEN_VECTORIZE_PARTIAL
   }
 };
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrolling> {
+  using DstXprType = typename Kernel::DstEvaluatorType::XprType;
+  using PacketType = typename Kernel::PacketType;
+
+  static constexpr int Size = DstXprType::SizeAtCompileTime;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+  static constexpr int AlignedSize = (Size / PacketSize) * PacketSize;
+  static constexpr int DstAlignment = Kernel::AssignmentTraits::DstAlignment;
+  static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
-    typedef typename Kernel::DstEvaluatorType::XprType DstXprType;
-    typedef typename Kernel::PacketType PacketType;
-
-    enum {
-      size = DstXprType::SizeAtCompileTime,
-      packetSize = unpacket_traits<PacketType>::size,
-      alignedSize = (int(size) / packetSize) * packetSize
-    };
-
-    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, alignedSize>::run(kernel);
-    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, alignedSize, size>::run(kernel);
+    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, AlignedSize>::run(kernel);
+    // #if defined(EIGEN_VECTORIZE_PARTIAL)
+    //     copy_using_evaluator_linearvec_CompleteUnrolling_partial<Kernel, AlignedSize, Size>::run(kernel);
+    // #else
+    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, AlignedSize, Size>::run(kernel);
+    // #endif  // EIGEN_VECTORIZE_PARTIAL
   }
 };
 
@@ -509,6 +576,45 @@ struct dense_assignment_loop<Kernel, LinearTraversal, CompleteUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
+#if defined(EIGEN_VECTORIZE_PARTIAL)
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
+    typedef typename Kernel::Scalar Scalar;
+    typedef typename Kernel::PacketType PacketType;
+    enum {packetSize = unpacket_traits<PacketType>::size,
+          requestedAlignment = int(Kernel::AssignmentTraits::InnerRequiredAlignment),
+          alignable =
+              packet_traits<Scalar>::AlignedOnScalar || int(Kernel::AssignmentTraits::DstAlignment) >= sizeof(Scalar),
+          dstAlignment = alignable ? int(requestedAlignment) : int(Kernel::AssignmentTraits::DstAlignment)};
+
+    const Scalar* dst_ptr = kernel.dstDataPtr();
+    const Index outerStride = kernel.outerStride();
+    const Index innerSize = kernel.innerSize();
+    const Index outerSize = kernel.outerSize();
+
+    for (Index outer = 0; outer < outerSize; ++outer) {
+      Index alignedStart = internal::first_aligned<dstAlignment>(dst_ptr, innerSize);
+
+      Index inner = 0;
+
+      // do the unaligned portion of the assignment
+      for (; inner + packetSize <= alignedStart; inner += packetSize)
+        kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
+      if (alignedStart > inner)
+        kernel.template assignPartialPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner,
+                                                                                          alignedStart - inner, 0);
+
+      inner = alignedStart;
+
+      // do the aligned portion of the assignment
+      for (; inner + packetSize <= innerSize; inner += packetSize)
+        kernel.template assignPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner);
+      if (innerSize > inner)
+        kernel.template assignPartialPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner,
+                                                                                             innerSize - inner, 0);
+      dst_ptr += outerStride;
+    }
+  }
+#else
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     typedef typename Kernel::Scalar Scalar;
     typedef typename Kernel::PacketType PacketType;
@@ -547,6 +653,7 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
       alignedStart = numext::mini((alignedStart + alignedStep) % packetSize, innerSize);
     }
   }
+#endif  // EIGEN_VECTORIZE_PARTIAL
 };
 
 #if EIGEN_UNALIGNED_VECTORIZE
@@ -564,8 +671,14 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, InnerUnrolling> {
     };
 
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
-      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, vectorizableSize, 0, 0>::run(kernel, outer);
+      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, vectorizableSize, Unaligned, Unaligned>::run(kernel,
+                                                                                                           outer);
+#if defined(EIGEN_VECTORIZE_PARTIAL)
+      copy_using_evaluator_innervec_InnerUnrolling_partial<Kernel, vectorizableSize, innerSize, Unaligned,
+                                                           Unaligned>::run(kernel, outer);
+#else
       copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, vectorizableSize, innerSize>::run(kernel, outer);
+#endif  // EIGEN_VECTORIZE_PARTIAL
     }
   }
 };
@@ -642,10 +755,30 @@ class generic_dense_assignment_kernel {
   }
 
   template <int StoreMode, int LoadMode, typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPartialPacket(Index row, Index col, Index n, Index offset) {
+    m_functor.template assignPartialPacket<StoreMode>(
+        &m_dst.coeffRef(row, col), m_src.template partialPacket<LoadMode, Packet>(row, col, n, offset), n, offset);
+  }
+
+  template <int StoreMode, int LoadMode, typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPartialPacket(Index index, Index n, Index offset) {
+    m_functor.template assignPartialPacket<StoreMode>(
+        &m_dst.coeffRef(index), m_src.template partialPacket<LoadMode, Packet>(index, n, offset), n, offset);
+  }
+
+  template <int StoreMode, int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketByOuterInner(Index outer, Index inner) {
     Index row = rowIndexByOuterInner(outer, inner);
     Index col = colIndexByOuterInner(outer, inner);
     assignPacket<StoreMode, LoadMode, Packet>(row, col);
+  }
+
+  template <int StoreMode, int LoadMode, typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPartialPacketByOuterInner(Index outer, Index inner, Index n,
+                                                                             Index offset) {
+    Index row = rowIndexByOuterInner(outer, inner);
+    Index col = colIndexByOuterInner(outer, inner);
+    assignPartialPacket<StoreMode, LoadMode, Packet>(row, col, n, offset);
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner) {
