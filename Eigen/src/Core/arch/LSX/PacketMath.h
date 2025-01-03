@@ -816,6 +816,30 @@ EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const P
   return __lsx_vfmadd_d(a, b, c);
 }
 template <>
+EIGEN_STRONG_INLINE Packet4f pmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
+  return __lsx_vfmsub_s(a, b, c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2d pmsub(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
+  return __lsx_vfmsub_d(a, b, c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4f pnmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
+  return __lsx_vfnmadd_s(a, b, c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2d pnmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
+  return __lsx_vfnmadd_d(a, b, c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4f pnmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
+  return __lsx_vfnmsub_s(a, b, c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2d pnmsub(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
+  return __lsx_vfnmsub_d(a, b, c);
+}
+template <>
 EIGEN_STRONG_INLINE Packet16c pmadd(const Packet16c& a, const Packet16c& b, const Packet16c& c) {
   return __lsx_vmadd_b(c, a, b);
 }
