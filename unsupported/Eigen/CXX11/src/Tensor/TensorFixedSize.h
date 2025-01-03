@@ -153,6 +153,11 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
     return operator()(array<Index, NumIndices>{{firstIndex, otherIndices...}});
   }
 
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+  // Einstein notation
+  using TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> >::operator();
+#endif
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator()(const array<Index, NumIndices>& indices) {
     eigen_assert(checkIndexRange(indices));
     return coeffRef(indices);
