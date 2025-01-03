@@ -129,9 +129,9 @@ class IncompleteLUT : public SparseSolverBase<IncompleteLUT<Scalar_, StorageInde
     compute(mat);
   }
 
-  EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_lu.rows(); }
+  constexpr Index rows() const EIGEN_NOEXCEPT { return m_lu.rows(); }
 
-  EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_lu.cols(); }
+  constexpr Index cols() const EIGEN_NOEXCEPT { return m_lu.cols(); }
 
   /** \brief Reports whether previous computation was successful.
    *
