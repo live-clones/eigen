@@ -149,7 +149,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     }
   }
 
-  // Tries to assigns work to the current input task.
+  // Tries to assign work to the current task.
   void MaybeGetTask(Task* t) {
     PerThread* pt = GetPerThread();
     Queue& q = thread_data_[pt->thread_id].queue;
@@ -159,8 +159,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // steal loop. Moreover, since NonEmptyQueueIndex() calls PopBack() on the
       // victim queues it might reverse the order in which ops are executed
       // compared to the order in which they are scheduled, which tends to be
-      // counter-productive for the types of I/O workloads the single thread
-      // pools tend to be used for.
+      // counter-productive for the types of I/O workloads single thread pools
+      // tend to be used for.
       for (int i = 0; i < spin_count_ && !t->f; ++i) *t = q.PopFront();
     } else {
       if (EIGEN_PREDICT_FALSE(!t->f)) *t = LocalSteal();
