@@ -177,7 +177,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
 
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 
- protected:
+ //protected:
   /** Computes the sparse Cholesky decomposition of \a matrix */
   template <bool DoLDLT, bool NonHermitian>
   void compute(const MatrixType& matrix) {
@@ -221,6 +221,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
     analyzePattern_preordered(*pmat, DoLDLT);
   }
   void analyzePattern_preordered(const CholMatrixType& a, bool doLDLT);
+  void analyzePattern_preordered(const MatrixType& a, const CholMatrixType& a, bool doLDLT);
 
   template <bool NonHermitian>
   void ordering(const MatrixType& a, ConstCholMatrixPtr& pmat, CholMatrixType& ap);
@@ -830,7 +831,7 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
   const Index size = a.rows();
   pmat = &ap;
   // Note that ordering methods compute the inverse permutation
-  if (!internal::is_same<OrderingType, NaturalOrdering<Index> >::value) {
+  if (!internal::is_same<OrderingType, NaturalOrdering<StorageIndex> >::value) {
     {
       CholMatrixType C;
       internal::permute_symm_to_fullsymm<UpLo, NonHermitian>(a, C, NULL);
