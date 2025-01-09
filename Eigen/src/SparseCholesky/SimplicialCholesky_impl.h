@@ -25,6 +25,161 @@ the Mozilla Public License v. 2.0, as stated at the top of this file.
 
 namespace Eigen {
 
+namespace internal {
+template <typename StorageIndex>
+struct analyze_pattern_impl {
+  static constexpr StorageIndex kEmpty = -1;
+
+  // initialze outerIndexPtr so we can allocate the sizes
+  // static void init_pattern_permutation...
+  // static void permute_pattern(StorageIndex* inputOuter, StorageIndex* inputInner, StorageIndex* inputNonZeros,
+  //                            StorageIndex* outputOuter, StorageIndex* outputInner)
+
+  struct Stack {
+    StorageIndex* m_data;
+    StorageIndex m_size;
+#ifndef EIGEN_NO_DEBUG
+    const StorageIndex m_maxSize;
+    Stack(StorageIndex* data, StorageIndex size, StorageIndex maxSize)
+        : m_data(data), m_size(size), m_maxSize(maxSize) {
+      eigen_assert(size >= 0);
+      eigen_assert(maxSize >= size);
+    }
+#else
+    stack_helper(StorageIndex* data, StorageIndex size, StorageIndex /*maxSize*/) : m_data(data), m_size(size) {}
+#endif
+    bool empty() const { return m_size == 0; }
+    const StorageIndex& size() const { return m_size; }
+    const StorageIndex& back() const {
+      eigen_assert(m_size > 0);
+      return m_data[m_size - 1];
+    }
+    void push(const StorageIndex& value) {
+#ifndef EIGEN_NO_DEBUG
+      eigen_assert(m_size < m_maxSize);
+#endif
+      m_data[m_size] = value;
+      m_size++;
+    }
+    void pop() {
+      eigen_assert(m_size > 0);
+      m_size--;
+    }
+  };
+  static void calc_etree(const StorageIndex size, const StorageIndex* ladj_outerIndex,
+                         const StorageIndex* ladj_innerIndex, StorageIndex* parent, StorageIndex* visited) {
+    std::fill_n(parent, size, kEmpty);
+    std::fill_n(visited, size, kEmpty);
+    for (StorageIndex j = 0; j < size; ++j) {
+      visited[j] = j;
+      for (StorageIndex k = ladj_outerIndex[j]; k < ladj_outerIndex[j + 1]; k++) {
+        StorageIndex i = ladj_innerIndex[k];
+        if (j >= i) continue;
+        while (visited[i] != j) {
+          if (parent[i] == kEmpty) parent[i] = j;
+          StorageIndex a = visited[i];
+          visited[i] = j;
+          i = a;
+        }
+      }
+    }
+  }
+  static void calc_lineage(const StorageIndex size, const StorageIndex* parent, StorageIndex* firstChild,
+                           StorageIndex* sibling) {
+    std::fill_n(firstChild, size, kEmpty);
+    std::fill_n(sibling, size, kEmpty);
+    for (StorageIndex j = 0; j < size; j++) {
+      const StorageIndex p = parent[j];
+      if (p == kEmpty) continue;
+      StorageIndex c = firstChild[p];
+      if (c == kEmpty)
+        firstChild[p] = j;
+      else {
+        while (sibling[c] != kEmpty) c = sibling[c];
+        sibling[c] = j;
+      }
+    }
+  }
+  static void calc_post(const StorageIndex size, const StorageIndex* parent, const StorageIndex* firstChild,
+                        const StorageIndex* sibling, StorageIndex* post, StorageIndex* tmp) {
+    Stack post_stack(post, 0, size);
+    for (StorageIndex j = 0; j < size; j++) {
+      if (parent[j] != kEmpty) continue;
+      Stack dfs_stack(tmp, 0, size);
+      dfs_stack.push(j);
+      StorageIndex prev = j;
+      while (!dfs_stack.empty()) {
+        const StorageIndex i = dfs_stack.back();
+        StorageIndex c = (i == parent[prev]) ? sibling[prev] : firstChild[i];
+        if (c == kEmpty) {
+          post_stack.push(i);
+          dfs_stack.pop();
+          prev = i;
+        } else {
+          dfs_stack.push(c);
+        }
+      }
+    }
+    eigen_assert(post_stack.size() == size);
+  }
+  static StorageIndex find_setparent(StorageIndex u, const StorageIndex* parentSet) {
+    while (u != parentSet[u]) u = parentSet[u];
+    return u;
+  }
+  static void union_setparent(StorageIndex u, const StorageIndex v, StorageIndex* parentSet) {
+    while (u != v) {
+      StorageIndex tmp = parentSet[u];
+      parentSet[u] = v;
+      u = tmp;
+    }
+  }
+  void calc_colcount(const StorageIndex size, const StorageIndex* hadj_outerIndex, const StorageIndex* hadj_innerIndex,
+                     const StorageIndex* parent, const StorageIndex* post, StorageIndex* nonZerosPerCol,
+                     StorageIndex* parentSet, StorageIndex* visited, StorageIndex* firstDescendant,
+                     StorageIndex* previousNeighbor) {
+    std::iota(parentSet, parentSet + size, 0);
+    std::fill_n(visited, size, kEmpty);
+    std::fill_n(previousNeighbor, size, kEmpty);
+    std::fill_n(firstDescendant, size, kEmpty);
+    for (StorageIndex j_ = 0; j_ < size; j_++) {
+      const StorageIndex j = post[j_];
+      nonZerosPerCol[j] = (firstDescendant[j] == kEmpty) ? 1 : 0;
+      StorageIndex i = j;
+      while (firstDescendant[i] == kEmpty) {
+        firstDescendant[i] = j;
+        i = parent[i];
+        if (i == kEmpty) break;
+      }
+    }
+    for (StorageIndex j_ = 0; j_ < size; j_++) {
+      const StorageIndex j = post[j_];
+      const StorageIndex p = parent[j];
+      if (p != kEmpty) nonZerosPerCol[p]--;
+      for (StorageIndex k = hadj_outerIndex[j]; k < hadj_outerIndex[j + 1]; k++) {
+        const StorageIndex i = hadj_innerIndex[k];
+        if (j < i) {
+          if (firstDescendant[j] > previousNeighbor[i]) {
+            nonZerosPerCol[j]++;
+            const StorageIndex prev = visited[i];
+            if (prev != kEmpty) {
+              StorageIndex q = find_setparent(prev, parentSet);
+              nonZerosPerCol[q]--;
+            }
+            visited[i] = j;
+          }
+          previousNeighbor[i] = j;
+        }
+      }
+      union_setparent(j, p, parentSet);
+    }
+    for (StorageIndex j = 0; j < size; j++) {
+      StorageIndex p = parent[j];
+      if (p != kEmpty) nonZerosPerCol[p] += nonZerosPerCol[j];
+    }
+  }
+};
+}  // namespace internal
+
 template <typename Derived>
 void SimplicialCholeskyBase<Derived>::analyzePattern_preordered(const CholMatrixType& ap, bool doLDLT) {
   const StorageIndex size = StorageIndex(ap.rows());
