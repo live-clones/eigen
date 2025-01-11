@@ -740,28 +740,73 @@ struct count_bits_impl<BitsType,
 
 #endif  // EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
 
-template <typename BitsType>
-struct log_2_impl {
-  static constexpr int kTotalBits = sizeof(BitsType) * CHAR_BIT;
-  static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
+template <typename Scalar>
+EIGEN_DEVICE_FUNC constexpr inline int generic_log_ceil(const Scalar& x, const Scalar& base) {
+  eigen_assert(x >= Scalar(0));
+  const int kDigits = NumTraits<Scalar>::digits();
+  int s = 0;
+  Scalar test = Scalar(1);
+  while ((s < kDigits) && (test < x)) {
+    // avoid overflowing test
+    if (s < kDigits - 1) test = test * base;
+    s++;
+  }
+  return s;
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC constexpr inline int generic_log_floor(const Scalar& x, const Scalar& base) {
+  eigen_assert(x >= Scalar(0));
+  const int kDigits = NumTraits<Scalar>::digits();
+  if (x < base) return 0;
+  int s = 1;
+  Scalar test = base;
+  while ((s < kDigits) && (test < x)) {
+    // avoid overflowing test
+    if (s < kDigits - 1) test = test * base;
+    s++;
+  }
+  return test == x ? s : s - 1;
+}
+
+template <typename Scalar, bool BuiltIn = std::is_integral<Scalar>::value>
+struct log_radix_impl;
+
+template <typename Scalar>
+struct log_radix_impl<Scalar, true> {
+  static constexpr int kTotalBits = sizeof(Scalar) * CHAR_BIT;
+  static EIGEN_DEVICE_FUNC inline int run_ceil(const Scalar& x) {
     const int n = kTotalBits - clz(x);
     bool power_of_two = (x & (x - 1)) == 0;
     return x == 0 ? 0 : power_of_two ? (n - 1) : n;
   }
-  static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
+  static EIGEN_DEVICE_FUNC inline int run_floor(const Scalar& x) {
     const int n = kTotalBits - clz(x);
     return x == 0 ? 0 : n - 1;
   }
 };
 
-template <typename BitsType>
-int log2_ceil(const BitsType& x) {
-  return log_2_impl<BitsType>::run_ceil(x);
+template <typename Scalar>
+struct log_radix_impl<Scalar, false> {
+  static constexpr int kTotalBits = sizeof(Scalar) * CHAR_BIT;
+  static EIGEN_DEVICE_FUNC inline int run_ceil(const Scalar& x) {
+    const Scalar kRadix = static_cast<Scalar>(NumTraits<Scalar>::radix());
+    return generic_log_ceil(x, kRadix);
+  }
+  static EIGEN_DEVICE_FUNC inline int run_floor(const Scalar& x) {
+    const Scalar kRadix = static_cast<Scalar>(NumTraits<Scalar>::radix());
+    return generic_log_floor(x, kRadix);
+  }
+};
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC inline int log_radix_ceil(const Scalar& x) {
+  return log_radix_impl<Scalar>::run_ceil(x);
 }
 
-template <typename BitsType>
-int log2_floor(const BitsType& x) {
-  return log_2_impl<BitsType>::run_floor(x);
+template <typename Scalar>
+EIGEN_DEVICE_FUNC inline int log_radix_floor(const Scalar& x) {
+  return log_radix_impl<Scalar>::run_floor(x);
 }
 
 // Implementation of is* functions
