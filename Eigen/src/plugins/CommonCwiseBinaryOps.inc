@@ -72,6 +72,26 @@ template <typename T>
 const CwiseBinaryOp<internal::scalar_quotient_op<Scalar, T>, Derived, Constant<T> > operator/(const T& scalar) const;
 #endif
 
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, modulus)
+#else
+/** \returns an expression of \c *this modulus by the scalar value \a
+ *
+ * \tparam T is the scalar type of \a scalar. It must be compatible with the scalar type of the given expression.
+ */
+template <typename T>
+const CwiseBinaryOp<internal::scalar_modulus_op<T, Scalar>, Derived, Constant<T> > operator%(const T& scalar) const;
+/**
+ * \returns an expression of \c *this modulus by the scalar value \a
+ *
+ * \tparam T is the scalar type of \a scalar. It must be compatible with the scalar type of the given expression
+ * (\c Derived::Scalar).
+ */
+template <typename T>
+friend inline const CwiseBinaryOp<internal::scalar_modulus_op<Scalar, T>, Constant<T>, Derived> operator%(
+    const T& scalar, const StorageBaseType& expr);
+#endif
+
 /** \returns an expression of the coefficient-wise boolean \b and operator of \c *this and \a other
  *
  * Example: \include Cwise_boolean_and.cpp

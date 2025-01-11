@@ -474,21 +474,30 @@ void signbit_tests() {
 
 template <typename Scalar>
 void array_modulus_test(std::vector<Scalar> left_args, std::vector<Scalar> ret_vals, Scalar d) {
-  ArrayXX<Scalar> m(1, 3), n(1, 3);
+  ArrayXX<Scalar> m(1, 3), n(1, 3), c(1, 3);
   m << left_args[0], left_args[1], left_args[2];
   n << ret_vals[0], ret_vals[1], ret_vals[2];
-  VERIFY_IS_CWISE_EQUAL(n, m % d);
+  c = m % d;
+  VERIFY_IS_CWISE_EQUAL(n, c);
 }
-void array_modulus_tests() {
+
+template <typename Scalar>
+void vector_modulus_test(std::vector<Scalar> left_args, std::vector<Scalar> ret_vals, Scalar d) {
+  VectorX<Scalar> m(3), n(3), c(3);
+  m << left_args[0], left_args[1], left_args[2];
+  n << ret_vals[0], ret_vals[1], ret_vals[2];
+  c = m % d;
+  VERIFY_IS_CWISE_EQUAL(n, c);
+}
+
+void modulus_tests() {
   array_modulus_test<char>({0, 17, 23}, {0, 1, 3}, 4);
   array_modulus_test<int>({0, 17, 23}, {0, 1, 3}, 4);
   array_modulus_test<long>({0, 17, 23}, {0, 1, 3}, 4);
 
-  VectorX<uint64_t> a(3), b(3), c(3);
-  a << 0, 17, 23;
-  c << 0, 1, 3;
-  b = a % 4;
-  VERIFY_IS_CWISE_EQUAL(c, b);
+  vector_modulus_test<char>({0, 17, 23}, {0, 1, 3}, 4);
+  vector_modulus_test<int>({0, 17, 23}, {0, 1, 3}, 4);
+  vector_modulus_test<long>({0, 17, 23}, {0, 1, 3}, 4L);
 }
 
 template <typename ArrayType>
@@ -1429,7 +1438,7 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_31((cast_test<9, 1>()));
     CALL_SUBTEST_32((cast_test<17, 1>()));
     CALL_SUBTEST_33((cast_test<Dynamic, 1>()));
-    CALL_SUBTEST_34(array_modulus_tests());
+    CALL_SUBTEST_34(modulus_tests());
   }
 
   VERIFY((internal::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
