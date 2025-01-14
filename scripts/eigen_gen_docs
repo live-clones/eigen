@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MPL-2.0
 
 # configuration
 # You should call this script with USER set as you want, else some default

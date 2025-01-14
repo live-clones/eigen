@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: MPL-2.0
 
 # This is a script example to automatically update and upload performance unit tests.
 # The following five variables must be adjusted to match your settings.

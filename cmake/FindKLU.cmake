@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 # KLU lib usually requires linking to a blas library.
 # It is up to the user of this module to find a BLAS and link to it.
 

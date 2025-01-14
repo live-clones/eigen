@@ -6,6 +6,7 @@
 // Luke Iwanski  Codeplay Software Ltd.
 // Contact: <eigen@codeplay.com>
 // Copyright (C) 2016 Benoit Steiner <benoit.steiner.goog@gmail.com>
+// SPDX-License-Identifier: MPL-2.0
 
 //
 // This Source Code Form is subject to the terms of the Mozilla

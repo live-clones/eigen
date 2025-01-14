@@ -1,4 +1,6 @@
 
+/// SPDX-License-Identifier: MPL-2.0
+
 #ifdef EIGEN_PARSED_BY_DOXYGEN
 
 /// \returns an expression of \c *this with reshaped sizes.
