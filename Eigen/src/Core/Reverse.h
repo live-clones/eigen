@@ -40,9 +40,22 @@ struct reverse_packet_cond {
   static inline PacketType run(const PacketType& x) { return preverse(x); }
 };
 
+template <typename Scalar, typename PacketType, bool ReversePacket>
+struct reverse_packetpartial_cond {
+  static inline PacketType run(const PacketType& x, const Index n) { return preverse_partial<Scalar>(x, n); }
+};
+
 template <typename PacketType>
 struct reverse_packet_cond<PacketType, false> {
   static inline PacketType run(const PacketType& x) { return x; }
+};
+
+template <typename Scalar, typename PacketType>
+struct reverse_packetpartial_cond<Scalar, PacketType, false> {
+  static inline PacketType run(const PacketType& x, const Index n) {
+    EIGEN_UNUSED_VARIABLE(n);
+    return x;
+  }
 };
 
 }  // end namespace internal

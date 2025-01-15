@@ -120,6 +120,36 @@ struct packetwise_redux_impl<Func, Evaluator, NoUnrolling> {
   }
 };
 
+/* Perform the actual reduction of partial packets */
+// TODO: implement unrolling
+template <typename Func, typename Evaluator>
+struct partial_packetwise_redux_impl {
+  typedef typename Evaluator::Scalar Scalar;
+  typedef typename redux_traits<Func, Evaluator>::PacketType PacketScalar;
+
+  template <typename PacketType>
+  EIGEN_DEVICE_FUNC static PacketType run(const Evaluator& eval, const Func& func, Index size, Index n, Index offset) {
+    if (size == 0 || n == 0) return packetwise_redux_empty_value<PacketType>(func);
+
+    const Index size4 = (size - 1) & (~3);
+    PacketType p = eval.template partialPacketByOuterInner<Unaligned, PacketType>(0, 0, n, offset);
+    Index i = 1;
+    // This loop is optimized for instruction pipelining:
+    // - each iteration generates two independent instructions
+    // - thanks to branch prediction and out-of-order execution we have independent instructions across loops
+    for (; i < size4; i += 4)
+      p = func.packetOp(
+          p, func.packetOp(
+                 func.packetOp(eval.template partialPacketByOuterInner<Unaligned, PacketType>(i + 0, 0, n, offset),
+                               eval.template partialPacketByOuterInner<Unaligned, PacketType>(i + 1, 0, n, offset)),
+                 func.packetOp(eval.template partialPacketByOuterInner<Unaligned, PacketType>(i + 2, 0, n, offset),
+                               eval.template partialPacketByOuterInner<Unaligned, PacketType>(i + 3, 0, n, offset))));
+    for (; i < size; ++i)
+      p = func.packetOp(p, eval.template partialPacketByOuterInner<Unaligned, PacketType>(i, 0, n, offset));
+    return p;
+  }
+};
+
 template <typename ArgType, typename MemberOp, int Direction>
 struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     : evaluator_base<PartialReduxExpr<ArgType, MemberOp, Direction> > {
@@ -194,6 +224,35 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     typedef typename MemberOp::BinaryOp BinaryOp;
     PacketType p = internal::packetwise_redux_impl<BinaryOp, PanelEvaluator>::template run<PacketType>(
         panel_eval, m_functor.binaryFunc(), m_arg.outerSize());
+    return p;
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType partialPacket(Index i, Index j, Index n, Index offset) const {
+    return partialPacket<LoadMode, PacketType>(Direction == Vertical ? j : i, n, offset);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC PacketType partialPacket(Index idx, Index n, Index offset) const {
+    enum { PacketSize = internal::unpacket_traits<PacketType>::size };
+    typedef Block<const ArgTypeNestedCleaned, Direction == Vertical ? int(ArgType::RowsAtCompileTime) : Dynamic,
+                  Direction == Vertical ? Dynamic : int(ArgType::ColsAtCompileTime), true /* InnerPanel */>
+        PanelType;
+
+    PanelType panel(m_arg, Direction == Vertical ? 0 : idx, Direction == Vertical ? idx : 0,
+                    Direction == Vertical ? m_arg.rows() : n, Direction == Vertical ? n : m_arg.cols());
+
+    // FIXME
+    // See bug 1612, currently if PacketSize==1 (i.e. complex<double> with 128bits registers) then the storage-order of
+    // panel get reversed and methods like packetByOuterInner do not make sense anymore in this context. So let's just
+    // by pass "vectorization" in this case:
+    if (PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
+
+    typedef typename internal::redux_evaluator<PanelType> PanelEvaluator;
+    PanelEvaluator panel_eval(panel);
+    typedef typename MemberOp::BinaryOp BinaryOp;
+    PacketType p = internal::partial_packetwise_redux_impl<BinaryOp, PanelEvaluator>::template run<PacketType>(
+        panel_eval, m_functor.binaryFunc(), m_arg.outerSize(), n, offset);
     return p;
   }
 

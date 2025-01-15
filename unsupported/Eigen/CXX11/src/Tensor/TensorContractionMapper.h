@@ -314,8 +314,33 @@ class BaseTensorContractionMapper
   }
 
   template <typename PacketT, int AlignmentType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartial(Index i, Index j, Index n, Index offset = 0) const {
+    const Index requested_packet_size = internal::unpacket_traits<PacketT>::size;
+    EIGEN_ALIGN_MAX Scalar data[requested_packet_size];
+
+    const IndexPair<Index> indexPair = this->computeIndexPair(i, j, requested_packet_size - 1);
+    const Index first = indexPair.first;
+    const Index lastIdx = indexPair.second;
+
+    data[0] = this->m_tensor.coeff(first);
+    for (Index k = 1; k < requested_packet_size - 1; k += 2) {
+      const IndexPair<Index> internal_pair = this->computeIndexPair(i + k, j, 1);
+      data[k] = this->m_tensor.coeff(internal_pair.first);
+      data[k + 1] = this->m_tensor.coeff(internal_pair.second);
+    }
+    data[requested_packet_size - 1] = this->m_tensor.coeff(lastIdx);
+
+    return pload_partial<PacketT>(data, n, offset);
+  }
+
+  template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPacket(Index i, Index j) const {
     return this->load<PacketT, AlignmentType>(i, j);
+  }
+
+  template <typename PacketT, int AlignmentType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartialPacket(Index i, Index j, Index n, Index offset = 0) const {
+    return this->loadPartial<PacketT, AlignmentType>(i, j, n, offset);
   }
 };
 
@@ -341,11 +366,26 @@ class BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, con
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload<PacketT>(data);
   }
+
+  template <typename PacketT, int>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartialPacket(Index i, Index j, Index n, Index offset = 0) const {
+    EIGEN_ALIGN_MAX Scalar data[1];
+    data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
+    return pload_partial<PacketT>(data, n, offset);
+  }
+
   template <typename PacketT, int>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT load(Index i, Index j) const {
     EIGEN_ALIGN_MAX Scalar data[1];
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload<PacketT>(data);
+  }
+
+  template <typename PacketT, int>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPartial(Index i, Index j, Index n, Index offset = 0) const {
+    EIGEN_ALIGN_MAX Scalar data[1];
+    data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
+    return pload_partial<PacketT>(data, n, offset);
   }
 };
 
@@ -457,6 +497,17 @@ class TensorContractionSubMapper {
       return m_base_mapper.template loadPacket<PacketT, ActualAlignment>(i, 0);
     }
     return m_base_mapper.template loadPacket<PacketT, ActualAlignment>(i + m_vert_offset, m_horiz_offset);
+  }
+
+  template <typename PacketT, int AlignmentType>
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPartial(Index i, Index n, Index offset = 0) const {
+    EIGEN_STATIC_ASSERT((internal::is_same<PacketT, PacketT>::value), YOU_MADE_A_PROGRAMMING_MISTAKE);
+    const int ActualAlignment = (AlignmentType == Aligned) && (Alignment == Aligned) ? Aligned : Unaligned;
+    if (UseDirectOffsets) {
+      return m_base_mapper.template loadPartialPacket<PacketT, ActualAlignment>(i, 0, n, offset);
+    }
+    return m_base_mapper.template loadPartialPacket<PacketT, ActualAlignment>(i + m_vert_offset, m_horiz_offset, n,
+                                                                              offset);
   }
 
   template <typename PacketT>
