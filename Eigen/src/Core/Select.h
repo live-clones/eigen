@@ -56,8 +56,8 @@ class Select : public internal::dense_xpr_base<Select<ConditionMatrixType, ThenM
   typedef typename internal::dense_xpr_base<Select>::type Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(Select)
 
-  inline EIGEN_DEVICE_FUNC Select(const ConditionMatrixType& a_conditionMatrix, const ThenMatrixType& a_thenMatrix,
-                                  const ElseMatrixType& a_elseMatrix)
+  inline constexpr EIGEN_DEVICE_FUNC Select(const ConditionMatrixType& a_conditionMatrix,
+                                            const ThenMatrixType& a_thenMatrix, const ElseMatrixType& a_elseMatrix)
       : m_condition(a_conditionMatrix), m_then(a_thenMatrix), m_else(a_elseMatrix) {
     eigen_assert(m_condition.rows() == m_then.rows() && m_condition.rows() == m_else.rows());
     eigen_assert(m_condition.cols() == m_then.cols() && m_condition.cols() == m_else.cols());
@@ -66,25 +66,25 @@ class Select : public internal::dense_xpr_base<Select<ConditionMatrixType, ThenM
   inline EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_condition.rows(); }
   inline EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_condition.cols(); }
 
-  inline EIGEN_DEVICE_FUNC const Scalar coeff(Index i, Index j) const {
+  inline EIGEN_DEVICE_FUNC constexpr const Scalar coeff(Index i, Index j) const {
     if (m_condition.coeff(i, j))
       return m_then.coeff(i, j);
     else
       return m_else.coeff(i, j);
   }
 
-  inline EIGEN_DEVICE_FUNC const Scalar coeff(Index i) const {
+  inline EIGEN_DEVICE_FUNC constexpr const Scalar coeff(Index i) const {
     if (m_condition.coeff(i))
       return m_then.coeff(i);
     else
       return m_else.coeff(i);
   }
 
-  inline EIGEN_DEVICE_FUNC const ConditionMatrixType& conditionMatrix() const { return m_condition; }
+  inline EIGEN_DEVICE_FUNC constexpr const ConditionMatrixType& conditionMatrix() const { return m_condition; }
 
-  inline EIGEN_DEVICE_FUNC const ThenMatrixType& thenMatrix() const { return m_then; }
+  inline EIGEN_DEVICE_FUNC constexpr const ThenMatrixType& thenMatrix() const { return m_then; }
 
-  inline EIGEN_DEVICE_FUNC const ElseMatrixType& elseMatrix() const { return m_else; }
+  inline EIGEN_DEVICE_FUNC constexpr const ElseMatrixType& elseMatrix() const { return m_else; }
 
  protected:
   typename ConditionMatrixType::Nested m_condition;
@@ -102,7 +102,7 @@ class Select : public internal::dense_xpr_base<Select<ConditionMatrixType, ThenM
  */
 template <typename Derived>
 template <typename ThenDerived, typename ElseDerived>
-inline EIGEN_DEVICE_FUNC CwiseTernaryOp<
+inline EIGEN_DEVICE_FUNC constexpr CwiseTernaryOp<
     internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar, typename DenseBase<ElseDerived>::Scalar,
                                        typename DenseBase<Derived>::Scalar>,
     ThenDerived, ElseDerived, Derived>
@@ -119,7 +119,7 @@ DenseBase<Derived>::select(const DenseBase<ThenDerived>& thenMatrix, const Dense
  */
 template <typename Derived>
 template <typename ThenDerived>
-inline EIGEN_DEVICE_FUNC CwiseTernaryOp<
+inline EIGEN_DEVICE_FUNC constexpr CwiseTernaryOp<
     internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar, typename DenseBase<ThenDerived>::Scalar,
                                        typename DenseBase<Derived>::Scalar>,
     ThenDerived, typename DenseBase<ThenDerived>::ConstantReturnType, Derived>
@@ -138,7 +138,7 @@ DenseBase<Derived>::select(const DenseBase<ThenDerived>& thenMatrix,
  */
 template <typename Derived>
 template <typename ElseDerived>
-inline EIGEN_DEVICE_FUNC CwiseTernaryOp<
+inline EIGEN_DEVICE_FUNC constexpr CwiseTernaryOp<
     internal::scalar_boolean_select_op<typename DenseBase<ElseDerived>::Scalar, typename DenseBase<ElseDerived>::Scalar,
                                        typename DenseBase<Derived>::Scalar>,
     typename DenseBase<ElseDerived>::ConstantReturnType, ElseDerived, Derived>

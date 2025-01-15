@@ -91,7 +91,7 @@ struct umeyama_transform_matrix_type {
  * Eigen::Matrix.
  */
 template <typename Derived, typename OtherDerived>
-typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type umeyama(
+constexpr typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type umeyama(
     const MatrixBase<Derived>& src, const MatrixBase<OtherDerived>& dst, bool with_scaling = true) {
   typedef typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type TransformationMatrixType;
   typedef typename internal::traits<TransformationMatrixType>::Scalar Scalar;

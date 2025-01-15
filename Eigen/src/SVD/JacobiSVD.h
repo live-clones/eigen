@@ -51,9 +51,9 @@ struct qr_preconditioner_impl {};
 template <typename MatrixType, int Options, int QRPreconditioner, int Case>
 class qr_preconditioner_impl<MatrixType, Options, QRPreconditioner, Case, false> {
  public:
-  void allocate(const JacobiSVD<MatrixType, Options>&) {}
+  constexpr void allocate(const JacobiSVD<MatrixType, Options>&) {}
   template <typename Xpr>
-  bool run(JacobiSVD<MatrixType, Options>&, const Xpr&) {
+  constexpr bool run(JacobiSVD<MatrixType, Options>&, const Xpr&) {
     return false;
   }
 };
@@ -71,7 +71,7 @@ class qr_preconditioner_impl<MatrixType, Options, FullPivHouseholderQRPreconditi
 
   typedef Matrix<Scalar, 1, WorkspaceSize, RowMajor, 1, MaxWorkspaceSize> WorkspaceType;
 
-  void allocate(const SVDType& svd) {
+  constexpr void allocate(const SVDType& svd) {
     if (svd.rows() != m_qr.rows() || svd.cols() != m_qr.cols()) {
       internal::destroy_at(&m_qr);
       internal::construct_at(&m_qr, svd.rows(), svd.cols());
@@ -79,7 +79,7 @@ class qr_preconditioner_impl<MatrixType, Options, FullPivHouseholderQRPreconditi
     if (svd.m_computeFullU) m_workspace.resize(svd.rows());
   }
   template <typename Xpr>
-  bool run(SVDType& svd, const Xpr& matrix) {
+  constexpr bool run(SVDType& svd, const Xpr& matrix) {
     if (matrix.rows() > matrix.cols()) {
       m_qr.compute(matrix);
       svd.m_workMatrix = m_qr.matrixQR().block(0, 0, matrix.cols(), matrix.cols()).template triangularView<Upper>();
@@ -115,7 +115,7 @@ class qr_preconditioner_impl<MatrixType, Options, FullPivHouseholderQRPreconditi
                                                      MaxColsAtCompileTime, MaxRowsAtCompileTime>::type
       TransposeTypeWithSameStorageOrder;
 
-  void allocate(const SVDType& svd) {
+  constexpr void allocate(const SVDType& svd) {
     if (svd.cols() != m_qr.rows() || svd.rows() != m_qr.cols()) {
       internal::destroy_at(&m_qr);
       internal::construct_at(&m_qr, svd.cols(), svd.rows());
@@ -123,7 +123,7 @@ class qr_preconditioner_impl<MatrixType, Options, FullPivHouseholderQRPreconditi
     if (svd.m_computeFullV) m_workspace.resize(svd.cols());
   }
   template <typename Xpr>
-  bool run(SVDType& svd, const Xpr& matrix) {
+  constexpr bool run(SVDType& svd, const Xpr& matrix) {
     if (matrix.cols() > matrix.rows()) {
       m_qr.compute(matrix.adjoint());
       svd.m_workMatrix =
@@ -157,7 +157,7 @@ class qr_preconditioner_impl<MatrixType, Options, ColPivHouseholderQRPreconditio
 
   typedef Matrix<Scalar, 1, WorkspaceSize, RowMajor, 1, MaxWorkspaceSize> WorkspaceType;
 
-  void allocate(const SVDType& svd) {
+  constexpr void allocate(const SVDType& svd) {
     if (svd.rows() != m_qr.rows() || svd.cols() != m_qr.cols()) {
       internal::destroy_at(&m_qr);
       internal::construct_at(&m_qr, svd.rows(), svd.cols());
@@ -168,7 +168,7 @@ class qr_preconditioner_impl<MatrixType, Options, ColPivHouseholderQRPreconditio
       m_workspace.resize(svd.cols());
   }
   template <typename Xpr>
-  bool run(SVDType& svd, const Xpr& matrix) {
+  constexpr bool run(SVDType& svd, const Xpr& matrix) {
     if (matrix.rows() > matrix.cols()) {
       m_qr.compute(matrix);
       svd.m_workMatrix = m_qr.matrixQR().block(0, 0, matrix.cols(), matrix.cols()).template triangularView<Upper>();
@@ -213,7 +213,7 @@ class qr_preconditioner_impl<MatrixType, Options, ColPivHouseholderQRPreconditio
                                                      MaxColsAtCompileTime, MaxRowsAtCompileTime>::type
       TransposeTypeWithSameStorageOrder;
 
-  void allocate(const SVDType& svd) {
+  constexpr void allocate(const SVDType& svd) {
     if (svd.cols() != m_qr.rows() || svd.rows() != m_qr.cols()) {
       internal::destroy_at(&m_qr);
       internal::construct_at(&m_qr, svd.cols(), svd.rows());
@@ -224,7 +224,7 @@ class qr_preconditioner_impl<MatrixType, Options, ColPivHouseholderQRPreconditio
       m_workspace.resize(svd.rows());
   }
   template <typename Xpr>
-  bool run(SVDType& svd, const Xpr& matrix) {
+  constexpr bool run(SVDType& svd, const Xpr& matrix) {
     if (matrix.cols() > matrix.rows()) {
       m_qr.compute(matrix.adjoint());
 
@@ -263,7 +263,7 @@ class qr_preconditioner_impl<MatrixType, Options, HouseholderQRPreconditioner, P
 
   typedef Matrix<Scalar, 1, WorkspaceSize, RowMajor, 1, MaxWorkspaceSize> WorkspaceType;
 
-  void allocate(const SVDType& svd) {
+  constexpr void allocate(const SVDType& svd) {
     if (svd.rows() != m_qr.rows() || svd.cols() != m_qr.cols()) {
       internal::destroy_at(&m_qr);
       internal::construct_at(&m_qr, svd.rows(), svd.cols());
@@ -274,7 +274,7 @@ class qr_preconditioner_impl<MatrixType, Options, HouseholderQRPreconditioner, P
       m_workspace.resize(svd.cols());
   }
   template <typename Xpr>
-  bool run(SVDType& svd, const Xpr& matrix) {
+  constexpr bool run(SVDType& svd, const Xpr& matrix) {
     if (matrix.rows() > matrix.cols()) {
       m_qr.compute(matrix);
       svd.m_workMatrix = m_qr.matrixQR().block(0, 0, matrix.cols(), matrix.cols()).template triangularView<Upper>();
@@ -318,7 +318,7 @@ class qr_preconditioner_impl<MatrixType, Options, HouseholderQRPreconditioner, P
                                                      MaxColsAtCompileTime, MaxRowsAtCompileTime>::type
       TransposeTypeWithSameStorageOrder;
 
-  void allocate(const SVDType& svd) {
+  constexpr void allocate(const SVDType& svd) {
     if (svd.cols() != m_qr.rows() || svd.rows() != m_qr.cols()) {
       internal::destroy_at(&m_qr);
       internal::construct_at(&m_qr, svd.cols(), svd.rows());
@@ -330,7 +330,7 @@ class qr_preconditioner_impl<MatrixType, Options, HouseholderQRPreconditioner, P
   }
 
   template <typename Xpr>
-  bool run(SVDType& svd, const Xpr& matrix) {
+  constexpr bool run(SVDType& svd, const Xpr& matrix) {
     if (matrix.cols() > matrix.rows()) {
       m_qr.compute(matrix.adjoint());
 
@@ -363,7 +363,7 @@ template <typename MatrixType, int Options>
 struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, false> {
   typedef JacobiSVD<MatrixType, Options> SVD;
   typedef typename MatrixType::RealScalar RealScalar;
-  static bool run(typename SVD::WorkMatrixType&, SVD&, Index, Index, RealScalar&) { return true; }
+  static constexpr bool run(typename SVD::WorkMatrixType&, SVD&, Index, Index, RealScalar&) { return true; }
 };
 
 template <typename MatrixType, int Options>
@@ -371,7 +371,8 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
   typedef JacobiSVD<MatrixType, Options> SVD;
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
-  static bool run(typename SVD::WorkMatrixType& work_matrix, SVD& svd, Index p, Index q, RealScalar& maxDiagEntry) {
+  static constexpr bool run(typename SVD::WorkMatrixType& work_matrix, SVD& svd, Index p, Index q,
+                            RealScalar& maxDiagEntry) {
     using std::abs;
     using std::sqrt;
     Scalar z;
@@ -528,7 +529,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    * The default constructor is useful in cases in which the user intends to
    * perform decompositions via JacobiSVD::compute(const MatrixType&).
    */
-  JacobiSVD() {}
+  constexpr JacobiSVD() = default;
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -537,7 +538,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    *
    * \sa JacobiSVD()
    */
-  JacobiSVD(Index rows, Index cols) { allocate(rows, cols, internal::get_computation_options(Options)); }
+  constexpr JacobiSVD(Index rows, Index cols) { allocate(rows, cols, internal::get_computation_options(Options)); }
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -553,7 +554,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    * \deprecated Will be removed in the next major Eigen version. Options should
    * be specified in the \a Options template parameter.
    */
-  EIGEN_DEPRECATED JacobiSVD(Index rows, Index cols, unsigned int computationOptions) {
+  EIGEN_DEPRECATED constexpr JacobiSVD(Index rows, Index cols, unsigned int computationOptions) {
     internal::check_svd_options_assertions<MatrixType, Options>(computationOptions, rows, cols);
     allocate(rows, cols, computationOptions);
   }
@@ -563,7 +564,9 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    *
    * \param matrix the matrix to decompose
    */
-  explicit JacobiSVD(const MatrixType& matrix) { compute_impl(matrix, internal::get_computation_options(Options)); }
+  constexpr explicit JacobiSVD(const MatrixType& matrix) {
+    compute_impl(matrix, internal::get_computation_options(Options));
+  }
 
   /** \brief Constructor performing the decomposition of given matrix using specified options
    *         for computing unitaries.
@@ -578,7 +581,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    * be specified in the \a Options template parameter.
    */
   // EIGEN_DEPRECATED // TODO(cantonios): re-enable after fixing a few 3p libraries that error on deprecation warnings.
-  JacobiSVD(const MatrixType& matrix, unsigned int computationOptions) {
+  constexpr JacobiSVD(const MatrixType& matrix, unsigned int computationOptions) {
     internal::check_svd_options_assertions<MatrixType, Options>(computationOptions, matrix.rows(), matrix.cols());
     compute_impl(matrix, computationOptions);
   }
@@ -588,7 +591,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    *
    * \param matrix the matrix to decompose
    */
-  JacobiSVD& compute(const MatrixType& matrix) { return compute_impl(matrix, m_computationOptions); }
+  constexpr JacobiSVD& compute(const MatrixType& matrix) { return compute_impl(matrix, m_computationOptions); }
 
   /** \brief Method performing the decomposition of given matrix, as specified by
    *         the `computationOptions` parameter.
@@ -599,7 +602,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    * \deprecated Will be removed in the next major Eigen version. Options should
    * be specified in the \a Options template parameter.
    */
-  EIGEN_DEPRECATED JacobiSVD& compute(const MatrixType& matrix, unsigned int computationOptions) {
+  EIGEN_DEPRECATED constexpr JacobiSVD& compute(const MatrixType& matrix, unsigned int computationOptions) {
     internal::check_svd_options_assertions<MatrixType, Options>(m_computationOptions, matrix.rows(), matrix.cols());
     return compute_impl(matrix, computationOptions);
   }
@@ -611,7 +614,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
   using Base::rank;
   using Base::rows;
 
-  void allocate(Index rows_, Index cols_, unsigned int computationOptions) {
+  constexpr void allocate(Index rows_, Index cols_, unsigned int computationOptions) {
     if (Base::allocate(rows_, cols_, computationOptions)) return;
     eigen_assert(!(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
                  !(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
@@ -624,7 +627,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
   }
 
  private:
-  JacobiSVD& compute_impl(const MatrixType& matrix, unsigned int computationOptions);
+  constexpr JacobiSVD& compute_impl(const MatrixType& matrix, unsigned int computationOptions);
 
  protected:
   using Base::m_computationOptions;
@@ -662,8 +665,8 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
 };
 
 template <typename MatrixType, int Options>
-JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(const MatrixType& matrix,
-                                                                             unsigned int computationOptions) {
+constexpr JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(
+    const MatrixType& matrix, unsigned int computationOptions) {
   using std::abs;
 
   allocate(matrix.rows(), matrix.cols(), computationOptions);
@@ -791,13 +794,13 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
  */
 template <typename Derived>
 template <int Options>
-JacobiSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::jacobiSvd() const {
+constexpr JacobiSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::jacobiSvd() const {
   return JacobiSVD<PlainObject, Options>(*this);
 }
 
 template <typename Derived>
 template <int Options>
-JacobiSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::jacobiSvd(
+constexpr JacobiSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::jacobiSvd(
     unsigned int computationOptions) const {
   return JacobiSVD<PlainObject, Options>(*this, computationOptions);
 }

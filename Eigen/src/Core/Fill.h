@@ -100,12 +100,12 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ false> {
   using Scalar = typename Xpr::Scalar;
   using PlainObject = typename Xpr::PlainObject;
   using Zero = typename PlainObject::ZeroReturnType;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(Xpr& dst) {
     const Zero src(dst.rows(), dst.cols());
     run(dst, src);
   }
   template <typename SrcXpr>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(Xpr& dst, const SrcXpr& src) {
     call_dense_assignment_loop(dst, src, assign_op<Scalar, Scalar>());
   }
 };
@@ -114,7 +114,7 @@ template <typename Xpr>
 struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
   using Scalar = typename Xpr::Scalar;
   static constexpr size_t max_bytes = (std::numeric_limits<std::ptrdiff_t>::max)();
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(Xpr& dst) {
     const size_t num_bytes = dst.size() * sizeof(Scalar);
     if (num_bytes == 0) return;
     void* dst_ptr = static_cast<void*>(dst.data());
@@ -123,10 +123,14 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
     eigen_assert((dst_ptr != nullptr) && "null pointer dereference error!");
 #endif
     EIGEN_USING_STD(memset);
-    memset(dst_ptr, 0, num_bytes);
+    if (internal::is_constant_evaluated()) {
+      eigen_zero_impl<Xpr, false>::run(dst);
+    } else {
+      memset(dst_ptr, 0, num_bytes);
+    }
   }
   template <typename SrcXpr>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(Xpr& dst, const SrcXpr& src) {
     resize_if_allowed(dst, src, assign_op<Scalar, Scalar>());
     run(dst);
   }

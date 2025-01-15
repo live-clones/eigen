@@ -24,7 +24,9 @@ template <typename LhsScalar_, typename RhsScalar_, bool ConjLhs_ = false, bool 
 class gebp_traits;
 
 /** \internal \returns b if a<=0, and returns a otherwise. */
-inline std::ptrdiff_t manage_caching_sizes_helper(std::ptrdiff_t a, std::ptrdiff_t b) { return a <= 0 ? b : a; }
+inline constexpr std::ptrdiff_t manage_caching_sizes_helper(std::ptrdiff_t a, std::ptrdiff_t b) {
+  return a <= 0 ? b : a;
+}
 
 #if defined(EIGEN_DEFAULT_L1_CACHE_SIZE)
 #define EIGEN_SET_DEFAULT_L1_CACHE_SIZE(val) EIGEN_DEFAULT_L1_CACHE_SIZE
@@ -45,22 +47,22 @@ inline std::ptrdiff_t manage_caching_sizes_helper(std::ptrdiff_t a, std::ptrdiff
 #endif  // defined(EIGEN_DEFAULT_L3_CACHE_SIZE)
 
 #if EIGEN_ARCH_i386_OR_x86_64
-const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(32 * 1024);
-const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(256 * 1024);
-const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(2 * 1024 * 1024);
+inline constexpr std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(32 * 1024);
+inline constexpr std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(256 * 1024);
+inline constexpr std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(2 * 1024 * 1024);
 #elif EIGEN_ARCH_PPC
-const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(64 * 1024);
+inline constexpr std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(64 * 1024);
 #ifdef _ARCH_PWR10
-const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(2 * 1024 * 1024);
-const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(8 * 1024 * 1024);
+inline constexpr std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(2 * 1024 * 1024);
+inline constexpr std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(8 * 1024 * 1024);
 #else
-const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
-const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(4 * 1024 * 1024);
+inline constexpr std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
+inline constexpr std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(4 * 1024 * 1024);
 #endif
 #else
-const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
-const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
-const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(512 * 1024);
+inline constexpr std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
+inline constexpr std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
+inline constexpr std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(512 * 1024);
 #endif
 
 #undef EIGEN_SET_DEFAULT_L1_CACHE_SIZE
@@ -115,7 +117,7 @@ inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff
  * \sa setCpuCacheSizes */
 
 template <typename LhsScalar, typename RhsScalar, int KcFactor, typename Index>
-void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index num_threads = 1) {
+constexpr void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index num_threads = 1) {
   typedef gebp_traits<LhsScalar, RhsScalar> Traits;
 
   // Explanations:
@@ -124,7 +126,13 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
   // per mr x kc horizontal small panels where mr is the blocking size along the m dimension
   // at the register level. This small horizontal panel has to stay within L1 cache.
   std::ptrdiff_t l1, l2, l3;
-  manage_caching_sizes(GetAction, &l1, &l2, &l3);
+  if (internal::is_constant_evaluated()) {
+    l1 = defaultL1CacheSize;
+    l2 = defaultL2CacheSize;
+    l3 = defaultL3CacheSize;
+  } else {
+    manage_caching_sizes(GetAction, &l1, &l2, &l3);
+  }
 #ifdef EIGEN_VECTORIZE_AVX512
   // We need to find a rationale for that, but without this adjustment,
   // performance with AVX512 is pretty bad, like -20% slower.
@@ -284,7 +292,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 }
 
 template <typename Index>
-inline bool useSpecificBlockingSizes(Index& k, Index& m, Index& n) {
+inline constexpr bool useSpecificBlockingSizes(Index& k, Index& m, Index& n) {
 #ifdef EIGEN_TEST_SPECIFIC_BLOCKING_SIZES
   if (EIGEN_TEST_SPECIFIC_BLOCKING_SIZES) {
     k = numext::mini<Index>(k, EIGEN_TEST_SPECIFIC_BLOCKING_SIZE_K);
@@ -318,14 +326,14 @@ inline bool useSpecificBlockingSizes(Index& k, Index& m, Index& n) {
  * \sa setCpuCacheSizes */
 
 template <typename LhsScalar, typename RhsScalar, int KcFactor, typename Index>
-void computeProductBlockingSizes(Index& k, Index& m, Index& n, Index num_threads = 1) {
+constexpr void computeProductBlockingSizes(Index& k, Index& m, Index& n, Index num_threads = 1) {
   if (!useSpecificBlockingSizes(k, m, n)) {
     evaluateProductBlockingSizesHeuristic<LhsScalar, RhsScalar, KcFactor, Index>(k, m, n, num_threads);
   }
 }
 
 template <typename LhsScalar, typename RhsScalar, typename Index>
-inline void computeProductBlockingSizes(Index& k, Index& m, Index& n, Index num_threads = 1) {
+inline constexpr void computeProductBlockingSizes(Index& k, Index& m, Index& n, Index num_threads = 1) {
   computeProductBlockingSizes<LhsScalar, RhsScalar, 1, Index>(k, m, n, num_threads);
 }
 
@@ -342,10 +350,10 @@ struct RhsPanelHelper {
 template <typename Packet>
 struct QuadPacket {
   Packet B_0, B1, B2, B3;
-  const Packet& get(const FixedInt<0>&) const { return B_0; }
-  const Packet& get(const FixedInt<1>&) const { return B1; }
-  const Packet& get(const FixedInt<2>&) const { return B2; }
-  const Packet& get(const FixedInt<3>&) const { return B3; }
+  constexpr const Packet& get(const FixedInt<0>&) const { return B_0; }
+  constexpr const Packet& get(const FixedInt<1>&) const { return B1; }
+  constexpr const Packet& get(const FixedInt<2>&) const { return B2; }
+  constexpr const Packet& get(const FixedInt<3>&) const { return B3; }
 };
 
 template <int N, typename T1, typename T2, typename T3>
@@ -442,39 +450,41 @@ class gebp_traits {
   typedef QuadPacket<RhsPacket> RhsPacketx4;
   typedef ResPacket AccPacket;
 
-  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
+  EIGEN_STRONG_INLINE constexpr void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
 
   template <typename RhsPacketType>
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
     dest = pset1<RhsPacketType>(*b);
   }
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
 
   template <typename RhsPacketType>
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar* b, RhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar* b, RhsPacketType& dest) const {
     loadRhs(b, dest);
   }
 
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
 
-  EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const { dest = ploadquad<RhsPacket>(b); }
+  EIGEN_STRONG_INLINE constexpr void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const {
+    dest = ploadquad<RhsPacket>(b);
+  }
 
   template <typename LhsPacketType>
-  EIGEN_STRONG_INLINE void loadLhs(const LhsScalar* a, LhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadLhs(const LhsScalar* a, LhsPacketType& dest) const {
     dest = pload<LhsPacketType>(a);
   }
 
   template <typename LhsPacketType>
-  EIGEN_STRONG_INLINE void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
     dest = ploadu<LhsPacketType>(a);
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c, RhsPacketType& tmp,
-                                const LaneIdType&) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
+                                          RhsPacketType& tmp, const LaneIdType&) const {
     conj_helper<LhsPacketType, RhsPacketType, ConjLhs, ConjRhs> cj;
     // It would be a lot cleaner to call pmadd all the time. Unfortunately if we
     // let gcc allocate the register in which to store the result of the pmul
@@ -491,17 +501,17 @@ class gebp_traits {
   }
 
   template <typename LhsPacketType, typename AccPacketType, typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c, RhsPacket& tmp,
-                                const LaneIdType& lane) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c,
+                                          RhsPacket& tmp, const LaneIdType& lane) const {
     madd(a, b.get(lane), c, tmp, lane);
   }
 
-  EIGEN_STRONG_INLINE void acc(const AccPacket& c, const ResPacket& alpha, ResPacket& r) const {
+  EIGEN_STRONG_INLINE constexpr void acc(const AccPacket& c, const ResPacket& alpha, ResPacket& r) const {
     r = pmadd(c, alpha, r);
   }
 
   template <typename ResPacketHalf>
-  EIGEN_STRONG_INLINE void acc(const ResPacketHalf& c, const ResPacketHalf& alpha, ResPacketHalf& r) const {
+  EIGEN_STRONG_INLINE constexpr void acc(const ResPacketHalf& c, const ResPacketHalf& alpha, ResPacketHalf& r) const {
     r = pmadd(c, alpha, r);
   }
 };
@@ -547,56 +557,56 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
 
   typedef ResPacket AccPacket;
 
-  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
+  EIGEN_STRONG_INLINE constexpr void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
 
   template <typename RhsPacketType>
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
     dest = pset1<RhsPacketType>(*b);
   }
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
 
   template <typename RhsPacketType>
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar* b, RhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar* b, RhsPacketType& dest) const {
     loadRhs(b, dest);
   }
 
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
 
-  EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const {
     loadRhsQuad_impl(b, dest, std::conditional_t<RhsPacketSize == 16, true_type, false_type>());
   }
 
-  EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const true_type&) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const true_type&) const {
     // FIXME we can do better!
     // what we want here is a ploadheight
     RhsScalar tmp[4] = {b[0], b[0], b[1], b[1]};
     dest = ploadquad<RhsPacket>(tmp);
   }
 
-  EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const false_type&) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const false_type&) const {
     eigen_internal_assert(RhsPacketSize <= 8);
     dest = pset1<RhsPacket>(*b);
   }
 
-  EIGEN_STRONG_INLINE void loadLhs(const LhsScalar* a, LhsPacket& dest) const { dest = pload<LhsPacket>(a); }
+  EIGEN_STRONG_INLINE constexpr void loadLhs(const LhsScalar* a, LhsPacket& dest) const { dest = pload<LhsPacket>(a); }
 
   template <typename LhsPacketType>
-  EIGEN_STRONG_INLINE void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
     dest = ploadu<LhsPacketType>(a);
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c, RhsPacketType& tmp,
-                                const LaneIdType&) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
+                                          RhsPacketType& tmp, const LaneIdType&) const {
     madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType>
-  EIGEN_STRONG_INLINE void madd_impl(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
-                                     RhsPacketType& tmp, const true_type&) const {
+  EIGEN_STRONG_INLINE constexpr void madd_impl(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
+                                               RhsPacketType& tmp, const true_type&) const {
 #ifdef EIGEN_HAS_SINGLE_INSTRUCTION_MADD
     EIGEN_UNUSED_VARIABLE(tmp);
     c.v = pmadd(a.v, b, c.v);
@@ -607,19 +617,19 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
 #endif
   }
 
-  EIGEN_STRONG_INLINE void madd_impl(const LhsScalar& a, const RhsScalar& b, ResScalar& c, RhsScalar& /*tmp*/,
-                                     const false_type&) const {
+  EIGEN_STRONG_INLINE constexpr void madd_impl(const LhsScalar& a, const RhsScalar& b, ResScalar& c, RhsScalar& /*tmp*/,
+                                               const false_type&) const {
     c += a * b;
   }
 
   template <typename LhsPacketType, typename AccPacketType, typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c, RhsPacket& tmp,
-                                const LaneIdType& lane) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c,
+                                          RhsPacket& tmp, const LaneIdType& lane) const {
     madd(a, b.get(lane), c, tmp, lane);
   }
 
   template <typename ResPacketType, typename AccPacketType>
-  EIGEN_STRONG_INLINE void acc(const AccPacketType& c, const ResPacketType& alpha, ResPacketType& r) const {
+  EIGEN_STRONG_INLINE constexpr void acc(const AccPacketType& c, const ResPacketType& alpha, ResPacketType& r) const {
     conj_helper<ResPacketType, ResPacketType, ConjLhs, false> cj;
     r = cj.pmadd(c, alpha, r);
   }
@@ -634,7 +644,7 @@ struct DoublePacket {
 };
 
 template <typename Packet>
-DoublePacket<Packet> padd(const DoublePacket<Packet>& a, const DoublePacket<Packet>& b) {
+constexpr DoublePacket<Packet> padd(const DoublePacket<Packet>& a, const DoublePacket<Packet>& b) {
   DoublePacket<Packet> res;
   res.first = padd(a.first, b.first);
   res.second = padd(a.second, b.second);
@@ -646,13 +656,13 @@ DoublePacket<Packet> padd(const DoublePacket<Packet>& a, const DoublePacket<Pack
 // it terms of real coefficients.
 
 template <typename Packet>
-const DoublePacket<Packet>& predux_half_dowto4(const DoublePacket<Packet>& a,
-                                               std::enable_if_t<unpacket_traits<Packet>::size <= 8>* = 0) {
+constexpr const DoublePacket<Packet>& predux_half_dowto4(const DoublePacket<Packet>& a,
+                                                         std::enable_if_t<unpacket_traits<Packet>::size <= 8>* = 0) {
   return a;
 }
 
 template <typename Packet>
-DoublePacket<typename unpacket_traits<Packet>::half> predux_half_dowto4(
+constexpr DoublePacket<typename unpacket_traits<Packet>::half> predux_half_dowto4(
     const DoublePacket<Packet>& a, std::enable_if_t<unpacket_traits<Packet>::size == 16>* = 0) {
   // yes, that's pretty hackish :(
   DoublePacket<typename unpacket_traits<Packet>::half> res;
@@ -665,15 +675,15 @@ DoublePacket<typename unpacket_traits<Packet>::half> predux_half_dowto4(
 
 // same here, "quad" actually means "8" in terms of real coefficients
 template <typename Scalar, typename RealPacket>
-void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
-                            std::enable_if_t<unpacket_traits<RealPacket>::size <= 8>* = 0) {
+constexpr void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
+                                      std::enable_if_t<unpacket_traits<RealPacket>::size <= 8>* = 0) {
   dest.first = pset1<RealPacket>(numext::real(*b));
   dest.second = pset1<RealPacket>(numext::imag(*b));
 }
 
 template <typename Scalar, typename RealPacket>
-void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
-                            std::enable_if_t<unpacket_traits<RealPacket>::size == 16>* = 0) {
+constexpr void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
+                                      std::enable_if_t<unpacket_traits<RealPacket>::size == 16>* = 0) {
   // yes, that's pretty hackish too :(
   typedef typename NumTraits<Scalar>::Real RealScalar;
   RealScalar r[4] = {numext::real(b[0]), numext::real(b[0]), numext::real(b[1]), numext::real(b[1])};
@@ -738,24 +748,26 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
   // this actually holds 8 packets!
   typedef QuadPacket<RhsPacket> RhsPacketx4;
 
-  EIGEN_STRONG_INLINE void initAcc(Scalar& p) { p = Scalar(0); }
+  EIGEN_STRONG_INLINE constexpr void initAcc(Scalar& p) { p = Scalar(0); }
 
-  EIGEN_STRONG_INLINE void initAcc(DoublePacketType& p) {
+  EIGEN_STRONG_INLINE constexpr void initAcc(DoublePacketType& p) {
     p.first = pset1<RealPacket>(RealScalar(0));
     p.second = pset1<RealPacket>(RealScalar(0));
   }
 
   // Scalar path
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, ScalarPacket& dest) const { dest = pset1<ScalarPacket>(*b); }
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, ScalarPacket& dest) const {
+    dest = pset1<ScalarPacket>(*b);
+  }
 
   // Vectorized path
   template <typename RealPacketType>
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, DoublePacket<RealPacketType>& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, DoublePacket<RealPacketType>& dest) const {
     dest.first = pset1<RealPacketType>(numext::real(*b));
     dest.second = pset1<RealPacketType>(numext::imag(*b));
   }
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     loadRhs(b, dest.B_0);
     loadRhs(b + 1, dest.B1);
     loadRhs(b + 2, dest.B2);
@@ -763,59 +775,57 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
   }
 
   // Scalar path
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar* b, ScalarPacket& dest) const { loadRhs(b, dest); }
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar* b, ScalarPacket& dest) const { loadRhs(b, dest); }
 
   // Vectorized path
   template <typename RealPacketType>
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar* b, DoublePacket<RealPacketType>& dest) const {
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar* b, DoublePacket<RealPacketType>& dest) const {
     loadRhs(b, dest);
   }
 
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
 
-  EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, ResPacket& dest) const { loadRhs(b, dest); }
-  EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, DoublePacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhsQuad(const RhsScalar* b, ResPacket& dest) const { loadRhs(b, dest); }
+  EIGEN_STRONG_INLINE constexpr void loadRhsQuad(const RhsScalar* b, DoublePacketType& dest) const {
     loadQuadToDoublePacket(b, dest);
   }
 
   // nothing special here
-  EIGEN_STRONG_INLINE void loadLhs(const LhsScalar* a, LhsPacket& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadLhs(const LhsScalar* a, LhsPacket& dest) const {
     dest = pload<LhsPacket>((const typename unpacket_traits<LhsPacket>::type*)(a));
   }
 
   template <typename LhsPacketType>
-  EIGEN_STRONG_INLINE void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
     dest = ploadu<LhsPacketType>((const typename unpacket_traits<LhsPacketType>::type*)(a));
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename ResPacketType, typename TmpType,
             typename LaneIdType>
-  EIGEN_STRONG_INLINE std::enable_if_t<!is_same<RhsPacketType, RhsPacketx4>::value> madd(const LhsPacketType& a,
-                                                                                         const RhsPacketType& b,
-                                                                                         DoublePacket<ResPacketType>& c,
-                                                                                         TmpType& /*tmp*/,
-                                                                                         const LaneIdType&) const {
+  EIGEN_STRONG_INLINE constexpr std::enable_if_t<!is_same<RhsPacketType, RhsPacketx4>::value> madd(
+      const LhsPacketType& a, const RhsPacketType& b, DoublePacket<ResPacketType>& c, TmpType& /*tmp*/,
+      const LaneIdType&) const {
     c.first = pmadd(a, b.first, c.first);
     c.second = pmadd(a, b.second, c.second);
   }
 
   template <typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacket& b, ResPacket& c, RhsPacket& /*tmp*/,
-                                const LaneIdType&) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacket& a, const RhsPacket& b, ResPacket& c, RhsPacket& /*tmp*/,
+                                          const LaneIdType&) const {
     c = cj.pmadd(a, b, c);
   }
 
   template <typename LhsPacketType, typename AccPacketType, typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c, RhsPacket& tmp,
-                                const LaneIdType& lane) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c,
+                                          RhsPacket& tmp, const LaneIdType& lane) const {
     madd(a, b.get(lane), c, tmp, lane);
   }
 
-  EIGEN_STRONG_INLINE void acc(const Scalar& c, const Scalar& alpha, Scalar& r) const { r += alpha * c; }
+  EIGEN_STRONG_INLINE constexpr void acc(const Scalar& c, const Scalar& alpha, Scalar& r) const { r += alpha * c; }
 
   template <typename RealPacketType, typename ResPacketType>
-  EIGEN_STRONG_INLINE void acc(const DoublePacket<RealPacketType>& c, const ResPacketType& alpha,
-                               ResPacketType& r) const {
+  EIGEN_STRONG_INLINE constexpr void acc(const DoublePacket<RealPacketType>& c, const ResPacketType& alpha,
+                                         ResPacketType& r) const {
     // assemble c
     ResPacketType tmp;
     if ((!ConjLhs) && (!ConjRhs)) {
@@ -882,42 +892,46 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
   typedef QuadPacket<RhsPacket> RhsPacketx4;
   typedef ResPacket AccPacket;
 
-  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
+  EIGEN_STRONG_INLINE constexpr void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
 
   template <typename RhsPacketType>
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
     dest = pset1<RhsPacketType>(*b);
   }
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
 
   template <typename RhsPacketType>
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar* b, RhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar* b, RhsPacketType& dest) const {
     loadRhs(b, dest);
   }
 
-  EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
+  EIGEN_STRONG_INLINE constexpr void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
 
-  EIGEN_STRONG_INLINE void loadLhs(const LhsScalar* a, LhsPacket& dest) const { dest = ploaddup<LhsPacket>(a); }
+  EIGEN_STRONG_INLINE constexpr void loadLhs(const LhsScalar* a, LhsPacket& dest) const {
+    dest = ploaddup<LhsPacket>(a);
+  }
 
-  EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const { dest = ploadquad<RhsPacket>(b); }
+  EIGEN_STRONG_INLINE constexpr void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const {
+    dest = ploadquad<RhsPacket>(b);
+  }
 
   template <typename LhsPacketType>
-  EIGEN_STRONG_INLINE void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
+  EIGEN_STRONG_INLINE constexpr void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
     dest = ploaddup<LhsPacketType>(a);
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c, RhsPacketType& tmp,
-                                const LaneIdType&) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
+                                          RhsPacketType& tmp, const LaneIdType&) const {
     madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType>
-  EIGEN_STRONG_INLINE void madd_impl(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
-                                     RhsPacketType& tmp, const true_type&) const {
+  EIGEN_STRONG_INLINE constexpr void madd_impl(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
+                                               RhsPacketType& tmp, const true_type&) const {
 #ifdef EIGEN_HAS_SINGLE_INSTRUCTION_MADD
     EIGEN_UNUSED_VARIABLE(tmp);
     c.v = pmadd(a, b.v, c.v);
@@ -928,19 +942,19 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
 #endif
   }
 
-  EIGEN_STRONG_INLINE void madd_impl(const LhsScalar& a, const RhsScalar& b, ResScalar& c, RhsScalar& /*tmp*/,
-                                     const false_type&) const {
+  EIGEN_STRONG_INLINE constexpr void madd_impl(const LhsScalar& a, const RhsScalar& b, ResScalar& c, RhsScalar& /*tmp*/,
+                                               const false_type&) const {
     c += a * b;
   }
 
   template <typename LhsPacketType, typename AccPacketType, typename LaneIdType>
-  EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c, RhsPacket& tmp,
-                                const LaneIdType& lane) const {
+  EIGEN_STRONG_INLINE constexpr void madd(const LhsPacketType& a, const RhsPacketx4& b, AccPacketType& c,
+                                          RhsPacket& tmp, const LaneIdType& lane) const {
     madd(a, b.get(lane), c, tmp, lane);
   }
 
   template <typename ResPacketType, typename AccPacketType>
-  EIGEN_STRONG_INLINE void acc(const AccPacketType& c, const ResPacketType& alpha, ResPacketType& r) const {
+  EIGEN_STRONG_INLINE constexpr void acc(const AccPacketType& c, const ResPacketType& alpha, ResPacketType& r) const {
     conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj;
     r = cj.pmadd(alpha, c, r);
   }
@@ -1005,9 +1019,9 @@ struct gebp_kernel {
     ResPacketSize = Traits::ResPacketSize
   };
 
-  EIGEN_DONT_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB, Index rows,
-                                    Index depth, Index cols, ResScalar alpha, Index strideA = -1, Index strideB = -1,
-                                    Index offsetA = 0, Index offsetB = 0);
+  constexpr void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB, Index rows,
+                            Index depth, Index cols, ResScalar alpha, Index strideA = -1, Index strideB = -1,
+                            Index offsetA = 0, Index offsetB = 0);
 };
 
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
@@ -1024,9 +1038,9 @@ struct last_row_process_16_packets {
   typedef typename SwappedTraits::ResPacket SResPacket;
   typedef typename SwappedTraits::AccPacket SAccPacket;
 
-  EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
-                                      const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
-                                      ResScalar alpha, SAccPacket& C0) {
+  EIGEN_STRONG_INLINE constexpr void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
+                                                const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
+                                                ResScalar alpha, SAccPacket& C0) {
     EIGEN_UNUSED_VARIABLE(res);
     EIGEN_UNUSED_VARIABLE(straits);
     EIGEN_UNUSED_VARIABLE(blA);
@@ -1052,9 +1066,9 @@ struct last_row_process_16_packets<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   typedef typename SwappedTraits::ResPacket SResPacket;
   typedef typename SwappedTraits::AccPacket SAccPacket;
 
-  EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
-                                      const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
-                                      ResScalar alpha, SAccPacket& C0) {
+  EIGEN_STRONG_INLINE constexpr void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
+                                                const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
+                                                ResScalar alpha, SAccPacket& C0) {
     typedef typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half SResPacketQuarter;
     typedef typename unpacket_traits<typename unpacket_traits<SLhsPacket>::half>::half SLhsPacketQuarter;
     typedef typename unpacket_traits<typename unpacket_traits<SRhsPacket>::half>::half SRhsPacketQuarter;
@@ -1091,9 +1105,10 @@ template <int nr, Index LhsProgress, Index RhsProgress, typename LhsScalar, type
 struct lhs_process_one_packet {
   typedef typename GEBPTraits::RhsPacketx4 RhsPacketx4;
 
-  EIGEN_STRONG_INLINE void peeled_kc_onestep(Index K, const LhsScalar* blA, const RhsScalar* blB, GEBPTraits traits,
-                                             LhsPacket* A0, RhsPacketx4* rhs_panel, RhsPacket* T0, AccPacket* C0,
-                                             AccPacket* C1, AccPacket* C2, AccPacket* C3) {
+  EIGEN_STRONG_INLINE constexpr void peeled_kc_onestep(Index K, const LhsScalar* blA, const RhsScalar* blB,
+                                                       GEBPTraits traits, LhsPacket* A0, RhsPacketx4* rhs_panel,
+                                                       RhsPacket* T0, AccPacket* C0, AccPacket* C1, AccPacket* C2,
+                                                       AccPacket* C3) {
     EIGEN_ASM_COMMENT("begin step of gebp micro kernel 1X4");
     EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!");
     traits.loadLhs(&blA[(0 + 1 * K) * LhsProgress], *A0);
@@ -1108,10 +1123,11 @@ struct lhs_process_one_packet {
     EIGEN_ASM_COMMENT("end step of gebp micro kernel 1X4");
   }
 
-  EIGEN_STRONG_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,
-                                      ResScalar alpha, Index peelStart, Index peelEnd, Index strideA, Index strideB,
-                                      Index offsetA, Index offsetB, int prefetch_res_offset, Index peeled_kc, Index pk,
-                                      Index cols, Index depth, Index packet_cols4) {
+  EIGEN_STRONG_INLINE constexpr void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,
+                                                ResScalar alpha, Index peelStart, Index peelEnd, Index strideA,
+                                                Index strideB, Index offsetA, Index offsetB, int prefetch_res_offset,
+                                                Index peeled_kc, Index pk, Index cols, Index depth,
+                                                Index packet_cols4) {
     GEBPTraits traits;
     Index packet_cols8 = nr >= 8 ? (cols / 8) * 8 : 0;
     // loops on each largest micro horizontal panel of lhs
@@ -1404,9 +1420,10 @@ template <int nr, Index LhsProgress, Index RhsProgress, typename LhsScalar, type
 struct lhs_process_fraction_of_packet
     : lhs_process_one_packet<nr, LhsProgress, RhsProgress, LhsScalar, RhsScalar, ResScalar, AccPacket, LhsPacket,
                              RhsPacket, ResPacket, GEBPTraits, LinearMapper, DataMapper> {
-  EIGEN_STRONG_INLINE void peeled_kc_onestep(Index K, const LhsScalar* blA, const RhsScalar* blB, GEBPTraits traits,
-                                             LhsPacket* A0, RhsPacket* B_0, RhsPacket* B1, RhsPacket* B2, RhsPacket* B3,
-                                             AccPacket* C0, AccPacket* C1, AccPacket* C2, AccPacket* C3) {
+  EIGEN_STRONG_INLINE constexpr void peeled_kc_onestep(Index K, const LhsScalar* blA, const RhsScalar* blB,
+                                                       GEBPTraits traits, LhsPacket* A0, RhsPacket* B_0, RhsPacket* B1,
+                                                       RhsPacket* B2, RhsPacket* B3, AccPacket* C0, AccPacket* C1,
+                                                       AccPacket* C2, AccPacket* C3) {
     EIGEN_ASM_COMMENT("begin step of gebp micro kernel 1X4");
     EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!");
     traits.loadLhsUnaligned(&blA[(0 + 1 * K) * (LhsProgress)], *A0);
@@ -1421,11 +1438,9 @@ struct lhs_process_fraction_of_packet
 
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
           bool ConjugateLhs, bool ConjugateRhs>
-EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, nr, ConjugateLhs,
-                                   ConjugateRhs>::operator()(const DataMapper& res, const LhsScalar* blockA,
-                                                             const RhsScalar* blockB, Index rows, Index depth,
-                                                             Index cols, ResScalar alpha, Index strideA, Index strideB,
-                                                             Index offsetA, Index offsetB) {
+constexpr void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
+    const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB, Index rows, Index depth, Index cols,
+    ResScalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
   Traits traits;
   SwappedTraits straits;
 
@@ -2560,15 +2575,15 @@ template <typename Scalar, typename Index, typename DataMapper, int Pack1, int P
           bool PanelMode>
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode> {
   typedef typename DataMapper::LinearMapper LinearMapper;
-  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
-                                    Index offset = 0);
+  constexpr void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
+                            Index offset = 0);
 };
 
 template <typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate,
           bool PanelMode>
-EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate,
-                                     PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth,
-                                                            Index rows, Index stride, Index offset) {
+constexpr void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate,
+                             PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows,
+                                                    Index stride, Index offset) {
   typedef typename unpacket_traits<Packet>::half HalfPacket;
   typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
   enum {
@@ -2709,15 +2724,15 @@ template <typename Scalar, typename Index, typename DataMapper, int Pack1, int P
           bool PanelMode>
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode> {
   typedef typename DataMapper::LinearMapper LinearMapper;
-  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
-                                    Index offset = 0);
+  constexpr void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
+                            Index offset = 0);
 };
 
 template <typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate,
           bool PanelMode>
-EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate,
-                                     PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth,
-                                                            Index rows, Index stride, Index offset) {
+constexpr void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate,
+                             PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows,
+                                                    Index stride, Index offset) {
   typedef typename unpacket_traits<Packet>::half HalfPacket;
   typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
   enum {
@@ -2835,12 +2850,12 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMo
   typedef typename packet_traits<Scalar>::type Packet;
   typedef typename DataMapper::LinearMapper LinearMapper;
   enum { PacketSize = packet_traits<Scalar>::size };
-  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
-                                    Index offset = 0);
+  constexpr void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
+                            Index offset = 0);
 };
 
 template <typename Scalar, typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
-EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>::operator()(
+constexpr void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>::operator()(
     Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset) {
   EIGEN_ASM_COMMENT("EIGEN PRODUCT PACK RHS COLMAJOR");
   EIGEN_UNUSED_VARIABLE(stride);
@@ -3022,8 +3037,8 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
     HalfPacketSize = unpacket_traits<HalfPacket>::size,
     QuarterPacketSize = unpacket_traits<QuarterPacket>::size
   };
-  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
-                                    Index offset = 0) {
+  constexpr void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
+                            Index offset = 0) {
     EIGEN_ASM_COMMENT("EIGEN PRODUCT PACK RHS ROWMAJOR");
     EIGEN_UNUSED_VARIABLE(stride);
     EIGEN_UNUSED_VARIABLE(offset);

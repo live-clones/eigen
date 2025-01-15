@@ -25,8 +25,8 @@ struct cross_impl {
                                         typename internal::traits<OtherDerived>::Scalar>::ReturnType Scalar;
   typedef Matrix<Scalar, MatrixBase<Derived>::RowsAtCompileTime, MatrixBase<Derived>::ColsAtCompileTime> return_type;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const MatrixBase<Derived>& first,
-                                                               const MatrixBase<OtherDerived>& second) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr return_type run(const MatrixBase<Derived>& first,
+                                                                         const MatrixBase<OtherDerived>& second) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3)
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, 3)
 
@@ -47,8 +47,8 @@ struct cross_impl<Derived, OtherDerived, 2> {
                                         typename internal::traits<OtherDerived>::Scalar>::ReturnType Scalar;
   typedef Scalar return_type;
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const MatrixBase<Derived>& first,
-                                                               const MatrixBase<OtherDerived>& second) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr return_type run(const MatrixBase<Derived>& first,
+                                                                         const MatrixBase<OtherDerived>& second) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 2);
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, 2);
     typename internal::nested_eval<Derived, 2>::type lhs(first.derived());
@@ -85,7 +85,7 @@ struct cross_impl<Derived, OtherDerived, 2> {
  */
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr
 #ifndef EIGEN_PARSED_BY_DOXYGEN
     typename internal::cross_impl<Derived, OtherDerived>::return_type
 #else
@@ -100,8 +100,8 @@ namespace internal {
 template <int Arch, typename VectorLhs, typename VectorRhs, typename Scalar = typename VectorLhs::Scalar,
           bool Vectorizable = bool((evaluator<VectorLhs>::Flags & evaluator<VectorRhs>::Flags) & PacketAccessBit)>
 struct cross3_impl {
-  EIGEN_DEVICE_FUNC static inline typename internal::plain_matrix_type<VectorLhs>::type run(const VectorLhs& lhs,
-                                                                                            const VectorRhs& rhs) {
+  EIGEN_DEVICE_FUNC static inline constexpr typename internal::plain_matrix_type<VectorLhs>::type run(
+      const VectorLhs& lhs, const VectorRhs& rhs) {
     return typename internal::plain_matrix_type<VectorLhs>::type(
         numext::conj(lhs.coeff(1) * rhs.coeff(2) - lhs.coeff(2) * rhs.coeff(1)),
         numext::conj(lhs.coeff(2) * rhs.coeff(0) - lhs.coeff(0) * rhs.coeff(2)),
@@ -122,7 +122,7 @@ struct cross3_impl {
  */
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC inline typename MatrixBase<Derived>::PlainObject MatrixBase<Derived>::cross3(
+EIGEN_DEVICE_FUNC inline constexpr typename MatrixBase<Derived>::PlainObject MatrixBase<Derived>::cross3(
     const MatrixBase<OtherDerived>& other) const {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 4)
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, 4)
@@ -147,7 +147,7 @@ EIGEN_DEVICE_FUNC inline typename MatrixBase<Derived>::PlainObject MatrixBase<De
  * \sa MatrixBase::cross() */
 template <typename ExpressionType, int Direction>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC const typename VectorwiseOp<ExpressionType, Direction>::CrossReturnType
+EIGEN_DEVICE_FUNC constexpr const typename VectorwiseOp<ExpressionType, Direction>::CrossReturnType
 VectorwiseOp<ExpressionType, Direction>::cross(const MatrixBase<OtherDerived>& other) const {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, 3)
   EIGEN_STATIC_ASSERT(
@@ -180,7 +180,7 @@ struct unitOrthogonal_selector {
   typedef typename traits<Derived>::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, 2, 1> Vector2;
-  EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
+  EIGEN_DEVICE_FUNC static inline constexpr VectorType run(const Derived& src) {
     VectorType perp = VectorType::Zero(src.size());
     Index maxi = 0;
     Index sndi = 0;
@@ -199,7 +199,7 @@ struct unitOrthogonal_selector<Derived, 3> {
   typedef typename plain_matrix_type<Derived>::type VectorType;
   typedef typename traits<Derived>::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
-  EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
+  EIGEN_DEVICE_FUNC static inline constexpr VectorType run(const Derived& src) {
     VectorType perp;
     /* Let us compute the crossed product of *this with a vector
      * that is not too close to being colinear to *this.
@@ -232,7 +232,7 @@ struct unitOrthogonal_selector<Derived, 3> {
 template <typename Derived>
 struct unitOrthogonal_selector<Derived, 2> {
   typedef typename plain_matrix_type<Derived>::type VectorType;
-  EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
+  EIGEN_DEVICE_FUNC static inline constexpr VectorType run(const Derived& src) {
     return VectorType(-numext::conj(src.y()), numext::conj(src.x())).normalized();
   }
 };
@@ -249,7 +249,7 @@ struct unitOrthogonal_selector<Derived, 2> {
  * \sa cross()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC typename MatrixBase<Derived>::PlainObject MatrixBase<Derived>::unitOrthogonal() const {
+EIGEN_DEVICE_FUNC constexpr typename MatrixBase<Derived>::PlainObject MatrixBase<Derived>::unitOrthogonal() const {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   return internal::unitOrthogonal_selector<Derived>::run(derived());
 }

@@ -32,7 +32,7 @@ namespace internal {
 
 // Note: result is undefined if val == 0
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<sizeof(T) == 4, int> count_leading_zeros(const T val) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr std::enable_if_t<sizeof(T) == 4, int> count_leading_zeros(const T val) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
   return __clz(val);
 #elif defined(SYCL_DEVICE_ONLY)
@@ -48,7 +48,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<sizeof(T) == 4, int> coun
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<sizeof(T) == 8, int> count_leading_zeros(const T val) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr std::enable_if_t<sizeof(T) == 8, int> count_leading_zeros(const T val) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
   return __clzll(val);
 #elif defined(SYCL_DEVICE_ONLY)
@@ -85,7 +85,7 @@ struct DividerTraits {
 };
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint32_t muluh(const uint32_t a, const T b) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr uint32_t muluh(const uint32_t a, const T b) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   return __umulhi(a, b);
 #elif defined(SYCL_DEVICE_ONLY)
@@ -96,7 +96,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint32_t muluh(const uint32_t a, const T b
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint64_t muluh(const uint64_t a, const T b) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr uint64_t muluh(const uint64_t a, const T b) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   return __umul64hi(a, b);
 #elif defined(SYCL_DEVICE_ONLY)
@@ -113,7 +113,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint64_t muluh(const uint64_t a, const T b
 
 template <int N, typename T>
 struct DividerHelper {
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint32_t computeMultiplier(const int log_div, const T divider) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr uint32_t computeMultiplier(const int log_div,
+                                                                                    const T divider) {
     EIGEN_STATIC_ASSERT(N == 32, YOU_MADE_A_PROGRAMMING_MISTAKE);
     return static_cast<uint32_t>((static_cast<uint64_t>(1) << (N + log_div)) / divider -
                                  (static_cast<uint64_t>(1) << N) + 1);
@@ -122,7 +123,8 @@ struct DividerHelper {
 
 template <typename T>
 struct DividerHelper<64, T> {
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint64_t computeMultiplier(const int log_div, const T divider) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr uint64_t computeMultiplier(const int log_div,
+                                                                                    const T divider) {
 #if EIGEN_HAS_BUILTIN_INT128 && !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY)
     return static_cast<uint64_t>((static_cast<__uint128_t>(1) << (64 + log_div)) / static_cast<__uint128_t>(divider) -
                                  (static_cast<__uint128_t>(1) << 64) + 1);
@@ -139,7 +141,7 @@ struct DividerHelper<64, T> {
 template <typename T, bool div_gt_one = false>
 struct TensorIntDivisor {
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorIntDivisor() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorIntDivisor() {
     multiplier = 0;
     shift1 = 0;
     shift2 = 0;
@@ -148,7 +150,7 @@ struct TensorIntDivisor {
   // Must have 0 < divider < 2^31. This is relaxed to
   // 0 < divider < 2^63 when using 64-bit indices on platforms that support
   // the __uint128_t type.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorIntDivisor(const T divider) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorIntDivisor(const T divider) {
     const int N = DividerTraits<T>::N;
     eigen_assert(static_cast<typename UnsignedTraits<T>::type>(divider) < NumTraits<UnsignedType>::highest() / 2);
     eigen_assert(divider > 0);
@@ -168,7 +170,7 @@ struct TensorIntDivisor {
 
   // Must have 0 <= numerator. On platforms that don't support the __uint128_t
   // type numerator should also be less than 2^32-1.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T divide(const T numerator) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr T divide(const T numerator) const {
     eigen_assert(static_cast<typename UnsignedTraits<T>::type>(numerator) < NumTraits<UnsignedType>::highest() / 2);
     // eigen_assert(numerator >= 0); // this is implicitly asserted by the line above
 
@@ -190,17 +192,17 @@ struct TensorIntDivisor {
 template <>
 class TensorIntDivisor<int32_t, true> {
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorIntDivisor() {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorIntDivisor() {
     magic = 0;
     shift = 0;
   }
   // Must have 2 <= divider
-  EIGEN_DEVICE_FUNC TensorIntDivisor(int32_t divider) {
+  EIGEN_DEVICE_FUNC constexpr TensorIntDivisor(int32_t divider) {
     eigen_assert(divider >= 2);
     calcMagic(divider);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE int divide(const int32_t n) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr int divide(const int32_t n) const {
 #ifdef EIGEN_GPU_COMPILE_PHASE
     return (__umulhi(magic, n) >> shift);
 #elif defined(SYCL_DEVICE_ONLY)
@@ -214,7 +216,7 @@ class TensorIntDivisor<int32_t, true> {
  private:
   // Compute the magic numbers. See Hacker's Delight section 10 for an in
   // depth explanation.
-  EIGEN_DEVICE_FUNC void calcMagic(int32_t d) {
+  EIGEN_DEVICE_FUNC constexpr void calcMagic(int32_t d) {
     const unsigned two31 = 0x80000000;  // 2**31.
     unsigned ad = d;
     unsigned t = two31 + (ad >> 31);
