@@ -928,21 +928,19 @@ class aligned_allocator {
     typedef aligned_allocator<U> other;
   };
 
-  aligned_allocator() {}
+  aligned_allocator() = default;
 
-  aligned_allocator(const aligned_allocator&) {}
+  aligned_allocator(const aligned_allocator&) = default;
 
   template <class U>
   aligned_allocator(const aligned_allocator<U>&) {}
 
-  ~aligned_allocator() {}
-
   template <class U>
-  bool operator==(const aligned_allocator<U>&) const noexcept {
+  constexpr bool operator==(const aligned_allocator<U>&) const noexcept {
     return true;
   }
   template <class U>
-  bool operator!=(const aligned_allocator<U>&) const noexcept {
+  constexpr bool operator!=(const aligned_allocator<U>&) const noexcept {
     return false;
   }
 
