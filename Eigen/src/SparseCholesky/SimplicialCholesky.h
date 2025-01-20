@@ -134,7 +134,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
       << "\n";
     s << "  tree:     " << ((total += m_parent.size() * sizeof(int)) >> 20) << "Mb"
       << "\n";
-    s << "  nonzeros: " << ((total += m_nonZerosPerCol.size() * sizeof(int)) >> 20) << "Mb"
+    s << "  nonzeros: " << ((total += m_workSpace.size() * sizeof(int)) >> 20) << "Mb"
       << "\n";
     s << "  perm:     " << ((total += m_P.size() * sizeof(int)) >> 20) << "Mb"
       << "\n";
@@ -177,7 +177,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
 
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 
- //protected:
+ protected:
   /** Computes the sparse Cholesky decomposition of \a matrix */
   template <bool DoLDLT, bool NonHermitian>
   void compute(const MatrixType& matrix) {
@@ -221,7 +221,6 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
     analyzePattern_preordered(*pmat, DoLDLT);
   }
   void analyzePattern_preordered(const CholMatrixType& a, bool doLDLT);
-  void analyzePattern_preordered(const MatrixType& a, const CholMatrixType& a, bool doLDLT);
 
   template <bool NonHermitian>
   void ordering(const MatrixType& a, ConstCholMatrixPtr& pmat, CholMatrixType& ap);
@@ -241,7 +240,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
   CholMatrixType m_matrix;
   VectorType m_diag;  // the diagonal coefficients (LDLT mode)
   VectorI m_parent;   // elimination tree
-  VectorI m_nonZerosPerCol;
+  VectorI m_workSpace;
   PermutationMatrix<Dynamic, Dynamic, StorageIndex> m_P;     // the permutation
   PermutationMatrix<Dynamic, Dynamic, StorageIndex> m_Pinv;  // the inverse permutation
 
