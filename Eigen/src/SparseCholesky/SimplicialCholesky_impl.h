@@ -26,14 +26,13 @@ the Mozilla Public License v. 2.0, as stated at the top of this file.
 namespace Eigen {
 
 namespace internal {
-template <typename StorageIndex>
-struct analyze_pattern_impl {
-  static constexpr StorageIndex kEmpty = -1;
 
-  // initialze outerIndexPtr so we can allocate the sizes
-  // static void init_pattern_permutation...
-  // static void permute_pattern(StorageIndex* inputOuter, StorageIndex* inputInner, StorageIndex* inputNonZeros,
-  //                            StorageIndex* outputOuter, StorageIndex* outputInner)
+template <typename Scalar, typename StorageIndex>
+struct simpl_chol_helper {
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using InnerIterator = typename CholMatrixType::InnerIterator;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
+  static constexpr StorageIndex kEmpty = -1;
 
   struct Stack {
     StorageIndex* m_data;
@@ -46,7 +45,7 @@ struct analyze_pattern_impl {
       eigen_assert(maxSize >= size);
     }
 #else
-    stack_helper(StorageIndex* data, StorageIndex size, StorageIndex /*maxSize*/) : m_data(data), m_size(size) {}
+    Stack(StorageIndex* data, StorageIndex size, StorageIndex /*maxSize*/) : m_data(data), m_size(size) {}
 #endif
     bool empty() const { return m_size == 0; }
     const StorageIndex& size() const { return m_size; }
@@ -66,154 +65,199 @@ struct analyze_pattern_impl {
       m_size--;
     }
   };
-  static void calc_etree(const StorageIndex size, const StorageIndex* ladj_outerIndex,
-                         const StorageIndex* ladj_innerIndex, StorageIndex* parent, StorageIndex* visited) {
-    std::fill_n(parent, size, kEmpty);
-    std::fill_n(visited, size, kEmpty);
+
+  struct DisjointSet {
+    StorageIndex* m_parentSet;
+    DisjointSet(StorageIndex* parentSet, StorageIndex size) : m_parentSet(parentSet) {
+      std::iota(parentSet, parentSet + size, 0);
+    }
+    StorageIndex find_set(StorageIndex u) const {
+      while (u != m_parentSet[u]) u = m_parentSet[u];
+      return u;
+    }
+    void union_set(StorageIndex u, const StorageIndex v) {
+      while (u != v) {
+        StorageIndex next = m_parentSet[u];
+        m_parentSet[u] = v;
+        u = next;
+      }
+    }
+  };
+
+  static void calc_hadj_outer(const StorageIndex size, const CholMatrixType& ap, StorageIndex* outerIndex) {
     for (StorageIndex j = 0; j < size; ++j) {
-      visited[j] = j;
-      for (StorageIndex k = ladj_outerIndex[j]; k < ladj_outerIndex[j + 1]; k++) {
-        StorageIndex i = ladj_innerIndex[k];
-        if (j >= i) continue;
-        while (visited[i] != j) {
-          if (parent[i] == kEmpty) parent[i] = j;
-          StorageIndex a = visited[i];
-          visited[i] = j;
-          i = a;
+      for (InnerIterator it(ap, j); it; ++it) {
+        StorageIndex i = it.index();
+        if (i < j) outerIndex[i + 1]++;
+      }
+    }
+    std::partial_sum(outerIndex, outerIndex + size + 1, outerIndex);
+  }
+
+  static void calc_hadj_inner(const StorageIndex size, const CholMatrixType& ap, const StorageIndex* outerIndex,
+                              StorageIndex* innerIndex, StorageIndex* tmp) {
+    std::fill_n(tmp, size, 0);
+
+    for (StorageIndex j = 0; j < size; ++j) {
+      for (InnerIterator it(ap, j); it; ++it) {
+        StorageIndex i = it.index();
+        if (i < j) {
+          StorageIndex b = outerIndex[i] + tmp[i];
+          innerIndex[b] = j;
+          tmp[i]++;
         }
       }
     }
   }
+
+  static void calc_etree(const StorageIndex size, const CholMatrixType& ap, StorageIndex* parent,
+                         StorageIndex* visited) {
+    std::fill_n(parent, size, kEmpty);
+
+    for (StorageIndex j = 0; j < size; ++j) {
+      visited[j] = j;
+      for (InnerIterator it(ap, j); it; ++it) {
+        StorageIndex i = it.index();
+        if (i < j) {
+          while (visited[i] != j) {
+            if (parent[i] == kEmpty) parent[i] = j;
+            StorageIndex next = visited[i];
+            visited[i] = j;
+            i = next;
+          }
+        }
+      }
+    }
+  }
+
   static void calc_lineage(const StorageIndex size, const StorageIndex* parent, StorageIndex* firstChild,
-                           StorageIndex* sibling) {
+                           StorageIndex* firstSibling) {
     std::fill_n(firstChild, size, kEmpty);
-    std::fill_n(sibling, size, kEmpty);
+    std::fill_n(firstSibling, size, kEmpty);
+
     for (StorageIndex j = 0; j < size; j++) {
-      const StorageIndex p = parent[j];
+      StorageIndex p = parent[j];
       if (p == kEmpty) continue;
       StorageIndex c = firstChild[p];
       if (c == kEmpty)
         firstChild[p] = j;
       else {
-        while (sibling[c] != kEmpty) c = sibling[c];
-        sibling[c] = j;
+        while (firstSibling[c] != kEmpty) c = firstSibling[c];
+        firstSibling[c] = j;
       }
     }
   }
-  static void calc_post(const StorageIndex size, const StorageIndex* parent, const StorageIndex* firstChild,
-                        const StorageIndex* sibling, StorageIndex* post, StorageIndex* tmp) {
+
+  static bool all_same(const StorageIndex size, const StorageIndex* data, StorageIndex val) {
+    for (StorageIndex j = 0; j < size; j++)
+      if (data[j] != val) return false;
+    return true;
+  }
+
+  static void calc_post(const StorageIndex size, const StorageIndex* parent, StorageIndex* firstChild,
+                        const StorageIndex* firstSibling, StorageIndex* post, StorageIndex* dfs) {
     Stack post_stack(post, 0, size);
     for (StorageIndex j = 0; j < size; j++) {
       if (parent[j] != kEmpty) continue;
-      Stack dfs_stack(tmp, 0, size);
+      Stack dfs_stack(dfs, 0, size);
       dfs_stack.push(j);
-      StorageIndex prev = j;
       while (!dfs_stack.empty()) {
-        const StorageIndex i = dfs_stack.back();
-        StorageIndex c = (i == parent[prev]) ? sibling[prev] : firstChild[i];
+        StorageIndex i = dfs_stack.back();
+        StorageIndex c = firstChild[i];
         if (c == kEmpty) {
           post_stack.push(i);
           dfs_stack.pop();
-          prev = i;
         } else {
           dfs_stack.push(c);
+          firstChild[i] = firstSibling[c];
         }
       }
     }
     eigen_assert(post_stack.size() == size);
+    eigen_assert(all_same(size, firstChild, kEmpty));
   }
-  static StorageIndex find_setparent(StorageIndex u, const StorageIndex* parentSet) {
-    while (u != parentSet[u]) u = parentSet[u];
-    return u;
-  }
-  static void union_setparent(StorageIndex u, const StorageIndex v, StorageIndex* parentSet) {
-    while (u != v) {
-      StorageIndex tmp = parentSet[u];
-      parentSet[u] = v;
-      u = tmp;
-    }
-  }
-  void calc_colcount(const StorageIndex size, const StorageIndex* hadj_outerIndex, const StorageIndex* hadj_innerIndex,
-                     const StorageIndex* parent, const StorageIndex* post, StorageIndex* nonZerosPerCol,
-                     StorageIndex* parentSet, StorageIndex* visited, StorageIndex* firstDescendant,
-                     StorageIndex* previousNeighbor) {
-    std::iota(parentSet, parentSet + size, 0);
-    std::fill_n(visited, size, kEmpty);
-    std::fill_n(previousNeighbor, size, kEmpty);
-    std::fill_n(firstDescendant, size, kEmpty);
-    for (StorageIndex j_ = 0; j_ < size; j_++) {
-      const StorageIndex j = post[j_];
-      nonZerosPerCol[j] = (firstDescendant[j] == kEmpty) ? 1 : 0;
-      StorageIndex i = j;
-      while (firstDescendant[i] == kEmpty) {
-        firstDescendant[i] = j;
-        i = parent[i];
-        if (i == kEmpty) break;
-      }
-    }
-    for (StorageIndex j_ = 0; j_ < size; j_++) {
-      const StorageIndex j = post[j_];
-      const StorageIndex p = parent[j];
-      if (p != kEmpty) nonZerosPerCol[p]--;
-      for (StorageIndex k = hadj_outerIndex[j]; k < hadj_outerIndex[j + 1]; k++) {
-        const StorageIndex i = hadj_innerIndex[k];
-        if (j < i) {
-          if (firstDescendant[j] > previousNeighbor[i]) {
-            nonZerosPerCol[j]++;
-            const StorageIndex prev = visited[i];
-            if (prev != kEmpty) {
-              StorageIndex q = find_setparent(prev, parentSet);
-              nonZerosPerCol[q]--;
-            }
-            visited[i] = j;
-          }
-          previousNeighbor[i] = j;
-        }
-      }
-      union_setparent(j, p, parentSet);
-    }
+
+  static void calc_colcount(const StorageIndex size, const StorageIndex* hadj_outer, const StorageIndex* hadj_inner,
+                            const StorageIndex* parent, StorageIndex* prev_j, StorageIndex* tmp,
+                            const StorageIndex* post, StorageIndex* nonZerosPerCol, bool doLDLT) {
+    std::fill_n(nonZerosPerCol, size, 1);
     for (StorageIndex j = 0; j < size; j++) {
       StorageIndex p = parent[j];
-      if (p != kEmpty) nonZerosPerCol[p] += nonZerosPerCol[j];
+      if (p != kEmpty) nonZerosPerCol[p] = 0;
+    }
+
+    DisjointSet parentSet(tmp, size);
+    // micro optimization: avoid initializing prev_j with kEmpty by re-using the array associated with firstChild, which
+    // is already initialized
+    eigen_assert(all_same(size, prev_j, kEmpty));
+
+    for (StorageIndex j_ = 0; j_ < size; j_++) {
+      StorageIndex j = post[j_];
+      StorageIndex p = parent[j];
+      for (StorageIndex k = hadj_outer[j]; k < hadj_outer[j + 1]; k++) {
+        StorageIndex i = hadj_inner[k];
+        eigen_assert(i > j);
+        nonZerosPerCol[j]++;
+        StorageIndex prev = prev_j[i];
+        if (prev != kEmpty) {
+          StorageIndex q = parentSet.find_set(prev);
+          /*optional -- evaluate if this extra union helps*/
+          parentSet.union_set(prev, q);
+          nonZerosPerCol[q]--;
+        }
+        prev_j[i] = j;
+      }
+      parentSet.union_set(j, p);
+    }
+
+    for (StorageIndex j = 0; j < size; j++) {
+      StorageIndex p = parent[j];
+      if (p != kEmpty) nonZerosPerCol[p] += nonZerosPerCol[j] - 1;
+      if (doLDLT) nonZerosPerCol[j]--;
     }
   }
+
+  static void init_matrix(const StorageIndex size, const StorageIndex* nonZerosPerCol, CholMatrixType& L) {
+    std::partial_sum(nonZerosPerCol, nonZerosPerCol + size, L.outerIndexPtr() + 1);
+    L.resizeNonZeros(L.outerIndexPtr()[size]);
+  }
+
+  static void run(const StorageIndex size, const CholMatrixType& ap, CholMatrixType& L, VectorI& parent,
+                  VectorI& workSpace, bool doLDLT) {
+    parent.resize(size);
+    workSpace.resize(4 * size);
+    L.resize(size, size);
+
+    StorageIndex* tmp1 = workSpace.data();
+    StorageIndex* tmp2 = workSpace.data() + size;
+    StorageIndex* tmp3 = workSpace.data() + 2 * size;
+    StorageIndex* tmp4 = workSpace.data() + 3 * size;
+
+    // Borrow L's outer index array for the outer indices of the higher adjacency pattern.
+    StorageIndex* hadj_outer = L.outerIndexPtr();
+    calc_hadj_outer(size, ap, hadj_outer);
+    // Request additional temporary storage for the inner indices of the higher adjacency pattern.
+    ei_declare_aligned_stack_constructed_variable(StorageIndex, hadj_inner, hadj_outer[size], nullptr);
+    calc_hadj_inner(size, ap, hadj_outer, hadj_inner, tmp1);
+
+    calc_etree(size, ap, parent.data(), tmp1);
+    calc_lineage(size, parent.data(), tmp1, tmp2);
+    calc_post(size, parent.data(), tmp1, tmp2, tmp3, tmp4);
+    calc_colcount(size, hadj_outer, hadj_inner, parent.data(), tmp1, tmp2, tmp3, tmp4, doLDLT);
+    init_matrix(size, tmp4, L);
+  }
 };
+
 }  // namespace internal
 
 template <typename Derived>
 void SimplicialCholeskyBase<Derived>::analyzePattern_preordered(const CholMatrixType& ap, bool doLDLT) {
-  const StorageIndex size = StorageIndex(ap.rows());
-  m_matrix.resize(size, size);
-  m_parent.resize(size);
-  m_nonZerosPerCol.resize(size);
+  using Helper = internal::simpl_chol_helper<Scalar, StorageIndex>;
 
-  ei_declare_aligned_stack_constructed_variable(StorageIndex, tags, size, 0);
+  eigen_assert(ap.innerSize() == ap.outerSize());
+  const StorageIndex size = internal::convert_index<StorageIndex>(ap.outerSize());
 
-  for (StorageIndex k = 0; k < size; ++k) {
-    /* L(k,:) pattern: all nodes reachable in etree from nz in A(0:k-1,k) */
-    m_parent[k] = -1;        /* parent of k is not yet known */
-    tags[k] = k;             /* mark node k as visited */
-    m_nonZerosPerCol[k] = 0; /* count of nonzeros in column k of L */
-    for (typename CholMatrixType::InnerIterator it(ap, k); it; ++it) {
-      StorageIndex i = it.index();
-      if (i < k) {
-        /* follow path from i to root of etree, stop at flagged node */
-        for (; tags[i] != k; i = m_parent[i]) {
-          /* find parent of i if not yet determined */
-          if (m_parent[i] == -1) m_parent[i] = k;
-          m_nonZerosPerCol[i]++; /* L (k,i) is nonzero */
-          tags[i] = k;           /* mark i as visited */
-        }
-      }
-    }
-  }
-
-  /* construct Lp index array from m_nonZerosPerCol column counts */
-  StorageIndex* Lp = m_matrix.outerIndexPtr();
-  Lp[0] = 0;
-  for (StorageIndex k = 0; k < size; ++k) Lp[k + 1] = Lp[k] + m_nonZerosPerCol[k] + (doLDLT ? 0 : 1);
-
-  m_matrix.resizeNonZeros(Lp[size]);
+  Helper::run(size, ap, m_matrix, m_parent, m_workSpace, doLDLT);
 
   m_isInitialized = true;
   m_info = Success;
@@ -225,20 +269,21 @@ template <typename Derived>
 template <bool DoLDLT, bool NonHermitian>
 void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType& ap) {
   using std::sqrt;
+  const StorageIndex size = StorageIndex(ap.rows());
 
   eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");
   eigen_assert(ap.rows() == ap.cols());
-  eigen_assert(m_parent.size() == ap.rows());
-  eigen_assert(m_nonZerosPerCol.size() == ap.rows());
+  eigen_assert(m_parent.size() == size);
+  eigen_assert(m_workSpace.size() >= 3 * size);
 
-  const StorageIndex size = StorageIndex(ap.rows());
   const StorageIndex* Lp = m_matrix.outerIndexPtr();
   StorageIndex* Li = m_matrix.innerIndexPtr();
   Scalar* Lx = m_matrix.valuePtr();
 
   ei_declare_aligned_stack_constructed_variable(Scalar, y, size, 0);
-  ei_declare_aligned_stack_constructed_variable(StorageIndex, pattern, size, 0);
-  ei_declare_aligned_stack_constructed_variable(StorageIndex, tags, size, 0);
+  StorageIndex* nonZerosPerCol = m_workSpace.data();
+  StorageIndex* pattern = m_workSpace.data() + size;
+  StorageIndex* tags = m_workSpace.data() + 2 * size;
 
   bool ok = true;
   m_diag.resize(DoLDLT ? size : 0);
@@ -248,7 +293,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
     y[k] = Scalar(0);         // Y(0:k) is now all zero
     StorageIndex top = size;  // stack for pattern is empty
     tags[k] = k;              // mark node k as visited
-    m_nonZerosPerCol[k] = 0;  // count of nonzeros in column k of L
+    nonZerosPerCol[k] = 0;    // count of nonzeros in column k of L
     for (typename CholMatrixType::InnerIterator it(ap, k); it; ++it) {
       StorageIndex i = it.index();
       if (i <= k) {
@@ -279,13 +324,13 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
       else
         yi = l_ki = yi / Lx[Lp[i]];
 
-      Index p2 = Lp[i] + m_nonZerosPerCol[i];
+      Index p2 = Lp[i] + nonZerosPerCol[i];
       Index p;
       for (p = Lp[i] + (DoLDLT ? 0 : 1); p < p2; ++p) y[Li[p]] -= getSymm(Lx[p]) * yi;
       d -= getDiag(l_ki * getSymm(yi));
       Li[p] = k; /* store L(k,i) in column form of L */
       Lx[p] = l_ki;
-      ++m_nonZerosPerCol[i]; /* increment count of nonzeros in col i */
+      ++nonZerosPerCol[i]; /* increment count of nonzeros in col i */
     }
     if (DoLDLT) {
       m_diag[k] = d;
@@ -294,7 +339,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
         break;
       }
     } else {
-      Index p = Lp[k] + m_nonZerosPerCol[k]++;
+      Index p = Lp[k] + nonZerosPerCol[k]++;
       Li[p] = k; /* store L(k,k) = sqrt (d) in column k */
       if (NonHermitian ? d == RealScalar(0) : numext::real(d) <= RealScalar(0)) {
         ok = false; /* failure, matrix is not positive definite */
