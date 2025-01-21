@@ -71,26 +71,32 @@ struct simpl_chol_helper {
     DisjointSet(StorageIndex* parentSet, StorageIndex size) : m_parentSet(parentSet) {
       std::iota(parentSet, parentSet + size, 0);
     }
-    StorageIndex find_set(StorageIndex u) const {
-      while (u != m_parentSet[u]) u = m_parentSet[u];
-      return u;
-    }
-    void union_set(StorageIndex u, const StorageIndex v) {
-      while (u != v) {
+    StorageIndex find(StorageIndex u) {
+      // path halving
+      // while (u != m_parentSet[u]) {
+      //   m_parentSet[u] = m_parentSet[m_parentSet[u]];
+      //   u = m_parentSet[u];
+      // }
+      // return u;
+      // path compression
+      StorageIndex v = u;
+      while (v != m_parentSet[v]) v = m_parentSet[v];
+      while (u != m_parentSet[u]) {
         StorageIndex next = m_parentSet[u];
         m_parentSet[u] = v;
         u = next;
       }
+      return v;
     }
+    void unite(StorageIndex u, StorageIndex v) { m_parentSet[u] = v; }
   };
 
   static void calc_hadj_outer(const StorageIndex size, const CholMatrixType& ap, StorageIndex* outerIndex) {
-    for (StorageIndex j = 0; j < size; ++j) {
+    for (StorageIndex j = 0; j < size; ++j)
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) outerIndex[i + 1]++;
       }
-    }
     std::partial_sum(outerIndex, outerIndex + size + 1, outerIndex);
   }
 
@@ -98,7 +104,7 @@ struct simpl_chol_helper {
                               StorageIndex* innerIndex, StorageIndex* tmp) {
     std::fill_n(tmp, size, 0);
 
-    for (StorageIndex j = 0; j < size; ++j) {
+    for (StorageIndex j = 0; j < size; ++j)
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) {
@@ -107,7 +113,6 @@ struct simpl_chol_helper {
           tmp[i]++;
         }
       }
-    }
   }
 
   static void calc_etree(const StorageIndex size, const CholMatrixType& ap, StorageIndex* parent,
@@ -187,8 +192,7 @@ struct simpl_chol_helper {
     }
 
     DisjointSet parentSet(tmp, size);
-    // micro optimization: avoid initializing prev_j with kEmpty by re-using the array associated with firstChild, which
-    // is already initialized
+    // prev_j is already initialized
     eigen_assert(all_same(size, prev_j, kEmpty));
 
     for (StorageIndex j_ = 0; j_ < size; j_++) {
@@ -200,14 +204,12 @@ struct simpl_chol_helper {
         nonZerosPerCol[j]++;
         StorageIndex prev = prev_j[i];
         if (prev != kEmpty) {
-          StorageIndex q = parentSet.find_set(prev);
-          /*optional -- evaluate if this extra union helps*/
-          parentSet.union_set(prev, q);
+          StorageIndex q = parentSet.find(prev);
           nonZerosPerCol[q]--;
         }
         prev_j[i] = j;
       }
-      parentSet.union_set(j, p);
+      parentSet.unite(j, p);
     }
 
     for (StorageIndex j = 0; j < size; j++) {
