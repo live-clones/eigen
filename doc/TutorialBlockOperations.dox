@@ -34,7 +34,7 @@ The only difference is that the fixed-size version will typically give you faste
 but requires this size to be known at compile time.
 
 The following program uses the dynamic-size and fixed-size versions to print the values of several blocks inside a
-matrix.
+matrix. It also shows the dimensions of blocks can be non-square.
 
 <table class="example">
 <tr><th>Example:</th><th>Output:</th></tr>
