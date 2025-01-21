@@ -97,6 +97,7 @@ struct simpl_chol_helper {
         StorageIndex i = it.index();
         if (i < j) outerIndex[i + 1]++;
       }
+
     std::partial_sum(outerIndex, outerIndex + size + 1, outerIndex);
   }
 

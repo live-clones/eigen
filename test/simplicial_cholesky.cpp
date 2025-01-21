@@ -57,9 +57,9 @@ void test_simplicial_cholesky_T() {
 
 EIGEN_DECLARE_TEST(simplicial_cholesky) {
   CALL_SUBTEST_11((test_simplicial_cholesky_T<double, int, ColMajor>()));
-  //CALL_SUBTEST_12((test_simplicial_cholesky_T<std::complex<double>, int, ColMajor>()));
-  //CALL_SUBTEST_13((test_simplicial_cholesky_T<double, long int, ColMajor>()));
-  //CALL_SUBTEST_21((test_simplicial_cholesky_T<double, int, RowMajor>()));
-  //CALL_SUBTEST_22((test_simplicial_cholesky_T<std::complex<double>, int, RowMajor>()));
-  //CALL_SUBTEST_23((test_simplicial_cholesky_T<double, long int, RowMajor>()));
+  CALL_SUBTEST_12((test_simplicial_cholesky_T<std::complex<double>, int, ColMajor>()));
+  CALL_SUBTEST_13((test_simplicial_cholesky_T<double, long int, ColMajor>()));
+  CALL_SUBTEST_21((test_simplicial_cholesky_T<double, int, RowMajor>()));
+  CALL_SUBTEST_22((test_simplicial_cholesky_T<std::complex<double>, int, RowMajor>()));
+  CALL_SUBTEST_23((test_simplicial_cholesky_T<double, long int, RowMajor>()));
 }
