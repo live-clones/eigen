@@ -73,20 +73,20 @@ struct simpl_chol_helper {
     }
     StorageIndex find(StorageIndex u) {
       // path halving
-      // while (u != m_parentSet[u]) {
-      //   m_parentSet[u] = m_parentSet[m_parentSet[u]];
-      //   u = m_parentSet[u];
-      // }
-      // return u;
-      // path compression
-      StorageIndex v = u;
-      while (v != m_parentSet[v]) v = m_parentSet[v];
       while (u != m_parentSet[u]) {
-        StorageIndex next = m_parentSet[u];
-        m_parentSet[u] = v;
-        u = next;
+        m_parentSet[u] = m_parentSet[m_parentSet[u]];
+        u = m_parentSet[u];
       }
-      return v;
+      return u;
+      // path compression
+      // StorageIndex v = u;
+      // while (v != m_parentSet[v]) v = m_parentSet[v];
+      // while (u != m_parentSet[u]) {
+      //  StorageIndex next = m_parentSet[u];
+      //  m_parentSet[u] = v;
+      //  u = next;
+      //}
+      // return v;
     }
     void unite(StorageIndex u, StorageIndex v) { m_parentSet[u] = v; }
   };
@@ -120,20 +120,32 @@ struct simpl_chol_helper {
                          StorageIndex* visited) {
     std::fill_n(parent, size, kEmpty);
 
-    for (StorageIndex j = 0; j < size; ++j) {
-      visited[j] = j;
+    // for (StorageIndex j = 0; j < size; ++j) {
+    //   visited[j] = j;
+    //   for (InnerIterator it(ap, j); it; ++it) {
+    //     StorageIndex i = it.index();
+    //     if (i < j) {
+    //       while (visited[i] != j) {
+    //         if (parent[i] == kEmpty) parent[i] = j;
+    //         StorageIndex next = visited[i];
+    //         visited[i] = j;
+    //         i = next;
+    //       }
+    //     }
+    //   }
+    // }
+
+    DisjointSet virtualForest(visited, size);
+
+    for (StorageIndex j = 0; j < size; ++j)
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) {
-          while (visited[i] != j) {
-            if (parent[i] == kEmpty) parent[i] = j;
-            StorageIndex next = visited[i];
-            visited[i] = j;
-            i = next;
-          }
+          StorageIndex r = virtualForest.find(i);
+          virtualForest.unite(r, j);
+          if (r != j) parent[r] = j;
         }
       }
-    }
   }
 
   static void calc_lineage(const StorageIndex size, const StorageIndex* parent, StorageIndex* firstChild,
