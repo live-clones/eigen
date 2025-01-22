@@ -12,7 +12,7 @@ int main() {
     cout << "Block of size " << i << "x" << i << endl;
     cout << m.block(0, 0, i, i) << endl << endl;
   }
-  j1 = 2; 
+  j1 = 2;
   j2 = 3;
   cout << endl << "non-square Block of size" << j1 << "x" << j2 << endl;
   cout << m.block<j1, j2>(0, 0) << endl << endl;
