@@ -473,7 +473,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
   // by making all its constructor protected. See bug 1074.
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase() = default;
+  /** \brief Move constructor */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(PlainObjectBase&&) = default;
+  /** \brief Move assignment operator */
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase& operator=(PlainObjectBase&& other) EIGEN_NOEXCEPT {
     m_storage = std::move(other.m_storage);
     return *this;
@@ -523,7 +525,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       eigen_assert(list_size == static_cast<size_t>(RowsAtCompileTime) || RowsAtCompileTime == Dynamic);
       resize(list_size, ColsAtCompileTime);
       if (list.begin()->begin() != nullptr) {
-        std::copy(list.begin()->begin(), list.begin()->end(), m_storage.data());
+        Index index = 0;
+        for (const Scalar& e : *list.begin()) {
+          coeffRef(index++) = e;
+        }
       }
     } else {
       eigen_assert(list.size() == static_cast<size_t>(RowsAtCompileTime) || RowsAtCompileTime == Dynamic);
