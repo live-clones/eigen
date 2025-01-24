@@ -36,9 +36,9 @@ struct simpl_chol_helper {
 
   struct Stack {
     StorageIndex* m_data;
-    StorageIndex m_size;
+    Index m_size;
 #ifndef EIGEN_NO_DEBUG
-    const StorageIndex m_maxSize;
+    const Index m_maxSize;
     Stack(StorageIndex* data, StorageIndex size, StorageIndex maxSize)
         : m_data(data), m_size(size), m_maxSize(maxSize) {
       eigen_assert(size >= 0);
@@ -48,7 +48,6 @@ struct simpl_chol_helper {
     Stack(StorageIndex* data, StorageIndex size, StorageIndex /*maxSize*/) : m_data(data), m_size(size) {}
 #endif
     bool empty() const { return m_size == 0; }
-    const StorageIndex& size() const { return m_size; }
     const StorageIndex& back() const {
       eigen_assert(m_size > 0);
       return m_data[m_size - 1];
@@ -67,32 +66,34 @@ struct simpl_chol_helper {
   };
 
   struct DisjointSet {
-    StorageIndex* m_parentSet;
-    DisjointSet(StorageIndex* parentSet, StorageIndex size) : m_parentSet(parentSet) {
-      std::iota(parentSet, parentSet + size, 0);
-    }
+    StorageIndex* m_set;
+    DisjointSet(StorageIndex* set, StorageIndex size) : m_set(set) { std::iota(set, set + size, 0); }
     StorageIndex find(StorageIndex u) {
+      eigen_assert(u != kEmpty);
       // path halving
-      while (u != m_parentSet[u]) {
-        m_parentSet[u] = m_parentSet[m_parentSet[u]];
-        u = m_parentSet[u];
+      while (u != m_set[u]) {
+        m_set[u] = m_set[m_set[u]];
+        u = m_set[u];
       }
       return u;
       // path compression
       // StorageIndex v = u;
-      // while (v != m_parentSet[v]) v = m_parentSet[v];
-      // while (u != m_parentSet[u]) {
-      //  StorageIndex next = m_parentSet[u];
-      //  m_parentSet[u] = v;
+      // while (v != m_set[v]) v = m_set[v];
+      // while (u != m_set[u]) {
+      //  StorageIndex next = m_set[u];
+      //  m_set[u] = v;
       //  u = next;
       //}
       // return v;
     }
-    void unite(StorageIndex u, StorageIndex v) { m_parentSet[u] = v; }
+    void unite(StorageIndex u, StorageIndex v) {
+      eigen_assert(u != kEmpty);
+      m_set[u] = v;
+    };
   };
 
   static void calc_hadj_outer(const StorageIndex size, const CholMatrixType& ap, StorageIndex* outerIndex) {
-    for (StorageIndex j = 0; j < size; ++j)
+    for (StorageIndex j = 1; j < size; ++j)
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) outerIndex[i + 1]++;
@@ -105,7 +106,7 @@ struct simpl_chol_helper {
                               StorageIndex* innerIndex, StorageIndex* tmp) {
     std::fill_n(tmp, size, 0);
 
-    for (StorageIndex j = 0; j < size; ++j)
+    for (StorageIndex j = 1; j < size; ++j)
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) {
@@ -116,8 +117,14 @@ struct simpl_chol_helper {
       }
   }
 
-  static void calc_etree(const StorageIndex size, const CholMatrixType& ap, StorageIndex* parent,
-                         StorageIndex* visited) {
+  // Derived from:
+  // Joseph W. Liu. 1986. A compact row storage scheme for Cholesky factors using elimination trees.
+  // ACM Trans. Math. Softw. 12, 2 (June 1986), 127–148. https://doi.org/10.1145/6497.6499
+  //
+  // Instead of explicitly using path compression, the algorithm is implemented in terms of
+  // elementary disjoint set operations.
+
+  static void calc_etree(const StorageIndex size, const CholMatrixType& ap, StorageIndex* parent, StorageIndex* tmp) {
     std::fill_n(parent, size, kEmpty);
 
     // for (StorageIndex j = 0; j < size; ++j) {
@@ -135,15 +142,17 @@ struct simpl_chol_helper {
     //   }
     // }
 
-    DisjointSet virtualForest(visited, size);
+    DisjointSet ancestor(tmp, size);
 
-    for (StorageIndex j = 0; j < size; ++j)
+    for (StorageIndex j = 1; j < size; ++j)
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) {
-          StorageIndex r = virtualForest.find(i);
-          virtualForest.unite(r, j);
-          if (r != j) parent[r] = j;
+          StorageIndex r = ancestor.find(i);
+          if (r != j) {
+            parent[r] = j;
+            ancestor.unite(r, j);
+          }
         }
       }
   }
@@ -195,34 +204,35 @@ struct simpl_chol_helper {
     eigen_assert(all_same(size, firstChild, kEmpty));
   }
 
-  static void calc_colcount(const StorageIndex size, const StorageIndex* hadj_outer, const StorageIndex* hadj_inner,
-                            const StorageIndex* parent, StorageIndex* prev_j, StorageIndex* tmp,
+  static void calc_colcount(const StorageIndex size, const StorageIndex* hadjOuter, const StorageIndex* hadjInner,
+                            const StorageIndex* parent, StorageIndex* prevLeaf, StorageIndex* tmp,
                             const StorageIndex* post, StorageIndex* nonZerosPerCol, bool doLDLT) {
     std::fill_n(nonZerosPerCol, size, 1);
     for (StorageIndex j = 0; j < size; j++) {
       StorageIndex p = parent[j];
+      // p is not a leaf
       if (p != kEmpty) nonZerosPerCol[p] = 0;
     }
 
     DisjointSet parentSet(tmp, size);
-    // prev_j is already initialized
-    eigen_assert(all_same(size, prev_j, kEmpty));
+    // prevLeaf is already initialized
+    eigen_assert(all_same(size, prevLeaf, kEmpty));
 
     for (StorageIndex j_ = 0; j_ < size; j_++) {
       StorageIndex j = post[j_];
-      StorageIndex p = parent[j];
-      for (StorageIndex k = hadj_outer[j]; k < hadj_outer[j + 1]; k++) {
-        StorageIndex i = hadj_inner[k];
+      nonZerosPerCol[j] += hadjOuter[j + 1] - hadjOuter[j];
+      for (StorageIndex k = hadjOuter[j]; k < hadjOuter[j + 1]; k++) {
+        StorageIndex i = hadjInner[k];
         eigen_assert(i > j);
-        nonZerosPerCol[j]++;
-        StorageIndex prev = prev_j[i];
+        StorageIndex prev = prevLeaf[i];
         if (prev != kEmpty) {
           StorageIndex q = parentSet.find(prev);
           nonZerosPerCol[q]--;
         }
-        prev_j[i] = j;
+        prevLeaf[i] = j;
       }
-      parentSet.unite(j, p);
+      StorageIndex p = parent[j];
+      /*if (p != kEmpty)*/ parentSet.unite(j, p);
     }
 
     for (StorageIndex j = 0; j < size; j++) {
