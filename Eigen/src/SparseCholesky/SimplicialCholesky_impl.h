@@ -48,6 +48,7 @@ struct simpl_chol_helper {
     Stack(StorageIndex* data, StorageIndex size, StorageIndex /*maxSize*/) : m_data(data), m_size(size) {}
 #endif
     bool empty() const { return m_size == 0; }
+    const Index& size() const { return m_size; }
     const StorageIndex& back() const {
       eigen_assert(m_size > 0);
       return m_data[m_size - 1];
@@ -68,27 +69,19 @@ struct simpl_chol_helper {
   struct DisjointSet {
     StorageIndex* m_set;
     DisjointSet(StorageIndex* set, StorageIndex size) : m_set(set) { std::iota(set, set + size, 0); }
-    StorageIndex find(StorageIndex u) {
+    StorageIndex find(StorageIndex u) const {
       eigen_assert(u != kEmpty);
-      // path halving
-      while (u != m_set[u]) {
-        m_set[u] = m_set[m_set[u]];
-        u = m_set[u];
-      }
-      return u;
-      // path compression
-      // StorageIndex v = u;
-      // while (v != m_set[v]) v = m_set[v];
-      // while (u != m_set[u]) {
-      //  StorageIndex next = m_set[u];
-      //  m_set[u] = v;
-      //  u = next;
-      //}
-      // return v;
+      StorageIndex v = u;
+      while (v != m_set[v]) v = m_set[v];
+      return v;
     }
-    void unite(StorageIndex u, StorageIndex v) {
+    void compress(StorageIndex u, StorageIndex v) {
       eigen_assert(u != kEmpty);
-      m_set[u] = v;
+      while (m_set[u] != v) {
+        StorageIndex next = m_set[u];
+        m_set[u] = v;
+        u = next;
+      }
     };
   };
 
@@ -120,27 +113,9 @@ struct simpl_chol_helper {
   // Derived from:
   // Joseph W. Liu. 1986. A compact row storage scheme for Cholesky factors using elimination trees.
   // ACM Trans. Math. Softw. 12, 2 (June 1986), 127–148. https://doi.org/10.1145/6497.6499
-  //
-  // Instead of explicitly using path compression, the algorithm is implemented in terms of
-  // elementary disjoint set operations.
 
   static void calc_etree(const StorageIndex size, const CholMatrixType& ap, StorageIndex* parent, StorageIndex* tmp) {
     std::fill_n(parent, size, kEmpty);
-
-    // for (StorageIndex j = 0; j < size; ++j) {
-    //   visited[j] = j;
-    //   for (InnerIterator it(ap, j); it; ++it) {
-    //     StorageIndex i = it.index();
-    //     if (i < j) {
-    //       while (visited[i] != j) {
-    //         if (parent[i] == kEmpty) parent[i] = j;
-    //         StorageIndex next = visited[i];
-    //         visited[i] = j;
-    //         i = next;
-    //       }
-    //     }
-    //   }
-    // }
 
     DisjointSet ancestor(tmp, size);
 
@@ -149,10 +124,8 @@ struct simpl_chol_helper {
         StorageIndex i = it.index();
         if (i < j) {
           StorageIndex r = ancestor.find(i);
-          if (r != j) {
-            parent[r] = j;
-            ancestor.unite(r, j);
-          }
+          if (r != j) parent[r] = j;
+          ancestor.compress(i, j);
         }
       }
   }
@@ -227,12 +200,13 @@ struct simpl_chol_helper {
         StorageIndex prev = prevLeaf[i];
         if (prev != kEmpty) {
           StorageIndex q = parentSet.find(prev);
+          parentSet.compress(prev, q);
           nonZerosPerCol[q]--;
         }
         prevLeaf[i] = j;
       }
       StorageIndex p = parent[j];
-      /*if (p != kEmpty)*/ parentSet.unite(j, p);
+      /*if (p != kEmpty)*/ parentSet.compress(j, p);
     }
 
     for (StorageIndex j = 0; j < size; j++) {
