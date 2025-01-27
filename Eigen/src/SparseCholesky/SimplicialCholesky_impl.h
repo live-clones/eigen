@@ -71,12 +71,12 @@ struct simpl_chol_helper {
     DisjointSet(StorageIndex* set, StorageIndex size) : m_set(set) { std::iota(set, set + size, 0); }
     StorageIndex find(StorageIndex u) const {
       eigen_assert(u != kEmpty);
-      StorageIndex v = u;
-      while (v != m_set[v]) v = m_set[v];
-      return v;
+      while (m_set[u] != u) u = m_set[m_set[u]];
+      return u;
     }
     void compress(StorageIndex u, StorageIndex v) {
       eigen_assert(u != kEmpty);
+      eigen_assert(v != kEmpty);
       while (m_set[u] != v) {
         StorageIndex next = m_set[u];
         m_set[u] = v;
@@ -110,8 +110,9 @@ struct simpl_chol_helper {
       }
   }
 
-  // Derived from:
-  // Joseph W. Liu. 1986. A compact row storage scheme for Cholesky factors using elimination trees.
+  // Adapted from:
+  // Joseph W. Liu. (1986).
+  // A compact row storage scheme for Cholesky factors using elimination trees.
   // ACM Trans. Math. Softw. 12, 2 (June 1986), 127–148. https://doi.org/10.1145/6497.6499
 
   static void calc_etree(const StorageIndex size, const CholMatrixType& ap, StorageIndex* parent, StorageIndex* tmp) {
@@ -148,12 +149,6 @@ struct simpl_chol_helper {
     }
   }
 
-  static bool all_same(const StorageIndex size, const StorageIndex* data, StorageIndex val) {
-    for (StorageIndex j = 0; j < size; j++)
-      if (data[j] != val) return false;
-    return true;
-  }
-
   static void calc_post(const StorageIndex size, const StorageIndex* parent, StorageIndex* firstChild,
                         const StorageIndex* firstSibling, StorageIndex* post, StorageIndex* dfs) {
     Stack post_stack(post, 0, size);
@@ -174,12 +169,18 @@ struct simpl_chol_helper {
       }
     }
     eigen_assert(post_stack.size() == size);
-    eigen_assert(all_same(size, firstChild, kEmpty));
+    eigen_assert(std::all_of(firstChild, firstChild + size, [](StorageIndex a) { return a == kEmpty; }));
   }
+
+  // Adapted from:
+  // Gilbert, J. R., Ng, E., & Peyton, B. W. (1994).
+  // An efficient algorithm to compute row and column counts for sparse Cholesky factorization.
+  // SIAM Journal on Matrix Analysis and Applications, 15(4), 1075–1091.
 
   static void calc_colcount(const StorageIndex size, const StorageIndex* hadjOuter, const StorageIndex* hadjInner,
                             const StorageIndex* parent, StorageIndex* prevLeaf, StorageIndex* tmp,
                             const StorageIndex* post, StorageIndex* nonZerosPerCol, bool doLDLT) {
+    // initialize nonZerosPerCol with 1 for leaves, 0 for non-leaves
     std::fill_n(nonZerosPerCol, size, 1);
     for (StorageIndex j = 0; j < size; j++) {
       StorageIndex p = parent[j];
@@ -189,7 +190,7 @@ struct simpl_chol_helper {
 
     DisjointSet parentSet(tmp, size);
     // prevLeaf is already initialized
-    eigen_assert(all_same(size, prevLeaf, kEmpty));
+    eigen_assert(std::all_of(prevLeaf, prevLeaf + size, [](StorageIndex a) { return a == kEmpty; }));
 
     for (StorageIndex j_ = 0; j_ < size; j_++) {
       StorageIndex j = post[j_];
@@ -206,7 +207,7 @@ struct simpl_chol_helper {
         prevLeaf[i] = j;
       }
       StorageIndex p = parent[j];
-      /*if (p != kEmpty)*/ parentSet.compress(j, p);
+      if (p != kEmpty) parentSet.compress(j, p);
     }
 
     for (StorageIndex j = 0; j < size; j++) {
@@ -217,6 +218,7 @@ struct simpl_chol_helper {
   }
 
   static void init_matrix(const StorageIndex size, const StorageIndex* nonZerosPerCol, CholMatrixType& L) {
+    eigen_assert(L.outerIndexPtr()[0] == 0);
     std::partial_sum(nonZerosPerCol, nonZerosPerCol + size, L.outerIndexPtr() + 1);
     L.resizeNonZeros(L.outerIndexPtr()[size]);
   }
@@ -232,7 +234,7 @@ struct simpl_chol_helper {
     StorageIndex* tmp3 = workSpace.data() + 2 * size;
     StorageIndex* tmp4 = workSpace.data() + 3 * size;
 
-    // Borrow L's outer index array for the outer indices of the higher adjacency pattern.
+    // Borrow L's outer index array for the higher adjacency pattern.
     StorageIndex* hadj_outer = L.outerIndexPtr();
     calc_hadj_outer(size, ap, hadj_outer);
     // Request additional temporary storage for the inner indices of the higher adjacency pattern.
