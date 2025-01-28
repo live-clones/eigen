@@ -34,6 +34,7 @@ struct simpl_chol_helper {
   using VectorI = Matrix<StorageIndex, Dynamic, 1>;
   static constexpr StorageIndex kEmpty = -1;
 
+  // Implementation of a stack or last-in first-out structure with some debugging machinery.
   struct Stack {
     StorageIndex* m_data;
     Index m_size;
@@ -48,8 +49,8 @@ struct simpl_chol_helper {
     Stack(StorageIndex* data, StorageIndex size, StorageIndex /*maxSize*/) : m_data(data), m_size(size) {}
 #endif
     bool empty() const { return m_size == 0; }
-    const Index& size() const { return m_size; }
-    const StorageIndex& back() const {
+    Index size() const { return m_size; }
+    StorageIndex back() const {
       eigen_assert(m_size > 0);
       return m_data[m_size - 1];
     }
@@ -66,14 +67,20 @@ struct simpl_chol_helper {
     }
   };
 
+  // Implementation of a disjoint-set or union-find structure with path compression.
   struct DisjointSet {
     StorageIndex* m_set;
     DisjointSet(StorageIndex* set, StorageIndex size) : m_set(set) { std::iota(set, set + size, 0); }
+    // Find the set representative or root of `u`.
     StorageIndex find(StorageIndex u) const {
       eigen_assert(u != kEmpty);
-      while (m_set[u] != u) u = m_set[m_set[u]];
+      while (m_set[u] != u) {
+        // manually unroll the loop by a factor of 2 to improve performance
+        u = m_set[m_set[u]];
+      }
       return u;
     }
+    // Perform full path compression such that each node from `u` to `v` points to `v`.
     void compress(StorageIndex u, StorageIndex v) {
       eigen_assert(u != kEmpty);
       eigen_assert(v != kEmpty);
@@ -85,21 +92,27 @@ struct simpl_chol_helper {
     };
   };
 
+  // Computes the higher adjacency pattern by transposing the input lower adjacency matrix.
+  // Only the index arrays are calculated, as the values are not needed for the symbolic factorization.
+  // The outer index array provides the size requirements of the inner index array.
+
+  // Computes the outer index array of the higher adjacency matrix. 
   static void calc_hadj_outer(const StorageIndex size, const CholMatrixType& ap, StorageIndex* outerIndex) {
-    for (StorageIndex j = 1; j < size; ++j)
+    for (StorageIndex j = 1; j < size; j++) {
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) outerIndex[i + 1]++;
       }
-
+    }
     std::partial_sum(outerIndex, outerIndex + size + 1, outerIndex);
   }
 
+  // inner index array
   static void calc_hadj_inner(const StorageIndex size, const CholMatrixType& ap, const StorageIndex* outerIndex,
                               StorageIndex* innerIndex, StorageIndex* tmp) {
     std::fill_n(tmp, size, 0);
 
-    for (StorageIndex j = 1; j < size; ++j)
+    for (StorageIndex j = 1; j < size; j++) {
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) {
@@ -108,6 +121,7 @@ struct simpl_chol_helper {
           tmp[i]++;
         }
       }
+    }
   }
 
   // Adapted from:
@@ -115,12 +129,15 @@ struct simpl_chol_helper {
   // A compact row storage scheme for Cholesky factors using elimination trees.
   // ACM Trans. Math. Softw. 12, 2 (June 1986), 127–148. https://doi.org/10.1145/6497.6499
 
+  // Computes the elimination forest of the lower adjacency matrix, a compact representation of the sparse L factor.
+  // The L factor may contain multiple elimination trees if a column contains only its diagonal element.
+  // Each elimination tree is an n-ary tree in which each node points to its parent.
   static void calc_etree(const StorageIndex size, const CholMatrixType& ap, StorageIndex* parent, StorageIndex* tmp) {
     std::fill_n(parent, size, kEmpty);
 
     DisjointSet ancestor(tmp, size);
 
-    for (StorageIndex j = 1; j < size; ++j)
+    for (StorageIndex j = 1; j < size; j++) {
       for (InnerIterator it(ap, j); it; ++it) {
         StorageIndex i = it.index();
         if (i < j) {
@@ -129,8 +146,10 @@ struct simpl_chol_helper {
           ancestor.compress(i, j);
         }
       }
+    }
   }
 
+  // Computes the child pointers of the parent tree to facilitate a depth-first search traversal.
   static void calc_lineage(const StorageIndex size, const StorageIndex* parent, StorageIndex* firstChild,
                            StorageIndex* firstSibling) {
     std::fill_n(firstChild, size, kEmpty);
@@ -149,11 +168,13 @@ struct simpl_chol_helper {
     }
   }
 
+  // Computes a post-ordered traversal of the elimination tree.
   static void calc_post(const StorageIndex size, const StorageIndex* parent, StorageIndex* firstChild,
                         const StorageIndex* firstSibling, StorageIndex* post, StorageIndex* dfs) {
     Stack post_stack(post, 0, size);
     for (StorageIndex j = 0; j < size; j++) {
       if (parent[j] != kEmpty) continue;
+      // begin at a root 
       Stack dfs_stack(dfs, 0, size);
       dfs_stack.push(j);
       while (!dfs_stack.empty()) {
@@ -164,6 +185,7 @@ struct simpl_chol_helper {
           dfs_stack.pop();
         } else {
           dfs_stack.push(c);
+          // Remove the path from `i` to `c` for future traversals.
           firstChild[i] = firstSibling[c];
         }
       }
@@ -177,6 +199,7 @@ struct simpl_chol_helper {
   // An efficient algorithm to compute row and column counts for sparse Cholesky factorization.
   // SIAM Journal on Matrix Analysis and Applications, 15(4), 1075–1091.
 
+  // Computes the non-zero pattern of the L factor.
   static void calc_colcount(const StorageIndex size, const StorageIndex* hadjOuter, const StorageIndex* hadjInner,
                             const StorageIndex* parent, StorageIndex* prevLeaf, StorageIndex* tmp,
                             const StorageIndex* post, StorageIndex* nonZerosPerCol, bool doLDLT) {
@@ -217,12 +240,14 @@ struct simpl_chol_helper {
     }
   }
 
+  // Finalizes the non zero pattern of the L factor and allocates the memory for the factorization.
   static void init_matrix(const StorageIndex size, const StorageIndex* nonZerosPerCol, CholMatrixType& L) {
     eigen_assert(L.outerIndexPtr()[0] == 0);
     std::partial_sum(nonZerosPerCol, nonZerosPerCol + size, L.outerIndexPtr() + 1);
     L.resizeNonZeros(L.outerIndexPtr()[size]);
   }
 
+  // Driver routine for the symbolic sparse Cholesky factorization.
   static void run(const StorageIndex size, const CholMatrixType& ap, CholMatrixType& L, VectorI& parent,
                   VectorI& workSpace, bool doLDLT) {
     parent.resize(size);
