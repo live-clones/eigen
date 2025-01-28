@@ -96,7 +96,7 @@ struct simpl_chol_helper {
   // Only the index arrays are calculated, as the values are not needed for the symbolic factorization.
   // The outer index array provides the size requirements of the inner index array.
 
-  // Computes the outer index array of the higher adjacency matrix. 
+  // Computes the outer index array of the higher adjacency matrix.
   static void calc_hadj_outer(const StorageIndex size, const CholMatrixType& ap, StorageIndex* outerIndex) {
     for (StorageIndex j = 1; j < size; j++) {
       for (InnerIterator it(ap, j); it; ++it) {
@@ -174,7 +174,7 @@ struct simpl_chol_helper {
     Stack post_stack(post, 0, size);
     for (StorageIndex j = 0; j < size; j++) {
       if (parent[j] != kEmpty) continue;
-      // begin at a root 
+      // Begin at a root
       Stack dfs_stack(dfs, 0, size);
       dfs_stack.push(j);
       while (!dfs_stack.empty()) {
