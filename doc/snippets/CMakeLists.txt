@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 file(GLOB snippets_SRCS "*.cpp")
 
 add_custom_target(all_snippets)

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 typedef Matrix<float, 1, Dynamic> MatrixType;
 typedef Map<MatrixType> MapType;
 typedef Map<const MatrixType> MapTypeConst;  // a read-only map

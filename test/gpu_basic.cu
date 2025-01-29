@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 // workaround issue between gcc >= 4.7 and cuda 5.5
 #if (defined __GNUC__) && (__GNUC__ > 4 || __GNUC_MINOR__ >= 7)

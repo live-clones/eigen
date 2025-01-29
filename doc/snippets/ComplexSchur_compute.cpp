@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXcf A = MatrixXcf::Random(4, 4);
 ComplexSchur<MatrixXcf> schur(4);
 schur.compute(A);

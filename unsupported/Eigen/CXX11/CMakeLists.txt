@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MPL-2.0
 set(Eigen_CXX11_HEADERS Tensor TensorSymmetry ThreadPool)
 
 install(FILES

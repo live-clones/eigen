@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 struct pad {
   Index size() const { return out_size; }
   Index operator[](Index i) const { return std::max<Index>(0, i - (out_size - in_size)); }

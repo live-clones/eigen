@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 
 // A Scalar that asserts for uninitialized access.
 template <typename T>

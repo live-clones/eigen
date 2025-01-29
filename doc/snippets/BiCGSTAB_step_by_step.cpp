@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 int n = 10000;
 VectorXd x(n), b(n);
 SparseMatrix<double> A(n, n);

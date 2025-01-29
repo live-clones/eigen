@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 //  To use the simple FFT implementation
 //  g++ -o demofft -I.. -Wall -O3 FFT.cpp
 

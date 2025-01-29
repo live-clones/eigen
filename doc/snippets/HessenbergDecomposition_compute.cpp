@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 MatrixXcf A = MatrixXcf::Random(4, 4);
 HessenbergDecomposition<MatrixXcf> hd(4);
 hd.compute(A);

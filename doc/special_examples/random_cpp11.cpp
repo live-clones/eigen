@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 #include <Eigen/Core>
 #include <iostream>
 #include <random>

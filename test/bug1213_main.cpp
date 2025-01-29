@@ -1,4 +1,4 @@
-
+// SPDX-License-Identifier: MPL-2.0
 // This is a regression unit regarding a weird linking issue with gcc.
 
 #include "bug1213.h"

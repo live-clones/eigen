@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Matrix4Xd M = Matrix4Xd::Random(4, 5);
 Projective3d P(Matrix4d::Random());
 cout << "The matrix M is:" << endl << M << endl << endl;

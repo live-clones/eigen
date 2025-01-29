@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MPL-2.0
+
 function(escape_string_as_regex _str_out _str_in)
   string(REGEX REPLACE "\\\\" "\\\\\\\\" FILETEST2 "${_str_in}")
   string(REGEX REPLACE "([.$+*?|-])" "\\\\\\1" FILETEST2 "${FILETEST2}")

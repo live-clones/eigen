@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 Vector4d v = Vector4d::Random();
 Projective3d P(Matrix4d::Random());
 cout << "v                   = " << v.transpose() << "]^T" << endl;
