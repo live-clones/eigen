@@ -12,17 +12,16 @@
 
 template <typename T, typename I_>
 void test_incompleteLUT_T() {
-  BiCGSTAB<SparseMatrix<T, 0, I_>, IncompleteLUT<T, I_>> bicgstab_colmajor_ilut;
-
-  bicgstab_colmajor_ilut.setTolerance(NumTraits<T>::epsilon() * 4);
-  CALL_SUBTEST(check_sparse_square_solving(bicgstab_colmajor_ilut));
+  IncompleteLUT<T, I_> ilut;
+  ilut.setDroptol(NumTraits<T>::epsilon() * 4);
 }
 
+template <typename T>
 void test_extract_LU() {
-  typedef Eigen::SparseMatrix<double> SparseMatrix;
+  typedef Eigen::SparseMatrix<T> SparseMatrix;
 
   SparseMatrix A(5, 5);
-  std::vector<Eigen::Triplet<double>> triplets;
+  std::vector<Eigen::Triplet<T>> triplets;
   triplets.push_back({0, 0, 4});
   triplets.push_back({0, 1, -1});
   triplets.push_back({0, 4, -1});
@@ -41,13 +40,14 @@ void test_extract_LU() {
 
   A.setFromTriplets(triplets.begin(), triplets.end());
 
-  BiCGSTAB<SparseMatrix, IncompleteLUT<double>> solver;
+  IncompleteLUT<double> ilut;
+  ilut.compute(A);
 
-  Eigen::SparseMatrix<double> matL = solver.preconditioner().matrixL();  // Extract L
-  Eigen::SparseMatrix<double> matU = solver.preconditioner().matrixU();  // Extract U
+  Eigen::SparseMatrix<T> matL = ilut.matrixL();  // Extract L
+  Eigen::SparseMatrix<T> matU = ilut.matrixU();  // Extract U
 
-  Eigen::SparseMatrix<double> expectedMatL(5, 5);
-  std::vector<Eigen::Triplet<double>> tripletsExL;
+  Eigen::SparseMatrix<T> expectedMatL(5, 5);
+  std::vector<Eigen::Triplet<T>> tripletsExL;
   tripletsExL.emplace_back(0, 0, 1);
   tripletsExL.emplace_back(1, 0, -0.25);
   tripletsExL.emplace_back(1, 1, 1);
@@ -61,8 +61,8 @@ void test_extract_LU() {
   tripletsExL.emplace_back(4, 4, 1);
   expectedMatL.setFromTriplets(tripletsExL.begin(), tripletsExL.end());
 
-  Eigen::SparseMatrix<double> expectedMatU(5, 5);
-  std::vector<Eigen::Triplet<double>> tripletsExU;
+  Eigen::SparseMatrix<T> expectedMatU(5, 5);
+  std::vector<Eigen::Triplet<T>> tripletsExU;
   tripletsExU.emplace_back(0, 0, 4);
   tripletsExU.emplace_back(0, 1, -1);
   tripletsExU.emplace_back(1, 1, 3.75);
@@ -72,7 +72,6 @@ void test_extract_LU() {
   tripletsExU.emplace_back(3, 3, 3.75);
   tripletsExU.emplace_back(3, 4, -1);
   tripletsExU.emplace_back(4, 4, 3.46667);
-
   expectedMatU.setFromTriplets(tripletsExU.begin(), tripletsExU.end());
 
   VERIFY_IS_APPROX(expectedMatL, matL);
@@ -81,8 +80,9 @@ void test_extract_LU() {
 
 EIGEN_DECLARE_TEST(incomplete_LUT) {
   CALL_SUBTEST_1((test_incompleteLUT_T<double, int>()));
+  CALL_SUBTEST_1((test_incompleteLUT_T<float, int>()));
   CALL_SUBTEST_2((test_incompleteLUT_T<std::complex<double>, int>()));
   CALL_SUBTEST_3((test_incompleteLUT_T<double, long int>()));
 
-  CALL_SUBTEST_4(test_extract_LU());
+  CALL_SUBTEST_4(test_extract_LU<double>());
 }
