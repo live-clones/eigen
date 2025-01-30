@@ -21,14 +21,24 @@ void test_incompleteLUT_T() {
 
 void test_extract_LU() {
   typedef Eigen::SparseMatrix<double> SparseMatrix;
-    
+  
   SparseMatrix A(5, 5);
   std::vector<Eigen::Triplet<double>> triplets;
-  triplets.push_back({0, 0, 4}); triplets.push_back({0, 1, -1}); triplets.push_back({0, 4, -1});
-  triplets.push_back({1, 0, -1}); triplets.push_back({1, 1, 4}); triplets.push_back({1, 2, -1});
-  triplets.push_back({2, 1, -1}); triplets.push_back({2, 2, 4}); triplets.push_back({2, 3, -1});
-  triplets.push_back({3, 2, -1}); triplets.push_back({3, 3, 4}); triplets.push_back({3, 4, -1});
-  triplets.push_back({4, 0, -1}); triplets.push_back({4, 3, -1}); triplets.push_back({4, 4, 4});
+  triplets.push_back({0, 0, 4});
+  triplets.push_back({0, 1, -1});
+  triplets.push_back({0, 4, -1});
+  triplets.push_back({1, 0, -1});
+  triplets.push_back({1, 1, 4});
+  triplets.push_back({1, 2, -1});
+  triplets.push_back({2, 1, -1});
+  triplets.push_back({2, 2, 4});
+  triplets.push_back({2, 3, -1});
+  triplets.push_back({3, 2, -1});
+  triplets.push_back({3, 3, 4});
+  triplets.push_back({3, 4, -1});
+  triplets.push_back({4, 0, -1});
+  triplets.push_back({4, 3, -1});
+  triplets.push_back({4, 4, 4});
   
   A.setFromTriplets(triplets.begin(), triplets.end());
 
