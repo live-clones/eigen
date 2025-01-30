@@ -449,17 +449,9 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 
 ##### MR Smoke Tests ###########################################################
 
-test:linux:x86-64:gcc-10:default:smoketest:
-  extends: .test:linux:x86-64:gcc-10:default
-  needs: [ build:linux:cross:x86-64:gcc-10:default:smoketest ]
-  variables:
-    EIGEN_CI_TEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-test:linux:x86-64:clang-12:default:smoketest:
-  extends: .test:linux:x86-64:clang-12:default
-  needs: [ build:linux:cross:x86-64:clang-12:default:smoketest ]
+test:linux:loongarch64:gcc-14:default:smoketest:
+  extends: .test:linux:loongarch64:gcc-14:default
+  needs: [ build:linux:cross:loongarch64:gcc-14:default:smoketest ]
   variables:
     EIGEN_CI_TEST_LABEL: smoketest
   rules:
