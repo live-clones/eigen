@@ -20,7 +20,7 @@ void test_incompleteLUT_T() {
 
 void test_extract_LU() {
   typedef Eigen::SparseMatrix<double> SparseMatrix;
-  
+
   SparseMatrix A(5, 5);
   std::vector<Eigen::Triplet<double>> triplets;
   triplets.push_back({0, 0, 4});
@@ -38,7 +38,7 @@ void test_extract_LU() {
   triplets.push_back({4, 0, -1});
   triplets.push_back({4, 3, -1});
   triplets.push_back({4, 4, 4});
-  
+
   A.setFromTriplets(triplets.begin(), triplets.end());
 
   BiCGSTAB<SparseMatrix, IncompleteLUT<double>> solver;
