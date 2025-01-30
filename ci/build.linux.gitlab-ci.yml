@@ -322,15 +322,8 @@ build:linux:cross:loongarch64:gcc-14:default:
 
 ######## MR Smoke Tests ########################################################
 
-build:linux:cross:x86-64:gcc-10:default:smoketest:
-  extends: build:linux:cross:x86-64:gcc-10:default
-  variables:
-    EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-build:linux:cross:x86-64:clang-12:default:smoketest:
-  extends: build:linux:cross:x86-64:clang-12:default
+build:linux:cross:loongarch64:gcc-14:default:smoketest:
+  extends: build:linux:cross:loongarch64:gcc-14:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
