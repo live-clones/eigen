@@ -215,7 +215,8 @@ void IncompleteLUT<Scalar, StorageIndex>::setFillfactor(int fillfactor) {
 
 /**
  * get L-Factor
- * \return L-Factor is a matrix containing the lower triangular part of the sparse matrix. All elements of the matrix above the main diagonal are zero.
+ * \return L-Factor is a matrix containing the lower triangular part of the sparse matrix. All elements of the matrix
+ * above the main diagonal are zero.
  **/
 template <typename Scalar, typename StorageIndex>
 const typename IncompleteLUT<Scalar, StorageIndex>::FactorType IncompleteLUT<Scalar, StorageIndex>::matrixL() const {
@@ -225,7 +226,8 @@ const typename IncompleteLUT<Scalar, StorageIndex>::FactorType IncompleteLUT<Sca
 
 /**
  * get U-Factor
- * \return L-Factor is a matrix containing the upper triangular part of the sparse matrix. All elements of the matrix below the main diagonal are zero.
+ * \return L-Factor is a matrix containing the upper triangular part of the sparse matrix. All elements of the matrix
+ * below the main diagonal are zero.
  **/
 template <typename Scalar, typename StorageIndex>
 const typename IncompleteLUT<Scalar, StorageIndex>::FactorType IncompleteLUT<Scalar, StorageIndex>::matrixU() const {

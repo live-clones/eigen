@@ -13,7 +13,7 @@
 
 template <typename T, typename I_>
 void test_incompleteLUT_T() {
-  BiCGSTAB<SparseMatrix<T, 0, I_>, IncompleteLUT<T, I_> > bicgstab_colmajor_ilut;
+  BiCGSTAB<SparseMatrix<T, 0, I_>, IncompleteLUT<T, I_>> bicgstab_colmajor_ilut;
 
   bicgstab_colmajor_ilut.setTolerance(NumTraits<T>::epsilon() * 4);
   CALL_SUBTEST(check_sparse_square_solving(bicgstab_colmajor_ilut));
