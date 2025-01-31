@@ -424,8 +424,6 @@ test:linux:ppc64le:clang-12:default:unsupported:
     EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
     # Install QEMU and set up the execution environment in the image
     EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu qemu-user-static
-    EIGEN_CI_BEFORE_SCRIPT: "ln -sf /usr/loongarch64-linux-gnu/lib64/ld-linux-loongarch-lp64d.so.1  /lib64/ld-linux-loongarch-lp64d.so.1 && \
-                             export LD_LIBRARY_PATH=/usr/loongarch64-linux-gnu/lib:$LD_LIBRARY_PATH"
   tags:
     - eigen-runner
     - linux
@@ -449,9 +447,17 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 
 ##### MR Smoke Tests ###########################################################
 
-test:linux:loongarch64:gcc-14:default:smoketest:
-  extends: .test:linux:loongarch64:gcc-14:default
-  needs: [ build:linux:cross:loongarch64:gcc-14:default:smoketest ]
+test:linux:x86-64:gcc-10:default:smoketest:
+  extends: .test:linux:x86-64:gcc-10:default
+  needs: [ build:linux:cross:x86-64:gcc-10:default:smoketest ]
+  variables:
+    EIGEN_CI_TEST_LABEL: smoketest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+test:linux:x86-64:clang-12:default:smoketest:
+  extends: .test:linux:x86-64:clang-12:default
+  needs: [ build:linux:cross:x86-64:clang-12:default:smoketest ]
   variables:
     EIGEN_CI_TEST_LABEL: smoketest
   rules:
