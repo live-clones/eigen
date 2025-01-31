@@ -40,7 +40,7 @@ void test_extract_LU() {
 
   A.setFromTriplets(triplets.begin(), triplets.end());
 
-  IncompleteLUT<double> ilut;
+  IncompleteLUT<T> ilut;
   ilut.compute(A);
 
   Eigen::SparseMatrix<T> matL = ilut.matrixL();  // Extract L
@@ -85,4 +85,5 @@ EIGEN_DECLARE_TEST(incomplete_LUT) {
   CALL_SUBTEST_3((test_incompleteLUT_T<double, long int>()));
 
   CALL_SUBTEST_4(test_extract_LU<double>());
+  CALL_SUBTEST_4(test_extract_LU<float>());
 }
