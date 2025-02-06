@@ -106,6 +106,9 @@ build:linux:doc:
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
 
 # # Sanitizers (Disabled because ASAN hangs and MSAN requires instrumented libc++)
 # build:linux:cross:x86-64:clang-12:default:asan:
@@ -316,7 +319,9 @@ build:linux:cross:ppc64le:clang-12:default:
   tags:
     - eigen-runner
     - linux
-    - x86-64
+    - cross-compiler
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # GCC-14 (minimum on Ubuntu 24)
 build:linux:cross:loongarch64:gcc-14:default:
