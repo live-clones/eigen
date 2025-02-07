@@ -106,6 +106,9 @@ build:linux:doc:
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
 
 # # Sanitizers (Disabled because ASAN hangs and MSAN requires instrumented libc++)
 # build:linux:cross:x86-64:clang-12:default:asan:
@@ -333,16 +336,16 @@ build:linux:cross:loongarch64:gcc-14:default:
 
 ######## MR Smoke Tests ########################################################
 
-build:linux:cross:x86-64:gcc-10:default:smoketest:
-  extends: build:linux:cross:x86-64:gcc-10:default
-  variables:
-    EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+# build:linux:cross:x86-64:gcc-10:default:smoketest:
+#   extends: build:linux:cross:x86-64:gcc-10:default
+#   variables:
+#     EIGEN_CI_BUILD_TARGET: buildsmoketests
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-build:linux:cross:x86-64:clang-12:default:smoketest:
-  extends: build:linux:cross:x86-64:clang-12:default
-  variables:
-    EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+# build:linux:cross:x86-64:clang-12:default:smoketest:
+#   extends: build:linux:cross:x86-64:clang-12:default
+#   variables:
+#     EIGEN_CI_BUILD_TARGET: buildsmoketests
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
