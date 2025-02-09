@@ -529,12 +529,12 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
 #if EIGEN_UNALIGNED_VECTORIZE
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, InnerUnrolling> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
-    using Traits = typename Kernel::AssignmentTraits;
-    using PacketType = typename Kernel::PacketType;
-    static constexpr int InnerSize = Traits::InnerSizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size,
-                         VectorizableSize = numext::round_down(InnerSize, PacketSize);
+  using Traits = typename Kernel::AssignmentTraits;
+  using PacketType = typename Kernel::PacketType;
+  static constexpr int InnerSize = Traits::InnerSizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size,
+                       VectorizableSize = numext::round_down(InnerSize, PacketSize);
 
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
       copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, 0, 0>::run(kernel, outer);
       copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, VectorizableSize, InnerSize>::run(kernel, outer);
