@@ -189,7 +189,7 @@ struct copy_using_evaluator_traits {
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_DefaultTraversal_CompleteUnrolling {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   static constexpr int Outer = Index_ / Traits::InnerSizeAtCompileTime, Inner = Index_ % Traits::InnerSizeAtCompileTime;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
@@ -239,7 +239,7 @@ struct copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Stop, Stop
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_innervec_CompleteUnrolling {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
   static constexpr int Outer = Index_ / Traits::InnerSizeAtCompileTime, Inner = Index_ % Traits::InnerSizeAtCompileTime,
                        SrcAlignment = Traits::SrcAlignment, DstAlignment = Traits::DstAlignment,
@@ -290,7 +290,7 @@ struct dense_assignment_loop;
 // Zero-sized assignment is a no-op.
 template <typename Kernel, int Unrolling>
 struct dense_assignment_loop<Kernel, AllAtOnceTraversal, Unrolling> {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   EIGEN_DEVICE_FUNC static void EIGEN_STRONG_INLINE EIGEN_CONSTEXPR run(Kernel& /*kernel*/) {
     EIGEN_STATIC_ASSERT(int(Traits::SizeAtCompileTime) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT)
   }
@@ -313,7 +313,7 @@ struct dense_assignment_loop<Kernel, DefaultTraversal, NoUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, DefaultTraversal, CompleteUnrolling> {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
     copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, 0, Traits::SizeAtCompileTime>::run(kernel);
@@ -322,7 +322,7 @@ struct dense_assignment_loop<Kernel, DefaultTraversal, CompleteUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, DefaultTraversal, InnerUnrolling> {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
     const Index outerSize = kernel.outerSize();
@@ -365,7 +365,7 @@ struct unaligned_dense_assignment_loop<false> {
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_linearvec_CompleteUnrolling {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
   static constexpr int SrcAlignment = Traits::SrcAlignment, DstAlignment = Traits::DstAlignment,
                        NextIndex = Index_ + unpacket_traits<PacketType>::size;
@@ -410,7 +410,7 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrolling> {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
   static constexpr int Size = Traits::SizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size,
                        AlignedSize = numext::round_down(Size, PacketSize);
@@ -427,7 +427,7 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrollin
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, NoUnrolling> {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
   static constexpr int SrcAlignment = Traits::SrcAlignment, DstAlignment = Traits::DstAlignment,
                        PacketSize = unpacket_traits<PacketType>::size;
@@ -443,7 +443,7 @@ struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, NoUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, CompleteUnrolling> {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   static constexpr int Size = Traits::SizeAtCompileTime;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
     copy_using_evaluator_innervec_CompleteUnrolling<Kernel, 0, Size>::run(kernel);
@@ -453,7 +453,7 @@ struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, CompleteUnrolling
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, InnerUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    using Traits = Kernel::AssignmentTraits;
+    using Traits = typename Kernel::AssignmentTraits;
     const Index outerSize = kernel.outerSize();
     for (Index outer = 0; outer < outerSize; ++outer)
       copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, Traits::InnerSizeAtCompileTime, Traits::SrcAlignment,
@@ -475,7 +475,7 @@ struct dense_assignment_loop<Kernel, LinearTraversal, NoUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearTraversal, CompleteUnrolling> {
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, 0, Traits::SizeAtCompileTime>::run(kernel);
   }
@@ -488,7 +488,7 @@ struct dense_assignment_loop<Kernel, LinearTraversal, CompleteUnrolling> {
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
   using Scalar = typename Kernel::Scalar;
-  using Traits = Kernel::AssignmentTraits;
+  using Traits = typename Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
   static constexpr bool Alignable = packet_traits<Scalar>::AlignedOnScalar || Traits::DstAlignment >= sizeof(Scalar);
   static constexpr int PacketSize = unpacket_traits<PacketType>::size,
@@ -530,7 +530,7 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, InnerUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
-    using Traits = Kernel::AssignmentTraits;
+    using Traits = typename Kernel::AssignmentTraits;
     using PacketType = typename Kernel::PacketType;
     static constexpr int InnerSize = Traits::InnerSizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size,
                          VectorizableSize = numext::round_down(InnerSize, PacketSize);
