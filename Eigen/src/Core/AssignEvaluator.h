@@ -54,11 +54,12 @@ struct copy_using_evaluator_traits {
                            min_size_prefer_fixed(Src::MaxColsAtCompileTime, Dst::MaxColsAtCompileTime),
                        MaxSizeAtCompileTime =
                            min_size_prefer_fixed(Src::MaxSizeAtCompileTime, Dst::MaxSizeAtCompileTime),
-                       InnerSizeAtCompileTime = DstIsVectorAtCompileTime ? SizeAtCompileTime
-                                                            : (DstIsRowMajor ? ColsAtCompileTime : RowsAtCompileTime),
+                       InnerSizeAtCompileTime = DstIsVectorAtCompileTime
+                                                    ? SizeAtCompileTime
+                                                    : (DstIsRowMajor ? ColsAtCompileTime : RowsAtCompileTime),
                        MaxInnerSizeAtCompileTime = DstIsVectorAtCompileTime
-                                          ? MaxSizeAtCompileTime
-                                          : (DstIsRowMajor ? MaxColsAtCompileTime : MaxRowsAtCompileTime),
+                                                       ? MaxSizeAtCompileTime
+                                                       : (DstIsRowMajor ? MaxColsAtCompileTime : MaxRowsAtCompileTime),
                        RestrictedInnerSize = min_size_prefer_fixed(InnerSizeAtCompileTime, MaxPacketSize),
                        RestrictedLinearSize = min_size_prefer_fixed(SizeAtCompileTime, MaxPacketSize),
                        OuterStride = outer_stride_at_compile_time<Dst>::ret;
@@ -75,25 +76,28 @@ struct copy_using_evaluator_traits {
                        InnerRequiredAlignment = unpacket_traits<InnerPacketType>::alignment;
 
  private:
-  static constexpr bool
-      StorageOrdersAgree = DstIsRowMajor == SrcIsRowMajor,
-      MightVectorize = StorageOrdersAgree && bool(DstFlags & SrcFlags & ActualPacketAccessBit) &&
-                       bool(functor_traits<AssignFunc>::PacketAccess),
-      InnerAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (JointAlignment >= InnerRequiredAlignment),
-      MayInnerVectorize = MightVectorize && (InnerSizeAtCompileTime != Dynamic) && (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
-                          (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) && InnerAlignmentOk,
-      MayLinearize = StorageOrdersAgree && bool(DstFlags & SrcFlags & LinearAccessBit),
-      LinearAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment),
-      MayLinearVectorize = MightVectorize && MayLinearize && DstHasDirectAccess &&
-                           (LinearAlignmentOk || (MaxSizeAtCompileTime == Dynamic)) &&
-                           (MaxSizeAtCompileTime >= LinearPacketSize),
-      /* If the destination isn't aligned, we have to do runtime checks and we don't unroll, so it's only good for large
-         enough sizes. slice vectorization can be slow, so we only want it if the slices are big, which is indicated by
-         MaxInnerSizeAtCompileTime rather than InnerSizeAtCompileTime, think of the case of a dynamic block in a fixed-size matrix. However, with
-         EIGEN_UNALIGNED_VECTORIZE and unrolling, slice vectorization is still worth it */
-      MaySliceVectorize = MightVectorize && DstHasDirectAccess &&
-                          (MaxInnerSizeAtCompileTime == Dynamic ||
-                           MaxInnerSizeAtCompileTime >= (EIGEN_UNALIGNED_VECTORIZE ? InnerPacketSize : (3 * InnerPacketSize)));
+  static constexpr bool StorageOrdersAgree = DstIsRowMajor == SrcIsRowMajor,
+                        MightVectorize = StorageOrdersAgree && bool(DstFlags & SrcFlags & ActualPacketAccessBit) &&
+                                         bool(functor_traits<AssignFunc>::PacketAccess),
+                        InnerAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (JointAlignment >= InnerRequiredAlignment),
+                        MayInnerVectorize = MightVectorize && (InnerSizeAtCompileTime != Dynamic) &&
+                                            (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
+                                            (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
+                                            InnerAlignmentOk,
+                        MayLinearize = StorageOrdersAgree && bool(DstFlags & SrcFlags & LinearAccessBit),
+                        LinearAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment),
+                        MayLinearVectorize = MightVectorize && MayLinearize && DstHasDirectAccess &&
+                                             (LinearAlignmentOk || (MaxSizeAtCompileTime == Dynamic)) &&
+                                             (MaxSizeAtCompileTime >= LinearPacketSize),
+                        /* If the destination isn't aligned, we have to do runtime checks and we don't unroll, so it's
+                           only good for large enough sizes. slice vectorization can be slow, so we only want it if the
+                           slices are big, which is indicated by MaxInnerSizeAtCompileTime rather than
+                           InnerSizeAtCompileTime, think of the case of a dynamic block in a fixed-size matrix. However,
+                           with EIGEN_UNALIGNED_VECTORIZE and unrolling, slice vectorization is still worth it */
+      MaySliceVectorize =
+          MightVectorize && DstHasDirectAccess &&
+          (MaxInnerSizeAtCompileTime == Dynamic ||
+           MaxInnerSizeAtCompileTime >= (EIGEN_UNALIGNED_VECTORIZE ? InnerPacketSize : (3 * InnerPacketSize)));
 
  public:
   // If compile-size is zero, traversing will fail at compile-time.
@@ -117,7 +121,8 @@ struct copy_using_evaluator_traits {
                        CoeffReadCost = int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost);
   static constexpr bool MayUnrollCompletely =
                             (SizeAtCompileTime != Dynamic) && ((SizeAtCompileTime * CoeffReadCost) <= UnrollingLimit),
-                        MayUnrollInner = (InnerSizeAtCompileTime != Dynamic) && ((InnerSizeAtCompileTime * CoeffReadCost) <= UnrollingLimit);
+                        MayUnrollInner = (InnerSizeAtCompileTime != Dynamic) &&
+                                         ((InnerSizeAtCompileTime * CoeffReadCost) <= UnrollingLimit);
 
  public:
   static constexpr int Unrolling =
@@ -182,15 +187,14 @@ struct copy_using_evaluator_traits {
 *** Default traversal ***
 ************************/
 
-template <typename Kernel, int Index, int Stop>
+template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_DefaultTraversal_CompleteUnrolling {
   using Traits = Kernel::AssignmentTraits;
-
-  enum { outer = Index / Traits::InnerSizeAtCompileTime, inner = Index % Traits::InnerSizeAtCompileTime };
+  static constexpr int Outer = Index_ / Traits::InnerSizeAtCompileTime, Inner = Index_ % Traits::InnerSizeAtCompileTime;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    kernel.assignCoeffByOuterInner(outer, inner);
-    copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, Index + 1, Stop>::run(kernel);
+    kernel.assignCoeffByOuterInner(Outer, Inner);
+    copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, Index_ + 1, Stop>::run(kernel);
   }
 };
 
@@ -216,11 +220,11 @@ struct copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Stop, Stop> 
 *** Linear traversal ***
 ***********************/
 
-template <typename Kernel, int Index, int Stop>
+template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_LinearTraversal_CompleteUnrolling {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    kernel.assignCoeff(Index);
-    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Index + 1, Stop>::run(kernel);
+    kernel.assignCoeff(Index_);
+    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Index_ + 1, Stop>::run(kernel);
   }
 };
 
@@ -233,21 +237,16 @@ struct copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Stop, Stop
 *** Inner vectorization ***
 **************************/
 
-template <typename Kernel, int Index, int Stop>
+template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_innervec_CompleteUnrolling {
   using Traits = Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
-
-  enum {
-    outer = Index / Traits::InnerSizeAtCompileTime,
-    inner = Index % Traits::InnerSizeAtCompileTime,
-    SrcAlignment = Traits::SrcAlignment,
-    DstAlignment = Traits::DstAlignment
-  };
+  static constexpr int Outer = Index_ / Traits::InnerSizeAtCompileTime, Inner = Index_ % Traits::InnerSizeAtCompileTime,
+                       SrcAlignment = Traits::SrcAlignment, DstAlignment = Traits::DstAlignment,
+                       NextIndex = Index_ + unpacket_traits<PacketType>::size;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, inner);
-    enum { NextIndex = Index + unpacket_traits<PacketType>::size };
+    kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(Outer, Inner);
     copy_using_evaluator_innervec_CompleteUnrolling<Kernel, NextIndex, Stop>::run(kernel);
   }
 };
@@ -260,9 +259,10 @@ struct copy_using_evaluator_innervec_CompleteUnrolling<Kernel, Stop, Stop> {
 template <typename Kernel, int Index_, int Stop, int SrcAlignment, int DstAlignment>
 struct copy_using_evaluator_innervec_InnerUnrolling {
   using PacketType = typename Kernel::PacketType;
+  static constexpr int NextIndex = Index_ + unpacket_traits<PacketType>::size;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, Index outer) {
     kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, Index_);
-    enum { NextIndex = Index_ + unpacket_traits<PacketType>::size };
     copy_using_evaluator_innervec_InnerUnrolling<Kernel, NextIndex, Stop, SrcAlignment, DstAlignment>::run(kernel,
                                                                                                            outer);
   }
@@ -313,17 +313,18 @@ struct dense_assignment_loop<Kernel, DefaultTraversal, NoUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, DefaultTraversal, CompleteUnrolling> {
+  using Traits = Kernel::AssignmentTraits;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    using Traits = Kernel::AssignmentTraits;
     copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, 0, Traits::SizeAtCompileTime>::run(kernel);
   }
 };
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, DefaultTraversal, InnerUnrolling> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    using Traits = Kernel::AssignmentTraits;
+  using Traits = Kernel::AssignmentTraits;
 
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
     const Index outerSize = kernel.outerSize();
     for (Index outer = 0; outer < outerSize; ++outer)
       copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, 0, Traits::InnerSizeAtCompileTime>::run(kernel,
@@ -362,16 +363,15 @@ struct unaligned_dense_assignment_loop<false> {
   }
 };
 
-template <typename Kernel, int Index, int Stop>
+template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_linearvec_CompleteUnrolling {
-  // FIXME: this is not very clean, perhaps this information should be provided by the kernel?
+  using Traits = Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
-
-  enum { SrcAlignment = Kernel::AssignmentTraits::SrcAlignment, DstAlignment = Kernel::AssignmentTraits::DstAlignment };
+  static constexpr int SrcAlignment = Traits::SrcAlignment, DstAlignment = Traits::DstAlignment,
+                       NextIndex = Index_ + unpacket_traits<PacketType>::size;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(Index);
-    enum { NextIndex = Index + unpacket_traits<PacketType>::size };
+    kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(Index_);
     copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, NextIndex, Stop>::run(kernel);
   }
 };
@@ -383,26 +383,26 @@ struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
+  using Scalar = typename Kernel::Scalar;
+  using PacketType = typename Kernel::PacketType;
+
+  static constexpr int RequestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
+                       PacketSize = unpacket_traits<PacketType>::size,
+                       DstAlignment = packet_traits<Scalar>::AlignedOnScalar ? RequestedAlignment
+                                                                             : Kernel::AssignmentTraits::DstAlignment,
+                       SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+  static constexpr bool DstIsAligned = Kernel::AssignmentTraits::DstAlignment >= RequestedAlignment;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     const Index size = kernel.size();
-    typedef typename Kernel::Scalar Scalar;
-    using PacketType = typename Kernel::PacketType;
-    enum {
-      requestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
-      packetSize = unpacket_traits<PacketType>::size,
-      dstIsAligned = int(Kernel::AssignmentTraits::DstAlignment) >= int(requestedAlignment),
-      dstAlignment = packet_traits<Scalar>::AlignedOnScalar ? int(requestedAlignment)
-                                                            : int(Kernel::AssignmentTraits::DstAlignment),
-      srcAlignment = Kernel::AssignmentTraits::JointAlignment
-    };
     const Index alignedStart =
-        dstIsAligned ? 0 : internal::first_aligned<requestedAlignment>(kernel.dstDataPtr(), size);
-    const Index alignedEnd = alignedStart + ((size - alignedStart) / packetSize) * packetSize;
+        DstIsAligned ? 0 : internal::first_aligned<RequestedAlignment>(kernel.dstDataPtr(), size);
+    const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
-    unaligned_dense_assignment_loop<dstIsAligned != 0>::run(kernel, 0, alignedStart);
+    unaligned_dense_assignment_loop<DstIsAligned != 0>::run(kernel, 0, alignedStart);
 
-    for (Index index = alignedStart; index < alignedEnd; index += packetSize)
-      kernel.template assignPacket<dstAlignment, srcAlignment, PacketType>(index);
+    for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
+      kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
 
     unaligned_dense_assignment_loop<>::run(kernel, alignedEnd, size);
   }
@@ -410,18 +410,14 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrolling> {
+  using Traits = Kernel::AssignmentTraits;
+  using PacketType = typename Kernel::PacketType;
+  static constexpr int Size = Traits::SizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size,
+                       AlignedSize = numext::round_down(Size, PacketSize);
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
-    using Traits = Kernel::AssignmentTraits;
-    using PacketType = typename Kernel::PacketType;
-
-    enum {
-      size = Traits::SizeAtCompileTime,
-      packetSize = unpacket_traits<PacketType>::size,
-      alignedSize = (int(size) / packetSize) * packetSize
-    };
-
-    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, alignedSize>::run(kernel);
-    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, alignedSize, size>::run(kernel);
+    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, AlignedSize>::run(kernel);
+    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, AlignedSize, Size>::run(kernel);
   }
 };
 
@@ -431,23 +427,26 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrollin
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, NoUnrolling> {
+  using Traits = Kernel::AssignmentTraits;
   using PacketType = typename Kernel::PacketType;
-  enum { SrcAlignment = Kernel::AssignmentTraits::SrcAlignment, DstAlignment = Kernel::AssignmentTraits::DstAlignment };
+  static constexpr int SrcAlignment = Traits::SrcAlignment, DstAlignment = Traits::DstAlignment,
+                       PacketSize = unpacket_traits<PacketType>::size;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
-    const Index packetSize = unpacket_traits<PacketType>::size;
     for (Index outer = 0; outer < outerSize; ++outer)
-      for (Index inner = 0; inner < innerSize; inner += packetSize)
+      for (Index inner = 0; inner < innerSize; inner += PacketSize)
         kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, inner);
   }
 };
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, CompleteUnrolling> {
+  using Traits = Kernel::AssignmentTraits;
+  static constexpr int Size = Traits::SizeAtCompileTime;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    using Traits = Kernel::AssignmentTraits;
-    copy_using_evaluator_innervec_CompleteUnrolling<Kernel, 0, Traits::SizeAtCompileTime>::run(kernel);
+    copy_using_evaluator_innervec_CompleteUnrolling<Kernel, 0, Size>::run(kernel);
   }
 };
 
@@ -488,28 +487,27 @@ struct dense_assignment_loop<Kernel, LinearTraversal, CompleteUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
+  using Scalar = typename Kernel::Scalar;
+  using Traits = Kernel::AssignmentTraits;
+  using PacketType = typename Kernel::PacketType;
+  static constexpr bool Alignable = packet_traits<Scalar>::AlignedOnScalar || Traits::DstAlignment >= sizeof(Scalar);
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size,
+                       RequestedAlignment = Traits::InnerRequiredAlignment,
+                       DstAlignment = Alignable ? RequestedAlignment : Traits::DstAlignment;
+  static constexpr bool DstIsAligned = Traits::DstAlignment >= RequestedAlignment;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
-    typedef typename Kernel::Scalar Scalar;
-    using PacketType = typename Kernel::PacketType;
-    enum {
-      packetSize = unpacket_traits<PacketType>::size,
-      requestedAlignment = int(Kernel::AssignmentTraits::InnerRequiredAlignment),
-      alignable =
-          packet_traits<Scalar>::AlignedOnScalar || int(Kernel::AssignmentTraits::DstAlignment) >= sizeof(Scalar),
-      dstIsAligned = int(Kernel::AssignmentTraits::DstAlignment) >= int(requestedAlignment),
-      dstAlignment = alignable ? int(requestedAlignment) : int(Kernel::AssignmentTraits::DstAlignment)
-    };
     const Scalar* dst_ptr = kernel.dstDataPtr();
-    if ((!bool(dstIsAligned)) && (std::uintptr_t(dst_ptr) % sizeof(Scalar)) > 0) {
+    if ((!DstIsAligned) && (std::uintptr_t(dst_ptr) % sizeof(Scalar)) > 0) {
       // the pointer is not aligned-on scalar, so alignment is not possible
       return dense_assignment_loop<Kernel, DefaultTraversal, NoUnrolling>::run(kernel);
     }
-    const Index packetAlignedMask = packetSize - 1;
+    const Index packetAlignedMask = PacketSize - 1;
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
-    const Index alignedStep = alignable ? (packetSize - kernel.outerStride() % packetSize) & packetAlignedMask : 0;
+    const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) & packetAlignedMask : 0;
     Index alignedStart =
-        ((!alignable) || bool(dstIsAligned)) ? 0 : internal::first_aligned<requestedAlignment>(dst_ptr, innerSize);
+        ((!Alignable) || bool(DstIsAligned)) ? 0 : internal::first_aligned<RequestedAlignment>(dst_ptr, innerSize);
 
     for (Index outer = 0; outer < outerSize; ++outer) {
       const Index alignedEnd = alignedStart + ((innerSize - alignedStart) & ~packetAlignedMask);
@@ -517,13 +515,13 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
       for (Index inner = 0; inner < alignedStart; ++inner) kernel.assignCoeffByOuterInner(outer, inner);
 
       // do the vectorizable part of the assignment
-      for (Index inner = alignedStart; inner < alignedEnd; inner += packetSize)
-        kernel.template assignPacketByOuterInner<dstAlignment, Unaligned, PacketType>(outer, inner);
+      for (Index inner = alignedStart; inner < alignedEnd; inner += PacketSize)
+        kernel.template assignPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner);
 
       // do the non-vectorizable part of the assignment
       for (Index inner = alignedEnd; inner < innerSize; ++inner) kernel.assignCoeffByOuterInner(outer, inner);
 
-      alignedStart = numext::mini((alignedStart + alignedStep) % packetSize, innerSize);
+      alignedStart = numext::mini((alignedStart + alignedStep) % PacketSize, innerSize);
     }
   }
 };
@@ -534,16 +532,12 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, InnerUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     using Traits = Kernel::AssignmentTraits;
     using PacketType = typename Kernel::PacketType;
-
-    enum {
-      innerSize = Traits::InnerSizeAtCompileTime,
-      packetSize = unpacket_traits<PacketType>::size,
-      vectorizableSize = (int(innerSize) / int(packetSize)) * int(packetSize)
-    };
+    static constexpr int InnerSize = Traits::InnerSizeAtCompileTime, PacketSize = unpacket_traits<PacketType>::size,
+                         VectorizableSize = numext::round_down(InnerSize, PacketSize);
 
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
-      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, vectorizableSize, 0, 0>::run(kernel, outer);
-      copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, vectorizableSize, innerSize>::run(kernel, outer);
+      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, 0, 0>::run(kernel, outer);
+      copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, VectorizableSize, InnerSize>::run(kernel, outer);
     }
   }
 };
