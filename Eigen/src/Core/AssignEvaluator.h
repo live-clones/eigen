@@ -43,11 +43,10 @@ struct copy_using_evaluator_traits {
   static constexpr int DstAlignment = DstEvaluator::Alignment, SrcAlignment = SrcEvaluator::Alignment,
                        JointAlignment = plain_enum_min(DstAlignment, SrcAlignment);
 
-  // private:
+ private:
   static constexpr int RowsAtCompileTime = size_prefer_fixed(Src::RowsAtCompileTime, Dst::RowsAtCompileTime),
                        ColsAtCompileTime = size_prefer_fixed(Src::ColsAtCompileTime, Dst::ColsAtCompileTime),
-                       // SizeAtCompileTime = size_prefer_fixed(Src::SizeAtCompileTime, Dst::SizeAtCompileTime),
-      SizeAtCompileTime = size_prefer_fixed(Src::SizeAtCompileTime, Dst::SizeAtCompileTime),
+                       SizeAtCompileTime = size_prefer_fixed(Src::SizeAtCompileTime, Dst::SizeAtCompileTime),
                        MaxRowsAtCompileTime =
                            min_size_prefer_fixed(Src::MaxRowsAtCompileTime, Dst::MaxRowsAtCompileTime),
                        MaxColsAtCompileTime =
@@ -88,8 +87,8 @@ struct copy_using_evaluator_traits {
                         LinearAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment),
                         MayLinearVectorize =
                             MightVectorize && MayLinearize && DstHasDirectAccess &&
-                            (LinearAlignmentOk ||
-                             (MaxSizeAtCompileTime == Dynamic ? true : MaxSizeAtCompileTime >= LinearPacketSize)),
+                            (LinearAlignmentOk || MaxSizeAtCompileTime == Dynamic) &&
+                            (MaxSizeAtCompileTime == Dynamic ? true : MaxSizeAtCompileTime >= LinearPacketSize),
                         /* If the destination isn't aligned, we have to do runtime checks and we don't unroll, so it's
                            only good for large enough sizes. slice vectorization can be slow, so we only want it if the
                            slices are big, which is indicated by MaxInnerSizeAtCompileTime rather than
