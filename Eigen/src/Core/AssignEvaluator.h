@@ -86,9 +86,10 @@ struct copy_using_evaluator_traits {
                                             InnerAlignmentOk,
                         MayLinearize = StorageOrdersAgree && bool(DstFlags & SrcFlags & LinearAccessBit),
                         LinearAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment),
-                        MayLinearVectorize = MightVectorize && MayLinearize && DstHasDirectAccess &&
-                                             (LinearAlignmentOk || (MaxSizeAtCompileTime == Dynamic)) &&
-                                             (MaxSizeAtCompileTime >= LinearPacketSize),
+                        MayLinearVectorize =
+                            MightVectorize && MayLinearize && DstHasDirectAccess &&
+                            (LinearAlignmentOk ||
+                             (MaxSizeAtCompileTime == Dynamic ? true : MaxSizeAtCompileTime >= LinearPacketSize)),
                         /* If the destination isn't aligned, we have to do runtime checks and we don't unroll, so it's
                            only good for large enough sizes. slice vectorization can be slow, so we only want it if the
                            slices are big, which is indicated by MaxInnerSizeAtCompileTime rather than
