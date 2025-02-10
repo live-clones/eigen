@@ -442,6 +442,7 @@ template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, CompleteUnrolling> {
   using Traits = typename Kernel::AssignmentTraits;
   static constexpr int Size = Traits::SizeAtCompileTime;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
     copy_using_evaluator_innervec_CompleteUnrolling<Kernel, 0, Size>::run(kernel);
   }
@@ -449,12 +450,15 @@ struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, CompleteUnrolling
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, InnerUnrolling> {
+  using Traits = typename Kernel::AssignmentTraits;
+  static constexpr int InnerSizeAtCompileTime = Traits::InnerSizeAtCompileTime, SrcAlignment = Traits::SrcAlignment,
+                       DstAlignment = Traits::DstAlignment;
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    using Traits = typename Kernel::AssignmentTraits;
     const Index outerSize = kernel.outerSize();
     for (Index outer = 0; outer < outerSize; ++outer)
-      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, Traits::InnerSizeAtCompileTime, Traits::SrcAlignment,
-                                                   Traits::DstAlignment>::run(kernel, outer);
+      copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, InnerSizeAtCompileTime, SrcAlignment, DstAlignment>::run(
+          kernel, outer);
   }
 };
 

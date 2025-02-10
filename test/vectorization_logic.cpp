@@ -231,7 +231,7 @@ struct vectorization_logic {
     }
 
     if (PacketSize > 2) {
-      // the expression should attempt vectorization if the fixed size does not support it
+      // the expression should not be vectorized if the size is too small
       using Lhs = Matrix<Scalar, 2, 1, ColMajor>;
       using Rhs = Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1>;
       VERIFY(test_assign(Lhs(2), Rhs(), LinearTraversal, CompleteUnrolling));
