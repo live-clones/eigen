@@ -231,9 +231,17 @@ struct vectorization_logic {
     }
 
     if (PacketSize > 2) {
-      typedef Matrix<Scalar, 2, 1, ColMajor> Vector2;
-      typedef Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1> Vector3;
-      VERIFY(test_assign(Vector3(2), Vector2(), LinearTraversal, CompleteUnrolling));
+      // the expression should attempt vectorization if the fixed size does not support it
+      using Lhs = Matrix<Scalar, 2, 1, ColMajor>;
+      using Rhs = Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1>;
+      VERIFY(test_assign(Lhs(2), Rhs(), LinearTraversal, CompleteUnrolling));
+    }
+
+    if (PacketSize > 1 && PacketSize < 8) {
+      // the size of the expression should be deduced at compile time by considering both the lhs and rhs
+      using Lhs = Matrix<Scalar, 7, Dynamic, ColMajor>;
+      using Rhs = Matrix<Scalar, Dynamic, 7, ColMajor>;
+      VERIFY(test_assign(Lhs(7, 7), Rhs(7, 7), LinearVectorizedTraversal, CompleteUnrolling));
     }
 
     VERIFY(test_redux(Vector1(), LinearVectorizedTraversal, CompleteUnrolling));
