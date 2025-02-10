@@ -35,7 +35,6 @@ struct copy_using_evaluator_traits {
 
   static constexpr int DstFlags = DstEvaluator::Flags, SrcFlags = SrcEvaluator::Flags;
 
- public:
   static constexpr bool DstHasDirectAccess = bool(DstFlags & DirectAccessBit),
                         DstIsRowMajor = bool(DstFlags & RowMajorBit),
                         DstIsVectorAtCompileTime = Dst::IsVectorAtCompileTime,
@@ -43,7 +42,6 @@ struct copy_using_evaluator_traits {
   static constexpr int DstAlignment = DstEvaluator::Alignment, SrcAlignment = SrcEvaluator::Alignment,
                        JointAlignment = plain_enum_min(DstAlignment, SrcAlignment);
 
- private:
   static constexpr int RowsAtCompileTime = size_prefer_fixed(Src::RowsAtCompileTime, Dst::RowsAtCompileTime),
                        ColsAtCompileTime = size_prefer_fixed(Src::ColsAtCompileTime, Dst::ColsAtCompileTime),
                        SizeAtCompileTime = size_prefer_fixed(Src::SizeAtCompileTime, Dst::SizeAtCompileTime),
@@ -70,7 +68,6 @@ struct copy_using_evaluator_traits {
   static constexpr int LinearPacketSize = unpacket_traits<LinearPacketType>::size,
                        InnerPacketSize = unpacket_traits<InnerPacketType>::size;
 
- public:
   static constexpr int LinearRequiredAlignment = unpacket_traits<LinearPacketType>::alignment,
                        InnerRequiredAlignment = unpacket_traits<InnerPacketType>::alignment;
 
