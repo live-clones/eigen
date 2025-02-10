@@ -44,8 +44,7 @@ struct copy_using_evaluator_traits {
 
   static constexpr int RowsAtCompileTime = size_prefer_fixed(Src::RowsAtCompileTime, Dst::RowsAtCompileTime),
                        ColsAtCompileTime = size_prefer_fixed(Src::ColsAtCompileTime, Dst::ColsAtCompileTime),
-                       SizeAtCompileTime =
-                           size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
+                       SizeAtCompileTime = size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
                        MaxRowsAtCompileTime =
                            min_size_prefer_fixed(Src::MaxRowsAtCompileTime, Dst::MaxRowsAtCompileTime),
                        MaxColsAtCompileTime =
