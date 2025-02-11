@@ -16,25 +16,13 @@
 namespace Eigen {
 namespace internal {
 
-template <>
-EIGEN_STRONG_INLINE PacketXf pexp<PacketXf>(const PacketXf& x) {
-  return pexp_float(x);
-}
+EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_FLOAT(PacketXf)
+EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_FLOAT(PacketMul2Xf)
+EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_FLOAT(PacketMul4Xf)
 
-template <>
-EIGEN_STRONG_INLINE PacketXf plog<PacketXf>(const PacketXf& x) {
-  return plog_float(x);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXf psin<PacketXf>(const PacketXf& x) {
-  return psin_float(x);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXf pcos<PacketXf>(const PacketXf& x) {
-  return pcos_float(x);
-}
+EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(PacketXd)
+EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(PacketMul2Xd)
+EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(PacketMul4Xd)
 
 }  // end namespace internal
 }  // end namespace Eigen
