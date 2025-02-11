@@ -230,11 +230,11 @@ struct vectorization_logic {
                          InnerUnrolling + CompleteUnrolling));
     }
 
-    if (PacketSize > 2) {
+    if (PacketSize > 2 && !internal::find_packet_by_size<Scalar, 2>::value) {
       // the expression should not be vectorized if the size is too small
       using Lhs = Matrix<Scalar, 2, 1, ColMajor>;
       using Rhs = Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1>;
-      VERIFY(test_assign(Lhs(2), Rhs(), -1, InnerUnrolling + CompleteUnrolling));
+      VERIFY(test_assign(Lhs(2), Rhs(), LinearTraversal, InnerUnrolling + CompleteUnrolling));
     }
 
     if (PacketSize > 1 && PacketSize < 8) {
