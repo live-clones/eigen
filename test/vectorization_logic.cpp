@@ -234,14 +234,14 @@ struct vectorization_logic {
       // the expression should not be vectorized if the size is too small
       using Lhs = Matrix<Scalar, 2, 1, ColMajor>;
       using Rhs = Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1>;
-      VERIFY(test_assign(Lhs(2), Rhs(), LinearTraversal, CompleteUnrolling));
+      VERIFY(test_assign(Lhs(2), Rhs(), -1, InnerUnrolling + CompleteUnrolling));
     }
 
     if (PacketSize > 1 && PacketSize < 8) {
       // the size of the expression should be deduced at compile time by considering both the lhs and rhs
       using Lhs = Matrix<Scalar, 7, Dynamic, ColMajor>;
       using Rhs = Matrix<Scalar, Dynamic, 7, ColMajor>;
-      VERIFY(test_assign(Lhs(7, 7), Rhs(7, 7), LinearVectorizedTraversal, CompleteUnrolling));
+      VERIFY(test_assign(Lhs(7, 7), Rhs(7, 7), -1, InnerUnrolling + CompleteUnrolling));
     }
 
     VERIFY(test_redux(Vector1(), LinearVectorizedTraversal, CompleteUnrolling));
