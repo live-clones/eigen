@@ -57,8 +57,13 @@ struct copy_using_evaluator_traits {
   };
 
   // TODO distinguish between linear traversal and inner-traversals
+#ifdef EIGEN_RISCV64_USE_RVV10
+  typedef typename find_best_packet<DstScalar, RestrictedLinearSize, 4>::type LinearPacketType;
+  typedef typename find_best_packet<DstScalar, RestrictedInnerSize, 4>::type InnerPacketType;
+#else
   typedef typename find_best_packet<DstScalar, RestrictedLinearSize>::type LinearPacketType;
   typedef typename find_best_packet<DstScalar, RestrictedInnerSize>::type InnerPacketType;
+#endif
 
   enum {
     LinearPacketSize = unpacket_traits<LinearPacketType>::size,
