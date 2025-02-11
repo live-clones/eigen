@@ -230,7 +230,8 @@ struct vectorization_logic {
                          InnerUnrolling + CompleteUnrolling));
     }
 
-    if (PacketSize > 2 && !internal::find_packet_by_size<Scalar, 2>::value) {
+    // the actual packet type used by the assignment evaluator is not necessarily PacketType for small fixed-size arrays
+    if (internal::unpacket_traits<typename internal::find_best_packet<Scalar, 2>::type>::size > 2) {
       // the expression should not be vectorized if the size is too small
       using Lhs = Matrix<Scalar, 2, 1, ColMajor>;
       using Rhs = Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1>;
