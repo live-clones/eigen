@@ -302,8 +302,14 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
                                             true /* vectorizable */> {
   static inline void run(Scalar* x, Index incrx, Scalar* y, Index incry, Index size, OtherScalar c, OtherScalar s) {
 #ifdef EIGEN_RISCV64_USE_RVV10
-    typedef typename std::conditional_t<NumTraits<Scalar>::IsComplex || NumTraits<OtherScalar>::IsComplex, typename packet_traits<Scalar, 2>::type, typename packet_traits<Scalar, 4>::type> Packet;
-    typedef typename std::conditional_t<NumTraits<Scalar>::IsComplex || NumTraits<OtherScalar>::IsComplex, typename packet_traits<OtherScalar, 2>::type, typename packet_traits<OtherScalar, 4>::type> OtherPacket;
+    typedef
+        typename std::conditional_t<NumTraits<Scalar>::IsComplex || NumTraits<OtherScalar>::IsComplex,
+                                    typename packet_traits<Scalar, 2>::type, typename packet_traits<Scalar, 4>::type>
+            Packet;
+    typedef typename std::conditional_t<NumTraits<Scalar>::IsComplex || NumTraits<OtherScalar>::IsComplex,
+                                        typename packet_traits<OtherScalar, 2>::type,
+                                        typename packet_traits<OtherScalar, 4>::type>
+        OtherPacket;
 
     constexpr Index PacketSize = unpacket_traits<Packet>::size;
 #else
@@ -313,7 +319,7 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
     constexpr Index PacketSize = packet_traits<Scalar>::size;
 #endif
     constexpr int RequiredAlignment =
-          (std::max<int>)(unpacket_traits<Packet>::alignment, unpacket_traits<OtherPacket>::alignment);
+        (std::max<int>)(unpacket_traits<Packet>::alignment, unpacket_traits<OtherPacket>::alignment);
 
     /*** dynamic-size vectorized paths ***/
     if (size >= 2 * PacketSize && SizeAtCompileTime == Dynamic && ((incrx == 1 && incry == 1) || PacketSize == 1)) {

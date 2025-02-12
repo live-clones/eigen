@@ -452,7 +452,7 @@ extern "C" {
 #error "The Eigen::Half vectorization requires Zfh and Zvfh extensions."
 #endif
 
-#endif // defined(EIGEN_ARCH_RISCV)
+#endif  // defined(EIGEN_ARCH_RISCV)
 
 #elif (defined __s390x__ && defined __VEC__)
 

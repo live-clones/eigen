@@ -21,7 +21,7 @@ struct gebp_traits<float, float, false, false, Architecture::RVV10, GEBPPacketFu
     : gebp_traits<float, float, false, false, Architecture::Generic, GEBPPacketFull> {
   typedef float RhsPacket;
   typedef QuadPacket<float> RhsPacketx4;
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const {  dest = pset1<RhsPacket>(*b); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
@@ -49,7 +49,7 @@ struct gebp_traits<double, double, false, false, Architecture::RVV10, GEBPPacket
     : gebp_traits<double, double, false, false, Architecture::Generic, GEBPPacketFull> {
   typedef double RhsPacket;
   typedef QuadPacket<double> RhsPacketx4;
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const {  dest = pset1<RhsPacket>(*b); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
@@ -82,7 +82,7 @@ struct gebp_traits<half, half, false, false, Architecture::RVV10>
   typedef PacketXh AccPacket;
   typedef QuadPacket<half> RhsPacketx4;
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const {  dest = pset1<RhsPacket>(*b); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
@@ -119,10 +119,10 @@ struct gebp_traits<half, half, false, false, Architecture::RVV10>
       packet_size, typename packet_traits<Scalar>::type, typename packet_traits<Scalar>::half, \
       typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type ScalarPacket
 
-
 template <typename RealScalar, bool ConjLhs_, bool ConjRhs_, int PacketSize_>
-struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_, Architecture::RVV10, PacketSize_>
- : gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_, Architecture::Generic, PacketSize_> {
+struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_, Architecture::RVV10,
+                   PacketSize_> : gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_,
+                                              Architecture::Generic, PacketSize_> {
   typedef std::complex<RealScalar> Scalar;
   typedef std::complex<RealScalar> LhsScalar;
   typedef std::complex<RealScalar> RhsScalar;
@@ -133,7 +133,7 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Res, PacketSize_);
   RISCV_COMPLEX_PACKET_DECL_COND_SCALAR(PacketSize_);
-  #undef RISCV_COMPLEX_PACKET_DECL_COND_SCALAR
+#undef RISCV_COMPLEX_PACKET_DECL_COND_SCALAR
 
   enum {
     ConjLhs = ConjLhs_,
@@ -244,9 +244,9 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
   EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacket& b, ResPacket& c, RhsPacket& /*tmp*/,
                                 const LaneIdType&) const {
     c = cj.pmadd(a, b, c);
-  } 
-  
-protected:
+  }
+
+ protected:
   conj_helper<LhsScalar, RhsScalar, ConjLhs, ConjRhs> cj;
 };
 
@@ -255,11 +255,10 @@ protected:
       packet_size, typename packet_traits<Scalar>::type, typename packet_traits<Scalar>::half, \
       typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type ScalarPacket##postfix
 
-  template <typename RealScalar, bool ConjRhs_, int PacketSize_>
+template <typename RealScalar, bool ConjRhs_, int PacketSize_>
 class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Architecture::RVV10, PacketSize_>
- : public gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Architecture::Generic, PacketSize_>
- {
-public:
+    : public gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Architecture::Generic, PacketSize_> {
+ public:
   typedef std::complex<RealScalar> Scalar;
   typedef RealScalar LhsScalar;
   typedef Scalar RhsScalar;
@@ -367,7 +366,7 @@ public:
 
 template <typename RealScalar, bool ConjLhs_, int PacketSize_>
 class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Architecture::RVV10, PacketSize_>
-: public gebp_traits<RealScalar, std::complex<RealScalar>, ConjLhs_, false, Architecture::Generic, PacketSize_> {
+    : public gebp_traits<RealScalar, std::complex<RealScalar>, ConjLhs_, false, Architecture::Generic, PacketSize_> {
  public:
   typedef std::complex<RealScalar> LhsScalar;
   typedef RealScalar RhsScalar;
@@ -484,7 +483,6 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
     conj_helper<ResPacketType, ResPacketType, ConjLhs, false> cj;
     r = cj.pmadd(c, alpha, r);
   }
-
 };
 
 }  // namespace internal
