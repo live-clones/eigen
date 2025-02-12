@@ -21,10 +21,9 @@ namespace internal {
 
 struct PacketXcf {
   EIGEN_STRONG_INLINE PacketXcf() {}
-  EIGEN_STRONG_INLINE explicit PacketXcf(const PacketXf& _real, const PacketXf& _imag) : real(_real), imag(_imag) {
-  }
-  EIGEN_STRONG_INLINE explicit PacketXcf(const PacketMul2Xf& a) : real(__riscv_vget_v_f32m2_f32m1(a, 0)), 
-    imag(__riscv_vget_v_f32m2_f32m1(a, 1)){}
+  EIGEN_STRONG_INLINE explicit PacketXcf(const PacketXf& _real, const PacketXf& _imag) : real(_real), imag(_imag) {}
+  EIGEN_STRONG_INLINE explicit PacketXcf(const PacketMul2Xf& a)
+      : real(__riscv_vget_v_f32m2_f32m1(a, 0)), imag(__riscv_vget_v_f32m2_f32m1(a, 1)) {}
   PacketXf real;
   PacketXf imag;
 };
@@ -105,8 +104,9 @@ EIGEN_STRONG_INLINE PacketXcf pnegate(const PacketXcf& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXcf pconj(const PacketXcf& a) {
-  return PacketXcf(a.real, __riscv_vreinterpret_v_u32m1_f32m1(
-      __riscv_vxor_vx_u32m1(__riscv_vreinterpret_v_f32m1_u32m1(a.imag), 0x80000000, unpacket_traits<PacketXf>::size)));
+  return PacketXcf(
+      a.real, __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vxor_vx_u32m1(__riscv_vreinterpret_v_f32m1_u32m1(a.imag),
+                                                                       0x80000000, unpacket_traits<PacketXf>::size)));
 }
 
 template <>
@@ -152,7 +152,7 @@ EIGEN_STRONG_INLINE PacketXcf pxor<PacketXcf>(const PacketXcf& a, const PacketXc
 
 template <>
 EIGEN_STRONG_INLINE PacketXcf pandnot<PacketXcf>(const PacketXcf& a, const PacketXcf& b) {
-  return  PacketXcf(pandnot<PacketXf>(a.real, b.real), pandnot<PacketXf>(a.imag, b.imag));
+  return PacketXcf(pandnot<PacketXf>(a.real, b.real), pandnot<PacketXf>(a.imag, b.imag));
 }
 
 template <>
@@ -164,27 +164,30 @@ EIGEN_STRONG_INLINE PacketXcf pload<PacketXcf>(const std::complex<float>* from) 
 template <>
 EIGEN_STRONG_INLINE PacketXcf ploadu<PacketXcf>(const std::complex<float>* from) {
   vfloat32m1x2_t res = __riscv_vlseg2e32_v_f32m1x2((const float*)from, unpacket_traits<PacketXf>::size);
-  EIGEN_DEBUG_UNALIGNED_LOAD return PacketXcf(__riscv_vget_v_f32m1x2_f32m1(res, 0), __riscv_vget_v_f32m1x2_f32m1(res, 1));
+  EIGEN_DEBUG_UNALIGNED_LOAD return PacketXcf(__riscv_vget_v_f32m1x2_f32m1(res, 0),
+                                              __riscv_vget_v_f32m1x2_f32m1(res, 1));
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXcf ploaddup<PacketXcf>(const std::complex<float>* from) {
   PacketXu real_idx = __riscv_vid_v_u32m1(unpacket_traits<PacketXf>::size);
-  real_idx = __riscv_vsll_vx_u32m1(__riscv_vand_vx_u32m1(real_idx, 0xfffffffeu, unpacket_traits<PacketXf>::size), 2, unpacket_traits<PacketXf>::size);
+  real_idx = __riscv_vsll_vx_u32m1(__riscv_vand_vx_u32m1(real_idx, 0xfffffffeu, unpacket_traits<PacketXf>::size), 2,
+                                   unpacket_traits<PacketXf>::size);
   PacketXu imag_idx = __riscv_vadd_vx_u32m1(real_idx, sizeof(float), unpacket_traits<PacketXf>::size);
   // real_idx = 0 0 2*sizeof(float) 2*sizeof(float) 4*sizeof(float) 4*sizeof(float) ...
-  return PacketXcf(__riscv_vloxei32_v_f32m1((const float*)from, real_idx, unpacket_traits<PacketXf>::size), 
-    __riscv_vloxei32_v_f32m1((const float*)from, imag_idx, unpacket_traits<PacketXf>::size));
+  return PacketXcf(__riscv_vloxei32_v_f32m1((const float*)from, real_idx, unpacket_traits<PacketXf>::size),
+                   __riscv_vloxei32_v_f32m1((const float*)from, imag_idx, unpacket_traits<PacketXf>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXcf ploadquad<PacketXcf>(const std::complex<float>* from) {
   PacketXu real_idx = __riscv_vid_v_u32m1(unpacket_traits<PacketXf>::size);
-  real_idx = __riscv_vsll_vx_u32m1(__riscv_vand_vx_u32m1(real_idx, 0xfffffffcu, unpacket_traits<PacketXf>::size), 1, unpacket_traits<PacketXf>::size);
+  real_idx = __riscv_vsll_vx_u32m1(__riscv_vand_vx_u32m1(real_idx, 0xfffffffcu, unpacket_traits<PacketXf>::size), 1,
+                                   unpacket_traits<PacketXf>::size);
   PacketXu imag_idx = __riscv_vadd_vx_u32m1(real_idx, sizeof(float), unpacket_traits<PacketXf>::size);
   // real_idx = 0 0 2*sizeof(float) 2*sizeof(float) 4*sizeof(float) 4*sizeof(float) ...
-  return PacketXcf(__riscv_vloxei32_v_f32m1((const float*)from, real_idx, unpacket_traits<PacketXf>::size), 
-    __riscv_vloxei32_v_f32m1((const float*)from, imag_idx, unpacket_traits<PacketXf>::size));
+  return PacketXcf(__riscv_vloxei32_v_f32m1((const float*)from, real_idx, unpacket_traits<PacketXf>::size),
+                   __riscv_vloxei32_v_f32m1((const float*)from, imag_idx, unpacket_traits<PacketXf>::size));
 }
 
 template <>
@@ -206,7 +209,8 @@ EIGEN_STRONG_INLINE void pstoreu<std::complex<float> >(std::complex<float>* to, 
 template <>
 EIGEN_DEVICE_FUNC inline PacketXcf pgather<std::complex<float>, PacketXcf>(const std::complex<float>* from,
                                                                            Index stride) {
-  vfloat32m1x2_t res = __riscv_vlsseg2e32_v_f32m1x2((const float*)from, 2 * stride * sizeof(float), unpacket_traits<PacketXf>::size);
+  vfloat32m1x2_t res =
+      __riscv_vlsseg2e32_v_f32m1x2((const float*)from, 2 * stride * sizeof(float), unpacket_traits<PacketXf>::size);
   return PacketXcf(__riscv_vget_v_f32m1x2_f32m1(res, 0), __riscv_vget_v_f32m1x2_f32m1(res, 1));
 }
 
@@ -259,8 +263,10 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXcf, N>& kernel) {
   }
 
   for (i = 0; i < N; i++) {
-    kernel.packet[i].real = __riscv_vle32_v_f32m1(&buffer_real[i * unpacket_traits<PacketXf>::size], unpacket_traits<PacketXf>::size);
-    kernel.packet[i].imag = __riscv_vle32_v_f32m1(&buffer_imag[i * unpacket_traits<PacketXf>::size], unpacket_traits<PacketXf>::size);
+    kernel.packet[i].real =
+        __riscv_vle32_v_f32m1(&buffer_real[i * unpacket_traits<PacketXf>::size], unpacket_traits<PacketXf>::size);
+    kernel.packet[i].imag =
+        __riscv_vle32_v_f32m1(&buffer_imag[i * unpacket_traits<PacketXf>::size], unpacket_traits<PacketXf>::size);
   }
 }
 
@@ -272,7 +278,7 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
 
   // Computes the principal sqrt of the complex numbers in the input.
   //
-  // For example, for packets containing 2 complex numbers stored in 
+  // For example, for packets containing 2 complex numbers stored in
   // [real0, real1, imag0, imag1] format
   //    a = [a0, a1] = [x0, x1, y0, y1],
   // where x0 = real(a0), y0 = imag(a0) etc., this function returns
@@ -287,7 +293,7 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
   // By equating the real and imaginary parts we get:
   //    u^2 - v^2 = x
   //    2*u*v = y.
-  // 
+  //
   // For x >= 0, this has the numerically stable solution
   //    u = sqrt(0.5 * (x + sqrt(x^2 + y^2)))
   //    v = 0.5 * (y / u)
@@ -362,7 +368,8 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
   Packet result_is_nan = pisnan(result);
   result = por(result_is_nan, result);
 
-  return pselect(Packet(is_imag_inf,is_imag_inf), imag_inf_result, pselect(Packet(is_real_inf, is_real_inf), real_inf_result, result));
+  return pselect(Packet(is_imag_inf, is_imag_inf), imag_inf_result,
+                 pselect(Packet(is_real_inf, is_real_inf), real_inf_result, result));
 }
 
 template <typename Packet>
@@ -372,7 +379,7 @@ EIGEN_STRONG_INLINE Packet plog_complex_rvv(const Packet& x) {
   typedef typename packet_traits<RealScalar>::type RealPacket;
 
   // log(sqrt(a^2 + b^2)), atan2(b, a)
-  RealPacket xlogr = plog(psqrt(padd(pmul(x.real,x.real), pmul(x.imag,x.imag))));
+  RealPacket xlogr = plog(psqrt(padd(pmul(x.real, x.real), pmul(x.imag, x.imag))));
   RealPacket ximg = patan2(x.imag, x.real);
 
   const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
@@ -387,45 +394,42 @@ EIGEN_STRONG_INLINE Packet plog_complex_rvv(const Packet& x) {
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXcf psqrt<PacketXcf>(const PacketXcf& a) 
-{
+EIGEN_STRONG_INLINE PacketXcf psqrt<PacketXcf>(const PacketXcf& a) {
   return psqrt_complex_rvv<PacketXcf>(a);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXcf plog<PacketXcf>(const PacketXcf& a)
-{
+EIGEN_STRONG_INLINE PacketXcf plog<PacketXcf>(const PacketXcf& a) {
   return plog_complex_rvv<PacketXcf>(a);
 }
 
-template <>                                                                                                       
-struct conj_helper<PacketMul2Xf, PacketXcf, false, false> {                                                      
-  EIGEN_STRONG_INLINE PacketXcf pmadd(const PacketMul2Xf& x, const PacketXcf& y, const PacketXcf& c) const { 
-    return padd(c, this->pmul(x, y));                                                                             
-  }                                                                                                               
-  EIGEN_STRONG_INLINE PacketXcf pmul(const PacketMul2Xf& x, const PacketXcf& y) const {                        
-    return PacketXcf(Eigen::internal::pmul<PacketMul2Xf>(x, pcast<PacketXcf, PacketMul2Xf>(y)));                                               
-  }                                                                                                               
-};                                                                                                                
-                                                                                                                  
-template <>                                                                                                       
-struct conj_helper<PacketXcf, PacketMul2Xf, false, false> {                                                      
-  EIGEN_STRONG_INLINE PacketXcf pmadd(const PacketXcf& x, const PacketMul2Xf& y, const PacketXcf& c) const { 
-    return padd(c, this->pmul(x, y));                                                                             
-  }                                                                                                               
-  EIGEN_STRONG_INLINE PacketXcf pmul(const PacketXcf& x, const PacketMul2Xf& y) const {                        
-    return PacketXcf(Eigen::internal::pmul<PacketMul2Xf>(pcast<PacketXcf, PacketMul2Xf>(x), y));                                               
-  }                                                                                                               
+template <>
+struct conj_helper<PacketMul2Xf, PacketXcf, false, false> {
+  EIGEN_STRONG_INLINE PacketXcf pmadd(const PacketMul2Xf& x, const PacketXcf& y, const PacketXcf& c) const {
+    return padd(c, this->pmul(x, y));
+  }
+  EIGEN_STRONG_INLINE PacketXcf pmul(const PacketMul2Xf& x, const PacketXcf& y) const {
+    return PacketXcf(Eigen::internal::pmul<PacketMul2Xf>(x, pcast<PacketXcf, PacketMul2Xf>(y)));
+  }
+};
+
+template <>
+struct conj_helper<PacketXcf, PacketMul2Xf, false, false> {
+  EIGEN_STRONG_INLINE PacketXcf pmadd(const PacketXcf& x, const PacketMul2Xf& y, const PacketXcf& c) const {
+    return padd(c, this->pmul(x, y));
+  }
+  EIGEN_STRONG_INLINE PacketXcf pmul(const PacketXcf& x, const PacketMul2Xf& y) const {
+    return PacketXcf(Eigen::internal::pmul<PacketMul2Xf>(pcast<PacketXcf, PacketMul2Xf>(x), y));
+  }
 };
 
 /********************************* double ************************************/
 
 struct PacketXcd {
   EIGEN_STRONG_INLINE PacketXcd() {}
-  EIGEN_STRONG_INLINE explicit PacketXcd(const PacketXd& _real, const PacketXd& _imag) : real(_real), imag(_imag) {
-  }
-  EIGEN_STRONG_INLINE explicit PacketXcd(const PacketMul2Xd& a) : real(__riscv_vget_v_f64m2_f64m1(a, 0)), 
-    imag(__riscv_vget_v_f64m2_f64m1(a, 1)){}
+  EIGEN_STRONG_INLINE explicit PacketXcd(const PacketXd& _real, const PacketXd& _imag) : real(_real), imag(_imag) {}
+  EIGEN_STRONG_INLINE explicit PacketXcd(const PacketMul2Xd& a)
+      : real(__riscv_vget_v_f64m2_f64m1(a, 0)), imag(__riscv_vget_v_f64m2_f64m1(a, 1)) {}
   PacketXd real;
   PacketXd imag;
 };
@@ -506,8 +510,9 @@ EIGEN_STRONG_INLINE PacketXcd pnegate(const PacketXcd& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXcd pconj(const PacketXcd& a) {
-  return PacketXcd(a.real, __riscv_vreinterpret_v_u64m1_f64m1(
-      __riscv_vxor_vx_u64m1(__riscv_vreinterpret_v_f64m1_u64m1(a.imag), 0x8000000000000000, unpacket_traits<PacketXd>::size)));
+  return PacketXcd(
+      a.real, __riscv_vreinterpret_v_u64m1_f64m1(__riscv_vxor_vx_u64m1(
+                  __riscv_vreinterpret_v_f64m1_u64m1(a.imag), 0x8000000000000000, unpacket_traits<PacketXd>::size)));
 }
 
 template <>
@@ -553,7 +558,7 @@ EIGEN_STRONG_INLINE PacketXcd pxor<PacketXcd>(const PacketXcd& a, const PacketXc
 
 template <>
 EIGEN_STRONG_INLINE PacketXcd pandnot<PacketXcd>(const PacketXcd& a, const PacketXcd& b) {
-  return  PacketXcd(pandnot<PacketXd>(a.real, b.real), pandnot<PacketXd>(a.imag, b.imag));
+  return PacketXcd(pandnot<PacketXd>(a.real, b.real), pandnot<PacketXd>(a.imag, b.imag));
 }
 
 template <>
@@ -565,27 +570,32 @@ EIGEN_STRONG_INLINE PacketXcd pload<PacketXcd>(const std::complex<double>* from)
 template <>
 EIGEN_STRONG_INLINE PacketXcd ploadu<PacketXcd>(const std::complex<double>* from) {
   vfloat64m1x2_t res = __riscv_vlseg2e64_v_f64m1x2((const double*)from, unpacket_traits<PacketXd>::size);
-  EIGEN_DEBUG_UNALIGNED_LOAD return PacketXcd(__riscv_vget_v_f64m1x2_f64m1(res, 0), __riscv_vget_v_f64m1x2_f64m1(res, 1));
+  EIGEN_DEBUG_UNALIGNED_LOAD return PacketXcd(__riscv_vget_v_f64m1x2_f64m1(res, 0),
+                                              __riscv_vget_v_f64m1x2_f64m1(res, 1));
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* from) {
   PacketXul real_idx = __riscv_vid_v_u64m1(unpacket_traits<PacketXd>::size);
-  real_idx = __riscv_vsll_vx_u64m1(__riscv_vand_vx_u64m1(real_idx, 0xfffffffffffffffeu, unpacket_traits<PacketXd>::size), 3, unpacket_traits<PacketXd>::size);
+  real_idx =
+      __riscv_vsll_vx_u64m1(__riscv_vand_vx_u64m1(real_idx, 0xfffffffffffffffeu, unpacket_traits<PacketXd>::size), 3,
+                            unpacket_traits<PacketXd>::size);
   PacketXul imag_idx = __riscv_vadd_vx_u64m1(real_idx, sizeof(double), unpacket_traits<PacketXd>::size);
   // real_idx = 0 0 2*sizeof(double) 2*sizeof(double) 4*sizeof(double) 4*sizeof(double) ...
-  return PacketXcd(__riscv_vloxei64_v_f64m1((const double*)from, real_idx, unpacket_traits<PacketXd>::size), 
-    __riscv_vloxei64_v_f64m1((const double*)from, imag_idx, unpacket_traits<PacketXd>::size));
+  return PacketXcd(__riscv_vloxei64_v_f64m1((const double*)from, real_idx, unpacket_traits<PacketXd>::size),
+                   __riscv_vloxei64_v_f64m1((const double*)from, imag_idx, unpacket_traits<PacketXd>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXcd ploadquad<PacketXcd>(const std::complex<double>* from) {
   PacketXul real_idx = __riscv_vid_v_u64m1(unpacket_traits<PacketXd>::size);
-  real_idx = __riscv_vsll_vx_u64m1(__riscv_vand_vx_u64m1(real_idx, 0xfffffffffffffffcu, unpacket_traits<PacketXd>::size), 2, unpacket_traits<PacketXd>::size);
+  real_idx =
+      __riscv_vsll_vx_u64m1(__riscv_vand_vx_u64m1(real_idx, 0xfffffffffffffffcu, unpacket_traits<PacketXd>::size), 2,
+                            unpacket_traits<PacketXd>::size);
   PacketXul imag_idx = __riscv_vadd_vx_u64m1(real_idx, sizeof(double), unpacket_traits<PacketXd>::size);
   // real_idx = 0 0 2*sizeof(double) 2*sizeof(double) 4*sizeof(double) 4*sizeof(double) ...
-  return PacketXcd(__riscv_vloxei64_v_f64m1((const double*)from, real_idx, unpacket_traits<PacketXd>::size), 
-    __riscv_vloxei64_v_f64m1((const double*)from, imag_idx, unpacket_traits<PacketXd>::size));
+  return PacketXcd(__riscv_vloxei64_v_f64m1((const double*)from, real_idx, unpacket_traits<PacketXd>::size),
+                   __riscv_vloxei64_v_f64m1((const double*)from, imag_idx, unpacket_traits<PacketXd>::size));
 }
 
 template <>
@@ -606,18 +616,20 @@ EIGEN_STRONG_INLINE void pstoreu<std::complex<double> >(std::complex<double>* to
 
 template <>
 EIGEN_DEVICE_FUNC inline PacketXcd pgather<std::complex<double>, PacketXcd>(const std::complex<double>* from,
-                                                                           Index stride) {
-  vfloat64m1x2_t res = __riscv_vlsseg2e64_v_f64m1x2((const double*)from, 2 * stride * sizeof(double), unpacket_traits<PacketXd>::size);
+                                                                            Index stride) {
+  vfloat64m1x2_t res =
+      __riscv_vlsseg2e64_v_f64m1x2((const double*)from, 2 * stride * sizeof(double), unpacket_traits<PacketXd>::size);
   return PacketXcd(__riscv_vget_v_f64m1x2_f64m1(res, 0), __riscv_vget_v_f64m1x2_f64m1(res, 1));
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<std::complex<double>, PacketXcd>(std::complex<double>* to, const PacketXcd& from,
-                                                                       Index stride) {
+                                                                        Index stride) {
   vfloat64m1x2_t from_rvv_type = __riscv_vundefined_f64m1x2();
   from_rvv_type = __riscv_vset_v_f64m1_f64m1x2(from_rvv_type, 0, from.real);
   from_rvv_type = __riscv_vset_v_f64m1_f64m1x2(from_rvv_type, 1, from.imag);
-  __riscv_vssseg2e64_v_f64m1x2((double*)to, 2 * stride * sizeof(double), from_rvv_type, unpacket_traits<PacketXd>::size);
+  __riscv_vssseg2e64_v_f64m1x2((double*)to, 2 * stride * sizeof(double), from_rvv_type,
+                               unpacket_traits<PacketXd>::size);
 }
 
 template <>
@@ -660,41 +672,41 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXcd, N>& kernel) {
   }
 
   for (i = 0; i < N; i++) {
-    kernel.packet[i].real = __riscv_vle64_v_f64m1(&buffer_real[i * unpacket_traits<PacketXd>::size], unpacket_traits<PacketXd>::size);
-    kernel.packet[i].imag = __riscv_vle64_v_f64m1(&buffer_imag[i * unpacket_traits<PacketXd>::size], unpacket_traits<PacketXd>::size);
+    kernel.packet[i].real =
+        __riscv_vle64_v_f64m1(&buffer_real[i * unpacket_traits<PacketXd>::size], unpacket_traits<PacketXd>::size);
+    kernel.packet[i].imag =
+        __riscv_vle64_v_f64m1(&buffer_imag[i * unpacket_traits<PacketXd>::size], unpacket_traits<PacketXd>::size);
   }
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXcd psqrt<PacketXcd>(const PacketXcd& a) 
-{
+EIGEN_STRONG_INLINE PacketXcd psqrt<PacketXcd>(const PacketXcd& a) {
   return psqrt_complex_rvv<PacketXcd>(a);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXcd plog<PacketXcd>(const PacketXcd& a)
-{
+EIGEN_STRONG_INLINE PacketXcd plog<PacketXcd>(const PacketXcd& a) {
   return plog_complex_rvv<PacketXcd>(a);
 }
 
-template <>                                                                                                       
-struct conj_helper<PacketMul2Xd, PacketXcd, false, false> {                                                      
-  EIGEN_STRONG_INLINE PacketXcd pmadd(const PacketMul2Xd& x, const PacketXcd& y, const PacketXcd& c) const { 
-    return padd(c, this->pmul(x, y));                                                                             
-  }                                                                                                               
-  EIGEN_STRONG_INLINE PacketXcd pmul(const PacketMul2Xd& x, const PacketXcd& y) const {                        
-    return PacketXcd(Eigen::internal::pmul<PacketMul2Xd>(x, pcast<PacketXcd, PacketMul2Xd>(y)));                                               
-  }                                                                                                               
-};                                                                                                                
-                                                                                                                  
-template <>                                                                                                       
-struct conj_helper<PacketXcd, PacketMul2Xd, false, false> {                                                      
-  EIGEN_STRONG_INLINE PacketXcd pmadd(const PacketXcd& x, const PacketMul2Xd& y, const PacketXcd& c) const { 
-    return padd(c, this->pmul(x, y));                                                                             
-  }                                                                                                               
-  EIGEN_STRONG_INLINE PacketXcd pmul(const PacketXcd& x, const PacketMul2Xd& y) const {                        
-    return PacketXcd(Eigen::internal::pmul<PacketMul2Xd>(pcast<PacketXcd, PacketMul2Xd>(x), y));                                               
-  }                                                                                                               
+template <>
+struct conj_helper<PacketMul2Xd, PacketXcd, false, false> {
+  EIGEN_STRONG_INLINE PacketXcd pmadd(const PacketMul2Xd& x, const PacketXcd& y, const PacketXcd& c) const {
+    return padd(c, this->pmul(x, y));
+  }
+  EIGEN_STRONG_INLINE PacketXcd pmul(const PacketMul2Xd& x, const PacketXcd& y) const {
+    return PacketXcd(Eigen::internal::pmul<PacketMul2Xd>(x, pcast<PacketXcd, PacketMul2Xd>(y)));
+  }
+};
+
+template <>
+struct conj_helper<PacketXcd, PacketMul2Xd, false, false> {
+  EIGEN_STRONG_INLINE PacketXcd pmadd(const PacketXcd& x, const PacketMul2Xd& y, const PacketXcd& c) const {
+    return padd(c, this->pmul(x, y));
+  }
+  EIGEN_STRONG_INLINE PacketXcd pmul(const PacketXcd& x, const PacketMul2Xd& y) const {
+    return PacketXcd(Eigen::internal::pmul<PacketMul2Xd>(pcast<PacketXcd, PacketMul2Xd>(x), y));
+  }
 };
 
 }  // end namespace internal
