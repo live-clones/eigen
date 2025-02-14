@@ -41,8 +41,8 @@ struct copy_using_evaluator_traits {
   static constexpr int SrcAlignment = SrcEvaluator::Alignment;
   static constexpr int JointAlignment = plain_enum_min(DstAlignment, SrcAlignment);
   static constexpr bool DstHasDirectAccess = bool(DstFlags & DirectAccessBit);
-  static constexpr bool SrcIsRowMajor = Src::IsRowMajor;
-  static constexpr bool DstIsRowMajor = Dst::IsRowMajor;
+  static constexpr bool SrcIsRowMajor = bool(SrcFlags & RowMajorBit);
+  static constexpr bool DstIsRowMajor = bool(DstFlags & RowMajorBit);
   static constexpr bool IsVectorAtCompileTime = Dst::IsVectorAtCompileTime;
   static constexpr int RowsAtCompileTime = Dst::RowsAtCompileTime;
   static constexpr int ColsAtCompileTime = Dst::ColsAtCompileTime;
@@ -525,12 +525,12 @@ struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, NoUnrolling> {
 #if EIGEN_UNALIGNED_VECTORIZE
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, SliceVectorizedTraversal, InnerUnrolling> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
-    using PacketType = typename Kernel::PacketType;
-    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    static constexpr int InnerSize = Kernel::AssignmentTraits::InnerSizeAtCompileTime;
-    static constexpr int VectorizableSize = numext::round_down(InnerSize, PacketSize);
+  using PacketType = typename Kernel::PacketType;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+  static constexpr int InnerSize = Kernel::AssignmentTraits::InnerSizeAtCompileTime;
+  static constexpr int VectorizableSize = numext::round_down(InnerSize, PacketSize);
 
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
       copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, 0, 0>::run(kernel, outer);
       copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, VectorizableSize, InnerSize>::run(kernel, outer);
