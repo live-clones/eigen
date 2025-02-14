@@ -403,12 +403,12 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
 
 template <typename Kernel>
 struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, CompleteUnrolling> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
-    using PacketType = typename Kernel::PacketType;
-    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    static constexpr int Size = Kernel::AssignmentTraits::SizeAtCompileTime;
-    static constexpr int AlignedSize = numext::round_down(Size, PacketSize);
+  using PacketType = typename Kernel::PacketType;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+  static constexpr int Size = Kernel::AssignmentTraits::SizeAtCompileTime;
+  static constexpr int AlignedSize = numext::round_down(Size, PacketSize);
 
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, AlignedSize>::run(kernel);
     copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, AlignedSize, Size>::run(kernel);
   }
