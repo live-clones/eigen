@@ -148,8 +148,8 @@ struct copy_using_evaluator_traits {
     EIGEN_DEBUG_VAR(LinearRequiredAlignment)
     EIGEN_DEBUG_VAR(InnerRequiredAlignment)
     EIGEN_DEBUG_VAR(JointAlignment)
-    EIGEN_DEBUG_VAR(InnerSize)
-    EIGEN_DEBUG_VAR(InnerMaxSize)
+    EIGEN_DEBUG_VAR(InnerSizeAtCompileTime)
+    EIGEN_DEBUG_VAR(MaxInnerSizeAtCompileTime)
     EIGEN_DEBUG_VAR(LinearPacketSize)
     EIGEN_DEBUG_VAR(InnerPacketSize)
     EIGEN_DEBUG_VAR(ActualPacketSize)
@@ -423,7 +423,7 @@ template <typename Kernel>
 struct dense_assignment_loop<Kernel, InnerVectorizedTraversal, NoUnrolling> {
   using PacketType = typename Kernel::PacketType;
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-  static constexpr int SrcAlignment = Kernel::JointAlignment;
+  static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
   static constexpr int DstAlignment = Kernel::AssignmentTraits::DstAlignment;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
