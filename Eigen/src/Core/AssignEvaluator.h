@@ -393,7 +393,7 @@ struct dense_assignment_loop<Kernel, LinearVectorizedTraversal, NoUnrolling> {
     const Index alignedStart = DstIsAligned ? 0 : first_aligned<RequestedAlignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
-    unaligned_dense_assignment_loop<!DstIsAligned>::run(kernel, 0, alignedStart);
+    unaligned_dense_assignment_loop<DstIsAligned>::run(kernel, 0, alignedStart);
 
     for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
       kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
