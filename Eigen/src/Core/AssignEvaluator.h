@@ -50,13 +50,13 @@ struct copy_using_evaluator_traits {
   static constexpr int MaxRowsAtCompileTime = Dst::MaxRowsAtCompileTime;
   static constexpr int MaxColsAtCompileTime = Dst::MaxColsAtCompileTime;
   static constexpr int MaxSizeAtCompileTime = Dst::MaxSizeAtCompileTime;
-  static constexpr int InnerSize = IsVectorAtCompileTime ? SizeAtCompileTime
-                                   : DstIsRowMajor       ? ColsAtCompileTime
-                                                         : RowsAtCompileTime;
-  static constexpr int InnerMaxSize = IsVectorAtCompileTime ? MaxSizeAtCompileTime
-                                      : DstIsRowMajor       ? MaxColsAtCompileTime
-                                                            : MaxRowsAtCompileTime;
-  static constexpr int RestrictedInnerSize = min_size_prefer_fixed(InnerSize, MaxPacketSize);
+  static constexpr int InnerSizeAtCompileTime = IsVectorAtCompileTime ? SizeAtCompileTime
+                                                : DstIsRowMajor       ? ColsAtCompileTime
+                                                                      : RowsAtCompileTime;
+  static constexpr int MaxInnerSizeAtCompileTime = IsVectorAtCompileTime ? MaxSizeAtCompileTime
+                                                   : DstIsRowMajor       ? MaxColsAtCompileTime
+                                                                         : MaxRowsAtCompileTime;
+  static constexpr int RestrictedInnerSize = min_size_prefer_fixed(InnerSizeAtCompileTime, MaxPacketSize);
   static constexpr int RestrictedLinearSize = min_size_prefer_fixed(SizeAtCompileTime, MaxPacketSize);
   static constexpr int OuterStride = outer_stride_at_compile_time<Dst>::ret;
 
@@ -75,9 +75,9 @@ struct copy_using_evaluator_traits {
   static constexpr bool StorageOrdersAgree = DstIsRowMajor == SrcIsRowMajor;
   static constexpr bool MightVectorize = StorageOrdersAgree && bool(DstFlags & SrcFlags & ActualPacketAccessBit) &&
                                          bool(functor_traits<AssignFunc>::PacketAccess);
-  static constexpr bool MayInnerVectorize = MightVectorize && (InnerSize != Dynamic) &&
-                                            (InnerSize % InnerPacketSize == 0) && (OuterStride != Dynamic) &&
-                                            (OuterStride % InnerPacketSize == 0) &&
+  static constexpr bool MayInnerVectorize = MightVectorize && (InnerSizeAtCompileTime != Dynamic) &&
+                                            (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
+                                            (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
                                             (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment),
                         MayLinearize = StorageOrdersAgree && (DstFlags & SrcFlags & LinearAccessBit),
                         MayLinearVectorize = MightVectorize && MayLinearize && DstHasDirectAccess &&
@@ -87,8 +87,8 @@ struct copy_using_evaluator_traits {
      so it's only good for large enough sizes. */
   static constexpr bool MaySliceVectorize =
       MightVectorize && DstHasDirectAccess &&
-      (InnerMaxSize == Dynamic ||
-       InnerMaxSize >= (EIGEN_UNALIGNED_VECTORIZE ? InnerPacketSize : (3 * InnerPacketSize)));
+      (MaxInnerSizeAtCompileTime == Dynamic ||
+       MaxInnerSizeAtCompileTime >= (EIGEN_UNALIGNED_VECTORIZE ? InnerPacketSize : (3 * InnerPacketSize)));
   /* slice vectorization can be slow, so we only want it if the slices are big, which is
      indicated by InnerMaxSize rather than InnerSize, think of the case of a dynamic block
      in a fixed-size matrix
@@ -114,7 +114,8 @@ struct copy_using_evaluator_traits {
   static constexpr int CoeffReadCost = int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost);
   static constexpr bool MayUnrollCompletely =
       (SizeAtCompileTime != Dynamic) && (SizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
-  static constexpr bool MayUnrollInner = (InnerSize != Dynamic) && (InnerSize * CoeffReadCost <= UnrollingLimit);
+  static constexpr bool MayUnrollInner =
+      (InnerSizeAtCompileTime != Dynamic) && (InnerSizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
 
  public:
   static constexpr int Unrolling =
