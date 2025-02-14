@@ -29,8 +29,8 @@ namespace internal {
 
 template <typename DstEvaluator, typename SrcEvaluator, typename AssignFunc, int MaxPacketSize = -1>
 struct copy_using_evaluator_traits {
-  using Src = SrcEvaluator::XprType;
-  using Dst = DstEvaluator::XprType;
+  using Src = typename SrcEvaluator::XprType;
+  using Dst = typename DstEvaluator::XprType;
   using DstScalar = typename Dst::Scalar;
 
   static constexpr int DstFlags = DstEvaluator::Flags;
