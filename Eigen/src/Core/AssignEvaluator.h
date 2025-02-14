@@ -617,16 +617,16 @@ class generic_dense_assignment_kernel {
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner) {
     typedef typename DstEvaluatorType::ExpressionTraits Traits;
-    return Traits::RowsAtCompileTime == 1               ? 0
-           : Traits::ColsAtCompileTime == 1             ? inner
+    return int(Traits::RowsAtCompileTime) == 1          ? 0
+           : int(Traits::ColsAtCompileTime) == 1        ? inner
            : int(DstEvaluatorType::Flags) & RowMajorBit ? outer
                                                         : inner;
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index colIndexByOuterInner(Index outer, Index inner) {
     typedef typename DstEvaluatorType::ExpressionTraits Traits;
-    return Traits::ColsAtCompileTime == 1               ? 0
-           : Traits::RowsAtCompileTime == 1             ? inner
+    return int(Traits::ColsAtCompileTime) == 1          ? 0
+           : int(Traits::RowsAtCompileTime) == 1        ? inner
            : int(DstEvaluatorType::Flags) & RowMajorBit ? inner
                                                         : outer;
   }
