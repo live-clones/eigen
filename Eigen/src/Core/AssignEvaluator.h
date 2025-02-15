@@ -89,10 +89,10 @@ struct copy_using_evaluator_traits {
       (MaxSizeAtCompileTime == Dynamic || MaxSizeAtCompileTime >= LinearPacketSize);
   /* If the destination isn't aligned, we have to do runtime checks and we don't unroll,
      so it's only good for large enough sizes. */
+  static constexpr int InnerSizeThreshold = (EIGEN_UNALIGNED_VECTORIZE ? 1 : 3) : InnerPacketSize;
   static constexpr bool MaySliceVectorize =
       MightVectorize && DstHasDirectAccess &&
-      (MaxInnerSizeAtCompileTime == Dynamic ||
-       MaxInnerSizeAtCompileTime >= (EIGEN_UNALIGNED_VECTORIZE ? InnerPacketSize : (3 * InnerPacketSize)));
+      (MaxInnerSizeAtCompileTime == Dynamic || MaxInnerSizeAtCompileTime >= InnerSizeThreshold);
   /* slice vectorization can be slow, so we only want it if the slices are big, which is
      indicated by InnerMaxSize rather than InnerSize, think of the case of a dynamic block
      in a fixed-size matrix
