@@ -44,12 +44,15 @@ struct copy_using_evaluator_traits {
   static constexpr bool SrcIsRowMajor = bool(SrcFlags & RowMajorBit);
   static constexpr bool DstIsRowMajor = bool(DstFlags & RowMajorBit);
   static constexpr bool IsVectorAtCompileTime = Dst::IsVectorAtCompileTime;
-  static constexpr int RowsAtCompileTime = Dst::RowsAtCompileTime;
-  static constexpr int ColsAtCompileTime = Dst::ColsAtCompileTime;
-  static constexpr int SizeAtCompileTime = Dst::SizeAtCompileTime;
-  static constexpr int MaxRowsAtCompileTime = Dst::MaxRowsAtCompileTime;
-  static constexpr int MaxColsAtCompileTime = Dst::MaxColsAtCompileTime;
-  static constexpr int MaxSizeAtCompileTime = Dst::MaxSizeAtCompileTime;
+  static constexpr int RowsAtCompileTime = size_prefer_fixed(Src::RowsAtCompileTime, Dst::RowsAtCompileTime);
+  static constexpr int ColsAtCompileTime = size_prefer_fixed(Src::ColsAtCompileTime, Dst::ColsAtCompileTime);
+  static constexpr int SizeAtCompileTime = size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime);
+  static constexpr int MaxRowsAtCompileTime =
+      min_size_prefer_fixed(Src::MaxRowsAtCompileTime, Dst::MaxRowsAtCompileTime);
+  static constexpr int MaxColsAtCompileTime =
+      min_size_prefer_fixed(Src::MaxColsAtCompileTime, Dst::MaxColsAtCompileTime);
+  static constexpr int MaxSizeAtCompileTime =
+      min_size_prefer_fixed(Src::MaxSizeAtCompileTime, Dst::MaxSizeAtCompileTime);
   static constexpr int InnerSizeAtCompileTime = IsVectorAtCompileTime ? SizeAtCompileTime
                                                 : DstIsRowMajor       ? ColsAtCompileTime
                                                                       : RowsAtCompileTime;
@@ -78,11 +81,12 @@ struct copy_using_evaluator_traits {
   static constexpr bool MayInnerVectorize = MightVectorize && (InnerSizeAtCompileTime != Dynamic) &&
                                             (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
                                             (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
-                                            (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment),
-                        MayLinearize = StorageOrdersAgree && (DstFlags & SrcFlags & LinearAccessBit),
-                        MayLinearVectorize = MightVectorize && MayLinearize && DstHasDirectAccess &&
-                                             (EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment) ||
-                                              MaxSizeAtCompileTime == Dynamic);
+                                            (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment);
+  static constexpr bool MayLinearize = StorageOrdersAgree && (DstFlags & SrcFlags & LinearAccessBit);
+  static constexpr bool MayLinearVectorize =
+      MightVectorize && MayLinearize && DstHasDirectAccess &&
+      (EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment) || MaxSizeAtCompileTime == Dynamic) &&
+      (MaxSizeAtCompileTime == Dynamic || MaxSizeAtCompileTime >= LinearPacketSize);
   /* If the destination isn't aligned, we have to do runtime checks and we don't unroll,
      so it's only good for large enough sizes. */
   static constexpr bool MaySliceVectorize =
