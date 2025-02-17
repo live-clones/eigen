@@ -16,6 +16,7 @@
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
   cache:
     key: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG-BUILD"
     paths:
