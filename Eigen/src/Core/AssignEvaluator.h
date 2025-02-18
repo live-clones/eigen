@@ -27,7 +27,7 @@ namespace internal {
 
 // copy_using_evaluator_traits is based on assign_traits
 
-template <typename DstEvaluator, typename SrcEvaluator, typename AssignFunc, int MaxPacketSize = -1>
+template <typename DstEvaluator, typename SrcEvaluator, typename AssignFunc, int MaxPacketSize = Dynamic>
 struct copy_using_evaluator_traits {
   using Src = typename SrcEvaluator::XprType;
   using Dst = typename DstEvaluator::XprType;
@@ -59,8 +59,8 @@ struct copy_using_evaluator_traits {
   static constexpr int MaxInnerSizeAtCompileTime = IsVectorAtCompileTime ? MaxSizeAtCompileTime
                                                    : DstIsRowMajor       ? MaxColsAtCompileTime
                                                                          : MaxRowsAtCompileTime;
-  static constexpr int RestrictedInnerSize = min_size_prefer_fixed(InnerSizeAtCompileTime, MaxPacketSize);
-  static constexpr int RestrictedLinearSize = min_size_prefer_fixed(SizeAtCompileTime, MaxPacketSize);
+  static constexpr int RestrictedInnerSize = min_size_prefer_fixed(MaxInnerSizeAtCompileTime, MaxPacketSize);
+  static constexpr int RestrictedLinearSize = min_size_prefer_fixed(MaxSizeAtCompileTime, MaxPacketSize);
   static constexpr int OuterStride = outer_stride_at_compile_time<Dst>::ret;
 
   // TODO distinguish between linear traversal and inner-traversals
