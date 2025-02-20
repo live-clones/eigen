@@ -191,7 +191,7 @@ struct copy_using_evaluator_DefaultTraversal_CompleteUnrolling {
   static constexpr int Outer = Index_ / Kernel::AssignmentTraits::InnerSizeAtCompileTime;
   static constexpr int Inner = Index_ % Kernel::AssignmentTraits::InnerSizeAtCompileTime;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     kernel.assignCoeffByOuterInner(Outer, Inner);
     copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, Index_ + 1, Stop>::run(kernel);
   }
@@ -204,7 +204,7 @@ struct copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, Stop, Sto
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_DefaultTraversal_InnerUnrolling {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, Index outer) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel, Index outer) {
     kernel.assignCoeffByOuterInner(outer, Index_);
     copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Index_ + 1, Stop>::run(kernel, outer);
   }
@@ -212,7 +212,7 @@ struct copy_using_evaluator_DefaultTraversal_InnerUnrolling {
 
 template <typename Kernel, int Stop>
 struct copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Stop, Stop> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&, Index) {}
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
 /***********************
@@ -221,7 +221,7 @@ struct copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Stop, Stop> 
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_LinearTraversal_CompleteUnrolling {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     kernel.assignCoeff(Index_);
     copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Index_ + 1, Stop>::run(kernel);
   }
@@ -229,7 +229,7 @@ struct copy_using_evaluator_LinearTraversal_CompleteUnrolling {
 
 template <typename Kernel, int Stop>
 struct copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Stop, Stop> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&) {}
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&) {}
 };
 
 /**************************
@@ -270,7 +270,7 @@ struct copy_using_evaluator_innervec_InnerUnrolling {
 
 template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
 struct copy_using_evaluator_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlignment, DstAlignment> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel&, Index) {}
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
 /***************************************************************************
@@ -330,7 +330,7 @@ template <typename Kernel>
 struct dense_assignment_loop_impl<Kernel, DefaultTraversal, CompleteUnrolling> {
   static constexpr int SizeAtCompileTime = Kernel::AssignmentTraits::SizeAtCompileTime;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, 0, SizeAtCompileTime>::run(kernel);
   }
 };
@@ -339,7 +339,7 @@ template <typename Kernel>
 struct dense_assignment_loop_impl<Kernel, DefaultTraversal, InnerUnrolling> {
   static constexpr int InnerSizeAtCompileTime = Kernel::AssignmentTraits::InnerSizeAtCompileTime;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     const Index outerSize = kernel.outerSize();
     for (Index outer = 0; outer < outerSize; ++outer)
       copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, 0, InnerSizeAtCompileTime>::run(kernel, outer);
@@ -687,8 +687,8 @@ class restricted_packet_dense_assignment_kernel
  ***************************************************************************/
 
 template <typename DstXprType, typename SrcXprType, typename Functor>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void resize_if_allowed(DstXprType& dst, const SrcXprType& src,
-                                                             const Functor& /*func*/) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize_if_allowed(DstXprType& dst, const SrcXprType& src,
+                                                                       const Functor& /*func*/) {
   EIGEN_ONLY_USED_FOR_DEBUG(dst);
   EIGEN_ONLY_USED_FOR_DEBUG(src);
   eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
