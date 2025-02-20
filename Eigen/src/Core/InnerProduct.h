@@ -72,8 +72,7 @@ struct inner_product_evaluator {
       bool(LhsFlags & RhsFlags & PacketAccessBit) && Func::PacketAccess &&
       ((MaxSizeAtCompileTime == Dynamic) || (unpacket_traits<Packet>::size <= MaxSizeAtCompileTime));
 
-  EIGEN_DEVICE_FUNC
-  EIGEN_STRONG_INLINE explicit inner_product_evaluator(const Lhs& lhs, const Rhs& rhs, Func func = Func())
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit inner_product_evaluator(const Lhs& lhs, const Rhs& rhs, Func func = Func())
       : m_func(func), m_lhs(lhs), m_rhs(rhs), m_size(lhs.size()) {
     inner_product_assert<Lhs, Rhs>::run(lhs, rhs);
   }
