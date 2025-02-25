@@ -121,8 +121,9 @@ class ForkJoinScheduler {
       do_func(start, end);
       return;
     }
-    ForkJoin([start, mid, granularity, &do_func,
-              thread_pool]() { RunParallelFor(start, mid, granularity, do_func, thread_pool); },
+    ForkJoin([start, mid, granularity, &do_func, thread_pool]() {
+               RunParallelFor(start, mid, granularity, do_func, thread_pool);
+             },
              [mid, end, granularity, &do_func, thread_pool]() {
                RunParallelFor(mid, end, granularity, do_func, thread_pool);
              },
