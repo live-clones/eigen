@@ -110,7 +110,7 @@ class ForkJoinScheduler {
     // powers of two (to avoid having two addresses in the main memory pointing to the same point in the
     // cache). More specifically, we choose the midpoint at (roughly) the 9/16 mark.
     const Index size = end - start;
-    const Index offset = (9 * (size + 1) / 16) / granularity * granularity;
+    const Index offset = numext::round_down(9 * (size + 1) / 16, granularity);
     return start + offset;
   }
 
