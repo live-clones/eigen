@@ -60,7 +60,7 @@ class ForkJoinScheduler {
  public:
   // Runs `do_func` asynchronously for the range [start, end) with a specified
   // granularity. `do_func` should be of type `std::function<void(Index,
-  // Index)`. `done()` is called exactly after all tasks have been executed.
+  // Index)`. `done()` is called exactly once after all tasks have been executed.
   template <typename DoFnType, typename DoneFnType>
   static void ParallelForAsync(Index start, Index end, Index granularity, DoFnType&& do_func, DoneFnType&& done,
                                ThreadPool* thread_pool) {
