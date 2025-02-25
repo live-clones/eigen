@@ -58,29 +58,31 @@ namespace Eigen {
 // ```
 class ForkJoinScheduler {
  public:
-  // Runs `do_func` for the range [start, end) with a specified granularity.
-  // `do_func` should be of type `std::function<void(Index, Index)`.
-  template <typename DoFnType>
-  static void ParallelFor(Index start, Index end, Index granularity, DoFnType&& do_func, ThreadPool* thread_pool) {
-    Barrier barrier(1);
-    auto done = [&barrier]() { barrier.Notify(); };
-    ParallelForAsync(start, end, granularity, do_func, done, thread_pool);
-    barrier.Wait();
-  }
-
   // Runs `do_func` asynchronously for the range [start, end) with a specified
   // granularity. `do_func` should be of type `std::function<void(Index,
-  // Index)`. Notice that compared to the synchronous version, this always
-  // incurs the cost of a "thread-hop", as the root in the dispatch tree is
-  // started on a new thread from the threadpool.
+  // Index)`. `done()` is called exactly after all tasks have been executed.
   template <typename DoFnType, typename DoneFnType>
   static void ParallelForAsync(Index start, Index end, Index granularity, DoFnType&& do_func, DoneFnType&& done,
                                ThreadPool* thread_pool) {
+    if (start >= end) {
+      done();
+      return;
+    }
     thread_pool->Schedule([start, end, granularity, thread_pool, do_func = std::forward<DoFnType>(do_func),
                            done = std::forward<DoneFnType>(done)]() {
       RunParallelFor(start, end, granularity, do_func, thread_pool);
       done();
     });
+  }
+
+  // Synchronous variant of ParallelForAsync.
+  template <typename DoFnType>
+  static void ParallelFor(Index start, Index end, Index granularity, DoFnType&& do_func, ThreadPool* thread_pool) {
+    if (start >= end) return;
+    Barrier barrier(1);
+    auto done = [&barrier]() { barrier.Notify(); };
+    ParallelForAsync(start, end, granularity, do_func, done, thread_pool);
+    barrier.Wait();
   }
 
  private:
