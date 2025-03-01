@@ -23,7 +23,7 @@ namespace internal {
  */
 template <typename DstScalar, typename SrcScalar>
 struct assign_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignCoeff(DstScalar& a, const SrcScalar& b) const { a = b; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(DstScalar& a, const SrcScalar& b) const { a = b; }
 
   template <int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
@@ -50,21 +50,22 @@ struct functor_traits<assign_op<DstScalar, SrcScalar>> {
  */
 template <typename DstScalar, typename SrcScalar, typename Func>
 struct compound_assign_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignCoeff(DstScalar& a, const SrcScalar& b) const {
-    assign_op<DstScalar, SrcScalar>().assignCoeff(a, Func().operator()(a, b));
+  using assign_op = assign_op<DstScalar, SrcScalar>;
+  using traits = functor_traits<compound_assign_op<DstScalar, SrcScalar, Func>>;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(DstScalar& a, const SrcScalar& b) const {
+    assign_op().assignCoeff(a, Func().operator()(a, b));
   }
 
   template <int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
-    assign_op<DstScalar, SrcScalar>().template assignPacket<Alignment, Packet>(
-        a, Func().packetOp(ploadt<Packet, Alignment>(a), b));
+    assign_op().assignPacket<Alignment, Packet>(a, Func().packetOp(ploadt<Packet, Alignment>(a), b));
   }
 };
 
 template <typename DstScalar, typename SrcScalar, typename Func>
 struct functor_traits<compound_assign_op<DstScalar, SrcScalar, Func>> {
   enum {
-    Cost = NumTraits<DstScalar>::ReadCost + functor_traits<Func>::Cost,
+    Cost = functor_traits<assign_op<DstScalar, SrcScalar>>::Cost + functor_traits<Func>::Cost,
     PacketAccess = functor_traits<Func>::PacketAccess
   };
 };
@@ -73,15 +74,21 @@ struct functor_traits<compound_assign_op<DstScalar, SrcScalar, Func>> {
  * \brief Template functor for scalar/packet assignment with addition
  *
  */
-template <typename DstScalar, typename SrcScalar>
+template <typename DstScalar, typename SrcScalar = DstScalar>
 struct add_assign_op : compound_assign_op<DstScalar, SrcScalar, scalar_sum_op<DstScalar, SrcScalar>> {};
+
+template <typename DstScalar, typename SrcScalar>
+struct functor_traits<add_assign_op<DstScalar, SrcScalar>> : add_assign_op<DstScalar, SrcScalar>::traits {};
 
 /** \internal
  * \brief Template functor for scalar/packet assignment with subtraction
  *
  */
-template <typename DstScalar, typename SrcScalar>
+template <typename DstScalar, typename SrcScalar = DstScalar>
 struct sub_assign_op : compound_assign_op<DstScalar, SrcScalar, scalar_difference_op<DstScalar, SrcScalar>> {};
+
+template <typename DstScalar, typename SrcScalar>
+struct functor_traits<sub_assign_op<DstScalar, SrcScalar>> : sub_assign_op<DstScalar, SrcScalar>::traits {};
 
 /** \internal
  * \brief Template functor for scalar/packet assignment with multiplication
@@ -90,12 +97,18 @@ struct sub_assign_op : compound_assign_op<DstScalar, SrcScalar, scalar_differenc
 template <typename DstScalar, typename SrcScalar = DstScalar>
 struct mul_assign_op : compound_assign_op<DstScalar, SrcScalar, scalar_product_op<DstScalar, SrcScalar>> {};
 
+template <typename DstScalar, typename SrcScalar>
+struct functor_traits<mul_assign_op<DstScalar, SrcScalar>> : mul_assign_op<DstScalar, SrcScalar>::traits {};
+
 /** \internal
  * \brief Template functor for scalar/packet assignment with dividing
  *
  */
 template <typename DstScalar, typename SrcScalar = DstScalar>
 struct div_assign_op : compound_assign_op<DstScalar, SrcScalar, scalar_quotient_op<DstScalar, SrcScalar>> {};
+
+template <typename DstScalar, typename SrcScalar>
+struct functor_traits<div_assign_op<DstScalar, SrcScalar>> : div_assign_op<DstScalar, SrcScalar>::traits {};
 
 /** \internal
  * \brief Template functor for scalar/packet assignment with swapping
