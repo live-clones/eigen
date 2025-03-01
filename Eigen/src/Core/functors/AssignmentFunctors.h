@@ -57,7 +57,7 @@ struct compound_assign_op {
 
   template <int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
-    assign_op().assignPacket<Alignment, Packet>(a, Func().packetOp(ploadt<Packet, Alignment>(a), b));
+    assign_op().template assignPacket<Alignment, Packet>(a, Func().packetOp(ploadt<Packet, Alignment>(a), b));
   }
 };
 
