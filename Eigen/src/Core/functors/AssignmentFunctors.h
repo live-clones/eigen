@@ -66,7 +66,7 @@ template <typename DstScalar, typename SrcScalar, typename Func>
 struct functor_traits<compound_assign_op<DstScalar, SrcScalar, Func>> {
   enum {
     Cost = functor_traits<assign_op<DstScalar, SrcScalar>>::Cost + functor_traits<Func>::Cost,
-    PacketAccess = functor_traits<Func>::PacketAccess
+    PacketAccess = functor_traits<assign_op<DstScalar, SrcScalar>>::PacketAccess && functor_traits<Func>::PacketAccess
   };
 };
 
