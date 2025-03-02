@@ -50,15 +50,15 @@ struct functor_traits<assign_op<DstScalar, SrcScalar>> {
  */
 template <typename DstScalar, typename SrcScalar, typename Func>
 struct compound_assign_op {
-  using assign_op = assign_op<DstScalar, SrcScalar>;
   using traits = functor_traits<compound_assign_op<DstScalar, SrcScalar, Func>>;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(DstScalar& a, const SrcScalar& b) const {
-    assign_op().assignCoeff(a, Func().operator()(a, b));
+    assign_op<DstScalar, SrcScalar>().assignCoeff(a, Func().operator()(a, b));
   }
 
   template <int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
-    assign_op().template assignPacket<Alignment, Packet>(a, Func().packetOp(ploadt<Packet, Alignment>(a), b));
+    assign_op<DstScalar, SrcScalar>().template assignPacket<Alignment, Packet>(
+        a, Func().packetOp(ploadt<Packet, Alignment>(a), b));
   }
 };
 
