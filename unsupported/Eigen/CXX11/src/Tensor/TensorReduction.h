@@ -380,7 +380,7 @@ struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
       return;
     }
     const Index blocksize = num_coeffs / num_threads;
-    const Index numblocks = num_coeffs / blocksize;
+    const Index numblocks = blocksize > 0 ? num_coeffs / blocksize : 0;
     eigen_assert(num_coeffs >= numblocks * blocksize);
 
     MaxSizeVector<typename Self::CoeffReturnType> shards(numblocks, reducer.initialize());
