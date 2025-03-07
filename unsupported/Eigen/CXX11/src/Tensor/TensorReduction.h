@@ -383,8 +383,8 @@ struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
     const Index numblocks = blocksize > 0 ? num_coeffs / blocksize : 0;
     eigen_assert(num_coeffs >= numblocks * blocksize);
 
+    Barrier barrier(internal::convert_index<unsigned int>(numblocks));
     MaxSizeVector<typename Self::CoeffReturnType> shards(numblocks, reducer.initialize());
-    Barrier barrier(numblocks);
     for (Index i = 0; i < numblocks; ++i) {
       auto run_shard = [i, blocksize, &self, &barrier, &shards, &reducer](){
         shards[i] = InnerMostDimReducer<Self, Op, Vectorizable>::reduce(self, i * blocksize, blocksize, reducer);
