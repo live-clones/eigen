@@ -112,6 +112,12 @@ struct ThreadPoolDevice {
     return 1;
   }
 
+  // TODO(rmlarsen): Remove this deprecated interface when all users have been converted.
+  template <class Function, class... Args>
+  EIGEN_STRONG_INLINE void enqueueNoNotification(Function&& f, Args&&... args) const {
+    enqueue(std::forward<Function>(f), std::forward<Args>(args)...);
+  }
+
   template <class Function, class... Args>
   EIGEN_STRONG_INLINE void enqueue(Function&& f, Args&&... args) const {
     if (sizeof...(args) > 0) {
