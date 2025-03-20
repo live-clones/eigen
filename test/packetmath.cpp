@@ -26,19 +26,19 @@ inline T REF_MUL(const T& a, const T& b) {
 }
 template <typename T>
 inline T REF_MADD(const T& a, const T& b, const T& c) {
-  return internal::pmadd(a, b, c);
+  return numext::fma(a, b, c);
 }
 template <typename T>
 inline T REF_MSUB(const T& a, const T& b, const T& c) {
-  return internal::pmsub(a, b, c);
+  return numext::fma(a, b, T(-c));
 }
 template <typename T>
 inline T REF_NMADD(const T& a, const T& b, const T& c) {
-  return internal::pnmadd(a, b, c);
+  return numext::fma(T(-a), b, c);
 }
 template <typename T>
 inline T REF_NMSUB(const T& a, const T& b, const T& c) {
-  return internal::pnmsub(a, b, c);
+  return numext::fma(T(-a), b, T(-c));
 }
 template <typename T>
 inline T REF_DIV(const T& a, const T& b) {
