@@ -3154,32 +3154,40 @@ EIGEN_STRONG_INLINE Packet8s pset1<Packet8s>(const numext::int16_t& x) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet32s>(numext::int16_t* out, const Packet32s& x) {
-  _mm512_storeu_epi16(out, x);
+  _mm512_store_epi32(out, x);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet16s>(numext::int16_t* out, const Packet16s& x) {
-  _mm256_storeu_epi16(out, x);
+#ifdef EIGEN_VECTORIZE_AVX512VL
+  _mm256_store_epi32(out, x);
+#else
+  _mm256_store_si256(reinterpret_cast<__m256i*>(out), x);
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet8s>(numext::int16_t* out, const Packet8s& x) {
-  _mm_storeu_epi16(out, x);
+#ifdef EIGEN_VECTORIZE_AVX512VL
+  _mm256_store_epi32(out, x);
+#else
+  _mm_store_si128(reinterpret_cast<__m128i*>(out), x);
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu<numext::int16_t, Packet32s>(numext::int16_t* out, const Packet32s& x) {
-  _mm512_storeu_epi16(out, x);
+  _mm512_storeu_epi32(out, x);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu<numext::int16_t, Packet16s>(numext::int16_t* out, const Packet16s& x) {
-  _mm256_storeu_epi16(out, x);
+  _mm256_storeu_epi32(out, x);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu<numext::int16_t, Packet8s>(numext::int16_t* out, const Packet8s& x) {
-  _mm_storeu_epi16(out, x);
+  _mm_storeu_epi32(out, x);
 }
 
 template <>
