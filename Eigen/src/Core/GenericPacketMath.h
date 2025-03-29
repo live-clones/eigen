@@ -1562,6 +1562,65 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
   return (Packet)pand(result, peven_mask(result));  // atan2 0    atan2 0    ...
 }
 
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
+                                              Index count) {
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  Scalar aux[PacketSize];
+  for (Index i = begin; i < begin + count; i++) aux[i] = from[i];
+  return ploadu<Packet>(aux);
+}
+
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet ploadSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
+                                             Index count) {
+  // todo: a full aligned load should be safe, i.e. return pload<Packet>(from), even if reading past the allocated
+  // memory boundary, provided that the unitialized data is not referneced
+  // evaluate if this can be implemented without triggering asan asserts
+  return ploaduSegment<Packet>(from, begin, count);
+}
+
+/** \internal copy the packet \a from in the range [begin, end) to \a *to.
+Elements outside of the range [begin, end) are not defined. \a *to does not need to be aligned */
+template <typename Scalar, typename Packet>
+EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Index begin, Index count) {
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  Scalar aux[PacketSize];
+  pstoreu<Scalar, Packet>(aux, from);
+  for (Index i = begin; i < begin + count; i++) {
+    to[i] = aux[i];
+  }
+}
+
+/** \internal copy the packet \a from in the range [begin, end) to \a *to.
+Elements outside of the range [begin, end) are not defined. \a *to must be aligned */
+template <typename Scalar, typename Packet>
+EIGEN_DEVICE_FUNC inline void pstoreSegment(Scalar* to, const Packet& from, Index begin, Index count) {
+  return pstoreuSegment(to, from, begin, count);
+}
+
+/** \internal \returns a packet version of \a *from, in the range [begin, end).
+Elements outside of the range [begin, end) are not defined. */
+template <typename Packet, int Alignment>
+EIGEN_DEVICE_FUNC inline Packet ploadtSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
+                                              Index count) {
+  eigen_assert((begin >= 0 && count >= 0 && begin + count <= unpacket_traits<Packet>::size) && "invalid range");
+  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment)
+  return ploadSegment<Packet>(from, begin, count);
+  else return ploaduSegment<Packet>(from, begin, count);
+}
+
+/** \internal copy the packet \a from in the range [begin, end) to \a *to.
+Elements outside of the range [begin, end) are not defined. */
+template <typename Scalar, typename Packet, int Alignment>
+EIGEN_DEVICE_FUNC inline void pstoretSegment(Scalar* to, const Packet& from, Index begin, Index count) {
+  eigen_assert((begin >= 0 && count >= 0 && begin + count <= unpacket_traits<Packet>::size) && "invalid range");
+  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment)
+  pstoreSegment<Scalar, Packet>(to, from, begin, count);
+  else pstoreuSegment<Scalar, Packet>(to, from, begin, count);
+}
+
 }  // end namespace internal
 
 }  // end namespace Eigen
