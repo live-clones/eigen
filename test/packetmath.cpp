@@ -629,10 +629,7 @@ void packetmath() {
   negate_test<Scalar, Packet>(data1, data2, ref, PacketSize);
   CHECK_CWISE1_IF(PacketTraits::HasReciprocal, REF_RECIPROCAL, internal::preciprocal);
   CHECK_CWISE1(numext::conj, internal::pconj);
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
   CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
 
   for (int offset = 0; offset < 3; ++offset) {
