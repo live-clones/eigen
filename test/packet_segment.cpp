@@ -9,12 +9,10 @@
 
 #include "main.h"
 
-template <typename Packet, bool Run = internal::has_packet_segment<Packet>::value>
+template <typename Scalar, int PacketSize, bool Run = internal::find_packet_by_size<Scalar, PacketSize>::value>
 struct packet_segment_test_impl {
-  using Scalar = typename internal::unpacket_traits<Packet>::type;
+  using Packet = typename internal::find_packet_by_size<Scalar, PacketSize>::type;
   static void test_unaligned() {
-    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
-
     // test loading a packet segment from unaligned memory that includes unallocated memory
 
     // | X   X   X   X | *   *   *   X | X   X   X   X |
@@ -56,8 +54,6 @@ struct packet_segment_test_impl {
     VERIFY_IS_CWISE_EQUAL(data_in, data_out);
   }
   static void test_aligned() {
-    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
-
     // test loading a packet segment from aligned memory that includes unallocated memory
 
     // | X   X   X   X | *   *   *   X | X   X   X   X |
@@ -86,26 +82,27 @@ struct packet_segment_test_impl {
   }
 };
 
-template <typename Packet>
-struct packet_segment_test_impl<Packet, false> {
+template <typename Scalar, int PacketSize>
+struct packet_segment_test_impl<Scalar, PacketSize, false> {
   static void run() {}
 };
 
-template <typename Packet, typename HalfPacket = typename internal::unpacket_traits<Packet>::half>
+template <typename Scalar, int PacketSize>
 struct packet_segment_test_driver {
   static void run() {
-    packet_segment_test_impl<Packet>::run();
-    packet_segment_test_driver<HalfPacket>::run();
+    packet_segment_test_impl<Scalar, PacketSize>::run();
+    packet_segment_test_driver<Scalar, PacketSize / 2>::run();
   }
 };
 
-template <typename Packet>
-struct packet_segment_test_driver<Packet, Packet> : packet_segment_test_impl<Packet> {};
+template <typename Scalar>
+struct packet_segment_test_driver<Scalar, 1> {
+  static void run() {}
+};
 
 template <typename Scalar>
 void test_packet_segment() {
-  using Packet = typename internal::packet_traits<Scalar>::type;
-  packet_segment_test_driver<Packet>::run();
+  packet_segment_test_driver<Scalar, internal::packet_traits<Scalar>::size>::run();
 }
 
 EIGEN_DECLARE_TEST(packet_segment) {
