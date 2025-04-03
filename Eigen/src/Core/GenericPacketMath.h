@@ -1562,7 +1562,6 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
   return (Packet)pand(result, peven_mask(result));  // atan2 0    atan2 0    ...
 }
 
-
 /** \internal \returns a packet populated with values in the range [begin, begin + count). Elements
  * outside this range are not defined. \a *from does not need to be aligned, and can be null if \a count is zero.*/
 template <typename Packet>
@@ -1653,7 +1652,6 @@ StreamablePacket<Packet> postream(const Packet& packet) {
 }
 
 #endif  // EIGEN_NO_IO
-
 
 }  // end namespace internal
 
