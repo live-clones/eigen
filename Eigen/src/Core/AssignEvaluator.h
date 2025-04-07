@@ -398,16 +398,17 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /
                                        /*Skip*/ false> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
-    eigen_assert(end - start <= unpacket_traits<PacketType>::size);
-    if (end > start) kernel.template assignPacketSegment<DstAlignment, SrcAlignment, PacketType>(start, 0, end - start);
+    Index count = end - start;
+    eigen_assert(count <= unpacket_traits<PacketType>::size);
+    if (count > 0) kernel.template assignPacketSegment<DstAlignment, SrcAlignment, PacketType>(start, 0, count);
   }
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index outer, Index start,
                                                                         Index end) {
-    eigen_assert(end - start <= unpacket_traits<PacketType>::size);
-    if (end > start)
-      kernel.template assignPacketSegmentByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, start, 0,
-                                                                                              end - start);
+    Index count = end - start;
+    eigen_assert(count <= unpacket_traits<PacketType>::size);
+    if (count > 0)
+      kernel.template assignPacketSegmentByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, start, 0, count);
   }
 };
 
@@ -473,26 +474,28 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
   using Scalar = typename Kernel::Scalar;
   using PacketType = typename Kernel::PacketType;
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-  static constexpr int RequestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment;
-  static constexpr bool DstIsAligned = Kernel::AssignmentTraits::DstAlignment >= RequestedAlignment;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
-  static constexpr int DstAlignment =
-      packet_traits<Scalar>::AlignedOnScalar ? RequestedAlignment : Kernel::AssignmentTraits::DstAlignment;
+  static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, 1);
+  static constexpr int RequestedAlignment = unpacket_traits<PacketType>::alignment;
+  static constexpr bool Alignable =
+      (DstAlignment >= RequestedAlignment) || ((RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
+  static constexpr int Alignment = Alignable ? RequestedAlignment : DstAlignment;
+  static constexpr bool DstIsAligned = DstAlignment >= Alignment;
   static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
 
   using head_loop =
       unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, DstIsAligned>;
-  using tail_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, false>;
+  using tail_loop = unaligned_dense_assignment_loop<PacketType, Alignment, SrcAlignment, UsePacketSegment, false>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     const Index size = kernel.size();
-    const Index alignedStart = DstIsAligned ? 0 : first_aligned<RequestedAlignment>(kernel.dstDataPtr(), size);
+    const Index alignedStart = DstIsAligned ? 0 : first_aligned<Alignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
     head_loop::run(kernel, 0, alignedStart);
 
     for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
-      kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
+      kernel.template assignPacket<Alignment, SrcAlignment, PacketType>(index);
 
     tail_loop::run(kernel, alignedEnd, size);
   }
@@ -584,37 +587,35 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   using Scalar = typename Kernel::Scalar;
   using PacketType = typename Kernel::PacketType;
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
-  static constexpr int RequestedAlignment = Kernel::AssignmentTraits::InnerRequiredAlignment;
+  static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+  static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, 1);
+  static constexpr int RequestedAlignment = unpacket_traits<PacketType>::alignment;
   static constexpr bool Alignable =
-      packet_traits<Scalar>::AlignedOnScalar || Kernel::AssignmentTraits::DstAlignment >= sizeof(Scalar);
-  static constexpr bool DstIsAligned = Kernel::AssignmentTraits::DstAlignment >= RequestedAlignment;
-  static constexpr int DstAlignment = Alignable ? RequestedAlignment : Kernel::AssignmentTraits::DstAlignment;
+      (DstAlignment >= RequestedAlignment) || ((RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
+  static constexpr int Alignment = Alignable ? RequestedAlignment : DstAlignment;
+  static constexpr bool DstIsAligned = DstAlignment >= Alignment;
   static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
 
-  using unaligned_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, Unaligned, UsePacketSegment, false>;
+  using head_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, Unaligned, UsePacketSegment, !Alignable>;
+  using tail_loop = unaligned_dense_assignment_loop<PacketType, Alignment, Unaligned, UsePacketSegment, false>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     const Scalar* dst_ptr = kernel.dstDataPtr();
-    if ((!DstIsAligned) && (std::uintptr_t(dst_ptr) % sizeof(Scalar)) > 0) {
-      // the pointer is not aligned-on scalar, so alignment is not possible
-      return dense_assignment_loop<Kernel, DefaultTraversal, NoUnrolling>::run(kernel);
-    }
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
     const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) % PacketSize : 0;
-    Index alignedStart =
-        ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<RequestedAlignment>(dst_ptr, innerSize);
+    Index alignedStart = ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<Alignment>(dst_ptr, innerSize);
 
     for (Index outer = 0; outer < outerSize; ++outer) {
       const Index alignedEnd = alignedStart + numext::round_down(innerSize - alignedStart, PacketSize);
 
-      unaligned_loop::run(kernel, outer, 0, alignedStart);
+      head_loop::run(kernel, outer, 0, alignedStart);
 
       // do the vectorizable part of the assignment
       for (Index inner = alignedStart; inner < alignedEnd; inner += PacketSize)
-        kernel.template assignPacketByOuterInner<DstAlignment, Unaligned, PacketType>(outer, inner);
+        kernel.template assignPacketByOuterInner<Alignment, Unaligned, PacketType>(outer, inner);
 
-      unaligned_loop::run(kernel, outer, alignedEnd, innerSize);
+      tail_loop::run(kernel, outer, alignedEnd, innerSize);
 
       alignedStart = numext::mini((alignedStart + alignedStep) % PacketSize, innerSize);
     }
@@ -666,10 +667,9 @@ class generic_dense_assignment_kernel {
   typedef copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor> AssignmentTraits;
   typedef typename AssignmentTraits::PacketType PacketType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorType& dst,
-                                                                                  const SrcEvaluatorType& src,
-                                                                                  const Functor& func,
-                                                                                  DstXprType& dstExpr)
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorType& dst, const SrcEvaluatorType& src,
+                                                                const Functor& func, DstXprType& dstExpr)
       : m_dst(dst), m_src(src), m_functor(func), m_dstExpr(dstExpr) {
 #ifdef EIGEN_DEBUG_ASSIGN
     AssignmentTraits::debug();
