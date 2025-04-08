@@ -28,6 +28,24 @@ struct packet_segment_test_impl {
     Index begin = 1;
     Index count = PacketSize - 1;
 
+    Packet a = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
+    internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, a, begin, count);
+
+    for (Index i = begin; i < begin + count; i++) {
+      VERIFY_IS_EQUAL(unaligned_data_in[i], unaligned_data_out[i]);
+    }
+
+    // test loading the entire packet
+
+    data_in.setRandom();
+    data_out.setRandom();
+
+    unaligned_data_in = data_in.data();
+    unaligned_data_out = data_out.data();
+
+    begin = 0;
+    count = PacketSize;
+
     Packet b = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
     internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, b, begin, count);
 

@@ -2940,19 +2940,13 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8bf, 4>& kernel) {
 
 /*---------------- load/store segment support ----------------*/
 
-// returns a mask of 8-bit elements (at most 4) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
-inline __m128i segment_mask_4x8(Index begin, Index count) {
-  eigen_assert(begin >= 0 && begin + count <= 4);
-  int mask = (1 << (CHAR_BIT * count)) - 1;
-  mask <<= CHAR_BIT * begin;
-  return _mm_cvtsi32_si128(mask);
-}
-
 // returns a mask of 8-bit elements (at most 8) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
 inline __m128i segment_mask_8x8(Index begin, Index count) {
-  using T = long long;
   eigen_assert(begin >= 0 && begin + count <= 8);
-  T mask = (T(1) << (CHAR_BIT * count)) - 1;
+  long long mask = 1;
+  mask -= count >> 3;  // handle the edge case where count == 8
+  mask <<= CHAR_BIT * count;
+  mask -= 1;
   mask <<= CHAR_BIT * begin;
 #if defined(_WIN32) && !defined(_WIN64)
   return _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&mask));
@@ -2961,11 +2955,24 @@ inline __m128i segment_mask_8x8(Index begin, Index count) {
 #endif
 }
 
+// returns a mask of 8-bit elements (at most 4) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
+inline __m128i segment_mask_4x8(Index begin, Index count) {
+  eigen_assert(begin >= 0 && begin + count <= 4);
+  // count & 7 provides a hint to the compiler that count < 8
+  return segment_mask_8x8(begin & 7, count & 7);
+}
+
 // returns a mask of 32-bit elements (at most 4) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
-inline __m128i segment_mask_4x32(Index begin, Index count) { return _mm_cvtepi8_epi32(segment_mask_4x8(begin, count)); }
+inline __m128i segment_mask_4x32(Index begin, Index count) {
+  eigen_assert(begin >= 0 && begin + count <= 4);
+  return _mm_cvtepi8_epi32(segment_mask_4x8(begin, count));
+}
 
 // returns a mask of 64-bit elements (at most 2) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
-inline __m128i segment_mask_2x64(Index begin, Index count) { return _mm_cvtepi8_epi64(segment_mask_4x8(begin, count)); }
+inline __m128i segment_mask_2x64(Index begin, Index count) {
+  eigen_assert(begin >= 0 && begin + count <= 2);
+  return _mm_cvtepi8_epi64(segment_mask_4x8(begin, count));
+}
 
 // returns a mask of 32-bit elements (at most 8) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
 inline __m256i segment_mask_8x32(Index begin, Index count) {

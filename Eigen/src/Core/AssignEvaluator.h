@@ -475,7 +475,7 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
   using PacketType = typename Kernel::PacketType;
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
-  static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, 1);
+  static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, alignof(Scalar));
   static constexpr int RequestedAlignment = unpacket_traits<PacketType>::alignment;
   static constexpr bool Alignable =
       (DstAlignment >= RequestedAlignment) || ((RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
@@ -588,7 +588,7 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   using PacketType = typename Kernel::PacketType;
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
-  static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, 1);
+  static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, alignof(Scalar));
   static constexpr int RequestedAlignment = unpacket_traits<PacketType>::alignment;
   static constexpr bool Alignable =
       (DstAlignment >= RequestedAlignment) || ((RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
