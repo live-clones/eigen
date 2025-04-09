@@ -9,6 +9,30 @@
 
 #include "main.h"
 
+template <typename Scalar>
+void verify_data(const Scalar* data_in, const Scalar* data_out, Index begin, Index count) {
+  bool ok = true;
+  for (Index i = begin + 1; i < begin + count; i++) {
+    ok = ok && numext::equal_strict(data_in[i], data_out[i]);
+  }
+  if (!ok) {
+    std::cout << "Scalar type: " << type_name(Scalar()) << "\n";
+    std::cout << "data in: ";
+    std::cout << data_in[0];
+    for (Index i = begin + 1; i < begin + count; i++) {
+      std::cout << ", " << data_in[i];
+    }
+    std::cout << "\n";
+    std::cout << "data out: ";
+    std::cout << data_out[0];
+    for (Index i = begin + 1; i < begin + count; i++) {
+      std::cout << ", " << data_out[i];
+    }
+    std::cout << "\n";
+  }
+  VERIFY(ok);
+}
+
 template <typename Scalar, int PacketSize, bool Run = internal::find_packet_by_size<Scalar, PacketSize>::value>
 struct packet_segment_test_impl {
   using Packet = typename internal::find_packet_by_size<Scalar, PacketSize>::type;
@@ -31,9 +55,7 @@ struct packet_segment_test_impl {
     Packet a = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
     internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, a, begin, count);
 
-    for (Index i = begin; i < begin + count; i++) {
-      VERIFY_IS_EQUAL(unaligned_data_in[i], unaligned_data_out[i]);
-    }
+    verify_data(unaligned_data_in, unaligned_data_out, begin, count);
 
     // test loading the entire packet
 
@@ -49,17 +71,15 @@ struct packet_segment_test_impl {
     Packet b = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
     internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, b, begin, count);
 
-    for (Index i = begin; i < begin + count; i++) {
-      VERIFY_IS_EQUAL(unaligned_data_in[i], unaligned_data_out[i]);
-    }
+    verify_data(unaligned_data_in, unaligned_data_out, begin, count);
 
     // test loading an empty packet segment in unallocated memory
 
     data_in.setRandom();
     data_out = data_in;
 
-    unaligned_data_in = data_in.data() + 100 * data_in.size();
-    unaligned_data_out = data_out.data() + 100 * data_out.size();
+    unaligned_data_in = data_in.data();
+    unaligned_data_out = data_out.data();
 
     count = 0;
 
@@ -68,8 +88,8 @@ struct packet_segment_test_impl {
       internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, c, begin, count);
     }
 
-    // verify that ploaduSegment / pstoreuSegment resulted in a no-op
-    VERIFY_IS_CWISE_EQUAL(data_in, data_out);
+    // verify that ploaduSegment / pstoreuSegment did nothing
+    verify_data(unaligned_data_in, unaligned_data_out, 0, PacketSize);
   }
   static void test_aligned() {
     // test loading a packet segment from aligned memory that includes unallocated memory
@@ -90,9 +110,7 @@ struct packet_segment_test_impl {
     Packet b = internal::ploadSegment<Packet>(aligned_data_in, begin, count);
     internal::pstoreSegment<Scalar, Packet>(aligned_data_out, b, begin, count);
 
-    for (Index i = begin; i < begin + count; i++) {
-      VERIFY_IS_EQUAL(aligned_data_in[i], aligned_data_out[i]);
-    }
+    verify_data(aligned_data_in, aligned_data_out, begin, count);
   }
   static void run() {
     test_unaligned();
@@ -124,19 +142,21 @@ void test_packet_segment() {
 }
 
 EIGEN_DECLARE_TEST(packet_segment) {
-  test_packet_segment<bool>();
-  test_packet_segment<int8_t>();
-  test_packet_segment<uint8_t>();
-  test_packet_segment<int16_t>();
-  test_packet_segment<uint16_t>();
-  test_packet_segment<int32_t>();
-  test_packet_segment<uint32_t>();
-  test_packet_segment<int64_t>();
-  test_packet_segment<uint64_t>();
-  test_packet_segment<bfloat16>();
-  test_packet_segment<half>();
-  test_packet_segment<float>();
-  test_packet_segment<double>();
-  test_packet_segment<std::complex<float>>();
-  test_packet_segment<std::complex<double>>();
+  for (int i = 0; i < g_repeat; i++) {
+    test_packet_segment<bool>();
+    test_packet_segment<int8_t>();
+    test_packet_segment<uint8_t>();
+    test_packet_segment<int16_t>();
+    test_packet_segment<uint16_t>();
+    test_packet_segment<int32_t>();
+    test_packet_segment<uint32_t>();
+    test_packet_segment<int64_t>();
+    test_packet_segment<uint64_t>();
+    test_packet_segment<bfloat16>();
+    test_packet_segment<half>();
+    test_packet_segment<float>();
+    test_packet_segment<double>();
+    test_packet_segment<std::complex<float>>();
+    test_packet_segment<std::complex<double>>();
+  }
 }
