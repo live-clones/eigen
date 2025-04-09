@@ -1567,8 +1567,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                               Index count) {
-  constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
+  constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  eigen_assert((begin >= 0 && count >= 0 && begin + count <= PacketSize) && "invalid range");
   Scalar aux[PacketSize];
   smart_copy(from + begin, from + begin + count, aux + begin);
   return ploadu<Packet>(aux);
@@ -1588,6 +1589,7 @@ null if \a count is zero.*/
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Index begin, Index count) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
+  eigen_assert((begin >= 0 && count >= 0 && begin + count <= PacketSize) && "invalid range");
   Scalar aux[PacketSize];
   pstoreu<Scalar, Packet>(aux, from);
   smart_copy(aux + begin, aux + begin + count, to + begin);
@@ -1606,20 +1608,24 @@ EIGEN_DEVICE_FUNC inline void pstoreSegment(Scalar* to, const Packet& from, Inde
 template <typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline Packet ploadtSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                               Index count) {
-  eigen_assert((begin >= 0 && count >= 0 && begin + count <= unpacket_traits<Packet>::size) && "invalid range");
-  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment)
-  return ploadSegment<Packet>(from, begin, count);
-  else return ploaduSegment<Packet>(from, begin, count);
+  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
+  if (Alignment >= RequiredAlignment) {
+    return ploadSegment<Packet>(from, begin, count);
+  } else {
+    return ploaduSegment<Packet>(from, begin, count);
+  }
 }
 
 /** \internal copy the packet \a from in the range [begin, begin + count) to \a *to.
 Elements outside of the range [begin, begin + count) are not defined.*/
 template <typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline void pstoretSegment(Scalar* to, const Packet& from, Index begin, Index count) {
-  eigen_assert((begin >= 0 && count >= 0 && begin + count <= unpacket_traits<Packet>::size) && "invalid range");
-  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment)
-  pstoreSegment<Scalar, Packet>(to, from, begin, count);
-  else pstoreuSegment<Scalar, Packet>(to, from, begin, count);
+  constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
+  if (Alignment >= RequiredAlignment) {
+    pstoreSegment<Scalar, Packet>(to, from, begin, count);
+  } else {
+    pstoreuSegment<Scalar, Packet>(to, from, begin, count);
+  }
 }
 
 #ifndef EIGEN_NO_IO
