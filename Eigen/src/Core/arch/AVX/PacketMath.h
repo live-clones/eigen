@@ -2945,7 +2945,7 @@ inline __m128i segment_mask_4x8(Index begin, Index count) {
   eigen_assert(begin >= 0 && begin + count <= 4);
   long long mask = 1;
   mask <<= CHAR_BIT * count;
-  mask -= 1;
+  mask--;
   mask <<= CHAR_BIT * begin;
 #if defined(_WIN32) && !defined(_WIN64)
   return _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&mask));
@@ -2958,9 +2958,10 @@ inline __m128i segment_mask_4x8(Index begin, Index count) {
 inline __m128i segment_mask_8x8(Index begin, Index count) {
   eigen_assert(begin >= 0 && begin + count <= 8);
   long long mask = 1;
-  mask -= count >> 3;  // handle the edge case where count == 8
-  mask <<= CHAR_BIT * count;
-  mask -= 1;
+  // avoid UB when count == 8
+  mask <<= (CHAR_BIT / 2) * count;
+  mask <<= (CHAR_BIT / 2) * count;
+  mask--;
   mask <<= CHAR_BIT * begin;
 #if defined(_WIN32) && !defined(_WIN64)
   return _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&mask));

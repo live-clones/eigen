@@ -34,7 +34,7 @@ void verify_data(const Scalar* data_in, const Scalar* data_out, const Packet& a,
       if (i < begin) {
         std::cout << "MASK";
       } else {
-        std::cout << data_in[i];
+        std::cout << data_out[i];
       }
     }
     std::cout << "}\n";
