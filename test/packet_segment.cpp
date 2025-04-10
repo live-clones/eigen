@@ -13,7 +13,7 @@ template <typename Scalar, typename Packet>
 void verify_data(const Scalar* data_in, const Scalar* data_out, const Packet& a, Index begin, Index count) {
   constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
   bool ok = true;
-  for (Index i = begin + 1; i < begin + count; i++) {
+  for (Index i = begin; i < begin + count; i++) {
     ok = ok && numext::equal_strict(data_in[i], data_out[i]);
   }
   if (!ok) {
