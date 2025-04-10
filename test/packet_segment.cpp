@@ -9,26 +9,37 @@
 
 #include "main.h"
 
-template <typename Scalar>
-void verify_data(const Scalar* data_in, const Scalar* data_out, Index begin, Index count) {
+template <typename Scalar, typename Packet>
+void verify_data(const Scalar* data_in, const Scalar* data_out, const Packet& a, Index begin, Index count) {
+  constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
   bool ok = true;
   for (Index i = begin + 1; i < begin + count; i++) {
     ok = ok && numext::equal_strict(data_in[i], data_out[i]);
   }
   if (!ok) {
     std::cout << "Scalar type: " << type_name(Scalar()) << "\n";
-    std::cout << "data in: ";
-    std::cout << data_in[0];
-    for (Index i = begin + 1; i < begin + count; i++) {
-      std::cout << ", " << data_in[i];
+    std::cout << "data in:  {";
+    for (Index i = 0; i < PacketSize; i++) {
+      if (i > 0) std::cout << ",";
+      if (i < begin) {
+        std::cout << "MASK";
+      } else {
+        std::cout << data_in[i];
+      }
     }
-    std::cout << "\n";
-    std::cout << "data out: ";
-    std::cout << data_out[0];
-    for (Index i = begin + 1; i < begin + count; i++) {
-      std::cout << ", " << data_out[i];
+    std::cout << "}\n";
+    std::cout << "data out: {";
+    for (Index i = 0; i < PacketSize; i++) {
+      if (i > 0) std::cout << ",";
+      if (i < begin) {
+        std::cout << "MASK";
+      } else {
+        std::cout << data_in[i];
+      }
     }
-    std::cout << "\n";
+    std::cout << "}\n";
+    std::cout << "packet:   ";
+    std::cout << internal::postream(a) << "\n";
   }
   VERIFY(ok);
 }
@@ -55,7 +66,7 @@ struct packet_segment_test_impl {
     Packet a = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
     internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, a, begin, count);
 
-    verify_data(unaligned_data_in, unaligned_data_out, begin, count);
+    verify_data(unaligned_data_in, unaligned_data_out, a, begin, count);
 
     // test loading the entire packet
 
@@ -71,7 +82,7 @@ struct packet_segment_test_impl {
     Packet b = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
     internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, b, begin, count);
 
-    verify_data(unaligned_data_in, unaligned_data_out, begin, count);
+    verify_data(unaligned_data_in, unaligned_data_out, b, begin, count);
 
     // test loading an empty packet segment in unallocated memory
 
@@ -89,7 +100,7 @@ struct packet_segment_test_impl {
     }
 
     // verify that ploaduSegment / pstoreuSegment did nothing
-    verify_data(unaligned_data_in, unaligned_data_out, 0, PacketSize);
+    verify_data(unaligned_data_in, unaligned_data_out, pzero(Packet()), 0, PacketSize);
   }
   static void test_aligned() {
     // test loading a packet segment from aligned memory that includes unallocated memory
@@ -110,7 +121,7 @@ struct packet_segment_test_impl {
     Packet b = internal::ploadSegment<Packet>(aligned_data_in, begin, count);
     internal::pstoreSegment<Scalar, Packet>(aligned_data_out, b, begin, count);
 
-    verify_data(aligned_data_in, aligned_data_out, begin, count);
+    verify_data(aligned_data_in, aligned_data_out, b, begin, count);
   }
   static void run() {
     test_unaligned();
