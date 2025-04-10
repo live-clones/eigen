@@ -85,22 +85,16 @@ struct packet_segment_test_impl {
     verify_data(unaligned_data_in, unaligned_data_out, b, begin, count);
 
     // test loading an empty packet segment in unallocated memory
-
-    data_in.setRandom();
-    data_out = data_in;
-
-    unaligned_data_in = data_in.data();
-    unaligned_data_out = data_out.data();
-
     count = 0;
 
     for (begin = 0; begin < PacketSize; begin++) {
-      Packet c = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
-      internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, c, begin, count);
+      data_in.setRandom();
+      data_out = data_in;
+      Packet c = internal::ploaduSegment<Packet>(data_in.data(), begin, count);
+      internal::pstoreuSegment<Scalar, Packet>(data_out.data(), c, begin, count);
+      // verify that ploaduSegment / pstoreuSegment did nothing
+      VERIFY_IS_CWISE_EQUAL(data_in, data_out);
     }
-
-    // verify that ploaduSegment / pstoreuSegment did nothing
-    verify_data(unaligned_data_in, unaligned_data_out, pzero(Packet()), 0, PacketSize);
   }
   static void test_aligned() {
     // test loading a packet segment from aligned memory that includes unallocated memory
