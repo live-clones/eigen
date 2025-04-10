@@ -133,5 +133,4 @@ set(ei_smoke_test_list
   unalignedcount
   vectorwiseop_1
   visitor_1
-  packet_segment
   vectorization_logic_1)
