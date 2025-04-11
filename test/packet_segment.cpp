@@ -17,11 +17,12 @@ void verify_data(const Scalar* data_in, const Scalar* data_out, const Packet& a,
     ok = ok && numext::equal_strict(data_in[i], data_out[i]);
   }
   if (!ok) {
-    std::cout << "Scalar type: " << type_name(Scalar()) << "\n";
+    std::cout << "begin: " << begin << ", count: " << count << "\n";
+    std::cout << "Scalar type: " << type_name(Scalar()) << " x " << PacketSize << "\n";
     std::cout << "data in:  {";
     for (Index i = 0; i < PacketSize; i++) {
       if (i > 0) std::cout << ",";
-      if (i < begin) {
+      if (i < begin || i >= begin + count) {
         std::cout << "MASK";
       } else {
         std::cout << data_in[i];
@@ -31,7 +32,7 @@ void verify_data(const Scalar* data_in, const Scalar* data_out, const Packet& a,
     std::cout << "data out: {";
     for (Index i = 0; i < PacketSize; i++) {
       if (i > 0) std::cout << ",";
-      if (i < begin) {
+      if (i < begin || i >= begin + count) {
         std::cout << "MASK";
       } else {
         std::cout << data_out[i];
