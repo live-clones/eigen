@@ -198,28 +198,12 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     using PanelEvaluator = typename internal::redux_evaluator<PanelType>;
     using BinaryOp = typename MemberOp::BinaryOp;
     using Impl = internal::packetwise_redux_impl<BinaryOp, PanelEvaluator>;
-    //enum { PacketSize = internal::unpacket_traits<PacketType>::size };
-    //typedef Block<const ArgTypeNestedCleaned, Direction == Vertical ? int(ArgType::RowsAtCompileTime) : int(PacketSize),
-    //              Direction == Vertical ? int(PacketSize) : int(ArgType::ColsAtCompileTime), true /* InnerPanel */>
-    //    PanelType;
-
-    //PanelType panel(m_arg, Direction == Vertical ? 0 : idx, Direction == Vertical ? idx : 0,
-    //                Direction == Vertical ? m_arg.rows() : Index(PacketSize),
-    //                Direction == Vertical ? Index(PacketSize) : m_arg.cols());
 
     // FIXME
     // See bug 1612, currently if PacketSize==1 (i.e. complex<double> with 128bits registers) then the storage-order of
     // panel get reversed and methods like packetByOuterInner do not make sense anymore in this context. So let's just
     // by pass "vectorization" in this case:
     if (PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
-
-    //typedef typename internal::redux_evaluator<PanelType> PanelEvaluator;
-    //PanelEvaluator panel_eval(panel);
-    //typedef typename MemberOp::BinaryOp BinaryOp;
-    //PacketType p = internal::packetwise_redux_impl<BinaryOp, PanelEvaluator>::template run<PacketType>(
-    //    panel_eval, m_functor.binaryFunc(), m_arg.outerSize());
-    //return p;
-
 
     Index startRow = Direction == Vertical ? 0 : idx;
     Index startCol = Direction == Vertical ? idx : 0;
