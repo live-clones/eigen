@@ -221,15 +221,12 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC PacketType packetSegment(Index idx, Index begin, Index count) const {
-    static constexpr int PacketSize = internal::unpacket_traits<PacketType>::size;
     static constexpr int PanelRows = Direction == Vertical ? ArgType::RowsAtCompileTime : Dynamic;
     static constexpr int PanelCols = Direction == Vertical ? Dynamic : ArgType::ColsAtCompileTime;
     using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, true /* InnerPanel */>;
     using PanelEvaluator = typename internal::redux_evaluator<PanelType>;
     using BinaryOp = typename MemberOp::BinaryOp;
     using Impl = internal::packetwise_segment_redux_impl<BinaryOp, PanelEvaluator>;
-
-    if (PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
 
     Index startRow = Direction == Vertical ? 0 : idx;
     Index startCol = Direction == Vertical ? idx : 0;
