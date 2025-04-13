@@ -224,8 +224,12 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     static constexpr int PacketSize = internal::unpacket_traits<PacketType>::size;
     static constexpr int PanelRows = Direction == Vertical ? ArgType::RowsAtCompileTime : Dynamic;
     static constexpr int PanelCols = Direction == Vertical ? Dynamic : ArgType::ColsAtCompileTime;
+    using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, true /* InnerPanel */>;
+    using PanelEvaluator = typename internal::redux_evaluator<PanelType>;
+    using BinaryOp = typename MemberOp::BinaryOp;
+    using Impl = internal::packetwise_segment_redux_impl<BinaryOp, PanelEvaluator>;
 
-    typedef Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, true /* InnerPanel */> PanelType;
+    if (PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
 
     Index startRow = Direction == Vertical ? 0 : idx;
     Index startCol = Direction == Vertical ? idx : 0;
@@ -233,31 +237,8 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     Index numCols = Direction == Vertical ? begin + count : m_arg.cols();
 
     PanelType panel(m_arg, startRow, startCol, numRows, numCols);
-
-    // using PlainObjectType = Matrix<Scalar, PanelRows, PanelCols, (ArgFlags_ & RowMajorBit) ? RowMajor : ColMajor>;
-    // using PanelType = Map<const PlainObjectType>;
-
-    // const Scalar* data = m_arg.data();
-
-    // PanelType panel(data, numRows, numCols);
-
-    // PanelType panel(arg.)
-
-    // typedef Block<const ArgTypeNestedCleaned, Direction == Vertical ? int(ArgType::RowsAtCompileTime) : Dynamic,
-    //               Direction == Vertical ? Dynamic : int(ArgType::ColsAtCompileTime), true /* InnerPanel */>
-    //     PanelType;
-
-    // PanelType panel(m_arg, Direction == Vertical ? 0 : idx, Direction == Vertical ? idx : 0,
-    //                 Direction == Vertical ? m_arg.rows() : begin + count,
-    //                 Direction == Vertical ? begin + count : m_arg.cols());
-
-    if (PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
-
-    typedef typename internal::redux_evaluator<PanelType> PanelEvaluator;
     PanelEvaluator panel_eval(panel);
-    typedef typename MemberOp::BinaryOp BinaryOp;
-    PacketType p = internal::packetwise_segment_redux_impl<BinaryOp, PanelEvaluator>::template run<PacketType>(
-        panel_eval, m_functor.binaryFunc(), m_arg.outerSize(), begin, count);
+    PacketType p = Impl::template run<PacketType>(panel_eval, m_functor.binaryFunc(), m_arg.outerSize(), begin, count);
     return p;
   }
 
