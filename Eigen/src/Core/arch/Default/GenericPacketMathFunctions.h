@@ -293,7 +293,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_fast(const Packet& a, const 
 // computing x = y^(1/3):
 //   x_{k+1} = x_k - (x_k^3 - y) x_k / (2x_k^3 + y)
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_halley_iteration_step(const Packet& x_k, const Packet& y) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_halley_iteration_step(const Packet& x_k,
+                                                                                      const Packet& y) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   Packet x_k_cb = pmul(x_k, pmul(x_k, x_k));
   Packet denom = pmadd(pset1<Packet>(Scalar(2)), x_k_cb, y);
@@ -323,7 +324,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_decompose(const 
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_and_sign(const Packet& x, const Packet& abs_root) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_and_sign(const Packet& x,
+                                                                                       const Packet& abs_root) {
   typedef typename unpacket_traits<Packet>::type Scalar;
 
   // Set sign.
@@ -379,9 +381,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_float(const Pac
 
   // Compute initial approximation accurate to 5.22e-3.
   // The polynomial was computed using Rminimax.
-  constexpr float alpha[] = {
-      5.9220016002655029296875e-01f, -1.3859539031982421875e+00f,
-      1.4581282138824462890625e+00f, 3.408401906490325927734375e-01f};
+  constexpr float alpha[] = {5.9220016002655029296875e-01f, -1.3859539031982421875e+00f, 1.4581282138824462890625e+00f,
+                             3.408401906490325927734375e-01f};
   Packet r = ppolevl<Packet, 3>::run(y, alpha);
 
   // Take one step of Halley's iteration.
@@ -411,10 +412,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_double(const Pa
 
   // Compute initial approximation accurate to 0.016.
   // The polynomial was computed using Rminimax.
-  constexpr double alpha[] = {
-      -4.69470621553356115551736138513660989701747894287109375e-01,
-      1.072314636518546304699839311069808900356292724609375e+00,
-      3.81249427609571867048288140722434036433696746826171875e-01};
+  constexpr double alpha[] = {-4.69470621553356115551736138513660989701747894287109375e-01,
+                              1.072314636518546304699839311069808900356292724609375e+00,
+                              3.81249427609571867048288140722434036433696746826171875e-01};
   Packet r = ppolevl<Packet, 2>::run(y, alpha);
 
   // Take two steps of Halley's iteration.
@@ -425,8 +425,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_double(const Pa
   r = pldexp_fast(r, e_div3);
   return cbrt_special_cases_and_sign(x, r);
 }
-
-
 
 // Natural or base 2 logarithm.
 // Computes log(x) as log(2^e * m) = C*e + log(m), where the constant C =log(2)
