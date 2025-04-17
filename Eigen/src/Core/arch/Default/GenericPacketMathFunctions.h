@@ -329,7 +329,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
   typedef typename unpacket_traits<Packet>::type Scalar;
 
   // Set sign.
-  const Packet sign_mask = pset1<Packet>(-Scalar(0));
+  const Packet sign_mask = pset1<Packet>(Scalar(-0.0));
   const Packet x_sign = pand(sign_mask, x);
   Packet root = por(x_sign, abs_root);
 
@@ -354,7 +354,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
 //           = 2^(e_div3) * 2^(e_mod3/3) * s^(1/3)
 //           = 2^(e_div3) * (s * 2^e_mod3)^(1/3)
 //
-// where e_div3 = ceil(e/3)and e_mod3 = e - 3*e_div3.
+// where e_div3 = ceil(e/3) and e_mod3 = e - 3*e_div3.
 //
 // The cube root of the second term y = (s * 2^e_mod3)^(1/3) is coarsely
 // approximated using a cubic polynomial and subsequently refined using a
@@ -1260,7 +1260,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Pa
 
   constexpr Scalar kPiOverTwo = static_cast<Scalar>(EIGEN_PI / 2);
 
-  const Packet cst_signmask = pset1<Packet>(-Scalar(0));
+  const Packet cst_signmask = pset1<Packet>(Scalar(-0.0));
   const Packet cst_one = pset1<Packet>(Scalar(1));
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
 
