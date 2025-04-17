@@ -334,11 +334,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
   Packet root = por(x_sign, abs_root);
 
   // Handle non-finite and zero values of x.
-  constexpr Scalar kInf = NumTraits<Scalar>::infinity();
-  const Packet is_finite = pcmp_lt(pabs(x), pset1<Packet>(kInf));
+  //  constexpr Scalar kInf = NumTraits<Scalar>::infinity();
+  const Packet is_not_finite = psub(x,x);;
   const Packet is_zero = pcmp_eq(pzero(x), x);
-  const Packet use_root = pandnot(is_finite, is_zero);
-  return pselect(use_root, root, x);
+  const Packet use_root = por(is_not_finite, is_zero);
+  return pselect(use_root, x, root);
 }
 
 // Generic implementation of cbrt(x) for float.
@@ -358,7 +358,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
 //
 // The cube root of the second term y = (s * 2^e_mod3)^(1/3) is coarsely
 // approximated using a cubic polynomial and subsequently refined using a
-// single step of Halley's iteration, and finally the two terms combined
+// single step of Halley's iteration, and finally the two terms are combined
 // using pldexp_fast.
 //
 // Note: Many alternatives exist for implementing cbrt. See, for example,
