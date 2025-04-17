@@ -1361,9 +1361,15 @@ SYCL_SPECIALIZE_FLOATING_TYPES_UNARY(sqrt, sqrt)
 
 /** \returns the cube root of \a x. **/
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T cbrt(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<!NumTraits<T>::IsComplex, T> cbrt(const T& x) {
   EIGEN_USING_STD(cbrt);
   return static_cast<T>(cbrt(x));
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<NumTraits<T>::IsComplex, T> cbrt(const T& x) {
+  EIGEN_USING_STD(pow);
+  return pow(x, typename NumTraits<T>::Real(1.0/3.0));
 }
 
 /** \returns the reciprocal square root of \a x. **/
