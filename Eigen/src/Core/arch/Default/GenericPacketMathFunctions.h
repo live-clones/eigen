@@ -18,8 +18,6 @@
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
-#include <iostream>
-#include "test/packet_ostream.h"
 
 namespace Eigen {
 namespace internal {
@@ -2276,7 +2274,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
 template <typename Scalar>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<is_scalar<Scalar>::value, Scalar> generic_pow(
     const Scalar& x, const Scalar& y) {
-  return Eigen::numext::pow(x, y);
+  return numext::pow(x, y);
 }
 
 namespace unary_pow {
@@ -2369,7 +2367,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<!is_scalar<Packet>::value
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<is_scalar<Scalar>::value, Scalar> gen_pow(
     const Scalar& x, const Scalar& exponent) {
-  return Eigen::numext::pow(x, exponent);
+  return numext::pow(x, exponent);
 }
 
 template <typename Packet, typename ScalarExponent>
