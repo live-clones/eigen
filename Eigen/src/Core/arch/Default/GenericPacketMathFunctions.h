@@ -18,8 +18,6 @@
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
-#include <iostream>
-#include "test/packet_ostream.h"
 
 namespace Eigen {
 namespace internal {
