@@ -1585,7 +1585,7 @@ template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Index begin, Index count) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   eigen_assert((begin >= 0 && count >= 0 && begin + count <= PacketSize) && "invalid range");
-  Scalar aux[PacketSize]{Scalar(0)};
+  Scalar aux[PacketSize];
   pstoreu<Scalar, Packet>(aux, from);
   smart_copy(aux + begin, aux + begin + count, to + begin);
 }
