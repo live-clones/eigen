@@ -1565,7 +1565,7 @@ EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Pac
   using Scalar = typename unpacket_traits<Packet>::type;
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   eigen_assert((begin >= 0 && count >= 0 && begin + count <= PacketSize) && "invalid range");
-  Scalar aux[PacketSize];
+  Scalar aux[PacketSize]{Scalar(0)};
   smart_copy(from + begin, from + begin + count, aux + begin);
   return ploadu<Packet>(aux);
 }
@@ -1585,7 +1585,7 @@ template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Index begin, Index count) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   eigen_assert((begin >= 0 && count >= 0 && begin + count <= PacketSize) && "invalid range");
-  Scalar aux[PacketSize];
+  Scalar aux[PacketSize]{Scalar(0)};
   pstoreu<Scalar, Packet>(aux, from);
   smart_copy(aux + begin, aux + begin + count, to + begin);
 }
