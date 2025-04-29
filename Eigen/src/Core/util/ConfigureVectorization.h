@@ -408,8 +408,8 @@ extern "C" {
 #define EIGEN_VECTORIZE_SVE
 #include <arm_sve.h>
 
-// Since we depend on knowing SVE vector lengths at compile-time, we need
-// to ensure a fixed lengths is set
+// Since we depend on knowing SVE vector length at compile-time, we need
+// to ensure a fixed length is set
 #if defined __ARM_FEATURE_SVE_BITS
 #define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
 #else
@@ -430,8 +430,8 @@ extern "C" {
 #define EIGEN_VECTORIZE_RVV10
 #include <riscv_vector.h>
 
-// Since we depend on knowing RVV vector lengths at compile-time, we need
-// to ensure a fixed lengths is set
+// Since we depend on knowing RVV vector length at compile-time, we need
+// to ensure a fixed length is set
 #if defined(__riscv_v_fixed_vlen)
 #define EIGEN_RISCV64_RVV_VL __riscv_v_fixed_vlen
 #if __riscv_v_fixed_vlen >= 256
@@ -439,11 +439,7 @@ extern "C" {
 #define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 1
 #endif
 #else
-#ifdef __GNUC__
 #error "Eigen requires a fixed RVV vector length but -mrvv-vector-bits=zvl is not set."
-#else
-#error "Eigen requires a fixed RVV vector length but -mrvv-vector-bits=N is not set."
-#endif
 #endif
 
 #if defined(__riscv_zvfh) && defined(__riscv_zfh)
