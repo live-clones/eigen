@@ -419,7 +419,7 @@ extern "C" {
 #elif defined(EIGEN_ARCH_RISCV)
 
 #if defined(__riscv_zfh)
-#define EIGEN_HAS_RISCV64_FP16_SCALAR_ARITHMETIC
+#define EIGEN_HAS_BUILTIN_FLOAT16
 #endif
 
 // We currently require RVV to be enabled explicitly via EIGEN_RISCV64_USE_RVV and
