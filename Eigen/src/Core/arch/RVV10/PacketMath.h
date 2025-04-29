@@ -1093,6 +1093,7 @@ struct unpacket_traits<PacketXf> {
   typedef PacketXf half;  // Half not yet implemented
   typedef PacketXi integer_packet;
   typedef numext::uint8_t mask_t;
+  typedef PacketMask32 packet_mask;
 
   enum {
     size = rvv_packet_size_selector<float, EIGEN_RISCV64_RVV_VL, 1>::size,
@@ -1109,6 +1110,7 @@ struct unpacket_traits<PacketMul2Xf> {
   typedef PacketXf half;
   typedef PacketMul2Xi integer_packet;
   typedef numext::uint8_t mask_t;
+  typedef PacketMask16 packet_mask;
 
   enum {
     size = rvv_packet_size_selector<float, EIGEN_RISCV64_RVV_VL, 2>::size,
@@ -1125,6 +1127,7 @@ struct unpacket_traits<PacketMul4Xf> {
   typedef PacketMul2Xf half;
   typedef PacketMul4Xi integer_packet;
   typedef numext::uint8_t mask_t;
+  typedef PacketMask8 packet_mask;
 
   enum {
     size = rvv_packet_size_selector<float, EIGEN_RISCV64_RVV_VL, 4>::size,
@@ -1367,26 +1370,25 @@ EIGEN_STRONG_INLINE PacketXf psqrt(const PacketXf& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf print<PacketXf>(const PacketXf& a) {
-  // Adds and subtracts signum(a) * 2^23 to force rounding.
   const PacketXf limit = pset1<PacketXf>(static_cast<float>(1 << 23));
   const PacketXf abs_a = pabs(a);
-  PacketXf r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+
+  PacketMask32 mask = __riscv_vmfne_vv_f32m1_b32(a, a, unpacket_traits<PacketXf>::size);
+  const PacketXf x = __riscv_vfadd_vv_f32m1_tum(mask, a, a, a, unpacket_traits<PacketXf>::size);
+  const PacketXf new_x = __riscv_vfcvt_f_x_v_f32m1(__riscv_vfcvt_x_f_v_i32m1(a, unpacket_traits<PacketXf>::size),
+                                                   unpacket_traits<PacketXf>::size);
+
+  mask = __riscv_vmflt_vv_f32m1_b32(abs_a, limit, unpacket_traits<PacketXf>::size);
+  PacketXf signed_x = __riscv_vfsgnj_vv_f32m1(new_x, x, unpacket_traits<PacketXf>::size);
+  return __riscv_vmerge_vvm_f32m1(x, signed_x, mask, unpacket_traits<PacketXf>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXf pfloor<PacketXf>(const PacketXf& a) {
-  const PacketXf cst_1 = pset1<PacketXf>(1.0f);
   PacketXf tmp = print<PacketXf>(a);
   // If greater, subtract one.
-  PacketXf mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  PacketMask32 mask = __riscv_vmflt_vv_f32m1_b32(a, tmp, unpacket_traits<PacketXf>::size);
+  return __riscv_vfsub_vf_f32m1_tum(mask, tmp, tmp, 1.0f, unpacket_traits<PacketXf>::size);
 }
 
 template <>
@@ -1465,6 +1467,28 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXf, N>& kernel) {
 template <>
 EIGEN_STRONG_INLINE PacketXf pldexp<PacketXf>(const PacketXf& a, const PacketXf& exponent) {
   return pldexp_generic(a, exponent);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask32 por(const PacketMask32& a, const PacketMask32& b) {
+  return __riscv_vmor_mm_b32(a, b, unpacket_traits<PacketXf>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask32 pand(const PacketMask32& a, const PacketMask32& b) {
+  return __riscv_vmand_mm_b32(a, b, unpacket_traits<PacketXf>::size);
+}
+
+EIGEN_STRONG_INLINE PacketMask32 pcmp_eq_mask(const PacketXf& a, const PacketXf& b) {
+  return __riscv_vmfeq_vv_f32m1_b32(a, b, unpacket_traits<PacketXf>::size);
+}
+
+EIGEN_STRONG_INLINE PacketMask32 pcmp_lt_mask(const PacketXf& a, const PacketXf& b) {
+  return __riscv_vmflt_vv_f32m1_b32(a, b, unpacket_traits<PacketXf>::size);
+}
+
+EIGEN_STRONG_INLINE PacketXf pselect(const PacketMask32& mask, const PacketXf& a, const PacketXf& b) {
+  return __riscv_vmerge_vvm_f32m1(b, a, mask, unpacket_traits<PacketXf>::size);
 }
 
 /********************************* PacketMul4Xf ************************************/
@@ -1707,26 +1731,25 @@ EIGEN_STRONG_INLINE PacketMul4Xf psqrt(const PacketMul4Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xf print<PacketMul4Xf>(const PacketMul4Xf& a) {
-  // Adds and subtracts signum(a) * 2^23 to force rounding.
   const PacketMul4Xf limit = pset1<PacketMul4Xf>(static_cast<float>(1 << 23));
   const PacketMul4Xf abs_a = pabs(a);
-  PacketMul4Xf r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+
+  PacketMask8 mask = __riscv_vmfne_vv_f32m4_b8(a, a, unpacket_traits<PacketMul4Xf>::size);
+  const PacketMul4Xf x = __riscv_vfadd_vv_f32m4_tum(mask, a, a, a, unpacket_traits<PacketMul4Xf>::size);
+  const PacketMul4Xf new_x = __riscv_vfcvt_f_x_v_f32m4(
+      __riscv_vfcvt_x_f_v_i32m4(a, unpacket_traits<PacketMul4Xf>::size), unpacket_traits<PacketMul4Xf>::size);
+
+  mask = __riscv_vmflt_vv_f32m4_b8(abs_a, limit, unpacket_traits<PacketMul4Xf>::size);
+  PacketMul4Xf signed_x = __riscv_vfsgnj_vv_f32m4(new_x, x, unpacket_traits<PacketMul4Xf>::size);
+  return __riscv_vmerge_vvm_f32m4(x, signed_x, mask, unpacket_traits<PacketMul4Xf>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xf pfloor<PacketMul4Xf>(const PacketMul4Xf& a) {
-  const PacketMul4Xf cst_1 = pset1<PacketMul4Xf>(1.0f);
   PacketMul4Xf tmp = print<PacketMul4Xf>(a);
   // If greater, subtract one.
-  PacketMul4Xf mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  PacketMask8 mask = __riscv_vmflt_vv_f32m4_b8(a, tmp, unpacket_traits<PacketMul4Xf>::size);
+  return __riscv_vfsub_vf_f32m4_tum(mask, tmp, tmp, 1.0f, unpacket_traits<PacketMul4Xf>::size);
 }
 
 template <>
@@ -2031,26 +2054,25 @@ EIGEN_STRONG_INLINE PacketMul2Xf psqrt(const PacketMul2Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xf print<PacketMul2Xf>(const PacketMul2Xf& a) {
-  // Adds and subtracts signum(a) * 2^23 to force rounding.
   const PacketMul2Xf limit = pset1<PacketMul2Xf>(static_cast<float>(1 << 23));
   const PacketMul2Xf abs_a = pabs(a);
-  PacketMul2Xf r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+
+  PacketMask16 mask = __riscv_vmfne_vv_f32m2_b16(a, a, unpacket_traits<PacketMul2Xf>::size);
+  const PacketMul2Xf x = __riscv_vfadd_vv_f32m2_tum(mask, a, a, a, unpacket_traits<PacketMul2Xf>::size);
+  const PacketMul2Xf new_x = __riscv_vfcvt_f_x_v_f32m2(
+      __riscv_vfcvt_x_f_v_i32m2(a, unpacket_traits<PacketMul2Xf>::size), unpacket_traits<PacketMul2Xf>::size);
+
+  mask = __riscv_vmflt_vv_f32m2_b16(abs_a, limit, unpacket_traits<PacketMul2Xf>::size);
+  PacketMul2Xf signed_x = __riscv_vfsgnj_vv_f32m2(new_x, x, unpacket_traits<PacketMul2Xf>::size);
+  return __riscv_vmerge_vvm_f32m2(x, signed_x, mask, unpacket_traits<PacketMul2Xf>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xf pfloor<PacketMul2Xf>(const PacketMul2Xf& a) {
-  const PacketMul2Xf cst_1 = pset1<PacketMul2Xf>(1.0f);
   PacketMul2Xf tmp = print<PacketMul2Xf>(a);
   // If greater, subtract one.
-  PacketMul2Xf mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  PacketMask16 mask = __riscv_vmflt_vv_f32m2_b16(a, tmp, unpacket_traits<PacketMul2Xf>::size);
+  return __riscv_vfsub_vf_f32m2_tum(mask, tmp, tmp, 1.0f, unpacket_traits<PacketMul2Xf>::size);
 }
 
 template <>
@@ -3166,6 +3188,7 @@ struct unpacket_traits<PacketXd> {
   typedef PacketXd half;  // Half not yet implemented
   typedef PacketXl integer_packet;
   typedef numext::uint8_t mask_t;
+  typedef PacketMask64 packet_mask;
 
   enum {
     size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size,
@@ -3182,6 +3205,7 @@ struct unpacket_traits<PacketMul2Xd> {
   typedef PacketXd half;
   typedef PacketMul2Xl integer_packet;
   typedef numext::uint8_t mask_t;
+  typedef PacketMask32 packet_mask;
 
   enum {
     size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 2>::size,
@@ -3198,6 +3222,7 @@ struct unpacket_traits<PacketMul4Xd> {
   typedef PacketMul2Xd half;
   typedef PacketMul4Xl integer_packet;
   typedef numext::uint8_t mask_t;
+  typedef PacketMask16 packet_mask;
 
   enum {
     size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 4>::size,
@@ -3442,26 +3467,25 @@ EIGEN_STRONG_INLINE PacketXd psqrt(const PacketXd& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXd print<PacketXd>(const PacketXd& a) {
-  // Adds and subtracts signum(a) * 2^52 to force rounding.
   const PacketXd limit = pset1<PacketXd>(static_cast<double>(1ull << 52));
   const PacketXd abs_a = pabs(a);
-  PacketXd r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+
+  PacketMask64 mask = __riscv_vmfne_vv_f64m1_b64(a, a, unpacket_traits<PacketXd>::size);
+  const PacketXd x = __riscv_vfadd_vv_f64m1_tum(mask, a, a, a, unpacket_traits<PacketXd>::size);
+  const PacketXd new_x = __riscv_vfcvt_f_x_v_f64m1(__riscv_vfcvt_x_f_v_i64m1(a, unpacket_traits<PacketXd>::size),
+                                                   unpacket_traits<PacketXd>::size);
+
+  mask = __riscv_vmflt_vv_f64m1_b64(abs_a, limit, unpacket_traits<PacketXd>::size);
+  PacketXd signed_x = __riscv_vfsgnj_vv_f64m1(new_x, x, unpacket_traits<PacketXd>::size);
+  return __riscv_vmerge_vvm_f64m1(x, signed_x, mask, unpacket_traits<PacketXd>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXd pfloor<PacketXd>(const PacketXd& a) {
-  const PacketXd cst_1 = pset1<PacketXd>(1.0);
   PacketXd tmp = print<PacketXd>(a);
   // If greater, subtract one.
-  PacketXd mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  PacketMask64 mask = __riscv_vmflt_vv_f64m1_b64(a, tmp, unpacket_traits<PacketXd>::size);
+  return __riscv_vfsub_vf_f64m1_tum(mask, tmp, tmp, 1.0, unpacket_traits<PacketXd>::size);
 }
 
 template <>
@@ -3537,6 +3561,33 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXd, N>& kernel) {
 template <>
 EIGEN_STRONG_INLINE PacketXd pldexp<PacketXd>(const PacketXd& a, const PacketXd& exponent) {
   return pldexp_generic(a, exponent);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask64 por(const PacketMask64& a, const PacketMask64& b) {
+  return __riscv_vmor_mm_b64(a, b, unpacket_traits<PacketXd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask64 pandnot(const PacketMask64& a, const PacketMask64& b) {
+  return __riscv_vmor_mm_b64(a, b, unpacket_traits<PacketXd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask64 pand(const PacketMask64& a, const PacketMask64& b) {
+  return __riscv_vmand_mm_b64(a, b, unpacket_traits<PacketXd>::size);
+}
+
+EIGEN_STRONG_INLINE PacketMask64 pcmp_eq_mask(const PacketXd& a, const PacketXd& b) {
+  return __riscv_vmfeq_vv_f64m1_b64(a, b, unpacket_traits<PacketXd>::size);
+}
+
+EIGEN_STRONG_INLINE PacketMask64 pcmp_lt_mask(const PacketXd& a, const PacketXd& b) {
+  return __riscv_vmflt_vv_f64m1_b64(a, b, unpacket_traits<PacketXd>::size);
+}
+
+EIGEN_STRONG_INLINE PacketXd pselect(const PacketMask64& mask, const PacketXd& a, const PacketXd& b) {
+  return __riscv_vmerge_vvm_f64m1(b, a, mask, unpacket_traits<PacketXd>::size);
 }
 
 /********************************* PacketMul4Xd ************************************/
@@ -3780,26 +3831,25 @@ EIGEN_STRONG_INLINE PacketMul4Xd psqrt(const PacketMul4Xd& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xd print<PacketMul4Xd>(const PacketMul4Xd& a) {
-  // Adds and subtracts signum(a) * 2^52 to force rounding.
   const PacketMul4Xd limit = pset1<PacketMul4Xd>(static_cast<double>(1ull << 52));
   const PacketMul4Xd abs_a = pabs(a);
-  PacketMul4Xd r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+
+  PacketMask16 mask = __riscv_vmfne_vv_f64m4_b16(a, a, unpacket_traits<PacketMul4Xd>::size);
+  const PacketMul4Xd x = __riscv_vfadd_vv_f64m4_tum(mask, a, a, a, unpacket_traits<PacketMul4Xd>::size);
+  const PacketMul4Xd new_x = __riscv_vfcvt_f_x_v_f64m4(
+      __riscv_vfcvt_x_f_v_i64m4(a, unpacket_traits<PacketMul4Xd>::size), unpacket_traits<PacketMul4Xd>::size);
+
+  mask = __riscv_vmflt_vv_f64m4_b16(abs_a, limit, unpacket_traits<PacketMul4Xd>::size);
+  PacketMul4Xd signed_x = __riscv_vfsgnj_vv_f64m4(new_x, x, unpacket_traits<PacketMul4Xd>::size);
+  return __riscv_vmerge_vvm_f64m4(x, signed_x, mask, unpacket_traits<PacketMul4Xd>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xd pfloor<PacketMul4Xd>(const PacketMul4Xd& a) {
-  const PacketMul4Xd cst_1 = pset1<PacketMul4Xd>(1.0);
   PacketMul4Xd tmp = print<PacketMul4Xd>(a);
   // If greater, subtract one.
-  PacketMul4Xd mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  PacketMask16 mask = __riscv_vmflt_vv_f64m4_b16(a, tmp, unpacket_traits<PacketMul4Xd>::size);
+  return __riscv_vfsub_vf_f64m4_tum(mask, tmp, tmp, 1.0, unpacket_traits<PacketMul4Xd>::size);
 }
 
 template <>
@@ -4105,26 +4155,25 @@ EIGEN_STRONG_INLINE PacketMul2Xd psqrt(const PacketMul2Xd& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xd print<PacketMul2Xd>(const PacketMul2Xd& a) {
-  // Adds and subtracts signum(a) * 2^52 to force rounding.
   const PacketMul2Xd limit = pset1<PacketMul2Xd>(static_cast<double>(1ull << 52));
   const PacketMul2Xd abs_a = pabs(a);
-  PacketMul2Xd r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+
+  PacketMask32 mask = __riscv_vmfne_vv_f64m2_b32(a, a, unpacket_traits<PacketMul2Xd>::size);
+  const PacketMul2Xd x = __riscv_vfadd_vv_f64m2_tum(mask, a, a, a, unpacket_traits<PacketMul2Xd>::size);
+  const PacketMul2Xd new_x = __riscv_vfcvt_f_x_v_f64m2(
+      __riscv_vfcvt_x_f_v_i64m2(a, unpacket_traits<PacketMul2Xd>::size), unpacket_traits<PacketMul2Xd>::size);
+
+  mask = __riscv_vmflt_vv_f64m2_b32(abs_a, limit, unpacket_traits<PacketMul2Xd>::size);
+  PacketMul2Xd signed_x = __riscv_vfsgnj_vv_f64m2(new_x, x, unpacket_traits<PacketMul2Xd>::size);
+  return __riscv_vmerge_vvm_f64m2(x, signed_x, mask, unpacket_traits<PacketMul2Xd>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xd pfloor<PacketMul2Xd>(const PacketMul2Xd& a) {
-  const PacketMul2Xd cst_1 = pset1<PacketMul2Xd>(1.0);
   PacketMul2Xd tmp = print<PacketMul2Xd>(a);
   // If greater, subtract one.
-  PacketMul2Xd mask = pcmp_lt(a, tmp);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
+  PacketMask32 mask = __riscv_vmflt_vv_f64m2_b32(a, tmp, unpacket_traits<PacketMul2Xd>::size);
+  return __riscv_vfsub_vf_f64m2_tum(mask, tmp, tmp, 1.0, unpacket_traits<PacketMul2Xd>::size);
 }
 
 template <>

@@ -74,10 +74,7 @@ EIGEN_STRONG_INLINE PacketXcf pcast<PacketMul2Xf, PacketXcf>(const PacketMul2Xf&
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xf pcast<PacketXcf, PacketMul2Xf>(const PacketXcf& a) {
-  PacketMul2Xf res = __riscv_vundefined_f32m2();
-  res = __riscv_vset_v_f32m1_f32m2(res, 0, a.real);
-  res = __riscv_vset_v_f32m1_f32m2(res, 1, a.imag);
-  return res;
+  return __riscv_vcreate_v_f32m1_f32m2(a.real, a.imag);
 }
 
 template <>
@@ -129,10 +126,9 @@ EIGEN_STRONG_INLINE PacketXcf pmadd<PacketXcf>(const PacketXcf& a, const PacketX
 
 template <>
 EIGEN_STRONG_INLINE PacketXcf pcmp_eq(const PacketXcf& a, const PacketXcf& b) {
-  PacketXf eq_real = pcmp_eq<PacketXf>(a.real, b.real);
-  PacketXf eq_imag = pcmp_eq<PacketXf>(a.imag, b.imag);
-  PacketXf eq_both = pand<PacketXf>(eq_real, eq_imag);
-  return PacketXcf(eq_both, eq_both);
+  PacketMask32 eq_both = pand<PacketMask32>(pcmp_eq_mask(a.real, b.real), pcmp_eq_mask(a.imag, b.imag));
+  PacketXf res = pselect(eq_both, ptrue<PacketXf>(a.real), pzero<PacketXf>(a.real));
+  return PacketXcf(res, res);
 }
 
 template <>
@@ -275,6 +271,7 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;
   typedef typename packet_traits<RealScalar>::type RealPacket;
+  typedef typename unpacket_traits<RealPacket>::packet_mask PacketMask;
 
   // Computes the principal sqrt of the complex numbers in the input.
   //
@@ -317,11 +314,12 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
   RealPacket a_max = pmax(a_abs.real, a_abs.imag);
   RealPacket a_min = pmin(a_abs.real, a_abs.imag);
 
-  RealPacket a_min_zero_mask = pcmp_eq(a_min, pzero(a_min));
-  RealPacket a_max_zero_mask = pcmp_eq(a_max, pzero(a_max));
+  PacketMask a_min_zero_mask = pcmp_eq_mask(a_min, pzero(a_min));
+  PacketMask a_max_zero_mask = pcmp_eq_mask(a_max, pzero(a_max));
   RealPacket r = pdiv(a_min, a_max);
 
   const RealPacket cst_one = pset1<RealPacket>(RealScalar(1));
+  const RealPacket cst_true = ptrue<RealPacket>(cst_one);
   RealPacket l = pmul(a_max, psqrt(padd(cst_one, pmul(r, r))));
   // Set l to a_max if a_min is zero.
   l = pselect(a_min_zero_mask, a_max, l);
@@ -335,7 +333,7 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
   // Step 3. Compute [rho0, rho1, eta0, eta1], where
   // eta0 = (y0 / rho0) / 2, and eta1 = (y1 / rho1) / 2.
   // set eta = 0 of input is 0 + i0.
-  RealPacket eta = pandnot(pmul(cst_half, pdiv(a.imag, rho)), a_max_zero_mask);
+  RealPacket eta = pselect(a_max_zero_mask, pzero<RealPacket>(cst_one), pmul(cst_half, pdiv(a.imag, rho)));
   // Compute result for inputs with positive real part.
   Packet positive_real_result = Packet(rho, eta);
 
@@ -343,12 +341,12 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
   //         [|eta0| |eta1|, sign(y0)*rho0, sign(y1)*rho1]
   const RealPacket cst_imag_sign_mask = pset1<RealPacket>(RealScalar(-0.0));
   RealPacket imag_signs = pand(a.imag, cst_imag_sign_mask);
-  Packet negative_real_result = Packet(pabs(eta), por(positive_real_result.real, imag_signs));
+  Packet negative_real_result = Packet(pabs(eta), por(rho, imag_signs));
 
   // Step 5. Select solution branch based on the sign of the real parts.
-  RealPacket negative_real_mask_half = pcmp_lt(a.real, pzero(a.real));
-  Packet negative_real_mask = Packet(negative_real_mask_half, negative_real_mask_half);
-  Packet result = pselect(negative_real_mask, negative_real_result, positive_real_result);
+  PacketMask negative_real_mask_half = pcmp_lt_mask(a.real, pzero(a.real));
+  Packet result = Packet(pselect(negative_real_mask_half, negative_real_result.real, positive_real_result.real),
+                         pselect(negative_real_mask_half, negative_real_result.imag, positive_real_result.imag));
 
   // Step 6. Handle special cases for infinities:
   // * If z is (x,+∞), the result is (+∞,+∞) even if x is NaN
@@ -356,20 +354,22 @@ EIGEN_STRONG_INLINE Packet psqrt_complex_rvv(const Packet& a) {
   // * If z is (-∞,y), the result is (0*|y|,+∞) for finite or NaN y
   // * If z is (+∞,y), the result is (+∞,0*|y|) for finite or NaN y
   const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
-  RealPacket is_real_inf = pcmp_eq(a_abs.real, cst_pos_inf);
+  PacketMask is_real_inf = pcmp_eq_mask(a_abs.real, cst_pos_inf);
   // prepare packet of (+∞,0*|y|) or (0*|y|,+∞), depending on the sign of the infinite real part.
   const Packet cst_one_zero = pset1<Packet>(Scalar(RealScalar(1.0), RealScalar(0.0)));
   Packet real_inf_result = Packet(pmul(a_abs.real, cst_one_zero.real), pmul(a_abs.imag, cst_one_zero.imag));
-  real_inf_result = pselect(negative_real_mask, pcplxflip(real_inf_result), real_inf_result);
+  real_inf_result = Packet(pselect(negative_real_mask_half, real_inf_result.imag, real_inf_result.real),
+                           pselect(negative_real_mask_half, real_inf_result.real, real_inf_result.imag));
   // prepare packet of (+∞,+∞) or (+∞,-∞), depending on the sign of the infinite imaginary part.
-  RealPacket is_imag_inf = pcmp_eq(a_abs.imag, cst_pos_inf);
-  Packet imag_inf_result = Packet(cst_pos_inf, a.imag);
+  PacketMask is_imag_inf = pcmp_eq_mask(a_abs.imag, cst_pos_inf);
   // unless otherwise specified, if either the real or imaginary component is nan, the entire result is nan
-  Packet result_is_nan = pisnan(result);
-  result = por(result_is_nan, result);
+  result = Packet(pselect(pcmp_eq_mask(result.real, result.real), result.real, cst_true),
+                  pselect(pcmp_eq_mask(result.imag, result.imag), result.imag, cst_true));
 
-  return pselect(Packet(is_imag_inf, is_imag_inf), imag_inf_result,
-                 pselect(Packet(is_real_inf, is_real_inf), real_inf_result, result));
+  result = Packet(pselect(is_real_inf, real_inf_result.real, result.real),
+                  pselect(is_real_inf, real_inf_result.imag, result.imag));
+
+  return Packet(pselect(is_imag_inf, cst_pos_inf, result.real), pselect(is_imag_inf, a.imag, result.imag));
 }
 
 template <typename Packet>
@@ -377,17 +377,18 @@ EIGEN_STRONG_INLINE Packet plog_complex_rvv(const Packet& x) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;
   typedef typename packet_traits<RealScalar>::type RealPacket;
+  typedef typename unpacket_traits<RealPacket>::packet_mask PacketMask;
 
   // log(sqrt(a^2 + b^2)), atan2(b, a)
-  RealPacket xlogr = plog(psqrt(padd(pmul(x.real, x.real), pmul(x.imag, x.imag))));
+  RealPacket xlogr = plog(psqrt(padd(pmul<RealPacket>(x.real, x.real), pmul<RealPacket>(x.imag, x.imag))));
   RealPacket ximg = patan2(x.imag, x.real);
 
   const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
   RealPacket r_abs = pabs(x.real);
   RealPacket i_abs = pabs(x.imag);
-  RealPacket is_r_pos_inf = pcmp_eq(r_abs, cst_pos_inf);
-  RealPacket is_i_pos_inf = pcmp_eq(i_abs, cst_pos_inf);
-  RealPacket is_any_inf = por(is_r_pos_inf, is_i_pos_inf);
+  PacketMask is_r_pos_inf = pcmp_eq_mask(r_abs, cst_pos_inf);
+  PacketMask is_i_pos_inf = pcmp_eq_mask(i_abs, cst_pos_inf);
+  PacketMask is_any_inf = por(is_r_pos_inf, is_i_pos_inf);
   RealPacket xreal = pselect(is_any_inf, cst_pos_inf, xlogr);
 
   return Packet(xreal, ximg);
@@ -480,10 +481,7 @@ EIGEN_STRONG_INLINE PacketXcd pcast<PacketMul2Xd, PacketXcd>(const PacketMul2Xd&
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xd pcast<PacketXcd, PacketMul2Xd>(const PacketXcd& a) {
-  PacketMul2Xd res = __riscv_vundefined_f64m2();
-  res = __riscv_vset_v_f64m1_f64m2(res, 0, a.real);
-  res = __riscv_vset_v_f64m1_f64m2(res, 1, a.imag);
-  return res;
+  return __riscv_vcreate_v_f64m1_f64m2(a.real, a.imag);
 }
 
 template <>
@@ -535,10 +533,9 @@ EIGEN_STRONG_INLINE PacketXcd pmadd<PacketXcd>(const PacketXcd& a, const PacketX
 
 template <>
 EIGEN_STRONG_INLINE PacketXcd pcmp_eq(const PacketXcd& a, const PacketXcd& b) {
-  PacketXd eq_real = pcmp_eq<PacketXd>(a.real, b.real);
-  PacketXd eq_imag = pcmp_eq<PacketXd>(a.imag, b.imag);
-  PacketXd eq_both = pand<PacketXd>(eq_real, eq_imag);
-  return PacketXcd(eq_both, eq_both);
+  PacketMask64 eq_both = pand<PacketMask64>(pcmp_eq_mask(a.real, b.real), pcmp_eq_mask(a.imag, b.imag));
+  PacketXd res = pselect(eq_both, ptrue<PacketXd>(a.real), pzero<PacketXd>(a.real));
+  return PacketXcd(res, res);
 }
 
 template <>
