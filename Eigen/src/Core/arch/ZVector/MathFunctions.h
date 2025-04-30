@@ -23,6 +23,20 @@ namespace Eigen {
 
 namespace internal {
 
+EIGEN_DOUBLE_PACKET_FUNCTION(atanh, Packet2d)
+EIGEN_DOUBLE_PACKET_FUNCTION(log, Packet2d)
+EIGEN_DOUBLE_PACKET_FUNCTION(log2, Packet2d)
+EIGEN_DOUBLE_PACKET_FUNCTION(tanh, Packet2d)
+
+EIGEN_FLOAT_PACKET_FUNCTION(atanh, Packet4f)
+EIGEN_FLOAT_PACKET_FUNCTION(log, Packet4f)
+EIGEN_FLOAT_PACKET_FUNCTION(log2, Packet4f)
+
+EIGEN_GENERIC_PACKET_FUNCTION(atan, Packet2d)
+EIGEN_GENERIC_PACKET_FUNCTION(atan, Packet4f)
+EIGEN_GENERIC_PACKET_FUNCTION(exp2, Packet2d)
+EIGEN_GENERIC_PACKET_FUNCTION(exp2, Packet4f)
+
 #if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
 static EIGEN_DECLARE_CONST_Packet4f(1, 1.0f);
 static EIGEN_DECLARE_CONST_Packet4f(half, 0.5f);
