@@ -490,7 +490,8 @@ EIGEN_STRONG_INLINE Packet4i pmin<Packet4i>(const Packet4i& a, const Packet4i& b
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pmin<Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return vec_min(a, b);
+  /* Propagates NaN if either input is a NaN. */
+  return __builtin_s390_vfmindb(a, b, 1);
 }
 
 template <>
@@ -499,7 +500,8 @@ EIGEN_STRONG_INLINE Packet4i pmax<Packet4i>(const Packet4i& a, const Packet4i& b
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pmax<Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return vec_max(a, b);
+  /* Propagates NaN if either input is a NaN. */
+  return __builtin_s390_vfmaxdb(a, b, 1);
 }
 
 template <>
@@ -540,7 +542,8 @@ EIGEN_STRONG_INLINE Packet2d pandnot<Packet2d>(const Packet2d& a, const Packet2d
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pround<Packet2d>(const Packet2d& a) {
-  return vec_round(a);
+  /* Uses non-default rounding for vec_round */
+  return __builtin_s390_vfidb(a, 0, 1);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
@@ -945,8 +948,8 @@ EIGEN_STRONG_INLINE Packet4f pandnot<Packet4f>(const Packet4f& a, const Packet4f
 template <>
 EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
   Packet4f res;
-  res.v4f[0] = vec_round(a.v4f[0]);
-  res.v4f[1] = vec_round(a.v4f[1]);
+  res.v4f[0] = generic_round(a.v4f[0]);
+  res.v4f[1] = generic_round(a.v4f[1]);
   return res;
 }
 
@@ -1186,11 +1189,13 @@ EIGEN_STRONG_INLINE Packet4f pmadd<Packet4f>(const Packet4f& a, const Packet4f& 
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return vec_min(a, b);
+  /* Propagates NaN if either input is a NaN. */
+  return __builtin_s390_vfminsb(a, b, 1);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return vec_max(a, b);
+  /* Propagates NaN if either input is a NaN. */
+  return __builtin_s390_vfmaxsb(a, b, 1);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pand<Packet4f>(const Packet4f& a, const Packet4f& b) {
@@ -1210,7 +1215,8 @@ EIGEN_STRONG_INLINE Packet4f pandnot<Packet4f>(const Packet4f& a, const Packet4f
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
-  return vec_round(a);
+  /* Uses non-default rounding for vec_round */
+  return __builtin_s390_vfisb(a, 0, 1);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
