@@ -1276,9 +1276,9 @@ EIGEN_STRONG_INLINE Packet4f preverse(const Packet4f& a) {
 template <>
 EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
   Packet4f b, sum;
-  b = vec_sld(a, a, 8);
+  b = vec_perm(a, a, p16uc_COMPLEX32_REV);
   sum = padd<Packet4f>(a, b);
-  b = vec_sld(sum, sum, 4);
+  b = vec_sld(sum, sum, 8);
   sum = padd<Packet4f>(sum, b);
   return pfirst(sum);
 }
@@ -1288,8 +1288,9 @@ EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
 template <>
 EIGEN_STRONG_INLINE float predux_mul<Packet4f>(const Packet4f& a) {
   Packet4f prod;
-  prod = pmul(a, vec_sld(a, a, 8));
-  return pfirst(pmul(prod, vec_sld(prod, prod, 4)));
+  prod = vec_perm(a, a, p16uc_COMPLEX32_REV);
+  prod = pmul(a, prod);
+  return pfirst(pmul(prod, vec_sld(prod, prod, 8)));
 }
 
 // min
