@@ -129,10 +129,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 #endif
   /** \brief Move constructor */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(Array&&) = default;
-  EIGEN_DEVICE_FUNC Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
-    Base::operator=(std::move(other));
-    return *this;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array& operator=(Array&&) = default;
 
   /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
    *
@@ -178,8 +175,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    *
    * \sa  Array(const Scalar& a0, const Scalar& a1, const Scalar& a2, const Scalar& a3, const ArgTypes&... args)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(
-      const std::initializer_list<std::initializer_list<Scalar>>& list)
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE constexpr Array(const std::initializer_list<std::initializer_list<Scalar>>& list)
       : Base(list) {}
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN

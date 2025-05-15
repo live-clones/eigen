@@ -38,6 +38,9 @@ static_assert(std::is_trivially_default_constructible<Array4f>::value, "Array4f 
 // all fixed-size, fixed-dimension plain object types are trivially move constructible
 static_assert(std::is_trivially_move_constructible<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
 static_assert(std::is_trivially_move_constructible<Array4f>::value, "Array4f not trivially_move_constructible");
+// all fixed-size, fixed-dimension plain object types are trivially move assignable
+static_assert(std::is_trivially_move_assignable<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
+static_assert(std::is_trivially_move_assignable<Array4f>::value, "Array4f not trivially_move_constructible");
 // all statically-allocated plain object types are trivially destructible
 static_assert(std::is_trivially_destructible<Matrix4f>::value, "Matrix4f not trivially_destructible");
 static_assert(std::is_trivially_destructible<Array4f>::value, "Array4f not trivially_destructible");
@@ -126,6 +129,41 @@ void dense_storage_alignment() {
     };
     VERIFY_IS_EQUAL(std::alignment_of<Nested2>::value, default_alignment);
   }
+}
+
+template <typename Derived>
+void slice_move_assign(MatrixBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = std::move(b);
+}
+template <typename Derived>
+void slice_move_assign(ArrayBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = std::move(b);
+}
+template <typename Derived>
+void slice_copy_assign(MatrixBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = b;
+}
+template <typename Derived>
+void slice_copy_assign(ArrayBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = b;
+}
+
+template <typename Derived>
+void test_slice_assign(Derived& v) {
+  v.setRandom();
+  slice_move_assign(v);
+  VERIFY_IS_CWISE_EQUAL(v, Derived::Zero(v.rows(), v.cols()));
+  v.setRandom();
+  slice_copy_assign(v);
+  VERIFY_IS_CWISE_EQUAL(v, Derived::Zero(v.rows(), v.cols()));
 }
 
 template <typename T>
@@ -248,6 +286,8 @@ void plaintype_tests() {
   VERIFY_IS_EQUAL(m1.rows(), m0.rows());
   VERIFY_IS_EQUAL(m1.cols(), m0.cols());
   VERIFY_IS_CWISE_EQUAL(m1, m0);
+
+  test_slice_assign(m1);
 }
 
 EIGEN_DECLARE_TEST(dense_storage) {
