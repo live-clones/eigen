@@ -108,7 +108,7 @@ class ArrayBase : public DenseBase<Derived> {
     return derived();
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr ArrayBase& operator=(Derived&& other) {
-    derived() = std::move(other);
+    swap(derived(), other);
     return *this;
   }
 
