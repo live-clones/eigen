@@ -255,9 +255,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
 #endif
   /** \brief Move constructor */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix(Matrix&&) = default;
-  /** \brief Moves the matrix into the other one.
-   *
-   */
+  /** \brief Move assignment */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix& operator=(Matrix&&) = default;
 
   /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
