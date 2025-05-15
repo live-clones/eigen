@@ -140,7 +140,7 @@ class MatrixBase : public DenseBase<Derived> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr MatrixBase& operator=(MatrixBase&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr MatrixBase& operator=(Derived&& other) {
     derived() = std::move(other);
-    return derived();
+    return *this;
   }
 
   // We cannot inherit here via Base::operator= since it is causing
