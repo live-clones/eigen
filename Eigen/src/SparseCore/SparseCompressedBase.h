@@ -111,7 +111,7 @@ class SparseCompressedBase : public SparseMatrixBase<Derived> {
   inline StorageIndex* innerNonZeroPtr() { return derived().innerNonZeroPtr(); }
 
   /** \returns whether \c *this is in compressed form. */
-  inline bool isCompressed() const { return innerNonZeroPtr() == 0; }
+  inline bool isCompressed() const { return Derived::IsStaticCompressed ? true : innerNonZeroPtr() == 0; }
 
   /** \returns a read-only view of the stored coefficients as a 1D array expression.
    *
