@@ -330,8 +330,7 @@ EIGEN_DEVICE_FUNC inline bool padd(const bool& a, const bool& b) {
  * cases. Generic case should not be called.
  */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline std::enable_if_t<unpacket_traits<Packet>::masked_fpops_available, Packet> padd(
-    const Packet& a, const Packet& b, typename unpacket_traits<Packet>::mask_t umask);
+EIGEN_DEVICE_FUNC inline Packet padd(const Packet& a, const Packet& b, typename unpacket_traits<Packet>::mask_t umask);
 
 /** \internal \returns a - b (coeff-wise) */
 template <typename Packet>
