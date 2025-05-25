@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
 ## [3.5.0]
 
 ### Supported modules
@@ -1156,4 +1158,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - [#637](https://gitlab.com/libeigen/eigen/-/merge_requests/637): Removes obsolete DynamicSparseMatrix references and typographical errors in unsupported directory
 
-[3.5.0]: https://gitlab.com/libeigen/eigen/-/compare/3.4.0...master
+[Unreleased]: https://gitlab.com/libeigen/eigen/-/compare/3.5.0...master
+[3.5.0]: https://gitlab.com/libeigen/eigen/-/compare/3.4.0...3.5.0
