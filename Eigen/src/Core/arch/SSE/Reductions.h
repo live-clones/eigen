@@ -171,7 +171,7 @@ struct sse_predux_common<Packet2l, Op> {
   static EIGEN_STRONG_INLINE int64_t run(const Packet2l& a) {
     Packet2l tmp;
     tmp = Op::packetOp(a, _mm_unpackhi_epi64(a, a));
-    return static_cast<int64_t>(_mm_cvtsi128_si64(tmp));
+    return pfirst(tmp);
   }
 };
 
