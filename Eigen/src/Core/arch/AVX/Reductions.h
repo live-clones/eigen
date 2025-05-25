@@ -408,4 +408,4 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8bf& x) {
 }  // end namespace internal
 }  // end namespace Eigen
 
-#endif  // EIGEN_REDUCTIONS_SSE_H
+#endif  // EIGEN_REDUCTIONS_AVX_H
