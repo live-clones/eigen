@@ -17,52 +17,60 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Op>
-EIGEN_STRONG_INLINE int predux_op(const Packet4i& a, Op op) {
-  __m128i tmp;
-  tmp = op(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(1, 0, 3, 2)));
-  tmp = op(tmp, _mm_shuffle_epi32(tmp, _MM_SHUFFLE(2, 3, 0, 1)));
-  return _mm_cvtsi128_si32(tmp);
-}
+template <typename Packet>
+struct sse_add_wrapper {
+  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return padd<Packet>(a, b); }
+};
 
-template <typename Op>
-EIGEN_STRONG_INLINE uint32_t predux_op(const Packet4ui& a, Op op) {
-  __m128i tmp;
-  tmp = op(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(1, 0, 3, 2)));
-  tmp = op(tmp, _mm_shuffle_epi32(tmp, _MM_SHUFFLE(2, 3, 0, 1)));
-  return static_cast<uint32_t>(_mm_cvtsi128_si32(tmp));
-}
+template <typename Packet>
+struct sse_mul_wrapper {
+  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return pmul<Packet>(a, b); }
+};
 
-template <typename Op>
-EIGEN_STRONG_INLINE int64_t predux_op(const Packet2l& a, Op op) {
-  __m128i tmp;
-  tmp = op(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(1, 0, 3, 2)));
-  return static_cast<int64_t>(_mm_cvtsi128_si64(tmp));
-}
+template <typename Packet>
+struct sse_min_wrapper {
+  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return pmin<Packet>(a, b); }
+};
 
-template <typename Op>
-EIGEN_STRONG_INLINE float predux_op(const Packet4f& a, Op op) {
-  __m128 tmp;
-#ifdef EIGEN_VECTORIZE_AVX
-  tmp = op(a, _mm_permute_ps(a, _MM_SHUFFLE(1, 0, 3, 2)));
-  tmp = op(tmp, _mm_permute_ps(tmp, _MM_SHUFFLE(2, 3, 0, 1)));
-#else
-  tmp = op(a, _mm_shuffle_ps(a, a, _MM_SHUFFLE(1, 0, 3, 2)));
-  tmp = op(tmp, _mm_shuffle_ps(tmp, tmp, _MM_SHUFFLE(2, 3, 0, 1)));
-#endif
-  return _mm_cvtss_f32(tmp);
-}
+template <int NaNPropagation, typename Packet>
+struct sse_min_prop_wrapper {
+  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) {
+    return pmin<NaNPropagation, Packet>(a, b);
+  }
+};
 
-template <typename Op>
-EIGEN_STRONG_INLINE double predux_op(const Packet2d& a, Op op) {
-  __m128d tmp;
-#ifdef EIGEN_VECTORIZE_AVX
-  tmp = op(a, _mm_permute_pd(a, 1));
-#else
-  tmp = op(a, _mm_shuffle_pd(a, a, 1));
-#endif
-  return _mm_cvtsd_f64(tmp);
-}
+template <typename Packet>
+struct sse_max_wrapper {
+  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return pmax<Packet>(a, b); }
+};
+
+template <int NaNPropagation, typename Packet>
+struct sse_max_prop_wrapper {
+  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) {
+    return pmax<NaNPropagation, Packet>(a, b);
+  }
+};
+
+template <typename Packet, typename Op>
+struct sse_predux_common;
+
+template <typename Packet>
+struct sse_predux_impl : sse_predux_common<Packet, sse_add_wrapper<Packet>> {};
+
+template <typename Packet>
+struct sse_predux_mul_impl : sse_predux_common<Packet, sse_mul_wrapper<Packet>> {};
+
+template <typename Packet>
+struct sse_predux_min_impl : sse_predux_common<Packet, sse_min_wrapper<Packet>> {};
+
+template <int NaNPropagation, typename Packet>
+struct sse_predux_min_prop_impl : sse_predux_common<Packet, sse_min_prop_wrapper<NaNPropagation, Packet>> {};
+
+template <typename Packet>
+struct sse_predux_max_impl : sse_predux_common<Packet, sse_max_wrapper<Packet>> {};
+
+template <int NaNPropagation, typename Packet>
+struct sse_predux_max_prop_impl : sse_predux_common<Packet, sse_max_prop_wrapper<NaNPropagation, Packet>> {};
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet16b -- -- -- -- -- -- -- -- -- -- -- -- */
 
@@ -80,25 +88,35 @@ EIGEN_STRONG_INLINE bool predux_mul(const Packet16b& a) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4i -- -- -- -- -- -- -- -- -- -- -- -- */
 
+template <typename Op>
+struct sse_predux_common<Packet4i, Op> {
+  static EIGEN_STRONG_INLINE int run(const Packet4i& a) {
+    Packet4i tmp;
+    tmp = Op::packetOp(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+    tmp = Op::packetOp(tmp, _mm_unpackhi_epi32(tmp, tmp));
+    return _mm_cvtsi128_si32(tmp);
+  }
+};
+
 template <>
 EIGEN_STRONG_INLINE int predux(const Packet4i& a) {
-  return predux_op(a, padd<Packet4i>);
+  return sse_predux_impl<Packet4i>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE int predux_mul(const Packet4i& a) {
-  return predux_op(a, pmul<Packet4i>);
+  return sse_predux_mul_impl<Packet4i>::run(a);
 }
 
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
 EIGEN_STRONG_INLINE int predux_min(const Packet4i& a) {
-  return predux_op(a, pmin<Packet4i>);
+  return sse_predux_min_impl<Packet4i>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE int predux_max(const Packet4i& a) {
-  return predux_op(a, pmax<Packet4i>);
+  return sse_predux_max_impl<Packet4i>::run(a);
 }
 #endif
 
@@ -109,25 +127,35 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4i& x) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4ui -- -- -- -- -- -- -- -- -- -- -- -- */
 
+template <typename Op>
+struct sse_predux_common<Packet4ui, Op> {
+  static EIGEN_STRONG_INLINE uint32_t run(const Packet4ui& a) {
+    Packet4ui tmp;
+    tmp = Op::packetOp(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+    tmp = Op::packetOp(tmp, _mm_unpackhi_epi32(tmp, tmp));
+    return static_cast<uint32_t>(_mm_cvtsi128_si32(tmp));
+  }
+};
+
 template <>
 EIGEN_STRONG_INLINE uint32_t predux(const Packet4ui& a) {
-  return predux_op(a, padd<Packet4ui>);
+  return sse_predux_impl<Packet4ui>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE uint32_t predux_mul(const Packet4ui& a) {
-  return predux_op(a, pmul<Packet4ui>);
+  return sse_predux_mul_impl<Packet4ui>::run(a);
 }
 
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
 EIGEN_STRONG_INLINE uint32_t predux_min(const Packet4ui& a) {
-  return predux_op(a, pmin<Packet4ui>);
+  return sse_predux_min_impl<Packet4ui>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE uint32_t predux_max(const Packet4ui& a) {
-  return predux_op(a, pmax<Packet4ui>);
+  return sse_predux_max_impl<Packet4ui>::run(a);
 }
 #endif
 
@@ -138,9 +166,18 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& x) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet2l -- -- -- -- -- -- -- -- -- -- -- -- */
 
+template <typename Op>
+struct sse_predux_common<Packet2l, Op> {
+  static EIGEN_STRONG_INLINE int64_t run(const Packet2l& a) {
+    Packet2l tmp;
+    tmp = Op::packetOp(a, _mm_unpackhi_epi64(a, a));
+    return static_cast<int64_t>(_mm_cvtsi128_si64(tmp));
+  }
+};
+
 template <>
 EIGEN_STRONG_INLINE int64_t predux(const Packet2l& a) {
-  return predux_op(a, padd<Packet2l>);
+  return sse_predux_impl<Packet2l>::run(a);
 }
 
 template <>
@@ -150,54 +187,64 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet2l& x) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4f -- -- -- -- -- -- -- -- -- -- -- -- */
 
+template <typename Op>
+struct sse_predux_common<Packet4f, Op> {
+  static EIGEN_STRONG_INLINE float run(const Packet4f& a) {
+    Packet4f tmp;
+    tmp = Op::packetOp(a, _mm_movehl_ps(a, a));
+    tmp = Op::packetOp(tmp, _mm_movehdup_ps(tmp));
+    return _mm_cvtss_f32(tmp);
+  }
+};
+
 template <>
 EIGEN_STRONG_INLINE float predux(const Packet4f& a) {
-  return predux_op(a, padd<Packet4f>);
+  return sse_predux_impl<Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_mul(const Packet4f& a) {
-  return predux_op(a, pmul<Packet4f>);
+  return sse_predux_mul_impl<Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min(const Packet4f& a) {
-  return predux_op(a, pmin<Packet4f>);
+  return sse_predux_min_impl<Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateFast>(const Packet4f& a) {
-  return predux_op(a, pmin<Packet4f>);
+  return sse_predux_min_prop_impl<PropagateFast, Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNumbers>(const Packet4f& a) {
-  return predux_op(a, pmin<PropagateNumbers, Packet4f>);
+  return sse_predux_min_prop_impl<PropagateNumbers, Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNaN>(const Packet4f& a) {
-  return predux_op(a, pmin<PropagateNaN, Packet4f>);
+  return sse_predux_min_prop_impl<PropagateNaN, Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max(const Packet4f& a) {
-  return predux_op(a, pmax<Packet4f>);
+  return sse_predux_max_impl<Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateFast>(const Packet4f& a) {
-  return predux_op(a, pmax<Packet4f>);
+  return sse_predux_max_prop_impl<PropagateFast, Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNumbers>(const Packet4f& a) {
-  return predux_op(a, pmax<PropagateNumbers, Packet4f>);
+  return sse_predux_max_prop_impl<PropagateNumbers, Packet4f>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNaN>(const Packet4f& a) {
-  return predux_op(a, pmax<PropagateNaN, Packet4f>);
+  return sse_predux_max_prop_impl<PropagateNaN, Packet4f>::run(a);
 }
 
 template <>
@@ -207,54 +254,63 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet2d -- -- -- -- -- -- -- -- -- -- -- -- */
 
+template <typename Op>
+struct sse_predux_common<Packet2d, Op> {
+  static EIGEN_STRONG_INLINE double run(const Packet2d& a) {
+    Packet2d tmp;
+    tmp = Op::packetOp(a, _mm_unpackhi_pd(a, a));
+    return _mm_cvtsd_f64(tmp);
+  }
+};
+
 template <>
 EIGEN_STRONG_INLINE double predux(const Packet2d& a) {
-  return predux_op(a, padd<Packet2d>);
+  return sse_predux_impl<Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_mul(const Packet2d& a) {
-  return predux_op(a, pmul<Packet2d>);
+  return sse_predux_mul_impl<Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min(const Packet2d& a) {
-  return predux_op(a, pmin<Packet2d>);
+  return sse_predux_min_impl<Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateFast>(const Packet2d& a) {
-  return predux_op(a, pmin<Packet2d>);
+  return sse_predux_min_prop_impl<PropagateFast, Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateNumbers>(const Packet2d& a) {
-  return predux_op(a, pmin<PropagateNumbers, Packet2d>);
+  return sse_predux_min_prop_impl<PropagateNumbers, Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateNaN>(const Packet2d& a) {
-  return predux_op(a, pmin<PropagateNaN, Packet2d>);
+  return sse_predux_min_prop_impl<PropagateNaN, Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max(const Packet2d& a) {
-  return predux_op(a, pmax<Packet2d>);
+  return sse_predux_max_impl<Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PropagateFast>(const Packet2d& a) {
-  return predux_op(a, pmax<Packet2d>);
+  return sse_predux_max_prop_impl<PropagateFast, Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PropagateNumbers>(const Packet2d& a) {
-  return predux_op(a, pmax<PropagateNumbers, Packet2d>);
+  return sse_predux_max_prop_impl<PropagateNumbers, Packet2d>::run(a);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PropagateNaN>(const Packet2d& a) {
-  return predux_op(a, pmax<PropagateNaN, Packet2d>);
+  return sse_predux_max_prop_impl<PropagateNaN, Packet2d>::run(a);
 }
 
 template <>
