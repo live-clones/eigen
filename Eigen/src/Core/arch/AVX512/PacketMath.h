@@ -2302,8 +2302,6 @@ EIGEN_STRONG_INLINE Packet16h pnmsub<Packet16h>(const Packet16h& a, const Packet
   return float2half(pnmsub(half2float(a), half2float(b), half2float(c)));
 }
 
-
-
 template <>
 EIGEN_STRONG_INLINE Packet8h predux_half_dowto4<Packet16h>(const Packet16h& a) {
   Packet8h lane0 = _mm256_extractf128_si256(a, 0);
