@@ -171,6 +171,7 @@ EIGEN_DECLARE_TEST(redux) {
     CALL_SUBTEST_4(matrixRedux(ArrayXXf(rows, cols)));
     CALL_SUBTEST_4(matrixRedux(MatrixXd(rows, cols)));
     CALL_SUBTEST_4(matrixRedux(ArrayXXd(rows, cols)));
+    /* TODO: fix test for boolean */
     /*CALL_SUBTEST_5(matrixRedux(MatrixX<bool>(rows, cols)));*/
     /*CALL_SUBTEST_5(matrixRedux(ArrayXX<bool>(rows, cols)));*/
     CALL_SUBTEST_5(matrixRedux(MatrixXi(rows, cols)));
@@ -190,6 +191,7 @@ EIGEN_DECLARE_TEST(redux) {
     CALL_SUBTEST_9(vectorRedux(ArrayXf(size)));
     CALL_SUBTEST_10(vectorRedux(VectorXd(size)));
     CALL_SUBTEST_10(vectorRedux(ArrayXd(size)));
+    /* TODO: fix test for boolean */
     /*CALL_SUBTEST_10(vectorRedux(VectorX<bool>(size)));*/
     /*CALL_SUBTEST_10(vectorRedux(ArrayX<bool>(size)));*/
     CALL_SUBTEST_10(vectorRedux(VectorXi(size)));
