@@ -191,8 +191,8 @@ template <typename Op>
 struct sse_predux_common<Packet4f, Op> {
   static EIGEN_STRONG_INLINE float run(const Packet4f& a) {
     Packet4f tmp;
-    tmp = Op::packetOp(a, _mm_movehl_ps(a, a));
-    tmp = Op::packetOp(tmp, _mm_movehdup_ps(tmp));
+    tmp = Op::packetOp(a, _mm_shuffle_ps(a, a, _MM_SHUFFLE(0, 1, 2, 3)));
+    tmp = Op::packetOp(tmp, _mm_unpackhi_ps(tmp, tmp));
     return _mm_cvtss_f32(tmp);
   }
 };
