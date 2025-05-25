@@ -915,7 +915,6 @@ template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
   return _mm_cmpeq_pd(a, b);
 }
-
 template <>
 EIGEN_STRONG_INLINE Packet4i pcmp_lt(const Packet4i& a, const Packet4i& b) {
   return _mm_cmplt_epi32(a, b);
