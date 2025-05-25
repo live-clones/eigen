@@ -898,10 +898,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4f pcmp_eq(const Packet4f& a, const Packet4f& b) {
   return _mm_cmpeq_ps(a, b);
 }
-template <>
-EIGEN_STRONG_INLINE Packet4f pisnan(const Packet4f& a) {
-  return _mm_cmpunord_ps(a, a);
-}
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_le(const Packet2d& a, const Packet2d& b) {
@@ -918,10 +914,6 @@ EIGEN_STRONG_INLINE Packet2d pcmp_lt_or_nan(const Packet2d& a, const Packet2d& b
 template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
   return _mm_cmpeq_pd(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pisnan(const Packet2d& a) {
-  return _mm_cmpunord_pd(a, a);
 }
 
 template <>
