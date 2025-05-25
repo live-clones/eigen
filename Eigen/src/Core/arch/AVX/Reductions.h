@@ -97,6 +97,8 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& x) {
 #endif
 }
 
+#ifdef EIGEN_VECTORIZE_AVX2
+
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4l -- -- -- -- -- -- -- -- -- -- -- -- */
 
 template <>
@@ -122,6 +124,8 @@ template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet4ul& x) {
   return _mm256_movemask_pd(_mm256_castsi256_pd(x)) != 0x0;
 }
+
+#endif
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet8f -- -- -- -- -- -- -- -- -- -- -- -- */
 
