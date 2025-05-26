@@ -190,16 +190,10 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet2l& x) {
 template <typename Op>
 struct sse_predux_common<Packet4f, Op> {
   static EIGEN_STRONG_INLINE float run(const Packet4f& a) {
-    Packet4f tmp1, tmp2;
-#ifndef EIGEN_VECTORIZE_SSE3
-    tmp1 = _mm_movehdup_ps(a);
-#else
-    tmp1 = _mm_shuffle_ps(a, a, _MM_SHUFFLE(2, 3, 0, 1));  // [ C D | A B ]
-#endif
-    tmp2 = Op::packetOp(a, tmp1);
-    tmp1 = _mm_movehl_ps(tmp1, tmp2);  //  [   C   D | D+C C+D ]  // let the compiler avoid a mov by reusing shuf
-    tmp2 = Op::packetOp(tmp2, tmp1);
-    return _mm_cvtss_f32(tmp2);
+    Packet4f tmp;
+    tmp = Op::packetOp(a, _mm_movehl_ps(a, a));
+    tmp = Op::packetOp(tmp, _mm_shuffle_ps(tmp, tmp, 1));
+    return _mm_cvtss_f32(tmp);
   }
 };
 
