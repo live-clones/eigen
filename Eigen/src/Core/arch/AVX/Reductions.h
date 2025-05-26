@@ -50,11 +50,11 @@ EIGEN_STRONG_INLINE int predux_max(const Packet8i& a) {
 #endif
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8i& x) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet8i& a) {
 #ifdef EIGEN_VECTORIZE_AVX2
-  return _mm256_movemask_epi8(x) != 0x0;
+  return _mm256_movemask_epi8(a) != 0x0;
 #else
-  _mm256_movemask_ps(_mm256_castsi256_ps(x)) != 0x0;
+  _mm256_movemask_ps(_mm256_castsi256_ps(a)) != 0x0;
 #endif
 }
 
@@ -89,11 +89,11 @@ EIGEN_STRONG_INLINE uint32_t predux_max(const Packet8ui& a) {
 #endif
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& x) {
+EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& a) {
 #ifdef EIGEN_VECTORIZE_AVX2
-  return _mm256_movemask_epi8(x) != 0x0;
+  return _mm256_movemask_epi8(a) != 0x0;
 #else
-  _mm256_movemask_ps(_mm256_castsi256_ps(x)) != 0x0;
+  _mm256_movemask_ps(_mm256_castsi256_ps(a)) != 0x0;
 #endif
 }
 
@@ -109,8 +109,8 @@ EIGEN_STRONG_INLINE int64_t predux(const Packet4l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4l& x) {
-  return _mm256_movemask_pd(_mm256_castsi256_pd(x)) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet4l& a) {
+  return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0x0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4ul -- -- -- -- -- -- -- -- -- -- -- -- */
@@ -121,8 +121,8 @@ EIGEN_STRONG_INLINE uint64_t predux(const Packet4ul& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4ul& x) {
-  return _mm256_movemask_pd(_mm256_castsi256_pd(x)) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet4ul& a) {
+  return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0x0;
 }
 
 #endif
@@ -196,8 +196,8 @@ EIGEN_STRONG_INLINE float predux_max<PropagateNaN>(const Packet8f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8f& x) {
-  return _mm256_movemask_ps(x) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet8f& a) {
+  return _mm256_movemask_ps(a) != 0x0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4d -- -- -- -- -- -- -- -- -- -- -- -- */
@@ -269,82 +269,66 @@ EIGEN_STRONG_INLINE double predux_max<PropagateNaN>(const Packet4d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4d& x) {
-  return _mm256_movemask_pd(x) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet4d& a) {
+  return _mm256_movemask_pd(a) != 0x0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet8h -- -- -- -- -- -- -- -- -- -- -- -- */
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux<Packet8f>(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux(const Packet8h& a) {
+  return static_cast<half>(predux(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_mul(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_mul<Packet8f>(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux_mul(const Packet8h& a) {
+  return static_cast<half>(predux_mul(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_min(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_min(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux_min(const Packet8h& a) {
+  return static_cast<half>(predux_min(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_min<PropagateFast>(const Packet8h& a) {
-  return predux_min(a);
+EIGEN_STRONG_INLINE half predux_min<PropagateFast>(const Packet8h& a) {
+  return static_cast<half>(predux_min<PropagateFast>(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_min<PropagateNumbers>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_min<PropagateNumbers>(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux_min<PropagateNumbers>(const Packet8h& a) {
+  return static_cast<half>(predux_min<PropagateNumbers>(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_min<PropagateNaN>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_min<PropagateNaN>(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux_min<PropagateNaN>(const Packet8h& a) {
+  return static_cast<half>(predux_min<PropagateNaN>(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_max(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_max<Packet8f>(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux_max(const Packet8h& a) {
+  return static_cast<half>(predux_max(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_max<PropagateFast>(const Packet8h& a) {
-  return predux_max(a);
+EIGEN_STRONG_INLINE half predux_max<PropagateFast>(const Packet8h& a) {
+  return static_cast<half>(predux_max<PropagateFast>(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_max<PropagateNumbers>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_max<PropagateNumbers>(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux_max<PropagateNumbers>(const Packet8h& a) {
+  return static_cast<half>(predux_max<PropagateNumbers>(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux_max<PropagateNaN>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_max<PropagateNaN>(af);
-  return Eigen::half(reduced);
+EIGEN_STRONG_INLINE half predux_max<PropagateNaN>(const Packet8h& a) {
+  return static_cast<half>(predux_max<PropagateNaN>(half2float(a)));
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8h& x) {
-  return _mm_movemask_epi8(x) != 0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet8h& a) {
+  return _mm_movemask_epi8(a) != 0;
 }
 #endif  // EIGEN_VECTORIZE_AVX512FP16
 
@@ -401,8 +385,8 @@ EIGEN_STRONG_INLINE bfloat16 predux_max<PropagateNaN>(const Packet8bf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8bf& x) {
-  return _mm_movemask_epi8(x) != 0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet8bf& a) {
+  return _mm_movemask_epi8(a) != 0;
 }
 
 }  // end namespace internal
