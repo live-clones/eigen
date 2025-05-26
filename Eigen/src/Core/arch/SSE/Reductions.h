@@ -192,7 +192,11 @@ struct sse_predux_common<Packet4f, Op> {
   static EIGEN_STRONG_INLINE float run(const Packet4f& a) {
     Packet4f tmp;
     tmp = Op::packetOp(a, _mm_movehl_ps(a, a));
+#ifdef EIGEN_VECTORIZE_SSE3
+    tmp = Op::packetOp(tmp, _mm_movehdup_ps(tmp));
+#else
     tmp = Op::packetOp(tmp, _mm_shuffle_ps(tmp, tmp, 1));
+#endif
     return _mm_cvtss_f32(tmp);
   }
 };
