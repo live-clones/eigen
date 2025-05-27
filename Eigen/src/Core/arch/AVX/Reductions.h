@@ -33,7 +33,6 @@ EIGEN_STRONG_INLINE int predux_mul(const Packet8i& a) {
   return predux_mul(pmul(lo, hi));
 }
 
-#ifdef EIGEN_VECTORIZE_AVX2
 template <>
 EIGEN_STRONG_INLINE int predux_min(const Packet8i& a) {
   Packet4i lo = _mm256_castsi256_si128(a);
@@ -47,7 +46,6 @@ EIGEN_STRONG_INLINE int predux_max(const Packet8i& a) {
   Packet4i hi = _mm256_extractf128_si256(a, 1);
   return predux_max(pmax(lo, hi));
 }
-#endif
 
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8i& a) {
@@ -62,7 +60,9 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8i& a) {
 
 template <>
 EIGEN_STRONG_INLINE uint32_t predux(const Packet8ui& a) {
-  return static_cast<uint32_t>(predux(Packet8i(a)));
+  Packet4ui lo = _mm256_castsi256_si128(a);
+  Packet4ui hi = _mm256_extractf128_si256(a, 1);
+  return predux(padd(lo, hi));
 }
 
 template <>
@@ -72,7 +72,6 @@ EIGEN_STRONG_INLINE uint32_t predux_mul(const Packet8ui& a) {
   return predux_mul(pmul(lo, hi));
 }
 
-#ifdef EIGEN_VECTORIZE_AVX2
 template <>
 EIGEN_STRONG_INLINE uint32_t predux_min(const Packet8ui& a) {
   Packet4ui lo = _mm256_castsi256_si128(a);
@@ -86,7 +85,6 @@ EIGEN_STRONG_INLINE uint32_t predux_max(const Packet8ui& a) {
   Packet4ui hi = _mm256_extractf128_si256(a, 1);
   return predux_max(pmax(lo, hi));
 }
-#endif
 
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& a) {
