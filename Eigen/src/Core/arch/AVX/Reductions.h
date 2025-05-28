@@ -91,7 +91,7 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& a) {
 #ifdef EIGEN_VECTORIZE_AVX2
   return _mm256_movemask_epi8(a) != 0x0;
 #else
-  _mm256_movemask_ps(_mm256_castsi256_ps(a)) != 0x0;
+  return _mm256_movemask_ps(_mm256_castsi256_ps(a)) != 0x0;
 #endif
 }
 
