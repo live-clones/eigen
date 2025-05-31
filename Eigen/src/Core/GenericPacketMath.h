@@ -1244,26 +1244,46 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_mul(const
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_min(const Packet& a) {
   typedef typename unpacket_traits<Packet>::type Scalar;
-  return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmin<PropagateFast, Scalar>)));
+  return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmin<Scalar>)));
 }
 
-template <int NaNPropagation, typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_min(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmin<NaNPropagation, Scalar>)));
-}
-
-/** \internal \returns the min of the elements of \a a */
+/** \internal \returns the max of the elements of \a a */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_max(const Packet& a) {
   typedef typename unpacket_traits<Packet>::type Scalar;
-  return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmax<PropagateFast, Scalar>)));
+  return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmax<Scalar>)));
+}
+
+template <int NaNPropagation, typename Packet>
+struct predux_min_max_helper_impl {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  static constexpr bool UsePredux_ = NaNPropagation == PropagateFast || NumTraits<Scalar>::IsInteger;
+  template <bool UsePredux = UsePredux_, std::enable_if_t<!UsePredux, bool> = true>
+  static EIGEN_DEVICE_FUNC inline Scalar run_min(const Packet& a) {
+    return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmin<NaNPropagation, Scalar>)));
+  }
+  template <bool UsePredux = UsePredux_, std::enable_if_t<!UsePredux, bool> = true>
+  static EIGEN_DEVICE_FUNC inline Scalar run_max(const Packet& a) {
+    return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmax<NaNPropagation, Scalar>)));
+  }
+  template <bool UsePredux = UsePredux_, std::enable_if_t<UsePredux, bool> = true>
+  static EIGEN_DEVICE_FUNC inline Scalar run_min(const Packet& a) {
+    return predux_min(a);
+  }
+  template <bool UsePredux = UsePredux_, std::enable_if_t<UsePredux, bool> = true>
+  static EIGEN_DEVICE_FUNC inline Scalar run_max(const Packet& a) {
+    return predux_max(a);
+  }
+};
+
+template <int NaNPropagation, typename Packet>
+EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_min(const Packet& a) {
+  return predux_min_max_helper_impl<NaNPropagation, Packet>::run_min(a);
 }
 
 template <int NaNPropagation, typename Packet>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_max(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmax<NaNPropagation, Scalar>)));
+  return predux_min_max_helper_impl<NaNPropagation, Packet>::run_max(a);
 }
 
 #undef EIGEN_BINARY_OP_NAN_PROPAGATION

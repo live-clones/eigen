@@ -232,11 +232,6 @@ EIGEN_STRONG_INLINE float predux_min(const Packet4f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE float predux_min<PropagateFast>(const Packet4f& a) {
-  return sse_predux_min_prop_impl<PropagateFast, Packet4f>::run(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNumbers>(const Packet4f& a) {
   return sse_predux_min_prop_impl<PropagateNumbers, Packet4f>::run(a);
 }
@@ -249,11 +244,6 @@ EIGEN_STRONG_INLINE float predux_min<PropagateNaN>(const Packet4f& a) {
 template <>
 EIGEN_STRONG_INLINE float predux_max(const Packet4f& a) {
   return sse_predux_max_impl<Packet4f>::run(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_max<PropagateFast>(const Packet4f& a) {
-  return sse_predux_max_prop_impl<PropagateFast, Packet4f>::run(a);
 }
 
 template <>
@@ -298,11 +288,6 @@ EIGEN_STRONG_INLINE double predux_min(const Packet2d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE double predux_min<PropagateFast>(const Packet2d& a) {
-  return sse_predux_min_prop_impl<PropagateFast, Packet2d>::run(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateNumbers>(const Packet2d& a) {
   return sse_predux_min_prop_impl<PropagateNumbers, Packet2d>::run(a);
 }
@@ -315,11 +300,6 @@ EIGEN_STRONG_INLINE double predux_min<PropagateNaN>(const Packet2d& a) {
 template <>
 EIGEN_STRONG_INLINE double predux_max(const Packet2d& a) {
   return sse_predux_max_impl<Packet2d>::run(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE double predux_max<PropagateFast>(const Packet2d& a) {
-  return sse_predux_max_prop_impl<PropagateFast, Packet2d>::run(a);
 }
 
 template <>
