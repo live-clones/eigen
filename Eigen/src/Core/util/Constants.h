@@ -47,6 +47,15 @@ const int Infinity = -1;
  */
 const int HugeCost = 10000;
 
+/** This value is used as an option to specify that a Ref<const T> may not internally copy its input if it does not
+  * respect its alignment and/or stride requirements. Instead, a compilation error occurs when this happens (in the same
+  * way as when Ref<T> fail to match its requirements).
+  *
+  * As the options in Ref are used for alignment already, we use a bit that is higher than any possible Alignment
+  * available.
+  */
+const int DoNotCopy = 1024;
+
 /** \defgroup flags Flags
  * \ingroup Core_Module
  *
