@@ -23,8 +23,8 @@ struct max_coeff_functor {
     return candidate > incumbent;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline bool comparePacket(const Packet& incumbent, const Packet& candidate) const {
-    return predux_any(pcmp_lt(incumbent, candidate));
+  EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) const {
+    return pcmp_lt(incumbent, candidate);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& a) const {
@@ -38,8 +38,8 @@ struct max_coeff_functor<Scalar, PropagateNaN, false> {
     return (candidate > incumbent) || ((numext::isnan)(candidate)) && !((numext::isnan)(incumbent));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline bool comparePacket(const Packet& incumbent, const Packet& candidate) {
-    return predux_any(pandnot(pcmp_lt_or_nan(incumbent, candidate), pisnan(incumbent)));
+  EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) {
+    return pandnot(pcmp_lt_or_nan(incumbent, candidate), pisnan(incumbent));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& a) const {
@@ -53,8 +53,8 @@ struct max_coeff_functor<Scalar, PropagateNumbers, false> {
     return (candidate > incumbent) || ((numext::isnan)(incumbent)) && !((numext::isnan)(candidate));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline bool comparePacket(const Packet& incumbent, const Packet& candidate) const {
-    return predux_any(pandnot(pcmp_lt_or_nan(incumbent, candidate), pisnan(candidate)));
+  EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) const {
+    return pandnot(pcmp_lt_or_nan(incumbent, candidate), pisnan(candidate));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& a) const {
@@ -68,8 +68,8 @@ struct min_coeff_functor {
     return candidate < incumbent;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline bool comparePacket(const Packet& incumbent, const Packet& candidate) const {
-    return predux_any(pcmp_lt(candidate, incumbent));
+  EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) const {
+    return pcmp_lt(candidate, incumbent);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& a) const {
@@ -83,8 +83,8 @@ struct min_coeff_functor<Scalar, PropagateNaN, false> {
     return (candidate < incumbent) || ((numext::isnan)(candidate)) && !((numext::isnan)(incumbent));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline bool comparePacket(const Packet& incumbent, const Packet& candidate) {
-    return predux_any(pandnot(pcmp_lt_or_nan(candidate, incumbent), pisnan(incumbent)));
+  EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) {
+    return pandnot(pcmp_lt_or_nan(candidate, incumbent), pisnan(incumbent));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& a) const {
@@ -98,8 +98,8 @@ struct min_coeff_functor<Scalar, PropagateNumbers, false> {
     return (candidate < incumbent) || ((numext::isnan)(incumbent)) && !((numext::isnan)(candidate));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC inline bool comparePacket(const Packet& incumbent, const Packet& candidate) const {
-    return predux_any(pandnot(pcmp_lt_or_nan(candidate, incumbent), pisnan(candidate)));
+  EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) const {
+    return pandnot(pcmp_lt_or_nan(candidate, incumbent), pisnan(candidate));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Scalar predux(const Packet& a) const {
@@ -125,10 +125,10 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ false> {
     Index outerSize = eval.outerSize();
     Index innerSize = eval.innerSize();
 
-    /*initialization performed in calling function*/
-    /*result = eval.coeff(0, 0);*/
-    /*outer = 0;*/
-    /*inner = 0;*/
+    /* initialization performed in calling function */
+    /* result = eval.coeff(0, 0); */
+    /* outer = 0; */
+    /* inner = 0; */
 
     for (Index j = 0; j < outerSize; j++) {
       for (Index i = 0; i < innerSize; i++) {
@@ -149,9 +149,9 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ false> {
   static EIGEN_DEVICE_FUNC inline void run(const Evaluator& eval, Func& func, Scalar& res, Index& index) {
     Index size = eval.size();
 
-    /*initialization performed in calling function*/
-    /*result = eval.coeff(0);*/
-    /*index = 0;*/
+    /* initialization performed in calling function */
+    /* result = eval.coeff(0); */
+    /* index = 0; */
 
     for (Index k = 0; k < size; k++) {
       Scalar xprCoeff = eval.coeff(k);
@@ -175,10 +175,10 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ true> {
     Index innerSize = eval.innerSize();
     Index packetEnd = numext::round_down(innerSize, PacketSize);
 
-    /*initialization performed in calling function*/
-    /*result = eval.coeff(0, 0);*/
-    /*outer = 0;*/
-    /*inner = 0;*/
+    /* initialization performed in calling function */
+    /* result = eval.coeff(0, 0); */
+    /* outer = 0; */
+    /* inner = 0; */
 
     Packet cst_result = pset1<Packet>(result);
     bool checkPacket = false;
@@ -186,7 +186,7 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ true> {
     for (Index j = 0; j < outerSize; j++) {
       for (Index i = 0; i < packetEnd; i += PacketSize) {
         Packet xprPacket = eval.template packetByOuterInner<Unaligned, Packet>(j, i);
-        if (func.comparePacket(cst_result, xprPacket)) {
+        if (predux_any(func.comparePacket(cst_result, xprPacket))) {
           result = func.predux(xprPacket);
           outer = j;
           inner = i;
@@ -231,16 +231,16 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ true> {
     Index size = eval.size();
     Index packetEnd = numext::round_down(size, PacketSize);
 
-    /*initialization performed in calling function*/
-    /*result = eval.coeff(0);*/
-    /*index = 0;*/
+    /* initialization performed in calling function */
+    /* result = eval.coeff(0); */
+    /* index = 0; */
 
     Packet cst_result = pset1<Packet>(result);
     bool checkPacket = false;
 
     for (Index k = 0; k < packetEnd; k += PacketSize) {
       Packet xprPacket = eval.template packet<Alignment, Packet>(k);
-      if (func.comparePacket(cst_result, xprPacket)) {
+      if (predux_any(func.comparePacket(cst_result, xprPacket))) {
         result = func.predux(xprPacket);
         index = k;
         cst_result = pset1<Packet>(result);
