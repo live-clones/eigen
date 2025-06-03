@@ -1455,7 +1455,7 @@ struct zeta_impl {
 
     if (q <= zero) {
       if (q == numext::floor(q)) {
-        if (numext::rint(0.5 * x) == 0.5 * x) {
+        if (numext::rint(Scalar(0.5) * x) == Scalar(0.5) * x) {
           return maxnum;
         } else {
           return nan;
