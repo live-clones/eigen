@@ -35,7 +35,7 @@ struct max_coeff_functor {
 template <typename Scalar>
 struct max_coeff_functor<Scalar, PropagateNaN, false> {
   EIGEN_DEVICE_FUNC inline Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) {
-    return (candidate > incumbent) || ((numext::isnan)(candidate)) && !((numext::isnan)(incumbent));
+    return (candidate > incumbent) || ((candidate != candidate) && (incumbent == incumbent));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) {
@@ -50,7 +50,7 @@ struct max_coeff_functor<Scalar, PropagateNaN, false> {
 template <typename Scalar>
 struct max_coeff_functor<Scalar, PropagateNumbers, false> {
   EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
-    return (candidate > incumbent) || ((numext::isnan)(incumbent)) && !((numext::isnan)(candidate));
+    return (candidate > incumbent) || ((candidate == candidate) && (incumbent != incumbent));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) const {
@@ -80,7 +80,7 @@ struct min_coeff_functor {
 template <typename Scalar>
 struct min_coeff_functor<Scalar, PropagateNaN, false> {
   EIGEN_DEVICE_FUNC inline Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) {
-    return (candidate < incumbent) || ((numext::isnan)(candidate)) && !((numext::isnan)(incumbent));
+    return (candidate < incumbent) || ((candidate != candidate) && (incumbent == incumbent));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) {
@@ -95,7 +95,7 @@ struct min_coeff_functor<Scalar, PropagateNaN, false> {
 template <typename Scalar>
 struct min_coeff_functor<Scalar, PropagateNumbers, false> {
   EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
-    return (candidate < incumbent) || ((numext::isnan)(incumbent)) && !((numext::isnan)(candidate));
+    return (candidate < incumbent) || ((candidate == candidate) && (incumbent != incumbent));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet comparePacket(const Packet& incumbent, const Packet& candidate) const {
@@ -277,7 +277,7 @@ struct find_coeff_evaluator : public evaluator<Derived> {
   using Scalar = typename Base::Scalar;
   using Packet = typename packet_traits<Scalar>::type;
   static constexpr int Flags = Base::Flags;
-  static constexpr bool IsRowMajor = Base::IsRowMajor;
+  static constexpr bool IsRowMajor = Flags & RowMajorBit;
   EIGEN_DEVICE_FUNC inline find_coeff_evaluator(const Derived& xpr) : Base(xpr), m_xpr(xpr) {}
 
   EIGEN_DEVICE_FUNC inline Scalar coeffByOuterInner(Index outer, Index inner) const {
