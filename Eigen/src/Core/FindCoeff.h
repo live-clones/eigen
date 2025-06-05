@@ -135,9 +135,9 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ false> {
         Scalar xprCoeff = eval.coeffByOuterInner(j, i);
         bool newRes = func.compareCoeff(res, xprCoeff);
         if (newRes) {
-          res = xprCoeff;
           outer = j;
           inner = i;
+          res = xprCoeff;
         }
       }
     }
@@ -157,8 +157,8 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ false> {
       Scalar xprCoeff = eval.coeff(k);
       bool newRes = func.compareCoeff(res, xprCoeff);
       if (newRes) {
-        res = xprCoeff;
         index = k;
+        res = xprCoeff;
       }
     }
   }
@@ -187,9 +187,9 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ true> {
       for (Index i = 0; i < packetEnd; i += PacketSize) {
         Packet xprPacket = eval.template packetByOuterInner<Unaligned, Packet>(j, i);
         if (predux_any(func.comparePacket(cst_result, xprPacket))) {
-          result = func.predux(xprPacket);
           outer = j;
           inner = i;
+          result = func.predux(xprPacket);
           cst_result = pset1<Packet>(result);
           checkPacket = true;
         }
@@ -198,9 +198,9 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ true> {
       for (Index i = packetEnd; i < innerSize; i++) {
         Scalar xprCoeff = eval.coeffByOuterInner(j, i);
         if (func.compareCoeff(result, xprCoeff)) {
-          result = xprCoeff;
           outer = j;
           inner = i;
+          result = xprCoeff;
           checkPacket = false;
         }
       }
@@ -212,8 +212,8 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ true> {
       for (Index i = inner; i < i_end; i++) {
         Scalar xprCoeff = eval.coeffByOuterInner(outer, i);
         if (func.compareCoeff(result, xprCoeff)) {
-          result = xprCoeff;
           inner = i;
+          result = xprCoeff;
         }
       }
     }
@@ -241,8 +241,8 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ true> {
     for (Index k = 0; k < packetEnd; k += PacketSize) {
       Packet xprPacket = eval.template packet<Alignment, Packet>(k);
       if (predux_any(func.comparePacket(cst_result, xprPacket))) {
-        result = func.predux(xprPacket);
         index = k;
+        result = func.predux(xprPacket);
         cst_result = pset1<Packet>(result);
         checkPacket = true;
       }
@@ -251,8 +251,8 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ true> {
     for (Index k = packetEnd; k < size; k++) {
       Scalar xprCoeff = eval.coeff(k);
       if (func.compareCoeff(result, xprCoeff)) {
-        result = xprCoeff;
         index = k;
+        result = xprCoeff;
         checkPacket = false;
       }
     }
@@ -263,8 +263,8 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ true> {
       for (Index k = index; k < k_end; k++) {
         Scalar xprCoeff = eval.coeff(k);
         if (func.compareCoeff(result, xprCoeff)) {
-          result = xprCoeff;
           index = k;
+          result = xprCoeff;
         }
       }
     }
@@ -330,7 +330,7 @@ struct find_coeff_impl {
   template <bool ForwardLinearAccess = Linearize, std::enable_if_t<ForwardLinearAccess, bool> = true>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& xpr, Func& func, Scalar& res, Index& outer,
                                                         Index& inner) {
-    // if possible, use the linear loop and back-calculate the outer and inner indices
+    // where possible, use the linear loop and back-calculate the outer and inner indices
     Index index = 0;
     run(xpr, func, res, index);
     outer = index / xpr.innerSize();
@@ -348,9 +348,9 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const Den
   eigen_assert(mat.rows() > 0 && mat.cols() > 0 && "you are using an empty matrix");
   using Scalar = typename DenseBase<Derived>::Scalar;
   using FindCoeffImpl = internal::find_coeff_impl<Derived, Func>;
-  Scalar res = mat.coeff(0, 0);
   Index outer = 0;
   Index inner = 0;
+  Scalar res = mat.coeff(0, 0);
   FindCoeffImpl::run(mat.derived(), func, res, outer, inner);
   *rowPtr = internal::convert_index<IndexType>(Derived::IsRowMajor ? outer : inner);
   if (colPtr) *colPtr = internal::convert_index<IndexType>(Derived::IsRowMajor ? inner : outer);
@@ -364,8 +364,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const Den
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Scalar = typename DenseBase<Derived>::Scalar;
   using FindCoeffImpl = internal::find_coeff_impl<Derived, Func>;
-  Scalar res = mat.coeff(0);
   Index index = 0;
+  Scalar res = mat.coeff(0);
   FindCoeffImpl::run(mat.derived(), func, res, index);
   *indexPtr = internal::convert_index<IndexType>(index);
   return res;
