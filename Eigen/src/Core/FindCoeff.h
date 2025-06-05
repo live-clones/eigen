@@ -274,7 +274,7 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ true> {
 template <typename Derived>
 struct find_coeff_evaluator : public evaluator<Derived> {
   using Base = evaluator<Derived>;
-  using Scalar = typename Base::Scalar;
+  using Scalar = typename Derived::Scalar;
   using Packet = typename packet_traits<Scalar>::type;
   static constexpr int Flags = Base::Flags;
   static constexpr bool IsRowMajor = Flags & RowMajorBit;
