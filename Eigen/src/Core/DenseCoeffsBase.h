@@ -54,9 +54,8 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   // - The is_arithmetic check is required since "const int", "const double", etc. will cause warnings on some systems
   // while the declaration of "const T", where T is a non arithmetic type does not. Always returning "const Scalar&" is
   // not possible, since the underlying expressions might not offer a valid address the reference could be referring to.
-  typedef std::conditional_t<
-      bool(internal::traits<Derived>::Flags& LvalueBit) || bool(internal::traits<Derived>::Flags& DirectAccessBit),
-      const Scalar&, std::conditional_t<internal::is_arithmetic<Scalar>::value, Scalar, const Scalar>>
+  typedef std::conditional_t<bool(internal::traits<Derived>::Flags&(LvalueBit | DirectAccessBit)), const Scalar&,
+                             std::conditional_t<internal::is_arithmetic<Scalar>::value, Scalar, const Scalar>>
       CoeffReturnType;
 
   typedef typename internal::add_const_on_value_type_if_arithmetic<typename internal::packet_traits<Scalar>::type>::type
