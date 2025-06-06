@@ -376,6 +376,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const Den
 /** \fn DenseBase<Derived>::minCoeff(IndexType* rowId, IndexType* colId) const
  * \returns the minimum of all coefficients of *this and puts in *row and *col its location.
  *
+ * If there are multiple coefficients with the same extreme value, the location of the first instance is returned.
+ *
  * In case \c *this contains NaN, NaNPropagation determines the behavior:
  *   NaNPropagation == PropagateFast : undefined
  *   NaNPropagation == PropagateNaN : result is NaN
@@ -394,6 +396,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>:
 }
 
 /** \returns the minimum of all coefficients of *this and puts in *index its location.
+ *
+ * If there are multiple coefficients with the same extreme value, the location of the first instance is returned.
  *
  * In case \c *this contains NaN, NaNPropagation determines the behavior:
  *   NaNPropagation == PropagateFast : undefined
@@ -415,6 +419,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>:
 /** \fn DenseBase<Derived>::maxCoeff(IndexType* rowId, IndexType* colId) const
  * \returns the maximum of all coefficients of *this and puts in *row and *col its location.
  *
+ * If there are multiple coefficients with the same extreme value, the location of the first instance is returned.
+ *
  * In case \c *this contains NaN, NaNPropagation determines the behavior:
  *   NaNPropagation == PropagateFast : undefined
  *   NaNPropagation == PropagateNaN : result is NaN
@@ -433,6 +439,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>:
 }
 
 /** \returns the maximum of all coefficients of *this and puts in *index its location.
+ *
+ * If there are multiple coefficients with the same extreme value, the location of the first instance is returned.
  *
  * In case \c *this contains NaN, NaNPropagation determines the behavior:
  *   NaNPropagation == PropagateFast : undefined
