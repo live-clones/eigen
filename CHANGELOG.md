@@ -4,7 +4,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [3.5.0]
 
-_Disclaimer:_ This release contains a lot of changes. Due to the large amount of changes, and the time between this release and the last, the release notes are AI-generated from a set of parsed merged requests, and may be incomplete or could contain a small amount of wrong entries.
+_Disclaimer:_ This release contains a lot of changes. Due to the large amount of changes, and the time between this release and the last, the release notes may be incomplete or could contain a small amount of wrong entries.  
+If you notice that these notes are incomplete, please point it out in the issue tracker or forum so it can be fixed.
 
 ### Supported modules
 
