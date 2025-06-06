@@ -180,17 +180,17 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ true> {
     /* outer = 0; */
     /* inner = 0; */
 
-    Packet cst_result = pset1<Packet>(result);
     bool checkPacket = false;
 
     for (Index j = 0; j < outerSize; j++) {
+      Packet resultPacket = pset1<Packet>(result);
       for (Index i = 0; i < packetEnd; i += PacketSize) {
         Packet xprPacket = eval.template packetByOuterInner<Unaligned, Packet>(j, i);
-        if (predux_any(func.comparePacket(cst_result, xprPacket))) {
+        if (predux_any(func.comparePacket(resultPacket, xprPacket))) {
           outer = j;
           inner = i;
           result = func.predux(xprPacket);
-          cst_result = pset1<Packet>(result);
+          resultPacket = pset1<Packet>(result);
           checkPacket = true;
         }
       }
@@ -235,15 +235,15 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ true> {
     /* result = eval.coeff(0); */
     /* index = 0; */
 
-    Packet cst_result = pset1<Packet>(result);
+    Packet resultPacket = pset1<Packet>(result);
     bool checkPacket = false;
 
     for (Index k = 0; k < packetEnd; k += PacketSize) {
       Packet xprPacket = eval.template packet<Alignment, Packet>(k);
-      if (predux_any(func.comparePacket(cst_result, xprPacket))) {
+      if (predux_any(func.comparePacket(resultPacket, xprPacket))) {
         index = k;
         result = func.predux(xprPacket);
-        cst_result = pset1<Packet>(result);
+        resultPacket = pset1<Packet>(result);
         checkPacket = true;
       }
     }
