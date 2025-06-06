@@ -19,7 +19,7 @@
 
 #define EIGEN_WORLD_VERSION 3
 #define EIGEN_MAJOR_VERSION 5
-#define EIGEN_MINOR_VERSION 0
+#define EIGEN_MINOR_VERSION 90
 
 #define EIGEN_VERSION_AT_LEAST(x, y, z) \
   (EIGEN_WORLD_VERSION > x ||           \
