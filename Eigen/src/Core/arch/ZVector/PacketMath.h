@@ -1108,20 +1108,14 @@ Packet4f EIGEN_STRONG_INLINE pcmp_eq<Packet4f>(const Packet4f& a, const Packet4f
 #else
 template <>
 EIGEN_STRONG_INLINE Packet4f pload<Packet4f>(const float* from) {
-  // FIXME: No intrinsic yet
   EIGEN_DEBUG_ALIGNED_LOAD
-  Packet* vfrom;
-  vfrom = (Packet*)from;
-  return vfrom->v4f;
+  return vec_xl(0, from);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet4f& from) {
-  // FIXME: No intrinsic yet
   EIGEN_DEBUG_ALIGNED_STORE
-  Packet* vto;
-  vto = (Packet*)to;
-  vto->v4f = from;
+  vec_xst(from, 0, to);
 }
 
 template <>
