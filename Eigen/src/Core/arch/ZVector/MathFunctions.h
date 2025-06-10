@@ -184,7 +184,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4f pexp<Packet4f>(cons
   y = padd(y, p4f_1);
 
   // build 2^n
-  emm0 = (Packet4i){(int)fx[0], (int)fx[1], (int)fx[2], (int)fx[3]};
+  emm0 = Packet4i{(int)fx[0], (int)fx[1], (int)fx[2], (int)fx[3]};
   emm0 = emm0 + p4i_0x7f;
   emm0 = emm0 << reinterpret_cast<Packet4i>(p4i_23);
 
