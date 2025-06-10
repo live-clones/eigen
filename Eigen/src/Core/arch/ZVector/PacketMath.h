@@ -1338,7 +1338,7 @@ EIGEN_STRONG_INLINE Packet4f plset<Packet4f>(const float& a) {
 }
 
 #if !defined(vec_float) || !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ < 13)
-#warning \
+#pragma GCC warning \
     "float->int and int->float conversion is simulated. compile for z15 for improved performance"
 template <>
 struct cast_impl<Packet4i, Packet4f> {
