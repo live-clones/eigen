@@ -162,9 +162,10 @@ struct unary_evaluator<SparseView<Product<Lhs, Rhs, Options> >, IteratorBased>
 }  // end namespace internal
 
 // sparse matrix = sparse-product (can be sparse*sparse, sparse*perm, etc.)
-template <typename Scalar, int Options_, typename StorageIndex_>
+template <typename Scalar, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
 template <typename Lhs, typename Rhs>
-SparseMatrix<Scalar, Options_, StorageIndex_>& SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(
+SparseMatrix<Scalar, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>&
+SparseMatrix<Scalar, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::operator=(
     const Product<Lhs, Rhs, AliasFreeProduct>& src) {
   // std::cout << "in Assignment : " << DstOptions << "\n";
   SparseMatrix dst(src.rows(), src.cols());
