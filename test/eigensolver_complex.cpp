@@ -12,6 +12,7 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 #include <Eigen/LU>
+#include "CustomComplex.h"
 
 template <typename MatrixType>
 bool find_pivot(typename MatrixType::Scalar tol, MatrixType& diffs, Index col = 0) {
@@ -44,7 +45,7 @@ bool find_pivot(typename MatrixType::Scalar tol, MatrixType& diffs, Index col = 
 
 /* Check that two column vectors are approximately equal up to permutations.
  * Initially, this method checked that the k-th power sums are equal for all k = 1, ..., vec1.rows(),
- * however this strategy is numerically inacurate because of numerical cancellation issues.
+ * however this strategy is numerically inaccurate because of numerical cancellation issues.
  */
 template <typename VectorType>
 void verify_is_approx_upto_permutation(const VectorType& vec1, const VectorType& vec2) {
@@ -164,6 +165,9 @@ EIGEN_DECLARE_TEST(eigensolver_complex) {
 
   // Test problem size constructors
   CALL_SUBTEST_5(ComplexEigenSolver<MatrixXf> tmp(s));
+
+  // Test custom complex scalar type.
+  CALL_SUBTEST_6(eigensolver(Matrix<CustomComplex<double>, 5, 5>()));
 
   TEST_SET_BUT_UNUSED_VARIABLE(s)
 }

@@ -19,14 +19,19 @@ namespace Eigen {
 namespace internal {
 
 #if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
-static Packet4ui p4ui_CONJ_XOR = {0x00000000, 0x80000000, 0x00000000,
-                                  0x80000000};  // vec_mergeh((Packet4ui)p4i_ZERO, (Packet4ui)p4f_MZERO);
+inline Packet4ui p4ui_CONJ_XOR() {
+  return {0x00000000, 0x80000000, 0x00000000, 0x80000000};  // vec_mergeh((Packet4ui)p4i_ZERO, (Packet4ui)p4f_MZERO);
+}
 #endif
 
-static Packet2ul p2ul_CONJ_XOR1 =
-    (Packet2ul)vec_sld((Packet4ui)p2d_ZERO_, (Packet4ui)p2l_ZERO, 8);  //{ 0x8000000000000000, 0x0000000000000000 };
-static Packet2ul p2ul_CONJ_XOR2 =
-    (Packet2ul)vec_sld((Packet4ui)p2l_ZERO, (Packet4ui)p2d_ZERO_, 8);  //{ 0x8000000000000000, 0x0000000000000000 };
+inline Packet2ul p2ul_CONJ_XOR1() {
+  return (Packet2ul)vec_sld((Packet4ui)p2d_ZERO_, (Packet4ui)p2l_ZERO,
+                            8);  //{ 0x8000000000000000, 0x0000000000000000 };
+}
+inline Packet2ul p2ul_CONJ_XOR2() {
+  return (Packet2ul)vec_sld((Packet4ui)p2l_ZERO, (Packet4ui)p2d_ZERO_,
+                            8);  //{ 0x8000000000000000, 0x0000000000000000 };
+}
 
 struct Packet1cd {
   EIGEN_STRONG_INLINE Packet1cd() {}
@@ -60,6 +65,8 @@ struct packet_traits<std::complex<float> > : default_packet_traits {
     HasSub = 1,
     HasMul = 1,
     HasDiv = 1,
+    HasLog = 1,
+    HasExp = 1,
     HasNegate = 1,
     HasAbs = 0,
     HasAbs2 = 0,
@@ -83,6 +90,7 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
     HasSub = 1,
     HasMul = 1,
     HasDiv = 1,
+    HasLog = 1,
     HasNegate = 1,
     HasAbs = 0,
     HasAbs2 = 0,
@@ -185,7 +193,7 @@ EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, const Packet1c
   // multiply a_im * b and get the conjugate result
   v2 = vec_madd(a_im, b.v, p2d_ZERO);
   v2 = (Packet2d)vec_sld((Packet4ui)v2, (Packet4ui)v2, 8);
-  v2 = (Packet2d)vec_xor((Packet2d)v2, (Packet2d)p2ul_CONJ_XOR1);
+  v2 = (Packet2d)vec_xor((Packet2d)v2, (Packet2d)p2ul_CONJ_XOR1());
 
   return Packet1cd(v1 + v2);
 }
@@ -246,6 +254,11 @@ EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1cd, Packet2d)
 template <>
 EIGEN_STRONG_INLINE Packet1cd pdiv<Packet1cd>(const Packet1cd& a, const Packet1cd& b) {
   return pdiv_complex(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1cd plog<Packet1cd>(const Packet1cd& a, const Packet1cd& b) {
+  return plog_complex(a, b);
 }
 
 EIGEN_STRONG_INLINE Packet1cd pcplxflip /*<Packet1cd>*/ (const Packet1cd& x) {
@@ -424,6 +437,16 @@ EIGEN_STRONG_INLINE Packet2cf pdiv<Packet2cf>(const Packet2cf& a, const Packet2c
   return pdiv_complex(a, b);
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet2cf plog<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
+  return plog_complex(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2cf pexp<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
+  return pexp_complex(a, b);
+}
+
 EIGEN_STRONG_INLINE Packet2cf pcplxflip /*<Packet2cf>*/ (const Packet2cf& x) {
   Packet2cf res;
   res.cd[0] = pcplxflip(x.cd[0]);
@@ -454,7 +477,7 @@ EIGEN_STRONG_INLINE Packet2cf pcmp_eq(const Packet2cf& a, const Packet2cf& b) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2cf pconj(const Packet2cf& a) {
-  return Packet2cf(pxor<Packet4f>(a.v, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR)));
+  return Packet2cf(pxor<Packet4f>(a.v, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR())));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
@@ -468,7 +491,7 @@ EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2c
 
   // multiply a_im * b and get the conjugate result
   prod_im = a_im * b.v;
-  prod_im = pxor<Packet4f>(prod_im, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR));
+  prod_im = pxor<Packet4f>(prod_im, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR()));
   // permute back to a proper order
   prod_im = vec_perm(prod_im, prod_im, p16uc_COMPLEX32_REV);
 

@@ -50,6 +50,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T RandomToTypeUniform(uint64_t* state, uin
 }
 
 template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool RandomToTypeUniform<bool>(uint64_t* state, uint64_t stream) {
+  unsigned rnd = PCG_XSH_RS_generator(state, stream);
+  return (rnd & 0x1) != 0;
+}
+
+template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half RandomToTypeUniform<Eigen::half>(uint64_t* state, uint64_t stream) {
   // Generate 10 random bits for the mantissa, merge with exponent.
   unsigned rnd = PCG_XSH_RS_generator(state, stream);
@@ -136,7 +142,7 @@ class UniformRandomGenerator {
     // thread but for SYCL ((CLOCK * 6364136223846793005ULL) + 0xda3e39cb94b95bdbULL) is passed to each thread and each
     // thread adds the  (global_thread_id* 6364136223846793005ULL) for itself only once, in order to complete the
     // construction similar to CUDA Therefore, the thread Id injection is not available at this stage.
-    // However when the operator() is called the thread ID will be available. So inside the opeator,
+    // However when the operator() is called the thread ID will be available. So inside the operator,
     // we add the thrreadID, BlockId,... (which is equivalent of i)
     // to the seed and construct the unique m_state per thead similar to cuda.
     m_exec_once = false;

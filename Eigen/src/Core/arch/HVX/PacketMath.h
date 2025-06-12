@@ -161,9 +161,6 @@ struct packet_traits<float> : default_packet_traits {
     HasBlend = 0,
 
     HasDiv = 0,
-    HasFloor = 0,
-    HasCeil = 0,
-    HasRint = 0,
 
     HasSin = 0,
     HasCos = 0,
@@ -1018,6 +1015,21 @@ EIGEN_STRONG_INLINE Packet16f plset(const float& a) {
   return plset_hvx<HVXPacketSize::Half>(a);
 }
 template <>
+EIGEN_STRONG_INLINE float pmadd(const float& a, const float& b, const float& c) {
+  return a * b + c;
+}
+template <>
+EIGEN_STRONG_INLINE float pmsub(const float& a, const float& b, const float& c) {
+  return a * b - c;
+}
+template <>
+EIGEN_STRONG_INLINE float pnmadd(const float& a, const float& b, const float& c) {
+  return c - a * b;
+}
+template <>
+EIGEN_STRONG_INLINE float pnmsub(const float& a, const float& b, const float& c) {
+  return -c - a * b;
+}
 EIGEN_STRONG_INLINE Packet8f plset(const float& a) {
   return plset_hvx<HVXPacketSize::Quarter>(a);
 }
@@ -1064,23 +1076,6 @@ EIGEN_STRONG_INLINE Packet16f pgather<float, Packet16f>(const float* from, Index
 template <>
 EIGEN_STRONG_INLINE Packet8f pgather<float, Packet8f>(const float* from, Index stride) {
   return pgather_hvx<HVXPacketSize::Quarter>(from, stride);
-}
-
-template <>
-EIGEN_STRONG_INLINE float pmadd(const float& a, const float& b, const float& c) {
-  return a * b + c;
-}
-template <>
-EIGEN_STRONG_INLINE float pmsub(const float& a, const float& b, const float& c) {
-  return a * b - c;
-}
-template <>
-EIGEN_STRONG_INLINE float pnmadd(const float& a, const float& b, const float& c) {
-  return c - a * b;
-}
-template <>
-EIGEN_STRONG_INLINE float pnmsub(const float& a, const float& b, const float& c) {
-  return -c - a * b;
 }
 
 }  // end namespace internal

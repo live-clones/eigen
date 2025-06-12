@@ -23,7 +23,7 @@ namespace internal {
  Preconditions:
    1. The starting guess provided in approx_a_recip must have at least half
       the leading mantissa bits in the correct result, such that a single
-      Newton-Raphson step is sufficient to get within 1-2 ulps of the currect
+      Newton-Raphson step is sufficient to get within 1-2 ulps of the correct
       result.
    2. If a is zero, approx_a_recip must be infinite with the same sign as a.
    3. If a is infinite, approx_a_recip must be zero with the same sign as a.
@@ -61,7 +61,7 @@ struct generic_reciprocal_newton_step<Packet, 0> {
  Preconditions:
    1. The starting guess provided in approx_a_recip must have at least half
       the leading mantissa bits in the correct result, such that a single
-      Newton-Raphson step is sufficient to get within 1-2 ulps of the currect
+      Newton-Raphson step is sufficient to get within 1-2 ulps of the correct
       result.
    2. If a is zero, approx_a_recip must be infinite with the same sign as a.
    3. If a is infinite, approx_a_recip must be zero with the same sign as a.
@@ -76,7 +76,7 @@ struct generic_rsqrt_newton_step {
   static_assert(Steps > 0, "Steps must be at least 1.");
   using Scalar = typename unpacket_traits<Packet>::type;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& a, const Packet& approx_rsqrt) {
-    constexpr Scalar kMinusHalf = Scalar(-1) / Scalar(2);
+    const Scalar kMinusHalf = Scalar(-1) / Scalar(2);
     const Packet cst_minus_half = pset1<Packet>(kMinusHalf);
     const Packet cst_minus_one = pset1<Packet>(Scalar(-1));
 
@@ -112,7 +112,7 @@ struct generic_rsqrt_newton_step<Packet, 0> {
    1. The starting guess for the reciprocal sqrt provided in approx_rsqrt must
       have at least half the leading mantissa bits in the correct result, such
       that a single Newton-Raphson step is sufficient to get within 1-2 ulps of
-      the currect result.
+      the correct result.
    2. If a is zero, approx_rsqrt must be infinite.
    3. If a is infinite, approx_rsqrt must be zero.
 
@@ -146,65 +146,6 @@ struct generic_sqrt_newton_step {
   }
 };
 
-/** \internal \returns the hyperbolic tan of \a a (coeff-wise)
-    Doesn't do anything fancy, just a 13/6-degree rational interpolant which
-    is accurate up to a couple of ulps in the (approximate) range [-8, 8],
-    outside of which tanh(x) = +/-1 in single precision. The input is clamped
-    to the range [-c, c]. The value c is chosen as the smallest value where
-    the approximation evaluates to exactly 1. In the reange [-0.0004, 0.0004]
-    the approximation tanh(x) ~= x is used for better accuracy as x tends to zero.
-
-    This implementation works on both scalars and packets.
-*/
-template <typename T>
-T generic_fast_tanh_float(const T& a_x) {
-  // Clamp the inputs to the range [-c, c]
-#ifdef EIGEN_VECTORIZE_FMA
-  const T plus_clamp = pset1<T>(7.99881172180175781f);
-  const T minus_clamp = pset1<T>(-7.99881172180175781f);
-#else
-  const T plus_clamp = pset1<T>(7.90531110763549805f);
-  const T minus_clamp = pset1<T>(-7.90531110763549805f);
-#endif
-  const T tiny = pset1<T>(0.0004f);
-  const T x = pmax(pmin(a_x, plus_clamp), minus_clamp);
-  const T tiny_mask = pcmp_lt(pabs(a_x), tiny);
-  // The monomial coefficients of the numerator polynomial (odd).
-  const T alpha_1 = pset1<T>(4.89352455891786e-03f);
-  const T alpha_3 = pset1<T>(6.37261928875436e-04f);
-  const T alpha_5 = pset1<T>(1.48572235717979e-05f);
-  const T alpha_7 = pset1<T>(5.12229709037114e-08f);
-  const T alpha_9 = pset1<T>(-8.60467152213735e-11f);
-  const T alpha_11 = pset1<T>(2.00018790482477e-13f);
-  const T alpha_13 = pset1<T>(-2.76076847742355e-16f);
-
-  // The monomial coefficients of the denominator polynomial (even).
-  const T beta_0 = pset1<T>(4.89352518554385e-03f);
-  const T beta_2 = pset1<T>(2.26843463243900e-03f);
-  const T beta_4 = pset1<T>(1.18534705686654e-04f);
-  const T beta_6 = pset1<T>(1.19825839466702e-06f);
-
-  // Since the polynomials are odd/even, we need x^2.
-  const T x2 = pmul(x, x);
-
-  // Evaluate the numerator polynomial p.
-  T p = pmadd(x2, alpha_13, alpha_11);
-  p = pmadd(x2, p, alpha_9);
-  p = pmadd(x2, p, alpha_7);
-  p = pmadd(x2, p, alpha_5);
-  p = pmadd(x2, p, alpha_3);
-  p = pmadd(x2, p, alpha_1);
-  p = pmul(x, p);
-
-  // Evaluate the denominator polynomial q.
-  T q = pmadd(x2, beta_6, beta_4);
-  q = pmadd(x2, q, beta_2);
-  q = pmadd(x2, q, beta_0);
-
-  // Divide the numerator by the denominator.
-  return pselect(tiny_mask, x, pdiv(p, q));
-}
-
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RealScalar positive_real_hypot(const RealScalar& x, const RealScalar& y) {
   // IEEE IEC 6059 special cases.
@@ -230,8 +171,8 @@ struct hypot_impl {
 
 // Generic complex sqrt implementation that correctly handles corner cases
 // according to https://en.cppreference.com/w/cpp/numeric/complex/sqrt
-template <typename T>
-EIGEN_DEVICE_FUNC std::complex<T> complex_sqrt(const std::complex<T>& z) {
+template <typename ComplexT>
+EIGEN_DEVICE_FUNC ComplexT complex_sqrt(const ComplexT& z) {
   // Computes the principal sqrt of the input.
   //
   // For a complex square root of the number x + i*y. We want to find real
@@ -253,21 +194,21 @@ EIGEN_DEVICE_FUNC std::complex<T> complex_sqrt(const std::complex<T>& z) {
   //   if x == 0: u = w, v = sign(y) * w
   //   if x > 0:  u = w, v = y / (2 * w)
   //   if x < 0:  u = |y| / (2 * w), v = sign(y) * w
-
+  using T = typename NumTraits<ComplexT>::Real;
   const T x = numext::real(z);
   const T y = numext::imag(z);
   const T zero = T(0);
   const T w = numext::sqrt(T(0.5) * (numext::abs(x) + numext::hypot(x, y)));
 
-  return (numext::isinf)(y)           ? std::complex<T>(NumTraits<T>::infinity(), y)
-         : numext::is_exactly_zero(x) ? std::complex<T>(w, y < zero ? -w : w)
-         : x > zero                   ? std::complex<T>(w, y / (2 * w))
-                                      : std::complex<T>(numext::abs(y) / (2 * w), y < zero ? -w : w);
+  return (numext::isinf)(y)           ? ComplexT(NumTraits<T>::infinity(), y)
+         : numext::is_exactly_zero(x) ? ComplexT(w, y < zero ? -w : w)
+         : x > zero                   ? ComplexT(w, y / (2 * w))
+                                      : ComplexT(numext::abs(y) / (2 * w), y < zero ? -w : w);
 }
 
 // Generic complex rsqrt implementation.
-template <typename T>
-EIGEN_DEVICE_FUNC std::complex<T> complex_rsqrt(const std::complex<T>& z) {
+template <typename ComplexT>
+EIGEN_DEVICE_FUNC ComplexT complex_rsqrt(const ComplexT& z) {
   // Computes the principal reciprocal sqrt of the input.
   //
   // For a complex reciprocal square root of the number z = x + i*y. We want to
@@ -289,7 +230,7 @@ EIGEN_DEVICE_FUNC std::complex<T> complex_rsqrt(const std::complex<T>& z) {
   //   if x == 0: u = w / |z|, v = -sign(y) * w / |z|
   //   if x > 0:  u = w / |z|, v = -y / (2 * w * |z|)
   //   if x < 0:  u = |y| / (2 * w * |z|), v = -sign(y) * w / |z|
-
+  using T = typename NumTraits<ComplexT>::Real;
   const T x = numext::real(z);
   const T y = numext::imag(z);
   const T zero = T(0);
@@ -298,21 +239,64 @@ EIGEN_DEVICE_FUNC std::complex<T> complex_rsqrt(const std::complex<T>& z) {
   const T w = numext::sqrt(T(0.5) * (numext::abs(x) + abs_z));
   const T woz = w / abs_z;
   // Corner cases consistent with 1/sqrt(z) on gcc/clang.
-  return numext::is_exactly_zero(abs_z) ? std::complex<T>(NumTraits<T>::infinity(), NumTraits<T>::quiet_NaN())
-         : ((numext::isinf)(x) || (numext::isinf)(y)) ? std::complex<T>(zero, zero)
-         : numext::is_exactly_zero(x)                 ? std::complex<T>(woz, y < zero ? woz : -woz)
-         : x > zero                                   ? std::complex<T>(woz, -y / (2 * w * abs_z))
-                    : std::complex<T>(numext::abs(y) / (2 * w * abs_z), y < zero ? woz : -woz);
+  return numext::is_exactly_zero(abs_z)               ? ComplexT(NumTraits<T>::infinity(), NumTraits<T>::quiet_NaN())
+         : ((numext::isinf)(x) || (numext::isinf)(y)) ? ComplexT(zero, zero)
+         : numext::is_exactly_zero(x)                 ? ComplexT(woz, y < zero ? woz : -woz)
+         : x > zero                                   ? ComplexT(woz, -y / (2 * w * abs_z))
+                    : ComplexT(numext::abs(y) / (2 * w * abs_z), y < zero ? woz : -woz);
 }
 
-template <typename T>
-EIGEN_DEVICE_FUNC std::complex<T> complex_log(const std::complex<T>& z) {
+template <typename ComplexT>
+EIGEN_DEVICE_FUNC ComplexT complex_log(const ComplexT& z) {
   // Computes complex log.
+  using T = typename NumTraits<ComplexT>::Real;
   T a = numext::abs(z);
   EIGEN_USING_STD(atan2);
   T b = atan2(z.imag(), z.real());
-  return std::complex<T>(numext::log(a), b);
+  return ComplexT(numext::log(a), b);
 }
+
+// For generic scalars, use ternary select.
+template <typename Mask>
+struct scalar_select_mask<Mask, /*is_built_in_float*/ false> {
+  static EIGEN_DEVICE_FUNC inline bool run(const Mask& mask) { return numext::is_exactly_zero(mask); }
+};
+
+// For built-in float mask, bitcast the mask to its integer counterpart and use ternary select.
+template <typename Mask>
+struct scalar_select_mask<Mask, /*is_built_in_float*/ true> {
+  using IntegerType = typename numext::get_integer_by_size<sizeof(Mask)>::unsigned_type;
+  static EIGEN_DEVICE_FUNC inline bool run(const Mask& mask) {
+    return numext::is_exactly_zero(numext::bit_cast<IntegerType>(std::abs(mask)));
+  }
+};
+
+template <int Size = sizeof(long double)>
+struct ldbl_select_mask {
+  static constexpr int MantissaDigits = std::numeric_limits<long double>::digits;
+  static constexpr int NumBytes = (MantissaDigits == 64 ? 80 : 128) / CHAR_BIT;
+  static EIGEN_DEVICE_FUNC inline bool run(const long double& mask) {
+    const uint8_t* mask_bytes = reinterpret_cast<const uint8_t*>(&mask);
+    for (Index i = 0; i < NumBytes; i++) {
+      if (mask_bytes[i] != 0) return false;
+    }
+    return true;
+  }
+};
+
+template <>
+struct ldbl_select_mask<sizeof(double)> : scalar_select_mask<double> {};
+
+template <>
+struct scalar_select_mask<long double, true> : ldbl_select_mask<> {};
+
+template <typename RealMask>
+struct scalar_select_mask<std::complex<RealMask>, false> {
+  using impl = scalar_select_mask<RealMask>;
+  static EIGEN_DEVICE_FUNC inline bool run(const std::complex<RealMask>& mask) {
+    return impl::run(numext::real(mask)) && impl::run(numext::imag(mask));
+  }
+};
 
 }  // end namespace internal
 

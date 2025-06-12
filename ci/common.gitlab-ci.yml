@@ -17,7 +17,8 @@
     # Call script in current shell - it sets up some environment variables.
     - . ci/scripts/common.linux.before_script.sh
   artifacts:
-    name: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG"
+    when: always
+    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG"
     paths:
       - ${EIGEN_CI_BUILDDIR}/
     expire_in: 5 days
@@ -32,7 +33,8 @@
   before_script:
      - . ci/scripts/common.windows.before_script.ps1
   artifacts:
-    name: "$CI_JOB_NAME-$CI_COMMIT_REF_NAME"
+    when: always
+    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_REF_NAME"
     paths:
       - ${EIGEN_CI_BUILDDIR}/
     expire_in: 5 days

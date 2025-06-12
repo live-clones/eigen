@@ -38,6 +38,15 @@ template <typename LhsType, typename RhsType>
 std::enable_if_t<RhsType::SizeAtCompileTime != Dynamic, void> check_mismatched_product(LhsType& /*unused*/,
                                                                                        const RhsType& /*unused*/) {}
 
+template <typename Scalar, typename V1, typename V2>
+Scalar ref_dot_product(const V1& v1, const V2& v2) {
+  Scalar out = Scalar(0);
+  for (Index i = 0; i < v1.size(); ++i) {
+    out = Eigen::numext::fma(v1[i], v2[i], out);
+  }
+  return out;
+}
+
 template <typename MatrixType>
 void product(const MatrixType& m) {
   /* this test covers the following files:
@@ -53,7 +62,7 @@ void product(const MatrixType& m) {
                  MatrixType::Flags & RowMajorBit ? ColMajor : RowMajor>
       OtherMajorMatrixType;
 
-  // Wwe want a tighter epsilon for not-approx tests.  Otherwise, for certain
+  // We want a tighter epsilon for not-approx tests.  Otherwise, for certain
   // low-precision types (e.g. bfloat16), the bound ends up being relatively large
   // (e.g. 0.12), causing flaky tests.
   RealScalar not_approx_epsilon = RealScalar(0.1) * NumTraits<RealScalar>::dummy_precision();
@@ -69,6 +78,15 @@ void product(const MatrixType& m) {
   ColSquareMatrixType square2 = ColSquareMatrixType::Random(cols, cols), res2 = ColSquareMatrixType::Random(cols, cols);
   RowVectorType v1 = RowVectorType::Random(rows);
   ColVectorType vc2 = ColVectorType::Random(cols), vcres(cols);
+
+  // Prevent overflows for integer types.
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    Scalar kMaxVal = Scalar(10000);
+    m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
+    m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
+    v1.array() = v1.array() - kMaxVal * (v1.array() / kMaxVal);
+  }
+
   OtherMajorMatrixType tm1 = m1;
 
   Scalar s1 = internal::random<Scalar>();
@@ -179,8 +197,10 @@ void product(const MatrixType& m) {
     VERIFY(areNotApprox(res2, square2 + m2.transpose() * m1, not_approx_epsilon));
   }
 
-  VERIFY_IS_APPROX(res.col(r).noalias() = square.adjoint() * square.col(r), (square.adjoint() * square.col(r)).eval());
-  VERIFY_IS_APPROX(res.col(r).noalias() = square * square.col(r), (square * square.col(r)).eval());
+  res.col(r).noalias() = square.adjoint() * square.col(r);
+  VERIFY_IS_APPROX(res.col(r), (square.adjoint() * square.col(r)).eval());
+  res.col(r).noalias() = square * square.col(r);
+  VERIFY_IS_APPROX(res.col(r), (square * square.col(r)).eval());
 
   // vector at runtime (see bug 1166)
   {
@@ -234,7 +254,10 @@ void product(const MatrixType& m) {
   // inner product
   {
     Scalar x = square2.row(c) * square2.col(c2);
-    VERIFY_IS_APPROX(x, square2.row(c).transpose().cwiseProduct(square2.col(c2)).sum());
+    // NOTE: FMA is necessary here in the reference to ensure accuracy for
+    // large vector sizes and float16/bfloat16 types.
+    Scalar y = ref_dot_product<Scalar>(square2.row(c), square2.col(c2));
+    VERIFY_IS_APPROX(x, y);
   }
 
   // outer product

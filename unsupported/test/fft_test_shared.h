@@ -164,9 +164,41 @@ void test_complex_generic(int nfft) {
 }
 
 template <typename T>
+void test_complex_strided(int nfft) {
+  typedef typename FFT<T>::Complex Complex;
+  typedef typename Eigen::Vector<Complex, Dynamic> ComplexVector;
+  constexpr int kInputStride = 3;
+  constexpr int kOutputStride = 7;
+  constexpr int kInvOutputStride = 13;
+
+  FFT<T> fft;
+
+  ComplexVector inbuf(nfft * kInputStride);
+  inbuf.setRandom();
+  ComplexVector outbuf(nfft * kOutputStride);
+  outbuf.setRandom();
+  ComplexVector invoutbuf(nfft * kInvOutputStride);
+  invoutbuf.setRandom();
+
+  using StridedComplexVector = Map<ComplexVector, /*MapOptions=*/0, InnerStride<Dynamic>>;
+  StridedComplexVector input(inbuf.data(), nfft, InnerStride<Dynamic>(kInputStride));
+  StridedComplexVector output(outbuf.data(), nfft, InnerStride<Dynamic>(kOutputStride));
+  StridedComplexVector inv_output(invoutbuf.data(), nfft, InnerStride<Dynamic>(kInvOutputStride));
+
+  for (int k = 0; k < nfft; ++k)
+    input[k] = Complex((T)(rand() / (double)RAND_MAX - .5), (T)(rand() / (double)RAND_MAX - .5));
+  fft.fwd(output, input);
+
+  VERIFY(T(fft_rmse(output, input)) < test_precision<T>());  // gross check
+  fft.inv(inv_output, output);
+  VERIFY(T(dif_rmse(inv_output, input)) < test_precision<T>());  // gross check
+}
+
+template <typename T>
 void test_complex(int nfft) {
   test_complex_generic<StdVectorContainer, T>(nfft);
   test_complex_generic<EigenVectorContainer, T>(nfft);
+  test_complex_strided<T>(nfft);
 }
 
 template <typename T, int nrows, int ncols>
@@ -240,7 +272,7 @@ EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_scalar<float>(2 * 3 * 4 * 5 * 7));
   CALL_SUBTEST(test_scalar<double>(2 * 3 * 4 * 5 * 7));
 
-#if defined EIGEN_HAS_FFTWL || defined EIGEN_POCKETFFT_DEFAULT
+#if defined EIGEN_HAS_FFTWL || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT
   CALL_SUBTEST(test_complex<long double>(32));
   CALL_SUBTEST(test_complex<long double>(256));
   CALL_SUBTEST(test_complex<long double>(3 * 8));
@@ -262,13 +294,15 @@ EIGEN_DECLARE_TEST(FFTW) {
 // fail to build since Eigen limit the stack allocation size,too big here.
 // CALL_SUBTEST( ( test_complex2d<long double, 256, 256> () ) );
 #endif
-#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_MKL_DEFAULT
+#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || \
+    defined EIGEN_MKL_DEFAULT
   CALL_SUBTEST((test_complex2d<float, 24, 24>()));
   CALL_SUBTEST((test_complex2d<float, 60, 60>()));
   CALL_SUBTEST((test_complex2d<float, 24, 60>()));
   CALL_SUBTEST((test_complex2d<float, 60, 24>()));
 #endif
-#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_MKL_DEFAULT
+#if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || \
+    defined EIGEN_MKL_DEFAULT
   CALL_SUBTEST((test_complex2d<double, 24, 24>()));
   CALL_SUBTEST((test_complex2d<double, 60, 60>()));
   CALL_SUBTEST((test_complex2d<double, 24, 60>()));

@@ -251,6 +251,24 @@ struct vectorization_logic {
                         (Matrix1::Flags & RowMajorBit) ? PacketSize : 2 > (1, 2), DefaultTraversal, CompleteUnrolling));
     }
 
+    // the actual packet type used by the assignment evaluator is not necessarily PacketType for small fixed-size arrays
+    if (internal::unpacket_traits<typename internal::find_best_packet<Scalar, 2>::type>::size > 2) {
+      // the expression should not be vectorized if the size is too small
+      using Vector2 = Matrix<Scalar, 2, 1, ColMajor>;
+      using VectorMax3 = Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1>;
+      VERIFY(test_assign(Vector2(), Vector2(), LinearTraversal, InnerUnrolling + CompleteUnrolling));
+      VERIFY(test_assign(VectorMax3(), Vector2(), LinearTraversal, InnerUnrolling + CompleteUnrolling));
+      VERIFY(test_assign(Vector2(), VectorMax3(), LinearTraversal, InnerUnrolling + CompleteUnrolling));
+      VERIFY(test_assign(VectorMax3(), VectorMax3(), LinearTraversal, NoUnrolling));
+    }
+
+    if (PacketSize > 1 && PacketSize < 8) {
+      // the size of the expression should be deduced at compile time by considering both the lhs and rhs
+      using Lhs = Matrix<Scalar, 7, Dynamic, ColMajor>;
+      using Rhs = Matrix<Scalar, Dynamic, 7, ColMajor>;
+      VERIFY(test_assign(Lhs(), Rhs(), -1, InnerUnrolling + CompleteUnrolling));
+    }
+
     VERIFY(
         test_redux(Matrix44c().template block<2 * PacketSize, 1>(1, 2), LinearVectorizedTraversal, CompleteUnrolling));
 
@@ -287,6 +305,7 @@ template <typename Scalar, bool Enable = !internal::is_same<
                                typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half,
                                typename internal::packet_traits<Scalar>::type>::value>
 struct vectorization_logic_half {
+  using RealScalar = typename NumTraits<Scalar>::Real;
   typedef internal::packet_traits<Scalar> PacketTraits;
   typedef typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half PacketType;
   static constexpr int PacketSize = internal::unpacket_traits<PacketType>::size;
@@ -355,10 +374,12 @@ struct vectorization_logic_half {
     VERIFY(test_assign(Vector1(), Vector1().template segment<MinVSize>(0).derived(),
                        EIGEN_UNALIGNED_VECTORIZE ? InnerVectorizedTraversal : LinearVectorizedTraversal,
                        CompleteUnrolling));
-    VERIFY(test_assign(Vector1(), Scalar(2.1) * Vector1() - Vector1(), InnerVectorizedTraversal, CompleteUnrolling));
+    VERIFY(test_assign(Vector1(), Scalar(RealScalar(2.1)) * Vector1() - Vector1(), InnerVectorizedTraversal,
+                       CompleteUnrolling));
     VERIFY(test_assign(
         Vector1(),
-        (Scalar(2.1) * Vector1().template segment<MinVSize>(0) - Vector1().template segment<MinVSize>(0)).derived(),
+        (Scalar(RealScalar(2.1)) * Vector1().template segment<MinVSize>(0) - Vector1().template segment<MinVSize>(0))
+            .derived(),
         EIGEN_UNALIGNED_VECTORIZE ? InnerVectorizedTraversal : LinearVectorizedTraversal, CompleteUnrolling));
     VERIFY(test_assign(Vector1(), Vector1().cwiseProduct(Vector1()), InnerVectorizedTraversal, CompleteUnrolling));
     VERIFY(test_assign(Vector1(), Vector1().template cast<Scalar>(), InnerVectorizedTraversal, CompleteUnrolling));

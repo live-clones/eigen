@@ -58,10 +58,10 @@ class TriangularBase : public EigenBase<Derived> {
     eigen_assert(!((int(Mode) & int(UnitDiag)) && (int(Mode) & int(ZeroDiag))));
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index rows() const EIGEN_NOEXCEPT { return derived().rows(); }
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index cols() const EIGEN_NOEXCEPT { return derived().cols(); }
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index outerStride() const EIGEN_NOEXCEPT { return derived().outerStride(); }
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index innerStride() const EIGEN_NOEXCEPT { return derived().innerStride(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return derived().rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return derived().cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return derived().outerStride(); }
+  EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return derived().innerStride(); }
 
   // dummy resize function
   EIGEN_DEVICE_FUNC void resize(Index rows, Index cols) {
@@ -184,7 +184,8 @@ class TriangularView
   enum {
     Mode = Mode_,
     Flags = internal::traits<TriangularView>::Flags,
-    TransposeMode = (Mode & Upper ? Lower : 0) | (Mode & Lower ? Upper : 0) | (Mode & (UnitDiag)) | (Mode & (ZeroDiag)),
+    TransposeMode = (int(Mode) & int(Upper) ? Lower : 0) | (int(Mode) & int(Lower) ? Upper : 0) |
+                    (int(Mode) & int(UnitDiag)) | (int(Mode) & int(ZeroDiag)),
     IsVectorAtCompileTime = false
   };
 
@@ -193,9 +194,9 @@ class TriangularView
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TriangularView)
 
   /** \copydoc EigenBase::rows() */
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_matrix.rows(); }
   /** \copydoc EigenBase::cols() */
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_matrix.cols(); }
 
   /** \returns a const reference to the nested expression */
   EIGEN_DEVICE_FUNC const NestedExpression& nestedExpression() const { return m_matrix; }

@@ -38,6 +38,19 @@
 #define EIGEN_ALIGNOF(x) alignof(x)
 #endif
 
+// Align to the boundary that avoids false sharing.
+//   https://en.cppreference.com/w/cpp/thread/hardware_destructive_interference_size
+// There is a bug in android NDK < r26 where the macro is defined but std::hardware_destructive_interference_size
+// still does not exist.
+#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201603 && \
+    (!EIGEN_OS_ANDROID || __NDK_MAJOR__ + 0 >= 26)
+#include <new>
+#define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(std::hardware_destructive_interference_size)
+#else
+// Overalign for the cache line size of 128 bytes (Apple M1)
+#define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(128)
+#endif
+
 // If the user explicitly disable vectorization, then we also disable alignment
 #if defined(EIGEN_DONT_VECTORIZE)
 #if defined(EIGEN_GPUCC)
@@ -90,8 +103,8 @@
 // certain common platform (compiler+architecture combinations) to avoid these problems.
 // Only static alignment is really problematic (relies on nonstandard compiler extensions),
 // try to keep heap alignment even when we have to disable static alignment.
-#if EIGEN_COMP_GNUC && \
-    !(EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64 || EIGEN_ARCH_PPC || EIGEN_ARCH_IA64 || EIGEN_ARCH_MIPS)
+#if EIGEN_COMP_GNUC && !(EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64 || EIGEN_ARCH_PPC || EIGEN_ARCH_IA64 || \
+                         EIGEN_ARCH_MIPS || EIGEN_ARCH_LOONGARCH64)
 #define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 1
 #else
 #define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 0
@@ -266,9 +279,14 @@
 #ifdef __AVX512BF16__
 #define EIGEN_VECTORIZE_AVX512BF16
 #endif
+#ifdef __AVX512VL__
+#define EIGEN_VECTORIZE_AVX512VL
+#endif
 #ifdef __AVX512FP16__
 #ifdef __AVX512VL__
 #define EIGEN_VECTORIZE_AVX512FP16
+// Built-in _Float16.
+#define EIGEN_HAS_BUILTIN_FLOAT16 1
 #else
 #if EIGEN_COMP_GNUC
 #error Please add -mavx512vl to your compiler flags: compiling with -mavx512fp16 alone without AVX512-VL is not supported.
@@ -354,6 +372,7 @@ extern "C" {
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_VSX 1
+#define EIGEN_VECTORIZE_FMA
 #include <altivec.h>
 // We need to #undef all these ugly tokens defined in <altivec.h>
 // => use __vector instead of vector
@@ -365,6 +384,7 @@ extern "C" {
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_ALTIVEC
+#define EIGEN_VECTORIZE_FMA
 #include <altivec.h>
 // We need to #undef all these ugly tokens defined in <altivec.h>
 // => use __vector instead of vector
@@ -415,6 +435,12 @@ extern "C" {
 #include <msa.h>
 #endif
 
+#elif (defined __loongarch64 && defined __loongarch_sx)
+
+#define EIGEN_VECTORIZE
+#define EIGEN_VECTORIZE_LSX
+#include <lsxintrin.h>
+
 #elif defined __HVX__ && (__HVX_LENGTH__ == 128)
 
 #define EIGEN_VECTORIZE
@@ -429,6 +455,11 @@ extern "C" {
 // See also: https://bugs.llvm.org/show_bug.cgi?id=47955
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
 #include <arm_fp16.h>
+#endif
+
+// Enable FMA for ARM.
+#if defined(__ARM_FEATURE_FMA)
+#define EIGEN_VECTORIZE_FMA
 #endif
 
 #if defined(__F16C__) && !defined(EIGEN_GPUCC) && (!EIGEN_COMP_CLANG_STRICT || EIGEN_CLANG_STRICT_AT_LEAST(3, 8, 0))
@@ -500,6 +531,8 @@ inline static const char *SimdInstructionSetsInUse(void) {
   return "S390X ZVECTOR";
 #elif defined(EIGEN_VECTORIZE_MSA)
   return "MIPS MSA";
+#elif defined(EIGEN_VECTORIZE_LSX)
+  return "LOONGARCH64 LSX";
 #else
   return "None";
 #endif

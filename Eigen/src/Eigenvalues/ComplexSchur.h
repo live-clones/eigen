@@ -59,7 +59,7 @@ class ComplexSchur {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = MatrixType::Options,
+    Options = internal::traits<MatrixType>::Options,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
@@ -75,7 +75,7 @@ class ComplexSchur {
    * \c float or \c double) and just \c Scalar if #Scalar is
    * complex.
    */
-  typedef std::complex<RealScalar> ComplexScalar;
+  typedef internal::make_complex_t<Scalar> ComplexScalar;
 
   /** \brief Type for the matrices in the Schur decomposition.
    *

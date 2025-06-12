@@ -26,13 +26,6 @@
 
 namespace Eigen {
 
-/** \class TensorReduction
- * \ingroup CXX11_Tensor_Module
- *
- * \brief Tensor reduction class.
- *
- */
-
 namespace internal {
 template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
 struct traits<TensorReductionOp<Op, Dims, XprType, MakePointer_> > : traits<XprType> {
@@ -364,17 +357,6 @@ struct FullReducer {
 };
 
 #ifdef EIGEN_USE_THREADS
-// Multithreaded full reducers
-template <typename Self, typename Op,
-          bool Vectorizable = (Self::InputPacketAccess && Self::ReducerTraits::PacketAccess)>
-struct FullReducerShard {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Self& self, typename Self::Index firstIndex,
-                                                        typename Self::Index numValuesToReduce, Op& reducer,
-                                                        typename Self::CoeffReturnType* output) {
-    *output = InnerMostDimReducer<Self, Op, Vectorizable>::reduce(self, firstIndex, numValuesToReduce, reducer);
-  }
-};
-
 // Multithreaded full reducer
 template <typename Self, typename Op, bool Vectorizable>
 struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
@@ -404,8 +386,11 @@ struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
     Barrier barrier(internal::convert_index<unsigned int>(numblocks));
     MaxSizeVector<typename Self::CoeffReturnType> shards(numblocks, reducer.initialize());
     for (Index i = 0; i < numblocks; ++i) {
-      device.enqueue_with_barrier(&barrier, &FullReducerShard<Self, Op, Vectorizable>::run, self, i * blocksize,
-                                  blocksize, reducer, &shards[i]);
+      auto run_shard = [i, blocksize, &self, &barrier, &shards, &reducer](){
+        shards[i] = InnerMostDimReducer<Self, Op, Vectorizable>::reduce(self, i * blocksize, blocksize, reducer);
+        barrier.Notify();
+      };
+      device.enqueue(std::move(run_shard));
     }
     typename Self::CoeffReturnType finalShard;
     if (numblocks * blocksize < num_coeffs) {
@@ -506,6 +491,12 @@ struct ReductionReturnType {
 
 }  // end namespace internal
 
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor reduction class.
+ *
+ */
 template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
 class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType, MakePointer_>, ReadOnlyAccessors> {
  public:
@@ -889,10 +880,6 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   friend struct internal::InnerMostDimPreserver;
   template <typename S, typename O, typename D, bool V>
   friend struct internal::FullReducer;
-#ifdef EIGEN_USE_THREADS
-  template <typename S, typename O, bool V>
-  friend struct internal::FullReducerShard;
-#endif
 #if defined(EIGEN_USE_GPU) && (defined(EIGEN_GPUCC))
   template <int B, int N, typename S, typename R, typename I_>
   KERNEL_FRIEND void internal::FullReductionKernel(R, const S, I_, typename S::CoeffReturnType*, unsigned int*);
@@ -977,11 +964,12 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   // Dimensions of the output of the operation.
   Dimensions m_dimensions;
   // Precomputed strides for the output tensor.
-  array<Index, NumOutputDims> m_outputStrides;
-  array<internal::TensorIntDivisor<Index>, NumOutputDims> m_fastOutputStrides;
-  array<Index, NumPreservedStrides> m_preservedStrides;
+  // Avoid zero-sized arrays, since element access fails to compile on GPU.
+  array<Index, (std::max)(NumOutputDims, 1)> m_outputStrides;
+  array<internal::TensorIntDivisor<Index>, (std::max)(NumOutputDims, 1)> m_fastOutputStrides;
+  array<Index, (std::max)(NumPreservedStrides, 1)> m_preservedStrides;
   // Map from output to input dimension index.
-  array<Index, NumOutputDims> m_output_to_input_dim_map;
+  array<Index, (std::max)(NumOutputDims, 1)> m_output_to_input_dim_map;
   // How many values go into each reduction
   Index m_numValuesToReduce;
 

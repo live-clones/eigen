@@ -54,7 +54,7 @@ class ComplexEigenSolver {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = MatrixType::Options,
+    Options = internal::traits<MatrixType>::Options,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
@@ -70,7 +70,7 @@ class ComplexEigenSolver {
    * \c float or \c double) and just \c Scalar if #Scalar is
    * complex.
    */
-  typedef std::complex<RealScalar> ComplexScalar;
+  typedef internal::make_complex_t<Scalar> ComplexScalar;
 
   /** \brief Type for vector of eigenvalues as returned by eigenvalues().
    *
@@ -292,7 +292,7 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
   m_eivec.noalias() = m_schur.matrixU() * m_matX;
   // .. and normalize the eigenvectors
   for (Index k = 0; k < n; k++) {
-    m_eivec.col(k).normalize();
+    m_eivec.col(k).stableNormalize();
   }
 }
 

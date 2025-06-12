@@ -183,6 +183,7 @@ template <>
 EIGEN_STRONG_INLINE float cast(const AnnoyingScalar& x) {
   return *x.v;
 }
+
 }  // namespace internal
 }  // namespace Eigen
 

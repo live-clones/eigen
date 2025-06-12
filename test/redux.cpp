@@ -24,19 +24,22 @@ void matrixRedux(const MatrixType& m) {
 
   MatrixType m1 = MatrixType::Random(rows, cols);
 
-  // The entries of m1 are uniformly distributed in [0,1], so m1.prod() is very small. This may lead to test
+  // The entries of m1 are uniformly distributed in [-1,1), so m1.prod() is very small. This may lead to test
   // failures if we underflow into denormals. Thus, we scale so that entries are close to 1.
   MatrixType m1_for_prod = MatrixType::Ones(rows, cols) + RealScalar(0.2) * m1;
 
   Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> m2(rows, rows);
   m2.setRandom();
+  // Prevent overflows for integer types.
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    Scalar kMaxVal = Scalar(10000);
+    m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
+    m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
+  }
 
-  VERIFY_IS_MUCH_SMALLER_THAN(MatrixType::Zero(rows, cols).sum(), Scalar(1));
-  VERIFY_IS_APPROX(
-      MatrixType::Ones(rows, cols).sum(),
-      Scalar(float(
-          rows *
-          cols)));  // the float() here to shut up excessive MSVC warning about int->complex conversion being lossy
+  VERIFY_IS_EQUAL(MatrixType::Zero(rows, cols).sum(), Scalar(0));
+  Scalar sizeAsScalar = internal::cast<Index, Scalar>(rows * cols);
+  VERIFY_IS_APPROX(MatrixType::Ones(rows, cols).sum(), sizeAsScalar);
   Scalar s(0), p(1), minc(numext::real(m1.coeff(0))), maxc(numext::real(m1.coeff(0)));
   for (int j = 0; j < cols; j++)
     for (int i = 0; i < rows; i++) {
@@ -154,6 +157,10 @@ EIGEN_DECLARE_TEST(redux) {
   int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
   TEST_SET_BUT_UNUSED_VARIABLE(maxsize);
   for (int i = 0; i < g_repeat; i++) {
+    int rows = internal::random<int>(1, maxsize);
+    int cols = internal::random<int>(1, maxsize);
+    EIGEN_UNUSED_VARIABLE(rows);
+    EIGEN_UNUSED_VARIABLE(cols);
     CALL_SUBTEST_1(matrixRedux(Matrix<float, 1, 1>()));
     CALL_SUBTEST_1(matrixRedux(Array<float, 1, 1>()));
     CALL_SUBTEST_2(matrixRedux(Matrix2f()));
@@ -162,19 +169,37 @@ EIGEN_DECLARE_TEST(redux) {
     CALL_SUBTEST_3(matrixRedux(Matrix4d()));
     CALL_SUBTEST_3(matrixRedux(Array4d()));
     CALL_SUBTEST_3(matrixRedux(Array44d()));
-    CALL_SUBTEST_4(matrixRedux(MatrixXcf(internal::random<int>(1, maxsize), internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_4(matrixRedux(ArrayXXcf(internal::random<int>(1, maxsize), internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_5(matrixRedux(MatrixXd(internal::random<int>(1, maxsize), internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_5(matrixRedux(ArrayXXd(internal::random<int>(1, maxsize), internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_6(matrixRedux(MatrixXi(internal::random<int>(1, maxsize), internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_6(matrixRedux(ArrayXXi(internal::random<int>(1, maxsize), internal::random<int>(1, maxsize))));
+    CALL_SUBTEST_4(matrixRedux(MatrixXf(rows, cols)));
+    CALL_SUBTEST_4(matrixRedux(ArrayXXf(rows, cols)));
+    CALL_SUBTEST_4(matrixRedux(MatrixXd(rows, cols)));
+    CALL_SUBTEST_4(matrixRedux(ArrayXXd(rows, cols)));
+    /* TODO: fix test for boolean */
+    /*CALL_SUBTEST_5(matrixRedux(MatrixX<bool>(rows, cols)));*/
+    /*CALL_SUBTEST_5(matrixRedux(ArrayXX<bool>(rows, cols)));*/
+    CALL_SUBTEST_5(matrixRedux(MatrixXi(rows, cols)));
+    CALL_SUBTEST_5(matrixRedux(ArrayXXi(rows, cols)));
+    CALL_SUBTEST_5(matrixRedux(MatrixX<int64_t>(rows, cols)));
+    CALL_SUBTEST_5(matrixRedux(ArrayXX<int64_t>(rows, cols)));
+    CALL_SUBTEST_6(matrixRedux(MatrixXcf(rows, cols)));
+    CALL_SUBTEST_6(matrixRedux(ArrayXXcf(rows, cols)));
+    CALL_SUBTEST_6(matrixRedux(MatrixXcd(rows, cols)));
+    CALL_SUBTEST_6(matrixRedux(ArrayXXcd(rows, cols)));
   }
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_7(vectorRedux(Vector4f()));
-    CALL_SUBTEST_7(vectorRedux(Array4f()));
-    CALL_SUBTEST_5(vectorRedux(VectorXd(internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_5(vectorRedux(ArrayXd(internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_8(vectorRedux(VectorXf(internal::random<int>(1, maxsize))));
-    CALL_SUBTEST_8(vectorRedux(ArrayXf(internal::random<int>(1, maxsize))));
+    int size = internal::random<int>(1, maxsize);
+    EIGEN_UNUSED_VARIABLE(size);
+    CALL_SUBTEST_8(vectorRedux(Vector4f()));
+    CALL_SUBTEST_8(vectorRedux(Array4f()));
+    CALL_SUBTEST_9(vectorRedux(VectorXf(size)));
+    CALL_SUBTEST_9(vectorRedux(ArrayXf(size)));
+    CALL_SUBTEST_10(vectorRedux(VectorXd(size)));
+    CALL_SUBTEST_10(vectorRedux(ArrayXd(size)));
+    /* TODO: fix test for boolean */
+    /*CALL_SUBTEST_10(vectorRedux(VectorX<bool>(size)));*/
+    /*CALL_SUBTEST_10(vectorRedux(ArrayX<bool>(size)));*/
+    CALL_SUBTEST_10(vectorRedux(VectorXi(size)));
+    CALL_SUBTEST_10(vectorRedux(ArrayXi(size)));
+    CALL_SUBTEST_10(vectorRedux(VectorX<int64_t>(size)));
+    CALL_SUBTEST_10(vectorRedux(ArrayX<int64_t>(size)));
   }
 }

@@ -15,13 +15,6 @@
 
 namespace Eigen {
 
-/** \class TensorBroadcasting
- * \ingroup CXX11_Tensor_Module
- *
- * \brief Tensor broadcasting class.
- *
- *
- */
 namespace internal {
 template <typename Broadcast, typename XprType>
 struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType> {
@@ -34,6 +27,10 @@ struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType>
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
+  enum {
+    // Broadcast is read-only.
+    Flags = traits<XprType>::Flags & ~LvalueBit
+  };
 };
 
 template <typename Broadcast, typename XprType>
@@ -55,15 +52,16 @@ template <>
 struct is_input_scalar<Sizes<>> {
   static const bool value = true;
 };
-#ifndef EIGEN_EMULATE_CXX11_META_H
 template <typename std::ptrdiff_t... Indices>
 struct is_input_scalar<Sizes<Indices...>> {
-  static const bool value = (Sizes<Indices...>::total_size == 1);
+  static constexpr bool value = (Sizes<Indices...>::total_size == 1);
 };
-#endif
 
 }  // end namespace internal
 
+/** Tensor broadcasting class.
+ * \ingroup CXX11_Tensor_Module
+ */
 template <typename Broadcast, typename XprType>
 class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors> {
  public:
