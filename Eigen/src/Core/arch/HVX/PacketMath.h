@@ -1015,6 +1015,21 @@ EIGEN_STRONG_INLINE Packet16f plset(const float& a) {
   return plset_hvx<HVXPacketSize::Half>(a);
 }
 template <>
+EIGEN_STRONG_INLINE float pmadd(const float& a, const float& b, const float& c) {
+  return a * b + c;
+}
+template <>
+EIGEN_STRONG_INLINE float pmsub(const float& a, const float& b, const float& c) {
+  return a * b - c;
+}
+template <>
+EIGEN_STRONG_INLINE float pnmadd(const float& a, const float& b, const float& c) {
+  return c - a * b;
+}
+template <>
+EIGEN_STRONG_INLINE float pnmsub(const float& a, const float& b, const float& c) {
+  return -c - a * b;
+}
 EIGEN_STRONG_INLINE Packet8f plset(const float& a) {
   return plset_hvx<HVXPacketSize::Quarter>(a);
 }
