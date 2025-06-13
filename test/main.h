@@ -18,7 +18,6 @@
 #include <sstream>
 #include <vector>
 #include <typeinfo>
-#include <type_traits>
 #include <functional>
 #ifdef EIGEN_USE_SYCL
 #include <CL/sycl.hpp>
@@ -85,6 +84,11 @@
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 #endif
 
+#if defined __HVX__ && (__HVX_LENGTH__ == 128)
+// Need to prevent conflict FORBIDDEN_IDENTIFIER B0.
+#include <hexagon_types.h>
+#endif
+
 // To test that all calls from Eigen code to std::min() and std::max() are
 // protected by parenthesis against macro expansion, the min()/max() macros
 // are defined here and any not-parenthesized min/max call will cause a
@@ -143,20 +147,14 @@ struct imag {};
 static long int nb_temporaries;
 static long int nb_temporaries_on_assert = -1;
 
-#ifdef TEST_IGNORE_STACK_ALLOCATED_TEMPORARY
-inline void on_temporary_creation(long int size, int SizeAtCompileTime) {
-  // ignore stack-allocated temporaries
-  if (SizeAtCompileTime != -1) return;
-#else
-inline void on_temporary_creation(long int size, int) {
-#endif
+inline void on_temporary_creation(long int size) {
   // here's a great place to set a breakpoint when debugging failures in this test!
   if (size != 0) nb_temporaries++;
   if (nb_temporaries_on_assert > 0) assert(nb_temporaries < nb_temporaries_on_assert);
 }
 
 #define EIGEN_DENSE_STORAGE_CTOR_PLUGIN \
-  { on_temporary_creation(size, Size); }
+  { on_temporary_creation(size); }
 
 #define VERIFY_EVALUATION_COUNT(XPR, N)                            \
   {                                                                \
@@ -340,7 +338,7 @@ static std::vector<std::string> eigen_assert_list;
 
 #endif  // EIGEN_NO_ASSERTION_CHECKING
 
-#if !defined(EIGEN_TESTING_CONSTEXPR) && !defined(EIGEN_TESTING_PLAINOBJECT_CTOR)
+#ifndef EIGEN_TESTING_CONSTEXPR
 #define EIGEN_INTERNAL_DEBUGGING
 #endif
 #include <Eigen/QR>  // required for createRandomPIMatrixOfRank and generateRandomMatrixSvs

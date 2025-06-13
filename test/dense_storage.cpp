@@ -9,12 +9,14 @@
 
 #define EIGEN_TESTING_PLAINOBJECT_CTOR
 
+// Including Eigen heahers first to avoid macros pollute with hexagon toolchain macros
+#include <Eigen/Core> 
+
 #include "main.h"
 #include "AnnoyingScalar.h"
 #include "MovableScalar.h"
 #include "SafeScalar.h"
 
-#include <Eigen/Core>
 
 using DenseStorageD3x3 = Eigen::DenseStorage<double, 9, 3, 3, 0>;
 #if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
