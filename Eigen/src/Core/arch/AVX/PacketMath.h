@@ -2250,6 +2250,13 @@ EIGEN_STRONG_INLINE Packet8h ptrunc<Packet8h>(const Packet8h& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8h pisinf<Packet8h>(const Packet8h& a) {
+  constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm_cmpeq_epi16(_mm_and_si128(a.m_val, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet8h pisnan<Packet8h>(const Packet8h& a) {
   constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
