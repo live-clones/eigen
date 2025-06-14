@@ -506,7 +506,7 @@ constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t mapToSigned(uint16_t a) 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool isOrdered(const half& a, const half& b) {
   constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
-  return std::max(a.x & kAbsMask, b.x & kAbsMask) <= kInf;
+  return numext::maxi(a.x & kAbsMask, b.x & kAbsMask) <= kInf;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) {
   bool result = mapToSigned(a.x) == mapToSigned(b.x);
