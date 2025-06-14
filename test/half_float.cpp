@@ -79,7 +79,6 @@ void test_conversion() {
   VERIFY((numext::isinf)(float(half(__half_raw(0x7c00)))));
   VERIFY((numext::isnan)(float(half(__half_raw(0x7c01)))));
 
-  // Visual Studio errors out on divisions by 0
   VERIFY((numext::isnan)(float(NumTraits<half>::quiet_NaN())));
   VERIFY((numext::isinf)(float(NumTraits<half>::infinity())));
   VERIFY((numext::isinf)(float(-NumTraits<half>::infinity())));
@@ -92,7 +91,6 @@ void test_conversion() {
   VERIFY((numext::isinf)(half(__half_raw(0x7c00))));
   VERIFY((numext::isnan)(half(__half_raw(0x7c01))));
 
-  // Visual Studio errors out on divisions by 0
   VERIFY((numext::isnan)(NumTraits<half>::quiet_NaN()));
   VERIFY((numext::isinf)(NumTraits<half>::infinity()));
   VERIFY((numext::isinf)(-NumTraits<half>::infinity()));
