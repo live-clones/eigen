@@ -24,7 +24,8 @@
     EIGEN_CI_HEXAGON_FLAGS: "-G0 -fPIC -mhvx"
   before_script:
     - . ci/scripts/common.linux.before_script.sh
-    - . ci/scripts/setup.hexagon.sh
+    - ./ci/scripts/error-handler.hexagon.sh download_toolchain "$HEXAGON_TOOLCHAIN_URL" "/opt/hexagon-toolchain" "$EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION" || . ci/scripts/setup.hexagon.sh
+    - ./ci/scripts/validate.hexagon.sh
   tags:
     - linux
     - eigen-runner
@@ -36,6 +37,20 @@
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     # Run on merge requests with hexagon-tests label
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/hexagon-tests/"
+  after_script:
+    - ./ci/scripts/performance-monitor.hexagon.sh resource_monitor 60 "${EIGEN_CI_BUILDDIR:-.build}" || true
+    - ./ci/scripts/alert.hexagon.sh pipeline_success "$(cat ${EIGEN_CI_BUILDDIR:-.build}/build-duration.txt 2>/dev/null || echo '0')" "$(find ${EIGEN_CI_BUILDDIR:-.build} -name '*test*' -executable -type f | wc -l)" || true
+  artifacts:
+    reports:
+      junit: ${EIGEN_CI_BUILDDIR:-.build}/test-results.xml
+    paths:
+      - ${EIGEN_CI_BUILDDIR:-.build}/*.log
+      - ${EIGEN_CI_BUILDDIR:-.build}/performance-*.json
+      - ${EIGEN_CI_BUILDDIR:-.build}/optimization-report.txt
+      - ${EIGEN_CI_BUILDDIR:-.build}/error-summary.json
+      - ${EIGEN_CI_BUILDDIR:-.build}/alerts.log
+    expire_in: 1 week
+    when: always
   cache:
     key: "hexagon-$CI_COMMIT_REF_SLUG-$EIGEN_CI_HEXAGON_ARCH"
     paths:
