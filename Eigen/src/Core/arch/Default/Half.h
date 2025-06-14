@@ -497,16 +497,43 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
   a = half(float(a) / float(b));
   return a;
 }
+
+// convert sign-magnitude representation to two's complement
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t mapToSigned(uint16_t a) {
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return (a >> 15) ? -(a & kAbsMask) : a;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool isOrdered(const half& a, const half& b) {
+  constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return ((a.x & kAbsMask) <= kInf) && ((b.x & kAbsMask) <= kInf);
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) {
-  return numext::equal_strict(float(a), float(b));
+  bool result = mapToSigned(a.x) == mapToSigned(b.x);
+  result &= isOrdered(a, b);
+  return result;
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) {
-  return numext::not_equal_strict(float(a), float(b));
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) { return !(a == b); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) {
+  bool result = mapToSigned(a.x) < mapToSigned(b.x);
+  result &= isOrdered(a, b);
+  return result;
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) { return float(a) < float(b); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) { return float(a) <= float(b); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return float(a) > float(b); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return float(a) >= float(b); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) {
+  bool result = mapToSigned(a.x) <= mapToSigned(b.x);
+  result &= isOrdered(a, b);
+  return result;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) {
+  bool result = mapToSigned(a.x) > mapToSigned(b.x);
+  result &= isOrdered(a, b);
+  return result;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) {
+  bool result = mapToSigned(a.x) >= mapToSigned(b.x);
+  result &= isOrdered(a, b);
+  return result;
+}
 
 #if EIGEN_COMP_CLANG && defined(EIGEN_GPUCC)
 #pragma pop_macro("EIGEN_DEVICE_FUNC")
@@ -706,7 +733,12 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isnan)(const half& a) {
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isfinite)(const half& a) {
-  return !(isinf EIGEN_NOT_A_MACRO(a)) && !(isnan EIGEN_NOT_A_MACRO(a));
+  // return !(isinf EIGEN_NOT_A_MACRO(a)) && !(isnan EIGEN_NOT_A_MACRO(a));
+#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) || defined(EIGEN_HAS_BUILTIN_FLOAT16)
+  return (numext::bit_cast<numext::uint16_t>(a.x) & 0x7fff) < 0x7c00;
+#else
+  return (a.x & 0x7fff) < 0x7c00;
+#endif
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half abs(const half& a) {

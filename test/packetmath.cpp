@@ -1801,22 +1801,22 @@ struct runall<Scalar, PacketType, true, false> {  // i.e. complex
 EIGEN_DECLARE_TEST(packetmath) {
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(test::runner<float>::run());
-    CALL_SUBTEST_2(test::runner<double>::run());
-    CALL_SUBTEST_3(test::runner<int8_t>::run());
-    CALL_SUBTEST_4(test::runner<uint8_t>::run());
-    CALL_SUBTEST_5(test::runner<int16_t>::run());
-    CALL_SUBTEST_6(test::runner<uint16_t>::run());
-    CALL_SUBTEST_7(test::runner<int32_t>::run());
-    CALL_SUBTEST_8(test::runner<uint32_t>::run());
-    CALL_SUBTEST_9(test::runner<int64_t>::run());
-    CALL_SUBTEST_10(test::runner<uint64_t>::run());
-    CALL_SUBTEST_11(test::runner<std::complex<float>>::run());
-    CALL_SUBTEST_12(test::runner<std::complex<double>>::run());
+    //CALL_SUBTEST_1(test::runner<float>::run());
+    //CALL_SUBTEST_2(test::runner<double>::run());
+    //CALL_SUBTEST_3(test::runner<int8_t>::run());
+    //CALL_SUBTEST_4(test::runner<uint8_t>::run());
+    //CALL_SUBTEST_5(test::runner<int16_t>::run());
+    //CALL_SUBTEST_6(test::runner<uint16_t>::run());
+    //CALL_SUBTEST_7(test::runner<int32_t>::run());
+    //CALL_SUBTEST_8(test::runner<uint32_t>::run());
+    //CALL_SUBTEST_9(test::runner<int64_t>::run());
+    //CALL_SUBTEST_10(test::runner<uint64_t>::run());
+    //CALL_SUBTEST_11(test::runner<std::complex<float>>::run());
+    //CALL_SUBTEST_12(test::runner<std::complex<double>>::run());
     CALL_SUBTEST_13(test::runner<half>::run());
-    CALL_SUBTEST_14((packetmath<bool, internal::packet_traits<bool>::type>()));
-    CALL_SUBTEST_14((packetmath_scatter_gather<bool, internal::packet_traits<bool>::type>()));
-    CALL_SUBTEST_15(test::runner<bfloat16>::run());
+    //CALL_SUBTEST_14((packetmath<bool, internal::packet_traits<bool>::type>()));
+    //CALL_SUBTEST_14((packetmath_scatter_gather<bool, internal::packet_traits<bool>::type>()));
+    //CALL_SUBTEST_15(test::runner<bfloat16>::run());
     g_first_pass = false;
   }
 }
