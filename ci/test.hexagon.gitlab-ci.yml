@@ -287,7 +287,8 @@ aggregate:hexagon:test:results:
     - echo "Found $(ls aggregated-results/ | wc -l) result files"
     - ls -la aggregated-results/ || true
     # Generate aggregate report
-    - python3 -c "
+    - |
+      python3 -c "
       import json
       import glob
       import os
