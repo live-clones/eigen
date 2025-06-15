@@ -26,6 +26,8 @@
     - . ci/scripts/common.linux.before_script.sh
     - ./ci/scripts/error-handler.hexagon.sh download_toolchain "$HEXAGON_TOOLCHAIN_URL" "/opt/hexagon-toolchain" "$EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION" || . ci/scripts/setup.hexagon.sh
     - ./ci/scripts/validate.hexagon.sh
+  script:
+    - . ci/scripts/build.linux.script.sh
   tags:
     - linux
     - eigen-runner
