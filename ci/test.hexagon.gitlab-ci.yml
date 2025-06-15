@@ -29,20 +29,10 @@
     - . ci/scripts/setup.hexagon.sh
     - ./ci/scripts/validate.hexagon.sh
   script:
-    - echo "=== Enhanced Hexagon Test Integration ==="
-    - echo "Architecture: ${EIGEN_CI_HEXAGON_ARCH}"
-    - echo "Toolchain Version: ${EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION}"
-    - echo "Validation: ${EIGEN_CI_ENABLE_VALIDATION}"
-    - echo "Monitoring: ${EIGEN_CI_ENABLE_MONITORING}"
-    - echo "Performance Tracking: ${EIGEN_CI_ENABLE_PERFORMANCE}"
     - . ci/scripts/test.hexagon.sh
   after_script:
-    # Enhanced error handling and monitoring
-    - echo "=== Post-Test Analysis ==="
     - ./ci/scripts/error-handler.hexagon.sh test_qemu "${EIGEN_CI_BUILDDIR}/test_basic" || true
     - ./ci/scripts/performance-monitor.hexagon.sh resource_monitor 30 "${EIGEN_CI_BUILDDIR}" || true
-    # Collect comprehensive artifacts regardless of test outcome
-    - echo "=== Collecting Test Artifacts ==="
     - mkdir -p artifacts/hexagon-tests
     - cp -r ${EIGEN_CI_BUILDDIR}/testing artifacts/hexagon-tests/ || true
     - cp -r ${EIGEN_CI_BUILDDIR}/validation artifacts/hexagon-tests/ || true
@@ -52,16 +42,8 @@
     - cp -r ${EIGEN_CI_BUILDDIR}/*error*.log artifacts/hexagon-tests/ || true
     - cp -r ${EIGEN_CI_BUILDDIR}/*performance*.json artifacts/hexagon-tests/ || true
     - cp -r ${EIGEN_CI_BUILDDIR}/alerts.log artifacts/hexagon-tests/ || true
-    # Create comprehensive test report
-    - echo "=== Generating Final Report ==="
     - bash ci/scripts/generate-test-report.sh || true
-    # Send alert based on test results
-    - |
-      if [ "$CI_JOB_STATUS" = "success" ]; then
-        ./ci/scripts/alert.hexagon.sh pipeline_success "$(cat ${EIGEN_CI_BUILDDIR}/test-duration.txt 2>/dev/null || echo '0')" "$(find ${EIGEN_CI_BUILDDIR} -name '*test*' -executable -type f | wc -l)" || true
-      else
-        ./ci/scripts/alert.hexagon.sh test_failure "${CI_JOB_NAME}" "$(grep -c 'FAILED' ${EIGEN_CI_BUILDDIR}/Testing/Temporary/LastTest.log 2>/dev/null || echo 'unknown')" || true
-      fi
+    - ./ci/scripts/alert.hexagon.sh pipeline_result "${CI_JOB_STATUS}" "${CI_JOB_NAME}" || true
   artifacts:
     when: always
     name: "hexagon-test-results-${CI_JOB_NAME}-${CI_COMMIT_SHORT_SHA}"
