@@ -2273,7 +2273,7 @@ EIGEN_STRONG_INLINE Packet8h pisordered(const Packet8h& a, const Packet8h& b) {
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
   __m128i abs_a = _mm_and_si128(a.m_val, _mm_set1_epi16(kAbsMask));
   __m128i abs_b = _mm_and_si128(b.m_val, _mm_set1_epi16(kAbsMask));
-  return _mm_cmplt_epi16(_mm_max_epu16(abs_a, abs_b), _mm_set1_epi16(kInf + 1));
+  return _mm_cmplt_epi16(_mm_max_epu16(pabs(a), pabs(b)), _mm_set1_epi16(kInf + 1));
 }
 
 template <>

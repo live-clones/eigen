@@ -499,7 +499,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
 }
 
 // convert sign-magnitude representation to two's complement
-constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t mapToSigned(uint16_t a) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t mapToSigned(uint16_t a) {
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
   return (a >> 15) ? -(a & kAbsMask) : a;
 }
