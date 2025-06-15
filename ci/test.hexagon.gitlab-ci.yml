@@ -228,7 +228,9 @@ test:linux:hexagon:integration:
     expire_in: 14 days  # Keep integration results longer
     reports:
       junit: ${EIGEN_CI_BUILDDIR}/testing/integration-results.xml
-      coverage: ${EIGEN_CI_BUILDDIR}/testing/coverage.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: ${EIGEN_CI_BUILDDIR}/testing/coverage.xml
 
 # Test result aggregation job  
 aggregate:hexagon:test:results:
