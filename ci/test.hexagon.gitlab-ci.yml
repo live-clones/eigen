@@ -1,0 +1,236 @@
+# Hexagon DSP cross-compilation tests
+# This file is part of Eigen, a lightweight C++ template library
+# for linear algebra.
+#
+# Copyright (C) 2023, The Eigen Authors
+#
+# This Source Code Form is subject to the terms of the Mozilla
+# Public License v. 2.0. If a copy of the MPL was not distributed
+# with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+# Enhanced Hexagon Testing CI Configuration
+# Updated for Dockerfile-based CI environment
+
+.test:linux:hexagon:
+  stage: test
+  image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
+  variables:
+    EIGEN_CI_TARGET_ARCH: hexagon
+    EIGEN_CI_CTEST_LABEL: "Hexagon"
+    # Enhanced testing configuration
+    EIGEN_CI_ENABLE_VALIDATION: "true"
+    EIGEN_CI_ENABLE_MONITORING: "true" 
+    EIGEN_CI_ENABLE_PERFORMANCE: "true"
+    EIGEN_CI_TEST_TIMEOUT: "300"
+    EIGEN_CI_MAX_PARALLEL_TESTS: "4"
+  before_script:
+    # Setup environment using the built-in script from Dockerfile
+    - source /usr/local/bin/setup-hexagon-env.sh
+    # Run validation script to ensure environment is ready
+    - /workspace/eigen-mirror/ci/test-hexagon-setup.sh
+  script:
+    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -L "${EIGEN_CI_CTEST_LABEL}"
+  after_script:
+    - mkdir -p artifacts/hexagon-tests
+    - cp -r ${EIGEN_CI_BUILDDIR:-.build}/Testing artifacts/hexagon-tests/ || true
+    - cp -r ${EIGEN_CI_BUILDDIR:-.build}/*.log artifacts/hexagon-tests/ || true
+  artifacts:
+    when: always
+    name: "hexagon-test-results-${CI_JOB_NAME}-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - artifacts/hexagon-tests/
+      - ${EIGEN_CI_BUILDDIR:-.build}/Testing/
+    reports:
+      junit: 
+        - ${EIGEN_CI_BUILDDIR:-.build}/Testing/**/Test.xml
+    expire_in: 7 days
+  tags:
+    - linux
+    - eigen-runner
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /comprehensive-tests/
+
+# Enhanced test matrix with different configurations - Updated for new CI structure
+test:linux:hexagon:v68:default:
+  extends: .test:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_CTEST_LABEL: "Hexagon-v68"
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68
+  dependencies:
+    - build:linux:hexagon:v68:ci
+  needs:
+    - job: build:linux:hexagon:v68:ci
+      artifacts: true
+
+test:linux:hexagon:v68:hvx:
+  extends: .test:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_CTEST_LABEL: "Hexagon-HVX"
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68-hvx
+    # Enhanced HVX testing
+    EIGEN_CI_TEST_TIMEOUT: "600"  # Longer timeout for HVX tests
+    EIGEN_CI_ENABLE_HVX_VALIDATION: "true"
+  dependencies:
+    - build:linux:hexagon:v68:hvx:ci
+  needs:
+    - job: build:linux:hexagon:v68:hvx:ci
+      artifacts: true
+
+test:linux:hexagon:v73:default:
+  extends: .test:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_CTEST_LABEL: "Hexagon-v73"
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73
+  dependencies:
+    - build:linux:hexagon:v73:ci
+  needs:
+    - job: build:linux:hexagon:v73:ci
+      artifacts: true
+  allow_failure: true  # v73 is newer, allow failure for now
+
+test:linux:hexagon:v68:debug:
+  extends: .test:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_CTEST_LABEL: "Hexagon-Debug"
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68-debug
+    # Debug-specific testing configuration
+    EIGEN_CI_TEST_TIMEOUT: "900"  # Longer timeout for debug builds
+    EIGEN_CI_ENABLE_DEBUG_VALIDATION: "true"
+  dependencies:
+    - build:linux:hexagon:v68:debug:ci
+  needs:
+    - job: build:linux:hexagon:v68:debug:ci
+      artifacts: true
+
+# Performance benchmarking job
+test:linux:hexagon:performance:
+  extends: .test:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_CTEST_LABEL: "Hexagon-Performance"
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68-optimized
+    # Performance-focused configuration
+    EIGEN_CI_ENABLE_PERFORMANCE: "true"
+    EIGEN_CI_ENABLE_VALIDATION: "false"  # Skip validation for performance
+    EIGEN_CI_TEST_TIMEOUT: "1200"  # Extended timeout for benchmarks
+    EIGEN_CI_MAX_PARALLEL_TESTS: "1"  # Serial execution for consistent results
+  dependencies:
+    - build:linux:hexagon:v68:optimized:ci
+  needs:
+    - job: build:linux:hexagon:v68:optimized:ci
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /performance-tests/
+  artifacts:
+    when: always
+    reports:
+      performance: 
+        - ${EIGEN_CI_BUILDDIR}/testing/*-perf.json
+        - ${EIGEN_CI_BUILDDIR}/monitoring/performance.json
+
+# Smoke test job - quick validation using minimal build
+test:linux:hexagon:smoke:
+  extends: .test:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_CTEST_LABEL: "Hexagon-Smoke"
+    EIGEN_CI_BUILDDIR: .build-hexagon-minimal
+    # Smoke test configuration - fast and minimal
+    EIGEN_CI_ENABLE_VALIDATION: "false"
+    EIGEN_CI_ENABLE_MONITORING: "false"
+    EIGEN_CI_ENABLE_PERFORMANCE: "false"
+    EIGEN_CI_TEST_TIMEOUT: "60"  # Quick timeout
+    EIGEN_CI_MAX_PARALLEL_TESTS: "2"
+    EIGEN_CI_CTEST_REGEX: "basicstuff|array_cwise"  # Only run basic tests
+  dependencies:
+    - build:linux:hexagon:minimal:ci
+  needs:
+    - job: build:linux:hexagon:minimal:ci
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+  script:
+    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    # Use regex filter for smoke tests
+    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "${EIGEN_CI_CTEST_REGEX}"
+
+# Comprehensive integration test
+test:linux:hexagon:integration:
+  extends: .test:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_CTEST_LABEL: "Hexagon-Integration"
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68
+    # Full integration testing
+    EIGEN_CI_ENABLE_VALIDATION: "true"
+    EIGEN_CI_ENABLE_MONITORING: "true"
+    EIGEN_CI_ENABLE_PERFORMANCE: "true"
+    EIGEN_CI_TEST_TIMEOUT: "600"
+    EIGEN_CI_MAX_PARALLEL_TESTS: "4"
+    # Integration-specific settings
+    EIGEN_CI_INTEGRATION_MODE: "true"
+    EIGEN_CI_REPORT_COVERAGE: "true"
+  dependencies:
+    - build:linux:hexagon:v68:ci
+  needs:
+    - job: build:linux:hexagon:v68:ci
+      artifacts: true
+  script:
+    # Enhanced integration testing script
+    - echo "=== Comprehensive Integration Testing ==="
+    - echo "Running pre-integration validation..."
+    - /workspace/eigen-mirror/ci/test-hexagon-setup.sh
+    - echo "Running enhanced test suite..."
+    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}
+    - echo "Integration testing complete"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+
+# Test result aggregation job  
+aggregate:hexagon:test:results:
+  stage: test
+  image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "=== Aggregating Hexagon Test Results ==="
+    - mkdir -p aggregated-results
+    - find . -name "test-results.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
+    - find . -name "validation-summary.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
+    - find . -name "performance.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
+    - echo "Found $(ls aggregated-results/ 2>/dev/null | wc -l) result files"
+    - ls -la aggregated-results/ || true
+    - echo "Creating aggregation summary..."
+    - echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"total_test_jobs\":$(ls aggregated-results/*.json 2>/dev/null | wc -l),\"overall_status\":\"completed\"}" > aggregated-results/hexagon-test-summary.json
+    - echo "Aggregation complete"
+  artifacts:
+    when: always
+    name: "hexagon-aggregated-results-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - aggregated-results/
+    expire_in: 14 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/
