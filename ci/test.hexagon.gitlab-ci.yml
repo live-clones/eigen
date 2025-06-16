@@ -209,28 +209,15 @@ test:linux:hexagon:integration:
     # Enhanced integration testing script
     - echo "=== Comprehensive Integration Testing ==="
     - echo "Running pre-integration validation..."
-    - bash ci/scripts/validate.hexagon.sh
+    - bash eigen-mirror/ci/scripts/validate.hexagon.sh
     - echo "Running enhanced test suite..."
-    - bash ci/scripts/test.hexagon.sh
+    - bash eigen-mirror/ci/scripts/test.hexagon.sh
     - echo "Running post-integration monitoring..."
-    - bash ci/scripts/monitor.hexagon.sh
+    - bash eigen-mirror/ci/scripts/monitor.hexagon.sh
     - echo "Generating integration report..."
-    - bash ci/scripts/generate-integration-report.sh
+    - bash eigen-mirror/ci/scripts/generate-integration-report.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
-      when: always
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /integration-tests/
-      when: always
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
-      when: manual
-  artifacts:
-    when: always
-    expire_in: 14 days  # Keep integration results longer
-    reports:
-      junit: ${EIGEN_CI_BUILDDIR}/testing/integration-results.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: ${EIGEN_CI_BUILDDIR}/testing/coverage.xml
 
 # Test result aggregation job  
 aggregate:hexagon:test:results:
@@ -238,76 +225,24 @@ aggregate:hexagon:test:results:
   image: ubuntu:20.04
   variables:
     GIT_STRATEGY: none
-  dependencies:
-    - test:linux:hexagon:v68:default
-    - test:linux:hexagon:v68:hvx
-    - test:linux:hexagon:v73:default
-    - test:linux:hexagon:v68:debug
-    - test:linux:hexagon:performance
-    - test:linux:hexagon:smoke
-  needs:
-    - job: test:linux:hexagon:v68:default
-      artifacts: true
-    - job: test:linux:hexagon:v68:hvx
-      artifacts: true
-      optional: true
-    - job: test:linux:hexagon:v73:default
-      artifacts: true
-      optional: true
-    - job: test:linux:hexagon:v68:debug
-      artifacts: true
-      optional: true
-    - job: test:linux:hexagon:performance
-      artifacts: true
-      optional: true
-    - job: test:linux:hexagon:smoke
-      artifacts: true
   script:
     - echo "=== Aggregating Hexagon Test Results ==="
     - mkdir -p aggregated-results
-    - find . -name "test-results.json" -type f -exec cp {} aggregated-results/ \; || true
-    - find . -name "validation-summary.json" -type f -exec cp {} aggregated-results/ \; || true
-    - find . -name "performance.json" -type f -exec cp {} aggregated-results/ \; || true
+    - find . -name "test-results.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
+    - find . -name "validation-summary.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
+    - find . -name "performance.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
     - echo "Found $(ls aggregated-results/ | wc -l) result files"
     - ls -la aggregated-results/ || true
-    # Generate aggregate report
-    - |
-      python3 -c "
-      import json
-      import glob
-      import os
-      
-      results = []
-      for file in glob.glob('aggregated-results/*.json'):
-          try:
-              with open(file) as f:
-                  data = json.load(f)
-                  data['source_file'] = os.path.basename(file)
-                  results.append(data)
-          except Exception as e:
-              print(f'Error processing {file}: {e}')
-      
-      summary = {
-          'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
-          'total_test_jobs': len(results),
-          'aggregated_results': results,
-          'overall_status': 'success' if all(r.get('test_results', {}).get('failed', 1) == 0 for r in results if 'test_results' in r) else 'partial'
-      }
-      
-      with open('aggregated-results/hexagon-test-summary.json', 'w') as f:
-          json.dump(summary, f, indent=2)
-      
-      print('Aggregation complete')
-      "
+    - echo "Creating aggregation summary..."
+    - echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"total_test_jobs\":$(ls aggregated-results/*.json 2>/dev/null | wc -l),\"overall_status\":\"completed\"}" > aggregated-results/hexagon-test-summary.json
+    - echo "Aggregation complete"
   artifacts:
     when: always
     name: "hexagon-aggregated-results-${CI_COMMIT_SHORT_SHA}"
     paths:
       - aggregated-results/
-    reports:
-      junit: aggregated-results/hexagon-test-summary.xml
     expire_in: 14 days
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/ 
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/

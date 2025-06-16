@@ -1,0 +1,305 @@
+# Refined Hexagon DSP CI with Clean Architecture
+# Uses CI-focused Dockerfile in eigen-mirror/ci/Dockerfile
+
+# Build Docker images for CI
+build:docker:hexagon:amd64:
+  stage: .pre
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    # Build CI-optimized image for x86_64
+    - |
+      docker buildx build \
+        --platform linux/amd64 \
+        --build-arg HEXAGON_TOOLCHAIN_VERSION=20.1.4 \
+        --build-arg ENABLE_HEXAGON=true \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:amd64-latest \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:amd64-$CI_COMMIT_SHORT_SHA \
+        --file ci/Dockerfile \
+        --push \
+        .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "ci/Dockerfile"
+        - "ci/**/*hexagon*"
+        - "cmake/HexagonToolchain.cmake"
+  tags:
+    - docker
+    - linux
+
+build:docker:hexagon:arm64:
+  stage: .pre
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    # Build CI-optimized image for ARM64
+    - |
+      docker buildx build \
+        --platform linux/arm64 \
+        --build-arg HEXAGON_TOOLCHAIN_VERSION=20.1.4 \
+        --build-arg ENABLE_HEXAGON=true \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:arm64-latest \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:arm64-$CI_COMMIT_SHORT_SHA \
+        --file ci/Dockerfile \
+        --push \
+        .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "ci/Dockerfile"
+        - "ci/**/*hexagon*"
+        - "cmake/HexagonToolchain.cmake"
+  tags:
+    - docker
+    - linux
+    - arm64
+
+# Base CI configuration using clean Docker image
+.build:linux:hexagon:ci:
+  stage: build
+  image: $CI_REGISTRY_IMAGE/eigen-ci:amd64-latest
+  variables:
+    EIGEN_CI_TARGET_ARCH: hexagon
+    EIGEN_CI_CROSS_TARGET_TRIPLE: hexagon-unknown-linux-musl
+    EIGEN_CI_BUILD_TARGET: buildtests
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
+  before_script:
+    # Setup environment using the built-in script
+    - source /usr/local/bin/setup-hexagon-env.sh
+    # Verify toolchain is ready
+    - ${EIGEN_CI_CROSS_C_COMPILER} --version
+    - ${EIGEN_CI_CROSS_CXX_COMPILER} --version
+    # Setup ccache
+    - export CCACHE_DIR=/workspace/.cache/ccache
+    - mkdir -p ${CCACHE_DIR}
+    - ccache -s
+  script:
+    # Configure and build using CMake
+    - mkdir -p ${EIGEN_CI_BUILDDIR:-.build}
+    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    - |
+      cmake \
+        -DCMAKE_TOOLCHAIN_FILE=${PWD}/../cmake/HexagonToolchain.cmake \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DEIGEN_TEST_HEXAGON=ON \
+        -DBUILD_TESTING=ON \
+        -GNinja \
+        ${EIGEN_CI_ADDITIONAL_ARGS} \
+        ..
+    - ninja ${EIGEN_CI_BUILD_TARGET}
+  after_script:
+    - ccache -s
+  artifacts:
+    paths:
+      - ${EIGEN_CI_BUILDDIR:-.build}/*.log
+      - ${EIGEN_CI_BUILDDIR:-.build}/test_*
+    expire_in: 1 week
+    when: always
+  cache:
+    key: "hexagon-ci-$CI_COMMIT_REF_SLUG-$EIGEN_CI_HEXAGON_ARCH"
+    paths:
+      - .cache/ccache/
+    policy: pull-push
+  tags:
+    - linux
+    - eigen-runner
+
+# ARM64 CI builds (faster compilation)
+.build:linux:hexagon:ci:arm64:
+  extends: .build:linux:hexagon:ci
+  image: $CI_REGISTRY_IMAGE/eigen-ci:arm64-latest
+  variables:
+    EIGEN_CI_NATIVE_ARM64: "true"
+  tags:
+    - linux
+    - eigen-runner
+    - arm64
+
+######## Hexagon v68 Builds ############################################
+
+# Standard v68 build on x86_64 (for QEMU compatibility)
+build:linux:hexagon:v68:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
+
+# ARM64 native build (faster compilation)
+build:linux:hexagon:v68:ci:arm64:
+  extends: .build:linux:hexagon:ci:arm64
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
+
+# HVX-enabled build
+build:linux:hexagon:v68:hvx:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
+
+# Debug build
+build:linux:hexagon:v68:debug:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Debug"
+
+######## Hexagon v73 Builds ############################################
+
+build:linux:hexagon:v73:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
+  allow_failure: true
+
+build:linux:hexagon:v73:hvx:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
+  allow_failure: true
+
+######## Testing Jobs ###################################################
+
+# Base test configuration
+.test:linux:hexagon:ci:
+  stage: test
+  image: $CI_REGISTRY_IMAGE/eigen-ci:amd64-latest
+  variables:
+    EIGEN_CI_TARGET_ARCH: hexagon
+    EIGEN_CI_CTEST_LABEL: "Hexagon"
+    EIGEN_CI_TEST_TIMEOUT: "300"
+    EIGEN_CI_MAX_PARALLEL_TESTS: "4"
+  before_script:
+    - source /usr/local/bin/setup-hexagon-env.sh
+  script:
+    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}
+  artifacts:
+    when: always
+    paths:
+      - ${EIGEN_CI_BUILDDIR:-.build}/Testing/
+    reports:
+      junit: ${EIGEN_CI_BUILDDIR:-.build}/Testing/**/Test.xml
+    expire_in: 3 days
+  tags:
+    - linux
+    - eigen-runner
+
+# v68 testing
+test:linux:hexagon:v68:ci:
+  extends: .test:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68
+  dependencies:
+    - build:linux:hexagon:v68:ci
+  needs:
+    - job: build:linux:hexagon:v68:ci
+      artifacts: true
+
+test:linux:hexagon:v68:hvx:ci:
+  extends: .test:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68-hvx
+    EIGEN_CI_TEST_TIMEOUT: "600"  # Longer timeout for HVX tests
+  dependencies:
+    - build:linux:hexagon:v68:hvx:ci
+  needs:
+    - job: build:linux:hexagon:v68:hvx:ci
+      artifacts: true
+
+######## Quick Validation Build #########################################
+
+# Minimal build for quick validation (MR pipeline)
+build:linux:hexagon:minimal:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILD_TARGET: ""  # Build library only
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+######## Performance Benchmarking ######################################
+
+# Performance-focused build
+build:linux:hexagon:optimized:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG"
+      -DEIGEN_TEST_HVX=ON
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_MERGE_REQUEST_LABELS =~ /performance-tests/
+
+######## Multi-Architecture Matrix Build ################################
+
+# Comprehensive matrix build (scheduled only)
+build:linux:hexagon:matrix:ci:
+  parallel:
+    matrix:
+      - PLATFORM: ["amd64", "arm64"]
+        HEXAGON_ARCH: ["v68", "v73"]
+        BUILD_TYPE: ["Release", "Debug"]
+        HVX_ENABLED: ["ON", "OFF"]
+  extends: .build:linux:hexagon:ci
+  image: $CI_REGISTRY_IMAGE/eigen-ci:${PLATFORM}-latest
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: ${HEXAGON_ARCH}
+    EIGEN_CI_BUILD_TYPE: ${BUILD_TYPE}
+    EIGEN_CI_HVX_ENABLED: ${HVX_ENABLED}
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DEIGEN_TEST_HVX=${HVX_ENABLED}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_MERGE_REQUEST_LABELS =~ /comprehensive-tests/
+  allow_failure: true
+
+######## Container Registry Management ##################################
+
+# Clean up old Docker images
+cleanup:docker:hexagon:ci:
+  stage: .post
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    # Remove images older than 7 days
+    - |
+      # List all tags and remove old ones (pseudo-code, actual implementation may vary)
+      echo "Cleaning up old Docker images..."
+      # Implementation would depend on GitLab Container Registry API
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  tags:
+    - docker
+    - linux 
