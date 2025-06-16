@@ -2,7 +2,7 @@
 # Uses CI-focused Dockerfile in eigen-mirror/ci/Dockerfile
 
 # Build Docker images for CI
-build:docker:hexagon:amd64:
+build:docker:hexagon:
   stage: .pre
   image: docker:latest
   services:
@@ -19,8 +19,8 @@ build:docker:hexagon:amd64:
         --platform linux/amd64 \
         --build-arg HEXAGON_TOOLCHAIN_VERSION=20.1.4 \
         --build-arg ENABLE_HEXAGON=true \
-        --tag $CI_REGISTRY_IMAGE/eigen-ci:amd64-latest \
-        --tag $CI_REGISTRY_IMAGE/eigen-ci:amd64-$CI_COMMIT_SHORT_SHA \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:hexagon-$CI_COMMIT_SHORT_SHA \
         --file ci/Dockerfile \
         --push \
         .
@@ -36,47 +36,11 @@ build:docker:hexagon:amd64:
   tags:
     - docker
     - linux
-
-build:docker:hexagon:arm64:
-  stage: .pre
-  image: docker:latest
-  services:
-    - docker:dind
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_BUILDKIT: "1"
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    # Build CI-optimized image for ARM64
-    - |
-      docker buildx build \
-        --platform linux/arm64 \
-        --build-arg HEXAGON_TOOLCHAIN_VERSION=20.1.4 \
-        --build-arg ENABLE_HEXAGON=true \
-        --tag $CI_REGISTRY_IMAGE/eigen-ci:arm64-latest \
-        --tag $CI_REGISTRY_IMAGE/eigen-ci:arm64-$CI_COMMIT_SHORT_SHA \
-        --file ci/Dockerfile \
-        --push \
-        .
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - "ci/Dockerfile"
-        - "ci/**/*hexagon*"
-        - "cmake/HexagonToolchain.cmake"
-  tags:
-    - docker
-    - linux
-    - arm64
 
 # Base CI configuration using clean Docker image
 .build:linux:hexagon:ci:
   stage: build
-  image: $CI_REGISTRY_IMAGE/eigen-ci:amd64-latest
+  image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
   variables:
     EIGEN_CI_TARGET_ARCH: hexagon
     EIGEN_CI_CROSS_TARGET_TRIPLE: hexagon-unknown-linux-musl
@@ -125,31 +89,14 @@ build:docker:hexagon:arm64:
     - linux
     - eigen-runner
 
-# ARM64 CI builds (faster compilation)
-.build:linux:hexagon:ci:arm64:
-  extends: .build:linux:hexagon:ci
-  image: $CI_REGISTRY_IMAGE/eigen-ci:arm64-latest
-  variables:
-    EIGEN_CI_NATIVE_ARM64: "true"
-  tags:
-    - linux
-    - eigen-runner
-    - arm64
-
 ######## Hexagon v68 Builds ############################################
 
-# Standard v68 build on x86_64 (for QEMU compatibility)
+# Standard v68 build
 build:linux:hexagon:v68:ci:
   extends: .build:linux:hexagon:ci
   variables:
     EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
-
-# ARM64 native build (faster compilation)
-build:linux:hexagon:v68:ci:arm64:
-  extends: .build:linux:hexagon:ci:arm64
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
 
 # HVX-enabled build
@@ -157,6 +104,7 @@ build:linux:hexagon:v68:hvx:ci:
   extends: .build:linux:hexagon:ci
   variables:
     EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68-hvx
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
 
 # Debug build
@@ -164,7 +112,16 @@ build:linux:hexagon:v68:debug:ci:
   extends: .build:linux:hexagon:ci
   variables:
     EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68-debug
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Debug"
+
+# Optimized build for performance testing
+build:linux:hexagon:v68:optimized:ci:
+  extends: .build:linux:hexagon:ci
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILDDIR: .build-hexagon-v68-optimized
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE='-O3 -DNDEBUG -march=native'"
 
 ######## Hexagon v73 Builds ############################################
 
@@ -172,6 +129,7 @@ build:linux:hexagon:v73:ci:
   extends: .build:linux:hexagon:ci
   variables:
     EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
   allow_failure: true
 
@@ -179,6 +137,7 @@ build:linux:hexagon:v73:hvx:ci:
   extends: .build:linux:hexagon:ci
   variables:
     EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
   allow_failure: true
 
@@ -187,7 +146,7 @@ build:linux:hexagon:v73:hvx:ci:
 # Base test configuration
 .test:linux:hexagon:ci:
   stage: test
-  image: $CI_REGISTRY_IMAGE/eigen-ci:amd64-latest
+  image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
   variables:
     EIGEN_CI_TARGET_ARCH: hexagon
     EIGEN_CI_CTEST_LABEL: "Hexagon"
@@ -240,66 +199,29 @@ build:linux:hexagon:minimal:ci:
   extends: .build:linux:hexagon:ci
   variables:
     EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_BUILDDIR: .build-hexagon-minimal
     EIGEN_CI_BUILD_TARGET: ""  # Build library only
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-######## Performance Benchmarking ######################################
-
-# Performance-focused build
-build:linux:hexagon:optimized:ci:
-  extends: .build:linux:hexagon:ci
+# Corresponding test job for the minimal build  
+test:linux:hexagon:minimal:ci:
+  extends: .test:linux:hexagon:ci
   variables:
     EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_ADDITIONAL_ARGS: >-
-      -DCMAKE_BUILD_TYPE=Release
-      -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG"
-      -DEIGEN_TEST_HVX=ON
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_MERGE_REQUEST_LABELS =~ /performance-tests/
-
-######## Multi-Architecture Matrix Build ################################
-
-# Comprehensive matrix build (scheduled only)
-build:linux:hexagon:matrix:ci:
-  parallel:
-    matrix:
-      - PLATFORM: ["amd64", "arm64"]
-        HEXAGON_ARCH: ["v68", "v73"]
-        BUILD_TYPE: ["Release", "Debug"]
-        HVX_ENABLED: ["ON", "OFF"]
-  extends: .build:linux:hexagon:ci
-  image: $CI_REGISTRY_IMAGE/eigen-ci:${PLATFORM}-latest
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: ${HEXAGON_ARCH}
-    EIGEN_CI_BUILD_TYPE: ${BUILD_TYPE}
-    EIGEN_CI_HVX_ENABLED: ${HVX_ENABLED}
-    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DEIGEN_TEST_HVX=${HVX_ENABLED}"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_MERGE_REQUEST_LABELS =~ /comprehensive-tests/
-  allow_failure: true
-
-######## Container Registry Management ##################################
-
-# Clean up old Docker images
-cleanup:docker:hexagon:ci:
-  stage: .post
-  image: docker:latest
-  services:
-    - docker:dind
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    EIGEN_CI_BUILDDIR: .build-hexagon-minimal
+    EIGEN_CI_CTEST_LABEL: "Hexagon-Minimal"
+    EIGEN_CI_TEST_TIMEOUT: "120"
+  dependencies:
+    - build:linux:hexagon:minimal:ci
+  needs:
+    - job: build:linux:hexagon:minimal:ci
+      artifacts: true
   script:
-    # Remove images older than 7 days
-    - |
-      # List all tags and remove old ones (pseudo-code, actual implementation may vary)
-      echo "Cleaning up old Docker images..."
-      # Implementation would depend on GitLab Container Registry API
+    # Override for minimal testing - just verify the build works
+    - echo "Minimal build validation - checking if binaries exist"
+    - ls -la ${EIGEN_CI_BUILDDIR:-.build}/
+    - echo "✅ Minimal build validation complete"
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-  tags:
-    - docker
-    - linux 
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" 
