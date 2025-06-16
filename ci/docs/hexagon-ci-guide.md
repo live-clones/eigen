@@ -177,15 +177,33 @@ ninja
 
 ### Manual Validation
 
-Use the validation script to check your Hexagon environment:
+Use the validation scripts to check your Hexagon environment and CI configuration:
 
 ```bash
 # Hexagon environment validation (used in CI)
 ./ci/test-hexagon-setup.sh
 
-# CI configuration validation (use eigen-tools)
+# CI Configuration Validation - choose one:
+
+# Zero dependencies (basic validation)
+cd ../eigen-tools && python3 validate_ci.py --all
+
+# Lightweight test (no dependencies)
 cd ../eigen-tools && python3 test_ci_tools.py
+
+# Full CLI test (with dependencies)
+cd ../eigen-tools && python3 tools.py ci test
+
+# Individual CI commands (full CLI)
+cd ../eigen-tools && python3 tools.py ci validate --all
+cd ../eigen-tools && python3 tools.py ci analyze --all
+cd ../eigen-tools && python3 tools.py ci list-jobs
 ```
+
+**Validation Options Summary:**
+- **`validate_ci.py`**: Zero dependencies, basic YAML + GitLab structure validation, GitLab API integration
+- **`test_ci_tools.py`**: Minimal dependencies (`yaml`), comprehensive CI tools testing
+- **`tools.py ci`**: Full dependencies, rich interface, local job running, comprehensive analysis
 
 ## Performance Monitoring
 
@@ -275,8 +293,13 @@ If you have scripts that reference the old components:
 # Validate Hexagon environment
 ./ci/test-hexagon-setup.sh
 
-# Validate CI configuration (use eigen-tools)
+# Validate CI configuration - choose one:
+
+# Lightweight option (no dependencies)
 cd ../eigen-tools && python3 test_ci_tools.py
+
+# Full CLI option (requires click, rich, etc.)
+cd ../eigen-tools && python3 tools.py ci test
 
 # Test toolchain in Docker
 docker run --rm eigen-hexagon:local /workspace/eigen-mirror/ci/test-hexagon-setup.sh
@@ -321,8 +344,21 @@ ninja
 # Testing
 ctest --output-on-failure --timeout 300 -j4
 
-# CI Configuration Validation (use eigen-tools)
+# CI Configuration Validation - choose one:
+
+# Zero dependencies (basic validation)
+cd ../eigen-tools && python3 validate_ci.py --all
+
+# Lightweight test (no dependencies)
 cd ../eigen-tools && python3 test_ci_tools.py
+
+# Full CLI test (with dependencies)
+cd ../eigen-tools && python3 tools.py ci test
+
+# Individual CI commands (full CLI)
+cd ../eigen-tools && python3 tools.py ci validate --all
+cd ../eigen-tools && python3 tools.py ci analyze --all
+cd ../eigen-tools && python3 tools.py ci list-jobs
 ```
 
 ### Key Files
@@ -332,6 +368,7 @@ cd ../eigen-tools && python3 test_ci_tools.py
 - `ci/test.hexagon.gitlab-ci.yml` - Test jobs  
 - `ci/test-hexagon-setup.sh` - Hexagon environment validation (used in CI)
 - `cmake/HexagonToolchain.cmake` - CMake cross-compilation setup
+- `../eigen-tools/validate_ci.py` - Zero-dependency CI configuration validation
 - `../eigen-tools/test_ci_tools.py` - CI configuration validation
 
 ### Reference Links
