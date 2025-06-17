@@ -28,14 +28,15 @@ build:docker:hexagon:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "ci/Dockerfile"
         - "ci/**/*hexagon*"
         - "cmake/HexagonToolchain.cmake"
-  tags:
-    - docker
-    - linux
+  # tags:
+  #   - docker
+  #   - linux
 
 # Base CI configuration using clean Docker image
 .build:linux:hexagon:ci:
@@ -85,9 +86,9 @@ build:docker:hexagon:
     paths:
       - .cache/ccache/
     policy: pull-push
-  tags:
-    - linux
-    - eigen-runner
+  # tags:
+  #   - linux
+  #   - eigen-runner
 
 ######## Hexagon v68 Builds ############################################
 
@@ -164,9 +165,9 @@ build:linux:hexagon:v73:hvx:ci:
     reports:
       junit: ${EIGEN_CI_BUILDDIR:-.build}/Testing/**/Test.xml
     expire_in: 3 days
-  tags:
-    - linux
-    - eigen-runner
+  # tags:
+  #   - linux
+  #   - eigen-runner
 
 # v68 testing
 test:linux:hexagon:v68:ci:
