@@ -28,6 +28,7 @@ build:docker:hexagon:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "ci/Dockerfile"
