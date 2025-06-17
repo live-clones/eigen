@@ -2263,17 +2263,22 @@ EIGEN_STRONG_INLINE Packet8h pisnan<Packet8h>(const Packet8h& a) {
   return _mm_cmpgt_epi16(_mm_and_si128(a.m_val, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
 }
 
+// convert the sign-magnitude representation to two's complement
 EIGEN_STRONG_INLINE __m128i pmaptosigned(const __m128i& a) {
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  // if 'a' has the sign bit set, clear the sign bit and negate the result as if it were an integer
   return _mm_sign_epi16(_mm_and_si128(a, _mm_set1_epi16(kAbsMask)), a);
 }
 
+// return true if both `a` and `b` are not NaN
 EIGEN_STRONG_INLINE Packet8h pisordered(const Packet8h& a, const Packet8h& b) {
   constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
   __m128i abs_a = _mm_and_si128(a.m_val, _mm_set1_epi16(kAbsMask));
   __m128i abs_b = _mm_and_si128(b.m_val, _mm_set1_epi16(kAbsMask));
-  return _mm_cmplt_epi16(_mm_max_epu16(pabs(a), pabs(b)), _mm_set1_epi16(kInf + 1));
+  // check if both `abs_a <= kInf` and `abs_b <= kInf` by checking if max(abs_a, abs_b) <= kInf
+  // SSE has no `lesser or equal` instruction for integers, but comparing against kInf + 1 accomplishes the same goal
+  return _mm_cmplt_epi16(_mm_max_epu16(abs_a, abs_b), _mm_set1_epi16(kInf + 1));
 }
 
 template <>

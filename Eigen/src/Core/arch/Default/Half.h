@@ -498,9 +498,22 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
   return a;
 }
 
+// Non-negative floating point numbers have a monotonic mapping to non-negative integers.
+// This property allows floating point numbers to be reinterpreted as integers for comparisons, which is useful if there
+// is no native floating point comparison operator. Floating point signedness is handled by the sign-magnitude
+// representation, whereas integers typically use two's complement. Converting the bit pattern from sign-magnitude to
+// two's complement allows the transformed bit patterns be compared as signed integers. All edge cases (+/-0 and +/-
+// infinity) are handled automatically, except NaN.
+//
+// fp16 uses 1 sign bit, 5 exponent bits, and 10 mantissa bits. The bit pattern conveys NaN when all the exponent
+// bits (5) are set, and at least one mantissa bit is set. The sign bit is irrelevant for determining NaN. To check for
+// NaN, clear the sign bit and check if the integral representation is greater than 01111100000000. To test
+// for non-NaN, clear the sign bit and check if the integeral representation is less than or equal to 01111100000000.
+
 // convert sign-magnitude representation to two's complement
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t mapToSigned(uint16_t a) {
   constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  // If the sign bit is set, clear the sign bit and return the (integer) negation. Otherwise, return the input.
   return (a >> 15) ? -(a & kAbsMask) : a;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool isOrdered(const half& a, const half& b) {
