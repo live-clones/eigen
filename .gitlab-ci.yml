@@ -33,4 +33,4 @@ include:
   # - "/ci/test.linux.gitlab-ci.yml"
   # - "/ci/test.windows.gitlab-ci.yml"
   - "/ci/test.hexagon.gitlab-ci.yml"
-  - "/ci/deploy.gitlab-ci.yml"
+  # - "/ci/deploy.gitlab-ci.yml"
