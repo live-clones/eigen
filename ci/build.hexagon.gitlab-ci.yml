@@ -33,9 +33,9 @@ build:docker:hexagon:
         - "ci/Dockerfile"
         - "ci/**/*hexagon*"
         - "cmake/HexagonToolchain.cmake"
-  tags:
-    - docker
-    - linux
+  # tags:
+  #   - docker
+  #   - linux
 
 # Base CI configuration using clean Docker image
 .build:linux:hexagon:ci:
@@ -85,9 +85,9 @@ build:docker:hexagon:
     paths:
       - .cache/ccache/
     policy: pull-push
-  tags:
-    - linux
-    - eigen-runner
+  # tags:
+  #   - linux
+  #   - eigen-runner
 
 ######## Hexagon v68 Builds ############################################
 
@@ -164,9 +164,9 @@ build:linux:hexagon:v73:hvx:ci:
     reports:
       junit: ${EIGEN_CI_BUILDDIR:-.build}/Testing/**/Test.xml
     expire_in: 3 days
-  tags:
-    - linux
-    - eigen-runner
+  # tags:
+  #   - linux
+  #   - eigen-runner
 
 # v68 testing
 test:linux:hexagon:v68:ci:
