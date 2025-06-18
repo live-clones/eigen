@@ -1,106 +1,86 @@
-# Hexagon DSP CI/CD Guide (Updated for Dockerfile-based CI)
+# Hexagon DSP CI/CD Guide
 
 ## Overview
 
-This guide covers the Hexagon DSP cross-compilation CI/CD pipeline for Eigen. The pipeline has been modernized to use a Dockerfile-based approach that provides:
+This guide covers the Hexagon DSP cross-compilation CI/CD pipeline for Eigen. The pipeline uses a dedicated Docker-based approach that provides:
 
-- **Pre-built Docker images** with Hexagon toolchain pre-installed
-- **Simplified CI configuration** with minimal scripting
+- **Dedicated Hexagon Docker images** with toolchain v20.1.4 pre-installed
+- **Direct environment variables** set in Dockerfile (no runtime setup scripts)
 - **Consistent environment** across local development and CI
-- **Faster build times** with cached toolchain setup
+- **Streamlined configuration** with minimal complexity
 
-## Key Components
+## Architecture
 
-### Core Pipeline Jobs
+### Key Components
 
-1. **Docker Image Build** (`build:docker:hexagon`)
-   - Builds CI Docker image with Hexagon toolchain 20.1.4
-   - Pre-installs all dependencies and configures environment
-   - Pushes to GitLab container registry
+1. **Dedicated Docker Environment** (`ci/Dockerfile`)
+   - Pre-installs Hexagon toolchain 20.1.4
+   - Sets environment variables directly
+   - Validates toolchain during build
+   - No conditional logic or runtime setup scripts
 
-2. **Cross-compilation Builds** (`build:linux:hexagon:*:ci`)
-   - Uses pre-built Docker image for consistent environment
-   - Supports multiple Hexagon architectures (v68, v73)
-   - Includes debug, optimized, and HVX variants
+2. **Cross-compilation Builds** (`build.hexagon.gitlab-ci.yml`)
+   - Multiple Hexagon architectures (v68, v73)
+   - Debug, release, and HVX-optimized variants
+   - Automated ccache for faster builds
 
-3. **QEMU-based Testing** (`test:linux:hexagon:*`)
+3. **QEMU-based Testing** (`test.hexagon.gitlab-ci.yml`)
    - Runs compiled tests under QEMU Hexagon emulation
-   - Supports parallel test execution
-   - Generates comprehensive test reports
+   - Parallel test execution with configurable timeouts
+   - Comprehensive test reporting and artifact collection
 
-### File Structure (Updated)
+### File Structure
 
 ```
 ci/
-├── Dockerfile                       # CI environment definition
+├── Dockerfile                       # Dedicated Hexagon CI environment
 ├── build.hexagon.gitlab-ci.yml      # Build job definitions  
 ├── test.hexagon.gitlab-ci.yml       # Test job definitions
-├── test-hexagon-setup.sh            # CI environment validation script
-├── scripts/
-│   ├── vars.linux.sh               # Linux environment variables
-│   ├── common.linux.before_script.sh # Common Linux setup
-│   ├── test.linux.script.sh        # Generic Linux test script
-│   ├── build.linux.script.sh       # Generic Linux build script
-│   └── backup-*/                   # Backup of removed scripts
-├── docs/
-│   ├── hexagon-ci-guide.md         # This guide
-│   └── troubleshooting.md          # Troubleshooting guide
-└── cmake/
-    └── HexagonToolchain.cmake      # CMake toolchain file
+├── test-hexagon-setup.sh            # Environment validation script
+├── README.md                        # CI overview
+└── docs/
+    └── hexagon-ci-guide.md          # This guide
 ```
 
-**Note**: For CI configuration validation, use `eigen-tools/test_ci_tools.py` which provides comprehensive GitLab CI analysis and validation.
+## Environment Configuration
 
-## Configuration
+### Pre-configured Environment Variables
 
-### Environment Variables
+The Dockerfile sets these environment variables directly:
+
+```bash
+HEXAGON_TOOLCHAIN_VERSION=20.1.4
+HEXAGON_TOOLCHAIN_ROOT=/opt/hexagon-toolchain
+HEXAGON_TOOLCHAIN_BIN=/opt/hexagon-toolchain/bin
+HEXAGON_SYSROOT=/opt/hexagon-toolchain/x86_64-linux-gnu/target/hexagon-unknown-linux-musl
+PATH="${HEXAGON_TOOLCHAIN_BIN}:${PATH}"
+QEMU_LD_PREFIX="${HEXAGON_SYSROOT}"
+EIGEN_CI_CROSS_C_COMPILER="${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang"
+EIGEN_CI_CROSS_CXX_COMPILER="${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang++"
+```
+
+### CI Configuration Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION` | `20.1.4` | Hexagon toolchain version |
 | `EIGEN_CI_HEXAGON_ARCH` | `v68` | Target Hexagon architecture |
 | `EIGEN_CI_BUILDDIR` | `.build` | Build directory name |
 | `EIGEN_CI_TEST_TIMEOUT` | `300` | Test timeout in seconds |
 | `EIGEN_CI_MAX_PARALLEL_TESTS` | `4` | Number of parallel test jobs |
-| `HEXAGON_SYSROOT` | Auto-detected | Hexagon sysroot path |
-
-### Docker Configuration
-
-The Dockerfile automatically configures:
-
-```dockerfile
-# Pre-installs Hexagon toolchain 20.1.4
-ARG HEXAGON_TOOLCHAIN_VERSION=20.1.4
-# Sets up environment variables
-ENV HEXAGON_TOOLCHAIN_ROOT=/opt/hexagon-toolchain
-ENV HEXAGON_SYSROOT=/opt/hexagon-toolchain/x86_64-linux-gnu/target/hexagon-unknown-linux-musl
-# Adds setup script
-COPY setup-hexagon-env.sh /usr/local/bin/
-```
-
-### Build Configuration
-
-Configure builds through GitLab CI variables:
-
-```yaml
-variables:
-  EIGEN_CI_HEXAGON_ARCH: "v68"  # or "v73"
-  EIGEN_CI_BUILDDIR: ".build-hexagon-v68"
-  EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
-```
+| `EIGEN_CI_BUILD_TARGET` | `buildtests` | CMake target to build |
 
 ## Build Variants
 
 ### Available Build Jobs
 
-1. **build:linux:hexagon:v68:ci** - Standard v68 build
+1. **build:linux:hexagon:v68:ci** - Standard v68 release build
 2. **build:linux:hexagon:v68:hvx:ci** - v68 with HVX enabled
 3. **build:linux:hexagon:v68:debug:ci** - Debug build
 4. **build:linux:hexagon:v68:optimized:ci** - Optimized for performance
 5. **build:linux:hexagon:v73:ci** - Hexagon v73 architecture
 6. **build:linux:hexagon:minimal:ci** - Minimal build for quick validation
 
-### Build Customization
+### Build Configuration Examples
 
 Extend base configuration for custom builds:
 
@@ -113,108 +93,228 @@ build:custom:hexagon:
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=RelWithDebInfo -DEIGEN_TEST_CUSTOM=ON"
 ```
 
+## Local Development with Docker
+
+### Quick Start
+
+Build and use the Hexagon CI environment locally:
+
+```bash
+# Navigate to Eigen repository
+cd /path/to/eigen-mirror
+
+# Build the Docker image
+docker build -f ci/Dockerfile -t eigen-hexagon:local .
+
+# Run interactive container with workspace mounted
+docker run -it --rm -v $(pwd):/workspace eigen-hexagon:local bash
+```
+
+### Building Eigen with CMake (Inside Container)
+
+Once inside the Docker container, you can build Eigen using the pre-configured environment:
+
+```bash
+# Verify environment is ready
+echo "🔧 Hexagon Environment Information"
+echo "Toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
+echo "Compilers: ${EIGEN_CI_CROSS_C_COMPILER}"
+echo "Sysroot: ${HEXAGON_SYSROOT}"
+
+# Verify toolchain works
+${EIGEN_CI_CROSS_C_COMPILER} --version
+${EIGEN_CI_CROSS_CXX_COMPILER} --version
+
+# Create build directory
+mkdir -p .build-hexagon && cd .build-hexagon
+
+# Configure with CMake using Hexagon toolchain
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=${PWD}/../cmake/HexagonToolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEIGEN_TEST_HEXAGON=ON \
+  -DBUILD_TESTING=ON \
+  -GNinja \
+  ..
+
+# Build the tests
+ninja buildtests
+
+# Or build specific targets
+ninja eigen_buildtests_packetmath
+ninja eigen_buildtests_basicstuff
+```
+
+### Building with HVX Support
+
+For HVX-enabled builds:
+
+```bash
+# Configure with HVX support
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=${PWD}/../cmake/HexagonToolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DEIGEN_TEST_HEXAGON=ON \
+  -DEIGEN_TEST_HVX=ON \
+  -DBUILD_TESTING=ON \
+  -GNinja \
+  ..
+
+# Build HVX tests
+ninja buildtests
+```
+
+### Testing with QEMU
+
+Run tests using QEMU emulation:
+
+```bash
+# Run all tests
+ctest --output-on-failure --timeout 300 -j4
+
+# Run specific test categories
+ctest --output-on-failure -R "packetmath|hvx"
+
+# Run tests with verbose output
+ctest --output-on-failure --verbose -R "basicstuff"
+
+# Run performance tests (if available)
+ctest --output-on-failure -L "Performance"
+```
+
+### Development Workflow Example
+
+Complete development workflow in the Docker container:
+
+```bash
+# 1. Start container with workspace mounted
+docker run -it --rm -v $(pwd):/workspace eigen-hexagon:local bash
+
+# 2. Create and configure build directory
+mkdir -p .build-dev && cd .build-dev
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=../cmake/HexagonToolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DEIGEN_TEST_HEXAGON=ON \
+  -DBUILD_TESTING=ON \
+  -GNinja \
+  ..
+
+# 3. Build incrementally during development
+ninja eigen_buildtests_packetmath
+
+# 4. Test specific functionality
+ctest --output-on-failure -R "packetmath" --verbose
+
+# 5. Build optimized version for performance testing
+cd .. && mkdir -p .build-optimized && cd .build-optimized
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=../cmake/HexagonToolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG" \
+  -DEIGEN_TEST_HEXAGON=ON \
+  -DEIGEN_TEST_HVX=ON \
+  -DBUILD_TESTING=ON \
+  -GNinja \
+  ..
+
+ninja buildtests
+ctest --output-on-failure --timeout 600
+```
+
 ## Testing
 
 ### Test Categories
 
-1. **Smoke Tests** (`test:linux:hexagon:smoke`) - Quick validation
+1. **Smoke Tests** (`test:linux:hexagon:smoke`) - Quick validation (basic tests only)
 2. **Standard Tests** (`test:linux:hexagon:v68:default`) - Core functionality  
 3. **HVX Tests** (`test:linux:hexagon:v68:hvx`) - Vector operations
-4. **Performance Tests** (`test:linux:hexagon:performance`) - Benchmarks
-5. **Integration Tests** (`test:linux:hexagon:integration`) - End-to-end validation
+4. **Debug Tests** (`test:linux:hexagon:v68:debug`) - Debug build validation
+5. **Performance Tests** (`test:linux:hexagon:performance`) - Benchmarks
+6. **Integration Tests** (`test:linux:hexagon:integration`) - End-to-end validation
 
-### QEMU Emulation
+### QEMU Configuration
 
-Tests run under QEMU Hexagon emulation using the pre-configured environment:
+Tests run under QEMU Hexagon emulation with pre-configured environment:
 
 ```bash
-# Environment is automatically set up in Docker image
-source /usr/local/bin/setup-hexagon-env.sh
+# Environment variables are already set in Docker image
+echo "Using QEMU with sysroot: ${QEMU_LD_PREFIX}"
 
-# Validation script ensures everything works
-/workspace/eigen-mirror/ci/test-hexagon-setup.sh
+# Validation ensures QEMU is working
+/workspace/ci/test-hexagon-setup.sh
 
-# Tests run with ctest
-cd ${EIGEN_CI_BUILDDIR}
+# Tests run with appropriate timeouts
 ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}
 ```
 
-### Test Configuration
-
-Customize test execution:
+### Custom Test Configuration
 
 ```yaml
 test:custom:hexagon:
   extends: .test:linux:hexagon
   variables:
-    EIGEN_CI_TEST_TIMEOUT: "600"
-    EIGEN_CI_MAX_PARALLEL_TESTS: "2"
-    EIGEN_CI_CTEST_REGEX: "matrix|array"  # Run specific tests
+    EIGEN_CI_TEST_TIMEOUT: "600"        # Longer timeout
+    EIGEN_CI_MAX_PARALLEL_TESTS: "2"    # Fewer parallel jobs
+    EIGEN_CI_CTEST_REGEX: "matrix|array" # Run specific tests
+  script:
+    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "${EIGEN_CI_CTEST_REGEX}"
 ```
 
-## Local Development
+## CMake Integration
 
-### Using the Docker Environment
+### HexagonToolchain.cmake
 
-Build and run the CI environment locally:
+The CMake toolchain file (`cmake/HexagonToolchain.cmake`) automatically configures:
+
+- Cross-compilation settings for Hexagon target
+- Compiler and linker flags
+- Sysroot configuration
+- HVX-specific optimizations (when enabled)
+
+### CMake Usage Examples
 
 ```bash
-# Build Docker image
-docker build -f ci/Dockerfile -t eigen-hexagon:local .
+# Basic configuration
+cmake -DCMAKE_TOOLCHAIN_FILE=cmake/HexagonToolchain.cmake ..
 
-# Run interactive container
-docker run -it --rm -v $(pwd):/workspace/eigen-mirror eigen-hexagon:local bash
+# With specific build type
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/HexagonToolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  ..
 
-# Inside container - validate setup
-/workspace/eigen-mirror/ci/test-hexagon-setup.sh
+# With testing enabled
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/HexagonToolchain.cmake \
+  -DBUILD_TESTING=ON \
+  -DEIGEN_TEST_HEXAGON=ON \
+  ..
 
-# Build Eigen
-source /usr/local/bin/setup-hexagon-env.sh
-mkdir build && cd build
-cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/HexagonToolchain.cmake ..
-ninja
+# With HVX support
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/HexagonToolchain.cmake \
+  -DEIGEN_TEST_HVX=ON \
+  ..
+
+# Custom compiler flags
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/HexagonToolchain.cmake \
+  -DCMAKE_CXX_FLAGS="-O3 -march=hexagon -mcpu=hexagonv68" \
+  ..
 ```
-
-### Manual Validation
-
-Use the validation scripts to check your Hexagon environment and CI configuration:
-
-```bash
-# Hexagon environment validation (used in CI)
-./ci/test-hexagon-setup.sh
-
-# CI Configuration Validation - choose one:
-
-# Zero dependencies (basic validation)
-cd ../eigen-tools && python3 validate_ci.py --all
-
-# Lightweight test (no dependencies)
-cd ../eigen-tools && python3 test_ci_tools.py
-
-# Full CLI test (with dependencies)
-cd ../eigen-tools && python3 tools.py ci test
-
-# Individual CI commands (full CLI)
-cd ../eigen-tools && python3 tools.py ci validate --all
-cd ../eigen-tools && python3 tools.py ci analyze --all
-cd ../eigen-tools && python3 tools.py ci list-jobs
-```
-
-**Validation Options Summary:**
-- **`validate_ci.py`**: Zero dependencies, basic YAML + GitLab structure validation, GitLab API integration
-- **`test_ci_tools.py`**: Minimal dependencies (`yaml`), comprehensive CI tools testing
-- **`tools.py ci`**: Full dependencies, rich interface, local job running, comprehensive analysis
 
 ## Performance Monitoring
 
 ### Built-in Monitoring
 
-The pipeline includes automatic monitoring:
+The CI pipeline includes:
 
-- **Build Time Tracking** - Ninja build progress
-- **Test Execution Metrics** - ctest timing and results  
-- **Resource Usage** - Docker container metrics
-- **Artifact Size Tracking** - Build output sizes
+- **Build Time Tracking** - Ninja build progress and timing
+- **Test Execution Metrics** - CTest timing and pass/fail rates
+- **Artifact Size Tracking** - Binary sizes and test coverage
+- **Resource Usage** - Docker container resource consumption
 
 ### Monitoring Configuration
 
@@ -225,151 +325,128 @@ variables:
   EIGEN_CI_ENABLE_VALIDATION: "true"
 ```
 
-## Error Handling
+## Error Handling & Troubleshooting
 
-### Automatic Error Recovery
+### Environment Validation
 
-The modernized pipeline provides:
+Use the validation script to verify the Hexagon environment:
 
-- **Pre-validated Environment** - Docker image ensures consistent setup
-- **Simplified Error Paths** - Fewer failure points with pre-built toolchain
-- **Clear Error Messages** - Validation scripts provide specific guidance
-- **Fast Feedback** - Smoke tests catch issues early
+```bash
+# Inside Docker container
+/workspace/ci/test-hexagon-setup.sh
+
+# Local validation (if container is built)
+docker run --rm eigen-hexagon:local /workspace/ci/test-hexagon-setup.sh
+```
 
 ### Common Issues and Solutions
 
 1. **Docker Build Failures**
-   - Check Dockerfile syntax
-   - Verify toolchain download URL
-   - Ensure sufficient disk space
+   ```bash
+   # Check Dockerfile syntax
+   docker build --no-cache -f ci/Dockerfile .
+   
+   # Verify toolchain download
+   wget --timeout=60 --tries=3 https://artifacts.codelinaro.org/artifactory/codelinaro-toolchain-for-hexagon/20.1.4/clang+llvm-20.1.4-cross-hexagon-unknown-linux-musl.tar.zst
+   ```
 
-2. **Cross-compilation Issues**  
-   - Run validation script: `./ci/test-hexagon-setup.sh`
-   - Check CMake toolchain file
-   - Verify sysroot configuration
+2. **Cross-compilation Issues**
+   ```bash
+   # Verify environment
+   echo $HEXAGON_TOOLCHAIN_ROOT
+   echo $EIGEN_CI_CROSS_C_COMPILER
+   ls -la $EIGEN_CI_CROSS_C_COMPILER
+   
+   # Test compiler
+   ${EIGEN_CI_CROSS_C_COMPILER} --version
+   ```
 
 3. **QEMU Test Failures**
-   - Check QEMU version compatibility
-   - Verify binary file format
-   - Increase test timeout if needed
+   ```bash
+   # Check QEMU setup
+   echo $QEMU_LD_PREFIX
+   ls -la ${QEMU_LD_PREFIX}/lib
+   
+   # Test simple binary
+   echo 'int main(){return 0;}' | ${EIGEN_CI_CROSS_C_COMPILER} -x c - -o test
+   qemu-hexagon test
+   ```
 
-### Error Handling Configuration
+4. **CMake Configuration Issues**
+   ```bash
+   # Verify toolchain file
+   ls -la cmake/HexagonToolchain.cmake
+   
+   # Test basic configuration
+   cmake -DCMAKE_TOOLCHAIN_FILE=cmake/HexagonToolchain.cmake --debug-output .
+   ```
 
-```yaml
-variables:
-  EIGEN_CI_TEST_TIMEOUT: "300"        # Increase for slow tests
-  EIGEN_CI_MAX_PARALLEL_TESTS: "2"    # Reduce if resource-constrained
-```
-
-## Migration from Legacy Scripts
-
-### Removed Components
-
-The following scripts have been **deprecated and removed** (backed up in `ci/scripts/backup-*/`):
-
-- ❌ `setup.hexagon.sh` → ✅ Pre-configured in Dockerfile
-- ❌ `validate.hexagon.sh` → ✅ Replaced by `test-hexagon-setup.sh`  
-- ❌ `test.hexagon.sh` → ✅ Direct `ctest` execution
-- ❌ `monitor.hexagon.sh` → ✅ GitLab CI built-in monitoring
-- ❌ `performance-monitor.hexagon.sh` → ✅ Simplified metrics collection
-- ❌ `error-handler.hexagon.sh` → ✅ Simplified error handling
-- ❌ `alert.hexagon.sh` → ✅ GitLab CI notifications
-
-### Migration Guide
-
-If you have scripts that reference the old components:
-
-1. **Environment Setup**: Use `source /usr/local/bin/setup-hexagon-env.sh`
-2. **Hexagon Validation**: Use `/workspace/eigen-mirror/ci/test-hexagon-setup.sh` (CI) or `./ci/test-hexagon-setup.sh` (local)
-3. **CI Configuration Validation**: Use `eigen-tools/test_ci_tools.py`
-4. **Testing**: Use direct `ctest` commands
-5. **Monitoring**: Use GitLab CI built-in metrics and artifacts
-
-## Troubleshooting
-
-### Quick Diagnostics
+### Debugging Tips
 
 ```bash
-# Validate Hexagon environment
-./ci/test-hexagon-setup.sh
+# Check build logs in detail
+ninja -v
 
-# Validate CI configuration - choose one:
+# Run specific test with maximum verbosity
+ctest --output-on-failure --verbose -R "specific_test_name"
 
-# Lightweight option (no dependencies)
-cd ../eigen-tools && python3 test_ci_tools.py
+# Check environment variables
+env | grep HEXAGON
+env | grep EIGEN_CI
 
-# Full CLI option (requires click, rich, etc.)
-cd ../eigen-tools && python3 tools.py ci test
-
-# Test toolchain in Docker
-docker run --rm eigen-hexagon:local /workspace/eigen-mirror/ci/test-hexagon-setup.sh
-
-# Check Docker image
-docker run --rm eigen-hexagon:latest hexagon-unknown-linux-musl-clang++ --version
+# Verify binary architecture
+file path/to/test_binary
+hexdump -C path/to/test_binary | head
 ```
-
-## Conclusion
-
-The modernized Hexagon CI pipeline provides a robust, scalable solution for building and testing Eigen with Qualcomm Hexagon DSP toolchain using Docker containers. The new approach offers:
-
-- **Faster Setup** - Pre-built Docker images eliminate toolchain download time
-- **Consistent Environment** - Same toolchain version across all builds
-- **Simplified Maintenance** - Fewer scripts and configuration files to manage
-- **Better Reliability** - Pre-validated environment reduces failure points
-
-For additional support:
-- Review the CI configuration files
-- Use the validation scripts
-- Check GitLab CI pipeline logs
-- Consult the Eigen development team
 
 ## Quick Reference
 
 ### Essential Commands
 
 ```bash
-# Local Development
+# Build Docker image
 docker build -f ci/Dockerfile -t eigen-hexagon:local .
-docker run -it --rm -v $(pwd):/workspace/eigen-mirror eigen-hexagon:local bash
 
-# Environment Setup (inside container)
-source /usr/local/bin/setup-hexagon-env.sh
-/workspace/eigen-mirror/ci/test-hexagon-setup.sh
+# Start development container
+docker run -it --rm -v $(pwd):/workspace eigen-hexagon:local bash
 
-# Build Commands  
-mkdir build && cd build
+# Configure and build (inside container)
+mkdir .build && cd .build
 cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/HexagonToolchain.cmake ..
-ninja
+ninja buildtests
 
-# Testing
+# Run tests
 ctest --output-on-failure --timeout 300 -j4
 
-# CI Configuration Validation - choose one:
+# Validate environment
+/workspace/ci/test-hexagon-setup.sh
+```
 
-# Zero dependencies (basic validation)
-cd ../eigen-tools && python3 validate_ci.py --all
+### Key Build Targets
 
-# Lightweight test (no dependencies)
-cd ../eigen-tools && python3 test_ci_tools.py
+```bash
+ninja buildtests              # Build all test binaries
+ninja eigen_buildtests_*      # Build specific test categories
+ninja install                 # Install Eigen headers
+```
 
-# Full CLI test (with dependencies)
-cd ../eigen-tools && python3 tools.py ci test
+### Useful CTest Commands
 
-# Individual CI commands (full CLI)
-cd ../eigen-tools && python3 tools.py ci validate --all
-cd ../eigen-tools && python3 tools.py ci analyze --all
-cd ../eigen-tools && python3 tools.py ci list-jobs
+```bash
+ctest --output-on-failure                    # Run all tests with output on failure
+ctest -R "packetmath|basicstuff"            # Run specific test patterns
+ctest -L "Hexagon"                           # Run tests with specific label
+ctest --timeout 600 -j2                     # Custom timeout and parallelism
+ctest --verbose -R "test_name"               # Verbose output for specific test
 ```
 
 ### Key Files
 
-- `ci/Dockerfile` - CI environment definition
-- `ci/build.hexagon.gitlab-ci.yml` - Build jobs
-- `ci/test.hexagon.gitlab-ci.yml` - Test jobs  
-- `ci/test-hexagon-setup.sh` - Hexagon environment validation (used in CI)
+- `ci/Dockerfile` - Dedicated Hexagon CI environment
+- `ci/build.hexagon.gitlab-ci.yml` - Build job definitions
+- `ci/test.hexagon.gitlab-ci.yml` - Test job definitions
+- `ci/test-hexagon-setup.sh` - Environment validation script
 - `cmake/HexagonToolchain.cmake` - CMake cross-compilation setup
-- `../eigen-tools/validate_ci.py` - Zero-dependency CI configuration validation
-- `../eigen-tools/test_ci_tools.py` - CI configuration validation
 
 ### Reference Links
 

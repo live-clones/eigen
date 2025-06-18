@@ -1,12 +1,11 @@
 # Eigen CI Environment with Hexagon Toolchain Support
-# This Dockerfile is optimized for CI builds only
+# This Dockerfile is optimized for CI builds with Hexagon DSP support
 # For development environments, see eigen-tools/Dockerfile.dev
 
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-20.04
 
 # Build arguments
 ARG HEXAGON_TOOLCHAIN_VERSION=20.1.4
-ARG ENABLE_HEXAGON=true
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -59,48 +58,44 @@ RUN CMAKE_VERSION=$(curl -s https://api.github.com/repos/Kitware/CMake/releases/
     rm cmake.tar.gz && \
     ln -s /opt/cmake-${CMAKE_VERSION}-linux-x86_64/bin/* /usr/local/bin/
 
-# Install Hexagon toolchain (if enabled)
-RUN if [ "${ENABLE_HEXAGON}" = "true" ]; then \
-        echo "Installing Hexagon toolchain ${HEXAGON_TOOLCHAIN_VERSION}" && \
-        TOOLCHAIN_FILE="clang+llvm-${HEXAGON_TOOLCHAIN_VERSION}-cross-hexagon-unknown-linux-musl.tar.zst" && \
-        TOOLCHAIN_URL="https://artifacts.codelinaro.org/artifactory/codelinaro-toolchain-for-hexagon/${HEXAGON_TOOLCHAIN_VERSION}/${TOOLCHAIN_FILE}" && \
-        echo "Downloading: ${TOOLCHAIN_URL}" && \
-        mkdir -p /opt/hexagon-toolchain && \
-        wget --timeout=60 --tries=3 -O /tmp/hexagon-toolchain.tar.zst "${TOOLCHAIN_URL}" && \
-        # Install zstd if not present and extract
-        tar --use-compress-program=zstd -xf /tmp/hexagon-toolchain.tar.zst -C /opt/hexagon-toolchain --strip-components=1 && \
-        rm /tmp/hexagon-toolchain.tar.zst && \
-        # Find the actual bin directory (it might be under x86_64-linux-gnu/bin)
-        TOOLCHAIN_BIN=$(find /opt/hexagon-toolchain -type d -name "bin" | head -1) && \
-        if [ -z "${TOOLCHAIN_BIN}" ]; then \
-            echo "Error: No bin directory found in toolchain" && \
-            echo "Available directories:" && \
-            find /opt/hexagon-toolchain -type d && \
+# Install Hexagon toolchain
+RUN echo "Installing Hexagon toolchain ${HEXAGON_TOOLCHAIN_VERSION}" && \
+    TOOLCHAIN_FILE="clang+llvm-${HEXAGON_TOOLCHAIN_VERSION}-cross-hexagon-unknown-linux-musl.tar.zst" && \
+    TOOLCHAIN_URL="https://artifacts.codelinaro.org/artifactory/codelinaro-toolchain-for-hexagon/${HEXAGON_TOOLCHAIN_VERSION}/${TOOLCHAIN_FILE}" && \
+    echo "Downloading: ${TOOLCHAIN_URL}" && \
+    mkdir -p /opt/hexagon-toolchain && \
+    wget --timeout=60 --tries=3 -O /tmp/hexagon-toolchain.tar.zst "${TOOLCHAIN_URL}" && \
+    # Install zstd if not present and extract
+    tar --use-compress-program=zstd -xf /tmp/hexagon-toolchain.tar.zst -C /opt/hexagon-toolchain --strip-components=1 && \
+    rm /tmp/hexagon-toolchain.tar.zst && \
+    # Find the actual bin directory (it might be under x86_64-linux-gnu/bin)
+    TOOLCHAIN_BIN=$(find /opt/hexagon-toolchain -type d -name "bin" | head -1) && \
+    if [ -z "${TOOLCHAIN_BIN}" ]; then \
+        echo "Error: No bin directory found in toolchain" && \
+        echo "Available directories:" && \
+        find /opt/hexagon-toolchain -type d && \
+        exit 1 ; \
+    fi && \
+    echo "Found toolchain bin directory: ${TOOLCHAIN_BIN}" && \
+    # Verify key binaries exist
+    for binary in hexagon-unknown-linux-musl-clang hexagon-unknown-linux-musl-clang++; do \
+        if [ ! -f "${TOOLCHAIN_BIN}/${binary}" ]; then \
+            echo "Error: Required Hexagon binary not found: ${TOOLCHAIN_BIN}/${binary}" && \
+            echo "Available binaries:" && \
+            ls -la "${TOOLCHAIN_BIN}/" && \
             exit 1 ; \
-        fi && \
-        echo "Found toolchain bin directory: ${TOOLCHAIN_BIN}" && \
-        # Verify key binaries exist
-        for binary in hexagon-unknown-linux-musl-clang hexagon-unknown-linux-musl-clang++; do \
-            if [ ! -f "${TOOLCHAIN_BIN}/${binary}" ]; then \
-                echo "Error: Required Hexagon binary not found: ${TOOLCHAIN_BIN}/${binary}" && \
-                echo "Available binaries:" && \
-                ls -la "${TOOLCHAIN_BIN}/" && \
-                exit 1 ; \
-            fi ; \
-        done && \
-        # Check for qemu-hexagon (may not be present in all versions)
-        if [ -f "${TOOLCHAIN_BIN}/qemu-hexagon" ]; then \
-            echo "QEMU Hexagon found" ; \
-        else \
-            echo "QEMU Hexagon not found (may not be available in this version)" ; \
-        fi && \
-        # Create symlinks in /opt/hexagon-toolchain/bin for consistency
-        mkdir -p /opt/hexagon-toolchain/bin && \
-        ln -sf "${TOOLCHAIN_BIN}"/* /opt/hexagon-toolchain/bin/ && \
-        echo "Hexagon toolchain installed successfully" ; \
+        fi ; \
+    done && \
+    # Check for qemu-hexagon (may not be present in all versions)
+    if [ -f "${TOOLCHAIN_BIN}/qemu-hexagon" ]; then \
+        echo "QEMU Hexagon found" ; \
     else \
-        echo "Skipping Hexagon toolchain installation" ; \
-    fi
+        echo "QEMU Hexagon not found (may not be available in this version)" ; \
+    fi && \
+    # Create symlinks in /opt/hexagon-toolchain/bin for consistency
+    mkdir -p /opt/hexagon-toolchain/bin && \
+    ln -sf "${TOOLCHAIN_BIN}"/* /opt/hexagon-toolchain/bin/ && \
+    echo "Hexagon toolchain installed successfully"
 
 # Install minimal Python packages for CI
 RUN python3 -m pip install --upgrade pip && \
@@ -109,12 +104,19 @@ RUN python3 -m pip install --upgrade pip && \
         pytest-cov \
         numpy
 
-# Set up environment variables
+# Set up Hexagon environment variables directly
 ENV HEXAGON_TOOLCHAIN_VERSION=${HEXAGON_TOOLCHAIN_VERSION}
 ENV HEXAGON_TOOLCHAIN_ROOT=/opt/hexagon-toolchain
 ENV HEXAGON_TOOLCHAIN_BIN=/opt/hexagon-toolchain/bin
 ENV HEXAGON_SYSROOT=/opt/hexagon-toolchain/x86_64-linux-gnu/target/hexagon-unknown-linux-musl
 ENV PATH="${HEXAGON_TOOLCHAIN_BIN}:${PATH}"
+
+# Set up QEMU environment for Hexagon emulation
+ENV QEMU_LD_PREFIX="${HEXAGON_SYSROOT}"
+
+# Set up CMake environment variables for cross-compilation
+ENV EIGEN_CI_CROSS_C_COMPILER="${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang"
+ENV EIGEN_CI_CROSS_CXX_COMPILER="${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang++"
 
 # Set up ccache for CI builds
 RUN mkdir -p /root/.ccache && \
@@ -122,41 +124,21 @@ RUN mkdir -p /root/.ccache && \
     echo 'compression = true' >> /root/.ccache/ccache.conf && \
     echo 'sloppiness = file_macro,locale,time_macros' >> /root/.ccache/ccache.conf
 
-# Create setup script for runtime environment
-RUN echo '#!/bin/bash' > /usr/local/bin/setup-hexagon-env.sh && \
-    echo '# Runtime setup script for Hexagon environment' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'set -e' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '# Set environment variables' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'export HEXAGON_TOOLCHAIN_ROOT="/opt/hexagon-toolchain"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'export HEXAGON_TOOLCHAIN_BIN="/opt/hexagon-toolchain/bin"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'export HEXAGON_SYSROOT="/opt/hexagon-toolchain/x86_64-linux-gnu/target/hexagon-unknown-linux-musl"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'export PATH="${HEXAGON_TOOLCHAIN_BIN}:${PATH}"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'export QEMU_LD_PREFIX="${HEXAGON_SYSROOT}"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '# Export for CMake' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'export EIGEN_CI_CROSS_C_COMPILER="${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'export EIGEN_CI_CROSS_CXX_COMPILER="${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang++"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '# Environment info' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'echo "🔧 Hexagon Environment Setup"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'echo "Toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'echo "Compilers: ${EIGEN_CI_CROSS_C_COMPILER}"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'echo "Sysroot: ${HEXAGON_SYSROOT}"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '# Verify setup' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'if [ -f "${EIGEN_CI_CROSS_C_COMPILER}" ]; then' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '    echo "✅ Hexagon toolchain ready"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'else' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '    echo "❌ Hexagon toolchain not found"' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo '    exit 1' >> /usr/local/bin/setup-hexagon-env.sh && \
-    echo 'fi' >> /usr/local/bin/setup-hexagon-env.sh
-
-RUN chmod +x /usr/local/bin/setup-hexagon-env.sh
-
 # Set working directory for CI
 WORKDIR /workspace
+
+# Add a verification command to ensure the environment is properly set up
+RUN echo "🔧 Hexagon Environment Setup Verification" && \
+    echo "Toolchain: ${HEXAGON_TOOLCHAIN_ROOT}" && \
+    echo "Compilers: ${EIGEN_CI_CROSS_C_COMPILER}" && \
+    echo "Sysroot: ${HEXAGON_SYSROOT}" && \
+    if [ -f "${EIGEN_CI_CROSS_C_COMPILER}" ]; then \
+        echo "✅ Hexagon toolchain ready" && \
+        ${EIGEN_CI_CROSS_C_COMPILER} --version ; \
+    else \
+        echo "❌ Hexagon toolchain not found" && \
+        exit 1 ; \
+    fi
 
 # Default command for CI
 CMD ["/bin/bash"]

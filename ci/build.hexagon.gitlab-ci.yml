@@ -18,7 +18,6 @@ build:docker:hexagon:
       docker buildx build \
         --platform linux/amd64 \
         --build-arg HEXAGON_TOOLCHAIN_VERSION=20.1.4 \
-        --build-arg ENABLE_HEXAGON=true \
         --tag $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest \
         --tag $CI_REGISTRY_IMAGE/eigen-ci:hexagon-$CI_COMMIT_SHORT_SHA \
         --file ci/Dockerfile \
@@ -50,9 +49,11 @@ build:docker:hexagon:
     EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
     EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
   before_script:
-    # Setup environment using the built-in script
-    - source /usr/local/bin/setup-hexagon-env.sh
-    # Verify toolchain is ready
+    # Verify toolchain is ready (environment variables are set in Dockerfile)
+    - echo "🔧 Hexagon Environment Information"
+    - echo "Toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
+    - echo "Compilers: ${EIGEN_CI_CROSS_C_COMPILER}"
+    - echo "Sysroot: ${HEXAGON_SYSROOT}"
     - ${EIGEN_CI_CROSS_C_COMPILER} --version
     - ${EIGEN_CI_CROSS_CXX_COMPILER} --version
     # Setup ccache
@@ -154,7 +155,9 @@ build:linux:hexagon:v73:hvx:ci:
     EIGEN_CI_TEST_TIMEOUT: "300"
     EIGEN_CI_MAX_PARALLEL_TESTS: "4"
   before_script:
-    - source /usr/local/bin/setup-hexagon-env.sh
+    # Environment variables are already set in Dockerfile
+    - echo "🔧 Hexagon Test Environment Ready"
+    - echo "Using toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
   script:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
     - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}

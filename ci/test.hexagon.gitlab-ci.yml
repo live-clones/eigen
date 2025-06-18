@@ -9,7 +9,7 @@
 # with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 # Enhanced Hexagon Testing CI Configuration
-# Updated for Dockerfile-based CI environment
+# Updated for Dockerfile-based CI environment with direct environment variables
 
 .test:linux:hexagon:
   stage: test
@@ -24,8 +24,11 @@
     EIGEN_CI_TEST_TIMEOUT: "300"
     EIGEN_CI_MAX_PARALLEL_TESTS: "4"
   before_script:
-    # Setup environment using the built-in script from Dockerfile
-    - source /usr/local/bin/setup-hexagon-env.sh
+    # Environment variables are set directly in Dockerfile - no setup script needed
+    - echo "🔧 Hexagon Test Environment Information"
+    - echo "Toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
+    - echo "Compilers: ${EIGEN_CI_CROSS_C_COMPILER}"
+    - echo "Sysroot: ${HEXAGON_SYSROOT}"
     # Run validation script to ensure environment is ready
     - /workspace/eigen-mirror/ci/test-hexagon-setup.sh
   script:
