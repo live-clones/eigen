@@ -91,8 +91,6 @@ RUN if [ "${ENABLE_HEXAGON}" = "true" ]; then \
         # Check for qemu-hexagon (may not be present in all versions)
         if [ -f "${TOOLCHAIN_BIN}/qemu-hexagon" ]; then \
             echo "QEMU Hexagon found" ; \
-            ln -s /opt/hexagon-toolchain/x86_64-linux-gnu/target/hexagon-unknown-linux-musl/lib/ld-musl-hexagon.so.1 /l
-ib/ld-musl-hexagon.so.1 \
         else \
             echo "QEMU Hexagon not found (may not be available in this version)" ; \
         fi && \
