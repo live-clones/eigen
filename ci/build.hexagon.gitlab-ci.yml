@@ -49,7 +49,7 @@ build:docker:hexagon:
     EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
     EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
   before_script:
-    - echo "🔧 Hexagon Environment Information"
+    - echo "Hexagon Environment Information"
     - echo "Toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
     - echo "Compilers: ${EIGEN_CI_CROSS_C_COMPILER}"
     - echo "Sysroot: ${HEXAGON_SYSROOT}"
@@ -152,7 +152,7 @@ build:linux:hexagon:v73:hvx:ci:
     EIGEN_CI_TEST_TIMEOUT: "300"
     EIGEN_CI_MAX_PARALLEL_TESTS: "4"
   before_script:
-    - echo "🔧 Hexagon Test Environment Ready"
+    - echo "Hexagon Test Environment Ready"
     - echo "Using toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
   script:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
@@ -221,6 +221,6 @@ test:linux:hexagon:minimal:ci:
   script:
     - echo "Minimal build validation - checking if binaries exist"
     - ls -la ${EIGEN_CI_BUILDDIR:-.build}/
-    - echo "✅ Minimal build validation complete"
+    - echo "Minimal build validation complete"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" 
