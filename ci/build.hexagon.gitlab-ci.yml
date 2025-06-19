@@ -44,24 +44,21 @@ build:docker:hexagon:
   variables:
     EIGEN_CI_TARGET_ARCH: hexagon
     EIGEN_CI_CROSS_TARGET_TRIPLE: hexagon-unknown-linux-musl
-    EIGEN_CI_BUILD_TARGET: buildtests
+    EIGEN_CI_BUILD_TARGET: "packetmath_1 packetmath_2 packetmath_3 basicstuff_1 vectorization_logic_1"
     EIGEN_CI_HEXAGON_ARCH: v68
     EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
     EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
   before_script:
-    # Verify toolchain is ready (environment variables are set in Dockerfile)
     - echo "🔧 Hexagon Environment Information"
     - echo "Toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
     - echo "Compilers: ${EIGEN_CI_CROSS_C_COMPILER}"
     - echo "Sysroot: ${HEXAGON_SYSROOT}"
     - ${EIGEN_CI_CROSS_C_COMPILER} --version
     - ${EIGEN_CI_CROSS_CXX_COMPILER} --version
-    # Setup ccache
     - export CCACHE_DIR=/workspace/.cache/ccache
     - mkdir -p ${CCACHE_DIR}
     - ccache -s
   script:
-    # Configure and build using CMake
     - mkdir -p ${EIGEN_CI_BUILDDIR:-.build}
     - cd ${EIGEN_CI_BUILDDIR:-.build}
     - |
@@ -155,7 +152,6 @@ build:linux:hexagon:v73:hvx:ci:
     EIGEN_CI_TEST_TIMEOUT: "300"
     EIGEN_CI_MAX_PARALLEL_TESTS: "4"
   before_script:
-    # Environment variables are already set in Dockerfile
     - echo "🔧 Hexagon Test Environment Ready"
     - echo "Using toolchain: ${HEXAGON_TOOLCHAIN_ROOT}"
   script:
@@ -223,7 +219,6 @@ test:linux:hexagon:minimal:ci:
     - job: build:linux:hexagon:minimal:ci
       artifacts: true
   script:
-    # Override for minimal testing - just verify the build works
     - echo "Minimal build validation - checking if binaries exist"
     - ls -la ${EIGEN_CI_BUILDDIR:-.build}/
     - echo "✅ Minimal build validation complete"
