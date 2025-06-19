@@ -46,11 +46,13 @@
   #   - linux
   #   - eigen-runner
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /comprehensive-tests/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # Enhanced test matrix with different configurations - Updated for new CI structure
 test:linux:hexagon:v68:default:
@@ -131,8 +133,8 @@ test:linux:hexagon:performance:
     - job: build:linux:hexagon:v68:optimized:ci
       artifacts: true
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /performance-tests/
   artifacts:
     when: always
@@ -162,9 +164,9 @@ test:linux:hexagon:smoke:
     - job: build:linux:hexagon:minimal:ci
       artifacts: true
   rules:
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
   script:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
     # Use regex filter for smoke tests
@@ -197,7 +199,7 @@ test:linux:hexagon:integration:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
     - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 # Test result aggregation job  
 aggregate:hexagon:test:results:
@@ -219,6 +221,6 @@ aggregate:hexagon:test:results:
       - aggregated-results/
     expire_in: 14 days
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/

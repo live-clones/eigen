@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🔧 Hexagon Toolchain Validation"
+echo "Hexagon Toolchain Validation"
 echo "================================"
 
 # Source environment
@@ -13,7 +13,7 @@ if [ -f /usr/local/bin/setup-hexagon-env.sh ]; then
 fi
 
 # Check toolchain binaries
-echo "📋 Checking toolchain binaries..."
+echo "Checking toolchain binaries..."
 REQUIRED_BINARIES=(
     "hexagon-unknown-linux-musl-clang"
     "hexagon-unknown-linux-musl-clang++"
@@ -22,42 +22,42 @@ REQUIRED_BINARIES=(
 
 for binary in "${REQUIRED_BINARIES[@]}"; do
     if [ -f "${HEXAGON_TOOLCHAIN_BIN}/${binary}" ]; then
-        echo "  ✅ ${binary} found"
+        echo "  FOUND: ${binary}"
     else
-        echo "  ❌ ${binary} missing"
+        echo "  MISSING: ${binary}"
         exit 1
     fi
 done
 
 # Test compiler version
 echo ""
-echo "📋 Checking compiler version..."
+echo "Checking compiler version..."
 ${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang --version | head -1
 
 # Test QEMU version
 echo ""
-echo "📋 Checking QEMU version..."
+echo "Checking QEMU version..."
 ${HEXAGON_TOOLCHAIN_BIN}/qemu-hexagon --version | head -1
 
 # Test sysroot
 echo ""
-echo "📋 Checking sysroot..."
+echo "Checking sysroot..."
 if [ -d "${HEXAGON_SYSROOT}" ]; then
-    echo "  ✅ Sysroot found: ${HEXAGON_SYSROOT}"
+    echo "  FOUND: Sysroot at ${HEXAGON_SYSROOT}"
     if [ -f "${HEXAGON_SYSROOT}/lib/ld-musl-hexagon.so.1" ]; then
-        echo "  ✅ Dynamic linker found"
+        echo "  FOUND: Dynamic linker"
     else
-        echo "  ❌ Dynamic linker missing"
+        echo "  MISSING: Dynamic linker"
         exit 1
     fi
 else
-    echo "  ❌ Sysroot missing: ${HEXAGON_SYSROOT}"
+    echo "  MISSING: Sysroot at ${HEXAGON_SYSROOT}"
     exit 1
 fi
 
 # Test simple compilation
 echo ""
-echo "📋 Testing simple compilation..."
+echo "Testing simple compilation..."
 cat > /tmp/hexagon_test.c << 'EOF'
 #include <stdio.h>
 int main() {
@@ -67,19 +67,19 @@ int main() {
 EOF
 
 if ${HEXAGON_TOOLCHAIN_BIN}/hexagon-unknown-linux-musl-clang /tmp/hexagon_test.c -o /tmp/hexagon_test; then
-    echo "  ✅ Compilation successful"
+    echo "  PASS: Compilation successful"
     
     # Test execution with QEMU
     echo ""
-    echo "📋 Testing execution with QEMU..."
+    echo "Testing execution with QEMU..."
     if ${HEXAGON_TOOLCHAIN_BIN}/qemu-hexagon -L "${HEXAGON_SYSROOT}" /tmp/hexagon_test; then
-        echo "  ✅ Execution successful"
+        echo "  PASS: Execution successful"
     else
-        echo "  ❌ Execution failed"
+        echo "  FAIL: Execution failed"
         exit 1
     fi
 else
-    echo "  ❌ Compilation failed"
+    echo "  FAIL: Compilation failed"
     exit 1
 fi
 
@@ -87,5 +87,5 @@ fi
 rm -f /tmp/hexagon_test.c /tmp/hexagon_test
 
 echo ""
-echo "🎉 All Hexagon toolchain tests passed!"
+echo "All Hexagon toolchain tests passed!"
 echo "Ready for Eigen CI builds!" 

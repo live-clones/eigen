@@ -69,8 +69,7 @@ build:docker:hexagon:
     - ccache -s
   artifacts:
     paths:
-      - ${EIGEN_CI_BUILDDIR:-.build}/*.log
-      - ${EIGEN_CI_BUILDDIR:-.build}/test_*
+      - ${EIGEN_CI_BUILDDIR:-.build}/
     expire_in: 1 week
     when: always
   cache:
@@ -91,6 +90,12 @@ build:linux:hexagon:v68:ci:
     EIGEN_CI_HEXAGON_ARCH: v68
     EIGEN_CI_BUILDDIR: .build-hexagon-v68
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # HVX-enabled build
 build:linux:hexagon:v68:hvx:ci:
@@ -99,6 +104,12 @@ build:linux:hexagon:v68:hvx:ci:
     EIGEN_CI_HEXAGON_ARCH: v68
     EIGEN_CI_BUILDDIR: .build-hexagon-v68-hvx
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # Debug build
 build:linux:hexagon:v68:debug:ci:
@@ -107,6 +118,11 @@ build:linux:hexagon:v68:debug:ci:
     EIGEN_CI_HEXAGON_ARCH: v68
     EIGEN_CI_BUILDDIR: .build-hexagon-v68-debug
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Debug"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
 
 # Optimized build for performance testing
 build:linux:hexagon:v68:optimized:ci:
@@ -115,6 +131,9 @@ build:linux:hexagon:v68:optimized:ci:
     EIGEN_CI_HEXAGON_ARCH: v68
     EIGEN_CI_BUILDDIR: .build-hexagon-v68-optimized
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE='-O3 -DNDEBUG -march=native'"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
 ######## Hexagon v73 Builds ############################################
 
@@ -125,6 +144,9 @@ build:linux:hexagon:v73:ci:
     EIGEN_CI_BUILDDIR: .build-hexagon-v73
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
   allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
 build:linux:hexagon:v73:hvx:ci:
   extends: .build:linux:hexagon:ci
@@ -133,6 +155,9 @@ build:linux:hexagon:v73:hvx:ci:
     EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
   allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
 ######## Testing Jobs ###################################################
 
@@ -170,6 +195,12 @@ test:linux:hexagon:v68:ci:
   needs:
     - job: build:linux:hexagon:v68:ci
       artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 test:linux:hexagon:v68:hvx:ci:
   extends: .test:linux:hexagon:ci
@@ -182,6 +213,12 @@ test:linux:hexagon:v68:hvx:ci:
   needs:
     - job: build:linux:hexagon:v68:hvx:ci
       artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 ######## Quick Validation Build #########################################
 
