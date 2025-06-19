@@ -49,7 +49,6 @@ build:docker:hexagon:
     EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
     EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
   before_script:
-    - echo 'Starting Hexagon build'
     - export CCACHE_DIR=/workspace/.cache/ccache
     - mkdir -p ${CCACHE_DIR}
     - ccache -s
@@ -146,8 +145,6 @@ build:linux:hexagon:v73:hvx:ci:
     EIGEN_CI_CTEST_LABEL: "Hexagon"
     EIGEN_CI_TEST_TIMEOUT: "300"
     EIGEN_CI_MAX_PARALLEL_TESTS: "4"
-  before_script:
-    - echo 'Starting Hexagon tests'
   script:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
     - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}
@@ -213,8 +210,6 @@ test:linux:hexagon:minimal:ci:
     - job: build:linux:hexagon:minimal:ci
       artifacts: true
   script:
-    - echo 'Minimal build validation - checking if binaries exist'
     - ls -la ${EIGEN_CI_BUILDDIR:-.build}/
-    - echo 'Minimal build validation complete'
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" 
