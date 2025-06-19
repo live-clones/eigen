@@ -96,6 +96,7 @@ test:linux:hexagon:v73:default:
   needs:
     - job: build:linux:hexagon:v73:ci
       artifacts: true
+      optional: true
   allow_failure: true  # v73 is newer, allow failure for now
 
 test:linux:hexagon:v68:debug:
@@ -113,6 +114,7 @@ test:linux:hexagon:v68:debug:
   needs:
     - job: build:linux:hexagon:v68:debug:ci
       artifacts: true
+      optional: true
 
 # Performance benchmarking job
 test:linux:hexagon:performance:
@@ -132,6 +134,7 @@ test:linux:hexagon:performance:
   needs:
     - job: build:linux:hexagon:v68:optimized:ci
       artifacts: true
+      optional: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
@@ -160,15 +163,38 @@ test:linux:hexagon:smoke:
     EIGEN_CI_CTEST_REGEX: "basicstuff|array_cwise"  # Only run basic tests
   dependencies:
     - build:linux:hexagon:minimal:ci
+    - build:linux:hexagon:v68:ci
   needs:
     - job: build:linux:hexagon:minimal:ci
       artifacts: true
+      optional: true
+    - job: build:linux:hexagon:v68:ci
+      artifacts: true
+      optional: true
   rules:
-    - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        EIGEN_CI_BUILDDIR: .build-hexagon-minimal
+    - if: $CI_PIPELINE_SOURCE == "push"
+      variables:
+        EIGEN_CI_BUILDDIR: .build-hexagon-v68
     - if: $CI_PIPELINE_SOURCE == "web"
+      variables:
+        EIGEN_CI_BUILDDIR: .build-hexagon-v68
   script:
-    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    # Check which build directory exists and use it
+    - |
+      if [ -d ".build-hexagon-minimal" ]; then
+        export EIGEN_CI_BUILDDIR=".build-hexagon-minimal"
+        echo "Using minimal build directory"
+      elif [ -d ".build-hexagon-v68" ]; then
+        export EIGEN_CI_BUILDDIR=".build-hexagon-v68"
+        echo "Using standard v68 build directory"
+      else
+        echo "No build directory found"
+        exit 1
+      fi
+    - cd ${EIGEN_CI_BUILDDIR}
     # Use regex filter for smoke tests
     - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "${EIGEN_CI_CTEST_REGEX}"
 
