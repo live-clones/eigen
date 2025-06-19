@@ -1,3 +1,5 @@
+build/
+.idea/
 qrc_*cxx
 *.orig
 *.pyc

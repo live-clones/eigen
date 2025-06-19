@@ -253,6 +253,8 @@ template <typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_difference_op;
 template <typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_conj_product_op;
+template <typename LhsScalar, typename RhsScalar = LhsScalar>
+struct scalar_modulus_op;
 template <typename LhsScalar, typename RhsScalar = LhsScalar, int NaNPropagation = PropagateFast>
 struct scalar_min_op;
 template <typename LhsScalar, typename RhsScalar = LhsScalar, int NaNPropagation = PropagateFast>
