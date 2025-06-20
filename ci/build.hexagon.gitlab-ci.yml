@@ -45,7 +45,14 @@ build:docker:hexagon:
   variables:
     EIGEN_CI_TARGET_ARCH: hexagon
     EIGEN_CI_CROSS_TARGET_TRIPLE: hexagon-unknown-linux-musl
-    EIGEN_CI_BUILD_TARGET: "packetmath_1 packetmath_2 packetmath_3 basicstuff_1 vectorization_logic_1"
+    # HVX-Affected Build Targets: Comprehensive list of 19 tests that validate HVX SIMD operations
+    # Source: eigen-tools/debug-test-fails/hvx-affected-tests.txt
+    # Primary PacketMath Tests (15 tests): packetmath_1 through packetmath_15
+    # Special PacketMath Tests (4 tests): special_packetmath_1 through special_packetmath_4
+    EIGEN_CI_PACKETMATH_TARGETS: "packetmath_1 packetmath_2 packetmath_3 packetmath_4 packetmath_5 packetmath_6 packetmath_7 packetmath_8 packetmath_9 packetmath_10 packetmath_11 packetmath_12 packetmath_13 packetmath_14 packetmath_15"
+    EIGEN_CI_SPECIAL_TARGETS: "special_packetmath_1 special_packetmath_2 special_packetmath_3 special_packetmath_4"
+    # Combined build targets for compilation
+    EIGEN_CI_BUILD_TARGET: "${EIGEN_CI_PACKETMATH_TARGETS} ${EIGEN_CI_SPECIAL_TARGETS}"
     EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
     EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
   before_script:

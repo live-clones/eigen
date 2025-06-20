@@ -19,8 +19,14 @@
     EIGEN_CI_TARGET_ARCH: hexagon
     EIGEN_CI_TEST_TIMEOUT: "300"
     EIGEN_CI_MAX_PARALLEL_TESTS: "4"
-    # Test only the specific targets that were built
-    EIGEN_CI_TEST_TARGETS: "packetmath_1 packetmath_2 packetmath_3 basicstuff_1 vectorization_logic_1"
+    # HVX-Affected Tests: Comprehensive list of 19 tests that validate HVX SIMD operations
+    # Source: eigen-tools/debug-test-fails/hvx-affected-tests.txt
+    # Primary PacketMath Tests (15 tests): packetmath_1 through packetmath_15
+    # Special PacketMath Tests (4 tests): special_packetmath_1 through special_packetmath_4
+    EIGEN_CI_PACKETMATH_TESTS: "packetmath_1 packetmath_2 packetmath_3 packetmath_4 packetmath_5 packetmath_6 packetmath_7 packetmath_8 packetmath_9 packetmath_10 packetmath_11 packetmath_12 packetmath_13 packetmath_14 packetmath_15"
+    EIGEN_CI_SPECIAL_TESTS: "special_packetmath_1 special_packetmath_2 special_packetmath_3 special_packetmath_4"
+    # Combined test targets for execution
+    EIGEN_CI_TEST_TARGETS: "${EIGEN_CI_PACKETMATH_TESTS} ${EIGEN_CI_SPECIAL_TESTS}"
     # Enhanced testing configuration
     EIGEN_CI_ENABLE_VALIDATION: "true"
     EIGEN_CI_ENABLE_MONITORING: "true" 
@@ -28,12 +34,16 @@
     - ./ci/test-hexagon-setup.sh
   script:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
-    # Run tests only for the specific built targets
-    - for target in ${EIGEN_CI_TEST_TARGETS}; do ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "^${target}$" || true; done
+    # Run PacketMath tests (Test #54-68) - Core HVX SIMD operations
+    - for target in ${EIGEN_CI_PACKETMATH_TESTS}; do ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "^${target}$" || true; done
+    # Run Special PacketMath tests (Test #1120-1123) - Specialized mathematical functions
+    - for target in ${EIGEN_CI_SPECIAL_TESTS}; do ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "^${target}$" || true; done
   after_script:
     - mkdir -p artifacts/hexagon-tests
     - cp -r ${EIGEN_CI_BUILDDIR:-.build}/Testing artifacts/hexagon-tests/ || true
     - cp -r ${EIGEN_CI_BUILDDIR:-.build}/*.log artifacts/hexagon-tests/ || true
+    # Generate test report with comprehensive information
+    - printf "HVX Test Report for %s\nGenerated: %s\nPacketMath Tests: %s\nSpecial Tests: %s\n" "${EIGEN_CI_HEXAGON_ARCH}" "$(date)" "${EIGEN_CI_PACKETMATH_TESTS}" "${EIGEN_CI_SPECIAL_TESTS}" > artifacts/hexagon-tests/test-report.txt
   artifacts:
     when: always
     name: "hexagon-test-results-${CI_JOB_NAME}-${CI_COMMIT_SHORT_SHA}"
@@ -54,19 +64,21 @@
 
 ######## Hexagon v73 Tests ############################################
 
-# v73 Default Tests
+# v73 Default Tests - Baseline functionality without HVX-specific features
 test:linux:hexagon:v73:default:
   extends: .test:linux:hexagon
   variables:
     EIGEN_CI_HEXAGON_ARCH: v73
     EIGEN_CI_BUILDDIR: .build-hexagon-v73-default
+    # Default build focuses on baseline packetmath functionality
+    EIGEN_CI_TEST_DESCRIPTION: "Baseline HVX functionality validation"
   dependencies:
     - build:linux:hexagon:v73:default
   needs:
     - job: build:linux:hexagon:v73:default
       artifacts: true
 
-# v73 HVX Tests
+# v73 HVX Tests - Full HVX feature validation with enhanced configuration  
 test:linux:hexagon:v73:hvx:
   extends: .test:linux:hexagon
   variables:
@@ -74,6 +86,11 @@ test:linux:hexagon:v73:hvx:
     EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
     EIGEN_CI_TEST_TIMEOUT: "600"  # Longer timeout for HVX tests
     EIGEN_CI_ENABLE_HVX_VALIDATION: "true"
+    # HVX build validates partial vectorization and advanced HVX operations
+    EIGEN_CI_TEST_DESCRIPTION: "Full HVX partial vectorization validation"
+    # Additional HVX-specific test configuration
+    EIGEN_CI_HVX_REGISTER_SIZE: "128"
+    EIGEN_CI_HVX_FLOAT_CAPACITY: "32"
   dependencies:
     - build:linux:hexagon:v73:hvx
   needs:

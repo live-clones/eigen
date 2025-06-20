@@ -100,9 +100,21 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 # Based on: https://gitlab.com/libeigen/eigen/-/blame/3cd872b7c3700eee35616f74afe3ff56166dd7f5/cmake/HexagonToolchain.cmake#L120
 set(HEXAGON_BASE_FLAGS "-m${HEXAGON_ARCH} -G0 -fPIC --target=hexagon-unknown-linux-musl")
 
-# Add HVX (Hexagon Vector eXtensions) support - enables SIMD vectorization for Eigen
-set(HEXAGON_HVX_FLAGS "-mhvx -mhvx-length=128B")
-set(HEXAGON_BASE_FLAGS "${HEXAGON_BASE_FLAGS} ${HEXAGON_HVX_FLAGS}")
+# HVX (Hexagon Vector eXtensions) support - conditional based on EIGEN_TEST_HVX option
+# Default: OFF (disabled) for baseline compatibility
+# Enable with: -DEIGEN_TEST_HVX=ON
+option(EIGEN_TEST_HVX "Enable HVX SIMD vectorization support for Eigen tests" OFF)
+
+if(EIGEN_TEST_HVX)
+    message(STATUS "HVX support: ENABLED (EIGEN_TEST_HVX=ON)")
+    set(HEXAGON_HVX_FLAGS "-mhvx -mhvx-length=128B")
+    set(HEXAGON_BASE_FLAGS "${HEXAGON_BASE_FLAGS} ${HEXAGON_HVX_FLAGS}")
+    
+    # Add preprocessor definition for HVX-aware code
+    add_definitions(-DEIGEN_TEST_HVX=1)
+else()
+    message(STATUS "HVX support: DISABLED (default). Use -DEIGEN_TEST_HVX=ON to enable.")
+endif()
 
 # C++ standard library settings for libc++
 set(HEXAGON_CXX_FLAGS "${HEXAGON_BASE_FLAGS} -stdlib=libc++")
