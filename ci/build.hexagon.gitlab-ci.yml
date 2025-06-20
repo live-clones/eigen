@@ -120,3 +120,21 @@ build:linux:hexagon:v73:hvx:
     - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
     - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# HVX-enabled v73 build with relaxed QEMU alignment (test compatibility mode)
+build:linux:hexagon:v73:hvx:relaxed:
+  extends: .build:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx-relaxed
+    # Enable both HVX and relaxed QEMU alignment for test compatibility
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON -DEIGEN_TEST_QEMU_RELAX_ALIGNMENT=ON"
+    # Build more targets since relaxed mode can handle broader test suite
+    EIGEN_CI_BUILD_TARGET: "buildtests"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
