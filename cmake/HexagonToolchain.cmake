@@ -121,6 +121,12 @@ set(CMAKE_MODULE_LINKER_FLAGS_INIT "${HEXAGON_LINKER_FLAGS}" CACHE STRING "")
 set(HEXAGON_TOOLCHAIN_ROOT "${HEXAGON_TOOLCHAIN_ROOT}" CACHE PATH "Path to Hexagon toolchain root")
 set(HEXAGON_ARCH "${HEXAGON_ARCH}" CACHE STRING "Hexagon architecture version")
 
+# Option to enable Eigen test alignment
+option(ENABLE_EIGEN_TEST_ALIGN "Enable Eigen test alignment" ON)
+if(ENABLE_EIGEN_TEST_ALIGN)
+    add_definitions(-DEIGEN_TEST_ALIGN)
+endif()
+
 # Pre-configure standard math library for cross-compilation
 # This avoids the CMake test that tries to compile and run a test program
 set(STANDARD_MATH_LIBRARY_FOUND TRUE CACHE BOOL "Math library found" FORCE)
@@ -128,4 +134,4 @@ set(STANDARD_MATH_LIBRARY "m" CACHE STRING "Standard math library" FORCE)
 
 # Override the specific cache variables that CMake tests
 set(standard_math_library_linked_to_automatically FALSE CACHE BOOL "Math library auto-linked" FORCE)
-set(standard_math_library_linked_to_as_m TRUE CACHE BOOL "Math library via -lm" FORCE) 
+set(standard_math_library_linked_to_as_m TRUE CACHE BOOL "Math library via -lm" FORCE)

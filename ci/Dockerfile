@@ -2,7 +2,7 @@
 # This Dockerfile is optimized for CI builds with Hexagon DSP support
 # For development environments, see eigen-tools/Dockerfile.dev
 
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-20.04
+FROM ubuntu:20.04
 
 # Build arguments
 ARG HEXAGON_TOOLCHAIN_VERSION=20.1.4
