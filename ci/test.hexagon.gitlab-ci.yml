@@ -29,7 +29,7 @@
   script:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
     # Run tests only for the specific built targets
-    - for target in ${EIGEN_CI_TEST_TARGETS}; do echo "Testing target: $target"; ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "^${target}$" || true; done
+    - for target in ${EIGEN_CI_TEST_TARGETS}; do ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "^${target}$" || true; done
   after_script:
     - mkdir -p artifacts/hexagon-tests
     - cp -r ${EIGEN_CI_BUILDDIR:-.build}/Testing artifacts/hexagon-tests/ || true
