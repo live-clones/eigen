@@ -39,14 +39,13 @@ build:docker:hexagon:
   #   - linux
 
 # Base CI configuration using clean Docker image
-.build:linux:hexagon:ci:
+.build:linux:hexagon:
   stage: build
   image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
   variables:
     EIGEN_CI_TARGET_ARCH: hexagon
     EIGEN_CI_CROSS_TARGET_TRIPLE: hexagon-unknown-linux-musl
     EIGEN_CI_BUILD_TARGET: "packetmath_1 packetmath_2 packetmath_3 basicstuff_1 vectorization_logic_1"
-    EIGEN_CI_HEXAGON_ARCH: v68
     EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
     EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
   before_script:
@@ -62,6 +61,7 @@ build:docker:hexagon:
         -DCMAKE_BUILD_TYPE=Release \
         -DEIGEN_TEST_HEXAGON=ON \
         -DBUILD_TESTING=ON \
+        -DHEXAGON_ARCH=${EIGEN_CI_HEXAGON_ARCH} \
         -GNinja \
         ${EIGEN_CI_ADDITIONAL_ARGS} \
         ..
@@ -82,14 +82,14 @@ build:docker:hexagon:
   #   - linux
   #   - eigen-runner
 
-######## Hexagon v68 Builds ############################################
+######## Hexagon v73 Builds ############################################
 
-# Standard v68 build
-build:linux:hexagon:v68:ci:
-  extends: .build:linux:hexagon:ci
+# Standard v73 build (default configuration)
+build:linux:hexagon:v73:default:
+  extends: .build:linux:hexagon
   variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_BUILDDIR: .build-hexagon-v68
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-default
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -99,12 +99,12 @@ build:linux:hexagon:v68:ci:
     - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# HVX-enabled build
-build:linux:hexagon:v68:hvx:ci:
-  extends: .build:linux:hexagon:ci
+# HVX-enabled v73 build
+build:linux:hexagon:v73:hvx:
+  extends: .build:linux:hexagon
   variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_BUILDDIR: .build-hexagon-v68-hvx
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -114,12 +114,14 @@ build:linux:hexagon:v68:hvx:ci:
     - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# Debug build
-build:linux:hexagon:v68:debug:ci:
-  extends: .build:linux:hexagon:ci
+######## Debug and Development Builds ###############################
+
+# Debug build for development
+build:linux:hexagon:v73:debug:
+  extends: .build:linux:hexagon
   variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_BUILDDIR: .build-hexagon-v68-debug
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-debug
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Debug"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -128,135 +130,14 @@ build:linux:hexagon:v68:debug:ci:
     - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
     - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
 
-# Optimized build for performance testing
-build:linux:hexagon:v68:optimized:ci:
-  extends: .build:linux:hexagon:ci
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_BUILDDIR: .build-hexagon-v68-optimized
-    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE='-O3 -DNDEBUG -march=native'"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-
-######## Hexagon v73 Builds ############################################
-
-build:linux:hexagon:v73:ci:
-  extends: .build:linux:hexagon:ci
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v73
-    EIGEN_CI_BUILDDIR: .build-hexagon-v73
-    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
-  allow_failure: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-
-build:linux:hexagon:v73:hvx:ci:
-  extends: .build:linux:hexagon:ci
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v73
-    EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
-    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
-  allow_failure: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-
-######## Testing Jobs ###################################################
-
-# Base test configuration
-.test:linux:hexagon:ci:
-  stage: test
-  image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
-  variables:
-    EIGEN_CI_TARGET_ARCH: hexagon
-    EIGEN_CI_CTEST_LABEL: "Hexagon"
-    EIGEN_CI_TEST_TIMEOUT: "300"
-    EIGEN_CI_MAX_PARALLEL_TESTS: "4"
-  script:
-    - cd ${EIGEN_CI_BUILDDIR:-.build}
-    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}
-  artifacts:
-    when: always
-    paths:
-      - ${EIGEN_CI_BUILDDIR:-.build}/Testing/
-    reports:
-      junit: ${EIGEN_CI_BUILDDIR:-.build}/Testing/**/Test.xml
-    expire_in: 3 days
-  # tags:
-  #   - linux
-  #   - eigen-runner
-
-# v68 testing
-test:linux:hexagon:v68:ci:
-  extends: .test:linux:hexagon:ci
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_BUILDDIR: .build-hexagon-v68
-  dependencies:
-    - build:linux:hexagon:v68:ci
-  needs:
-    - job: build:linux:hexagon:v68:ci
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
-    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-test:linux:hexagon:v68:hvx:ci:
-  extends: .test:linux:hexagon:ci
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_BUILDDIR: .build-hexagon-v68-hvx
-    EIGEN_CI_TEST_TIMEOUT: "600"  # Longer timeout for HVX tests
-  dependencies:
-    - build:linux:hexagon:v68:hvx:ci
-  needs:
-    - job: build:linux:hexagon:v68:hvx:ci
-      artifacts: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
-    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-######## Quick Validation Build #########################################
-
 # Minimal build for quick validation (MR pipeline)
-build:linux:hexagon:minimal:ci:
-  extends: .build:linux:hexagon:ci
+build:linux:hexagon:minimal:
+  extends: .build:linux:hexagon
   variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
+    EIGEN_CI_HEXAGON_ARCH: v73
     EIGEN_CI_BUILDDIR: .build-hexagon-minimal
     EIGEN_CI_BUILD_TARGET: ""  # Build library only
     EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "hexagon_toolchain"
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
-    - if: $CI_PIPELINE_SOURCE == "web"
-
-# Corresponding test job for the minimal build  
-test:linux:hexagon:minimal:ci:
-  extends: .test:linux:hexagon:ci
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v68
-    EIGEN_CI_BUILDDIR: .build-hexagon-minimal
-    EIGEN_CI_CTEST_LABEL: "Hexagon-Minimal"
-    EIGEN_CI_TEST_TIMEOUT: "120"
-  dependencies:
-    - build:linux:hexagon:minimal:ci
-  needs:
-    - job: build:linux:hexagon:minimal:ci
-      artifacts: true
-  script:
-    - ls -la ${EIGEN_CI_BUILDDIR:-.build}/
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "hexagon_toolchain"
