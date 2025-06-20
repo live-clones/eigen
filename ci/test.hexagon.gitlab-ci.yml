@@ -42,8 +42,6 @@
     - mkdir -p artifacts/hexagon-tests
     - cp -r ${EIGEN_CI_BUILDDIR:-.build}/Testing artifacts/hexagon-tests/ || true
     - cp -r ${EIGEN_CI_BUILDDIR:-.build}/*.log artifacts/hexagon-tests/ || true
-    # Generate test report with comprehensive information
-    - printf "HVX Test Report for %s\nGenerated: %s\nPacketMath Tests: %s\nSpecial Tests: %s\n" "${EIGEN_CI_HEXAGON_ARCH}" "$(date)" "${EIGEN_CI_PACKETMATH_TESTS}" "${EIGEN_CI_SPECIAL_TESTS}" > artifacts/hexagon-tests/test-report.txt
   artifacts:
     when: always
     name: "hexagon-test-results-${CI_JOB_NAME}-${CI_COMMIT_SHORT_SHA}"
