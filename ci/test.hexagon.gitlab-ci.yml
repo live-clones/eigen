@@ -9,7 +9,7 @@
 # with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 # Enhanced Hexagon Testing CI Configuration
-# Updated for v73 architecture with official/unsupported test categories
+# Updated for v73 architecture with default and hvx test categories
 
 # Base test configuration for Hexagon
 .test:linux:hexagon:
@@ -26,7 +26,7 @@
     - ./ci/test-hexagon-setup.sh
   script:
     - cd ${EIGEN_CI_BUILDDIR:-.build}
-    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -L "${EIGEN_CI_CTEST_LABEL}"
+    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS}
   after_script:
     - mkdir -p artifacts/hexagon-tests
     - cp -r ${EIGEN_CI_BUILDDIR:-.build}/Testing artifacts/hexagon-tests/ || true
@@ -49,42 +49,26 @@
     - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-######## Hexagon v73 Tests - Primary Focus ########################
+######## Hexagon v73 Tests ############################################
 
-# v73 Default Official Tests
-test:linux:hexagon:v73:default:official:
+# v73 Default Tests
+test:linux:hexagon:v73:default:
   extends: .test:linux:hexagon
   variables:
     EIGEN_CI_HEXAGON_ARCH: v73
     EIGEN_CI_BUILDDIR: .build-hexagon-v73-default
-    EIGEN_CI_CTEST_LABEL: "Official"
   dependencies:
     - build:linux:hexagon:v73:default
   needs:
     - job: build:linux:hexagon:v73:default
       artifacts: true
 
-# v73 Default Unsupported Tests
-test:linux:hexagon:v73:default:unsupported:
-  extends: .test:linux:hexagon
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v73
-    EIGEN_CI_BUILDDIR: .build-hexagon-v73-default
-    EIGEN_CI_CTEST_LABEL: "Unsupported"
-    EIGEN_CI_TEST_TIMEOUT: "600"  # Longer timeout for unsupported tests
-  dependencies:
-    - build:linux:hexagon:v73:default
-  needs:
-    - job: build:linux:hexagon:v73:default
-      artifacts: true
-
-# v73 HVX Official Tests
-test:linux:hexagon:v73:hvx:official:
+# v73 HVX Tests
+test:linux:hexagon:v73:hvx:
   extends: .test:linux:hexagon
   variables:
     EIGEN_CI_HEXAGON_ARCH: v73
     EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
-    EIGEN_CI_CTEST_LABEL: "Official"
     EIGEN_CI_TEST_TIMEOUT: "600"  # Longer timeout for HVX tests
     EIGEN_CI_ENABLE_HVX_VALIDATION: "true"
   dependencies:
@@ -92,94 +76,3 @@ test:linux:hexagon:v73:hvx:official:
   needs:
     - job: build:linux:hexagon:v73:hvx
       artifacts: true
-
-# v73 HVX Unsupported Tests
-test:linux:hexagon:v73:hvx:unsupported:
-  extends: .test:linux:hexagon
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v73
-    EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
-    EIGEN_CI_CTEST_LABEL: "Unsupported"
-    EIGEN_CI_TEST_TIMEOUT: "900"  # Extended timeout for HVX unsupported tests
-    EIGEN_CI_ENABLE_HVX_VALIDATION: "true"
-  dependencies:
-    - build:linux:hexagon:v73:hvx
-  needs:
-    - job: build:linux:hexagon:v73:hvx
-      artifacts: true
-
-######## Development and Validation Tests ##########################
-
-# Debug test for development
-test:linux:hexagon:v73:debug:
-  extends: .test:linux:hexagon
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v73
-    EIGEN_CI_BUILDDIR: .build-hexagon-v73-debug
-    EIGEN_CI_CTEST_LABEL: "Official"
-    EIGEN_CI_TEST_TIMEOUT: "900"  # Longer timeout for debug builds
-    EIGEN_CI_ENABLE_DEBUG_VALIDATION: "true"
-  dependencies:
-    - build:linux:hexagon:v73:debug
-  needs:
-    - job: build:linux:hexagon:v73:debug
-      artifacts: true
-      optional: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /debug-tests/
-
-# Smoke test job - quick validation using minimal build
-test:linux:hexagon:smoke:
-  extends: .test:linux:hexagon
-  variables:
-    EIGEN_CI_HEXAGON_ARCH: v73
-    EIGEN_CI_BUILDDIR: .build-hexagon-minimal
-    EIGEN_CI_CTEST_LABEL: "Official"
-    # Smoke test configuration - fast and minimal
-    EIGEN_CI_ENABLE_VALIDATION: "false"
-    EIGEN_CI_ENABLE_MONITORING: "false"
-    EIGEN_CI_TEST_TIMEOUT: "60"  # Quick timeout
-    EIGEN_CI_MAX_PARALLEL_TESTS: "2"
-    EIGEN_CI_CTEST_REGEX: "basicstuff|array_cwise"  # Only run basic tests
-  dependencies:
-    - build:linux:hexagon:minimal
-  needs:
-    - job: build:linux:hexagon:minimal
-      artifacts: true
-  script:
-    - cd ${EIGEN_CI_BUILDDIR:-.build}
-    # Use regex filter for smoke tests instead of labels
-    - ctest --output-on-failure --timeout ${EIGEN_CI_TEST_TIMEOUT} -j${EIGEN_CI_MAX_PARALLEL_TESTS} -R "${EIGEN_CI_CTEST_REGEX}"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "hexagon_toolchain"
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
-    - if: $CI_PIPELINE_SOURCE == "web"
-
-######## Test Result Aggregation ####################################
-
-# Test result aggregation job  
-aggregate:hexagon:test:results:
-  stage: test
-  image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
-  variables:
-    GIT_STRATEGY: none
-  script:
-    - mkdir -p aggregated-results
-    - find . -name "test-results.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
-    - find . -name "validation-summary.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
-    - find . -name "performance.json" -type f ! -path "./aggregated-results/*" -exec cp {} aggregated-results/ \; || true
-    - ls -la aggregated-results/ || true
-    - printf '{"timestamp":"%s","total_test_jobs":%d,"overall_status":"completed"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(ls aggregated-results/*.json 2>/dev/null | wc -l)" > aggregated-results/hexagon-test-summary.json
-  artifacts:
-    when: always
-    name: "hexagon-aggregated-results-${CI_COMMIT_SHORT_SHA}"
-    paths:
-      - aggregated-results/
-    expire_in: 14 days
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /hexagon-tests/
