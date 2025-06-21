@@ -349,7 +349,14 @@ build:linux:cross:loongarch64:gcc-14:default:
   before_script:
     - . ci/scripts/common.linux.alpine.before_script.sh
 
-.build:linux:alpine:clang-14:
+.build:linux:alpine:clang-14:ld:
+  extends: .build:linux:alpine
+  variables:
+    EIGEN_CI_INSTALL: g++ clang14 binutils
+    EIGEN_CI_C_COMPILER: clang
+    EIGEN_CI_CXX_COMPILER: clang++
+
+.build:linux:alpine:clang-14:lld:
   extends: .build:linux:alpine
   variables:
     EIGEN_CI_INSTALL: g++ clang14 lld
@@ -364,11 +371,19 @@ build:linux:cross:loongarch64:gcc-14:default:
     EIGEN_CI_INSTALL: g++ clang14 mold
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
-    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_JOB_POOLS:STRING='link=1' -DCMAKE_JOB_POOL_LINK:STRING=link -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
+    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
 
-# alpine 3.17 / Clang-14.0.6-r1
+# alpine 3.17 / Clang-14.0.6-r1 / ld
 build:linux:alpine:clang-14:smoketest:
-  extends: .build:linux:alpine:clang-14
+  extends: .build:linux:alpine:clang-14:ld
+  variables:
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# alpine 3.17 / Clang-14.0.6-r1 / lld
+build:linux:alpine:clang-14:smoketest:
+  extends: .build:linux:alpine:clang-14:lld
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
