@@ -457,48 +457,19 @@ test:linux:loongarch64:gcc-14:default:unsupported:
   tags:
     - saas-linux-small-amd64
 
-.test:linux:alpine:clang-14:
+.test:linux:alpine:gcc-12:
   extends: .test:linux:alpine
   variables:
     EIGEN_CI_INSTALL: ''
-    EIGEN_CI_C_COMPILER: clang
-    EIGEN_CI_CXX_COMPILER: clang++
-
-# ubuntu / Clang-12
-test:linux:x86-64:clang-12:default:smoketest:
-  extends: .test:linux:x86-64:clang-12:default
-  needs: [ build:linux:cross:x86-64:clang-12:default:smoketest ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: smoketest
-  tags:
-    - saas-linux-small-amd64
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    EIGEN_CI_C_COMPILER: gcc
+    EIGEN_CI_CXX_COMPILER: g++
 
 
 # alpine 3.17 / Clang-14.0.6-r1 / ld
-test:linux:alpine:clang-12:ld:smoketest:
-  extends: .test:linux:alpine:clang-14
-  needs: [ build:linux:alpine:clang-14:ld:smoketest ]
+test:linux:alpine:gcc-12:smoketest:
+  extends: .test:linux:alpine:gcc-12
+  needs: [ build:linux:alpine:gcc-12:smoketest ]
   variables:
     EIGEN_CI_CTEST_LABEL: smoketest
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  
-
-# alpine 3.17 / Clang-14.0.6-r1 / lld
-test:linux:alpine:clang-12:lld:smoketest:
-  extends: .test:linux:alpine:clang-14
-  needs: [ build:linux:alpine:clang-14:lld:smoketest ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  
-
-# alpine 3.17 / Clang-14.0.6-r1 / mold
-test:linux:alpine:clang-12:mold:smoketest:
-  extends: .test:linux:alpine:clang-14
-  needs: [ build:linux:alpine:clang-14:mold:smoketest ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"    
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"   
