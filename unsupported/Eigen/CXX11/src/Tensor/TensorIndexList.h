@@ -15,26 +15,6 @@
 
 namespace Eigen {
 
-/** \internal
- *
- * \class TensorIndexList
- * \ingroup CXX11_Tensor_Module
- *
- * \brief Set of classes used to encode a set of Tensor dimensions/indices.
- *
- * The indices in the list can be known at compile time or at runtime. A mix
- * of static and dynamic indices can also be provided if needed. The tensor
- * code will attempt to take advantage of the indices that are known at
- * compile time to optimize the code it generates.
- *
- * This functionality requires a c++11 compliant compiler. If your compiler
- * is older you need to use arrays of indices instead.
- *
- * Several examples are provided in the cxx11_tensor_index_list.cpp file.
- *
- * \sa Tensor
- */
-
 template <Index n>
 struct type2index {
   static constexpr Index value = n;
@@ -62,10 +42,10 @@ struct NumTraits<type2index<n>> {
   typedef Index Real;
   enum { IsComplex = 0, RequireInitialization = false, ReadCost = 1, AddCost = 1, MulCost = 1 };
 
-  EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR EIGEN_STRONG_INLINE Real epsilon() { return 0; }
-  EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR EIGEN_STRONG_INLINE Real dummy_precision() { return 0; }
-  EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR EIGEN_STRONG_INLINE Real highest() { return n; }
-  EIGEN_DEVICE_FUNC static EIGEN_CONSTEXPR EIGEN_STRONG_INLINE Real lowest() { return n; }
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Real epsilon() { return 0; }
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Real dummy_precision() { return 0; }
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Real highest() { return n; }
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Real lowest() { return n; }
 };
 
 namespace internal {
@@ -266,6 +246,25 @@ struct tuple_coeff<0, ValueT> {
   }
 };
 }  // namespace internal
+
+/** \internal
+ *
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Set of classes used to encode a set of Tensor dimensions/indices.
+ *
+ * The indices in the list can be known at compile time or at runtime. A mix
+ * of static and dynamic indices can also be provided if needed. The tensor
+ * code will attempt to take advantage of the indices that are known at
+ * compile time to optimize the code it generates.
+ *
+ * This functionality requires a c++11 compliant compiler. If your compiler
+ * is older you need to use arrays of indices instead.
+ *
+ * Several examples are provided in the cxx11_tensor_index_list.cpp file.
+ *
+ * \sa Tensor
+ */
 
 template <typename FirstType, typename... OtherTypes>
 struct IndexList : internal::IndexTuple<FirstType, OtherTypes...> {
@@ -570,47 +569,47 @@ struct index_pair_second_statically_eq_impl<const IndexPairList<FirstType, Other
 namespace Eigen {
 namespace internal {
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool index_known_statically(Index i) {
+static EIGEN_DEVICE_FUNC constexpr bool index_known_statically(Index i) {
   return index_known_statically_impl<T>::run(i);
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool all_indices_known_statically() {
+static EIGEN_DEVICE_FUNC constexpr bool all_indices_known_statically() {
   return all_indices_known_statically_impl<T>::run();
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool indices_statically_known_to_increase() {
+static EIGEN_DEVICE_FUNC constexpr bool indices_statically_known_to_increase() {
   return indices_statically_known_to_increase_impl<T>::run();
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool index_statically_eq(Index i, Index value) {
+static EIGEN_DEVICE_FUNC constexpr bool index_statically_eq(Index i, Index value) {
   return index_statically_eq_impl<T>::run(i, value);
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool index_statically_ne(Index i, Index value) {
+static EIGEN_DEVICE_FUNC constexpr bool index_statically_ne(Index i, Index value) {
   return index_statically_ne_impl<T>::run(i, value);
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool index_statically_gt(Index i, Index value) {
+static EIGEN_DEVICE_FUNC constexpr bool index_statically_gt(Index i, Index value) {
   return index_statically_gt_impl<T>::run(i, value);
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool index_statically_lt(Index i, Index value) {
+static EIGEN_DEVICE_FUNC constexpr bool index_statically_lt(Index i, Index value) {
   return index_statically_lt_impl<T>::run(i, value);
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool index_pair_first_statically_eq(Index i, Index value) {
+static EIGEN_DEVICE_FUNC constexpr bool index_pair_first_statically_eq(Index i, Index value) {
   return index_pair_first_statically_eq_impl<T>::run(i, value);
 }
 
 template <typename T>
-static EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bool index_pair_second_statically_eq(Index i, Index value) {
+static EIGEN_DEVICE_FUNC constexpr bool index_pair_second_statically_eq(Index i, Index value) {
   return index_pair_second_statically_eq_impl<T>::run(i, value);
 }
 

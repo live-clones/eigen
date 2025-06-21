@@ -40,7 +40,7 @@ struct nested<TensorScanOp<Op, XprType>, 1, typename eval<TensorScanOp<Op, XprTy
 };
 }  // end namespace internal
 
-/** \class TensorScan
+/**
  * \ingroup CXX11_Tensor_Module
  *
  * \brief Tensor scan class.
@@ -197,7 +197,7 @@ struct ScanLauncher {
 // threads. Currently set to twice the cache line size on Intel and ARM
 // processors.
 EIGEN_STRONG_INLINE Index AdjustBlockSize(Index item_size, Index block_size) {
-  EIGEN_CONSTEXPR Index kBlockAlignment = 128;
+  constexpr Index kBlockAlignment = 128;
   const Index items_per_cacheline = numext::maxi<Index>(1, kBlockAlignment / item_size);
   return items_per_cacheline * numext::div_ceil(block_size, items_per_cacheline);
 }

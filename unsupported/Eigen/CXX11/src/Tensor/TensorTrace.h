@@ -16,14 +16,6 @@
 
 namespace Eigen {
 
-/** \class TensorTrace
- * \ingroup CXX11_Tensor_Module
- *
- * \brief Tensor Trace class.
- *
- *
- */
-
 namespace internal {
 template <typename Dims, typename XprType>
 struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType> {
@@ -35,6 +27,10 @@ struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType> {
   typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
   static constexpr int Layout = XprTraits::Layout;
+  enum {
+    // Trace is read-only.
+    Flags = traits<XprType>::Flags & ~LvalueBit
+  };
 };
 
 template <typename Dims, typename XprType>
@@ -49,6 +45,11 @@ struct nested<TensorTraceOp<Dims, XprType>, 1, typename eval<TensorTraceOp<Dims,
 
 }  // end namespace internal
 
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor Trace class.
+ */
 template <typename Dims, typename XprType>
 class TensorTraceOp : public TensorBase<TensorTraceOp<Dims, XprType> > {
  public:
@@ -205,6 +206,8 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
     m_impl.evalSubExprsIfNeeded(NULL);
     return true;
   }
+
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
 

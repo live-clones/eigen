@@ -49,8 +49,8 @@ static void test_simple_rvalue_ref() {
   Tensor<int, 1> input2(6);
   input2.setRandom();
 
-  TensorRef<Tensor<int, 1>> ref3(input1 + input2);
-  TensorRef<Tensor<int, 1>> ref4 = input1 + input2;
+  TensorRef<const Tensor<int, 1>> ref3(input1 + input2);
+  TensorRef<const Tensor<int, 1>> ref4 = input1 + input2;
 
   VERIFY_IS_NOT_EQUAL(ref3.data(), input1.data());
   VERIFY_IS_NOT_EQUAL(ref4.data(), input1.data());
@@ -108,6 +108,17 @@ static void test_slice() {
   VERIFY_IS_EQUAL(slice.data(), tensor.data());
 }
 
+static void test_ref_of_trace() {
+  Tensor<int, 2> input(6, 6);
+  input.setRandom();
+  int trace = 0;
+  for (int i = 0; i < 6; ++i) {
+    trace += input(i, i);
+  }
+  TensorRef<const Tensor<int, 0>> ref(input.trace());
+  VERIFY_IS_EQUAL(ref.coeff(0), trace);
+}
+
 static void test_ref_of_ref() {
   Tensor<float, 3> input(3, 5, 7);
   input.setRandom();
@@ -144,7 +155,7 @@ static void test_ref_in_expr() {
 
   Tensor<float, 3> result(3, 5, 7);
   result.setRandom();
-  TensorRef<Tensor<float, 3>> result_ref(result);
+  TensorRef<const Tensor<float, 3>> result_ref(result);
 
   Tensor<float, 3> bias(3, 5, 7);
   bias.setRandom();
@@ -192,7 +203,7 @@ static void test_nested_ops_with_ref() {
   paddings[2] = std::make_pair(3, 4);
   paddings[3] = std::make_pair(0, 0);
   DSizes<Eigen::DenseIndex, 4> shuffle_dims(0, 1, 2, 3);
-  TensorRef<Tensor<const float, 4>> ref(m.pad(paddings));
+  TensorRef<const Tensor<const float, 4>> ref(m.pad(paddings));
   array<std::pair<ptrdiff_t, ptrdiff_t>, 4> trivial;
   trivial[0] = std::make_pair(0, 0);
   trivial[1] = std::make_pair(0, 0);
@@ -224,6 +235,7 @@ EIGEN_DECLARE_TEST(cxx11_tensor_ref) {
   CALL_SUBTEST(test_simple_rvalue_ref());
   CALL_SUBTEST(test_multiple_dims());
   CALL_SUBTEST(test_slice());
+  CALL_SUBTEST(test_ref_of_trace());
   CALL_SUBTEST(test_ref_of_ref());
   CALL_SUBTEST(test_ref_in_expr());
   CALL_SUBTEST(test_coeff_ref());
