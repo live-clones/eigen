@@ -358,7 +358,7 @@ build:linux:cross:loongarch64:gcc-14:default:
 
 # alpine 3.17 / g++
 build:linux:alpine:gcc-12:smoketest:
-  extends: .build:linux:alpine
+  extends: .build:linux:alpine:gcc-12
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
