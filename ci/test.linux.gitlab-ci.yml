@@ -467,7 +467,7 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 # alpine 3.17 / Clang-14.0.6-r1 / mold
 test:linux:alpine:clang-12:smoketest:
   extends: .test:linux:alpine:clang-14
-  needs: [ build:linux:alpine:clang-12:smoketest ]
+  needs: [ build:linux:alpine:clang-14:mold:smoketest ]
   variables:
     EIGEN_CI_CTEST_LABEL: smoketest
   rules:
