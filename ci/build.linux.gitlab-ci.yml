@@ -339,7 +339,7 @@ build:linux:cross:loongarch64:gcc-14:default:
 ######## MR Smoke Tests ########################################################
 
 # debian-slim clang
-build:linux:x86-64:debian-slim:
+.build:linux:x86-64:debian-slim:
   extends: .build:linux:cross
   image: debian:bookworm-slim
   variables:

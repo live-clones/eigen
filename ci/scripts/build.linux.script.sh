@@ -23,7 +23,7 @@ fi
 # out of resources.  In that case, keep trying to build the remaining
 # targets (k0), then try to build again with a single thread (j1) to minimize
 # resource use.
-cmake --build . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
+cmake --build --verbose . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
 
 # Return to root directory.
 cd ${rootdir}
