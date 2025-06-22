@@ -356,14 +356,14 @@ build:linux:cross:loongarch64:gcc-14:default:
 
 # debian-slim clang with lld
 build:linux:x86-64:debian-slim-lld:
-  extends: build:linux:x86-64:debian-slim
+  extends: .build:linux:x86-64:debian-slim
   variables:
     EIGEN_CI_INSTALL: clang lld
     EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
 
 # debian-slim clang with mold
 build:linux:x86-64:debian-slim-mold:
-  extends: build:linux:x86-64:debian-slim
+  extends: .build:linux:x86-64:debian-slim
   variables:
     EIGEN_CI_INSTALL: clang mold
     EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
