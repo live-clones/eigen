@@ -445,28 +445,8 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 
 ##### MR Smoke Tests ###########################################################
 
-
-.test:linux:alpine:
-  extends: .test:linux
-  image: alpine:3.17
-  variables:
-    EIGEN_CI_PACKAGES: cmake libxslt
-  before_script:
-    - . ci/scripts/common.linux.alpine.before_script.sh
-  after_script:
-    - . ci/scripts/test.linux.alpine.after_script.sh
-  tags:
-    - saas-linux-xlarge-amd64
-
-.test:linux:alpine:clang-14:
-  extends: .test:linux:alpine
-  variables:
-    EIGEN_CI_INSTALL: ''
-    EIGEN_CI_C_COMPILER: clang
-    EIGEN_CI_CXX_COMPILER: clang++
-
 # ubuntu / Clang-12
-test:linux:x86-64:clang-12:default:smoketest:
+.test:linux:x86-64:clang-12:default:smoketest:
   extends: .test:linux:x86-64:clang-12:default
   needs: [ build:linux:cross:x86-64:clang-12:default:smoketest ]
   variables:
@@ -476,30 +456,9 @@ test:linux:x86-64:clang-12:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
+# debian-slim / Clang-12
+test:linux:x86-64:debian-slim:
+  extends: .test:linux:x86-64:clang-12:default:smoketest
+  needs: [ build:linux:x86-64:debian-slim ]
+  image: bookworm-slim
 
-# alpine 3.17 / Clang-14.0.6-r1 / ld
-test:linux:alpine:clang-12:ld:smoketest:
-  extends: .test:linux:alpine:clang-14
-  needs: [ build:linux:alpine:clang-14:ld:smoketest ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  
-
-# alpine 3.17 / Clang-14.0.6-r1 / lld
-test:linux:alpine:clang-12:lld:smoketest:
-  extends: .test:linux:alpine:clang-14
-  needs: [ build:linux:alpine:clang-14:lld:smoketest ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  
-
-# alpine 3.17 / Clang-14.0.6-r1 / mold
-test:linux:alpine:clang-12:mold:smoketest:
-  extends: .test:linux:alpine:clang-14
-  needs: [ build:linux:alpine:clang-14:mold:smoketest ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: smoketest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  
