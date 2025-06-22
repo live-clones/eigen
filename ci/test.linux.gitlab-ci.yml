@@ -461,5 +461,6 @@ test:linux:x86-64:debian-slim:
   extends: .test:linux:x86-64:clang-12:default:smoketest
   needs: [ build:linux:x86-64:debian-slim ]
   image: bookworm-slim
-  EIGEN_CI_INSTALL: clang
+  variables:
+    EIGEN_CI_INSTALL: clang
 
