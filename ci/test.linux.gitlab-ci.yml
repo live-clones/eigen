@@ -445,22 +445,18 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 
 ##### MR Smoke Tests ###########################################################
 
-# ubuntu / Clang-12
-.test:linux:x86-64:clang-12:default:smoketest:
-  extends: .test:linux:x86-64:clang-12:default
-  needs: [ build:linux:cross:x86-64:clang-12:default:smoketest ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: smoketest
-  tags:
-    - saas-linux-xlarge-amd64
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
 # debian-slim / Clang-12
-test:linux:x86-64:debian-slim:
-  extends: .test:linux:x86-64:clang-12:default:smoketest
+.test:linux:x86-64:debian-slim:
+  extends: .test:linux
   needs: [ build:linux:x86-64:debian-slim ]
   image: bookworm-slim
   variables:
+    EIGEN_CI_TARGET_ARCH: x86_64
     EIGEN_CI_INSTALL: clang
+    EIGEN_CI_CTEST_LABEL: smoketest
+  tags:
+# use the small runner for tests
+    - saas-linux-small-amd64
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
