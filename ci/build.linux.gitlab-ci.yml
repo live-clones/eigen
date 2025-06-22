@@ -351,4 +351,4 @@ build:linux:cross:loongarch64:gcc-14:default:
 # debian-slim / Clang-12
 build:linux:x86-64:debian-slim:
   extends: .build:linux:cross:x86-64:clang-12:default:smoketest
-  image: bookworm-slim
+  image: 12-slim
