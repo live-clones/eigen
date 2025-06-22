@@ -348,7 +348,10 @@ build:linux:cross:loongarch64:gcc-14:default:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# debian-slim / Clang-12
+# debian-slim
 build:linux:x86-64:debian-slim:
   extends: .build:linux:cross:x86-64:clang-12:default:smoketest
   image: debian:bookworm-slim
+    EIGEN_CI_INSTALL: clang
+    EIGEN_CI_C_COMPILER: clang
+    EIGEN_CI_CXX_COMPILER: clang++
