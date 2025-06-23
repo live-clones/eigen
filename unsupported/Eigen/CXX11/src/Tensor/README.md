@@ -933,13 +933,93 @@ cubic roots of an int Tensor:
 Multiplies all the coefficients of the input tensor by the provided scale.
 
 ### (Operation)  cwiseMax(Scalar threshold)
-TODO
+Returns the coefficient-wise maximum between two tensors.
+
+    Eigen::Tensor<int, 2> a(2, 3);
+    a.setValues({{0, 100, 200}, {300, 400, 500}});
+
+    Eigen::Tensor<int, 2> b(2, 3);
+    b.setValues({{-1, -2, 300}, {-4, 555, -6}});
+
+    Eigen::Tensor<int, 2> c = a.cwiseMax(b);
+
+    cout << "a\n" << a << "\n"
+         << "b\n" << b << "\n"
+         << "c\n" << c << "\n"
+    =>
+    a
+      0 100 200
+    300 400 500
+    b
+    -1  -2 300
+    -4 555  -6
+    c
+      0 100 300
+    300 555 500
 
 ### (Operation)  cwiseMin(Scalar threshold)
-TODO
+Returns the coefficient-wise minimum between two tensors.
 
+    Eigen::Tensor<int, 2> a(2, 2);
+    a.setValues({{0, 100}, {300, -900}});
+
+    Eigen::Tensor<int, 2> b(2, 2);
+    b.setValues({{-1, -2}, {400, 555}});
+
+    Eigen::Tensor<int, 2> c = a.cwiseMin(b);
+
+    cout << "a\n" << a << "\n"
+         << "b\n" << b << "\n"
+         << "c\n" << c << "\n";
+    =>
+    a
+      0  100
+    300 -900
+    b
+     -1  -2
+    400 555
+    c
+     -1   -2
+    300 -900
 ### (Operation)  unaryExpr(const CustomUnaryOp& func)
-TODO
+Applies a user defined function to each element in the tensor.
+Supports lambdas or functor structs with an operator().
+
+Using lambda:
+    Eigen::Tensor<float, 2> a(2, 3);
+    a.setValues({{0, -.5, -1}, {.5, 1.5, 2.0}});
+    auto my_func = [](float el){ return std::abs(el + 0.5f);};
+    Eigen::Tensor<float, 2> b = a.unaryExpr(my_func);
+    cout << "a\n" << a << "\n"
+         << "b\n" << b << "\n";
+    =>
+    a
+      0  -0.5   -1
+    0.5   1.5    2
+    b
+    0.5     0  0.5
+      1     2  2.5
+
+Using a functor to normalize and clamp values to [-1.0, 1.0]:
+
+    template<typename Scalar>
+    struct NormalizedClamp {
+    NormalizedClamp(Scalar lo, Scalar hi) : _lo(lo), _hi(hi) {}
+    Scalar operator()(Scalar x) const {
+        if (x < _lo) return Scalar(0);
+        if (x > _hi) return Scalar(1);
+        return (x - _lo) / (_hi - _lo);
+    }
+    Scalar _lo, _hi;
+    };
+
+    Eigen::Tensor<float, 2> c = a.unaryExpr(NormalizedClamp<float>(-1.0f, 1.0f));
+    cout << "c\n" << c << "\n";
+    =>
+    c
+    0.5    0.25    0
+    0.75   1       1
+
 
 
 ## Binary Element Wise Operations
@@ -984,7 +1064,7 @@ containing the coefficient wise mimimums of the inputs.
 
 ### (Operation) Logical operators
 
-The following logical operators are supported as well:
+The following boolean operators are supported:
 
  * `operator&&(const OtherDerived& other)`
  * `operator||(const OtherDerived& other)`
@@ -994,9 +1074,14 @@ The following logical operators are supported as well:
  * `operator>=(const OtherDerived& other)`
  * `operator==(const OtherDerived& other)`
  * `operator!=(const OtherDerived& other)`
+ 
+ as well as bitwise operators:
 
-They all return a tensor of boolean values.
+ * `operator&(const OtherDerived& other)` 
+ * `operator|(const OtherDerived& other)`
+ * `operator^(const OtherDerived& other)`
 
+The resulting tensor retains the input scalar type.
 
 ## Selection (select(const ThenDerived& thenTensor, const ElseDerived& elseTensor)
 
@@ -1125,6 +1210,7 @@ As a special case, if you pass no parameter to a reduction operation the
 original tensor is reduced along *all* its dimensions.  The result is a
 scalar, represented as a zero-dimension tensor.
 
+
     Eigen::Tensor<float, 3> a(2, 3, 4);
     a.setValues({{{0.0f, 1.0f, 2.0f, 3.0f},
                   {7.0f, 6.0f, 5.0f, 4.0f},
@@ -1138,6 +1224,10 @@ scalar, represented as a zero-dimension tensor.
     =>
     b
     276
+
+You can extract the scalar directly by casting the expression and extract the first and only coefficient:
+
+    float sum = static_cast<Eigen::Tensor<float, 0>>(a.sum())(0);
 
 
 ### (Operation) sum(const Dimensions& new_dims)
@@ -1251,7 +1341,7 @@ If the reduction operation corresponds to summation, then this computes the
 prefix sum of the tensor along the given axis.
 
 Example:
-dd a comment to this line
+Cumulative sum along the second dimension
 
     // Create a tensor of 2 dimensions
     Eigen::Tensor<int, 2> a(2, 3);
@@ -1601,9 +1691,59 @@ made in each of the dimensions.
        0   100   200    0   100   200
      300   400   500  300   400   500
 
+Note: Broadcasting does not increase rank.
+To broadcast into higher dimensions, you must first reshape the tensor with singleton (1) dimensions:
+
+    Eigen::Tensor<int, 2> a(2, 3);
+    a.setValues({{0, 100, 200}, {300, 400, 500}});
+    
+    Eigen::array<Eigen::Index, 3> new_shape = {1, 2, 3}; //Reshape to [1, 2, 3]
+    Eigen::array<int, 3> bcast = {4, 1, 1}; // Broadcast to [4, 2, 3]
+    Eigen::Tensor<int, 3> b = a.reshape(new_shape).broadcast(bcast);
+
+    std::cout << "b dimensions: " << b.dimensions() << "\n";
+    std::cout << b << "\n";
+
 ### (Operation) concatenate(const OtherDerived& other, Axis axis)
 
-TODO
+Returns a view of two tensors joined along a specified axis.
+The dimensions of the two tensors must match on all axes except the concatenation axis.
+The resulting tensor has the same rank as the inputs.
+
+    Eigen::Tensor<int, 2> a(2, 3);
+    a.setValues({{0, 100, 200}, {300, 400, 500}});
+
+    Eigen::Tensor<int, 2> b(2, 3);
+    b.setValues({{-1, -2, -3}, {-4, -5, -6}});
+
+    // Concatenate along dimension 0: resulting shape is [4, 3]
+    Eigen::Tensor<int, 2> c = a.concatenate(b, 0);
+
+    // Concatenate along dimension 1: resulting shape is [2, 6]
+    Eigen::Tensor<int, 2> d = a.concatenate(b, 1);
+
+    std::cout << "a\n" << a << "\n"
+              << "b\n" << b << "\n"
+              << "c (concatenated along dim 0)\n" << c << "\n"
+              << "d (concatenated along dim 1)\n" << d << "\n";
+    =>
+    a
+      0 100 200
+    300 400 500
+    b
+    -1 -2 -3
+    -4 -5 -6
+    c (concatenated along dim 0)
+      0 100 200
+    300 400 500
+     -1  -2  -3
+     -4  -5  -6
+    d (concatenated along dim 1)
+      0 100 200  -1  -2  -3
+    300 400 500  -4  -5  -6
+
+
+       
 
 ### (Operation)  pad(const PaddingDimensions& padding)
 
