@@ -1590,7 +1590,10 @@ ceil(input_dimensions[i] / strides[i]).
 For example this is what happens when you `stride()` a 2D tensor:
 
     Eigen::Tensor<int, 2> a(4, 3);
-    a.setValues({{0, 100, 200}, {300, 400, 500}, {600, 700, 800}, {900, 1000, 1100}});
+    a.setValues({{0, 100, 200},
+                 {300, 400, 500},
+                 {600, 700, 800},
+                 {900, 1000, 1100}});
     Eigen::array<Eigen::DenseIndex, 2> strides({3, 2});
     Eigen::Tensor<int, 2> b = a.stride(strides);
     std::cout << "b" << endl << b << endl;
@@ -1600,11 +1603,12 @@ For example this is what happens when you `stride()` a 2D tensor:
      900  1100
 
 It is possible to assign a tensor to a stride:
+```cpp
     Tensor<float, 3> input(20, 30, 50);
     // ... set some values in input.
     Tensor<float, 3> output(40, 90, 200);
     output.stride({2, 3, 4}) = input;
-
+```
 
 ### (Operation) slice(const StartIndices& offsets, const Sizes& extents)
 
