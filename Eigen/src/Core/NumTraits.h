@@ -101,10 +101,8 @@ namespace numext {
 #if EIGEN_HAS_BUILTIN(__builtin_bit_cast)
 template <typename Tgt, typename Src>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Tgt bit_cast(const Src& src) {
-  EIGEN_STATIC_ASSERT(std::is_trivially_copyable<Src>::value,
-                      THIS_TYPE_IS_NOT_SUPPORTED)
-  EIGEN_STATIC_ASSERT(std::is_trivially_copyable<Tgt>::value,
-                      THIS_TYPE_IS_NOT_SUPPORTED)
+  EIGEN_STATIC_ASSERT(std::is_trivially_copyable<Src>::value, THIS_TYPE_IS_NOT_SUPPORTED)
+  EIGEN_STATIC_ASSERT(std::is_trivially_copyable<Tgt>::value, THIS_TYPE_IS_NOT_SUPPORTED)
   EIGEN_STATIC_ASSERT(sizeof(Src) == sizeof(Tgt), THIS_TYPE_IS_NOT_SUPPORTED)
   return __builtin_bit_cast(Tgt, src);
 }
