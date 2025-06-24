@@ -1768,6 +1768,41 @@ of a 2D tensor:
        0   100   200
 
 
+### (Operation) roll(const Rolls& shifts)
+
+Returns a tensor with the elements **circularly shifted** (like bit rotation) along one or more dimensions.  
+
+For each dimension `i`, the content is shifted by `shifts[i]` positions:
+
+- A **positive shift** of `+s` moves each value to a **lower index** by `s`.
+- A **negative shift** of `-s` moves each value to a **higher index** by `s`.
+
+```cpp
+Eigen::Tensor<int, 2> a(3, 4);
+a.setValues({{ 1,  2,  3,  4},
+             { 5,  6,  7,  8},
+             { 9, 10, 11, 12}});
+
+Eigen::array<Eigen::Index, 2> shifts = {1, -2};
+
+Eigen::Tensor<int, 2> rolled = a.roll(shifts);
+
+std::cout << "a\n" << a << "\n";
+std::cout << "rolled\n" << rolled << "\n";
+```
+
+=>
+
+    a
+    1  2  3  4
+    5  6  7  8
+    9 10 11 12
+    
+    rolled
+    7  8  5  6
+    11 12  9 10
+    3  4  1  2
+
 ### (Operation) broadcast(const Broadcast& broadcast)
 
 Returns a view of the input tensor in which the input is replicated one to many
