@@ -92,7 +92,7 @@ TensorMap<Tensor<float, 1>> t_12(t_4x3.data(), 12);
 
 #### Class TensorRef
 
-See [Assigning to a Tensor, TensorFixedSize, or TensorMap.](#assigning-to-a-tensor-tensorfixedsize-or-tensormap)
+See [Assigning to a TensorRef.](#assigning-to-a-tensorref)
 
 ## Accessing Tensor Elements
 
@@ -186,7 +186,7 @@ expression instead constructs a "tensor operator" object of the class
 `t1` and `t2`.  This is a small C++ object that knows how to add
 `t1` and `t2`.  It is only when the value of the expression is assigned
 to the tensor `t3` that the addition is actually performed.  Technically,
-this happens through the overloading of `operator=()` in the Tensor class.
+this happens through the overloading of `operator=` in the Tensor class.
 
 This mechanism for computing tensor expressions allows for lazy evaluation and
 optimizations which are what make the tensor library very fast.
