@@ -1877,6 +1877,34 @@ std::cout << "b\n" << b << "\n";
 //     0     0     0
 ```
 
+
+The dimension can also be passed as a template parameter:
+
+```cpp
+b.chip<0>(1) = a;  // Equivalent to b.chip(0, 1) = a;
+```
+
+Note that only one dimension can be chipped at a time.
+To chip off multiple dimensions, you can chain calls
+
+```cpp
+Eigen::Tensor<int, 3> a(2, 3, 4);
+Eigen::Tensor<int, 1> b = b.chip<2>(0) // Now has shape [2,3]
+                           .chip<1>(0); // Now has shape [2]
+```
+
+Be careful in which order you chip, as each operation affects the shape of the intermediate result.
+For example:
+
+```cpp
+// AVOID THIS
+Eigen::Tensor<int, 1> c = b.chip<1>(0) // Now has shape [2,4]
+                           .chip<1>(0); // Now has shape [2]
+```
+
+In general, it’s more intuitive to chip from the outermost dimension first.
+
+
 ### (Operation) reverse(const ReverseDimensions& reverse)
 
 Returns a view of the input tensor that reverses the order of the coefficients
