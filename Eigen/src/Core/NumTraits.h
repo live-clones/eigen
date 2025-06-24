@@ -98,6 +98,17 @@ namespace numext {
 /** \internal bit-wise cast without changing the underlying bit representation. */
 
 // TODO: Replace by std::bit_cast (available in C++20)
+#if EIGEN_HAS_BUILTIN(__builtin_bit_cast)
+template <typename Tgt, typename Src>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr Tgt bit_cast(const Src& src) {
+  EIGEN_STATIC_ASSERT(std::is_trivially_copyable<Src>::value,
+                      THIS_TYPE_IS_NOT_SUPPORTED)
+  EIGEN_STATIC_ASSERT(std::is_trivially_copyable<Tgt>::value,
+                      THIS_TYPE_IS_NOT_SUPPORTED)
+  EIGEN_STATIC_ASSERT(sizeof(Src) == sizeof(Tgt), THIS_TYPE_IS_NOT_SUPPORTED)
+  return __builtin_bit_cast(Tgt, src);
+}
+#else
 template <typename Tgt, typename Src>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Tgt bit_cast(const Src& src) {
   // The behaviour of memcpy is not specified for non-trivially copyable types
@@ -113,6 +124,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Tgt bit_cast(const Src& src) {
   memcpy(static_cast<void*>(&tgt), static_cast<const void*>(&staged), sizeof(Tgt));
   return tgt;
 }
+#endif
 }  // namespace numext
 
 // clang-format off
