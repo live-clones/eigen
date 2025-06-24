@@ -1273,7 +1273,51 @@ whether any element is true.  Runs through all elements rather than
 short-circuiting, so may be significantly inefficient.
 
 
-### (Operation) reduce(const Dimensions& new_dims, const Reducer& reducer)
+### (Operation) argmax(const Dimensions& reduction_dim)
+### (Operation) argmax()
+
+Reduce a tensor using the `argmax()` operator.
+
+The resulting values are the indices of the largest elements along the specified dimension.
+
+Only a single `reduction_dim` is supported.
+
+If multiple elements share the maximum value, the one with the **lowest index** is returned.
+
+```cpp
+Eigen::Tensor<float, 2> a(2, 3);
+a.setValues({{1, 4, 8}, {3, 4, 2}});
+
+Eigen::Tensor<Eigen::Index, 1> argmax_dim0 = a.argmax(0);
+
+std::cout << "a:\n" << a << "\n";
+for (int i = 0; i < argmax_dim0.size(); ++i) {
+    std::cout << "argmax along dim 0 at index " << i << " = " << argmax_dim0(i) << "\n";
+}
+
+// Output
+// a:
+// 1 4 8
+// 3 4 2
+// argmax along dim 0 at index 0 = 1
+// argmax along dim 0 at index 1 = 0
+// argmax along dim 0 at index 2 = 0
+
+```
+ To compute the index of the global maximum, use the overload without arguments (which flattens the tensor).
+
+```cpp
+Eigen::Tensor<Eigen::Index, 0> argmax_flat = a.argmax();
+std::cout << "Flat argmax index: " << argmax_flat();
+
+// Output
+// Flat argmax index: 4
+```
+
+### (Operation) argmin(const Dimensions& reduction_dim)
+### (Operation) argmin()
+See [argmax](#operation-argmaxconst-dimensions-reduction_dim)
+
 
 Reduce a tensor using a user-defined reduction operator.  See `SumReducer`
 in TensorFunctors.h for information on how to implement a reduction operator.
