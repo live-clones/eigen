@@ -1230,45 +1230,45 @@ You can extract the scalar directly by casting the expression and extract the fi
     float sum = static_cast<Eigen::Tensor<float, 0>>(a.sum())();
 
 
-### (Operation) sum(const Dimensions& new_dims)
+### (Operation) sum(const Dimensions& reduction_dims)
 ### (Operation) sum()
 
-Reduce a tensor using the sum() operator.  The resulting values
+Reduce a tensor using the `sum()` operator.  The resulting values
 are the sum of the reduced values.
 
-### (Operation) mean(const Dimensions& new_dims)
+### (Operation) mean(const Dimensions& reduction_dims)
 ### (Operation) mean()
 
-Reduce a tensor using the mean() operator.  The resulting values
+Reduce a tensor using the `mean()` operator.  The resulting values
 are the mean of the reduced values.
 
-### (Operation) maximum(const Dimensions& new_dims)
+### (Operation) maximum(const Dimensions& reduction_dims)
 ### (Operation) maximum()
 
-Reduce a tensor using the maximum() operator.  The resulting values are the
+Reduce a tensor using the `maximum()` operator.  The resulting values are the
 largest of the reduced values.
 
-### (Operation) minimum(const Dimensions& new_dims)
+### (Operation) minimum(const Dimensions& reduction_dims)
 ### (Operation) minimum()
 
-Reduce a tensor using the minimum() operator.  The resulting values
+Reduce a tensor using the `minimum()` operator.  The resulting values
 are the smallest of the reduced values.
 
-### (Operation) prod(const Dimensions& new_dims)
+### (Operation) prod(const Dimensions& reduction_dims)
 ### (Operation) prod()
 
-Reduce a tensor using the prod() operator.  The resulting values
+Reduce a tensor using the `prod()` operator.  The resulting values
 are the product of the reduced values.
 
-### (Operation) all(const Dimensions& new_dims)
+### (Operation) all(const Dimensions& reduction_dims)
 ### (Operation) all()
-Reduce a tensor using the all() operator.  Casts tensor to bool and then checks
+Reduce a tensor using the `all()` operator.  Casts tensor to bool and then checks
 whether all elements are true.  Runs through all elements rather than
 short-circuiting, so may be significantly inefficient.
 
-### (Operation) any(const Dimensions& new_dims)
+### (Operation) any(const Dimensions& reduction_dims)
 ### (Operation) any()
-Reduce a tensor using the any() operator.  Casts tensor to bool and then checks
+Reduce a tensor using the `any()` operator.  Casts tensor to bool and then checks
 whether any element is true.  Runs through all elements rather than
 short-circuiting, so may be significantly inefficient.
 
@@ -1302,9 +1302,10 @@ for (int i = 0; i < argmax_dim0.size(); ++i) {
 // argmax along dim 0 at index 0 = 1
 // argmax along dim 0 at index 1 = 0
 // argmax along dim 0 at index 2 = 0
-
 ```
+
  To compute the index of the global maximum, use the overload without arguments (which flattens the tensor).
+
 
 ```cpp
 Eigen::Tensor<Eigen::Index, 0> argmax_flat = a.argmax();
@@ -1318,6 +1319,7 @@ std::cout << "Flat argmax index: " << argmax_flat();
 ### (Operation) argmin()
 See [argmax](#operation-argmaxconst-dimensions-reduction_dim)
 
+### (Operation) reduce(const Dimensions& reduction_dims, const Reducer& reducer)
 
 Reduce a tensor using a user-defined reduction operator.  See `SumReducer`
 in TensorFunctors.h for information on how to implement a reduction operator.
