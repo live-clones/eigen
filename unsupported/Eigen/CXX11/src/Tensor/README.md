@@ -1691,7 +1691,7 @@ the reshape view of b.
 Returns a copy of the input tensor whose dimensions have been
 reordered according to the specified permutation.
 
-The argument shuffle is an array of `Index` values:
+The argument `shuffle` is an array of `Index` values:
 * Its size is the rank of the input tensor.
 * It must contain a permutation of `[0, 1, ..., rank - 1]`.
 * The `i`-th dimension of the output tensor corresponds to the size of the dimension at position `shuffle[i]` in the input tensor. For example:
