@@ -824,7 +824,7 @@ wrapped in a TensorRef.
 
 Returns a pointer to the storage for the tensor.  The pointer is const if the
 tensor was const.  This allows direct access to the data.  The layout of the
-data depends on the tensor layout: RowMajor or ColMajor.
+data depends on the tensor layout: `RowMajor` or `ColMajor`.
 
 This access is usually only needed for special cases, for example when mixing
 Eigen Tensor code with other libraries.
@@ -1555,7 +1555,7 @@ which were part of the convolution will be reduced by the formula:
 output_dim_size = input_dim_size - kernel_dim_size + 1 (requires: input_dim_size >= kernel_dim_size).
 The dimension sizes for dimensions that were not part of the convolution will remain the same.
 Performance of the convolution can depend on the length of the stride(s) of the input tensor dimension(s) along which the
-convolution is computed (the first dimension has the shortest stride for ColMajor, whereas RowMajor's shortest stride is
+convolution is computed (the first dimension has the shortest stride for `ColMajor`, whereas `RowMajor`'s shortest stride is
 for the last dimension).
 
 ```cpp
@@ -1615,7 +1615,7 @@ Tensor<float, 1> result = input.reshape(one_dim);
 This operation does not move any data in the input tensor, so the resulting
 contents of a reshaped Tensor depend on the data layout of the original Tensor.
 
-For example this is what happens when you `reshape()` a 2D ColMajor tensor
+For example this is what happens when you `reshape()` a 2D `ColMajor` tensor
 to one dimension:
 
 ```cpp
@@ -1634,7 +1634,7 @@ std::cout << "b" << endl << b << endl;
 // 500
 ```
 
-This is what happens when the 2D Tensor is RowMajor:
+This is what happens when the 2D Tensor is `RowMajor`:
 
 ```cpp
 Eigen::Tensor<float, 2, Eigen::RowMajor> a(2, 3);
@@ -2052,7 +2052,7 @@ Returns a tensor of coefficient patches extracted from the input tensor, where
 each patch is of dimension specified by 'patch_dims'. The returned tensor has
 one greater dimension than the input tensor, which is used to index each patch.
 The patch index in the output tensor depends on the data layout of the input
-tensor: the patch index is the last dimension ColMajor layout, and the first
+tensor: the patch index is the last dimension `ColMajor` layout, and the first
 dimension in RowMajor layout.
 
 For example, given the following input tensor:
@@ -2094,7 +2094,7 @@ for (int k = 0; k < 6; ++k) {
 }
 ```
 
-This code results in the following output when the data layout is ColMajor:
+This code results in the following output when the data layout is `ColMajor`:
 
     patch index: 0
     0 1
@@ -2117,7 +2117,7 @@ This code results in the following output when the data layout is ColMajor:
 
 This code results in the following output when the data layout is RowMajor:
 
-**NOTE**: the set of patches is the same as in ColMajor, but are indexed differently
+**NOTE**: the set of patches is the same as in `ColMajor`, but are indexed differently
 
     patch index: 0
     0 1
@@ -2144,13 +2144,13 @@ Returns a tensor of coefficient image patches extracted from the input tensor,
 which is expected to have dimensions ordered as follows (depending on the data
 layout of the input tensor, and the number of additional dimensions 'N'):
 
-*) ColMajor
+*) `ColMajor`
 1st dimension: channels (of size d)
 2nd dimension: rows (of size r)
 3rd dimension: columns (of size c)
 4th-Nth dimension: time (for video) or batch (for bulk processing).
 
-*) RowMajor (reverse order of ColMajor)
+*) `RowMajor` (reverse order of `ColMajor`)
 1st-Nth dimension: time (for video) or batch (for bulk processing).
 N+1'th dimension: columns (of size c)
 N+2'th dimension: rows (of size r)
@@ -2159,7 +2159,7 @@ N+3'th dimension: channels (of size d)
 The returned tensor has one greater dimension than the input tensor, which is
 used to index each patch. The patch index in the output tensor depends on the
 data layout of the input tensor: the patch index is the 4'th dimension in
-ColMajor layout, and the 4'th from the last dimension in RowMajor layout.
+`ColMajor` layout, and the 4'th from the last dimension in `RowMajor` layout.
 
 For example, given the following input tensor with the following dimension
 sizes:
@@ -2175,7 +2175,7 @@ Tensor<float, 4, RowMajor> tensor_row_major = tensor.swap_layout();
 
 2x2 image patches can be extracted and indexed using the following code:
 
-*) 2D patch: ColMajor (patch indexed by second-to-last dimension)
+*) 2D patch: `ColMajor` (patch indexed by second-to-last dimension)
 
 ```cpp
 Tensor<float, 5> twod_patch;
@@ -2187,7 +2187,7 @@ twod_patch = tensor.extract_image_patches<2, 2>();
 // twod_patch.dimension(4) == 7
 ```
 
-*) 2D patch: RowMajor (patch indexed by the second dimension)
+*) 2D patch: `RowMajor` (patch indexed by the second dimension)
 
 ```cpp
 Tensor<float, 5, RowMajor> twod_patch_row_major;
