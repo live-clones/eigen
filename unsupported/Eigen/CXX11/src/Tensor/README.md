@@ -119,7 +119,7 @@ for (int i = 0; i < 2; ++i) {
 
 // Print elements of a tensor.
 for (int i = 0; i < 2; ++i) {
-  LOG(INFO) << t_3d(i, 0, 0);
+  std::cout << t_3d(i, 0, 0);
 }
 ```
 
