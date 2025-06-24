@@ -928,9 +928,43 @@ cubic roots of an int Tensor:
     0 1 2
     3 4 5
 
-### (Operation)  operator * (Scalar scale)
+### (Operation)  operator* (Scalar s)
 
-Multiplies all the coefficients of the input tensor by the provided scale.
+Multiplies every element of the input tensor by the scalar `s`:
+```cpp
+    Eigen::Tensor<int, 2> a(2, 3);
+    a.setValues({{1, 2, 3},
+                 {4, 5, 6}});
+    Eigen::Tensor<int,2> scaled_a = a * 2;
+
+    std::cout << "a\n" << a << "\n";
+    std::cout << "scaled_a\n" << scaled_a << "\n";
+```
+
+=>
+
+    a
+    1 2 3
+    4 5 6
+
+    scaled_a
+    2  4  6
+    8 10 12
+
+### (Operation) operator+ (Scalar s)
+Adds `s` to every element in the tensor.
+
+### (Operation) operator- (Scalar s)
+Subtracts `s` from every element in the tensor.
+
+### (Operation) operator/ (Scalar s)
+Divides every element in the tensor by `s`.
+
+### (Operation) operator% (Scalar s)
+Computes the element-wise modulus (remainder) of each tensor element divided by `s`
+
+**Only integer types are supported.**  
+For floating-point tensors, implement a [unaryExpr](#operation-unaryexprcustomunaryop-func) using `std::fmod`.
 
 ### (Operation)  cwiseMax(Scalar threshold)
 Returns the coefficient-wise maximum between two tensors.
@@ -981,6 +1015,7 @@ Returns the coefficient-wise minimum between two tensors.
     c
      -1   -2
     300 -900
+
 ### (Operation)  unaryExpr(const CustomUnaryOp& func)
 Applies a user defined function to each element in the tensor.
 Supports lambdas or functor structs with an operator().
@@ -1797,7 +1832,7 @@ std::cout << "rolled\n" << rolled << "\n";
     1  2  3  4
     5  6  7  8
     9 10 11 12
-    
+
     rolled
     7  8  5  6
     11 12  9 10
