@@ -1632,6 +1632,57 @@ the input tensor.
      600   700
 
 
+### (Operation) stridedSlice(const StartIndices& start, const StopIndices& stop, const Strides& strides)
+
+Returns a sub-tensor by selecting elements using `start`, `stop` (exclusive), and `strides` for each dimension.
+
+This is similar to slicing in Python using [start:stop:step].
+
+``` cpp
+Eigen::Tensor<int, 2> a(4, 6);
+a.setValues({{  0,  10,  20,  30,  40,   50},
+             {100, 110, 120, 130, 140,  150},
+             {200, 210, 220, 230, 240,  250},
+             {300, 310, 320, 330, 340,  350}});
+
+Eigen::array<Eigen::Index, 2> start = {1, 1};
+Eigen::array<Eigen::Index, 2> stop  = {4, 6}; // Stop is exclusive
+Eigen::array<Eigen::Index, 2> strides = {2, 2};
+
+Eigen::Tensor<int, 2> sub = a.stridedSlice(start, stop, strides);
+
+std::cout << "a\n" << a << "\n";
+std::cout << "sub\n" << sub << "\n";
+```
+=>
+
+    a
+      0  10  20  30  40  50
+    100 110 120 130 140 150
+    200 210 220 230 240 250
+    300 310 320 330 340 350
+
+    sub
+    110 130 150
+    310 330 350
+
+It is also possible to assign to a strided slice:
+
+``` cpp
+Eigen::Tensor<int, 2> b(sub.dimensions());
+b.setConstant(-1);
+a.stridedSlice(start, stop, strides) = b;
+std::cout << "modified a\n" << a << "\n";
+```
+=>
+
+    modified a
+      0  10  20  30  40  50
+    100  -1 120  -1 140  -1
+    200 210 220 230 240 250
+    300  -1 320  -1 340  -1
+
+
 ### (Operation) chip(const Index offset, const Index dim)
 
 A chip is a special kind of slice. It is the subtensor at the given offset in
