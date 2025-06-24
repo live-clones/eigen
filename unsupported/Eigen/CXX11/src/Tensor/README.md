@@ -1021,6 +1021,7 @@ Applies a user defined function to each element in the tensor.
 Supports lambdas or functor structs with an operator().
 
 Using lambda:
+```cpp
     Eigen::Tensor<float, 2> a(2, 3);
     a.setValues({{0, -.5, -1}, {.5, 1.5, 2.0}});
     auto my_func = [](float el){ return std::abs(el + 0.5f);};
@@ -1034,9 +1035,11 @@ Using lambda:
     b
     0.5     0  0.5
       1     2  2.5
+```
 
 Using a functor to normalize and clamp values to [-1.0, 1.0]:
 
+```cpp
     template<typename Scalar>
     struct NormalizedClamp {
     NormalizedClamp(Scalar lo, Scalar hi) : _lo(lo), _hi(hi) {}
@@ -1054,7 +1057,7 @@ Using a functor to normalize and clamp values to [-1.0, 1.0]:
     c
     0.5    0.25    0
     0.75   1       1
-
+```
 
 
 ## Binary Element Wise Operations
