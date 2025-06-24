@@ -976,12 +976,14 @@ original tensor.
 
 Returns a tensor with the same dimensions as the original tensor
 containing the real part of the complex values of the original tensor.
+The result has a real-valued scalar type.
 
 ### (Operation) imag()
 
 Returns a tensor with the same dimensions as the original tensor
 containing the imaginary part of the complex values of the original
 tensor.
+The result has a real-valued scalar type.
 
 ### (Operation) pow(Scalar exponent)
 
