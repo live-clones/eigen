@@ -2277,8 +2277,9 @@ std::cout << "b\n" << b << "\n";
 ```
 
 ### (Operation)     eval()
+See [Calling eval()](#calling-eval)
 
-TODO
+
 
 ## Tensor Printing
 Tensors can be printed into a stream object (e.g. `std::cout`) using different formatting options.
