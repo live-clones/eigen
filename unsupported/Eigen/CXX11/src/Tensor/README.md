@@ -1688,7 +1688,7 @@ the reshape view of b.
 
 ### (Operation) shuffle(const Shuffle& shuffle)
 
-Returns a copy of the input tensor whose dimensions have been
+Returns a view of the input tensor whose dimensions have been
 reordered according to the specified permutation.
 
 The argument `shuffle` is an array of `Index` values:
@@ -2348,4 +2348,4 @@ The scalar value can be extracted as explained in [Reduction along all dimension
     compiler that supports cxx11. It is limited to only 5 for older compilers.
 *   The `IndexList` class requires a cxx11 compliant compiler. You can use an
     array of indices instead if you don't have access to a modern compiler.
-*   On GPUs only floating point values are properly tested and optimized
+*   On GPUs only floating point values are properly tested and optimized for.
