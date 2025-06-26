@@ -16,17 +16,20 @@
 #include "main.h"
 #include "AnnoyingScalar.h"
 
-#define CHECK_MEMLEAK(OP)                                                                                             \
-  {                                                                                                                   \
-    AnnoyingScalar::countdown = 100;                                                                                  \
-    int before = AnnoyingScalar::instances;                                                                           \
-    bool exception_thrown = false;                                                                                    \
-    EIGEN_TRY { OP; }                                                                                                 \
-    EIGEN_CATCH(my_exception) {                                                                                       \
-      exception_thrown = true;                                                                                        \
-      VERIFY(AnnoyingScalar::instances == before && "memory leak detected in " && EIGEN_MAKESTRING(OP));              \
-    }                                                                                                                 \
-    VERIFY((AnnoyingScalar::dont_throw) || (exception_thrown && " no exception thrown in " && EIGEN_MAKESTRING(OP))); \
+#define CHECK_MEMLEAK(OP)                                         \
+  {                                                               \
+    AnnoyingScalar::countdown = 100;                              \
+    int before = AnnoyingScalar::instances;                       \
+    bool exception_thrown = false;                                \
+    EIGEN_TRY { OP; }                                             \
+    EIGEN_CATCH(my_exception) {                                   \
+      exception_thrown = true;                                    \
+      VERIFY(AnnoyingScalar::instances == before &&               \
+             "memory leak detected in " && EIGEN_MAKESTRING(OP)); \
+    }                                                             \
+    VERIFY((AnnoyingScalar::dont_throw) ||                        \
+           (exception_thrown && " no exception thrown in " &&     \
+            EIGEN_MAKESTRING(OP)));                               \
   }
 
 EIGEN_DECLARE_TEST(exceptions) {
