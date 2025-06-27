@@ -1339,6 +1339,23 @@ EIGEN_DEVICE_FUNC void destroy_at(T* p) {
 }
 #endif
 
+/** \internal
+ * This informs the implementation that PTR is aligned to at least ALIGN_BYTES
+ */
+#ifdef __cpp_lib_assume_aligned
+#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES)         \
+  {                                                    \
+    PTR = std::assume_aligned<8 * (ALIGN_BYTES)>(PTR); \
+  }
+#elif EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
+#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES)                                      \
+  {                                                                                 \
+    PTR = static_cast<decltype(PTR)>(__builtin_assume_aligned(PTR, (ALIGN_BYTES))); \
+  }
+#else
+#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) /* do nothing */
+#endif
+
 }  // end namespace internal
 
 }  // end namespace Eigen
