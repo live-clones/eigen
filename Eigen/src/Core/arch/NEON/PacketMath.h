@@ -2729,10 +2729,12 @@ EIGEN_STRONG_INLINE Packet4ui ploadquad<Packet4ui>(const uint32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet2f& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_f32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet4f& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_f32(to, from);
 }
 template <>
@@ -2741,10 +2743,12 @@ EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet4c& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet8c& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_s8(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet16c& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s8(to, from);
 }
 template <>
@@ -2753,50 +2757,62 @@ EIGEN_STRONG_INLINE void pstore<uint8_t>(uint8_t* to, const Packet4uc& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint8_t>(uint8_t* to, const Packet8uc& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u8(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint8_t>(uint8_t* to, const Packet16uc& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u8(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int16_t>(int16_t* to, const Packet4s& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_s16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int16_t>(int16_t* to, const Packet8s& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint16_t>(uint16_t* to, const Packet4us& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint16_t>(uint16_t* to, const Packet8us& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int32_t>(int32_t* to, const Packet2i& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_s32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int32_t>(int32_t* to, const Packet4i& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint32_t>(uint32_t* to, const Packet2ui& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint32_t>(uint32_t* to, const Packet4ui& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int64_t>(int64_t* to, const Packet2l& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s64(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint64_t>(uint64_t* to, const Packet2ul& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u64(to, from);
 }
 
@@ -4892,6 +4908,7 @@ EIGEN_STRONG_INLINE Packet4bf ploadu<Packet4bf>(const bfloat16* from) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore<bfloat16>(bfloat16* to, const Packet4bf& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u16(reinterpret_cast<uint16_t*>(to), from);
 }
 
@@ -5404,6 +5421,7 @@ EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<double>(double* to, const Packet2d& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_f64(to, from);
 }
 
@@ -6033,11 +6051,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertlast(const Packet4hf& a, 
 
 template <>
 EIGEN_STRONG_INLINE void pstore<Eigen::half>(Eigen::half* to, const Packet8hf& from) {
+  EIGEN_ASSUME_ALIGNED(to, 16);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_f16(reinterpret_cast<float16_t*>(to), from);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<Eigen::half>(Eigen::half* to, const Packet4hf& from) {
+  EIGEN_ASSUME_ALIGNED(to, 8);
   EIGEN_DEBUG_ALIGNED_STORE vst1_f16(reinterpret_cast<float16_t*>(to), from);
 }
 
