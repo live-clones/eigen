@@ -1343,7 +1343,7 @@ EIGEN_DEVICE_FUNC void destroy_at(T* p) {
  * This informs the implementation that PTR is aligned to at least ALIGN_BYTES
  */
 #ifndef EIGEN_ASSUME_ALIGNED
-#ifdef __cpp_lib_assume_aligned >= 201811L
+#if __cpp_lib_assume_aligned >= 201811L
 #define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) \
   { PTR = std::assume_aligned<8 * (ALIGN_BYTES)>(PTR); }
 #elif EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
