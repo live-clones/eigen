@@ -73,30 +73,13 @@ struct packet_traits<std::complex<float> > : default_packet_traits {
 };
 
 template <>
-struct unpacket_traits<Packet1cf> {
-  typedef std::complex<float> type;
-  typedef Packet1cf half;
-  typedef Packet2f as_real;
-  enum {
-    size = 1,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+struct unpacket_traits<Packet1cf> : neon_unpacket_default<Packet1cf, std::complex<float>> {
+  using as_real = Packet2f;
 };
 template <>
-struct unpacket_traits<Packet2cf> {
-  typedef std::complex<float> type;
-  typedef Packet1cf half;
-  typedef Packet4f as_real;
-  enum {
-    size = 2,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+struct unpacket_traits<Packet2cf> : neon_unpacket_default<Packet2cf, std::complex<float>> {
+  using half = Packet1cf;
+  using as_real = Packet4f;
 };
 
 template <>
@@ -538,17 +521,8 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
 };
 
 template <>
-struct unpacket_traits<Packet1cd> {
-  typedef std::complex<double> type;
-  typedef Packet1cd half;
-  typedef Packet2d as_real;
-  enum {
-    size = 1,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+struct unpacket_traits<Packet1cd> neon_unpacket_default<Packet1cd, std::complex<double>> {
+  using as_real = Packet2d;
 };
 
 template <>
