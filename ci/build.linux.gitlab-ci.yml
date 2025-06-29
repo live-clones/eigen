@@ -47,6 +47,7 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_SPLIT_LARGE_TESTS=off"
 
 build:linux:cross:x86-64:gcc-10:avx:
   extends: build:linux:cross:x86-64:gcc-10:default
