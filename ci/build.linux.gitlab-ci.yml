@@ -42,6 +42,7 @@ build:linux:cross:x86-64:gcc-6:default:
 build:linux:cross:x86-64:gcc-10:default:
   extends: .build:linux:cross:x86-64
   variables:
+    EIGEN_CI_INSTALL: g++-10 lld
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
     EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu lld
