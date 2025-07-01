@@ -525,7 +525,7 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
 };
 
 template <>
-struct unpacket_traits<Packet1cd> neon_unpacket_default<Packet1cd, std::complex<double>> {
+struct unpacket_traits<Packet1cd> : neon_unpacket_default<Packet1cd, std::complex<double>> {
   using as_real = Packet2d;
 };
 
