@@ -42,11 +42,13 @@ build:linux:cross:x86-64:gcc-6:default:
 build:linux:cross:x86-64:gcc-10:default:
   extends: .build:linux:cross:x86-64
   variables:
+    EIGEN_CI_INSTALL: g++-10 lld
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
-    EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu
+    EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu lld
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
+    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
 
 build:linux:cross:x86-64:gcc-10:avx:
   extends: build:linux:cross:x86-64:gcc-10:default
