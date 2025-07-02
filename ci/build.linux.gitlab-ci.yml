@@ -7,9 +7,7 @@
   script:
     - . ci/scripts/build.linux.script.sh
   tags:
-    - linux
-    - eigen-runner
-    - cross-compiler
+    - saas-linux-2xlarge-amd64
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
