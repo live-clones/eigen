@@ -6,8 +6,8 @@ namespace Eigen {
 namespace internal {
 
 template <typename Scalar>
-void lmpar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt, const Matrix<Scalar, Dynamic, 1> &diag,
-           const Matrix<Scalar, Dynamic, 1> &qtb, Scalar delta, Scalar &par, Matrix<Scalar, Dynamic, 1> &x) {
+constexpr void lmpar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt, const Matrix<Scalar, Dynamic, 1> &diag,
+                     const Matrix<Scalar, Dynamic, 1> &qtb, Scalar delta, Scalar &par, Matrix<Scalar, Dynamic, 1> &x) {
   using std::abs;
   using std::sqrt;
   typedef DenseIndex Index;
@@ -142,8 +142,9 @@ void lmpar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt, const Matr
 }
 
 template <typename Scalar>
-void lmpar2(const ColPivHouseholderQR<Matrix<Scalar, Dynamic, Dynamic> > &qr, const Matrix<Scalar, Dynamic, 1> &diag,
-            const Matrix<Scalar, Dynamic, 1> &qtb, Scalar delta, Scalar &par, Matrix<Scalar, Dynamic, 1> &x)
+constexpr void lmpar2(const ColPivHouseholderQR<Matrix<Scalar, Dynamic, Dynamic> > &qr,
+                      const Matrix<Scalar, Dynamic, 1> &diag, const Matrix<Scalar, Dynamic, 1> &qtb, Scalar delta,
+                      Scalar &par, Matrix<Scalar, Dynamic, 1> &x)
 
 {
   using std::abs;
