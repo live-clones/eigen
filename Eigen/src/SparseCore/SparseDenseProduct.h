@@ -104,9 +104,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
       for (Index j = 0; j < lhs.outerSize(); ++j) {
         //        typename Res::Scalar rhs_j = alpha * rhs.coeff(j,c);
         typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
-        for (LhsInnerIterator it(lhsEval, j); it; ++it) {
-          res.coeffRef(it.index(), c) += it.value() * rhs_j;
-        }
+        for (LhsInnerIterator it(lhsEval, j); it; ++it) res.coeffRef(it.index(), c) += it.value() * rhs_j;
       }
     }
   }
@@ -142,7 +140,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
   static void processRow(const LhsEval& lhsEval, const DenseRhsType& rhs, Res& res, const typename Res::Scalar& alpha,
                          Index i) {
     typename Res::RowXpr res_i(res.row(i));
-    for (LhsInnerIterator it(lhsEval, i); it; ++it) res_i += (alpha * it.value()) * rhs.row(it.index());;
+    for (LhsInnerIterator it(lhsEval, i); it; ++it) res_i += (alpha * it.value()) * rhs.row(it.index());
   }
 };
 
