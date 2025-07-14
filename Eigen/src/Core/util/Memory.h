@@ -575,9 +575,10 @@ EIGEN_DEVICE_FUNC void smart_copy(const T* start, const T* end, T* target) {
 template <typename T>
 struct smart_copy_helper<T, true> {
   EIGEN_DEVICE_FUNC static inline void run(const T* start, const T* end, T* target) {
+    eigen_internal_assert(start != nullptr && end != nullptr && target != nullptr);
+    eigen_internal_assert(end >= start);
+    if (start == end) return;
     std::intptr_t size = std::intptr_t(end) - std::intptr_t(start);
-    if (size == 0) return;
-    eigen_internal_assert(start != 0 && end != 0 && target != 0);
     EIGEN_USING_STD(memcpy)
     memcpy(target, start, size);
   }
@@ -600,10 +601,12 @@ void smart_memmove(const T* start, const T* end, T* target) {
 template <typename T>
 struct smart_memmove_helper<T, true> {
   static inline void run(const T* start, const T* end, T* target) {
+    eigen_internal_assert(start != nullptr && end != nullptr && target != nullptr);
+    eigen_internal_assert(end >= start);
+    if (start == end) return;
     std::intptr_t size = std::intptr_t(end) - std::intptr_t(start);
-    if (size == 0) return;
-    eigen_internal_assert(start != 0 && end != 0 && target != 0);
-    std::memmove(target, start, size);
+    EIGEN_USING_STD(memmove)
+    memmove(target, start, size);
   }
 };
 
@@ -1337,6 +1340,21 @@ template <class T>
 EIGEN_DEVICE_FUNC void destroy_at(T* p) {
   p->~T();
 }
+#endif
+
+/** \internal
+ * This informs the implementation that PTR is aligned to at least ALIGN_BYTES
+ */
+#ifndef EIGEN_ASSUME_ALIGNED
+#if defined(__cpp_lib_assume_aligned) && (__cpp_lib_assume_aligned >= 201811L)
+#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) \
+  { PTR = std::assume_aligned<8 * (ALIGN_BYTES)>(PTR); }
+#elif EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
+#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) \
+  { PTR = static_cast<decltype(PTR)>(__builtin_assume_aligned(PTR, (ALIGN_BYTES))); }
+#else
+#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) /* do nothing */
+#endif
 #endif
 
 }  // end namespace internal
