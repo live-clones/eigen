@@ -70,7 +70,7 @@ DECL_GSSVX(z, double, std::complex<double>)
   extern "C" {                                                                                                         \
   extern void PREFIX##gsisx(superlu_options_t *, SuperMatrix *, int *, int *, int *, char *, FLOATTYPE *, FLOATTYPE *, \
                             SuperMatrix *, SuperMatrix *, void *, int, SuperMatrix *, SuperMatrix *, FLOATTYPE *,      \
-                            FLOATTYPE *, GlobalLU_t*, mem_usage_t *, SuperLUStat_t *, int *);                          \
+                            FLOATTYPE *, GlobalLU_t *, mem_usage_t *, SuperLUStat_t *, int *);                         \
   }                                                                                                                    \
   inline float SuperLU_gsisx(superlu_options_t *options, SuperMatrix *A, int *perm_c, int *perm_r, int *etree,         \
                              char *equed, FLOATTYPE *R, FLOATTYPE *C, SuperMatrix *L, SuperMatrix *U, void *work,      \
@@ -95,11 +95,10 @@ DECL_GSSVX(z, double, std::complex<double>)
                              FLOATTYPE *rcond, SuperLUStat_t *stats, int *info, KEYTYPE) {                             \
     mem_usage_t mem_usage;                                                                                             \
     PREFIX##gsisx(options, A, perm_c, perm_r, etree, equed, R, C, L, U, work, lwork, B, X, recip_pivot_growth, rcond,  \
-                 &mem_usage, stats, info);                                                                             \
+                  &mem_usage, stats, info);                                                                            \
     return mem_usage.for_lu; /* bytes used by the factor storage */                                                    \
   }
 #endif
-
 
 DECL_GSISX(s, float, float)
 DECL_GSISX(c, float, std::complex<float>)
