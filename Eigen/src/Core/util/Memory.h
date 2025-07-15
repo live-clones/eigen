@@ -575,10 +575,10 @@ EIGEN_DEVICE_FUNC void smart_copy(const T* start, const T* end, T* target) {
 template <typename T>
 struct smart_copy_helper<T, true> {
   EIGEN_DEVICE_FUNC static inline void run(const T* start, const T* end, T* target) {
+    if (start == end) return;
     eigen_internal_assert(start != nullptr && end != nullptr && target != nullptr);
     eigen_internal_assert(end >= start);
-    if (start == end) return;
-    std::intptr_t size = std::intptr_t(end) - std::intptr_t(start);
+    std::size_t size = std::intptr_t(end) - std::intptr_t(start);
     EIGEN_USING_STD(memcpy)
     memcpy(target, start, size);
   }
@@ -601,10 +601,10 @@ void smart_memmove(const T* start, const T* end, T* target) {
 template <typename T>
 struct smart_memmove_helper<T, true> {
   static inline void run(const T* start, const T* end, T* target) {
+    if (start == end) return;
     eigen_internal_assert(start != nullptr && end != nullptr && target != nullptr);
     eigen_internal_assert(end >= start);
-    if (start == end) return;
-    std::intptr_t size = std::intptr_t(end) - std::intptr_t(start);
+    std::size_t size = std::intptr_t(end) - std::intptr_t(start);
     EIGEN_USING_STD(memmove)
     memmove(target, start, size);
   }
