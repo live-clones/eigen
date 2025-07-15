@@ -577,10 +577,10 @@ struct smart_copy_helper<T, true> {
   EIGEN_DEVICE_FUNC static inline void run(const T* start, const T* end, T* target) {
     if (start == end) return;
     eigen_internal_assert(start != nullptr && end != nullptr && target != nullptr);
-    eigen_internal_assert(end >= start);
+    eigen_internal_assert(end > start);
     std::size_t size = std::intptr_t(end) - std::intptr_t(start);
     EIGEN_USING_STD(memcpy)
-    memcpy(target, start, size);
+    memcpy(static_cast<void*>(target), static_cast<const void*>(start), size);
   }
 };
 
@@ -603,10 +603,10 @@ struct smart_memmove_helper<T, true> {
   static inline void run(const T* start, const T* end, T* target) {
     if (start == end) return;
     eigen_internal_assert(start != nullptr && end != nullptr && target != nullptr);
-    eigen_internal_assert(end >= start);
+    eigen_internal_assert(end > start);
     std::size_t size = std::intptr_t(end) - std::intptr_t(start);
     EIGEN_USING_STD(memmove)
-    memmove(target, start, size);
+    memmove(static_cast<void*>(target), static_cast<const void*>(start), size);
   }
 };
 
@@ -616,7 +616,7 @@ struct smart_memmove_helper<T, false> {
     if (std::uintptr_t(target) < std::uintptr_t(start)) {
       std::copy(start, end, target);
     } else {
-      std::ptrdiff_t count = (std::ptrdiff_t(end) - std::ptrdiff_t(start)) / sizeof(T);
+      std::ptrdiff_t count = end - start;
       std::copy_backward(start, end, target + count);
     }
   }
