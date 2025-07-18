@@ -1597,8 +1597,10 @@ EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Pac
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   eigen_assert((begin >= 0 && count >= 0 && begin + count <= PacketSize) && "invalid range");
   Scalar aux[PacketSize];
+  EIGEN_USING_STD(memset)
   memset(static_cast<void*>(aux), 0x00, sizeof(Scalar) * PacketSize);
-  smart_copy(from + begin, from + begin + count, aux + begin);
+  EIGEN_USING_STD(memcpy)
+  memcpy(static_cast<void*>(aux + begin), static_cast<const void*>(from + begin), sizeof(Scalar) * count);
   return ploadu<Packet>(aux);
 }
 
