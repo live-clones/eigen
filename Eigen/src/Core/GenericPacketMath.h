@@ -1621,7 +1621,7 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Ind
   Scalar aux[PacketSize];
   pstoreu<Scalar, Packet>(aux, from);
   for (Index k = begin; k < begin + count; k++) {
-    from[k] = aux[k];
+    to[k] = aux[k];
   }
 }
 
