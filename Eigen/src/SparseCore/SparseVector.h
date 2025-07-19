@@ -73,37 +73,37 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
   enum { Options = Options_ };
 
-  EIGEN_STRONG_INLINE Index rows() const { return IsColVector ? m_size : 1; }
-  EIGEN_STRONG_INLINE Index cols() const { return IsColVector ? 1 : m_size; }
-  EIGEN_STRONG_INLINE Index innerSize() const { return m_size; }
-  EIGEN_STRONG_INLINE Index outerSize() const { return 1; }
+  EIGEN_STRONG_INLINE constexpr Index rows() const { return IsColVector ? m_size : 1; }
+  EIGEN_STRONG_INLINE constexpr Index cols() const { return IsColVector ? 1 : m_size; }
+  EIGEN_STRONG_INLINE constexpr Index innerSize() const { return m_size; }
+  EIGEN_STRONG_INLINE constexpr Index outerSize() const { return 1; }
 
-  EIGEN_STRONG_INLINE const Scalar* valuePtr() const { return m_data.valuePtr(); }
-  EIGEN_STRONG_INLINE Scalar* valuePtr() { return m_data.valuePtr(); }
+  EIGEN_STRONG_INLINE constexpr const Scalar* valuePtr() const { return m_data.valuePtr(); }
+  EIGEN_STRONG_INLINE constexpr Scalar* valuePtr() { return m_data.valuePtr(); }
 
-  EIGEN_STRONG_INLINE const StorageIndex* innerIndexPtr() const { return m_data.indexPtr(); }
-  EIGEN_STRONG_INLINE StorageIndex* innerIndexPtr() { return m_data.indexPtr(); }
+  EIGEN_STRONG_INLINE constexpr const StorageIndex* innerIndexPtr() const { return m_data.indexPtr(); }
+  EIGEN_STRONG_INLINE constexpr StorageIndex* innerIndexPtr() { return m_data.indexPtr(); }
 
-  inline const StorageIndex* outerIndexPtr() const { return 0; }
-  inline StorageIndex* outerIndexPtr() { return 0; }
-  inline const StorageIndex* innerNonZeroPtr() const { return 0; }
-  inline StorageIndex* innerNonZeroPtr() { return 0; }
+  inline constexpr const StorageIndex* outerIndexPtr() const { return 0; }
+  inline constexpr StorageIndex* outerIndexPtr() { return 0; }
+  inline constexpr const StorageIndex* innerNonZeroPtr() const { return 0; }
+  inline constexpr StorageIndex* innerNonZeroPtr() { return 0; }
 
   /** \internal */
   constexpr Storage& data() { return m_data; }
   /** \internal */
   constexpr const Storage& data() const { return m_data; }
 
-  inline Scalar coeff(Index row, Index col) const {
+  inline constexpr Scalar coeff(Index row, Index col) const {
     eigen_assert(IsColVector ? (col == 0 && row >= 0 && row < m_size) : (row == 0 && col >= 0 && col < m_size));
     return coeff(IsColVector ? row : col);
   }
-  inline Scalar coeff(Index i) const {
+  inline constexpr Scalar coeff(Index i) const {
     eigen_assert(i >= 0 && i < m_size);
     return m_data.at(StorageIndex(i));
   }
 
-  inline Scalar& coeffRef(Index row, Index col) {
+  inline constexpr Scalar& coeffRef(Index row, Index col) {
     eigen_assert(IsColVector ? (col == 0 && row >= 0 && row < m_size) : (row == 0 && col >= 0 && col < m_size));
     return coeffRef(IsColVector ? row : col);
   }
@@ -114,7 +114,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
    *
    * This insertion might be very costly if the number of nonzeros above \a i is large.
    */
-  inline Scalar& coeffRef(Index i) {
+  inline constexpr Scalar& coeffRef(Index i) {
     eigen_assert(i >= 0 && i < m_size);
 
     return m_data.atWithInsertion(StorageIndex(i));
@@ -124,37 +124,37 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   typedef typename Base::InnerIterator InnerIterator;
   typedef typename Base::ReverseInnerIterator ReverseInnerIterator;
 
-  inline void setZero() { m_data.clear(); }
+  inline constexpr void setZero() { m_data.clear(); }
 
   /** \returns the number of non zero coefficients */
-  inline Index nonZeros() const { return m_data.size(); }
+  inline constexpr Index nonZeros() const { return m_data.size(); }
 
-  inline void startVec(Index outer) {
+  inline constexpr void startVec(Index outer) {
     EIGEN_UNUSED_VARIABLE(outer);
     eigen_assert(outer == 0);
   }
 
-  inline Scalar& insertBackByOuterInner(Index outer, Index inner) {
+  inline constexpr Scalar& insertBackByOuterInner(Index outer, Index inner) {
     EIGEN_UNUSED_VARIABLE(outer);
     eigen_assert(outer == 0);
     return insertBack(inner);
   }
-  inline Scalar& insertBack(Index i) {
+  inline constexpr Scalar& insertBack(Index i) {
     m_data.append(0, i);
     return m_data.value(m_data.size() - 1);
   }
 
-  Scalar& insertBackByOuterInnerUnordered(Index outer, Index inner) {
+  constexpr Scalar& insertBackByOuterInnerUnordered(Index outer, Index inner) {
     EIGEN_UNUSED_VARIABLE(outer);
     eigen_assert(outer == 0);
     return insertBackUnordered(inner);
   }
-  inline Scalar& insertBackUnordered(Index i) {
+  inline constexpr Scalar& insertBackUnordered(Index i) {
     m_data.append(0, i);
     return m_data.value(m_data.size() - 1);
   }
 
-  inline Scalar& insert(Index row, Index col) {
+  inline constexpr Scalar& insert(Index row, Index col) {
     eigen_assert(IsColVector ? (col == 0 && row >= 0 && row < m_size) : (row == 0 && col >= 0 && col < m_size));
 
     Index inner = IsColVector ? row : col;
@@ -163,7 +163,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
     eigen_assert(outer == 0);
     return insert(inner);
   }
-  Scalar& insert(Index i) {
+  constexpr Scalar& insert(Index i) {
     eigen_assert(i >= 0 && i < m_size);
 
     Index startId = 0;
@@ -183,12 +183,12 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
   /**
    */
-  inline void reserve(Index reserveSize) { m_data.reserve(reserveSize); }
+  inline constexpr void reserve(Index reserveSize) { m_data.reserve(reserveSize); }
 
-  inline void finalize() {}
+  inline constexpr void finalize() {}
 
   /** \copydoc SparseMatrix::prune(const Scalar&,const RealScalar&) */
-  Index prune(const Scalar& reference, const RealScalar& epsilon = NumTraits<RealScalar>::dummy_precision()) {
+  constexpr Index prune(const Scalar& reference, const RealScalar& epsilon = NumTraits<RealScalar>::dummy_precision()) {
     return prune([&](const Scalar& val) { return !internal::isMuchSmallerThan(val, reference, epsilon); });
   }
 
@@ -200,7 +200,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
    * \return The new number of structural non-zeros.
    */
   template <class F>
-  Index prune(F&& keep_predicate) {
+  constexpr Index prune(F&& keep_predicate) {
     Index k = 0;
     Index n = m_data.size();
     for (Index i = 0; i < n; ++i) {
@@ -222,7 +222,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
    *
    * \sa resize(Index)
    */
-  void resize(Index rows, Index cols) {
+  constexpr void resize(Index rows, Index cols) {
     eigen_assert((IsColVector ? cols : rows) == 1 && "Outer dimension must equal 1");
     resize(IsColVector ? rows : cols);
   }
@@ -231,7 +231,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
    * This method deletes all entries, thus leaving an empty sparse vector
    *
    * \sa  conservativeResize(), setZero() */
-  void resize(Index newSize) {
+  constexpr void resize(Index newSize) {
     m_size = newSize;
     m_data.clear();
   }
@@ -243,7 +243,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
    *
    * \sa reserve(), setZero()
    */
-  void conservativeResize(Index newSize) {
+  constexpr void conservativeResize(Index newSize) {
     if (newSize < m_size) {
       Index i = 0;
       while (i < m_data.size() && m_data.index(i) < newSize) ++i;
@@ -252,50 +252,50 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
     m_size = newSize;
   }
 
-  void resizeNonZeros(Index size) { m_data.resize(size); }
+  constexpr void resizeNonZeros(Index size) { m_data.resize(size); }
 
-  inline SparseVector() : m_size(0) { resize(0); }
+  inline constexpr SparseVector() : m_size(0) { resize(0); }
 
-  explicit inline SparseVector(Index size) : m_size(0) { resize(size); }
+  explicit inline constexpr SparseVector(Index size) : m_size(0) { resize(size); }
 
-  inline SparseVector(Index rows, Index cols) : m_size(0) { resize(rows, cols); }
+  inline constexpr SparseVector(Index rows, Index cols) : m_size(0) { resize(rows, cols); }
 
   template <typename OtherDerived>
-  inline SparseVector(const SparseMatrixBase<OtherDerived>& other) : m_size(0) {
+  inline constexpr SparseVector(const SparseMatrixBase<OtherDerived>& other) : m_size(0) {
 #ifdef EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN
     EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN
 #endif
     *this = other.derived();
   }
 
-  inline SparseVector(const SparseVector& other) : Base(other), m_size(0) { *this = other.derived(); }
+  inline constexpr SparseVector(const SparseVector& other) : Base(other), m_size(0) { *this = other.derived(); }
 
   /** Swaps the values of \c *this and \a other.
    * Overloaded for performance: this version performs a \em shallow swap by swapping pointers and attributes only.
    * \sa SparseMatrixBase::swap()
    */
-  inline void swap(SparseVector& other) {
+  inline constexpr void swap(SparseVector& other) {
     std::swap(m_size, other.m_size);
     m_data.swap(other.m_data);
   }
-  friend EIGEN_DEVICE_FUNC void swap(SparseVector& a, SparseVector& b) { a.swap(b); }
+  friend EIGEN_DEVICE_FUNC constexpr void swap(SparseVector& a, SparseVector& b) { a.swap(b); }
 
   template <int OtherOptions>
-  inline void swap(SparseMatrix<Scalar, OtherOptions, StorageIndex>& other) {
+  inline constexpr void swap(SparseMatrix<Scalar, OtherOptions, StorageIndex>& other) {
     eigen_assert(other.outerSize() == 1);
     std::swap(m_size, other.m_innerSize);
     m_data.swap(other.m_data);
   }
   template <int OtherOptions>
-  friend EIGEN_DEVICE_FUNC void swap(SparseVector& a, SparseMatrix<Scalar, OtherOptions, StorageIndex>& b) {
+  friend EIGEN_DEVICE_FUNC constexpr void swap(SparseVector& a, SparseMatrix<Scalar, OtherOptions, StorageIndex>& b) {
     a.swap(b);
   }
   template <int OtherOptions>
-  friend EIGEN_DEVICE_FUNC void swap(SparseMatrix<Scalar, OtherOptions, StorageIndex>& a, SparseVector& b) {
+  friend EIGEN_DEVICE_FUNC constexpr void swap(SparseMatrix<Scalar, OtherOptions, StorageIndex>& a, SparseVector& b) {
     b.swap(a);
   }
 
-  inline SparseVector& operator=(const SparseVector& other) {
+  inline constexpr SparseVector& operator=(const SparseVector& other) {
     if (other.isRValue()) {
       swap(other.const_cast_derived());
     } else {
@@ -306,34 +306,34 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   }
 
   template <typename OtherDerived>
-  inline SparseVector& operator=(const SparseMatrixBase<OtherDerived>& other) {
+  inline constexpr SparseVector& operator=(const SparseMatrixBase<OtherDerived>& other) {
     SparseVector tmp(other.size());
     internal::sparse_vector_assign_selector<SparseVector, OtherDerived>::run(tmp, other.derived());
     this->swap(tmp);
     return *this;
   }
 
-  inline SparseVector(SparseVector&& other) : SparseVector() { this->swap(other); }
+  inline constexpr SparseVector(SparseVector&& other) : SparseVector() { this->swap(other); }
 
   template <typename OtherDerived>
-  inline SparseVector(SparseCompressedBase<OtherDerived>&& other) : SparseVector() {
+  inline constexpr SparseVector(SparseCompressedBase<OtherDerived>&& other) : SparseVector() {
     *this = other.derived().markAsRValue();
   }
 
-  inline SparseVector& operator=(SparseVector&& other) {
+  inline constexpr SparseVector& operator=(SparseVector&& other) {
     this->swap(other);
     return *this;
   }
 
   template <typename OtherDerived>
-  inline SparseVector& operator=(SparseCompressedBase<OtherDerived>&& other) {
+  inline constexpr SparseVector& operator=(SparseCompressedBase<OtherDerived>&& other) {
     *this = other.derived().markAsRValue();
     return *this;
   }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename Lhs, typename Rhs>
-  inline SparseVector& operator=(const SparseSparseProduct<Lhs, Rhs>& product) {
+  inline constexpr SparseVector& operator=(const SparseSparseProduct<Lhs, Rhs>& product) {
     return Base::operator=(product);
   }
 #endif
@@ -346,48 +346,45 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   }
 #endif
 
-  /** Destructor */
-  inline ~SparseVector() {}
-
   /** Overloaded for performance */
-  Scalar sum() const;
+  constexpr Scalar sum() const;
 
  public:
   /** \internal \deprecated use setZero() and reserve() */
-  EIGEN_DEPRECATED void startFill(Index reserve) {
+  EIGEN_DEPRECATED constexpr void startFill(Index reserve) {
     setZero();
     m_data.reserve(reserve);
   }
 
   /** \internal \deprecated use insertBack(Index,Index) */
-  EIGEN_DEPRECATED Scalar& fill(Index r, Index c) {
+  EIGEN_DEPRECATED constexpr Scalar& fill(Index r, Index c) {
     eigen_assert(r == 0 || c == 0);
     return fill(IsColVector ? r : c);
   }
 
   /** \internal \deprecated use insertBack(Index) */
-  EIGEN_DEPRECATED Scalar& fill(Index i) {
+  EIGEN_DEPRECATED constexpr Scalar& fill(Index i) {
     m_data.append(0, i);
     return m_data.value(m_data.size() - 1);
   }
 
   /** \internal \deprecated use insert(Index,Index) */
-  EIGEN_DEPRECATED Scalar& fillrand(Index r, Index c) {
+  EIGEN_DEPRECATED constexpr Scalar& fillrand(Index r, Index c) {
     eigen_assert(r == 0 || c == 0);
     return fillrand(IsColVector ? r : c);
   }
 
   /** \internal \deprecated use insert(Index) */
-  EIGEN_DEPRECATED Scalar& fillrand(Index i) { return insert(i); }
+  EIGEN_DEPRECATED constexpr Scalar& fillrand(Index i) { return insert(i); }
 
   /** \internal \deprecated use finalize() */
-  EIGEN_DEPRECATED void endFill() {}
+  EIGEN_DEPRECATED constexpr void endFill() {}
 
   // These two functions were here in the 3.1 release, so let's keep them in case some code rely on them.
   /** \internal \deprecated use data() */
-  EIGEN_DEPRECATED Storage& _data() { return m_data; }
+  EIGEN_DEPRECATED constexpr Storage& _data() { return m_data; }
   /** \internal \deprecated use data() */
-  EIGEN_DEPRECATED const Storage& _data() const { return m_data; }
+  EIGEN_DEPRECATED constexpr const Storage& _data() const { return m_data; }
 
 #ifdef EIGEN_SPARSEVECTOR_PLUGIN
 #include EIGEN_SPARSEVECTOR_PLUGIN
@@ -412,21 +409,23 @@ struct evaluator<SparseVector<Scalar_, Options_, Index_> > : evaluator_base<Spar
 
   enum { CoeffReadCost = NumTraits<Scalar_>::ReadCost, Flags = SparseVectorType::Flags };
 
-  evaluator() : Base() {}
+  constexpr evaluator() = default;
 
-  explicit evaluator(const SparseVectorType& mat) : m_matrix(&mat) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
+  constexpr explicit evaluator(const SparseVectorType& mat) : m_matrix(&mat) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
+  }
 
-  inline Index nonZerosEstimate() const { return m_matrix->nonZeros(); }
+  inline constexpr Index nonZerosEstimate() const { return m_matrix->nonZeros(); }
 
-  operator SparseVectorType&() { return m_matrix->const_cast_derived(); }
-  operator const SparseVectorType&() const { return *m_matrix; }
+  constexpr operator SparseVectorType&() { return m_matrix->const_cast_derived(); }
+  constexpr operator const SparseVectorType&() const { return *m_matrix; }
 
   const SparseVectorType* m_matrix;
 };
 
 template <typename Dest, typename Src>
 struct sparse_vector_assign_selector<Dest, Src, SVA_Inner> {
-  static void run(Dest& dst, const Src& src) {
+  static constexpr void run(Dest& dst, const Src& src) {
     eigen_internal_assert(src.innerSize() == src.size());
     typedef internal::evaluator<Src> SrcEvaluatorType;
     SrcEvaluatorType srcEval(src);
@@ -436,7 +435,7 @@ struct sparse_vector_assign_selector<Dest, Src, SVA_Inner> {
 
 template <typename Dest, typename Src>
 struct sparse_vector_assign_selector<Dest, Src, SVA_Outer> {
-  static void run(Dest& dst, const Src& src) {
+  static constexpr void run(Dest& dst, const Src& src) {
     eigen_internal_assert(src.outerSize() == src.size());
     typedef internal::evaluator<Src> SrcEvaluatorType;
     SrcEvaluatorType srcEval(src);
@@ -449,7 +448,7 @@ struct sparse_vector_assign_selector<Dest, Src, SVA_Outer> {
 
 template <typename Dest, typename Src>
 struct sparse_vector_assign_selector<Dest, Src, SVA_RuntimeSwitch> {
-  static void run(Dest& dst, const Src& src) {
+  static constexpr void run(Dest& dst, const Src& src) {
     if (src.outerSize() == 1)
       sparse_vector_assign_selector<Dest, Src, SVA_Inner>::run(dst, src);
     else
@@ -471,11 +470,11 @@ class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
     Index num_non_zeros;
   };
 
-  EIGEN_DEVICE_FUNC size_t size(const SparseMat& value) const {
+  EIGEN_DEVICE_FUNC constexpr size_t size(const SparseMat& value) const {
     return sizeof(Header) + (sizeof(Scalar) + sizeof(StorageIndex)) * value.nonZeros();
   }
 
-  EIGEN_DEVICE_FUNC uint8_t* serialize(uint8_t* dest, uint8_t* end, const SparseMat& value) {
+  EIGEN_DEVICE_FUNC constexpr uint8_t* serialize(uint8_t* dest, uint8_t* end, const SparseMat& value) {
     if (EIGEN_PREDICT_FALSE(dest == nullptr)) return nullptr;
     if (EIGEN_PREDICT_FALSE(dest + size(value) > end)) return nullptr;
 
@@ -498,7 +497,8 @@ class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
     return dest;
   }
 
-  EIGEN_DEVICE_FUNC const uint8_t* deserialize(const uint8_t* src, const uint8_t* end, SparseMat& value) const {
+  EIGEN_DEVICE_FUNC constexpr const uint8_t* deserialize(const uint8_t* src, const uint8_t* end,
+                                                         SparseMat& value) const {
     if (EIGEN_PREDICT_FALSE(src == nullptr)) return nullptr;
     if (EIGEN_PREDICT_FALSE(src + sizeof(Header) > end)) return nullptr;
 
