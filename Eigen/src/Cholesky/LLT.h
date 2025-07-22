@@ -447,7 +447,7 @@ LLT<MatrixType_, UpLo_>& LLT<MatrixType_, UpLo_>::rankUpdate(const VectorType& v
 template <typename MatrixType_, int UpLo_>
 typename MatrixType_::RealScalar LLT<MatrixType_, UpLo_>::logAbsDeterminant() const {
   eigen_assert(m_isInitialized && "LLT is not initialized.");
-  return 2 * m_matrix.diagonal().array().log().sum();
+  return RealScalar(2) * m_matrix.diagonal().array().log().sum();
 }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
