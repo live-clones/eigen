@@ -1,0 +1,176 @@
+/*
+ Copyright (c) 2024, AMD Inc. All rights reserved.
+
+ Redistribution and use in source and binary forms, with or without modification,
+ are permitted provided that the following conditions are met:
+
+ * Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+ * Neither the name of AMD nor the names of its contributors may
+   be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+ ********************************************************************************
+ * Content : Documentation on the use of AMD AOCL through Eigen
+ ********************************************************************************
+*/
+
+namespace Eigen {
+
+/** \page TopicUsingAOCL Using AMD® AOCL from %Eigen
+
+This document explains how to integrate AMD® Optimizing CPU Libraries (AOCL) with the Eigen library for enhanced performance in numerical computations.
+
+<a href="https://www.amd.com/en/developer/aocl.html"> AMD AOCL </a> is a comprehensive set of highly optimized, multi-threaded mathematical routines for x86-64 processors with a focus on AMD "Zen"-based architectures. Leveraging AOCL can lead to significant performance improvements in scientific computing, data analysis, and machine learning applications.
+
+\note
+It is the user's responsibility to download and install AMD AOCL and ensure their product's license allows linking to the libraries.
+
+\section TopicUsingAOCL_Intro 1. Using AOCL from Eigen
+
+Integrating AOCL allows Eigen to automatically dispatch certain computations to high-performance AOCL routines. This powerful feature combines Eigen's high-level, expressive API with the raw computational speed of AOCL's low-level kernels. The integration primarily targets three core components of the AOCL suite:
+
+- **BLIS**: A modern, high-performance framework for Basic Linear Algebra Subprograms (BLAS). BLIS is a complete re-engineering of the BLAS interface designed for modern cache-based architectures. It provides optimized implementations for matrix products, matrix-vector operations, and other Level 2/3 routines.
+- **FLAME**: A library for dense linear algebra algorithms that provides LAPACK functionalities. The FLAME project provides a more structured and formal approach to developing linear algebra algorithms, resulting in robust and high-performance routines for matrix decompositions like LU, Cholesky, and Eigenvalue solvers.
+- **AMD LibM**: A library of optimized standard math routines (e.g., `sin`, `cos`, `log`). The Vector Math Library (VML) component of LibM provides vectorized implementations of these functions that can operate on entire arrays of data at once.
+
+To enable the integration, you must define the macro `EIGEN_USE_AOCL_ALL` before including any Eigen headers. This macro triggers a cascade of preprocessor definitions within Eigen's headers that reroutes the internal logic to call the external AOCL functions at link time.
+
+\section TopicUsingAOCL_Types 2. AOCL and Eigen Types Equivalence
+
+The integration is designed to be seamless, with a direct and efficient correspondence between Eigen's data structures and the data types expected by AOCL's C-style functions.
+
+- **Scalar Types**: The current integration for the AOCL Vector Math Library (LibM) is specialized for the `double` scalar type. Standard BLAS and LAPACK operations, which are routed to BLIS and FLAME, also support `float`, `std::complex<double>`, and `std::complex<float>`.
+- **Data Layout**: Eigen defaults to a column-major storage order for its dense matrices and vectors. This is the same memory layout used by classic Fortran-based libraries like BLAS and LAPACK. Consequently, an Eigen matrix is stored as a single, contiguous block of memory with elements from the same column being adjacent. This perfect alignment means that Eigen's data buffers can be passed directly to AOCL functions without any costly data conversion or re-ordering. The `.data()` method of any dense Eigen object returns a raw pointer to the beginning of this buffer, which is precisely what functions like `cblas_dgemm` or `amd_vrda_sin` expect.
+
+\section TopicUsingAOCL_HighLevel 3. Using Eigen as a High-Level Interface to AOCL
+
+For most users, the primary benefit of this integration is "transparent acceleration." Eigen serves as a user-friendly, high-level interface to AOCL's optimized routines, abstracting away the complex, low-level details of the function calls. By defining a single macro, you activate a dispatch system that automatically replaces standard Eigen operations with faster AOCL equivalents where appropriate.
+
+<table class="manual">
+<tr><td>\c EIGEN_USE_AOCL_ALL </td><td>Defines \c EIGEN_USE_BLAS, \c EIGEN_USE_LAPACKE, and \c EIGEN_USE_AOCL_VML to enable all available AOCL accelerations.</td></tr>
+<tr class="alt"><td>\c EIGEN_USE_AOCL_MT </td><td>Equivalent to `EIGEN_USE_AOCL_ALL`, but also ensures that the multi-threaded version of BLIS (`libblis-mt`) is used for maximum performance in BLAS operations. This is the recommended macro for most applications.</td></tr>
+</table>
+
+When these macros are active, your high-level Eigen code remains clean and readable, while the underlying execution path is optimized. For instance:
+- `MatrixXd C = A * B;` is automatically executed by the high-performance `dgemm` routine from BLIS.
+- `VectorXd y = A * x;` is handled by the `dgemv` routine.
+- `v2 = v1.array().sin();` is dispatched to AOCL's `amd_vrda_sin` function from the Vector Math Library.
+
+This allows developers to focus on the mathematical logic of their application without needing to write manual, verbose C-style BLAS/LAPACK calls.
+
+\section TopicUsingAOCL_Direct 4. Directly Using AOCL from Eigen
+
+For advanced use cases, such as interfacing with existing C codebases or accessing specific AOCL functions not yet wrapped by Eigen's high-level API, you can call AOCL routines directly. The compatibility of Eigen's data layout makes this straightforward.
+
+For example, to directly invoke the Level-1 BLAS `ddot` routine to compute the dot product of two Eigen vectors:
+\code
+#include <cblas.h>
+// ...
+VectorXd a(1000), b(1000);
+// ... initialize a and b ...
+
+// Directly call the CBLAS function using Eigen's data pointers
+double dot_product = cblas_ddot(a.size(), a.data(), 1, b.data(), 1);
+\endcode
+This approach is useful when you need fine-grained control over a performance-critical kernel or when an equivalent high-level Eigen expression is not available. It provides an escape hatch to leverage the full power of the underlying library while still using Eigen for overall application structure.
+
+\section TopicUsingAOCL_Supported 5. AOCL Functions Currently Supported
+
+The following table summarizes the list of Eigen coefficient-wise expressions that are accelerated by the AOCL Vector Math Library when `EIGEN_USE_AOCL_VML` is defined. This acceleration is active for `VectorXd` of a minimum size (controlled by `EIGEN_AOCL_VML_THRESHOLD`, which defaults to 128 elements). This threshold exists because for very small vectors, the overhead of making an external library call can exceed the computational savings of the optimized kernel. For such small operations, Eigen's internal vectorized implementation is often faster.
+
+<table class="manual">
+<tr><th>Code example</th><th>AOCL routines</th></tr>
+<tr><td>\code
+v2 = v1.array().exp();
+v2 = v1.array().log();
+v2 = v1.array().log10();
+v2 = v1.array().log2();
+v2 = v1.array().sqrt();
+v2 = v1.array().pow(1.5);
+v2 = v1.array().sin();
+v2 = v1.array().cos();
+v2 = v1.array().tan();
+\endcode</td><td>\code
+amd_vrda_exp
+amd_vrda_log
+amd_vrda_log10
+amd_vrda_log2
+amd_vrda_sqrt
+amd_vrda_pow
+amd_vrda_sin
+amd_vrda_cos
+amd_vrda_tan
+\endcode</td></tr>
+</table>
+In addition to these VML functions, all BLAS and LAPACK routines in Eigen (including matrix products, decompositions like LU and Cholesky, and solvers like `SelfAdjointEigenSolver`) are supported through AOCL's BLIS and FLAME libraries.
+
+\section TopicUsingAOCL_Example 6. Using Eigen within AOCL Example
+
+The following example demonstrates how to use Eigen's data structures and functions in conjunction with AOCL's capabilities. This code will automatically leverage AOCL for both the matrix multiplication and the element-wise sine computation if compiled with the correct macros and linked against the AOCL libraries.
+
+\code
+#define EIGEN_USE_AOCL_MT
+#include <iostream>
+#include <Eigen/Dense>
+
+int main() {
+    int n = 2048;
+    // Eigen handles memory allocation
+    Eigen::MatrixXd A = Eigen::MatrixXd::Random(n, n);
+    Eigen::MatrixXd B = Eigen::MatrixXd::Random(n, n);
+    Eigen::VectorXd v = Eigen::VectorXd::LinSpaced(10000, 0, 10);
+    Eigen::VectorXd v_sin;
+
+    // This matrix multiplication will be dispatched to AOCL-BLIS (dgemm)
+    Eigen::MatrixXd C = A * B;
+    std::cout << "Matrix multiplication result (norm): " << C.norm() << std::endl;
+
+    // This coefficient-wise operation will be dispatched to AOCL-LibM (amd_vrda_sin)
+    v_sin = v.array().sin();
+    std::cout << "Vector sin result (norm): " << v_sin.norm() << std::endl;
+
+    return 0;
+}
+\endcode
+
+\subsection TopicUsingAOCL_Building Building and Linking
+
+To compile a program with AOCL support, you must ensure your compiler can find the AOCL headers and libraries. The easiest way is to set the `AOCL_ROOT` environment variable to the path of your AOCL installation.
+
+For a manual build, you would typically use flags like this:
+\code
+clang++ -O3 -march=native -DEIGEN_USE_AOCL_MT \
+        -I/path/to/eigen -I$AOCL_ROOT/include \
+        my_app.cpp -o my_app \
+        -L$AOCL_ROOT/lib -lblis-mt -lflame -lamdlibm -lm
+\endcode
+- `-I/path/to/eigen -I$AOCL_ROOT/include`: Specifies the include paths for Eigen and AOCL headers.
+- `-DEIGEN_USE_AOCL_MT`: Activates the multi-threaded AOCL backend in Eigen.
+- `-L$AOCL_ROOT/lib`: Tells the linker where to find the AOCL library files.
+- `-lblis-mt -lflame -lamdlibm -lm`: Specifies the exact libraries to link against.
+
+When using CMake, the provided `FindAOCL.cmake` module will automatically detect the libraries from the `AOCL_ROOT` path. To ensure the multi-threaded BLIS library is used for best performance, make sure `FindAOCL.cmake` searches for `blis_mt` before `blis`.
+
+\section TopicUsingAOCL_Links Links
+- AMD AOCL can be downloaded for free <a href="https://www.amd.com/en/developer/aocl.html">here</a>.
+- The official AOCL documentation and user guides are available on the AMD developer portal.
+
+*/
+
+}
+
