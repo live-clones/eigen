@@ -41,16 +41,16 @@ struct kernel_retval_base : public ReturnByValue<kernel_retval_base<Decompositio
   typedef DecompositionType_ DecompositionType;
   typedef ReturnByValue<kernel_retval_base> Base;
 
-  explicit kernel_retval_base(const DecompositionType& dec)
+  constexpr explicit kernel_retval_base(const DecompositionType& dec)
       : m_dec(dec), m_rank(dec.rank()), m_cols(m_rank == dec.cols() ? 1 : dec.cols() - m_rank) {}
 
-  inline Index rows() const { return m_dec.cols(); }
-  inline Index cols() const { return m_cols; }
-  inline Index rank() const { return m_rank; }
-  inline const DecompositionType& dec() const { return m_dec; }
+  inline constexpr Index rows() const { return m_dec.cols(); }
+  inline constexpr Index cols() const { return m_cols; }
+  inline constexpr Index rank() const { return m_rank; }
+  inline constexpr const DecompositionType& dec() const { return m_dec; }
 
   template <typename Dest>
-  inline void evalTo(Dest& dst) const {
+  inline constexpr void evalTo(Dest& dst) const {
     static_cast<const kernel_retval<DecompositionType>*>(this)->evalTo(dst);
   }
 
@@ -70,7 +70,7 @@ struct kernel_retval_base : public ReturnByValue<kernel_retval_base<Decompositio
   using Base::rank;                                                    \
   using Base::rows;                                                    \
   using Base::cols;                                                    \
-  kernel_retval(const DecompositionType& dec) : Base(dec) {}
+  constexpr kernel_retval(const DecompositionType& dec) : Base(dec) {}
 
 }  // end namespace Eigen
 
