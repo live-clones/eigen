@@ -1,5 +1,10 @@
-# FindAOCL.cmake
+# 
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
+# FindAOCL.cmake
+# 
 # This module locates the AMD AOCL MathLib, BLAS, and LAPACK libraries.
 # It searches for the core AOCL library (amdlibm, alm, aocl_core) and then
 # for the BLAS and LAPACK libraries provided by AOCL.
@@ -13,10 +18,6 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
 # Developed by: Sharad Saurabh Bhaskar, (shbhsaka@amd.com) Advanced Micro Devices, Inc.
 #
-# This implementation is inspired by the structure and approach of FindMKL.cmake
-# from the Eigen library (https://github.com/PX4/eigen/blob/master/bench/btl/cmake/FindMKL.cmake),
-# adapted for use with AMD AOCL libraries. No direct code is copied; the design
-# reflects common CMake conventions tailored to AOCL requirements.
 #
 # If no license is specified, this file is considered proprietary to AMD.
 # FindAOCL.cmake
