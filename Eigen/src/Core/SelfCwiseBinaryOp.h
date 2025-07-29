@@ -18,14 +18,14 @@ namespace Eigen {
 // TODO generalize the scalar type of 'other'
 
 template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(const Scalar& other) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& DenseBase<Derived>::operator*=(const Scalar& other) {
   internal::call_assignment(this->derived(), PlainObject::Constant(rows(), cols(), other),
                             internal::mul_assign_op<Scalar, Scalar>());
   return derived();
 }
 
 template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const Scalar& other) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& DenseBase<Derived>::operator/=(const Scalar& other) {
   internal::call_assignment(this->derived(), PlainObject::Constant(rows(), cols(), other),
                             internal::div_assign_op<Scalar, Scalar>());
   return derived();
