@@ -150,9 +150,18 @@ struct member_redux {
 template <typename Scalar>
 struct scalar_replace_zero_with_one_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& x) const {
-    return (x == Scalar(0)) ? Scalar(1) : x;
+    return numext::is_exactly_zero(x) ? Scalar(1) : x;
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& x) const {
+    return pselect(pcmp_eq(x, pzero(x)), pset1<Packet>(Scalar(1)), x);
   }
 };
+template <typename Scalar>
+struct functor_traits<scalar_replace_zero_with_one_op<Scalar>> {
+  enum { Cost = 1, PacketAccess = packet_traits<Scalar>::HasCmp };
+};
+
 }  // namespace internal
 
 /** \class VectorwiseOp
