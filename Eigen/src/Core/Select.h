@@ -50,10 +50,7 @@ inline EIGEN_DEVICE_FUNC CwiseTernaryOp<
                                        typename DenseBase<Derived>::Scalar>,
     ThenDerived, ElseDerived, Derived>
 DenseBase<Derived>::select(const DenseBase<ThenDerived>& thenMatrix, const DenseBase<ElseDerived>& elseMatrix) const {
-  using Op = internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
-                                                typename DenseBase<ElseDerived>::Scalar, Scalar>;
-  return CwiseTernaryOp<Op, ThenDerived, ElseDerived, Derived>(thenMatrix.derived(), elseMatrix.derived(), derived(),
-                                                               Op());
+  return Select<Derived, ThenDerived, ElseDerived>(thenMatrix.derived(), elseMatrix.derived(), derived());
 }
 /** Version of DenseBase::select(const DenseBase&, const DenseBase&) with
  * the \em else expression being a scalar value.
@@ -69,10 +66,8 @@ inline EIGEN_DEVICE_FUNC CwiseTernaryOp<
 DenseBase<Derived>::select(const DenseBase<ThenDerived>& thenMatrix,
                            const typename DenseBase<ThenDerived>::Scalar& elseScalar) const {
   using ElseConstantType = typename DenseBase<ThenDerived>::ConstantReturnType;
-  using Op = internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
-                                                typename DenseBase<ThenDerived>::Scalar, Scalar>;
-  return CwiseTernaryOp<Op, ThenDerived, ElseConstantType, Derived>(
-      thenMatrix.derived(), ElseConstantType(rows(), cols(), elseScalar), derived(), Op());
+  return Select<Derived, ThenDerived, ElseConstantType>(thenMatrix.derived(),
+                                                        ElseConstantType(rows(), cols(), elseScalar), derived());
 }
 /** Version of DenseBase::select(const DenseBase&, const DenseBase&) with
  * the \em then expression being a scalar value.
@@ -88,10 +83,8 @@ inline EIGEN_DEVICE_FUNC CwiseTernaryOp<
 DenseBase<Derived>::select(const typename DenseBase<ElseDerived>::Scalar& thenScalar,
                            const DenseBase<ElseDerived>& elseMatrix) const {
   using ThenConstantType = typename DenseBase<ElseDerived>::ConstantReturnType;
-  using Op = internal::scalar_boolean_select_op<typename DenseBase<ElseDerived>::Scalar,
-                                                typename DenseBase<ElseDerived>::Scalar, Scalar>;
-  return CwiseTernaryOp<Op, ThenConstantType, ElseDerived, Derived>(ThenConstantType(rows(), cols(), thenScalar),
-                                                                    elseMatrix.derived(), derived(), Op());
+  return Select<Derived, ThenConstantType, ElseDerived>(ThenConstantType(rows(), cols(), thenScalar),
+                                                        elseMatrix.derived(), derived());
 }
 
 }  // end namespace Eigen
