@@ -293,8 +293,7 @@ EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log2, amd_vrda_log2)
 // scalar_sum_op for addition EIGEN_AOCL_VML_BINARY_CALL_FLOAT(pow, std::pow)
 
 // Instantiate binary calls for double (AOCL vectorized).
-EIGEN_AOCL_VML_BINARY_CALL_DOUBLE(
-    sum, amd_vrda_add) // Using scalar_sum_op for addition
+EIGEN_AOCL_VML_BINARY_CALL_DOUBLE(sum, amd_vrda_add) // Using scalar_sum_op for addition
 EIGEN_AOCL_VML_BINARY_CALL_DOUBLE(pow, amd_vrda_pow)
 
 } // namespace internal
