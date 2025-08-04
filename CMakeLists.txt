@@ -29,6 +29,11 @@ if (POLICY CMP0146)
   cmake_policy(SET CMP0146 OLD)
 endif ()
 
+# Normalize DESTINATION paths
+if (POLICY CMP0177)
+  cmake_policy(SET CMP0177 NEW)
+endif ()
+
 #==============================================================================
 # CMake Project.
 #==============================================================================
@@ -301,6 +306,7 @@ if (EIGEN_IS_BUILDING_)
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
 
   find_package(StandardMathLibrary)
+  cmake_policy(SET CMP0074 NEW)
   find_package(AOCL QUIET)
   set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "")
   if(AOCL_FOUND)
@@ -309,16 +315,32 @@ if (EIGEN_IS_BUILDING_)
       include_directories(${AOCL_INCLUDE_DIRS})
     endif()
   endif()
+
+  #if(NOT STANDARD_MATH_LIBRARY_FOUND)
+  #message(FATAL_ERROR
+  #  "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
+  #else()
+  # if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
+  #  set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO} ${STANDARD_MATH_LIBRARY}")
+  # else()
+  #  set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${STANDARD_MATH_LIBRARY}")
+  # endif()
+  #endif()
+
   if(NOT STANDARD_MATH_LIBRARY_FOUND)
-    message(FATAL_ERROR
-      "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
+  message(FATAL_ERROR
+    "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
   else()
-    if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-      list(APPEND EIGEN_STANDARD_LIBRARIES_TO_LINK_TO ${STANDARD_MATH_LIBRARY})
-    else()
-      set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO ${STANDARD_MATH_LIBRARY})
-    endif()
+  if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
+    set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO} ${STANDARD_MATH_LIBRARY}")
+  else()
+    set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${STANDARD_MATH_LIBRARY}")
   endif()
+  # Clean up any leading/trailing whitespace in the variable to avoid CMP0004 errors
+  string(STRIP "${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO}" EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
+ endif()
+
+
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
     message(STATUS "Standard libraries to link to explicitly: ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO}")
   else()
@@ -746,17 +768,45 @@ endif()
 if(NOT WIN32 AND EIGEN_BUILD_SPBENCH)
   add_subdirectory(bench/spbench EXCLUDE_FROM_ALL)
 endif()
-
+#--------------------------------------------------------------------------------------#
+#                      AOCL BENCHMARK BUILD SECTION                                    #
+#--------------------------------------------------------------------------------------#
 if(EIGEN_BUILD_AOCL_BENCH)
+  # Allow users to override the default architecture
+  set(EIGEN_AOCL_BENCH_ARCH "znver5" CACHE STRING "Target architecture for AOCL benchmark")
   add_executable(benchmark_aocl EXCLUDE_FROM_ALL bench/benchmark_aocl.cpp)
   include(CheckCXXCompilerFlag)
-  check_cxx_compiler_flag("-march=znver5" COMPILER_SUPPORTS_ZNVER5)
-  if(COMPILER_SUPPORTS_ZNVER5)
-    target_compile_options(benchmark_aocl PRIVATE -O3 -march=znver5)
+  check_cxx_compiler_flag("-march=${EIGEN_AOCL_BENCH_ARCH}" COMPILER_SUPPORTS_AOCL_ARCH)
+  if(COMPILER_SUPPORTS_AOCL_ARCH)
+    target_compile_options(benchmark_aocl PRIVATE -O3 -Wno-shadow -march=${EIGEN_AOCL_BENCH_ARCH})
   else()
-    message(WARNING "znver5 architecture not supported by the compiler")
+    message(WARNING "${EIGEN_AOCL_BENCH_ARCH} architecture not supported by compiler")
     target_compile_options(benchmark_aocl PRIVATE -O3)
   endif()
+
+  # Add custom flags if provided
+  if(EIGEN_AOCL_BENCH_FLAGS)
+    separate_arguments(CUSTOM_FLAGS NATIVE_COMMAND "${EIGEN_AOCL_BENCH_FLAGS}")
+    target_compile_options(benchmark_aocl PRIVATE ${CUSTOM_FLAGS})
+    # Check if OpenMP is requested in custom flags and link it
+    string(FIND "${EIGEN_AOCL_BENCH_FLAGS}" "-fopenmp" OPENMP_REQUESTED)
+    if(NOT OPENMP_REQUESTED EQUAL -1)
+      find_package(OpenMP)
+      if(OpenMP_CXX_FOUND)
+        target_link_libraries(benchmark_aocl OpenMP::OpenMP_CXX)
+      else()
+        # Generic fallback: let compiler handle OpenMP linking
+        if(MSVC)
+          target_compile_options(benchmark_aocl PRIVATE "/openmp")
+        else()
+          target_compile_options(benchmark_aocl PRIVATE "-fopenmp")
+          target_link_options(benchmark_aocl PRIVATE "-fopenmp")
+        endif()
+        message(STATUS "Using compiler OpenMP flags as fallback")
+      endif()
+    endif()
+  endif()
+
   target_include_directories(benchmark_aocl PRIVATE ${INCLUDE_INSTALL_DIR})
   if(EIGEN_AOCL_BENCH_USE_MT)
     target_compile_definitions(benchmark_aocl PRIVATE EIGEN_USE_AOCL_MT)
@@ -768,6 +818,7 @@ if(EIGEN_BUILD_AOCL_BENCH)
     target_link_libraries(benchmark_aocl ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
   endif()
 endif()
+#----------------------------------------------------------------------------------------#
 
 if (EIGEN_BUILD_DEMOS)
   add_subdirectory(demos EXCLUDE_FROM_ALL)
@@ -827,3 +878,4 @@ endif()
 message(STATUS "")
 message(STATUS "Configured Eigen ${EIGEN_VERSION_STRING}")
 message(STATUS "")
+
