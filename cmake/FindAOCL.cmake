@@ -1,30 +1,86 @@
-# 
+
+#
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-# FindAOCL.cmake
-# 
-# This module locates the AMD AOCL MathLib, BLAS, and LAPACK libraries.
-# It searches for the core AOCL library (amdlibm, alm, aocl_core) and then
-# for the BLAS and LAPACK libraries provided by AOCL.
-#
-# Usage:
-#   Set the AOCL_ROOT environment variable to your AOCL installation root (e.g.,
-#   export AOCL_ROOT=<path-to-aocl-install-dir>)
-#   Then include this module in your CMakeLists.txt:
-#     find_package(AOCL)
+# FindAOCL.cmake - CMake Module for AMD Optimizing CPU Libraries (AOCL)
 #
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
-# Developed by: Sharad Saurabh Bhaskar, (shbhsaka@amd.com) Advanced Micro Devices, Inc.
 #
+# Description:
+# ------------
+# This CMake module locates and configures AMD Optimizing CPU Libraries (AOCL)
+# for high-performance mathematical computing on AMD processors. It searches for
+# and sets up the following AOCL components:
 #
-# If no license is specified, this file is considered proprietary to AMD.
-# FindAOCL.cmake
+# 1. AOCL MathLib (libamdlibm): Vector Math Library providing optimized
+#    transcendental functions (exp, sin, cos, sqrt, log, etc.) with VRDA
+#    (Vector Rapid Double-precision Arithmetic) support for SIMD acceleration
 #
-# This module locates the AMD AOCL MathLib, BLAS, and LAPACK libraries.
-# It searches for the core AOCL library (amdlibm, alm) and then
-# for the BLAS and LAPACK libraries provided by AOCL.
+# 2. AOCL BLAS (BLIS): Basic Linear Algebra Subprograms optimized for AMD
+#    architectures, supporting both single-threaded (libblis) and multithreaded
+#    (libblis-mt) execution with OpenMP parallelization
+#
+# 3. AOCL LAPACK (libflame): Linear Algebra PACKage providing dense matrix
+#    factorizations, eigenvalue/eigenvector computations, and linear system
+#    solvers optimized for AMD processors
+#
+# The module automatically detects the appropriate library variants based on
+# configuration flags and provides proper linking setup for optimal performance
+# on Zen, Zen2, Zen3, Zen4, and Zen5 architectures.
+#
+# Variables Set:
+# --------------
+# AOCL_FOUND          - True if AOCL libraries are found
+# AOCL_LIBRARIES      - List of AOCL libraries to link against
+# AOCL_INCLUDE_DIRS   - Include directories for AOCL headers
+# AOCL_BLAS_TYPE      - Type of BLIS library found ("multithreaded" or "single-threaded")
+# AOCL_CORE_LIB       - Path to core AOCL math library
+# AOCL_BLAS_LIB       - Path to AOCL BLAS library  
+# AOCL_LAPACK_LIB     - Path to AOCL LAPACK library
+#
+# Configuration Options:
+# ----------------------
+# EIGEN_AOCL_BENCH_USE_MT - When ON, searches for multithreaded BLIS first
+#                          When OFF, searches for single-threaded BLIS only
+#
+# # For multithreaded BLIS:
+# cmake .. -DEIGEN_AOCL_BENCH_USE_MT=ON
+# 
+# # For single-threaded BLIS:
+# cmake .. -DEIGEN_AOCL_BENCH_USE_MT=OFF
+#
+# Library Search Paths:
+# ---------------------
+# The module searches for AOCL libraries in the following order:
+# 1. ${AOCL_ROOT}/lib (or ${AOCL_ROOT}/lib32 for 32-bit)
+# 2. /opt/amd/aocl/lib64 (or /opt/amd/aocl/lib32 for 32-bit)  
+# 3. ${LIB_INSTALL_DIR}
+#
+# Expected Library Names:
+# -----------------------
+# Core MathLib: amdlibm, alm, almfast
+# BLAS Single:  blis
+# BLAS Multi:   blis-mt
+# LAPACK:       flame
+#
+# Dependencies:
+# -------------
+# The module automatically links the following system libraries:
+# - libm (standard math library)
+# - libpthread (POSIX threads)
+# - librt (real-time extensions)
+#
+# Architecture Support:
+# ---------------------
+# Optimized for AMD Zen family processors (Zen, Zen2, Zen3, Zen4, Zen5)
+# with automatic architecture detection and SIMD instruction selection.
+#
+# Developer:
+# ----------
+# Name: Sharad Saurabh Bhaskar
+# Email: shbhaska@amd.com
 #
 
 if(NOT DEFINED AOCL_ROOT)
@@ -50,7 +106,7 @@ if(EXISTS "/opt/amd/aocl/include")
   list(APPEND AOCL_INCLUDE_DIRS "/opt/amd/aocl/include")
 endif()
 
-if(CMAKE_MINOR_VERSION GREATER 4)
+if(CMAKE_VERSION VERSION_LESS 3.21.0 )
   if(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64")
     # Search for the core AOCL math library.
     find_library(AOCL_CORE_LIB
@@ -65,18 +121,46 @@ if(CMAKE_MINOR_VERSION GREATER 4)
     else()
       message(WARNING "AOCL core library not found in ${AOCL_ROOT}/lib or default locations.")
     endif()
-    # Now search for AOCL BLAS library.
-    find_library(AOCL_BLAS_LIB
-      NAMES blis-mt blis
-      PATHS
-        ${AOCL_ROOT}/lib
-        /opt/amd/aocl/lib64
-        ${LIB_INSTALL_DIR}
-    )
-    if(AOCL_BLAS_LIB)
-      message(STATUS "Found AOCL BLAS library: ${AOCL_BLAS_LIB}")
+
+    # Conditional BLIS library search based on MT requirement
+    if(EIGEN_AOCL_BENCH_USE_MT)
+      # Search for multithreaded BLIS first
+      find_library(AOCL_BLAS_LIB
+        NAMES blis-mt 
+        PATHS
+          ${AOCL_ROOT}/lib
+          /opt/amd/aocl/lib64
+          ${LIB_INSTALL_DIR}
+      )
+      if(AOCL_BLAS_LIB)
+        message(STATUS "Found AOCL BLAS (MT) library: ${AOCL_BLAS_LIB}")
+        set(AOCL_BLAS_TYPE "multithreaded")
+      else()
+        message(WARNING "AOCL multithreaded BLAS library not found, falling back to single-threaded.")
+        find_library(AOCL_BLAS_LIB
+          NAMES blis
+          PATHS
+            ${AOCL_ROOT}/lib
+            /opt/amd/aocl/lib64
+            ${LIB_INSTALL_DIR}
+        )
+        set(AOCL_BLAS_TYPE "single-threaded")
+      endif()
     else()
-      message(WARNING "AOCL BLAS library not found in ${AOCL_ROOT}/lib or default locations.")
+      # Search for single-threaded BLIS
+      find_library(AOCL_BLAS_LIB
+        NAMES blis
+        PATHS
+          ${AOCL_ROOT}/lib
+          /opt/amd/aocl/lib64
+          ${LIB_INSTALL_DIR}
+      )
+      if(AOCL_BLAS_LIB)
+        message(STATUS "Found AOCL BLAS (ST) library: ${AOCL_BLAS_LIB}")
+        set(AOCL_BLAS_TYPE "single-threaded")
+      else()
+        message(WARNING "AOCL single-threaded BLAS library not found.")
+      endif()
     endif()
 
     # Now search for AOCL LAPACK library.
@@ -108,17 +192,43 @@ if(CMAKE_MINOR_VERSION GREATER 4)
       message(WARNING "AOCL core library not found in ${AOCL_ROOT}/lib or default locations.")
     endif()
 
-    find_library(AOCL_BLAS_LIB
-      NAMES blis-mt blis
-      PATHS
-        ${AOCL_ROOT}/lib
-        /opt/amd/aocl/lib32
-        ${LIB_INSTALL_DIR}
-    )
-    if(AOCL_BLAS_LIB)
-      message(STATUS "Found AOCL BLAS library: ${AOCL_BLAS_LIB}")
+    # Conditional BLIS library search for 32-bit
+    if(EIGEN_AOCL_BENCH_USE_MT)
+      find_library(AOCL_BLAS_LIB
+        NAMES blis-mt 
+        PATHS
+          ${AOCL_ROOT}/lib
+          /opt/amd/aocl/lib32
+          ${LIB_INSTALL_DIR}
+      )
+      if(AOCL_BLAS_LIB)
+        message(STATUS "Found AOCL BLAS (MT) library: ${AOCL_BLAS_LIB}")
+        set(AOCL_BLAS_TYPE "multithreaded")
+      else()
+        message(WARNING "AOCL multithreaded BLAS library not found, falling back to single-threaded.")
+        find_library(AOCL_BLAS_LIB
+          NAMES blis
+          PATHS
+            ${AOCL_ROOT}/lib
+            /opt/amd/aocl/lib32
+            ${LIB_INSTALL_DIR}
+        )
+        set(AOCL_BLAS_TYPE "single-threaded")
+      endif()
     else()
-      message(WARNING "AOCL BLAS library not found in ${AOCL_ROOT}/lib or default locations.")
+      find_library(AOCL_BLAS_LIB
+        NAMES blis
+        PATHS
+          ${AOCL_ROOT}/lib
+          /opt/amd/aocl/lib32
+          ${LIB_INSTALL_DIR}
+      )
+      if(AOCL_BLAS_LIB)
+        message(STATUS "Found AOCL BLAS (ST) library: ${AOCL_BLAS_LIB}")
+        set(AOCL_BLAS_TYPE "single-threaded")
+      else()
+        message(WARNING "AOCL single-threaded BLAS library not found.")
+      endif()
     endif()
 
     find_library(AOCL_LAPACK_LIB
