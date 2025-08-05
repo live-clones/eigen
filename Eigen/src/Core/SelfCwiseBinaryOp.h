@@ -16,36 +16,46 @@
 namespace Eigen {
 
 // TODO generalize the scalar type of 'other'
+namespace internal {
+template <typename Derived, bool Complex = NumTraits<typename DenseBase<Derived>::Scalar>::IsComplex>
+struct selfcwise_helper;
+
+template <typename Derived>
+struct selfcwise_helper<Derived, /*Complex*/ false> {
+  using Scalar = typename DenseBase<Derived>::Scalar;
+  using ConstantExpr = typename plain_constant_type<Derived, Scalar>::type;
+  using MulOp = mul_assign_op<Scalar, Scalar>;
+  using DivOp = div_assign_op<Scalar, Scalar>;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_mul(Derived& derived, const Scalar& other) {
+    call_assignment(derived, ConstantExpr(derived.rows(), derived.cols(), other), MulOp());
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_div(Derived& derived, const Scalar& other) {
+    call_assignment(derived, ConstantExpr(derived.rows(), derived.cols(), other), DivOp());
+  }
+};
+template <typename Derived>
+struct selfcwise_helper<Derived, /*Complex*/ true> {
+  using RealScalar = typename DenseBase<Derived>::RealScalar;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_mul(Derived& derived, const RealScalar& other) {
+    selfcwise_helper<Derived, false>::run_mul(derived.realView(), other);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_div(Derived& derived, const RealScalar& other) {
+    selfcwise_helper<Derived, false>::run_div(derived.realView(), other);
+  }
+};
+}  // namespace internal
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(const Scalar& other) {
-  internal::call_assignment(this->derived(), PlainObject::Constant(rows(), cols(), other),
-                            internal::mul_assign_op<Scalar, Scalar>());
+  internal::selfcwise_helper<Derived>::run_mul(derived(), other);
   return derived();
 }
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const Scalar& other) {
-  internal::call_assignment(this->derived(), PlainObject::Constant(rows(), cols(), other),
-                            internal::div_assign_op<Scalar, Scalar>());
-  return derived();
-}
-
-// specialization for ComplexExpression *= RealScalar
-template <typename Derived>
-template <typename Enable>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(
-    const typename NumTraits<Scalar>::Real& other) {
-  realView() *= other;
-  return derived();
-}
-
-// specialization for ComplexExpression /= RealScalar
-template <typename Derived>
-template <typename Enable>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(
-    const typename NumTraits<Scalar>::Real& other) {
-  realView() /= other;
+  internal::selfcwise_helper<Derived>::run_div(derived(), other);
   return derived();
 }
 

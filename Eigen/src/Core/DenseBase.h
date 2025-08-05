@@ -368,10 +368,6 @@ class DenseBase
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const Scalar& other);
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const Scalar& other);
-  template <typename Enable = std::enable_if_t<NumTraits<Scalar>::IsComplex>>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const RealScalar& other);
-  template <typename Enable = std::enable_if_t<NumTraits<Scalar>::IsComplex>>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const RealScalar& other);
 
   typedef internal::add_const_on_value_type_t<typename internal::eval<Derived>::type> EvalReturnType;
   /** \returns the matrix or vector obtained by evaluating this expression.
