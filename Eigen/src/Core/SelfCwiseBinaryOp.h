@@ -31,6 +31,24 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(co
   return derived();
 }
 
+// specialization for ComplexExpression *= RealScalar
+template <typename Derived>
+template <typename Enable>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(
+    const typename NumTraits<Scalar>::Real& other) {
+  realView() *= other;
+  return derived();
+}
+
+// specialization for ComplexExpression /= RealScalar
+template <typename Derived>
+template <typename Enable>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(
+    const typename NumTraits<Scalar>::Real& other) {
+  realView() /= other;
+  return derived();
+}
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_SELFCWISEBINARYOP_H
