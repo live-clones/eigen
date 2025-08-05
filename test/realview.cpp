@@ -64,8 +64,9 @@ template <typename Scalar, int Rows, int Cols, int MaxRows = Rows, int MaxCols =
 void test_realview_driver() {
   using ColMajorMatrixType = Matrix<Scalar, Rows, Cols, ColMajor, MaxRows, MaxCols>;
   using ColMajorArrayType = Array<Scalar, Rows, Cols, ColMajor, MaxRows, MaxCols>;
-  using RowMajorMatrixType = Matrix<Scalar, Rows, Cols, RowMajor, MaxRows, MaxCols>;
-  using RowMajorArrayType = Array<Scalar, Rows, Cols, RowMajor, MaxRows, MaxCols>;
+  // if Cols == 1 (a vector), don't test RowMajor as it is not a valid array
+  using RowMajorMatrixType = Matrix<Scalar, Rows, Cols, Cols == 1 ? ColMajor : RowMajor, MaxRows, MaxCols>;
+  using RowMajorArrayType = Array<Scalar, Rows, Cols, Cols == 1 ? ColMajor : RowMajor, MaxRows, MaxCols>;
   test_realview(ColMajorMatrixType());
   test_realview(ColMajorArrayType());
   test_realview(RowMajorMatrixType());
@@ -82,10 +83,11 @@ void test_realview_driver_complex() {
 EIGEN_DECLARE_TEST(realview) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic>()));
-    CALL_SUBTEST_2((test_realview_driver_complex<std::complex<float>, Dynamic, 17>()));
-    CALL_SUBTEST_3((test_realview_driver_complex<std::complex<float>, 17, Dynamic>()));
-    CALL_SUBTEST_4((test_realview_driver_complex<std::complex<float>, Dynamic, 7, 17, 7>()));
-    CALL_SUBTEST_5((test_realview_driver_complex<std::complex<float>, 7, Dynamic, 7, 10>()));
-    CALL_SUBTEST_6((test_realview_driver_complex<CustomComplex<SafeScalar<float>>, Dynamic, Dynamic>()));
+    CALL_SUBTEST_2((test_realview_driver_complex<std::complex<float>, Dynamic, 1>()));
+    CALL_SUBTEST_3((test_realview_driver_complex<std::complex<float>, Dynamic, 17>()));
+    CALL_SUBTEST_4((test_realview_driver_complex<std::complex<float>, 7, 17>()));
+    CALL_SUBTEST_5((test_realview_driver_complex<std::complex<float>, Dynamic, 17, 7, 17>()));
+    CALL_SUBTEST_6((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, 7, 17>()));
+    CALL_SUBTEST_7((test_realview_driver_complex<CustomComplex<SafeScalar<float>>, Dynamic, Dynamic>()));
   }
 }
