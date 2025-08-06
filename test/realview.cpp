@@ -31,7 +31,6 @@ void test_realview(const T&) {
   VERIFY(A.realView().cols() == colFactor * A.cols());
   VERIFY(A.realView().size() == sizeFactor * A.size());
 
-
   RealScalar alpha = internal::random(RealScalar(1), RealScalar(2));
   A.setRandom();
   B = A;
@@ -79,8 +78,6 @@ void test_realview_driver_complex() {
   test_realview_driver<RealScalar, Rows, Cols, MaxRows, MaxCols>();
   test_realview_driver<ComplexScalar, Rows, Cols, MaxRows, MaxCols>();
 }
-
-
 
 EIGEN_DECLARE_TEST(realview) {
   for (int i = 0; i < g_repeat; i++) {

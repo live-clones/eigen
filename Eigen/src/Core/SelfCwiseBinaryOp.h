@@ -36,13 +36,11 @@ struct self_assign_helper<Xpr, false> {
   // TODO generalize the scalar type of 'other'
   template <typename RhsScalar>
   static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_mul_assign(Xpr& xpr, const RhsScalar& other) {
-    //EIGEN_STATIC_ASSERT(false, UNSUPPORTED SCALAR TYPE)
-    eigen_assert(false && "wtf??");
+    EIGEN_STATIC_ASSERT(false, UNSUPPORTED SCALAR TYPE)
   }
   template <typename RhsScalar>
   static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_div_assign(Xpr& xpr, const RhsScalar& other) {
-    //EIGEN_STATIC_ASSERT(false, UNSUPPORTED SCALAR TYPE)
-    eigen_assert(false && "wtf??");
+    EIGEN_STATIC_ASSERT(false, UNSUPPORTED SCALAR TYPE)
   }
 };
 
