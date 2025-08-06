@@ -15,71 +15,33 @@
 
 namespace Eigen {
 
-namespace internal {
-
-template <typename Xpr, bool SpecializeReal = NumTraits<typename traits<Xpr>::Scalar>::IsComplex>
-struct self_assign_helper;
-
-template <typename Xpr>
-struct self_assign_helper<Xpr, false> {
-  using Scalar = typename traits<Xpr>::Scalar;
-  using ConstantExpr = typename plain_constant_type<Xpr>::type;
-  using MulOp = mul_assign_op<Scalar>;
-  using DivOp = div_assign_op<Scalar>;
-
-  static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_mul_assign(Xpr& xpr, const Scalar& other) {
-    call_assignment(xpr, ConstantExpr(xpr.rows(), xpr.cols(), other), MulOp());
-  }
-  static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_div_assign(Xpr& xpr, const Scalar& other) {
-    call_assignment(xpr, ConstantExpr(xpr.rows(), xpr.cols(), other), DivOp());
-  }
-  // TODO generalize the scalar type of 'other'
-  template <typename RhsScalar>
-  static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_mul_assign(Xpr& xpr, const RhsScalar& other) {
-    EIGEN_STATIC_ASSERT(false, UNSUPPORTED SCALAR TYPE)
-  }
-  template <typename RhsScalar>
-  static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_div_assign(Xpr& xpr, const RhsScalar& other) {
-    EIGEN_STATIC_ASSERT(false, UNSUPPORTED SCALAR TYPE)
-  }
-};
-
-template <typename Xpr>
-struct self_assign_helper<Xpr, true> : self_assign_helper<Xpr, false> {
-  using Scalar = typename traits<Xpr>::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  using RealViewReturnType = typename DenseBase<Xpr>::RealViewReturnType;
-  using ConstantExpr = typename plain_constant_type<RealViewReturnType>::type;
-  using MulOp = mul_assign_op<RealScalar>;
-  using DivOp = div_assign_op<RealScalar>;
-
-  // defer to Base for Scalar and other argument types
-  using Base = self_assign_helper<Xpr, false>;
-  using Base::self_div_assign;
-  using Base::self_mul_assign;
-
-  static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_mul_assign(Xpr& xpr, const RealScalar& other) {
-    RealViewReturnType realView = xpr.realView();
-    call_assignment(realView, ConstantExpr(realView.rows(), realView.cols(), other), MulOp());
-  }
-  static void EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE self_div_assign(Xpr& xpr, const RealScalar& other) {
-    RealViewReturnType realView = xpr.realView();
-    call_assignment(realView, ConstantExpr(realView.rows(), realView.cols(), other), DivOp());
-  }
-};
-}  // namespace internal
-
 template <typename Derived>
-template <typename RhsScalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(const RhsScalar& other) {
-  internal::self_assign_helper<Derived>::self_mul_assign(derived(), other);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(const Scalar& other) {
+  using ConstantExpr = typename internal::plain_constant_type<Derived, Scalar>::type;
+  using Op = internal::mul_assign_op<Scalar>;
+  internal::call_assignment(derived(), ConstantExpr(rows(), cols(), other), Op());
   return derived();
 }
 
 template <typename Derived>
-template <typename RhsScalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const RhsScalar& other) {
-  internal::self_assign_helper<Derived>::self_div_assign(derived(), other);
+template <bool Enable, typename>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(const RealScalar& other) {
+  realView() *= other;
+  return derived();
+}
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const Scalar& other) {
+  using ConstantExpr = typename internal::plain_constant_type<Derived, Scalar>::type;
+  using Op = internal::div_assign_op<Scalar>;
+  internal::call_assignment(derived(), ConstantExpr(rows(), cols(), other), Op());
+  return derived();
+}
+
+template <typename Derived>
+template <bool Enable, typename>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const RealScalar& other) {
+  realView() /= other;
   return derived();
 }
 

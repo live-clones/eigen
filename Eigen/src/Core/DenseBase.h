@@ -366,10 +366,13 @@ class DenseBase
   EIGEN_DEVICE_FUNC inline bool hasNaN() const;
   EIGEN_DEVICE_FUNC inline bool allFinite() const;
 
-  template <typename RhsScalar>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const RhsScalar& other);
-  template <typename RhsScalar>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const RhsScalar& other);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const Scalar& other);
+  template <bool Enable = !internal::is_same<Scalar, RealScalar>::value, typename = std::enable_if_t<Enable>>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const RealScalar& other);
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const Scalar& other);
+  template <bool Enable = !internal::is_same<Scalar, RealScalar>::value, typename = std::enable_if_t<Enable>>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const RealScalar& other);
 
   typedef internal::add_const_on_value_type_t<typename internal::eval<Derived>::type> EvalReturnType;
   /** \returns the matrix or vector obtained by evaluating this expression.
