@@ -62,6 +62,11 @@ struct CustomComplex {
     return *this;
   }
 
+  Real& real() { return re; }
+  const Real& real() const { return re; }
+  Real& imag() { return im; }
+  const Real& imag() const { return im; }
+
   bool operator==(const CustomComplex& other) const {
     return numext::equal_strict(re, other.re) && numext::equal_strict(im, other.im);
   }

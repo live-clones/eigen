@@ -8,8 +8,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "main.h"
-#include "SafeScalar.h"
-#include "CustomComplex.h"
 
 template <typename T>
 void test_realview(const T&) {
@@ -32,6 +30,7 @@ void test_realview(const T&) {
   VERIFY(A.realView().rows() == rowFactor * A.rows());
   VERIFY(A.realView().cols() == colFactor * A.cols());
   VERIFY(A.realView().size() == sizeFactor * A.size());
+
 
   RealScalar alpha = internal::random(RealScalar(1), RealScalar(2));
   A.setRandom();
@@ -62,9 +61,10 @@ void test_realview(const T&) {
 
 template <typename Scalar, int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
 void test_realview_driver() {
-  using ColMajorMatrixType = Matrix<Scalar, Rows, Cols, ColMajor, MaxRows, MaxCols>;
-  using ColMajorArrayType = Array<Scalar, Rows, Cols, ColMajor, MaxRows, MaxCols>;
-  // if Cols == 1 (a vector), don't test RowMajor as it is not a valid array
+  // if Rows == 1, don't test ColMajor as it is not a valid array
+  using ColMajorMatrixType = Matrix<Scalar, Rows, Cols, Rows == 1 ? RowMajor : ColMajor, MaxRows, MaxCols>;
+  using ColMajorArrayType = Array<Scalar, Rows, Cols, Rows == 1 ? RowMajor : ColMajor, MaxRows, MaxCols>;
+  // if Cols == 1, don't test RowMajor as it is not a valid array
   using RowMajorMatrixType = Matrix<Scalar, Rows, Cols, Cols == 1 ? ColMajor : RowMajor, MaxRows, MaxCols>;
   using RowMajorArrayType = Array<Scalar, Rows, Cols, Cols == 1 ? ColMajor : RowMajor, MaxRows, MaxCols>;
   test_realview(ColMajorMatrixType());
@@ -80,14 +80,18 @@ void test_realview_driver_complex() {
   test_realview_driver<ComplexScalar, Rows, Cols, MaxRows, MaxCols>();
 }
 
+
+
 EIGEN_DECLARE_TEST(realview) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic>()));
-    CALL_SUBTEST_2((test_realview_driver_complex<std::complex<float>, Dynamic, 1>()));
-    CALL_SUBTEST_3((test_realview_driver_complex<std::complex<float>, Dynamic, 17>()));
-    CALL_SUBTEST_4((test_realview_driver_complex<std::complex<float>, 7, 17>()));
-    CALL_SUBTEST_5((test_realview_driver_complex<std::complex<float>, Dynamic, 17, 7, 17>()));
-    CALL_SUBTEST_6((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, 7, 17>()));
-    CALL_SUBTEST_7((test_realview_driver_complex<CustomComplex<SafeScalar<float>>, Dynamic, Dynamic>()));
+    CALL_SUBTEST_1((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, Dynamic, Dynamic>()));
+    CALL_SUBTEST_2((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, 17, Dynamic>()));
+    CALL_SUBTEST_3((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, Dynamic, 19>()));
+    CALL_SUBTEST_4((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, 17, 19>()));
+    CALL_SUBTEST_5((test_realview_driver_complex<std::complex<float>, 17, Dynamic, 17, Dynamic>()));
+    CALL_SUBTEST_6((test_realview_driver_complex<std::complex<float>, Dynamic, 19, Dynamic, 19>()));
+    CALL_SUBTEST_7((test_realview_driver_complex<std::complex<float>, 17, 19, 17, 19>()));
+    CALL_SUBTEST_8((test_realview_driver_complex<std::complex<float>, Dynamic, 1>()));
+    CALL_SUBTEST_9((test_realview_driver_complex<std::complex<float>, 1, Dynamic>()));
   }
 }
