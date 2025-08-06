@@ -366,8 +366,6 @@ class DenseBase
   EIGEN_DEVICE_FUNC inline bool hasNaN() const;
   EIGEN_DEVICE_FUNC inline bool allFinite() const;
 
-  //EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const Scalar& other);
-  //EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const Scalar& other);
   template <typename RhsScalar>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const RhsScalar& other);
   template <typename RhsScalar>
