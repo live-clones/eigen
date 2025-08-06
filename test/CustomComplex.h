@@ -39,8 +39,8 @@ struct CustomComplex {
     // Smith's complex division (https://arxiv.org/pdf/1210.4539.pdf),
     // guards against over/under-flow.
     const bool scale_imag = numext::abs(other.im) <= numext::abs(other.re);
-    const Real rscale = scale_imag ? Real(1) : Real(other.re / other.im);
-    const Real iscale = scale_imag ? Real(other.im / other.re) : Real(1);
+    const Real rscale = scale_imag ? Real(1) : other.re / other.im;
+    const Real iscale = scale_imag ? other.im / other.re : Real(1);
     const Real denominator = other.re * rscale + other.im * iscale;
     return CustomComplex((re * rscale + im * iscale) / denominator, (im * rscale - re * iscale) / denominator);
   }
@@ -120,9 +120,8 @@ template <typename Real>
 using CustomComplex = custom_complex::CustomComplex<Real>;
 
 namespace Eigen {
-template <typename Real_>
-struct NumTraits<CustomComplex<Real_>> : NumTraits<Real_> {
-  using Real = Real_;
+template <typename Real>
+struct NumTraits<CustomComplex<Real>> : NumTraits<Real> {
   enum { IsComplex = 1 };
 };
 
