@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024, AMD Inc. All rights reserved.
+ Copyright (c) 2025, AMD Inc. All rights reserved.
  Redistribution and use in source and binary forms, with or without modification,
  are permitted provided that the following conditions are met:
  * Redistributions of source code must retain the above copyright notice, this
@@ -29,7 +29,7 @@ namespace Eigen {
 
 /** \page TopicUsingAOCL Using AMD® AOCL from %Eigen
 
-Since %Eigen version 3.4 and later, users can benefit from built-in AMD® Optimizing CPU Libraries (AOCL) optimizations with an installed copy of AOCL 4.0 (or later).
+Since %Eigen version 3.4 and later, users can benefit from built-in AMD® Optimizing CPU Libraries (AOCL) optimizations with an installed copy of AOCL 5.0 (or later).
 
 <a href="https://www.amd.com/en/developer/aocl.html"> AMD AOCL </a> provides highly optimized, multi-threaded mathematical routines for x86-64 processors with a focus on AMD "Zen"-based architectures. AOCL is available on Linux and Windows for x86-64 architectures.
 
@@ -37,6 +37,7 @@ Since %Eigen version 3.4 and later, users can benefit from built-in AMD® Optimi
 AMD® AOCL is freely available software, but it is the responsibility of users to download, install, and ensure their product's license allows linking to the AOCL libraries. AOCL is distributed under a permissive license that allows commercial use.
 
 Using AMD AOCL through %Eigen is straightforward:
+-# export \c AOCL_ROOT into your environment 
 -# define one of the AOCL macros before including any %Eigen headers (see table below)
 -# link your program to AOCL libraries (BLIS, FLAME, LibM)
 -# ensure your system supports the target architecture optimizations
