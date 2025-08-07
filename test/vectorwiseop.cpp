@@ -115,11 +115,6 @@ void vectorwiseop_matrix(const MatrixType& m) {
   RealRowVectorType rrres;
 
   Scalar small_scalar = (std::numeric_limits<RealScalar>::min)();
-  if (!numext::is_exactly_zero(numext::abs2(
-          small_scalar)))  // required for normalize tests, should be zero unless rounding mode is FE_UPWARD
-  {
-    small_scalar = Scalar(0);
-  }
 
   // test broadcast assignment
   m2 = m1;
@@ -183,13 +178,13 @@ void vectorwiseop_matrix(const MatrixType& m) {
   m3 = m2.colwise().normalized();
   for (Index k = 0; k < cols; ++k) VERIFY_IS_APPROX(m3.col(k), m2.col(k).normalized());
   m2 = m1;
-  m2.row(r).fill(small_scalar);
+  m2.row(r).setZero();
   m3 = m2.rowwise().normalized();
   for (Index k = 0; k < rows; ++k) VERIFY_IS_APPROX(m3.row(k), m2.row(k).normalized());
 
   // test normalize
   m2 = m1;
-  m2.col(c).fill(small_scalar);
+  m2.col(c).setZero();
   m3 = m2;
   m3.colwise().normalize();
   for (Index k = 0; k < cols; ++k) VERIFY_IS_APPROX(m3.col(k), m2.col(k).normalized());
