@@ -90,5 +90,6 @@ EIGEN_DECLARE_TEST(realview) {
     CALL_SUBTEST_7((test_realview_driver_complex<std::complex<float>, 17, 19, 17, 19>()));
     CALL_SUBTEST_8((test_realview_driver_complex<std::complex<float>, Dynamic, 1>()));
     CALL_SUBTEST_9((test_realview_driver_complex<std::complex<float>, 1, Dynamic>()));
+    CALL_SUBTEST_10((test_realview_driver_complex<std::complex<float>, 1, 1>()));
   }
 }
