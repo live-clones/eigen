@@ -42,21 +42,16 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
 };
 
 template <typename Xpr>
-struct evaluator<RealView<Xpr>> : public evaluator<Xpr> {
-  using XprType = RealView<Xpr>;
-  using Traits = traits<XprType>;
-  using ComplexScalar = typename Traits::ComplexScalar;
-  using Scalar = typename Traits::Scalar;
+struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
+  // use private inheritance to not accidentally inherit RowsAtCompileTime, etc
   using BaseEvaluator = evaluator<Xpr>;
-  static constexpr bool IsRowMajor = Traits::IsRowMajor;
-  static constexpr int RowsAtCompileTime = Traits::RowsAtCompileTime;
-  static constexpr int ColsAtCompileTime = Traits::ColsAtCompileTime;
-  static constexpr int SizeAtCompileTime = Traits::SizeAtCompileTime;
-  static constexpr int MaxRowsAtCompileTime = Traits::MaxRowsAtCompileTime;
-  static constexpr int MaxColsAtCompileTime = Traits::MaxColsAtCompileTime;
-  static constexpr int MaxSizeAtCompileTime = Traits::MaxSizeAtCompileTime;
+  using XprType = RealView<Xpr>;
+  using ExpressionTraits = traits<XprType>;
+  using ComplexScalar = typename ExpressionTraits::ComplexScalar;
+  using Scalar = typename ExpressionTraits::Scalar;
+  static constexpr bool IsRowMajor = ExpressionTraits::IsRowMajor;
+  static constexpr int Flags = ExpressionTraits::Flags;
   static constexpr int CoeffReadCost = BaseEvaluator::CoeffReadCost;
-  static constexpr int Flags = Traits::Flags;
   static constexpr int Alignment = BaseEvaluator::Alignment;
 
   EIGEN_DEVICE_FUNC explicit evaluator(XprType realView) : BaseEvaluator(realView.m_xpr) {}
