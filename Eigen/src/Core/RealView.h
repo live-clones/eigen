@@ -17,6 +17,21 @@ namespace Eigen {
 
 namespace internal {
 
+// Vectorized assignment to RealView requires array-oriented access to the real and imaginary components.
+// From https://en.cppreference.com/w/cpp/numeric/complex.html:
+// For any pointer to an element of an array of std::complex<T> named p and any valid array index i,
+// reinterpret_cast<T*>(p)[2 * i] is the real part of the complex number p[i], and
+// reinterpret_cast<T*>(p)[2 * i + 1] is the imaginary part of the complex number p[i].
+
+template <typename Scalar>
+struct complex_array_access : std::false_type {};
+template <>
+struct complex_array_access<std::complex<float>> : std::true_type {};
+template <>
+struct complex_array_access<std::complex<double>> : std::true_type {};
+template <>
+struct complex_array_access<std::complex<long double>> : std::true_type {};
+
 template <typename Xpr>
 struct traits<RealView<Xpr>> : public traits<Xpr> {
   template <typename T>
@@ -28,10 +43,13 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
   using Base = traits<Xpr>;
   using ComplexScalar = typename Base::Scalar;
   using Scalar = typename NumTraits<ComplexScalar>::Real;
-  static constexpr int ActualPacketAccessBit = packet_traits<Scalar>::Vectorizable ? PacketAccessBit : 0;
   static constexpr int ActualLvalueBit = is_lvalue<Xpr>::value ? LvalueBit : 0;
-  static constexpr int FlagMask = HereditaryBits | LinearAccessBit | ActualPacketAccessBit | ActualLvalueBit;
-  static constexpr int Flags = Base::Flags & FlagMask;
+  static constexpr int ActualDirectAccessBit = complex_array_access<ComplexScalar>::value ? DirectAccessBit : 0;
+  static constexpr int ActualPacketAccessBit = packet_traits<Scalar>::Vectorizable ? PacketAccessBit : 0;
+  static constexpr int BaseFlags = int(evaluator<Xpr>::Flags) | int(Base::Flags);
+  static constexpr int FlagMask =
+      ActualLvalueBit | ActualDirectAccessBit | ActualPacketAccessBit | HereditaryBits | LinearAccessBit;
+  static constexpr int Flags = BaseFlags & FlagMask;
   static constexpr bool IsRowMajor = Flags & RowMajorBit;
   static constexpr int RowsAtCompileTime = double_size(Base::RowsAtCompileTime, !IsRowMajor);
   static constexpr int ColsAtCompileTime = double_size(Base::ColsAtCompileTime, IsRowMajor);
@@ -43,7 +61,6 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
 
 template <typename Xpr>
 struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
-  // use private inheritance to not accidentally inherit RowsAtCompileTime, etc
   using BaseEvaluator = evaluator<Xpr>;
   using XprType = RealView<Xpr>;
   using ExpressionTraits = traits<XprType>;
@@ -149,19 +166,20 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
 
 }  // namespace internal
 
-// Generic API dispatcher
-template <typename Derived>
-class RealViewImpl;
-
 template <typename Xpr>
-class RealView : public RealViewImpl<Xpr> {
+class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
+  using ExpressionTraits = internal::traits<RealView>;
   EIGEN_STATIC_ASSERT(NumTraits<typename Xpr::Scalar>::IsComplex, SCALAR MUST BE COMPLEX)
  public:
+  using Scalar = typename ExpressionTraits::Scalar;
   using Nested = RealView;
+
   EIGEN_DEVICE_FUNC explicit RealView(Xpr& xpr) : m_xpr(xpr) {}
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return Xpr::IsRowMajor ? m_xpr.rows() : 2 * m_xpr.rows(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return Xpr::IsRowMajor ? 2 * m_xpr.cols() : m_xpr.cols(); }
   EIGEN_DEVICE_FUNC constexpr Index size() const noexcept { return 2 * m_xpr.size(); }
+  EIGEN_DEVICE_FUNC Scalar* data() { return reinterpret_cast<Scalar*>(m_xpr.data()); }
+  EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC RealView operator=(const DenseBase<OtherDerived>& other);
@@ -172,10 +190,11 @@ class RealView : public RealViewImpl<Xpr> {
 };
 
 template <typename Xpr>
-class RealViewImpl : public internal::dense_xpr_base<RealView<Xpr>>::type {
- public:
-  using Base = typename internal::dense_xpr_base<RealView<Xpr>>::type;
-};
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC RealView<Xpr> RealView<Xpr>::operator=(const DenseBase<OtherDerived>& other) {
+  internal::call_assignment(*this, other.derived());
+  return *this;
+}
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC typename DenseBase<Derived>::RealViewReturnType DenseBase<Derived>::realView() {
@@ -185,13 +204,6 @@ EIGEN_DEVICE_FUNC typename DenseBase<Derived>::RealViewReturnType DenseBase<Deri
 template <typename Derived>
 EIGEN_DEVICE_FUNC typename DenseBase<Derived>::ConstRealViewReturnType DenseBase<Derived>::realView() const {
   return ConstRealViewReturnType(derived());
-}
-
-template <typename Derived>
-template <typename OtherDerived>
-EIGEN_DEVICE_FUNC RealView<Derived> RealView<Derived>::operator=(const DenseBase<OtherDerived>& other) {
-  internal::call_assignment(*this, other.derived());
-  return *this;
 }
 
 }  // namespace Eigen
