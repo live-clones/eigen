@@ -81,6 +81,11 @@
 // See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=89325
 #pragma GCC diagnostic ignored "-Wattributes"
 #endif
+#if __GNUC__ >= 12
+// see https://gitlab.com/libeigen/eigen/-/issues/2506
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106247
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
 #endif
 
 #if defined __NVCC__ && defined __CUDACC__
