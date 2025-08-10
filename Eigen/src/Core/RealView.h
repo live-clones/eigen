@@ -57,6 +57,8 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
   static constexpr int MaxRowsAtCompileTime = double_size(Base::MaxRowsAtCompileTime, !IsRowMajor);
   static constexpr int MaxColsAtCompileTime = double_size(Base::MaxColsAtCompileTime, IsRowMajor);
   static constexpr int MaxSizeAtCompileTime = size_at_compile_time(MaxRowsAtCompileTime, MaxColsAtCompileTime);
+  static constexpr int OuterStrideAtCompileTime = double_size(Base::OuterStrideAtCompileTime, true);
+  static constexpr int InnerStrideAtCompileTime = Base::InnerStrideAtCompileTime;
 };
 
 template <typename Xpr>
