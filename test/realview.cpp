@@ -88,10 +88,10 @@ template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
 void test_realview_driver_complex() {
   test_realview_driver<float, Rows, Cols, MaxRows, MaxCols>();
   test_realview_driver<std::complex<float>, Rows, Cols, MaxRows, MaxCols>();
-  //test_realview_driver<double, Rows, Cols, MaxRows, MaxCols>();
-  //test_realview_driver<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
-  //test_realview_driver<long double, Rows, Cols, MaxRows, MaxCols>();
-  //test_realview_driver<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_driver<double, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_driver<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_driver<long double, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_driver<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
 }
 
 EIGEN_DECLARE_TEST(realview) {
