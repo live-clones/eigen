@@ -184,6 +184,18 @@ Key compiler and linker flags:
 
 \subsection TopicUsingAOCL_EigenBuild Building Eigen with AOCL Support
 
+To build Eigen with AOCL Support, use the following CMake configuration:
+
+\code
+cmake .. -DCMAKE_BUILD_TYPE=Release \
+         -DCMAKE_C_COMPILER=clang \
+         -DCMAKE_CXX_COMPILER=clang++ \
+         -DCMAKE_INSTALL_PREFIX=$PWD/install \
+         -DINCLUDE_INSTALL_DIR=$PWD/install/include \
+      && make install -j$(nproc)
+\endcode
+
+
 To build Eigen with AOCL integration and benchmarking capabilities, use the following CMake configuration:
 
 \code
