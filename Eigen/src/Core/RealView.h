@@ -23,7 +23,7 @@ namespace internal {
 // reinterpret_cast<T*>(p)[2 * i] is the real part of the complex number p[i], and
 // reinterpret_cast<T*>(p)[2 * i + 1] is the imaginary part of the complex number p[i].
 
-template <typename Scalar>
+template <typename ComplexScalar>
 struct complex_array_access : std::false_type {};
 template <>
 struct complex_array_access<std::complex<float>> : std::true_type {};
@@ -43,12 +43,11 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
   using Base = traits<Xpr>;
   using ComplexScalar = typename Base::Scalar;
   using Scalar = typename NumTraits<ComplexScalar>::Real;
-  static constexpr int ActualLvalueBit = is_lvalue<Xpr>::value ? LvalueBit : 0;
   static constexpr int ActualDirectAccessBit = complex_array_access<ComplexScalar>::value ? DirectAccessBit : 0;
   static constexpr int ActualPacketAccessBit = packet_traits<Scalar>::Vectorizable ? PacketAccessBit : 0;
-  static constexpr int BaseFlags = int(evaluator<Xpr>::Flags) | int(Base::Flags);
   static constexpr int FlagMask =
-      ActualLvalueBit | ActualDirectAccessBit | ActualPacketAccessBit | HereditaryBits | LinearAccessBit;
+      ActualDirectAccessBit | ActualPacketAccessBit | HereditaryBits | LinearAccessBit | LvalueBit;
+  static constexpr int BaseFlags = int(evaluator<Xpr>::Flags) | int(Base::Flags);
   static constexpr int Flags = BaseFlags & FlagMask;
   static constexpr bool IsRowMajor = Flags & RowMajorBit;
   static constexpr int RowsAtCompileTime = double_size(Base::RowsAtCompileTime, !IsRowMajor);
@@ -57,8 +56,8 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
   static constexpr int MaxRowsAtCompileTime = double_size(Base::MaxRowsAtCompileTime, !IsRowMajor);
   static constexpr int MaxColsAtCompileTime = double_size(Base::MaxColsAtCompileTime, IsRowMajor);
   static constexpr int MaxSizeAtCompileTime = size_at_compile_time(MaxRowsAtCompileTime, MaxColsAtCompileTime);
-  static constexpr int OuterStrideAtCompileTime = double_size(Base::OuterStrideAtCompileTime, true);
-  static constexpr int InnerStrideAtCompileTime = Base::InnerStrideAtCompileTime;
+  static constexpr int OuterStrideAtCompileTime = double_size(outer_stride_at_compile_time<Xpr>::ret, true);
+  static constexpr int InnerStrideAtCompileTime = inner_stride_at_compile_time<Xpr>::ret;
 };
 
 template <typename Xpr>
@@ -67,7 +66,9 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
   using XprType = RealView<Xpr>;
   using ExpressionTraits = traits<XprType>;
   using ComplexScalar = typename ExpressionTraits::ComplexScalar;
+  using ComplexCoeffReturnType = typename BaseEvaluator::CoeffReturnType;
   using Scalar = typename ExpressionTraits::Scalar;
+
   static constexpr bool IsRowMajor = ExpressionTraits::IsRowMajor;
   static constexpr int Flags = ExpressionTraits::Flags;
   static constexpr int CoeffReadCost = BaseEvaluator::CoeffReadCost;
@@ -75,34 +76,44 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
 
   EIGEN_DEVICE_FUNC explicit evaluator(XprType realView) : BaseEvaluator(realView.m_xpr) {}
 
+  template <bool Enable = std::is_reference<ComplexCoeffReturnType>::value, typename = std::enable_if_t<!Enable>>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
-    Index crow = IsRowMajor ? row : row / 2;
-    Index ccol = IsRowMajor ? col / 2 : col;
-    ComplexScalar ccoeff = BaseEvaluator::coeff(crow, ccol);
-    bool returnReal = (IsRowMajor ? col : row) % 2 == 0;
-    return returnReal ? numext::real(ccoeff) : numext::imag(ccoeff);
+    ComplexCoeffReturnType cscalar = BaseEvaluator::coeff(IsRowMajor ? row : row / 2, IsRowMajor ? col / 2 : col);
+    Index p = (IsRowMajor ? col : row) & 1;
+    return p ? numext::real(cscalar) : numext::imag(cscalar);
   }
 
-  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index index) const {
-    Index cindex = index / 2;
-    ComplexScalar ccoeff = BaseEvaluator::coeff(cindex);
-    bool returnReal = index % 2 == 0;
-    return returnReal ? numext::real(ccoeff) : numext::imag(ccoeff);
+  template <bool Enable = std::is_reference<ComplexCoeffReturnType>::value, typename = std::enable_if_t<Enable>>
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& coeff(Index row, Index col) const {
+    ComplexCoeffReturnType cscalar = BaseEvaluator::coeff(IsRowMajor ? row : row / 2, IsRowMajor ? col / 2 : col);
+    Index p = (IsRowMajor ? col : row) & 1;
+    return reinterpret_cast<const Scalar(&)[2]>(cscalar)[p];
   }
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index row, Index col) {
-    Index crow = IsRowMajor ? row : row / 2;
-    Index ccol = IsRowMajor ? col / 2 : col;
-    ComplexScalar& ccoeff = BaseEvaluator::coeffRef(crow, ccol);
-    bool returnReal = (IsRowMajor ? col : row) % 2 == 0;
-    return returnReal ? numext::real_ref(ccoeff) : numext::imag_ref(ccoeff);
+    ComplexScalar& cscalar = BaseEvaluator::coeffRef(IsRowMajor ? row : row / 2, IsRowMajor ? col / 2 : col);
+    Index p = (IsRowMajor ? col : row) & 1;
+    return reinterpret_cast<Scalar(&)[2]>(cscalar)[p];
+  }
+
+  template <bool Enable = std::is_reference<ComplexCoeffReturnType>::value, typename = std::enable_if_t<!Enable>>
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index index) const {
+    ComplexCoeffReturnType cscalar = BaseEvaluator::coeff(index / 2);
+    Index p = index & 1;
+    return p ? numext::real(cscalar) : numext::imag(cscalar);
+  }
+
+  template <bool Enable = std::is_reference<ComplexCoeffReturnType>::value, typename = std::enable_if_t<Enable>>
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& coeff(Index index) const {
+    ComplexCoeffReturnType cscalar = BaseEvaluator::coeff(index / 2);
+    Index p = index & 1;
+    return reinterpret_cast<const Scalar(&)[2]>(cscalar)[p];
   }
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) {
-    Index cindex = index / 2;
-    ComplexScalar& ccoeff = BaseEvaluator::coeffRef(cindex);
-    bool returnReal = index % 2 == 0;
-    return returnReal ? numext::real_ref(ccoeff) : numext::imag_ref(ccoeff);
+    ComplexScalar& cscalar = BaseEvaluator::coeffRef(index / 2);
+    Index p = index & 1;
+    return reinterpret_cast<Scalar(&)[2]>(cscalar)[p];
   }
 
   template <int LoadMode, typename PacketType>
@@ -182,11 +193,20 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
   EIGEN_DEVICE_FUNC constexpr Index size() const noexcept { return 2 * m_xpr.size(); }
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return m_xpr.innerStride(); }
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return 2 * m_xpr.outerStride(); }
+  EIGEN_DEVICE_FUNC void resize(Index rows, Index cols) {
+    m_xpr.resize(Xpr::IsRowMajor ? rows : rows / 2, Xpr::IsRowMajor ? cols / 2 : cols);
+  }
+  EIGEN_DEVICE_FUNC void resize(Index size) { m_xpr.resize(size / 2); }
   EIGEN_DEVICE_FUNC Scalar* data() { return reinterpret_cast<Scalar*>(m_xpr.data()); }
   EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
+  EIGEN_DEVICE_FUNC RealView& operator=(const RealView& other);
+
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC RealView operator=(const DenseBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC RealView& operator=(const RealView<OtherDerived>& other);
+
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC RealView& operator=(const DenseBase<OtherDerived>& other);
 
  protected:
   friend struct internal::evaluator<RealView<Xpr>>;
@@ -194,8 +214,21 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
 };
 
 template <typename Xpr>
+EIGEN_DEVICE_FUNC RealView<Xpr>& RealView<Xpr>::operator=(const RealView& other) {
+  internal::call_assignment(*this, other);
+  return *this;
+}
+
+template <typename Xpr>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC RealView<Xpr> RealView<Xpr>::operator=(const DenseBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC RealView<Xpr>& RealView<Xpr>::operator=(const RealView<OtherDerived>& other) {
+  internal::call_assignment(*this, other);
+  return *this;
+}
+
+template <typename Xpr>
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC RealView<Xpr>& RealView<Xpr>::operator=(const DenseBase<OtherDerived>& other) {
   internal::call_assignment(*this, other.derived());
   return *this;
 }

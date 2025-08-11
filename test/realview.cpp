@@ -19,13 +19,14 @@ void test_realview(const T&) {
   constexpr Index minCols = T::ColsAtCompileTime == Dynamic ? 1 : T::ColsAtCompileTime;
   constexpr Index maxCols = T::MaxColsAtCompileTime == Dynamic ? (EIGEN_TEST_MAX_SIZE / 2) : T::MaxColsAtCompileTime;
 
+  constexpr Index rowFactor = (NumTraits<Scalar>::IsComplex && !T::IsRowMajor) ? 2 : 1;
+  constexpr Index colFactor = (NumTraits<Scalar>::IsComplex && T::IsRowMajor) ? 2 : 1;
+  constexpr Index sizeFactor = NumTraits<Scalar>::IsComplex ? 2 : 1;
+
   Index rows = internal::random<Index>(minRows, maxRows);
   Index cols = internal::random<Index>(minCols, maxCols);
-  Index rowFactor = (NumTraits<Scalar>::IsComplex && !T::IsRowMajor) ? 2 : 1;
-  Index colFactor = (NumTraits<Scalar>::IsComplex && T::IsRowMajor) ? 2 : 1;
-  Index sizeFactor = NumTraits<Scalar>::IsComplex ? 2 : 1;
 
-  T A(rows, cols), B(rows, cols);
+  T A(rows, cols), B, C;
 
   VERIFY(A.realView().rows() == rowFactor * A.rows());
   VERIFY(A.realView().cols() == colFactor * A.cols());
@@ -33,29 +34,40 @@ void test_realview(const T&) {
 
   RealScalar alpha = internal::random(RealScalar(1), RealScalar(2));
   A.setRandom();
-  B = A;
 
   VERIFY_IS_APPROX(A.matrix().squaredNorm(), A.realView().matrix().squaredNorm());
 
+  // test re-sizing realView during assignment
+  B.realView() = A.realView();
+  VERIFY_IS_APPROX(A, B);
+  VERIFY_IS_APPROX(A.realView(), B.realView());
+
+  // B = A * alpha
   for (Index r = 0; r < rows; r++) {
     for (Index c = 0; c < cols; c++) {
-      A.coeffRef(r, c) = A.coeff(r, c) * Scalar(alpha);
+      B.coeffRef(r, c) = A.coeff(r, c) * Scalar(alpha);
     }
   }
-  B.realView() *= alpha;
-  VERIFY_IS_APPROX(A, B);
+
+  VERIFY_IS_APPROX(B.realView(), A.realView() * alpha);
+  C = A;
+  C.realView() *= alpha;
+  VERIFY_IS_APPROX(B, C);
 
   alpha = internal::random(RealScalar(1), RealScalar(2));
   A.setRandom();
-  B = A;
 
+  // B = A / alpha
   for (Index r = 0; r < rows; r++) {
     for (Index c = 0; c < cols; c++) {
-      A.coeffRef(r, c) = A.coeff(r, c) / Scalar(alpha);
+      B.coeffRef(r, c) = A.coeff(r, c) / Scalar(alpha);
     }
   }
-  B.realView() /= alpha;
-  VERIFY_IS_APPROX(A, B);
+
+  VERIFY_IS_APPROX(B.realView(), A.realView() / alpha);
+  C = A;
+  C.realView() /= alpha;
+  VERIFY_IS_APPROX(B, C);
 }
 
 template <typename Scalar, int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
@@ -72,24 +84,27 @@ void test_realview_driver() {
   test_realview(RowMajorArrayType());
 }
 
-template <typename ComplexScalar, int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
 void test_realview_driver_complex() {
-  using RealScalar = typename NumTraits<ComplexScalar>::Real;
-  test_realview_driver<RealScalar, Rows, Cols, MaxRows, MaxCols>();
-  test_realview_driver<ComplexScalar, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_driver<float, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_driver<std::complex<float>, Rows, Cols, MaxRows, MaxCols>();
+  //test_realview_driver<double, Rows, Cols, MaxRows, MaxCols>();
+  //test_realview_driver<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
+  //test_realview_driver<long double, Rows, Cols, MaxRows, MaxCols>();
+  //test_realview_driver<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
 }
 
 EIGEN_DECLARE_TEST(realview) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, Dynamic, Dynamic>()));
-    CALL_SUBTEST_2((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, 17, Dynamic>()));
-    CALL_SUBTEST_3((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, Dynamic, 19>()));
-    CALL_SUBTEST_4((test_realview_driver_complex<std::complex<float>, Dynamic, Dynamic, 17, 19>()));
-    CALL_SUBTEST_5((test_realview_driver_complex<std::complex<float>, 17, Dynamic, 17, Dynamic>()));
-    CALL_SUBTEST_6((test_realview_driver_complex<std::complex<float>, Dynamic, 19, Dynamic, 19>()));
-    CALL_SUBTEST_7((test_realview_driver_complex<std::complex<float>, 17, 19, 17, 19>()));
-    CALL_SUBTEST_8((test_realview_driver_complex<std::complex<float>, Dynamic, 1>()));
-    CALL_SUBTEST_9((test_realview_driver_complex<std::complex<float>, 1, Dynamic>()));
-    CALL_SUBTEST_10((test_realview_driver_complex<std::complex<float>, 1, 1>()));
+    CALL_SUBTEST_1((test_realview_driver_complex<Dynamic, Dynamic, Dynamic, Dynamic>()));
+    CALL_SUBTEST_2((test_realview_driver_complex<Dynamic, Dynamic, 17, Dynamic>()));
+    CALL_SUBTEST_3((test_realview_driver_complex<Dynamic, Dynamic, Dynamic, 19>()));
+    CALL_SUBTEST_4((test_realview_driver_complex<Dynamic, Dynamic, 17, 19>()));
+    CALL_SUBTEST_5((test_realview_driver_complex<17, Dynamic, 17, Dynamic>()));
+    CALL_SUBTEST_6((test_realview_driver_complex<Dynamic, 19, Dynamic, 19>()));
+    CALL_SUBTEST_7((test_realview_driver_complex<17, 19, 17, 19>()));
+    CALL_SUBTEST_8((test_realview_driver_complex<Dynamic, 1>()));
+    CALL_SUBTEST_9((test_realview_driver_complex<1, Dynamic>()));
+    CALL_SUBTEST_10((test_realview_driver_complex<1, 1>()));
   }
 }
