@@ -316,17 +316,6 @@ if (EIGEN_IS_BUILDING_)
     endif()
   endif()
 
-  #if(NOT STANDARD_MATH_LIBRARY_FOUND)
-  #message(FATAL_ERROR
-  #  "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
-  #else()
-  # if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
-  #  set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO} ${STANDARD_MATH_LIBRARY}")
-  # else()
-  #  set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "${STANDARD_MATH_LIBRARY}")
-  # endif()
-  #endif()
-
   if(NOT STANDARD_MATH_LIBRARY_FOUND)
   message(FATAL_ERROR
     "Can't link to the standard math library. Please report to the Eigen developers, telling them about your platform.")
