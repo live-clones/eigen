@@ -218,7 +218,6 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
 template <typename Xpr>
 EIGEN_DEVICE_FUNC RealView<Xpr>::RealView(const RealView& other) {
   internal::call_assignment(*this, other);
-  return *this;
 }
 
 template <typename Xpr>
