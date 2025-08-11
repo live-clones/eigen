@@ -200,6 +200,8 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
   EIGEN_DEVICE_FUNC Scalar* data() { return reinterpret_cast<Scalar*>(m_xpr.data()); }
   EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
+  EIGEN_DEVICE_FUNC RealView(const RealView& other);
+
   EIGEN_DEVICE_FUNC RealView& operator=(const RealView& other);
 
   template <typename OtherDerived>
@@ -212,6 +214,12 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
   friend struct internal::evaluator<RealView<Xpr>>;
   Xpr& m_xpr;
 };
+
+template <typename Xpr>
+EIGEN_DEVICE_FUNC RealView<Xpr>::RealView(const RealView& other) {
+  internal::call_assignment(*this, other);
+  return *this;
+}
 
 template <typename Xpr>
 EIGEN_DEVICE_FUNC RealView<Xpr>& RealView<Xpr>::operator=(const RealView& other) {
