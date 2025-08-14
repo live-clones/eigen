@@ -206,9 +206,7 @@ class VectorwiseOp {
  public:
   typedef typename ExpressionType::Scalar Scalar;
   typedef typename ExpressionType::RealScalar RealScalar;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
-  typedef typename internal::ref_selector<ExpressionType>::non_const_type ExpressionTypeNested;
-  typedef internal::remove_all_t<ExpressionTypeNested> ExpressionTypeNestedCleaned;
+  typedef internal::remove_all_t<ExpressionType> ExpressionTypeNestedCleaned;
 
   template <template <typename OutScalar, typename InputScalar> class Functor, typename ReturnScalar = Scalar>
   struct ReturnType {
@@ -705,7 +703,7 @@ class VectorwiseOp {
 
  protected:
   EIGEN_DEVICE_FUNC Index redux_length() const { return Direction == Vertical ? m_matrix.rows() : m_matrix.cols(); }
-  ExpressionTypeNestedCleaned& m_matrix;
+  ExpressionType& m_matrix;
 };
 
 // const colwise moved to DenseBase.h due to CUDA compiler bug
