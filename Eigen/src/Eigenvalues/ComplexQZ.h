@@ -14,117 +14,99 @@
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_ 
 
-//#include <complex>
-#include <iostream>
-
-#include "../../Core"
-#include "../../SparseCore"
-#include "../../SparseQR"
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
 
 namespace Eigen {
 
-template <typename RealScalar> class ComplexQZ {
+	template <typename MatrixType_> class ComplexQZ {
 
-	public:
+		public:
 
-		//using RealScalar = double;
-		using Scalar = std::complex<RealScalar>;
-		using Mat = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
-		using RealMat2 = Eigen::Matrix<RealScalar, 2, 2>;
-		using RealMat3 = Eigen::Matrix<RealScalar, 3, 3>;
-		using Vec = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
-		using Vec2 = Eigen::Matrix<Scalar, 2, 1>;
-		using Vec3 = Eigen::Matrix<Scalar, 3, 1>;
-		using Mat2 = Eigen::Matrix<Scalar, 2, 2>;
+			using MatrixType = MatrixType_;
+			using Scalar = typename MatrixType_::Scalar;
+			using RealScalar = typename MatrixType_::RealScalar;
 
-		// TODO How do we define these properly?
-		static bool is_negligible(const Scalar x, const RealScalar tol = Eigen::NumTraits<RealScalar>::epsilon())
-		{
-			return x.real()*x.real() + x.imag()*x.imag() < tol*tol;
-		}
+			enum {
+				RowsAtCompileTime = MatrixType::RowsAtCompileTime,
+				ColsAtCompileTime = MatrixType::ColsAtCompileTime,
+				Options = internal::traits<MatrixType>::Options,
+				MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
+				MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
+			};
 
-		Mat getMatrixQ() const;
-		Mat getMatrixS() const;
-		Mat getMatrixZ() const;
-		Mat getMatrixT() const;
-
-		// Let's be compatible with Eigen...
-		Mat matrixQ() const { return m_Q; };
-		Mat matrixS() const { return m_S; };
-		Mat matrixZ() const { return m_Z; };
-		Mat matrixT() const { return m_T; };
-
-		static void printStructure(const Mat& M) {
-			for (int i = 0; i < M.rows(); i++) {
-				for (int j = 0; j < M.cols(); j++) {
-					std::cout << (!is_negligible(M(i,j)) ? "* " : "0 ");
-				}
-				std::cout << '\n';
+			// TODO How do we define these properly?
+			static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon())
+			{
+				return x.real()*x.real() + x.imag()*x.imag() < tol*tol;
 			}
-			std::cout << std::flush;
-		}
 
-		static inline Mat2 computeZk2(const Mat& b);
+			using Vec = Matrix<Scalar, Dynamic, 1>;
+			using Vec2 = Matrix<Scalar, 2, 1>;
+			using Vec3 = Matrix<Scalar, 3, 1>;
+			using Mat2 = Matrix<Scalar, 2, 2>;
 
-		ComplexQZ()  {
+			const MatrixType& matrixQ() const { return m_Q; }
+			const MatrixType& matrixZ() const { return m_Z; }
+			const MatrixType& matrixS() const { return m_S; }
+			const MatrixType& matrixT() const { return m_T; }
 
-		};
+			/*
+				 ComplexQZ(const MatrixType& A, const MatrixType& B) {
 
-		ComplexQZ(const Mat& A, const Mat& B, bool computeQZ = true) : m_verbose(false), _A(A), _B(B),
-			_computeQZ(computeQZ)
+				 }
+				 */
+
+			ComplexQZ() {
+
+			};
+
+		ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : _computeQZ(computeQZ),
+			_A(A), _B(B)
 		{
 			compute(A, B, computeQZ);
 		}
 
-		void setVerbose(bool verbose) {
-			m_verbose = verbose;
-		}
+			void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
 
-		void compute(const Mat& A, const Mat& B, bool computeQZ = true);
+		private:
 
-	private:
+			bool _computeQZ;
 
-		//static RealScalar EPS;
-		bool _computeQZ;
+			void reduce_quasitriangular_S();
 
-		bool m_verbose;
+			// The above method QZ_step(p, q) first computes Q_step and and Z_step block
+			// matrices, creates a large matrix, and actually does the step afterwards. 
+			// This method is thought to do the steps directly on the matrices S, T, Q, Z
+			void do_QZ_step(int p, int q);
 
-		void reduce_quasitriangular_S();
+			// Assume we have a 0 at T(k, k) that we want to push to T(l, l), which will
+			// give a 0-entry at S(l,l-1)
 
-		// The above method QZ_step(p, q) first computes Q_step and and Z_step block
-		// matrices, creates a large matrix, and actually does the step afterwards. 
-		// This method is thought to do the steps directly on the matrices S, T, Q, Z
-		void do_QZ_step(int p, int q, int iter);
+			const MatrixType _A, _B;
+			MatrixType m_S, m_T,
+								 m_Q, m_Z;
+			int _n;
 
-		// Assume we have a 0 at T(k, k) that we want to push to T(l, l), which will
-		// give a 0-entry at S(l,l-1)
+			RealScalar m_normOfT, m_normOfS;
 
-		const Mat _A, _B;
-		Mat m_S, m_T,
-				m_Q, m_Z;
-		int _n;
+			//TODO Check if MatrixType is the correct input type for this method
+			static inline Mat2 computeZk2(const MatrixType& b);
 
-		RealScalar m_normOfT, m_normOfS;
+			// This is basically taken from from Eigen3::RealQZ
+			void hessenbergTriangular();
 
-		// This is basically taken from from Eigen3::RealQZ
-		void hessenbergTriangular();
+			void computeNorms();
 
-		void computeNorms();
+			int findSmallSubdiagEntry(int l);
+			int findSmallDiagEntry(int f, int l);
 
-		int findSmallSubdiagEntry(int l);
-		int findSmallDiagEntry(int f, int l);
+			void push_down_zero_ST(int k, int l);
 
-		void test_decomposition(bool verbose = false);
-
-		void push_down_zero_ST(int k, int l);
-
-}; // End of class 
-
-//template<> double ComplexQZ<double>::EPS = 1e-15;
-//template<> mpfr::mpreal ComplexQZ<mpfr::mpreal>::EPS = 1e-15;
+	};
 
 template <typename RealScalar>
-void ComplexQZ<RealScalar>::compute(const Mat& A, const Mat& B, bool computeQZ) {
+void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
 
 	_computeQZ = computeQZ;
 	_n = A.rows();
@@ -136,15 +118,12 @@ void ComplexQZ<RealScalar>::compute(const Mat& A, const Mat& B, bool computeQZ) 
 	m_T = B;
 
 	// This will initialize Q and Z and bring _S,_T to hessenberg-triangular form
-	if (m_verbose)
-		std::cout << "Computing Hessenberg Triangular Form..." << std::flush;
 	hessenbergTriangular();
-	if (m_verbose)
-		std::cout << "done." << std::endl;
+
 	//std::cout << "Running compute method..." << std::endl;
 	// We assume that we already have that A is upper-Hessenberg and B is
 	// upper-triangular.  This is legitimate, as we know how we can compute this
-	// (we can use the respective part of the Eigen::RealQZ algorithm)
+	// (we can use the respective part of the RealQZ algorithm)
 
 	//int q = 0;
 	int l = _n-1,
@@ -155,11 +134,8 @@ void ComplexQZ<RealScalar>::compute(const Mat& A, const Mat& B, bool computeQZ) 
 
 	computeNorms();
 
-	if (m_verbose)
-		std::cout << "Computing the QZ steps..." << std::endl;
 	while (l > 0 && local_iter < maxIters) {
-		if (m_verbose)
-			std::cout << "\rl = " << l << "   " << std::flush;	
+
 		f = findSmallSubdiagEntry(l);
 
 		// Subdiag entry is small -> delete
@@ -182,20 +158,16 @@ void ComplexQZ<RealScalar>::compute(const Mat& A, const Mat& B, bool computeQZ) 
 				push_down_zero_ST(z, l);
 			}
 			else {
-				do_QZ_step(f, _n-l-1, local_iter);
+				do_QZ_step(f, _n-l-1);
 				local_iter++;
 			}
 		}
 	}
-	if (m_verbose)
-		std::cout << "\rl = " << l << " done" << std::endl;
 
 	if (local_iter == maxIters) {
-		std::cout << "No convergence was achieved after " << local_iter << " iterations." << std::endl;
+		//std::cout << "No convergence was achieved after " << local_iter << " iterations." << std::endl;
 	}
 
-	//std::cout << "Running compute() method using EPS = " << EPS << "..." << std::endl;
-	//std::cout << "iter = " << iter << std::endl;	
 
 	reduce_quasitriangular_S();
 
@@ -206,12 +178,10 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 
 	//Assume we are sure that we have T upper-diagonal and S
 	//reduced-upper-hessenberg now.
-	if (m_verbose)
-		std::cout << "Reducing quasitriangular S..." << std::endl;
+
+	// Reducing quasitriangular S...
 	for (int i = 0; i < _n-1; i++) { // i is column index
 
-		if (m_verbose)
-			std::cout << "\ri = " << i << "/" << _n-1 << std::flush;
 		
 		if (!is_negligible(m_S(i+1, i))) {
 
@@ -245,7 +215,7 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 			int l;
 			E.rowwise().norm().maxCoeff(&l);
 
-			Eigen::JacobiRotation<Scalar> G;
+			JacobiRotation<Scalar> G;
 			G.makeGivens(E(l, 1), E(l, 0));
 
 			m_S.applyOnTheRight(i, i+1, G.adjoint());
@@ -267,24 +237,8 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 		}
 	}
 
-	if (m_verbose)
-		std::cout << "done." << std::endl;
 
 }
-
-template <typename RealScalar>
-void ComplexQZ<RealScalar>::test_decomposition(bool verbose) {
-
-	if (_computeQZ) {
-		RealScalar err_A = (_A - m_Q*m_S*m_Z).cwiseAbs().maxCoeff();
-		RealScalar err_B = (_B - m_Q*m_T*m_Z).cwiseAbs().maxCoeff();
-
-		if (verbose) {
-			std::cout << "err_A = " << err_A << std::endl;	
-			std::cout << "err_B = " << err_B << std::endl;	
-		}
-	}
-};
 
 // This is basically taken from from Eigen3::RealQZ
 template <typename RealScalar>
@@ -296,34 +250,40 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 	// are going to use a HouseholderQR decomposition for dense matrices or a 
 	// SparseQR decomposition for sparse matrices.
 
-	using Triplet = Eigen::Triplet<Scalar>;
+	HouseholderQR<MatrixType> qr(m_T);
+	m_T = qr.matrixQR();
+	m_T.template triangularView<StrictlyLower>().setZero();
+	m_Q = qr.householderQ();
+	// overwrite S with Q* times S
+	m_S.applyOnTheLeft(m_Q.adjoint());
+	m_Z = MatrixType::Identity(_n, _n);
+
+	/*
+	using Triplet = Triplet<Scalar>;
 	std::vector<Triplet> T_triplets;
 
 	for (int i = 0; i < m_T.rows(); i++) {
 		for (int j = 0; j < m_T.cols(); j++) {
-			if (std::abs(m_T(i,j)) > Eigen::NumTraits<RealScalar>::epsilon())
+			if (std::abs(m_T(i,j)) > NumTraits<RealScalar>::epsilon())
 				T_triplets.push_back(Triplet(i, j, m_T(i,j)));
 		}
 	}
 
-	Eigen::SparseMatrix<Scalar, Eigen::ColMajor> T_sparse(m_T.rows(), m_T.cols());
+	SparseMatrix<Scalar, ColMajor> T_sparse(m_T.rows(), m_T.cols());
 	T_sparse.setFromTriplets(T_triplets.begin(), T_triplets.end());
 	T_sparse.makeCompressed();
 
-	Eigen::SparseQR<Eigen::SparseMatrix<Scalar, Eigen::ColMajor>, Eigen::NaturalOrdering<int> >
+	SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<int> >
 		sparseQR;
 
-	if (m_verbose)
-		std::cout << "Computing QR decomposition of T..." << std::flush;
+	// Computing QR decomposition of T...
 	sparseQR.setPivotThreshold(RealScalar(0)); // This prevends algorithm from doing pivoting
 	sparseQR.compute(T_sparse);
-	if (m_verbose)
-		std::cout << "done" << std::endl;
 
 	// perform QR decomposition of T, overwrite T with R, save Q
-	//Eigen::HouseholderQR<Mat> qrT(m_T);
+	//HouseholderQR<Mat> qrT(m_T);
 	m_T = sparseQR.matrixR();
-	m_T.template triangularView<Eigen::StrictlyLower>().setZero();
+	m_T.template triangularView<StrictlyLower>().setZero();
 
 	m_Q = sparseQR.matrixQ();
 	// overwrite S with Q* S
@@ -331,7 +291,8 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 	//m_S.rowwise().applyOnTheLeft(sparseQR.matrixQ().adjoint());
 	m_S = sparseQR.matrixQ().adjoint() *m_S;
 
-	m_Z = Mat::Identity(_n, _n);
+	m_Z = MatrixType::Identity(_n, _n);
+	*/
 
 
 	int total_steps = 0, steps = 0;
@@ -344,7 +305,7 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 	// reduce S to upper Hessenberg with Givens rotations
 	for (int j=0; j<=_n-3; j++) {
 		for (int i=_n-1; i>=j+2; i--) {
-			Eigen::JacobiRotation<Scalar> G;
+			JacobiRotation<Scalar> G;
 			// kill S(i,j)
 			//if(!numext::is_exactly_zero(_S.coeff(i, j)))
 			if(m_S.coeff(i, j) != Scalar(0))
@@ -385,26 +346,21 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 
 			}
 			steps++;
-			if (m_verbose)
-				std::cout << "\rdone: " << steps << "/" << total_steps << std::flush;
 		}
 	}
 }
 
 template <typename RealScalar>
-inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(const Mat& b) {
-	assert(b.rows() == 1 && b.cols() == 2);
+inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(const MatrixType& b) {
 
-	// All of this can probably be shortened, but it works for the moment.
-	RealMat2 S;
+	Matrix<RealScalar, 2, 2> S;
+	
 	S << 0, 1,
 			 1, 0;
-	//PermutationMatrix<int> 
-	//Eigen::PermutationMatrix<2, 2, int> S(Eigen::Vector2i(1, 0));
 
-	Mat bprime = S*b.adjoint();
+	MatrixType bprime = S*b.adjoint();
 
-	Eigen::JacobiRotation<Scalar> J;
+	JacobiRotation<Scalar> J;
 	J.makeGivens(bprime(0), bprime(1));
 
 	Mat2 Z = S;
@@ -412,14 +368,16 @@ inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(co
 	Z = S*Z;
 
 	return Z;
+
 }
 
 template <typename RealScalar>
-void ComplexQZ<RealScalar>::do_QZ_step(int p, int q, int iter) {
+void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 
 	const std::function<Scalar(int, int)> a = [p,this](int i, int j) {
 		return m_S(p+i-1, p+j-1);
 	};
+
 	const std::function<Scalar(int, int)> b = [p, this](int i, int j) {
 		return m_T(p+i-1, p+j-1);
 	};
@@ -428,11 +386,11 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q, int iter) {
 
 	Scalar x,y,z;
 
-	// TODO in the original Eigen-Implementation, they do "exceptional shifts" some
-	// times...why?
+	// We could introduce doing exceptional shifts from time to time.
 	Scalar W1 = a(m-1,m-1)/b(m-1,m-1) - a(1,1)/b(1,1),
 				 W2 = a(m,m)/b(m,m) - a(1,1)/b(1,1),
 				 W3 = a(m,m-1)/b(m-1,m-1);
+
 	// Taken from bachelor thesis Gnutzmann/Skript by Stefan Funken
 	x = (W1*W2 - a(m-1,m)/b(m,m) * W3 + W3*b(m-1,m)/b(m,m)*a(1,1)/b(1,1))
 		* b(1,1)/a(2,1) + a(1,2)/b(2,2) - a(1,1)/b(1,1)*b(1,2)/b(2,2);
@@ -440,8 +398,8 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q, int iter) {
 	z = a(3,2)/b(2,2);
 
 	Vec ws1(2*_n), ws2(2*_n); // Temporary data
-	Mat X(3, 1);
-	const Eigen::PermutationMatrix<3, 3, int> S3(Eigen::Vector3i(2, 0, 1));
+	MatrixType X(3, 1);
+	const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
 
 	for (int k = p; k < p+m-2; k++) {
 		X << x, y, z;
@@ -495,7 +453,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q, int iter) {
 	};
 
 	//Find a Householdermartirx Qn1 s.t. Qn1 (x y)^T = (* 0)
-	Eigen::JacobiRotation<Scalar> J;
+	JacobiRotation<Scalar> J;
 	J.makeGivens(x, y);
 
 	m_S.middleRows(p+m-2, 2).applyOnTheLeft(0, 1, J.adjoint());
@@ -529,7 +487,7 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(int k, int l) {
 	//assert(is_negligible(_T(k, k), EPS*m_normOfT));
 	//assert(is_negligible(_T(k, k)));
 
-	Eigen::JacobiRotation<Scalar> J;
+	JacobiRotation<Scalar> J;
 	for (int j = k+1; j <= l; j++) {
 
 		// Create a 0 at _T(j, j)
@@ -594,9 +552,6 @@ void ComplexQZ<RealScalar>::computeNorms()
 		m_normOfT += m_T.row(j).segment(j, size - j).cwiseAbs().sum();
 	}
 
-	//std::cout << "m_normOfT = " << m_normOfT << std::endl;	
-	//std::cout << "m_normOfS = " << m_normOfS << std::endl;	
-	//std::cin.ignore();
 };
 
 // Copied from Eigen3 RealQZ implementation
@@ -610,7 +565,7 @@ inline int ComplexQZ<RealScalar>::findSmallSubdiagEntry(int iu)
 		RealScalar s = abs(m_S.coeff(res-1,res-1)) + abs(m_S.coeff(res,res));
 		if (s == Scalar(0))
 			s = m_normOfS;
-		if (abs(m_S.coeff(res,res-1)) < Eigen::NumTraits<RealScalar>::epsilon() * s)
+		if (abs(m_S.coeff(res,res-1)) < NumTraits<RealScalar>::epsilon() * s)
 			break;
 		res--;
 	}
@@ -623,32 +578,11 @@ template<typename RealScalar> inline int ComplexQZ<RealScalar>::findSmallDiagEnt
 	using std::abs;
 	int res = l;
 	while (res >= f) {
-		if (abs(m_T.coeff(res,res)) <= Eigen::NumTraits<RealScalar>::epsilon() * m_normOfT)
+		if (abs(m_T.coeff(res,res)) <= NumTraits<RealScalar>::epsilon() * m_normOfT)
 			break;
 		res--;
 	}
 	return res;
-}
-
-
-template <typename RealScalar>
-typename ComplexQZ<RealScalar>::Mat ComplexQZ<RealScalar>::getMatrixQ() const {
-	return m_Q;
-}
-
-template <typename RealScalar>
-typename ComplexQZ<RealScalar>::Mat ComplexQZ<RealScalar>::getMatrixZ() const {
-	return m_Z;
-}
-
-template <typename RealScalar>
-typename ComplexQZ<RealScalar>::Mat ComplexQZ<RealScalar>::getMatrixT() const {
-	return m_T;
-}
-
-template <typename RealScalar>
-typename ComplexQZ<RealScalar>::Mat ComplexQZ<RealScalar>::getMatrixS() const {
-	return m_S;
 }
 
 }
