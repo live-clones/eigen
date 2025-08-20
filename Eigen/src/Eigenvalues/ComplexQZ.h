@@ -43,6 +43,7 @@ namespace Eigen {
 
 			using Vec = Matrix<Scalar, Dynamic, 1>;
 			using Vec2 = Matrix<Scalar, 2, 1>;
+			using Row2 = Matrix<Scalar, 1, 2>;
 			using Vec3 = Matrix<Scalar, 3, 1>;
 			using Mat2 = Matrix<Scalar, 2, 2>;
 
@@ -61,11 +62,11 @@ namespace Eigen {
 
 			};
 
-		ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : _computeQZ(computeQZ),
-			_A(A), _B(B)
-		{
-			compute(A, B, computeQZ);
-		}
+			ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : _computeQZ(computeQZ),
+				_A(A), _B(B)
+			{
+				compute(A, B, computeQZ);
+			}
 
 			void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
 
@@ -91,7 +92,7 @@ namespace Eigen {
 			RealScalar m_normOfT, m_normOfS;
 
 			//TODO Check if MatrixType is the correct input type for this method
-			static inline Mat2 computeZk2(const MatrixType& b);
+			static inline Mat2 computeZk2(const Row2& b);
 
 			// This is basically taken from from Eigen3::RealQZ
 			void hessenbergTriangular();
@@ -189,8 +190,8 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 			if (is_negligible(m_T(i,i)) || is_negligible(m_T(i+1,i+1)))
 				continue;
 
-			Mat2 A = m_S.block(i, i, 2, 2),
-					 B = m_T.block(i, i, 2, 2);
+			Mat2 A = m_S.template block<2, 2>(i, i),
+					 B = m_T.template block<2, 2>(i, i);
 
 			Scalar mu = A(0,0)/B(0,0);
 			Scalar a12_bar = A(0,1) - mu*B(0,1);
@@ -224,7 +225,7 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 			if (_computeQZ)
 				m_Z.applyOnTheLeft(i, i+1, G);
 
-			Mat2 Si = m_S.block(i,i,2,2), Ti = m_T.block(i,i,2,2);
+			Mat2 Si = m_S.template block<2, 2>(i,i), Ti = m_T.template block<2, 2>(i,i);
 			Mat2 C = Si.norm() < (lambda*Ti).norm() ? Si : lambda*Ti;
 
 			G.makeGivens(C(0,0), C(1,0));
@@ -351,14 +352,14 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 }
 
 template <typename RealScalar>
-inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(const MatrixType& b) {
+inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(const Row2& b) {
 
 	Matrix<RealScalar, 2, 2> S;
 	
 	S << 0, 1,
 			 1, 0;
 
-	MatrixType bprime = S*b.adjoint();
+	Vec2 bprime = S*b.adjoint();
 
 	JacobiRotation<Scalar> J;
 	J.makeGivens(bprime(0), bprime(1));
@@ -398,7 +399,8 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 	z = a(3,2)/b(2,2);
 
 	Vec ws1(2*_n), ws2(2*_n); // Temporary data
-	MatrixType X(3, 1);
+	//Vec3 X(3, 1);
+	Vec3 X;
 	const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
 
 	for (int k = p; k < p+m-2; k++) {
@@ -421,7 +423,8 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 			m_Q.middleCols(k, 3).applyHouseholderOnTheRight(ess, std::conj(tau), ws1.data());
 
 		// Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
-		Vec3 bprime = (m_T.block(k+2, k, 1, 3)*S3).adjoint();
+		//Vec3 bprime = (m_T.block(k+2, k, 1, 3)*S3).adjoint();
+		Vec3 bprime = (m_T.template block<1, 3>(k+2, k)*S3).adjoint();
 		bprime.makeHouseholder(ess, tau, beta);
 
 		m_S.middleCols(k, 3).topRows(std::min(k+4, _n)).applyOnTheRight(S3);
@@ -438,7 +441,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 			m_Z.middleRows(k, 3).applyOnTheLeft(S3);
 		}
 
-		Mat2 Zk2 = computeZk2(m_T.block(k+1, k, 1, 2));
+		Mat2 Zk2 = computeZk2(m_T.template block<1, 2>(k+1, k));
 		m_S.middleCols(k, 2).topRows(std::min(k+4, _n)).applyOnTheRight(Zk2);
 		m_T.middleCols(k, 2).topRows(std::min(k+3, _n)).applyOnTheRight(Zk2);
 
@@ -463,7 +466,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		m_Q.middleCols(p+m-2, 2).applyOnTheRight(0, 1, J);
 
 	// Find a Householdermatrix Zn1 s.t. (b(n,n-1) b(n,n)) * Zn1 = (0 *)
-	Mat2 Zn1 = computeZk2(m_T.block(p+m-1, p+m-2, 1, 2));
+	Mat2 Zn1 = computeZk2(m_T.template block<1, 2>(p+m-1, p+m-2));
 	//{
 	//	Mat b = _T.block(p+m-1, p+m-2, 1, 2);
 	//	b = b*Zn1;
