@@ -416,7 +416,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		// These lines works
 		//_S.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
 		//_T.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
-		m_S.middleRows(k, 3).rightCols(std::min(_n, _n-k+1)).applyHouseholderOnTheLeft(ess, tau, ws1.data());
+		m_S.middleRows(k, 3).rightCols((std::min)(_n, _n-k+1)).applyHouseholderOnTheLeft(ess, tau, ws1.data());
 		m_T.middleRows(k, 3).rightCols(_n-k).applyHouseholderOnTheLeft(ess, tau, ws1.data());
 
 		if (_computeQZ)
@@ -427,13 +427,13 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		Vec3 bprime = (m_T.template block<1, 3>(k+2, k)*S3).adjoint();
 		bprime.makeHouseholder(ess, tau, beta);
 
-		m_S.middleCols(k, 3).topRows(std::min(k+4, _n)).applyOnTheRight(S3);
-		m_S.middleCols(k, 3).topRows(std::min(k+4, _n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws1.data());
-		m_S.middleCols(k, 3).topRows(std::min(k+4, _n)).applyOnTheRight(S3.transpose());
+		m_S.middleCols(k, 3).topRows((std::min)(k+4, _n)).applyOnTheRight(S3);
+		m_S.middleCols(k, 3).topRows((std::min)(k+4, _n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws1.data());
+		m_S.middleCols(k, 3).topRows((std::min)(k+4, _n)).applyOnTheRight(S3.transpose());
 
-		m_T.middleCols(k, 3).topRows(std::min(k+3, _n)).applyOnTheRight(S3);
-		m_T.middleCols(k, 3).topRows(std::min(k+3, _n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws2.data());
-		m_T.middleCols(k, 3).topRows(std::min(k+3, _n)).applyOnTheRight(S3.transpose());
+		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyOnTheRight(S3);
+		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws2.data());
+		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyOnTheRight(S3.transpose());
 
 		if (_computeQZ) {
 			m_Z.middleRows(k, 3).applyOnTheLeft(S3.transpose());
@@ -442,8 +442,8 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		}
 
 		Mat2 Zk2 = computeZk2(m_T.template block<1, 2>(k+1, k));
-		m_S.middleCols(k, 2).topRows(std::min(k+4, _n)).applyOnTheRight(Zk2);
-		m_T.middleCols(k, 2).topRows(std::min(k+3, _n)).applyOnTheRight(Zk2);
+		m_S.middleCols(k, 2).topRows((std::min)(k+4, _n)).applyOnTheRight(Zk2);
+		m_T.middleCols(k, 2).topRows((std::min)(k+3, _n)).applyOnTheRight(Zk2);
 
 		if (_computeQZ)
 			m_Z.middleRows(k, 2).applyOnTheLeft(Zk2.adjoint());
