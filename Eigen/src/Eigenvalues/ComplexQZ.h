@@ -121,7 +121,30 @@ namespace Eigen {
 
 			void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
 
-			void computeSparse(const SparseMatrix<Scalar>& A, const SparseMatrix<Scalar>& B) {
+			template <typename SparseMatrixType_>
+			void computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ = true) {
+
+				m_computeQZ = computeQZ;
+				m_n = A.rows();
+
+				eigen_assert(m_n == A.cols() && "A is not a square matrix");
+				eigen_assert(m_n == B.rows() && m_n == B.cols() &&
+						"B is not a square matrix or B is not of the same size as A");
+
+				m_isInitialized = true;
+				m_global_iter = 0;
+
+				hessenbergTriangularSparse(A, B);
+
+				// We assume that we already have that A is upper-Hessenberg and B is
+				// upper-triangular. This is what the hessenbergTriangular(...) method does
+				reduceHessenbergTriangular();
+
+				// If the reduceHessenbergTriangular functions sets m_info to Success, we can
+				// further reduce the result
+				if (m_info == Success) {
+					reduce_quasitriangular_S();
+				}
 
 			}
 
@@ -165,6 +188,9 @@ namespace Eigen {
 			// This is basically taken from from Eigen3::RealQZ
 			void hessenbergTriangular(const MatrixType& A, const MatrixType& B);
 
+			template <typename SparseMatrixType_>
+			void hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B);
+
 			// This function can be called when m_Q and m_Z are initialized and m_S, m_T
 			// are in hessenberg-triangular form
 			void reduceHessenbergTriangular();
@@ -190,8 +216,6 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 
 	m_isInitialized = true;
 	m_global_iter = 0;
-
-	assert(A.cols() == m_n && B.rows() == m_n && B.cols() == m_n);
 
 	// This will initialize m_Q and m_Z and bring m_S, m_T to hessenberg-triangular form
 	hessenbergTriangular(A, B);
@@ -337,6 +361,87 @@ void ComplexQZ<RealScalar>::hessenbergTriangular(const MatrixType& A, const Matr
 	m_Z = MatrixType::Identity(_n, _n);
 	*/
 
+
+	int steps = 0;
+
+	// reduce S to upper Hessenberg with Givens rotations
+	for (Index j=0; j<=m_n-3; j++) {
+		for (Index i=m_n-1; i>=j+2; i--) {
+			JacobiRotation<Scalar> G;
+			// kill S(i,j)
+			//if(!numext::is_exactly_zero(_S.coeff(i, j)))
+			if(m_S.coeff(i, j) != Scalar(0))
+			{
+				// This is the adapted code
+				G.makeGivens(m_S.coeff(i-1,j), m_S.coeff(i,j), &m_S.coeffRef(i-1, j));
+				m_S.coeffRef(i, j) = Scalar(0);
+
+				m_T.rightCols(m_n-i+1).applyOnTheLeft(i-1,i,G.adjoint());
+				m_S.rightCols(m_n-j-1).applyOnTheLeft(i-1,i,G.adjoint());
+
+				// This is what we want to achieve
+				assert(is_negligible(m_S(i, j)));
+				m_S(i, j) = Scalar(0);
+
+				// update Q
+				if (m_computeQZ)
+					m_Q.applyOnTheRight(i-1,i,G);
+			}
+
+			if(!numext::is_exactly_zero(m_T.coeff(i, i - 1)))
+			{
+				// Compute rotation and update matrix T
+				G.makeGivens(m_T.coeff(i,i), m_T.coeff(i,i-1), &m_T.coeffRef(i,i));
+				m_T.topRows(i).applyOnTheRight(i-1,i,G.adjoint());
+				m_T.coeffRef(i, i-1) = Scalar(0);
+
+				// Update matrix S
+				// This works (and we can, probably, not apply this only to some top rows).
+				m_S.applyOnTheRight(i-1,i,G.adjoint());
+
+				assert(is_negligible(m_T(i,i-1)));
+				m_T(i, i-1) = Scalar(0);
+				// update Z
+				if (m_computeQZ)
+					m_Z.applyOnTheLeft(i-1,i,G);
+
+			}
+			steps++;
+		}
+	}
+}
+
+template <typename MatrixType>
+template <typename SparseMatrixType_>
+void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& A,
+		const SparseMatrixType_& B) {
+
+	// TODO The current implementation just performs the QR decomposition for
+	// dense matrices. However, the input could be sparse which makes the QR
+	// decomposition a lot faster, if taken properly care of. Decide how to
+	// design the code properly!
+
+	m_S = A.toDense();
+
+	//SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<Index> > sparseQR;
+	SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<int>> sparseQR;
+
+	// Computing QR decomposition of T...
+	sparseQR.setPivotThreshold(RealScalar(0)); // This prevends algorithm from doing pivoting
+	sparseQR.compute(B);
+
+	// perform QR decomposition of T, overwrite T with R, save Q
+	//HouseholderQR<Mat> qrT(m_T);
+	m_T = sparseQR.matrixR();
+	m_T.template triangularView<StrictlyLower>().setZero();
+
+	m_Q = sparseQR.matrixQ();
+	// overwrite S with Q* S
+	//m_S.applyOnTheLeft(m_Q.adjoint()); // Correct line
+	//m_S.rowwise().applyOnTheLeft(sparseQR.matrixQ().adjoint());
+	m_S = sparseQR.matrixQ().adjoint() *m_S;
+
+	m_Z = MatrixType::Identity(m_n, m_n);
 
 	int steps = 0;
 
