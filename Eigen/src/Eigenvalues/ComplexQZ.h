@@ -63,8 +63,7 @@ namespace Eigen {
 
 			};
 
-			ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : m_computeQZ(computeQZ),
-				_A(A), _B(B)
+			ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : m_computeQZ(computeQZ)
 			{
 				compute(A, B, computeQZ);
 			}
@@ -87,17 +86,12 @@ namespace Eigen {
 			// This method is thought to do the steps directly on the matrices S, T, Q, Z
 			void do_QZ_step(Index p, Index q);
 
-			// Assume we have a 0 at T(k, k) that we want to push to T(l, l), which will
-			// give a 0-entry at S(l,l-1)
-
-			const MatrixType _A, _B;
 			MatrixType m_S, m_T,
 								 m_Q, m_Z;
 			Index m_n;
 
 			RealScalar m_normOfT, m_normOfS;
 
-			//TODO Check if MatrixType is the correct input type for this method
 			static inline Mat2 computeZk2(const Row2& b);
 
 			// This is basically taken from from Eigen3::RealQZ
@@ -127,7 +121,6 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 	// This will initialize Q and Z and bring _S,_T to hessenberg-triangular form
 	hessenbergTriangular();
 
-	//std::cout << "Running compute method..." << std::endl;
 	// We assume that we already have that A is upper-Hessenberg and B is
 	// upper-triangular.  This is legitimate, as we know how we can compute this
 	// (we can use the respective part of the RealQZ algorithm)
@@ -420,9 +413,6 @@ void ComplexQZ<RealScalar>::do_QZ_step(Index p, Index q) {
 		// The permutations are needed because the makeHouseHolder-method computes
 		// the householder transformation in a way that the vector is reflected to
 		// (1 0 ... 0) instead of (0 ... 0 1)
-		// These lines works
-		//_S.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
-		//_T.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
 		m_S.middleRows(k, 3).rightCols((std::min)(m_n, m_n-k+1)).applyHouseholderOnTheLeft(ess, tau, ws.data());
 		m_T.middleRows(k, 3).rightCols(m_n-k).applyHouseholderOnTheLeft(ess, tau, ws.data());
 
@@ -473,13 +463,6 @@ void ComplexQZ<RealScalar>::do_QZ_step(Index p, Index q) {
 
 	// Find a Householdermatrix Zn1 s.t. (b(n,n-1) b(n,n)) * Zn1 = (0 *)
 	Mat2 Zn1 = computeZk2(m_T.template block<1, 2>(p+m-1, p+m-2));
-	//{
-	//	Mat b = _T.block(p+m-1, p+m-2, 1, 2);
-	//	b = b*Zn1;
-	//	// TODO actually, it should be...why isn't it?
-	//	//assert(is_negligible(b(0)));
-	//	assert(std::abs(b(0)) < 1e-10);
-	//}
 
 	m_S.middleCols(p+m-2, 2).applyOnTheRight(Zn1);
 	m_T.middleCols(p+m-2, 2).applyOnTheRight(Zn1);
