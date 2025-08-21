@@ -71,16 +71,21 @@ namespace Eigen {
 
 			void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
 
+			ComputationInfo info() const {
+				return m_info;
+			};
+
 		private:
 
 			bool m_computeQZ;
+			ComputationInfo m_info;
 
 			void reduce_quasitriangular_S();
 
 			// The above method QZ_step(p, q) first computes Q_step and and Z_step block
 			// matrices, creates a large matrix, and actually does the step afterwards. 
 			// This method is thought to do the steps directly on the matrices S, T, Q, Z
-			void do_QZ_step(int p, int q);
+			void do_QZ_step(Index p, Index q);
 
 			// Assume we have a 0 at T(k, k) that we want to push to T(l, l), which will
 			// give a 0-entry at S(l,l-1)
@@ -88,7 +93,7 @@ namespace Eigen {
 			const MatrixType _A, _B;
 			MatrixType m_S, m_T,
 								 m_Q, m_Z;
-			int _n;
+			Index m_n;
 
 			RealScalar m_normOfT, m_normOfS;
 
@@ -100,10 +105,10 @@ namespace Eigen {
 
 			void computeNorms();
 
-			int findSmallSubdiagEntry(int l);
-			int findSmallDiagEntry(int f, int l);
+			Index findSmallSubdiagEntry(Index l);
+			Index findSmallDiagEntry(Index f, Index l);
 
-			void push_down_zero_ST(int k, int l);
+			void push_down_zero_ST(Index k, Index l);
 
 	};
 
@@ -111,9 +116,9 @@ template <typename RealScalar>
 void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
 
 	m_computeQZ = computeQZ;
-	_n = A.rows();
+	m_n = A.rows();
 
-	assert(A.cols() == _n && B.rows() == _n && B.cols() == _n);
+	assert(A.cols() == m_n && B.rows() == m_n && B.cols() == m_n);
 
 	// Copy A and B, these will be the matrices on which we operate later
 	m_S = A;
@@ -127,12 +132,11 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 	// upper-triangular.  This is legitimate, as we know how we can compute this
 	// (we can use the respective part of the RealQZ algorithm)
 
-	//int q = 0;
-	int l = _n-1,
+	Index l = m_n-1,
 			f,
 			local_iter = 0;
 
-	int maxIters = 400;
+	Index maxIters = 400;
 
 	computeNorms();
 
@@ -155,21 +159,18 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 			// TODO is it necessary that we split-off the rows NOW? Probably, we can do it later.
 		}
 		else {
-			int z = findSmallDiagEntry(f, l);
+			Index z = findSmallDiagEntry(f, l);
 			if (z >= f) {
 				push_down_zero_ST(z, l);
 			}
 			else {
-				do_QZ_step(f, _n-l-1);
+				do_QZ_step(f, m_n-l-1);
 				local_iter++;
 			}
 		}
 	}
 
-	if (local_iter == maxIters) {
-		//std::cout << "No convergence was achieved after " << local_iter << " iterations." << std::endl;
-	}
-
+	m_info = (local_iter < maxIters) ? Success : NoConvergence;
 
 	reduce_quasitriangular_S();
 
@@ -182,7 +183,7 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 	//reduced-upper-hessenberg now.
 
 	// Reducing quasitriangular S...
-	for (int i = 0; i < _n-1; i++) { // i is column index
+	for (Index i = 0; i < m_n-1; i++) { // i is column index
 
 		if (!is_negligible(m_S(i+1, i))) {
 
@@ -214,7 +215,7 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 
 			Mat2 E = A-lambda*B;
 
-			int l;
+			Index l;
 			E.rowwise().norm().maxCoeff(&l);
 
 			JacobiRotation<Scalar> G;
@@ -263,7 +264,7 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 	m_S.applyOnTheLeft(qr.householderQ().adjoint());
 
 	if (m_computeQZ)
-		m_Z = MatrixType::Identity(_n, _n);
+		m_Z = MatrixType::Identity(m_n, m_n);
 
 	/*
 	using Triplet = Triplet<Scalar>;
@@ -302,16 +303,16 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 	*/
 
 
-	int total_steps = 0, steps = 0;
-	for (int j=0; j<=_n-3; j++) {
-		for (int i=_n-1; i>=j+2; i--) {
+	Index total_steps = 0, steps = 0;
+	for (Index j=0; j<=m_n-3; j++) {
+		for (Index i=m_n-1; i>=j+2; i--) {
 			total_steps++;
 		}
 	}
 
 	// reduce S to upper Hessenberg with Givens rotations
-	for (int j=0; j<=_n-3; j++) {
-		for (int i=_n-1; i>=j+2; i--) {
+	for (Index j=0; j<=m_n-3; j++) {
+		for (Index i=m_n-1; i>=j+2; i--) {
 			JacobiRotation<Scalar> G;
 			// kill S(i,j)
 			//if(!numext::is_exactly_zero(_S.coeff(i, j)))
@@ -321,8 +322,8 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 				G.makeGivens(m_S.coeff(i-1,j), m_S.coeff(i,j), &m_S.coeffRef(i-1, j));
 				m_S.coeffRef(i, j) = Scalar(0);
 
-				m_T.rightCols(_n-i+1).applyOnTheLeft(i-1,i,G.adjoint());
-				m_S.rightCols(_n-j-1).applyOnTheLeft(i-1,i,G.adjoint());
+				m_T.rightCols(m_n-i+1).applyOnTheLeft(i-1,i,G.adjoint());
+				m_S.rightCols(m_n-j-1).applyOnTheLeft(i-1,i,G.adjoint());
 
 				// This is what we want to achieve
 				assert(is_negligible(m_S(i, j)));
@@ -379,17 +380,19 @@ inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(co
 }
 
 template <typename RealScalar>
-void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
+void ComplexQZ<RealScalar>::do_QZ_step(Index p, Index q) {
 
-	const std::function<Scalar(int, int)> a = [p,this](int i, int j) {
+	// This is certainly not the most efficient way of doing this,
+	// but a readable one.
+	const std::function<Scalar(Index, Index)> a = [p,this](Index i, Index j) {
 		return m_S(p+i-1, p+j-1);
 	};
 
-	const std::function<Scalar(int, int)> b = [p, this](int i, int j) {
+	const std::function<Scalar(Index, Index)> b = [p, this](Index i, Index j) {
 		return m_T(p+i-1, p+j-1);
 	};
 
-	const int m = _n-p-q; // Size of the inner block
+	const Index m = m_n-p-q; // Size of the inner block
 
 	Scalar x,y,z;
 
@@ -398,17 +401,16 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 				 W2 = a(m,m)/b(m,m) - a(1,1)/b(1,1),
 				 W3 = a(m,m-1)/b(m-1,m-1);
 
-	// Taken from bachelor thesis Gnutzmann/Skript by Stefan Funken
 	x = (W1*W2 - a(m-1,m)/b(m,m) * W3 + W3*b(m-1,m)/b(m,m)*a(1,1)/b(1,1))
 		* b(1,1)/a(2,1) + a(1,2)/b(2,2) - a(1,1)/b(1,1)*b(1,2)/b(2,2);
 	y = (a(2,2)/b(2,2) - a(1,1)/b(1,1)) - a(2,1)/b(1,1)*b(1,2)/b(2,2) - W1 - W2+ W3*(b(m-1,m)/b(m,m));
 	z = a(3,2)/b(2,2);
 
-	Vec ws1(2*_n), ws2(2*_n); // Temporary data
+	Vec ws(2*m_n); // Temporary data
 	Vec3 X;
 	const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
 
-	for (int k = p; k < p+m-2; k++) {
+	for (Index k = p; k < p+m-2; k++) {
 		X << x, y, z;
 
 		Vec2 ess; Scalar tau; RealScalar beta;
@@ -421,33 +423,33 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		// These lines works
 		//_S.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
 		//_T.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
-		m_S.middleRows(k, 3).rightCols((std::min)(_n, _n-k+1)).applyHouseholderOnTheLeft(ess, tau, ws1.data());
-		m_T.middleRows(k, 3).rightCols(_n-k).applyHouseholderOnTheLeft(ess, tau, ws1.data());
+		m_S.middleRows(k, 3).rightCols((std::min)(m_n, m_n-k+1)).applyHouseholderOnTheLeft(ess, tau, ws.data());
+		m_T.middleRows(k, 3).rightCols(m_n-k).applyHouseholderOnTheLeft(ess, tau, ws.data());
 
 		if (m_computeQZ)
-			m_Q.middleCols(k, 3).applyHouseholderOnTheRight(ess, std::conj(tau), ws1.data());
+			m_Q.middleCols(k, 3).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
 
 		// Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
 		Vec3 bprime = (m_T.template block<1, 3>(k+2, k)*S3).adjoint();
 		bprime.makeHouseholder(ess, tau, beta);
 
-		m_S.middleCols(k, 3).topRows((std::min)(k+4, _n)).applyOnTheRight(S3);
-		m_S.middleCols(k, 3).topRows((std::min)(k+4, _n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws1.data());
-		m_S.middleCols(k, 3).topRows((std::min)(k+4, _n)).applyOnTheRight(S3.transpose());
+		m_S.middleCols(k, 3).topRows((std::min)(k+4, m_n)).applyOnTheRight(S3);
+		m_S.middleCols(k, 3).topRows((std::min)(k+4, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+		m_S.middleCols(k, 3).topRows((std::min)(k+4, m_n)).applyOnTheRight(S3.transpose());
 
-		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyOnTheRight(S3);
-		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws2.data());
-		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyOnTheRight(S3.transpose());
+		m_T.middleCols(k, 3).topRows((std::min)(k+3, m_n)).applyOnTheRight(S3);
+		m_T.middleCols(k, 3).topRows((std::min)(k+3, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+		m_T.middleCols(k, 3).topRows((std::min)(k+3, m_n)).applyOnTheRight(S3.transpose());
 
 		if (m_computeQZ) {
 			m_Z.middleRows(k, 3).applyOnTheLeft(S3.transpose());
-			m_Z.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws1.data());
+			m_Z.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
 			m_Z.middleRows(k, 3).applyOnTheLeft(S3);
 		}
 
 		Mat2 Zk2 = computeZk2(m_T.template block<1, 2>(k+1, k));
-		m_S.middleCols(k, 2).topRows((std::min)(k+4, _n)).applyOnTheRight(Zk2);
-		m_T.middleCols(k, 2).topRows((std::min)(k+3, _n)).applyOnTheRight(Zk2);
+		m_S.middleCols(k, 2).topRows((std::min)(k+4, m_n)).applyOnTheRight(Zk2);
+		m_T.middleCols(k, 2).topRows((std::min)(k+3, m_n)).applyOnTheRight(Zk2);
 
 		if (m_computeQZ)
 			m_Z.middleRows(k, 2).applyOnTheLeft(Zk2.adjoint());
@@ -489,7 +491,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 
 // We have a 0 at T(k,k) and want to "push it down" to T(l,l)
 template <typename RealScalar>
-void ComplexQZ<RealScalar>::push_down_zero_ST(int k, int l) {
+void ComplexQZ<RealScalar>::push_down_zero_ST(Index k, Index l) {
 	// Test Preconditions
 	//assert(is_negligible(_T(k, k), EPS*m_normOfT));
 	//assert(is_negligible(_T(k, k)));
@@ -499,7 +501,7 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(int k, int l) {
 
 		// Create a 0 at _T(j, j)
 		J.makeGivens(m_T(j-1,j), m_T(j,j), &m_T.coeffRef(j-1, j));
-		m_T.rightCols(_n-j-1).applyOnTheLeft(j-1, j, J.adjoint());
+		m_T.rightCols(m_n-j-1).applyOnTheLeft(j-1, j, J.adjoint());
 		m_T.coeffRef(j, j) = Scalar(0);
 
 		//assert(j < _n+2); // This ensures n-j+2 > 0
@@ -563,7 +565,7 @@ void ComplexQZ<RealScalar>::computeNorms()
 
 // Copied from Eigen3 RealQZ implementation
 template<typename RealScalar>
-inline int ComplexQZ<RealScalar>::findSmallSubdiagEntry(int iu)
+inline Index ComplexQZ<RealScalar>::findSmallSubdiagEntry(Index iu)
 {
 	using std::abs;
 	int res = iu;
@@ -580,7 +582,7 @@ inline int ComplexQZ<RealScalar>::findSmallSubdiagEntry(int iu)
 }
 
 // Copied from Eigen3 RealQZ implementation
-template<typename RealScalar> inline int ComplexQZ<RealScalar>::findSmallDiagEntry(int f, int l)
+template<typename RealScalar> inline Index ComplexQZ<RealScalar>::findSmallDiagEntry(Index f, Index l)
 {
 	using std::abs;
 	int res = l;
@@ -593,7 +595,5 @@ template<typename RealScalar> inline int ComplexQZ<RealScalar>::findSmallDiagEnt
 }
 
 }
-
-
 
 #endif // _COMPLEX_QZ_H_
