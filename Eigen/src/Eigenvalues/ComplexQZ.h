@@ -16,6 +16,7 @@
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
+#include "Eigen/Core"
 
 namespace Eigen {
 
@@ -43,8 +44,8 @@ namespace Eigen {
 
 			using Vec = Matrix<Scalar, Dynamic, 1>;
 			using Vec2 = Matrix<Scalar, 2, 1>;
-			using Row2 = Matrix<Scalar, 1, 2>;
 			using Vec3 = Matrix<Scalar, 3, 1>;
+			using Row2 = Matrix<Scalar, 1, 2>;
 			using Mat2 = Matrix<Scalar, 2, 2>;
 
 			const MatrixType& matrixQ() const { return m_Q; }
@@ -62,7 +63,7 @@ namespace Eigen {
 
 			};
 
-			ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : _computeQZ(computeQZ),
+			ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : m_computeQZ(computeQZ),
 				_A(A), _B(B)
 			{
 				compute(A, B, computeQZ);
@@ -72,7 +73,7 @@ namespace Eigen {
 
 		private:
 
-			bool _computeQZ;
+			bool m_computeQZ;
 
 			void reduce_quasitriangular_S();
 
@@ -109,7 +110,7 @@ namespace Eigen {
 template <typename RealScalar>
 void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
 
-	_computeQZ = computeQZ;
+	m_computeQZ = computeQZ;
 	_n = A.rows();
 
 	assert(A.cols() == _n && B.rows() == _n && B.cols() == _n);
@@ -183,10 +184,10 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 	// Reducing quasitriangular S...
 	for (int i = 0; i < _n-1; i++) { // i is column index
 
-		
 		if (!is_negligible(m_S(i+1, i))) {
 
 			// We have found a non-zero on the subdiagonal and want to eliminate it
+
 			if (is_negligible(m_T(i,i)) || is_negligible(m_T(i+1,i+1)))
 				continue;
 
@@ -222,7 +223,7 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 			m_S.applyOnTheRight(i, i+1, G.adjoint());
 			m_T.applyOnTheRight(i, i+1, G.adjoint());
 
-			if (_computeQZ)
+			if (m_computeQZ)
 				m_Z.applyOnTheLeft(i, i+1, G);
 
 			Mat2 Si = m_S.template block<2, 2>(i,i), Ti = m_T.template block<2, 2>(i,i);
@@ -232,7 +233,7 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 			m_S.applyOnTheLeft(i, i+1, G.adjoint());
 			m_T.applyOnTheLeft(i, i+1, G.adjoint());
 
-			if (_computeQZ)
+			if (m_computeQZ)
 				m_Q.applyOnTheRight(i, i+1, G);
 		
 		}
@@ -245,19 +246,24 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 template <typename RealScalar>
 void ComplexQZ<RealScalar>::hessenbergTriangular() {
 
-	//const Index dim = m_S.cols();
+	// TODO The current implementation just performs the QR decomposition for
+	// dense matrices. However, the input could be sparse which makes the QR
+	// decomposition a lot faster, if taken properly care of. Decide how to
+	// design the code properly!
 
-	// Count number of non-zero entries of m_T. We will use this to decide if we
-	// are going to use a HouseholderQR decomposition for dense matrices or a 
-	// SparseQR decomposition for sparse matrices.
-
+	//Perform QR decomposition of the matrix Q
 	HouseholderQR<MatrixType> qr(m_T);
 	m_T = qr.matrixQR();
 	m_T.template triangularView<StrictlyLower>().setZero();
-	m_Q = qr.householderQ();
-	// overwrite S with Q* times S
-	m_S.applyOnTheLeft(m_Q.adjoint());
-	m_Z = MatrixType::Identity(_n, _n);
+
+	if (m_computeQZ)
+		m_Q = qr.householderQ();
+
+	// overwrite S with Q* x S
+	m_S.applyOnTheLeft(qr.householderQ().adjoint());
+
+	if (m_computeQZ)
+		m_Z = MatrixType::Identity(_n, _n);
 
 	/*
 	using Triplet = Triplet<Scalar>;
@@ -323,7 +329,7 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 				m_S(i, j) = Scalar(0);
 
 				// update Q
-				if (_computeQZ)
+				if (m_computeQZ)
 					m_Q.applyOnTheRight(i-1,i,G);
 			}
 
@@ -342,7 +348,7 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 				assert(is_negligible(m_T(i,i-1)));
 				m_T(i, i-1) = Scalar(0);
 				// update Z
-				if (_computeQZ)
+				if (m_computeQZ)
 					m_Z.applyOnTheLeft(i-1,i,G);
 
 			}
@@ -354,7 +360,7 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 template <typename RealScalar>
 inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(const Row2& b) {
 
-	Matrix<RealScalar, 2, 2> S;
+	Mat2 S;
 	
 	S << 0, 1,
 			 1, 0;
@@ -399,7 +405,6 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 	z = a(3,2)/b(2,2);
 
 	Vec ws1(2*_n), ws2(2*_n); // Temporary data
-	//Vec3 X(3, 1);
 	Vec3 X;
 	const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
 
@@ -419,11 +424,10 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		m_S.middleRows(k, 3).rightCols((std::min)(_n, _n-k+1)).applyHouseholderOnTheLeft(ess, tau, ws1.data());
 		m_T.middleRows(k, 3).rightCols(_n-k).applyHouseholderOnTheLeft(ess, tau, ws1.data());
 
-		if (_computeQZ)
+		if (m_computeQZ)
 			m_Q.middleCols(k, 3).applyHouseholderOnTheRight(ess, std::conj(tau), ws1.data());
 
 		// Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
-		//Vec3 bprime = (m_T.block(k+2, k, 1, 3)*S3).adjoint();
 		Vec3 bprime = (m_T.template block<1, 3>(k+2, k)*S3).adjoint();
 		bprime.makeHouseholder(ess, tau, beta);
 
@@ -435,7 +439,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws2.data());
 		m_T.middleCols(k, 3).topRows((std::min)(k+3, _n)).applyOnTheRight(S3.transpose());
 
-		if (_computeQZ) {
+		if (m_computeQZ) {
 			m_Z.middleRows(k, 3).applyOnTheLeft(S3.transpose());
 			m_Z.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws1.data());
 			m_Z.middleRows(k, 3).applyOnTheLeft(S3);
@@ -445,7 +449,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 		m_S.middleCols(k, 2).topRows((std::min)(k+4, _n)).applyOnTheRight(Zk2);
 		m_T.middleCols(k, 2).topRows((std::min)(k+3, _n)).applyOnTheRight(Zk2);
 
-		if (_computeQZ)
+		if (m_computeQZ)
 			m_Z.middleRows(k, 2).applyOnTheLeft(Zk2.adjoint());
 
 		x = m_S(k+1, k);
@@ -462,7 +466,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 	m_S.middleRows(p+m-2, 2).applyOnTheLeft(0, 1, J.adjoint());
 	m_T.middleRows(p+m-2, 2).applyOnTheLeft(0, 1, J.adjoint());
 
-	if (_computeQZ)
+	if (m_computeQZ)
 		m_Q.middleCols(p+m-2, 2).applyOnTheRight(0, 1, J);
 
 	// Find a Householdermatrix Zn1 s.t. (b(n,n-1) b(n,n)) * Zn1 = (0 *)
@@ -478,7 +482,7 @@ void ComplexQZ<RealScalar>::do_QZ_step(int p, int q) {
 	m_S.middleCols(p+m-2, 2).applyOnTheRight(Zn1);
 	m_T.middleCols(p+m-2, 2).applyOnTheRight(Zn1);
 
-	if (_computeQZ)
+	if (m_computeQZ)
 		m_Z.middleRows(p+m-2, 2).applyOnTheLeft(Zn1.adjoint());
 }
 
@@ -503,7 +507,7 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(int k, int l) {
 		//_S.rightCols(_n-j+2).applyOnTheLeft(j-1, j, J.adjoint());
 		m_S.applyOnTheLeft(j-1, j, J.adjoint());
 
-		if (_computeQZ)
+		if (m_computeQZ)
 			m_Q.applyOnTheRight(j-1, j, J);
 
 		// Delete the non-desired non-zero at _S(j, j-2)
@@ -516,7 +520,7 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(int k, int l) {
 			m_S(j, j-2) = Scalar(0);
 			m_T.applyOnTheRight(j-1, j-2, J);
 
-			if (_computeQZ)
+			if (m_computeQZ)
 				m_Z.applyOnTheLeft(j-1, j-2, J.adjoint());
 		}
 	}
@@ -534,7 +538,7 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(int k, int l) {
 	m_S(l, l-1) = Scalar(0);
 	m_T.topRows(l+1).applyOnTheRight(l, l-1, J);
 
-	if (_computeQZ)
+	if (m_computeQZ)
 		m_Z.applyOnTheLeft(l, l-1, J.adjoint());
 
 	// Test Postconditions
