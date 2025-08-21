@@ -16,7 +16,23 @@
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
-#include "Eigen/Core"
+
+/** \eigenvalues_module \ingroup Eigenvalues_Module
+ *
+ *
+ * \class ComplexQZ
+ *
+ * \brief Performs a QZ decomposition of a pair of matrices A, B
+ *
+ * \tparam MatrixType_ the type input type of the matrix.
+ *
+ * Given to complex square matrices A and B, this class computes the QZ decomposition
+ * \f$ A = Q S Z \f$, \f$ B = Q T Z\f$ where Q and Z are orthogonal matrices and
+ * S and T a re upper-triangular matrices. More precisely, Q and Z fulfill
+ * \f$ Q Q* = Id\f$ and \f$ Z Z* = Id\f$
+ *
+ * \sa class RealQZ
+ */
 
 namespace Eigen {
 
@@ -48,16 +64,50 @@ namespace Eigen {
 			using Row2 = Matrix<Scalar, 1, 2>;
 			using Mat2 = Matrix<Scalar, 2, 2>;
 
-			const MatrixType& matrixQ() const { return m_Q; }
-			const MatrixType& matrixZ() const { return m_Z; }
-			const MatrixType& matrixS() const { return m_S; }
-			const MatrixType& matrixT() const { return m_T; }
+			//const MatrixType& matrixQ() const { return m_Q; }
+			//const MatrixType& matrixZ() const { return m_Z; }
+			//const MatrixType& matrixS() const { return m_S; }
+			//const MatrixType& matrixT() const { return m_T; }
 
-			/*
-				 ComplexQZ(const MatrixType& A, const MatrixType& B) {
+			/** \brief Returns matrix Q in the QZ decomposition.
+			 *
+			 * \returns A const reference to the matrix Q.
+			 */
+			const MatrixType& matrixQ() const {
+				eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+				eigen_assert(m_computeQZ &&
+						"The matrices Q and Z have not been computed during the QZ decomposition.");
+				return m_Q;
+			}
 
-				 }
-				 */
+			/** \brief Returns matrix Z in the QZ decomposition.
+			 *
+			 * \returns A const reference to the matrix Z.
+			 */
+			const MatrixType& matrixZ() const {
+				eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+				eigen_assert(m_computeQZ &&
+						"The matrices Q and Z have not been computed during the QZ decomposition.");
+				return m_Z;
+			}
+
+			/** \brief Returns matrix S in the QZ decomposition.
+			 *
+			 * \returns A const reference to the matrix S.
+			 */
+			const MatrixType& matrixS() const {
+				eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+				return m_S;
+			}
+
+			/** \brief Returns matrix S in the QZ decomposition.
+			 *
+			 * \returns A const reference to the matrix S.
+			 */
+			const MatrixType& matrixT() const {
+				eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+				return m_T;
+			}
 
 			ComplexQZ() {
 
@@ -74,10 +124,18 @@ namespace Eigen {
 				return m_info;
 			};
 
+			/** \brief number of performed QZ steps
+			 */
+			unsigned int iterations() const {
+				eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
+				return m_global_iter;
+			};
+
 		private:
 
-			bool m_computeQZ;
+			bool m_computeQZ, m_isInitialized;
 			ComputationInfo m_info;
+			unsigned int m_global_iter;
 
 			void reduce_quasitriangular_S();
 
@@ -110,7 +168,10 @@ template <typename RealScalar>
 void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
 
 	m_computeQZ = computeQZ;
-	m_n = A.rows();
+	m_n = A.rows(); // TODO Should be defined at a different place
+
+	m_isInitialized = true;
+	m_global_iter = 0;
 
 	assert(A.cols() == m_n && B.rows() == m_n && B.cols() == m_n);
 
@@ -126,10 +187,9 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 	// (we can use the respective part of the RealQZ algorithm)
 
 	Index l = m_n-1,
-			f,
-			local_iter = 0;
+			f;
 
-	Index maxIters = 400;
+	unsigned int local_iter = 0, maxIters = 400;
 
 	computeNorms();
 
@@ -137,7 +197,7 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 
 		f = findSmallSubdiagEntry(l);
 
-		// Subdiag entry is small -> delete
+		// Subdiag entry is small -> can be safely set to 0
 		if (f > 0) {
 			m_S.coeffRef(f, f-1) = Scalar(0);
 		}
@@ -159,6 +219,7 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 			else {
 				do_QZ_step(f, m_n-l-1);
 				local_iter++;
+				m_global_iter++;
 			}
 		}
 	}
@@ -296,12 +357,7 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 	*/
 
 
-	Index total_steps = 0, steps = 0;
-	for (Index j=0; j<=m_n-3; j++) {
-		for (Index i=m_n-1; i>=j+2; i--) {
-			total_steps++;
-		}
-	}
+	int steps = 0;
 
 	// reduce S to upper Hessenberg with Givens rotations
 	for (Index j=0; j<=m_n-3; j++) {
@@ -327,8 +383,7 @@ void ComplexQZ<RealScalar>::hessenbergTriangular() {
 					m_Q.applyOnTheRight(i-1,i,G);
 			}
 
-			//if(!numext::is_exactly_zero(m_T.coeff(i, i - 1)))
-			if(m_T.coeff(i, i - 1) != Scalar(0))
+			if(!numext::is_exactly_zero(m_T.coeff(i, i - 1)))
 			{
 				// Compute rotation and update matrix T
 				G.makeGivens(m_T.coeff(i,i), m_T.coeff(i,i-1), &m_T.coeffRef(i,i));
