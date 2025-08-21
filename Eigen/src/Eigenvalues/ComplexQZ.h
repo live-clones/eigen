@@ -325,43 +325,6 @@ void ComplexQZ<RealScalar>::hessenbergTriangular(const MatrixType& A, const Matr
 	if (m_computeQZ)
 		m_Z = MatrixType::Identity(m_n, m_n);
 
-	/*
-	using Triplet = Triplet<Scalar>;
-	std::vector<Triplet> T_triplets;
-
-	for (int i = 0; i < m_T.rows(); i++) {
-		for (int j = 0; j < m_T.cols(); j++) {
-			if (std::abs(m_T(i,j)) > NumTraits<RealScalar>::epsilon())
-				T_triplets.push_back(Triplet(i, j, m_T(i,j)));
-		}
-	}
-
-	SparseMatrix<Scalar, ColMajor> T_sparse(m_T.rows(), m_T.cols());
-	T_sparse.setFromTriplets(T_triplets.begin(), T_triplets.end());
-	T_sparse.makeCompressed();
-
-	SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<int> >
-		sparseQR;
-
-	// Computing QR decomposition of T...
-	sparseQR.setPivotThreshold(RealScalar(0)); // This prevends algorithm from doing pivoting
-	sparseQR.compute(T_sparse);
-
-	// perform QR decomposition of T, overwrite T with R, save Q
-	//HouseholderQR<Mat> qrT(m_T);
-	m_T = sparseQR.matrixR();
-	m_T.template triangularView<StrictlyLower>().setZero();
-
-	m_Q = sparseQR.matrixQ();
-	// overwrite S with Q* S
-	//m_S.applyOnTheLeft(m_Q.adjoint()); // Correct line
-	//m_S.rowwise().applyOnTheLeft(sparseQR.matrixQ().adjoint());
-	m_S = sparseQR.matrixQ().adjoint() *m_S;
-
-	m_Z = MatrixType::Identity(_n, _n);
-	*/
-
-
 	int steps = 0;
 
 	// reduce S to upper Hessenberg with Givens rotations
