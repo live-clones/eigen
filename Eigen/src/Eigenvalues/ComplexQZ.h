@@ -14,6 +14,8 @@
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_ 
 
+#include <iostream>
+
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
@@ -292,6 +294,9 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 			if (m_computeQZ)
 				m_Q.applyOnTheRight(i, i+1, G);
 		
+			assert(is_negligible(m_S(i+1,i), m_normOfS * NumTraits<RealScalar>::epsilon()));
+			// S(i+1, 1) can be safely set to 0
+			m_S(i+1, i) = Scalar(0);
 		}
 	}
 
@@ -301,11 +306,6 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 // This is basically taken from from Eigen3::RealQZ
 template <typename RealScalar>
 void ComplexQZ<RealScalar>::hessenbergTriangular(const MatrixType& A, const MatrixType& B) {
-
-	// TODO The current implementation just performs the QR decomposition for
-	// dense matrices. However, the input could be sparse which makes the QR
-	// decomposition a lot faster, if taken properly care of. Decide how to
-	// design the code properly!
 
 	// Copy A and B, these will be the matrices on which we operate later
 	m_S = A;
@@ -331,9 +331,9 @@ void ComplexQZ<RealScalar>::hessenbergTriangular(const MatrixType& A, const Matr
 	for (Index j=0; j<=m_n-3; j++) {
 		for (Index i=m_n-1; i>=j+2; i--) {
 			JacobiRotation<Scalar> G;
-			// kill S(i,j)
-			//if(!numext::is_exactly_zero(_S.coeff(i, j)))
-			if(m_S.coeff(i, j) != Scalar(0))
+
+			// delete S(i,j)
+			if(!numext::is_exactly_zero(m_S.coeff(i, j)))
 			{
 				// This is the adapted code
 				G.makeGivens(m_S.coeff(i-1,j), m_S.coeff(i,j), &m_S.coeffRef(i-1, j));
@@ -398,13 +398,14 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 	m_T = sparseQR.matrixR();
 	m_T.template triangularView<StrictlyLower>().setZero();
 
-	m_Q = sparseQR.matrixQ();
+	if (m_computeQZ)
+		m_Q = sparseQR.matrixQ();
+
 	// overwrite S with Q* S
-	//m_S.applyOnTheLeft(m_Q.adjoint()); // Correct line
-	//m_S.rowwise().applyOnTheLeft(sparseQR.matrixQ().adjoint());
 	m_S = sparseQR.matrixQ().adjoint() *m_S;
 
-	m_Z = MatrixType::Identity(m_n, m_n);
+	if (m_computeQZ)
+		m_Z = MatrixType::Identity(m_n, m_n);
 
 	int steps = 0;
 
@@ -662,12 +663,15 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(Index k, Index l) {
 	// _S(l, l-1) which we will delete through a last right-jacobi-rotation
 	J.makeGivens(std::conj(m_S(l, l)), std::conj(m_S(l, l-1)));
 	m_S.topRows(l+1).applyOnTheRight(l, l-1, J);
-	//assert(is_negligible(_S(l, l-1)));
-	//if (!is_negligible(_S(l,l-1))) {
-	//	std::cout << "_S(l,l-1) = " << _S(l,l-1) << std::endl;	
-	//	std::cout << "(Should be 0)" << std::endl;
-	//	std::cin.ignore();
-	//}
+
+
+	if (!is_negligible(m_S(l, l-1))) {
+		auto z = m_S(l, l-1);
+		std::cout << z.real()*z.real() + z.imag()*z.imag() << std::endl;
+	}
+
+	assert(is_negligible(m_S(l, l-1)));
+
 	m_S(l, l-1) = Scalar(0);
 	m_T.topRows(l+1).applyOnTheRight(l, l-1, J);
 
