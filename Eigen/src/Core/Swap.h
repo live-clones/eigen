@@ -36,13 +36,14 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
   typedef typename Base::DstXprType DstXprType;
   typedef swap_assign_op<Scalar> Functor;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE generic_dense_assignment_kernel(DstEvaluatorTypeT &dst,
-                                                                        const SrcEvaluatorTypeT &src,
-                                                                        const Functor &func, DstXprType &dstExpr)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorTypeT &dst,
+                                                                                  const SrcEvaluatorTypeT &src,
+                                                                                  const Functor &func,
+                                                                                  DstXprType &dstExpr)
       : Base(dst, src, func, dstExpr) {}
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacket(Index row, Index col) {
+  EIGEN_STRONG_INLINE constexpr void assignPacket(Index row, Index col) {
     PacketType tmp = m_src.template packet<LoadMode, PacketType>(row, col);
     const_cast<SrcEvaluatorTypeT &>(m_src).template writePacket<LoadMode>(
         row, col, m_dst.template packet<StoreMode, PacketType>(row, col));
@@ -50,7 +51,7 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
   }
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacket(Index index) {
+  EIGEN_STRONG_INLINE constexpr void assignPacket(Index index) {
     PacketType tmp = m_src.template packet<LoadMode, PacketType>(index);
     const_cast<SrcEvaluatorTypeT &>(m_src).template writePacket<LoadMode>(
         index, m_dst.template packet<StoreMode, PacketType>(index));
@@ -60,7 +61,7 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
   // TODO find a simple way not to have to copy/paste this function from generic_dense_assignment_kernel, by simple I
   // mean no CRTP (Gael)
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacketByOuterInner(Index outer, Index inner) {
+  EIGEN_STRONG_INLINE constexpr void assignPacketByOuterInner(Index outer, Index inner) {
     Index row = Base::rowIndexByOuterInner(outer, inner);
     Index col = Base::colIndexByOuterInner(outer, inner);
     assignPacket<StoreMode, LoadMode, PacketType>(row, col);

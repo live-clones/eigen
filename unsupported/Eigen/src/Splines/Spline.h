@@ -62,7 +62,7 @@ class Spline {
    * \brief Creates a (constant) zero spline.
    * For Splines with dynamic degree, the resulting degree will be 0.
    **/
-  Spline()
+  constexpr Spline()
       : m_knots(1, (Degree == Dynamic ? 2 : 2 * Degree + 2)),
         m_ctrls(ControlPointVectorType::Zero(Dimension, (Degree == Dynamic ? 1 : Degree + 1))) {
     // in theory this code can go to the initializer list but it will get pretty
@@ -78,24 +78,25 @@ class Spline {
    * \param ctrls The spline's control point vector.
    **/
   template <typename OtherVectorType, typename OtherArrayType>
-  Spline(const OtherVectorType& knots, const OtherArrayType& ctrls) : m_knots(knots), m_ctrls(ctrls) {}
+  constexpr Spline(const OtherVectorType& knots, const OtherArrayType& ctrls) : m_knots(knots), m_ctrls(ctrls) {}
 
   /**
    * \brief Copy constructor for splines.
    * \param spline The input spline.
    **/
   template <int OtherDegree>
-  Spline(const Spline<Scalar, Dimension, OtherDegree>& spline) : m_knots(spline.knots()), m_ctrls(spline.ctrls()) {}
+  constexpr Spline(const Spline<Scalar, Dimension, OtherDegree>& spline)
+      : m_knots(spline.knots()), m_ctrls(spline.ctrls()) {}
 
   /**
    * \brief Returns the knots of the underlying spline.
    **/
-  const KnotVectorType& knots() const { return m_knots; }
+  constexpr const KnotVectorType& knots() const { return m_knots; }
 
   /**
    * \brief Returns the ctrls of the underlying spline.
    **/
-  const ControlPointVectorType& ctrls() const { return m_ctrls; }
+  constexpr const ControlPointVectorType& ctrls() const { return m_ctrls; }
 
   /**
    * \brief Returns the spline value at a given site \f$u\f$.
@@ -108,7 +109,7 @@ class Spline {
    * \param u Parameter \f$u \in [0;1]\f$ at which the spline is evaluated.
    * \return The spline value at the given location \f$u\f$.
    **/
-  PointType operator()(Scalar u) const;
+  constexpr PointType operator()(Scalar u) const;
 
   /**
    * \brief Evaluation of spline derivatives of up-to given order.
@@ -122,7 +123,7 @@ class Spline {
    * \param u Parameter \f$u \in [0;1]\f$ at which the spline derivative is evaluated.
    * \param order The order up to which the derivatives are computed.
    **/
-  typename SplineTraits<Spline>::DerivativeType derivatives(Scalar u, DenseIndex order) const;
+  constexpr typename SplineTraits<Spline>::DerivativeType derivatives(Scalar u, DenseIndex order) const;
 
   /**
    * \copydoc Spline::derivatives
@@ -130,8 +131,8 @@ class Spline {
    * temporary objects are allocated on the stack whenever this is possible.
    **/
   template <int DerivativeOrder>
-  typename SplineTraits<Spline, DerivativeOrder>::DerivativeType derivatives(Scalar u,
-                                                                             DenseIndex order = DerivativeOrder) const;
+  constexpr typename SplineTraits<Spline, DerivativeOrder>::DerivativeType derivatives(
+      Scalar u, DenseIndex order = DerivativeOrder) const;
 
   /**
    * \brief Computes the non-zero basis functions at the given site.
@@ -149,7 +150,7 @@ class Spline {
    * \param u Parameter \f$u \in [0;1]\f$ at which the non-zero basis functions
    *          are computed.
    **/
-  typename SplineTraits<Spline>::BasisVectorType basisFunctions(Scalar u) const;
+  constexpr typename SplineTraits<Spline>::BasisVectorType basisFunctions(Scalar u) const;
 
   /**
    * \brief Computes the non-zero spline basis function derivatives up to given order.
@@ -164,7 +165,8 @@ class Spline {
    *          derivatives are computed.
    * \param order The order up to which the basis function derivatives are computes.
    **/
-  typename SplineTraits<Spline>::BasisDerivativeType basisFunctionDerivatives(Scalar u, DenseIndex order) const;
+  constexpr typename SplineTraits<Spline>::BasisDerivativeType basisFunctionDerivatives(Scalar u,
+                                                                                        DenseIndex order) const;
 
   /**
    * \copydoc Spline::basisFunctionDerivatives
@@ -172,25 +174,25 @@ class Spline {
    * temporary objects are allocated on the stack whenever this is possible.
    **/
   template <int DerivativeOrder>
-  typename SplineTraits<Spline, DerivativeOrder>::BasisDerivativeType basisFunctionDerivatives(
+  constexpr typename SplineTraits<Spline, DerivativeOrder>::BasisDerivativeType basisFunctionDerivatives(
       Scalar u, DenseIndex order = DerivativeOrder) const;
 
   /**
    * \brief Returns the spline degree.
    **/
-  DenseIndex degree() const;
+  constexpr DenseIndex degree() const;
 
   /**
    * \brief Returns the span within the knot vector in which u is falling.
    * \param u The site for which the span is determined.
    **/
-  DenseIndex span(Scalar u) const;
+  constexpr DenseIndex span(Scalar u) const;
 
   /**
    * \brief Computes the span within the provided knot vector in which u is falling.
    **/
-  static DenseIndex Span(typename SplineTraits<Spline>::Scalar u, DenseIndex degree,
-                         const typename SplineTraits<Spline>::KnotVectorType& knots);
+  static constexpr DenseIndex Span(typename SplineTraits<Spline>::Scalar u, DenseIndex degree,
+                                   const typename SplineTraits<Spline>::KnotVectorType& knots);
 
   /**
    * \brief Returns the spline's non-zero basis functions.
@@ -204,29 +206,29 @@ class Spline {
    * \param degree The degree of the underlying spline.
    * \param knots The underlying spline's knot vector.
    **/
-  static BasisVectorType BasisFunctions(Scalar u, DenseIndex degree, const KnotVectorType& knots);
+  static constexpr BasisVectorType BasisFunctions(Scalar u, DenseIndex degree, const KnotVectorType& knots);
 
   /**
    * \copydoc Spline::basisFunctionDerivatives
    * \param degree The degree of the underlying spline
    * \param knots The underlying spline's knot vector.
    **/
-  static BasisDerivativeType BasisFunctionDerivatives(const Scalar u, const DenseIndex order, const DenseIndex degree,
-                                                      const KnotVectorType& knots);
+  static constexpr BasisDerivativeType BasisFunctionDerivatives(const Scalar u, const DenseIndex order,
+                                                                const DenseIndex degree, const KnotVectorType& knots);
 
  private:
   KnotVectorType m_knots;         /*!< Knot vector. */
   ControlPointVectorType m_ctrls; /*!< Control points. */
 
   template <typename DerivativeType>
-  static void BasisFunctionDerivativesImpl(const typename Spline<Scalar_, Dim_, Degree_>::Scalar u,
-                                           const DenseIndex order, const DenseIndex p,
-                                           const typename Spline<Scalar_, Dim_, Degree_>::KnotVectorType& U,
-                                           DerivativeType& N_);
+  static constexpr void BasisFunctionDerivativesImpl(const typename Spline<Scalar_, Dim_, Degree_>::Scalar u,
+                                                     const DenseIndex order, const DenseIndex p,
+                                                     const typename Spline<Scalar_, Dim_, Degree_>::KnotVectorType& U,
+                                                     DerivativeType& N_);
 };
 
 template <typename Scalar_, int Dim_, int Degree_>
-DenseIndex Spline<Scalar_, Dim_, Degree_>::Span(
+constexpr DenseIndex Spline<Scalar_, Dim_, Degree_>::Span(
     typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::Scalar u, DenseIndex degree,
     const typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::KnotVectorType& knots) {
   // Piegl & Tiller, "The NURBS Book", A2.1 (p. 68)
@@ -236,7 +238,7 @@ DenseIndex Spline<Scalar_, Dim_, Degree_>::Span(
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-typename Spline<Scalar_, Dim_, Degree_>::BasisVectorType Spline<Scalar_, Dim_, Degree_>::BasisFunctions(
+constexpr typename Spline<Scalar_, Dim_, Degree_>::BasisVectorType Spline<Scalar_, Dim_, Degree_>::BasisFunctions(
     typename Spline<Scalar_, Dim_, Degree_>::Scalar u, DenseIndex degree,
     const typename Spline<Scalar_, Dim_, Degree_>::KnotVectorType& knots) {
   const DenseIndex p = degree;
@@ -268,7 +270,7 @@ typename Spline<Scalar_, Dim_, Degree_>::BasisVectorType Spline<Scalar_, Dim_, D
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-DenseIndex Spline<Scalar_, Dim_, Degree_>::degree() const {
+constexpr DenseIndex Spline<Scalar_, Dim_, Degree_>::degree() const {
   if (Degree_ == Dynamic)
     return m_knots.size() - m_ctrls.cols() - 1;
   else
@@ -276,12 +278,13 @@ DenseIndex Spline<Scalar_, Dim_, Degree_>::degree() const {
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-DenseIndex Spline<Scalar_, Dim_, Degree_>::span(Scalar u) const {
+constexpr DenseIndex Spline<Scalar_, Dim_, Degree_>::span(Scalar u) const {
   return Spline::Span(u, degree(), knots());
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-typename Spline<Scalar_, Dim_, Degree_>::PointType Spline<Scalar_, Dim_, Degree_>::operator()(Scalar u) const {
+constexpr typename Spline<Scalar_, Dim_, Degree_>::PointType Spline<Scalar_, Dim_, Degree_>::operator()(
+    Scalar u) const {
   enum { Order = SplineTraits<Spline>::OrderAtCompileTime };
 
   const DenseIndex span = this->span(u);
@@ -296,7 +299,8 @@ typename Spline<Scalar_, Dim_, Degree_>::PointType Spline<Scalar_, Dim_, Degree_
 /* --------------------------------------------------------------------------------------------- */
 
 template <typename SplineType, typename DerivativeType>
-void derivativesImpl(const SplineType& spline, typename SplineType::Scalar u, DenseIndex order, DerivativeType& der) {
+constexpr void derivativesImpl(const SplineType& spline, typename SplineType::Scalar u, DenseIndex order,
+                               DerivativeType& der) {
   enum { Dimension = SplineTraits<SplineType>::Dimension };
   enum { Order = SplineTraits<SplineType>::OrderAtCompileTime };
   enum { DerivativeOrder = DerivativeType::ColsAtCompileTime };
@@ -324,8 +328,8 @@ void derivativesImpl(const SplineType& spline, typename SplineType::Scalar u, De
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::DerivativeType Spline<Scalar_, Dim_, Degree_>::derivatives(
-    Scalar u, DenseIndex order) const {
+constexpr typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::DerivativeType
+Spline<Scalar_, Dim_, Degree_>::derivatives(Scalar u, DenseIndex order) const {
   typename SplineTraits<Spline>::DerivativeType res;
   derivativesImpl(*this, u, order, res);
   return res;
@@ -333,16 +337,16 @@ typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::DerivativeType Spline<Sc
 
 template <typename Scalar_, int Dim_, int Degree_>
 template <int DerivativeOrder>
-typename SplineTraits<Spline<Scalar_, Dim_, Degree_>, DerivativeOrder>::DerivativeType
-Spline<Scalar_, Dim_, Degree_>::derivatives(Scalar u, DenseIndex order) const {
+typename SplineTraits<Spline<Scalar_, Dim_, Degree_>, DerivativeOrder>::DerivativeType constexpr Spline<
+    Scalar_, Dim_, Degree_>::derivatives(Scalar u, DenseIndex order) const {
   typename SplineTraits<Spline, DerivativeOrder>::DerivativeType res;
   derivativesImpl(*this, u, order, res);
   return res;
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisVectorType Spline<Scalar_, Dim_, Degree_>::basisFunctions(
-    Scalar u) const {
+constexpr typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisVectorType
+Spline<Scalar_, Dim_, Degree_>::basisFunctions(Scalar u) const {
   return Spline::BasisFunctions(u, degree(), knots());
 }
 
@@ -350,7 +354,7 @@ typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisVectorType Spline<S
 
 template <typename Scalar_, int Dim_, int Degree_>
 template <typename DerivativeType>
-void Spline<Scalar_, Dim_, Degree_>::BasisFunctionDerivativesImpl(
+constexpr void Spline<Scalar_, Dim_, Degree_>::BasisFunctionDerivativesImpl(
     const typename Spline<Scalar_, Dim_, Degree_>::Scalar u, const DenseIndex order, const DenseIndex p,
     const typename Spline<Scalar_, Dim_, Degree_>::KnotVectorType& U, DerivativeType& N_) {
   typedef Spline<Scalar_, Dim_, Degree_> SplineType;
@@ -449,8 +453,8 @@ void Spline<Scalar_, Dim_, Degree_>::BasisFunctionDerivativesImpl(
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisDerivativeType
-Spline<Scalar_, Dim_, Degree_>::basisFunctionDerivatives(Scalar u, DenseIndex order) const {
+typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisDerivativeType constexpr Spline<
+    Scalar_, Dim_, Degree_>::basisFunctionDerivatives(Scalar u, DenseIndex order) const {
   typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisDerivativeType der;
   BasisFunctionDerivativesImpl(u, order, degree(), knots(), der);
   return der;
@@ -458,18 +462,18 @@ Spline<Scalar_, Dim_, Degree_>::basisFunctionDerivatives(Scalar u, DenseIndex or
 
 template <typename Scalar_, int Dim_, int Degree_>
 template <int DerivativeOrder>
-typename SplineTraits<Spline<Scalar_, Dim_, Degree_>, DerivativeOrder>::BasisDerivativeType
-Spline<Scalar_, Dim_, Degree_>::basisFunctionDerivatives(Scalar u, DenseIndex order) const {
+typename SplineTraits<Spline<Scalar_, Dim_, Degree_>, DerivativeOrder>::BasisDerivativeType constexpr Spline<
+    Scalar_, Dim_, Degree_>::basisFunctionDerivatives(Scalar u, DenseIndex order) const {
   typename SplineTraits<Spline<Scalar_, Dim_, Degree_>, DerivativeOrder>::BasisDerivativeType der;
   BasisFunctionDerivativesImpl(u, order, degree(), knots(), der);
   return der;
 }
 
 template <typename Scalar_, int Dim_, int Degree_>
-typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisDerivativeType
-Spline<Scalar_, Dim_, Degree_>::BasisFunctionDerivatives(
-    const typename Spline<Scalar_, Dim_, Degree_>::Scalar u, const DenseIndex order, const DenseIndex degree,
-    const typename Spline<Scalar_, Dim_, Degree_>::KnotVectorType& knots) {
+typename SplineTraits<Spline<Scalar_, Dim_, Degree_> >::BasisDerivativeType constexpr Spline<Scalar_, Dim_, Degree_>::
+    BasisFunctionDerivatives(const typename Spline<Scalar_, Dim_, Degree_>::Scalar u, const DenseIndex order,
+                             const DenseIndex degree,
+                             const typename Spline<Scalar_, Dim_, Degree_>::KnotVectorType& knots) {
   typename SplineTraits<Spline>::BasisDerivativeType der;
   BasisFunctionDerivativesImpl(u, order, degree, knots, der);
   return der;

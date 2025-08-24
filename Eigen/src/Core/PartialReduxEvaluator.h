@@ -52,14 +52,14 @@ struct packetwise_redux_traits {
 
 /* Value to be returned when size==0 , by default let's return 0 */
 template <typename PacketType, typename Func>
-EIGEN_DEVICE_FUNC PacketType packetwise_redux_empty_value(const Func&) {
+EIGEN_DEVICE_FUNC constexpr PacketType packetwise_redux_empty_value(const Func&) {
   const typename unpacket_traits<PacketType>::type zero(0);
   return pset1<PacketType>(zero);
 }
 
 /* For products the default is 1 */
 template <typename PacketType, typename Scalar>
-EIGEN_DEVICE_FUNC PacketType packetwise_redux_empty_value(const scalar_product_op<Scalar, Scalar>&) {
+EIGEN_DEVICE_FUNC constexpr PacketType packetwise_redux_empty_value(const scalar_product_op<Scalar, Scalar>&) {
   return pset1<PacketType>(Scalar(1));
 }
 
@@ -74,7 +74,8 @@ struct packetwise_redux_impl<Func, Evaluator, CompleteUnrolling> {
   typedef typename Evaluator::Scalar Scalar;
 
   template <typename PacketType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE PacketType run(const Evaluator& eval, const Func& func, Index /*size*/) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr PacketType run(const Evaluator& eval, const Func& func,
+                                                                        Index /*size*/) {
     return redux_vec_unroller<Func, Evaluator, 0,
                               packetwise_redux_traits<Func, Evaluator>::OuterSize>::template run<PacketType>(eval,
                                                                                                              func);
@@ -88,7 +89,7 @@ struct packetwise_redux_impl<Func, Evaluator, CompleteUnrolling> {
 template <typename Func, typename Evaluator, Index Start>
 struct redux_vec_unroller<Func, Evaluator, Start, 0> {
   template <typename PacketType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE PacketType run(const Evaluator&, const Func& f) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr PacketType run(const Evaluator&, const Func& f) {
     return packetwise_redux_empty_value<PacketType>(f);
   }
 };
@@ -100,7 +101,7 @@ struct packetwise_redux_impl<Func, Evaluator, NoUnrolling> {
   typedef typename redux_traits<Func, Evaluator>::PacketType PacketScalar;
 
   template <typename PacketType>
-  EIGEN_DEVICE_FUNC static PacketType run(const Evaluator& eval, const Func& func, Index size) {
+  EIGEN_DEVICE_FUNC static constexpr PacketType run(const Evaluator& eval, const Func& func, Index size) {
     if (size == 0) return packetwise_redux_empty_value<PacketType>(func);
 
     const Index size4 = 1 + numext::round_down(size - 1, 4);
@@ -168,7 +169,8 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     Alignment = 0  // FIXME this will need to be improved once PartialReduxExpr is vectorized
   };
 
-  EIGEN_DEVICE_FUNC explicit evaluator(const XprType xpr) : m_arg(xpr.nestedExpression()), m_functor(xpr.functor()) {
+  EIGEN_DEVICE_FUNC constexpr explicit evaluator(const XprType xpr)
+      : m_arg(xpr.nestedExpression()), m_functor(xpr.functor()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(TraversalSize == Dynamic ? HugeCost
                                                              : (TraversalSize == 0 ? 1 : int(CostOpType::value)));
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
@@ -176,11 +178,11 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
 
   typedef typename XprType::CoeffReturnType CoeffReturnType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar coeff(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar coeff(Index i, Index j) const {
     return coeff(Direction == Vertical ? j : i);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar coeff(Index index) const {
     return m_functor(m_arg.template subVector<DirectionType(Direction)>(index));
   }
 

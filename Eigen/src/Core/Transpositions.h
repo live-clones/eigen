@@ -24,46 +24,46 @@ class TranspositionsBase {
   typedef typename IndicesType::Scalar StorageIndex;
   typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
 
-  EIGEN_DEVICE_FUNC Derived& derived() { return *static_cast<Derived*>(this); }
-  EIGEN_DEVICE_FUNC const Derived& derived() const { return *static_cast<const Derived*>(this); }
+  EIGEN_DEVICE_FUNC constexpr Derived& derived() { return *static_cast<Derived*>(this); }
+  EIGEN_DEVICE_FUNC constexpr const Derived& derived() const { return *static_cast<const Derived*>(this); }
 
   /** Copies the \a other transpositions into \c *this */
   template <typename OtherDerived>
-  Derived& operator=(const TranspositionsBase<OtherDerived>& other) {
+  constexpr Derived& operator=(const TranspositionsBase<OtherDerived>& other) {
     indices() = other.indices();
     return derived();
   }
 
   /** \returns the number of transpositions */
-  EIGEN_DEVICE_FUNC Index size() const { return indices().size(); }
+  EIGEN_DEVICE_FUNC constexpr Index size() const { return indices().size(); }
   /** \returns the number of rows of the equivalent permutation matrix */
-  EIGEN_DEVICE_FUNC Index rows() const { return indices().size(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const { return indices().size(); }
   /** \returns the number of columns of the equivalent permutation matrix */
-  EIGEN_DEVICE_FUNC Index cols() const { return indices().size(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const { return indices().size(); }
 
   /** Direct access to the underlying index vector */
-  EIGEN_DEVICE_FUNC inline const StorageIndex& coeff(Index i) const { return indices().coeff(i); }
+  EIGEN_DEVICE_FUNC inline constexpr const StorageIndex& coeff(Index i) const { return indices().coeff(i); }
   /** Direct access to the underlying index vector */
-  inline StorageIndex& coeffRef(Index i) { return indices().coeffRef(i); }
+  inline constexpr StorageIndex& coeffRef(Index i) { return indices().coeffRef(i); }
   /** Direct access to the underlying index vector */
-  inline const StorageIndex& operator()(Index i) const { return indices()(i); }
+  inline constexpr const StorageIndex& operator()(Index i) const { return indices()(i); }
   /** Direct access to the underlying index vector */
-  inline StorageIndex& operator()(Index i) { return indices()(i); }
+  inline constexpr StorageIndex& operator()(Index i) { return indices()(i); }
   /** Direct access to the underlying index vector */
-  inline const StorageIndex& operator[](Index i) const { return indices()(i); }
+  inline constexpr const StorageIndex& operator[](Index i) const { return indices()(i); }
   /** Direct access to the underlying index vector */
-  inline StorageIndex& operator[](Index i) { return indices()(i); }
+  inline constexpr StorageIndex& operator[](Index i) { return indices()(i); }
 
   /** const version of indices(). */
-  EIGEN_DEVICE_FUNC const IndicesType& indices() const { return derived().indices(); }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return derived().indices(); }
   /** \returns a reference to the stored array representing the transpositions. */
-  EIGEN_DEVICE_FUNC IndicesType& indices() { return derived().indices(); }
+  EIGEN_DEVICE_FUNC constexpr IndicesType& indices() { return derived().indices(); }
 
   /** Resizes to given size. */
-  inline void resize(Index newSize) { indices().resize(newSize); }
+  inline constexpr void resize(Index newSize) { indices().resize(newSize); }
 
   /** Sets \c *this to represents an identity transformation */
-  void setIdentity() {
+  constexpr void setIdentity() {
     for (StorageIndex i = 0; i < indices().size(); ++i) coeffRef(i) = i;
   }
 
@@ -72,7 +72,7 @@ class TranspositionsBase {
   // object.matrix().block(..,..,..,..) = trans * object.matrix().block(..,..,..,..);
   /*
   template<typename MatrixType>
-  void applyForwardToRows(MatrixType& mat) const
+  constexpr void applyForwardToRows(MatrixType& mat) const
   {
     for(Index k=0 ; k<size() ; ++k)
       if(m_indices(k)!=k)
@@ -80,7 +80,7 @@ class TranspositionsBase {
   }
 
   template<typename MatrixType>
-  void applyBackwardToRows(MatrixType& mat) const
+  constexpr void applyBackwardToRows(MatrixType& mat) const
   {
     for(Index k=size()-1 ; k>=0 ; --k)
       if(m_indices(k)!=k)
@@ -89,10 +89,10 @@ class TranspositionsBase {
   */
 
   /** \returns the inverse transformation */
-  inline Transpose<TranspositionsBase> inverse() const { return Transpose<TranspositionsBase>(derived()); }
+  inline constexpr Transpose<TranspositionsBase> inverse() const { return Transpose<TranspositionsBase>(derived()); }
 
   /** \returns the transpose transformation */
-  inline Transpose<TranspositionsBase> transpose() const { return Transpose<TranspositionsBase>(derived()); }
+  inline constexpr Transpose<TranspositionsBase> transpose() const { return Transpose<TranspositionsBase>(derived()); }
 
  protected:
 };
@@ -146,15 +146,15 @@ class Transpositions
   typedef typename Traits::IndicesType IndicesType;
   typedef typename IndicesType::Scalar StorageIndex;
 
-  inline Transpositions() {}
+  inline constexpr Transpositions() = default;
 
   /** Copy constructor. */
   template <typename OtherDerived>
-  inline Transpositions(const TranspositionsBase<OtherDerived>& other) : m_indices(other.indices()) {}
+  inline constexpr Transpositions(const TranspositionsBase<OtherDerived>& other) : m_indices(other.indices()) {}
 
   /** Generic constructor from expression of the transposition indices. */
   template <typename Other>
-  explicit inline Transpositions(const MatrixBase<Other>& indices) : m_indices(indices) {}
+  explicit inline constexpr Transpositions(const MatrixBase<Other>& indices) : m_indices(indices) {}
 
   /** Copies the \a other transpositions into \c *this */
   template <typename OtherDerived>
@@ -164,12 +164,12 @@ class Transpositions
 
   /** Constructs an uninitialized permutation matrix of given size.
    */
-  inline Transpositions(Index size) : m_indices(size) {}
+  inline constexpr Transpositions(Index size) : m_indices(size) {}
 
   /** const version of indices(). */
-  EIGEN_DEVICE_FUNC const IndicesType& indices() const { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return m_indices; }
   /** \returns a reference to the stored array representing the transpositions. */
-  EIGEN_DEVICE_FUNC IndicesType& indices() { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr IndicesType& indices() { return m_indices; }
 
  protected:
   IndicesType m_indices;
@@ -196,13 +196,13 @@ class Map<Transpositions<SizeAtCompileTime, MaxSizeAtCompileTime, StorageIndex_>
   typedef typename Traits::IndicesType IndicesType;
   typedef typename IndicesType::Scalar StorageIndex;
 
-  explicit inline Map(const StorageIndex* indicesPtr) : m_indices(indicesPtr) {}
+  explicit inline constexpr Map(const StorageIndex* indicesPtr) : m_indices(indicesPtr) {}
 
-  inline Map(const StorageIndex* indicesPtr, Index size) : m_indices(indicesPtr, size) {}
+  inline constexpr Map(const StorageIndex* indicesPtr, Index size) : m_indices(indicesPtr, size) {}
 
   /** Copies the \a other transpositions into \c *this */
   template <typename OtherDerived>
-  Map& operator=(const TranspositionsBase<OtherDerived>& other) {
+  constexpr Map& operator=(const TranspositionsBase<OtherDerived>& other) {
     return Base::operator=(other);
   }
 
@@ -210,17 +210,17 @@ class Map<Transpositions<SizeAtCompileTime, MaxSizeAtCompileTime, StorageIndex_>
   /** This is a special case of the templated operator=. Its purpose is to
    * prevent a default operator= from hiding the templated operator=.
    */
-  Map& operator=(const Map& other) {
+  constexpr Map& operator=(const Map& other) {
     m_indices = other.m_indices;
     return *this;
   }
 #endif
 
   /** const version of indices(). */
-  EIGEN_DEVICE_FUNC const IndicesType& indices() const { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return m_indices; }
 
   /** \returns a reference to the stored array representing the transpositions. */
-  EIGEN_DEVICE_FUNC IndicesType& indices() { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr IndicesType& indices() { return m_indices; }
 
  protected:
   IndicesType m_indices;
@@ -242,19 +242,19 @@ class TranspositionsWrapper : public TranspositionsBase<TranspositionsWrapper<In
   typedef typename Traits::IndicesType IndicesType;
   typedef typename IndicesType::Scalar StorageIndex;
 
-  explicit inline TranspositionsWrapper(IndicesType& indices) : m_indices(indices) {}
+  explicit inline constexpr TranspositionsWrapper(IndicesType& indices) : m_indices(indices) {}
 
   /** Copies the \a other transpositions into \c *this */
   template <typename OtherDerived>
-  TranspositionsWrapper& operator=(const TranspositionsBase<OtherDerived>& other) {
+  constexpr TranspositionsWrapper& operator=(const TranspositionsBase<OtherDerived>& other) {
     return Base::operator=(other);
   }
 
   /** const version of indices(). */
-  EIGEN_DEVICE_FUNC const IndicesType& indices() const { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return m_indices; }
 
   /** \returns a reference to the stored array representing the transpositions. */
-  EIGEN_DEVICE_FUNC IndicesType& indices() { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr IndicesType& indices() { return m_indices; }
 
  protected:
   typename IndicesType::Nested m_indices;
@@ -263,7 +263,7 @@ class TranspositionsWrapper : public TranspositionsBase<TranspositionsWrapper<In
 /** \returns the \a matrix with the \a transpositions applied to the columns.
  */
 template <typename MatrixDerived, typename TranspositionsDerived>
-EIGEN_DEVICE_FUNC const Product<MatrixDerived, TranspositionsDerived, AliasFreeProduct> operator*(
+EIGEN_DEVICE_FUNC constexpr const Product<MatrixDerived, TranspositionsDerived, AliasFreeProduct> operator*(
     const MatrixBase<MatrixDerived>& matrix, const TranspositionsBase<TranspositionsDerived>& transpositions) {
   return Product<MatrixDerived, TranspositionsDerived, AliasFreeProduct>(matrix.derived(), transpositions.derived());
 }
@@ -271,7 +271,7 @@ EIGEN_DEVICE_FUNC const Product<MatrixDerived, TranspositionsDerived, AliasFreeP
 /** \returns the \a matrix with the \a transpositions applied to the rows.
  */
 template <typename TranspositionsDerived, typename MatrixDerived>
-EIGEN_DEVICE_FUNC const Product<TranspositionsDerived, MatrixDerived, AliasFreeProduct> operator*(
+EIGEN_DEVICE_FUNC constexpr const Product<TranspositionsDerived, MatrixDerived, AliasFreeProduct> operator*(
     const TranspositionsBase<TranspositionsDerived>& transpositions, const MatrixBase<MatrixDerived>& matrix) {
   return Product<TranspositionsDerived, MatrixDerived, AliasFreeProduct>(transpositions.derived(), matrix.derived());
 }
@@ -291,7 +291,7 @@ class Transpose<TranspositionsBase<TranspositionsDerived> > {
   typedef typename TranspositionType::IndicesType IndicesType;
 
  public:
-  explicit Transpose(const TranspositionType& t) : m_transpositions(t) {}
+  constexpr explicit Transpose(const TranspositionType& t) : m_transpositions(t) {}
 
   EIGEN_DEVICE_FUNC constexpr Index size() const noexcept { return m_transpositions.size(); }
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_transpositions.size(); }
@@ -300,19 +300,20 @@ class Transpose<TranspositionsBase<TranspositionsDerived> > {
   /** \returns the \a matrix with the inverse transpositions applied to the columns.
    */
   template <typename OtherDerived>
-  friend const Product<OtherDerived, Transpose, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& matrix,
-                                                                            const Transpose& trt) {
+  friend constexpr const Product<OtherDerived, Transpose, AliasFreeProduct> operator*(
+      const MatrixBase<OtherDerived>& matrix, const Transpose& trt) {
     return Product<OtherDerived, Transpose, AliasFreeProduct>(matrix.derived(), trt);
   }
 
   /** \returns the \a matrix with the inverse transpositions applied to the rows.
    */
   template <typename OtherDerived>
-  const Product<Transpose, OtherDerived, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& matrix) const {
+  constexpr const Product<Transpose, OtherDerived, AliasFreeProduct> operator*(
+      const MatrixBase<OtherDerived>& matrix) const {
     return Product<Transpose, OtherDerived, AliasFreeProduct>(*this, matrix.derived());
   }
 
-  EIGEN_DEVICE_FUNC const TranspositionType& nestedExpression() const { return m_transpositions; }
+  EIGEN_DEVICE_FUNC constexpr const TranspositionType& nestedExpression() const { return m_transpositions; }
 
  protected:
   const TranspositionType& m_transpositions;
