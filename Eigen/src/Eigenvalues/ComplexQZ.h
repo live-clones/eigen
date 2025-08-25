@@ -14,7 +14,7 @@
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_ 
 
-#include <iostream>
+#include "../../SparseQR"
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -54,11 +54,6 @@ namespace Eigen {
 				MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
 			};
 
-			// TODO How do we define these properly?
-			static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon())
-			{
-				return x.real()*x.real() + x.imag()*x.imag() < tol*tol;
-			}
 
 			using Vec = Matrix<Scalar, Dynamic, 1>;
 			using Vec2 = Matrix<Scalar, 2, 1>;
@@ -111,45 +106,58 @@ namespace Eigen {
 				return m_T;
 			}
 
+			/** \brief Constructor
+			 *
+			 * \param[in] n size of the matrices whose QZ decomposition we compute
+			 *
+			 * This constructor is used when we use the compute(...) method later,
+			 * especially when we aim to compute the decomposition of two sparse
+			 * matrices.
+			 */
 			ComplexQZ(unsigned int n) : m_n(n), m_maxIters(400) {
 
 			};
 
+			/** \brief Constructor. computes the QZ decomposition of given matrices
+			 * upon creation
+			 *
+			 * \param[in] A         input matrix A
+			 * \param[in] B         input matrix B
+			 * \param[in] computeQZ If false, the matrices Q and Z are not computed
+			 *
+			 * This constructor calls the compute() method to compute the QZ decomposition.
+			 * If input matrices are sparse, call the constructor that uses only the
+			 * size as input the computeSparse(...) method.
+			 */
 			ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) :
 				m_maxIters(400), m_computeQZ(computeQZ)
 			{
 				compute(A, B, computeQZ);
 			}
 
+			/** \brief Compute the QZ decomposition of complex input matrices
+			 *
+			 * \param[in] A         Matrix A.
+			 * \param[in] B         Matrix B.
+			 * \param[in] computeQZ If false, the matrices Q and Z are not computed.
+			 */
 			void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
 
+			/** \brief Compute the decomposition of sparse complex input matrices.
+			 * Main difference to the compute(...) method is that it computes a
+			 * SparseQR decomposition of B
+			 *
+			 * \param[in] A         Matrix A.
+			 * \param[in] B         Matrix B.
+			 * \param[in] computeQZ If false, the matrices Q and Z are not computed.
+			 */
 			template <typename SparseMatrixType_>
-			void computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ = true) {
+			void computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ = true);
 
-				m_computeQZ = computeQZ;
-				m_n = A.rows();
-
-				eigen_assert(m_n == A.cols() && "A is not a square matrix");
-				eigen_assert(m_n == B.rows() && m_n == B.cols() &&
-						"B is not a square matrix or B is not of the same size as A");
-
-				m_isInitialized = true;
-				m_global_iter = 0;
-
-				hessenbergTriangularSparse(A, B);
-
-				// We assume that we already have that A is upper-Hessenberg and B is
-				// upper-triangular. This is what the hessenbergTriangular(...) method does
-				reduceHessenbergTriangular();
-
-				// If the reduceHessenbergTriangular functions sets m_info to Success, we can
-				// further reduce the result
-				if (m_info == Success) {
-					reduce_quasitriangular_S();
-				}
-
-			}
-
+			/** \brief Reports whether the last computation was successfull.
+			 *
+			 * \returns \c Success if computation was successfull, \c NoConvergence otherwise.
+			 */
 			ComputationInfo info() const {
 				return m_info;
 			};
@@ -161,6 +169,8 @@ namespace Eigen {
 				return m_global_iter;
 			};
 
+			/** \brief set the maximal number of QZ iterations to run. Default is 400.
+			 */
 			void setMaxIterations(unsigned int maxIters) {
 				m_maxIters = maxIters;
 			}
@@ -169,6 +179,12 @@ namespace Eigen {
 
 			bool m_computeQZ, m_isInitialized;
 			ComputationInfo m_info;
+
+			// Test if a Scalar is 0 up to a certain tolerance
+			static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon())
+			{
+				return x.real()*x.real() + x.imag()*x.imag() < tol*tol;
+			}
 
 			unsigned int m_global_iter, m_maxIters;
 
@@ -190,12 +206,13 @@ namespace Eigen {
 			// This is basically taken from from Eigen3::RealQZ
 			void hessenbergTriangular(const MatrixType& A, const MatrixType& B);
 
-			template <typename SparseMatrixType_>
-			void hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B);
-
 			// This function can be called when m_Q and m_Z are initialized and m_S, m_T
 			// are in hessenberg-triangular form
 			void reduceHessenbergTriangular();
+
+			// Sparse variant of the above method.
+			template <typename SparseMatrixType_>
+			void hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B);
 
 			void computeNorms();
 
@@ -206,8 +223,8 @@ namespace Eigen {
 
 	};
 
-template <typename RealScalar>
-void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
 
 	m_computeQZ = computeQZ;
 	m_n = A.rows(); // TODO Should be defined at a different place
@@ -234,8 +251,8 @@ void ComplexQZ<RealScalar>::compute(const MatrixType& A, const MatrixType& B, bo
 
 }
 
-template <typename RealScalar>
-void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
 
 	//Assume we are sure that we have T upper-diagonal and S
 	//reduced-upper-hessenberg now.
@@ -304,8 +321,8 @@ void ComplexQZ<RealScalar>::reduce_quasitriangular_S() {
 }
 
 // This is basically taken from from Eigen3::RealQZ
-template <typename RealScalar>
-void ComplexQZ<RealScalar>::hessenbergTriangular(const MatrixType& A, const MatrixType& B) {
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const MatrixType& B) {
 
 	// Copy A and B, these will be the matrices on which we operate later
 	m_S = A;
@@ -359,11 +376,11 @@ void ComplexQZ<RealScalar>::hessenbergTriangular(const MatrixType& A, const Matr
 				m_T.coeffRef(i, i-1) = Scalar(0);
 
 				// Update matrix S
-				// This works (and we can, probably, not apply this only to some top rows).
 				m_S.applyOnTheRight(i-1,i,G.adjoint());
 
 				assert(is_negligible(m_T(i,i-1)));
 				m_T(i, i-1) = Scalar(0);
+
 				// update Z
 				if (m_computeQZ)
 					m_Z.applyOnTheLeft(i-1,i,G);
@@ -379,15 +396,13 @@ template <typename SparseMatrixType_>
 void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& A,
 		const SparseMatrixType_& B) {
 
-	// TODO The current implementation just performs the QR decomposition for
-	// dense matrices. However, the input could be sparse which makes the QR
-	// decomposition a lot faster, if taken properly care of. Decide how to
-	// design the code properly!
-
 	m_S = A.toDense();
 
-	//SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<Index> > sparseQR;
 	SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<int>> sparseQR;
+
+  eigen_assert(
+      B.isCompressed() &&
+      "SparseQR requires a sparse matrix in compressed mode. Call .makeCompressed() before passing it to SparseQR");
 
 	// Computing QR decomposition of T...
 	sparseQR.setPivotThreshold(RealScalar(0)); // This prevends algorithm from doing pivoting
@@ -441,7 +456,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 				m_T.coeffRef(i, i-1) = Scalar(0);
 
 				// Update matrix S
-				// This works (and we can, probably, not apply this only to some top rows).
 				m_S.applyOnTheRight(i-1,i,G.adjoint());
 
 				assert(is_negligible(m_T(i,i-1)));
@@ -454,6 +468,36 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 			steps++;
 		}
 	}
+}
+
+template <typename MatrixType>
+template <typename SparseMatrixType_>
+void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B,
+		bool computeQZ)
+{
+
+	m_computeQZ = computeQZ;
+	m_n = A.rows();
+
+	eigen_assert(m_n == A.cols() && "A is not a square matrix");
+	eigen_assert(m_n == B.rows() && m_n == B.cols() &&
+			"B is not a square matrix or B is not of the same size as A");
+
+	m_isInitialized = true;
+	m_global_iter = 0;
+
+	hessenbergTriangularSparse(A, B);
+
+	// We assume that we already have that A is upper-Hessenberg and B is
+	// upper-triangular. This is what the hessenbergTriangular(...) method does
+	reduceHessenbergTriangular();
+
+	// If the reduceHessenbergTriangular functions sets m_info to Success, we can
+	// further reduce the result
+	if (m_info == Success) {
+		reduce_quasitriangular_S();
+	}
+
 }
 
 template <typename MatrixType_> void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
@@ -500,8 +544,8 @@ template <typename MatrixType_> void ComplexQZ<MatrixType_>::reduceHessenbergTri
 }
 
 // TODO Remove template parameters???
-template <typename RealScalar>
-inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(const Row2& b) {
+template <typename MatrixType_>
+inline typename ComplexQZ<MatrixType_>::Mat2 ComplexQZ<MatrixType_>::computeZk2(const Row2& b) {
 
 	Mat2 S;
 	
@@ -521,8 +565,8 @@ inline typename ComplexQZ<RealScalar>::Mat2 ComplexQZ<RealScalar>::computeZk2(co
 
 }
 
-template <typename RealScalar>
-void ComplexQZ<RealScalar>::do_QZ_step(Index p, Index q) {
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
 
 	// This is certainly not the most efficient way of doing this,
 	// but a readable one.
@@ -622,8 +666,8 @@ void ComplexQZ<RealScalar>::do_QZ_step(Index p, Index q) {
 
 
 // We have a 0 at T(k,k) and want to "push it down" to T(l,l)
-template <typename RealScalar>
-void ComplexQZ<RealScalar>::push_down_zero_ST(Index k, Index l) {
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
 	// Test Preconditions
 	//assert(is_negligible(_T(k, k), EPS*m_normOfT));
 	//assert(is_negligible(_T(k, k)));
@@ -664,13 +708,7 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(Index k, Index l) {
 	J.makeGivens(std::conj(m_S(l, l)), std::conj(m_S(l, l-1)));
 	m_S.topRows(l+1).applyOnTheRight(l, l-1, J);
 
-
-	if (!is_negligible(m_S(l, l-1))) {
-		auto z = m_S(l, l-1);
-		std::cout << z.real()*z.real() + z.imag()*z.imag() << std::endl;
-	}
-
-	assert(is_negligible(m_S(l, l-1)));
+	assert(is_negligible(m_S(l, l-1), m_normOfS));
 
 	m_S(l, l-1) = Scalar(0);
 	m_T.topRows(l+1).applyOnTheRight(l, l-1, J);
@@ -684,8 +722,8 @@ void ComplexQZ<RealScalar>::push_down_zero_ST(Index k, Index l) {
 	m_S(l, l-1) = Scalar(0);
 };
 
-template <typename RealScalar>
-void ComplexQZ<RealScalar>::computeNorms()
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::computeNorms()
 {
 	const int size = m_S.cols();
 	m_normOfS = RealScalar(0);
@@ -699,8 +737,8 @@ void ComplexQZ<RealScalar>::computeNorms()
 };
 
 // Copied from Eigen3 RealQZ implementation
-template<typename RealScalar>
-inline Index ComplexQZ<RealScalar>::findSmallSubdiagEntry(Index iu)
+template<typename MatrixType_>
+inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu)
 {
 	using std::abs;
 	int res = iu;
@@ -709,7 +747,7 @@ inline Index ComplexQZ<RealScalar>::findSmallSubdiagEntry(Index iu)
 		RealScalar s = abs(m_S.coeff(res-1,res-1)) + abs(m_S.coeff(res,res));
 		if (s == Scalar(0))
 			s = m_normOfS;
-		if (abs(m_S.coeff(res,res-1)) < NumTraits<RealScalar>::epsilon() * s)
+		if (abs(m_S.coeff(res,res-1)) < NumTraits<MatrixType_>::epsilon() * s)
 			break;
 		res--;
 	}
@@ -717,7 +755,7 @@ inline Index ComplexQZ<RealScalar>::findSmallSubdiagEntry(Index iu)
 }
 
 // Copied from Eigen3 RealQZ implementation
-template<typename RealScalar> inline Index ComplexQZ<RealScalar>::findSmallDiagEntry(Index f, Index l)
+template<typename MatrixType_> inline Index ComplexQZ<MatrixType_>::findSmallDiagEntry(Index f, Index l)
 {
 	using std::abs;
 	int res = l;
