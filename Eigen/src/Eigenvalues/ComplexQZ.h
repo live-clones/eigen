@@ -747,7 +747,7 @@ inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu)
 		RealScalar s = abs(m_S.coeff(res-1,res-1)) + abs(m_S.coeff(res,res));
 		if (s == Scalar(0))
 			s = m_normOfS;
-		if (abs(m_S.coeff(res,res-1)) < NumTraits<MatrixType_>::epsilon() * s)
+		if (abs(m_S.coeff(res,res-1)) < NumTraits<RealScalar>::epsilon() * s)
 			break;
 		res--;
 	}
