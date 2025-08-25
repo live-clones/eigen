@@ -30,22 +30,22 @@ void complex_qz(const Index dim) {
 
   VERIFY_IS_EQUAL(qz.info(), Success);
 
-  using RealScalar = typename ComplexQZ<MatrixType>::RealScalar;
-
-  // RealScalar max_T(0), max_S(0);
-
   auto T = qz.matrixT(), S = qz.matrixS();
 
   bool is_all_zero_T = true, is_all_zero_S = true;
 
+	using RealScalar = typename MatrixType::RealScalar;
+
+	RealScalar tol = dim*10*NumTraits<RealScalar>::epsilon();
+
   for (Index j = 0; j < dim; j++) {
     for (Index i = j + 1; i < dim; i++) {
-      if (std::abs(T(i, j)) > 1e-14) {
+      if (std::abs(T(i, j)) > tol) {
         std::cerr << std::abs(T(i, j)) << std::endl;
         is_all_zero_T = false;
       }
 
-      if (std::abs(S(i, j)) > 1e-14) {
+      if (std::abs(S(i, j)) > tol) {
         std::cerr << std::abs(S(i, j)) << std::endl;
         is_all_zero_S = false;
       }
@@ -55,7 +55,6 @@ void complex_qz(const Index dim) {
   VERIFY_IS_EQUAL(is_all_zero_T, true);
   VERIFY_IS_EQUAL(is_all_zero_S, true);
 
-  // VERIFY_IS_EQUAL(all_zeros, true);
   VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixS() * qz.matrixZ(), A);
   VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixT() * qz.matrixZ(), B);
   VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixQ().adjoint(), MatrixType::Identity(dim, dim));
@@ -69,4 +68,12 @@ EIGEN_DECLARE_TEST(complex_qz) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST(complex_qz<MatrixType>(dim));
   }
+
+	const int dim2 = 20;
+
+	using MatrixType_float = Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>;
+
+	for (int i = 0; i < g_repeat; i++) {
+		CALL_SUBTEST_2(complex_qz<MatrixType_float>(dim2));
+	}
 }
