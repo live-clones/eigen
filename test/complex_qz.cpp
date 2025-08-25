@@ -34,9 +34,9 @@ void complex_qz(const Index dim) {
 
   bool is_all_zero_T = true, is_all_zero_S = true;
 
-	using RealScalar = typename MatrixType::RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
-	RealScalar tol = dim*10*NumTraits<RealScalar>::epsilon();
+  RealScalar tol = dim * 10 * NumTraits<RealScalar>::epsilon();
 
   for (Index j = 0; j < dim; j++) {
     for (Index i = j + 1; i < dim; i++) {
@@ -69,11 +69,11 @@ EIGEN_DECLARE_TEST(complex_qz) {
     CALL_SUBTEST(complex_qz<MatrixType>(dim));
   }
 
-	const int dim2 = 20;
+  const int dim2 = 20;
 
-	using MatrixType_float = Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>;
+  using MatrixType_float = Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>;
 
-	for (int i = 0; i < g_repeat; i++) {
-		CALL_SUBTEST_2(complex_qz<MatrixType_float>(dim2));
-	}
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_2(complex_qz<MatrixType_float>(dim2));
+  }
 }
