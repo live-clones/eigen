@@ -114,7 +114,7 @@ namespace Eigen {
 			 * especially when we aim to compute the decomposition of two sparse
 			 * matrices.
 			 */
-			ComplexQZ(unsigned int n) : m_n(n), m_maxIters(400) {
+			ComplexQZ(unsigned int n) : m_n(n), m_maxIters(400), m_computeQZ(true) {
 
 			};
 
@@ -177,7 +177,9 @@ namespace Eigen {
 
 		private:
 
-			bool m_computeQZ, m_isInitialized;
+			unsigned int m_maxIters, m_global_iter;
+			bool m_isInitialized;
+			bool m_computeQZ;
 			ComputationInfo m_info;
 
 			// Test if a Scalar is 0 up to a certain tolerance
@@ -186,7 +188,6 @@ namespace Eigen {
 				return x.real()*x.real() + x.imag()*x.imag() < tol*tol;
 			}
 
-			unsigned int m_global_iter, m_maxIters;
 
 			void reduce_quasitriangular_S();
 
@@ -378,9 +379,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
 				// Update matrix S
 				m_S.applyOnTheRight(i-1,i,G.adjoint());
 
-				assert(is_negligible(m_T(i,i-1)));
-				m_T(i, i-1) = Scalar(0);
-
 				// update Z
 				if (m_computeQZ)
 					m_Z.applyOnTheLeft(i-1,i,G);
@@ -458,8 +456,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 				// Update matrix S
 				m_S.applyOnTheRight(i-1,i,G.adjoint());
 
-				assert(is_negligible(m_T(i,i-1)));
-				m_T(i, i-1) = Scalar(0);
 				// update Z
 				if (m_computeQZ)
 					m_Z.applyOnTheLeft(i-1,i,G);
