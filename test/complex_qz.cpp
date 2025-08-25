@@ -12,7 +12,6 @@
 
 #include <Eigen/Eigenvalues>
 
-
 template <typename MatrixType>
 void complex_qz(const Index dim) {
   /* this test covers the following files:
@@ -20,68 +19,54 @@ void complex_qz(const Index dim) {
   */
   using std::abs;
 
+  MatrixType A = MatrixType::Random(dim, dim), B = MatrixType::Random(dim, dim);
 
-	MatrixType A = MatrixType::Random(dim, dim), B = MatrixType::Random(dim, dim);
+  // Set each row of B with a probability of 10% to 0
+  for (int i = 0; i < dim; i++) {
+    if (internal::random<int>(0, 10) == 0) B.row(i).setZero();
+  }
 
-	// Set each row of B with a probability of 10% to 0
-	for (int i = 0; i < dim; i++) {
+  ComplexQZ<MatrixType> qz(A, B);
 
-		if (internal::random<int>(0, 10) == 0)
-			B.row(i).setZero();
-	}
+  VERIFY_IS_EQUAL(qz.info(), Success);
 
-	ComplexQZ<MatrixType> qz(A, B);
+  using RealScalar = typename ComplexQZ<MatrixType>::RealScalar;
 
-	VERIFY_IS_EQUAL(qz.info(), Success);
+  // RealScalar max_T(0), max_S(0);
 
-	using RealScalar = typename ComplexQZ<MatrixType>::RealScalar;
+  auto T = qz.matrixT(), S = qz.matrixS();
 
-	//RealScalar max_T(0), max_S(0);
+  bool is_all_zero_T = true, is_all_zero_S = true;
 
-	auto T = qz.matrixT(),
-			 S = qz.matrixS();
+  for (Index j = 0; j < dim; j++) {
+    for (Index i = j + 1; i < dim; i++) {
+      if (std::abs(T(i, j)) > 1e-14) {
+        std::cerr << std::abs(T(i, j)) << std::endl;
+        is_all_zero_T = false;
+      }
 
-	bool is_all_zero_T = true, is_all_zero_S = true;
+      if (std::abs(S(i, j)) > 1e-14) {
+        std::cerr << std::abs(S(i, j)) << std::endl;
+        is_all_zero_S = false;
+      }
+    }
+  }
 
-	for (Index j = 0; j < dim; j++) {
-		for (Index i = j+1; i < dim; i++){
+  VERIFY_IS_EQUAL(is_all_zero_T, true);
+  VERIFY_IS_EQUAL(is_all_zero_S, true);
 
-
-			if (std::abs(T(i, j)) > 1e-14)
-			{
-				std::cerr << std::abs(T(i, j)) << std::endl;
-				is_all_zero_T = false;
-			}
-
-			if (std::abs(S(i, j)) > 1e-14)
-			{
-				std::cerr << std::abs(S(i, j)) << std::endl;
-				is_all_zero_S = false;
-			}
-
-		}
-	}
-
-	VERIFY_IS_EQUAL(is_all_zero_T, true);
-	VERIFY_IS_EQUAL(is_all_zero_S, true);
-
-	//VERIFY_IS_EQUAL(all_zeros, true);
-	VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixS() * qz.matrixZ(), A);
-	VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixT() * qz.matrixZ(), B);
-	VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixQ().adjoint(), MatrixType::Identity(dim, dim));
-	VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
-
+  // VERIFY_IS_EQUAL(all_zeros, true);
+  VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixS() * qz.matrixZ(), A);
+  VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixT() * qz.matrixZ(), B);
+  VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixQ().adjoint(), MatrixType::Identity(dim, dim));
+  VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
 }
 
 EIGEN_DECLARE_TEST(complex_qz) {
+  const Index dim = 80;
+  using MatrixType = Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>;
 
-	const Index dim = 80;
-	using MatrixType = Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>;
-
-	for (int i = 0; i < g_repeat; i++) {
-
-		CALL_SUBTEST(complex_qz<MatrixType>(dim));
-
-	}
-
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST(complex_qz<MatrixType>(dim));
+  }
 }
