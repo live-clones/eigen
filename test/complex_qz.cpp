@@ -18,7 +18,6 @@
 
 template <typename MatrixType>
 void generate_random_matrix_pair(const Index dim, MatrixType& A, MatrixType& B) {
-
   A.resize(dim, dim);
   B.resize(dim, dim);
 
@@ -29,7 +28,6 @@ void generate_random_matrix_pair(const Index dim, MatrixType& A, MatrixType& B) 
   for (int i = 0; i < dim; i++) {
     if (internal::random<int>(0, 10) == 0) B.row(i).setZero();
   }
-
 }
 
 template <typename MatrixType>
@@ -74,12 +72,10 @@ void complex_qz(const MatrixType& A, const MatrixType& B) {
 }
 
 EIGEN_DECLARE_TEST(complex_qz) {
-
   const Index dim1 = 15;
   const Index dim2 = 80;
 
   for (int i = 0; i < g_repeat; i++) {
-
     // Check for very small, fixed-sized double- and float matrices
     Eigen::Matrix2cd A_2x2, B_2x2;
     A_2x2.setRandom();
@@ -106,5 +102,4 @@ EIGEN_DECLARE_TEST(complex_qz) {
     CALL_SUBTEST_3(complex_qz(A_float, B_float));
     CALL_SUBTEST_4(complex_qz(A_double, B_double));
   }
-
 }
