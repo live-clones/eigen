@@ -11,6 +11,8 @@
 //
 // Derived from: Eigen/src/Eigenvalues/RealQZ.h
 
+#include "Eigen/Jacobi"
+
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_
 
@@ -176,7 +178,7 @@ class ComplexQZ {
 
   // Test if a Scalar is 0 up to a certain tolerance
   static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
-    return x.real() * x.real() + x.imag() * x.imag() < tol * tol;
+    return x.real() * x.real() + x.imag() * x.imag() <= tol * tol;
   }
 
   void reduce_quasitriangular_S();
@@ -215,7 +217,7 @@ class ComplexQZ {
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
   m_computeQZ = computeQZ;
-  m_n = A.rows();  // TODO Should be defined at a different place
+  m_n = A.rows();
 
   eigen_assert(m_n == A.cols() && "A is not a square matrix");
   eigen_assert(m_n == B.rows() && m_n == B.cols() && "B is not a square matrix or B is not of the same size as A");
@@ -226,7 +228,8 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
   // This will initialize m_Q and m_Z and bring m_S, m_T to hessenberg-triangular form
   hessenbergTriangular(A, B);
 
-  // We assume that we already have that A is upper-Hessenberg and B is
+
+  // We assume that we already have that S is upper-Hessenberg and T is
   // upper-triangular. This is what the hessenbergTriangular(...) method does
   reduceHessenbergTriangular();
 
@@ -248,48 +251,67 @@ void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
     if (!is_negligible(m_S(i + 1, i))) {
       // We have found a non-zero on the subdiagonal and want to eliminate it
 
-      if (is_negligible(m_T(i, i)) || is_negligible(m_T(i + 1, i + 1))) continue;
-
-      Mat2 A = m_S.template block<2, 2>(i, i), B = m_T.template block<2, 2>(i, i);
-
-      Scalar mu = A(0, 0) / B(0, 0);
-      Scalar a12_bar = A(0, 1) - mu * B(0, 1);
-      Scalar a22_bar = A(1, 1) - mu * B(1, 1);
-
-      Scalar p = Scalar(1) / Scalar(2) * (a22_bar / B(1, 1) - B(0, 1) * A(1, 0) / (B(0, 0) * B(1, 1)));
-
-      // TODO DO WE NEED this assertion?
-      // assert(!is_negligible(p.real()));
-
-      RealScalar sgn_p = p.real() >= RealScalar(0) ? RealScalar(1) : RealScalar(-1);
-
-      Scalar q = A(1, 0) * a12_bar / (B(0, 0) * B(1, 1));
-
-      Scalar r = p * p + q;
-
-      Scalar lambda = mu + p + sgn_p * std::sqrt(r);
-
-      Mat2 E = A - lambda * B;
-
-      Index l;
-      E.rowwise().norm().maxCoeff(&l);
-
-      JacobiRotation<Scalar> G;
-      G.makeGivens(E(l, 1), E(l, 0));
-
-      m_S.applyOnTheRight(i, i + 1, G.adjoint());
-      m_T.applyOnTheRight(i, i + 1, G.adjoint());
-
-      if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
-
       Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
-      Mat2 C = Si.norm() < (lambda * Ti).norm() ? Si : lambda * Ti;
 
-      G.makeGivens(C(0, 0), C(1, 0));
-      m_S.applyOnTheLeft(i, i + 1, G.adjoint());
-      m_T.applyOnTheLeft(i, i + 1, G.adjoint());
+			if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
 
-      if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
+				Eigen::JacobiRotation<Scalar> G;
+				G.makeGivens(m_S(i, i), m_S(i+1, i));
+				m_S.applyOnTheLeft(i, i+1, G.adjoint());
+				m_T.applyOnTheLeft(i, i+1, G.adjoint());
+
+				if (m_computeQZ)
+					m_Q.applyOnTheRight(i, i+1, G);
+
+			} else if (!is_negligible(Ti(0, 0)) && is_negligible(Ti(1, 1))) {
+
+				Eigen::JacobiRotation<Scalar> G;
+				G.makeGivens(m_S(i+1, i+1), m_S(i+1, i));
+				m_S.applyOnTheRight(i, i+1, G.adjoint());
+				m_T.applyOnTheRight(i, i+1, G.adjoint());
+				if (m_computeQZ)
+					m_Z.applyOnTheLeft(i, i+1, G);
+			} else if (!is_negligible(m_T(i, i)) && !is_negligible(m_T(i + 1, i + 1))){
+
+				Scalar mu = Si(0, 0) / Ti(0, 0);
+				Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
+				Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);
+
+				Scalar p = Scalar(1) / Scalar(2) * (a22_bar / Ti(1, 1) - Ti(0, 1) * Si(1, 0) / (Ti(0, 0) * Ti(1, 1)));
+
+				RealScalar sgn_p = p.real() >= RealScalar(0) ? RealScalar(1) : RealScalar(-1);
+
+				Scalar q = Si(1, 0) * a12_bar / (Ti(0, 0) * Ti(1, 1));
+
+				Scalar r = p * p + q;
+
+				Scalar lambda = mu + p + sgn_p * std::sqrt(r);
+
+				Mat2 E = Si - lambda * Ti;
+
+				Index l;
+				E.rowwise().norm().maxCoeff(&l);
+
+				JacobiRotation<Scalar> G;
+				G.makeGivens(E(l, 1), E(l, 0));
+
+				m_S.applyOnTheRight(i, i + 1, G.adjoint());
+				m_T.applyOnTheRight(i, i + 1, G.adjoint());
+
+				if (m_computeQZ)
+					m_Z.applyOnTheLeft(i, i + 1, G);
+
+				Mat2 tildeSi = m_S.template block<2, 2>(i, i), tildeTi = m_T.template block<2, 2>(i, i);
+				Mat2 C = tildeSi.norm() < (lambda * tildeTi).norm() ? tildeSi : lambda * tildeTi;
+
+				G.makeGivens(C(0, 0), C(1, 0));
+				m_S.applyOnTheLeft(i, i + 1, G.adjoint());
+				m_T.applyOnTheLeft(i, i + 1, G.adjoint());
+
+				if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
+
+			}
+
 
       assert(is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon()));
       // S(i+1, 1) can be safely set to 0
@@ -489,7 +511,6 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
   m_info = (local_iter < m_maxIters) ? Success : NoConvergence;
 }
 
-// TODO Remove template parameters???
 template <typename MatrixType_>
 inline typename ComplexQZ<MatrixType_>::Mat2 ComplexQZ<MatrixType_>::computeZk2(const Row2& b) {
   Mat2 S;
@@ -640,7 +661,7 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   J.makeGivens(std::conj(m_S(l, l)), std::conj(m_S(l, l - 1)));
   m_S.topRows(l + 1).applyOnTheRight(l, l - 1, J);
 
-  assert(is_negligible(m_S(l, l - 1), m_normOfS));
+  assert(is_negligible(m_S(l, l - 1), m_normOfS * NumTraits<Scalar>::epsilon()));
 
   m_S(l, l - 1) = Scalar(0);
   m_T.topRows(l + 1).applyOnTheRight(l, l - 1, J);
