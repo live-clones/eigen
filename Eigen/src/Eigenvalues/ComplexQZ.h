@@ -228,7 +228,6 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
   // This will initialize m_Q and m_Z and bring m_S, m_T to hessenberg-triangular form
   hessenbergTriangular(A, B);
 
-
   // We assume that we already have that S is upper-Hessenberg and T is
   // upper-triangular. This is what the hessenbergTriangular(...) method does
   reduceHessenbergTriangular();
@@ -254,25 +253,20 @@ void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
       Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
 
       if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
-
         Eigen::JacobiRotation<Scalar> G;
-        G.makeGivens(m_S(i, i), m_S(i+1, i));
-        m_S.applyOnTheLeft(i, i+1, G.adjoint());
-        m_T.applyOnTheLeft(i, i+1, G.adjoint());
+        G.makeGivens(m_S(i, i), m_S(i + 1, i));
+        m_S.applyOnTheLeft(i, i + 1, G.adjoint());
+        m_T.applyOnTheLeft(i, i + 1, G.adjoint());
 
-        if (m_computeQZ)
-          m_Q.applyOnTheRight(i, i+1, G);
+        if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
 
       } else if (!is_negligible(Ti(0, 0)) && is_negligible(Ti(1, 1))) {
-
         Eigen::JacobiRotation<Scalar> G;
-        G.makeGivens(m_S(i+1, i+1), m_S(i+1, i));
-        m_S.applyOnTheRight(i, i+1, G.adjoint());
-        m_T.applyOnTheRight(i, i+1, G.adjoint());
-        if (m_computeQZ)
-          m_Z.applyOnTheLeft(i, i+1, G);
-      } else if (!is_negligible(m_T(i, i)) && !is_negligible(m_T(i + 1, i + 1))){
-
+        G.makeGivens(m_S(i + 1, i + 1), m_S(i + 1, i));
+        m_S.applyOnTheRight(i, i + 1, G.adjoint());
+        m_T.applyOnTheRight(i, i + 1, G.adjoint());
+        if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
+      } else if (!is_negligible(m_T(i, i)) && !is_negligible(m_T(i + 1, i + 1))) {
         Scalar mu = Si(0, 0) / Ti(0, 0);
         Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
         Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);
@@ -298,8 +292,7 @@ void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
         m_S.applyOnTheRight(i, i + 1, G.adjoint());
         m_T.applyOnTheRight(i, i + 1, G.adjoint());
 
-        if (m_computeQZ)
-          m_Z.applyOnTheLeft(i, i + 1, G);
+        if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
 
         Mat2 tildeSi = m_S.template block<2, 2>(i, i), tildeTi = m_T.template block<2, 2>(i, i);
         Mat2 C = tildeSi.norm() < (lambda * tildeTi).norm() ? tildeSi : lambda * tildeTi;
@@ -308,7 +301,6 @@ void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
         m_T.applyOnTheLeft(i, i + 1, G.adjoint());
 
         if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
-
       }
 
       assert(is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon()));
