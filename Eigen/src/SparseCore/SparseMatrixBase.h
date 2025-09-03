@@ -303,7 +303,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
         }
       } else {
         SparseMatrix<Scalar, RowMajorBit, StorageIndex> trans = m;
-        s << static_cast<const SparseMatrixBase<SparseMatrix<Scalar, RowMajorBit, StorageIndex>>&>(trans);
+        s << static_cast<const SparseMatrixBase<SparseMatrix<Scalar, RowMajorBit, StorageIndex> >&>(trans);
       }
     }
     return s;
