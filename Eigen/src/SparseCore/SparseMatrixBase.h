@@ -225,35 +225,85 @@ class SparseMatrixBase : public EigenBase<Derived> {
 #ifndef EIGEN_NO_IO
   friend std::ostream& operator<<(std::ostream& s, const SparseMatrixBase& m) {
     typedef typename Derived::Nested Nested;
-    typedef internal::remove_all_t<Nested> NestedCleaned;
+    typedef typename internal::remove_all<Nested>::type NestedCleaned;
+
+    /// For converting `0's` to the matrices numerical type
+    typedef typename Derived::Scalar Scalar;
 
     if (Flags & RowMajorBit) {
       Nested nm(m.derived());
       internal::evaluator<NestedCleaned> thisEval(nm);
+
+      // compute global width
+      Index width = 0;
+      {
+        std::ostringstream ss0;
+        ss0.copyfmt(s);
+        ss0 << Scalar(0);
+        width = Index(ss0.str().size());
+        for (Index row = 0; row < nm.outerSize(); ++row) {
+          for (typename internal::evaluator<NestedCleaned>::InnerIterator it(thisEval, row); it; ++it) {
+            std::ostringstream ss;
+            ss.copyfmt(s);
+            ss << it.value();
+            width = std::max(width, Index(ss.str().size()));
+          }
+        }
+      }
+
       for (Index row = 0; row < nm.outerSize(); ++row) {
         Index col = 0;
         for (typename internal::evaluator<NestedCleaned>::InnerIterator it(thisEval, row); it; ++it) {
-          for (; col < it.index(); ++col) s << "0 ";
+          for (; col < it.index(); ++col) {
+            s.width(width);
+            s << Scalar(0) << " ";
+          }
+          s.width(width);
           s << it.value() << " ";
           ++col;
         }
-        for (; col < m.cols(); ++col) s << "0 ";
+        for (; col < m.cols(); ++col) {
+          s.width(width);
+          s << Scalar(0) << " ";
+        }
         s << std::endl;
       }
     } else {
       Nested nm(m.derived());
       internal::evaluator<NestedCleaned> thisEval(nm);
       if (m.cols() == 1) {
+        // compute local width (single col)
+        Index width = 0;
+        {
+          std::ostringstream ss0;
+          ss0.copyfmt(s);
+          ss0 << Scalar(0);
+          width = Index(ss0.str().size());
+          for (typename internal::evaluator<NestedCleaned>::InnerIterator it(thisEval, 0); it; ++it) {
+            std::ostringstream ss;
+            ss.copyfmt(s);
+            ss << it.value();
+            width = std::max(width, Index(ss.str().size()));
+          }
+        }
+
         Index row = 0;
         for (typename internal::evaluator<NestedCleaned>::InnerIterator it(thisEval, 0); it; ++it) {
-          for (; row < it.index(); ++row) s << "0" << std::endl;
+          for (; row < it.index(); ++row) {
+            s.width(width);
+            s << Scalar(0) << std::endl;
+          }
+          s.width(width);
           s << it.value() << std::endl;
           ++row;
         }
-        for (; row < m.rows(); ++row) s << "0" << std::endl;
+        for (; row < m.rows(); ++row) {
+          s.width(width);
+          s << Scalar(0) << std::endl;
+        }
       } else {
         SparseMatrix<Scalar, RowMajorBit, StorageIndex> trans = m;
-        s << static_cast<const SparseMatrixBase<SparseMatrix<Scalar, RowMajorBit, StorageIndex> >&>(trans);
+        s << static_cast<const SparseMatrixBase<SparseMatrix<Scalar, RowMajorBit, StorageIndex>>&>(trans);
       }
     }
     return s;
