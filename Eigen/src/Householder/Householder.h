@@ -40,7 +40,7 @@ struct decrement_size {
  *     MatrixBase::applyHouseholderOnTheRight()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, RealScalar& beta) {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, RealScalar& beta) {
   VectorBlock<Derived, internal::decrement_size<Base::SizeAtCompileTime>::ret> essentialPart(derived(), 1, size() - 1);
   makeHouseholder(essentialPart, tau, beta);
 }
@@ -62,8 +62,8 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, 
  */
 template <typename Derived>
 template <typename EssentialPart>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essential, Scalar& tau,
-                                                            RealScalar& beta) const {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::makeHouseholder(EssentialPart& essential, Scalar& tau,
+                                                                      RealScalar& beta) const {
   using numext::conj;
   using numext::sqrt;
 
@@ -103,8 +103,8 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
  */
 template <typename Derived>
 template <typename EssentialPart>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const EssentialPart& essential, const Scalar& tau,
-                                                                      Scalar* workspace) {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::applyHouseholderOnTheLeft(const EssentialPart& essential,
+                                                                                const Scalar& tau, Scalar* workspace) {
   if (rows() == 1) {
     *this *= Scalar(1) - tau;
   } else if (!numext::is_exactly_zero(tau)) {
@@ -135,8 +135,8 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const Esse
  */
 template <typename Derived>
 template <typename EssentialPart>
-EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheRight(const EssentialPart& essential,
-                                                                       const Scalar& tau, Scalar* workspace) {
+EIGEN_DEVICE_FUNC constexpr void MatrixBase<Derived>::applyHouseholderOnTheRight(const EssentialPart& essential,
+                                                                                 const Scalar& tau, Scalar* workspace) {
   if (cols() == 1) {
     *this *= Scalar(1) - tau;
   } else if (!numext::is_exactly_zero(tau)) {

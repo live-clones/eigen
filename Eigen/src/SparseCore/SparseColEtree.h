@@ -39,7 +39,7 @@ namespace internal {
 
 /** Find the root of the tree/set containing the vertex i : Use Path halving */
 template <typename Index, typename IndexVector>
-Index etree_find(Index i, IndexVector& pp) {
+constexpr Index etree_find(Index i, IndexVector& pp) {
   Index p = pp(i);   // Parent
   Index gp = pp(p);  // Grand parent
   while (gp != p) {
@@ -58,8 +58,8 @@ Index etree_find(Index i, IndexVector& pp) {
  * \param perm The permutation to apply to the column of \b mat
  */
 template <typename MatrixType, typename IndexVector>
-int coletree(const MatrixType& mat, IndexVector& parent, IndexVector& firstRowElt,
-             typename MatrixType::StorageIndex* perm = 0) {
+constexpr int coletree(const MatrixType& mat, IndexVector& parent, IndexVector& firstRowElt,
+                       typename MatrixType::StorageIndex* perm = 0) {
   typedef typename MatrixType::StorageIndex StorageIndex;
   StorageIndex nc = convert_index<StorageIndex>(mat.cols());  // Number of columns
   StorageIndex m = convert_index<StorageIndex>(mat.rows());
@@ -123,8 +123,8 @@ int coletree(const MatrixType& mat, IndexVector& parent, IndexVector& firstRowEl
  * This routine was contributed by Cédric Doucet, CEDRAT Group, Meylan, France.
  */
 template <typename IndexVector>
-void nr_etdfs(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& first_kid, IndexVector& next_kid,
-              IndexVector& post, typename IndexVector::Scalar postnum) {
+constexpr void nr_etdfs(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& first_kid,
+                        IndexVector& next_kid, IndexVector& post, typename IndexVector::Scalar postnum) {
   typedef typename IndexVector::Scalar StorageIndex;
   StorageIndex current = n, first, next;
   while (postnum != n) {
@@ -165,7 +165,7 @@ void nr_etdfs(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& 
  * \param post postordered tree
  */
 template <typename IndexVector>
-void treePostorder(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& post) {
+constexpr void treePostorder(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& post) {
   typedef typename IndexVector::Scalar StorageIndex;
   IndexVector first_kid, next_kid;  // Linked list of children
   StorageIndex postnum;
