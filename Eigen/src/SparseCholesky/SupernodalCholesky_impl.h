@@ -4,11 +4,6 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
-#pragma once
-#include <Eigen/Cholesky>
-#include <Eigen/Core>
-#include <Eigen/Sparse>
-
 namespace Eigen {
 namespace internal {
 
@@ -55,7 +50,7 @@ struct supernodal_chol_helper {
     }
 
     /// id of the final supernode each column belongs to
-    VectorI sn_id = VectorI::Constant(n, -1);
+    VectorI sn_id = VectorI::Constant(n, kEmpty);
 
     VectorI supernodes;
 
@@ -80,40 +75,40 @@ struct supernodal_chol_helper {
     // into column j + 1 if j + 1 is the parent of j
 
     /// fundamental supernodes boundaries
-    VectorI Super;
+    VectorI fn_supernodes;
 
-    Super.resize(n + 1);
+    fn_supernodes.resize(n + 1);
     StorageIndex m = 0;
 
-    Super[m++] = 0;
+    fn_supernodes[m++] = 0;
     for (StorageIndex j = 1; j < n; ++j) {
       const bool parentChain = (parent[j - 1] == j);
       const bool colNest = (colcount[j - 1] == colcount[j] + 1);
       const bool singleChild = (childCount[j] <= 1);
       if (!(parentChain && colNest && singleChild)) {
         // j is the leading node of a supernode
-        Super[m++] = j;
+        fn_supernodes[m++] = j;
       }
     }
-    Super[m++] = n;
-    Super.conservativeResize(m);
+    fn_supernodes[m++] = n;
+    fn_supernodes.conservativeResize(m);
 
     // note we no longer need the childCount. may want to do something with this info later
 
     /// #fundamental supernodes
-    const StorageIndex nfsuper = static_cast<StorageIndex>(Super.size()) - 1;
+    const StorageIndex nfsuper = static_cast<StorageIndex>(fn_supernodes.size()) - 1;
 
     /// id of the fundamental supernode each column belongs to
     VectorI fundamental_sn_id(n);
 
     for (StorageIndex s = 0; s < nfsuper; ++s)
-      for (StorageIndex k = Super[s]; k < Super[s + 1]; ++k) fundamental_sn_id[k] = s;
+      for (StorageIndex k = fn_supernodes[s]; k < fn_supernodes[s + 1]; ++k) fundamental_sn_id[k] = s;
 
     /// Fundamental supernodal etree (ie: assembly tree)
-    VectorI f_sn_etree = VectorI::Constant(nfsuper, -1);
+    VectorI f_sn_etree = VectorI::Constant(nfsuper, kEmpty);
 
     for (int s = 0; s < nfsuper; ++s) {
-      const int jlast = Super[s + 1] - 1;
+      const int jlast = fn_supernodes[s + 1] - 1;
       const int pcol = parent[jlast];
       f_sn_etree[s] = (pcol == kEmpty) ? kEmpty : fundamental_sn_id[pcol];
     }
@@ -141,12 +136,12 @@ struct supernodal_chol_helper {
     /// accumulated new zeros introduced by earlier merges (starts at 0).
     VectorI Zeros = VectorI::Zero(nfsuper);
 
-    VectorI Merged = VectorI::Constant(nfsuper, -1);
+    VectorI Merged = VectorI::Constant(nfsuper, kEmpty);
 
     for (StorageIndex s = 0; s < nfsuper; ++s) {
-      Nscol[s] = Super[s + 1] - Super[s];  // width
-      eigen_assert(s <= Super[s] && "supernode index is invalid");
-      Snz[s] = colcount[Super[s]];  // nnz of leading col
+      Nscol[s] = fn_supernodes[s + 1] - fn_supernodes[s];  // width
+      eigen_assert(s <= fn_supernodes[s] && "supernode index is invalid");
+      Snz[s] = colcount[fn_supernodes[s]];  // nnz of leading col
     }
 
     for (StorageIndex s = nfsuper - 2; s >= 0; --s) {
@@ -243,7 +238,7 @@ struct supernodal_chol_helper {
 
     StorageIndex r = 0;
     for (StorageIndex s = 0; s < nfsuper; ++s)
-      if (Merged[s] == kEmpty) relaxed[r++] = Super[s];
+      if (Merged[s] == kEmpty) relaxed[r++] = fn_supernodes[s];
 
     relaxed[r++] = n;
 
@@ -261,7 +256,7 @@ struct supernodal_chol_helper {
     VectorI Snz_relaxed(relaxed.size() - 1);
     StorageIndex t = 0;
     for (StorageIndex s = 0; s < nfsuper; ++s) {
-      if (Merged[s] == -1) {
+      if (Merged[s] == kEmpty) {
         Snz_relaxed[t++] = Snz[s];
       }
     }
@@ -269,18 +264,16 @@ struct supernodal_chol_helper {
     return out;
   }
 
-  static VectorI compute_supernodal_etree(const VectorI& parent, const VectorI& supernodes) {
-    const StorageIndex nsuper = supernodes.size() - 1;
+  static VectorI compute_supernodal_etree(const VectorI& parent, const Supernodes& supe) {
+    /// #supernodes
+    const StorageIndex nsuper = supe.supernodes.size() - 1;
+
     VectorI s_parent = VectorI::Constant(nsuper, kEmpty);
 
-    VectorI SuperMap(parent.size());
-    for (StorageIndex s = 0; s < nsuper; ++s)
-      for (StorageIndex k = supernodes[s]; k < supernodes[s + 1]; ++k) SuperMap[k] = s;
-
     for (StorageIndex s = 0; s < nsuper; ++s) {
-      const StorageIndex jlast = supernodes[s + 1] - 1;
+      const StorageIndex jlast = supe.supernodes[s + 1] - 1;
       const StorageIndex pcol = parent[jlast];
-      s_parent[s] = (pcol < 0) ? kEmpty : SuperMap[pcol];
+      s_parent[s] = (pcol < 0) ? kEmpty : supe.sn_id[pcol];
     }
     return s_parent;
   }
@@ -304,9 +297,9 @@ struct supernodal_chol_helper {
    * @param Li List of row indices used by supernodes
    * @param Lp supernode column pointers (size `# supernodes + 1`)
    */
-  static void subtree(StorageIndex j, const VectorI& Ap, const VectorI& Ai, const VectorI* Anz, const VectorI& sn_id,
-                      const VectorI& s_parent, StorageIndex mark, StorageIndex k1, VectorI& flag, VectorI& Li,
-                      VectorI& Lp) {
+  static void sn_contribution(StorageIndex j, const VectorI& Ap, const VectorI& Ai, const VectorI* Anz,
+                              const VectorI& sn_id, const VectorI& s_parent, StorageIndex mark, StorageIndex k1,
+                              VectorI& flag, VectorI& Li, VectorI& Lp) {
     StorageIndex p = Ap[j];
     const StorageIndex pend = (Anz == nullptr) ? Ap[j + 1] : (p + (*Anz)[j]);
 
@@ -328,24 +321,22 @@ struct supernodal_chol_helper {
   /**
    * @brief
    *
-   * @param supernodes supernode boundaries (size `# supernodes + 1`)
-   * @param Snz row counts per supernode (size `# supernodes`)
+   * @param supe supernode structure
    * @param[out] ssize output size of Li
    * @param[out] xsize output size of Lx
    */
-  static void compute_supernodal_sizes(const VectorI& supernodes, const VectorI& Snz, StorageIndex& ssize,
-                                       StorageIndex& xsize) {
-    const StorageIndex nsuper = supernodes.size() - 1;
+  static void compute_supernodal_sizes(const Supernodes& supe, StorageIndex& ssize, StorageIndex& xsize) {
+    const StorageIndex nsuper = supe.supernodes.size() - 1;
 
     ssize = 0;
     xsize = 0;
 
     for (StorageIndex s = 0; s < nsuper; ++s) {
       /// number of columns in this supernode
-      uint64_t nscol = static_cast<uint64_t>(supernodes[s + 1] - supernodes[s]);
+      uint64_t nscol = static_cast<uint64_t>(supe.supernodes[s + 1] - supe.supernodes[s]);
 
       /// number of rows (including diagonal block)
-      uint64_t nsrow = static_cast<uint64_t>(Snz[s]);
+      uint64_t nsrow = static_cast<uint64_t>(supe.Snz[s]);
 
       // add to ssize (row index pool length)
       ssize += static_cast<size_t>(nsrow);
@@ -368,20 +359,19 @@ struct supernodal_chol_helper {
   /**
    * @brief allocate `L`
    *
-   * @param supernodes supernode boundaries (size `# supernodes + 1`)
-   * @param Snz row counts per supernode (size `# supernodes`)
+   * @param supe supernode structure
    * @param[out] Lpx per-supernode pointers into that data (size nsuper+1)
    * @param[out] Li pattern (row indices) (size `nsrows[s]` for supernode `s`)
    * @param[out] Lpi per-supernode pointers into that pattern (size nsuper+1)
    * @param[out] ssize total size of `Li`
    * @param[out] xsize total size of `Lx`
    */
-  static void allocate_L(const VectorI& supernodes, const VectorI& Snz, VectorI& Lpx, VectorI& Li, VectorI& Lpi,
-                         StorageIndex& ssize, StorageIndex& xsize) {
-    const StorageIndex nsuper = supernodes.size() - 1;
+  static void allocate_L(const Supernodes& supe, VectorI& Lpx, VectorI& Li, VectorI& Lpi, StorageIndex& ssize,
+                         StorageIndex& xsize) {
+    const StorageIndex nsuper = supe.supernodes.size() - 1;
 
     // sizes
-    compute_supernodal_sizes(supernodes, Snz, ssize, xsize);
+    compute_supernodal_sizes(supe, ssize, xsize);
 
     Lpi.resize(nsuper + 1);
     Lpx.resize(nsuper + 1);
@@ -392,7 +382,7 @@ struct supernodal_chol_helper {
       StorageIndex p = 0;
       for (StorageIndex s = 0; s < nsuper; ++s) {
         Lpi[s] = p;
-        p += Snz[s];
+        p += supe.Snz[s];
       }
       Lpi[nsuper] = p;
       eigen_assert(p == ssize);
@@ -402,8 +392,8 @@ struct supernodal_chol_helper {
     {
       StorageIndex q = 0;
       for (StorageIndex s = 0; s < nsuper; ++s) {
-        const StorageIndex nscol = supernodes[s + 1] - supernodes[s];
-        const StorageIndex nsrow = Snz[s];
+        const StorageIndex nscol = supe.supernodes[s + 1] - supe.supernodes[s];
+        const StorageIndex nsrow = supe.Snz[s];
         Lpx[s] = q;
         q += nscol * nsrow;
       }
@@ -415,18 +405,16 @@ struct supernodal_chol_helper {
   /**
    * @brief Fill the supernodal pattern `Li`.
    *
-   * @param supernodes boundaries (size nsuper+1)
-   * @param sn_id column -> supernode map (size n)
+   * @param supe supernode structure
    * @param s_parent supernodal etree (size nsuper)
    * @param Ap, Ai CSC of A
    * @param Anz per-column counts
    * @param Li row indices pool (allocated)
    * @param Lpi per-supernode pointers into Li
    */
-  static void build_sn_pattern(const VectorI& supernodes, const VectorI& sn_id, const VectorI& s_parent,
-                               const VectorI& Ap, const VectorI& Ai, const VectorI* Anz, VectorI& Li,
-                               const VectorI& Lpi) {
-    const StorageIndex nsuper = supernodes.size() - 1;
+  static void build_sn_pattern(const Supernodes& supe, const VectorI& s_parent, const VectorI& Ap, const VectorI& Ai,
+                               const VectorI* Anz, VectorI& Li, const VectorI& Lpi) {
+    const StorageIndex nsuper = supe.supernodes.size() - 1;
 
     /// working copy of Lpi
     VectorI Lpi2 = Lpi;
@@ -445,8 +433,8 @@ struct supernodal_chol_helper {
     };
 
     for (StorageIndex s = 0; s < nsuper; ++s) {
-      const StorageIndex k1 = supernodes[s];
-      const StorageIndex k2 = supernodes[s + 1];
+      const StorageIndex k1 = supe.supernodes[s];
+      const StorageIndex k2 = supe.supernodes[s + 1];
 
       // put rows `k1...k2-1` in leading column of supernode `s`
       for (StorageIndex k = k1; k < k2; ++k) {
@@ -457,7 +445,7 @@ struct supernodal_chol_helper {
       for (StorageIndex k = k1; k < k2; ++k) {
         clear_flag();
         flag[s] = mark;  // mark this supernode
-        subtree(k, Ap, Ai, Anz, sn_id, s_parent, mark, k1, flag, Li, Lpi2);
+        sn_contribution(k, Ap, Ai, Anz, supe.sn_id, s_parent, mark, k1, flag, Li, Lpi2);
       }
     }
 
@@ -480,7 +468,7 @@ struct supernodal_chol_helper {
   static void compute_max_update(const Supernodes& supe, const VectorI& Lpi, const VectorI& Li, StorageIndex& maxcsize,
                                  StorageIndex& maxesize) {
     const StorageIndex nsuper = supe.supernodes.size() - 1;
-    eigen_assert(Snz.size() == nsuper);
+    eigen_assert(supe.Snz.size() == nsuper);
     eigen_assert(Lpi.size() == nsuper + 1);
 
     maxcsize = StorageIndex(1);
@@ -511,7 +499,7 @@ struct supernodal_chol_helper {
 
       // Walk until pend, including a sentinel step at p==pend
       for (; p <= pend; ++p) {
-        const StorageIndex s = (p == pend) ? StorageIndex(-1) : supe.sn_id[Li[p]];
+        const StorageIndex s = (p == pend) ? kEmpty : supe.sn_id[Li[p]];
 
         if (s != slast) {
           /// number of rows in this group
@@ -544,8 +532,6 @@ struct supernodal_chol_helper {
    * @param Li row indices per supernode (size = Lpi[nsuper])
    * @param beta
    * @param[out] Lx dense storage for all supernodes (size = Lpx[nsuper])
-   * @return true
-   * @return false
    */
   static bool compute_numeric(const CholMatrixType& A, const Supernodes& supe, const VectorI& Lpi, const VectorI& Lpx,
                               const VectorI& Li, Scalar beta, Matrix<Scalar, Dynamic, 1>& Lx) {
@@ -578,11 +564,6 @@ struct supernodal_chol_helper {
     /// where child d resumes for next ancestor
     VectorI Lpos(nsuper);
     Lpos.setZero();
-
-    /// SuperMap[k] = supernode id that column/row k belongs to
-    VectorI SuperMap(n);
-    for (StorageIndex s = 0; s < nsuper; ++s)
-      for (StorageIndex k = supernodes[s]; k < supernodes[s + 1]; ++k) SuperMap[k] = s;
 
     // figure out a safe scratch size for C and for RelativeMap
     StorageIndex maxcsize = 1, maxesize = 1;
@@ -721,7 +702,7 @@ struct supernodal_chol_helper {
         // Prepare child d for its next ancestor
         Lpos[d] = pdi2 - pdi;  // skip rows already used
         if (Lpos[d] < ndrow) {
-          const StorageIndex dancestor = SuperMap[Li[pdi2]];
+          const StorageIndex dancestor = supe.sn_id[Li[pdi2]];
           // enqueue at head of dancestor
           Next[d] = Head[dancestor];
           Head[dancestor] = d;
@@ -759,7 +740,7 @@ struct supernodal_chol_helper {
       // queue this supernode as a child of its parent (if any)
       if (nsrow2 > 0) {
         Lpos[s] = nscol;  // next time, child rows start below the diag block
-        const StorageIndex parent_s = SuperMap[Li[psi + nscol]];
+        const StorageIndex parent_s = supe.sn_id[Li[psi + nscol]];
         if (parent_s != kEmpty) {
           Next[s] = Head[parent_s];
           Head[parent_s] = s;
@@ -776,8 +757,7 @@ struct supernodal_chol_helper {
   /**
    * @brief Export the supernodal factor `L` into a sparse matrix in column-major CSC format.
    *
-   * @param supernodes supernode boundaries (size nsuper+1)
-   * @param Snz row counts per supernode (size nsuper)
+   * @param supe supernode structure
    * @param Lpi per-supernode pointers into Li (size nsuper+1)
    * @param Lpx per-supernode pointers into Lx (size nsuper+1)
    * @param Li row indices per supernode (size = Lpi[nsuper])
@@ -786,17 +766,17 @@ struct supernodal_chol_helper {
    * @param drop_tol drop tolerance; remove values with abs() <= drop_tol
    * @return CholMatrixType Eigen matrix
    */
-  static CholMatrixType export_sparse(const VectorI& supernodes, const VectorI& Snz, const VectorI& Lpi,
-                                      const VectorI& Lpx, const VectorI& Li, const Matrix<Scalar, Dynamic, 1>& Lx,
-                                      StorageIndex n, Scalar drop_tol = Scalar(0)) {
-    const StorageIndex nsuper = static_cast<StorageIndex>(supernodes.size()) - 1;
+  static CholMatrixType export_sparse(const Supernodes& supe, const VectorI& Lpi, const VectorI& Lpx, const VectorI& Li,
+                                      const Matrix<Scalar, Dynamic, 1>& Lx, StorageIndex n,
+                                      Scalar drop_tol = Scalar(0)) {
+    const StorageIndex nsuper = static_cast<StorageIndex>(supe.supernodes.size()) - 1;
 
     // count nnz(L) quickly: for a supernode with nscol by nsrow (lower form),
     // column c (0..nscol-1) has (nsrow - c) entries.
     size_t nnz = 0;
     for (StorageIndex s = 0; s < nsuper; ++s) {
-      const StorageIndex nscol = supernodes[s + 1] - supernodes[s];
-      const StorageIndex nsrow = Snz[s];
+      const StorageIndex nscol = supe.supernodes[s + 1] - supe.supernodes[s];
+      const StorageIndex nsrow = supe.Snz[s];
       for (StorageIndex c = 0; c < nscol; ++c) nnz += size_t(nsrow - c);
     }
 
@@ -805,10 +785,10 @@ struct supernodal_chol_helper {
 
     // emit columns in order with startVec/insertBack
     for (StorageIndex s = 0; s < nsuper; ++s) {
-      const StorageIndex k1 = supernodes[s];
-      const StorageIndex k2 = supernodes[s + 1];
+      const StorageIndex k1 = supe.supernodes[s];
+      const StorageIndex k2 = supe.supernodes[s + 1];
       const StorageIndex nscol = k2 - k1;
-      const StorageIndex nsrow = Snz[s];
+      const StorageIndex nsrow = supe.Snz[s];
 
       /// start of row index list for s
       const StorageIndex psi = Lpi[s];

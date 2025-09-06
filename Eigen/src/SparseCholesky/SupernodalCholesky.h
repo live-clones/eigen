@@ -65,17 +65,16 @@ class SupernodalCholeskyLLT : public SparseSolverBase<SupernodalCholeskyLLT<Matr
                           post.data(), m_colcount.data(), false);
 
     m_supe = HelperSN::compute_supernodes(m_parent, m_colcount);
-    m_s_parent = HelperSN::compute_supernodal_etree(m_parent, m_supe.supernodes);
+    m_s_parent = HelperSN::compute_supernodal_etree(m_parent, m_supe);
 
-    HelperSN::allocate_supernodal_factor(m_supe.supernodes, m_supe.Snz, m_Lpx, m_Li, m_Lpi, m_ssize, m_xsize);
+    HelperSN::allocate_L(m_supe, m_Lpx, m_Li, m_Lpi, m_ssize, m_xsize);
 
     VectorI ApVec(n + 1);
     ApVec = Eigen::Map<const VectorI>(Au.outerIndexPtr(), n + 1);
     VectorI AiVec(Au.nonZeros());
     AiVec = Eigen::Map<const VectorI>(Au.innerIndexPtr(), Au.nonZeros());
 
-    HelperSN::build_supernodal_pattern_from_A(m_supe.supernodes, m_supe.sn_id, m_s_parent, ApVec, AiVec, nullptr, m_Li,
-                                              m_Lpi);
+    HelperSN::build_sn_pattern(m_supe, m_s_parent, ApVec, AiVec, nullptr, m_Li, m_Lpi);
 
     m_Lx.resize(m_Lpx[m_supe.supernodes.size() - 1]);
     m_symbolic_ok = true;
@@ -94,13 +93,13 @@ class SupernodalCholeskyLLT : public SparseSolverBase<SupernodalCholeskyLLT<Matr
     MatrixType Al = A.template triangularView<Eigen::Lower>();
     Al.makeCompressed();
 
-    bool ok = HelperSN::numeric_from_A(Al, m_supe, m_Lpi, m_Lpx, m_Li, m_beta, m_Lx);
+    bool ok = HelperSN::compute_numeric(Al, m_supe, m_Lpi, m_Lpx, m_Li, m_beta, m_Lx);
     if (!ok) {
       m_info = Eigen::NumericalIssue;
       return *this;
     }
 
-    m_L = HelperSN::export_sparse_lower(m_supe.supernodes, m_supe.Snz, m_Lpi, m_Lpx, m_Li, m_Lx, m_n);
+    m_L = HelperSN::export_sparse(m_supe, m_Lpi, m_Lpx, m_Li, m_Lx, m_n);
 
     m_numeric_ok = true;
     return *this;
