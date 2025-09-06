@@ -224,11 +224,11 @@ class SparseMatrixBase : public EigenBase<Derived> {
  public:
 #ifndef EIGEN_NO_IO
   friend std::ostream& operator<<(std::ostream& s, const SparseMatrixBase& m) {
-    typedef typename Derived::Nested Nested;
-    typedef typename internal::remove_all<Nested>::type NestedCleaned;
+    using Nested = typename Derived::Nested;
+    using NestedCleaned = internal::remove_all<Nested>::type;
 
     /// For converting `0's` to the matrices numerical type
-    typedef typename Derived::Scalar Scalar;
+    using Scalar = typename Derived::Scalar;
 
     if (Flags & RowMajorBit) {
       Nested nm(m.derived());
