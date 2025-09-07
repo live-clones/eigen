@@ -246,7 +246,10 @@ class SparseMatrixBase : public EigenBase<Derived> {
             std::ostringstream ss;
             ss.copyfmt(s);
             ss << it.value();
-            width = std::max(width, Index(ss.str().size()));
+
+            const auto potential_width = Index(ss.str().size());
+            if (potential_width > width)
+              width = potential_width;
           }
         }
       }
@@ -283,7 +286,10 @@ class SparseMatrixBase : public EigenBase<Derived> {
             std::ostringstream ss;
             ss.copyfmt(s);
             ss << it.value();
-            width = std::max(width, Index(ss.str().size()));
+
+            const auto potential_width = Index(ss.str().size());
+            if (potential_width > width)
+              width = potential_width;
           }
         }
 
