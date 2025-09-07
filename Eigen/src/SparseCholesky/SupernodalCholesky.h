@@ -76,7 +76,7 @@ class SupernodalCholeskyLLT : public SparseSolverBase<SupernodalCholeskyLLT<Matr
 
     HelperSN::build_sn_pattern(m_supe, m_s_parent, ApVec, AiVec, nullptr, m_Li, m_Lpi);
 
-    m_Lx.resize(m_Lpx[m_supe.supernodes.size() - 1]);
+    m_Lx.resize(m_Lpx[m_supe.n_supernodes]);
     m_symbolic_ok = true;
     return *this;
   }
@@ -100,6 +100,8 @@ class SupernodalCholeskyLLT : public SparseSolverBase<SupernodalCholeskyLLT<Matr
     }
 
     m_L = HelperSN::export_sparse(m_supe, m_Lpi, m_Lpx, m_Li, m_Lx, m_n);
+
+    // todo: we could resize/free everything here except m_L
 
     m_numeric_ok = true;
     return *this;

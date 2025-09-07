@@ -27,6 +27,9 @@ struct supernodal_chol_helper {
 
     /// #nonzero rows in each supernode.
     VectorI Snz;
+
+    /// #supernodes
+    StorageIndex n_supernodes;
   };
 
   // Supernode Algorithm Adapted from CHOLMOD
@@ -40,6 +43,59 @@ struct supernodal_chol_helper {
   // Dynamic supernodes in sparse Cholesky update/downdate and triangular solves,
   // ACM Trans. on Mathematical Software, 35(4), 2009, pp. 27:1--27:23.
   // https://doi.org/10.1145/1462173.1462176
+
+  struct RelaxParams {
+    StorageIndex nrelax[3] = {4, 16, 48};
+    double zrelax[3] = {0.8, 0.1, 0.05};
+  };
+
+  static bool merge_supernodes(const StorageIndex s, const StorageIndex ns, const VectorI& Snz,
+                               const StorageIndex& nscol0, const StorageIndex& nscol1, StorageIndex& totzeros) {
+    RelaxParams params;
+
+    // Always merge if the resulting supernode is small enough
+    if (ns <= params.nrelax[0]) return true;
+
+    // Estimate additional nonzeros if we append `s` on the left
+    /// leading column nonzeros in the left supernode
+    const double l_nnz_0 = static_cast<double>(Snz[s]);
+
+    /// leading column nonzeros in the right supernode
+    const double l_nnz_1 = static_cast<double>(Snz[s + 1]);
+
+    /// the estimated number of new zero entries introduced if you force the left block
+    // to share the same structure as the right block in a merged supernode.
+    const double xnewzeros = static_cast<double>(params.nrelax[0]) * (l_nnz_1 + nscol0 - l_nnz_0);
+
+    const StorageIndex newzeros_ll = 1LL * nscol0 * (Snz[s + 1] + nscol0 - Snz[s]);
+
+    if (xnewzeros == 0.0) {
+      // no new nonzero rows so we merge
+      return true;
+    }
+    /// total artificial zeros after the merge.
+    const double xtotzeros = static_cast<double>(totzeros) + xnewzeros;
+
+    /// merged width
+    const double xns = static_cast<double>(ns);
+
+    const double xtotsize = (xns * (xns + 1.0) / 2.0) + xns * (l_nnz_1 - nscol1);
+
+    /// fill ratio after the merge; how many artificial nonzeros pop up from the merge.
+    /// larger z means more sparse
+    const double z = xtotzeros / std::max(1.0, xtotsize);
+
+    const double int_guard = static_cast<double>(std::numeric_limits<int>::max()) / sizeof(double);
+
+    totzeros += static_cast<StorageIndex>(newzeros_ll);
+
+    if (xtotsize < int_guard && ((ns <= params.nrelax[1] && z < params.zrelax[0]) ||
+                                 (ns <= params.nrelax[2] && z < params.zrelax[1]) || (z < params.zrelax[2]))) {
+      return true;
+    }
+
+    return false;
+  }
 
   static Supernodes compute_supernodes(const VectorI& parent, const VectorI& colcount) {
     const StorageIndex n = parent.size();
@@ -93,7 +149,8 @@ struct supernodal_chol_helper {
     fn_supernodes[m++] = n;
     fn_supernodes.conservativeResize(m);
 
-    // note we no longer need the childCount. may want to do something with this info later
+    // TODO: we no longer need childCount so I should think about whether I want to free it?
+    // childCount = VectorI();
 
     /// #fundamental supernodes
     const StorageIndex nfsuper = static_cast<StorageIndex>(fn_supernodes.size()) - 1;
@@ -175,48 +232,7 @@ struct supernodal_chol_helper {
       /// leading column nonzeros in the right supernode
       const double l_nnz_1 = static_cast<double>(Snz[s + 1]);
 
-      bool merge = false;
-
-      // Always merge if the resulting supernode is small enough
-      if (ns <= nrelax0) merge = true;
-
-      // Estimate additional nonzeros if we append `s` on the left
-      else {
-        /// leading column nonzeros in the left supernode
-        const double l_nnz_0 = static_cast<double>(Snz[s]);
-
-        /// the estimated number of new zero entries introduced if you force the left block
-        // to share the same structure as the right block in a merged supernode.
-        const double xnewzeros = static_cast<double>(nscol0) * (l_nnz_1 + nscol0 - l_nnz_0);
-
-        const StorageIndex newzeros_ll = 1LL * nscol0 * (Snz[s + 1] + nscol0 - Snz[s]);
-
-        if (xnewzeros == 0.0) {
-          // no new nonzero rows so we merge
-          merge = true;
-        } else {
-          /// total artificial zeros after the merge.
-          const double xtotzeros = static_cast<double>(totzeros) + xnewzeros;
-
-          /// merged width
-          const double xns = static_cast<double>(ns);
-
-          const double xtotsize = (xns * (xns + 1.0) / 2.0) + xns * (l_nnz_1 - nscol1);
-
-          /// fill ratio after the merge; how many artificial nonzeros pop up from the merge.
-          /// larger z means more sparse
-          const double z = xtotzeros / std::max(1.0, xtotsize);
-
-          const double int_guard = static_cast<double>(std::numeric_limits<int>::max()) / sizeof(double);
-
-          totzeros += static_cast<StorageIndex>(newzeros_ll);
-
-          if (xtotsize < int_guard &&
-              ((ns <= nrelax1 && z < zrelax0) || (ns <= nrelax2 && z < zrelax1) || (z < zrelax2))) {
-            merge = true;
-          }
-        }
-      }
+      const bool merge = merge_supernodes(s, ns, Snz, nscol0, nscol1, totzeros);
 
       if (merge) {
         Zeros[s] = totzeros;
@@ -229,12 +245,12 @@ struct supernodal_chol_helper {
     // Emit relaxed supernodes
 
     /// Count how many supernodes
-    StorageIndex nsuper = 1;
+    StorageIndex n_supernodes = 1;
 
     for (StorageIndex s = 0; s < nfsuper; ++s)
-      if (Merged[s] == kEmpty) nsuper++;
+      if (Merged[s] == kEmpty) n_supernodes++;
 
-    VectorI relaxed(nsuper);
+    VectorI relaxed(n_supernodes);
 
     StorageIndex r = 0;
     for (StorageIndex s = 0; s < nfsuper; ++s)
@@ -251,6 +267,7 @@ struct supernodal_chol_helper {
     Supernodes out;
     out.supernodes = std::move(supernodes);
     out.sn_id = std::move(sn_id);
+    out.n_supernodes = out.supernodes.size() - 1;
 
     // Build compact Snz
     VectorI Snz_relaxed(relaxed.size() - 1);
@@ -265,12 +282,9 @@ struct supernodal_chol_helper {
   }
 
   static VectorI compute_supernodal_etree(const VectorI& parent, const Supernodes& supe) {
-    /// #supernodes
-    const StorageIndex nsuper = supe.supernodes.size() - 1;
+    VectorI s_parent = VectorI::Constant(supe.n_supernodes, kEmpty);
 
-    VectorI s_parent = VectorI::Constant(nsuper, kEmpty);
-
-    for (StorageIndex s = 0; s < nsuper; ++s) {
+    for (StorageIndex s = 0; s < supe.n_supernodes; ++s) {
       const StorageIndex jlast = supe.supernodes[s + 1] - 1;
       const StorageIndex pcol = parent[jlast];
       s_parent[s] = (pcol < 0) ? kEmpty : supe.sn_id[pcol];
@@ -319,19 +333,19 @@ struct supernodal_chol_helper {
   }
 
   /**
-   * @brief
+   * @brief computes sizes of `Li` and `Lx`
    *
    * @param supe supernode structure
    * @param[out] ssize output size of Li
    * @param[out] xsize output size of Lx
    */
   static void compute_supernodal_sizes(const Supernodes& supe, StorageIndex& ssize, StorageIndex& xsize) {
-    const StorageIndex nsuper = supe.supernodes.size() - 1;
+    const StorageIndex n_supernodes = supe.n_supernodes;
 
     ssize = 0;
     xsize = 0;
 
-    for (StorageIndex s = 0; s < nsuper; ++s) {
+    for (StorageIndex s = 0; s < supe.n_supernodes; ++s) {
       /// number of columns in this supernode
       uint64_t nscol = static_cast<uint64_t>(supe.supernodes[s + 1] - supe.supernodes[s]);
 
@@ -341,8 +355,9 @@ struct supernodal_chol_helper {
       // add to ssize (row index pool length)
       ssize += static_cast<size_t>(nsrow);
 
-      // each supernode block has nscol*nsrow entries
+      /// size of supernodal block
       uint64_t c = nscol * nsrow;
+
       xsize += static_cast<size_t>(c);
     }
 
@@ -352,52 +367,50 @@ struct supernodal_chol_helper {
   }
 
   // Lx = data (dense blocks).
-  // Lpx = per-supernode pointers into that data (size nsuper+1).
+  // Lpx = per-supernode pointers into that data (size n_supernodes+1).
   // Li = pattern (row indices).
-  // Lpi = per-supernode pointers into that pattern (size nsuper+1).
+  // Lpi = per-supernode pointers into that pattern (size n_supernodes+1).
 
   /**
    * @brief allocate `L`
    *
    * @param supe supernode structure
-   * @param[out] Lpx per-supernode pointers into that data (size nsuper+1)
+   * @param[out] Lpx per-supernode pointers into that data (size n_supernodes+1)
    * @param[out] Li pattern (row indices) (size `nsrows[s]` for supernode `s`)
-   * @param[out] Lpi per-supernode pointers into that pattern (size nsuper+1)
+   * @param[out] Lpi per-supernode pointers into that pattern (size n_supernodes+1)
    * @param[out] ssize total size of `Li`
    * @param[out] xsize total size of `Lx`
    */
   static void allocate_L(const Supernodes& supe, VectorI& Lpx, VectorI& Li, VectorI& Lpi, StorageIndex& ssize,
                          StorageIndex& xsize) {
-    const StorageIndex nsuper = supe.supernodes.size() - 1;
-
     // sizes
     compute_supernodal_sizes(supe, ssize, xsize);
 
-    Lpi.resize(nsuper + 1);
-    Lpx.resize(nsuper + 1);
+    Lpi.resize(supe.n_supernodes + 1);
+    Lpx.resize(supe.n_supernodes + 1);
     Li.resize(ssize);
 
     // fill column pointers (Lpi)
     {
       StorageIndex p = 0;
-      for (StorageIndex s = 0; s < nsuper; ++s) {
+      for (StorageIndex s = 0; s < supe.n_supernodes; ++s) {
         Lpi[s] = p;
         p += supe.Snz[s];
       }
-      Lpi[nsuper] = p;
+      Lpi[supe.n_supernodes] = p;
       eigen_assert(p == ssize);
     }
 
     // fill block value pointers (Lpx)
     {
       StorageIndex q = 0;
-      for (StorageIndex s = 0; s < nsuper; ++s) {
+      for (StorageIndex s = 0; s < supe.n_supernodes; ++s) {
         const StorageIndex nscol = supe.supernodes[s + 1] - supe.supernodes[s];
         const StorageIndex nsrow = supe.Snz[s];
         Lpx[s] = q;
         q += nscol * nsrow;
       }
-      Lpx[nsuper] = q;
+      Lpx[supe.n_supernodes] = q;
       eigen_assert(q == xsize);
     }
   }
@@ -406,7 +419,7 @@ struct supernodal_chol_helper {
    * @brief Fill the supernodal pattern `Li`.
    *
    * @param supe supernode structure
-   * @param s_parent supernodal etree (size nsuper)
+   * @param s_parent supernodal etree (size n_supernodes)
    * @param Ap, Ai CSC of A
    * @param Anz per-column counts
    * @param Li row indices pool (allocated)
@@ -414,13 +427,13 @@ struct supernodal_chol_helper {
    */
   static void build_sn_pattern(const Supernodes& supe, const VectorI& s_parent, const VectorI& Ap, const VectorI& Ai,
                                const VectorI* Anz, VectorI& Li, const VectorI& Lpi) {
-    const StorageIndex nsuper = supe.supernodes.size() - 1;
+    const StorageIndex n_supernodes = supe.n_supernodes;
 
     /// working copy of Lpi
     VectorI Lpi2 = Lpi;
 
     /// per-supernode flag array
-    VectorI flag = VectorI::Zero(nsuper);
+    VectorI flag = VectorI::Zero(supe.n_supernodes);
     StorageIndex mark = 1;
 
     auto clear_flag = [&]() {
@@ -432,7 +445,7 @@ struct supernodal_chol_helper {
       }
     };
 
-    for (StorageIndex s = 0; s < nsuper; ++s) {
+    for (StorageIndex s = 0; s < n_supernodes; ++s) {
       const StorageIndex k1 = supe.supernodes[s];
       const StorageIndex k2 = supe.supernodes[s + 1];
 
@@ -449,8 +462,8 @@ struct supernodal_chol_helper {
       }
     }
 
-#ifndef NDEBUG
-    for (StorageIndex s = 0; s < nsuper; ++s) {
+#ifndef EIGEN_NO_DEBUG
+    for (StorageIndex s = 0; s < supe.n_supernodes; ++s) {
       eigen_assert(Lpi2[s] == Lpi[s + 1] && "Li fill mismatch");
     }
 #endif
@@ -467,18 +480,18 @@ struct supernodal_chol_helper {
    */
   static void compute_max_update(const Supernodes& supe, const VectorI& Lpi, const VectorI& Li, StorageIndex& maxcsize,
                                  StorageIndex& maxesize) {
-    const StorageIndex nsuper = supe.supernodes.size() - 1;
-    eigen_assert(supe.Snz.size() == nsuper);
-    eigen_assert(Lpi.size() == nsuper + 1);
+    const StorageIndex n_supernodes = supe.n_supernodes;
+    eigen_assert(supe.Snz.size() == n_supernodes);
+    eigen_assert(Lpi.size() == n_supernodes + 1);
 
     maxcsize = StorageIndex(1);
     maxesize = StorageIndex(1);
 
-    for (StorageIndex d = 0; d < nsuper; ++d) {
+    for (StorageIndex d = 0; d < n_supernodes; ++d) {
       /// number of supernode columns
       const StorageIndex nscol = supe.supernodes[d + 1] - supe.supernodes[d];
 
-      /// Start of "extra" rows (after diagonal block), end of block:
+      /// Start of extra rows (after diagonal block)
       StorageIndex p = Lpi[d] + nscol;
 
       StorageIndex plast = p;
@@ -488,16 +501,15 @@ struct supernodal_chol_helper {
       /// number of extra rows used in solves for this supernode
       const StorageIndex esize = pend - p;
 
-      // makeshift `std::max` function
       if (esize > maxesize) maxesize = esize;
 
-      // If no extra rows, skip
+      // If no extra rows skip
       if (p == pend) continue;
 
       // Current group label = supernode id of the first extra-row index
       StorageIndex slast = supe.sn_id[Li[p]];
 
-      // Walk until pend, including a sentinel step at p==pend
+      // Walk until pend
       for (; p <= pend; ++p) {
         const StorageIndex s = (p == pend) ? kEmpty : supe.sn_id[Li[p]];
 
@@ -527,11 +539,11 @@ struct supernodal_chol_helper {
    *
    * @param A
    * @param supe supernode struct
-   * @param Lpi pointers into Li (size nsuper+1)
-   * @param Lpx pointers into Lx (size nsuper+1)
-   * @param Li row indices per supernode (size = Lpi[nsuper])
+   * @param Lpi pointers into Li (size n_supernodes+1)
+   * @param Lpx pointers into Lx (size n_supernodes+1)
+   * @param Li row indices per supernode (size = Lpi[n_supernodes])
    * @param beta
-   * @param[out] Lx dense storage for all supernodes (size = Lpx[nsuper])
+   * @param[out] Lx dense storage for all supernodes (size = Lpx[n_supernodes])
    */
   static bool compute_numeric(const CholMatrixType& A, const Supernodes& supe, const VectorI& Lpi, const VectorI& Lpx,
                               const VectorI& Li, Scalar beta, Matrix<Scalar, Dynamic, 1>& Lx) {
@@ -542,11 +554,11 @@ struct supernodal_chol_helper {
     const VectorI& sn_id = supe.sn_id;
 
     const StorageIndex n = static_cast<StorageIndex>(A.cols());
-    const StorageIndex nsuper = static_cast<StorageIndex>(supernodes.size()) - 1;
+    const StorageIndex n_supernodes = static_cast<StorageIndex>(supernodes.size()) - 1;
     eigen_assert(static_cast<StorageIndex>(A.rows()) == n);
 
     // allocate numeric storage
-    Lx.resize(Lpx[nsuper]);
+    Lx.resize(Lpx[n_supernodes]);
     Lx.setZero();
 
     /// Map[i] -> local row within current supernode s (or -1)
@@ -554,15 +566,15 @@ struct supernodal_chol_helper {
     Map.setConstant(kEmpty);
 
     /// head of child list for each supernode
-    VectorI Head(nsuper);
-    Head.setConstant(kEmpty);
+    VectorI head(n_supernodes);
+    head.setConstant(kEmpty);
 
     /// sibling link for child list
-    VectorI Next(nsuper);
-    Next.setConstant(kEmpty);
+    VectorI next(n_supernodes);
+    next.setConstant(kEmpty);
 
     /// where child d resumes for next ancestor
-    VectorI Lpos(nsuper);
+    VectorI Lpos(n_supernodes);
     Lpos.setZero();
 
     // figure out a safe scratch size for C and for RelativeMap
@@ -577,7 +589,7 @@ struct supernodal_chol_helper {
     using BlockMap = Eigen::Map<DenseMat, 0, StrideType>;
 
     // main supernode loop
-    for (StorageIndex s = 0; s < nsuper; ++s) {
+    for (StorageIndex s = 0; s < n_supernodes; ++s) {
       const StorageIndex k1 = supernodes[s];
       const StorageIndex k2 = supernodes[s + 1];
 
@@ -621,13 +633,13 @@ struct supernodal_chol_helper {
         }
       }
 
-      // Apply updates from children already factorized and queued at Head[s]
-      StorageIndex dnext = Head[s];
+      // Apply updates from children already factorized and queued at head[s]
+      StorageIndex dnext = head[s];
       while (dnext != kEmpty) {
         const StorageIndex d = dnext;
 
         // preserve next pointer
-        dnext = Next[d];
+        dnext = next[d];
 
         /// width of child
         const StorageIndex ndcol = supernodes[d + 1] - supernodes[d];
@@ -704,46 +716,52 @@ struct supernodal_chol_helper {
         if (Lpos[d] < ndrow) {
           const StorageIndex dancestor = supe.sn_id[Li[pdi2]];
           // enqueue at head of dancestor
-          Next[d] = Head[dancestor];
-          Head[dancestor] = d;
+          next[d] = head[dancestor];
+          head[dancestor] = d;
         }
       }  // while children
 
+      // Calculate A_{diag} = L_{diag} L_{diag}^T
       // Factorize diagonal block S1 (nscol by nscol) and overwrite with its Cholesky L1
       // Map to a square view with outer stride = nsrow
       BlockMap Sfull(Lx.data() + psx, nsrow, nscol, StrideType(nsrow, 1));
-      BlockMap S1(Lx.data() + psx, nscol, nscol, StrideType(nsrow, 1));  // top nscol rows
+      BlockMap A_diag(Lx.data() + psx, nscol, nscol, StrideType(nsrow, 1));  // top nscol rows
 
-      // Compute LL^T = S1 (lower)
+      // Compute A_diag = L_diag * L_diag^T
+      // We know what A_diag is so we can find L_diag using the Cholesky
       Eigen::LLT<DenseMat> llt;
-      DenseMat S1copy = S1;  // make a compact square copy
+      DenseMat S1copy = A_diag;
       llt.compute(S1copy);
       if (llt.info() != Eigen::Success) {
         // err: not SPD
         return false;
       }
-      S1.setZero();
-      S1.template triangularView<Eigen::Lower>() = llt.matrixL();
+      A_diag.setZero();
+      A_diag.template triangularView<Eigen::Lower>() = llt.matrixL();
 
-      // Triangular solve for subdiagonal block: S2 := S2 * inv(L1')  (on the right)
+      // Compute L_rect = A_rect * L_diag^{-T}
+      // Since we know what A_rect is we can find L_rect
+      // From A_rect = L_rect * L_diag^T
+      // and a triangular solve
       const StorageIndex nsrow2 = nsrow - nscol;
       if (nsrow2 > 0) {
         auto S2 = Sfull.bottomRows(nsrow2);  // (nsrow2 bu nscol)
 
-        // Solve on the right by transposing: (L1 * X^T = S2^T)
         DenseMat S2T = S2.transpose();
-        auto L1view = S1.template triangularView<Eigen::Lower>();
+        auto L1view = A_diag.template triangularView<Eigen::Lower>();
         L1view.solveInPlace(S2T);
         S2 = S2T.transpose();
       }
 
-      // queue this supernode as a child of its parent (if any)
+      // Compute A_{off}^{updated} = A_{off} - L_{rect} L_{diag}^T
+      // This is the update for the next supernode
+      // So we queue this supernode as a child of its parent
       if (nsrow2 > 0) {
         Lpos[s] = nscol;  // next time, child rows start below the diag block
         const StorageIndex parent_s = supe.sn_id[Li[psi + nscol]];
         if (parent_s != kEmpty) {
-          Next[s] = Head[parent_s];
-          Head[parent_s] = s;
+          next[s] = head[parent_s];
+          head[parent_s] = s;
         }
       }
 
@@ -758,10 +776,10 @@ struct supernodal_chol_helper {
    * @brief Export the supernodal factor `L` into a sparse matrix in column-major CSC format.
    *
    * @param supe supernode structure
-   * @param Lpi per-supernode pointers into Li (size nsuper+1)
-   * @param Lpx per-supernode pointers into Lx (size nsuper+1)
-   * @param Li row indices per supernode (size = Lpi[nsuper])
-   * @param Lx dense storage for all supernodes (size = Lpx[nsuper])
+   * @param Lpi per-supernode pointers into Li (size n_supernodes+1)
+   * @param Lpx per-supernode pointers into Lx (size n_supernodes+1)
+   * @param Li row indices per supernode (size = Lpi[n_supernodes])
+   * @param Lx dense storage for all supernodes (size = Lpx[n_supernodes])
    * @param n order of the matrix
    * @param drop_tol drop tolerance; remove values with abs() <= drop_tol
    * @return CholMatrixType Eigen matrix
@@ -769,12 +787,12 @@ struct supernodal_chol_helper {
   static CholMatrixType export_sparse(const Supernodes& supe, const VectorI& Lpi, const VectorI& Lpx, const VectorI& Li,
                                       const Matrix<Scalar, Dynamic, 1>& Lx, StorageIndex n,
                                       Scalar drop_tol = Scalar(0)) {
-    const StorageIndex nsuper = static_cast<StorageIndex>(supe.supernodes.size()) - 1;
+    const StorageIndex n_supernodes = static_cast<StorageIndex>(supe.supernodes.size()) - 1;
 
     // count nnz(L) quickly: for a supernode with nscol by nsrow (lower form),
     // column c (0..nscol-1) has (nsrow - c) entries.
     size_t nnz = 0;
-    for (StorageIndex s = 0; s < nsuper; ++s) {
+    for (StorageIndex s = 0; s < n_supernodes; ++s) {
       const StorageIndex nscol = supe.supernodes[s + 1] - supe.supernodes[s];
       const StorageIndex nsrow = supe.Snz[s];
       for (StorageIndex c = 0; c < nscol; ++c) nnz += size_t(nsrow - c);
@@ -784,7 +802,7 @@ struct supernodal_chol_helper {
     L.reserve(nnz);
 
     // emit columns in order with startVec/insertBack
-    for (StorageIndex s = 0; s < nsuper; ++s) {
+    for (StorageIndex s = 0; s < n_supernodes; ++s) {
       const StorageIndex k1 = supe.supernodes[s];
       const StorageIndex k2 = supe.supernodes[s + 1];
       const StorageIndex nscol = k2 - k1;
