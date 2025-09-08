@@ -247,7 +247,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
             ss.copyfmt(s);
             ss << it.value();
 
-            const auto potential_width = Index(ss.str().size());
+            const auto potential_width = ss.str().size();
             if (potential_width > width) width = potential_width;
           }
         }
