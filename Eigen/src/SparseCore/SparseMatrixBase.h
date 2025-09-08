@@ -225,7 +225,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
 #ifndef EIGEN_NO_IO
   friend std::ostream& operator<<(std::ostream& s, const SparseMatrixBase& m) {
     using Nested = typename Derived::Nested;
-    using NestedCleaned = internal::remove_all<Nested>::type;
+    using NestedCleaned = typename internal::remove_all<Nested>::type;
 
     /// For converting `0's` to the matrices numerical type
     using Scalar = typename Derived::Scalar;
