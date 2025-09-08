@@ -203,7 +203,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
     return derived();
   }
 
-  SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */ 
+  SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */
   }
 
   template <typename OtherDerived>
