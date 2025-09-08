@@ -235,12 +235,12 @@ class SparseMatrixBase : public EigenBase<Derived> {
       internal::evaluator<NestedCleaned> thisEval(nm);
 
       // compute global width
-      Index width = 0;
+      std::size_t width = 0;
       {
         std::ostringstream ss0;
         ss0.copyfmt(s);
         ss0 << Scalar(0);
-        width = Index(ss0.str().size());
+        width = ss0.str().size();
         for (Index row = 0; row < nm.outerSize(); ++row) {
           for (typename internal::evaluator<NestedCleaned>::InnerIterator it(thisEval, row); it; ++it) {
             std::ostringstream ss;
@@ -275,18 +275,18 @@ class SparseMatrixBase : public EigenBase<Derived> {
       internal::evaluator<NestedCleaned> thisEval(nm);
       if (m.cols() == 1) {
         // compute local width (single col)
-        Index width = 0;
+        std::size_t width = 0;
         {
           std::ostringstream ss0;
           ss0.copyfmt(s);
           ss0 << Scalar(0);
-          width = Index(ss0.str().size());
+          width = ss0.str().size();
           for (typename internal::evaluator<NestedCleaned>::InnerIterator it(thisEval, 0); it; ++it) {
             std::ostringstream ss;
             ss.copyfmt(s);
             ss << it.value();
 
-            const auto potential_width = Index(ss.str().size());
+            const auto potential_width = ss.str().size();
             if (potential_width > width) width = potential_width;
           }
         }
