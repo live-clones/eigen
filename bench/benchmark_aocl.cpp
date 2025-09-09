@@ -301,9 +301,7 @@ int main() {
   cout << "AOCL Mode: DISABLED" << endl;
   cout << "Using standard Eigen implementation" << endl;
 #endif
-  cout << "Hardware threads available: " << thread::hardware_concurrency()
-       << endl
-       << endl;
+  cout << "Hardware threads available: " << thread::hardware_concurrency() << endl << endl;
 
   // Benchmark vector math functions with varying vector sizes.
   vector<int> vectorSizes = {5000000, 10000000, 50000000};
