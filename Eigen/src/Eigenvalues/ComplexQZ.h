@@ -173,7 +173,8 @@ class ComplexQZ {
 
   // Test if a Scalar is 0 up to a certain tolerance
   static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
-    return x.real() * x.real() + x.imag() * x.imag() <= tol * tol;
+    //return x.real() * x.real() + x.imag() * x.imag() <= tol * tol;
+		return numext::abs(x) <= tol;
   }
 
   void reduce_quasitriangular_S();
@@ -552,34 +553,34 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
     // The permutations are needed because the makeHouseHolder-method computes
     // the householder transformation in a way that the vector is reflected to
     // (1 0 ... 0) instead of (0 ... 0 1)
-    m_S.middleRows(k, 3).rightCols((std::min)(m_n, m_n - k + 1)).applyHouseholderOnTheLeft(ess, tau, ws.data());
-    m_T.middleRows(k, 3).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, ws.data());
+    m_S.template middleRows<3>(k).rightCols((std::min)(m_n, m_n - k + 1)).applyHouseholderOnTheLeft(ess, tau, ws.data());
+    m_T.template middleRows<3>(k).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, ws.data());
 
-    if (m_computeQZ) m_Q.middleCols(k, 3).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+    if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
 
     // Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
     Vec3 bprime = (m_T.template block<1, 3>(k + 2, k) * S3).adjoint();
     bprime.makeHouseholder(ess, tau, beta);
 
-    m_S.middleCols(k, 3).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3);
-    m_S.middleCols(k, 3).topRows((std::min)(k + 4, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
-    m_S.middleCols(k, 3).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3.transpose());
+    m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3);
+    m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+    m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3.transpose());
 
-    m_T.middleCols(k, 3).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3);
-    m_T.middleCols(k, 3).topRows((std::min)(k + 3, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
-    m_T.middleCols(k, 3).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3.transpose());
+    m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3);
+    m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+    m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3.transpose());
 
     if (m_computeQZ) {
-      m_Z.middleRows(k, 3).applyOnTheLeft(S3.transpose());
-      m_Z.middleRows(k, 3).applyHouseholderOnTheLeft(ess, tau, ws.data());
-      m_Z.middleRows(k, 3).applyOnTheLeft(S3);
+      m_Z.template middleRows<3>(k).applyOnTheLeft(S3.transpose());
+      m_Z.template middleRows<3>(k).applyHouseholderOnTheLeft(ess, tau, ws.data());
+      m_Z.template middleRows<3>(k).applyOnTheLeft(S3);
     }
 
     Mat2 Zk2 = computeZk2(m_T.template block<1, 2>(k + 1, k));
-    m_S.middleCols(k, 2).topRows((std::min)(k + 4, m_n)).applyOnTheRight(Zk2);
-    m_T.middleCols(k, 2).topRows((std::min)(k + 3, m_n)).applyOnTheRight(Zk2);
+    m_S.template middleCols<2>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(Zk2);
+    m_T.template middleCols<2>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(Zk2);
 
-    if (m_computeQZ) m_Z.middleRows(k, 2).applyOnTheLeft(Zk2.adjoint());
+    if (m_computeQZ) m_Z.template middleRows<2>(k).applyOnTheLeft(Zk2.adjoint());
 
     x = m_S(k + 1, k);
     y = m_S(k + 2, k);
@@ -592,26 +593,24 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
   JacobiRotation<Scalar> J;
   J.makeGivens(x, y);
 
-  m_S.middleRows(p + m - 2, 2).applyOnTheLeft(0, 1, J.adjoint());
-  m_T.middleRows(p + m - 2, 2).applyOnTheLeft(0, 1, J.adjoint());
+  m_S.template middleRows<2>(p + m - 2).applyOnTheLeft(0, 1, J.adjoint());
+  m_T.template middleRows<2>(p + m - 2).applyOnTheLeft(0, 1, J.adjoint());
 
-  if (m_computeQZ) m_Q.middleCols(p + m - 2, 2).applyOnTheRight(0, 1, J);
+  if (m_computeQZ) m_Q.template middleCols<2>(p + m - 2).applyOnTheRight(0, 1, J);
 
   // Find a Householdermatrix Zn1 s.t. (b(n,n-1) b(n,n)) * Zn1 = (0 *)
   Mat2 Zn1 = computeZk2(m_T.template block<1, 2>(p + m - 1, p + m - 2));
 
-  m_S.middleCols(p + m - 2, 2).applyOnTheRight(Zn1);
-  m_T.middleCols(p + m - 2, 2).applyOnTheRight(Zn1);
+  m_S.template middleCols<2>(p + m - 2).applyOnTheRight(Zn1);
+  m_T.template middleCols<2>(p + m - 2).applyOnTheRight(Zn1);
 
-  if (m_computeQZ) m_Z.middleRows(p + m - 2, 2).applyOnTheLeft(Zn1.adjoint());
+  if (m_computeQZ) m_Z.template middleRows<2>(p + m - 2).applyOnTheLeft(Zn1.adjoint());
 }
 
 // We have a 0 at T(k,k) and want to "push it down" to T(l,l)
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   // Test Preconditions
-  // assert(is_negligible(_T(k, k), EPS*m_normOfT));
-  // assert(is_negligible(_T(k, k)));
 
   JacobiRotation<Scalar> J;
   for (int j = k + 1; j <= l; j++) {
@@ -622,18 +621,15 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
 
     // assert(j < _n+2); // This ensures n-j+2 > 0
     // assert(2 <= j); // This ensures n-j+2 <= n
-    //_S.rightCols(_n-j+2).applyOnTheLeft(j-1, j, J.adjoint());
     m_S.applyOnTheLeft(j - 1, j, J.adjoint());
 
     if (m_computeQZ) m_Q.applyOnTheRight(j - 1, j, J);
 
     // Delete the non-desired non-zero at _S(j, j-2)
-    // TODO The following line sometimes made the program crash. The entering
-    // if-statement seems to fix this issue (which somehow makes sense...)
     if (j > 1) {
       J.makeGivens(std::conj(m_S(j, j - 1)), std::conj(m_S(j, j - 2)));
       m_S.applyOnTheRight(j - 1, j - 2, J);
-      // assert(is_negligible(_S(j, j-2)));
+
       m_S(j, j - 2) = Scalar(0);
       m_T.applyOnTheRight(j - 1, j - 2, J);
 
