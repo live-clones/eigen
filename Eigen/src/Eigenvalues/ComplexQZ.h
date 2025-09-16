@@ -107,9 +107,9 @@ class ComplexQZ {
    * especially when we aim to compute the decomposition of two sparse
    * matrices.
    */
-  ComplexQZ(unsigned int n)
+  ComplexQZ(unsigned int n, unsigned int maxIters = 400)
       : m_n(n),
-        m_maxIters(400),
+        m_maxIters(maxIters),
         m_computeQZ(true){
 
         };
@@ -125,7 +125,8 @@ class ComplexQZ {
    * If input matrices are sparse, call the constructor that uses only the
    * size as input the computeSparse(...) method.
    */
-  ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true) : m_maxIters(400), m_computeQZ(computeQZ) {
+  ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true,
+			unsigned int maxIters = 400) : m_maxIters(maxIters), m_computeQZ(computeQZ) {
     compute(A, B, computeQZ);
   }
 
@@ -161,12 +162,9 @@ class ComplexQZ {
     return m_global_iter;
   };
 
-  /** \brief set the maximal number of QZ iterations to run. Default is 400.
-   */
-  void setMaxIterations(unsigned int maxIters) { m_maxIters = maxIters; }
-
  private:
-  unsigned int m_maxIters, m_global_iter;
+  const unsigned int m_maxIters;
+  unsigned int m_global_iter;
   bool m_isInitialized;
   bool m_computeQZ;
   ComputationInfo m_info;
