@@ -34,7 +34,18 @@
  * Given to complex square matrices A and B, this class computes the QZ decomposition
  * \f$ A = Q S Z \f$, \f$ B = Q T Z\f$ where Q and Z are unitary matrices and
  * S and T a re upper-triangular matrices. More precisely, Q and Z fulfill
- * \f$ Q Q* = Id\f$ and \f$ Z Z* = Id\f$
+ * \f$ Q Q* = Id\f$ and \f$ Z Z* = Id\f$. The generalized Eigenvalues are then
+ * obtained as ratios of corresponding diagonal entries, lambda(i) = S(i,i) / T(i, i).
+ *
+ * The QZ algorithm was introduced in the seminal work "An Algorithm for
+ * Generalized Matrix Eigenvalue Problems" by Moler & Stewart in 1973. The matrix
+ * pair S = A, T = B is first transformed to Hessenberg-Triangular form where S is an
+ * upper Hessenberg matrix and T is an upper Triangular matrix.
+ *
+ * This pair is subsequently reduced to the desired form using implicit QZ shifts as
+ * described in the original paper. The algorithms to find small entries on the
+ * diagonals and subdiagonals are based on the variants in the implementation
+ * for Real matrices in the RealQZ class.
  *
  * \sa class RealQZ
  */
