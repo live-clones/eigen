@@ -173,8 +173,8 @@ class ComplexQZ {
 
   // Test if a Scalar is 0 up to a certain tolerance
   static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
-    //return x.real() * x.real() + x.imag() * x.imag() <= tol * tol;
-		return numext::abs(x) <= tol;
+    // return x.real() * x.real() + x.imag() * x.imag() <= tol * tol;
+    return numext::abs(x) <= tol;
   }
 
   void reduce_quasitriangular_S();
@@ -553,7 +553,9 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
     // The permutations are needed because the makeHouseHolder-method computes
     // the householder transformation in a way that the vector is reflected to
     // (1 0 ... 0) instead of (0 ... 0 1)
-    m_S.template middleRows<3>(k).rightCols((std::min)(m_n, m_n - k + 1)).applyHouseholderOnTheLeft(ess, tau, ws.data());
+    m_S.template middleRows<3>(k)
+        .rightCols((std::min)(m_n, m_n - k + 1))
+        .applyHouseholderOnTheLeft(ess, tau, ws.data());
     m_T.template middleRows<3>(k).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, ws.data());
 
     if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
@@ -563,11 +565,15 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
     bprime.makeHouseholder(ess, tau, beta);
 
     m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3);
-    m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+    m_S.template middleCols<3>(k)
+        .topRows((std::min)(k + 4, m_n))
+        .applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
     m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3.transpose());
 
     m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3);
-    m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+    m_T.template middleCols<3>(k)
+        .topRows((std::min)(k + 3, m_n))
+        .applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
     m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3.transpose());
 
     if (m_computeQZ) {
