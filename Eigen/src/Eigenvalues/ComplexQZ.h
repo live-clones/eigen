@@ -31,7 +31,7 @@
  * \tparam MatrixType_ the type input type of the matrix.
  *
  * Given to complex square matrices A and B, this class computes the QZ decomposition
- * \f$ A = Q S Z \f$, \f$ B = Q T Z\f$ where Q and Z are orthogonal matrices and
+ * \f$ A = Q S Z \f$, \f$ B = Q T Z\f$ where Q and Z are unitary matrices and
  * S and T a re upper-triangular matrices. More precisely, Q and Z fulfill
  * \f$ Q Q* = Id\f$ and \f$ Z Z* = Id\f$
  *
@@ -61,17 +61,12 @@ class ComplexQZ {
   using Row2 = Matrix<Scalar, 1, 2>;
   using Mat2 = Matrix<Scalar, 2, 2>;
 
-  // const MatrixType& matrixQ() const { return m_Q; }
-  // const MatrixType& matrixZ() const { return m_Z; }
-  // const MatrixType& matrixS() const { return m_S; }
-  // const MatrixType& matrixT() const { return m_T; }
-
   /** \brief Returns matrix Q in the QZ decomposition.
    *
    * \returns A const reference to the matrix Q.
    */
   const MatrixType& matrixQ() const {
-    eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+    eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Q;
   }
@@ -81,7 +76,7 @@ class ComplexQZ {
    * \returns A const reference to the matrix Z.
    */
   const MatrixType& matrixZ() const {
-    eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+    eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Z;
   }
@@ -91,7 +86,7 @@ class ComplexQZ {
    * \returns A const reference to the matrix S.
    */
   const MatrixType& matrixS() const {
-    eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+    eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     return m_S;
   }
 
@@ -100,7 +95,7 @@ class ComplexQZ {
    * \returns A const reference to the matrix S.
    */
   const MatrixType& matrixT() const {
-    eigen_assert(m_isInitialized && "RealQZ is not initialized.");
+    eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     return m_T;
   }
 
