@@ -11,6 +11,7 @@
 //
 // Derived from: Eigen/src/Eigenvalues/RealQZ.h
 
+#include "Eigen/Core"
 #include "Eigen/Jacobi"
 
 #ifndef EIGEN_COMPLEX_QZ_H_
@@ -107,12 +108,24 @@ class ComplexQZ {
    * especially when we aim to compute the decomposition of two sparse
    * matrices.
    */
-  ComplexQZ(unsigned int n, unsigned int maxIters = 400)
+  ComplexQZ(unsigned int n, bool computeQZ = true, unsigned int maxIters = 400)
       : m_n(n),
-        m_maxIters(maxIters),
-        m_computeQZ(true){
+				m_S(n, n),
+				m_T(n, n),
+				m_Q(computeQZ ? n :
+						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+						computeQZ ? n :
+						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+				m_Z(computeQZ ? n :
+						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+						computeQZ ? n :
+						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+				m_ws(2*n),
+        m_computeQZ(computeQZ),
+        m_maxIters(maxIters)
+		{
 
-        };
+		};
 
   /** \brief Constructor. computes the QZ decomposition of given matrices
    * upon creation
@@ -126,7 +139,22 @@ class ComplexQZ {
    * size as input the computeSparse(...) method.
    */
   ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true,
-			unsigned int maxIters = 400) : m_maxIters(maxIters), m_computeQZ(computeQZ) {
+			unsigned int maxIters = 400) :
+		m_n(A.rows()),
+		m_maxIters(maxIters),
+		m_computeQZ(computeQZ),
+		m_S(A.rows(), A.cols()),
+		m_T(A.rows(), A.cols()),
+				m_Q(computeQZ ? m_n :
+						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+						computeQZ ? m_n :
+						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+				m_Z(computeQZ ? m_n :
+						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+						computeQZ ? m_n :
+						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+			m_ws(2*m_n)
+	{
     compute(A, B, computeQZ);
   }
 
@@ -163,11 +191,15 @@ class ComplexQZ {
   };
 
  private:
+  Index m_n;
   const unsigned int m_maxIters;
   unsigned int m_global_iter;
   bool m_isInitialized;
   bool m_computeQZ;
   ComputationInfo m_info;
+
+  MatrixType m_S, m_T, m_Q, m_Z;
+	Vec m_ws;
 
   // Test if a Scalar is 0 up to a certain tolerance
   static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
@@ -181,9 +213,6 @@ class ComplexQZ {
   // matrices, creates a large matrix, and actually does the step afterwards.
   // This method is thought to do the steps directly on the matrices S, T, Q, Z
   void do_QZ_step(Index p, Index q);
-
-  MatrixType m_S, m_T, m_Q, m_Z;
-  Index m_n;
 
   RealScalar m_normOfT, m_normOfS;
 
@@ -535,7 +564,6 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
       W3 * (b(m - 1, m) / b(m, m));
   z = a(3, 2) / b(2, 2);
 
-  Vec ws(2 * m_n);  // Temporary data
   Vec3 X;
   const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
 
@@ -553,10 +581,10 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
     // (1 0 ... 0) instead of (0 ... 0 1)
     m_S.template middleRows<3>(k)
         .rightCols((std::min)(m_n, m_n - k + 1))
-        .applyHouseholderOnTheLeft(ess, tau, ws.data());
-    m_T.template middleRows<3>(k).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, ws.data());
+        .applyHouseholderOnTheLeft(ess, tau, m_ws.data());
+    m_T.template middleRows<3>(k).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, m_ws.data());
 
-    if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+    if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
 
     // Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
     Vec3 bprime = (m_T.template block<1, 3>(k + 2, k) * S3).adjoint();
@@ -565,18 +593,18 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
     m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3);
     m_S.template middleCols<3>(k)
         .topRows((std::min)(k + 4, m_n))
-        .applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+        .applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
     m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3.transpose());
 
     m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3);
     m_T.template middleCols<3>(k)
         .topRows((std::min)(k + 3, m_n))
-        .applyHouseholderOnTheRight(ess, std::conj(tau), ws.data());
+        .applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
     m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3.transpose());
 
     if (m_computeQZ) {
       m_Z.template middleRows<3>(k).applyOnTheLeft(S3.transpose());
-      m_Z.template middleRows<3>(k).applyHouseholderOnTheLeft(ess, tau, ws.data());
+      m_Z.template middleRows<3>(k).applyHouseholderOnTheLeft(ess, tau, m_ws.data());
       m_Z.template middleRows<3>(k).applyOnTheLeft(S3);
     }
 
