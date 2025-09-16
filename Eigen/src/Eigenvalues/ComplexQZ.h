@@ -110,22 +110,17 @@ class ComplexQZ {
    */
   ComplexQZ(unsigned int n, bool computeQZ = true, unsigned int maxIters = 400)
       : m_n(n),
-				m_S(n, n),
-				m_T(n, n),
-				m_Q(computeQZ ? n :
-						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
-						computeQZ ? n :
-						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
-				m_Z(computeQZ ? n :
-						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
-						computeQZ ? n :
-						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
-				m_ws(2*n),
+        m_S(n, n),
+        m_T(n, n),
+        m_Q(computeQZ ? n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+            computeQZ ? n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+        m_Z(computeQZ ? n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+            computeQZ ? n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+        m_ws(2 * n),
         m_computeQZ(computeQZ),
-        m_maxIters(maxIters)
-		{
+        m_maxIters(maxIters){
 
-		};
+        };
 
   /** \brief Constructor. computes the QZ decomposition of given matrices
    * upon creation
@@ -138,23 +133,17 @@ class ComplexQZ {
    * If input matrices are sparse, call the constructor that uses only the
    * size as input the computeSparse(...) method.
    */
-  ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true,
-			unsigned int maxIters = 400) :
-		m_n(A.rows()),
-		m_maxIters(maxIters),
-		m_computeQZ(computeQZ),
-		m_S(A.rows(), A.cols()),
-		m_T(A.rows(), A.cols()),
-				m_Q(computeQZ ? m_n :
-						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
-						computeQZ ? m_n :
-						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
-				m_Z(computeQZ ? m_n :
-						(MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
-						computeQZ ? m_n :
-						(MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
-			m_ws(2*m_n)
-	{
+  ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true, unsigned int maxIters = 400)
+      : m_n(A.rows()),
+        m_maxIters(maxIters),
+        m_computeQZ(computeQZ),
+        m_S(A.rows(), A.cols()),
+        m_T(A.rows(), A.cols()),
+        m_Q(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+            computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+        m_Z(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+            computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+        m_ws(2 * m_n) {
     compute(A, B, computeQZ);
   }
 
@@ -199,7 +188,7 @@ class ComplexQZ {
   ComputationInfo m_info;
 
   MatrixType m_S, m_T, m_Q, m_Z;
-	Vec m_ws;
+  Vec m_ws;
 
   // Test if a Scalar is 0 up to a certain tolerance
   static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
