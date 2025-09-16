@@ -189,7 +189,7 @@ class ComplexQZ {
 
   RealScalar m_normOfT, m_normOfS;
 
-  static inline Mat2 computeZk2(const Row2& b);
+  inline Mat2 computeZk2(const Row2& b);
 
   // This is basically taken from from Eigen3::RealQZ
   void hessenbergTriangular(const MatrixType& A, const MatrixType& B);
