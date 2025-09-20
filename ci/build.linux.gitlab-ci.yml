@@ -331,16 +331,38 @@ build:linux:cross:loongarch64:gcc-14:default:
 
 ######## MR Smoke Tests ########################################################
 
-build:linux:cross:x86-64:gcc-10:default:smoketest:
-  extends: build:linux:cross:x86-64:gcc-10:default
+# debian-slim clang
+.build:linux:x86-64:debian-slim:
+  extends: .build:linux:cross
+  image: debian:bookworm-slim
   variables:
+    EIGEN_CI_TARGET_ARCH: x86_64
     EIGEN_CI_BUILD_TARGET: buildsmoketests
+    EIGEN_CI_INSTALL: clang
+    EIGEN_CI_C_COMPILER: clang
+    EIGEN_CI_CXX_COMPILER: clang++
+  tags:
+# use the large runner for builds
+    - saas-linux-xlarge-amd64
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-build:linux:cross:x86-64:clang-12:default:smoketest:
-  extends: build:linux:cross:x86-64:clang-12:default
+# debian-slim clang with lld
+build:linux:x86-64:debian-slim-lld:
+  extends: .build:linux:x86-64:debian-slim
   variables:
-    EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    EIGEN_CI_INSTALL: clang lld
+    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
+
+# debian-slim clang with lld (blob)
+build:linux:x86-64:debian-slim-lld:blob:
+  extends: build:linux:x86-64:debian-slim-lld
+  variables:
+    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_UNITY_BUILD=ON
+
+# debian-slim clang with mold
+.build:linux:x86-64:debian-slim-mold:
+  extends: .build:linux:x86-64:debian-slim
+  variables:
+    EIGEN_CI_INSTALL: clang mold
+    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold
