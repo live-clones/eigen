@@ -1052,15 +1052,17 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
 template <typename Arg1, typename Arg2, typename Scalar, typename CmpLhsType, typename CmpRhsType, ComparisonName cmp>
 struct evaluator<CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, bool>, Arg1, Arg2,
                                 CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>>>
-    : public ternary_evaluator<
-          CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, Scalar>, Arg1, Arg2,
-                         CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, true>, CmpLhsType, CmpRhsType>>> {
+    : public ternary_evaluator<CwiseTernaryOp<
+          scalar_boolean_select_op<Scalar, Scalar, Scalar>, Arg1, Arg2,
+          CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, typed_cmp_helper<Scalar, Scalar, true>::value>, CmpLhsType,
+                        CmpRhsType>>> {
   using DummyTernaryOp = scalar_boolean_select_op<Scalar, Scalar, bool>;
   using DummyArg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>;
   using DummyXprType = CwiseTernaryOp<DummyTernaryOp, Arg1, Arg2, DummyArg3>;
 
   using TernaryOp = scalar_boolean_select_op<Scalar, Scalar, Scalar>;
-  using Arg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, true>, CmpLhsType, CmpRhsType>;
+  using Arg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, typed_cmp_helper<Scalar, Scalar, true>::value>,
+                             CmpLhsType, CmpRhsType>;
   using XprType = CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>;
 
   using Base = ternary_evaluator<XprType>;

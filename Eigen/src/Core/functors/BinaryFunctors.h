@@ -207,12 +207,12 @@ struct functor_traits<scalar_cmp_op<LhsScalar, RhsScalar, cmp, UseTypedComparato
   };
 };
 
-template <typename LhsScalar, typename RhsScalar, bool UseTypedComparators>
+template <typename LhsScalar, typename RhsScalar, bool PreferTypedComparators>
 struct typed_cmp_helper {
   static constexpr bool SameType = is_same<LhsScalar, RhsScalar>::value;
   static constexpr bool IsNumeric = is_arithmetic<typename NumTraits<LhsScalar>::Real>::value;
-  static constexpr bool UseTyped = UseTypedComparators && SameType && IsNumeric;
-  using type = typename conditional<UseTyped, LhsScalar, bool>::type;
+  static constexpr bool value = PreferTypedComparators && SameType && IsNumeric;
+  using type = typename conditional<value, LhsScalar, bool>::type;
 };
 
 template <typename LhsScalar, typename RhsScalar, bool UseTypedComparators>
