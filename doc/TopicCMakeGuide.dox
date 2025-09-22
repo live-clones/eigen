@@ -16,7 +16,7 @@ using the `find_package` CMake command and used by calling
 cmake_minimum_required (VERSION 3.0)
 project (myproject)
 
-find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+find_package (Eigen3 REQUIRED NO_MODULE)
 
 add_executable (example example.cpp)
 target_link_libraries (example Eigen3::Eigen)
@@ -44,7 +44,7 @@ $ cmake path-to-example-directory -DEigen3_DIR=$HOME/mypackages/share/eigen3/cma
 If the `REQUIRED` option is omitted when locating %Eigen using
 `find_package`, one can check whether the package was found as follows:
 \code{.cmake}
-find_package (Eigen3 3.3 NO_MODULE)
+find_package (Eigen3 NO_MODULE)
 
 if (TARGET Eigen3::Eigen)
   # Use the imported target
