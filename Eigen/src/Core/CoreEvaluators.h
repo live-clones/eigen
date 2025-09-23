@@ -1048,28 +1048,22 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
   Data m_d;
 };
 
-template <typename Arg1, typename Arg2, typename Scalar, typename CmpLhsType, typename CmpRhsType, ComparisonName cmp>
-struct ternary_select_helper {
-  using DummyTernaryOp = scalar_boolean_select_op<Scalar, Scalar, bool>;
-  using DummyArg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>;
-  using DummyXprType = CwiseTernaryOp<DummyTernaryOp, Arg1, Arg2, DummyArg3>;
-  using TernaryOp = scalar_boolean_select_op<Scalar, Scalar, typename typed_cmp_helper<Scalar, Scalar, true>::type>;
-  using Arg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, typed_cmp_helper<Scalar, Scalar, true>::value>,
-                             CmpLhsType, CmpRhsType>;
-  using XprType = CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>;
-  using Base = ternary_evaluator<XprType>;
-};
-
 // specialization for expressions like (a < b).select(c, d) to enable full vectorization
 template <typename Arg1, typename Arg2, typename Scalar, typename CmpLhsType, typename CmpRhsType, ComparisonName cmp>
 struct evaluator<CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, bool>, Arg1, Arg2,
                                 CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>>>
-    : public ternary_select_helper<Arg1, Arg2, Scalar, CmpLhsType, CmpRhsType, cmp>::Base {
-  using Helper = ternary_select_helper<Arg1, Arg2, Scalar, CmpLhsType, CmpRhsType, cmp>;
-  using Base = typename Helper::Base;
-  using DummyXprType = typename Helper::DummyXprType;
-  using Arg3 = typename Helper::Arg3;
-  using XprType = typename Helper::XprType;
+    : public ternary_evaluator<
+          CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, Scalar>, Arg1, Arg2,
+                         CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, true>, CmpLhsType, CmpRhsType>>> {
+  using DummyTernaryOp = scalar_boolean_select_op<Scalar, Scalar, bool>;
+  using DummyArg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>;
+  using DummyXprType = CwiseTernaryOp<DummyTernaryOp, Arg1, Arg2, DummyArg3>;
+
+  using TernaryOp = scalar_boolean_select_op<Scalar, Scalar, Scalar>;
+  using Arg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, true>, CmpLhsType, CmpRhsType>;
+  using XprType = CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>;
+
+  using Base = ternary_evaluator<XprType>;
 
   EIGEN_DEVICE_FUNC explicit evaluator(const DummyXprType& xpr)
       : Base(XprType(xpr.arg1(), xpr.arg2(), Arg3(xpr.arg3().lhs(), xpr.arg3().rhs()))) {}
