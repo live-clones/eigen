@@ -11,6 +11,9 @@
 #ifndef EIGEN_CORE_MODULE_H
 #define EIGEN_CORE_MODULE_H
 
+// Eigen version information.
+#include "Version"
+
 // first thing Eigen does: stop the compiler from reporting useless warnings.
 #include "src/Core/util/DisableStupidWarnings.h"
 
@@ -101,6 +104,11 @@
 // for std::this_thread::yield().
 #if !defined(EIGEN_USE_BLAS) && (defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL))
 #include <thread>
+#endif
+
+// for std::bit_cast()
+#if defined(__cpp_lib_bit_cast) && __cpp_lib_bit_cast >= 201806L
+#include <bit>
 #endif
 
 // for outputting debug info
@@ -319,6 +327,7 @@ using std::ptrdiff_t;
 #include "src/Core/Product.h"
 #include "src/Core/CoreEvaluators.h"
 #include "src/Core/AssignEvaluator.h"
+#include "src/Core/RealView.h"
 #include "src/Core/Assign.h"
 
 #include "src/Core/ArrayBase.h"
