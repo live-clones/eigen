@@ -62,4 +62,3 @@ IF ($EIGEN_CI_BUILD_TARGET) {
   # building the rest, then try to build again with a single thread.
   cmake --build . --target $EIGEN_CI_BUILD_TARGET -- -k0 || cmake --build . --target $EIGEN_CI_BUILD_TARGET -- -k0 -j1
 }
-
