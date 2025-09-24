@@ -12,7 +12,7 @@ param ($EIGEN_CI_ROOTDIR,
        )
 
 function Get-ScriptDirectory { Split-Path $MyInvocation.ScriptName }
-       
+
 # Set defaults if not already set.
 IF (!$EIGEN_CI_ROOTDIR)               { $EIGEN_CI_ROOTDIR               = Join-Path (Get-ScriptDirectory) '..' }
 IF (!$EIGEN_CI_BUILDDIR)              { $EIGEN_CI_BUILDDIR              = ".build" }

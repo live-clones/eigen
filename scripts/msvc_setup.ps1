@@ -5,7 +5,7 @@ param ($EIGEN_CI_MSVC_ARCH, $EIGEN_CI_MSVC_VER)
 Set-PSDebug -Trace 1
 
 function Get-ScriptDirectory { Split-Path $MyInvocation.ScriptName }
-       
+
 # Set defaults if not already set.
 IF (!$EIGEN_CI_MSVC_ARCH)             { $EIGEN_CI_MSVC_ARCH             = "x64" }
 IF (!$EIGEN_CI_MSVC_VER)              { $EIGEN_CI_MSVC_VER              = "14.29" }
