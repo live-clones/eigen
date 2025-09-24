@@ -95,7 +95,7 @@ Index SparseLUImpl<Scalar, StorageIndex>::copy_to_ucol(const Index jcol, const I
 
     }  // end if jsupno
 
-  }                             // end for each segment
+  }  // end for each segment
   glu.xusub(jcol + 1) = nextu;  // close U(*,jcol)
   return 0;
 }

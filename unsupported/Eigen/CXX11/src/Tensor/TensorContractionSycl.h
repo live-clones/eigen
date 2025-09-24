@@ -245,9 +245,9 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<dt != data_source:
 
 template <data_source dt, typename PacketType, typename DataScalar>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    typename std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size != 1 && dt == data_source::global_mem,
-                              void>
-    write(PacketType &packet_data, DataScalar *ptr) {
+typename std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size != 1 && dt == data_source::global_mem,
+                          void>
+write(PacketType &packet_data, DataScalar *ptr) {
   ::Eigen::internal::pstoreu<DataScalar, PacketType>(ptr, packet_data);
 }
 
@@ -266,9 +266,9 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
  */
 template <data_source dt, typename PacketType, typename DataScalar>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    typename std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size == 1 && dt == data_source::global_mem,
-                              void>
-    write(PacketType &packet_data, DataScalar *ptr) {
+typename std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size == 1 && dt == data_source::global_mem,
+                          void>
+write(PacketType &packet_data, DataScalar *ptr) {
   *ptr = packet_data;
 }
 

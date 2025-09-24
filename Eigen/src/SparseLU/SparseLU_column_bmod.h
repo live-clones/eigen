@@ -108,7 +108,7 @@ Index SparseLUImpl<Scalar, StorageIndex>::column_bmod(const Index jcol, const In
       else
         LU_kernel_bmod<Dynamic>::run(segsize, dense, tempv, glu.lusup, luptr, lda, nrow, glu.lsub, lptr, no_zeros);
     }  // end if jsupno
-  }    // end for each segment
+  }  // end for each segment
 
   // Process the supernodal portion of  L\U[*,j]
   nextlu = glu.xlusup(jcol);

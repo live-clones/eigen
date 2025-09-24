@@ -72,9 +72,9 @@ class RotationBase {
    */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      typename internal::rotation_base_generic_product_selector<Derived, OtherDerived,
-                                                                OtherDerived::IsVectorAtCompileTime>::ReturnType
-      operator*(const EigenBase<OtherDerived>& e) const {
+  typename internal::rotation_base_generic_product_selector<Derived, OtherDerived,
+                                                            OtherDerived::IsVectorAtCompileTime>::ReturnType
+  operator*(const EigenBase<OtherDerived>& e) const {
     return internal::rotation_base_generic_product_selector<Derived, OtherDerived>::run(derived(), e.derived());
   }
 

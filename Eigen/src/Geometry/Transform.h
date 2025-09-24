@@ -412,8 +412,8 @@ class Transform {
    */
   // note: this function is defined here because some compilers cannot find the respective declaration
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename internal::transform_right_product_impl<Transform,
-                                                                                              OtherDerived>::ResultType
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE const typename internal::transform_right_product_impl<Transform, OtherDerived>::ResultType
   operator*(const EigenBase<OtherDerived>& other) const {
     return internal::transform_right_product_impl<Transform, OtherDerived>::run(*this, other.derived());
   }

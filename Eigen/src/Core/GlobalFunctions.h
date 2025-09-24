@@ -106,7 +106,7 @@ EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(trunc, scalar_trunc_op,
                                  nearest integer not greater in magnitude than the given value,\sa Eigen::trunc DOXCOMMA
                                      ArrayBase::trunc)
 EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(
-    isnan, scalar_isnan_op, not -a - number test,\sa Eigen::isinf DOXCOMMA Eigen::isfinite DOXCOMMA ArrayBase::isnan)
+    isnan, scalar_isnan_op, not-a - number test,\sa Eigen::isinf DOXCOMMA Eigen::isfinite DOXCOMMA ArrayBase::isnan)
 EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(
     isinf, scalar_isinf_op, infinite value test,\sa Eigen::isnan DOXCOMMA Eigen::isfinite DOXCOMMA ArrayBase::isinf)
 EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(isfinite, scalar_isfinite_op,

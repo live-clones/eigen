@@ -150,7 +150,7 @@ Index SparseLUImpl<Scalar, StorageIndex>::column_dfs(const Index m, const Index 
       nsuper++;
       glu.supno(jcol) = nsuper;
     }  // if a new supernode
-  }    // end else:  jcol > 0
+  }  // end else:  jcol > 0
 
   // Tidy up the pointers before exit
   glu.xsup(nsuper + 1) = jcolp1;

@@ -203,8 +203,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
     return derived();
   }
 
-  SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */
-  }
+  SparseMatrixBase() : m_isRValue(false) { /* TODO check flags */ }
 
   template <typename OtherDerived>
   Derived& operator=(const ReturnByValue<OtherDerived>& other);
@@ -378,7 +377,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
   /** \returns an expression of P H P^-1 where H is the matrix represented by \c *this */
   SparseSymmetricPermutationProduct<Derived, Upper | Lower> twistedBy(
       const PermutationMatrix<Dynamic, Dynamic, StorageIndex>& perm) const {
-    return SparseSymmetricPermutationProduct<Derived, Upper | Lower>(derived(), perm);
+    return SparseSymmetricPermutationProduct < Derived, Upper | Lower > (derived(), perm);
   }
 
   template <typename OtherDerived>
