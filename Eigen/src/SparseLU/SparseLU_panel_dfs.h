@@ -126,10 +126,10 @@ void SparseLUImpl<Scalar, StorageIndex>::dfs_kernel(const StorageIndex jj, Index
                 maxdfs = xprune(krep);
 
               }  // end if myfnz != -1
-            }    // end if chperm == -1
+            }  // end if chperm == -1
 
           }  // end if chmark !=jj
-        }    // end while xdfs < maxdfs
+        }  // end while xdfs < maxdfs
 
         // krow has no more unexplored nbrs :
         //    Place snode-rep krep in postorder DFS, if this

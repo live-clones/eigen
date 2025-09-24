@@ -67,22 +67,24 @@ class TensorStorage<T, DSizes<IndexType, NumIndices_>, Options_> {
 
   EIGEN_DEVICE_FUNC TensorStorage() : m_data(0), m_dimensions() {
     if (NumIndices_ == 0) {
-      m_data = internal::conditional_aligned_new_auto<T, (Options_ & DontAlign) == 0>(1);
+      m_data = internal::conditional_aligned_new_auto < T, (Options_ & DontAlign) == 0 > (1);
     }
   }
   EIGEN_DEVICE_FUNC TensorStorage(Index size, const array<Index, NumIndices_>& dimensions)
-      : m_data(internal::conditional_aligned_new_auto<T, (Options_ & DontAlign) == 0>(size)), m_dimensions(dimensions) {
+      : m_data(internal::conditional_aligned_new_auto < T, (Options_ & DontAlign) == 0 > (size)),
+        m_dimensions(dimensions) {
     EIGEN_INTERNAL_TENSOR_STORAGE_CTOR_PLUGIN
   }
 
   template <typename... DenseIndex>
   EIGEN_DEVICE_FUNC TensorStorage(DenseIndex... indices) : m_dimensions(indices...) {
-    m_data = internal::conditional_aligned_new_auto<T, (Options_ & DontAlign) == 0>(internal::array_prod(m_dimensions));
+    m_data = internal::conditional_aligned_new_auto < T,
+    (Options_ & DontAlign) == 0 > (internal::array_prod(m_dimensions));
   }
 
   EIGEN_DEVICE_FUNC TensorStorage(const Self& other)
-      : m_data(internal::conditional_aligned_new_auto<T, (Options_ & DontAlign) == 0>(
-            internal::array_prod(other.m_dimensions))),
+      : m_data(internal::conditional_aligned_new_auto < T,
+               (Options_ & DontAlign) == 0 > (internal::array_prod(other.m_dimensions))),
         m_dimensions(other.m_dimensions) {
     internal::smart_copy(other.m_data, other.m_data + internal::array_prod(other.m_dimensions), m_data);
   }
@@ -118,9 +120,9 @@ class TensorStorage<T, DSizes<IndexType, NumIndices_>, Options_> {
     if (size != currentSz) {
       internal::conditional_aligned_delete_auto<T, (Options_ & DontAlign) == 0>(m_data, currentSz);
       if (size)
-        m_data = internal::conditional_aligned_new_auto<T, (Options_ & DontAlign) == 0>(size);
+        m_data = internal::conditional_aligned_new_auto < T, (Options_ & DontAlign) == 0 > (size);
       else if (NumIndices_ == 0) {
-        m_data = internal::conditional_aligned_new_auto<T, (Options_ & DontAlign) == 0>(1);
+        m_data = internal::conditional_aligned_new_auto < T, (Options_ & DontAlign) == 0 > (1);
       } else
         m_data = 0;
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})

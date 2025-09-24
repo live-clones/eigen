@@ -58,7 +58,7 @@ struct CommaInitializer {
   }
 
   /* inserts a scalar value in the target matrix */
-  EIGEN_DEVICE_FUNC CommaInitializer &operator,(const Scalar& s) {
+  EIGEN_DEVICE_FUNC CommaInitializer& operator,(const Scalar& s) {
     if (m_col == m_xpr.cols()) {
       m_row += m_currentBlockRows;
       m_col = 0;
@@ -73,7 +73,7 @@ struct CommaInitializer {
 
   /* inserts a matrix expression in the target matrix */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC CommaInitializer &operator,(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC CommaInitializer& operator,(const DenseBase<OtherDerived>& other) {
     if (m_col == m_xpr.cols() && (other.cols() != 0 || other.rows() != m_currentBlockRows)) {
       m_row += m_currentBlockRows;
       m_col = 0;

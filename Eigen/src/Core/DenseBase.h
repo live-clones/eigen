@@ -525,24 +525,24 @@ class DenseBase
 
   template <typename ThenDerived, typename ElseDerived>
   inline EIGEN_DEVICE_FUNC
-      CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
-                                                        typename DenseBase<ElseDerived>::Scalar, Scalar>,
-                     ThenDerived, ElseDerived, Derived>
-      select(const DenseBase<ThenDerived>& thenMatrix, const DenseBase<ElseDerived>& elseMatrix) const;
+  CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
+                                                    typename DenseBase<ElseDerived>::Scalar, Scalar>,
+                 ThenDerived, ElseDerived, Derived>
+  select(const DenseBase<ThenDerived>& thenMatrix, const DenseBase<ElseDerived>& elseMatrix) const;
 
   template <typename ThenDerived>
   inline EIGEN_DEVICE_FUNC
-      CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
-                                                        typename DenseBase<ThenDerived>::Scalar, Scalar>,
-                     ThenDerived, typename DenseBase<ThenDerived>::ConstantReturnType, Derived>
-      select(const DenseBase<ThenDerived>& thenMatrix, const typename DenseBase<ThenDerived>::Scalar& elseScalar) const;
+  CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
+                                                    typename DenseBase<ThenDerived>::Scalar, Scalar>,
+                 ThenDerived, typename DenseBase<ThenDerived>::ConstantReturnType, Derived>
+  select(const DenseBase<ThenDerived>& thenMatrix, const typename DenseBase<ThenDerived>::Scalar& elseScalar) const;
 
   template <typename ElseDerived>
   inline EIGEN_DEVICE_FUNC
-      CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ElseDerived>::Scalar,
-                                                        typename DenseBase<ElseDerived>::Scalar, Scalar>,
-                     typename DenseBase<ElseDerived>::ConstantReturnType, ElseDerived, Derived>
-      select(const typename DenseBase<ElseDerived>::Scalar& thenScalar, const DenseBase<ElseDerived>& elseMatrix) const;
+  CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ElseDerived>::Scalar,
+                                                    typename DenseBase<ElseDerived>::Scalar, Scalar>,
+                 typename DenseBase<ElseDerived>::ConstantReturnType, ElseDerived, Derived>
+  select(const typename DenseBase<ElseDerived>::Scalar& thenScalar, const DenseBase<ElseDerived>& elseMatrix) const;
 
   template <int p>
   RealScalar lpNorm() const;
@@ -580,12 +580,12 @@ class DenseBase
 #else
   typedef std::conditional_t<(Flags & DirectAccessBit) == DirectAccessBit,
                              internal::pointer_based_stl_iterator<Derived>,
-                             internal::generic_randaccess_stl_iterator<Derived> >
+                             internal::generic_randaccess_stl_iterator<Derived>>
       iterator_type;
 
   typedef std::conditional_t<(Flags & DirectAccessBit) == DirectAccessBit,
                              internal::pointer_based_stl_iterator<const Derived>,
-                             internal::generic_randaccess_stl_iterator<const Derived> >
+                             internal::generic_randaccess_stl_iterator<const Derived>>
       const_iterator_type;
 
   // Stl-style iterators are supported only for vectors.
@@ -660,11 +660,11 @@ class DenseBase
  */
 template <typename DerivedA, typename DerivedB>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    // Use forwarding references to capture all combinations of cv-qualified l+r-value cases.
-    std::enable_if_t<std::is_base_of<DenseBase<std::decay_t<DerivedA>>, std::decay_t<DerivedA>>::value &&
-                         std::is_base_of<DenseBase<std::decay_t<DerivedB>>, std::decay_t<DerivedB>>::value,
-                     void>
-    swap(DerivedA&& a, DerivedB&& b) {
+// Use forwarding references to capture all combinations of cv-qualified l+r-value cases.
+std::enable_if_t<std::is_base_of<DenseBase<std::decay_t<DerivedA>>, std::decay_t<DerivedA>>::value &&
+                     std::is_base_of<DenseBase<std::decay_t<DerivedB>>, std::decay_t<DerivedB>>::value,
+                 void>
+swap(DerivedA&& a, DerivedB&& b) {
   a.swap(b);
 }
 

@@ -249,9 +249,9 @@ class BaseTensorContractionMapper
       : ParentMapper(tensor, nocontract_strides, ij_strides, contract_strides, k_strides) {}
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::unpacket_traits<PacketT>::size == packet_size, PacketT>
-      load(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE std::enable_if_t<internal::unpacket_traits<PacketT>::size == packet_size, PacketT>
+  load(Index i, Index j) const {
     // whole method makes column major assumption
 
     // don't need to add offsets for now (because operator handles that)
@@ -292,9 +292,9 @@ class BaseTensorContractionMapper
   }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::unpacket_traits<PacketT>::size != packet_size, PacketT>
-      load(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE std::enable_if_t<internal::unpacket_traits<PacketT>::size != packet_size, PacketT>
+  load(Index i, Index j) const {
     const Index requested_packet_size = internal::unpacket_traits<PacketT>::size;
     EIGEN_ALIGN_MAX Scalar data[requested_packet_size];
 

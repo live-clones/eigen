@@ -104,9 +104,9 @@ struct void_helper {
 
   // Restores the original return type, Void -> void, T otherwise.
   template <typename T>
-  static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC
-      std::enable_if_t<!std::is_same<typename std::decay<T>::type, Void>::value, T>
-      restore(T&& val) {
+  static EIGEN_ALWAYS_INLINE
+  EIGEN_DEVICE_FUNC std::enable_if_t<!std::is_same<typename std::decay<T>::type, Void>::value, T>
+  restore(T&& val) {
     return val;
   }
 

@@ -119,9 +119,9 @@ void SparseLUImpl<Scalar, StorageIndex>::pruneL(const Index jcol, const IndexVec
         }  // end while
 
         xprune(irep) = StorageIndex(kmin);  // Pruning
-      }                                     // end if do_prune
-    }                                       // end pruning
-  }                                         // End for each U-segment
+      }  // end if do_prune
+    }  // end pruning
+  }  // End for each U-segment
 }
 
 }  // end namespace internal

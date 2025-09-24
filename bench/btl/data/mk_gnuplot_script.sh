@@ -62,7 +62,3 @@ echo "'"$LAST"'" title "'"$TITLE"'" >>  $WHAT.gnuplot
 gnuplot -persist < $WHAT.gnuplot
 
 rm $WHAT.gnuplot
-
-
-
-

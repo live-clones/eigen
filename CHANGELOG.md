@@ -24,7 +24,7 @@ Released on August 18, 2021
 ### New backends
 
 * **Arm SVE:** fixed-length [Scalable Vector Extensions](https://developer.arm.com/Architectures/Scalable%20Vector%20Extensions) vectors for `uint32_t` and `float` are available.
-* **MIPS MSA:**: [MIPS SIMD Architecture (MSA)](https://www.mips.com/products/architectures/ase/simd/) 
+* **MIPS MSA:**: [MIPS SIMD Architecture (MSA)](https://www.mips.com/products/architectures/ase/simd/)
 * **AMD ROCm/HIP:** generic GPU backend that unifies support for [NVIDIA/CUDA](https://developer.nvidia.com/cuda-toolkit) and [AMD/HIP](https://rocmdocs.amd.com/en/latest/).
 * **Power 10 MMA:** initial support for [Power 10 matrix multiplication assist instructions](https://arxiv.org/pdf/2104.03142.pdf) for float32 and float64, real and complex.
 

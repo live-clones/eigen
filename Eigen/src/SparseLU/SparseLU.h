@@ -791,9 +791,9 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
         irep = segrep(i);
         repfnz_k(irep) = emptyIdxLU;
       }
-    }                    // end SparseLU within the panel
+    }  // end SparseLU within the panel
     jcol += panel_size;  // Move to the next panel
-  }                      // end for -- end elimination
+  }  // end for -- end elimination
 
   m_detPermR = m_perm_r.determinant();
   m_detPermC = m_perm_c.determinant();

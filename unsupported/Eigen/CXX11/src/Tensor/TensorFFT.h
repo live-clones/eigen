@@ -57,7 +57,7 @@ struct PartOf<ImagPart> {
 
 namespace internal {
 template <typename FFT, typename XprType, int FFTResultType, int FFTDir>
-struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir> > : public traits<XprType> {
+struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>> : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -81,7 +81,7 @@ struct eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, Eigen::Dense
 
 template <typename FFT, typename XprType, int FFTResultType, int FFTDirection>
 struct nested<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, 1,
-              typename eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection> >::type> {
+              typename eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>>::type> {
   typedef TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection> type;
 };
 

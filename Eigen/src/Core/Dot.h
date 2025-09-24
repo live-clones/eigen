@@ -47,9 +47,9 @@ struct squared_norm_impl<Derived, bool> {
 template <typename Derived>
 template <typename OtherDerived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
-                                  typename internal::traits<OtherDerived>::Scalar>::ReturnType
-    MatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const {
+typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
+                              typename internal::traits<OtherDerived>::Scalar>::ReturnType
+MatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const {
   return internal::dot_impl<Derived, OtherDerived>::run(derived(), other.derived());
 }
 

@@ -1,5 +1,5 @@
 # This is a CMake version file for the Config-mode of find_package().
-# 
+#
 # The version constraint is compatible with the current package under the
 # following conditions:
 # - If a version range is specified, the package version falls within the

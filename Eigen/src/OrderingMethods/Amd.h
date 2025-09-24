@@ -317,7 +317,7 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
         hhead[h] = i;
         last[i] = h; /* save hash of i in last[i] */
       }
-    }               /* scan2 is done */
+    } /* scan2 is done */
     degree[k] = dk; /* finalize |Lk| */
     lemax = std::max<StorageIndex>(lemax, dk);
     mark = internal::cs_wclear<StorageIndex>(mark + lemax, lemax, w, n); /* clear w */

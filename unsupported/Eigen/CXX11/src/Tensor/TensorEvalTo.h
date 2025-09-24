@@ -134,7 +134,7 @@ struct TensorEvaluator<const TensorEvalToOp<ArgType, MakePointer_>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalScalar(Index i) const { m_buffer[i] = m_impl.coeff(i); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalPacket(Index i) const {
     internal::pstoret<CoeffReturnType, PacketReturnType, Aligned>(
-        m_buffer + i, m_impl.template packet < TensorEvaluator<ArgType, Device>::IsAligned ? Aligned : Unaligned > (i));
+        m_buffer + i, m_impl.template packet<TensorEvaluator<ArgType, Device>::IsAligned ? Aligned : Unaligned>(i));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {

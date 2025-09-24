@@ -226,8 +226,8 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename tuple_get_impl<Idx, Typ
 template <typename... Tuples, typename EnableIf = std::enable_if_t<
                                   internal::reduce_all<is_tuple<typename std::decay<Tuples>::type>::value...>::value>>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    typename tuple_cat_impl<sizeof...(Tuples), typename std::decay<Tuples>::type...>::ReturnType
-    tuple_cat(Tuples&&... tuples) {
+typename tuple_cat_impl<sizeof...(Tuples), typename std::decay<Tuples>::type...>::ReturnType
+tuple_cat(Tuples&&... tuples) {
   return tuple_cat_impl<sizeof...(Tuples), typename std::decay<Tuples>::type...>::run(std::forward<Tuples>(tuples)...);
 }
 

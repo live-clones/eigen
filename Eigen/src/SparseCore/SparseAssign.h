@@ -175,9 +175,9 @@ struct assignment_from_dense_op_sparse {
   // Specialization for dense1 = sparse + dense2; -> dense1 = dense2; dense1 += sparse;
   template <typename Lhs, typename Rhs, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
-      run(DstXprType &dst, const CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Lhs, const Rhs> &src,
-          const internal::assign_op<typename DstXprType::Scalar, Scalar> & /*func*/) {
+  std::enable_if_t<internal::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
+  run(DstXprType &dst, const CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Lhs, const Rhs> &src,
+      const internal::assign_op<typename DstXprType::Scalar, Scalar> & /*func*/) {
 #ifdef EIGEN_SPARSE_ASSIGNMENT_FROM_SPARSE_ADD_DENSE_PLUGIN
     EIGEN_SPARSE_ASSIGNMENT_FROM_SPARSE_ADD_DENSE_PLUGIN
 #endif
@@ -190,10 +190,9 @@ struct assignment_from_dense_op_sparse {
   // Specialization for dense1 = sparse - dense2; -> dense1 = -dense2; dense1 += sparse;
   template <typename Lhs, typename Rhs, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
-      run(DstXprType &dst,
-          const CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>, const Lhs, const Rhs> &src,
-          const internal::assign_op<typename DstXprType::Scalar, Scalar> & /*func*/) {
+  std::enable_if_t<internal::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
+  run(DstXprType &dst, const CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>, const Lhs, const Rhs> &src,
+      const internal::assign_op<typename DstXprType::Scalar, Scalar> & /*func*/) {
 #ifdef EIGEN_SPARSE_ASSIGNMENT_FROM_SPARSE_SUB_DENSE_PLUGIN
     EIGEN_SPARSE_ASSIGNMENT_FROM_SPARSE_SUB_DENSE_PLUGIN
 #endif

@@ -105,11 +105,11 @@ template <typename Derived>
 template <typename CustomNullaryOp>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-    const CwiseNullaryOp<CustomNullaryOp, typename DenseBase<Derived>::PlainObject>
+const CwiseNullaryOp<CustomNullaryOp, typename DenseBase<Derived>::PlainObject>
 #else
-    const CwiseNullaryOp<CustomNullaryOp, PlainObject>
+const CwiseNullaryOp<CustomNullaryOp, PlainObject>
 #endif
-    DenseBase<Derived>::NullaryExpr(Index rows, Index cols, const CustomNullaryOp& func) {
+DenseBase<Derived>::NullaryExpr(Index rows, Index cols, const CustomNullaryOp& func) {
   return CwiseNullaryOp<CustomNullaryOp, PlainObject>(rows, cols, func);
 }
 
@@ -135,11 +135,11 @@ template <typename Derived>
 template <typename CustomNullaryOp>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-    const CwiseNullaryOp<CustomNullaryOp, typename DenseBase<Derived>::PlainObject>
+const CwiseNullaryOp<CustomNullaryOp, typename DenseBase<Derived>::PlainObject>
 #else
-    const CwiseNullaryOp<CustomNullaryOp, PlainObject>
+const CwiseNullaryOp<CustomNullaryOp, PlainObject>
 #endif
-    DenseBase<Derived>::NullaryExpr(Index size, const CustomNullaryOp& func) {
+DenseBase<Derived>::NullaryExpr(Index size, const CustomNullaryOp& func) {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   if (RowsAtCompileTime == 1)
     return CwiseNullaryOp<CustomNullaryOp, PlainObject>(1, size, func);
@@ -160,11 +160,11 @@ template <typename Derived>
 template <typename CustomNullaryOp>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-    const CwiseNullaryOp<CustomNullaryOp, typename DenseBase<Derived>::PlainObject>
+const CwiseNullaryOp<CustomNullaryOp, typename DenseBase<Derived>::PlainObject>
 #else
-    const CwiseNullaryOp<CustomNullaryOp, PlainObject>
+const CwiseNullaryOp<CustomNullaryOp, PlainObject>
 #endif
-    DenseBase<Derived>::NullaryExpr(const CustomNullaryOp& func) {
+DenseBase<Derived>::NullaryExpr(const CustomNullaryOp& func) {
   return CwiseNullaryOp<CustomNullaryOp, PlainObject>(RowsAtCompileTime, ColsAtCompileTime, func);
 }
 
