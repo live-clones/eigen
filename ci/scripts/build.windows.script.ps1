@@ -1,5 +1,5 @@
 # Find Visual Studio installation directory.
-$VS_INSTALL_DIR = &"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+$Env:VS_INSTALL_DIR = &"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
 echo ${VS_INSTALL_DIR}
 # Run VCVarsAll.bat initialization script and extract environment variables.
 # http://allen-mack.blogspot.com/2008/03/replace-visual-studio-command-prompt.html
