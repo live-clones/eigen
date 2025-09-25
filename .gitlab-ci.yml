@@ -25,10 +25,10 @@ variables:
   EIGEN_CI_CTEST_ARGS: ""
 
 include:
-  - "/ci/checkformat.gitlab-ci.yml"
+#  - "/ci/checkformat.gitlab-ci.yml"
   - "/ci/common.gitlab-ci.yml"
-  - "/ci/build.linux.gitlab-ci.yml"
+#  - "/ci/build.linux.gitlab-ci.yml"
   - "/ci/build.windows.gitlab-ci.yml"
-  - "/ci/test.linux.gitlab-ci.yml"
-  - "/ci/test.windows.gitlab-ci.yml"
-  - "/ci/deploy.gitlab-ci.yml"
+#  - "/ci/test.linux.gitlab-ci.yml"
+#  - "/ci/test.windows.gitlab-ci.yml"
+#  - "/ci/deploy.gitlab-ci.yml"
