@@ -33,7 +33,7 @@ if (${EIGEN_CI_BUILD_TARGET}) {
 
 # Windows builds sometimes fail due heap errors. In that case, try
 # building the rest, then try to build again with a single thread.
-cmake --build . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
+cmake --build . ${target}
 
 $success = $LASTEXITCODE
 
