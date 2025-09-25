@@ -8,5 +8,5 @@ Get-Variable CMAKE* | Format-Table -Wrap
 if ("${EIGEN_CI_BEFORE_SCRIPT}") { Invoke-Expression -Command "${EIGEN_CI_BEFORE_SCRIPT}" }
 
 choco install ninja -y
-choco install visualstudio2022-workload-vctools -y
-type C:\ProgramData\chocolatey\logs\chocolatey.log
+# choco install visualstudio2022-workload-vctools -y
+# Get-Content C:\ProgramData\chocolatey\logs\chocolatey.log
