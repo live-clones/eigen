@@ -1,5 +1,6 @@
 # Base configuration for linux cross-compilation.
 .build:linux:cross:
+  needs: []
   extends: .common:linux:cross
   stage: build
   variables:
