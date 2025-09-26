@@ -376,7 +376,7 @@ void svd_preallocate() {
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
-void svd_verify_assert_full_only(const MatrixType& input = MatrixType()) {
+constexpr void svd_verify_assert_full_only(const MatrixType& input = MatrixType()) {
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime };
 
   typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1> RhsType;
@@ -407,7 +407,7 @@ void svd_verify_assert_full_only(const MatrixType& input = MatrixType()) {
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
-void svd_verify_assert(const MatrixType& input = MatrixType()) {
+constexpr void svd_verify_assert(const MatrixType& input = MatrixType()) {
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime };
   typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1> RhsType;
   RhsType rhs = RhsType::Zero(input.rows());

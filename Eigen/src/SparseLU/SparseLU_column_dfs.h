@@ -43,11 +43,11 @@ template <typename IndexVector, typename ScalarVector>
 struct column_dfs_traits : no_assignment_operator {
   typedef typename ScalarVector::Scalar Scalar;
   typedef typename IndexVector::Scalar StorageIndex;
-  column_dfs_traits(Index jcol, Index& jsuper, typename SparseLUImpl<Scalar, StorageIndex>::GlobalLU_t& glu,
-                    SparseLUImpl<Scalar, StorageIndex>& luImpl)
+  constexpr column_dfs_traits(Index jcol, Index& jsuper, typename SparseLUImpl<Scalar, StorageIndex>::GlobalLU_t& glu,
+                              SparseLUImpl<Scalar, StorageIndex>& luImpl)
       : m_jcol(jcol), m_jsuper_ref(jsuper), m_glu(glu), m_luImpl(luImpl) {}
-  bool update_segrep(Index /*krep*/, Index /*jj*/) { return true; }
-  void mem_expand(IndexVector& lsub, Index& nextl, Index chmark) {
+  constexpr bool update_segrep(Index /*krep*/, Index /*jj*/) { return true; }
+  constexpr void mem_expand(IndexVector& lsub, Index& nextl, Index chmark) {
     if (nextl >= m_glu.nzlmax) m_luImpl.memXpand(lsub, m_glu.nzlmax, nextl, LSUB, m_glu.num_expansions);
     if (chmark != (m_jcol - 1)) m_jsuper_ref = emptyIdxLU;
   }
@@ -87,11 +87,12 @@ struct column_dfs_traits : no_assignment_operator {
  *
  */
 template <typename Scalar, typename StorageIndex>
-Index SparseLUImpl<Scalar, StorageIndex>::column_dfs(const Index m, const Index jcol, IndexVector& perm_r,
-                                                     Index maxsuper, Index& nseg, BlockIndexVector lsub_col,
-                                                     IndexVector& segrep, BlockIndexVector repfnz, IndexVector& xprune,
-                                                     IndexVector& marker, IndexVector& parent, IndexVector& xplore,
-                                                     GlobalLU_t& glu) {
+constexpr Index SparseLUImpl<Scalar, StorageIndex>::column_dfs(const Index m, const Index jcol, IndexVector& perm_r,
+                                                               Index maxsuper, Index& nseg, BlockIndexVector lsub_col,
+                                                               IndexVector& segrep, BlockIndexVector repfnz,
+                                                               IndexVector& xprune, IndexVector& marker,
+                                                               IndexVector& parent, IndexVector& xplore,
+                                                               GlobalLU_t& glu) {
   Index jsuper = glu.supno(jcol);
   Index nextl = glu.xlsub(jcol);
   VectorBlock<IndexVector> marker2(marker, 2 * m, m);
