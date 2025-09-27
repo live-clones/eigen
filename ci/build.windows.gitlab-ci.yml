@@ -26,9 +26,7 @@
 
 ######### MSVC #################################################################
 
-# MSVC 14.29 (VS 2019)
-
-# 32 bit
+# MSVC 14.29 (VS 2019) 32 bit
 
 build:windows:x86:msvc-14.29:default:
   extends: .build:windows
@@ -36,7 +34,7 @@ build:windows:x86:msvc-14.29:default:
     EIGEN_CI_MSVC_VER: "14.29"
     EIGEN_CI_MSVC_ARCH: "x86"
 
-# 64 bit
+# MSVC 14.29 (VS 2019) 64 bit
 
 build:windows:x86-64:msvc-14.29:default:
   extends: .build:windows
@@ -53,3 +51,27 @@ build:windows:x86-64:msvc-14.29:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
+
+# MSVC 14.29 (VS 2019) + CUDA
+
+.build:windows:cuda:
+  extends: .build:windows
+  variables:
+    # Compute architectures present in the GitLab CI runners.
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "50;75"
+    EIGEN_CI_BUILD_TARGET: buildtests_gpu
+    EIGEN_CI_ADDITIONAL_ARGS:
+      -DEIGEN_TEST_CUDA=on
+      -DEIGEN_CUDA_COMPUTE_ARCH=${EIGEN_CI_CUDA_COMPUTE_ARCH}
+  tags:
+    - eigen-runner
+    - windows
+    - x86-64
+    - cuda
+
+# MSVC 14.29 + CUDA 11.4
+build:windows:x86-64:cuda-11.4:msvc-14.29:
+  extends: .build:windows:cuda
+  variables:
+    EIGEN_CI_MSVC_VER: "14.29"
+    EIGEN_CI_BEFORE_SCRIPT: $$env:CUDA_PATH=$$env:CUDA_PATH_V11_4
