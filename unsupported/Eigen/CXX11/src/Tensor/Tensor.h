@@ -90,7 +90,13 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   struct isOfNormalIndex {
     static const bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
     static const bool is_int = NumTraits<CustomIndices>::IsInteger;
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+    static constexpr bool is_TensorIndex =
+        internal::is_base_of<TensorIndexBase, typename internal::remove_all<CustomIndices>::type>::value;
+    static constexpr bool value = is_array | is_int | is_TensorIndex;
+#else
     static const bool value = is_array | is_int;
+#endif
   };
 
  public:
@@ -207,6 +213,11 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
     return operator()(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
   }
+
+#if EIGEN_CXX11_TENSOR_HAS_INDEXED_TENSOR
+  // Einstein notation
+  using TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> >::operator();
+#endif
 
   // normal indices
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator()(const array<Index, NumIndices>& indices) {
