@@ -364,7 +364,7 @@ void test_contiguous_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
   typedef Ref<const MatrixType, Unaligned, Stride<0, 0>> CRef_;
   MatrixType m(obj);
   Ref_ ref(m);
-  //VERIFY(test_is_equal(ref.data(), m.data(), true));
+  VERIFY(test_is_equal(ref.data(), m.data(), true));
   CRef_ cref(m);
   VERIFY(test_is_equal(cref.data(), m.data(), true));
 }
