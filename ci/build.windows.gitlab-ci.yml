@@ -32,7 +32,7 @@ build:windows:x86:msvc-14.29:default:
   extends: .build:windows
   variables:
     EIGEN_CI_MSVC_VER: "14.29"
-    EIGEN_CI_MSVC_ARCH: "x86"
+    EIGEN_CI_MSVC_ARCH: "x64_x86"
 
 # MSVC 14.29 (VS 2019) 64 bit
 
