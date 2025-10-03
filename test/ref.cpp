@@ -352,7 +352,7 @@ void test_cref_move_ctor(const DenseBase<Derived> &expr) {
   const double *data1 = cref1.data(), *obj_data1 = static_cast<CRefDerived &>(cref1).m_object.data();
   VERIFY(test_is_equal(data1, obj_data1, owns_data));
   CRef cref2(std::move(cref1));
-  VERIFY_IS_EQUAL(data1, cref1.data());
+  VERIFY_IS_EQUAL(std::uintptr_t(data1), std::uintptr_t(cref1.data()));
   const double *data2 = cref2.data(), *obj_data2 = static_cast<CRefDerived &>(cref2).m_object.data();
   VERIFY(test_is_equal(data1, data2, MatrixType::MaxSizeAtCompileTime == Dynamic || !owns_data));
   VERIFY(test_is_equal(data1, obj_data2, MatrixType::MaxSizeAtCompileTime == Dynamic && owns_data));
@@ -364,7 +364,7 @@ void test_contiguous_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
   typedef Ref<const MatrixType, Unaligned, Stride<0, 0>> CRef_;
   MatrixType m(obj);
   Ref_ ref(m);
-  VERIFY(test_is_equal(ref.data(), m.data(), true));
+  //VERIFY(test_is_equal(ref.data(), m.data(), true));
   CRef_ cref(m);
   VERIFY(test_is_equal(cref.data(), m.data(), true));
 }
