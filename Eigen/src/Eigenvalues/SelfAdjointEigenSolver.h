@@ -332,7 +332,8 @@ class SelfAdjointEigenSolver {
    * \pre The eigenvalues and eigenvectors of a positive-definite matrix
    * have been computed before.
    *
-   * \sa operatorInverseSqrt(), operatorSqrt(), <a href="unsupported/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
+   * \sa operatorInverseSqrt(), operatorSqrt(),
+   * <a href="unsupported/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
   EIGEN_DEVICE_FUNC MatrixType operatorExp() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
