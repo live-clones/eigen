@@ -51,21 +51,21 @@ class SparseView : public SparseMatrixBase<SparseView<MatrixType> > {
   EIGEN_SPARSE_PUBLIC_INTERFACE(SparseView)
   typedef internal::remove_all_t<MatrixType> NestedExpression;
 
-  explicit SparseView(const MatrixType& mat, const Scalar& reference = Scalar(0),
-                      const RealScalar& epsilon = NumTraits<Scalar>::dummy_precision())
+  constexpr explicit SparseView(const MatrixType& mat, const Scalar& reference = Scalar(0),
+                                const RealScalar& epsilon = NumTraits<Scalar>::dummy_precision())
       : m_matrix(mat), m_reference(reference), m_epsilon(epsilon) {}
 
-  inline Index rows() const { return m_matrix.rows(); }
-  inline Index cols() const { return m_matrix.cols(); }
+  inline constexpr Index rows() const { return m_matrix.rows(); }
+  inline constexpr Index cols() const { return m_matrix.cols(); }
 
-  inline Index innerSize() const { return m_matrix.innerSize(); }
-  inline Index outerSize() const { return m_matrix.outerSize(); }
+  inline constexpr Index innerSize() const { return m_matrix.innerSize(); }
+  inline constexpr Index outerSize() const { return m_matrix.outerSize(); }
 
   /** \returns the nested expression */
-  const internal::remove_all_t<MatrixTypeNested>& nestedExpression() const { return m_matrix; }
+  constexpr const internal::remove_all_t<MatrixTypeNested>& nestedExpression() const { return m_matrix; }
 
-  Scalar reference() const { return m_reference; }
-  RealScalar epsilon() const { return m_epsilon; }
+  constexpr Scalar reference() const { return m_reference; }
+  constexpr RealScalar epsilon() const { return m_epsilon; }
 
  protected:
   MatrixTypeNested m_matrix;
@@ -91,12 +91,12 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased> : public evaluator_ba
     typedef typename XprType::Scalar Scalar;
 
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& sve, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const unary_evaluator& sve, Index outer)
         : EvalIterator(sve.m_argImpl, outer), m_view(sve.m_view) {
       incrementToNonZero();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       EvalIterator::operator++();
       incrementToNonZero();
       return *this;
@@ -108,7 +108,7 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased> : public evaluator_ba
     const XprType& m_view;
 
    private:
-    void incrementToNonZero() {
+    constexpr void incrementToNonZero() {
       while ((bool(*this)) && internal::isMuchSmallerThan(value(), m_view.reference(), m_view.epsilon())) {
         EvalIterator::operator++();
       }
@@ -117,7 +117,7 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased> : public evaluator_ba
 
   enum { CoeffReadCost = evaluator<ArgType>::CoeffReadCost, Flags = XprType::Flags };
 
-  explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
+  constexpr explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
 
  protected:
   evaluator<ArgType> m_argImpl;
@@ -137,26 +137,26 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased> : public evaluator_base<
  public:
   class InnerIterator {
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& sve, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const unary_evaluator& sve, Index outer)
         : m_sve(sve), m_inner(0), m_outer(outer), m_end(sve.m_view.innerSize()) {
       incrementToNonZero();
     }
 
-    EIGEN_STRONG_INLINE InnerIterator& operator++() {
+    EIGEN_STRONG_INLINE constexpr InnerIterator& operator++() {
       m_inner++;
       incrementToNonZero();
       return *this;
     }
 
-    EIGEN_STRONG_INLINE Scalar value() const {
+    EIGEN_STRONG_INLINE constexpr Scalar value() const {
       return (IsRowMajor) ? m_sve.m_argImpl.coeff(m_outer, m_inner) : m_sve.m_argImpl.coeff(m_inner, m_outer);
     }
 
-    EIGEN_STRONG_INLINE StorageIndex index() const { return m_inner; }
-    inline Index row() const { return IsRowMajor ? m_outer : index(); }
-    inline Index col() const { return IsRowMajor ? index() : m_outer; }
+    EIGEN_STRONG_INLINE constexpr StorageIndex index() const { return m_inner; }
+    inline constexpr Index row() const { return IsRowMajor ? m_outer : index(); }
+    inline constexpr Index col() const { return IsRowMajor ? index() : m_outer; }
 
-    EIGEN_STRONG_INLINE operator bool() const { return m_inner < m_end && m_inner >= 0; }
+    EIGEN_STRONG_INLINE constexpr operator bool() const { return m_inner < m_end && m_inner >= 0; }
 
    protected:
     const unary_evaluator& m_sve;
@@ -165,7 +165,7 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased> : public evaluator_base<
     const Index m_end;
 
    private:
-    void incrementToNonZero() {
+    constexpr void incrementToNonZero() {
       while ((bool(*this)) && internal::isMuchSmallerThan(value(), m_sve.m_view.reference(), m_sve.m_view.epsilon())) {
         m_inner++;
       }
@@ -174,7 +174,7 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased> : public evaluator_base<
 
   enum { CoeffReadCost = evaluator<ArgType>::CoeffReadCost, Flags = XprType::Flags };
 
-  explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
+  constexpr explicit unary_evaluator(const XprType& xpr) : m_argImpl(xpr.nestedExpression()), m_view(xpr) {}
 
  protected:
   evaluator<ArgType> m_argImpl;
@@ -198,8 +198,8 @@ struct unary_evaluator<SparseView<ArgType>, IndexBased> : public evaluator_base<
  *
  * \sa SparseMatrixBase::pruned(), class SparseView */
 template <typename Derived>
-const SparseView<Derived> MatrixBase<Derived>::sparseView(const Scalar& reference,
-                                                          const typename NumTraits<Scalar>::Real& epsilon) const {
+constexpr const SparseView<Derived> MatrixBase<Derived>::sparseView(
+    const Scalar& reference, const typename NumTraits<Scalar>::Real& epsilon) const {
   return SparseView<Derived>(derived(), reference, epsilon);
 }
 
@@ -216,7 +216,8 @@ const SparseView<Derived> MatrixBase<Derived>::sparseView(const Scalar& referenc
  * where \c ref is a meaningful non zero reference value.
  * */
 template <typename Derived>
-const SparseView<Derived> SparseMatrixBase<Derived>::pruned(const Scalar& reference, const RealScalar& epsilon) const {
+constexpr const SparseView<Derived> SparseMatrixBase<Derived>::pruned(const Scalar& reference,
+                                                                      const RealScalar& epsilon) const {
   return SparseView<Derived>(derived(), reference, epsilon);
 }
 

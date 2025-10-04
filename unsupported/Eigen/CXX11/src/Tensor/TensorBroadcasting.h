@@ -72,12 +72,14 @@ class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, X
   typedef typename Eigen::internal::traits<TensorBroadcastingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorBroadcastingOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBroadcastingOp(const XprType& expr, const Broadcast& broadcast)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorBroadcastingOp(const XprType& expr, const Broadcast& broadcast)
       : m_xpr(expr), m_broadcast(broadcast) {}
 
-  EIGEN_DEVICE_FUNC const Broadcast& broadcast() const { return m_broadcast; }
+  EIGEN_DEVICE_FUNC constexpr const Broadcast& broadcast() const { return m_broadcast; }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& expression() const {
+    return m_xpr;
+  }
 
  protected:
   typename XprType::Nested m_xpr;
@@ -129,7 +131,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : isCopy(false),
         nByOne(false),
         oneByN(false),
@@ -201,23 +203,23 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_impl.evalSubExprsIfNeeded(NULL);
     return true;
   }
 
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
-  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+  EIGEN_STRONG_INLINE constexpr void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
     m_impl.evalSubExprsIfNeededAsync(nullptr, [done](bool) { done(true); });
   }
 #endif  // EIGEN_USE_THREADS
 
-  EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
+  EIGEN_STRONG_INLINE constexpr void cleanup() { m_impl.cleanup(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr CoeffReturnType coeff(Index index) const {
     if (internal::is_input_scalar<internal::remove_all_t<InputDimensions>>::value) {
       return m_impl.coeff(0);
     }
@@ -238,7 +240,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   }
 
   // TODO: attempt to speed this up. The integer divisions and modulo are slow
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index indexColMajor(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index indexColMajor(Index index) const {
     Index inputIndex = 0;
     EIGEN_UNROLL_LOOP
     for (int i = NumDims - 1; i > 0; --i) {
@@ -268,11 +270,11 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     return inputIndex;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeffColMajor(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeffColMajor(Index index) const {
     return m_impl.coeff(indexColMajor(index));
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index indexRowMajor(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index indexRowMajor(Index index) const {
     Index inputIndex = 0;
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < NumDims - 1; ++i) {
@@ -302,7 +304,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     return inputIndex;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeffRowMajor(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeffRowMajor(Index index) const {
     return m_impl.coeff(indexRowMajor(index));
   }
 
@@ -562,7 +564,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     double compute_cost = TensorOpCost::AddCost<Index>();
     if (!isCopy && NumDims > 0) {
       EIGEN_UNROLL_LOOP
@@ -582,7 +584,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr internal::TensorBlockResourceRequirements getResourceRequirements()
+      const {
     // TODO(wuke): Targeting L1 size is 30% faster than targeting L{-1} on large
     // tensors. But this might need further tuning.
     const size_t target_size = m_device.firstLevelCacheSize();
@@ -590,8 +593,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
         m_impl.getResourceRequirements(), internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size));
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
-                                                          bool /*root_of_expr_ast*/ = false) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                                    bool /*root_of_expr_ast*/ = false) const {
     BlockBroadcastingParams params = blockBroadcastingParams(desc);
 
     if (params.inner_dim_size == 0 || params.bcast_dim_size == 0) {
@@ -650,11 +653,11 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     return block_storage.AsTensorMaterializedBlock();
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return NULL; }
 
-  const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
+  constexpr const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
 
-  Broadcast functor() const { return m_broadcast; }
+  constexpr Broadcast functor() const { return m_broadcast; }
 
  private:
   static constexpr bool IsColMajor = static_cast<int>(Layout) == static_cast<int>(ColMajor);
@@ -704,7 +707,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     Index output_span;
   };
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE BlockBroadcastingParams blockBroadcastingParams(TensorBlockDesc& desc) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr BlockBroadcastingParams blockBroadcastingParams(
+      TensorBlockDesc& desc) const {
     BlockBroadcastingParams params;
 
     params.input_dims = Dimensions(m_impl.dimensions());
@@ -792,13 +796,13 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     return params;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock emptyBlock() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorBlock emptyBlock() const {
     DSizes<Index, NumDims> dimensions;
     for (int i = 0; i < NumDims; ++i) dimensions[i] = 0;
     return TensorBlock(internal::TensorBlockKind::kView, NULL, dimensions);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index BroadcastBlockAlongBcastDim(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index BroadcastBlockAlongBcastDim(
       BlockBroadcastingParams params, Index bcast_offset, TensorBlockScratch& scratch,
       ScalarNoConst* materialized_output, ScalarNoConst** materialized_input, size_t* materialized_input_size) const {
     if (params.bcast_dim_size == 1) {
@@ -932,7 +936,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index BroadcastBlock(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index BroadcastBlock(
       const Dimensions& input_block_sizes, const Dimensions& input_block_strides,
       const BroadcastDimensions& bcast_block_sizes, const BroadcastDimensions& bcast_block_strides,
       const BroadcastDimensions& bcast_input_strides, Index bcast_offset, Index offset, TensorBlockScratch& scratch,

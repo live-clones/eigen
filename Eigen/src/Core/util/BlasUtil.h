@@ -473,8 +473,8 @@ struct blas_traits {
   };
   typedef std::conditional_t<bool(HasUsableDirectAccess), ExtractType, typename ExtractType_::PlainObject>
       DirectLinearAccessType;
-  EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC ExtractType extract(const XprType& x) { return x; }
-  EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC const Scalar extractScalarFactor(const XprType&) {
+  EIGEN_DEVICE_FUNC static inline constexpr EIGEN_DEVICE_FUNC ExtractType extract(const XprType& x) { return x; }
+  EIGEN_DEVICE_FUNC static inline constexpr EIGEN_DEVICE_FUNC const Scalar extractScalarFactor(const XprType&) {
     return Scalar(1);
   }
 };

@@ -138,14 +138,14 @@ class SGroup : public internal::tensor_symmetry_pre_analysis<internal::tensor_sy
   typedef typename internal::tensor_symmetry_pre_analysis<NumIndices, Gen...>::root_type Base;
 
   // make standard constructors + assignment operators public
-  inline SGroup() : Base() {}
-  inline SGroup(const SGroup<Gen...>& other) : Base(other) {}
-  inline SGroup(SGroup<Gen...>&& other) : Base(other) {}
-  inline SGroup<Gen...>& operator=(const SGroup<Gen...>& other) {
+  inline constexpr SGroup() = default;
+  inline constexpr SGroup(const SGroup<Gen...>& other) : Base(other) {}
+  inline constexpr SGroup(SGroup<Gen...>&& other) : Base(other) {}
+  inline constexpr SGroup<Gen...>& operator=(const SGroup<Gen...>& other) {
     Base::operator=(other);
     return *this;
   }
-  inline SGroup<Gen...>& operator=(SGroup<Gen...>&& other) {
+  inline constexpr SGroup<Gen...>& operator=(SGroup<Gen...>&& other) {
     Base::operator=(other);
     return *this;
   }
@@ -263,8 +263,8 @@ struct tensor_symmetry_assign_value {
   typedef typename Tensor_::Scalar Scalar;
   constexpr static std::size_t NumIndices = Tensor_::NumIndices;
 
-  static inline int run(const std::array<Index, NumIndices>& transformed_indices, int transformation_flags, int dummy,
-                        Tensor_& tensor, const Scalar& value_) {
+  static inline constexpr int run(const std::array<Index, NumIndices>& transformed_indices, int transformation_flags,
+                                  int dummy, Tensor_& tensor, const Scalar& value_) {
     Scalar value(value_);
     if (transformation_flags & ConjugationFlag) value = numext::conj(value);
     if (transformation_flags & NegationFlag) value = -value;
@@ -278,8 +278,8 @@ struct tensor_symmetry_calculate_flags {
   typedef typename Tensor_::Index Index;
   constexpr static std::size_t NumIndices = Tensor_::NumIndices;
 
-  static inline int run(const std::array<Index, NumIndices>& transformed_indices, int transform_flags,
-                        int current_flags, const std::array<Index, NumIndices>& orig_indices) {
+  static inline constexpr int run(const std::array<Index, NumIndices>& transformed_indices, int transform_flags,
+                                  int current_flags, const std::array<Index, NumIndices>& orig_indices) {
     if (transformed_indices == orig_indices) {
       if (transform_flags & (ConjugationFlag | NegationFlag))
         return current_flags | GlobalImagFlag;  // anti-hermitian diagonal
@@ -299,11 +299,11 @@ class tensor_symmetry_value_setter {
   typedef typename Tensor_::Scalar Scalar;
   constexpr static std::size_t NumIndices = Tensor_::NumIndices;
 
-  inline tensor_symmetry_value_setter(Tensor_& tensor, Symmetry_ const& symmetry,
-                                      std::array<Index, NumIndices> const& indices)
+  inline constexpr tensor_symmetry_value_setter(Tensor_& tensor, Symmetry_ const& symmetry,
+                                                std::array<Index, NumIndices> const& indices)
       : m_tensor(tensor), m_symmetry(symmetry), m_indices(indices) {}
 
-  inline tensor_symmetry_value_setter<Tensor_, Symmetry_, Flags>& operator=(Scalar const& value) {
+  inline constexpr tensor_symmetry_value_setter<Tensor_, Symmetry_, Flags>& operator=(Scalar const& value) {
     doAssign(value);
     return *this;
   }
@@ -313,7 +313,7 @@ class tensor_symmetry_value_setter {
   Symmetry_ m_symmetry;
   std::array<Index, NumIndices> m_indices;
 
-  inline void doAssign(Scalar const& value) {
+  inline constexpr void doAssign(Scalar const& value) {
 #ifdef EIGEN_TENSOR_SYMMETRY_CHECK_VALUES
     int value_flags = m_symmetry.template apply<internal::tensor_symmetry_calculate_flags<Tensor_>, int>(
         m_indices, m_symmetry.globalFlags(), m_indices);
