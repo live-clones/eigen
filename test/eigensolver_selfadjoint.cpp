@@ -135,11 +135,13 @@ void selfadjointeigensolver(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(eiSymmUninitialized.eigenvectors());
   VERIFY_RAISES_ASSERT(eiSymmUninitialized.operatorSqrt());
   VERIFY_RAISES_ASSERT(eiSymmUninitialized.operatorInverseSqrt());
+  VERIFY_RAISES_ASSERT(eiSymmUninitialized.operatorExpm());
 
   eiSymmUninitialized.compute(symmA, false);
   VERIFY_RAISES_ASSERT(eiSymmUninitialized.eigenvectors());
   VERIFY_RAISES_ASSERT(eiSymmUninitialized.operatorSqrt());
   VERIFY_RAISES_ASSERT(eiSymmUninitialized.operatorInverseSqrt());
+  VERIFY_RAISES_ASSERT(eiSymmUninitialized.operatorExpm());
 
   // test Tridiagonalization's methods
   Tridiagonalization<MatrixType> tridiag(symmC);
