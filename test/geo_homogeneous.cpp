@@ -132,8 +132,8 @@ void homogeneous(void) {
     RowVector<Scalar, Size - 1> left_data = RowVector<Scalar, Size - 1>::Random();
     Homogeneous<RowVector<Scalar, Size - 1>, Horizontal> left = left_data.homogeneous();
 
-    VERIFY_IS_APPROX(P * right, P * right.eval());
-    VERIFY_IS_APPROX(left * P, left.eval() * P);
+    VERIFY_IS_APPROX(P * right, right);
+    VERIFY_IS_APPROX(left * P, left);
   }
 }
 
