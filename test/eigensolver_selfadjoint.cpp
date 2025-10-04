@@ -13,6 +13,7 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SparseCore>
+#include <unsupported/Eigen/MatrixFunctions>
 
 template <typename MatrixType>
 void selfadjointeigensolver_essential_check(const MatrixType& m) {
@@ -168,6 +169,14 @@ void selfadjointeigensolver(const MatrixType& m) {
     VERIFY_IS_APPROX(tridiag.matrixT(), eiSymmTridiag.eigenvectors().real() * eiSymmTridiag.eigenvalues().asDiagonal() *
                                             eiSymmTridiag.eigenvectors().real().transpose());
   }
+
+  // Test matrix expponential from eigendecomposition.
+  // First scale to avoid overflow.
+  symmB = symmB / symmB.norm();
+  eiSymm.compute(symmB);
+  MatrixType expSymmB = eiSymm.operatorExp();
+  symmB = symmB.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(expSymmB, symmB.exp());
 
   if (rows > 1 && rows < 20) {
     // Test matrix with NaN
