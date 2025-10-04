@@ -334,7 +334,7 @@ class SelfAdjointEigenSolver {
    *
    * \sa operatorInverseSqrt(), operatorSqrt(), <a href="unsupported/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
-    EIGEN_DEVICE_FUNC MatrixType operatorExp() const {
+  EIGEN_DEVICE_FUNC MatrixType operatorExp() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
     eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
     return m_eivec * m_eivalues.array().exp().matrix().asDiagonal() * m_eivec.adjoint();
