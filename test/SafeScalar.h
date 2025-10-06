@@ -10,6 +10,9 @@ class SafeScalar {
   template <typename Source>
   explicit SafeScalar(const Source& val) : SafeScalar(T(val)) {}
 
+  // explicitly define copy constructor so it does not satisfy std::is_trivially_copyable
+  SafeScalar(const SafeScalar& other) : val_(other.val_), initialized_(other.initialized_) {}
+
   operator T() const {
     VERIFY(initialized_ && "Uninitialized access.");
     return val_;
