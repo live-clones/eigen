@@ -127,10 +127,8 @@ void homogeneous(void) {
 
   {
     PermutationMatrix<Size> P{Vector<int, Size>::EqualSpaced(0, 1).reverse()};
-    Vector<Scalar, Size - 1> right_data = Vector<Scalar, Size - 1>::Random();
-    Homogeneous<Vector<Scalar, Size - 1>, Vertical> right = right_data.homogeneous();
-    RowVector<Scalar, Size - 1> left_data = RowVector<Scalar, Size - 1>::Random();
-    Homogeneous<RowVector<Scalar, Size - 1>, Horizontal> left = left_data.homogeneous();
+    auto right = Vector<Scalar, Size - 1>::Random().eval().nestByValue().homogeneous();
+    auto left = RowVector<Scalar, Size - 1>::Random().eval().nestByValue().homogeneous();
 
     VERIFY_IS_APPROX(P * right, right.reverse());
     VERIFY_IS_APPROX(left * P, left.reverse());
