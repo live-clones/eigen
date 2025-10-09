@@ -23,9 +23,9 @@ import bisect
 
 
 def __lldb_init_module(debugger, internal_dict):
-    debugger.HandleCommand("type synthetic add -x Eigen::Matrix<.*> --python-class eigenlldb.EigenMatrixChildProvider")
+    debugger.HandleCommand("type synthetic add -x ^Eigen::Matrix<.*> --python-class eigenlldb.EigenMatrixChildProvider")
     debugger.HandleCommand(
-        "type synthetic add -x Eigen::SparseMatrix<.*> --python-class eigenlldb.EigenSparseMatrixChildProvider")
+        "type synthetic add -x ^Eigen::SparseMatrix<.*> --python-class eigenlldb.EigenSparseMatrixChildProvider")
 
 
 class EigenMatrixChildProvider:
