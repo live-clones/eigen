@@ -97,11 +97,12 @@ endif()
 
 set(EIGEN_LAPACK_TARGETS "")
 
-add_library(eigen_lapack_static ${EigenLapack_SRCS} ${ReferenceLapack_SRCS})
+add_library(eigen_lapack_static STATIC ${EigenLapack_SRCS} ${ReferenceLapack_SRCS})
 list(APPEND EIGEN_LAPACK_TARGETS eigen_lapack_static)
 
 if (EIGEN_BUILD_SHARED_LIBS)
   add_library(eigen_lapack SHARED ${EigenLapack_SRCS})
+  target_compile_definitions(eigen_lapack PUBLIC "EIGEN_BUILD_DLL")
   list(APPEND EIGEN_LAPACK_TARGETS eigen_lapack)
   target_link_libraries(eigen_lapack  eigen_blas)
 endif()

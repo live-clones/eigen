@@ -17,13 +17,9 @@
 // Eigen version and basic defaults
 //------------------------------------------------------------------------------------------
 
-#define EIGEN_WORLD_VERSION 3
-#define EIGEN_MAJOR_VERSION 4
-#define EIGEN_MINOR_VERSION 90
-
 #define EIGEN_VERSION_AT_LEAST(x, y, z) \
-  (EIGEN_WORLD_VERSION > x ||           \
-   (EIGEN_WORLD_VERSION >= x && (EIGEN_MAJOR_VERSION > y || (EIGEN_MAJOR_VERSION >= y && EIGEN_MINOR_VERSION >= z))))
+  (EIGEN_MAJOR_VERSION > x ||           \
+   (EIGEN_MAJOR_VERSION >= x && (EIGEN_MINOR_VERSION > y || (EIGEN_MINOR_VERSION >= y && EIGEN_PATCH_VERSION >= z))))
 
 #ifdef EIGEN_DEFAULT_TO_ROW_MAJOR
 #define EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION Eigen::RowMajor
@@ -54,6 +50,26 @@
 #ifndef EIGEN_STACK_ALLOCATION_LIMIT
 // 131072 == 128 KB
 #define EIGEN_STACK_ALLOCATION_LIMIT 131072
+#endif
+
+/* Specify whether to use std::fma for scalar multiply-add instructions.
+ *
+ * On machines that have FMA as a single instruction, this will generally
+ * improve precision without significant performance implications.
+ *
+ * Without a single instruction, performance has been found to be reduced 2-3x
+ * on Intel CPUs, and up to 30x for WASM.
+ *
+ * If unspecified, defaults to using FMA if hardware support is available.
+ * The default should be used in most cases to ensure consistency between
+ * vectorized and non-vectorized paths.
+ */
+#ifndef EIGEN_SCALAR_MADD_USE_FMA
+#ifdef EIGEN_VECTORIZE_FMA
+#define EIGEN_SCALAR_MADD_USE_FMA 1
+#else
+#define EIGEN_SCALAR_MADD_USE_FMA 0
+#endif
 #endif
 
 //------------------------------------------------------------------------------------------
@@ -942,6 +958,18 @@
 #endif
 #else
 #define EIGEN_DEPRECATED
+#endif
+
+#ifndef EIGEN_NO_DEPRECATED_WARNING
+#if EIGEN_COMP_GNUC
+#define EIGEN_DEPRECATED_WITH_REASON(message) __attribute__((deprecated(message)))
+#elif EIGEN_COMP_MSVC
+#define EIGEN_DEPRECATED_WITH_REASON(message) __declspec(deprecated(message))
+#else
+#define EIGEN_DEPRECATED_WITH_REASON(message)
+#endif
+#else
+#define EIGEN_DEPRECATED_WITH_REASON(message)
 #endif
 
 #if EIGEN_COMP_GNUC
