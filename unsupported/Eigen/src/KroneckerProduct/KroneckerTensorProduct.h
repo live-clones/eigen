@@ -36,16 +36,16 @@ class KroneckerProductBase : public ReturnByValue<Derived> {
 
  public:
   /*! \brief Constructor. */
-  KroneckerProductBase(const Lhs& A, const Rhs& B) : m_A(A), m_B(B) {}
+  constexpr KroneckerProductBase(const Lhs& A, const Rhs& B) : m_A(A), m_B(B) {}
 
-  inline Index rows() const { return m_A.rows() * m_B.rows(); }
-  inline Index cols() const { return m_A.cols() * m_B.cols(); }
+  inline constexpr Index rows() const { return m_A.rows() * m_B.rows(); }
+  inline constexpr Index cols() const { return m_A.cols() * m_B.cols(); }
 
   /*!
    * This overrides ReturnByValue::coeff because this function is
    * efficient enough.
    */
-  Scalar coeff(Index row, Index col) const {
+  constexpr Scalar coeff(Index row, Index col) const {
     return m_A.coeff(row / m_B.rows(), col / m_B.cols()) * m_B.coeff(row % m_B.rows(), col % m_B.cols());
   }
 
@@ -53,7 +53,7 @@ class KroneckerProductBase : public ReturnByValue<Derived> {
    * This overrides ReturnByValue::coeff because this function is
    * efficient enough.
    */
-  Scalar coeff(Index i) const {
+  constexpr Scalar coeff(Index i) const {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived);
     return m_A.coeff(i / m_A.size()) * m_B.coeff(i % m_A.size());
   }
@@ -84,11 +84,11 @@ class KroneckerProduct : public KroneckerProductBase<KroneckerProduct<Lhs, Rhs> 
 
  public:
   /*! \brief Constructor. */
-  KroneckerProduct(const Lhs& A, const Rhs& B) : Base(A, B) {}
+  constexpr KroneckerProduct(const Lhs& A, const Rhs& B) : Base(A, B) {}
 
   /*! \brief Evaluate the Kronecker tensor product. */
   template <typename Dest>
-  void evalTo(Dest& dst) const;
+  constexpr void evalTo(Dest& dst) const;
 };
 
 /*!
@@ -115,16 +115,16 @@ class KroneckerProductSparse : public KroneckerProductBase<KroneckerProductSpars
 
  public:
   /*! \brief Constructor. */
-  KroneckerProductSparse(const Lhs& A, const Rhs& B) : Base(A, B) {}
+  constexpr KroneckerProductSparse(const Lhs& A, const Rhs& B) : Base(A, B) {}
 
   /*! \brief Evaluate the Kronecker tensor product. */
   template <typename Dest>
-  void evalTo(Dest& dst) const;
+  constexpr void evalTo(Dest& dst) const;
 };
 
 template <typename Lhs, typename Rhs>
 template <typename Dest>
-void KroneckerProduct<Lhs, Rhs>::evalTo(Dest& dst) const {
+constexpr void KroneckerProduct<Lhs, Rhs>::evalTo(Dest& dst) const {
   const int BlockRows = Rhs::RowsAtCompileTime, BlockCols = Rhs::ColsAtCompileTime;
   const Index Br = m_B.rows(), Bc = m_B.cols();
   for (Index i = 0; i < m_A.rows(); ++i)
@@ -134,7 +134,7 @@ void KroneckerProduct<Lhs, Rhs>::evalTo(Dest& dst) const {
 
 template <typename Lhs, typename Rhs>
 template <typename Dest>
-void KroneckerProductSparse<Lhs, Rhs>::evalTo(Dest& dst) const {
+constexpr void KroneckerProductSparse<Lhs, Rhs>::evalTo(Dest& dst) const {
   Index Br = m_B.rows(), Bc = m_B.cols();
   dst.resize(this->rows(), this->cols());
   dst.resizeNonZeros(0);
@@ -249,7 +249,7 @@ struct traits<KroneckerProductSparse<Lhs_, Rhs_> > {
  * \return   Kronecker tensor product of a and b
  */
 template <typename A, typename B>
-KroneckerProduct<A, B> kroneckerProduct(const MatrixBase<A>& a, const MatrixBase<B>& b) {
+constexpr KroneckerProduct<A, B> kroneckerProduct(const MatrixBase<A>& a, const MatrixBase<B>& b) {
   return KroneckerProduct<A, B>(a.derived(), b.derived());
 }
 
@@ -275,7 +275,7 @@ KroneckerProduct<A, B> kroneckerProduct(const MatrixBase<A>& a, const MatrixBase
  *           matrix
  */
 template <typename A, typename B>
-KroneckerProductSparse<A, B> kroneckerProduct(const EigenBase<A>& a, const EigenBase<B>& b) {
+constexpr KroneckerProductSparse<A, B> kroneckerProduct(const EigenBase<A>& a, const EigenBase<B>& b) {
   return KroneckerProductSparse<A, B>(a.derived(), b.derived());
 }
 
