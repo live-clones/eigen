@@ -228,58 +228,7 @@ class ComplexQZ {
 
   void push_down_zero_ST(Index k, Index l);
 
-	void reduceDiagonal2x2block(Index i) {
-		// We have found a non-zero on the subdiagonal and want to eliminate it
-		Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
-		if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
-			Eigen::JacobiRotation<Scalar> G;
-			G.makeGivens(m_S(i, i), m_S(i + 1, i));
-			m_S.applyOnTheLeft(i, i + 1, G.adjoint());
-			m_T.applyOnTheLeft(i, i + 1, G.adjoint());
-
-			if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
-
-		} else if (!is_negligible(Ti(0, 0)) && is_negligible(Ti(1, 1))) {
-			Eigen::JacobiRotation<Scalar> G;
-			G.makeGivens(m_S(i + 1, i + 1), m_S(i + 1, i));
-			m_S.applyOnTheRight(i, i + 1, G.adjoint());
-			m_T.applyOnTheRight(i, i + 1, G.adjoint());
-			if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
-		} else if (!is_negligible(Ti(0, 0)) && !is_negligible((Ti(1, 1)))) {
-			Scalar mu = Si(0, 0) / Ti(0, 0);
-			Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
-			Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);
-			Scalar p = Scalar(0.5) * (a22_bar / Ti(1, 1) - Ti(0, 1) * Si(1, 0) / (Ti(0, 0) * Ti(1, 1)));
-			RealScalar sgn_p = p.real() >= RealScalar(0) ? RealScalar(1) : RealScalar(-1);
-			Scalar q = Si(1, 0) * a12_bar / (Ti(0, 0) * Ti(1, 1));
-			Scalar r = p * p + q;
-			Scalar lambda = mu + p + sgn_p * numext::sqrt(r);
-			Mat2 E = Si - lambda * Ti;
-			Index l;
-			E.rowwise().norm().maxCoeff(&l);
-			JacobiRotation<Scalar> G;
-			G.makeGivens(E(l, 1), E(l, 0));
-			m_S.applyOnTheRight(i, i + 1, G.adjoint());
-			m_T.applyOnTheRight(i, i + 1, G.adjoint());
-
-			if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
-
-			Mat2 tildeSi = m_S.template block<2, 2>(i, i), tildeTi = m_T.template block<2, 2>(i, i);
-			Mat2 C = tildeSi.norm() < (lambda * tildeTi).norm() ? tildeSi : lambda * tildeTi;
-			G.makeGivens(C(0, 0), C(1, 0));
-			m_S.applyOnTheLeft(i, i + 1, G.adjoint());
-			m_T.applyOnTheLeft(i, i + 1, G.adjoint());
-
-			if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
-		}
-
-		if(!is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon())) {
-			m_info = ComputationInfo::NumericalIssue;
-		} else {
-			m_S(i + 1, i) = Scalar(0);
-		}
-
-	}
+	void reduceDiagonal2x2block(Index i);
 
 };
 
@@ -577,7 +526,62 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
   if (m_computeQZ) m_Z.template middleRows<2>(p + m - 2).applyOnTheLeft(Zn1.adjoint());
 }
 
-// We have a 0 at T(k,k) and want to "push it down" to T(l,l)
+/** \internal we found an undesired non-zero at (i+1,i) on the subdiagonal of S and reduce the block */
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
+	// We have found a non-zero on the subdiagonal and want to eliminate it
+	Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
+	if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
+		Eigen::JacobiRotation<Scalar> G;
+		G.makeGivens(m_S(i, i), m_S(i + 1, i));
+		m_S.applyOnTheLeft(i, i + 1, G.adjoint());
+		m_T.applyOnTheLeft(i, i + 1, G.adjoint());
+
+		if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
+
+	} else if (!is_negligible(Ti(0, 0)) && is_negligible(Ti(1, 1))) {
+		Eigen::JacobiRotation<Scalar> G;
+		G.makeGivens(m_S(i + 1, i + 1), m_S(i + 1, i));
+		m_S.applyOnTheRight(i, i + 1, G.adjoint());
+		m_T.applyOnTheRight(i, i + 1, G.adjoint());
+		if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
+	} else if (!is_negligible(Ti(0, 0)) && !is_negligible((Ti(1, 1)))) {
+		Scalar mu = Si(0, 0) / Ti(0, 0);
+		Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
+		Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);
+		Scalar p = Scalar(0.5) * (a22_bar / Ti(1, 1) - Ti(0, 1) * Si(1, 0) / (Ti(0, 0) * Ti(1, 1)));
+		RealScalar sgn_p = p.real() >= RealScalar(0) ? RealScalar(1) : RealScalar(-1);
+		Scalar q = Si(1, 0) * a12_bar / (Ti(0, 0) * Ti(1, 1));
+		Scalar r = p * p + q;
+		Scalar lambda = mu + p + sgn_p * numext::sqrt(r);
+		Mat2 E = Si - lambda * Ti;
+		Index l;
+		E.rowwise().norm().maxCoeff(&l);
+		JacobiRotation<Scalar> G;
+		G.makeGivens(E(l, 1), E(l, 0));
+		m_S.applyOnTheRight(i, i + 1, G.adjoint());
+		m_T.applyOnTheRight(i, i + 1, G.adjoint());
+
+		if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
+
+		Mat2 tildeSi = m_S.template block<2, 2>(i, i), tildeTi = m_T.template block<2, 2>(i, i);
+		Mat2 C = tildeSi.norm() < (lambda * tildeTi).norm() ? tildeSi : lambda * tildeTi;
+		G.makeGivens(C(0, 0), C(1, 0));
+		m_S.applyOnTheLeft(i, i + 1, G.adjoint());
+		m_T.applyOnTheLeft(i, i + 1, G.adjoint());
+
+		if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
+	}
+
+	if(!is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon())) {
+		m_info = ComputationInfo::NumericalIssue;
+	} else {
+		m_S(i + 1, i) = Scalar(0);
+	}
+
+}
+
+/** \internal We found a zero at T(k,k) and want to "push it down" to T(l,l) */
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   // Test Preconditions
