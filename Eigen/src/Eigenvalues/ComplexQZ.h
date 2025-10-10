@@ -228,8 +228,7 @@ class ComplexQZ {
 
   void push_down_zero_ST(Index k, Index l);
 
-	void reduceDiagonal2x2block(Index i);
-
+  void reduceDiagonal2x2block(Index i);
 };
 
 template <typename MatrixType_>
@@ -238,8 +237,7 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
   m_n = A.rows();
 
   eigen_assert(m_n == A.cols() && "A is not a square matrix");
-  eigen_assert(m_n == B.rows() && m_n == B.cols()
-			&& "B is not a square matrix or B is not of the same size as A");
+  eigen_assert(m_n == B.rows() && m_n == B.cols() && "B is not a square matrix or B is not of the same size as A");
 
   m_isInitialized = true;
   m_global_iter = 0;
@@ -284,10 +282,10 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
         m_T.rightCols(m_n - i + 1).applyOnTheLeft(i - 1, i, G.adjoint());
         m_S.rightCols(m_n - j - 1).applyOnTheLeft(i - 1, i, G.adjoint());
         // This is what we want to achieve
-				if (!is_negligible(m_S(i, j)))
-					m_info = ComputationInfo::NumericalIssue;
-				else
-					m_S(i, j) = Scalar(0);
+        if (!is_negligible(m_S(i, j)))
+          m_info = ComputationInfo::NumericalIssue;
+        else
+          m_S(i, j) = Scalar(0);
         // update Q
         if (m_computeQZ) m_Q.applyOnTheRight(i - 1, i, G);
       }
@@ -314,10 +312,9 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 
   SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<Index>> sparseQR;
 
-  eigen_assert(
-      B.isCompressed() &&
-      "SparseQR requires a sparse matrix in compressed mode."
-			"Call .makeCompressed() before passing it to SparseQR");
+  eigen_assert(B.isCompressed() &&
+               "SparseQR requires a sparse matrix in compressed mode."
+               "Call .makeCompressed() before passing it to SparseQR");
 
   // Computing QR decomposition of T...
   sparseQR.setPivotThreshold(RealScalar(0));  // This prevends algorithm from doing pivoting
@@ -348,9 +345,9 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
         m_T.rightCols(m_n - i + 1).applyOnTheLeft(i - 1, i, G.adjoint());
         m_S.rightCols(m_n - j - 1).applyOnTheLeft(i - 1, i, G.adjoint());
         // This is what we want to achieve
-				if (!is_negligible(m_S(i, j))) {
-					m_info = ComputationInfo::NumericalIssue;
-				}
+        if (!is_negligible(m_S(i, j))) {
+          m_info = ComputationInfo::NumericalIssue;
+        }
         m_S(i, j) = Scalar(0);
         // update Q
         if (m_computeQZ) m_Q.applyOnTheRight(i - 1, i, G);
@@ -377,8 +374,7 @@ void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const Spar
   m_computeQZ = computeQZ;
   m_n = A.rows();
   eigen_assert(m_n == A.cols() && "A is not a square matrix");
-  eigen_assert(m_n == B.rows() && m_n == B.cols() &&
-			"B is not a square matrix or B is not of the same size as A");
+  eigen_assert(m_n == B.rows() && m_n == B.cols() && "B is not a square matrix or B is not of the same size as A");
   m_isInitialized = true;
   m_global_iter = 0;
   hessenbergTriangularSparse(A, B);
@@ -405,8 +401,8 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
       l--;
       local_iter = 0;
     } else if (f == l - 1) {  // Two roots found
-			// We found an undesired non-zero at (f+1,f) in S and eliminate it immediately
-			reduceDiagonal2x2block(f);
+      // We found an undesired non-zero at (f+1,f) in S and eliminate it immediately
+      reduceDiagonal2x2block(f);
       l -= 2;
       local_iter = 0;
     } else {
@@ -450,8 +446,7 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
   Scalar x, y, z;
 
   // We could introduce doing exceptional shifts from time to time.
-  Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1),
-				 W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
+  Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1), W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
          W3 = a(m, m - 1) / b(m - 1, m - 1);
 
   x = (W1 * W2 - a(m - 1, m) / b(m, m) * W3 + W3 * b(m - 1, m) / b(m, m) * a(1, 1) / b(1, 1)) * b(1, 1) / a(2, 1) +
@@ -476,8 +471,7 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
         .rightCols((std::min)(m_n, m_n - k + 1))
         .applyHouseholderOnTheLeft(ess, tau, m_ws.data());
     m_T.template middleRows<3>(k).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, m_ws.data());
-    if (m_computeQZ)
-			m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
+    if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
 
     // Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
     Vec3 bprime = (m_T.template block<1, 3>(k + 2, k) * S3).adjoint();
@@ -529,56 +523,55 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
 /** \internal we found an undesired non-zero at (i+1,i) on the subdiagonal of S and reduce the block */
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
-	// We have found a non-zero on the subdiagonal and want to eliminate it
-	Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
-	if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
-		Eigen::JacobiRotation<Scalar> G;
-		G.makeGivens(m_S(i, i), m_S(i + 1, i));
-		m_S.applyOnTheLeft(i, i + 1, G.adjoint());
-		m_T.applyOnTheLeft(i, i + 1, G.adjoint());
+  // We have found a non-zero on the subdiagonal and want to eliminate it
+  Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
+  if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
+    Eigen::JacobiRotation<Scalar> G;
+    G.makeGivens(m_S(i, i), m_S(i + 1, i));
+    m_S.applyOnTheLeft(i, i + 1, G.adjoint());
+    m_T.applyOnTheLeft(i, i + 1, G.adjoint());
 
-		if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
+    if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
 
-	} else if (!is_negligible(Ti(0, 0)) && is_negligible(Ti(1, 1))) {
-		Eigen::JacobiRotation<Scalar> G;
-		G.makeGivens(m_S(i + 1, i + 1), m_S(i + 1, i));
-		m_S.applyOnTheRight(i, i + 1, G.adjoint());
-		m_T.applyOnTheRight(i, i + 1, G.adjoint());
-		if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
-	} else if (!is_negligible(Ti(0, 0)) && !is_negligible((Ti(1, 1)))) {
-		Scalar mu = Si(0, 0) / Ti(0, 0);
-		Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
-		Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);
-		Scalar p = Scalar(0.5) * (a22_bar / Ti(1, 1) - Ti(0, 1) * Si(1, 0) / (Ti(0, 0) * Ti(1, 1)));
-		RealScalar sgn_p = p.real() >= RealScalar(0) ? RealScalar(1) : RealScalar(-1);
-		Scalar q = Si(1, 0) * a12_bar / (Ti(0, 0) * Ti(1, 1));
-		Scalar r = p * p + q;
-		Scalar lambda = mu + p + sgn_p * numext::sqrt(r);
-		Mat2 E = Si - lambda * Ti;
-		Index l;
-		E.rowwise().norm().maxCoeff(&l);
-		JacobiRotation<Scalar> G;
-		G.makeGivens(E(l, 1), E(l, 0));
-		m_S.applyOnTheRight(i, i + 1, G.adjoint());
-		m_T.applyOnTheRight(i, i + 1, G.adjoint());
+  } else if (!is_negligible(Ti(0, 0)) && is_negligible(Ti(1, 1))) {
+    Eigen::JacobiRotation<Scalar> G;
+    G.makeGivens(m_S(i + 1, i + 1), m_S(i + 1, i));
+    m_S.applyOnTheRight(i, i + 1, G.adjoint());
+    m_T.applyOnTheRight(i, i + 1, G.adjoint());
+    if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
+  } else if (!is_negligible(Ti(0, 0)) && !is_negligible((Ti(1, 1)))) {
+    Scalar mu = Si(0, 0) / Ti(0, 0);
+    Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
+    Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);
+    Scalar p = Scalar(0.5) * (a22_bar / Ti(1, 1) - Ti(0, 1) * Si(1, 0) / (Ti(0, 0) * Ti(1, 1)));
+    RealScalar sgn_p = p.real() >= RealScalar(0) ? RealScalar(1) : RealScalar(-1);
+    Scalar q = Si(1, 0) * a12_bar / (Ti(0, 0) * Ti(1, 1));
+    Scalar r = p * p + q;
+    Scalar lambda = mu + p + sgn_p * numext::sqrt(r);
+    Mat2 E = Si - lambda * Ti;
+    Index l;
+    E.rowwise().norm().maxCoeff(&l);
+    JacobiRotation<Scalar> G;
+    G.makeGivens(E(l, 1), E(l, 0));
+    m_S.applyOnTheRight(i, i + 1, G.adjoint());
+    m_T.applyOnTheRight(i, i + 1, G.adjoint());
 
-		if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
+    if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
 
-		Mat2 tildeSi = m_S.template block<2, 2>(i, i), tildeTi = m_T.template block<2, 2>(i, i);
-		Mat2 C = tildeSi.norm() < (lambda * tildeTi).norm() ? tildeSi : lambda * tildeTi;
-		G.makeGivens(C(0, 0), C(1, 0));
-		m_S.applyOnTheLeft(i, i + 1, G.adjoint());
-		m_T.applyOnTheLeft(i, i + 1, G.adjoint());
+    Mat2 tildeSi = m_S.template block<2, 2>(i, i), tildeTi = m_T.template block<2, 2>(i, i);
+    Mat2 C = tildeSi.norm() < (lambda * tildeTi).norm() ? tildeSi : lambda * tildeTi;
+    G.makeGivens(C(0, 0), C(1, 0));
+    m_S.applyOnTheLeft(i, i + 1, G.adjoint());
+    m_T.applyOnTheLeft(i, i + 1, G.adjoint());
 
-		if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
-	}
+    if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
+  }
 
-	if(!is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon())) {
-		m_info = ComputationInfo::NumericalIssue;
-	} else {
-		m_S(i + 1, i) = Scalar(0);
-	}
-
+  if (!is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon())) {
+    m_info = ComputationInfo::NumericalIssue;
+  } else {
+    m_S(i + 1, i) = Scalar(0);
+  }
 }
 
 /** \internal We found a zero at T(k,k) and want to "push it down" to T(l,l) */
@@ -612,22 +605,22 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   J.makeGivens(std::conj(m_S(l, l)), std::conj(m_S(l, l - 1)));
   m_S.topRows(l + 1).applyOnTheRight(l, l - 1, J);
 
-	if (!is_negligible(m_S(l, l - 1), m_normOfS * NumTraits<Scalar>::epsilon())) {
-		m_info = ComputationInfo::NumericalIssue;
-	} else {
-  m_S(l, l - 1) = Scalar(0);
-	}
+  if (!is_negligible(m_S(l, l - 1), m_normOfS * NumTraits<Scalar>::epsilon())) {
+    m_info = ComputationInfo::NumericalIssue;
+  } else {
+    m_S(l, l - 1) = Scalar(0);
+  }
   m_T.topRows(l + 1).applyOnTheRight(l, l - 1, J);
 
   if (m_computeQZ) m_Z.applyOnTheLeft(l, l - 1, J.adjoint());
 
   // Ensure postconditions
-	if(!is_negligible(m_T(l, l)) || !is_negligible(m_S(l, l-1))) {
-		m_info = ComputationInfo::NumericalIssue;
-	} else {
-		m_T(l, l) = Scalar(0);
-		m_S(l, l - 1) = Scalar(0);
-	}
+  if (!is_negligible(m_T(l, l)) || !is_negligible(m_S(l, l - 1))) {
+    m_info = ComputationInfo::NumericalIssue;
+  } else {
+    m_T(l, l) = Scalar(0);
+    m_S(l, l - 1) = Scalar(0);
+  }
 };
 
 /** \internal Computes vector L1 norms of S and T when in Hessenberg-Triangular form already */
@@ -642,7 +635,8 @@ void ComplexQZ<MatrixType_>::computeNorms() {
   }
 };
 
-/** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0). Copied from Eigen3 RealQZ implementation */
+/** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0). Copied from Eigen3 RealQZ
+ * implementation */
 template <typename MatrixType_>
 inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu) {
   Index res = iu;
@@ -655,8 +649,9 @@ inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu) {
   return res;
 }
 
-// 
-/** \internal Look for single small diagonal element T(res, res) for res between f and l, and return res (or f-1). Copied from Eigen3 RealQZ implementation. */
+//
+/** \internal Look for single small diagonal element T(res, res) for res between f and l, and return res (or f-1).
+ * Copied from Eigen3 RealQZ implementation. */
 template <typename MatrixType_>
 inline Index ComplexQZ<MatrixType_>::findSmallDiagEntry(Index f, Index l) {
   Index res = l;
