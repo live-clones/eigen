@@ -12,7 +12,7 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ void srotmg_(real *sd1, real *sd2, real *sx1, real *sy1, real *sparam) {
+EIGEN_BLAS_API void srotmg_(real *sd1, real *sd2, real *sx1, real *sy1, real *sparam) {
   /* Initialized data */
 
   static real zero = 0.f;

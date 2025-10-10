@@ -17,8 +17,8 @@ static inline void r_cnjg(complex *r, complex *z) {
   r->i = -(z->i);
 }
 
-/* Subroutine */ void chpmv_(char *uplo, integer *n, complex *alpha, complex *ap, complex *x, integer *incx,
-                             complex *beta, complex *y, integer *incy) {
+EIGEN_BLAS_API void chpmv_(char *uplo, integer *n, complex *alpha, complex *ap, complex *x, integer *incx,
+                           complex *beta, complex *y, integer *incy) {
   /* System generated locals */
   integer i__1, i__2, i__3, i__4, i__5;
   real r__1;

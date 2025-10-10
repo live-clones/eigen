@@ -12,8 +12,8 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ void stbmv_(char *uplo, char *trans, char *diag, integer *n, integer *k, real *a, integer *lda,
-                             real *x, integer *incx) {
+EIGEN_BLAS_API void stbmv_(char *uplo, char *trans, char *diag, integer *n, integer *k, real *a, integer *lda,
+                           real *x, integer *incx) {
   /* System generated locals */
   integer a_dim1, a_offset, i__1, i__2, i__3, i__4;
 

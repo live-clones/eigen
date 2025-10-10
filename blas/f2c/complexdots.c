@@ -18,7 +18,7 @@
 
 #include "datatypes.h"
 
-complex cdotc_(integer *n, complex *cx, integer *incx, complex *cy, integer *incy) {
+EIGEN_BLAS_API complex cdotc_(integer *n, complex *cx, integer *incx, complex *cy, integer *incy) {
   complex res;
   extern /* Subroutine */ void cdotcw_(integer *, complex *, integer *, complex *, integer *, complex *);
 
@@ -31,7 +31,8 @@ complex cdotc_(integer *n, complex *cx, integer *incx, complex *cy, integer *inc
   return res;
 } /* cdotc_ */
 
-complex cdotu_(integer *n, complex *cx, integer *incx, complex *cy, integer *incy) {
+
+EIGEN_BLAS_API complex cdotu_(integer *n, complex *cx, integer *incx, complex *cy, integer *incy) {
   complex res;
   extern /* Subroutine */ void cdotuw_(integer *, complex *, integer *, complex *, integer *, complex *);
 
@@ -44,7 +45,7 @@ complex cdotu_(integer *n, complex *cx, integer *incx, complex *cy, integer *inc
   return res;
 } /* cdotu_ */
 
-doublecomplex zdotc_(integer *n, doublecomplex *cx, integer *incx, doublecomplex *cy, integer *incy) {
+EIGEN_BLAS_API doublecomplex zdotc_(integer *n, doublecomplex *cx, integer *incx, doublecomplex *cy, integer *incy) {
   doublecomplex res;
   extern /* Subroutine */ void zdotcw_(integer *, doublecomplex *, integer *, doublecomplex *, integer *,
                                        doublecomplex *);
@@ -58,7 +59,7 @@ doublecomplex zdotc_(integer *n, doublecomplex *cx, integer *incx, doublecomplex
   return res;
 } /* zdotc_ */
 
-doublecomplex zdotu_(integer *n, doublecomplex *cx, integer *incx, doublecomplex *cy, integer *incy) {
+EIGEN_BLAS_API doublecomplex zdotu_(integer *n, doublecomplex *cx, integer *incx, doublecomplex *cy, integer *incy) {
   doublecomplex res;
   extern /* Subroutine */ void zdotuw_(integer *, doublecomplex *, integer *, doublecomplex *, integer *,
                                        doublecomplex *);

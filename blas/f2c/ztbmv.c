@@ -17,8 +17,8 @@ static inline void d_cnjg(doublecomplex *r, doublecomplex *z) {
   r->i = -(z->i);
 }
 
-/* Subroutine */ void ztbmv_(char *uplo, char *trans, char *diag, integer *n, integer *k, doublecomplex *a,
-                             integer *lda, doublecomplex *x, integer *incx) {
+EIGEN_BLAS_API void ztbmv_(char *uplo, char *trans, char *diag, integer *n, integer *k, doublecomplex *a,
+                           integer *lda, doublecomplex *x, integer *incx) {
   /* System generated locals */
   integer a_dim1, a_offset, i__1, i__2, i__3, i__4, i__5;
   doublecomplex z__1, z__2, z__3;

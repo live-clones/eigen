@@ -12,8 +12,8 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ void drotm_(integer *n, doublereal *dx, integer *incx, doublereal *dy, integer *incy,
-                             doublereal *dparam) {
+EIGEN_BLAS_API void drotm_(integer *n, doublereal *dx, integer *incx, doublereal *dy, integer *incy,
+                          doublereal *dparam) {
   /* Initialized data */
 
   static doublereal zero = 0.;

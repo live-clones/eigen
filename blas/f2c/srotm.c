@@ -12,7 +12,7 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ void srotm_(integer *n, real *sx, integer *incx, real *sy, integer *incy, real *sparam) {
+EIGEN_BLAS_API void srotm_(integer *n, real *sx, integer *incx, real *sy, integer *incy, real *sparam) {
   /* Initialized data */
 
   static real zero = 0.f;

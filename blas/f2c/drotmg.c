@@ -12,7 +12,7 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ void drotmg_(doublereal *dd1, doublereal *dd2, doublereal *dx1, doublereal *dy1, doublereal *dparam) {
+EIGEN_BLAS_API void drotmg_(doublereal *dd1, doublereal *dd2, doublereal *dx1, doublereal *dy1, doublereal *dparam) {
   /* Initialized data */
 
   static doublereal zero = 0.;

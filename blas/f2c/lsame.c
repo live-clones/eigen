@@ -12,7 +12,7 @@
 
 #include "datatypes.h"
 
-logical lsame_(char *ca, char *cb) {
+EIGEN_BLAS_API logical lsame_(const char *ca, const char *cb) {
   /* System generated locals */
   logical ret_val;
 

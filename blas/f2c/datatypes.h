@@ -5,6 +5,18 @@
 #ifndef __EIGEN_DATATYPES_H__
 #define __EIGEN_DATATYPES_H__
 
+#if defined(_WIN32)
+#if defined(EIGEN_BLAS_BUILD_DLL)
+#define EIGEN_BLAS_API __declspec(dllexport)
+#elif defined(EIGEN_BLAS_LINK_DLL)
+#define EIGEN_BLAS_API __declspec(dllimport)
+#else
+#define EIGEN_BLAS_API
+#endif
+#else
+#define EIGEN_BLAS_API
+#endif
+
 typedef int integer;
 typedef unsigned int uinteger;
 typedef float real;
