@@ -119,7 +119,7 @@ class ComplexQZ {
    * especially when we aim to compute the decomposition of two sparse
    * matrices.
    */
-  ComplexQZ(unsigned int n, bool computeQZ = true, unsigned int maxIters = 400)
+  ComplexQZ(Index n, bool computeQZ = true, unsigned int maxIters = 400)
       : m_n(n),
         m_S(n, n),
         m_T(n, n),
@@ -378,7 +378,7 @@ template <typename SparseMatrixType_>
 void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B) {
   m_S = A.toDense();
 
-  SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<int>> sparseQR;
+  SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<Index>> sparseQR;
 
   eigen_assert(
       B.isCompressed() &&
@@ -400,7 +400,7 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 
   if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
 
-  int steps = 0;
+  unsigned int steps = 0;
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {
     for (Index i = m_n - 1; i >= j + 2; i--) {
@@ -414,7 +414,9 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
         m_T.rightCols(m_n - i + 1).applyOnTheLeft(i - 1, i, G.adjoint());
         m_S.rightCols(m_n - j - 1).applyOnTheLeft(i - 1, i, G.adjoint());
         // This is what we want to achieve
-        assert(is_negligible(m_S(i, j)));
+				if (!is_negligible(m_S(i, j))) {
+					m_info = ComputationInfo::NumericalIssue;
+				}
         m_S(i, j) = Scalar(0);
         // update Q
         if (m_computeQZ) m_Q.applyOnTheRight(i - 1, i, G);
@@ -518,7 +520,8 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
   Scalar x, y, z;
 
   // We could introduce doing exceptional shifts from time to time.
-  Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1), W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
+  Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1),
+				 W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
          W3 = a(m, m - 1) / b(m - 1, m - 1);
 
   x = (W1 * W2 - a(m - 1, m) / b(m, m) * W3 + W3 * b(m - 1, m) / b(m, m) * a(1, 1) / b(1, 1)) * b(1, 1) / a(2, 1) +
@@ -599,14 +602,12 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   // Test Preconditions
 
   JacobiRotation<Scalar> J;
-  for (int j = k + 1; j <= l; j++) {
+  for (Index j = k + 1; j <= l; j++) {
     // Create a 0 at _T(j, j)
     J.makeGivens(m_T(j - 1, j), m_T(j, j), &m_T.coeffRef(j - 1, j));
     m_T.rightCols(m_n - j - 1).applyOnTheLeft(j - 1, j, J.adjoint());
     m_T.coeffRef(j, j) = Scalar(0);
 
-    // assert(j < _n+2); // This ensures n-j+2 > 0
-    // assert(2 <= j); // This ensures n-j+2 <= n
     m_S.applyOnTheLeft(j - 1, j, J.adjoint());
 
     if (m_computeQZ) m_Q.applyOnTheRight(j - 1, j, J);
@@ -626,7 +627,6 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   J.makeGivens(std::conj(m_S(l, l)), std::conj(m_S(l, l - 1)));
   m_S.topRows(l + 1).applyOnTheRight(l, l - 1, J);
 
-  //assert(is_negligible(m_S(l, l - 1), m_normOfS * NumTraits<Scalar>::epsilon()));
 	if (!is_negligible(m_S(l, l - 1), m_normOfS * NumTraits<Scalar>::epsilon())) {
 		m_info = ComputationInfo::NumericalIssue;
 	} else {
@@ -636,44 +636,47 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
 
   if (m_computeQZ) m_Z.applyOnTheLeft(l, l - 1, J.adjoint());
 
-  // Test Postconditions
-  assert(is_negligible(m_T(l, l)) && is_negligible(m_S(l, l - 1)));
-  m_T(l, l) = Scalar(0);
-  m_S(l, l - 1) = Scalar(0);
+  // Ensure postconditions
+	if(!is_negligible(m_T(l, l)) || !is_negligible(m_S(l, l-1))) {
+		m_info = ComputationInfo::NumericalIssue;
+	} else {
+		m_T(l, l) = Scalar(0);
+		m_S(l, l - 1) = Scalar(0);
+	}
 };
 
+/** \internal Computes vector L1 norms of S and T when in Hessenberg-Triangular form already */
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::computeNorms() {
-  const int size = m_S.cols();
+  const Index size = m_S.cols();
   m_normOfS = RealScalar(0);
   m_normOfT = RealScalar(0);
-  for (int j = 0; j < size; ++j) {
+  for (Index j = 0; j < size; ++j) {
     m_normOfS += m_S.col(j).segment(0, (std::min)(size, j + 2)).cwiseAbs().sum();
     m_normOfT += m_T.row(j).segment(j, size - j).cwiseAbs().sum();
   }
 };
 
-// Copied from Eigen3 RealQZ implementation
+/** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0). Copied from Eigen3 RealQZ implementation */
 template <typename MatrixType_>
 inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu) {
-  using std::abs;
-  int res = iu;
+  Index res = iu;
   while (res > 0) {
-    RealScalar s = abs(m_S.coeff(res - 1, res - 1)) + abs(m_S.coeff(res, res));
+    RealScalar s = numext::abs(m_S.coeff(res - 1, res - 1)) + numext::abs(m_S.coeff(res, res));
     if (s == Scalar(0)) s = m_normOfS;
-    if (abs(m_S.coeff(res, res - 1)) < NumTraits<RealScalar>::epsilon() * s) break;
+    if (numext::abs(m_S.coeff(res, res - 1)) < NumTraits<RealScalar>::epsilon() * s) break;
     res--;
   }
   return res;
 }
 
-// Copied from Eigen3 RealQZ implementation
+// 
+/** \internal Look for single small diagonal element T(res, res) for res between f and l, and return res (or f-1). Copied from Eigen3 RealQZ implementation. */
 template <typename MatrixType_>
 inline Index ComplexQZ<MatrixType_>::findSmallDiagEntry(Index f, Index l) {
-  using std::abs;
-  int res = l;
+  Index res = l;
   while (res >= f) {
-    if (abs(m_T.coeff(res, res)) <= NumTraits<RealScalar>::epsilon() * m_normOfT) break;
+    if (numext::abs(m_T.coeff(res, res)) <= NumTraits<RealScalar>::epsilon() * m_normOfT) break;
     res--;
   }
   return res;
