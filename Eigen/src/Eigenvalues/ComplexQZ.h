@@ -197,8 +197,8 @@ class ComplexQZ {
   bool m_isInitialized;
   bool m_computeQZ;
   ComputationInfo m_info;
-
   MatrixType m_S, m_T, m_Q, m_Z;
+  RealScalar m_normOfT, m_normOfS;
   Vec m_ws;
 
   // Test if a Scalar is 0 up to a certain tolerance
@@ -209,12 +209,7 @@ class ComplexQZ {
 
   void reduce_quasitriangular_S();
 
-  // The above method QZ_step(p, q) first computes Q_step and and Z_step block
-  // matrices, creates a large matrix, and actually does the step afterwards.
-  // This method is thought to do the steps directly on the matrices S, T, Q, Z
   void do_QZ_step(Index p, Index q);
-
-  RealScalar m_normOfT, m_normOfS;
 
   inline Mat2 computeZk2(const Row2& b);
 
@@ -289,12 +284,12 @@ void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
         m_S.applyOnTheRight(i, i + 1, G.adjoint());
         m_T.applyOnTheRight(i, i + 1, G.adjoint());
         if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
-      } else if (!is_negligible(m_T(i, i)) && !is_negligible(m_T(i + 1, i + 1))) {
+      } else if (!is_negligible(Ti(0, 0)) && !is_negligible((Ti(1, 1)))) {
         Scalar mu = Si(0, 0) / Ti(0, 0);
         Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
         Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);
 
-        Scalar p = Scalar(1) / Scalar(2) * (a22_bar / Ti(1, 1) - Ti(0, 1) * Si(1, 0) / (Ti(0, 0) * Ti(1, 1)));
+        Scalar p = Scalar(0.5) * (a22_bar / Ti(1, 1) - Ti(0, 1) * Si(1, 0) / (Ti(0, 0) * Ti(1, 1)));
 
         RealScalar sgn_p = p.real() >= RealScalar(0) ? RealScalar(1) : RealScalar(-1);
 
@@ -302,7 +297,7 @@ void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
 
         Scalar r = p * p + q;
 
-        Scalar lambda = mu + p + sgn_p * std::sqrt(r);
+        Scalar lambda = mu + p + sgn_p * numext::sqrt(r);
 
         Mat2 E = Si - lambda * Ti;
 
@@ -326,9 +321,12 @@ void ComplexQZ<MatrixType_>::reduce_quasitriangular_S() {
         if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
       }
 
-      assert(is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon()));
-      // S(i+1, 1) can be safely set to 0
-      m_S(i + 1, i) = Scalar(0);
+			
+      if(!is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon())) {
+				m_info = ComputationInfo::NumericalIssue;
+			} else {
+				m_S(i + 1, i) = Scalar(0);
+			}
     }
   }
 }
@@ -361,7 +359,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
 
       // delete S(i,j)
       if (!numext::is_exactly_zero(m_S.coeff(i, j))) {
-        // This is the adapted code
         G.makeGivens(m_S.coeff(i - 1, j), m_S.coeff(i, j), &m_S.coeffRef(i - 1, j));
         m_S.coeffRef(i, j) = Scalar(0);
 
@@ -369,8 +366,10 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
         m_S.rightCols(m_n - j - 1).applyOnTheLeft(i - 1, i, G.adjoint());
 
         // This is what we want to achieve
-        assert(is_negligible(m_S(i, j)));
-        m_S(i, j) = Scalar(0);
+				if (!is_negligible(m_S(i, j)))
+					m_info = ComputationInfo::NumericalIssue;
+				else
+					m_S(i, j) = Scalar(0);
 
         // update Q
         if (m_computeQZ) m_Q.applyOnTheRight(i - 1, i, G);
