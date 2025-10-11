@@ -18,7 +18,7 @@
       return padd(c, this->pmul(x, y));                                                                             \
     }                                                                                                               \
     EIGEN_STRONG_INLINE PACKET_CPLX pmsub(const PACKET_REAL& x, const PACKET_CPLX& y, const PACKET_CPLX& c) const { \
-      return psub(this->pmul(x, y), c);                                   \
+      return psub(this->pmul(x, y), c);                                                                             \
     }                                                                                                               \
     EIGEN_STRONG_INLINE PACKET_CPLX pmul(const PACKET_REAL& x, const PACKET_CPLX& y) const {                        \
       return PACKET_CPLX(Eigen::internal::pmul<PACKET_REAL>(x, y.v));                                               \
