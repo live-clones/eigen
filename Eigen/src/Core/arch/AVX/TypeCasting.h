@@ -240,10 +240,46 @@ EIGEN_STRONG_INLINE Packet4d pcast<Packet4l, Packet4d>(const Packet4l& a) {
 #if defined(EIGEN_VECTORIZE_AVX512DQ) && defined(EIGEN_VECTORIZE_AVS512VL)
   return _mm256_cvtepi64_pd(a);
 #else
-  int64_t aux[4];
-  pstoreu(aux, a);
-  return _mm256_set_pd(static_cast<double>(aux[3]), static_cast<double>(aux[2]), static_cast<double>(aux[1]),
-                       static_cast<double>(aux[0]));
+  /*
+  Decompose the 64 bit integer into its low and high bits such that:
+  |a| = lo + (hi << 32) and use the intrinsics to convert int32_t to double.
+
+  AVX2 does not provide an intrinsic for casting uint32_t to double.
+  Further decompose the low bits into the lower 31 bits and the MSB:
+  lo = lo_31 + lo_msb
+
+  result = double(lo_31) + double(lo_msb) + double(hi) * double(1 << 32)
+  */
+
+  constexpr double kMSB = static_cast<double>(1LL << 31);
+  constexpr double kHiShift = static_cast<double>(1LL << 32);
+
+  const __m256d cst_MSB = _mm256_set1_pd(kMSB);
+  const __m256d cst_hi_shift = _mm256_set1_pd(kHiShift);
+
+  __m256i a_sign = _mm256_cmpgt_epi64(_mm256_setzero_si256(), a);
+  __m256i a_sign_bit = _mm256_slli_epi64(a_sign, 63);
+
+  __m256i a_abs = _mm256_sub_epi64(_mm256_xor_si256(a, a_sign), a_sign);
+  __m256i tmp1 = _mm256_shuffle_epi32(a_abs, shuffle_mask<0, 2, 1, 3>::mask);
+  __m256i tmp2 = _mm256_permute4x64_epi64(tmp1, shuffle_mask<0, 2, 1, 3>::mask);
+
+  __m128i lo = _mm256_castsi256_si128(tmp2);
+  __m128i hi = _mm256_extracti128_si256(tmp2, 1);
+
+
+  __m128i lo_31 = _mm_srli_epi32(_mm_slli_epi32(lo, 1), 1);
+  __m256i lo_msb_mask = _mm256_cvtepi32_epi64(lo);
+
+  __m256d lo_31_f64 = _mm256_cvtepi32_pd(lo_31);
+  __m256d lo_msb_f64 = _mm256_and_pd(_mm256_castsi256_pd(lo_msb_mask), cst_MSB);
+
+  __m256d lo_f64 = _mm256_add_pd(lo_31_f64, lo_msb_f64);
+  __m256d hi_f64 = _mm256_cvtepi32_pd(hi);
+
+  __m256d result = _mm256_fmadd_pd(hi_f64, cst_hi_shift, lo_f64);
+  result = _mm256_or_pd(result, _mm256_castsi256_pd(a_sign_bit));
+  return result;
 #endif
 }
 
