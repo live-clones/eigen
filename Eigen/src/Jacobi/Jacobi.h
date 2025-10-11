@@ -382,7 +382,7 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
         Packet xi = pload<Packet>(px);
         Packet yi = pload<Packet>(py);
         pstore(px, pm.pmadd(pc, xi, pcj.pmul(ps, yi)));
-        pstore(py, psub(pcj.pmul(pc, yi), pm.pmul(ps, xi)));
+        pstore(py, pcj.pmsub(pc, yi, pm.pmul(ps, xi)));
         px += PacketSize;
         py += PacketSize;
       }
