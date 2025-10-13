@@ -59,8 +59,8 @@ void complex_qz(const MatrixType& A, const MatrixType& B) {
 }
 
 EIGEN_DECLARE_TEST(complex_qz) {
-  //const Index dim1 = 15;
-  //const Index dim2 = 80;
+  // const Index dim1 = 15;
+  // const Index dim2 = 80;
   for (int i = 0; i < g_repeat; i++) {
     // Check for very small, fixed-sized double- and float complex matrices
     Eigen::Matrix2cd A_2x2, B_2x2;
@@ -73,8 +73,7 @@ EIGEN_DECLARE_TEST(complex_qz) {
     B_3x3.col(i % 3).setRandom();
     // Test for small float complex matrices
     Eigen::MatrixXcf A_float, B_float;
-		const Index dim1 = internal::random<Index>(15, 80),
-					dim2 = internal::random<Index>(15, 80);
+    const Index dim1 = internal::random<Index>(15, 80), dim2 = internal::random<Index>(15, 80);
     generate_random_matrix_pair(dim1, A_float, B_float);
     // Test for a bit larger double complex matrices
     Eigen::MatrixXcd A_double, B_double;
