@@ -1,7 +1,7 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
-// Copyright (C) 2012 Alexey Korepanov <kaikaikai@yandex.ru>
+// Copyright (C) 2012 The Eigen Authors
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
@@ -59,10 +59,10 @@ void complex_qz(const MatrixType& A, const MatrixType& B) {
 }
 
 EIGEN_DECLARE_TEST(complex_qz) {
-  const Index dim1 = 15;
-  const Index dim2 = 80;
+  //const Index dim1 = 15;
+  //const Index dim2 = 80;
   for (int i = 0; i < g_repeat; i++) {
-    // Check for very small, fixed-sized double- and float matrices
+    // Check for very small, fixed-sized double- and float complex matrices
     Eigen::Matrix2cd A_2x2, B_2x2;
     A_2x2.setRandom();
     B_2x2.setRandom();
@@ -71,10 +71,12 @@ EIGEN_DECLARE_TEST(complex_qz) {
     A_3x3.setRandom();
     B_3x3.setRandom();
     B_3x3.col(i % 3).setRandom();
-    // Test for small float matrices
+    // Test for small float complex matrices
     Eigen::MatrixXcf A_float, B_float;
+		const Index dim1 = internal::random<Index>(15, 80),
+					dim2 = internal::random<Index>(15, 80);
     generate_random_matrix_pair(dim1, A_float, B_float);
-    // Test for a bit larger double matrices
+    // Test for a bit larger double complex matrices
     Eigen::MatrixXcd A_double, B_double;
     generate_random_matrix_pair(dim2, A_double, B_double);
     CALL_SUBTEST_1(complex_qz(A_2x2, B_2x2));
