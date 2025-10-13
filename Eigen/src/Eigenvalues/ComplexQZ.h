@@ -437,14 +437,10 @@ template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
   // This is certainly not the most efficient way of doing this,
   // but a readable one.
-  const std::function<Scalar(Index, Index)> a = [p, this](Index i, Index j) { return m_S(p + i - 1, p + j - 1); };
-
-  const std::function<Scalar(Index, Index)> b = [p, this](Index i, Index j) { return m_T(p + i - 1, p + j - 1); };
-
+  const auto a = [p, this](Index i, Index j) { return m_S(p + i - 1, p + j - 1); };
+  const auto b = [p, this](Index i, Index j) { return m_T(p + i - 1, p + j - 1); };
   const Index m = m_n - p - q;  // Size of the inner block
-
   Scalar x, y, z;
-
   // We could introduce doing exceptional shifts from time to time.
   Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1), W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
          W3 = a(m, m - 1) / b(m - 1, m - 1);
@@ -454,10 +450,8 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
   y = (a(2, 2) / b(2, 2) - a(1, 1) / b(1, 1)) - a(2, 1) / b(1, 1) * b(1, 2) / b(2, 2) - W1 - W2 +
       W3 * (b(m - 1, m) / b(m, m));
   z = a(3, 2) / b(2, 2);
-
   Vec3 X;
   const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
-
   for (Index k = p; k < p + m - 2; k++) {
     X << x, y, z;
     Vec2 ess;
