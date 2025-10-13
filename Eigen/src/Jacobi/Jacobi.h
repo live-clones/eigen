@@ -421,8 +421,8 @@ EIGEN_DEVICE_FUNC void inline apply_rotation_in_the_plane(DenseBase<VectorX>& xp
 }
 
 template <typename MatrixType, typename RealScalar, typename Index>
-void real_2x2_jacobi_svd(const MatrixType &matrix, Index p, Index q, JacobiRotation<RealScalar> *j_left,
-                         JacobiRotation<RealScalar> *j_right) {
+void real_2x2_jacobi_svd(const MatrixType& matrix, Index p, Index q, JacobiRotation<RealScalar>* j_left,
+                         JacobiRotation<RealScalar>* j_right) {
   using std::abs;
   using std::sqrt;
   Matrix<RealScalar, 2, 2> m;
