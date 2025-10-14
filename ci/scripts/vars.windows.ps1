@@ -9,4 +9,3 @@ $EIGEN_CI_TEST_CUSTOM_CXX_FLAGS = "/d2ReducedOptimizeHugeFunctions /DEIGEN_STRON
 $EIGEN_CI_CTEST_LABEL           = "Official"
 $EIGEN_CI_CTEST_REGEX           = ""
 $EIGEN_CI_CTEST_ARGS            = ""
-$EIGEN_CI_CTEST_REPEAT          = "3"
