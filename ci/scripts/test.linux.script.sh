@@ -23,12 +23,12 @@ if ${ctest_cmd} -T test; then
   echo "Tests passed on the first attempt."
   exit_code=0
 else
+  max_retries=3
   # Initial run failed, start retries
-  echo "Initial tests failed with exit code $?. Retrying up to ${EIGEN_CI_CTEST_REPEAT} times..."
-  retries_left=${EIGEN_CI_CTEST_REPEAT}
-  retry=0
-  while [[ ${retry} -lt ${EIGEN_CI_CTEST_REPEAT} ]]; do
-    echo "Attempting retry ${retry} of ${EIGEN_CI_CTEST_REPEAT}..."
+  echo "Initial tests failed with exit code $?. Retrying up to ${max_retries} times..."
+  retry=1
+  while [[ ${retry} -le ${max_retries} ]]; do
+    echo "Attempting retry ${retry} of ${max_retries}..."
     # Rerun only the tests that failed previously
     if ${ctest_cmd} --rerun-failed; then
       echo "Tests passed on retry."
