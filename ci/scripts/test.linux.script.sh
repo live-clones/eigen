@@ -26,11 +26,11 @@ run_ctest_retry+=" --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
 
 eval "${run_ctest}"
 exit_code=$?
-if (( exit_code != 0 )); then
+if [[ ${exit_code} -ne "0" ]]; then
   echo "Retrying tests up to ${EIGEN_CI_CTEST_REPEAT} times."
   eval "${run_ctest_retry}"
   exit_code=$?
-  if (( exit_code == 0 )); then
+  if [[ ${exit_code} -eq "0" ]]; then
     echo "Tests passed on retry."
     exit_code=42
   else
