@@ -1,9 +1,5 @@
 #!/bin/bash
 
-ctest_cmd="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --build-noclean ${target}"
-exit_code=1
-max_retries=3
-
 set -x
 
 # Enter build directory.
@@ -18,6 +14,10 @@ elif [[ ${EIGEN_CI_CTEST_LABEL} ]]; then
 fi
 
 set +x
+
+ctest_cmd="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --build-noclean ${target}"
+exit_code=1
+max_retries=3
 
 echo "Running initial tests..."
 if ${ctest_cmd} -T test; then
