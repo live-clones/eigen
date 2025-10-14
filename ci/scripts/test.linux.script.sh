@@ -13,29 +13,30 @@ elif [[ ${EIGEN_CI_CTEST_LABEL} ]]; then
   target="-L ${EIGEN_CI_CTEST_LABEL}"
 fi
 
-# Repeat tests up to EIGEN_CI_CTEST_REPEAT times.
-# Tests that pass during the repeated attempts will return a non-zero error code.
+ctest_cmd="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --build-noclean ${target}"
 
-run_ctest="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
-run_ctest+=" --output-on-failure --no-compress-output"
-run_ctest+=" --build-noclean -T test ${target}"
+exit_code=1
 
-run_ctest_retry="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
-run_ctest_retry+=" --output-on-failure --no-compress-output"
-run_ctest_retry+=" --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
-
-eval "${run_ctest}"
-exit_code=$?
-if [[ ${exit_code} -ne "0" ]]; then
-  echo "Retrying tests up to ${EIGEN_CI_CTEST_REPEAT} times."
-  eval "${run_ctest_retry}"
-  exit_code=$?
-  if [[ ${exit_code} -eq "0" ]]; then
-    echo "Tests passed on retry."
-    exit_code=42
-  else
-    echo "Tests failed after retry attempts."
-  fi
+# Run the initial CTest command
+echo "Running initial tests..."
+if ${ctest_cmd} -T test; then
+  echo "Tests passed on the first attempt."
+  exit_code=0
+else
+  # Initial run failed, start retries
+  echo "Initial tests failed with exit code $?. Retrying up to ${EIGEN_CI_CTEST_REPEAT} times..."
+  retries_left=${EIGEN_CI_CTEST_REPEAT}
+  retry=0
+  while [[ ${retry} -lt ${EIGEN_CI_CTEST_REPEAT} ]]; do
+    echo "Attempting retry ${retry} of ${EIGEN_CI_CTEST_REPEAT}..."
+    # Rerun only the tests that failed previously
+    if ${ctest_cmd} --rerun-failed; then
+      echo "Tests passed on retry."
+      exit_code=42
+      break # Exit the retry loop on success
+    fi
+    ((retry++))
+  done
 fi
 
 
