@@ -22,7 +22,7 @@ max_retries=3
 echo "Running initial tests..."
 if ${ctest_cmd} -T test; then
   echo "Tests passed on the first attempt."
-  exit_code=0
+  exit_code=$?
 else
   echo "Initial tests failed with exit code $?. Retrying up to ${max_retries} times..."
   retry=1
