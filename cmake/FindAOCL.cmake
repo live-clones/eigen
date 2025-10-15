@@ -106,7 +106,6 @@ if(EXISTS "/opt/amd/aocl/include")
   list(APPEND AOCL_INCLUDE_DIRS "/opt/amd/aocl/include")
 endif()
 
-if(CMAKE_VERSION VERSION_LESS 3.21.0 )
   if(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64")
     # Search for the core AOCL math library.
     find_library(AOCL_CORE_LIB
@@ -243,7 +242,6 @@ if(CMAKE_VERSION VERSION_LESS 3.21.0 )
     else()
       message(WARNING "AOCL LAPACK library not found in ${AOCL_ROOT}/lib or default locations.")
     endif()
-  endif()
 endif()
 
 # Combine the found libraries into one variable.

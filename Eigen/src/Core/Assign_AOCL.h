@@ -121,8 +121,8 @@ namespace internal {
 template <typename Dst, typename Src> class aocl_assign_traits {
 private:
   enum {
-    DstHasDirectAccess = Dst::Flags & DirectAccessBit,
-    SrcHasDirectAccess = Src::Flags & DirectAccessBit,
+    DstHasDirectAccess = !!(Dst::Flags & DirectAccessBit),
+    SrcHasDirectAccess = !!(Src::Flags & DirectAccessBit),
     StorageOrdersAgree = (int(Dst::IsRowMajor) == int(Src::IsRowMajor)),
     InnerSize = Dst::IsVectorAtCompileTime   ? int(Dst::SizeAtCompileTime)
                 : (Dst::Flags & RowMajorBit) ? int(Dst::ColsAtCompileTime)
@@ -144,9 +144,9 @@ template <typename Dst, typename Lhs, typename Rhs>
 class aocl_assign_binary_traits {
 private:
   enum {
-    DstHasDirectAccess = Dst::Flags & DirectAccessBit,
-    LhsHasDirectAccess = Lhs::Flags & DirectAccessBit,
-    RhsHasDirectAccess = Rhs::Flags & DirectAccessBit,
+    DstHasDirectAccess = !!(Dst::Flags & DirectAccessBit),
+    LhsHasDirectAccess = !!(Lhs::Flags & DirectAccessBit),
+    RhsHasDirectAccess = !!(Rhs::Flags & DirectAccessBit),
     StorageOrdersAgree = (int(Dst::IsRowMajor) == int(Lhs::IsRowMajor)) &&
                          (int(Dst::IsRowMajor) == int(Rhs::IsRowMajor)),
     InnerSize = Dst::IsVectorAtCompileTime   ? int(Dst::SizeAtCompileTime)
@@ -201,39 +201,44 @@ public:
     static void run(DstXprType &dst, const SrcXprType &src,                    \
                     const assign_op<double, double> &) {                       \
       eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());      \
-      int n = internal::convert_index<int>(dst.size());                        \
-      if (n <= 0)                                                              \
+      const Index size = dst.size();                                           \
+      if (size <= 0)                                                           \
         return;                                                                \
       const double *input =                                                    \
           reinterpret_cast<const double *>(src.nestedExpression().data());     \
       double *output = reinterpret_cast<double *>(dst.data());                 \
-      AOCLOP(n, const_cast<double *>(input), output);                          \
+                                                                               \
+      /* AOCL VML functions use int, process in chunks if size > INT_MAX */   \
+      constexpr Index chunk_size = static_cast<Index>(INT_MAX);                \
+      Index processed = 0;                                                     \
+                                                                               \
+      while (processed < size) {                                               \
+        const Index current_chunk = numext::mini(size - processed, chunk_size); \
+        const int n = static_cast<int>(current_chunk);                         \
+        AOCLOP(n, const_cast<double *>(input + processed),                     \
+               output + processed);                                            \
+        processed += current_chunk;                                            \
+      }                                                                        \
     }                                                                          \
   };
 
 // Instantiate unary calls for float (scalar).
 // EIGEN_AOCL_VML_UNARY_CALL_FLOAT(exp)
-// EIGEN_AOCL_VML_UNARY_CALL_FLOAT(sin)
-// EIGEN_AOCL_VML_UNARY_CALL_FLOAT(cos)
-// EIGEN_AOCL_VML_UNARY_CALL_FLOAT(sqrt)
-// EIGEN_AOCL_VML_UNARY_CALL_FLOAT(log)
-// EIGEN_AOCL_VML_UNARY_CALL_FLOAT(log10)
+
+
 
 // Instantiate unary calls for double (AOCL vectorized).
+EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(exp2, amd_vrda_exp2)
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(exp, amd_vrda_exp)
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(sin, amd_vrda_sin)
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(cos, amd_vrda_cos)
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(sqrt, amd_vrda_sqrt)
+EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(cbrt, amd_vrda_cbrt)
+EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(abs, amd_vrda_fabs)
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log, amd_vrda_log)
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log10, amd_vrda_log10)
-// EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(asin, amd_vrda_asin)
-// EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(sinh, amd_vrda_sinh)
-// EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(acos, amd_vrda_acos)
-// EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(cosh, amd_vrda_cosh)
-// EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(tan, amd_vrda_tan)
-// EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(atan, amd_vrda_atan)
-// EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(tanh, amd_vrda_tanh)
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log2, amd_vrda_log2)
+
 // Binary operation dispatch for float (scalar fallback).
 #define EIGEN_AOCL_VML_BINARY_CALL_FLOAT(EIGENOP, STDFUNC)                     \
   template <typename DstXprType, typename LhsXprNested, typename RhsXprNested> \
@@ -278,13 +283,24 @@ EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log2, amd_vrda_log2)
     static void run(DstXprType &dst, const SrcXprType &src,                    \
                     const assign_op<double, double> &) {                       \
       eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());      \
-      int n = internal::convert_index<int>(dst.size());                        \
-      if (n <= 0)                                                              \
+      const Index size = dst.size();                                           \
+      if (size <= 0)                                                           \
         return;                                                                \
       const double *lhs = reinterpret_cast<const double *>(src.lhs().data());  \
       const double *rhs = reinterpret_cast<const double *>(src.rhs().data());  \
       double *output = reinterpret_cast<double *>(dst.data());                 \
-      AOCLOP(n, const_cast<double *>(lhs), const_cast<double *>(rhs), output); \
+                                                                               \
+      /* AOCL VML functions use int, process in chunks if size > INT_MAX */   \
+      constexpr Index chunk_size = static_cast<Index>(INT_MAX);                \
+      Index processed = 0;                                                     \
+                                                                               \
+      while (processed < size) {                                               \
+        const Index current_chunk = numext::mini(size - processed, chunk_size); \
+        const int n = static_cast<int>(current_chunk);                         \
+        AOCLOP(n, const_cast<double *>(lhs + processed),                       \
+               const_cast<double *>(rhs + processed), output + processed);     \
+        processed += current_chunk;                                            \
+      }                                                                        \
     }                                                                          \
   };
 
@@ -295,6 +311,8 @@ EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log2, amd_vrda_log2)
 // Instantiate binary calls for double (AOCL vectorized).
 EIGEN_AOCL_VML_BINARY_CALL_DOUBLE(sum, amd_vrda_add) // Using scalar_sum_op for addition
 EIGEN_AOCL_VML_BINARY_CALL_DOUBLE(pow, amd_vrda_pow)
+EIGEN_AOCL_VML_BINARY_CALL_DOUBLE(max, amd_vrda_fmax)
+EIGEN_AOCL_VML_BINARY_CALL_DOUBLE(min, amd_vrda_fmin)
 
 } // namespace internal
 } // namespace Eigen
