@@ -44,4 +44,4 @@ else {
 # Return to root directory.
 cd ${rootdir}
 
-Exit exit_code
+Exit $exit_code
