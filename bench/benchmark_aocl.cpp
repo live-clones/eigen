@@ -117,6 +117,18 @@ void benchmarkVectorMath(int size) {
   cout << "sqrt() time: " << elapsed_ms << " ms" << endl;
 
   start = high_resolution_clock::now();
+  result = v.array().cbrt();
+  end = high_resolution_clock::now();
+  elapsed_ms = duration_cast<milliseconds>(end - start).count();
+  cout << "cbrt() time: " << elapsed_ms << " ms" << endl;
+
+  start = high_resolution_clock::now();
+  result = v.array().abs();
+  end = high_resolution_clock::now();
+  elapsed_ms = duration_cast<milliseconds>(end - start).count();
+  cout << "abs() time: " << elapsed_ms << " ms" << endl;
+
+  start = high_resolution_clock::now();
   result = v.array().log();
   end = high_resolution_clock::now();
   elapsed_ms = duration_cast<milliseconds>(end - start).count();
@@ -127,6 +139,12 @@ void benchmarkVectorMath(int size) {
   end = high_resolution_clock::now();
   elapsed_ms = duration_cast<milliseconds>(end - start).count();
   cout << "log10() time: " << elapsed_ms << " ms" << endl;
+
+  start = high_resolution_clock::now();
+  result = v.array().exp2();
+  end = high_resolution_clock::now();
+  elapsed_ms = duration_cast<milliseconds>(end - start).count();
+  cout << "exp2() time: " << elapsed_ms << " ms" << endl;
 
   start = high_resolution_clock::now();
   result = v.array().asin();
@@ -182,6 +200,18 @@ void benchmarkVectorMath(int size) {
   end = high_resolution_clock::now();
   elapsed_ms = duration_cast<milliseconds>(end - start).count();
   cout << "pow() time: " << elapsed_ms << " ms" << endl;
+
+  start = high_resolution_clock::now();
+  result = v.array().max(v2.array());
+  end = high_resolution_clock::now();
+  elapsed_ms = duration_cast<milliseconds>(end - start).count();
+  cout << "max() time: " << elapsed_ms << " ms" << endl;
+
+  start = high_resolution_clock::now();
+  result = v.array().min(v2.array());
+  end = high_resolution_clock::now();
+  elapsed_ms = duration_cast<milliseconds>(end - start).count();
+  cout << "min() time: " << elapsed_ms << " ms" << endl;
 }
 
 // Function to benchmark BLAS operation: Matrix multiplication.
