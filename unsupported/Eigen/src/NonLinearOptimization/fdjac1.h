@@ -6,8 +6,8 @@ namespace Eigen {
 namespace internal {
 
 template <typename FunctorType, typename Scalar>
-DenseIndex fdjac1(const FunctorType &Functor, Matrix<Scalar, Dynamic, 1> &x, Matrix<Scalar, Dynamic, 1> &fvec,
-                  Matrix<Scalar, Dynamic, Dynamic> &fjac, DenseIndex ml, DenseIndex mu, Scalar epsfcn) {
+constexpr DenseIndex fdjac1(const FunctorType &Functor, Matrix<Scalar, Dynamic, 1> &x, Matrix<Scalar, Dynamic, 1> &fvec,
+                            Matrix<Scalar, Dynamic, Dynamic> &fjac, DenseIndex ml, DenseIndex mu, Scalar epsfcn) {
   using std::abs;
   using std::sqrt;
 

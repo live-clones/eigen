@@ -22,12 +22,12 @@ namespace internal {
  * The rhs is decomposed into small vertical panels which are solved through dense temporaries.
  */
 template <typename Decomposition, typename Rhs, typename Dest>
-std::enable_if_t<Rhs::ColsAtCompileTime != 1 && Dest::ColsAtCompileTime != 1> solve_sparse_through_dense_panels(
-    const Decomposition& dec, const Rhs& rhs, Dest& dest) {
+constexpr std::enable_if_t<Rhs::ColsAtCompileTime != 1 && Dest::ColsAtCompileTime != 1>
+solve_sparse_through_dense_panels(const Decomposition& dec, const Rhs& rhs, Dest& dest) {
   EIGEN_STATIC_ASSERT((Dest::Flags & RowMajorBit) == 0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
   typedef typename Dest::Scalar DestScalar;
   // we process the sparse rhs per block of NbColsAtOnce columns temporarily stored into a dense matrix.
-  static const Index NbColsAtOnce = 4;
+  constexpr Index NbColsAtOnce = 4;
   Index rhsCols = rhs.cols();
   Index size = rhs.rows();
   // the temporary matrices do not need more columns than NbColsAtOnce:
@@ -44,8 +44,8 @@ std::enable_if_t<Rhs::ColsAtCompileTime != 1 && Dest::ColsAtCompileTime != 1> so
 
 // Overload for vector as rhs
 template <typename Decomposition, typename Rhs, typename Dest>
-std::enable_if_t<Rhs::ColsAtCompileTime == 1 || Dest::ColsAtCompileTime == 1> solve_sparse_through_dense_panels(
-    const Decomposition& dec, const Rhs& rhs, Dest& dest) {
+constexpr std::enable_if_t<Rhs::ColsAtCompileTime == 1 || Dest::ColsAtCompileTime == 1>
+solve_sparse_through_dense_panels(const Decomposition& dec, const Rhs& rhs, Dest& dest) {
   typedef typename Dest::Scalar DestScalar;
   Index size = rhs.rows();
   Eigen::Matrix<DestScalar, Dynamic, 1> rhs_dense(rhs);
@@ -67,21 +67,20 @@ template <typename Derived>
 class SparseSolverBase : internal::noncopyable {
  public:
   /** Default constructor */
-  SparseSolverBase() : m_isInitialized(false) {}
+  constexpr SparseSolverBase() = default;
 
-  SparseSolverBase(SparseSolverBase&& other) : internal::noncopyable{}, m_isInitialized{other.m_isInitialized} {}
+  constexpr SparseSolverBase(SparseSolverBase&& other)
+      : internal::noncopyable{}, m_isInitialized{other.m_isInitialized} {}
 
-  ~SparseSolverBase() {}
-
-  Derived& derived() { return *static_cast<Derived*>(this); }
-  const Derived& derived() const { return *static_cast<const Derived*>(this); }
+  constexpr Derived& derived() { return *static_cast<Derived*>(this); }
+  constexpr const Derived& derived() const { return *static_cast<const Derived*>(this); }
 
   /** \returns an expression of the solution x of \f$ A x = b \f$ using the current decomposition of A.
    *
    * \sa compute()
    */
   template <typename Rhs>
-  inline const Solve<Derived, Rhs> solve(const MatrixBase<Rhs>& b) const {
+  inline constexpr const Solve<Derived, Rhs> solve(const MatrixBase<Rhs>& b) const {
     eigen_assert(m_isInitialized && "Solver is not initialized.");
     eigen_assert(derived().rows() == b.rows() && "solve(): invalid number of rows of the right hand side matrix b");
     return Solve<Derived, Rhs>(derived(), b.derived());
@@ -92,7 +91,7 @@ class SparseSolverBase : internal::noncopyable {
    * \sa compute()
    */
   template <typename Rhs>
-  inline const Solve<Derived, Rhs> solve(const SparseMatrixBase<Rhs>& b) const {
+  inline constexpr const Solve<Derived, Rhs> solve(const SparseMatrixBase<Rhs>& b) const {
     eigen_assert(m_isInitialized && "Solver is not initialized.");
     eigen_assert(derived().rows() == b.rows() && "solve(): invalid number of rows of the right hand side matrix b");
     return Solve<Derived, Rhs>(derived(), b.derived());
@@ -101,13 +100,13 @@ class SparseSolverBase : internal::noncopyable {
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   /** \internal default implementation of solving with a sparse rhs */
   template <typename Rhs, typename Dest>
-  void _solve_impl(const SparseMatrixBase<Rhs>& b, SparseMatrixBase<Dest>& dest) const {
+  constexpr void _solve_impl(const SparseMatrixBase<Rhs>& b, SparseMatrixBase<Dest>& dest) const {
     internal::solve_sparse_through_dense_panels(derived(), b.derived(), dest.derived());
   }
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 
  protected:
-  mutable bool m_isInitialized;
+  mutable bool m_isInitialized = false;
 };
 
 }  // end namespace Eigen

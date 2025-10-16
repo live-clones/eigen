@@ -61,7 +61,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * can only be used if \p MatrixType_ is a fixed-size matrix; use
    * GeneralizedSelfAdjointEigenSolver(Index) for dynamic-size matrices.
    */
-  GeneralizedSelfAdjointEigenSolver() : Base() {}
+  constexpr GeneralizedSelfAdjointEigenSolver() = default;
 
   /** \brief Constructor, pre-allocates memory for dynamic-size matrices.
    *
@@ -75,7 +75,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa compute() for an example
    */
-  explicit GeneralizedSelfAdjointEigenSolver(Index size) : Base(size) {}
+  constexpr explicit GeneralizedSelfAdjointEigenSolver(Index size) : Base(size) {}
 
   /** \brief Constructor; computes generalized eigendecomposition of given matrix pencil.
    *
@@ -103,8 +103,8 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa compute(const MatrixType&, const MatrixType&, int)
    */
-  GeneralizedSelfAdjointEigenSolver(const MatrixType& matA, const MatrixType& matB,
-                                    int options = ComputeEigenvectors | Ax_lBx)
+  constexpr GeneralizedSelfAdjointEigenSolver(const MatrixType& matA, const MatrixType& matB,
+                                              int options = ComputeEigenvectors | Ax_lBx)
       : Base(matA.cols()) {
     compute(matA, matB, options);
   }
@@ -149,14 +149,14 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa GeneralizedSelfAdjointEigenSolver(const MatrixType&, const MatrixType&, int)
    */
-  GeneralizedSelfAdjointEigenSolver& compute(const MatrixType& matA, const MatrixType& matB,
-                                             int options = ComputeEigenvectors | Ax_lBx);
+  constexpr GeneralizedSelfAdjointEigenSolver& compute(const MatrixType& matA, const MatrixType& matB,
+                                                       int options = ComputeEigenvectors | Ax_lBx);
 
  protected:
 };
 
 template <typename MatrixType>
-GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::compute(
+constexpr GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::compute(
     const MatrixType& matA, const MatrixType& matB, int options) {
   eigen_assert(matA.cols() == matA.rows() && matB.rows() == matA.rows() && matB.cols() == matB.rows());
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&

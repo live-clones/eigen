@@ -39,24 +39,28 @@ class ForceAlignedAccess : public internal::dense_xpr_base<ForceAlignedAccess<Ex
   typedef typename internal::dense_xpr_base<ForceAlignedAccess>::type Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(ForceAlignedAccess)
 
-  EIGEN_DEVICE_FUNC explicit inline ForceAlignedAccess(const ExpressionType& matrix) : m_expression(matrix) {}
+  EIGEN_DEVICE_FUNC explicit inline constexpr ForceAlignedAccess(const ExpressionType& matrix) : m_expression(matrix) {}
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_expression.rows(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_expression.cols(); }
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return m_expression.outerStride(); }
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return m_expression.innerStride(); }
 
-  EIGEN_DEVICE_FUNC inline const CoeffReturnType coeff(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC inline constexpr const CoeffReturnType coeff(Index row, Index col) const {
     return m_expression.coeff(row, col);
   }
 
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index row, Index col) {
+  EIGEN_DEVICE_FUNC inline constexpr Scalar& coeffRef(Index row, Index col) {
     return m_expression.const_cast_derived().coeffRef(row, col);
   }
 
-  EIGEN_DEVICE_FUNC inline const CoeffReturnType coeff(Index index) const { return m_expression.coeff(index); }
+  EIGEN_DEVICE_FUNC inline constexpr const CoeffReturnType coeff(Index index) const {
+    return m_expression.coeff(index);
+  }
 
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index index) { return m_expression.const_cast_derived().coeffRef(index); }
+  EIGEN_DEVICE_FUNC inline constexpr Scalar& coeffRef(Index index) {
+    return m_expression.const_cast_derived().coeffRef(index);
+  }
 
   template <int LoadMode>
   inline const PacketScalar packet(Index row, Index col) const {
@@ -78,7 +82,7 @@ class ForceAlignedAccess : public internal::dense_xpr_base<ForceAlignedAccess<Ex
     m_expression.const_cast_derived().template writePacket<Aligned>(index, x);
   }
 
-  EIGEN_DEVICE_FUNC operator const ExpressionType&() const { return m_expression; }
+  EIGEN_DEVICE_FUNC constexpr operator const ExpressionType&() const { return m_expression; }
 
  protected:
   const ExpressionType& m_expression;
@@ -91,7 +95,7 @@ class ForceAlignedAccess : public internal::dense_xpr_base<ForceAlignedAccess<Ex
  * \sa forceAlignedAccessIf(),class ForceAlignedAccess
  */
 template <typename Derived>
-inline const ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() const {
+inline constexpr const ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() const {
   return ForceAlignedAccess<Derived>(derived());
 }
 
@@ -99,7 +103,7 @@ inline const ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess
  * \sa forceAlignedAccessIf(), class ForceAlignedAccess
  */
 template <typename Derived>
-inline ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() {
+inline constexpr ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() {
   return ForceAlignedAccess<Derived>(derived());
 }
 
@@ -108,7 +112,7 @@ inline ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() {
  */
 template <typename Derived>
 template <bool Enable>
-inline add_const_on_value_type_t<std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&>>
+inline constexpr add_const_on_value_type_t<std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&>>
 MatrixBase<Derived>::forceAlignedAccessIf() const {
   return derived();  // FIXME This should not work but apparently is never used
 }
@@ -118,7 +122,8 @@ MatrixBase<Derived>::forceAlignedAccessIf() const {
  */
 template <typename Derived>
 template <bool Enable>
-inline std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&> MatrixBase<Derived>::forceAlignedAccessIf() {
+inline constexpr std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&>
+MatrixBase<Derived>::forceAlignedAccessIf() {
   return derived();  // FIXME This should not work but apparently is never used
 }
 
