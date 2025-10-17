@@ -269,8 +269,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
 
   if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
 
-  int steps = 0;
-
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {
     for (Index i = m_n - 1; i >= j + 2; i--) {
@@ -300,7 +298,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
         // update Z
         if (m_computeQZ) m_Z.applyOnTheLeft(i - 1, i, G);
       }
-      steps++;
     }
   }
 }
@@ -331,7 +328,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 
   if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
 
-  unsigned int steps = 0;
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {
     for (Index i = m_n - 1; i >= j + 2; i--) {
@@ -363,7 +359,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
         // update Z
         if (m_computeQZ) m_Z.applyOnTheLeft(i - 1, i, G);
       }
-      steps++;
     }
   }
 }
@@ -615,7 +610,7 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
     m_T(l, l) = Scalar(0);
     m_S(l, l - 1) = Scalar(0);
   }
-};
+}
 
 /** \internal Computes vector L1 norms of S and T when in Hessenberg-Triangular form already */
 template <typename MatrixType_>
@@ -627,7 +622,7 @@ void ComplexQZ<MatrixType_>::computeNorms() {
     m_normOfS += m_S.col(j).segment(0, (std::min)(size, j + 2)).cwiseAbs().sum();
     m_normOfT += m_T.row(j).segment(j, size - j).cwiseAbs().sum();
   }
-};
+}
 
 /** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0). Copied from Eigen3 RealQZ
  * implementation */
