@@ -14,7 +14,6 @@ if (${EIGEN_CI_CTEST_REGEX}) {
 }
 
 $ctest_cmd = "ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --build-noclean ${target}"
-$exit_code = 1
 $max_retries = 3
 
 Write-Host "Running initial tests..."
@@ -26,25 +25,18 @@ if ($exit_code -eq 0) {
   Write-Host "Tests passed on the first attempt."
 }
 else {
-  Write-Host "Initial tests failed with exit code $initialTestExitCode. Retrying up to $max_retries times..."
+  Write-Host "Initial tests failed with exit code $exit_code. Retrying up to $max_retries times..."
 
-  $retry = 1
-  while ($retry -le $max_retries) {
-    Write-Host "Attempting retry $retry of $max_retries..."
+  & $ctest_cmd --rerun-failed --repeat until-pass:${max_retries}
+  $exit_code = $LASTEXITCODE
 
-    & $ctest_cmd --rerun-failed
-    $exit_code = $LASTEXITCODE
-
-    if ($exit_code -eq 0) {
-      Write-Host "Tests passed on retry."
-      $exit_code = 42
-      break
-    }
-    $retry++
+  if ($exit_code -eq 0) {
+    Write-Host "Tests passed on retry."
+    $exit_code = 42
   }
 }
 
 # Return to root directory.
 cd ${rootdir}
 
-Exit exit_code
+Exit $exit_code
