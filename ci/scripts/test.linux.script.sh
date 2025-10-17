@@ -28,7 +28,6 @@ else
   if ${ctest_cmd} --rerun-failed --repeat until-pass:${max_retries}; then
     echo "Tests passed on retry."
     exit_code=42
-    break
   else
     exit_code=$?
   fi
