@@ -25,18 +25,13 @@ if ${ctest_cmd} -T test; then
   exit_code=$?
 else
   echo "Initial tests failed with exit code $?. Retrying up to ${max_retries} times..."
-  retry=1
-  while [[ ${retry} -le ${max_retries} ]]; do
-    echo "Attempting retry ${retry} of ${max_retries}..."
-    if ${ctest_cmd} --rerun-failed; then
-      echo "Tests passed on retry."
-      exit_code=42
-      break
-    else
-      exit_code=$?
-    fi
-    ((retry++))
-  done
+  if ${ctest_cmd} --rerun-failed --repeat until-pass:${max_retries}; then
+    echo "Tests passed on retry."
+    exit_code=42
+    break
+  else
+    exit_code=$?
+  fi
 fi
 
 set -x
