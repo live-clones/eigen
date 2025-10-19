@@ -14,13 +14,16 @@ if (${EIGEN_CI_CTEST_REGEX}) {
 }
 
 $ctest_args = @{
-    "${EIGEN_CI_CTEST_ARGS}"
     "--parallel"
-    "${NPROC}"
+    ${NPROC}
     "--output-on-failure"
     "--no-compress-output"
     "--build-noclean"
-    "${target}"
+    ${target}
+}
+
+if (-not [string]::IsNullOrEmpty($EIGEN_CI_CTEST_ARGS)) {
+    $ctest_args += $EIGEN_CI_CTEST_ARGS
 }
 
 Write-Host "Running initial tests..."
