@@ -14,10 +14,12 @@ if (${EIGEN_CI_CTEST_REGEX}) {
 }
 
 $ctest_args = "${EIGEN_CI_CTEST_ARGS}", "-j${NPROC}", "--output-on-failure --no-compress-output --build-noclean", "${target}"
+$ctest_first_args = "-T test"
+$ctest_retry_args = "--rerun-failed", "--repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
 
 Write-Host "Running initial tests..."
 
-ctest @ctest_args -T test
+ctest @ctest_args @ctest_first_args
 $exit_code = $LASTEXITCODE
 
 if ($exit_code -eq 0) {
@@ -26,7 +28,7 @@ if ($exit_code -eq 0) {
 else {
   Write-Host "Initial tests failed with exit code $exit_code. Retrying up to $EIGEN_CI_CTEST_REPEAT times..."
 
-  ctest @ctest_args --rerun-failed --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}
+  ctest @ctest_args @ctest_retry_args
   $exit_code = $LASTEXITCODE
 
   if ($exit_code -eq 0) {
