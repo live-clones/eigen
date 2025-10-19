@@ -20,7 +20,6 @@ $ctest_args = @{
     "--output-on-failure"
     "--no-compress-output"
     "--build-noclean"
-    "-L"
     "${target}"
 }
 
