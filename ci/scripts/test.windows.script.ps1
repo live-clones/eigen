@@ -25,13 +25,16 @@ if ($exit_code -eq 0) {
 }
 else {
   Write-Host "Initial tests failed with exit code $exit_code. Retrying up to $EIGEN_CI_CTEST_REPEAT times..."
+  # TODO: figure out how to use --repeat until-pass
+  for ($i = 1; $i -le $EIGEN_CI_CTEST_REPEAT; $i++) {
+    & $ctest_cmd "--rerun-failed"
+    $exit_code = $LASTEXITCODE
 
-  & $ctest_cmd "--rerun-failed --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
-  $exit_code = $LASTEXITCODE
-
-  if ($exit_code -eq 0) {
-    Write-Host "Tests passed on retry."
-    $exit_code = 42
+    if ($exit_code -eq 0) {
+      Write-Host "Tests passed on retry."
+      $exit_code = 42
+      break
+    }
   }
 }
 
