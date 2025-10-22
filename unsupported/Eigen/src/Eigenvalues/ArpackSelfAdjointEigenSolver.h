@@ -10,6 +10,8 @@
 #ifndef EIGEN_ARPACKGENERALIZEDSELFADJOINTEIGENSOLVER_H
 #define EIGEN_ARPACKGENERALIZEDSELFADJOINTEIGENSOLVER_H
 
+#include <iostream>
+
 #include "../../../../Eigen/Dense"
 
 // IWYU pragma: private
