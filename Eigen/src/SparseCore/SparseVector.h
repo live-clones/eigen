@@ -29,8 +29,8 @@ namespace Eigen {
  */
 
 namespace internal {
-template <typename Scalar_, int Options_, typename StorageIndex_>
-struct traits<SparseVector<Scalar_, Options_, StorageIndex_> > {
+template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
+struct traits<SparseVector<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>> {
   typedef Scalar_ Scalar;
   typedef StorageIndex_ StorageIndex;
   typedef Sparse StorageKind;
@@ -38,10 +38,12 @@ struct traits<SparseVector<Scalar_, Options_, StorageIndex_> > {
   enum {
     IsColVector = (Options_ & RowMajorBit) ? 0 : 1,
 
-    RowsAtCompileTime = IsColVector ? Dynamic : 1,
-    ColsAtCompileTime = IsColVector ? 1 : Dynamic,
+    IsStatic = MaxNZ_ != Dynamic,
+    RowsAtCompileTime = IsColVector ? Rows_ : 1,
+    ColsAtCompileTime = IsColVector ? 1 : Cols_,
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
+    MaxNZ = MaxNZ_,
     Flags = Options_ | NestByRefBit | LvalueBit | (IsColVector ? 0 : RowMajorBit) | CompressedAccessBit,
     SupportedAccessPatterns = InnerRandomAccessPattern
   };
@@ -58,8 +60,8 @@ struct sparse_vector_assign_selector;
 
 }  // namespace internal
 
-template <typename Scalar_, int Options_, typename StorageIndex_>
-class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_> > {
+template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
+class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>> {
   typedef SparseCompressedBase<SparseVector> Base;
   using Base::convert_index;
 
@@ -68,8 +70,14 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, +=)
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, -=)
 
-  typedef internal::CompressedStorage<Scalar, StorageIndex> Storage;
-  enum { IsColVector = internal::traits<SparseVector>::IsColVector };
+  template <class InputIterators>
+  void setFromSortedPairs(InputIterators begin, InputIterators end);
+
+  typedef internal::CompressedStorage<Scalar, StorageIndex, MaxNZ_> Storage;
+  enum {
+    IsColVector = internal::traits<SparseVector>::IsColVector,
+    IsStatic = internal::traits<SparseVector>::IsStatic
+  };
 
   enum { Options = Options_ };
 
@@ -254,7 +262,12 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
   void resizeNonZeros(Index size) { m_data.resize(size); }
 
-  inline SparseVector() : m_size(0) { resize(0); }
+  inline SparseVector() : m_size(0) {
+    EIGEN_IF_CONSTEXPR(!IsStatic) resize(0);
+    else {
+      m_size = IsColVector ? Rows_ : Cols_;
+    }
+  }
 
   explicit inline SparseVector(Index size) : m_size(0) { resize(size); }
 
@@ -402,10 +415,35 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 };
 
 namespace internal {
+template <typename InputIterator, typename SparseVectorType>
+void set_from_sorted_pairs(const InputIterator& begin, const InputIterator& end, SparseVectorType& vec) {
+  using StorageIndex = typename SparseVectorType::StorageIndex;
+  using Scalar = typename SparseVectorType::Scalar;
+  Scalar* values = vec.valuePtr();
+  StorageIndex* inner_indices = vec.innerIndexPtr();
 
-template <typename Scalar_, int Options_, typename Index_>
-struct evaluator<SparseVector<Scalar_, Options_, Index_> > : evaluator_base<SparseVector<Scalar_, Options_, Index_> > {
-  typedef SparseVector<Scalar_, Options_, Index_> SparseVectorType;
+  Eigen::Index i = 0;
+  for (InputIterator it(begin); it != end; ++it, ++i) {
+    inner_indices[i] = it->first;
+    values[i] = it->second;
+  }
+}
+}  // namespace internal
+
+template <typename Scalar_, int Options_, typename IndexType_, int Rows_, int Cols_, int MaxNZ_>
+template <typename InputIterator>
+void SparseVector<Scalar_, Options_, IndexType_, Rows_, Cols_, MaxNZ_>::setFromSortedPairs(InputIterator begin,
+                                                                                           InputIterator end) {
+  internal::set_from_sorted_pairs<InputIterator, SparseVector<Scalar, Options_, IndexType_, Rows_, Cols_, MaxNZ_>>(
+      begin, end, *this);
+}
+
+namespace internal {
+
+template <typename Scalar_, int Options_, typename Index_, int Rows_, int Cols_, int MaxNZ_>
+struct evaluator<SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_>>
+    : evaluator_base<SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_>> {
+  typedef SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> SparseVectorType;
   typedef evaluator_base<SparseVectorType> Base;
   typedef typename SparseVectorType::InnerIterator InnerIterator;
   typedef typename SparseVectorType::ReverseInnerIterator ReverseInnerIterator;
