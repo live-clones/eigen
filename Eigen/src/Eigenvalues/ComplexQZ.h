@@ -11,13 +11,8 @@
 //
 // Derived from: Eigen/src/Eigenvalues/RealQZ.h
 
-#include "Eigen/Core"
-#include "Eigen/Jacobi"
-
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_
-
-#include "../../SparseQR"
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -129,9 +124,7 @@ class ComplexQZ {
             computeQZ ? n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_ws(2 * n),
         m_computeQZ(computeQZ),
-        m_maxIters(maxIters){
-
-        };
+        m_maxIters(maxIters) {}
 
   /** \brief Constructor. computes the QZ decomposition of given matrices
    * upon creation
@@ -181,14 +174,14 @@ class ComplexQZ {
    *
    * \returns \c Success if computation was successfull, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const { return m_info; };
+  ComputationInfo info() const { return m_info; }
 
   /** \brief number of performed QZ steps
    */
   unsigned int iterations() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     return m_global_iter;
-  };
+  }
 
  private:
   Index m_n;
@@ -269,8 +262,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
 
   if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
 
-  int steps = 0;
-
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {
     for (Index i = m_n - 1; i >= j + 2; i--) {
@@ -300,7 +291,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
         // update Z
         if (m_computeQZ) m_Z.applyOnTheLeft(i - 1, i, G);
       }
-      steps++;
     }
   }
 }
@@ -331,7 +321,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 
   if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
 
-  unsigned int steps = 0;
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {
     for (Index i = m_n - 1; i >= j + 2; i--) {
@@ -363,7 +352,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
         // update Z
         if (m_computeQZ) m_Z.applyOnTheLeft(i - 1, i, G);
       }
-      steps++;
     }
   }
 }
@@ -615,7 +603,7 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
     m_T(l, l) = Scalar(0);
     m_S(l, l - 1) = Scalar(0);
   }
-};
+}
 
 /** \internal Computes vector L1 norms of S and T when in Hessenberg-Triangular form already */
 template <typename MatrixType_>
@@ -627,7 +615,7 @@ void ComplexQZ<MatrixType_>::computeNorms() {
     m_normOfS += m_S.col(j).segment(0, (std::min)(size, j + 2)).cwiseAbs().sum();
     m_normOfT += m_T.row(j).segment(j, size - j).cwiseAbs().sum();
   }
-};
+}
 
 /** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0). Copied from Eigen3 RealQZ
  * implementation */
