@@ -1,6 +1,6 @@
 # Change to build directory.
 $rootdir = Get-Location
-cd $EIGEN_CI_BUILDDIR
+Set-Location $EIGEN_CI_BUILDDIR
 
 # Determine number of processors for parallel tests.
 $NPROC=${Env:NUMBER_OF_PROCESSORS}
@@ -39,6 +39,6 @@ else {
 }
 
 # Return to root directory.
-cd ${rootdir}
+Set-Location ${rootdir}
 
 Exit $exit_code
