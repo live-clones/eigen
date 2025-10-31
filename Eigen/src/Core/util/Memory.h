@@ -1356,20 +1356,19 @@ EIGEN_DEVICE_FUNC void destroy_at(T* p) {
 
 #if !defined(EIGEN_DONT_ASSUME_ALIGNED) && defined(__cpp_lib_assume_aligned) && (__cpp_lib_assume_aligned >= 201811L)
 template <std::size_t N, typename T>
-EIGEN_STRING_INLINE EIGEN_DEVICE_FUNCTION constexpr T* assume_aligned(T* ptr) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr T* assume_aligned(T* ptr) {
   return std::assume_aligned<N, T>(ptr);
 }
 #elif !defined(EIGEN_DONT_ASSUME_ALIGNED) && EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
 template <std::size_t N, typename T>
-EIGEN_STRING_INLINE EIGEN_DEVICE_FUNCTION T* assume_aligned(T* ptr) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC T* assume_aligned(T* ptr) {
   return static_cast<T*>(__builtin_assume_aligned(ptr, N));
 }
 #else
 template <std::size_t N, typename T>
-EIGEN_STRING_INLINE EIGEN_DEVICE_FUNCTION constexpr T* assume_aligned(T* ptr) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr T* assume_aligned(T* ptr) {
   return ptr;
 }
-#endif
 #endif
 
 }  // end namespace internal
