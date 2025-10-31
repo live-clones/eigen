@@ -659,7 +659,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
 
   // Clamp x.
   Packet zero_mask = pcmp_lt(_x, cst_exp_lo);
-  Packet x = pselect(pisnan(_x), _x, pmin(_x, cst_exp_hi));
+  Packet x = pmin(_x, cst_exp_hi);
 
   // Express exp(x) as exp(m*ln(2) + r), start by extracting
   // m = floor(x/ln(2) + 0.5).
@@ -718,7 +718,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
 
   // clamp x
   Packet zero_mask = pcmp_lt(_x, cst_exp_lo);
-  Packet x = pselect(pisnan(_x), _x, pmin(_x, cst_exp_hi));
+  Packet x = pmin(_x, cst_exp_hi);
 
   // Express exp(x) as exp(g + n*log(2)).
   fx = pmadd(cst_cephes_LOG2EF, x, cst_half);
@@ -1326,7 +1326,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) 
   p = pmadd(x3, p, x);
 
   // Divide the numerator by the denominator.
-  return pselect(pisnan(a_x), a_x, pdiv(p, q));
+  return pdiv(p, q);
 }
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
@@ -1384,7 +1384,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_double(const T& a_x)
   p = pmadd(x3, p, x);
 
   // Divide the numerator by the denominator.
-  return pselect(pisnan(a_x), a_x, pdiv(p, q));
+  return pdiv(p, q);
 }
 
 template <typename Packet>
