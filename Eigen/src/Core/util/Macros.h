@@ -50,9 +50,9 @@
 #ifndef EIGEN_STACK_ALLOCATION_LIMIT
 // 131072 == 128 KB
 #if defined(__AVX512F__)
-  #define EIGEN_STACK_ALLOCATION_LIMIT 0
+#define EIGEN_STACK_ALLOCATION_LIMIT 0
 #else
-  #define EIGEN_STACK_ALLOCATION_LIMIT 16384
+#define EIGEN_STACK_ALLOCATION_LIMIT 16384
 #endif
 #endif
 
@@ -833,7 +833,6 @@
 #define EIGEN_HAS_BUILTIN_INT128 0
 #endif
 #endif
-
 
 // Does the compiler support vector types?
 #if __has_attribute(vector_size)

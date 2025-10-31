@@ -1477,7 +1477,7 @@ struct PacketBlock {
   Packet packet[N];
 };
 
-template <typename Packet, int size=1>
+template <typename Packet, int size = 1>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet, size>& /*kernel*/) {
   // Nothing to do in the scalar case, i.e. a 1x1 matrix.
 }
