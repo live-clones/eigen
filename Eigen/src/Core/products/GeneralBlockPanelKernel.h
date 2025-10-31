@@ -644,7 +644,7 @@ DoublePacket<Packet> padd(const DoublePacket<Packet>& a, const DoublePacket<Pack
 
 template <typename Packet>
 const DoublePacket<Packet>& predux_half(const DoublePacket<Packet>& a,
-                                               std::enable_if_t<unpacket_traits<Packet>::size <= 8>* = 0) {
+                                        std::enable_if_t<unpacket_traits<Packet>::size <= 8>* = 0) {
   return a;
 }
 

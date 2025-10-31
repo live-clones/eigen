@@ -1351,25 +1351,25 @@ void packetmath_notcomplex() {
   VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::plset");
 
   //  {
-    //    unsigned char* data1_bits = reinterpret_cast<unsigned char*>(data1);
-    // predux_all - not needed yet
-    // for (unsigned int i=0; i<PacketSize*sizeof(Scalar); ++i) data1_bits[i] = 0xff;
-    // VERIFY(internal::predux_all(internal::pload<Packet>(data1)) && "internal::predux_all(1111)");
-    // for(int k=0; k<PacketSize; ++k)
-    // {
-    //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0x0;
-    //   VERIFY( (!internal::predux_all(internal::pload<Packet>(data1))) && "internal::predux_all(0101)");
-    //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0xff;
-    // }
+  //    unsigned char* data1_bits = reinterpret_cast<unsigned char*>(data1);
+  // predux_all - not needed yet
+  // for (unsigned int i=0; i<PacketSize*sizeof(Scalar); ++i) data1_bits[i] = 0xff;
+  // VERIFY(internal::predux_all(internal::pload<Packet>(data1)) && "internal::predux_all(1111)");
+  // for(int k=0; k<PacketSize; ++k)
+  // {
+  //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0x0;
+  //   VERIFY( (!internal::predux_all(internal::pload<Packet>(data1))) && "internal::predux_all(0101)");
+  //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0xff;
+  // }
 
-    // predux_any
-    // for (unsigned int i = 0; i < PacketSize * sizeof(Scalar); ++i) data1_bits[i] = 0x0;
-    // VERIFY((!internal::predux_any(internal::pload<Packet>(data1))) && "internal::predux_any(0000)");
-    // for (int k = 0; k < PacketSize; ++k) {
-    //   for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0xff;
-    //   VERIFY(internal::predux_any(internal::pload<Packet>(data1)) && "internal::predux_any(0101)");
-    //   for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0x00;
-    // }
+  // predux_any
+  // for (unsigned int i = 0; i < PacketSize * sizeof(Scalar); ++i) data1_bits[i] = 0x0;
+  // VERIFY((!internal::predux_any(internal::pload<Packet>(data1))) && "internal::predux_any(0000)");
+  // for (int k = 0; k < PacketSize; ++k) {
+  //   for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0xff;
+  //   VERIFY(internal::predux_any(internal::pload<Packet>(data1)) && "internal::predux_any(0101)");
+  //   for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0x00;
+  // }
   //  }
 
   // // Test NaN propagation.
@@ -1394,9 +1394,11 @@ void packetmath_notcomplex() {
   //   // A single NaN.
   //   const size_t index = std::numeric_limits<size_t>::quiet_NaN() % PacketSize;
   //   data1[index] = NumTraits<Scalar>::quiet_NaN();
-  //   VERIFY(PacketSize == 1 || !(numext::isnan)(internal::predux_min<PropagateNumbers>(internal::pload<Packet>(data1))));
+  //   VERIFY(PacketSize == 1 ||
+  //   !(numext::isnan)(internal::predux_min<PropagateNumbers>(internal::pload<Packet>(data1))));
   //   VERIFY((numext::isnan)(internal::predux_min<PropagateNaN>(internal::pload<Packet>(data1))));
-  //   VERIFY(PacketSize == 1 || !(numext::isnan)(internal::predux_max<PropagateNumbers>(internal::pload<Packet>(data1))));
+  //   VERIFY(PacketSize == 1 ||
+  //   !(numext::isnan)(internal::predux_max<PropagateNumbers>(internal::pload<Packet>(data1))));
   //   VERIFY((numext::isnan)(internal::predux_max<PropagateNaN>(internal::pload<Packet>(data1))));
   //   // All NaNs.
   //   for (int i = 0; i < 4 * PacketSize; ++i) data1[i] = NumTraits<Scalar>::quiet_NaN();
