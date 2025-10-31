@@ -200,7 +200,11 @@
 #endif
 #endif
 
-#if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC))
+#if defined(EIGEN_VECTORIZE_GENERIC) && !EIGEN_ARCH_VECTOR_EXTENSIONS
+#error "The compiler does not support clang vector extensions."
+#endif
+
+#if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC))
 
 #if defined(EIGEN_SSE2_ON_NON_MSVC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
 
