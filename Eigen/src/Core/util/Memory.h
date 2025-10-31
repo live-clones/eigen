@@ -1294,17 +1294,17 @@ inline void queryCacheSizes(int& l1, int& l2, int& l3) {
     // by default let's use Intel's API
     queryCacheSizes_intel(l1, l2, l3, max_std_funcs);
 
-  // here is the list of other vendors:
-  //   ||cpuid_is_vendor(abcd,"VIA VIA VIA ")
-  //   ||cpuid_is_vendor(abcd,"CyrixInstead")
-  //   ||cpuid_is_vendor(abcd,"CentaurHauls")
-  //   ||cpuid_is_vendor(abcd,"GenuineTMx86")
-  //   ||cpuid_is_vendor(abcd,"TransmetaCPU")
-  //   ||cpuid_is_vendor(abcd,"RiseRiseRise")
-  //   ||cpuid_is_vendor(abcd,"Geode by NSC")
-  //   ||cpuid_is_vendor(abcd,"SiS SiS SiS ")
-  //   ||cpuid_is_vendor(abcd,"UMC UMC UMC ")
-  //   ||cpuid_is_vendor(abcd,"NexGenDriven")
+    // here is the list of other vendors:
+    //   ||cpuid_is_vendor(abcd,"VIA VIA VIA ")
+    //   ||cpuid_is_vendor(abcd,"CyrixInstead")
+    //   ||cpuid_is_vendor(abcd,"CentaurHauls")
+    //   ||cpuid_is_vendor(abcd,"GenuineTMx86")
+    //   ||cpuid_is_vendor(abcd,"TransmetaCPU")
+    //   ||cpuid_is_vendor(abcd,"RiseRiseRise")
+    //   ||cpuid_is_vendor(abcd,"Geode by NSC")
+    //   ||cpuid_is_vendor(abcd,"SiS SiS SiS ")
+    //   ||cpuid_is_vendor(abcd,"UMC UMC UMC ")
+    //   ||cpuid_is_vendor(abcd,"NexGenDriven")
 #else
   l1 = l2 = l3 = -1;
 #endif
