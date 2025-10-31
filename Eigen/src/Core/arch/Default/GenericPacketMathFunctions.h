@@ -1327,7 +1327,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) 
 
   // Divide the numerator by the denominator.
   return pselect(pisnan(a_x), a_x, pdiv(p, q));
-  //return pdiv(p, q);
 }
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
