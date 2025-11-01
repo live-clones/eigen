@@ -54,7 +54,7 @@ template <typename VectorT>
 EIGEN_STRONG_INLINE VectorT
 load_vector_aligned(const scalar_type_of_vector_t<VectorT>* from) {
   EIGEN_ASSUME_ALIGNED(from, 64);
-  return *(VectorT*)from;
+  return *reinterpret_cast<VectorT*>(assume_aligned<64>(from));
 }
 
 template <typename VectorT>
@@ -69,8 +69,7 @@ EIGEN_STRONG_INLINE void store_vector_unaligned(
 template <typename VectorT>
 EIGEN_STRONG_INLINE void store_vector_aligned(
     scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
-  EIGEN_ASSUME_ALIGNED(to, 64);
-  *(VectorT*)to = from;
+  *reinterpret_cast<VectorT*>(assume_aligned<64>(to)) = from;
 }
 
 template <typename VectorT>
@@ -673,7 +672,7 @@ EIGEN_CLANG_PACKET_SCATTER(Packet8l)
     for (int i = 0; i < size; ++i) {                                 \
       arr[i] = from[i * stride];                                     \
     }                                                                \
-    return *(PACKET_TYPE*)arr;                                       \
+    return *reinterpret_cast<PACKET_TYPE*>(arr);                     \
   }
 
 EIGEN_CLANG_PACKET_GATHER(Packet16f, float)
