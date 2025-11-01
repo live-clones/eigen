@@ -53,8 +53,7 @@ load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
 template <typename VectorT>
 EIGEN_STRONG_INLINE VectorT
 load_vector_aligned(const scalar_type_of_vector_t<VectorT>* from) {
-  EIGEN_ASSUME_ALIGNED(from, 64);
-  return *reinterpret_cast<VectorT*>(assume_aligned<64>(from));
+  return *reinterpret_cast<const VectorT*>(assume_aligned<64>(from));
 }
 
 template <typename VectorT>
