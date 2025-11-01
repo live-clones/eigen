@@ -692,7 +692,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   enum {
     IsAligned = TensorEvaluator<ThenArgType, Device>::IsAligned & TensorEvaluator<ElseArgType, Device>::IsAligned,
     PacketAccess = (TensorEvaluator<ThenArgType, Device>::PacketAccess &&
-                    TensorEvaluator<ElseArgType, Device>::PacketAccess && PacketType<Scalar, Device>::HasBlend) ||
+                    TensorEvaluator<ElseArgType, Device>::PacketAccess) ||
                    TernaryPacketAccess,
     BlockAccess = TensorEvaluator<IfArgType, Device>::BlockAccess &&
                   TensorEvaluator<ThenArgType, Device>::BlockAccess &&
@@ -789,13 +789,13 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
 
   template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<!UseTernary, bool> = true>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
-    internal::Selector<PacketSize> select;
+    PacketReturnType select;
     EIGEN_UNROLL_LOOP
     for (Index i = 0; i < PacketSize; ++i) {
-      select.select[i] = m_condImpl.coeff(index + i);
+      select[i] = Scalar(m_condImpl.coeff(index + i));
     }
-    return internal::pblend(select, m_thenImpl.template packet<LoadMode>(index),
-                            m_elseImpl.template packet<LoadMode>(index));
+    return internal::pselect(select, m_thenImpl.template packet<LoadMode>(index),
+                             m_elseImpl.template packet<LoadMode>(index));
   }
 
   template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<UseTernary, bool> = true>

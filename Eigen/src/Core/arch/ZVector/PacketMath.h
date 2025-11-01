@@ -167,7 +167,6 @@ struct packet_traits<int> : default_packet_traits {
     HasSub = 1,
     HasMul = 1,
     HasDiv = 1,
-    HasBlend = 1
   };
 };
 
@@ -197,7 +196,6 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = 1,
     HasErf = 1,
     HasNegate = 1,
-    HasBlend = 1
   };
 };
 
@@ -224,7 +222,6 @@ struct packet_traits<double> : default_packet_traits {
     HasSqrt = 1,
     HasRsqrt = 1,
     HasNegate = 1,
-    HasBlend = 1
   };
 };
 
@@ -747,22 +744,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet2d, 2>& kernel) {
   kernel.packet[1] = t1;
 }
 
-template <>
-EIGEN_STRONG_INLINE Packet4i pblend(const Selector<4>& ifPacket, const Packet4i& thenPacket,
-                                    const Packet4i& elsePacket) {
-  Packet4ui select = {ifPacket.select[0], ifPacket.select[1], ifPacket.select[2], ifPacket.select[3]};
-  Packet4ui mask = vec_cmpeq(select, reinterpret_cast<Packet4ui>(p4i_ONE));
-  return vec_sel(elsePacket, thenPacket, mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, const Packet2d& thenPacket,
-                                    const Packet2d& elsePacket) {
-  Packet2ul select = {ifPacket.select[0], ifPacket.select[1]};
-  Packet2ul mask = vec_cmpeq(select, reinterpret_cast<Packet2ul>(p2l_ONE));
-  return vec_sel(elsePacket, thenPacket, mask);
-}
-
 /* z13 has no vector float support so we emulate that with double
    z14 has proper vector float support.
 */
@@ -1069,19 +1050,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4f, 4>& kernel) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4f pblend(const Selector<4>& ifPacket, const Packet4f& thenPacket,
-                                    const Packet4f& elsePacket) {
-  Packet2ul select_hi = {ifPacket.select[0], ifPacket.select[1]};
-  Packet2ul select_lo = {ifPacket.select[2], ifPacket.select[3]};
-  Packet2ul mask_hi = vec_cmpeq(select_hi, reinterpret_cast<Packet2ul>(p2l_ONE));
-  Packet2ul mask_lo = vec_cmpeq(select_lo, reinterpret_cast<Packet2ul>(p2l_ONE));
-  Packet4f result;
-  result.v4f[0] = vec_sel(elsePacket.v4f[0], thenPacket.v4f[0], mask_hi);
-  result.v4f[1] = vec_sel(elsePacket.v4f[1], thenPacket.v4f[1], mask_lo);
-  return result;
-}
-
-template <>
 Packet4f EIGEN_STRONG_INLINE pcmp_le<Packet4f>(const Packet4f& a, const Packet4f& b) {
   Packet4f res;
   res.v4f[0] = pcmp_le(a.v4f[0], b.v4f[0]);
@@ -1286,14 +1254,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4f, 4>& kernel) {
   kernel.packet[1] = vec_mergel(t0, t2);
   kernel.packet[2] = vec_mergeh(t1, t3);
   kernel.packet[3] = vec_mergel(t1, t3);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pblend(const Selector<4>& ifPacket, const Packet4f& thenPacket,
-                                    const Packet4f& elsePacket) {
-  Packet4ui select = {ifPacket.select[0], ifPacket.select[1], ifPacket.select[2], ifPacket.select[3]};
-  Packet4ui mask = vec_cmpeq(select, reinterpret_cast<Packet4ui>(p4i_ONE));
-  return vec_sel(elsePacket, thenPacket, mask);
 }
 
 #endif

@@ -2066,18 +2066,6 @@ EIGEN_STRONG_INLINE int avx512_blend_mask(const Selector<N>& ifPacket) {
   return _mm_movemask_epi8(paux);
 }
 
-template <>
-EIGEN_STRONG_INLINE Packet16f pblend(const Selector<16>& ifPacket, const Packet16f& thenPacket,
-                                     const Packet16f& elsePacket) {
-  __mmask16 m = avx512_blend_mask(ifPacket);
-  return _mm512_mask_blend_ps(m, elsePacket, thenPacket);
-}
-template <>
-EIGEN_STRONG_INLINE Packet8d pblend(const Selector<8>& ifPacket, const Packet8d& thenPacket,
-                                    const Packet8d& elsePacket) {
-  __mmask8 m = avx512_blend_mask(ifPacket);
-  return _mm512_mask_blend_pd(m, elsePacket, thenPacket);
-}
 
 // Packet math for Eigen::half
 #ifndef EIGEN_VECTORIZE_AVX512FP16

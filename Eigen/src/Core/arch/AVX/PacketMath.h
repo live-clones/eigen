@@ -127,7 +127,6 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasErfc = EIGEN_FAST_MATH,
-    HasBlend = 1
   };
 };
 template <>
@@ -158,7 +157,6 @@ struct packet_traits<double> : default_packet_traits {
     HasCbrt = 1,
     HasATan = 1,
     HasATanh = 1,
-    HasBlend = 1
   };
 };
 
@@ -193,7 +191,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0,
     HasBessel = 1,
     HasNdtri = 1
   };
@@ -231,7 +228,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0,
     HasBessel = 1,
     HasNdtri = 1
   };
@@ -284,7 +280,6 @@ struct packet_traits<uint64_t> : default_packet_traits {
     // HasMin = 0,
     // HasMax = 0,
     HasDiv = 0,
-    HasBlend = 0,
     HasTranspose = 0,
     HasNegate = 0,
     HasSqrt = 0,
@@ -2079,20 +2074,6 @@ EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<8>& ifPacket) {
   return _mm256_set_epi32(0 - ifPacket.select[7], 0 - ifPacket.select[6], 0 - ifPacket.select[5],
                           0 - ifPacket.select[4], 0 - ifPacket.select[3], 0 - ifPacket.select[2],
                           0 - ifPacket.select[1], 0 - ifPacket.select[0]);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8f pblend(const Selector<8>& ifPacket, const Packet8f& thenPacket,
-                                    const Packet8f& elsePacket) {
-  const __m256 true_mask = _mm256_castsi256_ps(avx_blend_mask(ifPacket));
-  return pselect<Packet8f>(true_mask, thenPacket, elsePacket);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4d pblend(const Selector<4>& ifPacket, const Packet4d& thenPacket,
-                                    const Packet4d& elsePacket) {
-  const __m256d true_mask = _mm256_castsi256_pd(avx_blend_mask(ifPacket));
-  return pselect<Packet4d>(true_mask, thenPacket, elsePacket);
 }
 
 // Packet math for Eigen::half
