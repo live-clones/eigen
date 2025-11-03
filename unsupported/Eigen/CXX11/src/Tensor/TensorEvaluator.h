@@ -789,13 +789,14 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
 
   template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<!UseTernary, bool> = true>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
-    PacketReturnType select;
+    Scalar arr[PacketSize];
     EIGEN_UNROLL_LOOP
     for (Index i = 0; i < PacketSize; ++i) {
-      select[i] = Scalar(m_condImpl.coeff(index + i));
+      arr[i] = m_condImpl.coeff(index + i) ? Scalar(-1) : Scalar(0);
     }
-    return internal::pselect(select, m_thenImpl.template packet<LoadMode>(index),
-                             m_elseImpl.template packet<LoadMode>(index));
+    return TernarySelectOp().template packetOp<PacketReturnType>(m_thenImpl.template packet<LoadMode>(index),
+                                                                 m_elseImpl.template packet<LoadMode>(index),
+                                                                 internal::pload<PacketReturnType>(arr));
   }
 
   template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<UseTernary, bool> = true>
