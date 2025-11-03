@@ -23,25 +23,21 @@ using VectorType = ScalarT __attribute__((vector_size(n * sizeof(ScalarT))));
 // --- vector type helpers ---
 template <typename VectorT>
 struct ScalarTypeOfVector {
-  using type =
-      std::remove_all_extents_t<std::remove_reference_t<decltype(VectorT()[0])>>;
+  using type = std::remove_all_extents_t<std::remove_reference_t<decltype(VectorT()[0])>>;
 };
 
 template <typename VectorT>
 using scalar_type_of_vector_t = typename ScalarTypeOfVector<VectorT>::type;
 
 template <typename VectorT>
-using HalfPacket = VectorType<typename unpacket_traits<VectorT>::type,
-                              unpacket_traits<VectorT>::size / 2>;
+using HalfPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 2>;
 
 template <typename VectorT>
-using QuarterPacket = VectorType<typename unpacket_traits<VectorT>::type,
-                                 unpacket_traits<VectorT>::size / 4>;
+using QuarterPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 4>;
 
 // load and store helpers.
 template <typename VectorT>
-EIGEN_STRONG_INLINE VectorT
-load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
+EIGEN_STRONG_INLINE VectorT load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
   VectorT to;
   constexpr int n = __builtin_vectorelements(to);
   for (int i = 0; i < n; ++i) {
@@ -51,14 +47,12 @@ load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
 }
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE VectorT
-load_vector_aligned(const scalar_type_of_vector_t<VectorT>* from) {
+EIGEN_STRONG_INLINE VectorT load_vector_aligned(const scalar_type_of_vector_t<VectorT>* from) {
   return *reinterpret_cast<const VectorT*>(assume_aligned<64>(from));
 }
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE void store_vector_unaligned(
-    scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
+EIGEN_STRONG_INLINE void store_vector_unaligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
   constexpr int n = __builtin_vectorelements(from);
   for (int i = 0; i < n; ++i) {
     *to++ = from[i];
@@ -66,14 +60,12 @@ EIGEN_STRONG_INLINE void store_vector_unaligned(
 }
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE void store_vector_aligned(
-    scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
+EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
   *reinterpret_cast<VectorT*>(assume_aligned<64>(to)) = from;
 }
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE VectorT
-const_vector(const scalar_type_of_vector_t<VectorT>& value) {
+EIGEN_STRONG_INLINE VectorT const_vector(const scalar_type_of_vector_t<VectorT>& value) {
   VectorT result;
   constexpr int n = __builtin_vectorelements(result);
   for (int i = 0; i < n; ++i) {
@@ -282,13 +274,7 @@ struct unpacket_traits<Packet8d> {
   using type = double;
   using half = Packet8d;
   using integer_packet = Packet8l;
-  enum {
-    size = 8,
-    alignment = 64,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+  enum { size = 8, alignment = 64, vectorizable = true, masked_load_available = false, masked_store_available = false };
 };
 template <>
 struct unpacket_traits<Packet16i> {
@@ -306,39 +292,29 @@ template <>
 struct unpacket_traits<Packet8l> {
   using type = int64_t;
   using half = Packet8l;
-  enum {
-    size = 8,
-    alignment = 64,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+  enum { size = 8, alignment = 64, vectorizable = true, masked_load_available = false, masked_store_available = false };
 };
 
 // --- Intrinsic-like specializations ---
 
 // --- Load/Store operations ---
 
-#define EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(PACKET_TYPE, SCALAR_TYPE) \
-  template <>                                                          \
-  EIGEN_STRONG_INLINE PACKET_TYPE ploadu<PACKET_TYPE>(                 \
-      const SCALAR_TYPE* from) {                                       \
-    return detail::load_vector_unaligned<PACKET_TYPE>(from);           \
-  }                                                                    \
-  template <>                                                          \
-  EIGEN_STRONG_INLINE PACKET_TYPE pload<PACKET_TYPE>(                  \
-      const SCALAR_TYPE* from) {                                       \
-    return detail::load_vector_aligned<PACKET_TYPE>(from);             \
-  }                                                                    \
-  template <>                                                          \
-  EIGEN_STRONG_INLINE void pstoreu<SCALAR_TYPE, PACKET_TYPE>(          \
-      SCALAR_TYPE * to, const PACKET_TYPE& from) {                     \
-    detail::store_vector_unaligned<PACKET_TYPE>(to, from);             \
-  }                                                                    \
-  template <>                                                          \
-  EIGEN_STRONG_INLINE void pstore<SCALAR_TYPE, PACKET_TYPE>(           \
-      SCALAR_TYPE * to, const PACKET_TYPE& from) {                     \
-    detail::store_vector_aligned<PACKET_TYPE>(to, from);               \
+#define EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(PACKET_TYPE, SCALAR_TYPE)                                    \
+  template <>                                                                                             \
+  EIGEN_STRONG_INLINE PACKET_TYPE ploadu<PACKET_TYPE>(const SCALAR_TYPE* from) {                          \
+    return detail::load_vector_unaligned<PACKET_TYPE>(from);                                              \
+  }                                                                                                       \
+  template <>                                                                                             \
+  EIGEN_STRONG_INLINE PACKET_TYPE pload<PACKET_TYPE>(const SCALAR_TYPE* from) {                           \
+    return detail::load_vector_aligned<PACKET_TYPE>(from);                                                \
+  }                                                                                                       \
+  template <>                                                                                             \
+  EIGEN_STRONG_INLINE void pstoreu<SCALAR_TYPE, PACKET_TYPE>(SCALAR_TYPE * to, const PACKET_TYPE& from) { \
+    detail::store_vector_unaligned<PACKET_TYPE>(to, from);                                                \
+  }                                                                                                       \
+  template <>                                                                                             \
+  EIGEN_STRONG_INLINE void pstore<SCALAR_TYPE, PACKET_TYPE>(SCALAR_TYPE * to, const PACKET_TYPE& from) {  \
+    detail::store_vector_aligned<PACKET_TYPE>(to, from);                                                  \
   }
 
 EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16f, float)
@@ -358,16 +334,14 @@ EIGEN_STRONG_INLINE Packet8d pset1frombits<Packet8d>(uint64_t from) {
   return detail::const_vector<Packet8d>(numext::bit_cast<double>(from));
 }
 
-#define EIGEN_CLANG_PACKET_SET1(PACKET_TYPE)                                  \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE PACKET_TYPE pset1<PACKET_TYPE>(                         \
-      const unpacket_traits<PACKET_TYPE>::type& from) {                       \
-    return detail::const_vector<PACKET_TYPE>(from);                           \
-  }                                                                           \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type pfirst<PACKET_TYPE>( \
-      const PACKET_TYPE& from) {                                              \
-    return from[0];                                                           \
+#define EIGEN_CLANG_PACKET_SET1(PACKET_TYPE)                                                            \
+  template <>                                                                                           \
+  EIGEN_STRONG_INLINE PACKET_TYPE pset1<PACKET_TYPE>(const unpacket_traits<PACKET_TYPE>::type& from) {  \
+    return detail::const_vector<PACKET_TYPE>(from);                                                     \
+  }                                                                                                     \
+  template <>                                                                                           \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type pfirst<PACKET_TYPE>(const PACKET_TYPE& from) { \
+    return from[0];                                                                                     \
   }
 
 EIGEN_CLANG_PACKET_SET1(Packet16f)
@@ -404,59 +378,46 @@ namespace detail {
 // Note: pcast functions are not template specializations, just helpers
 // identical to preinterpret. We duplicate them here to avoid a circular
 // dependence with TypeCasting.h.
-EIGEN_STRONG_INLINE Packet16i pcast_float_to_int(const Packet16f& a) {
-  return (Packet16i)a;
-}
-EIGEN_STRONG_INLINE Packet16f pcast_int_to_float(const Packet16i& a) {
-  return (Packet16f)a;
-}
-EIGEN_STRONG_INLINE Packet8l pcast_double_to_int(const Packet8d& a) {
-  return (Packet8l)a;
-}
-EIGEN_STRONG_INLINE Packet8d pcast_int_to_double(const Packet8l& a) {
-  return (Packet8d)a;
-}
+EIGEN_STRONG_INLINE Packet16i pcast_float_to_int(const Packet16f& a) { return (Packet16i)a; }
+EIGEN_STRONG_INLINE Packet16f pcast_int_to_float(const Packet16i& a) { return (Packet16f)a; }
+EIGEN_STRONG_INLINE Packet8l pcast_double_to_int(const Packet8d& a) { return (Packet8l)a; }
+EIGEN_STRONG_INLINE Packet8d pcast_int_to_double(const Packet8l& a) { return (Packet8d)a; }
 
 }  // namespace detail
 
 // Bitwise ops for integer packets
-#define EIGEN_CLANG_PACKET_BITWISE_INT(PACKET_TYPE)                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& a) {   \
-    return a == a;                                                             \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a,      \
-                                                    const PACKET_TYPE& b) {    \
-    return a & b;                                                              \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE por<PACKET_TYPE>(const PACKET_TYPE& a,       \
-                                                   const PACKET_TYPE& b) {     \
-    return a | b;                                                              \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE pxor<PACKET_TYPE>(const PACKET_TYPE& a,      \
-                                                    const PACKET_TYPE& b) {    \
-    return a ^ b;                                                              \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE pandnot<PACKET_TYPE>(const PACKET_TYPE& a,   \
-                                                       const PACKET_TYPE& b) { \
-    return a & ~b;                                                             \
-  }                                                                            \
-  template <int N>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE parithmetic_shift_right(                     \
-      const PACKET_TYPE& a) {                                                  \
-    return a >> N;                                                             \
-  }                                                                            \
-  template <int N>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE plogical_shift_right(const PACKET_TYPE& a) { \
-    return a >> N;                                                             \
-  }                                                                            \
-  template <int N>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE plogical_shift_left(const PACKET_TYPE& a) {  \
-    return a << N;                                                             \
+#define EIGEN_CLANG_PACKET_BITWISE_INT(PACKET_TYPE)                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& a) {                         \
+    return a == a;                                                                                   \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
+    return a & b;                                                                                    \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE por<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
+    return a | b;                                                                                    \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE pxor<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
+    return a ^ b;                                                                                    \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE pandnot<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
+    return a & ~b;                                                                                   \
+  }                                                                                                  \
+  template <int N>                                                                                   \
+  EIGEN_STRONG_INLINE PACKET_TYPE parithmetic_shift_right(const PACKET_TYPE& a) {                    \
+    return a >> N;                                                                                   \
+  }                                                                                                  \
+  template <int N>                                                                                   \
+  EIGEN_STRONG_INLINE PACKET_TYPE plogical_shift_right(const PACKET_TYPE& a) {                       \
+    return a >> N;                                                                                   \
+  }                                                                                                  \
+  template <int N>                                                                                   \
+  EIGEN_STRONG_INLINE PACKET_TYPE plogical_shift_left(const PACKET_TYPE& a) {                        \
+    return a << N;                                                                                   \
   }
 
 EIGEN_CLANG_PACKET_BITWISE_INT(Packet16i)
@@ -464,37 +425,30 @@ EIGEN_CLANG_PACKET_BITWISE_INT(Packet8l)
 #undef EIGEN_CLANG_PACKET_BITWISE_INT
 
 // Bitwise ops for floating point packets
-#define EIGEN_CLANG_PACKET_BITWISE_FLOAT(PACKET_TYPE, CAST_TO_INT,             \
-                                         CAST_FROM_INT)                        \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& a) {   \
-    return CAST_FROM_INT(CAST_TO_INT(a) == CAST_TO_INT(a));                    \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a,      \
-                                                    const PACKET_TYPE& b) {    \
-    return CAST_FROM_INT(CAST_TO_INT(a) & CAST_TO_INT(b));                     \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE por<PACKET_TYPE>(const PACKET_TYPE& a,       \
-                                                   const PACKET_TYPE& b) {     \
-    return CAST_FROM_INT(CAST_TO_INT(a) | CAST_TO_INT(b));                     \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE pxor<PACKET_TYPE>(const PACKET_TYPE& a,      \
-                                                    const PACKET_TYPE& b) {    \
-    return CAST_FROM_INT(CAST_TO_INT(a) ^ CAST_TO_INT(b));                     \
-  }                                                                            \
-  template <>                                                                  \
-  EIGEN_STRONG_INLINE PACKET_TYPE pandnot<PACKET_TYPE>(const PACKET_TYPE& a,   \
-                                                       const PACKET_TYPE& b) { \
-    return CAST_FROM_INT(CAST_TO_INT(a) & ~CAST_TO_INT(b));                    \
+#define EIGEN_CLANG_PACKET_BITWISE_FLOAT(PACKET_TYPE, CAST_TO_INT, CAST_FROM_INT)                    \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& a) {                         \
+    return CAST_FROM_INT(CAST_TO_INT(a) == CAST_TO_INT(a));                                          \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
+    return CAST_FROM_INT(CAST_TO_INT(a) & CAST_TO_INT(b));                                           \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE por<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
+    return CAST_FROM_INT(CAST_TO_INT(a) | CAST_TO_INT(b));                                           \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE pxor<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
+    return CAST_FROM_INT(CAST_TO_INT(a) ^ CAST_TO_INT(b));                                           \
+  }                                                                                                  \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE pandnot<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
+    return CAST_FROM_INT(CAST_TO_INT(a) & ~CAST_TO_INT(b));                                          \
   }
 
-EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet16f, detail::pcast_float_to_int,
-                                 detail::pcast_int_to_float)
-EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_int,
-                                 detail::pcast_int_to_double)
+EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet16f, detail::pcast_float_to_int, detail::pcast_int_to_float)
+EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_int, detail::pcast_int_to_double)
 #undef EIGEN_CLANG_PACKET_BITWISE_FLOAT
 
 // --- Blending operation ---
@@ -511,38 +465,32 @@ EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_int,
 /* #undef EIGEN_CLANG_PACKET_BLEND */
 
 // --- Min/Max operations ---
-#define EIGEN_CLANG_PACKET_MINMAX(PACKET_TYPE)                              \
-  template <>                                                               \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PACKET_TYPE>(const PACKET_TYPE& a,   \
-                                                    const PACKET_TYPE& b) { \
-    /* Match NaN propagation of std::min. */                                \
-    return a == a ? __builtin_elementwise_min(a, b) : a;                    \
-  }                                                                         \
-  template <>                                                               \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PACKET_TYPE>(const PACKET_TYPE& a,   \
-                                                    const PACKET_TYPE& b) { \
-    /* Match NaN propagation of std::max. */                                \
-    return a == a ? __builtin_elementwise_max(a, b) : a;                    \
-  }                                                                         \
-  template <>                                                               \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNumbers, PACKET_TYPE>(      \
-      const PACKET_TYPE& a, const PACKET_TYPE& b) {                         \
-    return __builtin_elementwise_min(a, b);                                 \
-  }                                                                         \
-  template <>                                                               \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNumbers, PACKET_TYPE>(      \
-      const PACKET_TYPE& a, const PACKET_TYPE& b) {                         \
-    return __builtin_elementwise_max(a, b);                                 \
-  }                                                                         \
-  template <>                                                               \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNaN, PACKET_TYPE>(          \
-      const PACKET_TYPE& a, const PACKET_TYPE& b) {                         \
-    return a != a ? a : (b != b ? b : __builtin_elementwise_min(a, b));     \
-  }                                                                         \
-  template <>                                                               \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNaN, PACKET_TYPE>(          \
-      const PACKET_TYPE& a, const PACKET_TYPE& b) {                         \
-    return a != a ? a : (b != b ? b : __builtin_elementwise_max(a, b));     \
+#define EIGEN_CLANG_PACKET_MINMAX(PACKET_TYPE)                                                                      \
+  template <>                                                                                                       \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {                   \
+    /* Match NaN propagation of std::min. */                                                                        \
+    return a == a ? __builtin_elementwise_min(a, b) : a;                                                            \
+  }                                                                                                                 \
+  template <>                                                                                                       \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {                   \
+    /* Match NaN propagation of std::max. */                                                                        \
+    return a == a ? __builtin_elementwise_max(a, b) : a;                                                            \
+  }                                                                                                                 \
+  template <>                                                                                                       \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNumbers, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
+    return __builtin_elementwise_min(a, b);                                                                         \
+  }                                                                                                                 \
+  template <>                                                                                                       \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNumbers, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
+    return __builtin_elementwise_max(a, b);                                                                         \
+  }                                                                                                                 \
+  template <>                                                                                                       \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
+    return a != a ? a : (b != b ? b : __builtin_elementwise_min(a, b));                                             \
+  }                                                                                                                 \
+  template <>                                                                                                       \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
+    return a != a ? a : (b != b ? b : __builtin_elementwise_max(a, b));                                             \
   }
 
 EIGEN_CLANG_PACKET_MINMAX(Packet16f)
@@ -584,34 +532,34 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(Packet8d)
 
 // --- Fused Multiply-Add (MADD) ---
 #if __has_builtin(__builtin_elementwise_fma)
-#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                              \
-  template <>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(                     \
-      const PACKET_TYPE& a, const PACKET_TYPE& b, const PACKET_TYPE& c) { \
-    return __builtin_elementwise_fma(a, b, c);                            \
-  }                                                                       \
-  template <>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmsub<PACKET_TYPE>(                     \
-      const PACKET_TYPE& a, const PACKET_TYPE& b, const PACKET_TYPE& c) { \
-    return __builtin_elementwise_fma(a, b, -c);                           \
-  }                                                                       \
-  template <>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE pnmadd<PACKET_TYPE>(                    \
-      const PACKET_TYPE& a, const PACKET_TYPE& b, const PACKET_TYPE& c) { \
-    return __builtin_elementwise_fma(-a, b, c);                           \
-  }                                                                       \
-  template <>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE pnmsub<PACKET_TYPE>(                    \
-      const PACKET_TYPE& a, const PACKET_TYPE& b, const PACKET_TYPE& c) { \
-    return -(__builtin_elementwise_fma(a, b, c));                         \
+#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
+                                                     const PACKET_TYPE& c) {                      \
+    return __builtin_elementwise_fma(a, b, c);                                                    \
+  }                                                                                               \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
+                                                     const PACKET_TYPE& c) {                      \
+    return __builtin_elementwise_fma(a, b, -c);                                                   \
+  }                                                                                               \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pnmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
+                                                      const PACKET_TYPE& c) {                     \
+    return __builtin_elementwise_fma(-a, b, c);                                                   \
+  }                                                                                               \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pnmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
+                                                      const PACKET_TYPE& c) {                     \
+    return -(__builtin_elementwise_fma(a, b, c));                                                 \
   }
 #else
 // Fallback if FMA builtin is not available
-#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                              \
-  template <>                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(                     \
-      const PACKET_TYPE& a, const PACKET_TYPE& b, const PACKET_TYPE& c) { \
-    return (a * b) + c;                                                   \
+#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                     \
+  template <>                                                                                    \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
+                                                     const PACKET_TYPE& c) {                     \
+    return (a * b) + c;                                                                          \
   }
 #endif
 
@@ -627,17 +575,15 @@ EIGEN_STRONG_INLINE Packet preverse_impl_8(const Packet& a) {
 }
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet preverse_impl_16(const Packet& a) {
-  return __builtin_shufflevector(a, a, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4,
-                                 3, 2, 1, 0);
+  return __builtin_shufflevector(a, a, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
 }
 
 }  // namespace detail
 
-#define EIGEN_CLANG_PACKET_REVERSE(PACKET_TYPE, SIZE)    \
-  template <>                                            \
-  EIGEN_STRONG_INLINE PACKET_TYPE preverse<PACKET_TYPE>( \
-      const PACKET_TYPE& a) {                            \
-    return detail::preverse_impl_##SIZE(a);              \
+#define EIGEN_CLANG_PACKET_REVERSE(PACKET_TYPE, SIZE)                           \
+  template <>                                                                   \
+  EIGEN_STRONG_INLINE PACKET_TYPE preverse<PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return detail::preverse_impl_##SIZE(a);                                     \
   }
 
 EIGEN_CLANG_PACKET_REVERSE(Packet16f, 16)
@@ -646,14 +592,13 @@ EIGEN_CLANG_PACKET_REVERSE(Packet16i, 16)
 EIGEN_CLANG_PACKET_REVERSE(Packet8l, 8)
 #undef EIGEN_CLANG_PACKET_REVERSE
 
-#define EIGEN_CLANG_PACKET_SCATTER(PACKET_TYPE)                              \
-  template <>                                                                \
-  EIGEN_STRONG_INLINE void pscatter(unpacket_traits<PACKET_TYPE>::type* to,  \
-                                    const PACKET_TYPE& from, Index stride) { \
-    constexpr int size = unpacket_traits<PACKET_TYPE>::size;                 \
-    for (int i = 0; i < size; ++i) {                                         \
-      to[i * stride] = from[i];                                              \
-    }                                                                        \
+#define EIGEN_CLANG_PACKET_SCATTER(PACKET_TYPE)                                                                      \
+  template <>                                                                                                        \
+  EIGEN_STRONG_INLINE void pscatter(unpacket_traits<PACKET_TYPE>::type* to, const PACKET_TYPE& from, Index stride) { \
+    constexpr int size = unpacket_traits<PACKET_TYPE>::size;                                                         \
+    for (int i = 0; i < size; ++i) {                                                                                 \
+      to[i * stride] = from[i];                                                                                      \
+    }                                                                                                                \
   }
 
 EIGEN_CLANG_PACKET_SCATTER(Packet16f)
@@ -662,16 +607,15 @@ EIGEN_CLANG_PACKET_SCATTER(Packet16i)
 EIGEN_CLANG_PACKET_SCATTER(Packet8l)
 #undef EIGEN_CLANG_PACKET_SCATTER
 
-#define EIGEN_CLANG_PACKET_GATHER(PACKET_TYPE, SCALAR_TYPE)          \
-  template <>                                                        \
-  EIGEN_STRONG_INLINE PACKET_TYPE pgather<SCALAR_TYPE, PACKET_TYPE>( \
-      const SCALAR_TYPE* from, Index stride) {                       \
-    constexpr int size = unpacket_traits<PACKET_TYPE>::size;         \
-    SCALAR_TYPE arr[size];                                           \
-    for (int i = 0; i < size; ++i) {                                 \
-      arr[i] = from[i * stride];                                     \
-    }                                                                \
-    return *reinterpret_cast<PACKET_TYPE*>(arr);                     \
+#define EIGEN_CLANG_PACKET_GATHER(PACKET_TYPE, SCALAR_TYPE)                                                  \
+  template <>                                                                                                \
+  EIGEN_STRONG_INLINE PACKET_TYPE pgather<SCALAR_TYPE, PACKET_TYPE>(const SCALAR_TYPE* from, Index stride) { \
+    constexpr int size = unpacket_traits<PACKET_TYPE>::size;                                                 \
+    SCALAR_TYPE arr[size];                                                                                   \
+    for (int i = 0; i < size; ++i) {                                                                         \
+      arr[i] = from[i * stride];                                                                             \
+    }                                                                                                        \
+    return *reinterpret_cast<PACKET_TYPE*>(arr);                                                             \
   }
 
 EIGEN_CLANG_PACKET_GATHER(Packet16f, float)
@@ -680,11 +624,11 @@ EIGEN_CLANG_PACKET_GATHER(Packet16i, int32_t)
 EIGEN_CLANG_PACKET_GATHER(Packet8l, int64_t)
 #undef EIGEN_CLANG_PACKET_GATHER
 
-#define EIGEN_CLANG_PACKET_SELECT(PACKET_TYPE)                               \
-  template <>                                                                \
-  EIGEN_STRONG_INLINE PACKET_TYPE pselect<PACKET_TYPE>(                      \
-      const PACKET_TYPE& mask, const PACKET_TYPE& a, const PACKET_TYPE& b) { \
-    return __builtin_elementwise_abs(mask) == 0 ? b : a;                     \
+#define EIGEN_CLANG_PACKET_SELECT(PACKET_TYPE)                                                        \
+  template <>                                                                                         \
+  EIGEN_STRONG_INLINE PACKET_TYPE pselect<PACKET_TYPE>(const PACKET_TYPE& mask, const PACKET_TYPE& a, \
+                                                       const PACKET_TYPE& b) {                        \
+    return __builtin_elementwise_abs(mask) == 0 ? b : a;                                              \
   }
 
 EIGEN_CLANG_PACKET_SELECT(Packet16f)
@@ -695,23 +639,19 @@ EIGEN_CLANG_PACKET_SELECT(Packet8l)
 
 namespace detail {
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet
-ploaddup16(const typename unpacket_traits<Packet>::type* from) {
+EIGEN_STRONG_INLINE Packet ploaddup16(const typename unpacket_traits<Packet>::type* from) {
   static_assert((unpacket_traits<Packet>::size) % 2 == 0, "Packet size must be a multiple of 2");
   using HalfPacket = HalfPacket<Packet>;
   HalfPacket a = load_vector_unaligned<HalfPacket>(from);
-  return __builtin_shufflevector(a, a, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
-                                 7, 7);
+  return __builtin_shufflevector(a, a, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7);
 }
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet
-ploadquad16(const typename unpacket_traits<Packet>::type* from) {
+EIGEN_STRONG_INLINE Packet ploadquad16(const typename unpacket_traits<Packet>::type* from) {
   static_assert((unpacket_traits<Packet>::size) % 4 == 0, "Packet size must be a multiple of 4");
   using QuarterPacket = QuarterPacket<Packet>;
   QuarterPacket a = load_vector_unaligned<QuarterPacket>(from);
-  return __builtin_shufflevector(a, a, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3,
-                                 3, 3);
+  return __builtin_shufflevector(a, a, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3);
 }
 
 template <typename Packet>
@@ -723,8 +663,7 @@ EIGEN_STRONG_INLINE Packet ploaddup8(const typename unpacket_traits<Packet>::typ
 }
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet
-ploadquad8(const typename unpacket_traits<Packet>::type* from) {
+EIGEN_STRONG_INLINE Packet ploadquad8(const typename unpacket_traits<Packet>::type* from) {
   static_assert((unpacket_traits<Packet>::size) % 4 == 0, "Packet size must be a multiple of 4");
   using QuarterPacket = QuarterPacket<Packet>;
   QuarterPacket a = load_vector_unaligned<QuarterPacket>(from);
@@ -769,21 +708,18 @@ EIGEN_STRONG_INLINE Packet8l ploadquad<Packet8l>(const int64_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16f plset<Packet16f>(const float& a) {
-  Packet16f x{a + 0.0f,  a + 1.0f,  a + 2.0f,  a + 3.0f, a + 4.0f,  a + 5.0f,
-              a + 6.0f,  a + 7.0f,  a + 8.0f,  a + 9.0f, a + 10.0f, a + 11.0f,
-              a + 12.0f, a + 13.0f, a + 14.0f, a + 15.0f};
+  Packet16f x{a + 0.0f, a + 1.0f, a + 2.0f,  a + 3.0f,  a + 4.0f,  a + 5.0f,  a + 6.0f,  a + 7.0f,
+              a + 8.0f, a + 9.0f, a + 10.0f, a + 11.0f, a + 12.0f, a + 13.0f, a + 14.0f, a + 15.0f};
   return x;
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d plset<Packet8d>(const double& a) {
-  return Packet8d{a + 0.0, a + 1.0, a + 2.0, a + 3.0,
-                  a + 4.0, a + 5.0, a + 6.0, a + 7.0};
+  return Packet8d{a + 0.0, a + 1.0, a + 2.0, a + 3.0, a + 4.0, a + 5.0, a + 6.0, a + 7.0};
 }
 template <>
 EIGEN_STRONG_INLINE Packet16i plset<Packet16i>(const int32_t& a) {
-  return Packet16i{a + 0,  a + 1,  a + 2,  a + 3, a + 4,  a + 5,
-                   a + 6,  a + 7,  a + 8,  a + 9, a + 10, a + 11,
-                   a + 12, a + 13, a + 14, a + 15};
+  return Packet16i{a + 0, a + 1, a + 2,  a + 3,  a + 4,  a + 5,  a + 6,  a + 7,
+                   a + 8, a + 9, a + 10, a + 11, a + 12, a + 13, a + 14, a + 15};
 }
 template <>
 EIGEN_STRONG_INLINE Packet8l plset<Packet8l>(const int64_t& a) {
@@ -795,10 +731,8 @@ namespace detail {
 
 template <typename Packet>
 EIGEN_ALWAYS_INLINE void zip_in_place16(Packet& p1, Packet& p2) {
-  Packet tmp = __builtin_shufflevector(p1, p2, 0, 16, 1, 17, 2, 18, 3, 19, 4,
-                                       20, 5, 21, 6, 22, 7, 23);
-  p2 = __builtin_shufflevector(p1, p2, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13,
-                               29, 14, 30, 15, 31);
+  Packet tmp = __builtin_shufflevector(p1, p2, 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23);
+  p2 = __builtin_shufflevector(p1, p2, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31);
   p1 = tmp;
 }
 
@@ -882,73 +816,59 @@ EIGEN_ALWAYS_INLINE void ptranspose_impl(PacketBlock<Packet, 16>& kernel) {
 
 }  // namespace detail
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16f, 16>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16f, 16>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16f, 8>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16f, 8>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16f, 4>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16f, 4>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16f, 2>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16f, 2>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet8d, 8>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8d, 8>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet8d, 4>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8d, 4>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet8d, 2>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8d, 2>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16i, 16>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16i, 16>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16i, 8>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16i, 8>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16i, 4>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16i, 4>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet16i, 2>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16i, 2>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet8l, 8>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8l, 8>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet8l, 4>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8l, 4>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(
-    PacketBlock<Packet8l, 2>& kernel) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8l, 2>& kernel) {
   detail::ptranspose_impl(kernel);
 }
 

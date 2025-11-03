@@ -14,20 +14,18 @@ namespace Eigen {
 namespace internal {
 
 // --- Reductions ---
-#define EIGEN_CLANG_PACKET_REDUX_MINMAX(PACKET_TYPE)                 \
-  template <>                                                        \
-  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min( \
-      const PACKET_TYPE& a) {                                        \
-    return __builtin_reduce_min(a);                                  \
-  }                                                                  \
-  template <>                                                        \
-  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max( \
-      const PACKET_TYPE& a) {                                        \
-    return __builtin_reduce_max(a);                                  \
-  }                                                                  \
-  template <>                                                        \
-  EIGEN_STRONG_INLINE bool predux_any(const PACKET_TYPE& a) {        \
-    return __builtin_reduce_or(a != 0) != 0;                         \
+#define EIGEN_CLANG_PACKET_REDUX_MINMAX(PACKET_TYPE)                                        \
+  template <>                                                                               \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) { \
+    return __builtin_reduce_min(a);                                                         \
+  }                                                                                         \
+  template <>                                                                               \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max(const PACKET_TYPE& a) { \
+    return __builtin_reduce_max(a);                                                         \
+  }                                                                                         \
+  template <>                                                                               \
+  EIGEN_STRONG_INLINE bool predux_any(const PACKET_TYPE& a) {                               \
+    return __builtin_reduce_or(a != 0) != 0;                                                \
   }
 
 EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet16f)
@@ -61,17 +59,14 @@ EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet8l)
 /* EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(Packet8d) */
 /* #undef EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT */
 
-    
-#define EIGEN_CLANG_PACKET_REDUX_INT(PACKET_TYPE)                             \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>( \
-      const PACKET_TYPE& a) {                                                 \
-    return __builtin_reduce_add(a);                                           \
-  }                                                                           \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type                      \
-  predux_mul<PACKET_TYPE>(const PACKET_TYPE& a) {                             \
-    return __builtin_reduce_mul(a);                                           \
+#define EIGEN_CLANG_PACKET_REDUX_INT(PACKET_TYPE)                                                        \
+  template <>                                                                                            \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>(const PACKET_TYPE& a) {     \
+    return __builtin_reduce_add(a);                                                                      \
+  }                                                                                                      \
+  template <>                                                                                            \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_mul<PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return __builtin_reduce_mul(a);                                                                      \
   }
 
 //     builtin_reduce_{mul,add} are only defined for integer types.
@@ -81,46 +76,34 @@ EIGEN_CLANG_PACKET_REDUX_INT(Packet8l)
 
 namespace detail {
 template <typename VectorT>
-EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceAdd16(
-    const VectorT& a) {
+EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceAdd16(const VectorT& a) {
   auto t1 = __builtin_shufflevector(a, a, 0, 2, 4, 6, 8, 10, 12, 14) +
             __builtin_shufflevector(a, a, 1, 3, 5, 7, 9, 11, 13, 15);
-  auto t2 = __builtin_shufflevector(t1, t1, 0, 2, 4, 6) +
-            __builtin_shufflevector(t1, t1, 1, 3, 5, 7);
-  auto t3 = __builtin_shufflevector(t2, t2, 0, 2) +
-            __builtin_shufflevector(t2, t2, 1, 3);
+  auto t2 = __builtin_shufflevector(t1, t1, 0, 2, 4, 6) + __builtin_shufflevector(t1, t1, 1, 3, 5, 7);
+  auto t3 = __builtin_shufflevector(t2, t2, 0, 2) + __builtin_shufflevector(t2, t2, 1, 3);
   return t3[0] + t3[1];
 }
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceAdd8(
-    const VectorT& a) {
-  auto t1 = __builtin_shufflevector(a, a, 0, 2, 4, 6) +
-            __builtin_shufflevector(a, a, 1, 3, 5, 7);
-  auto t2 = __builtin_shufflevector(t1, t1, 0, 2) +
-            __builtin_shufflevector(t1, t1, 1, 3);
+EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceAdd8(const VectorT& a) {
+  auto t1 = __builtin_shufflevector(a, a, 0, 2, 4, 6) + __builtin_shufflevector(a, a, 1, 3, 5, 7);
+  auto t2 = __builtin_shufflevector(t1, t1, 0, 2) + __builtin_shufflevector(t1, t1, 1, 3);
   return t2[0] + t2[1];
 }
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceMul16(
-    const VectorT& a) {
+EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceMul16(const VectorT& a) {
   auto t1 = __builtin_shufflevector(a, a, 0, 2, 4, 6, 8, 10, 12, 14) *
             __builtin_shufflevector(a, a, 1, 3, 5, 7, 9, 11, 13, 15);
-  auto t2 = __builtin_shufflevector(t1, t1, 0, 2, 4, 6) *
-            __builtin_shufflevector(t1, t1, 1, 3, 5, 7);
-  auto t3 = __builtin_shufflevector(t2, t2, 0, 2) *
-            __builtin_shufflevector(t2, t2, 1, 3);
+  auto t2 = __builtin_shufflevector(t1, t1, 0, 2, 4, 6) * __builtin_shufflevector(t1, t1, 1, 3, 5, 7);
+  auto t3 = __builtin_shufflevector(t2, t2, 0, 2) * __builtin_shufflevector(t2, t2, 1, 3);
   return t3[0] * t3[1];
 }
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceMul8(
-    const VectorT& a) {
-  auto t1 = __builtin_shufflevector(a, a, 0, 2, 4, 6) *
-            __builtin_shufflevector(a, a, 1, 3, 5, 7);
-  auto t2 = __builtin_shufflevector(t1, t1, 0, 2) *
-            __builtin_shufflevector(t1, t1, 1, 3);
+EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceMul8(const VectorT& a) {
+  auto t1 = __builtin_shufflevector(a, a, 0, 2, 4, 6) * __builtin_shufflevector(a, a, 1, 3, 5, 7);
+  auto t2 = __builtin_shufflevector(t1, t1, 0, 2) * __builtin_shufflevector(t1, t1, 1, 3);
   return t2[0] * t2[1];
 }
 }  // namespace detail
@@ -141,7 +124,6 @@ template <>
 EIGEN_STRONG_INLINE double predux_mul<Packet8d>(const Packet8d& a) {
   return detail::ReduceMul8(a);
 }
-
 
 }  // end namespace internal
 }  // end namespace Eigen
