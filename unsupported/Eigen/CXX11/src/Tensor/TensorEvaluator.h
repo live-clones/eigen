@@ -107,8 +107,8 @@ struct TensorEvaluator {
   // Function has been templatized to enable Sfinae.
   template <typename PacketReturnTypeT>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::unpacket_traits<PacketReturnTypeT>::masked_load_available, PacketReturnTypeT>
-      partialPacket(Index index, typename internal::unpacket_traits<PacketReturnTypeT>::mask_t umask) const {
+  std::enable_if_t<internal::unpacket_traits<PacketReturnTypeT>::masked_load_available, PacketReturnTypeT>
+  partialPacket(Index index, typename internal::unpacket_traits<PacketReturnTypeT>::mask_t umask) const {
     return internal::ploadu<PacketReturnTypeT>(m_data + index, umask);
   }
 
@@ -269,8 +269,8 @@ struct TensorEvaluator<const Derived, Device> {
   // Function has been templatized to enable Sfinae.
   template <typename PacketReturnTypeT>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::unpacket_traits<PacketReturnTypeT>::masked_load_available, PacketReturnTypeT>
-      partialPacket(Index index, typename internal::unpacket_traits<PacketReturnTypeT>::mask_t umask) const {
+  std::enable_if_t<internal::unpacket_traits<PacketReturnTypeT>::masked_load_available, PacketReturnTypeT>
+  partialPacket(Index index, typename internal::unpacket_traits<PacketReturnTypeT>::mask_t umask) const {
     return internal::ploadu<PacketReturnTypeT>(m_data + index, umask);
   }
 
@@ -691,9 +691,9 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   static constexpr int Layout = TensorEvaluator<IfArgType, Device>::Layout;
   enum {
     IsAligned = TensorEvaluator<ThenArgType, Device>::IsAligned & TensorEvaluator<ElseArgType, Device>::IsAligned,
-    PacketAccess = (TensorEvaluator<ThenArgType, Device>::PacketAccess &&
-                    TensorEvaluator<ElseArgType, Device>::PacketAccess) ||
-                   TernaryPacketAccess,
+    PacketAccess =
+        (TensorEvaluator<ThenArgType, Device>::PacketAccess && TensorEvaluator<ElseArgType, Device>::PacketAccess) ||
+        TernaryPacketAccess,
     BlockAccess = TensorEvaluator<IfArgType, Device>::BlockAccess &&
                   TensorEvaluator<ThenArgType, Device>::BlockAccess &&
                   TensorEvaluator<ElseArgType, Device>::BlockAccess,
