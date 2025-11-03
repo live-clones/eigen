@@ -12,7 +12,9 @@
 #define EIGEN_CORE_MODULE_H
 
 // DO NOT SUBMIT: This is a temporary definition to test the clang backend.
+#if defined(__clang__)
 #define EIGEN_VECTORIZE_GENERIC
+#endif
 
 // Eigen version information.
 #include "Version"
