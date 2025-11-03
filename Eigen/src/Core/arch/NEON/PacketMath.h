@@ -4689,8 +4689,8 @@ EIGEN_STRONG_INLINE bfloat16 pfirst<Packet4bf>(const Packet4bf& from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pload<Packet4bf>(const bfloat16* from) {
-unpacket_traits<Packet4bf>::alignment);
-return Packet4bf(pload<Packet4us>(reinterpret_cast<const uint16_t*>(from)));
+  return Packet4bf(
+      pload<Packet4us>(reinterpret_cast<const uint16_t*>(assume_aligned<unpacket_traits<Packet4bf>::alignment>(from))));
 }
 
 template <>
@@ -5190,8 +5190,7 @@ EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pload<Packet2d>(const double* from) {
-unpacket_traits<Packet2d>::alignment);
-EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f64(from);
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f64(assume_aligned<unpacket_traits<Packet2d>::alignment>(from));
 }
 
 template <>
