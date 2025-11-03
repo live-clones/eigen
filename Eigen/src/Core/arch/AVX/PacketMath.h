@@ -2065,17 +2065,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4d, 4>& kernel) {
   kernel.packet[2] = _mm256_permute2f128_pd(T1, T3, 49);
 }
 
-EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<4>& ifPacket) {
-  return _mm256_set_epi64x(0 - ifPacket.select[3], 0 - ifPacket.select[2], 0 - ifPacket.select[1],
-                           0 - ifPacket.select[0]);
-}
-
-EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<8>& ifPacket) {
-  return _mm256_set_epi32(0 - ifPacket.select[7], 0 - ifPacket.select[6], 0 - ifPacket.select[5],
-                          0 - ifPacket.select[4], 0 - ifPacket.select[3], 0 - ifPacket.select[2],
-                          0 - ifPacket.select[1], 0 - ifPacket.select[0]);
-}
-
 // Packet math for Eigen::half
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
