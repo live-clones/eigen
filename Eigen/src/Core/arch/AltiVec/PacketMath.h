@@ -3048,7 +3048,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16uc, 16>& kernel) {
   kernel.packet[15] = vec_mergel(step3[7], step3[15]);
 }
 
-
 //---------- double ----------
 #ifdef EIGEN_VECTORIZE_VSX
 typedef __vector double Packet2d;

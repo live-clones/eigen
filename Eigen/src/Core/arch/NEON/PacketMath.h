@@ -5731,14 +5731,14 @@ EIGEN_STRONG_INLINE Packet4hf pandnot<Packet4hf>(const Packet4hf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet8hf pload<Packet8hf>(const Eigen::half* from) {
-  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(reinterpret_cast<const float16_t*>(
-    assume_aligned<unpacket_traits<Packet8hf>::alignment>(from)));
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet8hf>::alignment>(from)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4hf pload<Packet4hf>(const Eigen::half* from) {
-  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(reinterpret_cast<const float16_t*>(
-    assume_aligned<unpacket_traits<Packet4hf>::alignment>(from)));
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet4hf>::alignment>(from)));
 }
 
 template <>
