@@ -37,6 +37,7 @@ EIGEN_STRONG_INLINE Packet8l preinterpret<Packet8l, Packet8d>(const Packet8d& a)
 //==============================================================================
 // pcast
 //==============================================================================
+#if __has_builtin(__builtin_convertvector)
 template <>
 EIGEN_STRONG_INLINE Packet16i pcast<Packet16f, Packet16i>(const Packet16f& a) {
   return __builtin_convertvector(a, Packet16i);
@@ -54,6 +55,7 @@ template <>
 EIGEN_STRONG_INLINE Packet8d pcast<Packet8l, Packet8d>(const Packet8l& a) {
   return __builtin_convertvector(a, Packet8d);
 }
+#endif
 
 }  // end namespace internal
 }  // end namespace Eigen

@@ -14,6 +14,7 @@ namespace Eigen {
 namespace internal {
 
 // --- Reductions ---
+#if __has_builtin(__builtin_reduce_min) && __has_builtin(__builtin_reduce_max) && __has_builtin(__builtin_reduce_or)
 #define EIGEN_CLANG_PACKET_REDUX_MINMAX(PACKET_TYPE)                                        \
   template <>                                                                               \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) { \
@@ -33,32 +34,9 @@ EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet8d)
 EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet16i)
 EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet8l)
 #undef EIGEN_CLANG_PACKET_REDUX_MINMAX
+#endif
 
-/* #define EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(PACKET_TYPE) \ */
-/*   template <>                                              \ */
-/*   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type   \ */
-/*   predux_min<PropagateNumbers>(const PACKET_TYPE& a) {     \ */
-/*     return __builtin_reduce_min(a);                        \ */
-/*   }                                                        \ */
-/*   template <>                                              \ */
-/*   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type   \ */
-/*   predux_max<PropagateNumbers>(const PACKET_TYPE& a) {     \ */
-/*     return __builtin_reduce_max(a);                        \ */
-/*   }                                                        \ */
-/*   template <>                                              \ */
-/*   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type   \ */
-/*   predux_min<PACKET_TYPE>(const PACKET_TYPE& a) {          \ */
-/*     return __builtin_reduce_min(a);                        \ */
-/*   }                                                        \ */
-/*   template <>                                              \ */
-/*   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type   \ */
-/*   predux_max<PACKET_TYPE>(const PACKET_TYPE& a) {          \ */
-/*     return __builtin_reduce_max(a);                        \ */
-/*   }                                                        \ */
-/*   EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(Packet16f) */
-/* EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(Packet8d) */
-/* #undef EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT */
-
+#if __has_builtin(__builtin_reduce_add) && __has_builtin(__builtin_reduce_mul)
 #define EIGEN_CLANG_PACKET_REDUX_INT(PACKET_TYPE)                                                        \
   template <>                                                                                            \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>(const PACKET_TYPE& a) {     \
@@ -73,7 +51,9 @@ EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet8l)
 EIGEN_CLANG_PACKET_REDUX_INT(Packet16i)
 EIGEN_CLANG_PACKET_REDUX_INT(Packet8l)
 #undef EIGEN_CLANG_PACKET_REDUX_INT
+#endif
 
+#if __has_builtin(__builtin_shufflevector)
 namespace detail {
 template <typename VectorT>
 EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceAdd16(const VectorT& a) {
@@ -124,6 +104,7 @@ template <>
 EIGEN_STRONG_INLINE double predux_mul<Packet8d>(const Packet8d& a) {
   return detail::ReduceMul8(a);
 }
+#endif
 
 }  // end namespace internal
 }  // end namespace Eigen
