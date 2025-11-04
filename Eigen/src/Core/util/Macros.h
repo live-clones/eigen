@@ -831,7 +831,7 @@
 #endif
 
 // Does the compiler support vector types?
-#if __has_attribute(ext_vector_type)
+#if __has_attribute(ext_vector_type) && __has_builtin(__builtin_vectorelements)
 #define EIGEN_ARCH_VECTOR_EXTENSIONS 1
 #else
 #define EIGEN_ARCH_VECTOR_EXTENSIONS 0

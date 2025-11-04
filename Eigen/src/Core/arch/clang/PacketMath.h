@@ -268,7 +268,7 @@ using QuarterPacket = VectorType<typename unpacket_traits<VectorT>::type, unpack
 template <typename VectorT>
 EIGEN_STRONG_INLINE VectorT load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
   VectorT to;
-  constexpr int n = packet_traits<VectorT>::size;
+  constexpr int n = __builtin_vectorelements(to);
   for (int i = 0; i < n; ++i) {
     to[i] = from[i];
   }
@@ -282,7 +282,7 @@ EIGEN_STRONG_INLINE VectorT load_vector_aligned(const scalar_type_of_vector_t<Ve
 
 template <typename VectorT>
 EIGEN_STRONG_INLINE void store_vector_unaligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
-  constexpr int n = packet_traits<VectorT>::size;
+  constexpr int n = __builtin_vectorelements(from);
   for (int i = 0; i < n; ++i) {
     *to++ = from[i];
   }
@@ -296,7 +296,7 @@ EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* 
 template <typename VectorT>
 EIGEN_STRONG_INLINE VectorT const_vector(const scalar_type_of_vector_t<VectorT>& value) {
   VectorT result;
-  constexpr int n = packet_traits<VectorT>::size;
+  constexpr int n = __builtin_vectorelements(result);
   for (int i = 0; i < n; ++i) {
     result[i] = value;
   }
@@ -508,30 +508,30 @@ EIGEN_CLANG_PACKET_ELEMENTWISE(Packet8l)
 #if __has_builtin(__builtin_elementwise_floor) && __has_builtin(__builtin_elementwise_ceil) &&      \
     __has_builtin(__builtin_elementwise_round) && __has_builtin(__builtin_elementwise_roundeven) && \
     __has_builtin(__builtin_elementwise_trunc) && __has_builtin(__builtin_elementwise_sqrt)
-#define EIGEN_CLANG_PACKET_MATH_FLOAT(PACKET_TYPE)                            \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE PACKET_TYPE pfloor<PACKET_TYPE>(const PACKET_TYPE& a) { \
-    return __builtin_elementwise_floor(a);                                    \
-  }                                                                           \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE PACKET_TYPE pceil<PACKET_TYPE>(const PACKET_TYPE& a) {  \
-    return __builtin_elementwise_ceil(a);                                     \
-  }                                                                           \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE PACKET_TYPE pround<PACKET_TYPE>(const PACKET_TYPE& a) { \
-    return __builtin_elementwise_round(a);                                    \
-  }                                                                           \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE PACKET_TYPE print<PACKET_TYPE>(const PACKET_TYPE& a) {  \
-    return __builtin_elementwise_roundeven(a);                                \
-  }                                                                           \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE PACKET_TYPE ptrunc<PACKET_TYPE>(const PACKET_TYPE& a) { \
-    return __builtin_elementwise_trunc(a);                                    \
-  }                                                                           \
-  template <>                                                                 \
-  EIGEN_STRONG_INLINE PACKET_TYPE psqrt<PACKET_TYPE>(const PACKET_TYPE& a) {  \
-    return __builtin_elementwise_sqrt(a);                                     \
+#define EIGEN_CLANG_PACKET_MATH_FLOAT(PACKET_TYPE)                                                     \
+  template <>                                                                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE pfloor<PACKET_TYPE>(const PACKET_TYPE& a) {                          \
+    return __builtin_elementwise_floor(a);                                                             \
+  }                                                                                                    \
+  template <>                                                                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE pceil<PACKET_TYPE>(const PACKET_TYPE& a) {                           \
+    return __builtin_elementwise_ceil(a);                                                              \
+  }                                                                                                    \
+  template <>                                                                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE pround<PACKET_TYPE>(const PACKET_TYPE& a) {                          \
+    return __builtin_elementwise_round(a);                                                             \
+  }                                                                                                    \
+  template <>                                                                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE print<PACKET_TYPE>(const PACKET_TYPE& a) {                           \
+    return __builtin_elementwise_roundeven(a);                                                         \
+  }                                                                                                    \
+  template <>                                                                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE ptrunc<PACKET_TYPE>(const PACKET_TYPE& a) {                          \
+    return __builtin_elementwise_trunc(a);                                                             \
+  }                                                                                                    \
+  template <>                                                                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE psqrt<PACKET_TYPE>(const PACKET_TYPE& a) {                           \
+    return __builtin_elementwise_sqrt(a);                                                              \
   }
 
 EIGEN_CLANG_PACKET_MATH_FLOAT(Packet16f)
