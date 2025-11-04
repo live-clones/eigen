@@ -12,68 +12,13 @@
 
 namespace Eigen {
 namespace internal {
-namespace detail {
 
+namespace detail {
 // namespace detail contains implementation details specific to this
 // file, while namespace internal contains internal APIs used elsewhere
 // in Eigen.
 template <typename ScalarT, int n>
-using VectorType = ScalarT __attribute__((vector_size(n * sizeof(ScalarT))));
-
-// --- vector type helpers ---
-template <typename VectorT>
-struct ScalarTypeOfVector {
-  using type = std::remove_all_extents_t<std::remove_reference_t<decltype(VectorT()[0])>>;
-};
-
-template <typename VectorT>
-using scalar_type_of_vector_t = typename ScalarTypeOfVector<VectorT>::type;
-
-template <typename VectorT>
-using HalfPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 2>;
-
-template <typename VectorT>
-using QuarterPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 4>;
-
-// load and store helpers.
-template <typename VectorT>
-EIGEN_STRONG_INLINE VectorT load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
-  VectorT to;
-  constexpr int n = __builtin_vectorelements(to);
-  for (int i = 0; i < n; ++i) {
-    to[i] = from[i];
-  }
-  return to;
-}
-
-template <typename VectorT>
-EIGEN_STRONG_INLINE VectorT load_vector_aligned(const scalar_type_of_vector_t<VectorT>* from) {
-  return *reinterpret_cast<const VectorT*>(assume_aligned<64>(from));
-}
-
-template <typename VectorT>
-EIGEN_STRONG_INLINE void store_vector_unaligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
-  constexpr int n = __builtin_vectorelements(from);
-  for (int i = 0; i < n; ++i) {
-    *to++ = from[i];
-  }
-}
-
-template <typename VectorT>
-EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
-  *reinterpret_cast<VectorT*>(assume_aligned<64>(to)) = from;
-}
-
-template <typename VectorT>
-EIGEN_STRONG_INLINE VectorT const_vector(const scalar_type_of_vector_t<VectorT>& value) {
-  VectorT result;
-  constexpr int n = __builtin_vectorelements(result);
-  for (int i = 0; i < n; ++i) {
-    result[i] = value;
-  }
-  return result;
-}
-
+using VectorType = ScalarT __attribute__((ext_vector_type(n)));
 }  // namespace detail
 
 // --- Packet type Definitions (512 bit) ---
@@ -91,7 +36,6 @@ struct packet_traits<float> : default_packet_traits {
     Vectorizable = 1,
     size = 16,
     AlignedOnScalar = 1,
-    MemoryAlignment = 64,
     HasAdd = 1,
     HasSub = 1,
     HasMul = 1,
@@ -141,7 +85,6 @@ struct packet_traits<double> : default_packet_traits {
     Vectorizable = 1,
     size = 8,
     AlignedOnScalar = 1,
-    MemoryAlignment = 64,
     HasAdd = 1,
     HasSub = 1,
     HasMul = 1,
@@ -191,7 +134,6 @@ struct packet_traits<int32_t> : default_packet_traits {
     Vectorizable = 1,
     size = 16,
     AlignedOnScalar = 1,
-    MemoryAlignment = 64,
     HasAdd = 1,
     HasSub = 1,
     HasMul = 1,
@@ -227,7 +169,6 @@ struct packet_traits<int64_t> : default_packet_traits {
     Vectorizable = 1,
     size = 8,
     AlignedOnScalar = 1,
-    MemoryAlignment = 64,
     HasAdd = 1,
     HasSub = 1,
     HasMul = 1,
@@ -263,7 +204,7 @@ struct unpacket_traits<Packet16f> {
   using integer_packet = Packet16i;
   enum {
     size = 16,
-    alignment = 64,
+    alignment = Aligned64,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -274,7 +215,13 @@ struct unpacket_traits<Packet8d> {
   using type = double;
   using half = Packet8d;
   using integer_packet = Packet8l;
-  enum { size = 8, alignment = 64, vectorizable = true, masked_load_available = false, masked_store_available = false };
+  enum {
+    size = 8,
+    alignment = Aligned64,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
 };
 template <>
 struct unpacket_traits<Packet16i> {
@@ -282,7 +229,7 @@ struct unpacket_traits<Packet16i> {
   using half = Packet16i;
   enum {
     size = 16,
-    alignment = 64,
+    alignment = Aligned64,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -292,8 +239,71 @@ template <>
 struct unpacket_traits<Packet8l> {
   using type = int64_t;
   using half = Packet8l;
-  enum { size = 8, alignment = 64, vectorizable = true, masked_load_available = false, masked_store_available = false };
+  enum {
+    size = 8,
+    alignment = Aligned64,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
 };
+
+namespace detail {
+// --- vector type helpers ---
+template <typename VectorT>
+struct ScalarTypeOfVector {
+  using type = std::remove_all_extents_t<std::remove_reference_t<decltype(VectorT()[0])>>;
+};
+
+template <typename VectorT>
+using scalar_type_of_vector_t = typename ScalarTypeOfVector<VectorT>::type;
+
+template <typename VectorT>
+using HalfPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 2>;
+
+template <typename VectorT>
+using QuarterPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 4>;
+
+// load and store helpers.
+template <typename VectorT>
+EIGEN_STRONG_INLINE VectorT load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
+  VectorT to;
+  constexpr int n = packet_traits<VectorT>::size;
+  for (int i = 0; i < n; ++i) {
+    to[i] = from[i];
+  }
+  return to;
+}
+
+template <typename VectorT>
+EIGEN_STRONG_INLINE VectorT load_vector_aligned(const scalar_type_of_vector_t<VectorT>* from) {
+  return *reinterpret_cast<const VectorT*>(assume_aligned<Aligned64>(from));
+}
+
+template <typename VectorT>
+EIGEN_STRONG_INLINE void store_vector_unaligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
+  constexpr int n = packet_traits<VectorT>::size;
+  for (int i = 0; i < n; ++i) {
+    *to++ = from[i];
+  }
+}
+
+template <typename VectorT>
+EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
+  *reinterpret_cast<VectorT*>(assume_aligned<Aligned64>(to)) = from;
+}
+
+template <typename VectorT>
+EIGEN_STRONG_INLINE VectorT const_vector(const scalar_type_of_vector_t<VectorT>& value) {
+  VectorT result;
+  constexpr int n = packet_traits<VectorT>::size;
+  for (int i = 0; i < n; ++i) {
+    result[i] = value;
+  }
+  return result;
+}
+
+}  // namespace detail
 
 // --- Intrinsic-like specializations ---
 
@@ -353,7 +363,7 @@ EIGEN_CLANG_PACKET_SET1(Packet8l)
 #define EIGEN_CLANG_PACKET_ARITHMETIC(PACKET_TYPE)                             \
   template <>                                                                  \
   EIGEN_STRONG_INLINE PACKET_TYPE pisnan<PACKET_TYPE>(const PACKET_TYPE& a) {  \
-    return a != a;                                                             \
+    return reinterpret_cast<PACKET_TYPE>(a != a);                              \
   }                                                                            \
   template <>                                                                  \
   EIGEN_STRONG_INLINE PACKET_TYPE pnegate<PACKET_TYPE>(const PACKET_TYPE& a) { \
@@ -562,7 +572,8 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(Packet8d)
   }
 #endif
 
-EIGEN_CLANG_PACKET_MADD(Packet16f) EIGEN_CLANG_PACKET_MADD(Packet8d)
+EIGEN_CLANG_PACKET_MADD(Packet16f)
+EIGEN_CLANG_PACKET_MADD(Packet8d)
 #undef EIGEN_CLANG_PACKET_MADD
 
 #define EIGEN_CLANG_PACKET_SCATTER_GATHER(PACKET_TYPE)                                                               \
@@ -589,7 +600,6 @@ EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet8d)
 EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet16i)
 EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet8l)
 #undef EIGEN_CLANG_PACKET_SCATTER_GATHER
-
 
 // ---- Various operations that depend on __builtin_shufflevector.
 #if __has_builtin(__builtin_shufflevector)
