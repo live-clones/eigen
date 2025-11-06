@@ -11,6 +11,7 @@
 #ifndef EIGEN_CORE_MODULE_H
 #define EIGEN_CORE_MODULE_H
 
+
 // TODO(rmlarsen): Replcae this with some principled.
 #ifdef EIGEN_VECTORIZE_GENERIC
 #define EIGEN_MAX_ALIGN_BYTES 64

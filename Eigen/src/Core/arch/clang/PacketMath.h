@@ -289,16 +289,6 @@ EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* 
   *reinterpret_cast<VectorT*>(assume_aligned<Aligned64>(to)) = from;
 }
 
-template <typename VectorT>
-EIGEN_STRONG_INLINE VectorT const_vector(const scalar_type_of_vector_t<VectorT>& value) {
-  VectorT result;
-  constexpr int n = __builtin_vectorelements(result);
-  for (int i = 0; i < n; ++i) {
-    result[i] = value;
-  }
-  return result;
-}
-
 }  // namespace detail
 
 // --- Intrinsic-like specializations ---
@@ -331,18 +321,18 @@ EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8l, int64_t)
 // --- Broadcast operation ---
 template <>
 EIGEN_STRONG_INLINE Packet16f pset1frombits<Packet16f>(uint32_t from) {
-  return detail::const_vector<Packet16f>(numext::bit_cast<float>(from));
+  return Packet16f(numext::bit_cast<float>(from));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8d pset1frombits<Packet8d>(uint64_t from) {
-  return detail::const_vector<Packet8d>(numext::bit_cast<double>(from));
+  return Packet8d(numext::bit_cast<double>(from));
 }
 
 #define EIGEN_CLANG_PACKET_SET1(PACKET_TYPE)                                                            \
   template <>                                                                                           \
   EIGEN_STRONG_INLINE PACKET_TYPE pset1<PACKET_TYPE>(const unpacket_traits<PACKET_TYPE>::type& from) {  \
-    return detail::const_vector<PACKET_TYPE>(from);                                                     \
+    return PACKET_TYPE(from);                                                     \
   }                                                                                                     \
   template <>                                                                                           \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type pfirst<PACKET_TYPE>(const PACKET_TYPE& from) { \
@@ -389,8 +379,8 @@ EIGEN_STRONG_INLINE Packet8d pcast_int_to_double(const Packet8l& a) { return rei
 // Bitwise ops for integer packets
 #define EIGEN_CLANG_PACKET_BITWISE_INT(PACKET_TYPE)                                                  \
   template <>                                                                                        \
-  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& a) {                         \
-    return a == a;                                                                                   \
+  constexpr EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /*unused*/) {      \
+    return PACKET_TYPE(0) == PACKET_TYPE(0);                                                         \
   }                                                                                                  \
   template <>                                                                                        \
   EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
