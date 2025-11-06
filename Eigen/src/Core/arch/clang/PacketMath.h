@@ -332,7 +332,7 @@ EIGEN_STRONG_INLINE Packet8d pset1frombits<Packet8d>(uint64_t from) {
 #define EIGEN_CLANG_PACKET_SET1(PACKET_TYPE)                                                            \
   template <>                                                                                           \
   EIGEN_STRONG_INLINE PACKET_TYPE pset1<PACKET_TYPE>(const unpacket_traits<PACKET_TYPE>::type& from) {  \
-    return PACKET_TYPE(from);                                                     \
+    return PACKET_TYPE(from);                                                                           \
   }                                                                                                     \
   template <>                                                                                           \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type pfirst<PACKET_TYPE>(const PACKET_TYPE& from) { \
