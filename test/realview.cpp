@@ -238,16 +238,16 @@ void test_realview() {
 EIGEN_DECLARE_TEST(realview) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_realview<Dynamic, Dynamic, Dynamic, Dynamic>()));
-    //CALL_SUBTEST_2((test_realview<Dynamic, Dynamic, 17, Dynamic>()));
-    //CALL_SUBTEST_3((test_realview<Dynamic, Dynamic, Dynamic, 19>()));
-    //CALL_SUBTEST_4((test_realview<Dynamic, Dynamic, 17, 19>()));
-    //CALL_SUBTEST_5((test_realview<17, Dynamic, 17, Dynamic>()));
-    //CALL_SUBTEST_6((test_realview<Dynamic, 19, Dynamic, 19>()));
-    //CALL_SUBTEST_7((test_realview<17, 19, 17, 19>()));
-    //CALL_SUBTEST_8((test_realview<Dynamic, 1>()));
-    //CALL_SUBTEST_9((test_realview<1, Dynamic>()));
-    //CALL_SUBTEST_10((test_realview<1, 1>()));
-    //CALL_SUBTEST_11(test_edge_cases(std::complex<float>()));
-    //CALL_SUBTEST_12(test_edge_cases(std::complex<double>()));
+    CALL_SUBTEST_2((test_realview<Dynamic, Dynamic, 17, Dynamic>()));
+    CALL_SUBTEST_3((test_realview<Dynamic, Dynamic, Dynamic, 19>()));
+    CALL_SUBTEST_4((test_realview<Dynamic, Dynamic, 17, 19>()));
+    CALL_SUBTEST_5((test_realview<17, Dynamic, 17, Dynamic>()));
+    CALL_SUBTEST_6((test_realview<Dynamic, 19, Dynamic, 19>()));
+    CALL_SUBTEST_7((test_realview<17, 19, 17, 19>()));
+    CALL_SUBTEST_8((test_realview<Dynamic, 1>()));
+    CALL_SUBTEST_9((test_realview<1, Dynamic>()));
+    CALL_SUBTEST_10((test_realview<1, 1>()));
+    CALL_SUBTEST_11(test_edge_cases(std::complex<float>()));
+    CALL_SUBTEST_12(test_edge_cases(std::complex<double>()));
   }
 }
