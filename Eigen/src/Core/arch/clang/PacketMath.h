@@ -18,7 +18,7 @@ namespace detail {
 // file, while namespace internal contains internal APIs used elsewhere
 // in Eigen.
 template <typename ScalarT, int n>
-using VectorType = ScalarT __attribute__((ext_vector_type(n), aligned(64)));
+using VectorType = ScalarT __attribute__((ext_vector_type(n), aligned(EIGEN_GENERIC_VECTOR_SIZE_BYTES)));
 }  // namespace detail
 
 // --- Packet type Definitions (512 bit) ---
@@ -200,7 +200,7 @@ struct unpacket_traits<Packet16f> {
   using integer_packet = Packet16i;
   enum {
     size = 16,
-    alignment = Aligned64,
+    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -213,7 +213,7 @@ struct unpacket_traits<Packet8d> {
   using integer_packet = Packet8l;
   enum {
     size = 8,
-    alignment = Aligned64,
+    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -225,7 +225,7 @@ struct unpacket_traits<Packet16i> {
   using half = Packet16i;
   enum {
     size = 16,
-    alignment = Aligned64,
+    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -237,7 +237,7 @@ struct unpacket_traits<Packet8l> {
   using half = Packet8l;
   enum {
     size = 8,
-    alignment = Aligned64,
+    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -273,7 +273,7 @@ EIGEN_STRONG_INLINE VectorT load_vector_unaligned(const scalar_type_of_vector_t<
 
 template <typename VectorT>
 EIGEN_STRONG_INLINE VectorT load_vector_aligned(const scalar_type_of_vector_t<VectorT>* from) {
-  return *reinterpret_cast<const VectorT*>(assume_aligned<Aligned64>(from));
+  return *reinterpret_cast<const VectorT*>(assume_aligned<EIGEN_GENERIC_VECTOR_SIZE_BYTES>(from));
 }
 
 template <typename VectorT>
@@ -286,7 +286,7 @@ EIGEN_STRONG_INLINE void store_vector_unaligned(scalar_type_of_vector_t<VectorT>
 
 template <typename VectorT>
 EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
-  *reinterpret_cast<VectorT*>(assume_aligned<Aligned64>(to)) = from;
+  *reinterpret_cast<VectorT*>(assume_aligned<EIGEN_GENERIC_VECTOR_SIZE_BYTES>(to)) = from;
 }
 
 }  // namespace detail

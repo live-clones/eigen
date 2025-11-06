@@ -11,12 +11,6 @@
 #ifndef EIGEN_CORE_MODULE_H
 #define EIGEN_CORE_MODULE_H
 
-
-// TODO(rmlarsen): Replcae this with some principled.
-#ifdef EIGEN_VECTORIZE_GENERIC
-#define EIGEN_MAX_ALIGN_BYTES 64
-#endif
-
 // Eigen version information.
 #include "Version"
 
@@ -211,14 +205,13 @@ using std::ptrdiff_t;
 #include "src/Core/arch/Default/BFloat16.h"
 #include "src/Core/arch/Default/GenericPacketMathFunctionsFwd.h"
 
-
 #ifdef EIGEN_VECTORIZE_GENERIC
 #include "src/Core/arch/clang/PacketMath.h"
 #include "src/Core/arch/clang/TypeCasting.h"
 #include "src/Core/arch/clang/Reductions.h"
 #include "src/Core/arch/clang/MathFunctions.h"
 #else
-#if defined EIGEN_VECTORIZE_AVX512 
+#if defined EIGEN_VECTORIZE_AVX512
 #include "src/Core/arch/SSE/PacketMath.h"
 #include "src/Core/arch/SSE/Reductions.h"
 #include "src/Core/arch/AVX/PacketMath.h"

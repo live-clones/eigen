@@ -47,7 +47,7 @@ EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet8l)
     return __builtin_reduce_mul(a);                                                                      \
   }
 
-//     builtin_reduce_{mul,add} are only defined for integer types.
+// __builtin_reduce_{mul,add} are only defined for integer types.
 EIGEN_CLANG_PACKET_REDUX_INT(Packet16i)
 EIGEN_CLANG_PACKET_REDUX_INT(Packet8l)
 #undef EIGEN_CLANG_PACKET_REDUX_INT

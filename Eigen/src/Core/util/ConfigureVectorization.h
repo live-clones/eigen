@@ -11,6 +11,18 @@
 #ifndef EIGEN_CONFIGURE_VECTORIZATION_H
 #define EIGEN_CONFIGURE_VECTORIZATION_H
 
+// Prepare for using the generic clang backend if requested.
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE)
+#if !EIGEN_ARCH_VECTOR_EXTENSIONS
+#error "The compiler does not support clang vector extensions."
+#endif
+#define EIGEN_VECTORIZE
+#ifndef EIGEN_GENERIC_VECTOR_SIZE_BYTES
+#define EIGEN_GENERIC_VECTOR_SIZE_BYTES 64
+#endif
+#define EIGEN_MAX_ALIGN_BYTES EIGEN_GENERIC_VECTOR_SIZE_BYTES
+#endif
+
 //------------------------------------------------------------------------------------------
 // Static and dynamic alignment control
 //
@@ -198,10 +210,6 @@
 #if defined(__SSE2__)
 #define EIGEN_SSE2_ON_NON_MSVC
 #endif
-#endif
-
-#if defined(EIGEN_VECTORIZE_GENERIC) && !EIGEN_ARCH_VECTOR_EXTENSIONS
-#error "The compiler does not support clang vector extensions."
 #endif
 
 #if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC))
@@ -508,7 +516,7 @@ extern "C" {
 
 namespace Eigen {
 
-inline static const char *SimdInstructionSetsInUse(void) {
+inline static const char* SimdInstructionSetsInUse(void) {
 #if defined(EIGEN_VECTORIZE_AVX512)
   return "AVX512, FMA, AVX2, AVX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2";
 #elif defined(EIGEN_VECTORIZE_AVX)
