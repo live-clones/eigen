@@ -18,7 +18,7 @@ namespace detail {
 // file, while namespace internal contains internal APIs used elsewhere
 // in Eigen.
 template <typename ScalarT, int n>
-using VectorType = ScalarT __attribute__((ext_vector_type(n)));
+    using VectorType = ScalarT __attribute__((ext_vector_type(n), aligned(64)));
 }  // namespace detail
 
 // --- Packet type Definitions (512 bit) ---
@@ -45,7 +45,6 @@ struct packet_traits<float> : default_packet_traits {
     HasRound = 1,
     HasMinMax = 1,
     HasCmp = 1,
-    HasBlend = 0,
     HasSet1 = 1,
     HasCast = 1,
     HasBitwise = 1,
@@ -94,7 +93,6 @@ struct packet_traits<double> : default_packet_traits {
     HasRound = 1,
     HasMinMax = 1,
     HasCmp = 1,
-    HasBlend = 0,
     HasSet1 = 1,
     HasCast = 1,
     HasBitwise = 1,
@@ -141,8 +139,7 @@ struct packet_traits<int32_t> : default_packet_traits {
     HasNegate = 1,
     HasAbs = 1,
     HasMinMax = 1,
-    HasCmp = 0,
-    HasBlend = 0,
+    HasCmp = 1,
     HasSet1 = 1,
     HasCast = 1,
     HasBitwise = 1,
@@ -176,8 +173,7 @@ struct packet_traits<int64_t> : default_packet_traits {
     HasNegate = 1,
     HasAbs = 1,
     HasMinMax = 1,
-    HasCmp = 0,
-    HasBlend = 0,
+    HasCmp = 1,
     HasSet1 = 1,
     HasCast = 1,
     HasBitwise = 1,
@@ -383,10 +379,10 @@ namespace detail {
 // Note: pcast functions are not template specializations, just helpers
 // identical to preinterpret. We duplicate them here to avoid a circular
 // dependence with TypeCasting.h.
-EIGEN_STRONG_INLINE Packet16i pcast_float_to_int(const Packet16f& a) { return (Packet16i)a; }
-EIGEN_STRONG_INLINE Packet16f pcast_int_to_float(const Packet16i& a) { return (Packet16f)a; }
-EIGEN_STRONG_INLINE Packet8l pcast_double_to_int(const Packet8d& a) { return (Packet8l)a; }
-EIGEN_STRONG_INLINE Packet8d pcast_int_to_double(const Packet8l& a) { return (Packet8d)a; }
+EIGEN_STRONG_INLINE Packet16i pcast_float_to_int(const Packet16f& a) { return reinterpret_cast<Packet16i>(a); }
+EIGEN_STRONG_INLINE Packet16f pcast_int_to_float(const Packet16i& a) { return reinterpret_cast<Packet16f>(a); }
+EIGEN_STRONG_INLINE Packet8l pcast_double_to_int(const Packet8d& a) { return reinterpret_cast<Packet8l>(a); }
+EIGEN_STRONG_INLINE Packet8d pcast_int_to_double(const Packet8l& a) { return reinterpret_cast<Packet8d>(a); }
 
 }  // namespace detail
 
