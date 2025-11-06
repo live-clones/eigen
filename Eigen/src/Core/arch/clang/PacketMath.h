@@ -371,8 +371,8 @@ namespace detail {
 // dependence with TypeCasting.h.
 EIGEN_STRONG_INLINE Packet16i pcast_float_to_int(const Packet16f& a) { return reinterpret_cast<Packet16i>(a); }
 EIGEN_STRONG_INLINE Packet16f pcast_int_to_float(const Packet16i& a) { return reinterpret_cast<Packet16f>(a); }
-EIGEN_STRONG_INLINE Packet8l pcast_double_to_int(const Packet8d& a) { return reinterpret_cast<Packet8l>(a); }
-EIGEN_STRONG_INLINE Packet8d pcast_int_to_double(const Packet8l& a) { return reinterpret_cast<Packet8d>(a); }
+EIGEN_STRONG_INLINE Packet8l pcast_double_to_long(const Packet8d& a) { return reinterpret_cast<Packet8l>(a); }
+EIGEN_STRONG_INLINE Packet8d pcast_long_to_double(const Packet8l& a) { return reinterpret_cast<Packet8d>(a); }
 
 }  // namespace detail
 
@@ -439,7 +439,7 @@ EIGEN_CLANG_PACKET_BITWISE_INT(Packet8l)
   }
 
 EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet16f, detail::pcast_float_to_int, detail::pcast_int_to_float)
-EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_int, detail::pcast_int_to_double)
+EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_long, detail::pcast_long_to_double)
 #undef EIGEN_CLANG_PACKET_BITWISE_FLOAT
 
 // --- Min/Max operations ---
