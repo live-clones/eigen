@@ -257,6 +257,17 @@ struct ScalarTypeOfVector {
 template <typename VectorT>
 using scalar_type_of_vector_t = typename ScalarTypeOfVector<VectorT>::type;
 
+template <typename VectorType>
+struct UnsignedVectorHelpter {
+  static VectorType v;
+  static constexpr int n = __builtin_vectorelements(v);
+  using UnsignedScalar = std::make_unsigned_t<scalar_type_of_vector_t<VectorType>>;
+  using type = UnsignedScalar __attribute__((ext_vector_type(n), aligned(n * sizeof(UnsignedScalar))));
+};
+
+template <typename VectorT>
+using unsigned_vector_t = typename UnsignedVectorHelpter<VectorT>::type;
+
 template <typename VectorT>
 using HalfPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 2>;
 
@@ -407,7 +418,8 @@ EIGEN_STRONG_INLINE Packet8d pcast_long_to_double(const Packet8l& a) { return re
   }                                                                                                  \
   template <int N>                                                                                   \
   EIGEN_STRONG_INLINE PACKET_TYPE plogical_shift_right(const PACKET_TYPE& a) {                       \
-    return a >> N;                                                                                   \
+    using UnsignedT = detail::unsigned_vector_t<PACKET_TYPE>;                                        \
+    return reinterpret_cast<PACKET_TYPE>(reinterpret_cast<UnsignedT>(a) >> N);                       \
   }                                                                                                  \
   template <int N>                                                                                   \
   EIGEN_STRONG_INLINE PACKET_TYPE plogical_shift_left(const PACKET_TYPE& a) {                        \
