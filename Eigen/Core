@@ -11,6 +11,8 @@
 #ifndef EIGEN_CORE_MODULE_H
 #define EIGEN_CORE_MODULE_H
 
+#define EIGEN_VECTORIZE_GENERIC
+
 // Eigen version information.
 #include "Version"
 
@@ -205,7 +207,7 @@ using std::ptrdiff_t;
 #include "src/Core/arch/Default/BFloat16.h"
 #include "src/Core/arch/Default/GenericPacketMathFunctionsFwd.h"
 
-#ifdef EIGEN_VECTORIZE_GENERIC
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE)
 #include "src/Core/arch/clang/PacketMath.h"
 #include "src/Core/arch/clang/TypeCasting.h"
 #include "src/Core/arch/clang/Reductions.h"

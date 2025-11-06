@@ -18,10 +18,13 @@ namespace detail {
 // file, while namespace internal contains internal APIs used elsewhere
 // in Eigen.
 template <typename ScalarT, int n>
-using VectorType = ScalarT __attribute__((ext_vector_type(n), aligned(EIGEN_GENERIC_VECTOR_SIZE_BYTES)));
+using VectorType = ScalarT __attribute__((ext_vector_type(n), aligned(n * sizeof(ScalarT))));
 }  // namespace detail
 
-// --- Packet type Definitions (512 bit) ---
+// --- Primary packet type definitions (fixed at 64 bytes) ---
+
+// TODO(rmlarsen): Generalize to other vector sizes.
+static_assert(EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64, "We currently assume the full vector size is 64 bytes");
 using Packet16f = detail::VectorType<float, 16>;
 using Packet8d = detail::VectorType<double, 8>;
 using Packet16i = detail::VectorType<int32_t, 16>;
@@ -526,7 +529,7 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(Packet8d)
 #endif
 
 // --- Fused Multiply-Add (MADD) ---
-#if __has_builtin(__builtin_elementwise_fma)
+#if defined(EIGEN_VECTORIZE_FMA) && __has_builtin(__builtin_elementwise_fma)
 #define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
   template <>                                                                                     \
   EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \

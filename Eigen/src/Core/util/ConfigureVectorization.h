@@ -12,7 +12,7 @@
 #define EIGEN_CONFIGURE_VECTORIZATION_H
 
 // Prepare for using the generic clang backend if requested.
-#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE)
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE) && !defined(EIGEN_DONT_ALIGN)
 #if !EIGEN_ARCH_VECTOR_EXTENSIONS
 #error "The compiler does not support clang vector extensions."
 #endif
@@ -212,7 +212,7 @@
 #endif
 #endif
 
-#if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC))
+#if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC))
 
 #if defined(EIGEN_SSE2_ON_NON_MSVC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
 
