@@ -387,14 +387,14 @@ if(EIGEN_TEST_EIGEN2)
 endif()
 
 # boost MP unit test
-# find_package(Boost 1.53.0 CONFIG)
-# if(Boost_FOUND)
-#   include_directories(${Boost_INCLUDE_DIRS})
-#   ei_add_test(boostmultiprec "" "${Boost_LIBRARIES}")
-#   ei_add_property(EIGEN_TESTED_BACKENDS "Boost.Multiprecision, ")
-# else()
-#   ei_add_property(EIGEN_MISSING_BACKENDS "Boost.Multiprecision, ")
-# endif()
+find_package(Boost 1.53.0 CONFIG)
+if(Boost_FOUND)
+  include_directories(${Boost_INCLUDE_DIRS})
+  ei_add_test(boostmultiprec "" "${Boost_LIBRARIES}")
+  ei_add_property(EIGEN_TESTED_BACKENDS "Boost.Multiprecision, ")
+else()
+  ei_add_property(EIGEN_MISSING_BACKENDS "Boost.Multiprecision, ")
+endif()
 
 
 # CUDA unit tests
