@@ -18,7 +18,7 @@ namespace detail {
 // file, while namespace internal contains internal APIs used elsewhere
 // in Eigen.
 template <typename ScalarT, int n>
-    using VectorType = ScalarT __attribute__((ext_vector_type(n), aligned(64)));
+using VectorType = ScalarT __attribute__((ext_vector_type(n), aligned(64)));
 }  // namespace detail
 
 // --- Packet type Definitions (512 bit) ---
