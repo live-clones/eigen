@@ -194,7 +194,6 @@ struct packet_traits<float> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0,
     HasDiv = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -240,7 +239,6 @@ struct packet_traits<int8_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0
   };
 };
 
@@ -266,7 +264,6 @@ struct packet_traits<uint8_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0,
 
     HasSqrt = 1
   };
@@ -294,7 +291,6 @@ struct packet_traits<int16_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0
   };
 };
 
@@ -320,7 +316,6 @@ struct packet_traits<uint16_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0,
     HasSqrt = 1
   };
 };
@@ -347,7 +342,6 @@ struct packet_traits<int32_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0
   };
 };
 
@@ -373,7 +367,6 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0,
 
     HasSqrt = 1
   };
@@ -401,7 +394,6 @@ struct packet_traits<int64_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0
   };
 };
 
@@ -427,7 +419,6 @@ struct packet_traits<uint64_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0
   };
 };
 
@@ -2569,7 +2560,7 @@ EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet4c& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet8c& from) {
-  EIGEN_DEBUG_ALIGNED_STORE vst1_s8(assume_aligned<unpacket_traits<Packetc>::alignment>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE vst1_s8(assume_aligned<unpacket_traits<Packet8c>::alignment>(to), from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet16c& from) {
@@ -4629,7 +4620,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0,
     HasDiv = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -4699,8 +4689,8 @@ EIGEN_STRONG_INLINE bfloat16 pfirst<Packet4bf>(const Packet4bf& from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pload<Packet4bf>(const bfloat16* from) {
-unpacket_traits<Packet4bf>::alignment);
-return Packet4bf(pload<Packet4us>(reinterpret_cast<const uint16_t*>(from)));
+  return Packet4bf(
+      pload<Packet4us>(reinterpret_cast<const uint16_t*>(assume_aligned<unpacket_traits<Packet4bf>::alignment>(from))));
 }
 
 template <>
@@ -5013,7 +5003,6 @@ struct packet_traits<double> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0,
 
     HasDiv = 1,
 
@@ -5201,8 +5190,7 @@ EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pload<Packet2d>(const double* from) {
-unpacket_traits<Packet2d>::alignment);
-EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f64(from);
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f64(assume_aligned<unpacket_traits<Packet2d>::alignment>(from));
 }
 
 template <>
@@ -5389,7 +5377,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 1,
-    HasBlend = 0,
     HasInsert = 1,
     HasReduxp = 1,
     HasDiv = 1,
@@ -5743,14 +5730,14 @@ EIGEN_STRONG_INLINE Packet4hf pandnot<Packet4hf>(const Packet4hf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet8hf pload<Packet8hf>(const Eigen::half* from) {
-unpacket_traits<Packet8hf>::alignment);
-EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(reinterpret_cast<const float16_t*>(from));
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet8hf>::alignment>(from)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4hf pload<Packet4hf>(const Eigen::half* from) {
-unpacket_traits<Packet4hf>::alignment);
-EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(reinterpret_cast<const float16_t*>(from));
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet4hf>::alignment>(from)));
 }
 
 template <>
