@@ -111,11 +111,6 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     Index p = index & 1;
     return reinterpret_cast<const Scalar(&)[2]>(ccoeff)[p];
   }
-  //template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
-  //constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index row, Index col) {
-  //  EIGEN_STATIC_ASSERT(false, WRITE ACCESS IS NOT SUPPORTED FOR CUSTOM COMPLEX SCALARS)
-  //}
-  //template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index row, Index col) {
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
@@ -123,11 +118,6 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     ComplexScalar& ccoeffRef = BaseEvaluator::coeffRef(r, c);
     return reinterpret_cast<Scalar(&)[2]>(ccoeffRef)[p];
   }
-  //template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
-  //constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) {
-  //  EIGEN_STATIC_ASSERT(false, WRITE ACCESS IS NOT SUPPORTED FOR CUSTOM COMPLEX SCALARS)
-  //}
-  //template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) {
     ComplexScalar& ccoeffRef = BaseEvaluator::coeffRef(index / 2);
     Index p = index & 1;
