@@ -14,7 +14,8 @@ namespace Eigen {
 namespace internal {
 
 // --- Reductions ---
-#if EIGEN_HAS_BUILTIN(__builtin_reduce_min) && EIGEN_HAS_BUILTIN(__builtin_reduce_max) && EIGEN_HAS_BUILTIN(__builtin_reduce_or)
+#if EIGEN_HAS_BUILTIN(__builtin_reduce_min) && EIGEN_HAS_BUILTIN(__builtin_reduce_max) && \
+    EIGEN_HAS_BUILTIN(__builtin_reduce_or)
 #define EIGEN_CLANG_PACKET_REDUX_MINMAX(PACKET_TYPE)                                        \
   template <>                                                                               \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) { \
