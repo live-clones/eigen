@@ -256,7 +256,7 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
   EIGEN_DEVICE_FUNC RealView& operator=(const DenseBase<OtherDerived>& other);
 
  protected:
-  friend struct internal::evaluator<RealView<Xpr>>;
+  friend struct internal::evaluator<RealView>;
   Xpr& m_xpr;
 };
 
