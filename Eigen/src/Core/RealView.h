@@ -23,7 +23,7 @@ namespace internal {
 // reinterpret_cast<T*>(p)[2 * i] is the real part of the complex number p[i], and
 // reinterpret_cast<T*>(p)[2 * i + 1] is the imaginary part of the complex number p[i].
 
-template <typename ComplexScalar>
+template <typename T>
 struct complex_array_access : std::false_type {};
 template <typename T>
 struct complex_array_access<std::complex<T>> : std::true_type {};
