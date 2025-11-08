@@ -30,7 +30,7 @@ namespace Eigen {
 
 namespace internal {
 
-template <int has_blend, int lengths>
+template <int lengths>
 struct sycl_packet_traits : default_packet_traits {
   enum {
     Vectorizable = 1,
@@ -60,7 +60,6 @@ struct sycl_packet_traits : default_packet_traits {
     HasIGamma = 0,
     HasIGammac = 0,
     HasBetaInc = 0,
-    HasBlend = has_blend,
     // This flag is used to indicate whether packet comparison is supported.
     // pcmp_eq, pcmp_lt and pcmp_le should be defined for it to be true.
     HasCmp = 1,
@@ -78,19 +77,19 @@ struct sycl_packet_traits : default_packet_traits {
 };
 
 #ifdef SYCL_DEVICE_ONLY
-#define SYCL_PACKET_TRAITS(packet_type, has_blend, unpacket_type, lengths)       \
+#define SYCL_PACKET_TRAITS(packet_type, unpacket_type, lengths)       \
   template <>                                                                    \
-  struct packet_traits<unpacket_type> : sycl_packet_traits<has_blend, lengths> { \
+  struct packet_traits<unpacket_type> : sycl_packet_traits<lengths> { \
     typedef packet_type type;                                                    \
     typedef packet_type half;                                                    \
   };
 
-SYCL_PACKET_TRAITS(cl::sycl::cl_half8, 1, Eigen::half, 8)
-SYCL_PACKET_TRAITS(cl::sycl::cl_half8, 1, const Eigen::half, 8)
-SYCL_PACKET_TRAITS(cl::sycl::cl_float4, 1, float, 4)
-SYCL_PACKET_TRAITS(cl::sycl::cl_float4, 1, const float, 4)
-SYCL_PACKET_TRAITS(cl::sycl::cl_double2, 0, double, 2)
-SYCL_PACKET_TRAITS(cl::sycl::cl_double2, 0, const double, 2)
+SYCL_PACKET_TRAITS(cl::sycl::cl_half8, Eigen::half, 8)
+SYCL_PACKET_TRAITS(cl::sycl::cl_half8, const Eigen::half, 8)
+SYCL_PACKET_TRAITS(cl::sycl::cl_float4, float, 4)
+SYCL_PACKET_TRAITS(cl::sycl::cl_float4, const float, 4)
+SYCL_PACKET_TRAITS(cl::sycl::cl_double2, double, 2)
+SYCL_PACKET_TRAITS(cl::sycl::cl_double2, const double, 2)
 #undef SYCL_PACKET_TRAITS
 
 // Make sure this is only available when targeting a GPU: we don't want to

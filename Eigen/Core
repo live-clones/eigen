@@ -11,6 +11,8 @@
 #ifndef EIGEN_CORE_MODULE_H
 #define EIGEN_CORE_MODULE_H
 
+#define EIGEN_VECTORIZE_GENERIC
+
 // Eigen version information.
 #include "Version"
 
