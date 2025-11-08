@@ -239,9 +239,7 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
     m_xpr.resize(Xpr::IsRowMajor ? rows : rows / 2, Xpr::IsRowMajor ? cols / 2 : cols);
   }
   EIGEN_DEVICE_FUNC void resize(Index size) { m_xpr.resize(size / 2); }
-  EIGEN_DEVICE_FUNC Scalar* data() {
-    return reinterpret_cast<Scalar*>(m_xpr.data());
-  }
+  EIGEN_DEVICE_FUNC Scalar* data() { return reinterpret_cast<Scalar*>(m_xpr.data()); }
   EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
   EIGEN_DEVICE_FUNC RealView(const RealView&) = default;
