@@ -239,7 +239,6 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
     m_xpr.resize(Xpr::IsRowMajor ? rows : rows / 2, Xpr::IsRowMajor ? cols / 2 : cols);
   }
   EIGEN_DEVICE_FUNC void resize(Index size) { m_xpr.resize(size / 2); }
-  template <bool Enable = !std::is_const<Xpr>::value, std::enable_if_t<Enable, bool> = true>
   EIGEN_DEVICE_FUNC Scalar* data() {
     return reinterpret_cast<Scalar*>(m_xpr.data());
   }
