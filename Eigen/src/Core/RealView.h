@@ -25,12 +25,8 @@ namespace internal {
 
 template <typename ComplexScalar>
 struct complex_array_access : std::false_type {};
-template <>
-struct complex_array_access<std::complex<float>> : std::true_type {};
-template <>
-struct complex_array_access<std::complex<double>> : std::true_type {};
-template <>
-struct complex_array_access<std::complex<long double>> : std::true_type {};
+template <typename T>
+struct complex_array_access<std::complex<T>> : std::true_type {};
 
 template <typename Xpr>
 struct traits<RealView<Xpr>> : public traits<Xpr> {

@@ -13,8 +13,8 @@
 struct TestComplex : public std::complex<float> {
   TestComplex() = default;
   TestComplex(const TestComplex&) = default;
-  TestComplex(std::complex<float> x) : std::complex<float>(x){};
-  TestComplex(float x) : std::complex<float>(x){};
+  TestComplex(std::complex<float> x) : std::complex<float>(x) {};
+  TestComplex(float x) : std::complex<float>(x) {};
 };
 template <>
 struct NumTraits<TestComplex> : NumTraits<std::complex<float>> {};
