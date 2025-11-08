@@ -78,10 +78,10 @@ struct sycl_packet_traits : default_packet_traits {
 
 #ifdef SYCL_DEVICE_ONLY
 #define SYCL_PACKET_TRAITS(packet_type, unpacket_type, lengths)       \
-  template <>                                                                    \
+  template <>                                                         \
   struct packet_traits<unpacket_type> : sycl_packet_traits<lengths> { \
-    typedef packet_type type;                                                    \
-    typedef packet_type half;                                                    \
+    typedef packet_type type;                                         \
+    typedef packet_type half;                                         \
   };
 
 SYCL_PACKET_TRAITS(cl::sycl::cl_half8, Eigen::half, 8)
@@ -134,14 +134,14 @@ template <typename PacketReturnType, int PacketSize>
 struct PacketWrapper {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC static Scalar scalarize(Index, PacketReturnType &) {
+  EIGEN_DEVICE_FUNC static Scalar scalarize(Index, PacketReturnType&) {
     eigen_assert(false && "THERE IS NO PACKETIZE VERSION FOR  THE CHOSEN TYPE");
     abort();
   }
   EIGEN_DEVICE_FUNC static PacketReturnType convert_to_packet_type(Scalar in, Scalar) {
     return ::Eigen::internal::template plset<PacketReturnType>(in);
   }
-  EIGEN_DEVICE_FUNC static void set_packet(PacketReturnType, Scalar *) {
+  EIGEN_DEVICE_FUNC static void set_packet(PacketReturnType, Scalar*) {
     eigen_assert(false && "THERE IS NO PACKETIZE VERSION FOR  THE CHOSEN TYPE");
     abort();
   }
@@ -152,7 +152,7 @@ template <typename PacketReturnType>
 struct PacketWrapper<PacketReturnType, 4> {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, PacketReturnType &in) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, PacketReturnType& in) {
     switch (index) {
       case 0:
         return in.x();
@@ -173,7 +173,7 @@ struct PacketWrapper<PacketReturnType, 4> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType convert_to_packet_type(Scalar in, Scalar other) {
     return PacketReturnType(in, other, other, other);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void set_packet(PacketReturnType &lhs, Scalar *rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void set_packet(PacketReturnType& lhs, Scalar* rhs) {
     lhs = PacketReturnType(rhs[0], rhs[1], rhs[2], rhs[3]);
   }
 };
@@ -182,20 +182,20 @@ template <typename PacketReturnType>
 struct PacketWrapper<PacketReturnType, 1> {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index, PacketReturnType &in) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index, PacketReturnType& in) {
     return in;
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType convert_to_packet_type(Scalar in, Scalar) {
     return PacketReturnType(in);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void set_packet(PacketReturnType &lhs, Scalar *rhs) { lhs = rhs[0]; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void set_packet(PacketReturnType& lhs, Scalar* rhs) { lhs = rhs[0]; }
 };
 
 template <typename PacketReturnType>
 struct PacketWrapper<PacketReturnType, 2> {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, PacketReturnType &in) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, PacketReturnType& in) {
     switch (index) {
       case 0:
         return in.x();
@@ -212,7 +212,7 @@ struct PacketWrapper<PacketReturnType, 2> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType convert_to_packet_type(Scalar in, Scalar other) {
     return PacketReturnType(in, other);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void set_packet(PacketReturnType &lhs, Scalar *rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void set_packet(PacketReturnType& lhs, Scalar* rhs) {
     lhs = PacketReturnType(rhs[0], rhs[1]);
   }
 };

@@ -89,11 +89,7 @@ template <>
 struct packet_traits<double> : generic_float_packet_traits {
   using type = Packet8d;
   using half = Packet8d;
-  enum {
-    size = 8,
-    HasACos = 0,
-    HasASin = 0
-  };
+  enum { size = 8, HasACos = 0, HasASin = 0 };
 };
 
 struct generic_integer_packet_traits : default_packet_traits {
@@ -137,7 +133,7 @@ struct packet_traits<int32_t> : generic_integer_packet_traits {
 };
 
 template <>
-struct packet_traits<int64_t> :  generic_integer_packet_traits {
+struct packet_traits<int64_t> : generic_integer_packet_traits {
   using type = Packet8l;
   using half = Packet8l;
   enum {
@@ -154,7 +150,7 @@ struct generic_unpacket_traits : default_unpacket_traits {
 };
 
 template <>
-  struct unpacket_traits<Packet16f> : generic_unpacket_traits {
+struct unpacket_traits<Packet16f> : generic_unpacket_traits {
   using type = float;
   using half = Packet16f;
   using integer_packet = Packet16i;
@@ -163,7 +159,7 @@ template <>
   };
 };
 template <>
-struct unpacket_traits<Packet8d>  : generic_unpacket_traits {
+struct unpacket_traits<Packet8d> : generic_unpacket_traits {
   using type = double;
   using half = Packet8d;
   using integer_packet = Packet8l;
@@ -172,7 +168,7 @@ struct unpacket_traits<Packet8d>  : generic_unpacket_traits {
   };
 };
 template <>
-struct unpacket_traits<Packet16i>  : generic_unpacket_traits {
+struct unpacket_traits<Packet16i> : generic_unpacket_traits {
   using type = int32_t;
   using half = Packet16i;
   enum {
@@ -180,7 +176,7 @@ struct unpacket_traits<Packet16i>  : generic_unpacket_traits {
   };
 };
 template <>
-struct unpacket_traits<Packet8l>  : generic_unpacket_traits {
+struct unpacket_traits<Packet8l> : generic_unpacket_traits {
   using type = int64_t;
   using half = Packet8l;
   enum {
@@ -435,7 +431,7 @@ EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_long, detail:
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pselect<PACKET_TYPE>(const PACKET_TYPE& mask, const PACKET_TYPE& a,               \
                                                        const PACKET_TYPE& b) {                                      \
-    return mask != 0 ? a : b;                                                            \
+    return mask != 0 ? a : b;                                                                                       \
   }
 
 EIGEN_CLANG_PACKET_ELEMENTWISE(Packet16f)
@@ -518,25 +514,23 @@ EIGEN_CLANG_PACKET_MADD(Packet16f)
 EIGEN_CLANG_PACKET_MADD(Packet8d)
 #undef EIGEN_CLANG_PACKET_MADD
 
-#define EIGEN_CLANG_PACKET_SCATTER_GATHER(PACKET_TYPE)                       \
-  template <>                                                                \
-  EIGEN_STRONG_INLINE void pscatter(unpacket_traits<PACKET_TYPE>::type* to,  \
-                                    const PACKET_TYPE& from, Index stride) { \
-    constexpr int size = unpacket_traits<PACKET_TYPE>::size;                 \
-    for (int i = 0; i < size; ++i) {                                         \
-      to[i * stride] = from[i];                                              \
-    }                                                                        \
-  }                                                                          \
-  template <>                                                                \
-  EIGEN_STRONG_INLINE PACKET_TYPE                                            \
-  pgather<typename unpacket_traits<PACKET_TYPE>::type, PACKET_TYPE>(         \
-      const unpacket_traits<PACKET_TYPE>::type* from, Index stride) {        \
-    constexpr int size = unpacket_traits<PACKET_TYPE>::size;                 \
-    PACKET_TYPE result;                                                      \
-    for (int i = 0; i < size; ++i) {                                         \
-      result[i] = from[i * stride];                                          \
-    }                                                                        \
-    return result;                                                           \
+#define EIGEN_CLANG_PACKET_SCATTER_GATHER(PACKET_TYPE)                                                               \
+  template <>                                                                                                        \
+  EIGEN_STRONG_INLINE void pscatter(unpacket_traits<PACKET_TYPE>::type* to, const PACKET_TYPE& from, Index stride) { \
+    constexpr int size = unpacket_traits<PACKET_TYPE>::size;                                                         \
+    for (int i = 0; i < size; ++i) {                                                                                 \
+      to[i * stride] = from[i];                                                                                      \
+    }                                                                                                                \
+  }                                                                                                                  \
+  template <>                                                                                                        \
+  EIGEN_STRONG_INLINE PACKET_TYPE pgather<typename unpacket_traits<PACKET_TYPE>::type, PACKET_TYPE>(                 \
+      const unpacket_traits<PACKET_TYPE>::type* from, Index stride) {                                                \
+    constexpr int size = unpacket_traits<PACKET_TYPE>::size;                                                         \
+    PACKET_TYPE result;                                                                                              \
+    for (int i = 0; i < size; ++i) {                                                                                 \
+      result[i] = from[i * stride];                                                                                  \
+    }                                                                                                                \
+    return result;                                                                                                   \
   }
 
 EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet16f)

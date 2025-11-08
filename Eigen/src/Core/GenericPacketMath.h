@@ -131,17 +131,12 @@ struct packet_traits : default_packet_traits {
 template <typename T>
 struct packet_traits<const T> : packet_traits<T> {};
 
-
 struct default_unpacket_traits {
-  enum {
-    vectorizable = false,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+  enum { vectorizable = false, masked_load_available = false, masked_store_available = false };
 };
 
 template <typename T>
-struct unpacket_traits : default_unpacket_traits{
+struct unpacket_traits : default_unpacket_traits {
   typedef T type;
   typedef T half;
   typedef typename numext::get_integer_by_size<sizeof(T)>::signed_type integer_packet;
@@ -754,11 +749,13 @@ EIGEN_DEVICE_FUNC inline Packet pldexp(const Packet& a, const Packet& exponent) 
 
 /** \internal \returns the min of \a a and \a b  (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet> pabsdiff(const Packet& a, const Packet& b) {
+EIGEN_DEVICE_FUNC inline std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet>
+pabsdiff(const Packet& a, const Packet& b) {
   return pselect(pcmp_lt(a, b), psub(b, a), psub(a, b));
 }
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet> pabsdiff(const Packet& a, const Packet& b) {
+EIGEN_DEVICE_FUNC inline std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet>
+pabsdiff(const Packet& a, const Packet& b) {
   return pabs(psub(a, b));
 }
 
