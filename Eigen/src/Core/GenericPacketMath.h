@@ -61,12 +61,11 @@ struct default_packet_traits {
     // By default, the nearest integer functions (rint, round, floor, ceil, trunc) are enabled for all scalar and packet
     // types
     HasRound = 1,
-
-    HasArg = 0,
     // This flag is used to indicate whether packet comparison is supported.
     // pcmp_eq and pcmp_lt should be defined for it to be true.
-    HasCmp = 0,
+    HasCmp = 1,
 
+    HasArg = 0,
     HasDiv = 0,
     HasReciprocal = 0,
     HasSqrt = 0,
