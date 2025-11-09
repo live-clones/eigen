@@ -2736,14 +2736,12 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
 
 template <>
 EIGEN_STRONG_INLINE Packet16c pabsdiff<Packet16c>(const Packet16c& a, const Packet16c& b) {
-  Packet16c v = psub(a, b);
-  return pabs(v);
+  return __lsx_vabsd_b(a, b);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8s pabsdiff<Packet8s>(const Packet8s& a, const Packet8s& b) {
-  Packet8s v = psub(a, b);
-  return pabs(v);
+  return __lsx_vabsd_h(a, b);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8s pselect(const Packet8s& mask, const Packet8s& a, const Packet8s& b) {
@@ -2752,8 +2750,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8s pselect(const Packet8s& mask, con
 
 template <>
 EIGEN_STRONG_INLINE Packet4i pabsdiff<Packet4i>(const Packet4i& a, const Packet4i& b) {
-  Packet4i v = psub(a, b);
-  return pabs(v);
+  return __lsx_vabsd_w(a, b);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4i pselect(const Packet4i& mask, const Packet4i& a, const Packet4i& b) {
