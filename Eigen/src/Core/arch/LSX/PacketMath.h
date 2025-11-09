@@ -628,47 +628,6 @@ EIGEN_STRONG_INLINE Packet2d psub<Packet2d>(const Packet2d& a, const Packet2d& b
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet16c pabsdiff<Packet16c>(const Packet16c& a, const Packet16c& b) {
-  return __lsx_vabsd_b(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet8s pabsdiff<Packet8s>(const Packet8s& a, const Packet8s& b) {
-  return __lsx_vabsd_h(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4i pabsdiff<Packet4i>(const Packet4i& a, const Packet4i& b) {
-  return __lsx_vabsd_w(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l pabsdiff<Packet2l>(const Packet2l& a, const Packet2l& b) {
-  return __lsx_vabsd_d(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet16uc pabsdiff<Packet16uc>(const Packet16uc& a, const Packet16uc& b) {
-  return __lsx_vabsd_bu(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pabsdiff<Packet8us>(const Packet8us& a, const Packet8us& b) {
-  return __lsx_vabsd_hu(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pabsdiff<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
-  return __lsx_vabsd_wu(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pabsdiff<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return __lsx_vabsd_du(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f pabsdiff<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return pabs(psub(a, b));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pabsdiff<Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return pabs(psub(a, b));
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4f pxor<Packet4f>(const Packet4f& a, const Packet4f& b);
 template <>
 EIGEN_STRONG_INLINE Packet4f paddsub<Packet4f>(const Packet4f& a, const Packet4f& b) {
@@ -1418,6 +1377,47 @@ EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2ul pabs(const Packet2ul& a) {
   return a;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16c pabsdiff(const Packet16c& a, const Packet16c& b) {
+  return __lsx_vabsd_b(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8s pabsdiff(const Packet8s& a, const Packet8s& b) {
+  return __lsx_vabsd_h(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4i pabsdiff(const Packet4i& a, const Packet4i& b) {
+  return __lsx_vabsd_w(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pabsdiff(const Packet2l& a, const Packet2l& b) {
+  return __lsx_vabsd_d(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet16uc pabsdiff(const Packet16uc& a, const Packet16uc& b) {
+  return __lsx_vabsd_bu(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8us pabsdiff(const Packet8us& a, const Packet8us& b) {
+  return __lsx_vabsd_hu(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4ui pabsdiff(const Packet4ui& a, const Packet4ui& b) {
+  return __lsx_vabsd_wu(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2ul pabsdiff(const Packet2ul& a, const Packet2ul& b) {
+  return __lsx_vabsd_du(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4f pabsdiff(const Packet4f& a, const Packet4f& b) {
+  return pabs(psub(a, b));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2d pabsdiff(const Packet2d& a, const Packet2d& b) {
+  return pabs(psub(a, b));
 }
 
 template <>
