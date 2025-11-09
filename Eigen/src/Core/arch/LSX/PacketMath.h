@@ -2793,7 +2793,7 @@ EIGEN_STRONG_INLINE Packet16uc psqrt(const Packet16uc& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8us pabsdiff<Packet8us>(const Packet8us& a, const Packet8us& b) {
-  return __lsx_vabsd_h(a, b);
+  return __lsx_vabsd_hu(a, b);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8us pselect(const Packet8us& mask, const Packet8us& a, const Packet8us& b) {
