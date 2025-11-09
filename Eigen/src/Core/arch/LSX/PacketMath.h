@@ -2771,8 +2771,7 @@ EIGEN_STRONG_INLINE Packet16uc pdiv<Packet16uc>(const Packet16uc& a, const Packe
 }
 template <>
 EIGEN_STRONG_INLINE Packet16uc pabsdiff<Packet16uc>(const Packet16uc& a, const Packet16uc& b) {
-  Packet16c v = psub(Packet16c(a), Packet16c(b));
-  return Packet16uc(pabs(v));
+  return psub(pmax(a, b), pmin(a, b));
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet16uc pselect(const Packet16uc& mask, const Packet16uc& a,
@@ -2794,8 +2793,7 @@ EIGEN_STRONG_INLINE Packet16uc psqrt(const Packet16uc& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8us pabsdiff<Packet8us>(const Packet8us& a, const Packet8us& b) {
-  Packet8s v = psub(Packet8s(a), Packet8s(b));
-  return Packet8us(pabs(v));
+  return psub(pmax(a, b), pmin(a, b));
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8us pselect(const Packet8us& mask, const Packet8us& a, const Packet8us& b) {
@@ -2816,8 +2814,7 @@ EIGEN_STRONG_INLINE Packet8us psqrt(const Packet8us& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4ui pabsdiff<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
-  Packet4i v = psub(Packet4i(a), Packet4i(b));
-  return Packet4ui(pabs(v));
+  return psub(pmax(a, b), pmin(a, b));
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4ui pselect(const Packet4ui& mask, const Packet4ui& a, const Packet4ui& b) {
