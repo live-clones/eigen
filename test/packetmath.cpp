@@ -830,9 +830,7 @@ void packetmath_real() {
     data2[i] = Scalar(internal::random<double>(0, 1) * std::pow(10., internal::random<double>(-6, 6)));
   }
 
-#if !EIGEN_FAST_MATH
   if (internal::random<float>(0, 1) < 0.1f) data1[internal::random<int>(0, PacketSize)] = Scalar(0);
-#endif
 
   CHECK_CWISE1_IF(PacketTraits::HasLog, std::log, internal::plog);
   CHECK_CWISE1_IF(PacketTraits::HasLog, log2, internal::plog2);
@@ -995,18 +993,12 @@ void packetmath_real() {
     test::packet_helper<PacketTraits::HasExp, Packet> h;
     h.store(data2, internal::pexp(h.load(data1)));
     VERIFY((numext::isnan)(data2[0]));
-    // TODO(rmlarsen): Re-enable for bfloat16.
-    if (!internal::is_same<Scalar, bfloat16>::value) {
-      VERIFY_IS_APPROX(std::exp(small), data2[1]);
-    }
+    VERIFY_IS_APPROX(std::exp(small), data2[1]);
 
     data1[0] = -small;
     data1[1] = Scalar(0);
     h.store(data2, internal::pexp(h.load(data1)));
-    // TODO(rmlarsen): Re-enable for bfloat16.
-    if (!internal::is_same<Scalar, bfloat16>::value) {
-      VERIFY_IS_APPROX(std::exp(-small), data2[0]);
-    }
+    VERIFY_IS_APPROX(std::exp(-small), data2[0]);
     VERIFY_IS_EQUAL(std::exp(Scalar(0)), data2[1]);
 
     data1[0] = (std::numeric_limits<Scalar>::min)();
@@ -1109,8 +1101,6 @@ void packetmath_real() {
       VERIFY((numext::isnan)(data2[0]));
       VERIFY((numext::isnan)(data2[1]));
     }
-
-    // #endif
 
     // TODO(rmlarsen): Re-enable for half and bfloat16.
     if (PacketTraits::HasCos && !internal::is_same<Scalar, half>::value &&
