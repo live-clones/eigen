@@ -1243,8 +1243,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double log1p(const double& x) {
 #endif
 
 template <typename ScalarX, typename ScalarY>
-EIGEN_DEVICE_FUNC inline
-    typename internal::pow_impl<ScalarX, ScalarY>::result_type pow(const ScalarX& x, const ScalarY& y) {
+EIGEN_DEVICE_FUNC inline typename internal::pow_impl<ScalarX, ScalarY>::result_type pow(const ScalarX& x,
+                                                                                        const ScalarY& y) {
   return internal::pow_impl<ScalarX, ScalarY>::run(x, y);
 }
 
