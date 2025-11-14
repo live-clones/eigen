@@ -58,7 +58,7 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
                              typename MatrixType::PlainObject>
       ActualMatrixType;
 
-  static void run(const MatrixType &mat, ResultType &result) {
+  static constexpr void run(const MatrixType &mat, ResultType &result) {
     ActualMatrixType matrix(mat);
 
     const float *data = matrix.data();
@@ -179,7 +179,7 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
                              typename MatrixType::PlainObject>
       ActualMatrixType;
 
-  static void run(const MatrixType &mat, ResultType &result) {
+  static constexpr void run(const MatrixType &mat, ResultType &result) {
     ActualMatrixType matrix(mat);
 
     // Four 2x2 sub-matrices of the input matrix, each is further divided into upper and lower
