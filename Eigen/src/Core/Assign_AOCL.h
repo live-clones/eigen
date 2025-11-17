@@ -111,6 +111,7 @@
  * Organization: Advanced Micro Devices, Inc.
  */
 
+
 #ifndef EIGEN_ASSIGN_AOCL_H
 #define EIGEN_ASSIGN_AOCL_H
 
@@ -176,13 +177,13 @@ public:
     static void run(DstXprType &dst, const SrcXprType &src,                    \
                     const assign_op<float, float> &) {                         \
       eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());      \
-      int n = internal::convert_index<int>(dst.size());                        \
+      Eigen::Index n = dst.size();                                             \
       if (n <= 0)                                                              \
         return;                                                                \
       const float *input =                                                     \
           reinterpret_cast<const float *>(src.nestedExpression().data());      \
       float *output = reinterpret_cast<float *>(dst.data());                   \
-      for (int i = 0; i < n; ++i) {                                            \
+      for (Eigen::Index i = 0; i < n; ++i) {                                   \
         output[i] = std::EIGENOP(input[i]);                                    \
       }                                                                        \
     }                                                                          \
@@ -201,31 +202,20 @@ public:
     static void run(DstXprType &dst, const SrcXprType &src,                    \
                     const assign_op<double, double> &) {                       \
       eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());      \
-      const Index size = dst.size();                                           \
-      if (size <= 0)                                                           \
+      Eigen::Index n = dst.size();                                             \
+      eigen_assert(n <= INT_MAX && "AOCL does not support arrays larger than INT_MAX"); \
+      if (n <= 0)                                                              \
         return;                                                                \
       const double *input =                                                    \
           reinterpret_cast<const double *>(src.nestedExpression().data());     \
       double *output = reinterpret_cast<double *>(dst.data());                 \
-                                                                               \
-      /* AOCL VML functions use int, process in chunks if size > INT_MAX */   \
-      constexpr Index chunk_size = static_cast<Index>(INT_MAX);                \
-      Index processed = 0;                                                     \
-                                                                               \
-      while (processed < size) {                                               \
-        const Index current_chunk = numext::mini(size - processed, chunk_size); \
-        const int n = static_cast<int>(current_chunk);                         \
-        AOCLOP(n, const_cast<double *>(input + processed),                     \
-               output + processed);                                            \
-        processed += current_chunk;                                            \
-      }                                                                        \
+      int aocl_n = internal::convert_index<int>(n);                            \
+      AOCLOP(aocl_n, const_cast<double *>(input), output);                     \
     }                                                                          \
   };
 
 // Instantiate unary calls for float (scalar).
 // EIGEN_AOCL_VML_UNARY_CALL_FLOAT(exp)
-
-
 
 // Instantiate unary calls for double (AOCL vectorized).
 EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(exp2, amd_vrda_exp2)
@@ -255,13 +245,13 @@ EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log2, amd_vrda_log2)
     static void run(DstXprType &dst, const SrcXprType &src,                    \
                     const assign_op<float, float> &) {                         \
       eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());      \
-      int n = internal::convert_index<int>(dst.size());                        \
+      Eigen::Index n = dst.size();                                             \
       if (n <= 0)                                                              \
         return;                                                                \
       const float *lhs = reinterpret_cast<const float *>(src.lhs().data());    \
       const float *rhs = reinterpret_cast<const float *>(src.rhs().data());    \
       float *output = reinterpret_cast<float *>(dst.data());                   \
-      for (int i = 0; i < n; ++i) {                                            \
+      for (Eigen::Index i = 0; i < n; ++i) {                                   \
         output[i] = STDFUNC(lhs[i], rhs[i]);                                   \
       }                                                                        \
     }                                                                          \
@@ -283,24 +273,15 @@ EIGEN_AOCL_VML_UNARY_CALL_DOUBLE(log2, amd_vrda_log2)
     static void run(DstXprType &dst, const SrcXprType &src,                    \
                     const assign_op<double, double> &) {                       \
       eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());      \
-      const Index size = dst.size();                                           \
-      if (size <= 0)                                                           \
+      Eigen::Index n = dst.size();                                             \
+      eigen_assert(n <= INT_MAX && "AOCL does not support arrays larger than INT_MAX"); \
+      if (n <= 0)                                                              \
         return;                                                                \
       const double *lhs = reinterpret_cast<const double *>(src.lhs().data());  \
       const double *rhs = reinterpret_cast<const double *>(src.rhs().data());  \
       double *output = reinterpret_cast<double *>(dst.data());                 \
-                                                                               \
-      /* AOCL VML functions use int, process in chunks if size > INT_MAX */   \
-      constexpr Index chunk_size = static_cast<Index>(INT_MAX);                \
-      Index processed = 0;                                                     \
-                                                                               \
-      while (processed < size) {                                               \
-        const Index current_chunk = numext::mini(size - processed, chunk_size); \
-        const int n = static_cast<int>(current_chunk);                         \
-        AOCLOP(n, const_cast<double *>(lhs + processed),                       \
-               const_cast<double *>(rhs + processed), output + processed);     \
-        processed += current_chunk;                                            \
-      }                                                                        \
+      int aocl_n = internal::convert_index<int>(n);                            \
+      AOCLOP(aocl_n, const_cast<double *>(lhs), const_cast<double *>(rhs), output); \
     }                                                                          \
   };
 
