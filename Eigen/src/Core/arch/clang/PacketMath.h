@@ -245,28 +245,30 @@ EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* 
 // --- Intrinsic-like specializations ---
 
 // --- Load/Store operations ---
-#define EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(PACKET_TYPE, SCALAR_TYPE)                                    \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE ploadu<PACKET_TYPE>(const SCALAR_TYPE* from) {                          \
-    return detail::load_vector_unaligned<PACKET_TYPE>(from);                                              \
-  }                                                                                                       \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE pload<PACKET_TYPE>(const SCALAR_TYPE* from) {                           \
-    return detail::load_vector_aligned<PACKET_TYPE>(from);                                                \
-  }                                                                                                       \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE void pstoreu<SCALAR_TYPE, PACKET_TYPE>(SCALAR_TYPE * to, const PACKET_TYPE& from) { \
-    detail::store_vector_unaligned<PACKET_TYPE>(to, from);                                                \
-  }                                                                                                       \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE void pstore<SCALAR_TYPE, PACKET_TYPE>(SCALAR_TYPE * to, const PACKET_TYPE& from) {  \
-    detail::store_vector_aligned<PACKET_TYPE>(to, from);                                                  \
+#define EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(PACKET_TYPE)                                                         \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE ploadu<PACKET_TYPE>(const detail::scalar_type_of_vector_t<PACKET_TYPE>* from) { \
+    return detail::load_vector_unaligned<PACKET_TYPE>(from);                                                      \
+  }                                                                                                               \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pload<PACKET_TYPE>(const detail::scalar_type_of_vector_t<PACKET_TYPE>* from) {  \
+    return detail::load_vector_aligned<PACKET_TYPE>(from);                                                        \
+  }                                                                                                               \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE void pstoreu<detail::scalar_type_of_vector_t<PACKET_TYPE>, PACKET_TYPE>(                    \
+      detail::scalar_type_of_vector_t<PACKET_TYPE> * to, const PACKET_TYPE& from) {                               \
+    detail::store_vector_unaligned<PACKET_TYPE>(to, from);                                                        \
+  }                                                                                                               \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE void pstore<detail::scalar_type_of_vector_t<PACKET_TYPE>, PACKET_TYPE>(                     \
+      detail::scalar_type_of_vector_t<PACKET_TYPE> * to, const PACKET_TYPE& from) {                               \
+    detail::store_vector_aligned<PACKET_TYPE>(to, from);                                                          \
   }
 
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16f, float)
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8d, double)
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16i, int32_t)
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8l, int64_t)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16f)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8d)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16i)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8l)
 #undef EIGEN_CLANG_PACKET_LOAD_STORE_PACKET
 
 // --- Broadcast operation ---
