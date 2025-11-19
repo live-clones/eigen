@@ -1016,6 +1016,20 @@ EIGEN_DEVICE_FUNC inline Packet pcplxflip(const Packet& a) {
   return Packet(numext::imag(a), numext::real(a));
 }
 
+/** \internal \returns \a a with real part duplicated (for complex type only) */
+// TODO(rmlarsen): Define and use in all complex backends.
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pdupreal(const Packet& a) {
+  return Packet(numext::real(a), numext::real(a));
+}
+
+/** \internal \returns \a a with real part duplicated (for complex type only) */
+// TODO(rmlarsen): Define and use in all complex backends.
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pdupimag(const Packet& a) {
+  return Packet(numext::imag(a), numext::imag(a));
+}
+
 /**************************
  * Special math functions
  ***************************/

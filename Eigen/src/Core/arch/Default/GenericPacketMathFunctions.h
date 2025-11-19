@@ -826,8 +826,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #if EIGEN_COMP_GNUC_STRICT
     __attribute__((optimize("-fno-unsafe-math-optimizations")))
 #endif
-    Packet
-    psincos_float(const Packet& _x) {
+    Packet psincos_float(const Packet& _x) {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
 
   const Packet cst_2oPI = pset1<Packet>(0.636619746685028076171875f);  // 2/PI
@@ -1004,8 +1003,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #if EIGEN_COMP_GNUC_STRICT
     __attribute__((optimize("-fno-unsafe-math-optimizations")))
 #endif
-    Packet
-    psincos_double(const Packet& x) {
+    Packet psincos_double(const Packet& x) {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   typedef typename unpacket_traits<PacketI>::type ScalarI;
 
@@ -1128,6 +1126,20 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psin_double(const Pac
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcos_double(const Packet& x) {
   return psincos_double<false>(x);
+}
+
+template <bool ComputeSin, typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+    std::enable_if_t<std::is_same<typename unpacket_traits<Packet>::type, float>::value, Packet>
+    psincos_selector(const Packet& x) {
+  return psincos_float<ComputeSin, Packet, true>(x);
+}
+
+template <bool ComputeSin, typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+    std::enable_if_t<std::is_same<typename unpacket_traits<Packet>::type, double>::value, Packet>
+    psincos_selector(const Packet& x) {
+  return psincos_double<ComputeSin, Packet, true>(x);
 }
 
 // Generic implementation of acos(x).
@@ -1470,13 +1482,23 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Pa
 }
 
 template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pmul_complex(const Packet& x, const Packet& y) {
+  // In the following we annotate the code for the case where the inputs
+  // are a pair length-2 SIMD vectors representing a single pair of complex
+  // numbers x = a + i*b, y = c + i*d.
+  Packet x_re = pdupreal(x);                  // a, a
+  Packet x_im = pdupimag(x);                  // b, b
+  Packet tmp_re = Packet(pmul(x_re.v, y.v));  // a*c, a*d
+  Packet tmp_im = Packet(pmul(x_im.v, y.v));  // b*c, b*d
+  tmp_im = pcplxflip(pconj(tmp_im));          // -b*d, d*c
+  return padd(tmp_im, tmp_re);                // a*c - b*d, a*d + b*c
+}
+
+template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Packet& x) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
-
-  RealPacket real_mask_rp = peven_mask(x.v);
-  Packet real_mask(real_mask_rp);
 
   // Real part
   RealPacket x_flip = pcplxflip(x).v;  // b, a
@@ -1493,12 +1515,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
   RealPacket is_any_inf = por(is_x_pos_inf, is_y_pos_inf);
   RealPacket xreal = pselect(is_any_inf, cst_pos_inf, xlogr);
 
-  Packet xres = pselect(real_mask, Packet(xreal), Packet(ximg));  // log(sqrt(a^2 + b^2)), atan2(b, a)
-  return xres;
+  return Packet(pselect(peven_mask(xreal), xreal, ximg));  // log(sqrt(a^2 + b^2)), atan2(b, a)
 }
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Packet& a) {
+  // FIXME(rmlarsen): This does not work correctly for Packets of std::complex<double>.
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;
@@ -1516,7 +1538,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   // cis(y):
   RealPacket y = pand(odd_mask, a.v);
   y = por(y, pcplxflip(Packet(y)).v);
-  RealPacket cisy = psincos_float<false, RealPacket, true>(y);
+  RealPacket cisy = psincos_selector<false, RealPacket>(y);
   cisy = pcplxflip(Packet(cisy)).v;  // cos(y) + i * sin(y)
 
   const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());

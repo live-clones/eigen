@@ -11,8 +11,6 @@
 #ifndef EIGEN_CORE_MODULE_H
 #define EIGEN_CORE_MODULE_H
 
-#define EIGEN_VECTORIZE_GENERIC
-
 // Eigen version information.
 #include "Version"
 
@@ -210,8 +208,8 @@ using std::ptrdiff_t;
 #if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE)
 #include "src/Core/arch/clang/PacketMath.h"
 #include "src/Core/arch/clang/TypeCasting.h"
-#include "src/Core/arch/clang/Reductions.h"
 #include "src/Core/arch/clang/Complex.h"
+#include "src/Core/arch/clang/Reductions.h"
 #include "src/Core/arch/clang/MathFunctions.h"
 #else
 #if defined EIGEN_VECTORIZE_AVX512
