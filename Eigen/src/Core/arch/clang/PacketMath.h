@@ -240,17 +240,6 @@ EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* 
   *reinterpret_cast<VectorT*>(assume_aligned<EIGEN_GENERIC_VECTOR_SIZE_BYTES>(to)) = from;
 }
 
-// template <typename VectorT>
-// void print_vector(const VectorT& v) {
-//   int n = __builtin_vectorelements(v);
-//   std::cout << "[";
-//   for (int i = 0; i < n; ++i) {
-//     std::cout << v[i];
-//     if (i != n-1) std::cout << ", ";
-//   }
-//   std::cout << "]";
-// }
-
 }  // namespace detail
 
 // --- Intrinsic-like specializations ---
