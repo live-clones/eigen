@@ -663,7 +663,7 @@ EIGEN_STRONG_INLINE Packet8l plset<Packet8l>(const int64_t& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16f peven_mask(const Packet16f& /* unused */) {
-  float kTrue = numext::bit_cast<float>(-1);
+  float kTrue = numext::bit_cast<float>(int32_t(-1));
   float kFalse = 0.0f;
   return Packet16f{kTrue, kFalse, kTrue, kFalse, kTrue, kFalse, kTrue, kFalse,
                    kTrue, kFalse, kTrue, kFalse, kTrue, kFalse, kTrue, kFalse};
@@ -671,7 +671,7 @@ EIGEN_STRONG_INLINE Packet16f peven_mask(const Packet16f& /* unused */) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8d peven_mask(const Packet8d& /* unused */) {
-  double kTrue = numext::bit_cast<double>(-1l);
+  double kTrue = numext::bit_cast<double>(int64_t(-1l));
   double kFalse = 0.0;
   return Packet8d{kTrue, kFalse, kTrue, kFalse, kTrue, kFalse, kTrue, kFalse};
 }

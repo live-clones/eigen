@@ -257,7 +257,10 @@ EIGEN_STRONG_INLINE Packet2cd pdupimag<Packet2cd>(const Packet2cd& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8cf ploaddup<Packet8cf>(const std::complex<float>* from) {
-  return Packet8cf(reinterpret_cast<Packet16f>(ploaddup<Packet8d>(reinterpret_cast<const double*>(from))));
+  return Packet8cf(Packet16f{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
+                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
+                             std::real(from[2]), std::imag(from[2]), std::real(from[2]), std::imag(from[2]),
+                             std::real(from[3]), std::imag(from[3]), std::real(from[3]), std::imag(from[3])});
 }
 template <>
 EIGEN_STRONG_INLINE Packet4cd ploaddup<Packet4cd>(const std::complex<double>* from) {
@@ -267,7 +270,10 @@ EIGEN_STRONG_INLINE Packet4cd ploaddup<Packet4cd>(const std::complex<double>* fr
 
 template <>
 EIGEN_STRONG_INLINE Packet8cf ploadquad<Packet8cf>(const std::complex<float>* from) {
-  return Packet8cf(reinterpret_cast<Packet16f>(ploadquad<Packet8d>(reinterpret_cast<const double*>(from))));
+  return Packet8cf(Packet16f{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
+                             std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
+                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
+                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
 }
 template <>
 EIGEN_STRONG_INLINE Packet4cd ploadquad<Packet4cd>(const std::complex<double>* from) {
