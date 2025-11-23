@@ -748,6 +748,109 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setOnes
   return setOnes(rows(), cols);
 }
 
+// NaN:
+
+/** \returns an expression of a matrix where all coefficients are NaN.
+ *
+ * The parameters \a rows and \a cols are the number of rows and of columns of
+ * the returned matrix. Must be compatible with this MatrixBase type.
+ *
+ * This variant is meant to be used for dynamic-size matrix types. For fixed-size types,
+ * it is redundant to pass \a rows and \a cols as arguments, so NaNs() should be used
+ * instead.
+ *
+ * \sa NaNs(), NaNs(Index)
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ConstantReturnType DenseBase<Derived>::NaNs(
+    Index rows, Index cols) {
+  return Constant(rows, cols, std::numeric_limits<Scalar>::quiet_NaN());
+}
+
+/** \returns an expression of a vector where all coefficients are NaN.
+ *
+ * The parameter \a size is the size of the returned vector.
+ * Must be compatible with this MatrixBase type.
+ *
+ * \only_for_vectors
+ *
+ * This variant is meant to be used for dynamic-size vector types. For fixed-size types,
+ * it is redundant to pass \a size as argument, so NaNs() should be used
+ * instead.
+ *
+ * \sa NaNs(), NaNs(Index,Index)
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ConstantReturnType DenseBase<Derived>::NaNs(
+    Index size) {
+  return Constant(size, std::numeric_limits<Scalar>::quiet_NaN());
+}
+
+/** \returns an expression of a fixed-size matrix or vector where all coefficients are NaN.
+ *
+ * This variant is only for fixed-size MatrixBase types. For dynamic-size types, you
+ * need to use the variants taking size arguments.
+ *
+ * Example: \include MatrixBase_NaN.cpp
+ * Output: \verbinclude MatrixBase_NaN.out
+ *
+ * \sa NaNs(Index), NaNs(Index,Index)
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ConstantReturnType DenseBase<Derived>::NaNs() {
+  return Constant(std::numeric_limits<Scalar>::quiet_NaN());
+}
+
+// Inf:
+
+/** \returns an expression of a matrix where all coefficients are Inf.
+ *
+ * The parameters \a rows and \a cols are the number of rows and of columns of
+ * the returned matrix. Must be compatible with this MatrixBase type.
+ *
+ * This variant is meant to be used for dynamic-size matrix types. For fixed-size types,
+ * it is redundant to pass \a rows and \a cols as arguments, so Infs() should be used
+ * instead.
+ *
+ * \sa Infs(), Infs(Index)
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ConstantReturnType DenseBase<Derived>::Infs(
+    Index rows, Index cols) {
+  return Constant(rows, cols, std::numeric_limits<Scalar>::infinity());
+}
+
+/** \returns an expression of a vector where all coefficients are Inf.
+ *
+ * The parameter \a size is the size of the returned vector.
+ * Must be compatible with this MatrixBase type.
+ *
+ * \only_for_vectors
+ *
+ * This variant is meant to be used for dynamic-size vector types. For fixed-size types,
+ * it is redundant to pass \a size as argument, so Infs() should be used
+ * instead.
+ *
+ * \sa Infs(), Infs(Index,Index)
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ConstantReturnType DenseBase<Derived>::Infs(
+    Index size) {
+  return Constant(size, std::numeric_limits<Scalar>::infinity());
+}
+
+/** \returns an expression of a fixed-size matrix or vector where all coefficients are Inf.
+ *
+ * This variant is only for fixed-size MatrixBase types. For dynamic-size types, you
+ * need to use the variants taking size arguments.
+ *
+ * \sa Infs(Index), Infs(Index,Index)
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ConstantReturnType DenseBase<Derived>::Infs() {
+  return Constant(std::numeric_limits<Scalar>::infinity());
+}
+
 // Identity:
 
 /** \returns an expression of the identity matrix (not necessarily square).

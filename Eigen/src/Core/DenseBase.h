@@ -336,6 +336,12 @@ class DenseBase
   EIGEN_DEVICE_FUNC static const ConstantReturnType Ones(Index rows, Index cols);
   EIGEN_DEVICE_FUNC static const ConstantReturnType Ones(Index size);
   EIGEN_DEVICE_FUNC static const ConstantReturnType Ones();
+  EIGEN_DEVICE_FUNC static const ConstantReturnType NaNs(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType NaNs(Index size);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType NaNs();
+  EIGEN_DEVICE_FUNC static const ConstantReturnType Infs(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType Infs(Index size);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType Infs();
 
   EIGEN_DEVICE_FUNC void fill(const Scalar& value);
   EIGEN_DEVICE_FUNC Derived& setConstant(const Scalar& value);
