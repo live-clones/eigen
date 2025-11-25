@@ -1322,10 +1322,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& x) {
 
   const T sign_mask = pset1<T>(-0.0f);
   const T abs_x = pandnot(x, sign_mask);
-  const T x_sign = pand(sign_mask, x);
   constexpr float kSmallThreshold = 1.25f;
   const T large_mask = pcmp_lt(pset1<T>(kSmallThreshold), abs_x);
-
   // Fast exit if all elements are small.
   if (!predux_any(large_mask)) {
     return small_tanh;
@@ -1337,11 +1335,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& x) {
   const T s = pexp_float<T, true>(pmul(two, abs_x));
   const T abs_tanh = psub(one, pdiv(two, padd(s, one)));
 
-  // Set sign and handle infinite inputs.
+  // Handle infinite inputs and set sign bit.
   constexpr float kHugeThreshold = 16.0f;
   const T huge_mask = pcmp_lt(pset1<T>(kHugeThreshold), abs_x);
-  const T y_abs = pselect(huge_mask, one, abs_tanh);
-  const T large_tanh = por(x_sign, y_abs);
+  const T x_sign = pand(sign_mask, x);
+  const T large_tanh = por(x_sign, pselect(huge_mask, one, abs_tanh));
   return pselect(large_mask, large_tanh, small_tanh);
 }
 
