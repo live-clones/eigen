@@ -834,7 +834,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #if EIGEN_COMP_GNUC_STRICT
     __attribute__((optimize("-fno-unsafe-math-optimizations")))
 #endif
-    Packet psincos_float(const Packet& _x) {
+    Packet
+    psincos_float(const Packet& _x) {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
 
   const Packet cst_2oPI = pset1<Packet>(0.636619746685028076171875f);  // 2/PI
@@ -1011,7 +1012,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #if EIGEN_COMP_GNUC_STRICT
     __attribute__((optimize("-fno-unsafe-math-optimizations")))
 #endif
-    Packet psincos_double(const Packet& x) {
+    Packet
+    psincos_double(const Packet& x) {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   typedef typename unpacket_traits<PacketI>::type ScalarI;
 
