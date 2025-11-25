@@ -351,6 +351,8 @@ class DenseBase
   EIGEN_DEVICE_FUNC Derived& setEqualSpaced(const Scalar& low, const Scalar& step);
   EIGEN_DEVICE_FUNC Derived& setZero();
   EIGEN_DEVICE_FUNC Derived& setOnes();
+  EIGEN_DEVICE_FUNC Derived& setNaNs();
+  EIGEN_DEVICE_FUNC Derived& setInfs();
   EIGEN_DEVICE_FUNC Derived& setRandom();
 
   template <typename OtherDerived>

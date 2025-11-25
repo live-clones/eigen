@@ -801,6 +801,64 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::Constan
   return Constant(std::numeric_limits<Scalar>::quiet_NaN());
 }
 
+/** Sets all coefficients in this expression to NaN.
+ *
+ * \sa NaNs(), class CwiseNullaryOp
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setNaNs() {
+  return setConstant(std::numeric_limits<Scalar>::quiet_NaN());
+}
+
+/** Resizes to the given \a newSize, and sets all coefficients in this expression to NaN.
+ *
+ * \only_for_vectors
+ *
+ * \sa MatrixBase::setNaNs(), setNaNs(Index,Index), class CwiseNullaryOp, MatrixBase::NaNs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setNaNs(Index newSize) {
+  resize(newSize);
+  return setConstant(std::numeric_limits<Scalar>::quiet_NaN());
+}
+
+/** Resizes to the given size, and sets all coefficients in this expression to NaN.
+ *
+ * \param rows the new number of rows
+ * \param cols the new number of columns
+ *
+ * \sa MatrixBase::setNaNs(), setNaNs(Index), class CwiseNullaryOp, MatrixBase::NaNs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setNaNs(Index rows, Index cols) {
+  resize(rows, cols);
+  return setConstant(std::numeric_limits<Scalar>::quiet_NaN());
+}
+
+/** Resizes to the given size, changing only the number of rows, and sets all
+ * coefficients in this expression to NaN. For the parameter of type NoChange_t,
+ * just pass the special value \c NoChange.
+ *
+ * \sa MatrixBase::setNaNs(), setNaNs(Index), setNaNs(Index, Index), setNaNs(NoChange_t, Index), class CwiseNullaryOp,
+ * MatrixBase::NaNs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setNaNs(Index rows, NoChange_t) {
+  return setNaNs(rows, cols());
+}
+
+/** Resizes to the given size, changing only the number of columns, and sets all
+ * coefficients in this expression to NaN. For the parameter of type NoChange_t,
+ * just pass the special value \c NoChange.
+ *
+ * \sa MatrixBase::setNaNs(), setNaNs(Index), setNaNs(Index, Index), setNaNs(Index, NoChange_t) class CwiseNullaryOp,
+ * MatrixBase::NaNs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setNaNs(NoChange_t, Index cols) {
+  return setNaNs(rows(), cols);
+}
+
 // Inf:
 
 /** \returns an expression of a matrix where all coefficients are Inf.
@@ -849,6 +907,64 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::Constan
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ConstantReturnType DenseBase<Derived>::Infs() {
   return Constant(std::numeric_limits<Scalar>::infinity());
+}
+
+/** Sets all coefficients in this expression to Inf.
+ *
+ * \sa Infs(), class CwiseNullaryOp
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setInfs() {
+  return setConstant(std::numeric_limits<Scalar>::infinity());
+}
+
+/** Resizes to the given \a newSize, and sets all coefficients in this expression to Inf.
+ *
+ * \only_for_vectors
+ *
+ * \sa MatrixBase::setInfs(), setInfs(Index,Index), class CwiseNullaryOp, MatrixBase::Infs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setInfs(Index newSize) {
+  resize(newSize);
+  return setConstant(std::numeric_limits<Scalar>::infinity());
+}
+
+/** Resizes to the given size, and sets all coefficients in this expression to Inf.
+ *
+ * \param rows the new number of rows
+ * \param cols the new number of columns
+ *
+ * \sa MatrixBase::setInfs(), setInfs(Index), class CwiseNullaryOp, MatrixBase::Infs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setInfs(Index rows, Index cols) {
+  resize(rows, cols);
+  return setConstant(std::numeric_limits<Scalar>::infinity());
+}
+
+/** Resizes to the given size, changing only the number of rows, and sets all
+ * coefficients in this expression to Inf. For the parameter of type NoChange_t,
+ * just pass the special value \c NoChange.
+ *
+ * \sa MatrixBase::setInfs(), setInfs(Index), setInfs(Index, Index), setInfs(NoChange_t, Index), class CwiseNullaryOp,
+ * MatrixBase::Infs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setInfs(Index rows, NoChange_t) {
+  return setInfs(rows, cols());
+}
+
+/** Resizes to the given size, changing only the number of columns, and sets all
+ * coefficients in this expression to Inf. For the parameter of type NoChange_t,
+ * just pass the special value \c NoChange.
+ *
+ * \sa MatrixBase::setInfs(), setInfs(Index), setInfs(Index, Index), setInfs(Index, NoChange_t) class CwiseNullaryOp,
+ * MatrixBase::Infs()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setInfs(NoChange_t, Index cols) {
+  return setInfs(rows(), cols);
 }
 
 // Identity:
