@@ -720,7 +720,6 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     m_isInitialized = true;
     m_info = InvalidInput;
     m_nonzeroSingularValues = 0;
-    m_singularValues.setZero();
     return *this;
   }
   if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
@@ -746,34 +745,46 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   while (!finished) {
     finished = true;
 
-    // do a sweep: for all index pairs (p,q), perform SVD of the corresponding 2x2 sub-matrix
-    // Threshold is hoisted before the double loop; it only needs updating when maxDiagEntry
-    // increases (which only happens inside the rotation block). Since maxDiagEntry is
-    // monotonically non-decreasing, a slightly stale threshold is conservative.
-    RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
+    if constexpr (NumTraits<Scalar>::IsComplex) {
+      // TODO(rmlarsen): Block the complex case.
+      // do a sweep: for all index pairs (p,q), perform SVD of the corresponding 2x2 sub-matrix,
+      // i.e. compute left and right rotations such that Jl * {{a, b}, {c, d}} * Jr = {{x, 0}, {0, y}}.
+      for (Index p = 1; p < diagSize(); ++p) {
+        for (Index q = 0; q < p; ++q) {
+          RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
+          if (abs(m_workMatrix.coeff(p, q)) > threshold || abs(m_workMatrix.coeff(q, p)) > threshold) {
+            finished = false;
+            if (internal::svd_precondition_2x2_block_to_be_real<MatrixType, Options>::run(m_workMatrix, *this, p, q,
+                                                                                          maxDiagEntry)) {
+              JacobiRotation<RealScalar> j_left, j_right;
+              internal::real_2x2_jacobi_svd(m_workMatrix, p, q, &j_left, &j_right);
+              m_workMatrix.applyOnTheLeft(p, q, j_left);
+              if (computeU()) m_matrixU.applyOnTheRight(p, q, j_left.transpose());
+              m_workMatrix.applyOnTheRight(p, q, j_right);
+              if (computeV()) m_matrixV.applyOnTheRight(p, q, j_right);
+              maxDiagEntry = numext::maxi<RealScalar>(
+                  maxDiagEntry, numext::maxi<RealScalar>(abs(m_workMatrix.coeff(p, p)), abs(m_workMatrix.coeff(q, q))));
+            }
+          }
+        }
+      }
+    } else {
+      // do a sweep: for all index pairs (p,q), perform SVD of the corresponding 2x2 sub-matrix
+      // Threshold is hoisted before the double loop; it only needs updating when maxDiagEntry
+      // increases (which only happens inside the rotation block). Since maxDiagEntry is
+      // monotonically non-decreasing, a slightly stale threshold is conservative.
+      RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
 
-    for (Index p = 1; p < diagSize(); ++p) {
-      for (Index q = 0; q < p; ++q) {
-        // if this 2x2 sub-matrix is not diagonal already...
-        // notice that this comparison will evaluate to false if any NaN is involved, ensuring that NaN's don't
-        // keep us iterating forever. Similarly, small denormal numbers are considered zero.
-        if (abs(m_workMatrix.coeff(p, q)) > threshold || abs(m_workMatrix.coeff(q, p)) > threshold) {
-          finished = false;
-          // perform SVD decomposition of 2x2 sub-matrix corresponding to indices p,q to make it diagonal
-          // the complex to real operation returns true if the updated 2x2 block is not already diagonal
-          if (internal::svd_precondition_2x2_block_to_be_real<MatrixType, Options>::run(m_workMatrix, *this, p, q,
-                                                                                        maxDiagEntry)) {
+      for (Index p = 1; p < diagSize(); ++p) {
+        for (Index q = 0; q < p; ++q) {
+          if (abs(m_workMatrix.coeff(p, q)) > threshold || abs(m_workMatrix.coeff(q, p)) > threshold) {
+            finished = false;
             JacobiRotation<RealScalar> j_left, j_right;
             internal::real_2x2_jacobi_svd(m_workMatrix, p, q, &j_left, &j_right);
-
-            // accumulate resulting Jacobi rotations
             m_workMatrix.applyOnTheLeft(p, q, j_left);
             if (computeU()) m_matrixU.applyOnTheRight(p, q, j_left.transpose());
-
             m_workMatrix.applyOnTheRight(p, q, j_right);
             if (computeV()) m_matrixV.applyOnTheRight(p, q, j_right);
-
-            // keep track of the largest diagonal coefficient
             maxDiagEntry = numext::maxi<RealScalar>(
                 maxDiagEntry, numext::maxi<RealScalar>(abs(m_workMatrix.coeff(p, p)), abs(m_workMatrix.coeff(q, q))));
             threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
