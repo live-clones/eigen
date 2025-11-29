@@ -10,6 +10,37 @@
 #include "main.h"
 
 template <typename MatrixType>
+void testNaNsInfs(const MatrixType& m) {
+  /* this test covers the following files:
+     CwiseNullaryOp.h
+     in particular the NaNs() and Infs() helper methods
+  */
+  typedef typename MatrixType::Scalar Scalar;
+  Index rows = m.rows();
+  Index cols = m.cols();
+
+  // Test NaN matrices
+  if (std::numeric_limits<Scalar>::has_quiet_NaN) {
+    MatrixType m1 = MatrixType::NaNs(rows, cols);
+    VERIFY((m1.array().isNaN()).all());
+
+    MatrixType m2(rows, cols);
+    m2.setNaNs();
+    VERIFY((m2.array().isNaN()).all());
+  }
+
+  // Test Inf matrices
+  if (std::numeric_limits<Scalar>::has_infinity) {
+    MatrixType m1 = MatrixType::Infs(rows, cols);
+    VERIFY((m1.array().isInf()).all());
+
+    MatrixType m2(rows, cols);
+    m2.setInfs();
+    VERIFY((m2.array().isInf()).all());
+  }
+}
+
+template <typename MatrixType>
 void miscMatrices(const MatrixType& m) {
   /* this test covers the following files:
      DiagonalMatrix.h Ones.h
@@ -43,5 +74,8 @@ EIGEN_DECLARE_TEST(miscmatrices) {
     CALL_SUBTEST_3(miscMatrices(MatrixXcf(3, 3)));
     CALL_SUBTEST_4(miscMatrices(MatrixXi(8, 12)));
     CALL_SUBTEST_5(miscMatrices(MatrixXcd(20, 20)));
+
+    CALL_SUBTEST_6(testNaNsInfs(MatrixXf(internal::random<int>(1, 30), internal::random<int>(1, 30))));
+    CALL_SUBTEST_7(testNaNsInfs(Matrix4d()));
   }
 }
