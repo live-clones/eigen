@@ -336,6 +336,12 @@ class DenseBase
   EIGEN_DEVICE_FUNC static const ConstantReturnType Ones(Index rows, Index cols);
   EIGEN_DEVICE_FUNC static const ConstantReturnType Ones(Index size);
   EIGEN_DEVICE_FUNC static const ConstantReturnType Ones();
+  EIGEN_DEVICE_FUNC static const ConstantReturnType NaNs(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType NaNs(Index size);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType NaNs();
+  EIGEN_DEVICE_FUNC static const ConstantReturnType Infs(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType Infs(Index size);
+  EIGEN_DEVICE_FUNC static const ConstantReturnType Infs();
 
   EIGEN_DEVICE_FUNC void fill(const Scalar& value);
   EIGEN_DEVICE_FUNC Derived& setConstant(const Scalar& value);
@@ -345,6 +351,8 @@ class DenseBase
   EIGEN_DEVICE_FUNC Derived& setEqualSpaced(const Scalar& low, const Scalar& step);
   EIGEN_DEVICE_FUNC Derived& setZero();
   EIGEN_DEVICE_FUNC Derived& setOnes();
+  EIGEN_DEVICE_FUNC Derived& setNaNs();
+  EIGEN_DEVICE_FUNC Derived& setInfs();
   EIGEN_DEVICE_FUNC Derived& setRandom();
 
   template <typename OtherDerived>

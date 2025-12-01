@@ -667,6 +667,18 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   EIGEN_DEVICE_FUNC Derived& setOnes(NoChange_t, Index cols);
   EIGEN_DEVICE_FUNC Derived& setOnes(Index rows, NoChange_t);
 
+  using Base::setNaNs;
+  EIGEN_DEVICE_FUNC Derived& setNaNs(Index size);
+  EIGEN_DEVICE_FUNC Derived& setNaNs(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC Derived& setNaNs(NoChange_t, Index cols);
+  EIGEN_DEVICE_FUNC Derived& setNaNs(Index rows, NoChange_t);
+
+  using Base::setInfs;
+  EIGEN_DEVICE_FUNC Derived& setInfs(Index size);
+  EIGEN_DEVICE_FUNC Derived& setInfs(Index rows, Index cols);
+  EIGEN_DEVICE_FUNC Derived& setInfs(NoChange_t, Index cols);
+  EIGEN_DEVICE_FUNC Derived& setInfs(Index rows, NoChange_t);
+
   using Base::setRandom;
   Derived& setRandom(Index size);
   Derived& setRandom(Index rows, Index cols);
