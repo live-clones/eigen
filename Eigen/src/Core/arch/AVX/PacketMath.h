@@ -144,6 +144,7 @@ struct packet_traits<double> : default_packet_traits {
 #ifdef EIGEN_VECTORIZE_AVX2
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
+    HasTan = EIGEN_FAST_MATH,
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasErf = 1,

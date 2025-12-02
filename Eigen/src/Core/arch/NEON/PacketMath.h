@@ -5018,6 +5018,7 @@ struct packet_traits<double> : default_packet_traits {
 #endif
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
+    HasTan = EIGEN_FAST_MATH,
     HasSqrt = 1,
     HasRsqrt = 1,
     HasCbrt = 1,
