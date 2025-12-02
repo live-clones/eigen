@@ -56,6 +56,7 @@ struct generic_float_packet_traits : default_packet_traits {
     HasReciprocal = 1,
     HasSin = 1,
     HasCos = 1,
+    HasTan = 1,
     HasACos = 1,
     HasASin = 1,
     HasATan = 1,
@@ -89,7 +90,7 @@ template <>
 struct packet_traits<double> : generic_float_packet_traits {
   using type = Packet8d;
   using half = Packet8d;
-  enum { size = 8, HasACos = 0, HasASin = 0 };
+  enum { size = 8, HasTan = 0, HasACos = 0, HasASin = 0 };
 };
 
 struct generic_integer_packet_traits : default_packet_traits {

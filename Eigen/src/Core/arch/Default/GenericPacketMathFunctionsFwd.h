@@ -110,6 +110,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psin_float(const Pack
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcos_float(const Packet& x);
 
+/** \internal \returns tan(x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptan_float(const Packet& x);
+
 /** \internal \returns sin(x) for double precision float */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psin_double(const Packet& x);
@@ -200,6 +204,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
 #define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_FLOAT(PACKET) \
   EIGEN_FLOAT_PACKET_FUNCTION(sin, PACKET)                 \
   EIGEN_FLOAT_PACKET_FUNCTION(cos, PACKET)                 \
+  EIGEN_FLOAT_PACKET_FUNCTION(tan, PACKET)                 \
   EIGEN_FLOAT_PACKET_FUNCTION(asin, PACKET)                \
   EIGEN_FLOAT_PACKET_FUNCTION(acos, PACKET)                \
   EIGEN_FLOAT_PACKET_FUNCTION(tanh, PACKET)                \
