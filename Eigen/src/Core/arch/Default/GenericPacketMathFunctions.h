@@ -765,11 +765,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   return pselect(zero_mask, cst_zero, pmax(pldexp(x, fx), _x));
 }
 
-enum class TrigFunction : uint8_t {
-  Sin,
-  Cos,
-  Tan
-};
+enum class TrigFunction : uint8_t { Sin, Cos, Tan };
 
 // The following code is inspired by the following stack-overflow answer:
 //   https://stackoverflow.com/questions/30463616/payne-hanek-algorithm-implementation-in-c/30465751#30465751
@@ -934,13 +930,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   y2 = pmadd(y2, x, x);
 
   // Select the correct result from the two polynomials.
-    // Compute the sign to apply to the polynomial.
+  // Compute the sign to apply to the polynomial.
   // sin: sign = second_bit(y_int) xor signbit(_x)
   // cos: sign = second_bit(y_int+1)
   Packet sign_bit = (Func == TrigFunction::Sin) ? pxor(_x, preinterpret<Packet>(plogical_shift_left<30>(y_int)))
-                    : preinterpret<Packet>(plogical_shift_left<30>(padd(y_int, csti_1)));
+                                                : preinterpret<Packet>(plogical_shift_left<30>(padd(y_int, csti_1)));
   sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
-
 
   if (ComputeBoth || (Func == TrigFunction::Tan)) {
     Packet peven = peven_mask(x);
