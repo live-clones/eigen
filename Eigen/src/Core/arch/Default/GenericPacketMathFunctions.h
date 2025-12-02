@@ -916,6 +916,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 
   Packet x2 = pmul(x, x);
 
+  // TODO(rmlarsen): Add single polynomial for tan(x) instead of paying for sin+cos+div.
   // Evaluate the cos(x) polynomial. (-Pi/4 <= x <= Pi/4)
   Packet y1 = pset1<Packet>(2.4372266125283204019069671630859375e-05f);
   y1 = pmadd(y1, x2, pset1<Packet>(-0.00138865201734006404876708984375f));
