@@ -218,8 +218,8 @@ target_include_directories (eigen INTERFACE
   $<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>
 )
 
-# Eigen requires at least C++14
-target_compile_features (eigen INTERFACE cxx_std_14)
+# Eigen requires at least C++20
+target_compile_features (eigen INTERFACE cxx_std_20)
 
 # Export as title case Eigen
 set_target_properties (eigen PROPERTIES EXPORT_NAME Eigen)
@@ -287,7 +287,7 @@ endif()
 
 # Avoid setting the standard in a parent if unset.
 if(PROJECT_IS_TOP_LEVEL)
-  set(CMAKE_CXX_STANDARD 14 CACHE STRING "Default C++ standard")
+  set(CMAKE_CXX_STANDARD 20 CACHE STRING "Default C++ standard")
   set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Require C++ standard")
   set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Allow C++ extensions")
 endif()
@@ -685,7 +685,7 @@ if (EIGEN_BUILD_TESTING)
     option(EIGEN_SYCL_DISABLE_GEMV "Disable GEMV and create a single kernel to calculate contraction instead." OFF)
 
     set(EIGEN_SYCL ON)
-    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD 20)
     set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations -Wno-shorten-64-to-32 -Wno-cast-align")
     set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wno-deprecated-copy-with-user-provided-copy -Wno-unused-variable")
     set (CMAKE_MODULE_PATH "${CMAKE_ROOT}/Modules" "cmake/Modules/" "${CMAKE_MODULE_PATH}")
