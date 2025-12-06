@@ -189,6 +189,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
 
   template <typename VectorType>
   LLT& rankUpdate(const VectorType& vec, const RealScalar& sigma = 1);
+  
+  typename MatrixType::RealScalar logAbsDeterminant() const;
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
@@ -440,6 +442,12 @@ LLT<MatrixType_, UpLo_>& LLT<MatrixType_, UpLo_>::rankUpdate(const VectorType& v
     m_info = Success;
 
   return *this;
+}
+
+template <typename MatrixType_, int UpLo_>
+typename MatrixType_::RealScalar LLT<MatrixType_, UpLo_>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "LLT is not initialized.");
+  return RealScalar(2) * m_matrix.diagonal().array().log().sum();
 }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
