@@ -19,7 +19,7 @@ namespace internal {
 
 template <typename Scalar, int NaNPropagation, bool IsInteger = NumTraits<Scalar>::IsInteger>
 struct max_coeff_functor {
-  EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
+  EIGEN_DEVICE_FUNC inline constexpr bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
     return candidate > incumbent;
   }
   template <typename Packet>
@@ -34,7 +34,7 @@ struct max_coeff_functor {
 
 template <typename Scalar>
 struct max_coeff_functor<Scalar, PropagateNaN, false> {
-  EIGEN_DEVICE_FUNC inline Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) {
+  EIGEN_DEVICE_FUNC inline constexpr Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) {
     return (candidate > incumbent) || ((candidate != candidate) && (incumbent == incumbent));
   }
   template <typename Packet>
@@ -49,7 +49,7 @@ struct max_coeff_functor<Scalar, PropagateNaN, false> {
 
 template <typename Scalar>
 struct max_coeff_functor<Scalar, PropagateNumbers, false> {
-  EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
+  EIGEN_DEVICE_FUNC inline constexpr bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
     return (candidate > incumbent) || ((candidate == candidate) && (incumbent != incumbent));
   }
   template <typename Packet>
@@ -64,7 +64,7 @@ struct max_coeff_functor<Scalar, PropagateNumbers, false> {
 
 template <typename Scalar, int NaNPropagation, bool IsInteger = NumTraits<Scalar>::IsInteger>
 struct min_coeff_functor {
-  EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
+  EIGEN_DEVICE_FUNC inline constexpr bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
     return candidate < incumbent;
   }
   template <typename Packet>
@@ -79,7 +79,7 @@ struct min_coeff_functor {
 
 template <typename Scalar>
 struct min_coeff_functor<Scalar, PropagateNaN, false> {
-  EIGEN_DEVICE_FUNC inline Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) {
+  EIGEN_DEVICE_FUNC inline constexpr Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) {
     return (candidate < incumbent) || ((candidate != candidate) && (incumbent == incumbent));
   }
   template <typename Packet>
@@ -94,7 +94,7 @@ struct min_coeff_functor<Scalar, PropagateNaN, false> {
 
 template <typename Scalar>
 struct min_coeff_functor<Scalar, PropagateNumbers, false> {
-  EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
+  EIGEN_DEVICE_FUNC inline constexpr bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
     return (candidate < incumbent) || ((candidate == candidate) && (incumbent != incumbent));
   }
   template <typename Packet>
@@ -121,7 +121,8 @@ struct find_coeff_loop;
 template <typename Evaluator, typename Func>
 struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ false> {
   using Scalar = typename Evaluator::Scalar;
-  static EIGEN_DEVICE_FUNC inline void run(const Evaluator& eval, Func& func, Scalar& res, Index& outer, Index& inner) {
+  static EIGEN_DEVICE_FUNC inline constexpr void run(const Evaluator& eval, Func& func, Scalar& res, Index& outer,
+                                                     Index& inner) {
     Index outerSize = eval.outerSize();
     Index innerSize = eval.innerSize();
 
@@ -146,7 +147,7 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ false> {
 template <typename Evaluator, typename Func>
 struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ false> {
   using Scalar = typename Evaluator::Scalar;
-  static EIGEN_DEVICE_FUNC inline void run(const Evaluator& eval, Func& func, Scalar& res, Index& index) {
+  static EIGEN_DEVICE_FUNC inline constexpr void run(const Evaluator& eval, Func& func, Scalar& res, Index& index) {
     Index size = eval.size();
 
     /* initialization performed in calling function */
@@ -278,9 +279,9 @@ struct find_coeff_evaluator : public evaluator<Derived> {
   using Packet = typename packet_traits<Scalar>::type;
   static constexpr int Flags = Base::Flags;
   static constexpr bool IsRowMajor = bool(Flags & RowMajorBit);
-  EIGEN_DEVICE_FUNC inline find_coeff_evaluator(const Derived& xpr) : Base(xpr), m_xpr(xpr) {}
+  EIGEN_DEVICE_FUNC inline constexpr find_coeff_evaluator(const Derived& xpr) : Base(xpr), m_xpr(xpr) {}
 
-  EIGEN_DEVICE_FUNC inline Scalar coeffByOuterInner(Index outer, Index inner) const {
+  EIGEN_DEVICE_FUNC inline constexpr Scalar coeffByOuterInner(Index outer, Index inner) const {
     Index row = IsRowMajor ? outer : inner;
     Index col = IsRowMajor ? inner : outer;
     return Base::coeff(row, col);
@@ -292,9 +293,9 @@ struct find_coeff_evaluator : public evaluator<Derived> {
     return Base::template packet<LoadMode, PacketType>(row, col);
   }
 
-  EIGEN_DEVICE_FUNC inline Index innerSize() const { return m_xpr.innerSize(); }
-  EIGEN_DEVICE_FUNC inline Index outerSize() const { return m_xpr.outerSize(); }
-  EIGEN_DEVICE_FUNC inline Index size() const { return m_xpr.size(); }
+  EIGEN_DEVICE_FUNC inline constexpr Index innerSize() const { return m_xpr.innerSize(); }
+  EIGEN_DEVICE_FUNC inline constexpr Index outerSize() const { return m_xpr.outerSize(); }
+  EIGEN_DEVICE_FUNC inline constexpr Index size() const { return m_xpr.size(); }
 
   const Derived& m_xpr;
 };
@@ -316,35 +317,37 @@ struct find_coeff_impl {
   static constexpr bool Linearize = bool(Flags & LinearAccessBit);
   static constexpr bool DontVectorize =
       enum_lt_not_dynamic(Linearize ? MaxSizeAtCompileTime : MaxInnerSizeAtCompileTime, PacketSize);
-  static constexpr bool Vectorize =
-      !DontVectorize && bool(Flags & PacketAccessBit) && functor_traits<Func>::PacketAccess;
+  static constexpr bool Vectorize = !internal::is_constant_evaluated() && !DontVectorize &&
+                                    bool(Flags & PacketAccessBit) && functor_traits<Func>::PacketAccess;
 
   using Loop = find_coeff_loop<Evaluator, Func, Linearize, Vectorize>;
 
   template <bool ForwardLinearAccess = Linearize, std::enable_if_t<!ForwardLinearAccess, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& xpr, Func& func, Scalar& res, Index& outer,
-                                                        Index& inner) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& xpr, Func& func, Scalar& res,
+                                                                  Index& outer, Index& inner) {
     Evaluator eval(xpr);
     Loop::run(eval, func, res, outer, inner);
   }
   template <bool ForwardLinearAccess = Linearize, std::enable_if_t<ForwardLinearAccess, bool> = true>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& xpr, Func& func, Scalar& res, Index& outer,
-                                                        Index& inner) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& xpr, Func& func, Scalar& res,
+                                                                  Index& outer, Index& inner) {
     // where possible, use the linear loop and back-calculate the outer and inner indices
     Index index = 0;
     run(xpr, func, res, index);
     outer = index / xpr.innerSize();
     inner = index % xpr.innerSize();
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const Derived& xpr, Func& func, Scalar& res, Index& index) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(const Derived& xpr, Func& func, Scalar& res,
+                                                                  Index& index) {
     Evaluator eval(xpr);
     Loop::run(eval, func, res, index);
   }
 };
 
 template <typename Derived, typename IndexType, typename Func>
-EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const DenseBase<Derived>& mat, Func& func,
-                                                                       IndexType* rowPtr, IndexType* colPtr) {
+EIGEN_DEVICE_FUNC constexpr typename internal::traits<Derived>::Scalar findCoeff(const DenseBase<Derived>& mat,
+                                                                                 Func& func, IndexType* rowPtr,
+                                                                                 IndexType* colPtr) {
   eigen_assert(mat.rows() > 0 && mat.cols() > 0 && "you are using an empty matrix");
   using Scalar = typename DenseBase<Derived>::Scalar;
   using FindCoeffImpl = internal::find_coeff_impl<Derived, Func>;
@@ -358,8 +361,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const Den
 }
 
 template <typename Derived, typename IndexType, typename Func>
-EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const DenseBase<Derived>& mat, Func& func,
-                                                                       IndexType* indexPtr) {
+EIGEN_DEVICE_FUNC constexpr typename internal::traits<Derived>::Scalar findCoeff(const DenseBase<Derived>& mat,
+                                                                                 Func& func, IndexType* indexPtr) {
   eigen_assert(mat.size() > 0 && "you are using an empty matrix");
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   using Scalar = typename DenseBase<Derived>::Scalar;
@@ -388,8 +391,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const Den
  */
 template <typename Derived>
 template <int NaNPropagation, typename IndexType>
-EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>::minCoeff(IndexType* rowPtr,
-                                                                                          IndexType* colPtr) const {
+EIGEN_DEVICE_FUNC constexpr typename internal::traits<Derived>::Scalar DenseBase<Derived>::minCoeff(
+    IndexType* rowPtr, IndexType* colPtr) const {
   using Func = internal::min_coeff_functor<Scalar, NaNPropagation>;
   Func func;
   return internal::findCoeff(derived(), func, rowPtr, colPtr);
@@ -410,7 +413,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>:
  */
 template <typename Derived>
 template <int NaNPropagation, typename IndexType>
-EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>::minCoeff(IndexType* indexPtr) const {
+EIGEN_DEVICE_FUNC constexpr typename internal::traits<Derived>::Scalar DenseBase<Derived>::minCoeff(
+    IndexType* indexPtr) const {
   using Func = internal::min_coeff_functor<Scalar, NaNPropagation>;
   Func func;
   return internal::findCoeff(derived(), func, indexPtr);
@@ -431,8 +435,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>:
  */
 template <typename Derived>
 template <int NaNPropagation, typename IndexType>
-EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>::maxCoeff(IndexType* rowPtr,
-                                                                                          IndexType* colPtr) const {
+EIGEN_DEVICE_FUNC constexpr typename internal::traits<Derived>::Scalar DenseBase<Derived>::maxCoeff(
+    IndexType* rowPtr, IndexType* colPtr) const {
   using Func = internal::max_coeff_functor<Scalar, NaNPropagation>;
   Func func;
   return internal::findCoeff(derived(), func, rowPtr, colPtr);
@@ -453,7 +457,8 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>:
  */
 template <typename Derived>
 template <int NaNPropagation, typename IndexType>
-EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>::maxCoeff(IndexType* indexPtr) const {
+EIGEN_DEVICE_FUNC constexpr typename internal::traits<Derived>::Scalar DenseBase<Derived>::maxCoeff(
+    IndexType* indexPtr) const {
   using Func = internal::max_coeff_functor<Scalar, NaNPropagation>;
   Func func;
   return internal::findCoeff(derived(), func, indexPtr);

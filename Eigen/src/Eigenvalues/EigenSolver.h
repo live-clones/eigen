@@ -114,7 +114,7 @@ class EigenSolver {
    *
    * \sa compute() for an example.
    */
-  EigenSolver()
+  constexpr EigenSolver()
       : m_eivec(), m_eivalues(), m_isInitialized(false), m_eigenvectorsOk(false), m_realSchur(), m_matT(), m_tmp() {}
 
   /** \brief Default constructor with memory preallocation
@@ -123,7 +123,7 @@ class EigenSolver {
    * according to the specified problem \a size.
    * \sa EigenSolver()
    */
-  explicit EigenSolver(Index size)
+  constexpr explicit EigenSolver(Index size)
       : m_eivec(size, size),
         m_eivalues(size),
         m_isInitialized(false),
@@ -148,7 +148,7 @@ class EigenSolver {
    * \sa compute()
    */
   template <typename InputType>
-  explicit EigenSolver(const EigenBase<InputType>& matrix, bool computeEigenvectors = true)
+  constexpr explicit EigenSolver(const EigenBase<InputType>& matrix, bool computeEigenvectors = true)
       : m_eivec(matrix.rows(), matrix.cols()),
         m_eivalues(matrix.cols()),
         m_isInitialized(false),
@@ -179,7 +179,7 @@ class EigenSolver {
    *
    * \sa eigenvalues(), pseudoEigenvectors()
    */
-  EigenvectorsType eigenvectors() const;
+  constexpr EigenvectorsType eigenvectors() const;
 
   /** \brief Returns the pseudo-eigenvectors of given matrix.
    *
@@ -199,7 +199,7 @@ class EigenSolver {
    *
    * \sa pseudoEigenvalueMatrix(), eigenvectors()
    */
-  const MatrixType& pseudoEigenvectors() const {
+  constexpr const MatrixType& pseudoEigenvectors() const {
     eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
     eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
     return m_eivec;
@@ -223,7 +223,7 @@ class EigenSolver {
    *
    * \sa pseudoEigenvectors() for an example, eigenvalues()
    */
-  MatrixType pseudoEigenvalueMatrix() const;
+  constexpr MatrixType pseudoEigenvalueMatrix() const;
 
   /** \brief Returns the eigenvalues of given matrix.
    *
@@ -243,7 +243,7 @@ class EigenSolver {
    * \sa eigenvectors(), pseudoEigenvalueMatrix(),
    *     MatrixBase::eigenvalues()
    */
-  const EigenvalueType& eigenvalues() const {
+  constexpr const EigenvalueType& eigenvalues() const {
     eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
     return m_eivalues;
   }
@@ -276,29 +276,29 @@ class EigenSolver {
    * Output: \verbinclude EigenSolver_compute.out
    */
   template <typename InputType>
-  EigenSolver& compute(const EigenBase<InputType>& matrix, bool computeEigenvectors = true);
+  constexpr EigenSolver& compute(const EigenBase<InputType>& matrix, bool computeEigenvectors = true);
 
   /** \returns NumericalIssue if the input contains INF or NaN values or overflow occurred. Returns Success otherwise.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
     return m_info;
   }
 
   /** \brief Sets the maximum number of iterations allowed. */
-  EigenSolver& setMaxIterations(Index maxIters) {
+  constexpr EigenSolver& setMaxIterations(Index maxIters) {
     m_realSchur.setMaxIterations(maxIters);
     return *this;
   }
 
   /** \brief Returns the maximum number of iterations. */
-  Index getMaxIterations() { return m_realSchur.getMaxIterations(); }
+  constexpr Index getMaxIterations() { return m_realSchur.getMaxIterations(); }
 
  private:
-  void doComputeEigenvectors();
+  constexpr void doComputeEigenvectors();
 
  protected:
-  static void check_template_parameters() {
+  static constexpr void check_template_parameters() {
     EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar);
     EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL);
   }
@@ -316,7 +316,7 @@ class EigenSolver {
 };
 
 template <typename MatrixType>
-MatrixType EigenSolver<MatrixType>::pseudoEigenvalueMatrix() const {
+constexpr MatrixType EigenSolver<MatrixType>::pseudoEigenvalueMatrix() const {
   eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
   const RealScalar precision = RealScalar(2) * NumTraits<RealScalar>::epsilon();
   const Index n = m_eivalues.rows();
@@ -341,7 +341,7 @@ MatrixType EigenSolver<MatrixType>::pseudoEigenvalueMatrix() const {
 }
 
 template <typename MatrixType>
-typename EigenSolver<MatrixType>::EigenvectorsType EigenSolver<MatrixType>::eigenvectors() const {
+constexpr typename EigenSolver<MatrixType>::EigenvectorsType EigenSolver<MatrixType>::eigenvectors() const {
   eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
   eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
   const RealScalar precision = RealScalar(2) * NumTraits<RealScalar>::epsilon();
@@ -369,8 +369,8 @@ typename EigenSolver<MatrixType>::EigenvectorsType EigenSolver<MatrixType>::eige
 
 template <typename MatrixType>
 template <typename InputType>
-EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix,
-                                                          bool computeEigenvectors) {
+constexpr EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix,
+                                                                    bool computeEigenvectors) {
   check_template_parameters();
 
   using numext::isfinite;
@@ -438,7 +438,7 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputT
 }
 
 template <typename MatrixType>
-void EigenSolver<MatrixType>::doComputeEigenvectors() {
+constexpr void EigenSolver<MatrixType>::doComputeEigenvectors() {
   using std::abs;
   const Index size = m_eivec.cols();
   const Scalar eps = NumTraits<Scalar>::epsilon();

@@ -39,10 +39,10 @@ namespace internal {
 
 enum { LUNoMarker = 3 };
 enum { emptyIdxLU = -1 };
-inline Index LUnumTempV(Index& m, Index& w, Index& t, Index& b) { return (std::max)(m, (t + b) * w); }
+inline constexpr Index LUnumTempV(Index& m, Index& w, Index& t, Index& b) { return (std::max)(m, (t + b) * w); }
 
 template <typename Scalar>
-inline Index LUTempSpace(Index& m, Index& w) {
+inline constexpr Index LUTempSpace(Index& m, Index& w) {
   return (2 * w + 4 + LUNoMarker) * m * sizeof(Index) + (w + 1) * m * sizeof(Scalar);
 }
 
@@ -56,8 +56,8 @@ inline Index LUTempSpace(Index& m, Index& w) {
  */
 template <typename Scalar, typename StorageIndex>
 template <typename VectorType>
-Index SparseLUImpl<Scalar, StorageIndex>::expand(VectorType& vec, Index& length, Index nbElts, Index keep_prev,
-                                                 Index& num_expansions) {
+constexpr Index SparseLUImpl<Scalar, StorageIndex>::expand(VectorType& vec, Index& length, Index nbElts,
+                                                           Index keep_prev, Index& num_expansions) {
   float alpha = 1.5;  // Ratio of the memory increase
   Index new_len;      // New size of the allocated memory
 
@@ -136,8 +136,8 @@ Index SparseLUImpl<Scalar, StorageIndex>::expand(VectorType& vec, Index& length,
  * factorization with the same pattern and the same row permutation
  */
 template <typename Scalar, typename StorageIndex>
-Index SparseLUImpl<Scalar, StorageIndex>::memInit(Index m, Index n, Index annz, Index lwork, Index fillratio,
-                                                  Index panel_size, GlobalLU_t& glu) {
+constexpr Index SparseLUImpl<Scalar, StorageIndex>::memInit(Index m, Index n, Index annz, Index lwork, Index fillratio,
+                                                            Index panel_size, GlobalLU_t& glu) {
   Index& num_expansions = glu.num_expansions;  // No memory expansions so far
   num_expansions = 0;
   glu.nzumax = glu.nzlumax = (std::min)(fillratio * (annz + 1) / n, m) * n;  // estimated number of nonzeros in U
@@ -191,8 +191,8 @@ Index SparseLUImpl<Scalar, StorageIndex>::memInit(Index m, Index n, Index annz, 
  */
 template <typename Scalar, typename StorageIndex>
 template <typename VectorType>
-Index SparseLUImpl<Scalar, StorageIndex>::memXpand(VectorType& vec, Index& maxlen, Index nbElts, MemType memtype,
-                                                   Index& num_expansions) {
+constexpr Index SparseLUImpl<Scalar, StorageIndex>::memXpand(VectorType& vec, Index& maxlen, Index nbElts,
+                                                             MemType memtype, Index& num_expansions) {
   Index failed_size;
   if (memtype == USUB)
     failed_size = this->expand<VectorType>(vec, maxlen, nbElts, 1, num_expansions);

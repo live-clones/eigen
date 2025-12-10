@@ -36,18 +36,19 @@ template <typename Tensor, bool HasRawAccess, template <class> class MakePointer
 struct CoeffLoader {
   enum { DirectOffsets = false };
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE CoeffLoader(const Tensor& tensor) : m_tensor(tensor) {}
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr CoeffLoader(const Tensor& tensor) : m_tensor(tensor) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void offsetBuffer(typename Tensor::Index) {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void offsetBuffer(typename Tensor::Index) {
     eigen_assert(false && "unsupported");
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const typename MakePointer_<const typename Tensor::Scalar>::Type data() const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const typename MakePointer_<const typename Tensor::Scalar>::Type
+  data() const {
     eigen_assert(false && "unsupported");
     return NULL;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Tensor::Scalar coeff(typename Tensor::Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr typename Tensor::Scalar coeff(typename Tensor::Index index) const {
     return m_tensor.coeff(index);
   }
 
@@ -64,15 +65,16 @@ template <typename Tensor, template <class> class MakePointer_>
 struct CoeffLoader<Tensor, true, MakePointer_> {
   enum { DirectOffsets = true };
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE CoeffLoader(const Tensor& tensor) : m_data(tensor.data()) {}
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr CoeffLoader(const Tensor& tensor) : m_data(tensor.data()) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void offsetBuffer(typename Tensor::Index offset) { m_data += offset; }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void offsetBuffer(typename Tensor::Index offset) { m_data += offset; }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const typename MakePointer_<const typename Tensor::Scalar>::Type data() const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const typename MakePointer_<const typename Tensor::Scalar>::Type
+  data() const {
     return m_data;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Tensor::Scalar coeff(typename Tensor::Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr typename Tensor::Scalar coeff(typename Tensor::Index index) const {
     return loadConstant(m_data + index);
   }
 
@@ -91,9 +93,11 @@ template <typename Scalar, typename Index, int side, typename Tensor, typename n
           int packet_size, bool inner_dim_contiguous, int Alignment, template <class> class MakePointer_ = MakePointer>
 class SimpleTensorContractionMapper {
  public:
-  EIGEN_DEVICE_FUNC SimpleTensorContractionMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
-                                                  const nocontract_t& ij_strides, const contract_t& contract_strides,
-                                                  const contract_t& k_strides)
+  EIGEN_DEVICE_FUNC constexpr SimpleTensorContractionMapper(const Tensor& tensor,
+                                                            const nocontract_t& nocontract_strides,
+                                                            const nocontract_t& ij_strides,
+                                                            const contract_t& contract_strides,
+                                                            const contract_t& k_strides)
       : m_tensor(tensor),
         m_nocontract_strides(nocontract_strides),
         m_ij_strides(ij_strides),
@@ -102,26 +106,28 @@ class SimpleTensorContractionMapper {
 
   enum { DirectOffsets = CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>::DirectOffsets };
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void offsetBuffer(typename Tensor::Index offset) {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void offsetBuffer(typename Tensor::Index offset) {
     m_tensor.offsetBuffer(offset);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void prefetch(Index /*i*/) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void prefetch(Index /*i*/) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(Index row) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar operator()(Index row) const {
     // column major assumption
     return operator()(row, 0);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar operator()(Index row, Index col) const {
     return m_tensor.coeff(computeIndex(row, col));
   }
 
 #ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator[](Index row, Index col) const { return operator()(row, col); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar operator[](Index row, Index col) const {
+    return operator()(row, col);
+  }
 #endif
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index computeIndex(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index computeIndex(Index row, Index col) const {
     const bool left = (side == Lhs);
     EIGEN_UNUSED_VARIABLE(left);  // annoying bug in g++8.1: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85963
     Index nocontract_val = left ? row : col;
@@ -161,8 +167,8 @@ class SimpleTensorContractionMapper {
     return linidx;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IndexPair<Index> computeIndexPair(Index row, Index col,
-                                                                          const Index distance) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr IndexPair<Index> computeIndexPair(Index row, Index col,
+                                                                                    const Index distance) const {
     const bool left = (side == Lhs);
     EIGEN_UNUSED_VARIABLE(left);  // annoying bug in g++8.1: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85963
     Index nocontract_val[2] = {left ? row : col, left ? row + distance : col};
@@ -211,22 +217,22 @@ class SimpleTensorContractionMapper {
     return IndexPair<Index>(linidx[0], linidx[1]);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index firstAligned(Index size) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Index firstAligned(Index size) const {
     // Only claim alignment when we can compute the actual stride (ie when we're
     // dealing with the lhs with inner_dim_contiguous. This is because the
     // matrix-vector product relies on the stride when dealing with aligned inputs.
     return (Alignment == Aligned) && (side == Lhs) && inner_dim_contiguous ? 0 : size;
   }
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index stride() const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Index stride() const {
     return ((side == Lhs) && inner_dim_contiguous && array_size<contract_t>::value > 0) ? m_contract_strides[0] : 1;
   }
 
-  const CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>& tensor() const { return m_tensor; }
+  constexpr const CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>& tensor() const { return m_tensor; }
 
-  const nocontract_t& nocontract_strides() const { return m_nocontract_strides; }
-  const nocontract_t& ij_strides() const { return m_ij_strides; }
-  const contract_t& contract_strides() const { return m_contract_strides; }
-  const contract_t& k_strides() const { return m_k_strides; }
+  constexpr const nocontract_t& nocontract_strides() const { return m_nocontract_strides; }
+  constexpr const nocontract_t& ij_strides() const { return m_ij_strides; }
+  constexpr const contract_t& contract_strides() const { return m_contract_strides; }
+  constexpr const contract_t& k_strides() const { return m_k_strides; }
 
  protected:
   CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_> m_tensor;
@@ -247,15 +253,16 @@ class BaseTensorContractionMapper
                                         inner_dim_contiguous, Alignment, MakePointer_>
       ParentMapper;
 
-  EIGEN_DEVICE_FUNC BaseTensorContractionMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
-                                                const nocontract_t& ij_strides, const contract_t& contract_strides,
-                                                const contract_t& k_strides)
+  EIGEN_DEVICE_FUNC constexpr BaseTensorContractionMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
+                                                          const nocontract_t& ij_strides,
+                                                          const contract_t& contract_strides,
+                                                          const contract_t& k_strides)
       : ParentMapper(tensor, nocontract_strides, ij_strides, contract_strides, k_strides) {}
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::unpacket_traits<PacketT>::size == packet_size, PacketT>
-      load(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr std::enable_if_t<
+      internal::unpacket_traits<PacketT>::size == packet_size, PacketT>
+  load(Index i, Index j) const {
     // whole method makes column major assumption
 
     // don't need to add offsets for now (because operator handles that)
@@ -296,9 +303,9 @@ class BaseTensorContractionMapper
   }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::unpacket_traits<PacketT>::size != packet_size, PacketT>
-      load(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr std::enable_if_t<
+      internal::unpacket_traits<PacketT>::size != packet_size, PacketT>
+  load(Index i, Index j) const {
     const Index requested_packet_size = internal::unpacket_traits<PacketT>::size;
     EIGEN_ALIGN_MAX Scalar data[requested_packet_size];
 
@@ -318,7 +325,7 @@ class BaseTensorContractionMapper
   }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPacket(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PacketT loadPacket(Index i, Index j) const {
     return this->load<PacketT, AlignmentType>(i, j);
   }
 };
@@ -334,19 +341,20 @@ class BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, con
                                         Alignment, MakePointer_>
       ParentMapper;
 
-  EIGEN_DEVICE_FUNC BaseTensorContractionMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
-                                                const nocontract_t& ij_strides, const contract_t& contract_strides,
-                                                const contract_t& k_strides)
+  EIGEN_DEVICE_FUNC constexpr BaseTensorContractionMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
+                                                          const nocontract_t& ij_strides,
+                                                          const contract_t& contract_strides,
+                                                          const contract_t& k_strides)
       : ParentMapper(tensor, nocontract_strides, ij_strides, contract_strides, k_strides) {}
 
   template <typename PacketT, int>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPacket(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PacketT loadPacket(Index i, Index j) const {
     EIGEN_ALIGN_MAX Scalar data[1];
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload<PacketT>(data);
   }
   template <typename PacketT, int>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT load(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PacketT load(Index i, Index j) const {
     EIGEN_ALIGN_MAX Scalar data[1];
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload<PacketT>(data);
@@ -374,7 +382,8 @@ class TensorContractionSubMapper {
         ParentMapper::DirectOffsets && (side == Lhs) && inner_dim_contiguous && (array_size<contract_t>::value > 0)
   };
 
-  EIGEN_DEVICE_FUNC TensorContractionSubMapper(const ParentMapper& base_mapper, Index vert_offset, Index horiz_offset)
+  EIGEN_DEVICE_FUNC constexpr TensorContractionSubMapper(const ParentMapper& base_mapper, Index vert_offset,
+                                                         Index horiz_offset)
       : m_base_mapper(base_mapper), m_vert_offset(vert_offset), m_horiz_offset(horiz_offset) {
     // Bake the offsets into the buffer used by the base mapper whenever possible. This avoids the need to recompute
     // this offset every time we attempt to access a coefficient.
@@ -384,13 +393,13 @@ class TensorContractionSubMapper {
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar operator()(Index i) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Scalar operator()(Index i) const {
     if (UseDirectOffsets) {
       return m_base_mapper(i, 0);
     }
     return m_base_mapper(i + m_vert_offset, m_horiz_offset);
   }
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar operator()(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Scalar operator()(Index i, Index j) const {
     if (UseDirectOffsets) {
       return m_base_mapper(i, j);
     }
@@ -398,7 +407,7 @@ class TensorContractionSubMapper {
   }
 
   template <typename PacketT>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr PacketT loadPacket(Index i) const {
     if (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, Alignment>(i, 0);
     }
@@ -406,7 +415,7 @@ class TensorContractionSubMapper {
   }
 
   template <typename PacketT>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr PacketT loadPacket(Index i, Index j) const {
     if (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, Alignment>(i, j);
     }
@@ -414,7 +423,7 @@ class TensorContractionSubMapper {
   }
 
   template <typename PacketT>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacketPartial(Index i, Index j, Index, Index = 0) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr PacketT loadPacketPartial(Index i, Index j, Index, Index = 0) const {
     if (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, Alignment>(i, j);
     }
@@ -422,7 +431,7 @@ class TensorContractionSubMapper {
   }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr PacketT loadPacket(Index i, Index j) const {
     if (UseDirectOffsets) {
       return m_base_mapper.template load<PacketT, AlignmentType>(i, j);
     }
@@ -430,31 +439,31 @@ class TensorContractionSubMapper {
   }
 
   template <typename PacketT>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void storePacket(Index i, const PacketT& p) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void storePacket(Index i, const PacketT& p) const {
     if (UseDirectOffsets) {
       m_base_mapper.storePacket(i, 0, p);
     }
     m_base_mapper.storePacket(i + m_vert_offset, m_horiz_offset, p);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LinearMapper getLinearMapper(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr LinearMapper getLinearMapper(Index i, Index j) const {
     if (UseDirectOffsets) {
       return LinearMapper(m_base_mapper, i, j);
     }
     return LinearMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE SubMapper getSubMapper(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr SubMapper getSubMapper(Index i, Index j) const {
     if (UseDirectOffsets) {
       return SubMapper(m_base_mapper, i, j);
     }
     return SubMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Index stride() const { return m_base_mapper.stride(); }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const Index stride() const { return m_base_mapper.stride(); }
 
   template <typename PacketT, int AlignmentType>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT load(Index i) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr PacketT load(Index i) const {
     EIGEN_STATIC_ASSERT((internal::is_same<PacketT, PacketT>::value), YOU_MADE_A_PROGRAMMING_MISTAKE);
     const int ActualAlignment = (AlignmentType == Aligned) && (Alignment == Aligned) ? Aligned : Unaligned;
     if (UseDirectOffsets) {
@@ -464,13 +473,13 @@ class TensorContractionSubMapper {
   }
 
   template <typename PacketT>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool aligned(Index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr bool aligned(Index) const {
     return false;
   }
 
-  const ParentMapper& base_mapper() const { return m_base_mapper; }
-  Index vert_offset() const { return m_vert_offset; }
-  Index horiz_offset() const { return m_horiz_offset; }
+  constexpr const ParentMapper& base_mapper() const { return m_base_mapper; }
+  constexpr Index vert_offset() const { return m_vert_offset; }
+  constexpr Index horiz_offset() const { return m_horiz_offset; }
 
  private:
   ParentMapper m_base_mapper;
@@ -495,24 +504,26 @@ class TensorContractionInputMapper
   typedef SubMapper VectorMapper;
   typedef SubMapper LinearMapper;
 
-  EIGEN_DEVICE_FUNC TensorContractionInputMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
-                                                 const nocontract_t& ij_strides, const contract_t& contract_strides,
-                                                 const contract_t& k_strides)
+  EIGEN_DEVICE_FUNC constexpr TensorContractionInputMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
+                                                           const nocontract_t& ij_strides,
+                                                           const contract_t& contract_strides,
+                                                           const contract_t& k_strides)
       : Base(tensor, nocontract_strides, ij_strides, contract_strides, k_strides) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SubMapper getSubMapper(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr SubMapper getSubMapper(Index i, Index j) const {
     return SubMapper(*this, i, j);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LinearMapper getLinearMapper(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr LinearMapper getLinearMapper(Index i, Index j) const {
     return LinearMapper(*this, i, j);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE VectorMapper getVectorMapper(Index i, Index j) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr VectorMapper getVectorMapper(Index i, Index j) const {
     return VectorMapper(*this, i, j);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>& get_tensor() const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>&
+  get_tensor() const {
     return Base::m_tensor;
   }
 };

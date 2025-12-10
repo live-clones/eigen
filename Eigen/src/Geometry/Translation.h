@@ -51,22 +51,22 @@ class Translation {
 
  public:
   /** Default constructor without initialization. */
-  EIGEN_DEVICE_FUNC Translation() {}
+  EIGEN_DEVICE_FUNC constexpr Translation() = default;
   /**  */
-  EIGEN_DEVICE_FUNC inline Translation(const Scalar& sx, const Scalar& sy) {
+  EIGEN_DEVICE_FUNC inline constexpr Translation(const Scalar& sx, const Scalar& sy) {
     eigen_assert(Dim == 2);
     m_coeffs.x() = sx;
     m_coeffs.y() = sy;
   }
   /**  */
-  EIGEN_DEVICE_FUNC inline Translation(const Scalar& sx, const Scalar& sy, const Scalar& sz) {
+  EIGEN_DEVICE_FUNC inline constexpr Translation(const Scalar& sx, const Scalar& sy, const Scalar& sz) {
     eigen_assert(Dim == 3);
     m_coeffs.x() = sx;
     m_coeffs.y() = sy;
     m_coeffs.z() = sz;
   }
   /** Constructs and initialize the translation transformation from a vector of translation coefficients */
-  EIGEN_DEVICE_FUNC explicit inline Translation(const VectorType& vector) : m_coeffs(vector) {}
+  EIGEN_DEVICE_FUNC explicit inline constexpr Translation(const VectorType& vector) : m_coeffs(vector) {}
 
   /** \brief Returns the x-translation by value. **/
   EIGEN_DEVICE_FUNC constexpr Scalar x() const { return m_coeffs.x(); }
@@ -82,35 +82,35 @@ class Translation {
   /** \brief Returns the z-translation as a reference. **/
   EIGEN_DEVICE_FUNC constexpr Scalar& z() { return m_coeffs.z(); }
 
-  EIGEN_DEVICE_FUNC const VectorType& vector() const { return m_coeffs; }
-  EIGEN_DEVICE_FUNC VectorType& vector() { return m_coeffs; }
+  EIGEN_DEVICE_FUNC constexpr const VectorType& vector() const { return m_coeffs; }
+  EIGEN_DEVICE_FUNC constexpr VectorType& vector() { return m_coeffs; }
 
-  EIGEN_DEVICE_FUNC const VectorType& translation() const { return m_coeffs; }
-  EIGEN_DEVICE_FUNC VectorType& translation() { return m_coeffs; }
+  EIGEN_DEVICE_FUNC constexpr const VectorType& translation() const { return m_coeffs; }
+  EIGEN_DEVICE_FUNC constexpr VectorType& translation() { return m_coeffs; }
 
   /** Concatenates two translation */
-  EIGEN_DEVICE_FUNC inline Translation operator*(const Translation& other) const {
+  EIGEN_DEVICE_FUNC inline constexpr Translation operator*(const Translation& other) const {
     return Translation(m_coeffs + other.m_coeffs);
   }
 
   /** Concatenates a translation and a uniform scaling */
-  EIGEN_DEVICE_FUNC inline AffineTransformType operator*(const UniformScaling<Scalar>& other) const;
+  EIGEN_DEVICE_FUNC inline constexpr AffineTransformType operator*(const UniformScaling<Scalar>& other) const;
 
   /** Concatenates a translation and a linear transformation */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline AffineTransformType operator*(const EigenBase<OtherDerived>& linear) const;
+  EIGEN_DEVICE_FUNC inline constexpr AffineTransformType operator*(const EigenBase<OtherDerived>& linear) const;
 
   /** Concatenates a translation and a rotation */
   template <typename Derived>
-  EIGEN_DEVICE_FUNC inline IsometryTransformType operator*(const RotationBase<Derived, Dim>& r) const {
+  EIGEN_DEVICE_FUNC inline constexpr IsometryTransformType operator*(const RotationBase<Derived, Dim>& r) const {
     return *this * IsometryTransformType(r);
   }
 
   /** \returns the concatenation of a linear transformation \a l with the translation \a t */
   // its a nightmare to define a templated friend function outside its declaration
   template <typename OtherDerived>
-  friend EIGEN_DEVICE_FUNC inline AffineTransformType operator*(const EigenBase<OtherDerived>& linear,
-                                                                const Translation& t) {
+  friend EIGEN_DEVICE_FUNC inline constexpr AffineTransformType operator*(const EigenBase<OtherDerived>& linear,
+                                                                          const Translation& t) {
     AffineTransformType res;
     res.matrix().setZero();
     res.linear() = linear.derived();
@@ -122,7 +122,7 @@ class Translation {
 
   /** Concatenates a translation and a transformation */
   template <int Mode, int Options>
-  EIGEN_DEVICE_FUNC inline Transform<Scalar, Dim, Mode> operator*(
+  EIGEN_DEVICE_FUNC inline constexpr Transform<Scalar, Dim, Mode> operator*(
       const Transform<Scalar, Dim, Mode, Options>& t) const {
     Transform<Scalar, Dim, Mode> res = t;
     res.pretranslate(m_coeffs);
@@ -131,14 +131,15 @@ class Translation {
 
   /** Applies translation to vector */
   template <typename Derived>
-  inline std::enable_if_t<Derived::IsVectorAtCompileTime, VectorType> operator*(const MatrixBase<Derived>& vec) const {
+  inline constexpr std::enable_if_t<Derived::IsVectorAtCompileTime, VectorType> operator*(
+      const MatrixBase<Derived>& vec) const {
     return m_coeffs + vec.derived();
   }
 
   /** \returns the inverse translation (opposite) */
-  Translation inverse() const { return Translation(-m_coeffs); }
+  constexpr Translation inverse() const { return Translation(-m_coeffs); }
 
-  static const Translation Identity() { return Translation(VectorType::Zero()); }
+  static constexpr const Translation Identity() { return Translation(VectorType::Zero()); }
 
   /** \returns \c *this with scalar type casted to \a NewScalarType
    *
@@ -146,14 +147,15 @@ class Translation {
    * then this function smartly returns a const reference to \c *this.
    */
   template <typename NewScalarType>
-  EIGEN_DEVICE_FUNC inline typename internal::cast_return_type<Translation, Translation<NewScalarType, Dim> >::type
-  cast() const {
+  EIGEN_DEVICE_FUNC inline constexpr
+      typename internal::cast_return_type<Translation, Translation<NewScalarType, Dim> >::type
+      cast() const {
     return typename internal::cast_return_type<Translation, Translation<NewScalarType, Dim> >::type(*this);
   }
 
   /** Copy constructor with scalar type conversion */
   template <typename OtherScalarType>
-  EIGEN_DEVICE_FUNC inline explicit Translation(const Translation<OtherScalarType, Dim>& other) {
+  EIGEN_DEVICE_FUNC inline constexpr explicit Translation(const Translation<OtherScalarType, Dim>& other) {
     m_coeffs = other.vector().template cast<Scalar>();
   }
 
@@ -161,8 +163,8 @@ class Translation {
    * determined by \a prec.
    *
    * \sa MatrixBase::isApprox() */
-  EIGEN_DEVICE_FUNC bool isApprox(const Translation& other, const typename NumTraits<Scalar>::Real& prec =
-                                                                NumTraits<Scalar>::dummy_precision()) const {
+  EIGEN_DEVICE_FUNC constexpr bool isApprox(const Translation& other, const typename NumTraits<Scalar>::Real& prec =
+                                                                          NumTraits<Scalar>::dummy_precision()) const {
     return m_coeffs.isApprox(other.m_coeffs, prec);
   }
 };
@@ -176,8 +178,8 @@ typedef Translation<double, 3> Translation3d;
 //@}
 
 template <typename Scalar, int Dim>
-EIGEN_DEVICE_FUNC inline typename Translation<Scalar, Dim>::AffineTransformType Translation<Scalar, Dim>::operator*(
-    const UniformScaling<Scalar>& other) const {
+EIGEN_DEVICE_FUNC inline constexpr typename Translation<Scalar, Dim>::AffineTransformType
+Translation<Scalar, Dim>::operator*(const UniformScaling<Scalar>& other) const {
   AffineTransformType res;
   res.matrix().setZero();
   res.linear().diagonal().fill(other.factor());
@@ -188,8 +190,8 @@ EIGEN_DEVICE_FUNC inline typename Translation<Scalar, Dim>::AffineTransformType 
 
 template <typename Scalar, int Dim>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC inline typename Translation<Scalar, Dim>::AffineTransformType Translation<Scalar, Dim>::operator*(
-    const EigenBase<OtherDerived>& linear) const {
+EIGEN_DEVICE_FUNC inline constexpr typename Translation<Scalar, Dim>::AffineTransformType
+Translation<Scalar, Dim>::operator*(const EigenBase<OtherDerived>& linear) const {
   AffineTransformType res;
   res.matrix().setZero();
   res.linear() = linear.derived();
