@@ -98,8 +98,8 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, Conj
   typedef typename QuarterTraits::ResPacket ResPacketQuarter;
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,
-                                                      const RhsMapper& rhs, ResScalar* res, Index resIncr,
-                                                      RhsScalar alpha);
+                                                        const RhsMapper& rhs, ResScalar* res, Index resIncr,
+                                                        RhsScalar alpha);
 };
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
@@ -291,8 +291,8 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, Conj
   typedef typename QuarterTraits::ResPacket ResPacketQuarter;
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,
-                                                      const RhsMapper& rhs, ResScalar* res, Index resIncr,
-                                                      ResScalar alpha);
+                                                        const RhsMapper& rhs, ResScalar* res, Index resIncr,
+                                                        ResScalar alpha);
 };
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
