@@ -43,9 +43,11 @@ const int InnerRandomAccessPattern = 0x2 | CoherentAccessPattern;
 const int OuterRandomAccessPattern = 0x4 | CoherentAccessPattern;
 const int RandomAccessPattern = 0x8 | OuterRandomAccessPattern | InnerRandomAccessPattern;
 
-template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int>
+template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int, int Rows_ = Dynamic, int Cols_ = Dynamic,
+          int MaxNZ_ = Dynamic>
 class SparseMatrix;
-template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int>
+template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int, int Rows_ = Dynamic, int Cols_ = Dynamic,
+          int MaxNZ_ = Dynamic>
 class SparseVector;
 
 template <typename MatrixType, unsigned int UpLo>
@@ -91,18 +93,30 @@ template <typename T, int Cols, int Flags>
 struct sparse_eval<T, 1, Cols, Flags> {
   typedef typename traits<T>::Scalar Scalar_;
   typedef typename traits<T>::StorageIndex StorageIndex_;
+  enum {
+    Rows_ = traits<T>::RowsAtCompileTime,
+    Cols_ = traits<T>::ColsAtCompileTime,
+    // MaxNZ_ = traits<T>::MaxNZ
+  };
 
  public:
-  typedef SparseVector<Scalar_, RowMajor, StorageIndex_> type;
+  // TODO Find a clean way to forward MaxNZ (enum does not work if T is e.g. Product<...>)
+  typedef SparseVector<Scalar_, RowMajor, StorageIndex_, Rows_, Cols_, Dynamic> type;
 };
 
 template <typename T, int Rows, int Flags>
 struct sparse_eval<T, Rows, 1, Flags> {
   typedef typename traits<T>::Scalar Scalar_;
   typedef typename traits<T>::StorageIndex StorageIndex_;
+  enum {
+    Rows_ = traits<T>::RowsAtCompileTime,
+    Cols_ = traits<T>::ColsAtCompileTime,
+    // MaxNZ_ = traits<T>::MaxNZ
+  };
 
  public:
-  typedef SparseVector<Scalar_, ColMajor, StorageIndex_> type;
+  // TODO Find a clean way to forward MaxNZ (enum does not work if T is e.g. Product<...>)
+  typedef SparseVector<Scalar_, ColMajor, StorageIndex_, Rows_, Cols_, Dynamic> type;
 };
 
 // TODO this seems almost identical to plain_matrix_type<T, Sparse>
@@ -112,8 +126,15 @@ struct sparse_eval {
   typedef typename traits<T>::StorageIndex StorageIndex_;
   enum { Options_ = ((Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor };
 
+  enum {
+    Rows_ = traits<T>::RowsAtCompileTime,
+    Cols_ = traits<T>::ColsAtCompileTime,
+    // MaxNZ_ = traits<T>::MaxNZ
+  };
+
  public:
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> type;
+  // TODO Find a clean way to forward MaxNZ (enum does not work if T is e.g. Product<...>)
+  typedef SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, Dynamic> type;
 };
 
 template <typename T, int Flags>
@@ -128,10 +149,12 @@ template <typename T>
 struct plain_matrix_type<T, Sparse> {
   typedef typename traits<T>::Scalar Scalar_;
   typedef typename traits<T>::StorageIndex StorageIndex_;
-  enum { Options_ = ((evaluator<T>::Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor };
+  enum {
+    Options_ = ((evaluator<T>::Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor,
+  };
 
  public:
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> type;
+  typedef SparseMatrix<Scalar_, Options_, StorageIndex_, Dynamic, Dynamic, Dynamic> type;
 };
 
 template <typename T>

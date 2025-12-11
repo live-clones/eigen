@@ -286,7 +286,7 @@ class BlockSparseMatrix
         m_values(0),
         m_blockPtr(0),
         m_indices(0),
-        m_outerIndex(0),
+        m_idx_data.outerIndex(0),
         m_blockSize(BlockSize) {}
 
   /**
@@ -302,7 +302,7 @@ class BlockSparseMatrix
         m_values(0),
         m_blockPtr(0),
         m_indices(0),
-        m_outerIndex(0),
+        m_idx_data.outerIndex(0),
         m_blockSize(BlockSize) {}
 
   /**
@@ -325,7 +325,7 @@ class BlockSparseMatrix
     if (m_blockSize != Dynamic) std::copy(other.m_blockPtr, other.m_blockPtr + m_nonzerosblocks, m_blockPtr);
 
     std::copy(other.m_indices, other.m_indices + m_nonzerosblocks, m_indices);
-    std::copy(other.m_outerIndex, other.m_outerIndex + m_outerBSize, m_outerIndex);
+    std::copy(other.m_idx_data.outerIndex, other.m_idx_data.outerIndex + m_outerBSize, m_idx_data.outerIndex);
   }
 
   friend void swap(BlockSparseMatrix& first, BlockSparseMatrix& second) {
@@ -338,7 +338,7 @@ class BlockSparseMatrix
     std::swap(first.m_values, second.m_values);
     std::swap(first.m_blockPtr, second.m_blockPtr);
     std::swap(first.m_indices, second.m_indices);
-    std::swap(first.m_outerIndex, second.m_outerIndex);
+    std::swap(first.m_idx_data.outerIndex, second.m_idx_data.outerIndex);
     std::swap(first.m_BlockSize, second.m_blockSize);
   }
 
@@ -350,7 +350,7 @@ class BlockSparseMatrix
 
   // Destructor
   ~BlockSparseMatrix() {
-    delete[] m_outerIndex;
+    delete[] m_idx_data.outerIndex;
     delete[] m_innerOffset;
     delete[] m_outerOffset;
     delete[] m_indices;
@@ -420,24 +420,24 @@ class BlockSparseMatrix
           StorageIndex idx = 0;                              // Position of this block in the column block
           StorageIndex bi = innerToBlock(it_spmat.index());  // Index of the current nonzero block
           // Go to the inner block where this element belongs to
-          while (bi > m_indices[m_outerIndex[bj] + idx]) ++idx;  // Not expensive for ordered blocks
+          while (bi > m_indices[m_idx_data.outerIndex[bj] + idx]) ++idx;  // Not expensive for ordered blocks
           StorageIndex idxVal;  // Get the right position in the array of values for this element
           if (m_blockSize == Dynamic) {
             // Offset from all blocks before ...
-            idxVal = m_blockPtr[m_outerIndex[bj] + idx];
+            idxVal = m_blockPtr[m_idx_data.outerIndex[bj] + idx];
             // ... and offset inside the block
             idxVal += (j - blockOuterIndex(bj)) * blockOuterSize(bj) + it_spmat.index() - m_innerOffset[bi];
           } else {
             // All blocks before
-            idxVal = (m_outerIndex[bj] + idx) * m_blockSize * m_blockSize;
+            idxVal = (m_idx_data.outerIndex[bj] + idx) * m_blockSize * m_blockSize;
             // inside the block
             idxVal += (j - blockOuterIndex(bj)) * m_blockSize + (it_spmat.index() % m_blockSize);
           }
           // Insert the value
           m_values[idxVal] = it_spmat.value();
         }  // end of this column
-      }    // end of this block
-    }      // end of this outer block
+      }  // end of this block
+    }  // end of this outer block
 
     return *this;
   }
@@ -465,7 +465,7 @@ class BlockSparseMatrix
     reserve(blockPattern.nonZeros());
 
     // Browse the block pattern and set up the various pointers
-    m_outerIndex[0] = 0;
+    m_idx_data.outerIndex[0] = 0;
     if (m_blockSize == Dynamic) m_blockPtr[0] = 0;
     for (StorageIndex nz = 0; nz < m_nonzeros; ++nz) m_values[nz] = Scalar(0);
     for (StorageIndex bj = 0; bj < m_outerBSize; ++bj) {
@@ -482,14 +482,14 @@ class BlockSparseMatrix
 
       // Now, fill block indices and (eventually) pointers to blocks
       for (StorageIndex idx = 0; idx < nzBlockIdx.size(); ++idx) {
-        StorageIndex offset = m_outerIndex[bj] + idx;  // offset in m_indices
+        StorageIndex offset = m_idx_data.outerIndex[bj] + idx;  // offset in m_indices
         m_indices[offset] = nzBlockIdx[idx];
         if (m_blockSize == Dynamic)
           m_blockPtr[offset] = m_blockPtr[offset - 1] + blockInnerSize(nzBlockIdx[idx]) * blockOuterSize(bj);
         // There is no blockPtr for fixed-size blocks... not needed !???
       }
       // Save the pointer to the next outer block
-      m_outerIndex[bj + 1] = m_outerIndex[bj] + nzBlockIdx.size();
+      m_idx_data.outerIndex[bj + 1] = m_idx_data.outerIndex[bj] + nzBlockIdx.size();
     }
   }
 
@@ -552,7 +552,7 @@ class BlockSparseMatrix
                  "TRYING TO RESERVE ZERO-SIZE MATRICES, CALL resize() first");
 
     // FIXME Should free if already allocated
-    m_outerIndex = new StorageIndex[m_outerBSize + 1];
+    m_idx_data.outerIndex = new StorageIndex[m_outerBSize + 1];
 
     m_nonzerosblocks = nonzerosblocks;
     if (m_blockSize != Dynamic) {
@@ -623,13 +623,13 @@ class BlockSparseMatrix
     VectorXi block_id(m_outerBSize);  // To be used as a block marker during insertion
 
     // Setup outer index pointers and markers
-    m_outerIndex[0] = 0;
+    m_idx_data.outerIndex[0] = 0;
     if (m_blockSize == Dynamic) m_blockPtr[0] = 0;
     for (StorageIndex bj = 0; bj < m_outerBSize; ++bj) {
-      m_outerIndex[bj + 1] = m_outerIndex[bj] + nzblock_outer(bj);
-      block_id(bj) = m_outerIndex[bj];
+      m_idx_data.outerIndex[bj + 1] = m_idx_data.outerIndex[bj] + nzblock_outer(bj);
+      block_id(bj) = m_idx_data.outerIndex[bj];
       if (m_blockSize == Dynamic) {
-        m_blockPtr[m_outerIndex[bj + 1]] = m_blockPtr[m_outerIndex[bj]] + nz_outer(bj);
+        m_blockPtr[m_idx_data.outerIndex[bj + 1]] = m_blockPtr[m_idx_data.outerIndex[bj]] + nz_outer(bj);
       }
     }
 
@@ -656,9 +656,9 @@ class BlockSparseMatrix
     //        while (id<bcol) // one pass should do the job unless there are empty columns
     //        {
     //          id++;
-    //          m_outerIndex[id+1]=m_outerIndex[id];
+    //          m_idx_data.outerIndex[id+1]=m_idx_data.outerIndex[id];
     //        }
-    //        m_outerIndex[id+1] += 1;
+    //        m_idx_data.outerIndex[id+1] += 1;
     //        m_indices[id_nzblock]=brow;
     //        Index block_size = it->value().rows()*it->value().cols();
     //        m_blockPtr[id_nzblock+1] = m_blockPtr[id_nzblock] + block_size;
@@ -669,7 +669,7 @@ class BlockSparseMatrix
     //      while(id < m_outerBSize-1) // Empty columns at the end
     //      {
     //        id++;
-    //        m_outerIndex[id+1]=m_outerIndex[id];
+    //        m_idx_data.outerIndex[id+1]=m_idx_data.outerIndex[id];
     //      }
     //      }
   }
@@ -743,8 +743,8 @@ class BlockSparseMatrix
     StorageIndex csize = IsColMajor ? blockOuterSize(bcol) : blockInnerSize(brow);
     StorageIndex inner = IsColMajor ? brow : bcol;
     StorageIndex outer = IsColMajor ? bcol : brow;
-    StorageIndex offset = m_outerIndex[outer];
-    while (offset < m_outerIndex[outer + 1] && m_indices[offset] != inner) offset++;
+    StorageIndex offset = m_idx_data.outerIndex[outer];
+    while (offset < m_idx_data.outerIndex[outer + 1] && m_indices[offset] != inner) offset++;
     if (m_indices[offset] == inner) {
       return Map<BlockScalar>(&(m_values[blockPtr(offset)]), rsize, csize);
     } else {
@@ -764,8 +764,8 @@ class BlockSparseMatrix
     StorageIndex csize = IsColMajor ? blockOuterSize(bcol) : blockInnerSize(brow);
     StorageIndex inner = IsColMajor ? brow : bcol;
     StorageIndex outer = IsColMajor ? bcol : brow;
-    StorageIndex offset = m_outerIndex[outer];
-    while (offset < m_outerIndex[outer + 1] && m_indices[offset] != inner) offset++;
+    StorageIndex offset = m_idx_data.outerIndex[outer];
+    while (offset < m_idx_data.outerIndex[outer + 1] && m_indices[offset] != inner) offset++;
     if (m_indices[offset] == inner) {
       return Map<const BlockScalar>(&(m_values[blockPtr(offset)]), rsize, csize);
     } else
@@ -788,8 +788,8 @@ class BlockSparseMatrix
   //    inline Scalar *valuePtr(){ return m_values; }
   inline StorageIndex* innerIndexPtr() { return m_indices; }
   inline const StorageIndex* innerIndexPtr() const { return m_indices; }
-  inline StorageIndex* outerIndexPtr() { return m_outerIndex; }
-  inline const StorageIndex* outerIndexPtr() const { return m_outerIndex; }
+  inline StorageIndex* outerIndexPtr() { return m_idx_data.outerIndex; }
+  inline const StorageIndex* outerIndexPtr() const { return m_idx_data.outerIndex; }
 
   /** \brief for compatibility purposes with the SparseMatrix class */
   inline bool isCompressed() const { return true; }
@@ -875,8 +875,8 @@ class BlockSparseMatrix
   StorageIndex* m_blockPtr;     // Pointer to the beginning of each block in m_values, size m_nonzeroblocks ... null for
                                 // fixed-size blocks
   StorageIndex* m_indices;      // Inner block indices, size m_nonzerosblocks ... OK
-  StorageIndex* m_outerIndex;   // Starting pointer of each block column in m_indices (size m_outerBSize)... OK
-  Index m_blockSize;            // Size of a block for fixed-size blocks, otherwise -1
+  StorageIndex* m_idx_data.outerIndex;  // Starting pointer of each block column in m_indices (size m_outerBSize)... OK
+  Index m_blockSize;                    // Size of a block for fixed-size blocks, otherwise -1
 };
 
 template <typename Scalar_, int _BlockAtCompileTime, int Options_, typename StorageIndex_>
@@ -885,7 +885,10 @@ class BlockSparseMatrix<Scalar_, _BlockAtCompileTime, Options_, StorageIndex_>::
   enum { Flags = Options_ };
 
   BlockInnerIterator(const BlockSparseMatrix& mat, const Index outer)
-      : m_mat(mat), m_outer(outer), m_id(mat.m_outerIndex[outer]), m_end(mat.m_outerIndex[outer + 1]) {}
+      : m_mat(mat),
+        m_outer(outer),
+        m_id(mat.m_idx_data.outerIndex[outer]),
+        m_end(mat.m_idx_data.outerIndex[outer + 1]) {}
 
   inline BlockInnerIterator& operator++() {
     m_id++;
