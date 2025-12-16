@@ -1683,7 +1683,8 @@ EIGEN_DEVICE_FUNC inline void pstoretSegment(Scalar* to, const Packet& from, Ind
 }
 
 template <typename Packet>
-EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_unsigned(std::pair<Packet, Packet> a, std::pair<Packet, Packet> b) {
+EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_unsigned(std::pair<Packet, Packet> a,
+                                                                 std::pair<Packet, Packet> b) {
   Packet hi = padd(a.first, b.first);
   Packet lo = padd(a.second, b.second);
   hi = psub(hi, pcmp_lt(lo, b.second));
@@ -1699,7 +1700,7 @@ EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_unsigned(Packet a, Packe
 
 template <typename Packet>
 EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_signed(std::pair<Packet, Packet> a,
-                                                                 std::pair<Packet, Packet> b) {
+                                                               std::pair<Packet, Packet> b) {
   std::pair<Packet, Packet> result = padd_wide_unsigned(a, b);
   result.first = padd(result.first, psignbit(a.second));
   result.first = padd(result.first, psignbit(b.second));
