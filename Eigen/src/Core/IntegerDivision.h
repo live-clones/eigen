@@ -266,9 +266,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int64_t smuluh(int64_t a, int64_t b) {
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T uintdiv_generic(T a, T magic, int shift) {
+  constexpr int k = CHAR_BIT * sizeof(T);
   T b = umuluh(a, magic);
-  DoubleWordInteger<T> t = DoubleWordInteger<T>::FromSum(b, a) >> shift;
-  return t.lo;
+  T lo = b + a;
+  T hi = lo < a ? 1 : 0;
+  T t_lo = shift == k ? 0 : static_cast<T>(lo >> shift);
+  T t_hi = shift == 0 ? 0 : static_cast<T>(hi << (k - shift));
+  T t = t_lo | t_hi;
+  return t;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t uintdiv(uint8_t a, uint8_t magic, int shift) {
   uint_fast16_t b = umuluh(a, magic);
@@ -299,7 +304,6 @@ template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T sintdiv_generic(T a, T magic, int shift, bool sign) {
   constexpr int k = CHAR_BIT * sizeof(T);
   using UT = std::make_unsigned_t<T>;
-  if (shift >= k) return 0;
   T b = smuluh(a, magic);
   UT ua = static_cast<UT>(a);
   UT ub = static_cast<UT>(b);
@@ -307,33 +311,35 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T sintdiv_generic(T a, T magic, int shift,
   T hi = lo < ua ? 1 : 0;
   if (a < 0) hi--;
   if (b < 0) hi--;
-  T t = shift == 0 ? static_cast<T>(lo) : static_cast<T>((hi << (k - shift)) | (lo >> shift));
+  T t_lo = shift == k ? 0 : static_cast<T>(lo >> shift);
+  T t_hi = shift == 0 ? 0 : static_cast<T>(hi << (k - shift));
+  T t = t_lo | t_hi;
   if (a < 0) t++;
   return sign ? -t : t;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int8_t sintdiv(int8_t a, int8_t magic, int shift, bool sign) {
   int_fast16_t b = smuluh(a, magic);
   int_fast16_t t = (b + a) >> shift;
-  t -= a >> 7;
+  if (a < 0) t++;
   return static_cast<int8_t>(sign ? -t : t);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int16_t sintdiv(int16_t a, int16_t magic, int shift, bool sign) {
   int_fast32_t b = smuluh(a, magic);
   int_fast32_t t = (b + a) >> shift;
-  t -= a >> 15;
+  if (a < 0) t++;
   return static_cast<int16_t>(sign ? -t : t);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int32_t sintdiv(int32_t a, int32_t magic, int shift, bool sign) {
   int_fast64_t b = smuluh(a, magic);
   int_fast64_t t = (b + a) >> shift;
-  t -= a >> 31;
+  if (a < 0) t++;
   return static_cast<int32_t>(sign ? -t : t);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int64_t sintdiv(int64_t a, int64_t magic, int shift, bool sign) {
 #if EIGEN_HAS_BUILTIN_INT128
   __int128_t b = smuluh(a, magic);
   __int128_t t = (b + a) >> shift;
-  t -= a >> 63;
+  if (a < 0) t++;
   return static_cast<int64_t>(sign ? -t : t);
 #else
   return sintdiv_generic(a, magic, shift, sign);
@@ -357,12 +363,19 @@ struct fast_div_op_impl<Scalar, false> {
     int p = std::is_signed<Scalar>::value ? log2_floor(d_odd_abs) : log2_ceil(d_odd_abs);
     shift = tz + p;
     if (shift <= k) {
+      // shift == k is considered in range for unsigned integers since we use log2_ceil
       if (p == 0) {
-        magic = std::is_signed<Scalar>::value ? 1 : 0;
+        // d is a power of two
+        // we require a magic number such that:
+        // 1. umulah(a, magic) == 0
+        // 2. smulah(a, magic) == sign(a)
+        // magic = 1 satisfies both these conditions
+        magic = 1;
       } else {
         magic = static_cast<Scalar>(calc_magic(static_cast<UnsignedScalar>(d_odd_abs), p));
       }
     } else {
+      // d is out of range, return zero for all input
       magic = 0;
       shift = k;
     }

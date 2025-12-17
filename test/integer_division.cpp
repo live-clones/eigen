@@ -52,6 +52,8 @@ void test_division() {
   PlainType evalXpr(size);
   for (int repeat = 0; repeat < EIGEN_TEST_MAX_SIZE; repeat++) {
     numerator.setRandom();
+    numerator.coeffRef(size - 1) = NumTraits<Numerator>::highest();
+    numerator.coeffRef(size - 2) = NumTraits<Numerator>::lowest();
     Divisor d = internal::random<Divisor>(1, NumTraits<Divisor>::highest());
     {
       IntDivider<Numerator> divider(d);
@@ -67,6 +69,9 @@ void test_division() {
       evalXpr = FastDivXpr(numerator, divider.op);
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), neg_d);
+        if (ref != evalXpr.coeff(i)) {
+          ref = ref;
+        }
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
       }
     }
