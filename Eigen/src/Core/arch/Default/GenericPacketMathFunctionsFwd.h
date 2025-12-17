@@ -192,8 +192,8 @@ template <typename Packet>
 EIGEN_STRONG_INLINE Packet puintdiv(const Packet& a, typename unpacket_traits<Packet>::type magic, int shift);
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet psintdiv(const Packet& a, typename unpacket_traits<Packet>::type magic, int shift,
-                                    bool sign);
+EIGEN_STRONG_INLINE Packet psintdiv(const Packet& a, std::make_unsigned_t<typename unpacket_traits<Packet>::type> magic,
+                                    int shift, bool sign);
 
 // Macros for instantiating these generic functions for different backends.
 #define EIGEN_PACKET_FUNCTION(METHOD, SCALAR, PACKET)                                             \

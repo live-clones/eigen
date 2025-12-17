@@ -14,12 +14,6 @@
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
-#ifdef EIGEN_VECTORIZE_SSE4_1
-static constexpr int EIGEN_VECTORIZE_SSE4_1_V = 1;
-#else
-static constexpr int EIGEN_VECTORIZE_SSE4_1_V = 0;
-#endif
-
 namespace Eigen {
 
 namespace internal {
@@ -237,7 +231,7 @@ struct packet_traits<int> : default_packet_traits {
     HasCmp = 1,
     HasDiv = 1,
     HasShift = 1,
-    HasFastIntDiv = EIGEN_VECTORIZE_SSE4_1_V,
+    HasFastIntDiv = 1,
   };
 };
 template <>
@@ -265,8 +259,7 @@ struct packet_traits<int64_t> : default_packet_traits {
     size = 2,
 
     HasCmp = 1,
-    HasShift = 1,
-    HasFastIntDiv = EIGEN_VECTORIZE_SSE4_1_V
+    HasShift = 1
   };
 };
 
@@ -2082,75 +2075,6 @@ EIGEN_STRONG_INLINE Packet4ui puintdiv(const Packet4ui& a, uint32_t magic, int s
 
   return result;
 }
-
-#ifdef EIGEN_VECTORIZE_SSE4_1
-
-template <>
-EIGEN_STRONG_INLINE Packet4i psintdiv(const Packet4i& a, int32_t magic, int shift, bool sign) {
-  constexpr int kShuffleMask = shuffle_mask<0, 2, 0, 2>::mask;
-  const __m128i cst_magic = _mm_set1_epi32(magic);
-  const __m128i cst_shift = _mm_cvtsi32_si128(shift);
-  const __m128i cst_sign = _mm_set1_epi32(sign ? -1 : 1);
-
-  __m128i a_sgn = _mm_srai_epi32(a, 31);
-
-  __m128i a_evn = _mm_unpacklo_epi32(a, a_sgn);
-  __m128i a_odd = _mm_unpackhi_epi32(a, a_sgn);
-
-  __m128i b_evn = _mm_srai_epi64(_mm_mul_epi32(a_evn, cst_magic), 32);
-  __m128i b_odd = _mm_srai_epi64(_mm_mul_epi32(a_odd, cst_magic), 32);
-
-  __m128i t_evn = _mm_sra_epi64(_mm_add_epi64(b_evn, a_evn), cst_shift);
-  __m128i t_odd = _mm_sra_epi64(_mm_add_epi64(b_odd, a_odd), cst_shift);
-
-  __m128i result = _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(t_evn), _mm_castsi128_ps(t_odd), kShuffleMask));
-  result = _mm_sub_epi32(result, a_sgn);
-  result = _mm_sign_epi32(result, cst_sign);
-
-  return result;
-}
-
-EIGEN_STRONG_INLINE Packet2l pumuluh_2l(Packet2l a, Packet2l b) {
-  using WidePacket2l = std::pair<Packet2l, Packet2l>;
-
-  __m128i a_h = _mm_srli_epi64(a, 32);
-  __m128i b_h = _mm_srli_epi64(b, 32);
-
-  __m128i ab_hh = _mm_mul_epu32(a_h, b_h);
-  __m128i ab_hl = _mm_mul_epu32(a_h, b);
-  __m128i ab_lh = _mm_mul_epu32(a, b_h);
-  __m128i ab_ll = _mm_mul_epu32(a, b);
-
-  WidePacket2l result(ab_hh, ab_ll);
-  result = padd_wide_unsigned(result, WidePacket2l(_mm_srli_epi64(ab_hl, 32), _mm_slli_epi64(ab_hl, 32)));
-  result = padd_wide_unsigned(result, WidePacket2l(_mm_srli_epi64(ab_lh, 32), _mm_slli_epi64(ab_lh, 32)));
-
-  return result.first;
-}
-
-EIGEN_STRONG_INLINE Packet2l psmuluh_2l(Packet2l a, Packet2l b) {
-  Packet2l result = pumuluh_2l(a, b);
-  result = _mm_sub_epi64(result, _mm_and_si128(b, _mm_srai_epi64(a, 63)));
-  result = _mm_sub_epi64(result, _mm_and_si128(a, _mm_srai_epi64(b, 63)));
-  return result;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2l psintdiv(const Packet2l& a, int64_t magic, int shift, bool sign) {
-  using WidePacket2l = std::pair<Packet2l, Packet2l>;
-  const __m128i cst_magic = _mm_set1_epi64x(magic);
-  const __m128i cst_sign = _mm_set1_epi64x(sign ? -1 : 0);
-
-  Packet2l b = psmuluh_2l(a, cst_magic);
-  WidePacket2l t = padd_wide_signed(b, a);
-  __m128i result = _mm_sra_epi64(t.second, _mm_cvtsi32_si128(shift));
-  result = _mm_or_si128(result, _mm_sll_epi64(t.first, _mm_cvtsi32_si128(64 - shift)));
-  result = _mm_sub_epi64(result, _mm_srai_epi64(a, 63));
-  result = _mm_sub_epi64(_mm_xor_si128(result, cst_sign), cst_sign);
-  return result;
-}
-
-#endif
 
 // Packet math for Eigen::half
 // Disable the following code since it's broken on too many platforms / compilers.

@@ -3057,42 +3057,6 @@ EIGEN_STRONG_INLINE Packet8ui puintdiv(const Packet8ui& a, uint32_t magic, int s
   return result;
 }
 
-// emulate _mm256_sra_epi64 if it is not available
-EIGEN_STRONG_INLINE __m256i eigen_mm256_sra_epi64(__m256i a, int shift) {
-#ifdef EIGEN_VECTORIZE_AVX512
-  return _mm256_sra_epi64(a, _mm_cvtsi32_si128(shift));
-#else
-  __m256i left_bits = _mm256_sll_epi64(_mm256_cmpgt_epi64(_mm256_setzero_si256(), a), _mm_cvtsi32_si128(64 - shift));
-  __m256i right_bits = _mm256_srl_epi64(a, _mm_cvtsi32_si128(shift));
-  return _mm256_or_si256(left_bits, right_bits);
-#endif
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8i psintdiv(const Packet8i& a, int32_t magic, int shift, bool sign) {
-  constexpr int kShuffleMask = shuffle_mask<0, 2, 0, 2>::mask;
-  const __m256i cst_magic = _mm256_set1_epi32(magic);
-  const __m256i cst_sign = _mm256_set1_epi32(sign ? -1 : 1);
-
-  __m256i a_sgn = _mm256_srai_epi32(a, 31);
-
-  __m256i a_evn = _mm256_unpacklo_epi32(a, a_sgn);
-  __m256i a_odd = _mm256_unpackhi_epi32(a, a_sgn);
-
-  __m256i b_evn = parithmetic_shift_right<32>((Packet4l)_mm256_mul_epi32(a_evn, cst_magic));
-  __m256i b_odd = parithmetic_shift_right<32>((Packet4l)_mm256_mul_epi32(a_odd, cst_magic));
-
-  __m256i t_evn = eigen_mm256_sra_epi64(_mm256_add_epi64(b_evn, a_evn), shift);
-  __m256i t_odd = eigen_mm256_sra_epi64(_mm256_add_epi64(b_odd, a_odd), shift);
-
-  __m256i result =
-      _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(t_evn), _mm256_castsi256_ps(t_odd), kShuffleMask));
-  result = _mm256_sub_epi32(result, a_sgn);
-  result = _mm256_sign_epi32(result, cst_sign);
-
-  return result;
-}
-
 EIGEN_STRONG_INLINE Packet4ul pumuluh_4ul(Packet4ul a, Packet4ul b) {
   using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
 
@@ -3111,13 +3075,6 @@ EIGEN_STRONG_INLINE Packet4ul pumuluh_4ul(Packet4ul a, Packet4ul b) {
   return result.first;
 }
 
-EIGEN_STRONG_INLINE Packet4l psmuluh_4l(Packet4l a, Packet4l b) {
-  Packet4l result = (Packet4l)pumuluh_4ul((Packet4ul)a, (Packet4ul)b);
-  result = _mm256_sub_epi64(result, _mm256_and_si256(b, psignbit(a)));
-  result = _mm256_sub_epi64(result, _mm256_and_si256(a, psignbit(b)));
-  return result;
-}
-
 template <>
 EIGEN_STRONG_INLINE Packet4ul puintdiv(const Packet4ul& a, uint64_t magic, int shift) {
   using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
@@ -3128,21 +3085,6 @@ EIGEN_STRONG_INLINE Packet4ul puintdiv(const Packet4ul& a, uint64_t magic, int s
   Packet4ul result = _mm256_srl_epi64(t.second, _mm_cvtsi32_si128(shift));
   result = _mm256_or_si256(result, _mm256_sll_epi64(t.first, _mm_cvtsi32_si128(64 - shift)));
 
-  return result;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4l psintdiv(const Packet4l& a, int64_t magic, int shift, bool sign) {
-  using WidePacket4l = std::pair<Packet4l, Packet4l>;
-  const __m256i cst_magic = _mm256_set1_epi64x(magic);
-  const __m256i cst_sign = _mm256_set1_epi64x(sign ? -1 : 0);
-
-  Packet4l b = psmuluh_4l(a, cst_magic);
-  WidePacket4l t = padd_wide_signed(b, a);
-  __m256i result = eigen_mm256_sra_epi64(t.second, shift);
-  result = _mm256_or_si256(result, _mm256_sll_epi64(t.first, _mm_cvtsi32_si128(64 - shift)));
-  result = _mm256_sub_epi64(result, psignbit(a));
-  result = _mm256_sub_epi64(_mm256_xor_si256(result, cst_sign), cst_sign);
   return result;
 }
 
