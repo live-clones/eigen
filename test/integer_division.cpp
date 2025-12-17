@@ -34,12 +34,6 @@ void test_division_exhaustive() {
     for (Numerator n = NumTraits<Numerator>::lowest();; n++) {
       Numerator q = n / divider;
       Numerator ref = ref_div(n, d);
-      if (q != ref) {
-        std::cout << "n: " << +n << "\n";
-        std::cout << "d: " << +d << "\n";
-        std::cout << "q: " << +q << "\n";
-        std::cout << "ref: " << +ref << "\n";
-      }
       VERIFY_IS_EQUAL(q, ref);
       if (n == NumTraits<Numerator>::highest()) break;
     }
