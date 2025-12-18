@@ -636,7 +636,8 @@ struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus> {
 
 template <typename BitsType, typename EnableIf = void>
 struct count_bits_impl {
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be an unsigned integer");
+  static_assert(std::is_integral<BitsType>::value && std::is_unsigned<BitsType>::value,
+                "BitsType must be an unsigned integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
     int n = CHAR_BIT * sizeof(BitsType);
     int shift = n / 2;
