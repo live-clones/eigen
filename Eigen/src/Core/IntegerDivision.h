@@ -280,13 +280,13 @@ struct fast_div_op_impl<Scalar, false> {
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) {
     using UnsignedDivisor = std::make_unsigned_t<Divisor>;
     eigen_assert(d != 0 && "Error: Division by zero attempted!");
-    int tz = ctz(static_cast<UnsignedDivisor>(d));
-    Divisor d_odd = d >> tz;
-    UnsignedDivisor d_odd_abs = static_cast<UnsignedDivisor>(numext::abs(d_odd));
-    int p = log2_ceil(d_odd_abs);
+    UnsignedDivisor abs_d = static_cast<UnsignedDivisor>(numext::abs(d));
+    int tz = ctz(abs_d);
+    UnsignedDivisor d_abs_odd = abs_d >> tz;
+    int p = log2_ceil(d_abs_odd);
     shift = tz + p;
     if (shift <= k) {
-      magic = calc_magic(static_cast<UnsignedScalar>(d_odd_abs), p);
+      magic = calc_magic(static_cast<UnsignedScalar>(d_abs_odd), p);
     } else {
       // d is out of range, return zero for all input
       magic = 0;
