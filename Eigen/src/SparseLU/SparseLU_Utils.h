@@ -20,7 +20,7 @@ namespace internal {
  * \brief Count Nonzero elements in the factors
  */
 template <typename Scalar, typename StorageIndex>
-void SparseLUImpl<Scalar, StorageIndex>::countnz(const Index n, Index& nnzL, Index& nnzU, GlobalLU_t& glu) {
+constexpr void SparseLUImpl<Scalar, StorageIndex>::countnz(const Index n, Index& nnzL, Index& nnzU, GlobalLU_t& glu) {
   nnzL = 0;
   nnzU = (glu.xusub)(n);
   Index nsuper = (glu.supno)(n);
@@ -48,7 +48,7 @@ void SparseLUImpl<Scalar, StorageIndex>::countnz(const Index n, Index& nnzL, Ind
  *
  */
 template <typename Scalar, typename StorageIndex>
-void SparseLUImpl<Scalar, StorageIndex>::fixupL(const Index n, const IndexVector& perm_r, GlobalLU_t& glu) {
+constexpr void SparseLUImpl<Scalar, StorageIndex>::fixupL(const Index n, const IndexVector& perm_r, GlobalLU_t& glu) {
   Index fsupc, i, j, k, jstart;
 
   StorageIndex nextl = 0;

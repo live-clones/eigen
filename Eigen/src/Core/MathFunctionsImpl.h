@@ -35,7 +35,7 @@ namespace internal {
 template <typename Packet, int Steps>
 struct generic_reciprocal_newton_step {
   static_assert(Steps > 0, "Steps must be at least 1.");
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& a, const Packet& approx_a_recip) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& a, const Packet& approx_a_recip) {
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet one = pset1<Packet>(Scalar(1));
     // Refine the approximation using one Newton-Raphson step:
@@ -52,7 +52,8 @@ struct generic_reciprocal_newton_step {
 
 template <typename Packet>
 struct generic_reciprocal_newton_step<Packet, 0> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& /*unused*/, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& /*unused*/,
+                                                                    const Packet& approx_rsqrt) {
     return approx_rsqrt;
   }
 };
@@ -76,7 +77,7 @@ template <typename Packet, int Steps>
 struct generic_rsqrt_newton_step {
   static_assert(Steps > 0, "Steps must be at least 1.");
   using Scalar = typename unpacket_traits<Packet>::type;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& a, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& a, const Packet& approx_rsqrt) {
     const Scalar kMinusHalf = Scalar(-1) / Scalar(2);
     const Packet cst_minus_half = pset1<Packet>(kMinusHalf);
     const Packet cst_minus_one = pset1<Packet>(Scalar(-1));
@@ -102,7 +103,8 @@ struct generic_rsqrt_newton_step {
 
 template <typename Packet>
 struct generic_rsqrt_newton_step<Packet, 0> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& /*unused*/, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& /*unused*/,
+                                                                    const Packet& approx_rsqrt) {
     return approx_rsqrt;
   }
 };
@@ -126,7 +128,7 @@ template <typename Packet, int Steps = 1>
 struct generic_sqrt_newton_step {
   static_assert(Steps > 0, "Steps must be at least 1.");
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Packet& a, const Packet& approx_rsqrt) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Packet run(const Packet& a, const Packet& approx_rsqrt) {
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet one_point_five = pset1<Packet>(Scalar(1.5));
     const Packet minus_half = pset1<Packet>(Scalar(-0.5));
@@ -148,7 +150,8 @@ struct generic_sqrt_newton_step {
 };
 
 template <typename RealScalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RealScalar positive_real_hypot(const RealScalar& x, const RealScalar& y) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr RealScalar positive_real_hypot(const RealScalar& x,
+                                                                               const RealScalar& y) {
   // IEEE IEC 6059 special cases.
   if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
   if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
@@ -164,16 +167,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RealScalar positive_real_hypot(const RealS
 template <typename Scalar>
 struct hypot_impl {
   typedef typename NumTraits<Scalar>::Real RealScalar;
-  static EIGEN_DEVICE_FUNC inline RealScalar run(const Scalar& x, const Scalar& y) {
-    EIGEN_USING_STD(abs);
-    return positive_real_hypot<RealScalar>(abs(x), abs(y));
+  static EIGEN_DEVICE_FUNC inline constexpr RealScalar run(const Scalar& x, const Scalar& y) {
+    return positive_real_hypot<RealScalar>(numext::abs(x), numext::abs(y));
   }
 };
 
 // Generic complex sqrt implementation that correctly handles corner cases
 // according to https://en.cppreference.com/w/cpp/numeric/complex/sqrt
 template <typename ComplexT>
-EIGEN_DEVICE_FUNC ComplexT complex_sqrt(const ComplexT& z) {
+EIGEN_DEVICE_FUNC constexpr ComplexT complex_sqrt(const ComplexT& z) {
   // Computes the principal sqrt of the input.
   //
   // For a complex square root of the number x + i*y. We want to find real
@@ -209,7 +211,7 @@ EIGEN_DEVICE_FUNC ComplexT complex_sqrt(const ComplexT& z) {
 
 // Generic complex rsqrt implementation.
 template <typename ComplexT>
-EIGEN_DEVICE_FUNC ComplexT complex_rsqrt(const ComplexT& z) {
+EIGEN_DEVICE_FUNC constexpr ComplexT complex_rsqrt(const ComplexT& z) {
   // Computes the principal reciprocal sqrt of the input.
   //
   // For a complex reciprocal square root of the number z = x + i*y. We want to
@@ -248,7 +250,7 @@ EIGEN_DEVICE_FUNC ComplexT complex_rsqrt(const ComplexT& z) {
 }
 
 template <typename ComplexT>
-EIGEN_DEVICE_FUNC ComplexT complex_log(const ComplexT& z) {
+EIGEN_DEVICE_FUNC constexpr ComplexT complex_log(const ComplexT& z) {
   // Computes complex log.
   using T = typename NumTraits<ComplexT>::Real;
   T a = numext::abs(z);
