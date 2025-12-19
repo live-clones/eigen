@@ -60,8 +60,8 @@ struct cholmod_configure_matrix<std::complex<double> > {
 /** Wraps the Eigen sparse matrix \a mat into a Cholmod sparse matrix object.
  * Note that the data are shared.
  */
-template <typename Scalar_, int Options_, typename StorageIndex_>
-cholmod_sparse viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, StorageIndex_> > mat) {
+template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
+cholmod_sparse viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_> > mat) {
   cholmod_sparse res;
   res.nzmax = mat.nonZeros();
   res.nrow = mat.rows();
@@ -98,23 +98,27 @@ cholmod_sparse viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, StorageIndex_> 
   return res;
 }
 
-template <typename Scalar_, int Options_, typename Index_>
-const cholmod_sparse viewAsCholmod(const SparseMatrix<Scalar_, Options_, Index_>& mat) {
-  cholmod_sparse res = viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, Index_> >(mat.const_cast_derived()));
+template <typename Scalar_, int Options_, typename Index_, int Rows_, int Cols_, int MaxNZ_>
+const cholmod_sparse viewAsCholmod(const SparseMatrix<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_>& mat) {
+  cholmod_sparse res =
+      viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> >(mat.const_cast_derived()));
   return res;
 }
 
-template <typename Scalar_, int Options_, typename Index_>
-const cholmod_sparse viewAsCholmod(const SparseVector<Scalar_, Options_, Index_>& mat) {
-  cholmod_sparse res = viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, Index_> >(mat.const_cast_derived()));
+template <typename Scalar_, int Options_, typename Index_, int Rows_, int Cols_, int MaxNZ_>
+const cholmod_sparse viewAsCholmod(const SparseVector<Scalar_, Options_, Index_, MaxNZ_>& mat) {
+  cholmod_sparse res =
+      viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> >(mat.const_cast_derived()));
   return res;
 }
 
 /** Returns a view of the Eigen sparse matrix \a mat as Cholmod sparse matrix.
  * The data are not copied but shared. */
 template <typename Scalar_, int Options_, typename Index_, unsigned int UpLo>
-cholmod_sparse viewAsCholmod(const SparseSelfAdjointView<const SparseMatrix<Scalar_, Options_, Index_>, UpLo>& mat) {
-  cholmod_sparse res = viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, Index_> >(mat.matrix().const_cast_derived()));
+cholmod_sparse viewAsCholmod(
+    const SparseSelfAdjointView<const SparseMatrix<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_>, UpLo>& mat) {
+  cholmod_sparse res = viewAsCholmod(
+      Ref<SparseMatrix<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> >(mat.matrix().const_cast_derived()));
 
   if (UpLo == Upper) res.stype = 1;
   if (UpLo == Lower) res.stype = -1;
