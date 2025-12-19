@@ -15,15 +15,19 @@ Numerator ref_div(Numerator n, Divisor d) {
                       CANT DIVIDE AN UNSIGNED INTEGER BY A SIGNED INTEGER)
   using UnsignedNumerator = typename std::make_unsigned<Numerator>::type;
   using UnsignedDivisor = typename std::make_unsigned<Divisor>::type;
+
   bool n_is_negative = n < 0;
   bool d_is_negative = d < 0;
-  UnsignedNumerator abs_n = static_cast<UnsignedNumerator>(numext::abs(n));
-  UnsignedDivisor abs_d = static_cast<UnsignedDivisor>(numext::abs(d));
-  Numerator result = static_cast<Numerator>(abs_n / abs_d);
+  UnsignedNumerator abs_n = (n < 0) ? (0 - static_cast<UnsignedNumerator>(n)) : static_cast<UnsignedNumerator>(n);
+  UnsignedDivisor abs_d = (d < 0) ? (0 - static_cast<UnsignedDivisor>(d)) : static_cast<UnsignedDivisor>(d);
+  UnsignedNumerator result = abs_n / abs_d;
   if (n_is_negative != d_is_negative) {
-    result = 0 - result;
+    return -static_cast<Numerator>(result);
   }
-  return result;
+  else
+  {
+    return static_cast<Numerator>(result);
+  }
 }
 
 template <typename Numerator, typename Divisor>
@@ -60,6 +64,10 @@ void test_division() {
       evalXpr = FastDivXpr(numerator, divider.op);
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), d);
+        if (evalXpr.coeff(i) != ref) {
+          std::cout << "n: " << +numerator.coeff(i) << "\n";
+          std::cout << "d: " << +d << "\n";
+        }
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
       }
     }

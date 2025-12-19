@@ -274,19 +274,20 @@ struct fast_div_op_impl;
 
 template <typename Scalar>
 struct fast_div_op_impl<Scalar, false> {
-  using UnsignedScalar = std::make_unsigned_t<Scalar>;
+  EIGEN_STATIC_ASSERT((std::is_integral<Scalar>::value) && (std::is_unsigned<Scalar>::value),
+                      "THE SCALAR MUST BE A BUILT-IN UNSIGNED INTEGER")
   static constexpr int k = CHAR_BIT * sizeof(Scalar);
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) {
     using UnsignedDivisor = std::make_unsigned_t<Divisor>;
     eigen_assert(d != 0 && "Error: Division by zero attempted!");
-    UnsignedDivisor abs_d = static_cast<UnsignedDivisor>(numext::abs(d));
-    int tz = ctz(abs_d);
-    UnsignedDivisor d_abs_odd = abs_d >> tz;
-    int p = log2_ceil(d_abs_odd);
+    int tz = ctz(static_cast<UnsignedDivisor>(d));
+    Divisor d_odd = d >> tz;
+    UnsignedDivisor d_odd_abs = numext::abs(d_odd);
+    int p = log2_ceil(d_odd_abs);
     shift = tz + p;
     if (shift <= k) {
-      magic = calc_magic(static_cast<UnsignedScalar>(d_abs_odd), p);
+      magic = calc_magic(static_cast<Scalar>(d_odd_abs), p);
     } else {
       // d is out of range, return zero for all input
       magic = 0;
@@ -303,15 +304,17 @@ struct fast_div_op_impl<Scalar, false> {
     return puintdiv(a, magic, shift);
   }
 
-  UnsignedScalar magic;
+  Scalar magic;
   int shift;
 };
 
 template <typename Scalar>
-struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<Scalar, false> {
-  using UnsignedImpl = fast_div_op_impl<Scalar, false>;
+struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<std::make_unsigned_t<Scalar>, false> {
+  EIGEN_STATIC_ASSERT((std::is_integral<Scalar>::value) && (std::is_signed<Scalar>::value),
+                      "THE SCALAR MUST BE A BUILT-IN SIGNED INTEGER")
   static constexpr int k = CHAR_BIT * sizeof(Scalar);
   using UnsignedScalar = std::make_unsigned_t<Scalar>;
+  using UnsignedImpl = fast_div_op_impl<UnsignedScalar, false>;
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : UnsignedImpl(d), sign(d < 0) {}
   // There are two approaches to handling signed integers:
@@ -330,8 +333,8 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<Scalar, false> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
     bool negative = (a < 0) != sign;
     UnsignedScalar abs_a = numext::abs(a);
-    Scalar result = UnsignedImpl::operator()(abs_a);
-    return negative ? -result : result;
+    UnsignedScalar result = UnsignedImpl::operator()(abs_a);
+    return negative ? static_cast<Scalar>(0 - result) : static_cast<Scalar>(result);
   }
 
   template <typename Packet>
