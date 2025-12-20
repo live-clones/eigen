@@ -327,14 +327,15 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<std::make_unsigned_t<Sc
   //   Subsequent calculations are handled in an analagous manner (arithmetic right shifts, etc). If the input is
   //   negative, add one. If the divisor is negative, flip the sign. This approach avoids taking the absolute value of
   //   the input and storing a second sign mask.
-  // Despite these advantages, benchmarking has revealed that 1. is significantly faster, at least in the vectorized
+  // Despite these advantages, benchmarking shows 1. is significantly faster, at least in the vectorized
   // case. Since the vectorized case is still significantly faster than the scalar case, sticking to option 1 is the
-  // approach that optimizes most use cases, and requires far less work to develop and maintain.
+  // approach that optimizes most use cases, and requires less work to develop and maintain.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
     bool negative = (a < 0) != sign;
-    UnsignedScalar abs_a = numext::abs(a);
-    UnsignedScalar result = UnsignedImpl::operator()(abs_a);
-    return negative ? static_cast<Scalar>(0 - result) : static_cast<Scalar>(result);
+    UnsignedScalar abs_a = static_cast<UnsignedScalar>(numext::abs(a));
+    Scalar result = static_cast<Scalar>(UnsignedImpl::operator()(abs_a));
+    if (negative) result = -result;
+    return result;
   }
 
   template <typename Packet>
