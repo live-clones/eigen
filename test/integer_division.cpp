@@ -18,8 +18,8 @@ Numerator ref_div(Numerator n, Divisor d) {
 
   bool n_is_negative = n < 0;
   bool d_is_negative = d < 0;
-  UnsignedNumerator abs_n = static_cast<UnsignedNumerator>(numext::abs(n));
-  UnsignedDivisor abs_d = static_cast<UnsignedDivisor>(numext::abs(d));
+  UnsignedNumerator abs_n = internal::safe_abs(n);
+  UnsignedDivisor abs_d = internal::safe_abs(d);
   Numerator result = static_cast<Numerator>(abs_n / abs_d);
   if (n_is_negative != d_is_negative) {
     result = -result;
@@ -61,10 +61,6 @@ void test_division() {
       evalXpr = FastDivXpr(numerator, divider.op);
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), d);
-        if (evalXpr.coeff(i) != ref) {
-          std::cout << "n: " << +numerator.coeff(i) << "\n";
-          std::cout << "d: " << +d << "\n";
-        }
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
       }
     }
@@ -74,9 +70,6 @@ void test_division() {
       evalXpr = FastDivXpr(numerator, divider.op);
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), neg_d);
-        if (ref != evalXpr.coeff(i)) {
-          ref = ref;
-        }
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
       }
     }
