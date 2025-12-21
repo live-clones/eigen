@@ -129,10 +129,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 #endif
   /** \brief Move constructor */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(Array&&) = default;
-  EIGEN_DEVICE_FUNC Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
-    Base::operator=(std::move(other));
-    return *this;
-  }
+  /** \brief Move assignment */
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array& operator=(Array&&) = default;
 
   /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
    *
