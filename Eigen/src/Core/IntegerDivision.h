@@ -422,7 +422,7 @@ struct IntDivider {
   template <typename Derived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CwiseUnaryOp<FastDivOp, const Derived> divide(
       const DenseBase<Derived>& xpr) const {
-    return CwiseUnaryOp<FastDivOp, const Derived>(xpr, op);
+    return CwiseUnaryOp<FastDivOp, const Derived>(xpr.derived(), op);
   }
   FastDivOp op;
 };
