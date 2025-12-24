@@ -3042,17 +3042,17 @@ EIGEN_STRONG_INLINE Packet8ui puintdiv(const Packet8ui& a, uint32_t magic, int s
   const __m256i cst_magic = _mm256_set1_epi32(magic);
   const __m128i cst_shift = _mm_cvtsi32_si128(shift);
 
-  __m256i a_lo = _mm256_unpacklo_epi32(a, _mm256_setzero_si256());
-  __m256i a_hi = _mm256_unpackhi_epi32(a, _mm256_setzero_si256());
+  __m256i a_evn = _mm256_unpacklo_epi32(a, _mm256_setzero_si256());
+  __m256i a_odd = _mm256_unpackhi_epi32(a, _mm256_setzero_si256());
 
-  __m256i b_lo = _mm256_srli_epi64(_mm256_mul_epu32(a_lo, cst_magic), 32);
-  __m256i b_hi = _mm256_srli_epi64(_mm256_mul_epu32(a_hi, cst_magic), 32);
+  __m256i b_evn = _mm256_srli_epi64(_mm256_mul_epu32(a_evn, cst_magic), 32);
+  __m256i b_odd = _mm256_srli_epi64(_mm256_mul_epu32(a_odd, cst_magic), 32);
 
-  __m256i t_lo = _mm256_srl_epi64(_mm256_add_epi64(b_lo, a_lo), cst_shift);
-  __m256i t_hi = _mm256_srl_epi64(_mm256_add_epi64(b_hi, a_hi), cst_shift);
+  __m256i t_evn = _mm256_srl_epi64(_mm256_add_epi64(b_evn, a_evn), cst_shift);
+  __m256i t_odd = _mm256_srl_epi64(_mm256_add_epi64(b_odd, a_odd), cst_shift);
 
   __m256i result =
-      _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(t_lo), _mm256_castsi256_ps(t_hi), kShuffleMask));
+      _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(t_evn), _mm256_castsi256_ps(t_odd), kShuffleMask));
 
   return result;
 }

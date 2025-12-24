@@ -17,22 +17,26 @@ namespace Eigen {
 
 namespace internal {
 
+namespace integer_division {
+
 template <typename Scalar, bool Signed = std::is_signed<Scalar>::value>
-struct safe_abs_impl {
+struct unsigned_abs_impl {
   using UnsignedScalar = std::make_unsigned_t<Scalar>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnsignedScalar run(const Scalar& a) {
-    return static_cast<UnsignedScalar>(a < 0 ? 0u - static_cast<UnsignedScalar>(a) : static_cast<UnsignedScalar>(a));
+    UnsignedScalar result = static_cast<UnsignedScalar>(a);
+    if (a < 0) result = 0u - result;
+    return result;
   }
 };
 template <typename UnsignedScalar>
-struct safe_abs_impl<UnsignedScalar, false> {
+struct unsigned_abs_impl<UnsignedScalar, false> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnsignedScalar run(const UnsignedScalar& a) { return a; }
 };
 
 // simplifies the arithmetic gymnastics required to appease UBSAN
 template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::make_unsigned_t<Scalar> safe_abs(const Scalar& a) {
-  return safe_abs_impl<Scalar>::run(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::make_unsigned_t<Scalar> unsigned_abs(const Scalar& a) {
+  return unsigned_abs_impl<Scalar>::run(a);
 }
 
 template <typename T>
@@ -298,7 +302,7 @@ struct fast_div_op_impl<Scalar, false> {
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) {
     using UnsignedDivisor = std::make_unsigned_t<Divisor>;
-    UnsignedDivisor d_abs = safe_abs(d);
+    UnsignedDivisor d_abs = unsigned_abs(d);
     int tz = ctz(d_abs);
     UnsignedDivisor d_odd = d_abs >> tz;
     int p = log2_ceil(d_odd);
@@ -353,7 +357,7 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<Scalar, false> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     bool negative = (a < 0) != sign;
-    UnsignedScalar abs_a = safe_abs(a);
+    UnsignedScalar abs_a = unsigned_abs(a);
     UnsignedScalar abs_result = uintdiv(abs_a, Base::magic, Base::shift);
     Scalar result = static_cast<Scalar>(negative ? 0u - abs_result : abs_result);
     return result;
@@ -361,17 +365,19 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<Scalar, false> {
 
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    return psintdiv(a, Base::magic, Base::shift, sign);
+    return pintdiv(a, Base::magic, Base::shift, sign);
   }
 
   bool sign;
 };
 
+}  // namespace integer_division
+
 template <typename Scalar>
-struct fast_div_op : fast_div_op_impl<Scalar> {
+struct fast_div_op : integer_division::fast_div_op_impl<Scalar> {
   EIGEN_STATIC_ASSERT((std::is_integral<Scalar>::value), "THE SCALAR MUST BE A BUILT IN INTEGER")
   using result_type = Scalar;
-  using Base = fast_div_op_impl<Scalar>;
+  using Base = integer_division::fast_div_op_impl<Scalar>;
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op(Divisor d) : Base(d) {
     EIGEN_STATIC_ASSERT((std::is_integral<Divisor>::value), "THE DIVISOR MUST BE A BUILT IN INTEGER")
@@ -390,8 +396,8 @@ struct functor_traits<fast_div_op<Scalar>> {
 };
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet psintdiv(const Packet& a, std::make_unsigned_t<typename unpacket_traits<Packet>::type> magic,
-                                    int shift, bool sign) {
+EIGEN_STRONG_INLINE Packet pintdiv(const Packet& a, std::make_unsigned_t<typename unpacket_traits<Packet>::type> magic,
+                                   int shift, bool sign) {
   using UnsignedScalar = std::make_unsigned_t<typename unpacket_traits<Packet>::type>;
   EIGEN_STATIC_ASSERT((find_packet_by_size<UnsignedScalar, unpacket_traits<Packet>::size>::value),
                       NO COMPATIBLE UNSIGNED PACKET)
@@ -413,6 +419,11 @@ struct IntDivider {
   template <typename Divisor>
   explicit EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IntDivider(Divisor d) : op(d) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar divide(const Scalar& numerator) const { return op(numerator); }
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CwiseUnaryOp<FastDivOp, const Derived> divide(
+      const DenseBase<Derived>& xpr) const {
+    return xpr.unaryExpr(op);
+  }
   FastDivOp op;
 };
 
