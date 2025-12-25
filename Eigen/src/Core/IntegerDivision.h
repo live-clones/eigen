@@ -22,7 +22,7 @@ namespace integer_division {
 template <typename Scalar, bool Signed = std::is_signed<Scalar>::value>
 struct unsigned_abs_impl {
   using UnsignedScalar = std::make_unsigned_t<Scalar>;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnsignedScalar run(const Scalar& a) {
+  constexpr static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnsignedScalar run(const Scalar& a) {
     UnsignedScalar result = static_cast<UnsignedScalar>(a);
     if (a < 0) result = 0u - result;
     return result;
@@ -30,12 +30,12 @@ struct unsigned_abs_impl {
 };
 template <typename UnsignedScalar>
 struct unsigned_abs_impl<UnsignedScalar, false> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnsignedScalar run(const UnsignedScalar& a) { return a; }
+  constexpr static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnsignedScalar run(const UnsignedScalar& a) { return a; }
 };
 
 // simplifies the arithmetic gymnastics required to appease UBSAN
 template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::make_unsigned_t<Scalar> unsigned_abs(const Scalar& a) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::make_unsigned_t<Scalar> unsigned_abs(const Scalar& a) {
   return unsigned_abs_impl<Scalar>::run(a);
 }
 
@@ -45,14 +45,14 @@ struct DoubleWordInteger {
                       "SCALAR MUST BE A BUILT IN UNSIGNED INTEGER")
   static constexpr int k = CHAR_BIT * sizeof(T);
 
-  EIGEN_DEVICE_FUNC DoubleWordInteger(T highBits, T lowBits) : hi(highBits), lo(lowBits) {}
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger(T highBits, T lowBits) : hi(highBits), lo(lowBits) {}
 
-  static EIGEN_DEVICE_FUNC DoubleWordInteger FromSum(T a, T b) {
+  constexpr static EIGEN_DEVICE_FUNC DoubleWordInteger FromSum(T a, T b) {
     // convenient constructor that returns the full sum a + b
     T sum = a + b;
     return DoubleWordInteger(sum < a ? 1 : 0, sum);
   }
-  static EIGEN_DEVICE_FUNC DoubleWordInteger FromProduct(T a, T b) {
+  constexpr static EIGEN_DEVICE_FUNC DoubleWordInteger FromProduct(T a, T b) {
     // convenient constructor that returns the full product a * b
     constexpr int kh = k / 2;
     constexpr T kLowMask = T(-1) >> kh;
@@ -75,29 +75,29 @@ struct DoubleWordInteger {
     return result;
   }
 
-  EIGEN_DEVICE_FUNC DoubleWordInteger& operator+=(const DoubleWordInteger& rhs) {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger& operator+=(const DoubleWordInteger& rhs) {
     hi += rhs.hi;
     lo += rhs.lo;
     if (lo < rhs.lo) hi++;
     return *this;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger& operator+=(const T& rhs) {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger& operator+=(const T& rhs) {
     lo += rhs;
     if (lo < rhs) hi++;
     return *this;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger& operator-=(const DoubleWordInteger& rhs) {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger& operator-=(const DoubleWordInteger& rhs) {
     if (lo < rhs.lo) hi--;
     hi -= rhs.hi;
     lo -= rhs.lo;
     return *this;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger& operator-=(const T& rhs) {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger& operator-=(const T& rhs) {
     if (lo < rhs) hi--;
     lo -= rhs;
     return *this;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger& operator>>=(int shift) {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger& operator>>=(int shift) {
     if (shift >= k) {
       lo = hi << (shift - k);
       hi = 0;
@@ -108,7 +108,7 @@ struct DoubleWordInteger {
     }
     return *this;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger& operator<<=(int shift) {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger& operator<<=(int shift) {
     if (shift >= k) {
       hi = lo << (shift - k);
       lo = 0;
@@ -120,51 +120,53 @@ struct DoubleWordInteger {
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC DoubleWordInteger operator+(const DoubleWordInteger& rhs) const {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger operator+(const DoubleWordInteger& rhs) const {
     DoubleWordInteger result = *this;
     result += rhs;
     return result;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger operator+(const T& rhs) const {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger operator+(const T& rhs) const {
     DoubleWordInteger result = *this;
     result += rhs;
     return result;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger operator-(const DoubleWordInteger& rhs) const {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger operator-(const DoubleWordInteger& rhs) const {
     DoubleWordInteger result = *this;
     result -= rhs;
     return result;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger operator-(const T& rhs) const {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger operator-(const T& rhs) const {
     DoubleWordInteger result = *this;
     result -= rhs;
     return result;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger operator>>(int shift) const {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger operator>>(int shift) const {
     DoubleWordInteger result = *this;
     result >>= shift;
     return result;
   }
-  EIGEN_DEVICE_FUNC DoubleWordInteger operator<<(int shift) const {
+  constexpr EIGEN_DEVICE_FUNC DoubleWordInteger operator<<(int shift) const {
     DoubleWordInteger result = *this;
     result <<= shift;
     return result;
   }
 
-  EIGEN_DEVICE_FUNC bool operator==(const DoubleWordInteger& rhs) const { return hi == rhs.hi && lo == rhs.lo; }
-  EIGEN_DEVICE_FUNC bool operator<(const DoubleWordInteger& rhs) const {
+  constexpr EIGEN_DEVICE_FUNC bool operator==(const DoubleWordInteger& rhs) const {
+    return hi == rhs.hi && lo == rhs.lo;
+  }
+  constexpr EIGEN_DEVICE_FUNC bool operator<(const DoubleWordInteger& rhs) const {
     return hi != rhs.hi ? hi < rhs.hi : lo < rhs.lo;
   }
-  EIGEN_DEVICE_FUNC bool operator!=(const DoubleWordInteger& rhs) const { return !(*this == rhs); }
-  EIGEN_DEVICE_FUNC bool operator>(const DoubleWordInteger& rhs) const { return rhs < *this; }
-  EIGEN_DEVICE_FUNC bool operator<=(const DoubleWordInteger& rhs) const { return !(*this > rhs); }
-  EIGEN_DEVICE_FUNC bool operator>=(const DoubleWordInteger& rhs) const { return !(*this < rhs); }
+  constexpr EIGEN_DEVICE_FUNC bool operator!=(const DoubleWordInteger& rhs) const { return !(*this == rhs); }
+  constexpr EIGEN_DEVICE_FUNC bool operator>(const DoubleWordInteger& rhs) const { return rhs < *this; }
+  constexpr EIGEN_DEVICE_FUNC bool operator<=(const DoubleWordInteger& rhs) const { return !(*this > rhs); }
+  constexpr EIGEN_DEVICE_FUNC bool operator>=(const DoubleWordInteger& rhs) const { return !(*this < rhs); }
 
   T hi, lo;
 };
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T calc_magic_generic(T d, int p) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T calc_magic_generic(T d, int p) {
   EIGEN_STATIC_ASSERT((std::is_integral<T>::value) && (std::is_unsigned<T>::value),
                       "SCALAR MUST BE A BUILT IN UNSIGNED INTEGER")
   constexpr int k = CHAR_BIT * sizeof(T);
@@ -204,59 +206,65 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T calc_magic_generic(T d, int p) {
   q += n.lo / d;
   return q.lo + 1;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t calc_magic(uint8_t d, int p) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t calc_magic(uint8_t d, int p) {
   uint16_t n = uint16_t(-1) >> (8 - p);
   uint16_t q = 1 + (n / d);
   uint8_t result = static_cast<uint8_t>(q);
   return result;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t calc_magic(uint16_t d, int p) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t calc_magic(uint16_t d, int p) {
   uint32_t n = uint32_t(-1) >> (16 - p);
   uint32_t q = 1 + (n / d);
   uint16_t result = static_cast<uint16_t>(q);
   return result;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t calc_magic(uint32_t d, int p) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t calc_magic(uint32_t d, int p) {
   uint64_t n = uint64_t(-1) >> (32 - p);
   uint64_t q = 1 + (n / d);
   uint32_t result = static_cast<uint32_t>(q);
   return result;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t calc_magic(uint64_t d, int p) { return calc_magic_generic(d, p); }
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t calc_magic(uint64_t d, int p) {
+  return calc_magic_generic(d, p);
+}
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T umuluh_generic(T a, T b) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T umuluh_generic(T a, T b) {
   return DoubleWordInteger<T>::FromProduct(a, b).hi;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t umuluh(uint8_t a, uint8_t b) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t umuluh(uint8_t a, uint8_t b) {
   uint16_t result = (uint16_t(a) * uint16_t(b)) >> 8;
   return static_cast<uint8_t>(result);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t umuluh(uint16_t a, uint16_t b) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t umuluh(uint16_t a, uint16_t b) {
   uint32_t result = (uint32_t(a) * uint32_t(b)) >> 16;
   return static_cast<uint16_t>(result);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t umuluh(uint32_t a, uint32_t b) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t umuluh(uint32_t a, uint32_t b) {
   uint64_t result = (uint64_t(a) * uint64_t(b)) >> 32;
   return static_cast<uint32_t>(result);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
+  if (std::is_constant_evaluated()) {
+    return umuluh_generic(a, b);
+  } else {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
-  return __umul64hi(a, b);
+    return __umul64hi(a, b);
 #elif defined(SYCL_DEVICE_ONLY)
-  return cl::sycl::mul_hi(a, b);
+    return cl::sycl::mul_hi(a, b);
 #elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
-  return __umulh(a, b);
-#elif EIGEN_HAS_BUILTIN_INT128
-  __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
-  return static_cast<uint64_t>(v >> 64);
+    return __umulh(a, b);
+#elif EIGEN _HAS_BUILTIN_INT128
+    __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
+    return static_cast<uint64_t>(v >> 64);
 #else
-  return umuluh_generic(a, b);
+    return umuluh_generic(a, b);
 #endif
+  }
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T uintdiv_generic(T a, T magic, int shift) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T uintdiv_generic(T a, T magic, int shift) {
   constexpr int k = CHAR_BIT * sizeof(T);
   T b = umuluh(a, magic);
   T lo = b + a;
@@ -266,22 +274,22 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T uintdiv_generic(T a, T magic, int shift)
   T t = t_lo | t_hi;
   return t;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t uintdiv(uint8_t a, uint8_t magic, int shift) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t uintdiv(uint8_t a, uint8_t magic, int shift) {
   uint16_t b = umuluh(a, magic);
   uint16_t t = (b + a) >> shift;
   return static_cast<uint8_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t uintdiv(uint16_t a, uint16_t magic, int shift) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t uintdiv(uint16_t a, uint16_t magic, int shift) {
   uint32_t b = umuluh(a, magic);
   uint32_t t = (b + a) >> shift;
   return static_cast<uint16_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t uintdiv(uint32_t a, uint32_t magic, int shift) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t uintdiv(uint32_t a, uint32_t magic, int shift) {
   uint64_t b = umuluh(a, magic);
   uint64_t t = (b + a) >> shift;
   return static_cast<uint32_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t uintdiv(uint64_t a, uint64_t magic, int shift) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t uintdiv(uint64_t a, uint64_t magic, int shift) {
 #if EIGEN_HAS_BUILTIN_INT128
   __uint128_t b = umuluh(a, magic);
   __uint128_t t = (b + a) >> shift;
@@ -300,7 +308,7 @@ struct fast_div_op_impl<Scalar, false> {
   using UnsignedScalar = std::make_unsigned_t<Scalar>;
 
   template <typename Divisor>
-  EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) {
+  constexpr EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) {
     using UnsignedDivisor = std::make_unsigned_t<Divisor>;
     UnsignedDivisor d_abs = unsigned_abs(d);
     int tz = ctz(d_abs);
@@ -353,9 +361,9 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<Scalar, false> {
   // approach that optimizes most use cases, and requires less work to develop and maintain.
 
   template <typename Divisor>
-  EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : Base(d), sign(d < 0) {}
+  constexpr EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : Base(d), sign(d < 0) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     bool negative = (a < 0) != sign;
     UnsignedScalar abs_a = unsigned_abs(a);
     UnsignedScalar abs_result = uintdiv(abs_a, Base::magic, Base::shift);
@@ -379,7 +387,7 @@ struct fast_div_op : integer_division::fast_div_op_impl<Scalar> {
   using result_type = Scalar;
   using Base = integer_division::fast_div_op_impl<Scalar>;
   template <typename Divisor>
-  EIGEN_DEVICE_FUNC fast_div_op(Divisor d) : Base(d) {
+  constexpr EIGEN_DEVICE_FUNC fast_div_op(Divisor d) : Base(d) {
     EIGEN_STATIC_ASSERT((std::is_integral<Divisor>::value), "THE DIVISOR MUST BE A BUILT IN INTEGER")
     eigen_assert(d != 0 && "Error: unable to divide by zero!");
     eigen_assert(((std::is_signed<Scalar>::value) || (d > 0)) &&
@@ -417,8 +425,8 @@ template <typename Scalar>
 struct IntDivider {
   using FastDivOp = internal::fast_div_op<Scalar>;
   template <typename Divisor>
-  explicit EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IntDivider(Divisor d) : op(d) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar divide(const Scalar& numerator) const { return op(numerator); }
+  constexpr explicit EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IntDivider(Divisor d) : op(d) {}
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar divide(const Scalar& numerator) const { return op(numerator); }
   template <typename Derived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CwiseUnaryOp<FastDivOp, const Derived> divide(
       const DenseBase<Derived>& xpr) const {
@@ -428,7 +436,7 @@ struct IntDivider {
 };
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator/(const Scalar& lhs, const IntDivider<Scalar>& rhs) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator/(const Scalar& lhs, const IntDivider<Scalar>& rhs) {
   return rhs.divide(lhs);
 }
 
