@@ -673,17 +673,29 @@ struct count_bits_impl {
   }
 };
 
+#if defined(__cpp_lib_bitops) && (__cpp_lib_bitops >= 201907L)
+// Count leading zeros.
+template <typename BitsType>
+EIGEN_DEVICE_FUNC constexpr inline int clz(BitsType bits) {
+  return std::countl_zero(bits);
+}
+// Count trailing zeros.
+template <typename BitsType>
+EIGEN_DEVICE_FUNC constexpr inline int ctz(BitsType bits) {
+  return std::countr_zero(bits);
+}
+#else
 // Count leading zeros.
 template <typename BitsType>
 EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
   return count_bits_impl<BitsType>::clz(bits);
 }
-
 // Count trailing zeros.
 template <typename BitsType>
 EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
   return count_bits_impl<BitsType>::ctz(bits);
 }
+#endif
 
 #if EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
 
@@ -777,24 +789,24 @@ struct count_bits_impl<BitsType,
 template <typename BitsType>
 struct log_2_impl {
   static constexpr int kTotalBits = sizeof(BitsType) * CHAR_BIT;
-  static EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
+  static constexpr EIGEN_DEVICE_FUNC inline int run_ceil(const BitsType& x) {
     const int n = kTotalBits - clz(x);
     bool power_of_two = (x & (x - 1)) == 0;
     return x == 0 ? 0 : power_of_two ? (n - 1) : n;
   }
-  static EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
+  static constexpr EIGEN_DEVICE_FUNC inline int run_floor(const BitsType& x) {
     const int n = kTotalBits - clz(x);
     return x == 0 ? 0 : n - 1;
   }
 };
 
 template <typename BitsType>
-int log2_ceil(const BitsType& x) {
+constexpr int log2_ceil(const BitsType& x) {
   return log_2_impl<BitsType>::run_ceil(x);
 }
 
 template <typename BitsType>
-int log2_floor(const BitsType& x) {
+constexpr int log2_floor(const BitsType& x) {
   return log_2_impl<BitsType>::run_floor(x);
 }
 

@@ -68,6 +68,7 @@ struct default_packet_traits {
     HasCmp = 0,
 
     HasDiv = 0,
+    HasFastIntDiv = 0,
     HasReciprocal = 0,
     HasSqrt = 0,
     HasRsqrt = 0,
@@ -144,6 +145,17 @@ struct unpacket_traits : default_unpacket_traits {
     size = 1,
     alignment = alignof(T),
   };
+};
+
+template <typename Packet, typename Scalar>
+struct generic_unpacket_traits {
+  using type = Scalar;
+  using half = Packet;
+  static constexpr int size = sizeof(Packet) / sizeof(Scalar);
+  static constexpr int alignment = sizeof(Packet);
+  static constexpr bool vectorizable = true;
+  static constexpr bool masked_load_available = false;
+  static constexpr bool masked_store_available = false;
 };
 
 template <typename T>
@@ -1668,6 +1680,39 @@ EIGEN_DEVICE_FUNC inline void pstoretSegment(Scalar* to, const Packet& from, Ind
   } else {
     pstoreuSegment<Scalar, Packet>(to, from, begin, count);
   }
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_unsigned(std::pair<Packet, Packet> a,
+                                                                 std::pair<Packet, Packet> b) {
+  Packet hi = padd(a.first, b.first);
+  Packet lo = padd(a.second, b.second);
+  hi = psub(hi, pcmp_lt(lo, b.second));
+  return std::make_pair(hi, lo);
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_unsigned(Packet a, Packet b) {
+  Packet lo = padd(a, b);
+  Packet hi = psub(pzero(a), pcmp_lt(lo, b));
+  return std::make_pair(hi, lo);
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_signed(std::pair<Packet, Packet> a,
+                                                               std::pair<Packet, Packet> b) {
+  std::pair<Packet, Packet> result = padd_wide_unsigned(a, b);
+  result.first = padd(result.first, psignbit(a.second));
+  result.first = padd(result.first, psignbit(b.second));
+  return result;
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide_signed(Packet a, Packet b) {
+  std::pair<Packet, Packet> result = padd_wide_unsigned(a, b);
+  result.first = padd(result.first, psignbit(a));
+  result.first = padd(result.first, psignbit(b));
+  return result;
 }
 
 #ifndef EIGEN_NO_IO
