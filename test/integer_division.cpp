@@ -62,6 +62,7 @@ void test_division() {
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), d);
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
+        VERIFY_IS_EQUAL(divider.divide(numerator(i)), ref);
       }
     }
     if (std::is_signed<Divisor>::value) {
@@ -71,6 +72,7 @@ void test_division() {
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), neg_d);
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
+        VERIFY_IS_EQUAL(divider.divide(numerator(i)), ref);
       }
     }
   }

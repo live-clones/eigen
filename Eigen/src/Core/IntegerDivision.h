@@ -245,6 +245,10 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t umuluh(uint32_t a, uint
   return static_cast<uint32_t>(result);
 }
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
+#if EIGEN_HAS_BUILTIN_INT128
+  __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
+  return static_cast<uint64_t>(v >> 64);
+#else
   if (std::is_constant_evaluated()) {
     return umuluh_generic(a, b);
   } else {
@@ -254,25 +258,18 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint
     return cl::sycl::mul_hi(a, b);
 #elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
     return __umulh(a, b);
-#elif EIGEN _HAS_BUILTIN_INT128
-    __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
-    return static_cast<uint64_t>(v >> 64);
 #else
     return umuluh_generic(a, b);
 #endif
   }
+#endif
 }
 
 template <typename T>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T uintdiv_generic(T a, T magic, int shift) {
-  constexpr int k = CHAR_BIT * sizeof(T);
   T b = umuluh(a, magic);
-  T lo = b + a;
-  T hi = lo < a ? 1 : 0;
-  T t_lo = shift == k ? 0 : static_cast<T>(lo >> shift);
-  T t_hi = shift == 0 ? 0 : static_cast<T>(hi << (k - shift));
-  T t = t_lo | t_hi;
-  return t;
+  DoubleWordInteger<T> t = DoubleWordInteger<T>::FromSum(b, a) >> shift;
+  return t.lo;
 }
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t uintdiv(uint8_t a, uint8_t magic, int shift) {
   uint16_t b = umuluh(a, magic);
