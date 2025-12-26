@@ -244,26 +244,37 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t umuluh(uint32_t a, uint
   uint64_t result = (uint64_t(a) * uint64_t(b)) >> 32;
   return static_cast<uint32_t>(result);
 }
-constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
+// faster but non-constexpr variations of umuluh(uint64_t, uint64_t)
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh_u64_impl(uint64_t a, uint64_t b) {
 #if EIGEN_HAS_BUILTIN_INT128
   __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
   return static_cast<uint64_t>(v >> 64);
+#elif defined(EIGEN_GPU_COMPILE_PHASE)
+  return __umul64hi(a, b);
+#elif defined(SYCL_DEVICE_ONLY)
+  return cl::sycl::mul_hi(a, b);
+#elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
+  return __umulh(a, b);
 #else
+  return umuluh_generic(a, b);
+#endif
+}
+#if EIGEN_HAS_BUILTIN_INT128
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
+  __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
+  return static_cast<uint64_t>(v >> 64);
+}
+#elif defined(__cpp_lib_is_constant_evaluated) && (__cpp_lib_is_constant_evaluated >= 201811L)
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
   if (std::is_constant_evaluated()) {
     return umuluh_generic(a, b);
   } else {
-#if defined(EIGEN_GPU_COMPILE_PHASE)
-    return __umul64hi(a, b);
-#elif defined(SYCL_DEVICE_ONLY)
-    return cl::sycl::mul_hi(a, b);
-#elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
-    return __umulh(a, b);
-#else
-    return umuluh_generic(a, b);
-#endif
+    return umuluh_u64_impl(a, b);
   }
-#endif
 }
+#else
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) { return umuluh_u64_impl(a, b); }
+#endif
 
 template <typename T>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T uintdiv_generic(T a, T magic, int shift) {
