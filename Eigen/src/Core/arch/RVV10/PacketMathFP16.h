@@ -174,6 +174,16 @@ EIGEN_STRONG_INLINE Packet1Xh plset<Packet1Xh>(const Eigen::half& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xh>(const Eigen::half* a, Packet1Xh& a0, Packet1Xh& a1, Packet1Xh& a2,
+                                               Packet1Xh& a3) {
+  vfloat16m1_t aa = __riscv_vle16_v_f16m1(reinterpret_cast<const _Float16*>(a), 4);
+  a0 = __riscv_vrgather_vx_f16m1(aa, 0, unpacket_traits<Packet1Xh>::size);
+  a1 = __riscv_vrgather_vx_f16m1(aa, 1, unpacket_traits<Packet1Xh>::size);
+  a2 = __riscv_vrgather_vx_f16m1(aa, 2, unpacket_traits<Packet1Xh>::size);
+  a3 = __riscv_vrgather_vx_f16m1(aa, 3, unpacket_traits<Packet1Xh>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xh padd<Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
   return __riscv_vfadd_vv_f16m1(a, b, unpacket_traits<Packet1Xh>::size);
 }
@@ -333,17 +343,18 @@ EIGEN_STRONG_INLINE Packet1Xh ploadu<Packet1Xh>(const Eigen::half* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xh ploaddup<Packet1Xh>(const Eigen::half* from) {
-  Packet1Xsu idx = __riscv_vid_v_u16m1(unpacket_traits<Packet1Xh>::size);
-  idx = __riscv_vand_vx_u16m1(idx, 0xfffeu, unpacket_traits<Packet1Xh>::size);
-  return __riscv_vloxei16_v_f16m1(reinterpret_cast<const _Float16*>(from), idx, unpacket_traits<Packet1Xh>::size);
+  Packet1Xsu data = __riscv_vreinterpret_v_f16m1_u16m1(pload<Packet1Xh>(from));
+  return __riscv_vreinterpret_v_i16m1_f16m1(__riscv_vreinterpret_v_i32m1_i16m1(__riscv_vreinterpret_v_u32m1_i32m1(
+    __riscv_vlmul_trunc_v_u32m2_u32m1(__riscv_vwmaccu_vx_u32m2(
+    __riscv_vwaddu_vv_u32m2(data, data, unpacket_traits<Packet1Xs>::size), 0xffffu,
+    data, unpacket_traits<Packet1Xs>::size)))));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xh ploadquad<Packet1Xh>(const Eigen::half* from) {
-  Packet1Xsu idx = __riscv_vid_v_u16m1(unpacket_traits<Packet1Xh>::size);
-  idx = __riscv_vsrl_vx_u16m1(__riscv_vand_vx_u16m1(idx, 0xfffcu, unpacket_traits<Packet1Xh>::size), 1,
-                              unpacket_traits<Packet1Xh>::size);
-  return __riscv_vloxei16_v_f16m1(reinterpret_cast<const _Float16*>(from), idx, unpacket_traits<Packet1Xh>::size);
+  Packet1Xsu idx = __riscv_vsrl_vx_u16m1(__riscv_vid_v_u16m1(
+     unpacket_traits<Packet1Xh>::size), 2, unpacket_traits<Packet1Xh>::size);
+  return __riscv_vrgather_vv_f16m1(pload<Packet1Xh>(from), idx, unpacket_traits<Packet1Xh>::size);
 }
 
 template <>
@@ -521,6 +532,16 @@ EIGEN_STRONG_INLINE Packet2Xh plset<Packet2Xh>(const Eigen::half& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xh>(const Eigen::half* a, Packet2Xh& a0, Packet2Xh& a1, Packet2Xh& a2,
+                                               Packet2Xh& a3) {
+  vfloat16m2_t aa = __riscv_vle16_v_f16m2(reinterpret_cast<const _Float16*>(a), 4);
+  a0 = __riscv_vrgather_vx_f16m2(aa, 0, unpacket_traits<Packet2Xh>::size);
+  a1 = __riscv_vrgather_vx_f16m2(aa, 1, unpacket_traits<Packet2Xh>::size);
+  a2 = __riscv_vrgather_vx_f16m2(aa, 2, unpacket_traits<Packet2Xh>::size);
+  a3 = __riscv_vrgather_vx_f16m2(aa, 3, unpacket_traits<Packet2Xh>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xh padd<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
   return __riscv_vfadd_vv_f16m2(a, b, unpacket_traits<Packet2Xh>::size);
 }
@@ -686,17 +707,18 @@ EIGEN_STRONG_INLINE Packet2Xh ploadu<Packet2Xh>(const Eigen::half* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh ploaddup<Packet2Xh>(const Eigen::half* from) {
-  Packet2Xsu idx = __riscv_vid_v_u16m2(unpacket_traits<Packet2Xh>::size);
-  idx = __riscv_vand_vx_u16m2(idx, 0xfffeu, unpacket_traits<Packet2Xh>::size);
-  return __riscv_vloxei16_v_f16m2(reinterpret_cast<const _Float16*>(from), idx, unpacket_traits<Packet2Xh>::size);
+  Packet2Xsu data = __riscv_vreinterpret_v_f16m2_u16m2(pload<Packet2Xh>(from));
+  return __riscv_vreinterpret_v_i16m2_f16m2(__riscv_vreinterpret_v_i32m2_i16m2(__riscv_vreinterpret_v_u32m2_i32m2(
+    __riscv_vlmul_trunc_v_u32m4_u32m2(__riscv_vwmaccu_vx_u32m4(
+    __riscv_vwaddu_vv_u32m4(data, data, unpacket_traits<Packet2Xs>::size), 0xffffu,
+    data, unpacket_traits<Packet2Xs>::size)))));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh ploadquad<Packet2Xh>(const Eigen::half* from) {
-  Packet2Xsu idx = __riscv_vid_v_u16m2(unpacket_traits<Packet2Xh>::size);
-  idx = __riscv_vsrl_vx_u16m2(__riscv_vand_vx_u16m2(idx, 0xfffcu, unpacket_traits<Packet2Xh>::size), 1,
-                              unpacket_traits<Packet2Xs>::size);
-  return __riscv_vloxei16_v_f16m2(reinterpret_cast<const _Float16*>(from), idx, unpacket_traits<Packet2Xh>::size);
+  Packet2Xsu idx = __riscv_vsrl_vx_u16m2(__riscv_vid_v_u16m2(
+     unpacket_traits<Packet2Xh>::size), 2, unpacket_traits<Packet2Xh>::size);
+  return __riscv_vrgather_vv_f16m2(pload<Packet2Xh>(from), idx, unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -726,7 +748,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<Eigen::half, Packet2Xh>(Eigen::half* to, 
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half pfirst<Packet2Xh>(const Packet2Xh& a) {
-  return static_cast<Eigen::half>(__riscv_vfmv_f_s_f16m2_f16(a));
+  return numext::bit_cast<Eigen::half>(__riscv_vfmv_f_s_f16m2_f16(a));
 }
 
 template <>
