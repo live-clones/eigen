@@ -56,7 +56,6 @@ struct random_bits_impl {
   EIGEN_STATIC_ASSERT(std::is_unsigned<Scalar>::value, SCALAR MUST BE A BUILT - IN UNSIGNED INTEGER)
   using RandomDevice = eigen_random_device;
   using RandomReturnType = typename RandomDevice::ReturnType;
-  // static constexpr int kEntropy = RandomDevice::Entropy;
   static constexpr int kTotalBits = sizeof(Scalar) * CHAR_BIT;
   static constexpr int kEntropy = plain_enum_min(kTotalBits, RandomDevice::Entropy);
   // return a Scalar filled with numRandomBits beginning from the least significant bit
