@@ -241,7 +241,16 @@ template <>
 struct packet_traits<int> : default_packet_traits {
   typedef Packet8i type;
   typedef Packet4i half;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, size = 8 };
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    HasCmp = 1,
+    HasDiv = 1,
+#ifdef EIGEN_VECTORIZE_AVX2
+    HasFastIntDiv = 1,
+#endif
+    size = 8
+  };
 };
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
@@ -258,6 +267,9 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasCmp = 1,
     HasMin = 1,
     HasMax = 1,
+#ifdef EIGEN_VECTORIZE_AVX2
+    HasFastIntDiv = 1,
+#endif
     HasShift = 1
   };
 };
@@ -267,7 +279,7 @@ template <>
 struct packet_traits<int64_t> : default_packet_traits {
   typedef Packet4l type;
   typedef Packet2l half;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, size = 4 };
+  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasFastIntDiv = 1, size = 4 };
 };
 template <>
 struct packet_traits<uint64_t> : default_packet_traits {
@@ -284,7 +296,8 @@ struct packet_traits<uint64_t> : default_packet_traits {
     HasTranspose = 0,
     HasNegate = 0,
     HasCmp = 1,
-    HasShift = 1
+    HasShift = 1,
+    HasFastIntDiv = 1
   };
 };
 #endif
@@ -530,37 +543,16 @@ template <int N>
 EIGEN_STRONG_INLINE Packet4l plogical_shift_left(Packet4l a) {
   return _mm256_slli_epi64(a, N);
 }
-#ifdef EIGEN_VECTORIZE_AVX512FP16
 template <int N>
 EIGEN_STRONG_INLINE Packet4l parithmetic_shift_right(Packet4l a) {
+#ifdef EIGEN_VECTORIZE_AVX512VL
   return _mm256_srai_epi64(a, N);
-}
 #else
-template <int N>
-EIGEN_STRONG_INLINE std::enable_if_t<(N == 0), Packet4l> parithmetic_shift_right(Packet4l a) {
-  return a;
-}
-template <int N>
-EIGEN_STRONG_INLINE std::enable_if_t<(N > 0) && (N < 32), Packet4l> parithmetic_shift_right(Packet4l a) {
-  __m256i hi_word = _mm256_srai_epi32(a, N);
-  __m256i lo_word = _mm256_srli_epi64(a, N);
-  return _mm256_blend_epi32(hi_word, lo_word, 0b01010101);
-}
-template <int N>
-EIGEN_STRONG_INLINE std::enable_if_t<(N >= 32) && (N < 63), Packet4l> parithmetic_shift_right(Packet4l a) {
-  __m256i hi_word = _mm256_srai_epi32(a, 31);
-  __m256i lo_word = _mm256_shuffle_epi32(_mm256_srai_epi32(a, N - 32), (shuffle_mask<1, 1, 3, 3>::mask));
-  return _mm256_blend_epi32(hi_word, lo_word, 0b01010101);
-}
-template <int N>
-EIGEN_STRONG_INLINE std::enable_if_t<(N == 63), Packet4l> parithmetic_shift_right(Packet4l a) {
-  return _mm256_cmpgt_epi64(_mm256_setzero_si256(), a);
-}
-template <int N>
-EIGEN_STRONG_INLINE std::enable_if_t<(N < 0) || (N > 63), Packet4l> parithmetic_shift_right(Packet4l a) {
-  return parithmetic_shift_right<int(N & 63)>(a);
-}
+  Packet4l signbit = _mm256_cmpgt_epi64(_mm256_setzero_si256(), a);
+  return _mm256_or_si256(_mm256_slli_epi64(signbit, 64 - N), _mm256_srli_epi64(a, N));
 #endif
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet4l pload<Packet4l>(const int64_t* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return _mm256_load_si256(reinterpret_cast<const __m256i*>(from));
@@ -3043,6 +3035,62 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
 #endif
 
 /*---------------- end load/store segment support ----------------*/
+
+#ifdef EIGEN_VECTORIZE_AVX2
+
+template <>
+EIGEN_STRONG_INLINE Packet8ui puintdiv(const Packet8ui& a, uint32_t magic, int shift) {
+  constexpr int kShuffleMask = shuffle_mask<0, 2, 0, 2>::mask;
+  const __m256i cst_magic = _mm256_set1_epi32(magic);
+  const __m128i cst_shift = _mm_cvtsi32_si128(shift);
+
+  __m256i a_evn = _mm256_unpacklo_epi32(a, _mm256_setzero_si256());
+  __m256i a_odd = _mm256_unpackhi_epi32(a, _mm256_setzero_si256());
+
+  __m256i b_evn = _mm256_srli_epi64(_mm256_mul_epu32(a_evn, cst_magic), 32);
+  __m256i b_odd = _mm256_srli_epi64(_mm256_mul_epu32(a_odd, cst_magic), 32);
+
+  __m256i t_evn = _mm256_srl_epi64(_mm256_add_epi64(b_evn, a_evn), cst_shift);
+  __m256i t_odd = _mm256_srl_epi64(_mm256_add_epi64(b_odd, a_odd), cst_shift);
+
+  __m256i result =
+      _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(t_evn), _mm256_castsi256_ps(t_odd), kShuffleMask));
+
+  return result;
+}
+
+EIGEN_STRONG_INLINE Packet4ul pumuluh_4ul(Packet4ul a, Packet4ul b) {
+  using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
+
+  __m256i a_h = _mm256_srli_epi64(a, 32);
+  __m256i b_h = _mm256_srli_epi64(b, 32);
+
+  __m256i ab_hh = _mm256_mul_epu32(a_h, b_h);
+  __m256i ab_hl = _mm256_mul_epu32(a_h, b);
+  __m256i ab_lh = _mm256_mul_epu32(a, b_h);
+  __m256i ab_ll = _mm256_mul_epu32(a, b);
+
+  WidePacket4ul result(ab_hh, ab_ll);
+  result = padd_wide_unsigned(result, WidePacket4ul(_mm256_srli_epi64(ab_hl, 32), _mm256_slli_epi64(ab_hl, 32)));
+  result = padd_wide_unsigned(result, WidePacket4ul(_mm256_srli_epi64(ab_lh, 32), _mm256_slli_epi64(ab_lh, 32)));
+
+  return result.first;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4ul puintdiv(const Packet4ul& a, uint64_t magic, int shift) {
+  using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
+  const __m256i cst_magic = _mm256_set1_epi64x(magic);
+
+  Packet4ul b = pumuluh_4ul(a, cst_magic);
+  WidePacket4ul t = padd_wide_unsigned(b, a);
+  Packet4ul result = _mm256_srl_epi64(t.second, _mm_cvtsi32_si128(shift));
+  result = _mm256_or_si256(result, _mm256_sll_epi64(t.first, _mm_cvtsi32_si128(64 - shift)));
+
+  return result;
+}
+
+#endif
 
 }  // end namespace internal
 
