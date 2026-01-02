@@ -82,8 +82,8 @@ class PolynomialSolverBase {
   }
 
  protected:
-  template <typename squaredNormBinaryPredicate>
-  inline const RootType& selectComplexRoot_withRespectToNorm(squaredNormBinaryPredicate& pred) const {
+  template <typename Predicate>
+  inline const RootType& selectComplexRoot_withRespectToNorm(Predicate& pred) const {
     Index res = 0;
     RealScalar norm2 = numext::abs2(m_roots[0]);
     for (Index i = 1; i < m_roots.size(); ++i) {
@@ -114,9 +114,9 @@ class PolynomialSolverBase {
   }
 
  protected:
-  template <typename squaredRealPartBinaryPredicate>
+  template <typename Predicate>
   inline const RealScalar& selectRealRoot_withRespectToAbsRealPart(
-      squaredRealPartBinaryPredicate& pred, bool& hasArealRoot,
+      Predicate& pred, bool& hasArealRoot,
       const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     using std::abs;
     hasArealRoot = false;
@@ -145,9 +145,9 @@ class PolynomialSolverBase {
     return numext::real_ref(m_roots[res]);
   }
 
-  template <typename RealPartBinaryPredicate>
+  template <typename Predicate>
   inline const RealScalar& selectRealRoot_withRespectToRealPart(
-      RealPartBinaryPredicate& pred, bool& hasArealRoot,
+      Predicate& pred, bool& hasArealRoot,
       const RealScalar& absImaginaryThreshold = NumTraits<Scalar>::dummy_precision()) const {
     using std::abs;
     hasArealRoot = false;
