@@ -121,18 +121,18 @@ class PolynomialSolverBase {
     using std::abs;
     hasArealRoot = false;
     Index res = 0;
-    RealScalar abs2(0);
+    RealScalar val(0);
 
     for (Index i = 0; i < m_roots.size(); ++i) {
       if (abs(m_roots[i].imag()) <= absImaginaryThreshold) {
         if (!hasArealRoot) {
           hasArealRoot = true;
           res = i;
-          abs2 = m_roots[i].real() * m_roots[i].real();
+          val = abs(m_roots[i].real());
         } else {
-          const RealScalar currAbs2 = m_roots[i].real() * m_roots[i].real();
-          if (pred(currAbs2, abs2)) {
-            abs2 = currAbs2;
+          const RealScalar curr = abs(m_roots[i].real());
+          if (pred(curr, val)) {
+            val = curr;
             res = i;
           }
         }
