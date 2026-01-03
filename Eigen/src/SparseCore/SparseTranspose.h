@@ -28,17 +28,19 @@ class SparseTransposeImpl<MatrixType, CompressedAccessBit> : public SparseCompre
   typedef typename Base::Scalar Scalar;
   typedef typename Base::StorageIndex StorageIndex;
 
-  inline Index nonZeros() const { return derived().nestedExpression().nonZeros(); }
+  inline constexpr Index nonZeros() const { return derived().nestedExpression().nonZeros(); }
 
-  inline const Scalar* valuePtr() const { return derived().nestedExpression().valuePtr(); }
-  inline const StorageIndex* innerIndexPtr() const { return derived().nestedExpression().innerIndexPtr(); }
-  inline const StorageIndex* outerIndexPtr() const { return derived().nestedExpression().outerIndexPtr(); }
-  inline const StorageIndex* innerNonZeroPtr() const { return derived().nestedExpression().innerNonZeroPtr(); }
+  inline constexpr const Scalar* valuePtr() const { return derived().nestedExpression().valuePtr(); }
+  inline constexpr const StorageIndex* innerIndexPtr() const { return derived().nestedExpression().innerIndexPtr(); }
+  inline constexpr const StorageIndex* outerIndexPtr() const { return derived().nestedExpression().outerIndexPtr(); }
+  inline constexpr const StorageIndex* innerNonZeroPtr() const {
+    return derived().nestedExpression().innerNonZeroPtr();
+  }
 
-  inline Scalar* valuePtr() { return derived().nestedExpression().valuePtr(); }
-  inline StorageIndex* innerIndexPtr() { return derived().nestedExpression().innerIndexPtr(); }
-  inline StorageIndex* outerIndexPtr() { return derived().nestedExpression().outerIndexPtr(); }
-  inline StorageIndex* innerNonZeroPtr() { return derived().nestedExpression().innerNonZeroPtr(); }
+  inline constexpr Scalar* valuePtr() { return derived().nestedExpression().valuePtr(); }
+  inline constexpr StorageIndex* innerIndexPtr() { return derived().nestedExpression().innerIndexPtr(); }
+  inline constexpr StorageIndex* outerIndexPtr() { return derived().nestedExpression().outerIndexPtr(); }
+  inline constexpr StorageIndex* innerNonZeroPtr() { return derived().nestedExpression().innerNonZeroPtr(); }
 };
 }  // namespace internal
 
@@ -57,20 +59,20 @@ struct unary_evaluator<Transpose<ArgType>, IteratorBased> : public evaluator_bas
  public:
   typedef Transpose<ArgType> XprType;
 
-  inline Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
+  inline constexpr Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
 
   class InnerIterator : public EvalIterator {
    public:
-    EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& unaryOp, Index outer)
+    EIGEN_STRONG_INLINE constexpr InnerIterator(const unary_evaluator& unaryOp, Index outer)
         : EvalIterator(unaryOp.m_argImpl, outer) {}
 
-    Index row() const { return EvalIterator::col(); }
-    Index col() const { return EvalIterator::row(); }
+    constexpr Index row() const { return EvalIterator::col(); }
+    constexpr Index col() const { return EvalIterator::row(); }
   };
 
   enum { CoeffReadCost = evaluator<ArgType>::CoeffReadCost, Flags = XprType::Flags };
 
-  explicit unary_evaluator(const XprType& op) : m_argImpl(op.nestedExpression()) {}
+  constexpr explicit unary_evaluator(const XprType& op) : m_argImpl(op.nestedExpression()) {}
 
  protected:
   evaluator<ArgType> m_argImpl;

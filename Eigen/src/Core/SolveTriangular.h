@@ -55,7 +55,7 @@ struct triangular_solver_selector<Lhs, Rhs, Side, Mode, NoUnrolling, 1> {
   typedef blas_traits<Lhs> LhsProductTraits;
   typedef typename LhsProductTraits::ExtractType ActualLhsType;
   typedef Map<Matrix<RhsScalar, Dynamic, 1>, Aligned> MappedRhs;
-  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs& lhs, Rhs& rhs) {
     ActualLhsType actualLhs = LhsProductTraits::extract(lhs);
 
     // FIXME find a way to allow an inner stride if packet_traits<Scalar>::size==1
@@ -83,7 +83,7 @@ struct triangular_solver_selector<Lhs, Rhs, Side, Mode, NoUnrolling, Dynamic> {
   typedef blas_traits<Lhs> LhsProductTraits;
   typedef typename LhsProductTraits::DirectLinearAccessType ActualLhsType;
 
-  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs& lhs, Rhs& rhs) {
     add_const_on_value_type_t<ActualLhsType> actualLhs = LhsProductTraits::extract(lhs);
 
     const Index size = lhs.rows();
@@ -124,7 +124,7 @@ struct triangular_solver_unroller<Lhs, Rhs, Mode, LoopIndex, Size, false> {
     DiagIndex = IsLower ? LoopIndex : Size - LoopIndex - 1,
     StartIndex = IsLower ? 0 : DiagIndex + 1
   };
-  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs& lhs, Rhs& rhs) {
     if (LoopIndex > 0)
       rhs.coeffRef(DiagIndex) -= lhs.row(DiagIndex)
                                      .template segment<LoopIndex>(StartIndex)
@@ -140,19 +140,19 @@ struct triangular_solver_unroller<Lhs, Rhs, Mode, LoopIndex, Size, false> {
 
 template <typename Lhs, typename Rhs, int Mode, int LoopIndex, int Size>
 struct triangular_solver_unroller<Lhs, Rhs, Mode, LoopIndex, Size, true> {
-  static EIGEN_DEVICE_FUNC void run(const Lhs&, Rhs&) {}
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs&, Rhs&) {}
 };
 
 template <typename Lhs, typename Rhs, int Mode>
 struct triangular_solver_selector<Lhs, Rhs, OnTheLeft, Mode, CompleteUnrolling, 1> {
-  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs& lhs, Rhs& rhs) {
     triangular_solver_unroller<Lhs, Rhs, Mode, 0, Rhs::SizeAtCompileTime>::run(lhs, rhs);
   }
 };
 
 template <typename Lhs, typename Rhs, int Mode>
 struct triangular_solver_selector<Lhs, Rhs, OnTheRight, Mode, CompleteUnrolling, 1> {
-  static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC constexpr void run(const Lhs& lhs, Rhs& rhs) {
     Transpose<const Lhs> trLhs(lhs);
     Transpose<Rhs> trRhs(rhs);
 
@@ -171,7 +171,7 @@ struct triangular_solver_selector<Lhs, Rhs, OnTheRight, Mode, CompleteUnrolling,
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename MatrixType, unsigned int Mode>
 template <int Side, typename OtherDerived>
-EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType, Mode, Dense>::solveInPlace(
+EIGEN_DEVICE_FUNC constexpr void TriangularViewImpl<MatrixType, Mode, Dense>::solveInPlace(
     const MatrixBase<OtherDerived>& _other) const {
   OtherDerived& other = _other.const_cast_derived();
   eigen_assert(derived().cols() == derived().rows() && ((Side == OnTheLeft && derived().cols() == other.rows()) ||
@@ -196,7 +196,7 @@ EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType, Mode, Dense>::solveInPlace
 
 template <typename Derived, unsigned int Mode>
 template <int Side, typename Other>
-const internal::triangular_solve_retval<Side, TriangularView<Derived, Mode>, Other>
+constexpr const internal::triangular_solve_retval<Side, TriangularView<Derived, Mode>, Other>
 TriangularViewImpl<Derived, Mode, Dense>::solve(const MatrixBase<Other>& other) const {
   return internal::triangular_solve_retval<Side, TriangularViewType, Other>(derived(), other.derived());
 }
@@ -214,13 +214,13 @@ struct triangular_solve_retval : public ReturnByValue<triangular_solve_retval<Si
   typedef remove_all_t<typename Rhs::Nested> RhsNestedCleaned;
   typedef ReturnByValue<triangular_solve_retval> Base;
 
-  triangular_solve_retval(const TriangularType& tri, const Rhs& rhs) : m_triangularMatrix(tri), m_rhs(rhs) {}
+  constexpr triangular_solve_retval(const TriangularType& tri, const Rhs& rhs) : m_triangularMatrix(tri), m_rhs(rhs) {}
 
   constexpr Index rows() const noexcept { return m_rhs.rows(); }
   constexpr Index cols() const noexcept { return m_rhs.cols(); }
 
   template <typename Dest>
-  inline void evalTo(Dest& dst) const {
+  inline constexpr void evalTo(Dest& dst) const {
     if (!is_same_dense(dst, m_rhs)) dst = m_rhs;
     m_triangularMatrix.template solveInPlace<Side>(dst);
   }

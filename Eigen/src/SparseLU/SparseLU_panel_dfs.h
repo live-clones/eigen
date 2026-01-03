@@ -40,15 +40,15 @@ namespace internal {
 template <typename IndexVector>
 struct panel_dfs_traits {
   typedef typename IndexVector::Scalar StorageIndex;
-  panel_dfs_traits(Index jcol, StorageIndex* marker) : m_jcol(jcol), m_marker(marker) {}
-  bool update_segrep(Index krep, StorageIndex jj) {
+  constexpr panel_dfs_traits(Index jcol, StorageIndex* marker) : m_jcol(jcol), m_marker(marker) {}
+  constexpr bool update_segrep(Index krep, StorageIndex jj) {
     if (m_marker[krep] < m_jcol) {
       m_marker[krep] = jj;
       return true;
     }
     return false;
   }
-  void mem_expand(IndexVector& /*glu.lsub*/, Index /*nextl*/, Index /*chmark*/) {}
+  constexpr void mem_expand(IndexVector& /*glu.lsub*/, Index /*nextl*/, Index /*chmark*/) {}
   enum { ExpandMem = false };
   Index m_jcol;
   StorageIndex* m_marker;
@@ -56,11 +56,12 @@ struct panel_dfs_traits {
 
 template <typename Scalar, typename StorageIndex>
 template <typename Traits>
-void SparseLUImpl<Scalar, StorageIndex>::dfs_kernel(const StorageIndex jj, IndexVector& perm_r, Index& nseg,
-                                                    IndexVector& panel_lsub, IndexVector& segrep,
-                                                    Ref<IndexVector> repfnz_col, IndexVector& xprune,
-                                                    Ref<IndexVector> marker, IndexVector& parent, IndexVector& xplore,
-                                                    GlobalLU_t& glu, Index& nextl_col, Index krow, Traits& traits) {
+constexpr void SparseLUImpl<Scalar, StorageIndex>::dfs_kernel(const StorageIndex jj, IndexVector& perm_r, Index& nseg,
+                                                              IndexVector& panel_lsub, IndexVector& segrep,
+                                                              Ref<IndexVector> repfnz_col, IndexVector& xprune,
+                                                              Ref<IndexVector> marker, IndexVector& parent,
+                                                              IndexVector& xplore, GlobalLU_t& glu, Index& nextl_col,
+                                                              Index krow, Traits& traits) {
   StorageIndex kmark = marker(krow);
 
   // For each unmarked krow of jj
@@ -194,11 +195,10 @@ void SparseLUImpl<Scalar, StorageIndex>::dfs_kernel(const StorageIndex jj, Index
  */
 
 template <typename Scalar, typename StorageIndex>
-void SparseLUImpl<Scalar, StorageIndex>::panel_dfs(const Index m, const Index w, const Index jcol, MatrixType& A,
-                                                   IndexVector& perm_r, Index& nseg, ScalarVector& dense,
-                                                   IndexVector& panel_lsub, IndexVector& segrep, IndexVector& repfnz,
-                                                   IndexVector& xprune, IndexVector& marker, IndexVector& parent,
-                                                   IndexVector& xplore, GlobalLU_t& glu) {
+constexpr void SparseLUImpl<Scalar, StorageIndex>::panel_dfs(
+    const Index m, const Index w, const Index jcol, MatrixType& A, IndexVector& perm_r, Index& nseg,
+    ScalarVector& dense, IndexVector& panel_lsub, IndexVector& segrep, IndexVector& repfnz, IndexVector& xprune,
+    IndexVector& marker, IndexVector& parent, IndexVector& xplore, GlobalLU_t& glu) {
   Index nextl_col;  // Next available position in panel_lsub[*,jj]
 
   // Initialize pointers

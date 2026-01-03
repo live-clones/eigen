@@ -91,6 +91,7 @@
 #endif
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <limits>
 #include <climits>  // for CHAR_BIT
 // for min/max:
@@ -195,6 +196,9 @@ using std::ptrdiff_t;
 #include "src/Core/util/SymbolicIndex.h"
 #include "src/Core/util/EmulateArray.h"
 #include "src/Core/util/MoreMeta.h"
+
+// for compile-time math
+#include "src/gcem/gcem.hpp"
 
 #include "src/Core/NumTraits.h"
 #include "src/Core/MathFunctions.h"

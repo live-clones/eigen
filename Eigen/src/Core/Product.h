@@ -88,11 +88,11 @@ struct product_transpose_helper {
   using AdjointType = std::conditional_t<NumTraits<Scalar>::IsComplex, ConjugateTransposeType, TransposeType>;
 
   // return (lhs * rhs)^T
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TransposeType run_transpose(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TransposeType run_transpose(const Derived& derived) {
     return TransposeType(derived);
   }
   // return (lhs * rhs)^H
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AdjointType run_adjoint(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr AdjointType run_adjoint(const Derived& derived) {
     return AdjointType(TransposeType(derived));
   }
 };
@@ -118,11 +118,11 @@ struct product_transpose_helper<Lhs, Rhs, Option, TransposeProductEnum::MatrixMa
   using AdjointType = Product<RhsAdjointType, LhsAdjointType, Option>;
 
   // return rhs^T * lhs^T
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TransposeType run_transpose(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TransposeType run_transpose(const Derived& derived) {
     return TransposeType(RhsTransposeType(derived.rhs()), LhsTransposeType(derived.lhs()));
   }
   // return rhs^H * lhs^H
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AdjointType run_adjoint(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr AdjointType run_adjoint(const Derived& derived) {
     return AdjointType(RhsAdjointType(RhsTransposeType(derived.rhs())),
                        LhsAdjointType(LhsTransposeType(derived.lhs())));
   }
@@ -144,11 +144,11 @@ struct product_transpose_helper<Lhs, Rhs, Option, TransposeProductEnum::Permutat
   using AdjointType = Product<RhsAdjointType, LhsInverseType, Option>;
 
   // return rhs^T * lhs^-1
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TransposeType run_transpose(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TransposeType run_transpose(const Derived& derived) {
     return TransposeType(RhsTransposeType(derived.rhs()), LhsInverseType(derived.lhs()));
   }
   // return rhs^H * lhs^-1
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AdjointType run_adjoint(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr AdjointType run_adjoint(const Derived& derived) {
     return AdjointType(RhsAdjointType(RhsTransposeType(derived.rhs())), LhsInverseType(derived.lhs()));
   }
 };
@@ -169,11 +169,11 @@ struct product_transpose_helper<Lhs, Rhs, Option, TransposeProductEnum::MatrixPe
   using AdjointType = Product<RhsInverseType, LhsAdjointType, Option>;
 
   // return rhs^-1 * lhs^T
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TransposeType run_transpose(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TransposeType run_transpose(const Derived& derived) {
     return TransposeType(RhsInverseType(derived.rhs()), LhsTransposeType(derived.lhs()));
   }
   // return rhs^-1 * lhs^H
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AdjointType run_adjoint(const Derived& derived) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr AdjointType run_adjoint(const Derived& derived) {
     return AdjointType(RhsInverseType(derived.rhs()), LhsAdjointType(LhsTransposeType(derived.lhs())));
   }
 };
@@ -219,7 +219,7 @@ class Product
   using TransposeReturnType = typename internal::product_transpose_helper<Lhs, Rhs, Option>::TransposeType;
   using AdjointReturnType = typename internal::product_transpose_helper<Lhs, Rhs, Option>::AdjointType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Product(const Lhs& lhs, const Rhs& rhs) : m_lhs(lhs), m_rhs(rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Product(const Lhs& lhs, const Rhs& rhs) : m_lhs(lhs), m_rhs(rhs) {
     eigen_assert(lhs.cols() == rhs.rows() && "invalid matrix product" &&
                  "if you wanted a coeff-wise or a dot product use the respective explicit functions");
   }
@@ -227,13 +227,13 @@ class Product
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const noexcept { return m_lhs.rows(); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const noexcept { return m_rhs.cols(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const LhsNestedCleaned& lhs() const { return m_lhs; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const RhsNestedCleaned& rhs() const { return m_rhs; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const LhsNestedCleaned& lhs() const { return m_lhs; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const RhsNestedCleaned& rhs() const { return m_rhs; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TransposeReturnType transpose() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TransposeReturnType transpose() const {
     return internal::product_transpose_helper<Lhs, Rhs, Option>::run_transpose(*this);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AdjointReturnType adjoint() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr AdjointReturnType adjoint() const {
     return internal::product_transpose_helper<Lhs, Rhs, Option>::run_adjoint(*this);
   }
 
@@ -258,7 +258,7 @@ class dense_product_base<Lhs, Rhs, Option, InnerProduct>
   using Base::derived;
   typedef typename Base::Scalar Scalar;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator const Scalar() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr operator const Scalar() const {
     return internal::evaluator<ProductXpr>(derived()).coeff(0, 0);
   }
 };
@@ -287,14 +287,14 @@ class ProductImpl<Lhs, Rhs, Option, Dense> : public internal::dense_product_base
   };
 
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar coeff(Index row, Index col) const {
     EIGEN_STATIC_ASSERT(EnableCoeff, THIS_METHOD_IS_ONLY_FOR_INNER_OR_LAZY_PRODUCTS);
     eigen_assert((Option == LazyProduct) || (this->rows() == 1 && this->cols() == 1));
 
     return internal::evaluator<Derived>(derived()).coeff(row, col);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index i) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar coeff(Index i) const {
     EIGEN_STATIC_ASSERT(EnableCoeff, THIS_METHOD_IS_ONLY_FOR_INNER_OR_LAZY_PRODUCTS);
     eigen_assert((Option == LazyProduct) || (this->rows() == 1 && this->cols() == 1));
 
