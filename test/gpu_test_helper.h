@@ -389,6 +389,20 @@ void print_gpu_device_info() {
   std::cout << "  warpSize:                    " << deviceProp.warpSize << std::endl;
   std::cout << "  regsPerBlock:                " << deviceProp.regsPerBlock << std::endl;
   std::cout << "  concurrentKernels:           " << deviceProp.concurrentKernels << std::endl;
+#if !defined(EIGEN_CUDA_SDK_VER) || EIGEN_CUDA_SDK_VER < 13000
+  std::cout << "  clockRate:                   " << deviceProp.clockRate << std::endl;
+#else
+  int cudaDeviceAttr = 0;
+  cudaDeviceGetAttribute(&cudaDeviceAttr, cudaDevAttrClockRate, device);
+  std::cout << "  clockRate:                   " << cudaDeviceAttr << std::endl;
+#endif
+  std::cout << "  canMapHostMemory:            " << deviceProp.canMapHostMemory << std::endl;
+#if !defined(EIGEN_CUDA_SDK_VER) || EIGEN_CUDA_SDK_VER < 13000
+  std::cout << "  computeMode:                 " << deviceProp.computeMode << std::endl;
+#else
+  cudaDeviceGetAttribute(&cudaDeviceAttr, cudaDevAttrComputeMode, device);
+  std::cout << "  computeMode:                 " << cudaDeviceAttr << std::endl;
+#endif
 }
 
 #endif  // EIGEN_GPUCC

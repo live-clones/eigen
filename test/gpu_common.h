@@ -117,7 +117,7 @@ struct compile_time_device_info {
 
 void ei_test_init_gpu() {
   int device = 0;
-  gpuDeviceProp_t deviceProp;
+  int cudaDeviceAttr = 0;
   gpuGetDeviceProperties(&deviceProp, device);
 
   ArrayXi dummy(1), info(10);
@@ -153,9 +153,20 @@ void ei_test_init_gpu() {
   std::cout << "  warpSize:                    " << deviceProp.warpSize << "\n";
   std::cout << "  regsPerBlock:                " << deviceProp.regsPerBlock << "\n";
   std::cout << "  concurrentKernels:           " << deviceProp.concurrentKernels << "\n";
-  std::cout << "  clockRate:                   " << deviceProp.clockRate << "\n";
+#if !defined(EIGEN_CUDA_SDK_VER) || EIGEN_CUDA_SDK_VER < 13000
+  std::cout << "  clockRate:                   " << deviceProp.clockRate << std::endl;
+#else
+  gpuDeviceProp_t deviceProp;
+  cudaDeviceGetAttribute(&cudaDeviceAttr, cudaDevAttrClockRate, device);
+  std::cout << "  clockRate:                   " << cudaDeviceAttr << std::endl;
+#endif
   std::cout << "  canMapHostMemory:            " << deviceProp.canMapHostMemory << "\n";
-  std::cout << "  computeMode:                 " << deviceProp.computeMode << "\n";
+#if !defined(EIGEN_CUDA_SDK_VER) || EIGEN_CUDA_SDK_VER < 13000
+  std::cout << "  computeMode:                 " << deviceProp.computeMode << std::endl;
+#else
+  cudaDeviceGetAttribute(&cudaDeviceAttr, cudaDevAttrComputeMode, device);
+  std::cout << "  computeMode:                 " << cudaDeviceAttr << std::endl;
+#endif
 }
 
 #endif  // EIGEN_TEST_GPU_COMMON_H
