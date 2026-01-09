@@ -117,7 +117,7 @@ struct compile_time_device_info {
 
 void ei_test_init_gpu() {
   int device = 0;
-  int cudaDeviceAttr = 0;
+  gpuDeviceProp_t deviceProp;
   gpuGetDeviceProperties(&deviceProp, device);
 
   ArrayXi dummy(1), info(10);
@@ -156,7 +156,7 @@ void ei_test_init_gpu() {
 #if !defined(EIGEN_CUDA_SDK_VER) || EIGEN_CUDA_SDK_VER < 13000
   std::cout << "  clockRate:                   " << deviceProp.clockRate << std::endl;
 #else
-  gpuDeviceProp_t deviceProp;
+  int cudaDeviceAttr = 0;
   cudaDeviceGetAttribute(&cudaDeviceAttr, cudaDevAttrClockRate, device);
   std::cout << "  clockRate:                   " << cudaDeviceAttr << std::endl;
 #endif
