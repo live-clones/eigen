@@ -153,6 +153,7 @@ void ei_test_init_gpu() {
   std::cout << "  warpSize:                    " << deviceProp.warpSize << "\n";
   std::cout << "  regsPerBlock:                " << deviceProp.regsPerBlock << "\n";
   std::cout << "  concurrentKernels:           " << deviceProp.concurrentKernels << "\n";
+  std::cout << "  canMapHostMemory:            " << deviceProp.canMapHostMemory << "\n";
 }
 
 #endif  // EIGEN_TEST_GPU_COMMON_H
