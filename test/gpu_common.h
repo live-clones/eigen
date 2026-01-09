@@ -153,20 +153,6 @@ void ei_test_init_gpu() {
   std::cout << "  warpSize:                    " << deviceProp.warpSize << "\n";
   std::cout << "  regsPerBlock:                " << deviceProp.regsPerBlock << "\n";
   std::cout << "  concurrentKernels:           " << deviceProp.concurrentKernels << "\n";
-#if !defined(EIGEN_CUDA_SDK_VER) || EIGEN_CUDA_SDK_VER < 13000
-  std::cout << "  clockRate:                   " << deviceProp.clockRate << std::endl;
-#else
-  int cudaDeviceAttr = 0;
-  cudaDeviceGetAttribute(&cudaDeviceAttr, cudaDevAttrClockRate, device);
-  std::cout << "  clockRate:                   " << cudaDeviceAttr << std::endl;
-#endif
-  std::cout << "  canMapHostMemory:            " << deviceProp.canMapHostMemory << "\n";
-#if !defined(EIGEN_CUDA_SDK_VER) || EIGEN_CUDA_SDK_VER < 13000
-  std::cout << "  computeMode:                 " << deviceProp.computeMode << std::endl;
-#else
-  cudaDeviceGetAttribute(&cudaDeviceAttr, cudaDevAttrComputeMode, device);
-  std::cout << "  computeMode:                 " << cudaDeviceAttr << std::endl;
-#endif
 }
 
 #endif  // EIGEN_TEST_GPU_COMMON_H
