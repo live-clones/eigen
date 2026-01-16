@@ -17,9 +17,17 @@
 namespace Eigen {
 
 namespace internal {
-template <int n>
+template <int N>
 struct decrement_size {
-  enum { ret = n == Dynamic ? n : n - 1 };
+  static constexpr int ret = N - 1;
+};
+template <>
+struct decrement_size<0> {
+  static constexpr int ret = 0;
+};
+template <>
+struct decrement_size<Dynamic> {
+  static constexpr int ret = Dynamic;
 };
 }  // namespace internal
 
@@ -67,9 +75,9 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
   using numext::conj;
 
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(EssentialPart)
-  VectorBlock<const Derived, EssentialPart::SizeAtCompileTime> tail(derived(), 1, size() - 1);
+  const VectorBlock<const Derived, EssentialPart::SizeAtCompileTime> tail(derived(), 1, size() - 1);
 
-  RealScalar tailSqNorm = size() == 1 ? RealScalar(0) : tail.squaredNorm();
+  RealScalar tailSqNorm = size() == 1 ? RealScalar(0) : tail.unwind().squaredNorm();
   Scalar c0 = coeff(0);
   const RealScalar tol = (std::numeric_limits<RealScalar>::min)();
 
@@ -80,7 +88,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
   } else {
     beta = numext::sqrt(numext::abs2(c0) + tailSqNorm);
     if (numext::real(c0) >= RealScalar(0)) beta = -beta;
-    essential = tail / (c0 - beta);
+    essential = tail.unwind() / (c0 - beta);
     tau = conj((beta - c0) / beta);
   }
 }
@@ -111,7 +119,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const Esse
     Block<Derived, EssentialPart::SizeAtCompileTime, Derived::ColsAtCompileTime> bottom(derived(), 1, 0, rows() - 1,
                                                                                         cols());
     tmp.noalias() = essential.adjoint() * bottom;
-    tmp += this->row(0);
+    tmp = tmp + this->row(0);
     this->row(0) -= tau * tmp;
     bottom.noalias() -= tau * essential * tmp;
   }
@@ -143,7 +151,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheRight(const Ess
     Block<Derived, Derived::RowsAtCompileTime, EssentialPart::SizeAtCompileTime> right(derived(), 0, 1, rows(),
                                                                                        cols() - 1);
     tmp.noalias() = right * essential;
-    tmp += this->col(0);
+    tmp = tmp + this->col(0);
     this->col(0) -= tau * tmp;
     right.noalias() -= tau * tmp * essential.adjoint();
   }
