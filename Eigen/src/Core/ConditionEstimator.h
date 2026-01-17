@@ -19,7 +19,7 @@ namespace internal {
 
 template <typename Vector, typename RealVector, bool IsComplex>
 struct rcond_compute_sign {
-  static inline Vector run(const Vector& v) {
+  static inline constexpr Vector run(const Vector& v) {
     const RealVector v_abs = v.cwiseAbs();
     return (v_abs.array() == static_cast<typename Vector::RealScalar>(0))
         .select(Vector::Ones(v.size()), v.cwiseQuotient(v_abs));
@@ -29,7 +29,7 @@ struct rcond_compute_sign {
 // Partial specialization to avoid elementwise division for real vectors.
 template <typename Vector>
 struct rcond_compute_sign<Vector, Vector, false> {
-  static inline Vector run(const Vector& v) {
+  static inline constexpr Vector run(const Vector& v) {
     return (v.array() < static_cast<typename Vector::RealScalar>(0))
         .select(-Vector::Ones(v.size()), Vector::Ones(v.size()));
   }
@@ -56,7 +56,7 @@ struct rcond_compute_sign<Vector, Vector, false> {
  * \sa FullPivLU, PartialPivLU, LDLT, LLT.
  */
 template <typename Decomposition>
-typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomposition& dec) {
+constexpr typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomposition& dec) {
   typedef typename Decomposition::MatrixType MatrixType;
   typedef typename Decomposition::Scalar Scalar;
   typedef typename Decomposition::RealScalar RealScalar;
@@ -154,8 +154,8 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
  * \sa FullPivLU, PartialPivLU, LDLT, LLT.
  */
 template <typename Decomposition>
-typename Decomposition::RealScalar rcond_estimate_helper(typename Decomposition::RealScalar matrix_norm,
-                                                         const Decomposition& dec) {
+constexpr typename Decomposition::RealScalar rcond_estimate_helper(typename Decomposition::RealScalar matrix_norm,
+                                                                   const Decomposition& dec) {
   typedef typename Decomposition::RealScalar RealScalar;
   eigen_assert(dec.rows() == dec.cols());
   if (dec.rows() == 0) return NumTraits<RealScalar>::infinity();

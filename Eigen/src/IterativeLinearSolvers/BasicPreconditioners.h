@@ -44,10 +44,10 @@ class DiagonalPreconditioner {
   typedef typename Vector::StorageIndex StorageIndex;
   enum { ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
 
-  DiagonalPreconditioner() : m_isInitialized(false) {}
+  constexpr DiagonalPreconditioner() = default;
 
   template <typename MatType>
-  explicit DiagonalPreconditioner(const MatType& mat) : m_invdiag(mat.cols()) {
+  constexpr explicit DiagonalPreconditioner(const MatType& mat) : m_invdiag(mat.cols()) {
     compute(mat);
   }
 
@@ -55,12 +55,12 @@ class DiagonalPreconditioner {
   constexpr Index cols() const noexcept { return m_invdiag.size(); }
 
   template <typename MatType>
-  DiagonalPreconditioner& analyzePattern(const MatType&) {
+  constexpr DiagonalPreconditioner& analyzePattern(const MatType&) {
     return *this;
   }
 
   template <typename MatType>
-  DiagonalPreconditioner& factorize(const MatType& mat) {
+  constexpr DiagonalPreconditioner& factorize(const MatType& mat) {
     m_invdiag.resize(mat.cols());
     for (int j = 0; j < mat.outerSize(); ++j) {
       typename MatType::InnerIterator it(mat, j);
@@ -75,29 +75,29 @@ class DiagonalPreconditioner {
   }
 
   template <typename MatType>
-  DiagonalPreconditioner& compute(const MatType& mat) {
+  constexpr DiagonalPreconditioner& compute(const MatType& mat) {
     return factorize(mat);
   }
 
   /** \internal */
   template <typename Rhs, typename Dest>
-  void _solve_impl(const Rhs& b, Dest& x) const {
+  constexpr void _solve_impl(const Rhs& b, Dest& x) const {
     x = m_invdiag.array() * b.array();
   }
 
   template <typename Rhs>
-  inline const Solve<DiagonalPreconditioner, Rhs> solve(const MatrixBase<Rhs>& b) const {
+  inline constexpr const Solve<DiagonalPreconditioner, Rhs> solve(const MatrixBase<Rhs>& b) const {
     eigen_assert(m_isInitialized && "DiagonalPreconditioner is not initialized.");
     eigen_assert(m_invdiag.size() == b.rows() &&
                  "DiagonalPreconditioner::solve(): invalid number of rows of the right hand side matrix b");
     return Solve<DiagonalPreconditioner, Rhs>(*this, b.derived());
   }
 
-  ComputationInfo info() { return Success; }
+  constexpr ComputationInfo info() { return Success; }
 
  protected:
   Vector m_invdiag;
-  bool m_isInitialized;
+  bool m_isInitialized = false;
 };
 
 /** \ingroup IterativeLinearSolvers_Module
@@ -125,20 +125,20 @@ class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
   using Base::m_invdiag;
 
  public:
-  LeastSquareDiagonalPreconditioner() : Base() {}
+  constexpr LeastSquareDiagonalPreconditioner() = default;
 
   template <typename MatType>
-  explicit LeastSquareDiagonalPreconditioner(const MatType& mat) : Base() {
+  constexpr explicit LeastSquareDiagonalPreconditioner(const MatType& mat) : Base() {
     compute(mat);
   }
 
   template <typename MatType>
-  LeastSquareDiagonalPreconditioner& analyzePattern(const MatType&) {
+  constexpr LeastSquareDiagonalPreconditioner& analyzePattern(const MatType&) {
     return *this;
   }
 
   template <typename MatType>
-  LeastSquareDiagonalPreconditioner& factorize(const MatType& mat) {
+  constexpr LeastSquareDiagonalPreconditioner& factorize(const MatType& mat) {
     // Compute the inverse squared-norm of each column of mat
     m_invdiag.resize(mat.cols());
     if (MatType::IsRowMajor) {
@@ -162,11 +162,11 @@ class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
   }
 
   template <typename MatType>
-  LeastSquareDiagonalPreconditioner& compute(const MatType& mat) {
+  constexpr LeastSquareDiagonalPreconditioner& compute(const MatType& mat) {
     return factorize(mat);
   }
 
-  ComputationInfo info() { return Success; }
+  constexpr ComputationInfo info() { return Success; }
 
  protected:
 };
@@ -180,32 +180,32 @@ class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
  */
 class IdentityPreconditioner {
  public:
-  IdentityPreconditioner() {}
+  constexpr IdentityPreconditioner() = default;
 
   template <typename MatrixType>
-  explicit IdentityPreconditioner(const MatrixType&) {}
+  constexpr explicit IdentityPreconditioner(const MatrixType&) {}
 
   template <typename MatrixType>
-  IdentityPreconditioner& analyzePattern(const MatrixType&) {
+  constexpr IdentityPreconditioner& analyzePattern(const MatrixType&) {
     return *this;
   }
 
   template <typename MatrixType>
-  IdentityPreconditioner& factorize(const MatrixType&) {
+  constexpr IdentityPreconditioner& factorize(const MatrixType&) {
     return *this;
   }
 
   template <typename MatrixType>
-  IdentityPreconditioner& compute(const MatrixType&) {
+  constexpr IdentityPreconditioner& compute(const MatrixType&) {
     return *this;
   }
 
   template <typename Rhs>
-  inline const Rhs& solve(const Rhs& b) const {
+  inline constexpr const Rhs& solve(const Rhs& b) const {
     return b;
   }
 
-  ComputationInfo info() { return Success; }
+  constexpr ComputationInfo info() { return Success; }
 };
 
 }  // end namespace Eigen

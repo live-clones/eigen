@@ -23,7 +23,7 @@
 #endif
 
 #if defined(EIGEN_HIP_DEVICE_COMPILE)
-#include "Eigen/src/Core/arch/HIP/hcc/math_constants.h"
+// #include "Eigen/src/Core/arch/HIP/hcc/math_constants.h"
 #endif
 
 #endif
@@ -274,12 +274,11 @@ using std::is_convertible;
  * A base class do disable default copy ctor and copy assignment operator.
  */
 class noncopyable {
-  EIGEN_DEVICE_FUNC noncopyable(const noncopyable&);
-  EIGEN_DEVICE_FUNC const noncopyable& operator=(const noncopyable&);
+  EIGEN_DEVICE_FUNC constexpr noncopyable(const noncopyable&);
+  EIGEN_DEVICE_FUNC constexpr const noncopyable& operator=(const noncopyable&);
 
  protected:
-  EIGEN_DEVICE_FUNC noncopyable() {}
-  EIGEN_DEVICE_FUNC ~noncopyable() {}
+  EIGEN_DEVICE_FUNC constexpr noncopyable() = default;
 };
 
 /** \internal
@@ -416,9 +415,9 @@ struct meta_no {
 template <typename T>
 struct has_ReturnType {
   template <typename C>
-  static meta_yes testFunctor(C const*, typename C::ReturnType const* = 0);
+  static constexpr meta_yes testFunctor(C const*, typename C::ReturnType const* = 0);
   template <typename C>
-  static meta_no testFunctor(...);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor<T>(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -429,8 +428,8 @@ const T* return_ptr();
 template <typename T, typename IndexType = Index>
 struct has_nullary_operator {
   template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()()) > 0)>* = 0);
-  static meta_no testFunctor(...);
+  static constexpr meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()()) > 0)>* = 0);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -438,8 +437,9 @@ struct has_nullary_operator {
 template <typename T, typename IndexType = Index>
 struct has_unary_operator {
   template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+  static constexpr meta_yes testFunctor(C const*,
+                                        std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0))) > 0)>* = 0);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -447,9 +447,9 @@ struct has_unary_operator {
 template <typename T, typename IndexType = Index>
 struct has_binary_operator {
   template <typename C>
-  static meta_yes testFunctor(
+  static constexpr meta_yes testFunctor(
       C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0), IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -524,14 +524,14 @@ namespace numext {
 
 #if defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename T>
-EIGEN_DEVICE_FUNC void swap(T& a, T& b) {
+EIGEN_DEVICE_FUNC constexpr void swap(T& a, T& b) {
   T tmp = b;
   b = a;
   a = tmp;
 }
 #else
 template <typename T>
-EIGEN_STRONG_INLINE void swap(T& a, T& b) {
+EIGEN_STRONG_INLINE constexpr void swap(T& a, T& b) {
   std::swap(a, b);
 }
 #endif
@@ -550,7 +550,7 @@ struct equal_strict_impl<X, Y, true, false, true, true> {
   // Y is a signed integer
   // if Y is non-negative, it may be represented exactly as its unsigned counterpart.
   using UnsignedY = typename internal::make_unsigned<Y>::type;
-  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
+  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool run(const X& x, const Y& y) {
     return y < Y(0) ? false : (x == static_cast<UnsignedY>(y));
   }
 };
@@ -558,7 +558,7 @@ template <typename X, typename Y>
 struct equal_strict_impl<X, Y, true, true, true, false> {
   // X is a signed integer
   // Y is an unsigned integer
-  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
+  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool run(const X& x, const Y& y) {
     return equal_strict_impl<Y, X>::run(y, x);
   }
 };
@@ -566,18 +566,18 @@ struct equal_strict_impl<X, Y, true, true, true, false> {
 // The aim of the following functions is to bypass -Wfloat-equal warnings
 // when we really want a strict equality comparison on floating points.
 template <typename X, typename Y>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const X& x, const Y& y) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool equal_strict(const X& x, const Y& y) {
   return equal_strict_impl<X, Y>::run(x, y);
 }
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE) || (!defined(EIGEN_CUDA_ARCH) && defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC))
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const float& x, const float& y) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool equal_strict(const float& x, const float& y) {
   return std::equal_to<float>()(x, y);
 }
 
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const double& x, const double& y) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool equal_strict(const double& x, const double& y) {
   return std::equal_to<double>()(x, y);
 }
 #endif
@@ -587,7 +587,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const double& x, const d
  * Use this to to bypass -Wfloat-equal warnings when exact zero is what needs to be tested.
  */
 template <typename X>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_zero(const X& x) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool is_exactly_zero(const X& x) {
   return equal_strict(x, typename NumTraits<X>::Literal{0});
 }
 
@@ -596,23 +596,23 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_zero(const X& x) {
  * Use this to to bypass -Wfloat-equal warnings when exact one is what needs to be tested.
  */
 template <typename X>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_one(const X& x) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool is_exactly_one(const X& x) {
   return equal_strict(x, typename NumTraits<X>::Literal{1});
 }
 
 template <typename X, typename Y>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const X& x, const Y& y) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool not_equal_strict(const X& x, const Y& y) {
   return !equal_strict_impl<X, Y>::run(x, y);
 }
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE) || (!defined(EIGEN_CUDA_ARCH) && defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC))
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const float& x, const float& y) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool not_equal_strict(const float& x, const float& y) {
   return std::not_equal_to<float>()(x, y);
 }
 
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const double& x, const double& y) {
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr bool not_equal_strict(const double& x, const double& y) {
   return std::not_equal_to<double>()(x, y);
 }
 #endif
@@ -623,11 +623,11 @@ namespace internal {
 
 template <typename Scalar>
 struct is_identically_zero_impl {
-  static inline bool run(const Scalar& s) { return numext::is_exactly_zero(s); }
+  static inline constexpr bool run(const Scalar& s) { return numext::is_exactly_zero(s); }
 };
 
 template <typename Scalar>
-EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
+EIGEN_STRONG_INLINE constexpr bool is_identically_zero(const Scalar& s) {
   return is_identically_zero_impl<Scalar>::run(s);
 }
 

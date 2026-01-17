@@ -71,7 +71,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * the usage of 'using'. This should be done only for operator=.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const EigenBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array& operator=(const EigenBase<OtherDerived>& other) {
     return Base::operator=(other);
   }
 
@@ -83,7 +83,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * fails on MSVC. Since the code below is working with GCC and MSVC, we skipped
    * the usage of 'using'. This should be done only for operator=.
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Scalar& value) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array& operator=(const Scalar& value) {
     Base::setConstant(value);
     return *this;
   }
@@ -98,7 +98,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * remain row-vectors and vectors remain vectors.
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array& operator=(const DenseBase<OtherDerived>& other) {
     return Base::_set(other);
   }
 
@@ -110,7 +110,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    *
    * \callgraph
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Array& other) { return Base::_set(other); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array& operator=(const Array& other) { return Base::_set(other); }
 
   /** Default constructor.
    *
@@ -129,7 +129,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 #endif
   /** \brief Move constructor */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(Array&&) = default;
-  EIGEN_DEVICE_FUNC Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
+  EIGEN_DEVICE_FUNC constexpr Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
     Base::operator=(std::move(other));
     return *this;
   }
@@ -151,8 +151,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * \sa Array(const Scalar&), Array(const Scalar&,const Scalar&)
    */
   template <typename... ArgTypes>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array(const Scalar& a0, const Scalar& a1, const Scalar& a2, const Scalar& a3,
-                                              const ArgTypes&... args)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(const Scalar& a0, const Scalar& a1, const Scalar& a2,
+                                                        const Scalar& a3, const ArgTypes&... args)
       : Base(a0, a1, a2, a3, args...) {}
 
   /** \brief Constructs an array and initializes it from the coefficients given as initializer-lists grouped by row.
@@ -184,43 +184,43 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit Array(const T& x) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit Array(const T& x) {
     Base::template _init1<T>(x);
   }
 
   template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array(const T0& val0, const T1& val1) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(const T0& val0, const T1& val1) {
     this->template _init2<T0, T1>(val0, val1);
   }
 
 #else
   /** \brief Constructs a fixed-sized array initialized with coefficients starting at \a data */
-  EIGEN_DEVICE_FUNC explicit Array(const Scalar* data);
+  EIGEN_DEVICE_FUNC constexpr explicit Array(const Scalar* data);
   /** Constructs a vector or row-vector with given dimension. \only_for_vectors
    *
    * Note that this is only useful for dynamic-size vectors. For fixed-size vectors,
    * it is redundant to pass the dimension here, so it makes more sense to use the default
    * constructor Array() instead.
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit Array(Index dim);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit Array(Index dim);
   /** constructs an initialized 1x1 Array with the given coefficient
    * \sa const Scalar& a0, const Scalar& a1, const Scalar& a2, const Scalar& a3, const ArgTypes&... args */
-  Array(const Scalar& value);
+  constexpr Array(const Scalar& value);
   /** constructs an uninitialized array with \a rows rows and \a cols columns.
    *
    * This is useful for dynamic-size arrays. For fixed-size arrays,
    * it is redundant to pass these parameters, so one should use the default constructor
    * Array() instead. */
-  Array(Index rows, Index cols);
+  constexpr Array(Index rows, Index cols);
   /** constructs an initialized 2D vector with given coefficients
    * \sa Array(const Scalar& a0, const Scalar& a1, const Scalar& a2, const Scalar& a3, const ArgTypes&... args) */
-  Array(const Scalar& val0, const Scalar& val1);
+  constexpr Array(const Scalar& val0, const Scalar& val1);
 #endif  // end EIGEN_PARSED_BY_DOXYGEN
 
   /** constructs an initialized 3D vector with given coefficients
    * \sa Array(const Scalar& a0, const Scalar& a1, const Scalar& a2, const Scalar& a3, const ArgTypes&... args)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array(const Scalar& val0, const Scalar& val1, const Scalar& val2) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(const Scalar& val0, const Scalar& val1, const Scalar& val2) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Array, 3)
     m_storage.data()[0] = val0;
     m_storage.data()[1] = val1;
@@ -229,8 +229,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   /** constructs an initialized 4D vector with given coefficients
    * \sa Array(const Scalar& a0, const Scalar& a1, const Scalar& a2, const Scalar& a3, const ArgTypes&... args)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array(const Scalar& val0, const Scalar& val1, const Scalar& val2,
-                                              const Scalar& val3) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(const Scalar& val0, const Scalar& val1, const Scalar& val2,
+                                                        const Scalar& val3) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Array, 4)
     m_storage.data()[0] = val0;
     m_storage.data()[1] = val1;
@@ -247,7 +247,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
  public:
   /** \sa MatrixBase::operator=(const EigenBase<OtherDerived>&) */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array(
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Array(
       const EigenBase<OtherDerived>& other,
       std::enable_if_t<internal::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType> =
           PrivateType())

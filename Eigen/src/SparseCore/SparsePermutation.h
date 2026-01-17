@@ -22,15 +22,15 @@ namespace internal {
 template <typename ExpressionType, typename PlainObjectType,
           bool NeedEval = !is_same<ExpressionType, PlainObjectType>::value>
 struct XprHelper {
-  XprHelper(const ExpressionType& xpr) : m_xpr(xpr) {}
-  inline const PlainObjectType& xpr() const { return m_xpr; }
+  constexpr XprHelper(const ExpressionType& xpr) : m_xpr(xpr) {}
+  inline constexpr const PlainObjectType& xpr() const { return m_xpr; }
   // this is a new PlainObjectType initialized by xpr
   const PlainObjectType m_xpr;
 };
 template <typename ExpressionType, typename PlainObjectType>
 struct XprHelper<ExpressionType, PlainObjectType, false> {
-  XprHelper(const ExpressionType& xpr) : m_xpr(xpr) {}
-  inline const PlainObjectType& xpr() const { return m_xpr; }
+  constexpr XprHelper(const ExpressionType& xpr) : m_xpr(xpr) {}
+  inline constexpr const PlainObjectType& xpr() const { return m_xpr; }
   // this is a reference to xpr
   const PlainObjectType& m_xpr;
 };
@@ -40,16 +40,16 @@ struct PermHelper {
   using IndicesType = typename PermDerived::IndicesType;
   using PermutationIndex = typename IndicesType::Scalar;
   using type = PermutationMatrix<IndicesType::SizeAtCompileTime, IndicesType::MaxSizeAtCompileTime, PermutationIndex>;
-  PermHelper(const PermDerived& perm) : m_perm(perm.inverse()) {}
-  inline const type& perm() const { return m_perm; }
+  constexpr PermHelper(const PermDerived& perm) : m_perm(perm.inverse()) {}
+  inline constexpr const type& perm() const { return m_perm; }
   // this is a new PermutationMatrix initialized by perm.inverse()
   const type m_perm;
 };
 template <typename PermDerived>
 struct PermHelper<PermDerived, false> {
   using type = PermDerived;
-  PermHelper(const PermDerived& perm) : m_perm(perm) {}
-  inline const type& perm() const { return m_perm; }
+  constexpr PermHelper(const PermDerived& perm) : m_perm(perm) {}
+  inline constexpr const type& perm() const { return m_perm; }
   // this is a reference to perm
   const type& m_perm;
 };
@@ -70,7 +70,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
   static constexpr bool NeedInversePermutation = Transposed ? Side == OnTheLeft : Side == OnTheRight;
 
   template <typename Dest, typename PermutationType>
-  static inline void permute_outer(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
+  static inline constexpr void permute_outer(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
     // if ExpressionType is not ReturnType, evaluate `xpr` (allocation)
     // otherwise, just reference `xpr`
     // TODO: handle trivial expressions such as CwiseBinaryOp without temporary
@@ -105,7 +105,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
   }
 
   template <typename Dest, typename PermutationType>
-  static inline void permute_inner(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
+  static inline constexpr void permute_inner(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
     using InnerPermHelper = PermHelper<PermutationType, NeedInversePermutation>;
     using InnerPermType = typename InnerPermHelper::type;
 
@@ -146,13 +146,13 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
 
   template <typename Dest, typename PermutationType, bool DoOuter = NeedOuterPermutation,
             std::enable_if_t<DoOuter, int> = 0>
-  static inline void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
+  static inline constexpr void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
     permute_outer(dst, perm, xpr);
   }
 
   template <typename Dest, typename PermutationType, bool DoOuter = NeedOuterPermutation,
             std::enable_if_t<!DoOuter, int> = 0>
-  static inline void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
+  static inline constexpr void run(Dest& dst, const PermutationType& perm, const ExpressionType& xpr) {
     permute_inner(dst, perm, xpr);
   }
 };
@@ -183,7 +183,7 @@ struct product_evaluator<Product<Lhs, Rhs, AliasFreeProduct>, ProductTag, Permut
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 
-  explicit product_evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
+  constexpr explicit product_evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
     internal::construct_at<Base>(this, m_result);
     generic_product_impl<Lhs, Rhs, PermutationShape, SparseShape, ProductTag>::evalTo(m_result, xpr.lhs(), xpr.rhs());
   }
@@ -201,7 +201,7 @@ struct product_evaluator<Product<Lhs, Rhs, AliasFreeProduct>, ProductTag, Sparse
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 
-  explicit product_evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
+  constexpr explicit product_evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
     ::new (static_cast<Base*>(this)) Base(m_result);
     generic_product_impl<Lhs, Rhs, SparseShape, PermutationShape, ProductTag>::evalTo(m_result, xpr.lhs(), xpr.rhs());
   }
@@ -215,7 +215,7 @@ struct product_evaluator<Product<Lhs, Rhs, AliasFreeProduct>, ProductTag, Sparse
 /** \returns the matrix with the permutation applied to the columns
  */
 template <typename SparseDerived, typename PermDerived>
-inline const Product<SparseDerived, PermDerived, AliasFreeProduct> operator*(
+inline constexpr const Product<SparseDerived, PermDerived, AliasFreeProduct> operator*(
     const SparseMatrixBase<SparseDerived>& matrix, const PermutationBase<PermDerived>& perm) {
   return Product<SparseDerived, PermDerived, AliasFreeProduct>(matrix.derived(), perm.derived());
 }
@@ -223,7 +223,7 @@ inline const Product<SparseDerived, PermDerived, AliasFreeProduct> operator*(
 /** \returns the matrix with the permutation applied to the rows
  */
 template <typename SparseDerived, typename PermDerived>
-inline const Product<PermDerived, SparseDerived, AliasFreeProduct> operator*(
+inline constexpr const Product<PermDerived, SparseDerived, AliasFreeProduct> operator*(
     const PermutationBase<PermDerived>& perm, const SparseMatrixBase<SparseDerived>& matrix) {
   return Product<PermDerived, SparseDerived, AliasFreeProduct>(perm.derived(), matrix.derived());
 }
@@ -231,7 +231,7 @@ inline const Product<PermDerived, SparseDerived, AliasFreeProduct> operator*(
 /** \returns the matrix with the inverse permutation applied to the columns.
  */
 template <typename SparseDerived, typename PermutationType>
-inline const Product<SparseDerived, Inverse<PermutationType>, AliasFreeProduct> operator*(
+inline constexpr const Product<SparseDerived, Inverse<PermutationType>, AliasFreeProduct> operator*(
     const SparseMatrixBase<SparseDerived>& matrix, const InverseImpl<PermutationType, PermutationStorage>& tperm) {
   return Product<SparseDerived, Inverse<PermutationType>, AliasFreeProduct>(matrix.derived(), tperm.derived());
 }
@@ -239,7 +239,7 @@ inline const Product<SparseDerived, Inverse<PermutationType>, AliasFreeProduct> 
 /** \returns the matrix with the inverse permutation applied to the rows.
  */
 template <typename SparseDerived, typename PermutationType>
-inline const Product<Inverse<PermutationType>, SparseDerived, AliasFreeProduct> operator*(
+inline constexpr const Product<Inverse<PermutationType>, SparseDerived, AliasFreeProduct> operator*(
     const InverseImpl<PermutationType, PermutationStorage>& tperm, const SparseMatrixBase<SparseDerived>& matrix) {
   return Product<Inverse<PermutationType>, SparseDerived, AliasFreeProduct>(tperm.derived(), matrix.derived());
 }

@@ -38,9 +38,9 @@ class KahanSum {
   Scalar _correction{};
 
  public:
-  Scalar value() { return _sum; }
+  constexpr Scalar value() { return _sum; }
 
-  void operator+=(Scalar increment) {
+  constexpr void operator+=(Scalar increment) {
     const Scalar correctedIncrement = increment + _correction;
     const Scalar previousSum = _sum;
     _sum += correctedIncrement;
@@ -59,9 +59,9 @@ class FABSum {
   Index _blockUsed{};
 
  public:
-  Scalar value() { return _block.topRows(_blockUsed).sum() + _totalSum.value(); }
+  constexpr Scalar value() { return _block.topRows(_blockUsed).sum() + _totalSum.value(); }
 
-  void operator+=(Scalar increment) {
+  constexpr void operator+=(Scalar increment) {
     _block(_blockUsed++, 0) = increment;
     if (_blockUsed == Width) {
       _totalSum += _block.sum();
@@ -78,7 +78,8 @@ class FABSum {
  *
  */
 template <typename Derived, typename OtherDerived>
-typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const SparseMatrixBase<OtherDerived>& other) {
+constexpr typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A,
+                                               const SparseMatrixBase<OtherDerived>& other) {
   typedef typename Derived::Scalar Scalar;
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
@@ -130,7 +131,7 @@ class SparseInverse {
   typedef SparseMatrix<Scalar, ColMajor> MatrixType;
   typedef SparseMatrix<Scalar, RowMajor> RowMatrixType;
 
-  SparseInverse() {}
+  constexpr SparseInverse() = default;
 
   /**
    * @brief This Constructor is for if you already have a factored SparseLU and would like to use it to calculate a
@@ -139,12 +140,12 @@ class SparseInverse {
    * Just call this constructor with your already factored SparseLU class and you can directly call the .inverse()
    * method to get the result.
    */
-  SparseInverse(const SparseLU<MatrixType>& slu) { _result = computeInverse(slu); }
+  constexpr SparseInverse(const SparseLU<MatrixType>& slu) { _result = computeInverse(slu); }
 
   /**
    * @brief Calculate the sparse inverse from a given sparse input
    */
-  SparseInverse& compute(const SparseMatrix<Scalar>& A) {
+  constexpr SparseInverse& compute(const SparseMatrix<Scalar>& A) {
     SparseLU<MatrixType> slu;
     slu.compute(A);
     _result = computeInverse(slu);
@@ -154,13 +155,13 @@ class SparseInverse {
   /**
    * @brief return the already-calculated sparse inverse, or a 0x0 matrix if it could not be computed
    */
-  const MatrixType& inverse() const { return _result; }
+  constexpr const MatrixType& inverse() const { return _result; }
 
   /**
    * @brief Internal function to calculate the sparse inverse in a functional way
    * @return A sparse inverse representation, or, if the decomposition didn't complete, a 0x0 matrix.
    */
-  static MatrixType computeInverse(const SparseLU<MatrixType>& slu) {
+  static constexpr MatrixType computeInverse(const SparseLU<MatrixType>& slu) {
     if (slu.info() != Success) {
       return MatrixType(0, 0);
     }
@@ -182,8 +183,9 @@ class SparseInverse {
   /**
    * @brief Internal function to calculate the inverse from strictly upper, diagonal and strictly lower components
    */
-  static MatrixType computeInverse(const RowMatrixType& Upper, const Matrix<Scalar, Dynamic, 1>& inverseDiagonal,
-                                   const MatrixType& Lower) {
+  static constexpr MatrixType computeInverse(const RowMatrixType& Upper,
+                                             const Matrix<Scalar, Dynamic, 1>& inverseDiagonal,
+                                             const MatrixType& Lower) {
     // Calculate the 'minimal set', which is the nonzeros of (L+U).transpose()
     // It could be zeroed, but we will overwrite all non-zeros anyways.
     MatrixType colInv = Lower.transpose().template triangularView<UnitUpper>();

@@ -115,7 +115,7 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ false> {
 template <typename Xpr>
 struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
   using Scalar = typename Xpr::Scalar;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(Xpr& dst) {
     const std::ptrdiff_t num_bytes = dst.size() * static_cast<std::ptrdiff_t>(sizeof(Scalar));
     if (num_bytes <= 0) return;
     void* dst_ptr = static_cast<void*>(dst.data());
@@ -126,7 +126,7 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
     memset(dst_ptr, 0, static_cast<std::size_t>(num_bytes));
   }
   template <typename SrcXpr>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void run(Xpr& dst, const SrcXpr& src) {
     resize_if_allowed(dst, src, assign_op<Scalar, Scalar>());
     run(dst);
   }

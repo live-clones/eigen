@@ -97,13 +97,13 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, Conj
   typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
   typedef typename QuarterTraits::ResPacket ResPacketQuarter;
 
-  EIGEN_DEVICE_FUNC inline static void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
-                                           ResScalar* res, Index resIncr, RhsScalar alpha);
+  EIGEN_DEVICE_FUNC static constexpr void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
+                                              ResScalar* res, Index resIncr, RhsScalar alpha);
 };
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC inline void
+EIGEN_DEVICE_FUNC constexpr void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                             ResScalar* res, Index resIncr, RhsScalar alpha) {
@@ -289,13 +289,13 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, Conj
   typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
   typedef typename QuarterTraits::ResPacket ResPacketQuarter;
 
-  EIGEN_DEVICE_FUNC static inline void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
-                                           ResScalar* res, Index resIncr, ResScalar alpha);
+  EIGEN_DEVICE_FUNC static constexpr void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
+                                              ResScalar* res, Index resIncr, ResScalar alpha);
 };
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC inline void
+EIGEN_DEVICE_FUNC constexpr void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                             ResScalar* res, Index resIncr, ResScalar alpha) {
