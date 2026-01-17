@@ -118,10 +118,10 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const Esse
     Map<typename internal::plain_row_type<PlainObject>::type> tmp(workspace, cols());
     Block<Derived, EssentialPart::SizeAtCompileTime, Derived::ColsAtCompileTime> bottom(derived(), 1, 0, rows() - 1,
                                                                                         cols());
-    tmp.noalias() = essential.adjoint() * bottom;
-    tmp = tmp + this->row(0);
-    this->row(0) -= tau * tmp;
-    bottom.noalias() -= tau * essential * tmp;
+    tmp.noalias() = essential.adjoint() * bottom.unwind();
+    tmp = tau * (tmp + this->row(0));
+    this->row(0) = this->row(0) - tmp;
+    bottom.unwind().noalias() -= essential * tmp;
   }
 }
 
@@ -150,10 +150,10 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheRight(const Ess
     Map<typename internal::plain_col_type<PlainObject>::type> tmp(workspace, rows());
     Block<Derived, Derived::RowsAtCompileTime, EssentialPart::SizeAtCompileTime> right(derived(), 0, 1, rows(),
                                                                                        cols() - 1);
-    tmp.noalias() = right * essential;
-    tmp = tmp + this->col(0);
-    this->col(0) -= tau * tmp;
-    right.noalias() -= tau * tmp * essential.adjoint();
+    tmp.noalias() = right.unwind() * essential;
+    tmp = tau * (tmp + this->col(0));
+    this->col(0) = this->col(0) - tmp;
+    right.unwind().noalias() -= tmp * essential.adjoint();
   }
 }
 
