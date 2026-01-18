@@ -4,9 +4,9 @@ namespace Eigen {
 
 \eigenAutoToc
 
-\section TopicResizing_Resize Resizing with resize()
+\section TopicResizing_Resize Resizing with \link PlainObjectBase::resize(Index,Index) resize() \endlink
 
-The most basic method to change the size of structures is \link PlainObjectBase::resize(Index,Index) resize(rows, cols) \endlink. 
+The most basic method to change the size of matrices or vectors is \link PlainObjectBase::resize(Index,Index) resize(rows, cols) \endlink. 
 It takes the new number of rows and columns as arguments.
 
 \code
@@ -42,7 +42,8 @@ m.resize(1,4);
 
 \subsection TopicResizing_ResizeNoChange Resizing only one dimension
 
-To resize only one dimension while leaving the other unchanged, you can pass \c Eigen::NoChange as the parameter for the dimension you wish to keep.
+To resize only one dimension while leaving the other unchanged, 
+you can pass \c Eigen::NoChange as the parameter for the dimension you wish to keep.
 
 \code
 MatrixXd m(2,2);
@@ -77,10 +78,35 @@ a.resize(3,3);
 // a is now 3x3 and the values are uninitialized.
 \endcode
 
+\section TopicResizing_ResizeLike Resizing to match another object with \link PlainObjectBase::resizeLike() resizeLike() \endlink
 
-\section TopicResizing_Conservative Resizing with conservativeResize()
+You can resize a matrix or vector to match the dimensions of another object using \link PlainObjectBase::resizeLike() resizeLike(eigenBase) \endlink.
+This method is also **destructive** (data is lost).
 
-If you need to resize a matrix while keeping its current values, use \link PlainObjectBase::conservativeResize(Index,Index) conservativeResize(rows, cols) \endlink.
+\code
+MatrixXd m(2,2);
+MatrixXd n(4,4);
+m.resizeLike(n); 
+// m is now 4x4.
+\endcode
+
+
+<b>Note on Vectors:</b> When applied to vectors, \c resizeLike() matches the **size** (number of coefficients) of the other object, 
+but maintains the row/column orientation of the vector being resized.
+
+\code
+RowVectorXd r(2);
+VectorXd c(5);
+
+// r is resized to be a row-vector of size 5 (1x5), matching c's size.
+// It does NOT become a column-vector.
+r.resizeLike(c); 
+\endcode
+
+\section TopicResizing_Conservative Resizing with \link PlainObjectBase::conservativeResize(Index,Index) conservativeResize() \endlink
+
+If you need to resize a matrix while keeping its current values, 
+use \link PlainObjectBase::conservativeResize(Index,Index) conservativeResize(rows, cols) \endlink.
 
 \code
 MatrixXd m(2,2);
@@ -99,8 +125,9 @@ When using \c conservativeResize():
 - **Alignment:** The matrix is resized relative to the **top-left** corner.
 - **New Data:** Any newly allocated coefficients (if the matrix grows) are **uninitialized**. You should fill them immediately after resizing.
 
+Just like \c resize(), you can resize **vectors** and **arrays** and keep previous values, using \c conservativeResize().
 
-Just like \c resize(), you can use \c Eigen::NoChange to resize only one dimension conservatively:
+And just like \c resize(), you can use \c Eigen::NoChange to resize only one dimension conservatively:
 \code
 MatrixXd m(2,2);
 m << 1, 2, 3, 4;
@@ -108,8 +135,6 @@ m << 1, 2, 3, 4;
 // Add a new row (now 3x2), keeping existing values
 m.conservativeResize(3, Eigen::NoChange); 
 \endcode
-
-And just like \c resize(), you can resize **vectors** and **arrays** and keep previous values, using \c conservativeResize().
 
 \section TopicResizing_Assignment Automatic resizing on assignment
 
