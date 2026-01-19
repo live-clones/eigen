@@ -19,7 +19,7 @@ m.resize(3,3);
 
 The \c resize() method is **destructive** if the total number of coefficients (rows  x columns) differs from the previous one. 
 Meaning that all previous values are lost and the newly allocated coefficients are **uninitialized**. 
-You should fill them immediately after resizing.
+You should fill them before use.
 
 \subsection TopicResizing_ResizeNoOp The special case of "No-Op" resizing
 If you resize a matrix while keeping the total number of coefficients unchanged, the existing values are preserved in memory. 
@@ -123,7 +123,7 @@ m.conservativeResize(3,3);
 When using \c conservativeResize():
 - **Preservation:** The existing values are preserved.
 - **Alignment:** The matrix is resized relative to the **top-left** corner.
-- **New Data:** Any newly allocated coefficients (if the matrix grows) are **uninitialized**. You should fill them immediately after resizing.
+- **New Data:** Any newly allocated coefficients (if the matrix grows) are **uninitialized**. You should fill them before use.
 
 Just like \c resize(), you can resize **vectors** and **arrays** and keep previous values, using \c conservativeResize().
 
