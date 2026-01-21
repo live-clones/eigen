@@ -77,7 +77,7 @@ First of all, VectorXf is the following typedef:
 The class template Matrix is declared in src/Core/util/ForwardDeclarations.h with 6 template parameters, but the last 3 are automatically determined by the first 3. So you don't need to worry about them for now. Here, Matrix\<float, Dynamic, 1\> means a matrix of floats, with a dynamic number of rows and 1 column.
 
 The Matrix class inherits a base class PlainObjectBase<Derived>, which unfies dense storage expressions like Matrix and Array types and derives either from MatrixBase or ArrayBase respectively depending on its template parameter. 
-Don't worry about it, for now it suffices to know that MatrixBase is what unifies matrices/vectors and all their expressions types -- more on that below.
+For now it suffices to know that MatrixBase is what unifies matrices/vectors and all their expressions types -- more on that below.
 An overview can also be found here: \ref TopicClassHierarchy.
 
 When we do
@@ -259,8 +259,8 @@ But what is the purpose of these call_assignment() functions?
 They are an intermediate step to deal with possible <a href="TopicPitfalls_aliasing.html">aliasing</a>, automatic transposition for row and column vectors.
 
 As explained <a href="TopicLazyEvaluation.html">here</a>, certain expressions automatically evaluate into temporaries before assigning them to another expression.
-This is the case of the product expression, in order to avoid strange aliasing effects when doing `m = m * m;`.
-This is controlled by the internal::evaluator_assume_aliasing<Xpr>::value trait, see src/Core/ProductEvaluators.h for ann example where this is `true`.
+This is the case of the product expression, in order to avoid strange aliasing effects when the same matrix appears on both the LHS and RHS of an assignment.
+This is controlled by the internal::evaluator_assume_aliasing<Xpr>::value trait, see src/Core/ProductEvaluators.h for an example where this is `true`.
 However, of course, for our CwiseBinaryOp expression this evaluates to `false`:
 we said since the beginning that we didn't want a temporary to be introduced here. So if you go to src/Core/CoreEvaluators.h, 
 you'll see an implementation oft this trait for our case, where \a value is set to `false`.
