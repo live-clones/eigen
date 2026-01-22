@@ -95,7 +95,8 @@ template <typename Xpr>
 struct eigen_memset_helper {
   using Scalar = typename Xpr::Scalar;
   static constexpr bool value = std::is_trivially_copyable<Scalar>::value &&
-                                !NumTraits<Scalar>::RequireInitialization && eigen_fill_helper<Xpr>::value;
+                                !static_cast<bool>(NumTraits<Scalar>::RequireInitialization) &&
+                                eigen_fill_helper<Xpr>::value;
 };
 
 template <typename Xpr>
