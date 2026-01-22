@@ -292,7 +292,9 @@ Now that we have dealt with aliasing we can continue with call_assignment_no_ali
 \code
 template <typename Dst, typename Src, typename Func>
 inline constexpr void call_assignment_no_alias(Dst& dst, const Src& src, const Func& func) { 
-  enum { NeedToTranspose = /* one is a row and other is a column vector */ };
+  enum { NeedToTranspose = ((int(Dst::RowsAtCompileTime) == 1 && int(Src::ColsAtCompileTime) == 1) ||
+                            (int(Dst::ColsAtCompileTime) == 1 && int(Src::RowsAtCompileTime) == 1)) &&
+                             int(Dst::SizeAtCompileTime) != 1 };
 
   typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst> ActualDstTypeCleaned;
   typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&> ActualDstType;
@@ -634,7 +636,7 @@ for (Index index = start; index < end; ++index) kernel.assignCoeff(index);
 
 However, it works just like the one we just explained, it is just simpler because there is no SSE vectorization involved here. assignPacket() becomes assignCoeff(), packet() becomes coeff(). If you followed us this far, you can probably understand this part by yourself.
 
-We see that all the C++ abstraction of Eigen goes away during compilation and that we indeed are precisely controlling which assembly instructions we emit. Such is the beauty of C++! Since we have such precise control over the emitted assembly instructions, but such complex logic to choose the right instructions, we can say that Eigen really behaves like an optimizing compiler. If you prefer, you could say that Eigen behaves like a script for the compiler. In a sense, C++ template metaprogramming is scripting the compiler -- and it's been shown that this scripting language is Turing-complete. See <a href="http://en.wikipedia.org/wiki/Template_metaprogramming"> Wikipedia</a>.
+We see that all the C++ abstraction of Eigen goes away during compilation and that we indeed are precisely controlling which assembly instructions we emit. Such is the beauty of C++! Since we have such precise control over the emitted assembly instructions, but such complex logic to choose the right instructions, we can say that Eigen really behaves like an optimizing compiler. If you prefer, you could say that Eigen behaves like a script for the compiler. In a sense, C++ template metaprogramming is scripting the compiler. See <a href="http://en.wikipedia.org/wiki/Template_metaprogramming"> Wikipedia</a>.
 
 */
 
