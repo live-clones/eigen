@@ -1204,10 +1204,10 @@ Scalar propagate_number_min(const Scalar& a, const Scalar& b) {
   return (numext::mini)(a, b);
 }
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
 std::enable_if_t<!Cond, void> run_ieee_cases(const FunctorT&) {}
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
 std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const Scalar norm_min = (std::numeric_limits<Scalar>::min)();
@@ -1277,14 +1277,14 @@ std::enable_if_t<NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_val
 template <typename Scalar, typename Packet>
 std::enable_if_t<!NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_values() {
   typedef internal::packet_traits<Scalar> PacketTraits;
-  run_ieee_cases<PacketTraits::HasSqrt, Scalar, Packet, EIGEN_ARCH_ARM>(sqrt_fun());
+  run_ieee_cases<PacketTraits::HasSqrt, Scalar, Packet>(sqrt_fun());
   // TODO(rmlarsen): See if we can fix rsqrt for denorms without wreaking performance.
   run_ieee_cases<PacketTraits::HasRsqrt, Scalar, Packet, true>(rsqrt_fun());
-  run_ieee_cases<PacketTraits::HasCbrt, Scalar, Packet, EIGEN_ARCH_ARM>(cbrt_fun());
+  run_ieee_cases<PacketTraits::HasCbrt, Scalar, Packet>(cbrt_fun());
   run_ieee_cases<PacketTraits::HasExp, Scalar, Packet>(exp_fun());
   run_ieee_cases<PacketTraits::HasExp, Scalar, Packet>(exp2_fun());
-  run_ieee_cases<PacketTraits::HasLog, Scalar, Packet, EIGEN_ARCH_ARM>(log_fun());
-  run_ieee_cases<PacketTraits::HasLog, Scalar, Packet, EIGEN_ARCH_ARM>(log2_fun());
+  run_ieee_cases<PacketTraits::HasLog, Scalar, Packet>(log_fun());
+  run_ieee_cases<PacketTraits::HasLog, Scalar, Packet>(log2_fun());
   run_ieee_cases<PacketTraits::HasExpm1, Scalar, Packet>(expm1_fun());
   run_ieee_cases<PacketTraits::HasLog1p, Scalar, Packet>(log1p_fun());
   run_ieee_cases<PacketTraits::HasSin, Scalar, Packet>(sin_fun());
