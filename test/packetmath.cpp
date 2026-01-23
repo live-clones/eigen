@@ -1277,13 +1277,13 @@ std::enable_if_t<NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_val
 template <typename Scalar, typename Packet>
 std::enable_if_t<!NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_values() {
   typedef internal::packet_traits<Scalar> PacketTraits;
-  run_ieee_cases<PacketTraits::HasSqrt, Scalar, Packet>(sqrt_fun());
+  run_ieee_cases<PacketTraits::HasSqrt, Scalar, Packet, EIGEN_ARCH_ARM>(sqrt_fun());
   // TODO(rmlarsen): See if we can fix rsqrt for denorms without wreaking performance.
   run_ieee_cases<PacketTraits::HasRsqrt, Scalar, Packet, true>(rsqrt_fun());
   run_ieee_cases<PacketTraits::HasCbrt, Scalar, Packet>(cbrt_fun());
   run_ieee_cases<PacketTraits::HasExp, Scalar, Packet>(exp_fun());
   run_ieee_cases<PacketTraits::HasExp, Scalar, Packet>(exp2_fun());
-  run_ieee_cases<PacketTraits::HasLog, Scalar, Packet>(log_fun());
+  run_ieee_cases<PacketTraits::HasLog, Scalar, Packet, EIGEN_ARCH_ARM>(log_fun());
   run_ieee_cases<PacketTraits::HasLog, Scalar, Packet>(log2_fun());
   run_ieee_cases<PacketTraits::HasExpm1, Scalar, Packet>(expm1_fun());
   run_ieee_cases<PacketTraits::HasLog1p, Scalar, Packet>(log1p_fun());
