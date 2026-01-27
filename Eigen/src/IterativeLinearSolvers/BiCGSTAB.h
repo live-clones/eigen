@@ -62,7 +62,7 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
   Index i = 0;
   Index restarts = 0;
 
-  while (r_norm > tol && i < maxIters) {
+  while (r_norm > (tol * rhs_norm) && i < maxIters) {
     Scalar rho_old = rho;
     rho = r0.dot(r);
     if (Eigen::numext::abs(rho) / Eigen::numext::maxi(r0_norm, r_norm) < eps * Eigen::numext::mini(r0_norm, r_norm)) {
