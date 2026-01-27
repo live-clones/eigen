@@ -337,8 +337,8 @@ EIGEN_STRONG_INLINE Packet8d pcast_long_to_double(const Packet8l& a) { return re
     return PACKET_TYPE(0);                                                                           \
   }                                                                                                  \
   template <>                                                                                        \
-  constexpr EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /*unused*/) {      \
-    return PACKET_TYPE(0) == PACKET_TYPE(0);                                                         \
+  constexpr EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& x) {               \
+    return PACKET_TYPE(pzero(x) == pzero(x));                                                                     \
   }                                                                                                  \
   template <>                                                                                        \
   EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
@@ -375,11 +375,11 @@ EIGEN_CLANG_PACKET_BITWISE_INT(Packet8l)
 #undef EIGEN_CLANG_PACKET_BITWISE_INT
 
 // Bitwise ops for floating point packets
-#define EIGEN_CLANG_PACKET_BITWISE_FLOAT(PACKET_TYPE, CAST_TO_INT, CAST_FROM_INT)                    \
+#define EIGEN_CLANG_PACKET_BITWISE_FLOAT(PACKET_TYPE, INT_PACKET_TYPE, CAST_TO_INT, CAST_FROM_INT)   \
   template <>                                                                                        \
   EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /* unused */) {              \
     using Scalar = detail::scalar_type_of_vector_t<PACKET_TYPE>;                                     \
-    return CAST_FROM_INT(PACKET_TYPE(Scalar(0)) == PACKET_TYPE(Scalar(0)));                          \
+    return CAST_FROM_INT(INT_PACKET_TYPE(PACKET_TYPE(Scalar(0)) == PACKET_TYPE(Scalar(0))));         \
   }                                                                                                  \
   template <>                                                                                        \
   EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
@@ -398,8 +398,8 @@ EIGEN_CLANG_PACKET_BITWISE_INT(Packet8l)
     return CAST_FROM_INT(CAST_TO_INT(a) & ~CAST_TO_INT(b));                                          \
   }
 
-EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet16f, detail::pcast_float_to_int, detail::pcast_int_to_float)
-EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_long, detail::pcast_long_to_double)
+EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet16f, Packet16i, detail::pcast_float_to_int, detail::pcast_int_to_float)
+EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, Packet8l, detail::pcast_double_to_long, detail::pcast_long_to_double)
 #undef EIGEN_CLANG_PACKET_BITWISE_FLOAT
 
 // --- Min/Max operations ---
