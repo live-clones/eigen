@@ -28,9 +28,9 @@ template <typename Derived, int N>
 struct Initializer {
   typedef std::initializer_list<typename Initializer<Derived, N - 1>::InitList> InitList;
 
-  static void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
-                  Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>* indices,
-                  const InitList& vals) {
+  static constexpr void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
+                            Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>* indices,
+                            const InitList& vals) {
     int i = 0;
     for (const auto& v : vals) {
       (*indices)[traits<Derived>::NumDimensions - N] = i++;
@@ -43,9 +43,9 @@ template <typename Derived>
 struct Initializer<Derived, 1> {
   typedef std::initializer_list<typename traits<Derived>::Scalar> InitList;
 
-  static void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
-                  Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>* indices,
-                  const InitList& vals) {
+  static constexpr void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
+                            Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>* indices,
+                            const InitList& vals) {
     int i = 0;
     // There is likely a faster way to do that than iterating.
     for (const auto& v : vals) {
@@ -59,15 +59,16 @@ template <typename Derived>
 struct Initializer<Derived, 0> {
   typedef typename traits<Derived>::Scalar InitList;
 
-  static void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
-                  Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>*, const InitList& v) {
+  static constexpr void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
+                            Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>*,
+                            const InitList& v) {
     tensor.coeffRef(0) = v;
   }
 };
 
 template <typename Derived, int N>
-void initialize_tensor(TensorEvaluator<Derived, DefaultDevice>& tensor,
-                       const typename Initializer<Derived, traits<Derived>::NumDimensions>::InitList& vals) {
+constexpr void initialize_tensor(TensorEvaluator<Derived, DefaultDevice>& tensor,
+                                 const typename Initializer<Derived, traits<Derived>::NumDimensions>::InitList& vals) {
   Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions> indices;
   Initializer<Derived, traits<Derived>::NumDimensions>::run(tensor, &indices, vals);
 }
