@@ -34,7 +34,6 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  RealScalar tol = tol_error;
   Index maxIters = iters;
 
   Index n = mat.cols();
@@ -48,6 +47,9 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
     x.setZero();
     return true;
   }
+
+  RealScalar tol = tol_error * rhs_norm;
+
   Scalar rho(1);
   Scalar alpha(0);
   Scalar w(1);
@@ -62,7 +64,7 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
   Index i = 0;
   Index restarts = 0;
 
-  while (r_norm > (tol * rhs_norm) && i < maxIters) {
+  while (r_norm > tol && i < maxIters) {
     Scalar rho_old = rho;
     rho = r0.dot(r);
     if (Eigen::numext::abs(rho) / Eigen::numext::maxi(r0_norm, r_norm) < eps * Eigen::numext::mini(r0_norm, r_norm)) {
@@ -113,7 +115,6 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
     ++i;
   }
 
-  tol_error = r_norm / rhs_norm;
   iters = i;
   return true;
 }
