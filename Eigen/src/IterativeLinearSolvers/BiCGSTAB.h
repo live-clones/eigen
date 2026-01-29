@@ -115,6 +115,7 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
     ++i;
   }
 
+  tol_error = r_norm / rhs_norm;
   iters = i;
   return true;
 }
