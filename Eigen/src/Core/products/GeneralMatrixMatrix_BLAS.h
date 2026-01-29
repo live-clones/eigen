@@ -199,7 +199,6 @@ struct general_matrix_matrix_product<Index, Eigen::bfloat16, LhsStorageOrder, Co
 #endif  // EIGEN_USE_OPENBLAS_SBGEMM
 
 #undef EIGEN_BLAS_GEMM_SPECIALIZATION
-
 }  // namespace internal
 
 }  // end namespace Eigen

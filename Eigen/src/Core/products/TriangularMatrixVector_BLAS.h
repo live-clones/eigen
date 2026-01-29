@@ -271,7 +271,6 @@ EIGEN_BLAS_TRMV_RM(scomplex, float, cf, c, _)
 #undef EIGEN_BLAS_TRMV_RM
 #undef EIGEN_BLAS_TRMV_SPECIALIZE
 #undef EIGEN_BLAS_TRMV_CM
-
 }  // namespace internal
 
 }  // end namespace Eigen

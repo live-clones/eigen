@@ -143,7 +143,6 @@ EIGEN_BLAS_RANKUPDATE_R(float, float, ssyrk_)
 
 #undef EIGEN_BLAS_RANKUPDATE_SPECIALIZE
 #undef EIGEN_BLAS_RANKUPDATE_R
-
 }  // end namespace internal
 
 }  // end namespace Eigen

@@ -161,7 +161,6 @@ EIGEN_BLAS_TRSM_R(scomplex, float, ctrsm_)
 
 #undef EIGEN_BLAS_TRSM_R
 #undef EIGEN_BLAS_TRSM_L
-
 }  // end namespace internal
 
 }  // end namespace Eigen

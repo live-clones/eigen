@@ -275,7 +275,6 @@ EIGEN_BLAS_HEMM_R(scomplex, float, cf, chemm_)
 #undef EIGEN_BLAS_SYMM_L
 #undef EIGEN_BLAS_SYMM_R
 #undef EIGEN_BLAS_HEMM_R
-
 }  // end namespace internal
 
 }  // end namespace Eigen
