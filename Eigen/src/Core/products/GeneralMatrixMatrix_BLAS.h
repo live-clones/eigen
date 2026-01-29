@@ -49,7 +49,7 @@ namespace internal {
 
 // gemm specialization
 
-#define EIGEN_BLAS_GEMM_SPECIALIZATION(EIGTYPE, EIGPREFIX, BLASTYPE, BLASFUNC)                                                 \
+#define EIGEN_BLAS_GEMM_SPECIALIZATION(EIGTYPE, EIGPREFIX, BLASTYPE, BLASFUNC)                                      \
   template <typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder, bool ConjugateRhs>         \
   struct general_matrix_matrix_product<Index, EIGTYPE, LhsStorageOrder, ConjugateLhs, EIGTYPE, RhsStorageOrder,     \
                                        ConjugateRhs, ColMajor, 1> {                                                 \

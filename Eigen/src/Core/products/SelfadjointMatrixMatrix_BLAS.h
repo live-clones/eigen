@@ -271,7 +271,6 @@ EIGEN_BLAS_HEMM_R(dcomplex, double, cd, zhemm_)
 EIGEN_BLAS_HEMM_R(scomplex, float, cf, chemm_)
 #endif
 
-
 #undef EIGEN_BLAS_SYMM_L
 #undef EIGEN_BLAS_SYMM_R
 #undef EIGEN_BLAS_HEMM_R

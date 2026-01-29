@@ -88,7 +88,6 @@ EIGEN_BLAS_GEMV_SPECIALIZE(float)
 EIGEN_BLAS_GEMV_SPECIALIZE(dcomplex)
 EIGEN_BLAS_GEMV_SPECIALIZE(scomplex)
 
-
 #define EIGEN_BLAS_GEMV_SPECIALIZATION(EIGTYPE, BLASTYPE, BLASFUNC)                                                 \
   template <typename Index, int LhsStorageOrder, bool ConjugateLhs, bool ConjugateRhs>                              \
   struct general_matrix_vector_product_gemv<Index, EIGTYPE, LhsStorageOrder, ConjugateLhs, EIGTYPE, ConjugateRhs> { \
