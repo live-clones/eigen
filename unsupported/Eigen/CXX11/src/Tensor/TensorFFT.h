@@ -18,7 +18,7 @@ namespace Eigen {
 template <bool IsReal>
 struct MakeComplex {
   template <typename T>
-  EIGEN_DEVICE_FUNC T operator()(const T& val) const {
+  EIGEN_DEVICE_FUNC constexpr T operator()(const T& val) const {
     return val;
   }
 };
@@ -26,7 +26,7 @@ struct MakeComplex {
 template <>
 struct MakeComplex<true> {
   template <typename T>
-  EIGEN_DEVICE_FUNC internal::make_complex_t<T> operator()(const T& val) const {
+  EIGEN_DEVICE_FUNC constexpr internal::make_complex_t<T> operator()(const T& val) const {
     return internal::make_complex_t<T>(val, T(0));
   }
 };
@@ -34,7 +34,7 @@ struct MakeComplex<true> {
 template <int ResultType>
 struct PartOf {
   template <typename T>
-  T operator()(const T& val) const {
+  constexpr T operator()(const T& val) const {
     return val;
   }
 };
@@ -42,7 +42,7 @@ struct PartOf {
 template <>
 struct PartOf<RealPart> {
   template <typename T, typename EnableIf = std::enable_if_t<NumTraits<T>::IsComplex>>
-  typename NumTraits<T>::Real operator()(const T& val) const {
+  constexpr typename NumTraits<T>::Real operator()(const T& val) const {
     return Eigen::numext::real(val);
   }
 };
@@ -50,7 +50,7 @@ struct PartOf<RealPart> {
 template <>
 struct PartOf<ImagPart> {
   template <typename T, typename EnableIf = std::enable_if_t<NumTraits<T>::IsComplex>>
-  typename NumTraits<T>::Real operator()(const T& val) const {
+  constexpr typename NumTraits<T>::Real operator()(const T& val) const {
     return Eigen::numext::imag(val);
   }
 };
@@ -110,11 +110,14 @@ class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, F
   typedef typename Eigen::internal::traits<TensorFFTOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorFFTOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFFTOp(const XprType& expr, const FFT& fft) : m_xpr(expr), m_fft(fft) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorFFTOp(const XprType& expr, const FFT& fft)
+      : m_xpr(expr), m_fft(fft) {}
 
-  EIGEN_DEVICE_FUNC const FFT& fft() const { return m_fft; }
+  EIGEN_DEVICE_FUNC constexpr const FFT& fft() const { return m_fft; }
 
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
+  EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<typename XprType::Nested>& expression() const {
+    return m_xpr;
+  }
 
  protected:
   typename XprType::Nested m_xpr;
@@ -156,7 +159,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const XprType& op, const Device& device)
       : m_fft(op.fft()), m_impl(op.expression(), device), m_data(NULL), m_device(device) {
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
     for (int i = 0; i < NumDims; ++i) {
@@ -178,9 +181,9 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     m_size = m_dimensions.TotalSize();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     m_impl.evalSubExprsIfNeeded(NULL);
     if (data) {
       evalToBuf(data);
@@ -193,7 +196,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     }
   }
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     if (m_data) {
       m_device.deallocate(m_data);
       m_data = NULL;
@@ -201,21 +204,21 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     m_impl.cleanup();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE CoeffReturnType coeff(Index index) const { return m_data[index]; }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr CoeffReturnType coeff(Index index) const { return m_data[index]; }
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketReturnType packet(Index index) const {
     return internal::ploadt<PacketReturnType, LoadMode>(m_data + index);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_data; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return m_data; }
 
  private:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalToBuf(EvaluatorPointerType data) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void evalToBuf(EvaluatorPointerType data) {
     const bool write_to_out = internal::is_same<OutputScalar, ComplexScalar>::value;
     ComplexScalar* buf =
         write_to_out ? (ComplexScalar*)data : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * m_size);
@@ -322,37 +325,36 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static bool isPowerOfTwo(Index x) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr static bool isPowerOfTwo(Index x) {
     eigen_assert(x > 0);
     return !(x & (x - 1));
   }
 
   // The composite number for padding, used in Bluestein's FFT algorithm
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Index findGoodComposite(Index n) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr static Index findGoodComposite(Index n) {
     Index i = 2;
     while (i < 2 * n - 1) i *= 2;
     return i;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Index getLog2(Index m) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr static Index getLog2(Index m) {
     Index log2m = 0;
     while (m >>= 1) log2m++;
     return log2m;
   }
 
   // Call Cooley Tukey algorithm directly, data length must be power of 2
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void processDataLineCooleyTukey(ComplexScalar* line_buf, Index line_len,
-                                                                        Index log_len) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void processDataLineCooleyTukey(ComplexScalar* line_buf,
+                                                                                  Index line_len, Index log_len) {
     eigen_assert(isPowerOfTwo(line_len));
     scramble_FFT(line_buf, line_len);
     compute_1D_Butterfly<FFTDir>(line_buf, line_len, log_len);
   }
 
   // Call Bluestein's FFT algorithm, m is a good composite number greater than (2 * n - 1), used as the padding length
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void processDataLineBluestein(ComplexScalar* line_buf, Index line_len,
-                                                                      Index good_composite, Index log_len,
-                                                                      ComplexScalar* a, ComplexScalar* b,
-                                                                      const ComplexScalar* pos_j_base_powered) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void processDataLineBluestein(
+      ComplexScalar* line_buf, Index line_len, Index good_composite, Index log_len, ComplexScalar* a, ComplexScalar* b,
+      const ComplexScalar* pos_j_base_powered) {
     Index n = line_len;
     Index m = good_composite;
     ComplexScalar* data = line_buf;
@@ -413,7 +415,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void scramble_FFT(ComplexScalar* data, Index n) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr static void scramble_FFT(ComplexScalar* data, Index n) {
     eigen_assert(isPowerOfTwo(n));
     Index j = 1;
     for (Index i = 1; i < n; ++i) {
@@ -430,14 +432,14 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   }
 
   template <int Dir>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void butterfly_2(ComplexScalar* data) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void butterfly_2(ComplexScalar* data) {
     ComplexScalar tmp = data[1];
     data[1] = data[0] - data[1];
     data[0] += tmp;
   }
 
   template <int Dir>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void butterfly_4(ComplexScalar* data) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void butterfly_4(ComplexScalar* data) {
     ComplexScalar tmp[4];
     tmp[0] = data[0] + data[1];
     tmp[1] = data[0] - data[1];
@@ -454,7 +456,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   }
 
   template <int Dir>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void butterfly_8(ComplexScalar* data) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void butterfly_8(ComplexScalar* data) {
     ComplexScalar tmp_1[8];
     ComplexScalar tmp_2[8];
 
@@ -501,7 +503,8 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   }
 
   template <int Dir>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void butterfly_1D_merge(ComplexScalar* data, Index n, Index n_power_of_2) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void butterfly_1D_merge(ComplexScalar* data, Index n,
+                                                                          Index n_power_of_2) {
     // Original code:
     // RealScalar wtemp = std::sin(EIGEN_PI/n);
     // RealScalar wpi =  -std::sin(2 * EIGEN_PI/n);
@@ -538,7 +541,8 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   }
 
   template <int Dir>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void compute_1D_Butterfly(ComplexScalar* data, Index n, Index n_power_of_2) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void compute_1D_Butterfly(ComplexScalar* data, Index n,
+                                                                            Index n_power_of_2) {
     eigen_assert(isPowerOfTwo(n));
     if (n > 8) {
       compute_1D_Butterfly<Dir>(data, n / 2, n_power_of_2 - 1);
@@ -553,7 +557,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index getBaseOffsetFromIndex(Index index, Index omitted_dim) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index getBaseOffsetFromIndex(Index index, Index omitted_dim) const {
     Index result = 0;
 
     if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
@@ -577,7 +581,8 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     return result;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index getIndexFromOffset(Index base, Index omitted_dim, Index offset) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index getIndexFromOffset(Index base, Index omitted_dim,
+                                                                           Index offset) const {
     Index result = base + offset * m_strides[omitted_dim];
     return result;
   }
@@ -593,72 +598,72 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
   // This will support a maximum FFT size of 2^32 for each dimension
   // m_sin_PI_div_n_LUT[i] = (-2) * std::sin(EIGEN_PI / std::pow(2,i)) ^ 2;
-  const RealScalar m_sin_PI_div_n_LUT[32] = {RealScalar(0.0),
-                                             RealScalar(-2),
-                                             RealScalar(-0.999999999999999),
-                                             RealScalar(-0.292893218813453),
-                                             RealScalar(-0.0761204674887130),
-                                             RealScalar(-0.0192147195967696),
-                                             RealScalar(-0.00481527332780311),
-                                             RealScalar(-0.00120454379482761),
-                                             RealScalar(-3.01181303795779e-04),
-                                             RealScalar(-7.52981608554592e-05),
-                                             RealScalar(-1.88247173988574e-05),
-                                             RealScalar(-4.70619042382852e-06),
-                                             RealScalar(-1.17654829809007e-06),
-                                             RealScalar(-2.94137117780840e-07),
-                                             RealScalar(-7.35342821488550e-08),
-                                             RealScalar(-1.83835707061916e-08),
-                                             RealScalar(-4.59589268710903e-09),
-                                             RealScalar(-1.14897317243732e-09),
-                                             RealScalar(-2.87243293150586e-10),
-                                             RealScalar(-7.18108232902250e-11),
-                                             RealScalar(-1.79527058227174e-11),
-                                             RealScalar(-4.48817645568941e-12),
-                                             RealScalar(-1.12204411392298e-12),
-                                             RealScalar(-2.80511028480785e-13),
-                                             RealScalar(-7.01277571201985e-14),
-                                             RealScalar(-1.75319392800498e-14),
-                                             RealScalar(-4.38298482001247e-15),
-                                             RealScalar(-1.09574620500312e-15),
-                                             RealScalar(-2.73936551250781e-16),
-                                             RealScalar(-6.84841378126949e-17),
-                                             RealScalar(-1.71210344531737e-17),
-                                             RealScalar(-4.28025861329343e-18)};
+  static constexpr RealScalar m_sin_PI_div_n_LUT[32] = {RealScalar(0.0),
+                                                        RealScalar(-2),
+                                                        RealScalar(-0.999999999999999),
+                                                        RealScalar(-0.292893218813453),
+                                                        RealScalar(-0.0761204674887130),
+                                                        RealScalar(-0.0192147195967696),
+                                                        RealScalar(-0.00481527332780311),
+                                                        RealScalar(-0.00120454379482761),
+                                                        RealScalar(-3.01181303795779e-04),
+                                                        RealScalar(-7.52981608554592e-05),
+                                                        RealScalar(-1.88247173988574e-05),
+                                                        RealScalar(-4.70619042382852e-06),
+                                                        RealScalar(-1.17654829809007e-06),
+                                                        RealScalar(-2.94137117780840e-07),
+                                                        RealScalar(-7.35342821488550e-08),
+                                                        RealScalar(-1.83835707061916e-08),
+                                                        RealScalar(-4.59589268710903e-09),
+                                                        RealScalar(-1.14897317243732e-09),
+                                                        RealScalar(-2.87243293150586e-10),
+                                                        RealScalar(-7.18108232902250e-11),
+                                                        RealScalar(-1.79527058227174e-11),
+                                                        RealScalar(-4.48817645568941e-12),
+                                                        RealScalar(-1.12204411392298e-12),
+                                                        RealScalar(-2.80511028480785e-13),
+                                                        RealScalar(-7.01277571201985e-14),
+                                                        RealScalar(-1.75319392800498e-14),
+                                                        RealScalar(-4.38298482001247e-15),
+                                                        RealScalar(-1.09574620500312e-15),
+                                                        RealScalar(-2.73936551250781e-16),
+                                                        RealScalar(-6.84841378126949e-17),
+                                                        RealScalar(-1.71210344531737e-17),
+                                                        RealScalar(-4.28025861329343e-18)};
 
   // m_minus_sin_2_PI_div_n_LUT[i] = -std::sin(2 * EIGEN_PI / std::pow(2,i));
-  const RealScalar m_minus_sin_2_PI_div_n_LUT[32] = {RealScalar(0.0),
-                                                     RealScalar(0.0),
-                                                     RealScalar(-1.00000000000000e+00),
-                                                     RealScalar(-7.07106781186547e-01),
-                                                     RealScalar(-3.82683432365090e-01),
-                                                     RealScalar(-1.95090322016128e-01),
-                                                     RealScalar(-9.80171403295606e-02),
-                                                     RealScalar(-4.90676743274180e-02),
-                                                     RealScalar(-2.45412285229123e-02),
-                                                     RealScalar(-1.22715382857199e-02),
-                                                     RealScalar(-6.13588464915448e-03),
-                                                     RealScalar(-3.06795676296598e-03),
-                                                     RealScalar(-1.53398018628477e-03),
-                                                     RealScalar(-7.66990318742704e-04),
-                                                     RealScalar(-3.83495187571396e-04),
-                                                     RealScalar(-1.91747597310703e-04),
-                                                     RealScalar(-9.58737990959773e-05),
-                                                     RealScalar(-4.79368996030669e-05),
-                                                     RealScalar(-2.39684498084182e-05),
-                                                     RealScalar(-1.19842249050697e-05),
-                                                     RealScalar(-5.99211245264243e-06),
-                                                     RealScalar(-2.99605622633466e-06),
-                                                     RealScalar(-1.49802811316901e-06),
-                                                     RealScalar(-7.49014056584716e-07),
-                                                     RealScalar(-3.74507028292384e-07),
-                                                     RealScalar(-1.87253514146195e-07),
-                                                     RealScalar(-9.36267570730981e-08),
-                                                     RealScalar(-4.68133785365491e-08),
-                                                     RealScalar(-2.34066892682746e-08),
-                                                     RealScalar(-1.17033446341373e-08),
-                                                     RealScalar(-5.85167231706864e-09),
-                                                     RealScalar(-2.92583615853432e-09)};
+  static constexpr RealScalar m_minus_sin_2_PI_div_n_LUT[32] = {RealScalar(0.0),
+                                                                RealScalar(0.0),
+                                                                RealScalar(-1.00000000000000e+00),
+                                                                RealScalar(-7.07106781186547e-01),
+                                                                RealScalar(-3.82683432365090e-01),
+                                                                RealScalar(-1.95090322016128e-01),
+                                                                RealScalar(-9.80171403295606e-02),
+                                                                RealScalar(-4.90676743274180e-02),
+                                                                RealScalar(-2.45412285229123e-02),
+                                                                RealScalar(-1.22715382857199e-02),
+                                                                RealScalar(-6.13588464915448e-03),
+                                                                RealScalar(-3.06795676296598e-03),
+                                                                RealScalar(-1.53398018628477e-03),
+                                                                RealScalar(-7.66990318742704e-04),
+                                                                RealScalar(-3.83495187571396e-04),
+                                                                RealScalar(-1.91747597310703e-04),
+                                                                RealScalar(-9.58737990959773e-05),
+                                                                RealScalar(-4.79368996030669e-05),
+                                                                RealScalar(-2.39684498084182e-05),
+                                                                RealScalar(-1.19842249050697e-05),
+                                                                RealScalar(-5.99211245264243e-06),
+                                                                RealScalar(-2.99605622633466e-06),
+                                                                RealScalar(-1.49802811316901e-06),
+                                                                RealScalar(-7.49014056584716e-07),
+                                                                RealScalar(-3.74507028292384e-07),
+                                                                RealScalar(-1.87253514146195e-07),
+                                                                RealScalar(-9.36267570730981e-08),
+                                                                RealScalar(-4.68133785365491e-08),
+                                                                RealScalar(-2.34066892682746e-08),
+                                                                RealScalar(-1.17033446341373e-08),
+                                                                RealScalar(-5.85167231706864e-09),
+                                                                RealScalar(-2.92583615853432e-09)};
 };
 
 }  // end namespace Eigen
