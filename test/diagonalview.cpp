@@ -24,16 +24,25 @@ void diagonalview(const MatrixType& m) {
 
   // check equivalence to diagonal(i).asDiagonal() for dynamic indexes
   VERIFY_IS_APPROX(m1.diagonal(0).asDiagonal().toDenseMatrix(), m1.diagonalView(0).toDenseMatrix());
+  // subdiagonal
   VERIFY_IS_APPROX(m1.diagonal(-1).asDiagonal().toDenseMatrix(), m1.diagonalView(-1).toDenseMatrix());
+  // superdiagonal
   VERIFY_IS_APPROX(m1.diagonal(1).asDiagonal().toDenseMatrix(), m1.diagonalView(1).toDenseMatrix());
 
   // check equivalence to diagonal(i).asDiagonal() for compile time indexes
   VERIFY_IS_APPROX(m1.diagonal(0).asDiagonal().toDenseMatrix(), m1.template diagonalView<0>().toDenseMatrix());
+  // sub
   VERIFY_IS_APPROX(m1.diagonal(-1).asDiagonal().toDenseMatrix(), m1.template diagonalView<-1>().toDenseMatrix());
+  // super
   VERIFY_IS_APPROX(m1.diagonal(1).asDiagonal().toDenseMatrix(), m1.template diagonalView<1>().toDenseMatrix());
 
   // check const overloads
   const auto m2(m1);
+  typedef decltype(m1) Type1;
+  typedef decltype(m2) Type2;
+  constexpr bool types_are_same = std::is_same<Type1, Type2>::value;
+  VERIFY(!types_are_same);
+
   VERIFY_IS_APPROX(m2.diagonal(0).asDiagonal().toDenseMatrix(), m2.diagonalView(0).toDenseMatrix());
   VERIFY_IS_APPROX(m2.diagonal(1).asDiagonal().toDenseMatrix(), m2.template diagonalView<1>().toDenseMatrix());
 }
@@ -41,6 +50,6 @@ void diagonalview(const MatrixType& m) {
 EIGEN_DECLARE_TEST(diagonalview) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(diagonalview(Matrix<float, 3, 3>()));
-    CALL_SUBTEST_2(diagonalview(Matrix<float, 50, 50>()));
+    CALL_SUBTEST_2(diagonalview(Matrix<int, 50, 50>()));
   }
 }
