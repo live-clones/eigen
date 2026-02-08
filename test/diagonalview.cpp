@@ -16,54 +16,31 @@
 using namespace std;
 template <typename MatrixType>
 void diagonalview(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef Matrix<Scalar, Rows, 1> VectorType;
-  typedef Matrix<Scalar, 1, Cols> RowVectorType;
-  typedef Matrix<Scalar, Rows, Rows> SquareMatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DynMatrixType;
-  typedef DiagonalMatrix<Scalar, Rows> LeftDiagonalMatrix;
-  typedef DiagonalMatrix<Scalar, Cols> RightDiagonalMatrix;
-  typedef Matrix<Scalar, Rows == Dynamic ? Dynamic : 2 * Rows, Cols == Dynamic ? Dynamic : 2 * Cols> BigMatrix;
   Index rows = m.rows();
   Index cols = m.cols();
+  // create random matrix
+  MatrixType m1 = MatrixType::Random(rows, cols);
 
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols);
-  VectorType v1 = VectorType::Random(rows), v2 = VectorType::Random(rows);
-  RowVectorType rv1 = RowVectorType::Random(cols), rv2 = RowVectorType::Random(cols);
+  // check equivalence to diagonal(i).asDiagonal() for dynamic indexes
+  VERIFY_IS_APPROX(m1.diagonal(0).asDiagonal().toDenseMatrix(), m1.diagonalView(0).toDenseMatrix());
+  VERIFY_IS_APPROX(m1.diagonal(-1).asDiagonal().toDenseMatrix(), m1.diagonalView(-1).toDenseMatrix());
+  VERIFY_IS_APPROX(m1.diagonal(1).asDiagonal().toDenseMatrix(), m1.diagonalView(1).toDenseMatrix());
 
-  LeftDiagonalMatrix ldm1(v1), ldm2(v2);
-  RightDiagonalMatrix rdm1(rv1), rdm2(rv2);
+  // check equivalence to diagonal(i).asDiagonal() for compile time indexes
+  VERIFY_IS_APPROX(m1.diagonal(0).asDiagonal().toDenseMatrix(), m1.template diagonalView<0>().toDenseMatrix());
+  VERIFY_IS_APPROX(m1.diagonal(-1).asDiagonal().toDenseMatrix(), m1.template diagonalView<-1>().toDenseMatrix());
+  VERIFY_IS_APPROX(m1.diagonal(1).asDiagonal().toDenseMatrix(), m1.template diagonalView<1>().toDenseMatrix());
 
-  Scalar s1 = internal::random<Scalar>();
-
-  SquareMatrixType sq_m1(v1.asDiagonal());
-  VERIFY_IS_APPROX(sq_m1, v1.asDiagonal().toDenseMatrix());
-  sq_m1 = v1.asDiagonal();
-  VERIFY_IS_APPROX(sq_m1, v1.asDiagonal().toDenseMatrix());
-  SquareMatrixType sq_m2 = v1.asDiagonal();
-  VERIFY_IS_APPROX(sq_m1, sq_m2);
-
-  Index i = internal::random<Index>(0, rows - 1);
-  Index j = internal::random<Index>(0, cols - 1);
-
-  // scalar multiple
-  VERIFY_IS_APPROX(LeftDiagonalMatrix(ldm1 * s1).diagonal(), ldm1.diagonal() * s1);
-  VERIFY_IS_APPROX(LeftDiagonalMatrix(s1 * ldm1).diagonal(), s1 * ldm1.diagonal());
-
-  VERIFY_IS_APPROX(m1 * (rdm1 * s1), (m1 * rdm1) * s1);
-  VERIFY_IS_APPROX(m1 * (s1 * rdm1), (m1 * rdm1) * s1);
-
-  // Zero and Identity
-  LeftDiagonalMatrix zero = LeftDiagonalMatrix::Zero(rows);
-  LeftDiagonalMatrix identity = LeftDiagonalMatrix::Identity(rows);
-  VERIFY_IS_APPROX(identity.diagonal().sum(), Scalar(rows));
-  VERIFY_IS_APPROX(zero.diagonal().sum(), Scalar(0));
+  // check const overloads
+  const auto m2(m1);
+  VERIFY_IS_APPROX(m2.diagonal(0).asDiagonal().toDenseMatrix(), m2.diagonalView(0).toDenseMatrix());
+  VERIFY_IS_APPROX(m2.diagonal(1).asDiagonal().toDenseMatrix(), m2.template diagonalView<1>().toDenseMatrix());
 }
-
 
 EIGEN_DECLARE_TEST(diagonalview) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(diagonalview(Matrix<float, 1, 1>()));
+    CALL_SUBTEST_1(diagonalview(Matrix<float, 3, 3>()));
+    CALL_SUBTEST_2(diagonalview(Matrix<float, 50, 50>()));
   }
 }
