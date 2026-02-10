@@ -419,7 +419,7 @@ extern "C" {
 // SME can coexist with NEON. 
 // We enable it automatically if __ARM_FEATURE_SME is defined by the compiler,
 // or explicitly via EIGEN_ARM64_USE_SME.
-#if (defined __ARM_FEATURE_SME) || (defined EIGEN_ARM64_USE_SME)
+#if ((defined __ARM_FEATURE_SME) || (defined EIGEN_ARM64_USE_SME)) && !defined(EIGEN_ARM64_NO_SME)
 
 #ifndef EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE
