@@ -734,7 +734,7 @@ EIGEN_DEVICE_FUNC inline typename DenseBase<Derived>::RowwiseReturnType DenseBas
 
 /* Enable use of VectorwiseOp types inside
  * of std::ranges algorithms. */
-#if __cplusplus >= 202002L
+#if defined(__cpp_lib_ranges) && __cpp_lib_ranges >= 201911L
 namespace std {
 template <typename VecwiseOp, Eigen::DirectionType Direction>
 inline constexpr bool ranges::enable_borrowed_range<Eigen::internal::subvector_stl_iterator<VecwiseOp, Direction>> =
