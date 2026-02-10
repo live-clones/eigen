@@ -483,10 +483,10 @@ enum Type {
   Target = AltiVec
 #elif defined EIGEN_VECTORIZE_VSX
   Target = VSX
-#elif defined EIGEN_VECTORIZE_NEON
-  Target = NEON
 #elif defined EIGEN_VECTORIZE_SME
   Target = SME
+#elif defined EIGEN_VECTORIZE_NEON
+  Target = NEON
 #elif defined EIGEN_VECTORIZE_SVE
   Target = SVE
 #elif defined EIGEN_VECTORIZE_MSA

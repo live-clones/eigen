@@ -948,8 +948,7 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
 };
 
 #ifdef EIGEN_VECTORIZE_SME
-template <typename DataMapper, typename Scalar, typename Index>
-__attribute__((noinline)) __arm_new("za") __arm_locally_streaming
+template <typename DataMapper, typename Scalar, typename Index, int mr, int nr>
 void run_sme_gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows,
                   Index depth, Index cols, Scalar alpha, Index strideA, Index strideB,
                   Index offsetA, Index offsetB);
@@ -1437,7 +1436,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 
 #if defined(EIGEN_VECTORIZE_SME)
   if (std::is_same<LhsScalar, float>::value && std::is_same<RhsScalar, float>::value) {
-    run_sme_gemm(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB);
+    run_sme_gemm<DataMapper, LhsScalar, Index, mr, nr>(res, blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB);
     return;
   }
 #endif

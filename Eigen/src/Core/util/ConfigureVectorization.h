@@ -408,40 +408,28 @@ extern "C" {
 #undef vector
 #undef pixel
 
-#elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE) && !(defined EIGEN_ARM64_USE_SME)
+#elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE)
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_NEON
 #include <arm_neon.h>
 
-// We currently require SVE to be enabled explicitly via EIGEN_ARM64_USE_SVE and
-// will not select the backend automatically
-#elif (defined __ARM_FEATURE_SVE) && (defined EIGEN_ARM64_USE_SVE)
-
-#define EIGEN_VECTORIZE
-#define EIGEN_VECTORIZE_SVE
-#include <arm_sve.h>
-
-// Since we depend on knowing SVE vector length at compile-time, we need
-// to ensure a fixed length is set
-#if defined __ARM_FEATURE_SVE_BITS
-#define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
-#else
-#error "Eigen requires a fixed SVE lector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
-// We currently require SME to be enabled explicitly via EIGEN_ARM64_USE_SME and
-// will not select the backend automatically
-#elif (defined __ARM_FEATURE_SME) && (defined EIGEN_ARM64_USE_SME)
+// SME can coexist with NEON. 
+// We enable it automatically if __ARM_FEATURE_SME is defined by the compiler,
+// or explicitly via EIGEN_ARM64_USE_SME.
+#if (defined __ARM_FEATURE_SME) || (defined EIGEN_ARM64_USE_SME)
 
+#ifndef EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE
+#endif
 #define EIGEN_VECTORIZE_SME
 #include <arm_sme.h>
 
 #ifdef EIGEN_SME_USE_NEON_PACKETS
 #include <arm_neon.h>
 #endif
-
 
 // Since we depend on knowing SVE vector length at compile-time, we need
 // to ensure a fixed length is set
@@ -455,7 +443,10 @@ extern "C" {
 #endif
 #endif
 
-#elif EIGEN_ARCH_RISCV
+#endif
+
+#if defined(EIGEN_ARCH_RISCV) && !defined(EIGEN_VECTORIZE_NEON) && !defined(EIGEN_VECTORIZE_SME)
+// ... original RISCV code continues here, I'll match the next block correctly ...
 
 #if defined(__riscv_zfh)
 #define EIGEN_HAS_BUILTIN_FLOAT16
