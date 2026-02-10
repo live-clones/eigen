@@ -446,9 +446,13 @@ using std::ptrdiff_t;
 #include "src/Core/arch/AltiVec/MatrixProduct.h"
 #elif defined EIGEN_VECTORIZE_NEON
 #include "src/Core/arch/NEON/GeneralBlockPanelKernel.h"
-#elif defined EIGEN_VECTORIZE_SME
+#endif
+
+#if defined EIGEN_VECTORIZE_SME
 #include "src/Core/arch/SME/GeneralBlockPanelKernel.h"
-#elif defined EIGEN_VECTORIZE_LSX
+#endif
+
+#if defined EIGEN_VECTORIZE_LSX
 #include "src/Core/arch/LSX/GeneralBlockPanelKernel.h"
 #elif defined EIGEN_VECTORIZE_RVV10
 #include "src/Core/arch/RVV10/GeneralBlockPanelKernel.h"
