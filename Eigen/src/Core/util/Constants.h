@@ -476,6 +476,7 @@ enum Type {
   HVX = 0x7,
   LSX = 0x8,
   RVV10 = 0x9,
+  SME = 0xa,
 #if defined EIGEN_VECTORIZE_SSE
   Target = SSE
 #elif defined EIGEN_VECTORIZE_ALTIVEC
@@ -484,6 +485,8 @@ enum Type {
   Target = VSX
 #elif defined EIGEN_VECTORIZE_NEON
   Target = NEON
+#elif defined EIGEN_VECTORIZE_SME
+  Target = SME
 #elif defined EIGEN_VECTORIZE_SVE
   Target = SVE
 #elif defined EIGEN_VECTORIZE_MSA
