@@ -14,16 +14,20 @@
 
 #if defined(__cpp_lib_ranges) && __cpp_lib_ranges >= 201911L
 #include <ranges>
+#endif
 
 void vectorwiseop_use_in_std_ranges() {
-  // verify basic std::ranges functionality
+  // verify basic std::ranges functionality; noop if ranges not present
+  std::cout << "ranges test fxn ran" << std::endl;
+#if defined(__cpp_lib_ranges) && __cpp_lib_ranges >= 201911L
+  std::cout << "ranges lib found" << std::endl;
   Matrix3f a = Matrix3f::Random();
   int count = 0;
   std::ranges::for_each(a.colwise(), [&count](auto&& col) { count += col.count(); });
   VERIFY_IS_EQUAL(count, 9);
   std::ranges::for_each(a.rowwise(), [&count](auto&& row) { count += row.count(); });
   VERIFY_IS_EQUAL(count, 18);
+#endif
 }
 
 EIGEN_DECLARE_TEST(vectorwiseop_ranges) { CALL_SUBTEST_1(vectorwiseop_use_in_std_ranges()); }
-#endif
