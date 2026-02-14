@@ -27,9 +27,8 @@ static void BM_GemmDefaultBlocking(benchmark::State& state) {
     dst.noalias() = lhs * rhs;
     benchmark::DoNotOptimize(dst.data());
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2.0 * k * m * n, benchmark::Counter::kIsIterationInvariantRate,
-      benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * k * m * n, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 static void BM_GemmCustomBlocking(benchmark::State& state) {
@@ -50,9 +49,8 @@ static void BM_GemmCustomBlocking(benchmark::State& state) {
     dst.noalias() = lhs * rhs;
     benchmark::DoNotOptimize(dst.data());
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2.0 * k * m * n, benchmark::Counter::kIsIterationInvariantRate,
-      benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * k * m * n, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 static void DefaultBlockingSizes(::benchmark::Benchmark* b) {

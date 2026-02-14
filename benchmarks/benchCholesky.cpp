@@ -42,6 +42,7 @@ static void BM_LLT(benchmark::State& state) {
     int rem = std::max(n - j - 1, 0);
     cost += 2 * (rem * j + rem + j);
   }
-  state.counters["GFLOPS"] = benchmark::Counter(cost, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(cost, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 BENCHMARK(BM_LLT)->RangeMultiplier(2)->Range(4, 1500);

@@ -26,9 +26,8 @@ static void BM_EigenGemm(benchmark::State& state) {
     c.noalias() += a * b;
     benchmark::DoNotOptimize(c.data());
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2.0 * M * N * K, benchmark::Counter::kIsIterationInvariantRate,
-      benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * M * N * K, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 #ifdef HAVE_BLAS
@@ -51,13 +50,11 @@ static void BM_CblasGemm(benchmark::State& state) {
   MyMatrix c = MyMatrix::Random(M, N);
   Scalar alpha = 1, beta = 1;
   for (auto _ : state) {
-    CBLAS_GEMM(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha,
-               a.data(), M, b.data(), K, beta, c.data(), M);
+    CBLAS_GEMM(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, a.data(), M, b.data(), K, beta, c.data(), M);
     benchmark::DoNotOptimize(c.data());
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2.0 * M * N * K, benchmark::Counter::kIsIterationInvariantRate,
-      benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * M * N * K, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 #endif
 

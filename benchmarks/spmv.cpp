@@ -15,7 +15,9 @@ static void fillMatrix(int nnzPerCol, int rows, int cols, SpMat& dst) {
     std::set<int> used;
     for (int i = 0; i < nnzPerCol; ++i) {
       int row;
-      do { row = internal::random<int>(0, rows - 1); } while (used.count(row));
+      do {
+        row = internal::random<int>(0, rows - 1);
+      } while (used.count(row));
       used.insert(row);
       dst.insert(row, j) = internal::random<Scalar>();
     }
