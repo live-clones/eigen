@@ -5,7 +5,9 @@ using namespace Eigen;
 
 // Helper to get dimension from various transform types
 template <typename T>
-struct TransformDim { static constexpr int value = T::Dim; };
+struct TransformDim {
+  static constexpr int value = T::Dim;
+};
 
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct TransformDim<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> {

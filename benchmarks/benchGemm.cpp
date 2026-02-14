@@ -30,9 +30,8 @@ static void BM_EigenGemm(benchmark::State& state) {
     benchmark::DoNotOptimize(c.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate,
-      benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 static void GemmSizes(::benchmark::Benchmark* b) {
@@ -73,9 +72,8 @@ static void BM_BlasGemm(benchmark::State& state) {
     benchmark::DoNotOptimize(c.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate,
-      benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 BENCHMARK(BM_BlasGemm)->Apply(GemmSizes);
 #endif

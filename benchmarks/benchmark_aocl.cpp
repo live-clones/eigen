@@ -93,9 +93,8 @@ static void BM_DGEMM(benchmark::State& state) {
     C.noalias() = A * B;
     benchmark::DoNotOptimize(C.data());
   }
-  state.counters["GFLOPS"] = benchmark::Counter(
-      2.0 * n * n * n, benchmark::Counter::kIsIterationInvariantRate,
-      benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * n * n * n, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 BENCHMARK(BM_DGEMM)->Arg(256)->Arg(512)->Arg(1024)->Arg(2048);
 

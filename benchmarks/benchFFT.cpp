@@ -29,7 +29,8 @@ static void BM_FFT(benchmark::State& state) {
   }
   double mflops_per_iter = 5.0 * nfft * std::log2(static_cast<double>(nfft));
   if (!NumTraits<T>::IsComplex) mflops_per_iter /= 2;
-  state.counters["MFLOPS"] = benchmark::Counter(mflops_per_iter, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["MFLOPS"] =
+      benchmark::Counter(mflops_per_iter, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 BENCHMARK(BM_FFT<std::complex<float>, true>)->Arg(1024)->Arg(4096);
