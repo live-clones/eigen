@@ -288,6 +288,9 @@ using std::ptrdiff_t;
 #if defined EIGEN_VECTORIZE_RVV10FP16
 #include "src/Core/arch/RVV10/PacketMathFP16.h"
 #endif
+#if defined EIGEN_VECTORIZE_RVV10BF16
+#include "src/Core/arch/RVV10/PacketMathBF16.h"
+#endif
 #elif defined EIGEN_VECTORIZE_ZVECTOR
 #include "src/Core/arch/ZVector/PacketMath.h"
 #include "src/Core/arch/ZVector/MathFunctions.h"
@@ -434,6 +437,8 @@ using std::ptrdiff_t;
 #include "src/Core/arch/NEON/GeneralBlockPanelKernel.h"
 #elif defined EIGEN_VECTORIZE_LSX
 #include "src/Core/arch/LSX/GeneralBlockPanelKernel.h"
+#elif defined EIGEN_VECTORIZE_RVV10
+#include "src/Core/arch/RVV10/GeneralBlockPanelKernel.h"
 #endif
 
 #if defined(EIGEN_VECTORIZE_AVX512)
