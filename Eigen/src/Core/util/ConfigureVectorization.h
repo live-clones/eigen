@@ -408,7 +408,8 @@ extern "C" {
 #undef vector
 #undef pixel
 
-#elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE) && !(defined EIGEN_ARM64_USE_SME512)
+#elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE) && \
+    !(defined EIGEN_ARM64_USE_SME512)
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_NEON
@@ -441,7 +442,6 @@ extern "C" {
 #ifdef EIGEN_SME_USE_NEON_PACKETS
 #include <arm_neon.h>
 #endif
-
 
 // Since we depend on knowing SVE vector length at compile-time, we need
 // to ensure a fixed length is set

@@ -949,10 +949,9 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
 
 #ifdef EIGEN_VECTORIZE_SME512
 template <typename DataMapper, typename Scalar, typename Index>
-__attribute__((noinline)) __arm_new("za") __arm_locally_streaming
-void run_sme_gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows,
-                  Index depth, Index cols, Scalar alpha, Index strideA, Index strideB,
-                  Index offsetA, Index offsetB);
+__attribute__((noinline)) __arm_new("za") __arm_locally_streaming void run_sme_gemm(
+    const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows, Index depth, Index cols,
+    Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB);
 #endif
 
 /* optimized General packed Block * packed Panel product kernel
