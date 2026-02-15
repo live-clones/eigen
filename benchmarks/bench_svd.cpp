@@ -74,15 +74,11 @@ static void BDCSizes(::benchmark::Benchmark* b) {
 // ---------- Register benchmarks ----------
 
 // JacobiSVD — float
-BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>)
-    ->Apply(JacobiSizes)
-    ->Name("JacobiSVD_float_ThinUV");
+BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>)->Apply(JacobiSizes)->Name("JacobiSVD_float_ThinUV");
 BENCHMARK(BM_JacobiSVD<float, 0>)->Apply(JacobiSizes)->Name("JacobiSVD_float_ValuesOnly");
 
 // JacobiSVD — double
-BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>)
-    ->Apply(JacobiSizes)
-    ->Name("JacobiSVD_double_ThinUV");
+BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>)->Apply(JacobiSizes)->Name("JacobiSVD_double_ThinUV");
 BENCHMARK(BM_JacobiSVD<double, 0>)->Apply(JacobiSizes)->Name("JacobiSVD_double_ValuesOnly");
 
 // BDCSVD — float
