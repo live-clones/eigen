@@ -1432,7 +1432,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   }
 
   //---------- Process LhsProgressHalf rows at once ----------
-  EIGEN_IF_CONSTEXPR((HalfTraits::LhsProgress < Traits::LhsProgress) && mr >= HalfTraits::LhsProgress) {
+  EIGEN_IF_CONSTEXPR((LhsProgressHalf < LhsProgress) && mr >= LhsProgressHalf) {
     HalfTraits half_traits;
     for (Index i = peeled_mc1; i < peeled_mc_half; i += LhsProgressHalf) {
       for (Index j2 = 0; j2 < packet_cols4; j2 += 4) {
@@ -1449,7 +1449,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   }
 
   //---------- Process LhsProgressQuarter rows at once ----------
-  EIGEN_IF_CONSTEXPR((QuarterTraits::LhsProgress < HalfTraits::LhsProgress) && mr >= QuarterTraits::LhsProgress) {
+  EIGEN_IF_CONSTEXPR((LhsProgressQuarter < LhsProgressHalf) && mr >= LhsProgressQuarter) {
     QuarterTraits quarter_traits;
     for (Index i = peeled_mc_half; i < peeled_mc_quarter; i += LhsProgressQuarter) {
       for (Index j2 = 0; j2 < packet_cols4; j2 += 4) {
