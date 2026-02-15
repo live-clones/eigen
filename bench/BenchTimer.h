@@ -111,13 +111,7 @@ class BenchTimer {
     QueryPerformanceCounter(&query_ticks);
     return query_ticks.QuadPart / m_frequency;
 #elif __APPLE__
-    static double freq = 0;
-    if (freq == 0) {
-        mach_timebase_info_data_t info;
-        mach_timebase_info(&info);
-        freq = (double)info.numer / (double)info.denom;
-    }
-    return double(mach_absolute_time()) * 1e-9 * freq;
+    return double(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) * 1e-9;
 #else
     timespec ts;
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
@@ -131,13 +125,7 @@ class BenchTimer {
     GetSystemTime(&st);
     return (double)st.wSecond + 1.e-3 * (double)st.wMilliseconds;
 #elif __APPLE__
-    static double freq = 0;
-    if (freq == 0) {
-        mach_timebase_info_data_t info;
-        mach_timebase_info(&info);
-        freq = (double)info.numer / (double)info.denom;
-    }
-    return double(mach_absolute_time()) * 1e-9 * freq;
+    return double(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) * 1e-9;
 #else
     timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);

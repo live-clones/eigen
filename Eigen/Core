@@ -279,7 +279,7 @@ using std::ptrdiff_t;
 #include "src/Core/arch/SVE/PacketMath.h"
 #include "src/Core/arch/SVE/TypeCasting.h"
 #include "src/Core/arch/SVE/MathFunctions.h"
-#elif defined EIGEN_VECTORIZE_SME
+#elif defined EIGEN_VECTORIZE_SME512
 #ifdef EIGEN_SME_USE_NEON_PACKETS
 #include "src/Core/arch/NEON/PacketMath.h"
 #include "src/Core/arch/NEON/TypeCasting.h"
@@ -446,13 +446,9 @@ using std::ptrdiff_t;
 #include "src/Core/arch/AltiVec/MatrixProduct.h"
 #elif defined EIGEN_VECTORIZE_NEON
 #include "src/Core/arch/NEON/GeneralBlockPanelKernel.h"
-#endif
-
-#if defined EIGEN_VECTORIZE_SME
+#elif defined EIGEN_VECTORIZE_SME512
 #include "src/Core/arch/SME/GeneralBlockPanelKernel.h"
-#endif
-
-#if defined EIGEN_VECTORIZE_LSX
+#elif defined EIGEN_VECTORIZE_LSX
 #include "src/Core/arch/LSX/GeneralBlockPanelKernel.h"
 #elif defined EIGEN_VECTORIZE_RVV10
 #include "src/Core/arch/RVV10/GeneralBlockPanelKernel.h"

@@ -75,7 +75,7 @@
 #elif defined(__AVX512F__)
 // 64 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
-#elif defined(EIGEN_VECTORIZE_SME)
+#elif defined(EIGEN_VECTORIZE_SME512)
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
 #elif defined(__AVX__)
 // 32 bytes static alignment is preferred only if really required
@@ -408,45 +408,56 @@ extern "C" {
 #undef vector
 #undef pixel
 
-#elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE)
+#elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE) && !(defined EIGEN_ARM64_USE_SME512)
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_NEON
 #include <arm_neon.h>
 
-#endif
+// We currently require SVE to be enabled explicitly via EIGEN_ARM64_USE_SVE and
+// will not select the backend automatically
+#elif (defined __ARM_FEATURE_SVE) && (defined EIGEN_ARM64_USE_SVE)
 
-// SME can coexist with NEON. 
-// We enable it automatically if __ARM_FEATURE_SME is defined by the compiler,
-// or explicitly via EIGEN_ARM64_USE_SME.
-#if ((defined __ARM_FEATURE_SME) || (defined EIGEN_ARM64_USE_SME)) && !defined(EIGEN_ARM64_NO_SME)
-
-#ifndef EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE
-#endif
-#define EIGEN_VECTORIZE_SME
-#include <arm_sme.h>
-
-#ifdef EIGEN_SME_USE_NEON_PACKETS
-#include <arm_neon.h>
-#endif
+#define EIGEN_VECTORIZE_SVE
+#include <arm_sve.h>
 
 // Since we depend on knowing SVE vector length at compile-time, we need
 // to ensure a fixed length is set
 #if defined __ARM_FEATURE_SVE_BITS
 #define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
 #else
-// Default to 512 bits (64 bytes) for SME targets if not explicitly set
-// This matches M4 Pro / SME2
+#error "Eigen requires a fixed SVE lector length but EIGEN_ARM64_SVE_VL is not set."
+#endif
+
+// We currently require SME to be enabled explicitly via EIGEN_ARM64_USE_SME512 and
+// will not select the backend automatically
+#elif (defined __ARM_FEATURE_SME) && (defined EIGEN_ARM64_USE_SME512)
+
+#define EIGEN_VECTORIZE
+#define EIGEN_VECTORIZE_SME512
+#include <arm_sme.h>
+
+#ifdef EIGEN_SME_USE_NEON_PACKETS
+#include <arm_neon.h>
+#endif
+
+
+// Since we depend on knowing SVE vector length at compile-time, we need
+// to ensure a fixed length is set
+#if defined __ARM_FEATURE_SVE_BITS
+#define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
+#else
 #ifndef EIGEN_ARM64_SVE_VL
 #define EIGEN_ARM64_SVE_VL 512
 #endif
 #endif
 
+#if EIGEN_ARM64_SVE_VL != 512
+#error "EIGEN_ARM64_USE_SME512 requires a vector length of 512 bits."
 #endif
 
-#if defined(EIGEN_ARCH_RISCV) && !defined(EIGEN_VECTORIZE_NEON) && !defined(EIGEN_VECTORIZE_SME)
-// ... original RISCV code continues here, I'll match the next block correctly ...
+#elif EIGEN_ARCH_RISCV
 
 #if defined(__riscv_zfh)
 #define EIGEN_HAS_BUILTIN_FLOAT16
@@ -609,8 +620,8 @@ inline static const char* SimdInstructionSetsInUse(void) {
   return "VSX";
 #elif defined(EIGEN_VECTORIZE_NEON)
   return "ARM NEON";
-#elif defined(EIGEN_VECTORIZE_SME)
-  return "ARM SME";
+#elif defined(EIGEN_VECTORIZE_SME512)
+  return "ARM SME512";
 #elif defined(EIGEN_VECTORIZE_SVE)
   return "ARM SVE";
 #elif defined(EIGEN_VECTORIZE_ZVECTOR)

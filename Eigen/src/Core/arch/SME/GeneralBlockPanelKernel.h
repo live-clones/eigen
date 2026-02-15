@@ -30,12 +30,11 @@ class gebp_traits<float, float, ConjLhs_, ConjRhs_, Architecture::Target, Packet
   };
 };
 
-template <typename Scalar, typename Index, int mr, int nr>
+template <typename DataMapper, typename Scalar, typename Index, int mr, int nr>
 __attribute__((noinline)) __arm_new("za") __arm_locally_streaming
-void run_sme_gemm_impl(Scalar* res_base, Index res_stride_row, Index res_stride_col, 
-                       const Scalar* blockA, const Scalar* blockB, Index rows,
-                       Index depth, Index cols, Scalar alpha, Index strideA, Index strideB,
-                       Index offsetA, Index offsetB) {
+void run_sme_gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows,
+                  Index depth, Index cols, Scalar alpha, Index strideA, Index strideB,
+                  Index offsetA, Index offsetB) {
     
     // Naive SME Implementation with Predicates for safety
     // Assumes VL=16 (mr=16, nr=16)
@@ -57,13 +56,15 @@ void run_sme_gemm_impl(Scalar* res_base, Index res_stride_row, Index res_stride_
         // Unroll 4x to reduce loop overhead
         for (; k + 4 <= depth; k += 4) {
              svfloat32_t va0 = svld1_f32(pg_rows, pA);
-             svfloat32_t va1 = svld1_f32(pg_rows, pA + mr);
-             svfloat32_t va2 = svld1_f32(pg_rows, pA + 2*mr);
-             svfloat32_t va3 = svld1_f32(pg_rows, pA + 3*mr);
-
              svfloat32_t vb0 = svld1_f32(pg_cols, pB);
+             
+             svfloat32_t va1 = svld1_f32(pg_rows, pA + mr);
              svfloat32_t vb1 = svld1_f32(pg_cols, pB + nr);
+             
+             svfloat32_t va2 = svld1_f32(pg_rows, pA + 2*mr);
              svfloat32_t vb2 = svld1_f32(pg_cols, pB + 2*nr);
+
+             svfloat32_t va3 = svld1_f32(pg_rows, pA + 3*mr);
              svfloat32_t vb3 = svld1_f32(pg_cols, pB + 3*nr);
 
              svmopa_za32_f32_m(0, pg_rows, pg_cols, va0, vb0);
@@ -84,73 +85,30 @@ void run_sme_gemm_impl(Scalar* res_base, Index res_stride_row, Index res_stride_
          }
 
         // Store Result (ZA0) back to C
-        // Optimized to use vector loads/stores and match memory layout (ColMajor vs RowMajor)
-        
-        if (res_stride_row == 1) { // ColMajor (contiguous columns)
-             for (int c = 0; c < nr; ++c) {
-                if (j + c >= cols) break;
-                
-                // Read Vertical vector from ZA (Column c of the tile)
-                svfloat32_t vres = svread_ver_za32_f32_m(svundef_f32(), pg_rows, 0, c);
-                if (alpha != 1.0f) vres = svmul_x(pg_rows, vres, alpha);
-                
-                Scalar* pC = res_base + (i) * res_stride_row + (j + c) * res_stride_col;
-                
-                svfloat32_t vC = svld1_f32(pg_rows, pC);
-                vC = svadd_f32_x(pg_rows, vC, vres);
-                svst1_f32(pg_rows, pC, vC);
+        // Iterate over rows of the tile (0..15)
+        for (int r = 0; r < mr; ++r) {
+           // If this row index is beyond the matrix rows, stop
+           if (i + r >= rows) break;
+           
+           // Read vector from ZA. 
+           // This vector corresponds to C(i+r, j : j+nr)
+           svfloat32_t inactive = svundef_f32();
+           svfloat32_t vres = svread_hor_za32_f32_m(inactive, pg_cols, 0, r);
+           
+           if (alpha != 1.0f) vres = svmul_x(pg_cols, vres, alpha);
+           
+           // Extract to temp buffer to do scatter update
+           EIGEN_ALIGN64 Scalar tmp[EIGEN_SME_VL_FLOATS]; 
+           svst1_f32(pg_cols, tmp, vres);
+           
+           for (int c_idx = 0; c_idx < nr; ++c_idx) {
+             if (j + c_idx < cols) { 
+                res(i + r, j + c_idx) += tmp[c_idx];
              }
-        }
-        else if (res_stride_col == 1) { // RowMajor (contiguous rows)
-             for (int r = 0; r < mr; ++r) {
-                if (i + r >= rows) break;
-                
-                // Read Horizontal vector from ZA (Row r of the tile)
-                svfloat32_t vres = svread_hor_za32_f32_m(svundef_f32(), pg_cols, 0, r);
-                if (alpha != 1.0f) vres = svmul_x(pg_cols, vres, alpha);
-                
-                Scalar* pC = res_base + (i + r) * res_stride_row + (j) * res_stride_col;
-                
-                svfloat32_t vC = svld1_f32(pg_cols, pC);
-                vC = svadd_f32_x(pg_cols, vC, vres);
-                svst1_f32(pg_cols, pC, vC);
-             }
-        }
-        else { // Fallback for arbitrary strides
-             for (int r = 0; r < mr; ++r) {
-               if (i + r >= rows) break;
-               svfloat32_t vres = svread_hor_za32_f32_m(svundef_f32(), pg_cols, 0, r);
-               if (alpha != 1.0f) vres = svmul_x(pg_cols, vres, alpha);
-               
-               EIGEN_ALIGN64 Scalar tmp[EIGEN_SME_VL_FLOATS]; 
-               svst1_f32(pg_cols, tmp, vres);
-               
-               for (int c_idx = 0; c_idx < nr; ++c_idx) {
-                 if (j + c_idx < cols) { 
-                    Scalar* p = res_base + (i + r) * res_stride_row + (j + c_idx) * res_stride_col;
-                    *p += tmp[c_idx];
-                 }
-               }
-            }
+           }
         }
       }
     }
-}
-
-template <typename DataMapper, typename Scalar, typename Index, int mr, int nr>
-__attribute__((noinline))
-void run_sme_gemm(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows,
-                  Index depth, Index cols, Scalar alpha, Index strideA, Index strideB,
-                  Index offsetA, Index offsetB) {
-
-    // Calculate base pointer and strides OUTSIDE streaming mode.
-    Scalar* res_base = const_cast<Scalar*>(&res(0, 0)); 
-    Index res_stride_row = &res(1, 0) - &res(0, 0);
-    Index res_stride_col = &res(0, 1) - &res(0, 0);
-
-    // Call the streaming implementation
-    run_sme_gemm_impl<Scalar, Index, mr, nr>(res_base, res_stride_row, res_stride_col,
-                                             blockA, blockB, rows, depth, cols, alpha, strideA, strideB, offsetA, offsetB);
 }
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
