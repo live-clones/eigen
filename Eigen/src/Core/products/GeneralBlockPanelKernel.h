@@ -704,7 +704,7 @@ void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
 }
 
 template <typename Packet>
-struct unpacket_traits<DoublePacket<Packet> > {
+struct unpacket_traits<DoublePacket<Packet>> {
   typedef DoublePacket<typename unpacket_traits<Packet>::half> half;
   enum { size = 2 * unpacket_traits<Packet>::size };
 };
@@ -1115,19 +1115,19 @@ struct gebp_rhs_cols;
 // Base case: J >= NrCols, do nothing.
 template <int J, int MrPackets, int NrCols>
 struct gebp_rhs_cols<J, MrPackets, NrCols, false> {
-  template <typename GEBPTraits, typename LhsPacketType, typename RhsPanelType, typename RhsPacketType,
-            typename AccPacketType, typename RhsScalar>
-  static EIGEN_ALWAYS_INLINE void run(GEBPTraits&, const RhsScalar*, Index, LhsPacketType*, RhsPanelType&,
-                                      RhsPacketType&, AccPacketType*) {}
+  template <typename GEBPTraits, typename LhsArray, typename RhsPanelType, typename RhsPacketType, typename AccArray,
+            typename RhsScalar>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits&, const RhsScalar*, Index, LhsArray&, RhsPanelType&, RhsPacketType&,
+                                      AccArray&) {}
 };
 
 // Active case: J < NrCols.
 template <int J, int MrPackets, int NrCols>
 struct gebp_rhs_cols<J, MrPackets, NrCols, true> {
-  template <typename GEBPTraits, typename LhsPacketType, typename RhsPanelType, typename RhsPacketType,
-            typename AccPacketType, typename RhsScalar>
-  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const RhsScalar* blB, Index rhs_offset, LhsPacketType* A,
-                                      RhsPanelType& rhs_panel, RhsPacketType& T0, AccPacketType* C) {
+  template <typename GEBPTraits, typename LhsArray, typename RhsPanelType, typename RhsPacketType, typename AccArray,
+            typename RhsScalar>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const RhsScalar* blB, Index rhs_offset, LhsArray& A,
+                                      RhsPanelType& rhs_panel, RhsPacketType& T0, AccArray& C) {
     constexpr int lane = J % 4;
     EIGEN_IF_CONSTEXPR(lane == 0)
     traits.loadRhs(blB + (J + rhs_offset) * GEBPTraits::RhsProgress, rhs_panel);
@@ -1145,10 +1145,10 @@ struct gebp_rhs_cols<J, MrPackets, NrCols, true> {
 // then processes NrCols RHS columns via gebp_rhs_cols.
 template <int K, int MrPackets, int NrCols>
 struct gebp_micro_step {
-  template <typename GEBPTraits, typename LhsScalar_, typename RhsScalar_, typename LhsPacketType,
-            typename RhsPanelType, typename RhsPacketType, typename AccPacketType>
-  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const LhsScalar_* blA, const RhsScalar_* blB,
-                                      LhsPacketType* A, RhsPanelType& rhs_panel, RhsPacketType& T0, AccPacketType* C) {
+  template <typename GEBPTraits, typename LhsScalar_, typename RhsScalar_, typename LhsArray, typename RhsPanelType,
+            typename RhsPacketType, typename AccArray>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const LhsScalar_* blA, const RhsScalar_* blB, LhsArray& A,
+                                      RhsPanelType& rhs_panel, RhsPacketType& T0, AccArray& C) {
     constexpr int LhsProg = GEBPTraits::LhsProgress;
 
     EIGEN_IF_CONSTEXPR(MrPackets >= 1) traits.loadLhs(&blA[(0 + MrPackets * K) * LhsProg], A[0]);
@@ -1168,51 +1168,73 @@ struct gebp_micro_step {
 #define EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)
 #endif
 
+// GCC's register allocator can fail to keep array-based accumulators in XMM
+// registers, causing excessive spilling to the stack. Pin accumulators using
+// inline asm "+x" constraints.  The ACC pinning only works for plain SSE
+// vector types (not DoublePacket used by complex), so it requires if constexpr
+// (C++17) to safely discard the dead branch for complex types.
+// See Eigen bugs 935 and 1637.
 #if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0) && defined(EIGEN_VECTORIZE_SSE)
-#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, LhsPacketType, FullLhsPacket)               \
+#ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
+// C++17: pin accumulators when they're plain SSE vectors (sizeof matches FullLhsPacket).
+// For complex types, AccPacket is a struct (DoublePacket) and the asm is safely discarded.
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)               \
+  EIGEN_IF_CONSTEXPR((MrPackets <= 2 && NrCols >= 4 && std::is_same<LhsPacketType, FullLhsPacket>::value &&       \
+                      sizeof(ACC[0]) == sizeof(FullLhsPacket))) {                                                 \
+    EIGEN_IF_CONSTEXPR(MrPackets == 2 && NrCols == 4) {                                                           \
+      __asm__(""                                                                                                  \
+              : "+x"(ACC[0]), "+x"(ACC[1]), "+x"(ACC[2]), "+x"(ACC[3]), "+x"(ACC[4]), "+x"(ACC[5]), "+x"(ACC[6]), \
+                "+x"(ACC[7]));                                                                                    \
+    }                                                                                                             \
+    EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)                                                       \
+  }
+#else
+// C++14: only pin LHS packets (A), not accumulators, to avoid asm errors with complex types.
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)          \
   EIGEN_IF_CONSTEXPR((MrPackets <= 2 && NrCols >= 4 && std::is_same<LhsPacketType, FullLhsPacket>::value)) { \
     EIGEN_IF_CONSTEXPR(MrPackets == 2) { __asm__("" : "+x,m"(A[0]), "+x,m"(A[1])); }                         \
-    EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, A)                                                               \
+    EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)                                                  \
   }
+#endif
 #if !(EIGEN_COMP_LCC)
-#define EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, A) \
-  EIGEN_IF_CONSTEXPR(MrPackets == 1) { __asm__("" : "+x,m"(A[0])); }
+#define EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC) \
+  EIGEN_IF_CONSTEXPR(MrPackets == 1 && NrCols == 1) { __asm__("" : "+x,m"(A[0])); }
 #else
-#define EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, A)
+#define EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)
 #endif
 #else
-#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, LhsPacketType, FullLhsPacket)
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)
 #endif
 
 // Unrolled peeled loop body: calls gebp_micro_step for K=0..7, handling
 // double-accumulation for 1pX4, prefetches, and compiler workarounds.
 template <int MrPackets, int NrCols>
 struct gebp_peeled_loop {
-  template <typename GEBPTraits, typename LhsScalar_, typename RhsScalar_, typename LhsPacketType,
-            typename RhsPanelType, typename RhsPacketType, typename AccPacketType, typename FullLhsPacket>
-  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const LhsScalar_* blA, const RhsScalar_* blB,
-                                      LhsPacketType* A, RhsPanelType& rhs_panel, RhsPacketType& T0, AccPacketType* C,
-                                      AccPacketType* D) {
+  template <typename GEBPTraits, typename LhsScalar_, typename RhsScalar_, typename LhsArray, typename RhsPanelType,
+            typename RhsPacketType, typename AccArray, typename AccArrayD, typename FullLhsPacket>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const LhsScalar_* blA, const RhsScalar_* blB, LhsArray& A,
+                                      RhsPanelType& rhs_panel, RhsPacketType& T0, AccArray& C, AccArrayD& D) {
+    using LhsPacketType = std::remove_all_extents_t<std::remove_reference_t<LhsArray>>;
     constexpr bool use_double_accum = (MrPackets == 1 && NrCols == 4);
 
     // Prefetch for 4-col paths
     EIGEN_IF_CONSTEXPR(NrCols == 4) { internal::prefetch(blB + (48 + 0)); }
 
     // Helper to do one step with workarounds
-#define EIGEN_GEBP_DO_STEP(KVAL, ACC)                                                       \
-  do {                                                                                      \
-    gebp_micro_step<KVAL, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, ACC); \
-    /* ARM64 NEON register alloc workaround for 3-packet paths */                           \
-    EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)              \
-    /* GCC SSE spilling workaround for <= 2 packet paths */                                 \
-    EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, LhsPacketType, FullLhsPacket)  \
-    /* LHS prefetch for 2pX4 and 3pX4 */                                                    \
-    EIGEN_IF_CONSTEXPR((MrPackets == 2 || MrPackets == 3) && NrCols == 4) {                 \
-      internal::prefetch(blA + (MrPackets * KVAL + 16) * GEBPTraits::LhsProgress);          \
-      if (EIGEN_ARCH_ARM || EIGEN_ARCH_MIPS) {                                              \
-        internal::prefetch(blB + (NrCols * KVAL + 16) * GEBPTraits::RhsProgress);           \
-      }                                                                                     \
-    }                                                                                       \
+#define EIGEN_GEBP_DO_STEP(KVAL, ACC)                                                           \
+  do {                                                                                          \
+    gebp_micro_step<KVAL, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, ACC);     \
+    /* ARM64 NEON register alloc workaround for 3-packet paths */                               \
+    EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)                  \
+    /* GCC SSE spilling workaround: pin LHS packets and accumulators in registers */            \
+    EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket) \
+    /* LHS prefetch for 2pX4 and 3pX4 */                                                        \
+    EIGEN_IF_CONSTEXPR((MrPackets == 2 || MrPackets == 3) && NrCols == 4) {                     \
+      internal::prefetch(blA + (MrPackets * KVAL + 16) * GEBPTraits::LhsProgress);              \
+      if (EIGEN_ARCH_ARM || EIGEN_ARCH_MIPS) {                                                  \
+        internal::prefetch(blB + (NrCols * KVAL + 16) * GEBPTraits::RhsProgress);               \
+      }                                                                                         \
+    }                                                                                           \
   } while (false)
 
     EIGEN_IF_CONSTEXPR(use_double_accum) {
@@ -1269,9 +1291,13 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
   prefetch(&blA[0]);
 
   // Accumulators: C[j + p * NrCols] for column j, LHS packet p.
-  // Always allocate 3*NrCols slots so that dead-branch array accesses in
-  // gebp_rhs_cols are valid when EIGEN_IF_CONSTEXPR maps to plain 'if' (C++14).
+  // With if constexpr (C++17) we use exact sizes; with plain if (C++14) we pad
+  // to 3*NrCols so dead-branch array accesses in gebp_rhs_cols remain valid.
+#ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
+  constexpr int CSize = MrPackets * NrCols;
+#else
   constexpr int CSize = 3 * NrCols > MrPackets * NrCols ? 3 * NrCols : MrPackets * NrCols;
+#endif
   AccPacketLocal C[CSize];
   for (int n = 0; n < MrPackets * NrCols; ++n) traits.initAcc(C[n]);
 
@@ -1289,17 +1315,20 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
   const RhsScalar_* blB = &blockB[j2 * strideB + offsetB * NrCols];
   prefetch(&blB[0]);
 
-  // Always 3 slots: max needed for 3-packet path, and ensures dead-branch
-  // accesses in gebp_micro_step/gebp_rhs_cols are valid in C++14 mode.
+  // LHS packet staging area. With if constexpr (C++17) we use exact sizes.
+#ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
+  LhsPacketLocal A[MrPackets];
+#else
   LhsPacketLocal A[3];
+#endif
 
   // ---- Peeled k-loop (pk=8 unrolled) ----
   for (Index_ k = 0; k < peeled_kc; k += pk) {
     RhsPanelType rhs_panel;
     RhsPacketLocal T0;
 
-    gebp_peeled_loop<MrPackets, NrCols>::template run<GEBPTraits, LhsScalar_, RhsScalar_, LhsPacketLocal, RhsPanelType,
-                                                      RhsPacketLocal, AccPacketLocal, FullLhsPacket>(
+    gebp_peeled_loop<MrPackets, NrCols>::template run<GEBPTraits, LhsScalar_, RhsScalar_, decltype(A), RhsPanelType,
+                                                      RhsPacketLocal, decltype(C), decltype(D), FullLhsPacket>(
         traits, blA, blB, A, rhs_panel, T0, C, D);
 
     blB += pk * NrCols * RhsProg;
