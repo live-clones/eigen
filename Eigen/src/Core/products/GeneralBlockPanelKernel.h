@@ -125,6 +125,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
   // at the register level. This small horizontal panel has to stay within L1 cache.
   std::ptrdiff_t l1, l2, l3;
   manage_caching_sizes(GetAction, &l1, &l2, &l3);
+  const std::ptrdiff_t phys_l1 = l1;
 #ifdef EIGEN_VECTORIZE_AVX512
   // We need to find a rationale for that, but without this adjustment,
   // performance with AVX512 is pretty bad, like -20% slower.
@@ -219,16 +220,37 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       eigen_internal_assert(((old_k / k) == (old_k / max_kc)) && "the number of sweeps has to remain the same");
     }
 
+    // Guard: ensure the LHS micro-panel (mr x kc) fits within ~75% of the physical L1 cache,
+    // leaving room for RHS streaming and result data. This catches cases where the inflated
+    // L1 (e.g. 4x for AVX-512) allows kc values that make the LHS panel fill or exceed the
+    // actual L1, causing conflict misses. For example, with AVX-512 float: mr=48, k=256
+    // gives a 48KB panel that exactly fills a 48KB L1d — forcing kc~128-192 eliminates this.
+    {
+      const Index lhs_panel_bytes = Index(Traits::mr) * k * Index(sizeof(LhsScalar));
+      const Index l1_threshold = Index(phys_l1 * 3 / 4);
+      if (lhs_panel_bytes > l1_threshold) {
+        Index max_kc_phys = numext::maxi<Index>(
+            (l1_threshold / (Index(Traits::mr) * Index(sizeof(LhsScalar)))) & (~(k_peeling - 1)), k_peeling);
+        if (max_kc_phys < k) {
+          // Re-block: reduce k to fit within physical L1, keeping blocks as even as possible.
+          k = (old_k % max_kc_phys) == 0 ? max_kc_phys
+                                         : max_kc_phys - k_peeling * ((max_kc_phys - 1 - (old_k % max_kc_phys)) /
+                                                                      (k_peeling * (old_k / max_kc_phys + 1)));
+        }
+      }
+    }
+
 // ---- 2nd level of blocking on max(L2,L3), yields nc ----
 
-// TODO find a reliable way to get the actual amount of cache per core to use for 2nd level blocking, that is:
-//      actual_l2 = max(l2, l3/nb_core_sharing_l3)
-// The number below is quite conservative: it is better to underestimate the cache size rather than overestimating it)
-// For instance, it corresponds to 6MB of L3 shared among 4 cores.
+// Estimate the effective per-core L2 capacity for 2nd-level blocking.
+// We use the runtime-detected L2 as a baseline, and if an L3 is present,
+// we assume a share of it (between l3/16 and l3/4) is also available,
+// clamped to at least the detected L2 size.
 #ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
     const Index actual_l2 = l3;
 #else
-    const Index actual_l2 = 1572864;  // == 1.5 MB
+    const Index actual_l2 =
+        numext::maxi<Index>(l2, l3 > 0 ? numext::mini<Index>(l3 / 4, numext::maxi<Index>(l3 / 16, l2)) : l2);
 #endif
 
     // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
@@ -1184,8 +1206,8 @@ struct gebp_peeled_loop {
     EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)              \
     /* GCC SSE spilling workaround for <= 2 packet paths */                                 \
     EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, LhsPacketType, FullLhsPacket)  \
-    /* LHS prefetch for 3pX4 */                                                             \
-    EIGEN_IF_CONSTEXPR(MrPackets == 3 && NrCols == 4) {                                     \
+    /* LHS prefetch for 2pX4 and 3pX4 */                                                    \
+    EIGEN_IF_CONSTEXPR((MrPackets == 2 || MrPackets == 3) && NrCols == 4) {                 \
       internal::prefetch(blA + (MrPackets * KVAL + 16) * GEBPTraits::LhsProgress);          \
       if (EIGEN_ARCH_ARM || EIGEN_ARCH_MIPS) {                                              \
         internal::prefetch(blB + (NrCols * KVAL + 16) * GEBPTraits::RhsProgress);           \
@@ -1354,7 +1376,8 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 
   //---------- Process 3 * LhsProgress rows at once ----------
   EIGEN_IF_CONSTEXPR(mr >= 3 * Traits::LhsProgress) {
-    const Index l1 = defaultL1CacheSize;
+    std::ptrdiff_t l1, l2, l3;
+    manage_caching_sizes(GetAction, &l1, &l2, &l3);
     const Index actual_panel_rows =
         (3 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
                                                 (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
@@ -1384,7 +1407,8 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 
   //---------- Process 2 * LhsProgress rows at once ----------
   EIGEN_IF_CONSTEXPR(mr >= 2 * Traits::LhsProgress) {
-    const Index l1 = defaultL1CacheSize;
+    std::ptrdiff_t l1, l2, l3;
+    manage_caching_sizes(GetAction, &l1, &l2, &l3);
     Index actual_panel_rows =
         (2 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
                                                 (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
