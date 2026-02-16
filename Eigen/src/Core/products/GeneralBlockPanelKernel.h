@@ -220,25 +220,20 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       eigen_internal_assert(((old_k / k) == (old_k / max_kc)) && "the number of sweeps has to remain the same");
     }
 
-    // Guard: ensure the LHS micro-panel (mr x kc) fits within ~75% of the physical L1 cache,
-    // leaving room for RHS streaming and result data. This catches cases where the inflated
-    // L1 (e.g. 4x for AVX-512) allows kc values that make the LHS panel fill or exceed the
-    // actual L1, causing conflict misses. For example, with AVX-512 float: mr=48, k=256
-    // gives a 48KB panel that exactly fills a 48KB L1d — forcing kc~128-192 eliminates this.
+#ifdef EIGEN_VECTORIZE_AVX512
+    // The l1 *= 4 inflation above allows larger kc for better accumulator reuse,
+    // but can overfill the physical L1. Recompute max_kc using 85% of actual L1
+    // to leave headroom for RHS streaming, prefetch buffers, and stack.
     {
-      const Index lhs_panel_bytes = Index(Traits::mr) * k * Index(sizeof(LhsScalar));
-      const Index l1_threshold = Index(phys_l1 * 3 / 4);
-      if (lhs_panel_bytes > l1_threshold) {
-        Index max_kc_phys = numext::maxi<Index>(
-            (l1_threshold / (Index(Traits::mr) * Index(sizeof(LhsScalar)))) & (~(k_peeling - 1)), k_peeling);
-        if (max_kc_phys < k) {
-          // Re-block: reduce k to fit within physical L1, keeping blocks as even as possible.
-          k = (old_k % max_kc_phys) == 0 ? max_kc_phys
-                                         : max_kc_phys - k_peeling * ((max_kc_phys - 1 - (old_k % max_kc_phys)) /
-                                                                      (k_peeling * (old_k / max_kc_phys + 1)));
-        }
+      const Index phys_l1_eff = phys_l1 * 85 / 100;
+      const Index max_kc_phys = numext::maxi<Index>(((phys_l1_eff - k_sub) / k_div) & (~(k_peeling - 1)), k_peeling);
+      if (max_kc_phys < k) {
+        k = (old_k % max_kc_phys) == 0 ? max_kc_phys
+                                       : max_kc_phys - k_peeling * ((max_kc_phys - 1 - (old_k % max_kc_phys)) /
+                                                                    (k_peeling * (old_k / max_kc_phys + 1)));
       }
     }
+#endif
 
 // ---- 2nd level of blocking on max(L2,L3), yields nc ----
 
