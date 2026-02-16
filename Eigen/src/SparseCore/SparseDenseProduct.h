@@ -28,14 +28,9 @@ struct product_promote_storage_type<Dense, Sparse, OuterProduct> {
 
 // Type trait to detect if a sparse type supports direct compressed storage access
 // (i.e., has valuePtr(), innerIndexPtr(), outerIndexPtr(), isCompressed()).
-template <typename T, typename = void>
-struct has_compressed_storage : std::false_type {};
-
+// All types deriving from SparseCompressedBase provide these methods.
 template <typename T>
-struct has_compressed_storage<
-    T, typename std::enable_if<
-           std::is_same<decltype(std::declval<const T&>().valuePtr()), const typename T::Scalar*>::value &&
-           std::is_same<decltype(std::declval<const T&>().isCompressed()), bool>::value>::type> : std::true_type {};
+struct has_compressed_storage : std::is_base_of<SparseCompressedBase<T>, T> {};
 
 template <typename SparseLhsType, typename DenseRhsType, typename DenseResType, typename AlphaType,
           int LhsStorageOrder = ((SparseLhsType::Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor,
