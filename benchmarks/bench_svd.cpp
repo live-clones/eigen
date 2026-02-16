@@ -51,7 +51,7 @@ static void BM_BDCSVD(benchmark::State& state) {
 // Sizes suitable for JacobiSVD (O(n^2 p), expensive for large n).
 static void JacobiSizes(::benchmark::Benchmark* b) {
   // Square
-  for (int s : {4, 8, 16, 32, 64, 128}) b->Args({s, s});
+  for (int s : {4, 8, 16, 32, 64, 128, 256, 512}) b->Args({s, s});
   // Tall-skinny
   b->Args({100, 4});
   b->Args({1000, 4});
