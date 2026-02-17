@@ -17,6 +17,13 @@
 // Instead of adding half/quarter packet types, we provide complete
 // gebp_kernel replacements that use simple scalar fallbacks for
 // remainder rows, avoiding all half/quarter packet dependencies.
+//
+// Register pressure optimization: The 64-byte logical packets may be
+// lowered to multiple hardware registers (e.g., 2x YMM on AVX2).
+// To avoid excessive register spilling, 8-column panels are processed
+// as two 4-column passes through the depth loop, halving the number
+// of live accumulators while re-reading blockA from L1 cache (which
+// is cheap since blockA is only a few KB for typical kc values).
 
 #ifndef EIGEN_CORE_ARCH_CLANG_GEMM_KERNEL_H
 #define EIGEN_CORE_ARCH_CLANG_GEMM_KERNEL_H
@@ -274,6 +281,104 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, 8, RowMajor, Conjugate, PanelMod
 };
 
 // ============================================================
+// gebp_kernel helpers: template-ized inner loops
+// ============================================================
+//
+// MrP:      number of packet-rows (compile-time)
+// NrC:      number of columns to accumulate (compile-time)
+// NrStride: stride between depth steps in blockB (compile-time)
+//           (equals the panel width: 8 for 8-col panels, 4 for 4-col, 1 for 1-col)
+// ColOff:   column offset within the panel (compile-time)
+
+// Accumulate MrP packets x NrC columns over the depth dimension.
+template <typename Scalar, typename Packet, typename Index, int MrP, int NrC, int NrStride, int ColOff = 0>
+EIGEN_ALWAYS_INLINE void gebp_accumulate(Packet* EIGEN_RESTRICT C, const Scalar* EIGEN_RESTRICT blA,
+                                         const Scalar* EIGEN_RESTRICT blB, Index depth) {
+  constexpr Index PacketSize = packet_traits<Scalar>::size;
+  for (Index k = 0; k < depth; ++k) {
+    Packet A[MrP];
+    for (int p = 0; p < MrP; ++p) A[p] = ploadu<Packet>(&blA[k * MrP * PacketSize + p * PacketSize]);
+    for (int c = 0; c < NrC; ++c) {
+      Packet B = pset1<Packet>(blB[k * NrStride + ColOff + c]);
+      for (int p = 0; p < MrP; ++p) C[c + p * NrC] = pmadd(A[p], B, C[c + p * NrC]);
+    }
+  }
+}
+
+// Store MrP packets x NrC columns back to result.
+template <typename Scalar, typename Packet, typename LinearMapper, int MrP, int NrC>
+EIGEN_ALWAYS_INLINE void gebp_store(const LinearMapper& res, Index i, Index j, const Packet* EIGEN_RESTRICT C,
+                                    Scalar alpha) {
+  constexpr Index PacketSize = packet_traits<Scalar>::size;
+  Packet alphav = pset1<Packet>(alpha);
+  for (int c = 0; c < NrC; ++c) {
+    auto r = res.getLinearMapper(i, j + c);
+    for (int p = 0; p < MrP; ++p) {
+      Packet R = r.template loadPacket<Packet>(p * PacketSize);
+      r.storePacket(p * PacketSize, pmadd(C[c + p * NrC], alphav, R));
+    }
+  }
+}
+
+// Process MrP packet-rows x 8 columns, split into two 4-column passes
+// to reduce register pressure.
+template <typename Scalar, typename Packet, typename DataMapper, int MrP>
+EIGEN_ALWAYS_INLINE void gebp_block_8cols(const DataMapper& res, Index i, Index j, const Scalar* blockA,
+                                          const Scalar* blockB, Index depth, Scalar alpha, Index strideA,
+                                          Index strideB, Index offsetA, Index offsetB) {
+  constexpr Index PacketSize = packet_traits<Scalar>::size;
+  const Scalar* blA = &blockA[i * strideA + offsetA * (MrP * PacketSize)];
+  const Scalar* blB = &blockB[j * strideB + offsetB * 8];
+
+  // Pass 1: columns 0-3
+  {
+    Packet C[MrP * 4];
+    for (int n = 0; n < MrP * 4; ++n) C[n] = pzero(C[0]);
+    gebp_accumulate<Scalar, Packet, Index, MrP, 4, 8, 0>(C, blA, blB, depth);
+    gebp_store<Scalar, Packet, DataMapper, MrP, 4>(res, i, j, C, alpha);
+  }
+
+  // Pass 2: columns 4-7
+  {
+    Packet C[MrP * 4];
+    for (int n = 0; n < MrP * 4; ++n) C[n] = pzero(C[0]);
+    gebp_accumulate<Scalar, Packet, Index, MrP, 4, 8, 4>(C, blA, blB, depth);
+    gebp_store<Scalar, Packet, DataMapper, MrP, 4>(res, i, j + 4, C, alpha);
+  }
+}
+
+// Process MrP packet-rows x NrC columns (NrC <= 4) in a single pass.
+template <typename Scalar, typename Packet, typename DataMapper, int MrP, int NrC>
+EIGEN_ALWAYS_INLINE void gebp_block(const DataMapper& res, Index i, Index j, const Scalar* blockA,
+                                    const Scalar* blockB, Index depth, Scalar alpha, Index strideA, Index strideB,
+                                    Index offsetA, Index offsetB) {
+  constexpr Index PacketSize = packet_traits<Scalar>::size;
+  const Scalar* blA = &blockA[i * strideA + offsetA * (MrP * PacketSize)];
+  const Scalar* blB = &blockB[j * strideB + offsetB * NrC];
+
+  Packet C[MrP * NrC];
+  for (int n = 0; n < MrP * NrC; ++n) C[n] = pzero(C[0]);
+  gebp_accumulate<Scalar, Packet, Index, MrP, NrC, NrC>(C, blA, blB, depth);
+  gebp_store<Scalar, Packet, DataMapper, MrP, NrC>(res, i, j, C, alpha);
+}
+
+// Process a single scalar row x NrC columns.
+template <typename Scalar, typename DataMapper, int NrC, int NrStride, int ColOff = 0>
+EIGEN_ALWAYS_INLINE void gebp_scalar_row(const DataMapper& res, Index i, Index j, const Scalar* blockA,
+                                         const Scalar* blockB, Index depth, Scalar alpha, Index strideA, Index strideB,
+                                         Index offsetA, Index offsetB) {
+  const Scalar* blA = &blockA[i * strideA + offsetA];
+  const Scalar* blB = &blockB[j * strideB + offsetB * NrStride];
+  Scalar C[NrC] = {};
+
+  for (Index k = 0; k < depth; ++k) {
+    Scalar A0 = blA[k];
+    for (int c = 0; c < NrC; ++c) C[c] += A0 * blB[k * NrStride + ColOff + c];
+  }
+  for (int c = 0; c < NrC; ++c) res(i, j + ColOff + c) += alpha * C[c];
+}
+
+// ============================================================
 // gebp_kernel specialization: same-type (Scalar x Scalar), nr=8
 // ============================================================
 
@@ -290,7 +395,6 @@ EIGEN_DONT_INLINE void gebp_kernel<Scalar, Scalar, Index, DataMapper, mr, 8, Con
     Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
   typedef typename packet_traits<Scalar>::type Packet;
   constexpr Index PacketSize = packet_traits<Scalar>::size;
-  typedef typename DataMapper::LinearMapper LinearMapper;
 
   if (strideA == -1) strideA = depth;
   if (strideB == -1) strideB = depth;
@@ -299,80 +403,35 @@ EIGEN_DONT_INLINE void gebp_kernel<Scalar, Scalar, Index, DataMapper, mr, 8, Con
   const Index packet_cols4 = (cols / 4) * 4;
 
   // Row peeling: match gemm_pack_lhs block sizes.
-  const Index peeled_mc3 = mr >= 3 * PacketSize ? (rows / (3 * PacketSize)) * (3 * PacketSize) : 0;
-  const Index peeled_mc2 =
-      mr >= 2 * PacketSize ? peeled_mc3 + ((rows - peeled_mc3) / (2 * PacketSize)) * (2 * PacketSize) : 0;
-  const Index peeled_mc1 = peeled_mc2 + ((rows - peeled_mc2) / PacketSize) * PacketSize;
-
-  // Helper: process MrP packet-rows x NrC columns.
-  // blockA layout: MrP*PacketSize values per depth step.
-  // blockB layout: NrC values per depth step.
-  auto process_block = [&](Index i, Index j, int MrP, int NrC) {
-    constexpr int MaxMr = 3;
-    constexpr int MaxNr = 8;
-    const Scalar* blA = &blockA[i * strideA + offsetA * (MrP * PacketSize)];
-    const Scalar* blB = &blockB[j * strideB + offsetB * NrC];
-    Packet C[MaxMr * MaxNr];
-    for (int n = 0; n < MrP * NrC; ++n) C[n] = pset1<Packet>(Scalar(0));
-
-    for (Index k = 0; k < depth; ++k) {
-      Packet A[MaxMr];
-      for (int p = 0; p < MrP; ++p) A[p] = ploadu<Packet>(&blA[k * MrP * PacketSize + p * PacketSize]);
-      for (int c = 0; c < NrC; ++c) {
-        Packet B = pset1<Packet>(blB[k * NrC + c]);
-        for (int p = 0; p < MrP; ++p) C[c + p * NrC] = pmadd(A[p], B, C[c + p * NrC]);
-      }
-    }
-
-    Packet alphav = pset1<Packet>(alpha);
-    for (int c = 0; c < NrC; ++c) {
-      LinearMapper r = res.getLinearMapper(i, j + c);
-      for (int p = 0; p < MrP; ++p) {
-        Packet R = r.template loadPacket<Packet>(p * PacketSize);
-        r.storePacket(p * PacketSize, pmadd(C[c + p * NrC], alphav, R));
-      }
-    }
-  };
-
-  // Helper: process a single scalar row.
-  auto process_row = [&](Index i, Index j, int NrC) {
-    const Scalar* blA = &blockA[i * strideA + offsetA];
-    const Scalar* blB = &blockB[j * strideB + offsetB * NrC];
-    Scalar C[8] = {};
-
-    for (Index k = 0; k < depth; ++k) {
-      Scalar A0 = blA[k];
-      for (int c = 0; c < NrC; ++c) C[c] += A0 * blB[k * NrC + c];
-    }
-    for (int c = 0; c < NrC; ++c) res(i, j + c) += alpha * C[c];
-  };
-
-  // --- 3-packet rows ---
-  for (Index i = 0; i < peeled_mc3; i += 3 * PacketSize) {
-    for (Index j = 0; j < packet_cols8; j += 8) process_block(i, j, 3, 8);
-    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_block(i, j, 3, 4);
-    for (Index j = packet_cols4; j < cols; j++) process_block(i, j, 3, 1);
-  }
-
-  // --- 2-packet rows ---
-  for (Index i = peeled_mc3; i < peeled_mc2; i += 2 * PacketSize) {
-    for (Index j = 0; j < packet_cols8; j += 8) process_block(i, j, 2, 8);
-    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_block(i, j, 2, 4);
-    for (Index j = packet_cols4; j < cols; j++) process_block(i, j, 2, 1);
-  }
+  const Index peeled_mc1 = (rows / PacketSize) * PacketSize;
 
   // --- 1-packet rows ---
-  for (Index i = peeled_mc2; i < peeled_mc1; i += PacketSize) {
-    for (Index j = 0; j < packet_cols8; j += 8) process_block(i, j, 1, 8);
-    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_block(i, j, 1, 4);
-    for (Index j = packet_cols4; j < cols; j++) process_block(i, j, 1, 1);
+  for (Index i = 0; i < peeled_mc1; i += PacketSize) {
+    for (Index j = 0; j < packet_cols8; j += 8)
+      gebp_block_8cols<Scalar, Packet, DataMapper, 1>(res, i, j, blockA, blockB, depth, alpha, strideA, strideB,
+                                                      offsetA, offsetB);
+    for (Index j = packet_cols8; j < packet_cols4; j += 4)
+      gebp_block<Scalar, Packet, DataMapper, 1, 4>(res, i, j, blockA, blockB, depth, alpha, strideA, strideB, offsetA,
+                                                    offsetB);
+    for (Index j = packet_cols4; j < cols; j++)
+      gebp_block<Scalar, Packet, DataMapper, 1, 1>(res, i, j, blockA, blockB, depth, alpha, strideA, strideB, offsetA,
+                                                    offsetB);
   }
 
   // --- Remaining scalar rows ---
   for (Index i = peeled_mc1; i < rows; ++i) {
-    for (Index j = 0; j < packet_cols8; j += 8) process_row(i, j, 8);
-    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_row(i, j, 4);
-    for (Index j = packet_cols4; j < cols; j++) process_row(i, j, 1);
+    for (Index j = 0; j < packet_cols8; j += 8) {
+      gebp_scalar_row<Scalar, DataMapper, 4, 8, 0>(res, i, j, blockA, blockB, depth, alpha, strideA, strideB, offsetA,
+                                                    offsetB);
+      gebp_scalar_row<Scalar, DataMapper, 4, 8, 4>(res, i, j, blockA, blockB, depth, alpha, strideA, strideB, offsetA,
+                                                    offsetB);
+    }
+    for (Index j = packet_cols8; j < packet_cols4; j += 4)
+      gebp_scalar_row<Scalar, DataMapper, 4, 4>(res, i, j, blockA, blockB, depth, alpha, strideA, strideB, offsetA,
+                                                 offsetB);
+    for (Index j = packet_cols4; j < cols; j++)
+      gebp_scalar_row<Scalar, DataMapper, 1, 1>(res, i, j, blockA, blockB, depth, alpha, strideA, strideB, offsetA,
+                                                 offsetB);
   }
 }
 
@@ -399,8 +458,6 @@ gebp_kernel<RealScalar, std::complex<RealScalar>, Index, DataMapper, mr, 8, Conj
   typedef typename packet_traits<RealScalar>::type RealPacket;
   typedef typename packet_traits<CplxScalar>::type CplxPacket;
   constexpr Index CplxPacketSize = packet_traits<CplxScalar>::size;
-  // LhsProgress = ResPacketSize = CplxPacketSize (from base traits).
-  // pack_lhs packs CplxPacketSize reals per depth step.
   constexpr Index LhsProgress = CplxPacketSize;
   typedef typename DataMapper::LinearMapper LinearMapper;
 
@@ -412,37 +469,48 @@ gebp_kernel<RealScalar, std::complex<RealScalar>, Index, DataMapper, mr, 8, Conj
   const Index peeled_mc1 = (rows / LhsProgress) * LhsProgress;
 
   // Vectorized block: process LhsProgress rows x NrC complex columns.
-  // blockA: LhsProgress reals per depth step (from ploaddup-style packing).
-  // blockB: NrC complex values per depth step.
-  auto process_vec = [&](Index i, Index j, int NrC) {
+  // Split 8-column panels into two 4-column passes to reduce register pressure.
+  auto process_vec_4cols = [&](Index i, Index j, int col_offset, int nr_stride) {
     const RealScalar* blA = &blockA[i * strideA + offsetA * LhsProgress];
-    const CplxScalar* blB = &blockB[j * strideB + offsetB * NrC];
+    const CplxScalar* blB = &blockB[j * strideB + offsetB * nr_stride];
 
-    // Accumulators: one CplxPacket per column.
-    // CplxPacketSize complex values = 2*CplxPacketSize reals per packet.
-    CplxPacket C[8];
-    for (int c = 0; c < NrC; ++c) C[c] = pset1<CplxPacket>(CplxScalar(0));
+    CplxPacket C[4];
+    for (int c = 0; c < 4; ++c) C[c] = pzero(C[0]);
 
     for (Index k = 0; k < depth; ++k) {
-      // Load LhsProgress reals and duplicate each for re/im: ploaddup gives
-      // (a0,a0,a1,a1,...) matching the (re,im,re,im,...) layout of complex packets.
       RealPacket A = ploaddup<RealPacket>(&blA[k * LhsProgress]);
-      for (int c = 0; c < NrC; ++c) {
-        CplxPacket B = pset1<CplxPacket>(blB[k * NrC + c]);
-        // Element-wise: A * B.v + C[c].v (real packet arithmetic on interleaved complex)
+      for (int c = 0; c < 4; ++c) {
+        CplxPacket B = pset1<CplxPacket>(blB[k * nr_stride + col_offset + c]);
         C[c].v = pmadd(A, B.v, C[c].v);
       }
     }
 
-    // Apply alpha and conjugation, store results.
-    // conj_helper handles: alpha * conj_if(ConjRhs, C[c]) + R
     CplxPacket alphav = pset1<CplxPacket>(alpha);
     conj_helper<CplxPacket, CplxPacket, false, ConjugateRhs> cjr;
-    for (int c = 0; c < NrC; ++c) {
-      LinearMapper r = res.getLinearMapper(i, j + c);
+    for (int c = 0; c < 4; ++c) {
+      LinearMapper r = res.getLinearMapper(i, j + col_offset + c);
       CplxPacket R = r.template loadPacket<CplxPacket>(0);
       r.storePacket(0, cjr.pmadd(alphav, C[c], R));
     }
+  };
+
+  auto process_vec_1col = [&](Index i, Index j, int nr_stride) {
+    const RealScalar* blA = &blockA[i * strideA + offsetA * LhsProgress];
+    const CplxScalar* blB = &blockB[j * strideB + offsetB * nr_stride];
+
+    CplxPacket C0 = pzero(C0);
+
+    for (Index k = 0; k < depth; ++k) {
+      RealPacket A = ploaddup<RealPacket>(&blA[k * LhsProgress]);
+      CplxPacket B = pset1<CplxPacket>(blB[k * nr_stride]);
+      C0.v = pmadd(A, B.v, C0.v);
+    }
+
+    CplxPacket alphav = pset1<CplxPacket>(alpha);
+    conj_helper<CplxPacket, CplxPacket, false, ConjugateRhs> cjr;
+    LinearMapper r = res.getLinearMapper(i, j);
+    CplxPacket R = r.template loadPacket<CplxPacket>(0);
+    r.storePacket(0, cjr.pmadd(alphav, C0, R));
   };
 
   // Scalar row: one row at a time.
@@ -460,9 +528,12 @@ gebp_kernel<RealScalar, std::complex<RealScalar>, Index, DataMapper, mr, 8, Conj
 
   // Vectorized rows
   for (Index i = 0; i < peeled_mc1; i += LhsProgress) {
-    for (Index j = 0; j < packet_cols8; j += 8) process_vec(i, j, 8);
-    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_vec(i, j, 4);
-    for (Index j = packet_cols4; j < cols; j++) process_vec(i, j, 1);
+    for (Index j = 0; j < packet_cols8; j += 8) {
+      process_vec_4cols(i, j, 0, 8);
+      process_vec_4cols(i, j, 4, 8);
+    }
+    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_vec_4cols(i, j, 0, 4);
+    for (Index j = packet_cols4; j < cols; j++) process_vec_1col(i, j, 1);
   }
 
   // Remaining scalar rows
@@ -496,7 +567,6 @@ gebp_kernel<std::complex<RealScalar>, RealScalar, Index, DataMapper, mr, 8, Conj
   typedef typename packet_traits<RealScalar>::type RealPacket;
   typedef typename packet_traits<CplxScalar>::type CplxPacket;
   constexpr Index CplxPacketSize = packet_traits<CplxScalar>::size;
-  // LhsProgress = LhsPacketSize = CplxPacketSize (from base traits).
   constexpr Index LhsProgress = CplxPacketSize;
   typedef typename DataMapper::LinearMapper LinearMapper;
 
@@ -507,35 +577,48 @@ gebp_kernel<std::complex<RealScalar>, RealScalar, Index, DataMapper, mr, 8, Conj
   const Index packet_cols4 = (cols / 4) * 4;
   const Index peeled_mc1 = (rows / LhsProgress) * LhsProgress;
 
-  // Vectorized block: LhsProgress complex rows x NrC real columns.
-  // blockA: LhsProgress complex values per depth step.
-  // blockB: NrC real values per depth step.
-  auto process_vec = [&](Index i, Index j, int NrC) {
+  // Vectorized block: split 8-column panels into two 4-column passes.
+  auto process_vec_4cols = [&](Index i, Index j, int col_offset, int nr_stride) {
     const CplxScalar* blA = &blockA[i * strideA + offsetA * LhsProgress];
-    const RealScalar* blB = &blockB[j * strideB + offsetB * NrC];
+    const RealScalar* blB = &blockB[j * strideB + offsetB * nr_stride];
 
-    CplxPacket C[8];
-    for (int c = 0; c < NrC; ++c) C[c] = pset1<CplxPacket>(CplxScalar(0));
+    CplxPacket C[4];
+    for (int c = 0; c < 4; ++c) C[c] = pzero(C[0]);
 
     for (Index k = 0; k < depth; ++k) {
-      // Load LhsProgress complex values as a CplxPacket.
       CplxPacket A = ploadu<CplxPacket>(&blA[k * LhsProgress]);
-      for (int c = 0; c < NrC; ++c) {
-        // Broadcast real RHS value, then element-wise FMA on interleaved representation.
-        RealPacket B = pset1<RealPacket>(blB[k * NrC + c]);
+      for (int c = 0; c < 4; ++c) {
+        RealPacket B = pset1<RealPacket>(blB[k * nr_stride + col_offset + c]);
         C[c].v = pmadd(A.v, B, C[c].v);
       }
     }
 
-    // Apply conjugation and alpha, store results.
-    // conj_helper handles: conj_if(ConjLhs, C[c]) * alpha + R
     CplxPacket alphav = pset1<CplxPacket>(alpha);
     conj_helper<CplxPacket, CplxPacket, ConjugateLhs, false> cjl;
-    for (int c = 0; c < NrC; ++c) {
-      LinearMapper r = res.getLinearMapper(i, j + c);
+    for (int c = 0; c < 4; ++c) {
+      LinearMapper r = res.getLinearMapper(i, j + col_offset + c);
       CplxPacket R = r.template loadPacket<CplxPacket>(0);
       r.storePacket(0, cjl.pmadd(C[c], alphav, R));
     }
+  };
+
+  auto process_vec_1col = [&](Index i, Index j, int nr_stride) {
+    const CplxScalar* blA = &blockA[i * strideA + offsetA * LhsProgress];
+    const RealScalar* blB = &blockB[j * strideB + offsetB * nr_stride];
+
+    CplxPacket C0 = pzero(C0);
+
+    for (Index k = 0; k < depth; ++k) {
+      CplxPacket A = ploadu<CplxPacket>(&blA[k * LhsProgress]);
+      RealPacket B = pset1<RealPacket>(blB[k * nr_stride]);
+      C0.v = pmadd(A.v, B, C0.v);
+    }
+
+    CplxPacket alphav = pset1<CplxPacket>(alpha);
+    conj_helper<CplxPacket, CplxPacket, ConjugateLhs, false> cjl;
+    LinearMapper r = res.getLinearMapper(i, j);
+    CplxPacket R = r.template loadPacket<CplxPacket>(0);
+    r.storePacket(0, cjl.pmadd(C0, alphav, R));
   };
 
   // Scalar row
@@ -553,9 +636,12 @@ gebp_kernel<std::complex<RealScalar>, RealScalar, Index, DataMapper, mr, 8, Conj
 
   // Vectorized rows
   for (Index i = 0; i < peeled_mc1; i += LhsProgress) {
-    for (Index j = 0; j < packet_cols8; j += 8) process_vec(i, j, 8);
-    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_vec(i, j, 4);
-    for (Index j = packet_cols4; j < cols; j++) process_vec(i, j, 1);
+    for (Index j = 0; j < packet_cols8; j += 8) {
+      process_vec_4cols(i, j, 0, 8);
+      process_vec_4cols(i, j, 4, 8);
+    }
+    for (Index j = packet_cols8; j < packet_cols4; j += 4) process_vec_4cols(i, j, 0, 4);
+    for (Index j = packet_cols4; j < cols; j++) process_vec_1col(i, j, 1);
   }
 
   // Remaining scalar rows
