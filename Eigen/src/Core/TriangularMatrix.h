@@ -244,7 +244,7 @@ class TriangularView
   }
 
   template <typename Other>
-  EIGEN_DEVICE_FUNC inline const Solve<TriangularView, Other> solve(const MatrixBase<Other>& other) const {
+  EIGEN_DEVICE_FUNC inline Solve<TriangularView, Other> solve(const MatrixBase<Other>& other) const {
     return Solve<TriangularView, Other>(*this, other.derived());
   }
 
@@ -461,11 +461,11 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC
 #ifdef EIGEN_PARSED_BY_DOXYGEN
-      void
-      swap(TriangularBase<OtherDerived>& other)
+  void
+  swap(TriangularBase<OtherDerived>& other)
 #else
-      void
-      swap(TriangularBase<OtherDerived> const& other)
+  void
+  swap(TriangularBase<OtherDerived> const& other)
 #endif
   {
     EIGEN_STATIC_ASSERT_LVALUE(OtherDerived);

@@ -160,9 +160,9 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    */
   template <unsigned int TriMode>
   EIGEN_DEVICE_FUNC
-      std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), TriangularView<MatrixType, TriMode>,
-                         TriangularView<typename MatrixType::AdjointReturnType, TriMode> >
-      triangularView() const {
+  std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), TriangularView<MatrixType, TriMode>,
+                     TriangularView<typename MatrixType::AdjointReturnType, TriMode> >
+  triangularView() const {
     std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)), MatrixType&,
                        typename MatrixType::ConstTransposeReturnType>
         tmp1(m_matrix);
@@ -219,8 +219,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /////////// Cholesky module ///////////
 
-  const LLT<PlainObject, UpLo> llt() const;
-  const LDLT<PlainObject, UpLo> ldlt() const;
+  LLT<PlainObject, UpLo> llt() const;
+  LDLT<PlainObject, UpLo> ldlt() const;
 
   /////////// Eigenvalue module ///////////
 
