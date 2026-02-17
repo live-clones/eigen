@@ -58,14 +58,16 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     }
   }
 
-  // Compressed path: extract pointers once per column, inline the per-row dot product
+  // Direct pointer path: works for both compressed and non-compressed storage.
   static void runCol(const LhsEval& /*lhsEval*/, const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                      const ResScalar& alpha, Index n, Index c, std::true_type /* has_compressed_storage */) {
     const Lhs& mat = lhs;
-    if (mat.isCompressed()) {
-      const auto* vals = mat.valuePtr();
-      const auto* inds = mat.innerIndexPtr();
-      const auto* outer = mat.outerIndexPtr();
+    const auto* vals = mat.valuePtr();
+    const auto* inds = mat.innerIndexPtr();
+    const auto* outer = mat.outerIndexPtr();
+    const auto* innerNnz = mat.innerNonZeroPtr();
+    // The fast rhs pointer path requires unit inner stride (common case: VectorXd, contiguous matrix column).
+    if (rhs.innerStride() == 1) {
       const auto* x = rhs.data() + c * rhs.outerStride();
 #ifdef EIGEN_HAS_OPENMP
       Index threads = Eigen::nbThreads();
@@ -73,7 +75,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
 #pragma omp parallel for schedule(dynamic, (n + threads * 4 - 1) / (threads * 4)) num_threads(threads)
         for (Index i = 0; i < n; ++i) {
           Index k = outer[i];
-          const Index end = outer[i + 1];
+          const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
           ResScalar sum0(0), sum1(0);
           for (; k < end; ++k) {
             sum0 += vals[k] * x[inds[k]];
@@ -89,7 +91,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
       {
         for (Index i = 0; i < n; ++i) {
           Index k = outer[i];
-          const Index end = outer[i + 1];
+          const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
           // Two independent accumulators to break the dependency chain
           ResScalar sum0(0), sum1(0);
           for (; k < end; ++k) {
@@ -103,8 +105,20 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
         }
       }
     } else {
-      LhsEval eval(lhs);
-      for (Index i = 0; i < n; ++i) processRow(eval, rhs, res, alpha, i, c);
+      // Non-unit rhs stride: use direct pointers for sparse side, coeff() for rhs
+      for (Index i = 0; i < n; ++i) {
+        Index k = outer[i];
+        const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
+        ResScalar sum0(0), sum1(0);
+        for (; k < end; ++k) {
+          sum0 += vals[k] * rhs.coeff(inds[k], c);
+          ++k;
+          if (k < end) {
+            sum1 += vals[k] * rhs.coeff(inds[k], c);
+          }
+        }
+        res.coeffRef(i, c) += alpha * (sum0 + sum1);
+      }
     }
   }
 
@@ -162,22 +176,25 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     runImpl(lhs, rhs, res, alpha, std::integral_constant<bool, has_compressed_storage<Lhs>::value>());
   }
 
-  // Compressed path with direct pointer access
+  // Direct pointer path: works for both compressed and non-compressed storage.
   static void runImpl(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res, const AlphaType& alpha,
                       std::true_type /* has_compressed_storage */) {
     typedef typename Lhs::Scalar LhsScalar;
     typedef typename Lhs::StorageIndex StorageIndex;
     const Lhs& mat = lhs;
-    if (mat.isCompressed()) {
-      const LhsScalar* vals = mat.valuePtr();
-      const StorageIndex* inds = mat.innerIndexPtr();
-      const auto* outer = mat.outerIndexPtr();
+    const LhsScalar* vals = mat.valuePtr();
+    const StorageIndex* inds = mat.innerIndexPtr();
+    const auto* outer = mat.outerIndexPtr();
+    const auto* innerNnz = mat.innerNonZeroPtr();
+    // The fast result pointer path requires contiguous ColMajor result layout.
+    // Transpose<ColMajor> reports innerStride()==1 but is actually RowMajor, so check both.
+    if (!(Res::Flags & RowMajorBit) && res.innerStride() == 1) {
       for (Index c = 0; c < rhs.cols(); ++c) {
         typename Res::Scalar* y = res.data() + c * res.outerStride();
         for (Index j = 0; j < lhs.outerSize(); ++j) {
           typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
           const Index start = outer[j];
-          const Index end = outer[j + 1];
+          const Index end = innerNnz ? outer[j] + innerNnz[j] : outer[j + 1];
           Index k = start;
           // 4-way unrolled scatter-add (no SIMD: writes are scattered)
           for (; k + 3 < end; k += 4) {
@@ -190,7 +207,15 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
         }
       }
     } else {
-      runImpl(lhs, rhs, res, alpha, std::false_type());
+      // Non-unit result stride: use coeffRef() for result access
+      for (Index c = 0; c < rhs.cols(); ++c) {
+        for (Index j = 0; j < lhs.outerSize(); ++j) {
+          typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
+          const Index start = outer[j];
+          const Index end = innerNnz ? outer[j] + innerNnz[j] : outer[j + 1];
+          for (Index k = start; k < end; ++k) res.coeffRef(inds[k], c) += vals[k] * rhs_j;
+        }
+      }
     }
   }
 
@@ -240,23 +265,19 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     }
   }
 
+  // Direct pointer path: works for both compressed and non-compressed storage.
   static void processRow(const LhsEval& /*lhsEval*/, const SparseLhsType& lhs, const DenseRhsType& rhs, Res& res,
                          const typename Res::Scalar& alpha, Index i, std::true_type /* has_compressed_storage */) {
     typedef typename Lhs::Scalar LhsScalar;
     typedef typename Lhs::StorageIndex StorageIndex;
     const Lhs& mat = lhs;
-    if (mat.isCompressed()) {
-      const LhsScalar* vals = mat.valuePtr();
-      const StorageIndex* inds = mat.innerIndexPtr();
-      const Index start = mat.outerIndexPtr()[i];
-      const Index end = mat.outerIndexPtr()[i + 1];
-      typename Res::RowXpr res_i(res.row(i));
-      for (Index k = start; k < end; ++k) res_i += (alpha * vals[k]) * rhs.row(inds[k]);
-    } else {
-      LhsEval eval(lhs);
-      typename Res::RowXpr res_i(res.row(i));
-      for (LhsInnerIterator it(eval, i); it; ++it) res_i += (alpha * it.value()) * rhs.row(it.index());
-    }
+    const LhsScalar* vals = mat.valuePtr();
+    const StorageIndex* inds = mat.innerIndexPtr();
+    const Index start = mat.outerIndexPtr()[i];
+    const auto* innerNnz = mat.innerNonZeroPtr();
+    const Index end = innerNnz ? start + innerNnz[i] : mat.outerIndexPtr()[i + 1];
+    typename Res::RowXpr res_i(res.row(i));
+    for (Index k = start; k < end; ++k) res_i += (alpha * vals[k]) * rhs.row(inds[k]);
   }
 
   static void processRow(const LhsEval& lhsEval, const SparseLhsType& /*lhs*/, const DenseRhsType& rhs, Res& res,
@@ -280,23 +301,21 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     runImpl(lhs, rhs, res, alpha, std::integral_constant<bool, has_compressed_storage<Lhs>::value>());
   }
 
+  // Direct pointer path: works for both compressed and non-compressed storage.
   static void runImpl(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                       const typename Res::Scalar& alpha, std::true_type /* has_compressed_storage */) {
     typedef typename Lhs::Scalar LhsScalar;
     typedef typename Lhs::StorageIndex StorageIndex;
     const Lhs& mat = lhs;
-    if (mat.isCompressed()) {
-      const LhsScalar* vals = mat.valuePtr();
-      const StorageIndex* inds = mat.innerIndexPtr();
-      const auto* outer = mat.outerIndexPtr();
-      for (Index j = 0; j < lhs.outerSize(); ++j) {
-        typename Rhs::ConstRowXpr rhs_j(rhs.row(j));
-        const Index start = outer[j];
-        const Index end = outer[j + 1];
-        for (Index k = start; k < end; ++k) res.row(inds[k]) += (alpha * vals[k]) * rhs_j;
-      }
-    } else {
-      runImpl(lhs, rhs, res, alpha, std::false_type());
+    const LhsScalar* vals = mat.valuePtr();
+    const StorageIndex* inds = mat.innerIndexPtr();
+    const auto* outer = mat.outerIndexPtr();
+    const auto* innerNnz = mat.innerNonZeroPtr();
+    for (Index j = 0; j < lhs.outerSize(); ++j) {
+      typename Rhs::ConstRowXpr rhs_j(rhs.row(j));
+      const Index start = outer[j];
+      const Index end = innerNnz ? outer[j] + innerNnz[j] : outer[j + 1];
+      for (Index k = start; k < end; ++k) res.row(inds[k]) += (alpha * vals[k]) * rhs_j;
     }
   }
 
