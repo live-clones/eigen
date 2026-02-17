@@ -1371,8 +1371,13 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   const Index peeled_kc = depth & ~(pk - 1);
   const int prefetch_res_offset = 32 / sizeof(ResScalar);
 
-  // Helper to invoke gebp_micro_panel_impl with the right types
-  auto micro_panel = [&](auto mrp_tag, auto nrc_tag, auto& local_traits, Index i, Index j2) {
+  // Helper to invoke gebp_micro_panel_impl with the right types.
+  // The always_inline attribute is critical: without it GCC outlines each
+  // template instantiation of this generic lambda as a separate function,
+  // adding call overhead that causes 10-17 % regressions in LLT/TRSM
+  // for small-to-medium matrix sizes.
+  auto micro_panel = [&](auto mrp_tag, auto nrc_tag, auto& local_traits, Index i, Index j2)
+      __attribute__((always_inline)) {
     constexpr int MrP = decltype(mrp_tag)::value;
     constexpr int NrC = decltype(nrc_tag)::value;
     using LTraits = std::remove_reference_t<decltype(local_traits)>;
