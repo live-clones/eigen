@@ -279,17 +279,12 @@ using std::ptrdiff_t;
 #include "src/Core/arch/SVE/PacketMath.h"
 #include "src/Core/arch/SVE/TypeCasting.h"
 #include "src/Core/arch/SVE/MathFunctions.h"
-#elif defined EIGEN_VECTORIZE_SME512
-#ifdef EIGEN_SME_USE_NEON_PACKETS
+#elif defined EIGEN_VECTORIZE_SME
+// Utilize NEON for non-GEMM kernels
 #include "src/Core/arch/NEON/PacketMath.h"
 #include "src/Core/arch/NEON/TypeCasting.h"
 #include "src/Core/arch/NEON/MathFunctions.h"
 #include "src/Core/arch/NEON/Complex.h"
-#else
-#include "src/Core/arch/SVE/PacketMath.h"
-#include "src/Core/arch/SVE/TypeCasting.h"
-#include "src/Core/arch/SVE/MathFunctions.h"
-#endif
 #elif defined EIGEN_VECTORIZE_RVV10
 #include "src/Core/arch/RVV10/PacketMath.h"
 #include "src/Core/arch/RVV10/PacketMath4.h"
@@ -446,7 +441,7 @@ using std::ptrdiff_t;
 #include "src/Core/arch/AltiVec/MatrixProduct.h"
 #elif defined EIGEN_VECTORIZE_NEON
 #include "src/Core/arch/NEON/GeneralBlockPanelKernel.h"
-#elif defined EIGEN_VECTORIZE_SME512
+#elif defined EIGEN_VECTORIZE_SME
 #include "src/Core/arch/SME/GeneralBlockPanelKernel.h"
 #elif defined EIGEN_VECTORIZE_LSX
 #include "src/Core/arch/LSX/GeneralBlockPanelKernel.h"

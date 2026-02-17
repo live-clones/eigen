@@ -37,16 +37,16 @@ int main(int argc, char** argv) {
   cout << "Dimensions: " << m << "x" << n << " (" << k << ")" << endl;
   cout << "Threads: " << Eigen::nbThreads() << endl;
 
-#ifdef EIGEN_VECTORIZE_SME512
-  cout << "EIGEN_VECTORIZE_SME512 defined" << endl;
+#ifdef EIGEN_VECTORIZE_SME
+  cout << "EIGEN_VECTORIZE_SME defined" << endl;
 #else
-  cout << "EIGEN_VECTORIZE_SME512 NOT defined" << endl;
+  cout << "EIGEN_VECTORIZE_SME NOT defined" << endl;
 #endif
 
-#ifdef EIGEN_ARM64_USE_SME512
-  cout << "EIGEN_ARM64_USE_SME512 defined" << endl;
+#ifdef EIGEN_ARM64_USE_SME
+  cout << "EIGEN_ARM64_USE_SME defined" << endl;
 #else
-  cout << "EIGEN_ARM64_USE_SME512 NOT defined" << endl;
+  cout << "EIGEN_ARM64_USE_SME NOT defined" << endl;
 #endif
 
   typedef internal::gebp_traits<Scalar, Scalar> Traits;
