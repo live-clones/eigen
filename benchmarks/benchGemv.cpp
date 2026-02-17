@@ -48,9 +48,8 @@ static void BM_Gemv(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] =
-      benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
-                         benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] = benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
+                                                benchmark::Counter::kIs1000);
 }
 
 // ---------- y += A^T * x  (RowMajor GEMV kernel, no conjugation) ----------
@@ -69,9 +68,8 @@ static void BM_GemvTrans(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] =
-      benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
-                         benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] = benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
+                                                benchmark::Counter::kIs1000);
 }
 
 // ---------- y += conj(A) * x  (ColMajor kernel, ConjugateLhs=true) ----------
@@ -90,9 +88,8 @@ static void BM_GemvConj(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] =
-      benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
-                         benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] = benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
+                                                benchmark::Counter::kIs1000);
 }
 
 // ---------- y += A^H * x  (RowMajor kernel, ConjugateLhs=true) ----------
@@ -111,9 +108,8 @@ static void BM_GemvAdj(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] =
-      benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
-                         benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] = benchmark::Counter(gemvFlops<Scalar>(m, n), benchmark::Counter::kIsIterationInvariantRate,
+                                                benchmark::Counter::kIs1000);
 }
 
 // ---------- Size configurations ----------
