@@ -72,8 +72,8 @@ struct inner_product_evaluator {
       bool(LhsFlags & RhsFlags & PacketAccessBit) && Func::PacketAccess &&
       ((MaxSizeAtCompileTime == Dynamic) || (unpacket_traits<Packet>::size <= MaxSizeAtCompileTime));
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit inner_product_evaluator(const Lhs& lhs, const Rhs& rhs,
-                                                                         Func func = Func())
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE explicit inner_product_evaluator(const Lhs& lhs, const Rhs& rhs, Func func = Func())
       : m_func(func), m_lhs(lhs), m_rhs(rhs), m_size(lhs.size()) {
     inner_product_assert<Lhs, Rhs>::run(lhs, rhs);
   }
@@ -216,8 +216,8 @@ struct scalar_inner_product_op {
 template <typename Scalar, bool Conj>
 struct scalar_inner_product_op<
     Scalar,
-    typename std::enable_if<internal::is_same<typename ScalarBinaryOpTraits<Scalar, Scalar>::ReturnType, Scalar>::value,
-                            Scalar>::type,
+    std::enable_if_t<internal::is_same<typename ScalarBinaryOpTraits<Scalar, Scalar>::ReturnType, Scalar>::value,
+                     Scalar>,
     Conj> {
   using result_type = Scalar;
   using conj_helper = conditional_conj<Scalar, Conj>;
