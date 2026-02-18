@@ -245,6 +245,7 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
     HasNegate = 1,
     HasSqrt = 1,
     HasLog = 1,
+    HasExp = 1,
     HasAbs = 0,
     HasAbs2 = 0,
     HasMin = 0,
@@ -449,6 +450,19 @@ EIGEN_STRONG_INLINE Packet2cd plog<Packet2cd>(const Packet2cd& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4cf plog<Packet4cf>(const Packet4cf& a) {
   return plog_complex<Packet4cf>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2cd pexp<Packet2cd>(const Packet2cd& a) {
+#ifdef EIGEN_VECTORIZE_AVX2
+  return pexp_complex<Packet2cd>(a);
+#else
+  // Without AVX2, pexp_complex<Packet2cd> requires psincos_double<Packet4d> which needs
+  // 256-bit integer operations (Packet4l) not available on AVX-only targets.
+  // Process as two independent Packet1cd using the SSE implementation instead.
+  return Packet2cd(_mm256_insertf128_pd(_mm256_castpd128_pd256(pexp(Packet1cd(_mm256_castpd256_pd128(a.v))).v),
+                                        pexp(Packet1cd(_mm256_extractf128_pd(a.v, 1))).v, 1));
+#endif
 }
 
 template <>
