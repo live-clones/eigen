@@ -238,14 +238,13 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 // ---- 2nd level of blocking on max(L2,L3), yields nc ----
 
 // Estimate the effective per-core L2 capacity for 2nd-level blocking.
-// We use the runtime-detected L2 as a baseline, and if an L3 is present,
-// we assume a share of it (between l3/16 and l3/4) is also available,
-// clamped to at least the detected L2 size.
+// Use 1.5x the runtime-detected L2 size. The extra 50% accounts for data
+// that spills to L3 but remains accessible with low latency. This matches
+// the empirically-tuned constant (1.5MB) previously used when L2 was 1MB.
 #ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
     const Index actual_l2 = l3;
 #else
-    const Index actual_l2 =
-        numext::maxi<Index>(l2, l3 > 0 ? numext::mini<Index>(l3 / 4, numext::maxi<Index>(l3 / 16, l2)) : l2);
+    const Index actual_l2 = l2 * 3 / 2;
 #endif
 
     // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
