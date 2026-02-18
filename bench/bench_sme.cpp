@@ -1,4 +1,7 @@
 
+#ifdef EIGEN_ARM64_USE_SME
+#include <arm_neon.h>
+#endif
 
 #include <iostream>
 

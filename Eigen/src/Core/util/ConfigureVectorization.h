@@ -428,7 +428,7 @@ extern "C" {
 #if defined __ARM_FEATURE_SVE_BITS
 #define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
 #else
-#error "Eigen requires a fixed SVE lector length but EIGEN_ARM64_SVE_VL is not set."
+#error "Eigen requires a fixed SVE vector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
 // We currently require SME to be enabled explicitly via EIGEN_ARM64_USE_SME and
@@ -437,6 +437,7 @@ extern "C" {
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_SME
+#include <arm_neon.h>
 #include <arm_sme.h>
 
 // Since we depend on knowing SVE vector length at compile-time, we need
@@ -444,7 +445,7 @@ extern "C" {
 #if defined __ARM_FEATURE_SVE_BITS
 #define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
 #else
-#error "Eigen requires a fixed SVE lector length for SME but EIGEN_ARM64_SVE_VL is not set."
+#error "Eigen requires a fixed SVE vector length for SME but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
 #if EIGEN_ARM64_SVE_VL != 512

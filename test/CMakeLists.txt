@@ -212,7 +212,10 @@ ei_add_test(conservative_resize)
 ei_add_test(product_small)
 ei_add_test(product_large)
 if(EIGEN_TEST_SME)
-  ei_add_test(product_sme)
+  # SME tests require -DEIGEN_ARM64_USE_SME to activate the SME backend in
+  # ConfigureVectorization.h.  The compiler must also provide -march=armv9-a+sme
+  # (or similar) and -msve-vector-bits=512 via CMAKE_CXX_FLAGS.
+  ei_add_test(product_sme "-DEIGEN_ARM64_USE_SME" "")
 endif()
 ei_add_test(product_extra)
 ei_add_test(diagonalmatrices)
