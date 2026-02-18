@@ -165,9 +165,7 @@ struct functor_traits<scalar_arg_op<Scalar>> {
 template <typename Scalar>
 struct scalar_carg_op {
   using result_type = Scalar;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    return Scalar(numext::arg(a));
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const { return Scalar(numext::arg(a)); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
     return pcarg(a);
@@ -187,9 +185,7 @@ struct functor_traits<scalar_carg_op<Scalar>> {
 template <typename Scalar, typename NewType>
 struct scalar_cast_op {
   typedef NewType result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NewType operator()(const Scalar& a) const {
-    return cast<Scalar, NewType>(a);
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NewType operator()(const Scalar& a) const { return cast<Scalar, NewType>(a); }
 };
 
 template <typename Scalar, typename NewType>
