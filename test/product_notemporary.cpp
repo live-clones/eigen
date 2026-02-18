@@ -208,17 +208,20 @@ void product_notemporary(const MatrixType& m) {
   }
 }
 
-EIGEN_DECLARE_TEST(product_notemporary) {
-  int s;
-  for (int i = 0; i < g_repeat; i++) {
-    s = internal::random<int>(16, EIGEN_TEST_MAX_SIZE);
-    CALL_SUBTEST_1(product_notemporary(MatrixXf(s, s)));
-    CALL_SUBTEST_2(product_notemporary(MatrixXd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+// =============================================================================
+// Typed test suite: runs product_notemporary for each scalar type.
+// =============================================================================
+template <typename T>
+class ProductNoTemporaryTest : public ::testing::Test {};
 
-    s = internal::random<int>(16, EIGEN_TEST_MAX_SIZE / 2);
-    CALL_SUBTEST_3(product_notemporary(MatrixXcf(s, s)));
-    CALL_SUBTEST_4(product_notemporary(MatrixXcd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+using ProductNoTemporaryTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(ProductNoTemporaryTest, ProductNoTemporaryTypes);
+
+TYPED_TEST(ProductNoTemporaryTest, ProductNoTemporary) {
+  using Scalar = typename TypeParam::Scalar;
+  const int max_size = NumTraits<Scalar>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
+  for (int i = 0; i < g_repeat; i++) {
+    int s = internal::random<int>(16, max_size);
+    product_notemporary(TypeParam(s, s));
   }
 }

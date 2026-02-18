@@ -322,31 +322,67 @@ void fixedSizeMatrixConstruction() {
   }
 }
 
-EIGEN_DECLARE_TEST(basicstuff) {
+// =============================================================================
+// Helper: create a MatrixType instance with appropriate dimensions.
+// For fixed-size matrices, uses the compile-time dimensions.
+// For dynamic-size matrices, uses random dimensions up to EIGEN_TEST_MAX_SIZE.
+// =============================================================================
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
+
+// =============================================================================
+// Typed test suite for basicStuff
+// =============================================================================
+template <typename T>
+class BasicStuffTest : public ::testing::Test {};
+
+using BasicStuffTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, MatrixXcf, MatrixXi, MatrixXcd,
+                                         Matrix<float, 100, 100>, Matrix<long double, Dynamic, Dynamic>>;
+TYPED_TEST_SUITE(BasicStuffTest, BasicStuffTypes);
+
+TYPED_TEST(BasicStuffTest, BasicStuff) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(basicStuff(Matrix<float, 1, 1>()));
-    CALL_SUBTEST_2(basicStuff(Matrix4d()));
-    CALL_SUBTEST_3(basicStuff(
-        MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_4(basicStuff(
-        MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_5(basicStuff(
-        MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_6(basicStuff(Matrix<float, 100, 100>()));
-    CALL_SUBTEST_7(basicStuff(Matrix<long double, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                                    internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8(casting_all());
-
-    CALL_SUBTEST_3(basicStuffComplex(
-        MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_5(basicStuffComplex(
-        MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    basicStuff(make_test_matrix<TypeParam>());
   }
+}
 
-  CALL_SUBTEST_1(fixedSizeMatrixConstruction<unsigned char>());
-  CALL_SUBTEST_1(fixedSizeMatrixConstruction<float>());
-  CALL_SUBTEST_1(fixedSizeMatrixConstruction<double>());
-  CALL_SUBTEST_1(fixedSizeMatrixConstruction<int>());
-  CALL_SUBTEST_1(fixedSizeMatrixConstruction<long int>());
-  CALL_SUBTEST_1(fixedSizeMatrixConstruction<std::ptrdiff_t>());
+// =============================================================================
+// Typed test suite for basicStuffComplex
+// =============================================================================
+template <typename T>
+class BasicStuffComplexTest : public ::testing::Test {};
+
+using BasicStuffComplexTypes = ::testing::Types<MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(BasicStuffComplexTest, BasicStuffComplexTypes);
+
+TYPED_TEST(BasicStuffComplexTest, BasicStuffComplex) {
+  for (int i = 0; i < g_repeat; i++) {
+    basicStuffComplex(make_test_matrix<TypeParam>());
+  }
+}
+
+// =============================================================================
+// Typed test suite for fixedSizeMatrixConstruction
+// =============================================================================
+template <typename T>
+class FixedSizeConstructionTest : public ::testing::Test {};
+
+using FixedSizeConstructionTypes = ::testing::Types<unsigned char, float, double, int, long int, std::ptrdiff_t>;
+TYPED_TEST_SUITE(FixedSizeConstructionTest, FixedSizeConstructionTypes);
+
+TYPED_TEST(FixedSizeConstructionTest, FixedSizeMatrixConstruction) { fixedSizeMatrixConstruction<TypeParam>(); }
+
+// =============================================================================
+// Non-typed tests
+// =============================================================================
+TEST(Eigen, basicstuff_casting) {
+  for (int i = 0; i < g_repeat; i++) {
+    casting_all();
+  }
 }

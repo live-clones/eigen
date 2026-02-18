@@ -52,10 +52,8 @@
 #include <queue>
 #include <cassert>
 #include <list>
-#if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 #include <random>
 #include <chrono>
-#endif
 #if __cplusplus > 201703L
 // libstdc++ 9's <memory> indirectly uses max() via <bit>.
 // libstdc++ 10's <memory> indirectly uses max() via ranges headers.
@@ -63,6 +61,9 @@
 // libstdc++ 11's <thread> indirectly uses max() via semaphore headers.
 #include <thread>
 #endif
+
+// Google Test must be included before the poison macros below.
+#include <gtest/gtest.h>
 
 // Configure GPU.
 #if defined(EIGEN_USE_HIP)
@@ -159,19 +160,127 @@ inline void on_temporary_creation(long int size, int) {
 #define EIGEN_DENSE_STORAGE_CTOR_PLUGIN \
   { on_temporary_creation(size, Size); }
 
-#define VERIFY_EVALUATION_COUNT(XPR, N)                            \
-  {                                                                \
-    nb_temporaries = 0;                                            \
-    XPR;                                                           \
-    if (nb_temporaries != (N)) {                                   \
-      std::cerr << "nb_temporaries == " << nb_temporaries << "\n"; \
-    }                                                              \
-    VERIFY((#XPR) && nb_temporaries == (N));                       \
+#define VERIFY_EVALUATION_COUNT(XPR, N)                    \
+  {                                                        \
+    nb_temporaries = 0;                                    \
+    XPR;                                                   \
+    EXPECT_EQ(nb_temporaries, (N)) << "Expression: " #XPR; \
   }
 
 #endif
 
-#include "split_test_helper.h"
+// =============================================================================
+// Enable all test parts (replaces split_test_helper.h).
+//
+// Previously, large tests were split into separate executables compiled with
+// -DEIGEN_TEST_PART_N=1.  With gtest, we compile each test as a single binary
+// and run all parts.  Files that check #ifdef EIGEN_TEST_PART_N directly will
+// see all parts enabled.
+//
+// Note: files with mutually exclusive #if/#elif chains on EIGEN_TEST_PART_N
+// (e.g. dontalign.cpp) will only get the first branch.  These files need to
+// be refactored into separate test targets.
+// =============================================================================
+#define EIGEN_TEST_PART_1 1
+#define EIGEN_TEST_PART_2 1
+#define EIGEN_TEST_PART_3 1
+#define EIGEN_TEST_PART_4 1
+#define EIGEN_TEST_PART_5 1
+#define EIGEN_TEST_PART_6 1
+#define EIGEN_TEST_PART_7 1
+#define EIGEN_TEST_PART_8 1
+#define EIGEN_TEST_PART_9 1
+#define EIGEN_TEST_PART_10 1
+#define EIGEN_TEST_PART_11 1
+#define EIGEN_TEST_PART_12 1
+#define EIGEN_TEST_PART_13 1
+#define EIGEN_TEST_PART_14 1
+#define EIGEN_TEST_PART_15 1
+#define EIGEN_TEST_PART_16 1
+#define EIGEN_TEST_PART_17 1
+#define EIGEN_TEST_PART_18 1
+#define EIGEN_TEST_PART_19 1
+#define EIGEN_TEST_PART_20 1
+#define EIGEN_TEST_PART_21 1
+#define EIGEN_TEST_PART_22 1
+#define EIGEN_TEST_PART_23 1
+#define EIGEN_TEST_PART_24 1
+#define EIGEN_TEST_PART_25 1
+#define EIGEN_TEST_PART_26 1
+#define EIGEN_TEST_PART_27 1
+#define EIGEN_TEST_PART_28 1
+#define EIGEN_TEST_PART_29 1
+#define EIGEN_TEST_PART_30 1
+#define EIGEN_TEST_PART_31 1
+#define EIGEN_TEST_PART_32 1
+#define EIGEN_TEST_PART_33 1
+#define EIGEN_TEST_PART_34 1
+#define EIGEN_TEST_PART_35 1
+#define EIGEN_TEST_PART_36 1
+#define EIGEN_TEST_PART_37 1
+#define EIGEN_TEST_PART_38 1
+#define EIGEN_TEST_PART_39 1
+#define EIGEN_TEST_PART_40 1
+#define EIGEN_TEST_PART_41 1
+#define EIGEN_TEST_PART_42 1
+#define EIGEN_TEST_PART_43 1
+#define EIGEN_TEST_PART_44 1
+#define EIGEN_TEST_PART_45 1
+#define EIGEN_TEST_PART_46 1
+#define EIGEN_TEST_PART_47 1
+#define EIGEN_TEST_PART_48 1
+#define EIGEN_TEST_PART_49 1
+#define EIGEN_TEST_PART_50 1
+#define EIGEN_TEST_PART_51 1
+#define EIGEN_TEST_PART_52 1
+#define EIGEN_TEST_PART_53 1
+#define EIGEN_TEST_PART_54 1
+#define EIGEN_TEST_PART_55 1
+#define EIGEN_TEST_PART_56 1
+#define EIGEN_TEST_PART_57 1
+#define EIGEN_TEST_PART_58 1
+#define EIGEN_TEST_PART_59 1
+#define EIGEN_TEST_PART_60 1
+#define EIGEN_TEST_PART_61 1
+#define EIGEN_TEST_PART_62 1
+#define EIGEN_TEST_PART_63 1
+#define EIGEN_TEST_PART_64 1
+#define EIGEN_TEST_PART_65 1
+#define EIGEN_TEST_PART_66 1
+#define EIGEN_TEST_PART_67 1
+#define EIGEN_TEST_PART_68 1
+#define EIGEN_TEST_PART_69 1
+#define EIGEN_TEST_PART_70 1
+#define EIGEN_TEST_PART_71 1
+#define EIGEN_TEST_PART_72 1
+#define EIGEN_TEST_PART_73 1
+#define EIGEN_TEST_PART_74 1
+#define EIGEN_TEST_PART_75 1
+#define EIGEN_TEST_PART_76 1
+#define EIGEN_TEST_PART_77 1
+#define EIGEN_TEST_PART_78 1
+#define EIGEN_TEST_PART_79 1
+#define EIGEN_TEST_PART_80 1
+#define EIGEN_TEST_PART_81 1
+#define EIGEN_TEST_PART_82 1
+#define EIGEN_TEST_PART_83 1
+#define EIGEN_TEST_PART_84 1
+#define EIGEN_TEST_PART_85 1
+#define EIGEN_TEST_PART_86 1
+#define EIGEN_TEST_PART_87 1
+#define EIGEN_TEST_PART_88 1
+#define EIGEN_TEST_PART_89 1
+#define EIGEN_TEST_PART_90 1
+#define EIGEN_TEST_PART_91 1
+#define EIGEN_TEST_PART_92 1
+#define EIGEN_TEST_PART_93 1
+#define EIGEN_TEST_PART_94 1
+#define EIGEN_TEST_PART_95 1
+#define EIGEN_TEST_PART_96 1
+#define EIGEN_TEST_PART_97 1
+#define EIGEN_TEST_PART_98 1
+#define EIGEN_TEST_PART_99 1
+#define EIGEN_TEST_PART_100 1
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -185,43 +294,22 @@ inline void on_temporary_creation(long int size, int) {
 #define DEFAULT_REPEAT 10
 
 namespace Eigen {
+// g_test_stack: kept for backward compatibility with tests that push/pop context strings.
+// With gtest, test context is tracked automatically, but some tests (e.g. packetmath.cpp)
+// still manipulate this vector directly.
 static std::vector<std::string> g_test_stack;
-// level == 0 <=> return 1 if test fail
-// level >= 1 <=> warning message to std::cerr if test fail
+// g_test_level: when > 0, some tests treat VERIFY failures as non-fatal warnings.
+// With gtest all EXPECT_* are already non-fatal, but tests still modify this variable.
 static int g_test_level = 0;
 static int g_repeat = 1;
 static unsigned int g_seed = 0;
 static bool g_has_set_repeat = false, g_has_set_seed = false;
 
-class EigenTest {
- public:
-  EigenTest() : m_func(0) {}
-  EigenTest(const char* a_name, void (*func)(void)) : m_name(a_name), m_func(func) {
-    get_registered_tests().push_back(this);
-  }
-  const std::string& name() const { return m_name; }
-  void operator()() const { m_func(); }
+// Declare and register a test via Google Test.
+// Usage:  EIGEN_DECLARE_TEST(mytest) { ... }
+// Expands to: TEST(Eigen, mytest) { ... }
+#define EIGEN_DECLARE_TEST(X) TEST(Eigen, X)
 
-  static const std::vector<EigenTest*>& all() { return get_registered_tests(); }
-
- protected:
-  static std::vector<EigenTest*>& get_registered_tests() {
-    static std::vector<EigenTest*>* ms_registered_tests = new std::vector<EigenTest*>();
-    return *ms_registered_tests;
-  }
-  std::string m_name;
-  void (*m_func)(void);
-};
-
-// Declare and register a test, e.g.:
-//    EIGEN_DECLARE_TEST(mytest) { ... }
-// will create a function:
-//    void test_mytest() { ... }
-// that will be automatically called.
-#define EIGEN_DECLARE_TEST(X)                                                              \
-  void EIGEN_CAT(test_, X)();                                                              \
-  static EigenTest EIGEN_CAT(test_handler_, X)(EIGEN_MAKESTRING(X), &EIGEN_CAT(test_, X)); \
-  void EIGEN_CAT(test_, X)()
 }  // namespace Eigen
 
 #define TRACK std::cerr << __FILE__ << " " << __LINE__ << std::endl
@@ -289,10 +377,9 @@ static std::vector<std::string> eigen_assert_list;
       a;                                                                                                         \
       std::cerr << "One of the following asserts should have been triggered:\n";                                 \
       for (uint ai = 0; ai < eigen_assert_list.size(); ++ai) std::cerr << "  " << eigen_assert_list[ai] << "\n"; \
-      VERIFY(Eigen::should_raise_an_assert&& #a);                                                                \
+      EXPECT_TRUE(false) << "Expected assertion in: " #a;                                                        \
     } catch (Eigen::eigen_assert_exception) {                                                                    \
-      Eigen::internal::push_assert = false;                                                                      \
-      VERIFY(true);                                                                                              \
+      EXPECT_TRUE(true);                                                                                         \
     }                                                                                                            \
     Eigen::report_on_cerr_on_assert_failure = true;                                                              \
     Eigen::internal::push_assert = false;                                                                        \
@@ -311,17 +398,17 @@ static std::vector<std::string> eigen_assert_list;
   }
 
 #ifdef EIGEN_EXCEPTIONS
-#define VERIFY_RAISES_ASSERT(a)                      \
-  {                                                  \
-    Eigen::no_more_assert = false;                   \
-    Eigen::report_on_cerr_on_assert_failure = false; \
-    try {                                            \
-      a;                                             \
-      VERIFY(Eigen::should_raise_an_assert&& #a);    \
-    } catch (Eigen::eigen_assert_exception&) {       \
-      VERIFY(true);                                  \
-    }                                                \
-    Eigen::report_on_cerr_on_assert_failure = true;  \
+#define VERIFY_RAISES_ASSERT(a)                           \
+  {                                                       \
+    Eigen::no_more_assert = false;                        \
+    Eigen::report_on_cerr_on_assert_failure = false;      \
+    try {                                                 \
+      a;                                                  \
+      EXPECT_TRUE(false) << "Expected assertion in: " #a; \
+    } catch (Eigen::eigen_assert_exception&) {            \
+      EXPECT_TRUE(true);                                  \
+    }                                                     \
+    Eigen::report_on_cerr_on_assert_failure = true;       \
   }
 #endif  // EIGEN_EXCEPTIONS
 #endif  // EIGEN_DEBUG_ASSERTS
@@ -346,24 +433,13 @@ static std::vector<std::string> eigen_assert_list;
 #endif
 #include <Eigen/Core>
 
-inline void verify_impl(bool condition, const char* testname, const char* file, int line,
-                        const char* condition_as_string) {
-  if (!condition) {
-    if (Eigen::g_test_level > 0) std::cerr << "WARNING: ";
-    std::cerr << "Test " << testname << " failed in " << file << " (" << line << ")" << std::endl
-              << "    " << condition_as_string << std::endl;
-    std::cerr << "Stack:\n";
-    const int test_stack_size = static_cast<int>(Eigen::g_test_stack.size());
-    for (int i = test_stack_size - 1; i >= 0; --i) std::cerr << "  - " << Eigen::g_test_stack[i] << "\n";
-    std::cerr << "\n";
-    if (Eigen::g_test_level == 0) exit(1);
-  }
-}
+// =============================================================================
+// Assertion macros using Google Test
+// =============================================================================
+#define VERIFY(a) EXPECT_TRUE(a) << EIGEN_MAKESTRING(a)
 
-#define VERIFY(a) ::verify_impl(a, g_test_stack.back().c_str(), __FILE__, __LINE__, EIGEN_MAKESTRING(a))
-
-#define VERIFY_GE(a, b) ::verify_impl(a >= b, g_test_stack.back().c_str(), __FILE__, __LINE__, EIGEN_MAKESTRING(a >= b))
-#define VERIFY_LE(a, b) ::verify_impl(a <= b, g_test_stack.back().c_str(), __FILE__, __LINE__, EIGEN_MAKESTRING(a <= b))
+#define VERIFY_GE(a, b) EXPECT_GE(a, b)
+#define VERIFY_LE(a, b) EXPECT_LE(a, b)
 
 #define VERIFY_IS_EQUAL(a, b) VERIFY(test_is_equal(a, b, true))
 #define VERIFY_IS_NOT_EQUAL(a, b) VERIFY(test_is_equal(a, b, false))
@@ -380,12 +456,115 @@ inline void verify_impl(bool condition, const char* testname, const char* file, 
 
 #define STATIC_CHECK(COND) EIGEN_STATIC_ASSERT((COND), EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT)
 
-#define CALL_SUBTEST(FUNC)                          \
-  do {                                              \
-    g_test_stack.push_back(EIGEN_MAKESTRING(FUNC)); \
-    FUNC;                                           \
-    g_test_stack.pop_back();                        \
+// =============================================================================
+// CALL_SUBTEST macros.  With gtest, test splitting is removed.
+// All CALL_SUBTEST_N variants simply execute their argument.
+// =============================================================================
+#define CALL_SUBTEST(FUNC) \
+  do {                     \
+    FUNC;                  \
   } while (0)
+
+#define CALL_SUBTEST_1(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_2(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_3(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_4(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_5(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_6(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_7(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_8(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_9(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_10(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_11(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_12(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_13(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_14(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_15(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_16(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_17(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_18(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_19(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_20(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_21(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_22(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_23(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_24(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_25(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_26(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_27(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_28(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_29(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_30(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_31(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_32(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_33(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_34(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_35(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_36(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_37(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_38(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_39(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_40(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_41(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_42(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_43(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_44(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_45(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_46(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_47(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_48(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_49(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_50(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_51(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_52(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_53(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_54(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_55(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_56(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_57(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_58(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_59(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_60(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_61(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_62(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_63(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_64(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_65(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_66(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_67(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_68(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_69(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_70(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_71(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_72(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_73(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_74(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_75(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_76(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_77(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_78(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_79(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_80(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_81(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_82(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_83(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_84(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_85(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_86(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_87(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_88(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_89(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_90(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_91(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_92(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_93(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_94(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_95(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_96(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_97(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_98(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_99(FUNC) CALL_SUBTEST(FUNC)
+#define CALL_SUBTEST_100(FUNC) CALL_SUBTEST(FUNC)
 
 // Forward declarations to avoid ICC warnings
 #if EIGEN_COMP_ICC
@@ -865,36 +1044,19 @@ inline void set_seed_from_time() {
 }
 
 int main(int argc, char* argv[]) {
+  // Initialize Google Test first (it will consume --gtest_* flags from argv).
+  ::testing::InitGoogleTest(&argc, argv);
+
   g_has_set_repeat = false;
   g_has_set_seed = false;
-  bool need_help = false;
 
+  // Parse Eigen-specific arguments: rN (repeat) and sN (seed).
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] == 'r') {
-      if (g_has_set_repeat) {
-        std::cout << "Argument " << argv[i] << " conflicting with a former argument" << std::endl;
-        return 1;
-      }
       set_repeat_from_string(argv[i] + 1);
     } else if (argv[i][0] == 's') {
-      if (g_has_set_seed) {
-        std::cout << "Argument " << argv[i] << " conflicting with a former argument" << std::endl;
-        return 1;
-      }
       set_seed_from_string(argv[i] + 1);
-    } else {
-      need_help = true;
     }
-  }
-
-  if (need_help) {
-    std::cout << "This test application takes the following optional arguments:" << std::endl;
-    std::cout << "  rN     Repeat each test N times (default: " << DEFAULT_REPEAT << ")" << std::endl;
-    std::cout << "  sN     Use N as seed for random numbers (default: based on current time)" << std::endl;
-    std::cout << std::endl;
-    std::cout << "If defined, the environment variables EIGEN_REPEAT and EIGEN_SEED" << std::endl;
-    std::cout << "will be used as default values for these parameters." << std::endl;
-    return 1;
   }
 
   char* env_EIGEN_REPEAT = getenv("EIGEN_REPEAT");
@@ -906,22 +1068,10 @@ int main(int argc, char* argv[]) {
   if (!g_has_set_repeat) g_repeat = DEFAULT_REPEAT;
 
   std::cout << "Initializing random number generator with seed " << g_seed << std::endl;
-  std::stringstream ss;
-  ss << "Seed: " << g_seed;
-  g_test_stack.push_back(ss.str());
   srand(g_seed);
   std::cout << "Repeating each test " << g_repeat << " times" << std::endl;
 
-  VERIFY(EigenTest::all().size() > 0);
-
-  for (std::size_t i = 0; i < EigenTest::all().size(); ++i) {
-    const EigenTest& current_test = *EigenTest::all()[i];
-    Eigen::g_test_stack.push_back(current_test.name());
-    current_test();
-    Eigen::g_test_stack.pop_back();
-  }
-
-  return 0;
+  return RUN_ALL_TESTS();
 }
 
 // These warning are disabled here such that they are still ON when parsing Eigen's header files.
