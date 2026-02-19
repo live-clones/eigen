@@ -172,69 +172,7 @@ static int mpfr_exp2_wrap(mpfr_t rop, const mpfr_t op, mpfr_rnd_t rnd) {
 
 static int mpfr_log2_wrap(mpfr_t rop, const mpfr_t op, mpfr_rnd_t rnd) { return mpfr_log2(rop, op, rnd); }
 
-// ndtri via Newton iteration on erf.
-static int mpfr_ndtri(mpfr_t rop, const mpfr_t op, mpfr_rnd_t rnd) {
-  mpfr_prec_t prec = mpfr_get_prec(rop);
-  mpfr_t p, x, target, erf_x, diff, ex2, sqrtpi_2, sqrt2, tmp;
-  mpfr_inits2(prec + 32, p, x, target, erf_x, diff, ex2, sqrtpi_2, sqrt2, tmp, (mpfr_ptr)0);
-
-  mpfr_set(p, op, rnd);
-  mpfr_mul_ui(target, p, 2, rnd);
-  mpfr_sub_ui(target, target, 1, rnd);
-
-  mpfr_const_pi(sqrtpi_2, rnd);
-  mpfr_sqrt(sqrtpi_2, sqrtpi_2, rnd);
-  mpfr_div_ui(sqrtpi_2, sqrtpi_2, 2, rnd);
-
-  mpfr_set_ui(sqrt2, 2, rnd);
-  mpfr_sqrt(sqrt2, sqrt2, rnd);
-
-  double pd = mpfr_get_d(p, MPFR_RNDN);
-  double t = 2.0 * pd - 1.0;
-  double guess = 0.0;
-  if (std::abs(t) < 0.7) {
-    guess = t * 0.886226925452758;
-  } else {
-    double s = (t > 0) ? 1.0 : -1.0;
-    double u = -std::log((1.0 - std::abs(t)) / 2.0);
-    guess = s * std::sqrt(u) * 0.8;
-  }
-  mpfr_set_d(x, guess, rnd);
-
-  for (int i = 0; i < 50; i++) {
-    mpfr_erf(erf_x, x, rnd);
-    mpfr_sub(diff, target, erf_x, rnd);
-    if (mpfr_zero_p(diff)) break;
-    mpfr_sqr(ex2, x, rnd);
-    mpfr_exp(ex2, ex2, rnd);
-    mpfr_mul(tmp, sqrtpi_2, ex2, rnd);
-    mpfr_mul(tmp, tmp, diff, rnd);
-    mpfr_add(x, x, tmp, rnd);
-  }
-
-  mpfr_mul(rop, sqrt2, x, rnd);
-  mpfr_clears(p, x, target, erf_x, diff, ex2, sqrtpi_2, sqrt2, tmp, (mpfr_ptr)0);
-  return 0;
-}
 #endif  // EIGEN_HAS_MPFR
-
-static float std_ndtri(float p) {
-  if (p <= 0.0f) return -std::numeric_limits<float>::infinity();
-  if (p >= 1.0f) return std::numeric_limits<float>::infinity();
-  if (p == 0.5f) return 0.0f;
-  float sign = 1.0f;
-  float pp = p;
-  if (pp > 0.5f) {
-    pp = 1.0f - pp;
-    sign = -1.0f;
-  }
-  float t = std::sqrt(-2.0f * std::log(pp));
-  float c0 = 2.515517f, c1 = 0.802853f, c2 = 0.010328f;
-  float d1 = 1.432788f, d2 = 0.189269f, d3 = 0.001308f;
-  float num = c0 + t * (c1 + t * c2);
-  float den = 1.0f + t * (d1 + t * (d2 + t * d3));
-  return sign * (t - num / den);
-}
 
 static std::vector<FuncEntry> build_func_table() {
   std::vector<FuncEntry> table;
@@ -282,8 +220,6 @@ static std::vector<FuncEntry> build_func_table() {
   ADD_FUNC(lgamma, a.lgamma(), std::lgamma(x), mpfr_lngamma, -kInf, kInf);
 
   ADD_FUNC(logistic, a.logistic(), std_logistic(x), mpfr_logistic, -kInf, kInf);
-  ADD_FUNC(ndtri,    a.ndtri(),    std_ndtri(x),    mpfr_ndtri,    -kInf, kInf);
-
   ADD_FUNC(sqrt,  a.sqrt(),  std::sqrt(x),       mpfr_sqrt,  -kInf, kInf);
   ADD_FUNC(cbrt,  a.cbrt(),  std::cbrt(x),       mpfr_cbrt,  -kInf, kInf);
   ADD_FUNC(rsqrt, a.rsqrt(), 1.0f/std::sqrt(x),  mpfr_rsqrt, -kInf, kInf);
