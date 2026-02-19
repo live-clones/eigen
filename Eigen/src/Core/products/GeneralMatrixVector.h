@@ -422,7 +422,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     res[(i + 6) * resIncr] += alpha * cc6;
     res[(i + 7) * resIncr] += alpha * cc7;
   }
-  for (; i < n4; i += 4) {
+  if (i < n4) {
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
@@ -450,8 +450,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     res[(i + 1) * resIncr] += alpha * cc1;
     res[(i + 2) * resIncr] += alpha * cc2;
     res[(i + 3) * resIncr] += alpha * cc3;
+    i += 4;
   }
-  for (; i < n2; i += 2) {
+  if (i < n2) {
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
@@ -471,8 +472,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     }
     res[(i + 0) * resIncr] += alpha * cc0;
     res[(i + 1) * resIncr] += alpha * cc1;
+    i += 2;
   }
-  for (; i < rows; ++i) {
+  if (i < rows) {
     ResPacket c0 = pzero(ResPacket{});
     ResPacketHalf c0_h = pzero(ResPacketHalf{});
     ResPacketQuarter c0_q = pzero(ResPacketQuarter{});
@@ -651,12 +653,15 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
   Index i = 0;
   for (; i < n8; i += 8)
     process_rows_small_cols<8>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
-  for (; i < n4; i += 4)
+  if (i < n4) {
     process_rows_small_cols<4>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
-  for (; i < n2; i += 2)
+    i += 4;
+  }
+  if (i < n2) {
     process_rows_small_cols<2>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
-  for (; i < rows; ++i)
-    process_rows_small_cols<1>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
+    i += 2;
+  }
+  if (i < rows) process_rows_small_cols<1>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
 }
 
 }  // end namespace internal
