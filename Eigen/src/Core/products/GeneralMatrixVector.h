@@ -139,7 +139,6 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   const Index n_half = rows - 1 * ResPacketSizeHalf + 1;
   const Index n_quarter = rows - 1 * ResPacketSizeQuarter + 1;
 
-  // TODO: improve the following heuristic:
   const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 32000 ? 16 : 4);
   ResPacket palpha = pset1<ResPacket>(alpha);
   ResPacketHalf palpha_half = pset1<ResPacketHalf>(alpha);
@@ -287,6 +286,12 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, Conj
 
   EIGEN_DEVICE_FUNC static inline void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
                                            ResScalar* res, Index resIncr, ResScalar alpha);
+
+  // Specialized path for when cols < full packet size. Kept noinline to avoid
+  // bloating the main run() function and causing icache pressure.
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,
+                                                                 const RhsMapper& rhs, ResScalar* res, Index resIncr,
+                                                                 ResScalar alpha);
 };
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
@@ -295,6 +300,23 @@ EIGEN_DEVICE_FUNC inline void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                             ResScalar* res, Index resIncr, ResScalar alpha) {
+  // When cols < full packet size, the main vectorized loops are empty.
+  // Dispatch to a separate noinline function to avoid polluting the icache.
+  // Only dispatch when cols is large enough that half or quarter packets can be used;
+  // otherwise the helper would just do scalar work with extra function call overhead.
+  enum {
+    LhsPacketSize_ = Traits::LhsPacketSize,
+    MinUsefulCols_ =
+        ((int)QuarterTraits::LhsPacketSize < (int)HalfTraits::LhsPacketSize)
+            ? (int)QuarterTraits::LhsPacketSize
+            : (((int)HalfTraits::LhsPacketSize < (int)Traits::LhsPacketSize) ? (int)HalfTraits::LhsPacketSize
+                                                                             : (int)Traits::LhsPacketSize)
+  };
+  if (cols >= MinUsefulCols_ && cols < LhsPacketSize_) {
+    run_small_cols(rows, cols, alhs, rhs, res, resIncr, alpha);
+    return;
+  }
+
   // The following copy tells the compiler that lhs's attributes are not modified outside this function
   // This helps GCC to generate proper code.
   LhsMapper lhs(alhs);
@@ -449,6 +471,208 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
         c0_q = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i, j), b0, c0_q);
       }
       cc0 += predux(c0_q);
+    }
+    for (Index j = quarterColBlockEnd; j < cols; ++j) {
+      cc0 += cj.pmul(lhs(i, j), rhs(j, 0));
+    }
+    res[i * resIncr] += alpha * cc0;
+  }
+}
+
+template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
+          typename RhsMapper, bool ConjugateRhs, int Version>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void
+general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
+                              Version>::run_small_cols(Index rows, Index cols, const LhsMapper& alhs,
+                                                       const RhsMapper& rhs, ResScalar* res, Index resIncr,
+                                                       ResScalar alpha) {
+  LhsMapper lhs(alhs);
+  eigen_internal_assert(rhs.stride() == 1);
+
+  conj_helper<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs> cj;
+  conj_helper<LhsPacketHalf, RhsPacketHalf, ConjugateLhs, ConjugateRhs> pcj_half;
+  conj_helper<LhsPacketQuarter, RhsPacketQuarter, ConjugateLhs, ConjugateRhs> pcj_quarter;
+
+  enum {
+    LhsAlignment = Unaligned,
+    ResPacketSizeHalf = HalfTraits::ResPacketSize,
+    ResPacketSizeQuarter = QuarterTraits::ResPacketSize,
+    LhsPacketSizeHalf = HalfTraits::LhsPacketSize,
+    LhsPacketSizeQuarter = QuarterTraits::LhsPacketSize,
+    HasHalf = (int)ResPacketSizeHalf < (int)Traits::ResPacketSize,
+    HasQuarter = (int)ResPacketSizeQuarter < (int)ResPacketSizeHalf
+  };
+
+  using UnsignedIndex = std::make_unsigned_t<Index>;
+  const Index halfColBlockEnd = LhsPacketSizeHalf * (UnsignedIndex(cols) / LhsPacketSizeHalf);
+  const Index quarterColBlockEnd = LhsPacketSizeQuarter * (UnsignedIndex(cols) / LhsPacketSizeQuarter);
+
+  const Index n8 = lhs.stride() * sizeof(LhsScalar) > 32000 ? 0 : rows - 7;
+  const Index n4 = rows - 3;
+  const Index n2 = rows - 1;
+
+  Index i = 0;
+  for (; i < n8; i += 8) {
+    ResScalar cc0(0), cc1(0), cc2(0), cc3(0), cc4(0), cc5(0), cc6(0), cc7(0);
+    if (HasHalf) {
+      ResPacketHalf h0 = pzero(ResPacketHalf{}), h1 = pzero(ResPacketHalf{}), h2 = pzero(ResPacketHalf{}),
+                    h3 = pzero(ResPacketHalf{}), h4 = pzero(ResPacketHalf{}), h5 = pzero(ResPacketHalf{}),
+                    h6 = pzero(ResPacketHalf{}), h7 = pzero(ResPacketHalf{});
+      for (Index j = 0; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
+        RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
+        h0 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 0, j), b0, h0);
+        h1 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 1, j), b0, h1);
+        h2 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 2, j), b0, h2);
+        h3 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 3, j), b0, h3);
+        h4 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 4, j), b0, h4);
+        h5 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 5, j), b0, h5);
+        h6 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 6, j), b0, h6);
+        h7 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 7, j), b0, h7);
+      }
+      cc0 += predux(h0);
+      cc1 += predux(h1);
+      cc2 += predux(h2);
+      cc3 += predux(h3);
+      cc4 += predux(h4);
+      cc5 += predux(h5);
+      cc6 += predux(h6);
+      cc7 += predux(h7);
+    }
+    if (HasQuarter) {
+      ResPacketQuarter q0 = pzero(ResPacketQuarter{}), q1 = pzero(ResPacketQuarter{}), q2 = pzero(ResPacketQuarter{}),
+                       q3 = pzero(ResPacketQuarter{}), q4 = pzero(ResPacketQuarter{}), q5 = pzero(ResPacketQuarter{}),
+                       q6 = pzero(ResPacketQuarter{}), q7 = pzero(ResPacketQuarter{});
+      for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
+        RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
+        q0 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 0, j), b0, q0);
+        q1 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 1, j), b0, q1);
+        q2 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 2, j), b0, q2);
+        q3 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 3, j), b0, q3);
+        q4 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 4, j), b0, q4);
+        q5 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 5, j), b0, q5);
+        q6 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 6, j), b0, q6);
+        q7 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 7, j), b0, q7);
+      }
+      cc0 += predux(q0);
+      cc1 += predux(q1);
+      cc2 += predux(q2);
+      cc3 += predux(q3);
+      cc4 += predux(q4);
+      cc5 += predux(q5);
+      cc6 += predux(q6);
+      cc7 += predux(q7);
+    }
+    for (Index j = quarterColBlockEnd; j < cols; ++j) {
+      RhsScalar b0 = rhs(j, 0);
+      cc0 += cj.pmul(lhs(i + 0, j), b0);
+      cc1 += cj.pmul(lhs(i + 1, j), b0);
+      cc2 += cj.pmul(lhs(i + 2, j), b0);
+      cc3 += cj.pmul(lhs(i + 3, j), b0);
+      cc4 += cj.pmul(lhs(i + 4, j), b0);
+      cc5 += cj.pmul(lhs(i + 5, j), b0);
+      cc6 += cj.pmul(lhs(i + 6, j), b0);
+      cc7 += cj.pmul(lhs(i + 7, j), b0);
+    }
+    res[(i + 0) * resIncr] += alpha * cc0;
+    res[(i + 1) * resIncr] += alpha * cc1;
+    res[(i + 2) * resIncr] += alpha * cc2;
+    res[(i + 3) * resIncr] += alpha * cc3;
+    res[(i + 4) * resIncr] += alpha * cc4;
+    res[(i + 5) * resIncr] += alpha * cc5;
+    res[(i + 6) * resIncr] += alpha * cc6;
+    res[(i + 7) * resIncr] += alpha * cc7;
+  }
+  for (; i < n4; i += 4) {
+    ResScalar cc0(0), cc1(0), cc2(0), cc3(0);
+    if (HasHalf) {
+      ResPacketHalf h0 = pzero(ResPacketHalf{}), h1 = pzero(ResPacketHalf{}), h2 = pzero(ResPacketHalf{}),
+                    h3 = pzero(ResPacketHalf{});
+      for (Index j = 0; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
+        RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
+        h0 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 0, j), b0, h0);
+        h1 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 1, j), b0, h1);
+        h2 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 2, j), b0, h2);
+        h3 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 3, j), b0, h3);
+      }
+      cc0 += predux(h0);
+      cc1 += predux(h1);
+      cc2 += predux(h2);
+      cc3 += predux(h3);
+    }
+    if (HasQuarter) {
+      ResPacketQuarter q0 = pzero(ResPacketQuarter{}), q1 = pzero(ResPacketQuarter{}), q2 = pzero(ResPacketQuarter{}),
+                       q3 = pzero(ResPacketQuarter{});
+      for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
+        RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
+        q0 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 0, j), b0, q0);
+        q1 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 1, j), b0, q1);
+        q2 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 2, j), b0, q2);
+        q3 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 3, j), b0, q3);
+      }
+      cc0 += predux(q0);
+      cc1 += predux(q1);
+      cc2 += predux(q2);
+      cc3 += predux(q3);
+    }
+    for (Index j = quarterColBlockEnd; j < cols; ++j) {
+      RhsScalar b0 = rhs(j, 0);
+      cc0 += cj.pmul(lhs(i + 0, j), b0);
+      cc1 += cj.pmul(lhs(i + 1, j), b0);
+      cc2 += cj.pmul(lhs(i + 2, j), b0);
+      cc3 += cj.pmul(lhs(i + 3, j), b0);
+    }
+    res[(i + 0) * resIncr] += alpha * cc0;
+    res[(i + 1) * resIncr] += alpha * cc1;
+    res[(i + 2) * resIncr] += alpha * cc2;
+    res[(i + 3) * resIncr] += alpha * cc3;
+  }
+  for (; i < n2; i += 2) {
+    ResScalar cc0(0), cc1(0);
+    if (HasHalf) {
+      ResPacketHalf h0 = pzero(ResPacketHalf{}), h1 = pzero(ResPacketHalf{});
+      for (Index j = 0; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
+        RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
+        h0 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 0, j), b0, h0);
+        h1 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 1, j), b0, h1);
+      }
+      cc0 += predux(h0);
+      cc1 += predux(h1);
+    }
+    if (HasQuarter) {
+      ResPacketQuarter q0 = pzero(ResPacketQuarter{}), q1 = pzero(ResPacketQuarter{});
+      for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
+        RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
+        q0 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 0, j), b0, q0);
+        q1 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 1, j), b0, q1);
+      }
+      cc0 += predux(q0);
+      cc1 += predux(q1);
+    }
+    for (Index j = quarterColBlockEnd; j < cols; ++j) {
+      RhsScalar b0 = rhs(j, 0);
+      cc0 += cj.pmul(lhs(i + 0, j), b0);
+      cc1 += cj.pmul(lhs(i + 1, j), b0);
+    }
+    res[(i + 0) * resIncr] += alpha * cc0;
+    res[(i + 1) * resIncr] += alpha * cc1;
+  }
+  for (; i < rows; ++i) {
+    ResScalar cc0(0);
+    if (HasHalf) {
+      ResPacketHalf h0 = pzero(ResPacketHalf{});
+      for (Index j = 0; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
+        RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
+        h0 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i, j), b0, h0);
+      }
+      cc0 += predux(h0);
+    }
+    if (HasQuarter) {
+      ResPacketQuarter q0 = pzero(ResPacketQuarter{});
+      for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
+        RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
+        q0 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i, j), b0, q0);
+      }
+      cc0 += predux(q0);
     }
     for (Index j = quarterColBlockEnd; j < cols; ++j) {
       cc0 += cj.pmul(lhs(i, j), rhs(j, 0));
