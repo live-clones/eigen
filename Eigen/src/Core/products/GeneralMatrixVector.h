@@ -139,6 +139,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   const Index n_half = rows - 1 * ResPacketSizeHalf + 1;
   const Index n_quarter = rows - 1 * ResPacketSizeQuarter + 1;
 
+  // TODO: improve the following heuristic:
   const Index block_cols = cols < 128 ? cols : (lhsStride * sizeof(LhsScalar) < 32000 ? 16 : 4);
   ResPacket palpha = pset1<ResPacket>(alpha);
   ResPacketHalf palpha_half = pset1<ResPacketHalf>(alpha);
