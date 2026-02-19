@@ -137,6 +137,11 @@ class MatrixBase : public DenseBase<Derived> {
    * from generating a default operator= (issue hit with g++ 4.1)
    */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const MatrixBase& other);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr MatrixBase& operator=(MatrixBase&&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr MatrixBase& operator=(Derived&& other) {
+    derived() = static_cast<const Derived&>(other);
+    return *this;
+  }
 
   // We cannot inherit here via Base::operator= since it is causing
   // trouble with MSVC.

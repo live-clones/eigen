@@ -633,7 +633,8 @@ class DenseBase
   }
 
  protected:
-  EIGEN_DEFAULT_COPY_CONSTRUCTOR(DenseBase)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseBase(const DenseBase&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseBase& operator=(DenseBase&&) = default;
   /** Default constructor. Do nothing. */
 #ifdef EIGEN_INTERNAL_DEBUGGING
   EIGEN_DEVICE_FUNC constexpr DenseBase() {

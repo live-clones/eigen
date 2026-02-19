@@ -38,6 +38,9 @@ static_assert(std::is_trivially_default_constructible<Array4f>::value, "Array4f 
 // all fixed-size, fixed-dimension plain object types are trivially move constructible
 static_assert(std::is_trivially_move_constructible<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
 static_assert(std::is_trivially_move_constructible<Array4f>::value, "Array4f not trivially_move_constructible");
+// all fixed-size, fixed-dimension plain object types are trivially move assignable
+static_assert(std::is_trivially_move_assignable<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
+static_assert(std::is_trivially_move_assignable<Array4f>::value, "Array4f not trivially_move_constructible");
 // all statically-allocated plain object types are trivially destructible
 static_assert(std::is_trivially_destructible<Matrix4f>::value, "Matrix4f not trivially_destructible");
 static_assert(std::is_trivially_destructible<Array4f>::value, "Array4f not trivially_destructible");
@@ -128,6 +131,41 @@ void dense_storage_alignment() {
   }
 }
 
+template <typename Derived>
+void slice_move_assign(MatrixBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = std::move(b);
+}
+template <typename Derived>
+void slice_move_assign(ArrayBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = std::move(b);
+}
+template <typename Derived>
+void slice_copy_assign(MatrixBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = b;
+}
+template <typename Derived>
+void slice_copy_assign(ArrayBase<Derived>& a) {
+  Derived b(a.rows(), a.cols());
+  b.setZero();
+  a = b;
+}
+
+template <typename Derived>
+void test_slice_assign(Derived& v) {
+  v.setRandom();
+  slice_move_assign(v);
+  VERIFY_IS_CWISE_EQUAL(v, Derived::Zero(v.rows(), v.cols()));
+  v.setRandom();
+  slice_copy_assign(v);
+  VERIFY_IS_CWISE_EQUAL(v, Derived::Zero(v.rows(), v.cols()));
+}
+
 template <typename T>
 void dense_storage_tests() {
   // Dynamic Storage.
@@ -197,7 +235,7 @@ void dense_storage_tests() {
 }
 
 template <typename PlainType>
-void plaintype_tests() {
+void plaintype_tests_impl() {
   constexpr int RowsAtCompileTime = PlainType::RowsAtCompileTime;
   constexpr int ColsAtCompileTime = PlainType::ColsAtCompileTime;
   constexpr int MaxRowsAtCompileTime = PlainType::MaxRowsAtCompileTime;
@@ -248,6 +286,14 @@ void plaintype_tests() {
   VERIFY_IS_EQUAL(m1.rows(), m0.rows());
   VERIFY_IS_EQUAL(m1.cols(), m0.cols());
   VERIFY_IS_CWISE_EQUAL(m1, m0);
+
+  test_slice_assign(m1);
+}
+
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows = Rows, int MaxCols = Cols>
+void plaintype_tests() {
+  plaintype_tests_impl<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>();
+  plaintype_tests_impl<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>();
 }
 
 EIGEN_DECLARE_TEST(dense_storage) {
@@ -257,28 +303,28 @@ EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<MovableScalar<float>>();
   dense_storage_tests<AnnoyingScalar>();
   for (int i = 0; i < g_repeat; i++) {
-    plaintype_tests<Matrix<float, 0, 0, ColMajor>>();
-    plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 0, 0>>();
+    plaintype_tests<float, 0, 0, ColMajor>();
+    plaintype_tests<float, Dynamic, Dynamic, ColMajor, 0, 0>();
 
-    plaintype_tests<Matrix<float, 16, 16, ColMajor>>();
-    plaintype_tests<Matrix<float, 16, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 16, 16>>();
+    plaintype_tests<float, 16, 16, ColMajor>();
+    plaintype_tests<float, 16, Dynamic, ColMajor>();
+    plaintype_tests<float, Dynamic, Dynamic, ColMajor>();
+    plaintype_tests<float, Dynamic, Dynamic, ColMajor, 16, 16>();
 
-    plaintype_tests<Matrix<SafeScalar<float>, 16, 16, ColMajor>>();
-    plaintype_tests<Matrix<SafeScalar<float>, 16, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
+    plaintype_tests<SafeScalar<float>, 16, 16, ColMajor>();
+    plaintype_tests<SafeScalar<float>, 16, Dynamic, ColMajor>();
+    plaintype_tests<SafeScalar<float>, Dynamic, Dynamic, ColMajor>();
+    plaintype_tests<SafeScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>();
 
-    plaintype_tests<Matrix<MovableScalar<float>, 16, 16, ColMajor>>();
-    plaintype_tests<Matrix<MovableScalar<float>, 16, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
+    plaintype_tests<MovableScalar<float>, 16, 16, ColMajor>();
+    plaintype_tests<MovableScalar<float>, 16, Dynamic, ColMajor>();
+    plaintype_tests<MovableScalar<float>, Dynamic, Dynamic, ColMajor>();
+    plaintype_tests<MovableScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>();
 
-    plaintype_tests<Matrix<AnnoyingScalar, 16, 16, ColMajor>>();
-    plaintype_tests<Matrix<AnnoyingScalar, 16, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<AnnoyingScalar, Dynamic, Dynamic, ColMajor>>();
-    plaintype_tests<Matrix<AnnoyingScalar, Dynamic, Dynamic, ColMajor, 16, 16>>();
+    plaintype_tests<AnnoyingScalar, 16, 16, ColMajor>();
+    plaintype_tests<AnnoyingScalar, 16, Dynamic, ColMajor>();
+    plaintype_tests<AnnoyingScalar, Dynamic, Dynamic, ColMajor>();
+    plaintype_tests<AnnoyingScalar, Dynamic, Dynamic, ColMajor, 16, 16>();
   }
 }
 

@@ -107,6 +107,10 @@ class ArrayBase : public DenseBase<Derived> {
     internal::call_assignment(derived(), other.derived());
     return derived();
   }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr ArrayBase& operator=(Derived&& other) {
+    derived() = static_cast<const Derived&>(other);
+    return *this;
+  }
 
   /** Set all the entries to \a value.
    * \sa DenseBase::setConstant(), DenseBase::fill() */
@@ -182,8 +186,10 @@ class ArrayBase : public DenseBase<Derived> {
   //     inline void evalTo(Dest& dst) const { dst = matrix(); }
 
  protected:
-  EIGEN_DEFAULT_COPY_CONSTRUCTOR(ArrayBase)
-  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(ArrayBase)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr ArrayBase() = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr ArrayBase(const ArrayBase&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr ArrayBase(ArrayBase&&) = default;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr ArrayBase& operator=(ArrayBase&&) = default;
 
  private:
   explicit ArrayBase(Index);
