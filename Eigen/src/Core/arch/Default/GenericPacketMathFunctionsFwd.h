@@ -188,6 +188,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a);
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
 
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet puintdiv(const Packet& a, typename unpacket_traits<Packet>::type magic, int shift);
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet pintdiv(const Packet& a, std::make_unsigned_t<typename unpacket_traits<Packet>::type> magic,
+                                   int shift, bool sign);
+
 // Macros for instantiating these generic functions for different backends.
 #define EIGEN_PACKET_FUNCTION(METHOD, SCALAR, PACKET)                                             \
   template <>                                                                                     \

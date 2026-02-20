@@ -324,6 +324,8 @@ template <typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_product_op;
 template <typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_quotient_op;
+template <typename Scalar>
+struct fast_div_op;
 // logical and bitwise operations
 template <typename Scalar>
 struct scalar_boolean_and_op;
@@ -407,6 +409,8 @@ template <typename MatrixType, int RowFactor, int ColFactor>
 class Replicate;
 template <typename MatrixType, int Direction = BothDirections>
 class Reverse;
+template <typename Scalar>
+struct IntDivider;
 
 #if defined(EIGEN_USE_LAPACKE) && defined(lapack_int)
 // Lapacke interface requires StorageIndex to be lapack_int

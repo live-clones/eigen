@@ -55,36 +55,22 @@ typedef eigen_packet_wrapper<__m128i, 4> Packet4ui;
 typedef eigen_packet_wrapper<__m128i, 5> Packet2l;
 
 template <>
-struct is_arithmetic<__m128> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128> : std::true_type {};
 template <>
-struct is_arithmetic<__m128i> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128i> : std::true_type {};
 template <>
-struct is_arithmetic<__m128d> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128d> : std::true_type {};
 template <>
-struct is_arithmetic<Packet4i> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet4i> : std::true_type {};
 template <>
-struct is_arithmetic<Packet2l> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet2l> : std::true_type {};
 // Note that `Packet4ui` uses the underlying type `__m128i`, which is
 // interpreted as a vector of _signed_ `int32`s, which breaks some arithmetic
 // operations used in `GenericPacketMath.h`.
 template <>
-struct is_arithmetic<Packet4ui> {
-  enum { value = false };
-};
+struct is_arithmetic<Packet4ui> : std::false_type {};
 template <>
-struct is_arithmetic<Packet16b> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet16b> : std::true_type {};
 
 template <int p, int q, int r, int s>
 struct shuffle_mask {
@@ -247,6 +233,7 @@ struct packet_traits<int> : default_packet_traits {
     HasCmp = 1,
     HasDiv = 1,
     HasShift = 1,
+    HasFastIntDiv = 1,
   };
 };
 template <>
@@ -261,6 +248,7 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasNegate = 0,
     HasCmp = 1,
     HasShift = 1,
+    HasFastIntDiv = 1
   };
 };
 template <>
@@ -273,9 +261,10 @@ struct packet_traits<int64_t> : default_packet_traits {
     size = 2,
 
     HasCmp = 1,
-    HasShift = 1,
+    HasShift = 1
   };
 };
+
 #endif
 template <>
 struct packet_traits<bool> : default_packet_traits {
@@ -299,79 +288,21 @@ struct packet_traits<bool> : default_packet_traits {
 };
 
 template <>
-struct unpacket_traits<Packet4f> {
-  typedef float type;
-  typedef Packet4f half;
-  typedef Packet4i integer_packet;
-  enum {
-    size = 4,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+struct unpacket_traits<Packet4f> : generic_unpacket_traits<Packet4f, float> {
+  using integer_packet = Packet4i;
 };
 template <>
-struct unpacket_traits<Packet2d> {
-  typedef double type;
-  typedef Packet2d half;
-  typedef Packet2l integer_packet;
-  enum {
-    size = 2,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+struct unpacket_traits<Packet2d> : generic_unpacket_traits<Packet2d, double> {
+  using integer_packet = Packet2l;
 };
 template <>
-struct unpacket_traits<Packet2l> {
-  typedef int64_t type;
-  typedef Packet2l half;
-  enum {
-    size = 2,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet2l> : generic_unpacket_traits<Packet2l, int64_t> {};
 template <>
-struct unpacket_traits<Packet4i> {
-  typedef int type;
-  typedef Packet4i half;
-  enum {
-    size = 4,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet4i> : generic_unpacket_traits<Packet4i, int> {};
 template <>
-struct unpacket_traits<Packet4ui> {
-  typedef uint32_t type;
-  typedef Packet4ui half;
-  enum {
-    size = 4,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet4ui> : generic_unpacket_traits<Packet4ui, uint32_t> {};
 template <>
-struct unpacket_traits<Packet16b> {
-  typedef bool type;
-  typedef Packet16b half;
-  enum {
-    size = 16,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet16b> : generic_unpacket_traits<Packet16b, bool> {};
 
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
@@ -2126,6 +2057,26 @@ EIGEN_STRONG_INLINE __m128i float2half(__m128 f) {
   return _mm_and_si128(o, _mm_set1_epi32(0xffff));
 }
 #endif
+
+template <>
+EIGEN_STRONG_INLINE Packet4ui puintdiv(const Packet4ui& a, uint32_t magic, int shift) {
+  constexpr int kShuffleMask = shuffle_mask<0, 2, 0, 2>::mask;
+  const __m128i cst_magic = _mm_set1_epi32(magic);
+  const __m128i cst_shift = _mm_cvtsi32_si128(shift);
+
+  __m128i a_evn = _mm_unpacklo_epi32(a, _mm_setzero_si128());
+  __m128i a_odd = _mm_unpackhi_epi32(a, _mm_setzero_si128());
+
+  __m128i b_evn = _mm_srli_epi64(_mm_mul_epu32(a_evn, cst_magic), 32);
+  __m128i b_odd = _mm_srli_epi64(_mm_mul_epu32(a_odd, cst_magic), 32);
+
+  __m128i t_evn = _mm_srl_epi64(_mm_add_epi64(b_evn, a_evn), cst_shift);
+  __m128i t_odd = _mm_srl_epi64(_mm_add_epi64(b_odd, a_odd), cst_shift);
+
+  __m128i result = _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(t_evn), _mm_castsi128_ps(t_odd), kShuffleMask));
+
+  return result;
+}
 
 // Packet math for Eigen::half
 // Disable the following code since it's broken on too many platforms / compilers.
