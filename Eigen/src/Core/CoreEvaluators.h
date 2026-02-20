@@ -124,7 +124,7 @@ struct evaluator_base {
   // noncopyable:
   // Don't make this class inherit noncopyable as this kills EBO (Empty Base Optimization)
   // and make complex evaluator much larger than then should do.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr evaluator_base() = default;
+  EIGEN_DEVICE_FUNC constexpr evaluator_base() = default;
 
  private:
   EIGEN_DEVICE_FUNC evaluator_base(const evaluator_base&);
@@ -267,7 +267,7 @@ struct evaluator<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>
     : evaluator<PlainObjectBase<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>> {
   typedef Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols> XprType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr evaluator() = default;
+  EIGEN_DEVICE_FUNC constexpr evaluator() = default;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit evaluator(const XprType& m)
       : evaluator<PlainObjectBase<XprType>>(m) {}
@@ -278,7 +278,7 @@ struct evaluator<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>
     : evaluator<PlainObjectBase<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>> {
   typedef Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols> XprType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr evaluator() = default;
+  EIGEN_DEVICE_FUNC constexpr evaluator() = default;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr explicit evaluator(const XprType& m)
       : evaluator<PlainObjectBase<XprType>>(m) {}

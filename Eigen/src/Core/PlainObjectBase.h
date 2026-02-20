@@ -162,8 +162,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   EIGEN_DEVICE_FUNC Base& base() { return *static_cast<Base*>(this); }
   EIGEN_DEVICE_FUNC const Base& base() const { return *static_cast<const Base*>(this); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const noexcept { return m_storage.rows(); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const noexcept { return m_storage.cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_storage.rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_storage.cols(); }
 
   /** This is an overloaded version of DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index,Index) const
    * provided to by-pass the creation of an evaluator of the expression, thus saving compilation efforts.
@@ -446,9 +446,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   // Prevent user from trying to instantiate PlainObjectBase objects
   // by making all its constructor protected. See bug 1074.
  protected:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase() = default;
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase() = default;
   /** \brief Move constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(PlainObjectBase&&) = default;
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase(PlainObjectBase&&) = default;
   /** \brief Move assignment operator */
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase& operator=(PlainObjectBase&& other) noexcept {
     m_storage = std::move(other.m_storage);
@@ -456,7 +456,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   }
 
   /** Copy constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const PlainObjectBase&) = default;
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase(const PlainObjectBase&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(Index size, Index rows, Index cols)
       : m_storage(size, rows, cols) {}
 

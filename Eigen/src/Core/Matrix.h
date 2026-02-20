@@ -251,10 +251,10 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
 #if defined(EIGEN_INITIALIZE_COEFFS)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix() { EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED }
 #else
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix() = default;
+  EIGEN_DEVICE_FUNC constexpr Matrix() = default;
 #endif
   /** \brief Move constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix(Matrix&&) = default;
+  EIGEN_DEVICE_FUNC constexpr Matrix(Matrix&&) = default;
   /** \brief Moves the matrix into the other one.
    *
    */
@@ -385,7 +385,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   }
 
   /** \brief Copy constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix(const Matrix&) = default;
+  EIGEN_DEVICE_FUNC constexpr Matrix(const Matrix&) = default;
 
   /** \brief Copy constructor for generic expressions.
    * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
