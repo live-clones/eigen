@@ -34,7 +34,7 @@ static void BM_EigenGemm(benchmark::State& state) {
       benchmark::Counter(2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
-static void GemmSizes(::benchmark::Benchmark* b) {
+static void GemmSizes(::benchmark::internal::Benchmark* b) {
   for (int size : {8, 16, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 384, 448, 512, 768, 1024, 1536, 2048}) {
     b->Args({size, size, size});
   }
