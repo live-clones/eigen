@@ -85,6 +85,6 @@ void test_cuda_complex_cwise_ops() {
 }
 
 EIGEN_DECLARE_TEST(test_cxx11_tensor_complex_cwise_ops) {
-  CALL_SUBTEST(test_cuda_complex_cwise_ops<float>());
-  CALL_SUBTEST(test_cuda_complex_cwise_ops<double>());
+  test_cuda_complex_cwise_ops<float>();
+  test_cuda_complex_cwise_ops<double>();
 }

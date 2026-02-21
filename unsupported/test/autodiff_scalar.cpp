@@ -88,10 +88,10 @@ void check_limits_specialization() {
 
 EIGEN_DECLARE_TEST(autodiff_scalar) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(check_atan2<float>());
-    CALL_SUBTEST_2(check_atan2<double>());
-    CALL_SUBTEST_3(check_hyperbolic_functions<float>());
-    CALL_SUBTEST_4(check_hyperbolic_functions<double>());
-    CALL_SUBTEST_5(check_limits_specialization<double>());
+    check_atan2<float>();
+    check_atan2<double>();
+    check_hyperbolic_functions<float>();
+    check_hyperbolic_functions<double>();
+    check_limits_specialization<double>();
   }
 }

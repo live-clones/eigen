@@ -166,7 +166,7 @@ void test_denseLM_T() {
 }
 
 EIGEN_DECLARE_TEST(denseLM) {
-  CALL_SUBTEST_2(test_denseLM_T<double>());
+  test_denseLM_T<double>();
 
-  // CALL_SUBTEST_2(test_sparseLM_T<std::complex<double>());
+  // test_sparseLM_T<std::complex<double>();
 }

@@ -68,13 +68,13 @@ static void test_custom() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_random) {
-  CALL_SUBTEST((test_default<float>()));
-  CALL_SUBTEST((test_normal<float>()));
-  CALL_SUBTEST((test_default<double>()));
-  CALL_SUBTEST((test_normal<double>()));
-  CALL_SUBTEST((test_default<Eigen::half>()));
-  CALL_SUBTEST((test_normal<Eigen::half>()));
-  CALL_SUBTEST((test_default<Eigen::bfloat16>()));
-  CALL_SUBTEST((test_normal<Eigen::bfloat16>()));
-  CALL_SUBTEST(test_custom());
+  (test_default<float>());
+  (test_normal<float>());
+  (test_default<double>());
+  (test_normal<double>());
+  (test_default<Eigen::half>());
+  (test_normal<Eigen::half>());
+  (test_default<Eigen::bfloat16>());
+  (test_normal<Eigen::bfloat16>());
+  test_custom();
 }

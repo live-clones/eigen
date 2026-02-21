@@ -483,38 +483,38 @@ void test_sum_accuracy() {
     double err = Eigen::numext::abs(static_cast<double>(sum()) - expected_sum);
     double tol = numext::sqrt(static_cast<double>(num_elements)) *
                  static_cast<double>(NumTraits<ScalarType>::epsilon()) * abs_sum;
-    VERIFY_LE(err, tol);
+    EXPECT_LE(err, tol);
   }
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_reduction) {
-  CALL_SUBTEST(test_trivial_reductions<ColMajor>());
-  CALL_SUBTEST(test_trivial_reductions<RowMajor>());
-  CALL_SUBTEST((test_simple_reductions<float, ColMajor>()));
-  CALL_SUBTEST((test_simple_reductions<float, RowMajor>()));
-  CALL_SUBTEST((test_simple_reductions<Eigen::half, ColMajor>()));
-  CALL_SUBTEST((test_simple_reductions<Eigen::bfloat16, ColMajor>()));
-  CALL_SUBTEST(test_reductions_in_expr<ColMajor>());
-  CALL_SUBTEST(test_reductions_in_expr<RowMajor>());
-  CALL_SUBTEST(test_full_reductions<ColMajor>());
-  CALL_SUBTEST(test_full_reductions<RowMajor>());
-  CALL_SUBTEST(test_user_defined_reductions<ColMajor>());
-  CALL_SUBTEST(test_user_defined_reductions<RowMajor>());
-  CALL_SUBTEST(test_tensor_maps<ColMajor>());
-  CALL_SUBTEST(test_tensor_maps<RowMajor>());
-  CALL_SUBTEST(test_static_dims<ColMajor>());
-  CALL_SUBTEST(test_static_dims<RowMajor>());
-  CALL_SUBTEST(test_innermost_last_dims<ColMajor>());
-  CALL_SUBTEST(test_innermost_last_dims<RowMajor>());
-  CALL_SUBTEST(test_innermost_first_dims<ColMajor>());
-  CALL_SUBTEST(test_innermost_first_dims<RowMajor>());
-  CALL_SUBTEST(test_reduce_middle_dims<ColMajor>());
-  CALL_SUBTEST(test_reduce_middle_dims<RowMajor>());
-  CALL_SUBTEST((test_sum_accuracy<float, 10 * 1024 * 1024, 8 * 1024>()));
-  CALL_SUBTEST((test_sum_accuracy<Eigen::bfloat16, 10 * 1024 * 1024, 8 * 1024>()));
+  test_trivial_reductions<ColMajor>();
+  test_trivial_reductions<RowMajor>();
+  (test_simple_reductions<float, ColMajor>());
+  (test_simple_reductions<float, RowMajor>());
+  (test_simple_reductions<Eigen::half, ColMajor>());
+  (test_simple_reductions<Eigen::bfloat16, ColMajor>());
+  test_reductions_in_expr<ColMajor>();
+  test_reductions_in_expr<RowMajor>();
+  test_full_reductions<ColMajor>();
+  test_full_reductions<RowMajor>();
+  test_user_defined_reductions<ColMajor>();
+  test_user_defined_reductions<RowMajor>();
+  test_tensor_maps<ColMajor>();
+  test_tensor_maps<RowMajor>();
+  test_static_dims<ColMajor>();
+  test_static_dims<RowMajor>();
+  test_innermost_last_dims<ColMajor>();
+  test_innermost_last_dims<RowMajor>();
+  test_innermost_first_dims<ColMajor>();
+  test_innermost_first_dims<RowMajor>();
+  test_reduce_middle_dims<ColMajor>();
+  test_reduce_middle_dims<RowMajor>();
+  (test_sum_accuracy<float, 10 * 1024 * 1024, 8 * 1024>());
+  (test_sum_accuracy<Eigen::bfloat16, 10 * 1024 * 1024, 8 * 1024>());
   // The range of half is limited to 65519 when using round-to-even,
   // so we are severely limited in the size and mean of the tensors
   // we can reduce without overflow.
-  CALL_SUBTEST((test_sum_accuracy<Eigen::half, 4 * 1024, 16>()));
-  CALL_SUBTEST((test_sum_accuracy<Eigen::half, 10 * 1024 * 1024, 0>()));
+  (test_sum_accuracy<Eigen::half, 4 * 1024, 16>());
+  (test_sum_accuracy<Eigen::half, 10 * 1024 * 1024, 0>());
 }
