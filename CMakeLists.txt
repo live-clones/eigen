@@ -396,6 +396,12 @@ if (EIGEN_BUILD_TESTING)
   # Do not install gtest when installing Eigen
   set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
+  # gtest uses [[maybe_unused]] unconditionally, which is a C++17 extension.
+  # Suppress the resulting warning when compiling below C++17 with Clang.
+  if(CMAKE_CXX_STANDARD LESS 17)
+    target_compile_options(gtest INTERFACE
+      $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++17-attribute-extensions>)
+  endif()
 
   # Flags for tests.
   if(NOT MSVC)
