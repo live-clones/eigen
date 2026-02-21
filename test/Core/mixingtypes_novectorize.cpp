@@ -14,7 +14,10 @@
 
 #include "mixingtypes_helpers.h"
 
-EIGEN_DECLARE_TEST(mixingtypes_novectorize) {
+// =============================================================================
+// Tests for mixingtypes_novectorize
+// =============================================================================
+TEST(MixingTypesNoVectorizeTest, Basic) {
   g_called = false;  // Silence -Wunneeded-internal-declaration.
   for (int i = 0; i < g_repeat; i++) {
     mixingtypes<3>();

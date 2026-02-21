@@ -11,7 +11,10 @@
 
 #include "realview_helpers.h"
 
-EIGEN_DECLARE_TEST(realview_dynamic_cplxfloat) {
+// =============================================================================
+// Tests for realview_dynamic_cplxfloat
+// =============================================================================
+TEST(RealviewDynamicCplxFloatTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (test_realview_cplxfloat<Dynamic, Dynamic, Dynamic, Dynamic>());
     (test_realview_cplxfloat<Dynamic, Dynamic, 17, Dynamic>());

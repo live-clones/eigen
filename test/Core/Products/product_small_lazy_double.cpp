@@ -9,7 +9,10 @@
 
 #include "product_small_helpers.h"
 
-EIGEN_DECLARE_TEST(product_small_lazy_double) {
+// =============================================================================
+// Tests for product_small_lazy_double
+// =============================================================================
+TEST(ProductSmallLazyDoubleTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     test_lazy_l1<double>();
     test_lazy_l2<double>();

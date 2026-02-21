@@ -450,7 +450,10 @@ struct vectorization_logic_half<Scalar, false> {
   static void run() {}
 };
 
-EIGEN_DECLARE_TEST(vectorization_logic) {
+// =============================================================================
+// Tests for vectorization_logic
+// =============================================================================
+TEST(VectorizationLogicTest, Basic) {
 #ifdef EIGEN_VECTORIZE
 
   vectorization_logic<int>::run();

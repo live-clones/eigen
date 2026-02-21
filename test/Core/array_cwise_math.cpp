@@ -7,11 +7,29 @@
 
 #include "array_cwise_helpers.h"
 
-EIGEN_DECLARE_TEST(array_cwise_math) {
+// =============================================================================
+// Tests for array_cwise_math
+// =============================================================================
+TEST(ArrayCwiseMathTest, FloatPow) {
   for (int i = 0; i < g_repeat; i++) {
     float_pow_test();
+  }
+}
+
+TEST(ArrayCwiseMathTest, IntPow) {
+  for (int i = 0; i < g_repeat; i++) {
     int_pow_test();
+  }
+}
+
+TEST(ArrayCwiseMathTest, MixedPow) {
+  for (int i = 0; i < g_repeat; i++) {
     mixed_pow_test();
+  }
+}
+
+TEST(ArrayCwiseMathTest, Signbit) {
+  for (int i = 0; i < g_repeat; i++) {
     signbit_tests();
   }
 }

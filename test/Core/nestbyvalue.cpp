@@ -20,7 +20,7 @@ XprType get_xpr_with_temps(const MatrixXd& a) {
   return t1.nestByValue() + t2.nestByValue();
 }
 
-EIGEN_DECLARE_TEST(nestbyvalue) {
+TEST(NestByValueTest, NestByValue) {
   for (int i = 0; i < g_repeat; i++) {
     Index rows = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
     Index cols = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);

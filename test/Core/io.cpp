@@ -48,10 +48,17 @@ static void check_ostream() {
   check_ostream_impl<Scalar>::run();
 }
 
-EIGEN_DECLARE_TEST(rand) {
-  check_ostream<bool>();
+// =============================================================================
+// Tests for io
+// =============================================================================
+TEST(IoTest, OstreamBool) { check_ostream<bool>(); }
+
+TEST(IoTest, OstreamFloatingPoint) {
   check_ostream<float>();
   check_ostream<double>();
+}
+
+TEST(IoTest, OstreamInteger) {
   check_ostream<Eigen::numext::int8_t>();
   check_ostream<Eigen::numext::uint8_t>();
   check_ostream<Eigen::numext::int16_t>();

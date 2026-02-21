@@ -11,7 +11,10 @@
 
 #include "realview_helpers.h"
 
-EIGEN_DECLARE_TEST(realview_fixed_complex) {
+// =============================================================================
+// Tests for realview_fixed_complex
+// =============================================================================
+TEST(RealviewFixedComplexTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (test_realview_complex_types<17, 19, 17, 19>());
     (test_realview_complex_types<Dynamic, 1>());

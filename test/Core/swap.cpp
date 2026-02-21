@@ -113,11 +113,24 @@ void swap(const MatrixType& m) {
   check_row_swap(m1);
 }
 
-EIGEN_DECLARE_TEST(swap) {
-  int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
-  swap(Matrix3f());      // fixed size, no vectorization
-  swap(Matrix4d());      // fixed size, possible vectorization
-  swap(MatrixXd(s, s));  // dyn size, no vectorization
-  swap(MatrixXf(s, s));  // dyn size, possible vectorization
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+template <typename MatrixType>
+MatrixType make_square_test_matrix() {
+  const int size = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  return MatrixType(size, size);
+}
+
+// =============================================================================
+// Typed test suite for swap
+// =============================================================================
+template <typename T>
+class SwapTest : public ::testing::Test {};
+
+using SwapTypes = ::testing::Types<Matrix3f, Matrix4d, MatrixXd, MatrixXf>;
+TYPED_TEST_SUITE(SwapTest, SwapTypes);
+
+TYPED_TEST(SwapTest, Swap) {
+  for (int i = 0; i < g_repeat; i++) {
+    swap(make_square_test_matrix<TypeParam>());
+  }
 }

@@ -12,7 +12,10 @@
 
 #include "nesting_ops_helpers.h"
 
-EIGEN_DECLARE_TEST(nesting_ops_eval) {
+// =============================================================================
+// Tests for nesting_ops_eval
+// =============================================================================
+TEST(NestingOpsEvalTest, Basic) {
   Index s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
   run_nesting_ops_2(MatrixXf(s, s));
   run_nesting_ops_2(MatrixXcd(s, s));

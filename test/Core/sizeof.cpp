@@ -21,7 +21,7 @@ void verifySizeOf(const MatrixType&) {
     VERIFY_IS_EQUAL(sizeof(MatrixType), sizeof(Scalar*) + 2 * sizeof(Index));
 }
 
-EIGEN_DECLARE_TEST(sizeof) {
+TEST(SizeOfTest, FixedSize) {
   verifySizeOf(Matrix<float, 1, 1>());
   verifySizeOf(Array<float, 2, 1>());
   verifySizeOf(Array<float, 3, 1>());
@@ -37,15 +37,23 @@ EIGEN_DECLARE_TEST(sizeof) {
   verifySizeOf(Vector2d());
   verifySizeOf(Vector4f());
   verifySizeOf(Matrix4d());
-  verifySizeOf(Matrix<float, 300, Eigen::Dynamic>());
-  verifySizeOf(Matrix<float, Eigen::Dynamic, 300>());
   verifySizeOf(Matrix<double, 4, 2>());
   verifySizeOf(Matrix<bool, 7, 5>());
+  verifySizeOf(Matrix<float, 100, 100>());
+}
+
+TEST(SizeOfTest, PartiallyDynamic) {
+  verifySizeOf(Matrix<float, 300, Eigen::Dynamic>());
+  verifySizeOf(Matrix<float, Eigen::Dynamic, 300>());
+}
+
+TEST(SizeOfTest, FullyDynamic) {
   verifySizeOf(MatrixXcf(3, 3));
   verifySizeOf(MatrixXi(8, 12));
   verifySizeOf(MatrixXcd(20, 20));
-  verifySizeOf(Matrix<float, 100, 100>());
+}
 
+TEST(SizeOfTest, ComplexSize) {
   VERIFY(sizeof(std::complex<float>) == 2 * sizeof(float));
   VERIFY(sizeof(std::complex<double>) == 2 * sizeof(double));
 }

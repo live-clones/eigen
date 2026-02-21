@@ -10,19 +10,38 @@
 
 #include "redux_helpers.h"
 
-EIGEN_DECLARE_TEST(redux_vector) {
-  // the max size cannot be too large, otherwise reduxion operations obviously generate large errors.
-  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
-  TEST_SET_BUT_UNUSED_VARIABLE(maxsize);
+// =============================================================================
+// Tests for redux_vector
+// =============================================================================
+TEST(ReduxVectorTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
-    int size = internal::random<int>(1, maxsize);
-    EIGEN_UNUSED_VARIABLE(size);
     vectorRedux(Vector4f());
     vectorRedux(Array4f());
+  }
+}
+
+TEST(ReduxVectorTest, DynamicFloat) {
+  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
+  for (int i = 0; i < g_repeat; i++) {
+    int size = internal::random<int>(1, maxsize);
     vectorRedux(VectorXf(size));
     vectorRedux(ArrayXf(size));
+  }
+}
+
+TEST(ReduxVectorTest, DynamicDouble) {
+  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
+  for (int i = 0; i < g_repeat; i++) {
+    int size = internal::random<int>(1, maxsize);
     vectorRedux(VectorXd(size));
     vectorRedux(ArrayXd(size));
+  }
+}
+
+TEST(ReduxVectorTest, DynamicInt) {
+  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
+  for (int i = 0; i < g_repeat; i++) {
+    int size = internal::random<int>(1, maxsize);
     vectorRedux(VectorXi(size));
     vectorRedux(ArrayXi(size));
     vectorRedux(VectorX<int64_t>(size));

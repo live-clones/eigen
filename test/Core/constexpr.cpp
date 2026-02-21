@@ -17,12 +17,15 @@ struct ConstexprTest {
   Matrix<Scalar, Rows, Rows> A;
 };
 
-EIGEN_DECLARE_TEST(constexpr) {
+// =============================================================================
+// Tests for constexpr
+// =============================================================================
+TEST(ConstexprTest_, Basic) {
   // Clang accepts (some of) this code when using C++14/C++17, but GCC does not like
   // the fact that `T array[Size]` inside Eigen::internal::plain_array is not initialized
   // until after the constructor returns:
-  // error: member ‘Eigen::internal::plain_array<int, 9, 0, 0>::array’ must be initialized by mem-initializer in
-  // ‘constexpr’ constructor
+  // error: member 'Eigen::internal::plain_array<int, 9, 0, 0>::array' must be initialized by mem-initializer in
+  // 'constexpr' constructor
 #if __cpp_constexpr >= 201907L
   constexpr Matrix3i mat({{1, 2, 3}, {4, 5, 6}, {7, 8, 9}});
   VERIFY_IS_EQUAL(mat.size(), 9);
@@ -69,11 +72,9 @@ EIGEN_DECLARE_TEST(constexpr) {
 
 // Check that we can use the std::initializer_list constructor for constexpr variables.
 #if __cpp_constexpr >= 201907L
-// EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT() will fail constexpr evaluation unless
-// we have std::is_constant_evaluated().
 constexpr Matrix<int, 2, 2> global_mat({{1, 2}, {3, 4}});
 
-EIGEN_DECLARE_TEST(constexpr_global) {
+TEST(ConstexprTest_, Global) {
   VERIFY_IS_EQUAL(global_mat.size(), 4);
   static_assert(global_mat(0, 0) == 1);
   static_assert(global_mat(0) == 1);

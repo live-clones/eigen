@@ -108,7 +108,10 @@ void trsolve(int size = Size, int cols = Cols) {
   }
 }
 
-EIGEN_DECLARE_TEST(product_trsolve) {
+// =============================================================================
+// Tests for product_trsolve
+// =============================================================================
+TEST(ProductTrsolveTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     // matrices
     (trsolve<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),

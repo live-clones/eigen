@@ -579,16 +579,29 @@ void test_stl_container_detection(int rows = Rows, int cols = Cols) {
   VERIFY_IS_EQUAL(IsContainerType<RowMatrixType>(0), rows == 1 || cols == 1);
 }
 
-EIGEN_DECLARE_TEST(stl_iterators) {
+// =============================================================================
+// Tests for stl_iterators
+// =============================================================================
+TEST(StlIteratorsTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
-    (test_stl_iterators<double, 2, 3>());
-    (test_stl_iterators<float, 7, 5>());
-
-    (test_stl_iterators<int, Dynamic, Dynamic>(internal::random<int>(5, 10), internal::random<int>(5, 10)));
-
-    (test_stl_iterators<int, Dynamic, Dynamic>(internal::random<int>(10, 200), internal::random<int>(10, 200)));
+    test_stl_iterators<double, 2, 3>();
+    test_stl_iterators<float, 7, 5>();
   }
+}
 
-  (test_stl_container_detection<float, 1, 1>());
-  (test_stl_container_detection<float, 5, 5>());
+TEST(StlIteratorsTest, DynamicSmall) {
+  for (int i = 0; i < g_repeat; i++) {
+    test_stl_iterators<int, Dynamic, Dynamic>(internal::random<int>(5, 10), internal::random<int>(5, 10));
+  }
+}
+
+TEST(StlIteratorsTest, DynamicLarge) {
+  for (int i = 0; i < g_repeat; i++) {
+    test_stl_iterators<int, Dynamic, Dynamic>(internal::random<int>(10, 200), internal::random<int>(10, 200));
+  }
+}
+
+TEST(StlIteratorsTest, ContainerDetection) {
+  test_stl_container_detection<float, 1, 1>();
+  test_stl_container_detection<float, 5, 5>();
 }

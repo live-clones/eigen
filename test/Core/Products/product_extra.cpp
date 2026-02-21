@@ -347,7 +347,10 @@ void bug_1308() {
   VERIFY_IS_APPROX(r44.noalias() += Vector4d::Ones() * m44.col(0).transpose(), ones44);
 }
 
-EIGEN_DECLARE_TEST(product_extra) {
+// =============================================================================
+// Tests for product_extra
+// =============================================================================
+TEST(ProductExtraTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     product_extra(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));

@@ -56,7 +56,7 @@ using TArray = Array<Scalar, Rows, Cols>;
 template <typename Scalar, int Rows, int Cols>
 using TMatrix = Matrix<Scalar, Rows, Cols>;
 
-EIGEN_DECLARE_TEST(num_dimensions) {
+TEST(NumDimensionsTest, DenseExpressions) {
   int n = 10;
   ArrayXXd A(n, n);
   check_dim<2>(A);
@@ -66,7 +66,10 @@ EIGEN_DECLARE_TEST(num_dimensions) {
 
   MatrixXd M(n, n);
   check_dim<0>(M.row(1) * M.col(1));
+}
 
+TEST(NumDimensionsTest, SparseExpressions) {
+  int n = 10;
   SparseMatrix<double> S(n, n);
   check_dim<2>(S);
   check_dim<2>(S.block(1, 1, 2, 2));
@@ -76,7 +79,9 @@ EIGEN_DECLARE_TEST(num_dimensions) {
   SparseVector<double> s(n);
   check_dim<1>(s);
   check_dim<1>(s.head(2));
+}
 
+TEST(NumDimensionsTest, MapNumDimensions) {
   map_num_dimensions<TArray>();
   map_num_dimensions<TMatrix>();
 }

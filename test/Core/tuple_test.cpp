@@ -113,7 +113,9 @@ void eigen_tuple_test() {
   VERIFY(tuple_impl::get<1>(tuple).isIdentity());
 }
 
-EIGEN_DECLARE_TEST(tuple) {
-  basic_tuple_test();
-  eigen_tuple_test();
-}
+// =============================================================================
+// Tests for tuple
+// =============================================================================
+TEST(TupleTest, Basic) { basic_tuple_test(); }
+
+TEST(TupleTest, EigenTypes) { eigen_tuple_test(); }

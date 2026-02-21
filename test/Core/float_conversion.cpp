@@ -42,7 +42,10 @@ void test_conversion_to() {
   (test_conversion<uint8_t, To>());
 }
 
-EIGEN_DECLARE_TEST(float_conversion) {
+// =============================================================================
+// Tests for float_conversion
+// =============================================================================
+TEST(FloatConversionTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     test_conversion_to<float>();
     test_conversion_to<double>();

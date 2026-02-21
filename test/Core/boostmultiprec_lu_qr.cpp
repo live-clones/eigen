@@ -11,7 +11,10 @@
 
 #include "boostmultiprec_helpers.h"
 
-EIGEN_DECLARE_TEST(boostmultiprec_lu_qr) {
+// =============================================================================
+// Tests for boostmultiprec_lu_qr
+// =============================================================================
+TEST(BoostMultiprecLuQrTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
 

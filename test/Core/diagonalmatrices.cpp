@@ -172,26 +172,38 @@ void bug987() {
   VERIFY_IS_APPROX((res1 = points.topLeftCorner<2, 2>() * diag.asDiagonal()), res2 = tmp2 * diag.asDiagonal());
 }
 
-EIGEN_DECLARE_TEST(diagonalmatrices) {
-  for (int i = 0; i < g_repeat; i++) {
-    diagonalmatrices(Matrix<float, 1, 1>());
-    as_scalar_product(Matrix<float, 1, 1>());
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
 
-    diagonalmatrices(Matrix3f());
-    diagonalmatrices(Matrix<double, 3, 3, RowMajor>());
-    diagonalmatrices(Matrix4d());
-    diagonalmatrices(Matrix<float, 4, 4, RowMajor>());
-    diagonalmatrices(
-        MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+// =============================================================================
+// Typed test suite for diagonalmatrices
+// =============================================================================
+template <typename T>
+class DiagonalMatricesTest : public ::testing::Test {};
+
+using DiagonalMatricesTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix3f, Matrix<double, 3, 3, RowMajor>, Matrix4d,
+                                               Matrix<float, 4, 4, RowMajor>, MatrixXcf, MatrixXi,
+                                               Matrix<double, Dynamic, Dynamic, RowMajor>, MatrixXf>;
+TYPED_TEST_SUITE(DiagonalMatricesTest, DiagonalMatricesTypes);
+
+TYPED_TEST(DiagonalMatricesTest, DiagonalMatrices) {
+  for (int i = 0; i < g_repeat; i++) {
+    diagonalmatrices(make_test_matrix<TypeParam>());
+  }
+}
+
+TEST(DiagonalMatricesTest, AsScalarProduct) {
+  for (int i = 0; i < g_repeat; i++) {
+    as_scalar_product(Matrix<float, 1, 1>());
     as_scalar_product(MatrixXcf(1, 1));
-    diagonalmatrices(
-        MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    diagonalmatrices(Matrix<double, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    diagonalmatrices(
-        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    diagonalmatrices(MatrixXf(1, 1));
     as_scalar_product(MatrixXf(1, 1));
   }
-  bug987<0>();
 }
+
+TEST(DiagonalMatricesTest, Bug987) { bug987<0>(); }

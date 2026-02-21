@@ -37,13 +37,31 @@ void ctor_init1(const MatrixType& m) {
   VERIFY_EVALUATION_COUNT(MatrixType m3(wrapper), 1);
 }
 
-EIGEN_DECLARE_TEST(constructor) {
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
+
+// =============================================================================
+// Typed test suite for constructor
+// =============================================================================
+template <typename T>
+class ConstructorTest : public ::testing::Test {};
+
+using ConstructorTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, MatrixXcf, MatrixXi>;
+TYPED_TEST_SUITE(ConstructorTest, ConstructorTypes);
+
+TYPED_TEST(ConstructorTest, CtorInit1) {
   for (int i = 0; i < g_repeat; i++) {
-    ctor_init1(Matrix<float, 1, 1>());
-    ctor_init1(Matrix4d());
-    ctor_init1(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    ctor_init1(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    ctor_init1(make_test_matrix<TypeParam>());
   }
+}
+
+TEST(ConstructorTest, ScalarConstruction) {
   {
     Matrix<Index, 1, 1> a(123);
     VERIFY_IS_EQUAL(a[0], 123);

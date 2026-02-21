@@ -313,44 +313,67 @@ void dynamicVectorConstruction() {
   }
 }
 
-EIGEN_DECLARE_TEST(initializer_list_construction) {
+// =============================================================================
+// Tests for initializer_list_construction
+// =============================================================================
+TEST(InitializerListConstructionTest, VectorInitList) {
   initializerListVectorConstruction<unsigned char>();
   initializerListVectorConstruction<float>();
   initializerListVectorConstruction<double>();
   initializerListVectorConstruction<int>();
+}
+
+TEST(InitializerListConstructionTest, VectorInitListExtended) {
   initializerListVectorConstruction<long int>();
   initializerListVectorConstruction<std::ptrdiff_t>();
   initializerListVectorConstruction<std::complex<double>>();
   initializerListVectorConstruction<std::complex<float>>();
+}
 
+TEST(InitializerListConstructionTest, MatrixInitList) {
   initializerListMatrixConstruction<unsigned char>();
   initializerListMatrixConstruction<float>();
   initializerListMatrixConstruction<double>();
   initializerListMatrixConstruction<int>();
+}
+
+TEST(InitializerListConstructionTest, MatrixInitListExtended) {
   initializerListMatrixConstruction<long int>();
   initializerListMatrixConstruction<std::ptrdiff_t>();
   initializerListMatrixConstruction<std::complex<double>>();
   initializerListMatrixConstruction<std::complex<float>>();
+}
 
+TEST(InitializerListConstructionTest, ArrayInitList) {
   initializerListArrayConstruction<unsigned char>();
   initializerListArrayConstruction<float>();
   initializerListArrayConstruction<double>();
   initializerListArrayConstruction<int>();
+}
+
+TEST(InitializerListConstructionTest, ArrayInitListExtended) {
   initializerListArrayConstruction<long int>();
   initializerListArrayConstruction<std::ptrdiff_t>();
   initializerListArrayConstruction<std::complex<double>>();
   initializerListArrayConstruction<std::complex<float>>();
+}
 
+TEST(InitializerListConstructionTest, VariadicVector) {
   fixedsizeVariadicVectorConstruction<unsigned char>();
   fixedsizeVariadicVectorConstruction<float>();
   fixedsizeVariadicVectorConstruction<double>();
   fixedsizeVariadicVectorConstruction<int>();
+}
+
+TEST(InitializerListConstructionTest, VariadicVectorExtended) {
   fixedsizeVariadicVectorConstruction<long int>();
   fixedsizeVariadicVectorConstruction<std::ptrdiff_t>();
   fixedsizeVariadicVectorConstruction<std::complex<double>>();
   fixedsizeVariadicVectorConstruction<std::complex<float>>();
   fixedsizeVariadicVectorConstruction3<0>();
+}
 
+TEST(InitializerListConstructionTest, MethodDispatchAndDynamic) {
   TestMethodDispatching<int>::run();
   TestMethodDispatching<long int>::run();
 
@@ -358,6 +381,9 @@ EIGEN_DECLARE_TEST(initializer_list_construction) {
   dynamicVectorConstruction<float>();
   dynamicVectorConstruction<double>();
   dynamicVectorConstruction<int>();
+}
+
+TEST(InitializerListConstructionTest, DynamicVectorExtended) {
   dynamicVectorConstruction<long int>();
   dynamicVectorConstruction<std::ptrdiff_t>();
   dynamicVectorConstruction<std::complex<double>>();

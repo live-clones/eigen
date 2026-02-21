@@ -131,29 +131,58 @@ void mapstaticmethods(const PlainObjectType& m, float* ptr, const float* const_p
   VERIFY(true);  // just to avoid 'unused function' warning
 }
 
-EIGEN_DECLARE_TEST(mapstaticmethods) {
+// =============================================================================
+// Tests for mapstaticmethods
+// =============================================================================
+TEST(MapStaticMethodsTest, FixedVector) {
   float* ptr = internal::aligned_new<float>(1000);
   for (int i = 0; i < 1000; i++) ptr[i] = float(i);
-
   const float* const_ptr = ptr;
 
-  (mapstaticmethods(Matrix<float, 1, 1>(), ptr, const_ptr));
-  (mapstaticmethods(Vector2f(), ptr, const_ptr));
-  (mapstaticmethods(Vector3f(), ptr, const_ptr));
-  (mapstaticmethods(Matrix2f(), ptr, const_ptr));
-  (mapstaticmethods(Matrix4f(), ptr, const_ptr));
-  (mapstaticmethods(Array4f(), ptr, const_ptr));
-  (mapstaticmethods(Array3f(), ptr, const_ptr));
-  (mapstaticmethods(Array33f(), ptr, const_ptr));
-  (mapstaticmethods(Array44f(), ptr, const_ptr));
-  (mapstaticmethods(VectorXf(1), ptr, const_ptr));
-  (mapstaticmethods(VectorXf(8), ptr, const_ptr));
-  (mapstaticmethods(MatrixXf(1, 1), ptr, const_ptr));
-  (mapstaticmethods(MatrixXf(5, 7), ptr, const_ptr));
-  (mapstaticmethods(ArrayXf(1), ptr, const_ptr));
-  (mapstaticmethods(ArrayXf(5), ptr, const_ptr));
-  (mapstaticmethods(ArrayXXf(1, 1), ptr, const_ptr));
-  (mapstaticmethods(ArrayXXf(8, 6), ptr, const_ptr));
+  mapstaticmethods(Matrix<float, 1, 1>(), ptr, const_ptr);
+  mapstaticmethods(Vector2f(), ptr, const_ptr);
+  mapstaticmethods(Vector3f(), ptr, const_ptr);
+  mapstaticmethods(Array4f(), ptr, const_ptr);
+  mapstaticmethods(Array3f(), ptr, const_ptr);
+
+  internal::aligned_delete(ptr, 1000);
+}
+
+TEST(MapStaticMethodsTest, FixedMatrix) {
+  float* ptr = internal::aligned_new<float>(1000);
+  for (int i = 0; i < 1000; i++) ptr[i] = float(i);
+  const float* const_ptr = ptr;
+
+  mapstaticmethods(Matrix2f(), ptr, const_ptr);
+  mapstaticmethods(Matrix4f(), ptr, const_ptr);
+  mapstaticmethods(Array33f(), ptr, const_ptr);
+  mapstaticmethods(Array44f(), ptr, const_ptr);
+
+  internal::aligned_delete(ptr, 1000);
+}
+
+TEST(MapStaticMethodsTest, DynamicVector) {
+  float* ptr = internal::aligned_new<float>(1000);
+  for (int i = 0; i < 1000; i++) ptr[i] = float(i);
+  const float* const_ptr = ptr;
+
+  mapstaticmethods(VectorXf(1), ptr, const_ptr);
+  mapstaticmethods(VectorXf(8), ptr, const_ptr);
+  mapstaticmethods(ArrayXf(1), ptr, const_ptr);
+  mapstaticmethods(ArrayXf(5), ptr, const_ptr);
+
+  internal::aligned_delete(ptr, 1000);
+}
+
+TEST(MapStaticMethodsTest, DynamicMatrix) {
+  float* ptr = internal::aligned_new<float>(1000);
+  for (int i = 0; i < 1000; i++) ptr[i] = float(i);
+  const float* const_ptr = ptr;
+
+  mapstaticmethods(MatrixXf(1, 1), ptr, const_ptr);
+  mapstaticmethods(MatrixXf(5, 7), ptr, const_ptr);
+  mapstaticmethods(ArrayXXf(1, 1), ptr, const_ptr);
+  mapstaticmethods(ArrayXXf(8, 6), ptr, const_ptr);
 
   internal::aligned_delete(ptr, 1000);
 }

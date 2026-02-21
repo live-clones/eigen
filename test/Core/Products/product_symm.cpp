@@ -110,7 +110,10 @@ void symm(int size = Size, int othersize = OtherSize) {
   }
 }
 
-EIGEN_DECLARE_TEST(product_symm) {
+// =============================================================================
+// Tests for product_symm
+// =============================================================================
+TEST(ProductSymmTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (symm<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                    internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));

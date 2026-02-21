@@ -47,9 +47,17 @@ void diagonalview(const MatrixType& m) {
   VERIFY_IS_APPROX(m2.diagonal(1).asDiagonal().toDenseMatrix(), m2.template diagonalView<1>().toDenseMatrix());
 }
 
-EIGEN_DECLARE_TEST(diagonalview) {
+// =============================================================================
+// Typed test suite for diagonalview
+// =============================================================================
+template <typename T>
+class DiagonalViewTest : public ::testing::Test {};
+
+using DiagonalViewTypes = ::testing::Types<Matrix<float, 3, 3>, Matrix<int, 50, 50>>;
+TYPED_TEST_SUITE(DiagonalViewTest, DiagonalViewTypes);
+
+TYPED_TEST(DiagonalViewTest, DiagonalView) {
   for (int i = 0; i < g_repeat; i++) {
-    diagonalview(Matrix<float, 3, 3>());
-    diagonalview(Matrix<int, 50, 50>());
+    diagonalview(TypeParam());
   }
 }

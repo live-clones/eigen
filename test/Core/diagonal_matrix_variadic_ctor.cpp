@@ -139,11 +139,17 @@ void constructorTest<float>() {
   { VERIFY_IMPLICIT_CONVERSION_5(DiagonalMatrix5, 1.2647, 2.56f, -3, 3.23f, 2); }
 }
 
-EIGEN_DECLARE_TEST(diagonal_matrix_variadic_ctor) {
+// =============================================================================
+// Tests for diagonal_matrix_variadic_ctor
+// =============================================================================
+TEST(DiagonalMatrixVariadicCtorTest, BasicTypes) {
   constructorTest<unsigned char>();
   constructorTest<float>();
   constructorTest<Index>();
   constructorTest<int>();
+}
+
+TEST(DiagonalMatrixVariadicCtorTest, ExtendedTypes) {
   constructorTest<long int>();
   constructorTest<std::ptrdiff_t>();
   constructorTest<std::complex<double>>();

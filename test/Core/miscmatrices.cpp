@@ -36,12 +36,26 @@ void miscMatrices(const MatrixType& m) {
   VERIFY_IS_APPROX(square, MatrixType::Identity(rows, rows));
 }
 
-EIGEN_DECLARE_TEST(miscmatrices) {
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
+
+// =============================================================================
+// Typed test suite for miscMatrices
+// =============================================================================
+template <typename T>
+class MiscMatricesTest : public ::testing::Test {};
+
+using MiscMatricesTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, MatrixXcf, MatrixXi, MatrixXcd>;
+TYPED_TEST_SUITE(MiscMatricesTest, MiscMatricesTypes);
+
+TYPED_TEST(MiscMatricesTest, MiscMatrices) {
   for (int i = 0; i < g_repeat; i++) {
-    miscMatrices(Matrix<float, 1, 1>());
-    miscMatrices(Matrix4d());
-    miscMatrices(MatrixXcf(3, 3));
-    miscMatrices(MatrixXi(8, 12));
-    miscMatrices(MatrixXcd(20, 20));
+    miscMatrices(make_test_matrix<TypeParam>());
   }
 }

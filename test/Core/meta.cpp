@@ -29,7 +29,10 @@ struct MyImpl : public MyInterface {
   void func() {}
 };
 
-EIGEN_DECLARE_TEST(meta) {
+// =============================================================================
+// Tests for meta
+// =============================================================================
+TEST(MetaTest, Basic) {
   VERIFY((internal::is_same<float, float>::value));
   VERIFY((!internal::is_same<float, double>::value));
   VERIFY((!internal::is_same<float, float&>::value));
@@ -74,8 +77,6 @@ EIGEN_DECLARE_TEST(meta) {
   STATIC_CHECK(!(internal::is_convertible<int, int&>::value));
   STATIC_CHECK((internal::is_convertible<const int, const int&>::value));
 
-  // STATIC_CHECK((!internal::is_convertible<Matrix3f,Matrix3d>::value )); //does not even compile because the
-  // conversion is prevented by a static assertion
   STATIC_CHECK((!internal::is_convertible<Array33f, int>::value));
   STATIC_CHECK((!internal::is_convertible<MatrixXf, float>::value));
   {
@@ -90,15 +91,9 @@ EIGEN_DECLARE_TEST(meta) {
 
 #if (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC <= 990) || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <= 990) || \
     (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC <= 1914)
-  // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1752,
-  // basically, a fix in the c++ standard breaks our c++98 implementation
-  // of is_convertible for abstract classes.
-  // So the following tests are expected to fail with recent compilers.
-
   STATIC_CHECK((!internal::is_convertible<MyInterface, MyImpl>::value));
   STATIC_CHECK((!internal::is_convertible<MyImpl, MyInterface>::value));
   STATIC_CHECK((internal::is_convertible<MyImpl, const MyInterface&>::value));
-
 #endif
 
   {
@@ -422,8 +417,6 @@ static void test_id_type() {
 }
 
 static void test_id() {
-  // don't call VERIFY here, just assume it works if it compiles
-  // (otherwise it will complain that it can't find the function)
   test_id_numeric<1, 4, 6>();
   test_id_type<dummy_a, dummy_b, dummy_c>();
 }
@@ -476,8 +469,6 @@ static void test_array_reverse_and_reduce() {
   array<int, 6> a{{4, 8, 15, 16, 23, 42}};
   array<int, 6> b{{42, 23, 16, 15, 8, 4}};
 
-  // there is no operator<< for std::array, so VERIFY_IS_EQUAL will
-  // not compile
   VERIFY((array_reverse(a) == b));
   VERIFY((array_reverse(b) == a));
   VERIFY_IS_EQUAL((array_sum(a)), 108);
@@ -517,7 +508,7 @@ static void test_array_misc() {
   VERIFY_IS_EQUAL((instantiate_by_c_array<dummy_inst, int, 5>(data).c), 5);
 }
 
-EIGEN_DECLARE_TEST(cxx11_meta) {
+TEST(MetaTest, CXX11) {
   test_gen_numeric_list();
   test_concat();
   test_slice();

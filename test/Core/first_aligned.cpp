@@ -26,7 +26,10 @@ struct some_non_vectorizable_type {
   float x;
 };
 
-EIGEN_DECLARE_TEST(first_aligned) {
+// =============================================================================
+// Tests for first_aligned
+// =============================================================================
+TEST(FirstAlignedTest, Basic) {
   EIGEN_ALIGN16 float array_float[100];
   test_first_aligned_helper(array_float, 50);
   test_first_aligned_helper(array_float + 1, 50);

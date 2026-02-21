@@ -147,7 +147,10 @@ void syrk(const MatrixType& m) {
   }
 }
 
-EIGEN_DECLARE_TEST(product_syrk) {
+// =============================================================================
+// Tests for product_syrk
+// =============================================================================
+TEST(ProductSyrkTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s;
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);

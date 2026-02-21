@@ -101,14 +101,9 @@ class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteg
   int bin(Scalar v) { return static_cast<int>(RangeType(RangeType(v) - RangeType(lower_)) / bin_width_); }
 
   double uniform_bin_probability(int bin) {
-    // The full range upper - lower + 1 might overflow the RangeType by one.
-    // So instead, we know we have (nbins - 1) bins of width bin_width_,
-    // and the last bin of width:
     RangeType last_bin_width =
         RangeType(upper_) - (RangeType(lower_) + RangeType(num_bins_ - 1) * bin_width_) + RangeType(1);
     double last_bin_ratio = static_cast<double>(last_bin_width) / static_cast<double>(bin_width_);
-    // Total probability = (nbins - 1) * p + last_bin_ratio * p = 1.0
-    // p = 1.0 / (nbins - 1 + last_bin_ratio)
     double p = 1.0 / (last_bin_ratio + num_bins_ - 1);
     if (bin < num_bins_ - 1) {
       return p;
@@ -118,9 +113,6 @@ class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteg
 
  private:
   static constexpr RangeType bin_width(Scalar lower, Scalar upper, int nbins) {
-    // Avoid overflow in computing the full range.
-    // floor( (upper - lower + 1) / nbins) )
-    //    = floor( (upper- nbins - lower + 1 + nbins) / nbins) )
     return RangeType(RangeType(upper - nbins) - RangeType(lower) + 1) / nbins + 1;
   }
 
@@ -142,7 +134,6 @@ void check_histogram(Scalar x, Scalar y, int bins) {
       int bin = hist_helper.bin(r);
       hist(bin)++;
     }
-  //  Normalize bins by probability.
   hist /= count;
   for (int i = 0; i < bins; ++i) {
     hist(i) = hist(i) / hist_helper.uniform_bin_probability(i);
@@ -162,7 +153,6 @@ void check_histogram(int bins) {
       int bin = hist_helper.bin(r);
       hist(bin)++;
     }
-  //  Normalize bins by probability.
   hist /= count;
   for (int i = 0; i < bins; ++i) {
     hist(i) = hist(i) / hist_helper.uniform_bin_probability(i);
@@ -185,15 +175,10 @@ void check_histogram<bool>(int) {
   VERIFY(numext::abs(p - 0.5) < 0.05);
 }
 
-EIGEN_DECLARE_TEST(rand) {
-  int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
-  // the minimum guarantees that these conversions are safe
-  int8_t int8t_offset = static_cast<int8_t>((std::min)(g_repeat, 64));
-  int16_t int16t_offset = static_cast<int16_t>((std::min)(g_repeat, 8000));
-  EIGEN_UNUSED_VARIABLE(int64_ref);
-  EIGEN_UNUSED_VARIABLE(int8t_offset);
-  EIGEN_UNUSED_VARIABLE(int16t_offset);
-
+// =============================================================================
+// Tests for rand
+// =============================================================================
+TEST(RandTest, InRangeFloat) {
   for (int i = 0; i < g_repeat * 10000; i++) {
     check_in_range<float>(10.0f, 11.0f);
     check_in_range<float>(1.24234523f, 1.24234523f);
@@ -219,7 +204,12 @@ EIGEN_DECLARE_TEST(rand) {
     check_in_range<bfloat16>(bfloat16(1.24234523f), bfloat16(1.24234523f));
     check_in_range<bfloat16>(bfloat16(-1.0f), bfloat16(1.0f));
     check_in_range<bfloat16>(bfloat16(-1432.2352f), bfloat16(-1432.2352f));
+  }
+}
 
+TEST(RandTest, InRangeInt) {
+  int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
+  for (int i = 0; i < g_repeat * 10000; i++) {
     check_in_range<int32_t>(0, -1);
     check_in_range<int16_t>(0, -1);
     check_in_range<int64_t>(0, -1);
@@ -228,7 +218,10 @@ EIGEN_DECLARE_TEST(rand) {
     check_in_range<int16_t>(-24345, 24345);
     check_in_range<int64_t>(-int64_ref, int64_ref);
   }
+}
 
+TEST(RandTest, AllInRange8Bit) {
+  int8_t int8t_offset = static_cast<int8_t>((std::min)(g_repeat, 64));
   check_all_in_range<int8_t>(11, 11);
   check_all_in_range<int8_t>(11, 11 + int8t_offset);
   check_all_in_range<int8_t>(-5, 5);
@@ -237,7 +230,10 @@ EIGEN_DECLARE_TEST(rand) {
   check_all_in_range<int8_t>(126 - int8t_offset, 126);
   check_all_in_range<int8_t>();
   check_all_in_range<uint8_t>();
+}
 
+TEST(RandTest, AllInRange16Bit) {
+  int16_t int16t_offset = static_cast<int16_t>((std::min)(g_repeat, 8000));
   check_all_in_range<int16_t>(11, 11);
   check_all_in_range<int16_t>(11, 11 + int16t_offset);
   check_all_in_range<int16_t>(-5, 5);
@@ -245,7 +241,10 @@ EIGEN_DECLARE_TEST(rand) {
   check_all_in_range<int16_t>(-24345, -24345 + int16t_offset);
   check_all_in_range<int16_t>();
   check_all_in_range<uint16_t>();
+}
 
+TEST(RandTest, AllInRange32And64Bit) {
+  int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
   check_all_in_range<int32_t>(11, 11);
   check_all_in_range<int32_t>(11, 11 + g_repeat);
   check_all_in_range<int32_t>(-5, 5);
@@ -259,7 +258,9 @@ EIGEN_DECLARE_TEST(rand) {
   check_all_in_range<int64_t>(-11 - g_repeat, -11);
   check_all_in_range<int64_t>(-int64_ref, -int64_ref + g_repeat);
   check_all_in_range<int64_t>(int64_ref, int64_ref + g_repeat);
+}
 
+TEST(RandTest, HistogramInt) {
   check_histogram<int32_t>(-5, 5, 11);
   int bins = 100;
   EIGEN_UNUSED_VARIABLE(bins)
@@ -278,7 +279,9 @@ EIGEN_DECLARE_TEST(rand) {
   check_histogram<int16_t>(/*bins=*/1024);
   check_histogram<int32_t>(/*bins=*/1024);
   check_histogram<int64_t>(/*bins=*/1024);
+}
 
+TEST(RandTest, HistogramFloat) {
   check_histogram<float>(-10.0f, 10.0f, /*bins=*/1024);
   check_histogram<double>(-10.0, 10.0, /*bins=*/1024);
   check_histogram<long double>(-10.0L, 10.0L, /*bins=*/1024);

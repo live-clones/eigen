@@ -203,7 +203,10 @@ void reshape_block(const BlockType& M) {
   }
 }
 
-EIGEN_DECLARE_TEST(reshape) {
+// =============================================================================
+// Tests for reshape
+// =============================================================================
+TEST(ReshapeTest, Basic) {
   typedef Matrix<int, Dynamic, Dynamic, RowMajor> RowMatrixXi;
   typedef Matrix<int, 4, 4, RowMajor> RowMatrix4i;
   MatrixXi mx = MatrixXi::Random(4, 4);

@@ -161,7 +161,10 @@ void run_test() {
   run_bdmp_spec_1<Scalar, ColMajor, 16>();
 }
 
-EIGEN_DECLARE_TEST(blasutil) {
+// =============================================================================
+// Tests for blasutil
+// =============================================================================
+TEST(BlasUtilTest, IntegerTypes) {
   for (int i = 0; i < g_repeat; i++) {
     run_test<numext::int8_t>();
     run_test<numext::int16_t>();
@@ -170,6 +173,11 @@ EIGEN_DECLARE_TEST(blasutil) {
     // TODO: Replace this by a call to numext::int64_t as soon as we have a way to
     // detect the typedef for int64_t on all platforms
     run_test<signed long long>();
+  }
+}
+
+TEST(BlasUtilTest, FloatingPointTypes) {
+  for (int i = 0; i < g_repeat; i++) {
     run_test<float_t>();
     run_test<double_t>();
     run_test<std::complex<float> >();

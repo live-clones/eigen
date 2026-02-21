@@ -87,21 +87,24 @@ void zeroSizedVector() {
   }
 }
 
-EIGEN_DECLARE_TEST(zerosized) {
-  zeroSizedMatrix<Matrix2d>();
-  zeroSizedMatrix<Matrix3i>();
-  zeroSizedMatrix<Matrix<float, 2, Dynamic> >();
-  zeroSizedMatrix<MatrixXf>();
-  zeroSizedMatrix<Matrix<float, 0, 0> >();
-  zeroSizedMatrix<Matrix<float, Dynamic, 0, 0, 0, 0> >();
-  zeroSizedMatrix<Matrix<float, 0, Dynamic, 0, 0, 0> >();
-  zeroSizedMatrix<Matrix<float, Dynamic, Dynamic, 0, 0, 0> >();
-  zeroSizedMatrix<Matrix<float, 0, 4> >();
-  zeroSizedMatrix<Matrix<float, 4, 0> >();
+// =============================================================================
+// Typed test suites for zerosized
+// =============================================================================
+template <typename T>
+class ZeroSizedMatrixTest : public ::testing::Test {};
 
-  zeroSizedVector<Vector2d>();
-  zeroSizedVector<Vector3i>();
-  zeroSizedVector<VectorXf>();
-  zeroSizedVector<Matrix<float, 0, 1> >();
-  zeroSizedVector<Matrix<float, 1, 0> >();
-}
+using ZeroSizedMatrixTypes =
+    ::testing::Types<Matrix2d, Matrix3i, Matrix<float, 2, Dynamic>, MatrixXf, Matrix<float, 0, 0>,
+                     Matrix<float, Dynamic, 0, 0, 0, 0>, Matrix<float, 0, Dynamic, 0, 0, 0>,
+                     Matrix<float, Dynamic, Dynamic, 0, 0, 0>, Matrix<float, 0, 4>, Matrix<float, 4, 0>>;
+TYPED_TEST_SUITE(ZeroSizedMatrixTest, ZeroSizedMatrixTypes);
+
+TYPED_TEST(ZeroSizedMatrixTest, ZeroSizedMatrix) { zeroSizedMatrix<TypeParam>(); }
+
+template <typename T>
+class ZeroSizedVectorTest : public ::testing::Test {};
+
+using ZeroSizedVectorTypes = ::testing::Types<Vector2d, Vector3i, VectorXf, Matrix<float, 0, 1>, Matrix<float, 1, 0>>;
+TYPED_TEST_SUITE(ZeroSizedVectorTest, ZeroSizedVectorTypes);
+
+TYPED_TEST(ZeroSizedVectorTest, ZeroSizedVector) { zeroSizedVector<TypeParam>(); }

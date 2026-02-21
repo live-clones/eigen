@@ -62,7 +62,10 @@ void inverse_general_4x4(int repeat) {
   }
 }
 
-EIGEN_DECLARE_TEST(prec_inverse_4x4) {
+// =============================================================================
+// Tests for prec_inverse_4x4
+// =============================================================================
+TEST(PrecInverse4x4Test, Basic) {
   (inverse_permutation_4x4<Matrix4f>());
   (inverse_general_4x4<Matrix4f>(200000 * g_repeat));
   (inverse_general_4x4<Matrix<float, 4, 4, RowMajor> >(200000 * g_repeat));

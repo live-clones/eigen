@@ -39,7 +39,10 @@ void triggerVectorBadAlloc(Index size) {
   VERIFY_THROWS_BADALLOC(VectorType v; v.conservativeResize(size));
 }
 
-EIGEN_DECLARE_TEST(sizeoverflow) {
+// =============================================================================
+// Tests for sizeoverflow
+// =============================================================================
+TEST(SizeOverflowTest, Basic) {
   // there are 2 levels of overflow checking. first in PlainObjectBase.h we check for overflow in rows*cols
   // computations. this is tested in tests of the form times_itself_gives_0 * times_itself_gives_0 Then in Memory.h we
   // check for overflow in size * sizeof(T) computations. this is tested in tests of the form times_4_gives_0 *

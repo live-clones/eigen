@@ -173,27 +173,53 @@ void check_const_correctness(const PlainObjectType&) {
   VERIFY(!(Map<ConstPlainObjectType, AlignedMax>::Flags & LvalueBit));
 }
 
-EIGEN_DECLARE_TEST(mapped_matrix) {
+// =============================================================================
+// Tests for mapped_matrix
+// =============================================================================
+TEST(MappedMatrixTest, VectorFixed) {
   for (int i = 0; i < g_repeat; i++) {
     map_class_vector(Matrix<float, 1, 1>());
-    check_const_correctness(Matrix<float, 1, 1>());
     map_class_vector(Vector4d());
-    map_class_vector(VectorXd(13));
-    check_const_correctness(Matrix4d());
     map_class_vector(RowVector4f());
+    check_const_correctness(Matrix<float, 1, 1>());
+  }
+}
+
+TEST(MappedMatrixTest, VectorDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    map_class_vector(VectorXd(13));
     map_class_vector(VectorXcf(8));
     map_class_vector(VectorXi(12));
+    check_const_correctness(Matrix4d());
     check_const_correctness(VectorXi(12));
+  }
+}
 
+TEST(MappedMatrixTest, MatrixFixed) {
+  for (int i = 0; i < g_repeat; i++) {
     map_class_matrix(Matrix<float, 1, 1>());
     map_class_matrix(Matrix4d());
     map_class_matrix(Matrix<float, 3, 5>());
+  }
+}
+
+TEST(MappedMatrixTest, MatrixDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     map_class_matrix(MatrixXcf(internal::random<int>(1, 10), internal::random<int>(1, 10)));
     map_class_matrix(MatrixXi(internal::random<int>(1, 10), internal::random<int>(1, 10)));
+  }
+}
 
+TEST(MappedMatrixTest, StaticMethodsFixed) {
+  for (int i = 0; i < g_repeat; i++) {
     map_static_methods(Matrix<double, 1, 1>());
     map_static_methods(Vector3f());
     map_static_methods(RowVector3d());
+  }
+}
+
+TEST(MappedMatrixTest, StaticMethodsDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     map_static_methods(VectorXcd(8));
     map_static_methods(VectorXf(12));
   }

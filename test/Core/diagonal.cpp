@@ -81,18 +81,33 @@ void diagonal_assert(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(m1.diagonal(-(rows + 1)));
 }
 
-EIGEN_DECLARE_TEST(diagonal) {
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
+
+// =============================================================================
+// Typed test suite for diagonal
+// =============================================================================
+template <typename T>
+class DiagonalTest : public ::testing::Test {};
+
+using DiagonalTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 4, 9>, Matrix<float, 7, 3>, Matrix4d,
+                                       MatrixXcf, MatrixXi, MatrixXcd, MatrixXf, Matrix<float, Dynamic, 4>>;
+TYPED_TEST_SUITE(DiagonalTest, DiagonalTypes);
+
+TYPED_TEST(DiagonalTest, Diagonal) {
   for (int i = 0; i < g_repeat; i++) {
-    diagonal(Matrix<float, 1, 1>());
-    diagonal(Matrix<float, 4, 9>());
-    diagonal(Matrix<float, 7, 3>());
-    diagonal(Matrix4d());
-    diagonal(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    diagonal(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    diagonal(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    diagonal(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    diagonal(Matrix<float, Dynamic, 4>(3, 4));
-    diagonal_assert(
-        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    diagonal(make_test_matrix<TypeParam>());
+  }
+}
+
+TEST(DiagonalTest, DiagonalAssert) {
+  for (int i = 0; i < g_repeat; i++) {
+    diagonal_assert(make_test_matrix<MatrixXf>());
   }
 }

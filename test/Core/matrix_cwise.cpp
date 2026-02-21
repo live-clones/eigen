@@ -282,20 +282,38 @@ void test_cwise_complex(const MatrixType& m) {
                         }));
 }
 
-EIGEN_DECLARE_TEST(matrix_cwise) {
+// =============================================================================
+// Tests for matrix_cwise
+// =============================================================================
+TEST(MatrixCwiseTest, RealFloat) {
   for (int i = 0; i < g_repeat; i++) {
     test_cwise_real(Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<Eigen::half, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<Eigen::bfloat16, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
+  }
+}
+
+TEST(MatrixCwiseTest, Complex) {
+  for (int i = 0; i < g_repeat; i++) {
     test_cwise_complex(Eigen::Matrix<std::complex<float>, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_complex(Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
+  }
+}
+
+TEST(MatrixCwiseTest, IntegerSmall) {
+  for (int i = 0; i < g_repeat; i++) {
     test_cwise_real(Eigen::Matrix<int8_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<int16_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
-    test_cwise_real(Eigen::Matrix<int32_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
-    test_cwise_real(Eigen::Matrix<int64_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
+  }
+}
+
+TEST(MatrixCwiseTest, IntegerLarge) {
+  for (int i = 0; i < g_repeat; i++) {
+    test_cwise_real(Eigen::Matrix<int32_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
+    test_cwise_real(Eigen::Matrix<int64_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<uint32_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
     test_cwise_real(Eigen::Matrix<uint64_t, Eigen::Dynamic, Eigen::Dynamic>(20, 20));
   }

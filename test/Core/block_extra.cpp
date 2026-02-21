@@ -9,17 +9,23 @@
 
 #include "block_helpers.h"
 
-EIGEN_DECLARE_TEST(block_extra) {
+// =============================================================================
+// Tests for block_extra
+// =============================================================================
+TEST(BlockExtraTest, Block) {
   for (int i = 0; i < g_repeat; i++) {
     block(MatrixXf(internal::random(2, 50), internal::random(2, 50)));
     block(Matrix<int, Dynamic, Dynamic, RowMajor>(internal::random(2, 50), internal::random(2, 50)));
-
     block(Matrix<float, Dynamic, 4>(3, 4));
+  }
+}
+
+TEST(BlockExtraTest, UnwindAndStride) {
+  for (int i = 0; i < g_repeat; i++) {
     unwind_test(MatrixXf());
 
 #ifndef EIGEN_DEFAULT_TO_ROW_MAJOR
     data_and_stride(MatrixXf(internal::random(5, 50), internal::random(5, 50)));
-
     data_and_stride(Matrix<int, Dynamic, Dynamic, RowMajor>(internal::random(5, 50), internal::random(5, 50)));
 #endif
   }

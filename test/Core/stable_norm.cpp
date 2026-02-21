@@ -239,21 +239,48 @@ void test_hypot() {
   VERIFY((numext::isnan)(numext::hypot(a, nan)));
 }
 
-EIGEN_DECLARE_TEST(stable_norm) {
-  test_empty();
+// =============================================================================
+// Tests for stable_norm
+// =============================================================================
+TEST(StableNormTest, Empty) { test_empty(); }
 
+TEST(StableNormTest, FixedSize) {
+  for (int i = 0; i < g_repeat; i++) {
+    stable_norm(Matrix<float, 1, 1>());
+    stable_norm(Vector4d());
+  }
+}
+
+TEST(StableNormTest, DynamicDouble) {
+  for (int i = 0; i < g_repeat; i++) {
+    stable_norm(VectorXd(internal::random<int>(10, 2000)));
+    stable_norm(MatrixXd(internal::random<int>(10, 200), internal::random<int>(10, 200)));
+  }
+}
+
+TEST(StableNormTest, DynamicFloat) {
+  for (int i = 0; i < g_repeat; i++) {
+    stable_norm(VectorXf(internal::random<int>(10, 2000)));
+  }
+}
+
+TEST(StableNormTest, DynamicComplex) {
+  for (int i = 0; i < g_repeat; i++) {
+    stable_norm(VectorXcd(internal::random<int>(10, 2000)));
+    stable_norm(VectorXcf(internal::random<int>(10, 2000)));
+  }
+}
+
+TEST(StableNormTest, HypotReal) {
   for (int i = 0; i < g_repeat; i++) {
     test_hypot<double>();
     test_hypot<float>();
+  }
+}
+
+TEST(StableNormTest, HypotComplex) {
+  for (int i = 0; i < g_repeat; i++) {
     test_hypot<std::complex<double> >();
     test_hypot<std::complex<float> >();
-
-    stable_norm(Matrix<float, 1, 1>());
-    stable_norm(Vector4d());
-    stable_norm(VectorXd(internal::random<int>(10, 2000)));
-    stable_norm(MatrixXd(internal::random<int>(10, 200), internal::random<int>(10, 200)));
-    stable_norm(VectorXf(internal::random<int>(10, 2000)));
-    stable_norm(VectorXcd(internal::random<int>(10, 2000)));
-    stable_norm(VectorXcf(internal::random<int>(10, 2000)));
   }
 }

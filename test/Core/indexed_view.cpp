@@ -849,13 +849,20 @@ void check_aliasing() {
   VERIFY_IS_EQUAL(z, expected);
 }
 
-EIGEN_DECLARE_TEST(indexed_view) {
+// =============================================================================
+// Tests for indexed_view
+// =============================================================================
+TEST(IndexedViewTest, IndexedView) {
   for (int i = 0; i < g_repeat; i++) {
     check_indexed_view();
   }
-  check_tutorial_examples();
-  check_aliasing();
+}
 
+TEST(IndexedViewTest, TutorialExamples) { check_tutorial_examples(); }
+
+TEST(IndexedViewTest, Aliasing) { check_aliasing(); }
+
+TEST(IndexedViewTest, StaticChecks) {
   // static checks of some internals:
   STATIC_CHECK((internal::is_valid_index_type<int>::value));
   STATIC_CHECK((internal::is_valid_index_type<unsigned int>::value));

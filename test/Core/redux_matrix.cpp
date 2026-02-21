@@ -10,15 +10,11 @@
 
 #include "redux_helpers.h"
 
-EIGEN_DECLARE_TEST(redux_matrix) {
-  // the max size cannot be too large, otherwise reduxion operations obviously generate large errors.
-  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
-  TEST_SET_BUT_UNUSED_VARIABLE(maxsize);
+// =============================================================================
+// Tests for redux_matrix
+// =============================================================================
+TEST(ReduxMatrixTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
-    int rows = internal::random<int>(1, maxsize);
-    int cols = internal::random<int>(1, maxsize);
-    EIGEN_UNUSED_VARIABLE(rows);
-    EIGEN_UNUSED_VARIABLE(cols);
     matrixRedux(Matrix<float, 1, 1>());
     matrixRedux(Array<float, 1, 1>());
     matrixRedux(Matrix2f());
@@ -27,14 +23,46 @@ EIGEN_DECLARE_TEST(redux_matrix) {
     matrixRedux(Matrix4d());
     matrixRedux(Array4d());
     matrixRedux(Array44d());
+  }
+}
+
+TEST(ReduxMatrixTest, DynamicFloat) {
+  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
+  for (int i = 0; i < g_repeat; i++) {
+    int rows = internal::random<int>(1, maxsize);
+    int cols = internal::random<int>(1, maxsize);
     matrixRedux(MatrixXf(rows, cols));
     matrixRedux(ArrayXXf(rows, cols));
+  }
+}
+
+TEST(ReduxMatrixTest, DynamicDouble) {
+  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
+  for (int i = 0; i < g_repeat; i++) {
+    int rows = internal::random<int>(1, maxsize);
+    int cols = internal::random<int>(1, maxsize);
     matrixRedux(MatrixXd(rows, cols));
     matrixRedux(ArrayXXd(rows, cols));
+  }
+}
+
+TEST(ReduxMatrixTest, DynamicInt) {
+  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
+  for (int i = 0; i < g_repeat; i++) {
+    int rows = internal::random<int>(1, maxsize);
+    int cols = internal::random<int>(1, maxsize);
     matrixRedux(MatrixXi(rows, cols));
     matrixRedux(ArrayXXi(rows, cols));
     matrixRedux(MatrixX<int64_t>(rows, cols));
     matrixRedux(ArrayXX<int64_t>(rows, cols));
+  }
+}
+
+TEST(ReduxMatrixTest, DynamicComplex) {
+  int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
+  for (int i = 0; i < g_repeat; i++) {
+    int rows = internal::random<int>(1, maxsize);
+    int cols = internal::random<int>(1, maxsize);
     matrixRedux(MatrixXcf(rows, cols));
     matrixRedux(ArrayXXcf(rows, cols));
     matrixRedux(MatrixXcd(rows, cols));

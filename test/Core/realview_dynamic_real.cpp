@@ -11,7 +11,10 @@
 
 #include "realview_helpers.h"
 
-EIGEN_DECLARE_TEST(realview_dynamic_real) {
+// =============================================================================
+// Tests for realview_dynamic_real
+// =============================================================================
+TEST(RealviewDynamicRealTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (test_realview_real_types<Dynamic, Dynamic, Dynamic, Dynamic>());
     (test_realview_real_types<Dynamic, Dynamic, 17, Dynamic>());

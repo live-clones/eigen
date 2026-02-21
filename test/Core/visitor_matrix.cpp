@@ -9,11 +9,19 @@
 
 #include "visitor_helpers.h"
 
-EIGEN_DECLARE_TEST(visitor_matrix) {
+// =============================================================================
+// Tests for visitor_matrix
+// =============================================================================
+TEST(VisitorMatrixTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
     matrixVisitor(Matrix<float, 1, 1>());
     matrixVisitor(Matrix2f());
     matrixVisitor(Matrix4d());
+  }
+}
+
+TEST(VisitorMatrixTest, Dynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     matrixVisitor(MatrixXd(8, 12));
     matrixVisitor(Matrix<double, Dynamic, Dynamic, RowMajor>(20, 20));
     matrixVisitor(MatrixXi(8, 12));

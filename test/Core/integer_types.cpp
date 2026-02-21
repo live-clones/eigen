@@ -134,29 +134,41 @@ void integer_types_extra() {
   }
 }
 
-EIGEN_DECLARE_TEST(integer_types) {
+// =============================================================================
+// Tests for integer_types
+// =============================================================================
+TEST(IntegerTypesTest, Unsigned) {
   for (int i = 0; i < g_repeat; i++) {
     integer_type_tests(Matrix<unsigned int, 1, 1>());
     integer_type_tests(Matrix<unsigned long, 3, 4>());
+    integer_type_tests(Matrix<unsigned char, 3, 3>());
+    integer_type_tests(Matrix<unsigned short, 4, 4>());
+  }
+}
 
+TEST(IntegerTypesTest, Signed) {
+  for (int i = 0; i < g_repeat; i++) {
     integer_type_tests(Matrix<long, 2, 2>());
     signed_integer_type_tests(Matrix<long, 2, 2>());
-
-    integer_type_tests(Matrix<char, 2, Dynamic>(2, 10));
-    signed_integer_type_tests(Matrix<signed char, 2, Dynamic>(2, 10));
-
-    integer_type_tests(Matrix<unsigned char, 3, 3>());
-    integer_type_tests(Matrix<unsigned char, Dynamic, Dynamic>(20, 20));
-
     integer_type_tests(Matrix<short, Dynamic, 4>(7, 4));
     signed_integer_type_tests(Matrix<short, Dynamic, 4>(7, 4));
+  }
+}
 
-    integer_type_tests(Matrix<unsigned short, 4, 4>());
+TEST(IntegerTypesTest, CharAndDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    integer_type_tests(Matrix<char, 2, Dynamic>(2, 10));
+    signed_integer_type_tests(Matrix<signed char, 2, Dynamic>(2, 10));
+    integer_type_tests(Matrix<unsigned char, Dynamic, Dynamic>(20, 20));
+  }
+}
 
+TEST(IntegerTypesTest, LongLong) {
+  for (int i = 0; i < g_repeat; i++) {
     integer_type_tests(Matrix<long long, 11, 13>());
     signed_integer_type_tests(Matrix<long long, 11, 13>());
-
     integer_type_tests(Matrix<unsigned long long, Dynamic, 5>(1, 5));
   }
-  integer_types_extra<0>();
 }
+
+TEST(IntegerTypesTest, Extra) { integer_types_extra<0>(); }

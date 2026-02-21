@@ -9,16 +9,27 @@
 
 #include "array_cwise_helpers.h"
 
-EIGEN_DECLARE_TEST(array_cwise_bitwise) {
+// =============================================================================
+// Tests for array_cwise_bitwise
+// =============================================================================
+TEST(ArrayCwiseBitwiseTest, Shift) {
   for (int i = 0; i < g_repeat; i++) {
     shift_test(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                               internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayCwiseBitwiseTest, TypedLogicalsReal) {
   for (int i = 0; i < g_repeat; i++) {
     typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(ArrayCwiseBitwiseTest, TypedLogicalsComplex) {
+  for (int i = 0; i < g_repeat; i++) {
     typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }

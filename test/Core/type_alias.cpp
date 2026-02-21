@@ -9,7 +9,10 @@
 
 #include "main.h"
 
-EIGEN_DECLARE_TEST(type_alias) {
+// =============================================================================
+// Tests for type_alias
+// =============================================================================
+TEST(TypeAliasTest, Basic) {
   using namespace internal;
 
   // To warm up, some basic checks:

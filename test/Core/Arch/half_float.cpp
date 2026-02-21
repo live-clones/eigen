@@ -332,14 +332,28 @@ void test_product() {
   VERIFY_IS_APPROX(Ch.noalias() += Ah * Bh, (Cf.noalias() += Af * Bf).cast<half>());
 }
 
-EIGEN_DECLARE_TEST(half_float) {
-  test_numtraits();
+// =============================================================================
+// Tests for half_float
+// =============================================================================
+TEST(HalfFloatTest, NumTraits) { test_numtraits(); }
+
+TEST(HalfFloatTest, ConversionAndArithmetic) {
   for (int i = 0; i < g_repeat; i++) {
     test_conversion();
     test_arithmetic();
     test_comparison();
+  }
+}
+
+TEST(HalfFloatTest, Functions) {
+  for (int i = 0; i < g_repeat; i++) {
     test_basic_functions();
     test_trigonometric_functions();
+  }
+}
+
+TEST(HalfFloatTest, ArrayAndProduct) {
+  for (int i = 0; i < g_repeat; i++) {
     test_array();
     test_product();
   }

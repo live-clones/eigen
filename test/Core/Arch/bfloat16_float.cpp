@@ -387,16 +387,30 @@ void test_nextafter() {
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(-0.0f)), 0x8000);
 }
 
-EIGEN_DECLARE_TEST(bfloat16_float) {
-  test_numtraits();
+// =============================================================================
+// Tests for bfloat16_float
+// =============================================================================
+TEST(Bfloat16FloatTest, NumTraits) { test_numtraits(); }
+
+TEST(Bfloat16FloatTest, ConversionAndArithmetic) {
   for (int i = 0; i < g_repeat; i++) {
     test_conversion();
     test_arithmetic();
     test_comparison();
+  }
+}
+
+TEST(Bfloat16FloatTest, Functions) {
+  for (int i = 0; i < g_repeat; i++) {
     test_basic_functions();
     test_trigonometric_functions();
+    test_nextafter();
+  }
+}
+
+TEST(Bfloat16FloatTest, ArrayAndProduct) {
+  for (int i = 0; i < g_repeat; i++) {
     test_array();
     test_product();
-    test_nextafter();
   }
 }

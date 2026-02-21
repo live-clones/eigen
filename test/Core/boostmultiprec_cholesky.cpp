@@ -11,7 +11,10 @@
 
 #include "boostmultiprec_helpers.h"
 
-EIGEN_DECLARE_TEST(boostmultiprec_cholesky) {
+// =============================================================================
+// Tests for boostmultiprec_cholesky
+// =============================================================================
+TEST(BoostMultiprecCholeskyTest, Basic) {
   std::cout << "NumTraits<Real>::epsilon()         = " << NumTraits<Real>::epsilon() << std::endl;
   std::cout << "NumTraits<Real>::dummy_precision() = " << NumTraits<Real>::dummy_precision() << std::endl;
   std::cout << "NumTraits<Real>::lowest()          = " << NumTraits<Real>::lowest() << std::endl;

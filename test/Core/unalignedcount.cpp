@@ -32,7 +32,10 @@ static int nb_storeu;
 
 #include "main.h"
 
-EIGEN_DECLARE_TEST(unalignedcount) {
+// =============================================================================
+// Tests for unalignedcount
+// =============================================================================
+TEST(UnalignedCountTest, Basic) {
 #if defined(EIGEN_VECTORIZE_AVX512)
   VectorXf a(48), b(48);
   a.fill(0);

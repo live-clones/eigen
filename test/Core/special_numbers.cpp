@@ -46,9 +46,17 @@ void special_numbers() {
   VERIFY(!mboth.array().allFinite());
 }
 
-EIGEN_DECLARE_TEST(special_numbers) {
+// =============================================================================
+// Typed test suite for special_numbers
+// =============================================================================
+template <typename T>
+class SpecialNumbersTest : public ::testing::Test {};
+
+using SpecialNumbersTypes = ::testing::Types<float, double>;
+TYPED_TEST_SUITE(SpecialNumbersTest, SpecialNumbersTypes);
+
+TYPED_TEST(SpecialNumbersTest, SpecialNumbers) {
   for (int i = 0; i < 10 * g_repeat; i++) {
-    special_numbers<float>();
-    special_numbers<double>();
+    special_numbers<TypeParam>();
   }
 }

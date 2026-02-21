@@ -11,7 +11,10 @@
 
 #include "boostmultiprec_helpers.h"
 
-EIGEN_DECLARE_TEST(boostmultiprec_svd) {
+// =============================================================================
+// Tests for boostmultiprec_svd
+// =============================================================================
+TEST(BoostMultiprecSvdTest, Basic) {
   boostmp_jacobisvd(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
                         internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)));
   boostmp_bdcsvd(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),

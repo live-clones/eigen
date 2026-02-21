@@ -369,7 +369,10 @@ void test_contiguous_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
   VERIFY(test_is_equal(cref.data(), m.data(), true));
 }
 
-EIGEN_DECLARE_TEST(ref) {
+// =============================================================================
+// Tests for ref
+// =============================================================================
+TEST(RefTest, Vector) {
   for (int i = 0; i < g_repeat; i++) {
     ref_vector(Matrix<float, 1, 1>());
     check_const_correctness(Matrix<float, 1, 1>());
@@ -377,23 +380,48 @@ EIGEN_DECLARE_TEST(ref) {
     check_const_correctness(Matrix4d());
     ref_vector(Vector4cf());
     ref_vector(VectorXcf(8));
+  }
+}
+
+TEST(RefTest, VectorInt) {
+  for (int i = 0; i < g_repeat; i++) {
     ref_vector(VectorXi(12));
     check_const_correctness(VectorXi(12));
+  }
+}
 
+TEST(RefTest, MatrixFixed) {
+  for (int i = 0; i < g_repeat; i++) {
     ref_matrix(Matrix<float, 1, 1>());
     ref_matrix(Matrix4d());
     ref_matrix(Matrix<float, 3, 5>());
-    ref_matrix(MatrixXcf(internal::random<int>(1, 10), internal::random<int>(1, 10)));
     ref_matrix(Matrix<std::complex<double>, 10, 15>());
-    ref_matrix(MatrixXi(internal::random<int>(1, 10), internal::random<int>(1, 10)));
-    call_ref();
-
-    (ref_vector_fixed_sizes<float, 3, 5>());
-    (ref_vector_fixed_sizes<float, 15, 10>());
   }
+}
 
-  test_ref_overloads();
+TEST(RefTest, MatrixDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    ref_matrix(MatrixXcf(internal::random<int>(1, 10), internal::random<int>(1, 10)));
+    ref_matrix(MatrixXi(internal::random<int>(1, 10), internal::random<int>(1, 10)));
+  }
+}
 
+TEST(RefTest, CallRef) {
+  for (int i = 0; i < g_repeat; i++) {
+    call_ref();
+  }
+}
+
+TEST(RefTest, VectorFixedSizes) {
+  for (int i = 0; i < g_repeat; i++) {
+    ref_vector_fixed_sizes<float, 3, 5>();
+    ref_vector_fixed_sizes<float, 15, 10>();
+  }
+}
+
+TEST(RefTest, Overloads) { test_ref_overloads(); }
+
+TEST(RefTest, CRefMoveCtor) {
   test_cref_move_ctor<VectorXd>(VectorXd::Ones(9));
   test_cref_move_ctor<VectorXd>(VectorXd(9));
   test_cref_move_ctor<Vector3d>(Vector3d::Ones());
@@ -402,6 +430,9 @@ EIGEN_DECLARE_TEST(ref) {
   test_cref_move_ctor<MatrixXd>(MatrixXd(9, 5));
   test_cref_move_ctor<Matrix3d>(Matrix3d::Ones());
   test_cref_move_ctor<Matrix3d>(Matrix3d());
+}
+
+TEST(RefTest, ContiguousNoCopy) {
   test_contiguous_ref_no_copy(VectorXd(9));
   test_contiguous_ref_no_copy(Vector3d());
   test_contiguous_ref_no_copy(MatrixXd(9, 5));

@@ -235,17 +235,33 @@ void vectorwiseop_mixedscalar() {
   VERIFY_IS_CWISE_EQUAL(c, d);
 }
 
-EIGEN_DECLARE_TEST(vectorwiseop) {
-  vectorwiseop_array(Array22cd());
-  vectorwiseop_array(Array<double, 3, 2>());
-  vectorwiseop_array(ArrayXXf(3, 4));
-  vectorwiseop_matrix(Matrix4cf());
-  vectorwiseop_matrix(Matrix4f());
-  vectorwiseop_matrix(Vector4f());
-  vectorwiseop_matrix(Matrix<float, 4, 5>());
-  vectorwiseop_matrix(
-      MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-  vectorwiseop_matrix(VectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-  vectorwiseop_matrix(RowVectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-  vectorwiseop_mixedscalar();
+// =============================================================================
+// Tests for vectorwiseop
+// =============================================================================
+TEST(VectorwiseOpTest, Array) {
+  for (int i = 0; i < g_repeat; i++) {
+    vectorwiseop_array(Array22cd());
+    vectorwiseop_array(Array<double, 3, 2>());
+    vectorwiseop_array(ArrayXXf(3, 4));
+  }
 }
+
+TEST(VectorwiseOpTest, MatrixFixed) {
+  for (int i = 0; i < g_repeat; i++) {
+    vectorwiseop_matrix(Matrix4cf());
+    vectorwiseop_matrix(Matrix4f());
+    vectorwiseop_matrix(Vector4f());
+    vectorwiseop_matrix(Matrix<float, 4, 5>());
+  }
+}
+
+TEST(VectorwiseOpTest, MatrixDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    vectorwiseop_matrix(
+        MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    vectorwiseop_matrix(VectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    vectorwiseop_matrix(RowVectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(VectorwiseOpTest, MixedScalar) { vectorwiseop_mixedscalar(); }

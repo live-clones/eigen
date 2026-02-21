@@ -49,18 +49,27 @@ void bug_159() {
   EIGEN_UNUSED_VARIABLE(m)
 }
 
-EIGEN_DECLARE_TEST(selfadjoint) {
-  for (int i = 0; i < g_repeat; i++) {
-    int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
-
-    selfadjoint(Matrix<float, 1, 1>());
-    selfadjoint(Matrix<float, 2, 2>());
-    selfadjoint(Matrix3cf());
-    selfadjoint(MatrixXcd(s, s));
-    selfadjoint(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s));
-
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
-  }
-
-  bug_159();
+template <typename MatrixType>
+MatrixType make_square_test_matrix() {
+  const int size = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  return MatrixType(size, size);
 }
+
+// =============================================================================
+// Typed test suite for selfadjoint
+// =============================================================================
+template <typename T>
+class SelfAdjointTest : public ::testing::Test {};
+
+using SelfAdjointTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3cf, MatrixXcd,
+                                          Matrix<float, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(SelfAdjointTest, SelfAdjointTypes);
+
+TYPED_TEST(SelfAdjointTest, SelfAdjoint) {
+  for (int i = 0; i < g_repeat; i++) {
+    selfadjoint(make_square_test_matrix<TypeParam>());
+  }
+}
+
+TEST(SelfAdjointTest, Bug159) { bug_159(); }

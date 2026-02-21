@@ -37,10 +37,17 @@ void smallVectors() {
   VERIFY_RAISES_ASSERT(VX(3, 2))
 }
 
-EIGEN_DECLARE_TEST(smallvectors) {
+// =============================================================================
+// Typed test suite for smallVectors (parameterized on Scalar)
+// =============================================================================
+template <typename T>
+class SmallVectorsTest : public ::testing::Test {};
+
+using SmallVectorsTypes = ::testing::Types<int, float, double>;
+TYPED_TEST_SUITE(SmallVectorsTest, SmallVectorsTypes);
+
+TYPED_TEST(SmallVectorsTest, SmallVectors) {
   for (int i = 0; i < g_repeat; i++) {
-    smallVectors<int>();
-    smallVectors<float>();
-    smallVectors<double>();
+    smallVectors<TypeParam>();
   }
 }

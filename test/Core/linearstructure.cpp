@@ -122,7 +122,10 @@ void linearstructure_overflow() {
   VERIFY_IS_APPROX(m3.cwiseQuotient(m3), Matrix4d::Ones());
 }
 
-EIGEN_DECLARE_TEST(linearstructure) {
+// =============================================================================
+// Tests for linearstructure
+// =============================================================================
+TEST(LinearStructureTest, FixedSize) {
   g_called = true;
   VERIFY(g_called);  // avoid `unneeded-internal-declaration` warning.
   for (int i = 0; i < g_repeat; i++) {
@@ -130,22 +133,42 @@ EIGEN_DECLARE_TEST(linearstructure) {
     linearStructure(Matrix2f());
     linearStructure(Vector3d());
     linearStructure(Matrix4d());
-    linearStructure(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                              internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+  }
+}
+
+TEST(LinearStructureTest, DynamicReal) {
+  for (int i = 0; i < g_repeat; i++) {
     linearStructure(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     linearStructure(
-        MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+        ArrayXXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(LinearStructureTest, DynamicComplex) {
+  for (int i = 0; i < g_repeat; i++) {
+    linearStructure(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
+                              internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
     linearStructure(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
                               internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
     linearStructure(
-        ArrayXXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    linearStructure(
         ArrayXXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
 
+TEST(LinearStructureTest, DynamicInt) {
+  for (int i = 0; i < g_repeat; i++) {
+    linearStructure(
+        MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(LinearStructureTest, RealComplex) {
+  for (int i = 0; i < g_repeat; i++) {
     real_complex<Matrix4cd>();
     real_complex<MatrixXcf>(10, 10);
     real_complex<ArrayXXcf>(10, 10);
   }
-  linearstructure_overflow<0>();
 }
+
+TEST(LinearStructureTest, Overflow) { linearstructure_overflow<0>(); }

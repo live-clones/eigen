@@ -261,30 +261,62 @@ void bug_159() {
   EIGEN_UNUSED_VARIABLE(m)
 }
 
-EIGEN_DECLARE_TEST(triangular) {
-  int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
+template <typename MatrixType>
+MatrixType make_square_test_matrix() {
+  const int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
+  const int size =
+      (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(2, maxsize) : MatrixType::RowsAtCompileTime;
+  return MatrixType(size, size);
+}
+
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
+  const int rows =
+      (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(2, maxsize) : MatrixType::RowsAtCompileTime;
+  const int cols =
+      (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(2, maxsize) : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
+
+// =============================================================================
+// Typed test suites for triangular
+// =============================================================================
+template <typename T>
+class TriangularSquareTest : public ::testing::Test {};
+
+using TriangularSquareTypes =
+    ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3d, Matrix<std::complex<float>, 8, 8>, MatrixXcd,
+                     Matrix<float, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(TriangularSquareTest, TriangularSquareTypes);
+
+TYPED_TEST(TriangularSquareTest, TriangularSquare) {
   for (int i = 0; i < g_repeat; i++) {
-    int r = internal::random<int>(2, maxsize);
-    TEST_SET_BUT_UNUSED_VARIABLE(r)
-    int c = internal::random<int>(2, maxsize);
-    TEST_SET_BUT_UNUSED_VARIABLE(c)
+    triangular_square(make_square_test_matrix<TypeParam>());
+  }
+}
 
-    triangular_square(Matrix<float, 1, 1>());
-    triangular_square(Matrix<float, 2, 2>());
-    triangular_square(Matrix3d());
-    triangular_square(Matrix<std::complex<float>, 8, 8>());
-    triangular_square(MatrixXcd(r, r));
-    triangular_square(Matrix<float, Dynamic, Dynamic, RowMajor>(r, r));
+template <typename T>
+class TriangularRectTest : public ::testing::Test {};
 
-    triangular_rect(Matrix<float, 4, 5>());
-    triangular_rect(Matrix<double, 6, 2>());
-    triangular_rect(MatrixXcf(r, c));
-    triangular_rect(MatrixXcd(r, c));
-    triangular_rect(Matrix<float, Dynamic, Dynamic, RowMajor>(r, c));
+using TriangularRectTypes = ::testing::Types<Matrix<float, 4, 5>, Matrix<double, 6, 2>, MatrixXcf, MatrixXcd,
+                                             Matrix<float, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(TriangularRectTest, TriangularRectTypes);
 
+TYPED_TEST(TriangularRectTest, TriangularRect) {
+  for (int i = 0; i < g_repeat; i++) {
+    triangular_rect(make_test_matrix<TypeParam>());
+  }
+}
+
+TEST(TriangularTest, Deprecated) {
+  for (int i = 0; i < g_repeat; i++) {
     triangular_deprecated(Matrix<float, 5, 7>());
+    const int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
+    const int r = internal::random<int>(2, maxsize);
+    const int c = internal::random<int>(2, maxsize);
     triangular_deprecated(MatrixXd(r, c));
   }
-
-  bug_159();
 }
+
+TEST(TriangularTest, Bug159) { bug_159(); }

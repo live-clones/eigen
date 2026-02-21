@@ -99,9 +99,12 @@ void test_basics() {
   VERIFY_IS_APPROX(m3, ref);
 }
 
-EIGEN_DECLARE_TEST(commainitializer) {
-  test_basics();
+// =============================================================================
+// Tests for commainitializer
+// =============================================================================
+TEST(CommaInitializerTest, Basics) { test_basics(); }
 
+TEST(CommaInitializerTest, BlockRecursion) {
   // recursively test all block-sizes from 0 to 3:
   test_block_recursion<8>::run();
 }

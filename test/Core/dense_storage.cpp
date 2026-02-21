@@ -250,12 +250,20 @@ void plaintype_tests() {
   VERIFY_IS_CWISE_EQUAL(m1, m0);
 }
 
-EIGEN_DECLARE_TEST(dense_storage) {
-  dense_storage_tests<int>();
-  dense_storage_tests<float>();
-  dense_storage_tests<SafeScalar<float>>();
-  dense_storage_tests<MovableScalar<float>>();
-  dense_storage_tests<AnnoyingScalar>();
+// =============================================================================
+// Tests for dense_storage
+// =============================================================================
+TEST(DenseStorageTest, Int) { dense_storage_tests<int>(); }
+
+TEST(DenseStorageTest, Float) { dense_storage_tests<float>(); }
+
+TEST(DenseStorageTest, SafeScalar) { dense_storage_tests<SafeScalar<float>>(); }
+
+TEST(DenseStorageTest, MovableScalar) { dense_storage_tests<MovableScalar<float>>(); }
+
+TEST(DenseStorageTest, AnnoyingScalar) { dense_storage_tests<AnnoyingScalar>(); }
+
+TEST(DenseStorageTest, PlainTypeFloat) {
   for (int i = 0; i < g_repeat; i++) {
     plaintype_tests<Matrix<float, 0, 0, ColMajor>>();
     plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 0, 0>>();
@@ -264,17 +272,29 @@ EIGEN_DECLARE_TEST(dense_storage) {
     plaintype_tests<Matrix<float, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 16, 16>>();
+  }
+}
 
+TEST(DenseStorageTest, PlainTypeSafeScalar) {
+  for (int i = 0; i < g_repeat; i++) {
     plaintype_tests<Matrix<SafeScalar<float>, 16, 16, ColMajor>>();
     plaintype_tests<Matrix<SafeScalar<float>, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<SafeScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
+  }
+}
 
+TEST(DenseStorageTest, PlainTypeMovableScalar) {
+  for (int i = 0; i < g_repeat; i++) {
     plaintype_tests<Matrix<MovableScalar<float>, 16, 16, ColMajor>>();
     plaintype_tests<Matrix<MovableScalar<float>, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<MovableScalar<float>, Dynamic, Dynamic, ColMajor, 16, 16>>();
+  }
+}
 
+TEST(DenseStorageTest, PlainTypeAnnoyingScalar) {
+  for (int i = 0; i < g_repeat; i++) {
     plaintype_tests<Matrix<AnnoyingScalar, 16, 16, ColMajor>>();
     plaintype_tests<Matrix<AnnoyingScalar, 16, Dynamic, ColMajor>>();
     plaintype_tests<Matrix<AnnoyingScalar, Dynamic, Dynamic, ColMajor>>();

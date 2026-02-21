@@ -26,4 +26,7 @@ void test_parallelize_gemm() {
   VERIFY_IS_APPROX(c, c_threaded);
 }
 
-EIGEN_DECLARE_TEST(product_threaded) { test_parallelize_gemm(); }
+// =============================================================================
+// Tests for product_threaded
+// =============================================================================
+TEST(ProductThreadedTest, Basic) { test_parallelize_gemm(); }

@@ -11,7 +11,10 @@
 
 #include "product_large_helpers.h"
 
-EIGEN_DECLARE_TEST(product_large_cplx) {
+// =============================================================================
+// Tests for product_large_cplx
+// =============================================================================
+TEST(ProductLargeCplxTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     product(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
                       internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));

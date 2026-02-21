@@ -76,7 +76,10 @@ void test_threaded_assignment(const PlainObject&, Index rows = PlainObject::Rows
   VERIFY_IS_CWISE_EQUAL(ref.bottomRightCorner(blockRows, blockCols), dst.bottomRightCorner(blockRows, blockCols));
 }
 
-EIGEN_DECLARE_TEST(test) {
+// =============================================================================
+// Tests for assignment_threaded
+// =============================================================================
+TEST(AssignmentThreadedTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     test_threaded_assignment(MatrixXd(), 123, 123);
     test_threaded_assignment(Matrix<float, 16, 16>());

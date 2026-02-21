@@ -296,11 +296,19 @@ void regrrssion_bug_1410() {
   VERIFY((internal::traits<MatrixWrapper<Array4i> >::Flags & LvalueBit) == LvalueBit);
 }
 
-EIGEN_DECLARE_TEST(array_for_matrix) {
+// =============================================================================
+// Tests for array_for_matrix
+// =============================================================================
+TEST(ArrayForMatrixTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
     array_for_matrix(Matrix<float, 1, 1>());
     array_for_matrix(Matrix2f());
     array_for_matrix(Matrix4d());
+  }
+}
+
+TEST(ArrayForMatrixTest, Dynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     array_for_matrix(
         MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     array_for_matrix(
@@ -308,39 +316,70 @@ EIGEN_DECLARE_TEST(array_for_matrix) {
     array_for_matrix(
         MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayForMatrixTest, ComparisonsFixed) {
   for (int i = 0; i < g_repeat; i++) {
     comparisons(Matrix<float, 1, 1>());
     comparisons(Matrix2f());
     comparisons(Matrix4d());
+  }
+}
+
+TEST(ArrayForMatrixTest, ComparisonsDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     comparisons(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     comparisons(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayForMatrixTest, CwiseMinMaxFixed) {
   for (int i = 0; i < g_repeat; i++) {
     cwise_min_max(Matrix<float, 1, 1>());
     cwise_min_max(Matrix2f());
     cwise_min_max(Matrix4d());
+  }
+}
+
+TEST(ArrayForMatrixTest, CwiseMinMaxDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     cwise_min_max(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     cwise_min_max(
         MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayForMatrixTest, LpNormFixed) {
   for (int i = 0; i < g_repeat; i++) {
     lpNorm(Matrix<float, 1, 1>());
     lpNorm(Vector2f());
     lpNorm(Vector3d());
     lpNorm(Vector4f());
+  }
+}
+
+TEST(ArrayForMatrixTest, LpNormDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     lpNorm(VectorXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     lpNorm(VectorXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayForMatrixTest, LpNormEmpty) {
   lpNorm(VectorXf(0));
   lpNorm(VectorXcf(0));
+}
+
+TEST(ArrayForMatrixTest, Resize) {
   for (int i = 0; i < g_repeat; i++) {
     resize(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-
     resize(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-
     resize(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayForMatrixTest, Regressions) {
   regression_bug_654<0>();
   regrrssion_bug_1410<0>();
 }

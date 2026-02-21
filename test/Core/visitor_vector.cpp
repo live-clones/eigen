@@ -9,13 +9,22 @@
 
 #include "visitor_helpers.h"
 
-EIGEN_DECLARE_TEST(visitor_vector) {
+// =============================================================================
+// Tests for visitor_vector
+// =============================================================================
+TEST(VisitorVectorTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
     vectorVisitor(Vector4f());
     vectorVisitor(Matrix<int, 12, 1>());
+  }
+}
+
+TEST(VisitorVectorTest, Dynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     vectorVisitor(VectorXd(10));
     vectorVisitor(RowVectorXd(10));
     vectorVisitor(VectorXf(33));
   }
-  checkOptimalTraversal();
 }
+
+TEST(VisitorVectorTest, OptimalTraversal) { checkOptimalTraversal(); }

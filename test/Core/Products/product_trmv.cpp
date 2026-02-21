@@ -73,7 +73,10 @@ void trmv(const MatrixType& m) {
   // TODO check with sub-matrices
 }
 
-EIGEN_DECLARE_TEST(product_trmv) {
+// =============================================================================
+// Tests for product_trmv
+// =============================================================================
+TEST(ProductTrmvTest, Basic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     trmv(Matrix<float, 1, 1>());

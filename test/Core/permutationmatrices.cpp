@@ -190,18 +190,32 @@ void test_aliasing() {
   }
 }
 
-EIGEN_DECLARE_TEST(permutationmatrices) {
-  for (int i = 0; i < g_repeat; i++) {
-    permutationmatrices(Matrix<float, 1, 1>());
-    permutationmatrices(Matrix3f());
-    permutationmatrices(Matrix<double, 3, 3, RowMajor>());
-    permutationmatrices(Matrix4d());
-    permutationmatrices(Matrix<double, 40, 60>());
-    permutationmatrices(Matrix<double, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                                   internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    permutationmatrices(
-        MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-  }
-  bug890<double>();
-  test_aliasing();
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
 }
+
+// =============================================================================
+// Typed test suite for permutationmatrices
+// =============================================================================
+template <typename T>
+class PermutationMatricesTest : public ::testing::Test {};
+
+using PermutationMatricesTypes =
+    ::testing::Types<Matrix<float, 1, 1>, Matrix3f, Matrix<double, 3, 3, RowMajor>, Matrix4d, Matrix<double, 40, 60>,
+                     Matrix<double, Dynamic, Dynamic, RowMajor>, MatrixXcf>;
+TYPED_TEST_SUITE(PermutationMatricesTest, PermutationMatricesTypes);
+
+TYPED_TEST(PermutationMatricesTest, PermutationMatrices) {
+  for (int i = 0; i < g_repeat; i++) {
+    permutationmatrices(make_test_matrix<TypeParam>());
+  }
+}
+
+TEST(PermutationMatricesTest, Bug890) { bug890<double>(); }
+
+TEST(PermutationMatricesTest, Aliasing) { test_aliasing(); }

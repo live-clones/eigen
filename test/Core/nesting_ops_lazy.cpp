@@ -12,7 +12,10 @@
 
 #include "nesting_ops_helpers.h"
 
-EIGEN_DECLARE_TEST(nesting_ops_lazy) {
+// =============================================================================
+// Tests for nesting_ops_lazy
+// =============================================================================
+TEST(NestingOpsLazyTest, Basic) {
   run_nesting_ops_1(MatrixXf::Random(25, 25));
   run_nesting_ops_1(MatrixXcd::Random(25, 25));
   run_nesting_ops_1(Matrix4f::Random());

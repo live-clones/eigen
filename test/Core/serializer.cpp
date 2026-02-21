@@ -210,9 +210,12 @@ void test_dense_types(const T1& type1, const T2& type2, const T3& type3) {
   VERIFY(src == nullptr);
 }
 
-EIGEN_DECLARE_TEST(serializer) {
-  test_pod_type();
+// =============================================================================
+// Tests for serializer
+// =============================================================================
+TEST(SerializerTest, PodType) { test_pod_type(); }
 
+TEST(SerializerTest, EigenTypes) {
   for (int i = 0; i < g_repeat; i++) {
     test_eigen_type(Eigen::Array33f());
     test_eigen_type(Eigen::ArrayXd(10));

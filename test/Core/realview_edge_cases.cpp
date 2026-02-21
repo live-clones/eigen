@@ -11,7 +11,10 @@
 
 #include "realview_helpers.h"
 
-EIGEN_DECLARE_TEST(realview_edge_cases) {
+// =============================================================================
+// Tests for realview_edge_cases
+// =============================================================================
+TEST(RealviewEdgeCasesTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     test_edge_cases(std::complex<float>());
     test_edge_cases(std::complex<double>());

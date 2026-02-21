@@ -207,28 +207,51 @@ void adjoint_extra() {
   a = a.transpose();
 }
 
-EIGEN_DECLARE_TEST(adjoint) {
+// =============================================================================
+// Tests for adjoint
+// =============================================================================
+TEST(AdjointTest, FixedSmall) {
   for (int i = 0; i < g_repeat; i++) {
     adjoint(Matrix<float, 1, 1>());
     adjoint(Matrix3d());
     adjoint(Matrix4f());
+    adjoint(Matrix2d());
+  }
+}
 
+TEST(AdjointTest, DynamicComplex) {
+  for (int i = 0; i < g_repeat; i++) {
     adjoint(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
                       internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+  }
+}
+
+TEST(AdjointTest, DynamicInt) {
+  for (int i = 0; i < g_repeat; i++) {
     adjoint(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(AdjointTest, DynamicFloat) {
+  for (int i = 0; i < g_repeat; i++) {
     adjoint(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
 
-    // Complement for 128 bits vectorization:
-    adjoint(Matrix2d());
+TEST(AdjointTest, SIMD) {
+  for (int i = 0; i < g_repeat; i++) {
+    // 128 bits vectorization:
     adjoint(Matrix<int, 4, 4>());
-
     // 256 bits vectorization:
     adjoint(Matrix<float, 8, 8>());
     adjoint(Matrix<double, 4, 4>());
     adjoint(Matrix<int, 8, 8>());
   }
+}
+
+TEST(AdjointTest, LargeStatic) {
   // test a large static matrix only once
   adjoint(Matrix<float, 100, 100>());
-
-  adjoint_extra<0>();
 }
+
+TEST(AdjointTest, Extra) { adjoint_extra<0>(); }

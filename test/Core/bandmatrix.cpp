@@ -55,7 +55,10 @@ void bandmatrix(const MatrixType& _m) {
 
 using Eigen::internal::BandMatrix;
 
-EIGEN_DECLARE_TEST(bandmatrix) {
+// =============================================================================
+// Tests for bandmatrix
+// =============================================================================
+TEST(BandMatrixTest, Basic) {
   for (int i = 0; i < 10 * g_repeat; i++) {
     Index rows = internal::random<Index>(1, 10);
     Index cols = internal::random<Index>(1, 10);

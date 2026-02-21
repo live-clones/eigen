@@ -178,19 +178,38 @@ void bug1684() {
   // VERIFY_IS_APPROX(m2, m1.rowwise().reverse().eval());
 }
 
-EIGEN_DECLARE_TEST(array_reverse) {
+// =============================================================================
+// Tests for array_reverse
+// =============================================================================
+TEST(ArrayReverseTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
     reverse(Matrix<float, 1, 1>());
     reverse(Matrix2f());
     reverse(Matrix4f());
     reverse(Matrix4d());
+  }
+}
+
+TEST(ArrayReverseTest, Dynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     reverse(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     reverse(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     reverse(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(ArrayReverseTest, LargeAndRowMajor) {
+  for (int i = 0; i < g_repeat; i++) {
     reverse(Matrix<float, 100, 100>());
     reverse(Matrix<float, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                       internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(ArrayReverseTest, Bug1684) {
+  for (int i = 0; i < g_repeat; i++) {
     bug1684<0>();
   }
-  array_reverse_extra<0>();
 }
+
+TEST(ArrayReverseTest, Extra) { array_reverse_extra<0>(); }

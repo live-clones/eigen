@@ -61,12 +61,20 @@ void replicate(const MatrixType& m) {
   VERIFY_IS_APPROX(vx1, v1.colwise().replicate(f2));
 }
 
-EIGEN_DECLARE_TEST(array_replicate) {
+// =============================================================================
+// Tests for array_replicate
+// =============================================================================
+TEST(ArrayReplicateTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
     replicate(Matrix<float, 1, 1>());
     replicate(Vector2f());
     replicate(Vector3d());
     replicate(Vector4f());
+  }
+}
+
+TEST(ArrayReplicateTest, Dynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     replicate(VectorXf(16));
     replicate(VectorXcd(10));
   }

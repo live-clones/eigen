@@ -63,7 +63,10 @@ void product_selfadjoint(const MatrixType& m) {
   VERIFY_IS_APPROX(m1 * m4, m2.template selfadjointView<Lower>() * m4);
 }
 
-EIGEN_DECLARE_TEST(product_selfadjoint) {
+// =============================================================================
+// Tests for product_selfadjoint
+// =============================================================================
+TEST(ProductSelfadjointTest, Basic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     product_selfadjoint(Matrix<float, 1, 1>());

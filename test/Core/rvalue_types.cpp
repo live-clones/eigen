@@ -104,15 +104,18 @@ void rvalue_move(const MatrixType& m) {
   VERIFY_IS_EQUAL(g_dst, m);
 }
 
-EIGEN_DECLARE_TEST(rvalue_types) {
+TEST(RvalueTypesTest, CopyAssignMatrix) {
   for (int i = 0; i < g_repeat; i++) {
     rvalue_copyassign(MatrixXf::Random(50, 50).eval());
-    rvalue_copyassign(ArrayXXf::Random(50, 50).eval());
-
     rvalue_copyassign(Matrix<float, 1, Dynamic>::Random(50).eval());
-    rvalue_copyassign(Array<float, 1, Dynamic>::Random(50).eval());
-
     rvalue_copyassign(Matrix<float, Dynamic, 1>::Random(50).eval());
+  }
+}
+
+TEST(RvalueTypesTest, CopyAssignArray) {
+  for (int i = 0; i < g_repeat; i++) {
+    rvalue_copyassign(ArrayXXf::Random(50, 50).eval());
+    rvalue_copyassign(Array<float, 1, Dynamic>::Random(50).eval());
     rvalue_copyassign(Array<float, Dynamic, 1>::Random(50).eval());
 
     rvalue_copyassign(Array<float, 2, 1>::Random().eval());
@@ -122,13 +125,20 @@ EIGEN_DECLARE_TEST(rvalue_types) {
     rvalue_copyassign(Array<float, 2, 2>::Random().eval());
     rvalue_copyassign(Array<float, 3, 3>::Random().eval());
     rvalue_copyassign(Array<float, 4, 4>::Random().eval());
+  }
+}
 
-    (rvalue_transpositions<PermutationMatrix<Dynamic, Dynamic, int> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (rvalue_transpositions<PermutationMatrix<Dynamic, Dynamic, Index> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+TEST(RvalueTypesTest, Transpositions) {
+  for (int i = 0; i < g_repeat; i++) {
+    rvalue_transpositions<PermutationMatrix<Dynamic, Dynamic, int> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    rvalue_transpositions<PermutationMatrix<Dynamic, Dynamic, Index> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    rvalue_transpositions<Transpositions<Dynamic, Dynamic, int> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    rvalue_transpositions<Transpositions<Dynamic, Dynamic, Index> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+  }
+}
 
-    (rvalue_transpositions<Transpositions<Dynamic, Dynamic, int> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (rvalue_transpositions<Transpositions<Dynamic, Dynamic, Index> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-
+TEST(RvalueTypesTest, Move) {
+  for (int i = 0; i < g_repeat; i++) {
     rvalue_move(Eigen::Matrix<MovableScalar<float>, 1, 3>::Random().eval());
     rvalue_move(Eigen::Matrix<SafeScalar<float>, 1, 3>::Random().eval());
     rvalue_move(Eigen::Matrix<SafeScalar<float>, Eigen::Dynamic, Eigen::Dynamic>::Random(1, 3).eval());

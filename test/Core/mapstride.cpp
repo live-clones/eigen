@@ -234,39 +234,73 @@ void bug1453() {
   VERIFY_IS_APPROX(RowMatrix32i::Map(data, InnerStride<>(2)), RowMatrixXi::Map(data, 3, 2, Stride<4, 2>()));
 }
 
-EIGEN_DECLARE_TEST(mapstride) {
+// =============================================================================
+// Tests for mapstride
+// =============================================================================
+TEST(MapStrideTest, VectorFixed) {
   for (int i = 0; i < g_repeat; i++) {
-    int maxn = 3;
     map_class_vector<Aligned>(Matrix<float, 1, 1>());
     map_class_vector<Unaligned>(Matrix<float, 1, 1>());
     map_class_vector<Aligned>(Vector4d());
     map_class_vector<Unaligned>(Vector4d());
+  }
+}
+
+TEST(MapStrideTest, VectorFixedRow) {
+  for (int i = 0; i < g_repeat; i++) {
     map_class_vector<Aligned>(RowVector4f());
     map_class_vector<Unaligned>(RowVector4f());
+  }
+}
+
+TEST(MapStrideTest, VectorDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    int maxn = 3;
     map_class_vector<Aligned>(VectorXcf(internal::random<int>(1, maxn)));
     map_class_vector<Unaligned>(VectorXcf(internal::random<int>(1, maxn)));
     map_class_vector<Aligned>(VectorXi(internal::random<int>(1, maxn)));
     map_class_vector<Unaligned>(VectorXi(internal::random<int>(1, maxn)));
+  }
+}
 
+TEST(MapStrideTest, MatrixFixedSmall) {
+  for (int i = 0; i < g_repeat; i++) {
     map_class_matrix<Aligned>(Matrix<float, 1, 1>());
     map_class_matrix<Unaligned>(Matrix<float, 1, 1>());
     map_class_matrix<Aligned>(Matrix4d());
     map_class_matrix<Unaligned>(Matrix4d());
+  }
+}
+
+TEST(MapStrideTest, MatrixFixedLarger) {
+  for (int i = 0; i < g_repeat; i++) {
     map_class_matrix<Aligned>(Matrix<float, 3, 5>());
     map_class_matrix<Unaligned>(Matrix<float, 3, 5>());
     map_class_matrix<Aligned>(Matrix<float, 4, 8>());
     map_class_matrix<Unaligned>(Matrix<float, 4, 8>());
-    map_class_matrix<Aligned>(MatrixXcf(internal::random<int>(1, maxn), internal::random<int>(1, maxn)));
+  }
+}
 
+TEST(MapStrideTest, MatrixDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    int maxn = 3;
+    map_class_matrix<Aligned>(MatrixXcf(internal::random<int>(1, maxn), internal::random<int>(1, maxn)));
     map_class_matrix<Unaligned>(MatrixXcf(internal::random<int>(1, maxn), internal::random<int>(1, maxn)));
     map_class_matrix<Aligned>(MatrixXi(internal::random<int>(1, maxn), internal::random<int>(1, maxn)));
     map_class_matrix<Unaligned>(MatrixXi(internal::random<int>(1, maxn), internal::random<int>(1, maxn)));
+  }
+}
+
+TEST(MapStrideTest, MatrixDynamicComplex) {
+  for (int i = 0; i < g_repeat; i++) {
+    int maxn = 3;
     map_class_matrix<Aligned>(MatrixXcd(internal::random<int>(1, maxn), internal::random<int>(1, maxn)));
-
     map_class_matrix<Unaligned>(MatrixXcd(internal::random<int>(1, maxn), internal::random<int>(1, maxn)));
+  }
+}
 
+TEST(MapStrideTest, Bug1453) {
+  for (int i = 0; i < g_repeat; i++) {
     bug1453<0>();
-
-    TEST_SET_BUT_UNUSED_VARIABLE(maxn);
   }
 }

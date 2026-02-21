@@ -7,7 +7,10 @@
 
 #include "packetmath_test_helpers.h"
 
-EIGEN_DECLARE_TEST(packetmath_float) {
+// =============================================================================
+// Tests for packetmath_float
+// =============================================================================
+TEST(PacketmathFloatTest, Basic) {
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
     test::runner<float>::run();

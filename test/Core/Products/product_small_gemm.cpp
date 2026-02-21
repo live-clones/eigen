@@ -9,7 +9,10 @@
 
 #include "product_small_helpers.h"
 
-EIGEN_DECLARE_TEST(product_small_gemm) {
+// =============================================================================
+// Tests for product_small_gemm
+// =============================================================================
+TEST(ProductSmallGemmTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     product(Matrix<int, 3, 17>());
     product(Matrix<double, 3, 17>());

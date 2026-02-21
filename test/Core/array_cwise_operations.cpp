@@ -9,24 +9,35 @@
 
 #include "array_cwise_helpers.h"
 
-EIGEN_DECLARE_TEST(array_cwise_operations) {
+// =============================================================================
+// Tests for array_cwise_operations
+// =============================================================================
+TEST(ArrayCwiseOperationsTest, Generic) {
   for (int i = 0; i < g_repeat; i++) {
     array_generic(Array<float, 1, 1>());
     array_generic(Array22f());
     array_generic(
         ArrayXXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayCwiseOperationsTest, Comparisons) {
   for (int i = 0; i < g_repeat; i++) {
     comparisons(Array<float, 1, 1>());
     comparisons(Array22f());
     comparisons(ArrayXXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayCwiseOperationsTest, MinMax) {
   for (int i = 0; i < g_repeat; i++) {
     min_max(Array<float, 1, 1>());
     min_max(Array22f());
     min_max(ArrayXXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
 
+TEST(ArrayCwiseOperationsTest, TypeTraits) {
   VERIFY((internal::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
   VERIFY((internal::is_same<internal::global_math_functions_filtering_base<float>::type, float>::value));
   VERIFY((internal::is_same<internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i>>::value));

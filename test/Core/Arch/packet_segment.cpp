@@ -162,7 +162,10 @@ void test_packet_segment() {
   packet_segment_test_driver<Scalar, internal::packet_traits<Scalar>::size>::run();
 }
 
-EIGEN_DECLARE_TEST(packet_segment) {
+// =============================================================================
+// Tests for packet_segment
+// =============================================================================
+TEST(PacketSegmentTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     test_packet_segment<bool>();
     test_packet_segment<int8_t>();

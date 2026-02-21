@@ -29,7 +29,7 @@
     VERIFY((AnnoyingScalar::dont_throw) || (exception_thrown && " no exception thrown in " && EIGEN_MAKESTRING(OP))); \
   }
 
-EIGEN_DECLARE_TEST(exceptions) {
+TEST(ExceptionsTest, Exceptions) {
   typedef Eigen::Matrix<AnnoyingScalar, Dynamic, 1> VectorType;
   typedef Eigen::Matrix<AnnoyingScalar, Dynamic, Dynamic> MatrixType;
 

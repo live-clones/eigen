@@ -9,13 +9,21 @@
 
 #include "array_cwise_helpers.h"
 
-EIGEN_DECLARE_TEST(array_cwise_cast) {
+// =============================================================================
+// Tests for array_cwise_cast
+// =============================================================================
+TEST(ArrayCwiseCastTest, FixedSmall) {
   for (int i = 0; i < g_repeat; i++) {
-    (cast_test<1, 1>());
-    (cast_test<3, 1>());
-    (cast_test<5, 1>());
-    (cast_test<9, 1>());
-    (cast_test<17, 1>());
-    (cast_test<Dynamic, 1>());
+    cast_test<1, 1>();
+    cast_test<3, 1>();
+    cast_test<5, 1>();
+  }
+}
+
+TEST(ArrayCwiseCastTest, FixedLargeAndDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    cast_test<9, 1>();
+    cast_test<17, 1>();
+    cast_test<Dynamic, 1>();
   }
 }

@@ -133,30 +133,46 @@ void noncopyable() {
   VERIFY(AnnoyingScalar::instances == 0 && "global memory leak detected in noncopyable");
 }
 
-EIGEN_DECLARE_TEST(conservative_resize) {
+// =============================================================================
+// Tests for conservative_resize
+// =============================================================================
+TEST(ConservativeResizeTest, MatrixRowMajor) {
   for (int i = 0; i < g_repeat; ++i) {
-    (run_matrix_tests<int, Eigen::RowMajor>());
-    (run_matrix_tests<int, Eigen::ColMajor>());
-    (run_matrix_tests<float, Eigen::RowMajor>());
-    (run_matrix_tests<float, Eigen::ColMajor>());
-    (run_matrix_tests<double, Eigen::RowMajor>());
-    (run_matrix_tests<double, Eigen::ColMajor>());
-    (run_matrix_tests<std::complex<float>, Eigen::RowMajor>());
-    (run_matrix_tests<std::complex<float>, Eigen::ColMajor>());
-    (run_matrix_tests<std::complex<double>, Eigen::RowMajor>());
-    (run_matrix_tests<std::complex<double>, Eigen::ColMajor>());
-    (run_matrix_tests<int, Eigen::RowMajor | Eigen::DontAlign>());
+    run_matrix_tests<int, Eigen::RowMajor>();
+    run_matrix_tests<float, Eigen::RowMajor>();
+    run_matrix_tests<double, Eigen::RowMajor>();
+    run_matrix_tests<std::complex<float>, Eigen::RowMajor>();
+    run_matrix_tests<std::complex<double>, Eigen::RowMajor>();
+    run_matrix_tests<int, Eigen::RowMajor | Eigen::DontAlign>();
+  }
+}
 
-    (run_vector_tests<int>());
-    (run_vector_tests<float>());
-    (run_vector_tests<double>());
-    (run_vector_tests<std::complex<float> >());
-    (run_vector_tests<std::complex<double> >());
+TEST(ConservativeResizeTest, MatrixColMajor) {
+  for (int i = 0; i < g_repeat; ++i) {
+    run_matrix_tests<int, Eigen::ColMajor>();
+    run_matrix_tests<float, Eigen::ColMajor>();
+    run_matrix_tests<double, Eigen::ColMajor>();
+    run_matrix_tests<std::complex<float>, Eigen::ColMajor>();
+    run_matrix_tests<std::complex<double>, Eigen::ColMajor>();
+  }
+}
 
+TEST(ConservativeResizeTest, Vector) {
+  for (int i = 0; i < g_repeat; ++i) {
+    run_vector_tests<int>();
+    run_vector_tests<float>();
+    run_vector_tests<double>();
+    run_vector_tests<std::complex<float> >();
+    run_vector_tests<std::complex<double> >();
+  }
+}
+
+TEST(ConservativeResizeTest, AnnoyingScalar) {
+  for (int i = 0; i < g_repeat; ++i) {
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
     AnnoyingScalar::dont_throw = true;
 #endif
-    (run_vector_tests<AnnoyingScalar>());
-    (noncopyable<0>());
+    run_vector_tests<AnnoyingScalar>();
+    noncopyable<0>();
   }
 }

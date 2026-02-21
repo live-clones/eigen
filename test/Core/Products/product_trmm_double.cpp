@@ -11,7 +11,10 @@
 
 #include "product_trmm_helpers.h"
 
-EIGEN_DECLARE_TEST(product_trmm_double) {
+// =============================================================================
+// Tests for product_trmm_double
+// =============================================================================
+TEST(ProductTrmmDoubleTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_ALL(double);
   }

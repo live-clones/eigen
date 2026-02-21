@@ -97,13 +97,18 @@ void test_unaryview_solve() {
   //             .solve(mat_in.unaryViewExpr([&](const auto& x){ return std::real(x); }));
 }
 
-EIGEN_DECLARE_TEST(unaryviewstride) {
-  (unaryview_stride<1, 2>(MatrixXf()));
-  (unaryview_stride<0, 0>(MatrixXf()));
-  (unaryview_stride<1, 2>(VectorXf()));
-  (unaryview_stride<0, 0>(VectorXf()));
-  (unaryview_stride<1, 2>(RowVectorXf()));
-  (unaryview_stride<0, 0>(RowVectorXf()));
-  test_mutable_unaryview();
-  test_unaryview_solve();
+// =============================================================================
+// Tests for unaryview
+// =============================================================================
+TEST(UnaryViewTest, Stride) {
+  unaryview_stride<1, 2>(MatrixXf());
+  unaryview_stride<0, 0>(MatrixXf());
+  unaryview_stride<1, 2>(VectorXf());
+  unaryview_stride<0, 0>(VectorXf());
+  unaryview_stride<1, 2>(RowVectorXf());
+  unaryview_stride<0, 0>(RowVectorXf());
 }
+
+TEST(UnaryViewTest, MutableUnaryView) { test_mutable_unaryview(); }
+
+TEST(UnaryViewTest, UnaryViewSolve) { test_unaryview_solve(); }

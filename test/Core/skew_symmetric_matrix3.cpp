@@ -185,7 +185,10 @@ void exponentialRotation() {
 
 }  // namespace
 
-EIGEN_DECLARE_TEST(skew_symmetric_matrix3) {
+// =============================================================================
+// Tests for skew_symmetric_matrix3
+// =============================================================================
+TEST(SkewSymmetricMatrix3Test, BasicOps) {
   for (int i = 0; i < g_repeat; i++) {
     constructors<float>();
     constructors<double>();
@@ -202,7 +205,11 @@ EIGEN_DECLARE_TEST(skew_symmetric_matrix3) {
     traceAndDet<double>();
     transpose<float>();
     transpose<double>();
+  }
+}
 
+TEST(SkewSymmetricMatrix3Test, Exponential) {
+  for (int i = 0; i < g_repeat; i++) {
     exponentialIdentity<float>();
     exponentialIdentity<double>();
     exponentialOrthogonality<float>();

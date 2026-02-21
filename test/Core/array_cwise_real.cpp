@@ -9,15 +9,26 @@
 
 #include "array_cwise_helpers.h"
 
-EIGEN_DECLARE_TEST(array_cwise_real) {
+// =============================================================================
+// Tests for array_cwise_real
+// =============================================================================
+TEST(ArrayCwiseRealTest, RealFixed) {
   for (int i = 0; i < g_repeat; i++) {
     array_real(Array<float, 1, 1>());
     array_real(Array22f());
     array_real(Array44d());
+  }
+}
+
+TEST(ArrayCwiseRealTest, RealDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     array_real(ArrayXXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     array_real(Array<Eigen::half, 32, 32>());
     array_real(Array<Eigen::bfloat16, 32, 32>());
   }
+}
+
+TEST(ArrayCwiseRealTest, Complex) {
   for (int i = 0; i < g_repeat; i++) {
     array_complex(
         ArrayXXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));

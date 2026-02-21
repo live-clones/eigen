@@ -39,13 +39,26 @@ void dontalign(const MatrixType& m) {
   internal::aligned_delete(array, rows);
 }
 
-EIGEN_DECLARE_TEST(dontalign) {
-  dontalign(Matrix3d());
-  dontalign(Matrix4f());
-  dontalign(Matrix3cd());
-  dontalign(Matrix4cf());
-  dontalign(Matrix<float, 32, 32>());
-  dontalign(Matrix<std::complex<float>, 32, 32>());
-  dontalign(MatrixXd(32, 32));
-  dontalign(MatrixXcf(32, 32));
+template <typename MatrixType>
+MatrixType make_square_test_matrix() {
+  // Cap dynamic sizes at 32 to avoid determinant overflow/underflow in inverse tests.
+  const int size =
+      (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, 32) : MatrixType::RowsAtCompileTime;
+  return MatrixType(size, size);
+}
+
+// =============================================================================
+// Typed test suite for dontalign
+// =============================================================================
+template <typename T>
+class DontAlignTest : public ::testing::Test {};
+
+using DontAlignTypes = ::testing::Types<Matrix3d, Matrix4f, Matrix3cd, Matrix4cf, Matrix<float, 32, 32>,
+                                        Matrix<std::complex<float>, 32, 32>, MatrixXd, MatrixXcf>;
+TYPED_TEST_SUITE(DontAlignTest, DontAlignTypes);
+
+TYPED_TEST(DontAlignTest, DontAlign) {
+  for (int i = 0; i < g_repeat; i++) {
+    dontalign(make_square_test_matrix<TypeParam>());
+  }
 }

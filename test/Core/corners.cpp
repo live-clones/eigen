@@ -110,16 +110,34 @@ void corners_fixedsize() {
   VERIFY_IS_EQUAL((const_matrix.template rightCols<c>()), (const_matrix.template block<rows, c>(0, cols - c)));
 }
 
-EIGEN_DECLARE_TEST(corners) {
-  for (int i = 0; i < g_repeat; i++) {
-    corners(Matrix<float, 1, 1>());
-    corners(Matrix4d());
-    corners(Matrix<int, 10, 12>());
-    corners(MatrixXcf(5, 7));
-    corners(MatrixXf(21, 20));
+template <typename MatrixType>
+MatrixType make_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
+                                                              : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
 
-    (corners_fixedsize<Matrix<float, 1, 1>, 1, 1, 0, 0>());
-    (corners_fixedsize<Matrix4d, 2, 2, 1, 1>());
-    (corners_fixedsize<Matrix<int, 10, 12>, 4, 7, 5, 2>());
+// =============================================================================
+// Typed test suite for corners
+// =============================================================================
+template <typename T>
+class CornersTest : public ::testing::Test {};
+
+using CornersTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, Matrix<int, 10, 12>, MatrixXcf, MatrixXf>;
+TYPED_TEST_SUITE(CornersTest, CornersTypes);
+
+TYPED_TEST(CornersTest, Corners) {
+  for (int i = 0; i < g_repeat; i++) {
+    corners(make_test_matrix<TypeParam>());
+  }
+}
+
+TEST(CornersTest, CornersFixedSize) {
+  for (int i = 0; i < g_repeat; i++) {
+    corners_fixedsize<Matrix<float, 1, 1>, 1, 1, 0, 0>();
+    corners_fixedsize<Matrix4d, 2, 2, 1, 1>();
+    corners_fixedsize<Matrix<int, 10, 12>, 4, 7, 5, 2>();
   }
 }

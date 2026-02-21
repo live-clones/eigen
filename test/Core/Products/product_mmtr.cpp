@@ -101,7 +101,10 @@ void mmtr(int size) {
   }
 }
 
-EIGEN_DECLARE_TEST(product_mmtr) {
+// =============================================================================
+// Tests for product_mmtr
+// =============================================================================
+TEST(ProductMmtrTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (mmtr<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     (mmtr<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));

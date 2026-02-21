@@ -11,7 +11,10 @@
 
 #include "product_large_helpers.h"
 
-EIGEN_DECLARE_TEST(product_large_real) {
+// =============================================================================
+// Tests for product_large_real
+// =============================================================================
+TEST(ProductLargeRealTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     product(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     product(MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));

@@ -192,38 +192,20 @@ struct check_rsqrt_impl<std::complex<T> > {
       VERIFY_IS_APPROX(rsqrtx * rsqrtx, invx);
     }
 
-// GCC and MSVC differ in their treatment of 1/(0 + 0i)
-//   GCC/clang = (inf, nan)
-//   MSVC = (nan, nan)
-// and 1 / (x + inf i)
-//   GCC/clang = (0, 0)
-//   MSVC = (nan, nan)
 #if (EIGEN_COMP_GNUC)
     {
       const int kNumCorners = 20;
       const ComplexT corners[kNumCorners][2] = {
-          // Only consistent across GCC, clang
-          {ComplexT(zero, zero), ComplexT(zero, zero)},
-          {ComplexT(-zero, zero), ComplexT(zero, zero)},
-          {ComplexT(zero, -zero), ComplexT(zero, zero)},
-          {ComplexT(-zero, -zero), ComplexT(zero, zero)},
-          {ComplexT(one, inf), ComplexT(inf, inf)},
-          {ComplexT(nan, inf), ComplexT(inf, inf)},
-          {ComplexT(one, -inf), ComplexT(inf, -inf)},
-          {ComplexT(nan, -inf), ComplexT(inf, -inf)},
-          // Consistent across GCC, clang, MSVC
-          {ComplexT(-inf, one), ComplexT(zero, inf)},
-          {ComplexT(inf, one), ComplexT(inf, zero)},
-          {ComplexT(-inf, -one), ComplexT(zero, -inf)},
-          {ComplexT(inf, -one), ComplexT(inf, -zero)},
-          {ComplexT(-inf, nan), ComplexT(nan, inf)},
-          {ComplexT(inf, nan), ComplexT(inf, nan)},
-          {ComplexT(zero, nan), ComplexT(nan, nan)},
-          {ComplexT(one, nan), ComplexT(nan, nan)},
-          {ComplexT(nan, zero), ComplexT(nan, nan)},
-          {ComplexT(nan, one), ComplexT(nan, nan)},
-          {ComplexT(nan, -one), ComplexT(nan, nan)},
-          {ComplexT(nan, nan), ComplexT(nan, nan)},
+          {ComplexT(zero, zero), ComplexT(zero, zero)},  {ComplexT(-zero, zero), ComplexT(zero, zero)},
+          {ComplexT(zero, -zero), ComplexT(zero, zero)}, {ComplexT(-zero, -zero), ComplexT(zero, zero)},
+          {ComplexT(one, inf), ComplexT(inf, inf)},      {ComplexT(nan, inf), ComplexT(inf, inf)},
+          {ComplexT(one, -inf), ComplexT(inf, -inf)},    {ComplexT(nan, -inf), ComplexT(inf, -inf)},
+          {ComplexT(-inf, one), ComplexT(zero, inf)},    {ComplexT(inf, one), ComplexT(inf, zero)},
+          {ComplexT(-inf, -one), ComplexT(zero, -inf)},  {ComplexT(inf, -one), ComplexT(inf, -zero)},
+          {ComplexT(-inf, nan), ComplexT(nan, inf)},     {ComplexT(inf, nan), ComplexT(inf, nan)},
+          {ComplexT(zero, nan), ComplexT(nan, nan)},     {ComplexT(one, nan), ComplexT(nan, nan)},
+          {ComplexT(nan, zero), ComplexT(nan, nan)},     {ComplexT(nan, one), ComplexT(nan, nan)},
+          {ComplexT(nan, -one), ComplexT(nan, nan)},     {ComplexT(nan, nan), ComplexT(nan, nan)},
       };
 
       for (int i = 0; i < kNumCorners; ++i) {
@@ -256,12 +238,10 @@ struct check_signbit_impl {
       negative_values = {static_cast<T>(-1), static_cast<T>(NumTraits<T>::lowest())};
       non_negative_values = {static_cast<T>(0), static_cast<T>(1), static_cast<T>(NumTraits<T>::highest())};
     } else {
-      // does not have sign bit
       const T pos_zero = static_cast<T>(0.0);
       const T pos_one = static_cast<T>(1.0);
       const T pos_inf = std::numeric_limits<T>::infinity();
       const T pos_nan = std::numeric_limits<T>::quiet_NaN();
-      // has sign bit
       const T neg_zero = numext::negate(pos_zero);
       const T neg_one = numext::negate(pos_one);
       const T neg_inf = numext::negate(pos_inf);
@@ -313,7 +293,10 @@ void check_shift() {
   }
 }
 
-EIGEN_DECLARE_TEST(numext) {
+// =============================================================================
+// Tests for numext
+// =============================================================================
+TEST(NumextTest, NegateInteger) {
   for (int k = 0; k < g_repeat; ++k) {
     check_negate<signed char>();
     check_negate<unsigned char>();
@@ -323,6 +306,11 @@ EIGEN_DECLARE_TEST(numext) {
     check_negate<unsigned int>();
     check_negate<long>();
     check_negate<unsigned long>();
+  }
+}
+
+TEST(NumextTest, NegateFloat) {
+  for (int k = 0; k < g_repeat; ++k) {
     check_negate<half>();
     check_negate<bfloat16>();
     check_negate<float>();
@@ -330,7 +318,11 @@ EIGEN_DECLARE_TEST(numext) {
     check_negate<long double>();
     check_negate<std::complex<float> >();
     check_negate<std::complex<double> >();
+  }
+}
 
+TEST(NumextTest, AbsInteger) {
+  for (int k = 0; k < g_repeat; ++k) {
     check_abs<bool>();
     check_abs<signed char>();
     check_abs<unsigned char>();
@@ -340,6 +332,11 @@ EIGEN_DECLARE_TEST(numext) {
     check_abs<unsigned int>();
     check_abs<long>();
     check_abs<unsigned long>();
+  }
+}
+
+TEST(NumextTest, AbsFloat) {
+  for (int k = 0; k < g_repeat; ++k) {
     check_abs<half>();
     check_abs<bfloat16>();
     check_abs<float>();
@@ -347,7 +344,11 @@ EIGEN_DECLARE_TEST(numext) {
     check_abs<long double>();
     check_abs<std::complex<float> >();
     check_abs<std::complex<double> >();
+  }
+}
 
+TEST(NumextTest, SqrtRsqrtArg) {
+  for (int k = 0; k < g_repeat; ++k) {
     check_arg<std::complex<float> >();
     check_arg<std::complex<double> >();
 
@@ -360,12 +361,20 @@ EIGEN_DECLARE_TEST(numext) {
     check_rsqrt<double>();
     check_rsqrt<std::complex<float> >();
     check_rsqrt<std::complex<double> >();
+  }
+}
 
+TEST(NumextTest, SignbitFloat) {
+  for (int k = 0; k < g_repeat; ++k) {
     check_signbit<half>();
     check_signbit<bfloat16>();
     check_signbit<float>();
     check_signbit<double>();
+  }
+}
 
+TEST(NumextTest, SignbitInteger) {
+  for (int k = 0; k < g_repeat; ++k) {
     check_signbit<uint8_t>();
     check_signbit<uint16_t>();
     check_signbit<uint32_t>();
@@ -375,7 +384,11 @@ EIGEN_DECLARE_TEST(numext) {
     check_signbit<int16_t>();
     check_signbit<int32_t>();
     check_signbit<int64_t>();
+  }
+}
 
+TEST(NumextTest, Shift) {
+  for (int k = 0; k < g_repeat; ++k) {
     check_shift<int8_t>();
     check_shift<int16_t>();
     check_shift<int32_t>();

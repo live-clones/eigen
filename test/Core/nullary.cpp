@@ -297,29 +297,51 @@ void nullary_internal_logic() {
   }
 }
 
-EIGEN_DECLARE_TEST(nullary) {
+// =============================================================================
+// Tests for nullary
+// =============================================================================
+TEST(NullaryTest, MatrixType) {
   testMatrixType(Matrix2d());
   testMatrixType(MatrixXcf(internal::random<int>(1, 300), internal::random<int>(1, 300)));
   testMatrixType(MatrixXf(internal::random<int>(1, 300), internal::random<int>(1, 300)));
+}
 
+TEST(NullaryTest, VectorComplex) {
   for (int i = 0; i < g_repeat * 10; i++) {
     testVectorType(VectorXcd(internal::random<int>(1, 30000)));
+  }
+}
+
+TEST(NullaryTest, VectorDouble) {
+  for (int i = 0; i < g_repeat * 10; i++) {
     testVectorType(VectorXd(internal::random<int>(1, 30000)));
     testVectorType(Vector4d());  // regression test for bug 232
     testVectorType(Vector3d());
+  }
+}
+
+TEST(NullaryTest, VectorFloat) {
+  for (int i = 0; i < g_repeat * 10; i++) {
     testVectorType(VectorXf(internal::random<int>(1, 30000)));
     testVectorType(Vector3f());
     testVectorType(Vector4f());
     testVectorType(Matrix<float, 8, 1>());
     testVectorType(Matrix<float, 1, 1>());
+  }
+}
 
+TEST(NullaryTest, VectorInt) {
+  for (int i = 0; i < g_repeat * 10; i++) {
     testVectorType(VectorXi(internal::random<int>(1, 10)));
     testVectorType(VectorXi(internal::random<int>(9, 300)));
     testVectorType(Matrix<int, 1, 1>());
   }
-
-  bug79<0>();
-  bug1630<0>();
-  nullary_overflow<0>();
-  nullary_internal_logic<0>();
 }
+
+TEST(NullaryTest, Bug79) { bug79<0>(); }
+
+TEST(NullaryTest, Bug1630) { bug1630<0>(); }
+
+TEST(NullaryTest, Overflow) { nullary_overflow<0>(); }
+
+TEST(NullaryTest, InternalLogic) { nullary_internal_logic<0>(); }

@@ -61,12 +61,17 @@ void test_clz_ctz_random() {
   }
 }
 
-EIGEN_DECLARE_TEST(clz) {
+// =============================================================================
+// Tests for clz
+// =============================================================================
+TEST(ClzTest, Exhaustive) {
   test_clz_ctz<uint8_t>();
   test_clz_ctz<uint16_t>();
   test_clz_ctz<uint32_t>();
   test_clz_ctz<uint64_t>();
+}
 
+TEST(ClzTest, Random) {
   for (int i = 0; i < g_repeat; i++) {
     test_clz_ctz_random<uint32_t>();
     test_clz_ctz_random<uint64_t>();

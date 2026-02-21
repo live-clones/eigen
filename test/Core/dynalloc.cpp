@@ -111,22 +111,25 @@ void check_custom_new_delete() {
 #endif
 }
 
-EIGEN_DECLARE_TEST(dynalloc) {
-  // low level dynamic memory allocation
-  check_handmade_aligned_malloc();
-  check_aligned_malloc();
-  check_aligned_new();
-  check_aligned_stack_alloc();
+TEST(DynAllocTest, HandmadeAlignedMalloc) { check_handmade_aligned_malloc(); }
 
+TEST(DynAllocTest, AlignedMalloc) { check_aligned_malloc(); }
+
+TEST(DynAllocTest, AlignedNew) { check_aligned_new(); }
+
+TEST(DynAllocTest, AlignedStackAlloc) { check_aligned_stack_alloc(); }
+
+TEST(DynAllocTest, CustomNewDelete) {
   for (int i = 0; i < g_repeat * 100; ++i) {
     check_custom_new_delete<Vector4f>();
     check_custom_new_delete<Vector2f>();
     check_custom_new_delete<Matrix4f>();
     check_custom_new_delete<MatrixXi>();
   }
+}
 
-// check static allocation, who knows ?
 #if EIGEN_MAX_STATIC_ALIGN_BYTES
+TEST(DynAllocTest, DynAligned) {
   for (int i = 0; i < g_repeat * 100; ++i) {
     check_dynaligned<Vector4f>();
     check_dynaligned<Vector2d>();
@@ -136,15 +139,16 @@ EIGEN_DECLARE_TEST(dynalloc) {
     check_dynaligned<Vector8f>();
     check_dynaligned<Vector16f>();
   }
+}
 
-  {
-    MyStruct foo0;
-    VERIFY(std::uintptr_t(foo0.avec.data()) % ALIGNMENT == 0);
-    MyClassA fooA;
-    VERIFY(std::uintptr_t(fooA.avec.data()) % ALIGNMENT == 0);
-  }
+TEST(DynAllocTest, StaticAlignment) {
+  MyStruct foo0;
+  VERIFY(std::uintptr_t(foo0.avec.data()) % ALIGNMENT == 0);
+  MyClassA fooA;
+  VERIFY(std::uintptr_t(fooA.avec.data()) % ALIGNMENT == 0);
+}
 
-  // dynamic allocation, single object
+TEST(DynAllocTest, DynamicSingleObject) {
   for (int i = 0; i < g_repeat * 100; ++i) {
     MyStruct *foo0 = new MyStruct();
     VERIFY(std::uintptr_t(foo0->avec.data()) % ALIGNMENT == 0);
@@ -153,8 +157,9 @@ EIGEN_DECLARE_TEST(dynalloc) {
     delete foo0;
     delete fooA;
   }
+}
 
-  // dynamic allocation, array
+TEST(DynAllocTest, DynamicArray) {
   const int N = 10;
   for (int i = 0; i < g_repeat * 100; ++i) {
     MyStruct *foo0 = new MyStruct[N];
@@ -164,5 +169,5 @@ EIGEN_DECLARE_TEST(dynalloc) {
     delete[] foo0;
     delete[] fooA;
   }
-#endif
 }
+#endif

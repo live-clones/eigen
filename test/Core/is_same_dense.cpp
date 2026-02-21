@@ -11,7 +11,7 @@
 
 using internal::is_same_dense;
 
-EIGEN_DECLARE_TEST(is_same_dense) {
+TEST(IsSameDenseTest, IsSameDense) {
   typedef Matrix<double, Dynamic, Dynamic, ColMajor> ColMatrixXd;
   typedef Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor> ColMatrixXcd;
   ColMatrixXd m1(10, 10);

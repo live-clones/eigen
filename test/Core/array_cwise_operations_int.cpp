@@ -10,13 +10,21 @@
 
 #include "array_cwise_helpers.h"
 
-EIGEN_DECLARE_TEST(array_cwise_operations_int) {
+// =============================================================================
+// Tests for array_cwise_operations_int
+// =============================================================================
+TEST(ArrayCwiseOperationsIntTest, GenericMixed) {
   for (int i = 0; i < g_repeat; i++) {
     array_generic(Array44d());
     array_generic(
         ArrayXXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     array_generic(
         ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+TEST(ArrayCwiseOperationsIntTest, GenericIntegerTypes) {
+  for (int i = 0; i < g_repeat; i++) {
     array_generic(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                  internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
@@ -24,10 +32,16 @@ EIGEN_DECLARE_TEST(array_cwise_operations_int) {
     array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayCwiseOperationsIntTest, Comparisons) {
   for (int i = 0; i < g_repeat; i++) {
     comparisons(Array44d());
     comparisons(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
+}
+
+TEST(ArrayCwiseOperationsIntTest, MinMax) {
   for (int i = 0; i < g_repeat; i++) {
     min_max(Array44d());
     min_max(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));

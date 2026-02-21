@@ -41,7 +41,10 @@ struct Foo {
 Index Foo::object_count = 0;
 Index Foo::object_limit = 0;
 
-EIGEN_DECLARE_TEST(maxsizevector) {
+// =============================================================================
+// Tests for maxsizevector
+// =============================================================================
+TEST(MaxSizeVectorTest, Basic) {
   typedef MaxSizeVector<Foo> VectorX;
   Foo::object_count = 0;
   for (int r = 0; r < g_repeat; r++) {

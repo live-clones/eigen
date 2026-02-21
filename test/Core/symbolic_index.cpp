@@ -70,4 +70,4 @@ void check_symbolic_index() {
   }
 }
 
-EIGEN_DECLARE_TEST(symbolic_index) { check_symbolic_index(); }
+TEST(SymbolicIndexTest, SymbolicIndex) { check_symbolic_index(); }

@@ -11,7 +11,10 @@
 
 #include "realview_helpers.h"
 
-EIGEN_DECLARE_TEST(realview_dynamic_cplxdouble) {
+// =============================================================================
+// Tests for realview_dynamic_cplxdouble
+// =============================================================================
+TEST(RealviewDynamicCplxDoubleTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (test_realview_cplxdouble<Dynamic, Dynamic, Dynamic, Dynamic>());
     (test_realview_cplxdouble<Dynamic, Dynamic, 17, Dynamic>());
