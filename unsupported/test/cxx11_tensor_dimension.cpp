@@ -74,9 +74,9 @@ static void test_index_type_promotion() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_dimension) {
-  CALL_SUBTEST(test_dynamic_size());
-  CALL_SUBTEST(test_fixed_size());
-  CALL_SUBTEST(test_match());
-  CALL_SUBTEST(test_rank_zero());
-  CALL_SUBTEST(test_index_type_promotion());
+  test_dynamic_size();
+  test_fixed_size();
+  test_match();
+  test_rank_zero();
+  test_index_type_promotion();
 }

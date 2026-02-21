@@ -323,10 +323,10 @@ static void test_resize() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_simple) {
-  CALL_SUBTEST(test_0d());
-  CALL_SUBTEST(test_1d());
-  CALL_SUBTEST(test_2d());
-  CALL_SUBTEST(test_3d());
-  CALL_SUBTEST(test_simple_assign());
-  CALL_SUBTEST(test_resize());
+  test_0d();
+  test_1d();
+  test_2d();
+  test_3d();
+  test_simple_assign();
+  test_resize();
 }

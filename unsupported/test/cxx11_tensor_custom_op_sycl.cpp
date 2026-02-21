@@ -165,6 +165,6 @@ void custom_op_perDevice(Dev_selector s) {
 }
 EIGEN_DECLARE_TEST(cxx11_tensor_custom_op_sycl) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(custom_op_perDevice<float>(device));
+    custom_op_perDevice<float>(device);
   }
 }

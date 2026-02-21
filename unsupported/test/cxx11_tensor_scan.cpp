@@ -97,12 +97,12 @@ static void test_tensor_maps() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_scan) {
-  CALL_SUBTEST((test_1d_scan<ColMajor, float, true>()));
-  CALL_SUBTEST((test_1d_scan<ColMajor, float, false>()));
-  CALL_SUBTEST((test_1d_scan<RowMajor, float, true>()));
-  CALL_SUBTEST((test_1d_scan<RowMajor, float, false>()));
-  CALL_SUBTEST(test_4d_scan<ColMajor>());
-  CALL_SUBTEST(test_4d_scan<RowMajor>());
-  CALL_SUBTEST(test_tensor_maps<ColMajor>());
-  CALL_SUBTEST(test_tensor_maps<RowMajor>());
+  (test_1d_scan<ColMajor, float, true>());
+  (test_1d_scan<ColMajor, float, false>());
+  (test_1d_scan<RowMajor, float, true>());
+  (test_1d_scan<RowMajor, float, false>());
+  test_4d_scan<ColMajor>();
+  test_4d_scan<RowMajor>();
+  test_tensor_maps<ColMajor>();
+  test_tensor_maps<RowMajor>();
 }

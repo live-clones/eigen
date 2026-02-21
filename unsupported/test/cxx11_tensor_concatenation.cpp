@@ -117,12 +117,12 @@ static void test_concatenation_as_lvalue() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_concatenation) {
-  CALL_SUBTEST(test_dimension_failures<ColMajor>());
-  CALL_SUBTEST(test_dimension_failures<RowMajor>());
-  CALL_SUBTEST(test_static_dimension_failure<ColMajor>());
-  CALL_SUBTEST(test_static_dimension_failure<RowMajor>());
-  CALL_SUBTEST(test_simple_concatenation<ColMajor>());
-  CALL_SUBTEST(test_simple_concatenation<RowMajor>());
-  // CALL_SUBTEST(test_vectorized_concatenation());
-  CALL_SUBTEST(test_concatenation_as_lvalue());
+  test_dimension_failures<ColMajor>();
+  test_dimension_failures<RowMajor>();
+  test_static_dimension_failure<ColMajor>();
+  test_static_dimension_failure<RowMajor>();
+  test_simple_concatenation<ColMajor>();
+  test_simple_concatenation<RowMajor>();
+  // test_vectorized_concatenation();
+  test_concatenation_as_lvalue();
 }

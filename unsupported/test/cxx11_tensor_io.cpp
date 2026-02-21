@@ -111,42 +111,42 @@ void test_const_tensor_ostream() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_io) {
-  CALL_SUBTEST((test_tensor_ostream<float, 0, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<float, 1, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<float, 2, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<float, 3, Eigen::ColMajor>()));
+  (test_tensor_ostream<float, 0, Eigen::ColMajor>());
+  (test_tensor_ostream<float, 1, Eigen::ColMajor>());
+  (test_tensor_ostream<float, 2, Eigen::ColMajor>());
+  (test_tensor_ostream<float, 3, Eigen::ColMajor>());
 
-  CALL_SUBTEST((test_tensor_ostream<double, 0, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<double, 1, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<double, 2, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<double, 3, Eigen::ColMajor>()));
+  (test_tensor_ostream<double, 0, Eigen::ColMajor>());
+  (test_tensor_ostream<double, 1, Eigen::ColMajor>());
+  (test_tensor_ostream<double, 2, Eigen::ColMajor>());
+  (test_tensor_ostream<double, 3, Eigen::ColMajor>());
 
-  CALL_SUBTEST((test_tensor_ostream<int, 0, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<int, 1, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<int, 2, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<int, 3, Eigen::ColMajor>()));
+  (test_tensor_ostream<int, 0, Eigen::ColMajor>());
+  (test_tensor_ostream<int, 1, Eigen::ColMajor>());
+  (test_tensor_ostream<int, 2, Eigen::ColMajor>());
+  (test_tensor_ostream<int, 3, Eigen::ColMajor>());
 
-  CALL_SUBTEST((test_tensor_ostream<float, 0, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<float, 1, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<float, 2, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<float, 3, Eigen::RowMajor>()));
+  (test_tensor_ostream<float, 0, Eigen::RowMajor>());
+  (test_tensor_ostream<float, 1, Eigen::RowMajor>());
+  (test_tensor_ostream<float, 2, Eigen::RowMajor>());
+  (test_tensor_ostream<float, 3, Eigen::RowMajor>());
 
-  CALL_SUBTEST((test_tensor_ostream<double, 0, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<double, 1, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<double, 2, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<double, 3, Eigen::RowMajor>()));
+  (test_tensor_ostream<double, 0, Eigen::RowMajor>());
+  (test_tensor_ostream<double, 1, Eigen::RowMajor>());
+  (test_tensor_ostream<double, 2, Eigen::RowMajor>());
+  (test_tensor_ostream<double, 3, Eigen::RowMajor>());
 
-  CALL_SUBTEST((test_tensor_ostream<int, 0, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<int, 1, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<int, 2, Eigen::RowMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<int, 3, Eigen::RowMajor>()));
+  (test_tensor_ostream<int, 0, Eigen::RowMajor>());
+  (test_tensor_ostream<int, 1, Eigen::RowMajor>());
+  (test_tensor_ostream<int, 2, Eigen::RowMajor>());
+  (test_tensor_ostream<int, 3, Eigen::RowMajor>());
 
-  CALL_SUBTEST((test_tensor_ostream<bool, 2, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<bool, 2, Eigen::RowMajor>()));
+  (test_tensor_ostream<bool, 2, Eigen::ColMajor>());
+  (test_tensor_ostream<bool, 2, Eigen::RowMajor>());
 
-  CALL_SUBTEST((test_tensor_ostream<std::complex<double>, 2, Eigen::ColMajor>()));
-  CALL_SUBTEST((test_tensor_ostream<std::complex<float>, 2, Eigen::ColMajor>()));
+  (test_tensor_ostream<std::complex<double>, 2, Eigen::ColMajor>());
+  (test_tensor_ostream<std::complex<float>, 2, Eigen::ColMajor>());
 
   // Test printing TensorMap with const elements.
-  CALL_SUBTEST((test_const_tensor_ostream()));
+  (test_const_tensor_ostream());
 }

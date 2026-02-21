@@ -309,14 +309,14 @@ static void test_0d_const_tensor_map() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_map) {
-  CALL_SUBTEST(test_0d());
-  CALL_SUBTEST(test_1d());
-  CALL_SUBTEST(test_2d());
-  CALL_SUBTEST(test_3d());
+  test_0d();
+  test_1d();
+  test_2d();
+  test_3d();
 
-  CALL_SUBTEST(test_from_tensor());
-  CALL_SUBTEST(test_casting());
+  test_from_tensor();
+  test_casting();
 
-  CALL_SUBTEST(test_0d_const_tensor());
-  CALL_SUBTEST(test_0d_const_tensor_map());
+  test_0d_const_tensor();
+  test_0d_const_tensor_map();
 }

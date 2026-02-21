@@ -170,10 +170,10 @@ static void test_expr_reverse(bool LValue) {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_reverse) {
-  CALL_SUBTEST(test_simple_reverse<ColMajor>());
-  CALL_SUBTEST(test_simple_reverse<RowMajor>());
-  CALL_SUBTEST(test_expr_reverse<ColMajor>(true));
-  CALL_SUBTEST(test_expr_reverse<RowMajor>(true));
-  CALL_SUBTEST(test_expr_reverse<ColMajor>(false));
-  CALL_SUBTEST(test_expr_reverse<RowMajor>(false));
+  test_simple_reverse<ColMajor>();
+  test_simple_reverse<RowMajor>();
+  test_expr_reverse<ColMajor>(true);
+  test_expr_reverse<RowMajor>(true);
+  test_expr_reverse<ColMajor>(false);
+  test_expr_reverse<RowMajor>(false);
 }

@@ -1458,104 +1458,104 @@ void test_gpu_gamma_sample_der_alpha() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_gpu) {
-  CALL_SUBTEST_1(test_gpu_nullary());
-  CALL_SUBTEST_1(test_gpu_nullary_max_size<int16_t>());
-  CALL_SUBTEST_1(test_gpu_nullary_max_size<int32_t>());
-  CALL_SUBTEST_1((test_gpu_nullary_max_size<int64_t, (std::numeric_limits<int32_t>::max)() + 100ll>()));
-  CALL_SUBTEST_1(test_gpu_elementwise_small());
-  CALL_SUBTEST_1(test_gpu_elementwise());
-  CALL_SUBTEST_1(test_gpu_props());
-  CALL_SUBTEST_2(test_gpu_reduction());
-  CALL_SUBTEST_3(test_gpu_contraction<ColMajor>());
-  CALL_SUBTEST_3(test_gpu_contraction<RowMajor>());
-  CALL_SUBTEST_4(test_gpu_convolution_1d<ColMajor>());
-  CALL_SUBTEST_4(test_gpu_convolution_1d<RowMajor>());
-  CALL_SUBTEST_4(test_gpu_convolution_inner_dim_col_major_1d());
-  CALL_SUBTEST_4(test_gpu_convolution_inner_dim_row_major_1d());
-  CALL_SUBTEST_5(test_gpu_convolution_2d<ColMajor>());
-  CALL_SUBTEST_5(test_gpu_convolution_2d<RowMajor>());
+  test_gpu_nullary();
+  test_gpu_nullary_max_size<int16_t>();
+  test_gpu_nullary_max_size<int32_t>();
+  (test_gpu_nullary_max_size<int64_t, (std::numeric_limits<int32_t>::max)() + 100ll>());
+  test_gpu_elementwise_small();
+  test_gpu_elementwise();
+  test_gpu_props();
+  test_gpu_reduction();
+  test_gpu_contraction<ColMajor>();
+  test_gpu_contraction<RowMajor>();
+  test_gpu_convolution_1d<ColMajor>();
+  test_gpu_convolution_1d<RowMajor>();
+  test_gpu_convolution_inner_dim_col_major_1d();
+  test_gpu_convolution_inner_dim_row_major_1d();
+  test_gpu_convolution_2d<ColMajor>();
+  test_gpu_convolution_2d<RowMajor>();
 #if !defined(EIGEN_USE_HIP)
   // disable these tests on HIP for now.
   // they hang..need to investigate and fix
-  CALL_SUBTEST_6(test_gpu_convolution_3d<ColMajor>());
-  CALL_SUBTEST_7(test_gpu_convolution_3d<RowMajor>());
+  test_gpu_convolution_3d<ColMajor>();
+  test_gpu_convolution_3d<RowMajor>();
 #endif
 
   // std::erf, std::erfc, and so on where only added in c++11. We use them
   // as a golden reference to validate the results produced by Eigen. Therefore
   // we can only run these tests if we use a c++11 compiler.
-  CALL_SUBTEST_8(test_gpu_lgamma<float>(1.0f));
-  CALL_SUBTEST_8(test_gpu_lgamma<float>(100.0f));
-  CALL_SUBTEST_8(test_gpu_lgamma<float>(0.01f));
-  CALL_SUBTEST_8(test_gpu_lgamma<float>(0.001f));
+  test_gpu_lgamma<float>(1.0f);
+  test_gpu_lgamma<float>(100.0f);
+  test_gpu_lgamma<float>(0.01f);
+  test_gpu_lgamma<float>(0.001f);
 
-  CALL_SUBTEST_8(test_gpu_lgamma<double>(1.0));
-  CALL_SUBTEST_8(test_gpu_lgamma<double>(100.0));
-  CALL_SUBTEST_8(test_gpu_lgamma<double>(0.01));
-  CALL_SUBTEST_8(test_gpu_lgamma<double>(0.001));
+  test_gpu_lgamma<double>(1.0);
+  test_gpu_lgamma<double>(100.0);
+  test_gpu_lgamma<double>(0.01);
+  test_gpu_lgamma<double>(0.001);
 
-  CALL_SUBTEST_8(test_gpu_erf<float>(1.0f));
-  CALL_SUBTEST_8(test_gpu_erf<float>(100.0f));
-  CALL_SUBTEST_8(test_gpu_erf<float>(0.01f));
-  CALL_SUBTEST_8(test_gpu_erf<float>(0.001f));
+  test_gpu_erf<float>(1.0f);
+  test_gpu_erf<float>(100.0f);
+  test_gpu_erf<float>(0.01f);
+  test_gpu_erf<float>(0.001f);
 
-  CALL_SUBTEST_8(test_gpu_erfc<float>(1.0f));
-  // CALL_SUBTEST_8(test_gpu_erfc<float>(100.0f));
-  CALL_SUBTEST_8(test_gpu_erfc<float>(5.0f));  // GPU erfc lacks precision for large inputs
-  CALL_SUBTEST_8(test_gpu_erfc<float>(0.01f));
-  CALL_SUBTEST_8(test_gpu_erfc<float>(0.001f));
+  test_gpu_erfc<float>(1.0f);
+  // test_gpu_erfc<float>(100.0f);
+  test_gpu_erfc<float>(5.0f);  // GPU erfc lacks precision for large inputs
+  test_gpu_erfc<float>(0.01f);
+  test_gpu_erfc<float>(0.001f);
 
-  CALL_SUBTEST_8(test_gpu_erf<double>(1.0));
-  CALL_SUBTEST_8(test_gpu_erf<double>(100.0));
-  CALL_SUBTEST_8(test_gpu_erf<double>(0.01));
-  CALL_SUBTEST_8(test_gpu_erf<double>(0.001));
+  test_gpu_erf<double>(1.0);
+  test_gpu_erf<double>(100.0);
+  test_gpu_erf<double>(0.01);
+  test_gpu_erf<double>(0.001);
 
-  CALL_SUBTEST_8(test_gpu_erfc<double>(1.0));
-  // CALL_SUBTEST_8(test_gpu_erfc<double>(100.0));
-  CALL_SUBTEST_8(test_gpu_erfc<double>(5.0));  // GPU erfc lacks precision for large inputs
-  CALL_SUBTEST_8(test_gpu_erfc<double>(0.01));
-  CALL_SUBTEST_8(test_gpu_erfc<double>(0.001));
+  test_gpu_erfc<double>(1.0);
+  // test_gpu_erfc<double>(100.0);
+  test_gpu_erfc<double>(5.0);  // GPU erfc lacks precision for large inputs
+  test_gpu_erfc<double>(0.01);
+  test_gpu_erfc<double>(0.001);
 
 #if !defined(EIGEN_USE_HIP)
   // disable these tests on HIP for now.
 
-  CALL_SUBTEST_9(test_gpu_ndtri<float>());
-  CALL_SUBTEST_9(test_gpu_ndtri<double>());
+  test_gpu_ndtri<float>();
+  test_gpu_ndtri<double>();
 
-  CALL_SUBTEST_9(test_gpu_digamma<float>());
-  CALL_SUBTEST_9(test_gpu_digamma<double>());
+  test_gpu_digamma<float>();
+  test_gpu_digamma<double>();
 
-  CALL_SUBTEST_9(test_gpu_polygamma<float>());
-  CALL_SUBTEST_9(test_gpu_polygamma<double>());
+  test_gpu_polygamma<float>();
+  test_gpu_polygamma<double>();
 
-  CALL_SUBTEST_9(test_gpu_zeta<float>());
-  CALL_SUBTEST_9(test_gpu_zeta<double>());
+  test_gpu_zeta<float>();
+  test_gpu_zeta<double>();
 #endif
 
-  CALL_SUBTEST_9(test_gpu_igamma<float>());
-  CALL_SUBTEST_9(test_gpu_igammac<float>());
+  test_gpu_igamma<float>();
+  test_gpu_igammac<float>();
 
-  CALL_SUBTEST_9(test_gpu_igamma<double>());
-  CALL_SUBTEST_9(test_gpu_igammac<double>());
+  test_gpu_igamma<double>();
+  test_gpu_igammac<double>();
 
 #if !defined(EIGEN_USE_HIP)
   // disable these tests on HIP for now.
-  CALL_SUBTEST_9(test_gpu_betainc<float>());
-  CALL_SUBTEST_9(test_gpu_betainc<double>());
+  test_gpu_betainc<float>();
+  test_gpu_betainc<double>();
 
-  CALL_SUBTEST_9(test_gpu_i0e<float>());
-  CALL_SUBTEST_9(test_gpu_i0e<double>());
+  test_gpu_i0e<float>();
+  test_gpu_i0e<double>();
 
-  CALL_SUBTEST_9(test_gpu_i1e<float>());
-  CALL_SUBTEST_9(test_gpu_i1e<double>());
+  test_gpu_i1e<float>();
+  test_gpu_i1e<double>();
 
-  CALL_SUBTEST_9(test_gpu_i1e<float>());
-  CALL_SUBTEST_9(test_gpu_i1e<double>());
+  test_gpu_i1e<float>();
+  test_gpu_i1e<double>();
 
-  CALL_SUBTEST_9(test_gpu_igamma_der_a<float>());
-  CALL_SUBTEST_9(test_gpu_igamma_der_a<double>());
+  test_gpu_igamma_der_a<float>();
+  test_gpu_igamma_der_a<double>();
 
-  CALL_SUBTEST_9(test_gpu_gamma_sample_der_alpha<float>());
-  CALL_SUBTEST_9(test_gpu_gamma_sample_der_alpha<double>());
+  test_gpu_gamma_sample_der_alpha<float>();
+  test_gpu_gamma_sample_der_alpha<double>();
 #endif
 }

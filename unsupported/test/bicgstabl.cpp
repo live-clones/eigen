@@ -20,11 +20,11 @@ void test_bicgstabl_T() {
   bicgstabl_colmajor_diag.setTolerance(NumTraits<T>::epsilon() * 20);
   bicgstabl_colmajor_ilut.setTolerance(NumTraits<T>::epsilon() * 20);
 
-  CALL_SUBTEST(check_sparse_square_solving(bicgstabl_colmajor_diag));
-  CALL_SUBTEST(check_sparse_square_solving(bicgstabl_colmajor_ilut));
+  check_sparse_square_solving(bicgstabl_colmajor_diag);
+  check_sparse_square_solving(bicgstabl_colmajor_ilut);
 }
 
 EIGEN_DECLARE_TEST(bicgstabl) {
-  CALL_SUBTEST_1(test_bicgstabl_T<double>());
-  CALL_SUBTEST_2(test_bicgstabl_T<std::complex<double> >());
+  test_bicgstabl_T<double>();
+  test_bicgstabl_T<std::complex<double> >();
 }

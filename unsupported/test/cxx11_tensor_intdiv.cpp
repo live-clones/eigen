@@ -125,11 +125,11 @@ void test_specific() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_intdiv) {
-  CALL_SUBTEST_1(test_signed_32bit());
-  CALL_SUBTEST_2(test_unsigned_32bit());
-  CALL_SUBTEST_3(test_signed_64bit());
-  CALL_SUBTEST_4(test_unsigned_64bit());
-  CALL_SUBTEST_5(test_powers_32bit());
-  CALL_SUBTEST_6(test_powers_64bit());
-  CALL_SUBTEST_7(test_specific());
+  test_signed_32bit();
+  test_unsigned_32bit();
+  test_signed_64bit();
+  test_unsigned_64bit();
+  test_powers_32bit();
+  test_powers_64bit();
+  test_specific();
 }

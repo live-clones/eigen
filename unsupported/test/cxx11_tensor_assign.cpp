@@ -349,11 +349,11 @@ static void test_std_initializers_tensor() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_assign) {
-  CALL_SUBTEST(test_1d());
-  CALL_SUBTEST(test_2d());
-  CALL_SUBTEST(test_3d());
-  CALL_SUBTEST(test_same_type());
-  CALL_SUBTEST(test_auto_resize());
-  CALL_SUBTEST(test_compound_assign());
-  CALL_SUBTEST(test_std_initializers_tensor());
+  test_1d();
+  test_2d();
+  test_3d();
+  test_same_type();
+  test_auto_resize();
+  test_compound_assign();
+  test_std_initializers_tensor();
 }

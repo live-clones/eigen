@@ -134,12 +134,12 @@ static void test_strides() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_convolution) {
-  CALL_SUBTEST(test_evals<ColMajor>());
-  CALL_SUBTEST(test_evals<RowMajor>());
-  CALL_SUBTEST(test_expr<ColMajor>());
-  CALL_SUBTEST(test_expr<RowMajor>());
-  CALL_SUBTEST(test_modes<ColMajor>());
-  CALL_SUBTEST(test_modes<RowMajor>());
-  CALL_SUBTEST(test_strides<ColMajor>());
-  CALL_SUBTEST(test_strides<RowMajor>());
+  test_evals<ColMajor>();
+  test_evals<RowMajor>();
+  test_expr<ColMajor>();
+  test_expr<RowMajor>();
+  test_modes<ColMajor>();
+  test_modes<RowMajor>();
+  test_strides<ColMajor>();
+  test_strides<RowMajor>();
 }

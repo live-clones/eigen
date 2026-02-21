@@ -28,10 +28,10 @@ void verify_nnls_optimality(const MatrixType &A, const VectorB &b, const VectorX
   const VectorX lambda = A.transpose() * (A * x - b);
 
   // NNLS solutions are EXACTLY not negative.
-  VERIFY_LE(0, x.minCoeff());
+  EXPECT_LE(0, x.minCoeff());
 
   // Exact lambda would be non-negative, but computed lambda might leak a little
-  VERIFY_LE(-tolerance, lambda.minCoeff());
+  EXPECT_LE(-tolerance, lambda.minCoeff());
 
   // x[i]*lambda[i] == 0 <~~> (x[i]==0) || (lambda[i] is small)
   VERIFY(((x.array() == Scalar(0)) || (lambda.array() <= tolerance)).all());
@@ -62,7 +62,7 @@ void test_nnls_random_problem(const MatrixType &) {
   if (cols == Dynamic) cols = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
   Index rows = MatrixType::RowsAtCompileTime;
   if (rows == Dynamic) rows = internal::random<Index>(cols, EIGEN_TEST_MAX_SIZE);
-  VERIFY_LE(cols, rows);  // To have a unique LS solution: cols <= rows.
+  EXPECT_LE(cols, rows);  // To have a unique LS solution: cols <= rows.
 
   // Make some sort of random test problem from a wide range of scales and condition numbers.
   using std::pow;
@@ -120,7 +120,7 @@ void test_nnls_handles_zero_rhs() {
   // VERIFY
   //
   VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::Success);
-  VERIFY_LE(nnls.iterations(), 1);  // 0 or 1 would be be fine for an edge case like this.
+  EXPECT_LE(nnls.iterations(), 1);  // 0 or 1 would be be fine for an edge case like this.
   VERIFY_IS_EQUAL(x, VectorXd::Zero(cols));
 }
 
@@ -142,7 +142,7 @@ void test_nnls_handles_Mx0_matrix() {
   // VERIFY
   //
   VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::Success);
-  VERIFY_LE(nnls.iterations(), 0);
+  EXPECT_LE(nnls.iterations(), 0);
   VERIFY_IS_EQUAL(x.size(), 0);
 }
 
@@ -163,7 +163,7 @@ void test_nnls_handles_0x0_matrix() {
   // VERIFY
   //
   VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::Success);
-  VERIFY_LE(nnls.iterations(), 0);
+  EXPECT_LE(nnls.iterations(), 0);
   VERIFY_IS_EQUAL(x.size(), 0);
 }
 
@@ -441,29 +441,29 @@ void test_nnls_repeated_calls_to_compute_and_solve() {
 
 EIGEN_DECLARE_TEST(NNLS) {
   // Small matrices with known solutions:
-  CALL_SUBTEST_1(test_nnls_small_reference_problems());
-  CALL_SUBTEST_1(test_nnls_handles_Mx0_matrix());
-  CALL_SUBTEST_1(test_nnls_handles_0x0_matrix());
+  test_nnls_small_reference_problems();
+  test_nnls_handles_Mx0_matrix();
+  test_nnls_handles_0x0_matrix();
 
   for (int i = 0; i < g_repeat; i++) {
     // Essential NNLS properties, across different types.
-    CALL_SUBTEST_2(test_nnls_random_problem(MatrixXf()));
-    CALL_SUBTEST_3(test_nnls_random_problem(MatrixXd()));
-    CALL_SUBTEST_4(test_nnls_random_problem(Matrix<double, 12, 5>()));
-    CALL_SUBTEST_5(test_nnls_with_half_precision());
+    test_nnls_random_problem(MatrixXf());
+    test_nnls_random_problem(MatrixXd());
+    test_nnls_random_problem(Matrix<double, 12, 5>());
+    test_nnls_with_half_precision();
 
     // Robustness tests:
-    CALL_SUBTEST_6(test_nnls_handles_zero_rhs());
-    CALL_SUBTEST_6(test_nnls_handles_dependent_columns());
-    CALL_SUBTEST_6(test_nnls_handles_wide_matrix());
+    test_nnls_handles_zero_rhs();
+    test_nnls_handles_dependent_columns();
+    test_nnls_handles_wide_matrix();
 
     // Properties specific to the implementation,
     // not NNLS in general.
-    CALL_SUBTEST_7(test_nnls_special_case_solves_in_zero_iterations());
-    CALL_SUBTEST_7(test_nnls_special_case_solves_in_n_iterations());
-    CALL_SUBTEST_7(test_nnls_returns_NoConvergence_when_maxIterations_is_too_low());
-    CALL_SUBTEST_7(test_nnls_default_maxIterations_is_twice_column_count());
-    CALL_SUBTEST_8(test_nnls_repeated_calls_to_compute_and_solve());
+    test_nnls_special_case_solves_in_zero_iterations();
+    test_nnls_special_case_solves_in_n_iterations();
+    test_nnls_returns_NoConvergence_when_maxIterations_is_too_low();
+    test_nnls_default_maxIterations_is_twice_column_count();
+    test_nnls_repeated_calls_to_compute_and_solve();
 
     // This test fails. It hits allocations in HouseholderSequence.h
     // test_nnls_does_not_allocate_during_solve();

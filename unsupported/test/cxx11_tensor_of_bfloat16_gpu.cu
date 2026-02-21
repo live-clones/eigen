@@ -440,21 +440,21 @@ void test_gpu_forced_evals() {
 #endif
 
 EIGEN_DECLARE_TEST(cxx11_tensor_of_bfloat16_gpu) {
-  CALL_SUBTEST_1(test_gpu_numext<void>());
+  test_gpu_numext<void>();
 
 // The reduction unit tests have been excluded until a working
 // implementation to expand the accumulator data type to float32
 // is available.
 // TODO: add reduction unit tests
 #ifdef EIGEN_HAS_GPU_BF16
-  CALL_SUBTEST_2(test_gpu_conversion<void>());
-  CALL_SUBTEST_3(test_gpu_unary<void>());
-  CALL_SUBTEST_4(test_gpu_elementwise<void>());
-  CALL_SUBTEST_5(test_gpu_trancendental<void>());
-  CALL_SUBTEST_6(test_gpu_contractions<void>());
-  CALL_SUBTEST_7(test_gpu_reductions<void>());
-  CALL_SUBTEST_8(test_gpu_full_reductions<void>());
-  CALL_SUBTEST_9(test_gpu_forced_evals<void>());
+  test_gpu_conversion<void>();
+  test_gpu_unary<void>();
+  test_gpu_elementwise<void>();
+  test_gpu_trancendental<void>();
+  test_gpu_contractions<void>();
+  test_gpu_reductions<void>();
+  test_gpu_full_reductions<void>();
+  test_gpu_forced_evals<void>();
 #else
   std::cout << "bfloat16 floats are not supported by this version of gpu: skipping the test" << std::endl;
 #endif

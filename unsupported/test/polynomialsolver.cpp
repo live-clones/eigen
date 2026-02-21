@@ -189,18 +189,18 @@ void polynomialsolver(int deg) {
 
 EIGEN_DECLARE_TEST(polynomialsolver) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1((polynomialsolver<float, 1>(1)));
-    CALL_SUBTEST_2((polynomialsolver<double, 2>(2)));
-    CALL_SUBTEST_3((polynomialsolver<double, 3>(3)));
-    CALL_SUBTEST_4((polynomialsolver<float, 4>(4)));
-    CALL_SUBTEST_5((polynomialsolver<double, 5>(5)));
-    CALL_SUBTEST_6((polynomialsolver<float, 6>(6)));
-    CALL_SUBTEST_7((polynomialsolver<float, 7>(7)));
-    CALL_SUBTEST_8((polynomialsolver<double, 8>(8)));
+    (polynomialsolver<float, 1>(1));
+    (polynomialsolver<double, 2>(2));
+    (polynomialsolver<double, 3>(3));
+    (polynomialsolver<float, 4>(4));
+    (polynomialsolver<double, 5>(5));
+    (polynomialsolver<float, 6>(6));
+    (polynomialsolver<float, 7>(7));
+    (polynomialsolver<double, 8>(8));
 
-    CALL_SUBTEST_9((polynomialsolver<float, Dynamic>(internal::random<int>(9, 13))));
-    CALL_SUBTEST_10((polynomialsolver<double, Dynamic>(internal::random<int>(9, 13))));
-    CALL_SUBTEST_11((polynomialsolver<float, Dynamic>(1)));
-    CALL_SUBTEST_12((polynomialsolver<std::complex<double>, Dynamic>(internal::random<int>(2, 13))));
+    (polynomialsolver<float, Dynamic>(internal::random<int>(9, 13)));
+    (polynomialsolver<double, Dynamic>(internal::random<int>(9, 13)));
+    (polynomialsolver<float, Dynamic>(1));
+    (polynomialsolver<std::complex<double>, Dynamic>(internal::random<int>(2, 13)));
   }
 }

@@ -81,6 +81,6 @@ void alignedvector3() {
 
 EIGEN_DECLARE_TEST(alignedvector3) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST(alignedvector3<float>());
+    alignedvector3<float>();
   }
 }

@@ -415,14 +415,14 @@ void check_sparse_spd_solving(Solver& solver, int maxSize = (std::min)(300, EIGE
     SpVec c = B.col(0);
     DenseVector dc = dB.col(0);
 
-    CALL_SUBTEST(check_sparse_solving(solver, A, b, dA, b));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, b, dA, b));
-    CALL_SUBTEST(check_sparse_solving(solver, A, dB, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, dB, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, A, B, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, B, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, A, c, dA, dc));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, c, dA, dc));
+    check_sparse_solving(solver, A, b, dA, b);
+    check_sparse_solving(solver, halfA, b, dA, b);
+    check_sparse_solving(solver, A, dB, dA, dB);
+    check_sparse_solving(solver, halfA, dB, dA, dB);
+    check_sparse_solving(solver, A, B, dA, dB);
+    check_sparse_solving(solver, halfA, B, dA, dB);
+    check_sparse_solving(solver, A, c, dA, dc);
+    check_sparse_solving(solver, halfA, c, dA, dc);
 
     // check only once
     if (i == 0) {
@@ -452,10 +452,10 @@ void check_sparse_spd_solving(Solver& solver, int maxSize = (std::min)(300, EIGE
 
           std::cout << "INFO | Testing " << sym_to_string(it.sym()) << "sparse problem " << it.matname() << " ("
                     << A.rows() << "x" << A.cols() << ") using " << typeid(Solver).name() << "..." << std::endl;
-          CALL_SUBTEST(check_sparse_solving_real_cases(solver, A, b, A, refX));
+          check_sparse_solving_real_cases(solver, A, b, A, refX);
           std::string stats = solver_stats(solver);
           if (stats.size() > 0) std::cout << "INFO |  " << stats << std::endl;
-          CALL_SUBTEST(check_sparse_solving_real_cases(solver, halfA, b, A, refX));
+          check_sparse_solving_real_cases(solver, halfA, b, A, refX);
         } else {
           std::cout << "INFO | Skip sparse problem \"" << it.matname() << "\" (too large)" << std::endl;
         }
@@ -538,14 +538,14 @@ void check_sparse_nonhermitian_solving(Solver& solver, int maxSize = (std::min)(
     SpVec c = B.col(0);
     DenseVector dc = dB.col(0);
 
-    CALL_SUBTEST(check_sparse_solving(solver, A, b, dA, b));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, b, dA, b));
-    CALL_SUBTEST(check_sparse_solving(solver, A, dB, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, dB, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, A, B, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, B, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, A, c, dA, dc));
-    CALL_SUBTEST(check_sparse_solving(solver, halfA, c, dA, dc));
+    check_sparse_solving(solver, A, b, dA, b);
+    check_sparse_solving(solver, halfA, b, dA, b);
+    check_sparse_solving(solver, A, dB, dA, dB);
+    check_sparse_solving(solver, halfA, dB, dA, dB);
+    check_sparse_solving(solver, A, B, dA, dB);
+    check_sparse_solving(solver, halfA, B, dA, dB);
+    check_sparse_solving(solver, A, c, dA, dc);
+    check_sparse_solving(solver, halfA, c, dA, dc);
 
     // check only once
     if (i == 0) {
@@ -635,14 +635,15 @@ void check_sparse_square_solving(Solver& solver, int maxSize = 300, int maxRealW
     B.makeCompressed();
     SpVec c = B.col(0);
     DenseVector dc = dB.col(0);
-    CALL_SUBTEST(check_sparse_solving(solver, A, b, dA, b));
-    CALL_SUBTEST(check_sparse_solving(solver, A, dB, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, A, B, dA, dB));
-    CALL_SUBTEST(check_sparse_solving(solver, A, c, dA, dc));
+    check_sparse_solving(solver, A, b, dA, b);
+    check_sparse_solving(solver, A, dB, dA, dB);
+    check_sparse_solving(solver, A, B, dA, dB);
+    check_sparse_solving(solver, A, c, dA, dc);
 
     // check only once
     if (i == 0) {
-      CALL_SUBTEST(b = DenseVector::Zero(size); check_sparse_solving(solver, A, b, dA, b));
+      b = DenseVector::Zero(size);
+      check_sparse_solving(solver, A, b, dA, b);
     }
     // regression test for Bug 792 (structurally rank deficient matrices):
     if (checkDeficient && size > 1) {
@@ -666,7 +667,7 @@ void check_sparse_square_solving(Solver& solver, int maxSize = 300, int maxRealW
         DenseVector refX = it.refX();
         std::cout << "INFO | Testing " << sym_to_string(it.sym()) << "sparse problem " << it.matname() << " ("
                   << A.rows() << "x" << A.cols() << ") using " << typeid(Solver).name() << "..." << std::endl;
-        CALL_SUBTEST(check_sparse_solving_real_cases(solver, A, b, A, refX));
+        check_sparse_solving_real_cases(solver, A, b, A, refX);
         std::string stats = solver_stats(solver);
         if (stats.size() > 0) std::cout << "INFO |  " << stats << std::endl;
       } else {

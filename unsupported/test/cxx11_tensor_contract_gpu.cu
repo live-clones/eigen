@@ -187,24 +187,24 @@ void test_gpu_contraction_sizes() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_contract_gpu) {
-  CALL_SUBTEST_1(test_gpu_contraction<ColMajor>(128, 128, 128));
-  CALL_SUBTEST_1(test_gpu_contraction<RowMajor>(128, 128, 128));
+  test_gpu_contraction<ColMajor>(128, 128, 128);
+  test_gpu_contraction<RowMajor>(128, 128, 128);
 
-  CALL_SUBTEST_1(test_scalar<ColMajor>(128, 128, 128));
-  CALL_SUBTEST_1(test_scalar<RowMajor>(128, 128, 128));
+  test_scalar<ColMajor>(128, 128, 128);
+  test_scalar<RowMajor>(128, 128, 128);
 
-  CALL_SUBTEST_2(test_gpu_contraction_m<ColMajor>());
-  CALL_SUBTEST_3(test_gpu_contraction_m<RowMajor>());
+  test_gpu_contraction_m<ColMajor>();
+  test_gpu_contraction_m<RowMajor>();
 
-  CALL_SUBTEST_4(test_gpu_contraction_k<ColMajor>());
-  CALL_SUBTEST_5(test_gpu_contraction_k<RowMajor>());
+  test_gpu_contraction_k<ColMajor>();
+  test_gpu_contraction_k<RowMajor>();
 
-  CALL_SUBTEST_6(test_gpu_contraction_n<ColMajor>());
-  CALL_SUBTEST_7(test_gpu_contraction_n<RowMajor>());
+  test_gpu_contraction_n<ColMajor>();
+  test_gpu_contraction_n<RowMajor>();
 
 #if !defined(EIGEN_USE_HIP)
   // disable these subtests for HIP
-  CALL_SUBTEST_8(test_gpu_contraction_sizes<ColMajor>());
-  CALL_SUBTEST_9(test_gpu_contraction_sizes<RowMajor>());
+  test_gpu_contraction_sizes<ColMajor>();
+  test_gpu_contraction_sizes<RowMajor>();
 #endif
 }

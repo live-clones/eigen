@@ -18,11 +18,11 @@ void test_idrstabl_T() {
   idrstabl_colmajor_diag.setTolerance(NumTraits<T>::epsilon() * 4);
   idrstabl_colmajor_ilut.setTolerance(NumTraits<T>::epsilon() * 4);
 
-  CALL_SUBTEST(check_sparse_square_solving(idrstabl_colmajor_diag));
-  CALL_SUBTEST(check_sparse_square_solving(idrstabl_colmajor_ilut));
+  check_sparse_square_solving(idrstabl_colmajor_diag);
+  check_sparse_square_solving(idrstabl_colmajor_ilut);
 }
 
 EIGEN_DECLARE_TEST(idrstabl) {
-  CALL_SUBTEST_1((test_idrstabl_T<double>()));
-  CALL_SUBTEST_2((test_idrstabl_T<std::complex<double> >()));
+  (test_idrstabl_T<double>());
+  (test_idrstabl_T<std::complex<double> >());
 }

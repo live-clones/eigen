@@ -220,28 +220,22 @@ struct TreeTest {
 
 EIGEN_DECLARE_TEST(BVH) {
   for (int i = 0; i < g_repeat; i++) {
-#ifdef EIGEN_TEST_PART_1
     TreeTest<2> test2;
-    CALL_SUBTEST(test2.testIntersect1());
-    CALL_SUBTEST(test2.testMinimize1());
-    CALL_SUBTEST(test2.testIntersect2());
-    CALL_SUBTEST(test2.testMinimize2());
-#endif
+    test2.testIntersect1();
+    test2.testMinimize1();
+    test2.testIntersect2();
+    test2.testMinimize2();
 
-#ifdef EIGEN_TEST_PART_2
     TreeTest<3> test3;
-    CALL_SUBTEST(test3.testIntersect1());
-    CALL_SUBTEST(test3.testMinimize1());
-    CALL_SUBTEST(test3.testIntersect2());
-    CALL_SUBTEST(test3.testMinimize2());
-#endif
+    test3.testIntersect1();
+    test3.testMinimize1();
+    test3.testIntersect2();
+    test3.testMinimize2();
 
-#ifdef EIGEN_TEST_PART_3
     TreeTest<4> test4;
-    CALL_SUBTEST(test4.testIntersect1());
-    CALL_SUBTEST(test4.testMinimize1());
-    CALL_SUBTEST(test4.testIntersect2());
-    CALL_SUBTEST(test4.testMinimize2());
-#endif
+    test4.testIntersect1();
+    test4.testMinimize1();
+    test4.testIntersect2();
+    test4.testMinimize2();
   }
 }

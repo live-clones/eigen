@@ -73,10 +73,10 @@ static void test_gaussian() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_generator) {
-  CALL_SUBTEST(test_1D<ColMajor>());
-  CALL_SUBTEST(test_1D<RowMajor>());
-  CALL_SUBTEST(test_2D<ColMajor>());
-  CALL_SUBTEST(test_2D<RowMajor>());
-  CALL_SUBTEST(test_gaussian<ColMajor>());
-  CALL_SUBTEST(test_gaussian<RowMajor>());
+  test_1D<ColMajor>();
+  test_1D<RowMajor>();
+  test_2D<ColMajor>();
+  test_2D<RowMajor>();
+  test_gaussian<ColMajor>();
+  test_gaussian<RowMajor>();
 }

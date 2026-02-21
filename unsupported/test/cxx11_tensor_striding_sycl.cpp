@@ -188,6 +188,6 @@ void tensorStridingPerDevice(Dev_selector& s) {
 
 EIGEN_DECLARE_TEST(cxx11_tensor_striding_sycl) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(tensorStridingPerDevice(device));
+    tensorStridingPerDevice(device);
   }
 }

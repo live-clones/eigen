@@ -157,12 +157,12 @@ static void test_trace_in_expr() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_trace) {
-  CALL_SUBTEST(test_0D_trace<ColMajor>());
-  CALL_SUBTEST(test_0D_trace<RowMajor>());
-  CALL_SUBTEST(test_all_dimensions_trace<ColMajor>());
-  CALL_SUBTEST(test_all_dimensions_trace<RowMajor>());
-  CALL_SUBTEST(test_simple_trace<ColMajor>());
-  CALL_SUBTEST(test_simple_trace<RowMajor>());
-  CALL_SUBTEST(test_trace_in_expr<ColMajor>());
-  CALL_SUBTEST(test_trace_in_expr<RowMajor>());
+  test_0D_trace<ColMajor>();
+  test_0D_trace<RowMajor>();
+  test_all_dimensions_trace<ColMajor>();
+  test_all_dimensions_trace<RowMajor>();
+  test_simple_trace<ColMajor>();
+  test_simple_trace<RowMajor>();
+  test_trace_in_expr<ColMajor>();
+  test_trace_in_expr<RowMajor>();
 }

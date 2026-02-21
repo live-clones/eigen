@@ -100,9 +100,9 @@ static void test_contractions() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_of_complex) {
-  CALL_SUBTEST(test_additions());
-  CALL_SUBTEST(test_abs());
-  CALL_SUBTEST(test_arg());
-  CALL_SUBTEST(test_conjugate());
-  CALL_SUBTEST(test_contractions());
+  test_additions();
+  test_abs();
+  test_arg();
+  test_conjugate();
+  test_contractions();
 }

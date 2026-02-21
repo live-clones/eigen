@@ -1,9 +1,3 @@
-# The file split_test_helper.h was generated at first run,
-# it is now included in test/
-if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
-  file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
-endif()
-
 set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Unsupported")
 add_custom_target(BuildUnsupported)
 
@@ -228,7 +222,10 @@ ei_add_test(cxx11_tensor_simple)
 ei_add_test(cxx11_tensor_striding)
 ei_add_test(cxx11_tensor_sugar)
 ei_add_test(cxx11_tensor_thread_local "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
-ei_add_test(cxx11_tensor_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(cxx11_tensor_thread_pool_basic "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(cxx11_tensor_thread_pool_contraction "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(cxx11_tensor_thread_pool_async "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(cxx11_tensor_thread_pool_async_contraction "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(cxx11_tensor_trace)
 ei_add_test(cxx11_tensor_volume_patch)
 #  ei_add_test(cxx11_tensor_symmetry)

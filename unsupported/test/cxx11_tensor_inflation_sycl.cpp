@@ -124,7 +124,7 @@ void sycl_inflation_test_per_device(dev_Selector s) {
 }
 EIGEN_DECLARE_TEST(cxx11_tensor_inflation_sycl) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(sycl_inflation_test_per_device<half>(device));
-    CALL_SUBTEST(sycl_inflation_test_per_device<float>(device));
+    sycl_inflation_test_per_device<half>(device);
+    sycl_inflation_test_per_device<float>(device);
   }
 }

@@ -849,9 +849,9 @@ EIGEN_DECLARE_TEST(cxx11_tensor_reduction_sycl) {
     std::cout << "Running on " << device.template get_info<cl::sycl::info::device::name>() << std::endl;
     QueueInterface queueInterface(device);
     auto sycl_device = Eigen::SyclDevice(&queueInterface);
-    CALL_SUBTEST_1(sycl_reduction_test_full_per_device<float>(sycl_device));
-    CALL_SUBTEST_2(sycl_reduction_full_offset_per_device<float>(sycl_device));
-    CALL_SUBTEST_3(sycl_reduction_test_first_dim_per_device<float>(sycl_device));
-    CALL_SUBTEST_4(sycl_reduction_test_last_dim_per_device<float>(sycl_device));
+    sycl_reduction_test_full_per_device<float>(sycl_device);
+    sycl_reduction_full_offset_per_device<float>(sycl_device);
+    sycl_reduction_test_first_dim_per_device<float>(sycl_device);
+    sycl_reduction_test_last_dim_per_device<float>(sycl_device);
   }
 }

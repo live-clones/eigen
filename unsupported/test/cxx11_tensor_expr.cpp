@@ -463,14 +463,14 @@ static void test_minmax_nan_propagation() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_expr) {
-  CALL_SUBTEST(test_1d());
-  CALL_SUBTEST(test_2d());
-  CALL_SUBTEST(test_3d());
-  CALL_SUBTEST(test_constants());
-  CALL_SUBTEST(test_boolean());
-  CALL_SUBTEST(test_functors());
-  CALL_SUBTEST(test_type_casting());
-  CALL_SUBTEST(test_select());
-  CALL_SUBTEST(test_clip());
-  CALL_SUBTEST(test_minmax_nan_propagation());
+  test_1d();
+  test_2d();
+  test_3d();
+  test_constants();
+  test_boolean();
+  test_functors();
+  test_type_casting();
+  test_select();
+  test_clip();
+  test_minmax_nan_propagation();
 }

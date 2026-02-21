@@ -431,6 +431,6 @@ void test_gpu() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_device) {
-  CALL_SUBTEST_1(test_cpu());
-  CALL_SUBTEST_2(test_gpu());
+  test_cpu();
+  test_gpu();
 }
