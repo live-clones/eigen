@@ -46,8 +46,8 @@ inline std::ptrdiff_t manage_caching_sizes_helper(std::ptrdiff_t a, std::ptrdiff
 
 #if EIGEN_ARCH_i386_OR_x86_64
 const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(32 * 1024);
-const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
-const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(6 * 1024 * 1024);
+const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(256 * 1024);
+const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(2 * 1024 * 1024);
 #elif EIGEN_ARCH_PPC
 const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(64 * 1024);
 #ifdef _ARCH_PWR10
@@ -295,17 +295,6 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       else if (mc == 0)
         return;
       m = (m % mc) == 0 ? mc : (mc - Traits::mr * ((mc /*-1*/ - (m % mc)) / (Traits::mr * (m / mc + 1))));
-    }
-
-    // L3-based mc blocking when k-blocking has occurred.
-    // Ensures blockA (m * k * sizeof(LhsScalar)) fits in L3 with room for blockB.
-    // This matches the logic used in the multi-threaded path (line 173).
-    if (old_k != k && l3 > l2) {
-      const Index m_cache = (l3 - l2) / (sizeof(LhsScalar) * k);
-      if (m_cache < m && m_cache >= static_cast<Index>(Traits::mr)) {
-        m = m_cache - (m_cache % Traits::mr);
-        eigen_internal_assert(m > 0);
-      }
     }
   }
 }
