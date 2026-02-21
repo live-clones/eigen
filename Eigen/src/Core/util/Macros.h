@@ -906,6 +906,14 @@
 #define EIGEN_ALWAYS_INLINE EIGEN_STRONG_INLINE
 #endif
 
+// EIGEN_LAMBDA_ALWAYS_INLINE is the equivalent of EIGEN_ALWAYS_INLINE for lambda functions
+#if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
+#define EIGEN_LAMBDA_ALWAYS_INLINE __attribute__((always_inline))
+#elif EIGEN_COMP_MSVC
+#define EIGEN_LAMBDA_ALWAYS_INLINE [[msvc::forceinline]]
+#endif
+
+
 #if EIGEN_COMP_GNUC
 #define EIGEN_DONT_INLINE __attribute__((noinline))
 #elif EIGEN_COMP_MSVC
