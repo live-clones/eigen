@@ -55,7 +55,7 @@ class ReturnByValue : public internal::dense_xpr_base<ReturnByValue<Derived> >::
   EIGEN_DENSE_PUBLIC_INTERFACE(ReturnByValue)
 
   template <typename Dest>
-  EIGEN_DEVICE_FUNC inline void evalTo(Dest& dst) const {
+  EIGEN_DEVICE_FUNC constexpr void evalTo(Dest& dst) const {
     static_cast<const Derived*>(this)->evalTo(dst);
   }
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return static_cast<const Derived*>(this)->rows(); }
@@ -65,20 +65,20 @@ class ReturnByValue : public internal::dense_xpr_base<ReturnByValue<Derived> >::
 #define Unusable \
   YOU_ARE_TRYING_TO_ACCESS_A_SINGLE_COEFFICIENT_IN_A_SPECIAL_EXPRESSION_WHERE_THAT_IS_NOT_ALLOWED_BECAUSE_THAT_WOULD_BE_INEFFICIENT
   class Unusable {
-    Unusable(const Unusable&) {}
+    constexpr Unusable(const Unusable&) = default;
     Unusable& operator=(const Unusable&) { return *this; }
   };
-  const Unusable& coeff(Index) const { return *reinterpret_cast<const Unusable*>(this); }
-  const Unusable& coeff(Index, Index) const { return *reinterpret_cast<const Unusable*>(this); }
-  Unusable& coeffRef(Index) { return *reinterpret_cast<Unusable*>(this); }
-  Unusable& coeffRef(Index, Index) { return *reinterpret_cast<Unusable*>(this); }
+  constexpr const Unusable& coeff(Index) const { return *reinterpret_cast<const Unusable*>(this); }
+  constexpr const Unusable& coeff(Index, Index) const { return *reinterpret_cast<const Unusable*>(this); }
+  constexpr Unusable& coeffRef(Index) { return *reinterpret_cast<Unusable*>(this); }
+  constexpr Unusable& coeffRef(Index, Index) { return *reinterpret_cast<Unusable*>(this); }
 #undef Unusable
 #endif
 };
 
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC Derived& DenseBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC constexpr Derived& DenseBase<Derived>::operator=(const ReturnByValue<OtherDerived>& other) {
   other.evalTo(derived());
   return derived();
 }
@@ -95,7 +95,7 @@ struct evaluator<ReturnByValue<Derived> > : public evaluator<typename internal::
   typedef typename internal::traits<Derived>::ReturnType PlainObject;
   typedef evaluator<PlainObject> Base;
 
-  EIGEN_DEVICE_FUNC explicit evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
+  EIGEN_DEVICE_FUNC constexpr explicit evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
     internal::construct_at<Base>(this, m_result);
     xpr.evalTo(m_result);
   }

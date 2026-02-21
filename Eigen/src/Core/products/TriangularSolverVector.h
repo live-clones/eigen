@@ -19,7 +19,7 @@ namespace internal {
 
 template <typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate, int StorageOrder>
 struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheRight, Mode, Conjugate, StorageOrder> {
-  static void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
+  static constexpr void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
     triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft,
                             ((Mode & Upper) == Upper ? Lower : Upper) | (Mode & UnitDiag), Conjugate,
                             StorageOrder == RowMajor ? ColMajor : RowMajor>::run(size, _lhs, lhsStride, rhs);
@@ -30,7 +30,7 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheRight, Mode, Co
 template <typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate>
 struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, RowMajor> {
   enum { IsLower = ((Mode & Lower) == Lower) };
-  static void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
+  static constexpr void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
     typedef Map<const Matrix<LhsScalar, Dynamic, Dynamic, RowMajor>, 0, OuterStride<> > LhsMap;
     const LhsMap lhs(_lhs, size, size, OuterStride<>(lhsStride));
 
@@ -40,7 +40,7 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
     std::conditional_t<Conjugate, const CwiseUnaryOp<typename internal::scalar_conjugate_op<LhsScalar>, LhsMap>,
                        const LhsMap&>
         cjLhs(lhs);
-    static const Index PanelWidth = EIGEN_TUNE_TRIANGULAR_PANEL_WIDTH;
+    constexpr Index PanelWidth = EIGEN_TUNE_TRIANGULAR_PANEL_WIDTH;
     for (Index pi = IsLower ? 0 : size; IsLower ? pi < size : pi > 0; IsLower ? pi += PanelWidth : pi -= PanelWidth) {
       Index actualPanelWidth = (std::min)(IsLower ? size - pi : pi, PanelWidth);
 
@@ -76,7 +76,7 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
 template <typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate>
 struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, ColMajor> {
   enum { IsLower = ((Mode & Lower) == Lower) };
-  static void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
+  static constexpr void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
     typedef Map<const Matrix<LhsScalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> > LhsMap;
     const LhsMap lhs(_lhs, size, size, OuterStride<>(lhsStride));
     typedef const_blas_data_mapper<LhsScalar, Index, ColMajor> LhsMapper;
@@ -84,7 +84,7 @@ struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Con
     std::conditional_t<Conjugate, const CwiseUnaryOp<typename internal::scalar_conjugate_op<LhsScalar>, LhsMap>,
                        const LhsMap&>
         cjLhs(lhs);
-    static const Index PanelWidth = EIGEN_TUNE_TRIANGULAR_PANEL_WIDTH;
+    constexpr Index PanelWidth = EIGEN_TUNE_TRIANGULAR_PANEL_WIDTH;
 
     for (Index pi = IsLower ? 0 : size; IsLower ? pi < size : pi > 0; IsLower ? pi += PanelWidth : pi -= PanelWidth) {
       Index actualPanelWidth = (std::min)(IsLower ? size - pi : pi, PanelWidth);

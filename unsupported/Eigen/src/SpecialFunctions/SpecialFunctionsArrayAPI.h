@@ -26,8 +26,8 @@ namespace Eigen {
  * \sa Eigen::igammac(), Eigen::lgamma()
  */
 template <typename Derived, typename ExponentDerived>
-EIGEN_STRONG_INLINE const Eigen::CwiseBinaryOp<Eigen::internal::scalar_igamma_op<typename Derived::Scalar>,
-                                               const Derived, const ExponentDerived>
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseBinaryOp<Eigen::internal::scalar_igamma_op<typename Derived::Scalar>,
+                                                         const Derived, const ExponentDerived>
 igamma(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<ExponentDerived>& x) {
   return Eigen::CwiseBinaryOp<Eigen::internal::scalar_igamma_op<typename Derived::Scalar>, const Derived,
                               const ExponentDerived>(a.derived(), x.derived());
@@ -47,8 +47,8 @@ igamma(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<ExponentDerive
  * \sa Eigen::igamma(), Eigen::lgamma()
  */
 template <typename Derived, typename ExponentDerived>
-EIGEN_STRONG_INLINE const Eigen::CwiseBinaryOp<Eigen::internal::scalar_igamma_der_a_op<typename Derived::Scalar>,
-                                               const Derived, const ExponentDerived>
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseBinaryOp<
+    Eigen::internal::scalar_igamma_der_a_op<typename Derived::Scalar>, const Derived, const ExponentDerived>
 igamma_der_a(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<ExponentDerived>& x) {
   return Eigen::CwiseBinaryOp<Eigen::internal::scalar_igamma_der_a_op<typename Derived::Scalar>, const Derived,
                               const ExponentDerived>(a.derived(), x.derived());
@@ -69,10 +69,10 @@ igamma_der_a(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<Exponent
  * \sa Eigen::igamma(), Eigen::lgamma()
  */
 template <typename AlphaDerived, typename SampleDerived>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseBinaryOp<Eigen::internal::scalar_gamma_sample_der_alpha_op<typename AlphaDerived::Scalar>,
-                         const AlphaDerived, const SampleDerived>
-    gamma_sample_der_alpha(const Eigen::ArrayBase<AlphaDerived>& alpha, const Eigen::ArrayBase<SampleDerived>& sample) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseBinaryOp<
+    Eigen::internal::scalar_gamma_sample_der_alpha_op<typename AlphaDerived::Scalar>, const AlphaDerived,
+    const SampleDerived>
+gamma_sample_der_alpha(const Eigen::ArrayBase<AlphaDerived>& alpha, const Eigen::ArrayBase<SampleDerived>& sample) {
   return Eigen::CwiseBinaryOp<Eigen::internal::scalar_gamma_sample_der_alpha_op<typename AlphaDerived::Scalar>,
                               const AlphaDerived, const SampleDerived>(alpha.derived(), sample.derived());
 }
@@ -88,8 +88,8 @@ EIGEN_STRONG_INLINE const
  * \sa Eigen::igamma(), Eigen::lgamma()
  */
 template <typename Derived, typename ExponentDerived>
-EIGEN_STRONG_INLINE const Eigen::CwiseBinaryOp<Eigen::internal::scalar_igammac_op<typename Derived::Scalar>,
-                                               const Derived, const ExponentDerived>
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseBinaryOp<Eigen::internal::scalar_igammac_op<typename Derived::Scalar>,
+                                                         const Derived, const ExponentDerived>
 igammac(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<ExponentDerived>& x) {
   return Eigen::CwiseBinaryOp<Eigen::internal::scalar_igammac_op<typename Derived::Scalar>, const Derived,
                               const ExponentDerived>(a.derived(), x.derived());
@@ -108,8 +108,8 @@ igammac(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<ExponentDeriv
 // * \warning Be careful with the order of the parameters: x.polygamma(n) is equivalent to polygamma(n,x)
 // * \sa ArrayBase::polygamma()
 template <typename DerivedN, typename DerivedX>
-EIGEN_STRONG_INLINE const Eigen::CwiseBinaryOp<Eigen::internal::scalar_polygamma_op<typename DerivedX::Scalar>,
-                                               const DerivedN, const DerivedX>
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseBinaryOp<
+    Eigen::internal::scalar_polygamma_op<typename DerivedX::Scalar>, const DerivedN, const DerivedX>
 polygamma(const Eigen::ArrayBase<DerivedN>& n, const Eigen::ArrayBase<DerivedX>& x) {
   return Eigen::CwiseBinaryOp<Eigen::internal::scalar_polygamma_op<typename DerivedX::Scalar>, const DerivedN,
                               const DerivedX>(n.derived(), x.derived());
@@ -126,8 +126,9 @@ polygamma(const Eigen::ArrayBase<DerivedN>& n, const Eigen::ArrayBase<DerivedX>&
  * \sa Eigen::betainc(), Eigen::lgamma()
  */
 template <typename ArgADerived, typename ArgBDerived, typename ArgXDerived>
-EIGEN_STRONG_INLINE const Eigen::CwiseTernaryOp<Eigen::internal::scalar_betainc_op<typename ArgXDerived::Scalar>,
-                                                const ArgADerived, const ArgBDerived, const ArgXDerived>
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseTernaryOp<
+    Eigen::internal::scalar_betainc_op<typename ArgXDerived::Scalar>, const ArgADerived, const ArgBDerived,
+    const ArgXDerived>
 betainc(const Eigen::ArrayBase<ArgADerived>& a, const Eigen::ArrayBase<ArgBDerived>& b,
         const Eigen::ArrayBase<ArgXDerived>& x) {
   return Eigen::CwiseTernaryOp<Eigen::internal::scalar_betainc_op<typename ArgXDerived::Scalar>, const ArgADerived,
@@ -147,9 +148,9 @@ betainc(const Eigen::ArrayBase<ArgADerived>& a, const Eigen::ArrayBase<ArgBDeriv
  * \sa ArrayBase::zeta()
  */
 template <typename DerivedX, typename DerivedQ>
-EIGEN_STRONG_INLINE const
-    Eigen::CwiseBinaryOp<Eigen::internal::scalar_zeta_op<typename DerivedX::Scalar>, const DerivedX, const DerivedQ>
-    zeta(const Eigen::ArrayBase<DerivedX>& x, const Eigen::ArrayBase<DerivedQ>& q) {
+EIGEN_STRONG_INLINE constexpr const Eigen::CwiseBinaryOp<Eigen::internal::scalar_zeta_op<typename DerivedX::Scalar>,
+                                                         const DerivedX, const DerivedQ>
+zeta(const Eigen::ArrayBase<DerivedX>& x, const Eigen::ArrayBase<DerivedQ>& q) {
   return Eigen::CwiseBinaryOp<Eigen::internal::scalar_zeta_op<typename DerivedX::Scalar>, const DerivedX,
                               const DerivedQ>(x.derived(), q.derived());
 }

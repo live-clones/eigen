@@ -64,13 +64,13 @@ class Solve : public SolveImpl<Decomposition, RhsType, typename internal::traits
   typedef typename internal::traits<Solve>::PlainObject PlainObject;
   typedef typename internal::traits<Solve>::StorageIndex StorageIndex;
 
-  Solve(const Decomposition &dec, const RhsType &rhs) : m_dec(dec), m_rhs(rhs) {}
+  constexpr Solve(const Decomposition &dec, const RhsType &rhs) : m_dec(dec), m_rhs(rhs) {}
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_dec.cols(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_rhs.cols(); }
 
-  EIGEN_DEVICE_FUNC const Decomposition &dec() const { return m_dec; }
-  EIGEN_DEVICE_FUNC const RhsType &rhs() const { return m_rhs; }
+  EIGEN_DEVICE_FUNC constexpr const Decomposition &dec() const { return m_dec; }
+  EIGEN_DEVICE_FUNC constexpr const RhsType &rhs() const { return m_rhs; }
 
  protected:
   const Decomposition &m_dec;
@@ -87,8 +87,8 @@ class SolveImpl<Decomposition, RhsType, Dense> : public MatrixBase<Solve<Decompo
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
 
  private:
-  Scalar coeff(Index row, Index col) const;
-  Scalar coeff(Index i) const;
+  constexpr Scalar coeff(Index row, Index col) const;
+  constexpr Scalar coeff(Index i) const;
 };
 
 // Generic API dispatcher
@@ -110,7 +110,7 @@ struct evaluator<Solve<Decomposition, RhsType> >
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 
-  EIGEN_DEVICE_FUNC explicit evaluator(const SolveType &solve) : m_result(solve.rows(), solve.cols()) {
+  EIGEN_DEVICE_FUNC constexpr explicit evaluator(const SolveType &solve) : m_result(solve.rows(), solve.cols()) {
     internal::construct_at<Base>(this, m_result);
     solve.dec()._solve_impl(solve.rhs(), m_result);
   }
@@ -125,7 +125,7 @@ struct evaluator<Solve<Decomposition, RhsType> >
 template <typename DstXprType, typename DecType, typename RhsType, typename Scalar>
 struct Assignment<DstXprType, Solve<DecType, RhsType>, internal::assign_op<Scalar, Scalar>, Dense2Dense> {
   typedef Solve<DecType, RhsType> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
+  static constexpr void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
@@ -139,7 +139,7 @@ template <typename DstXprType, typename DecType, typename RhsType, typename Scal
 struct Assignment<DstXprType, Solve<Transpose<const DecType>, RhsType>, internal::assign_op<Scalar, Scalar>,
                   Dense2Dense> {
   typedef Solve<Transpose<const DecType>, RhsType> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
+  static constexpr void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
@@ -158,7 +158,7 @@ struct Assignment<
   typedef Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType> >,
                 RhsType>
       SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
+  static constexpr void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);

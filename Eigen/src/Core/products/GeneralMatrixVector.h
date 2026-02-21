@@ -97,11 +97,11 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, Conj
   typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
   typedef typename QuarterTraits::ResPacket ResPacketQuarter;
 
-  EIGEN_DEVICE_FUNC inline static void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
-                                           ResScalar* res, Index resIncr, RhsScalar alpha);
+  EIGEN_DEVICE_FUNC inline static constexpr void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
+                                                     ResScalar* res, Index resIncr, RhsScalar alpha);
 
   template <int N>
-  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE void process_rows(
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void process_rows(
       Index i, Index j2, Index jend, const LhsMapper& lhs, const RhsMapper& rhs, ResScalar* res,
       const ResPacket& palpha, conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj);
 };
@@ -176,7 +176,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void general_matrix_vector_product<
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC inline void
+EIGEN_DEVICE_FUNC constexpr void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                             ResScalar* res, Index resIncr, RhsScalar alpha) {
@@ -298,29 +298,27 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, Conj
   typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
   typedef typename QuarterTraits::ResPacket ResPacketQuarter;
 
-  EIGEN_DEVICE_FUNC static inline void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
-                                           ResScalar* res, Index resIncr, ResScalar alpha);
+  EIGEN_DEVICE_FUNC static inline constexpr void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
+                                                     ResScalar* res, Index resIncr, ResScalar alpha);
 
   // Specialized path for when cols < full packet size. Kept noinline to avoid
   // bloating the main run() function and causing icache pressure.
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,
-                                                                 const RhsMapper& rhs, ResScalar* res, Index resIncr,
-                                                                 ResScalar alpha);
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static constexpr void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,
+                                                                           const RhsMapper& rhs, ResScalar* res,
+                                                                           Index resIncr, ResScalar alpha);
 
   // Templated helper that processes N rows in run_small_cols. N is a compile-time
   // constant; row-dimension unrolling is done via recursive templates to guarantee
   // full unrolling regardless of compiler heuristics.
   template <int N>
-  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE void process_rows_small_cols(Index i, Index cols, const LhsMapper& lhs,
-                                                                            const RhsMapper& rhs, ResScalar* res,
-                                                                            Index resIncr, ResScalar alpha,
-                                                                            Index halfColBlockEnd,
-                                                                            Index quarterColBlockEnd);
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void process_rows_small_cols(
+      Index i, Index cols, const LhsMapper& lhs, const RhsMapper& rhs, ResScalar* res, Index resIncr, ResScalar alpha,
+      Index halfColBlockEnd, Index quarterColBlockEnd);
 };
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC inline void
+EIGEN_DEVICE_FUNC constexpr void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                             ResScalar* res, Index resIncr, ResScalar alpha) {

@@ -60,9 +60,9 @@ struct nested<TensorReductionOp<Op, Dims, XprType, MakePointer_>, 1,
 template <typename OutputDims>
 struct DimInitializer {
   template <typename InputDims, typename ReducedDims>
-  EIGEN_DEVICE_FUNC static void run(const InputDims& input_dims,
-                                    const array<bool, internal::array_size<InputDims>::value>& reduced,
-                                    OutputDims* output_dims, ReducedDims* reduced_dims) {
+  EIGEN_DEVICE_FUNC static constexpr void run(const InputDims& input_dims,
+                                              const array<bool, internal::array_size<InputDims>::value>& reduced,
+                                              OutputDims* output_dims, ReducedDims* reduced_dims) {
     const int NumInputDims = internal::array_size<InputDims>::value;
     int outputIndex = 0;
     int reduceIndex = 0;
@@ -81,8 +81,8 @@ struct DimInitializer {
 template <>
 struct DimInitializer<Sizes<> > {
   template <typename InputDims, typename Index, size_t Rank>
-  EIGEN_DEVICE_FUNC static void run(const InputDims& input_dims, const array<bool, Rank>&, Sizes<>*,
-                                    array<Index, Rank>* reduced_dims) {
+  EIGEN_DEVICE_FUNC static constexpr void run(const InputDims& input_dims, const array<bool, Rank>&, Sizes<>*,
+                                              array<Index, Rank>* reduced_dims) {
     const int NumInputDims = internal::array_size<InputDims>::value;
     for (int i = 0; i < NumInputDims; ++i) {
       (*reduced_dims)[i] = input_dims[i];
@@ -92,11 +92,11 @@ struct DimInitializer<Sizes<> > {
 
 template <typename ReducedDims, int NumTensorDims, int Layout>
 struct are_inner_most_dims {
-  static const bool value = false;
+  static constexpr bool value = false;
 };
 template <typename ReducedDims, int NumTensorDims, int Layout>
 struct preserve_inner_most_dims {
-  static const bool value = false;
+  static constexpr bool value = false;
 };
 
 template <typename ReducedDims, int NumTensorDims>
@@ -129,8 +129,9 @@ struct preserve_inner_most_dims<ReducedDims, NumTensorDims, RowMajor> {
 
 template <int DimIndex, typename Self, typename Op>
 struct GenericDimReducer {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const Self& self, typename Self::Index firstIndex,
-                                                           Op& reducer, typename Self::CoeffReturnType* accum) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void reduce(const Self& self, typename Self::Index firstIndex,
+                                                                     Op& reducer,
+                                                                     typename Self::CoeffReturnType* accum) {
     EIGEN_STATIC_ASSERT((DimIndex > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
     for (int j = 0; j < self.m_reducedDims[DimIndex]; ++j) {
       const typename Self::Index input = firstIndex + j * self.m_reducedStrides[DimIndex];
@@ -140,8 +141,9 @@ struct GenericDimReducer {
 };
 template <typename Self, typename Op>
 struct GenericDimReducer<0, Self, Op> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const Self& self, typename Self::Index firstIndex,
-                                                           Op& reducer, typename Self::CoeffReturnType* accum) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void reduce(const Self& self, typename Self::Index firstIndex,
+                                                                     Op& reducer,
+                                                                     typename Self::CoeffReturnType* accum) {
     for (int j = 0; j < self.m_reducedDims[0]; ++j) {
       const typename Self::Index input = firstIndex + j * self.m_reducedStrides[0];
       reducer.reduce(self.m_impl.coeff(input), accum);
@@ -150,8 +152,9 @@ struct GenericDimReducer<0, Self, Op> {
 };
 template <typename Self, typename Op>
 struct GenericDimReducer<-1, Self, Op> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const Self& self, typename Self::Index index, Op& reducer,
-                                                           typename Self::CoeffReturnType* accum) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void reduce(const Self& self, typename Self::Index index,
+                                                                     Op& reducer,
+                                                                     typename Self::CoeffReturnType* accum) {
     reducer.reduce(self.m_impl.coeff(index), accum);
   }
 };
@@ -163,7 +166,7 @@ template <typename Self, typename Op,
                                    // for moderately sized inputs.
                                    !Self::RunningOnGPU)>
 struct InnerMostDimReducer {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Self::CoeffReturnType reduce(
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr typename Self::CoeffReturnType reduce(
       const Self& self, typename Self::Index firstIndex, typename Self::Index numValuesToReduce, Op& reducer) {
     typename Self::CoeffReturnType accum = reducer.initialize();
     for (typename Self::Index j = 0; j < numValuesToReduce; ++j) {
@@ -175,7 +178,7 @@ struct InnerMostDimReducer {
 
 template <typename Self, typename Op>
 struct InnerMostDimReducer<Self, Op, true, false> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Self::CoeffReturnType reduce(
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr typename Self::CoeffReturnType reduce(
       const Self& self, typename Self::Index firstIndex, typename Self::Index numValuesToReduce, Op& reducer0) {
     using Index = typename Self::Index;
     constexpr Index packetSize = internal::unpacket_traits<typename Self::PacketReturnType>::size;
@@ -236,7 +239,7 @@ EIGEN_DEVICE_FUNC inline Index LeafSize<bfloat16>() {
 
 template <typename Self, typename Op>
 struct InnerMostDimReducer<Self, Op, false, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Self::CoeffReturnType reduce(
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr typename Self::CoeffReturnType reduce(
       const Self& self, typename Self::Index firstIndex, typename Self::Index numValuesToReduce, Op& reducer) {
     const Index kLeafSize = LeafSize<typename Self::CoeffReturnType>();
     typename Self::CoeffReturnType accum = reducer.initialize();
@@ -254,7 +257,7 @@ struct InnerMostDimReducer<Self, Op, false, true> {
 
 template <typename Self, typename Op>
 struct InnerMostDimReducer<Self, Op, true, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Self::CoeffReturnType reduce(
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr typename Self::CoeffReturnType reduce(
       const Self& self, typename Self::Index firstIndex, typename Self::Index numValuesToReduce, Op& reducer) {
     const Index kLeafSize = LeafSize<typename Self::CoeffReturnType>();
     const typename Self::Index packetSize = internal::unpacket_traits<typename Self::PacketReturnType>::size;
@@ -280,16 +283,17 @@ struct InnerMostDimReducer<Self, Op, true, true> {
 template <int DimIndex, typename Self, typename Op,
           bool vectorizable = (Self::InputPacketAccess && Self::ReducerTraits::PacketAccess)>
 struct InnerMostDimPreserver {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const Self&, typename Self::Index, Op&,
-                                                           typename Self::PacketReturnType*) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void reduce(const Self&, typename Self::Index, Op&,
+                                                                     typename Self::PacketReturnType*) {
     eigen_assert(false && "should never be called");
   }
 };
 
 template <int DimIndex, typename Self, typename Op>
 struct InnerMostDimPreserver<DimIndex, Self, Op, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const Self& self, typename Self::Index firstIndex,
-                                                           Op& reducer, typename Self::PacketReturnType* accum) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void reduce(const Self& self, typename Self::Index firstIndex,
+                                                                     Op& reducer,
+                                                                     typename Self::PacketReturnType* accum) {
     EIGEN_STATIC_ASSERT((DimIndex > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
     for (typename Self::Index j = 0; j < self.m_reducedDims[DimIndex]; ++j) {
       const typename Self::Index input = firstIndex + j * self.m_reducedStrides[DimIndex];
@@ -300,8 +304,9 @@ struct InnerMostDimPreserver<DimIndex, Self, Op, true> {
 
 template <typename Self, typename Op>
 struct InnerMostDimPreserver<0, Self, Op, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const Self& self, typename Self::Index firstIndex,
-                                                           Op& reducer0, typename Self::PacketReturnType* accum0) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void reduce(const Self& self, typename Self::Index firstIndex,
+                                                                     Op& reducer0,
+                                                                     typename Self::PacketReturnType* accum0) {
     using Index = typename Self::Index;
     const Index stride = self.m_reducedStrides[0];
     const Index size = self.m_reducedDims[0];
@@ -337,8 +342,8 @@ struct InnerMostDimPreserver<0, Self, Op, true> {
 };
 template <typename Self, typename Op>
 struct InnerMostDimPreserver<-1, Self, Op, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const Self&, typename Self::Index, Op&,
-                                                           typename Self::PacketReturnType*) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void reduce(const Self&, typename Self::Index, Op&,
+                                                                     typename Self::PacketReturnType*) {
     eigen_assert(false && "should never be called");
   }
 };
@@ -349,8 +354,8 @@ template <typename Self, typename Op, typename Device,
 struct FullReducer {
   static constexpr bool HasOptimizedImplementation = false;
 
-  static EIGEN_DEVICE_FUNC void run(const Self& self, Op& reducer, const Device&,
-                                    typename Self::EvaluatorPointerType output) {
+  static EIGEN_DEVICE_FUNC constexpr void run(const Self& self, Op& reducer, const Device&,
+                                              typename Self::EvaluatorPointerType output) {
     const typename Self::Index num_coeffs = array_prod(self.m_impl.dimensions());
     *output = InnerMostDimReducer<Self, Op, Vectorizable>::reduce(self, 0, num_coeffs, reducer);
   }
@@ -364,8 +369,8 @@ struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
   static constexpr Index PacketSize = unpacket_traits<typename Self::PacketReturnType>::size;
 
   // launch one reducer per thread and accumulate the result.
-  static void run(const Self& self, Op& reducer, const ThreadPoolDevice& device,
-                  typename Self::CoeffReturnType* output) {
+  static constexpr void run(const Self& self, Op& reducer, const ThreadPoolDevice& device,
+                            typename Self::CoeffReturnType* output) {
     typedef typename Self::Index Index;
     const Index num_coeffs = array_prod(self.m_impl.dimensions());
     if (num_coeffs == 0) {
@@ -415,8 +420,8 @@ template <typename Self, typename Op, typename Device>
 struct InnerReducer {
   static constexpr bool HasOptimizedImplementation = false;
 
-  EIGEN_DEVICE_FUNC static bool run(const Self&, Op&, const Device&, typename Self::CoeffReturnType*,
-                                    typename Self::Index, typename Self::Index) {
+  EIGEN_DEVICE_FUNC static constexpr bool run(const Self&, Op&, const Device&, typename Self::CoeffReturnType*,
+                                              typename Self::Index, typename Self::Index) {
     eigen_assert(false && "Not implemented");
     return true;
   }
@@ -427,8 +432,8 @@ template <typename Self, typename Op, typename Device>
 struct OuterReducer {
   static constexpr bool HasOptimizedImplementation = false;
 
-  EIGEN_DEVICE_FUNC static bool run(const Self&, Op&, const Device&, typename Self::CoeffReturnType*,
-                                    typename Self::Index, typename Self::Index) {
+  EIGEN_DEVICE_FUNC static constexpr bool run(const Self&, Op&, const Device&, typename Self::CoeffReturnType*,
+                                              typename Self::Index, typename Self::Index) {
     eigen_assert(false && "Not implemented");
     return true;
   }
@@ -440,8 +445,8 @@ template <typename Self, typename Op, typename Device>
 struct GenericReducer {
   static constexpr bool HasOptimizedImplementation = false;
 
-  EIGEN_DEVICE_FUNC static bool run(const Self&, Op&, const Device&, typename Self::CoeffReturnType*,
-                                    typename Self::Index, typename Self::Index) {
+  EIGEN_DEVICE_FUNC static constexpr bool run(const Self&, Op&, const Device&, typename Self::CoeffReturnType*,
+                                              typename Self::Index, typename Self::Index) {
     eigen_assert(false && "Not implemented");
     return true;
   }
@@ -507,14 +512,15 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
   typedef typename Eigen::internal::traits<TensorReductionOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorReductionOp>::Index Index;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorReductionOp(const XprType& expr, const Dims& dims)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorReductionOp(const XprType& expr, const Dims& dims)
       : m_expr(expr), m_dims(dims) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorReductionOp(const XprType& expr, const Dims& dims, const Op& reducer)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorReductionOp(const XprType& expr, const Dims& dims,
+                                                                    const Op& reducer)
       : m_expr(expr), m_dims(dims), m_reducer(reducer) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const XprType& expression() const { return m_expr; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dims& dims() const { return m_dims; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Op& reducer() const { return m_reducer; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const XprType& expression() const { return m_expr; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dims& dims() const { return m_dims; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Op& reducer() const { return m_reducer; }
 
  protected:
   typename XprType::Nested m_expr;
@@ -585,7 +591,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   static constexpr bool PreservingInnerMostDims = internal::preserve_inner_most_dims<Dims, NumInputDims, Layout>::value;
   static constexpr bool RunningFullReduction = (NumOutputDims == 0);
 
-  EIGEN_STRONG_INLINE TensorReductionEvaluatorBase(const XprType& op, const Device& device)
+  EIGEN_STRONG_INLINE constexpr TensorReductionEvaluatorBase(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_reducer(op.reducer()), m_result(NULL), m_device(device) {
     EIGEN_STATIC_ASSERT((NumInputDims >= NumReducedDims), YOU_MADE_A_PROGRAMMING_MISTAKE);
     EIGEN_STATIC_ASSERT((!ReducingInnerMostDims | !PreservingInnerMostDims | (NumReducedDims == NumInputDims)),
@@ -661,9 +667,9 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
                               : m_preservedStrides[static_cast<size_t>(NumOutputDims - 1)];
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Dimensions& dimensions() const { return m_dimensions; }
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeededCommon(EvaluatorPointerType data) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeededCommon(EvaluatorPointerType data) {
     // Use the FullReducer if possible.
     if ((RunningFullReduction && RunningOnSycl) ||
         (RunningFullReduction && internal::FullReducer<Self, Op, Device>::HasOptimizedImplementation &&
@@ -777,17 +783,17 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
-  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType data, EvalSubExprsCallback done) {
+  EIGEN_STRONG_INLINE constexpr void evalSubExprsIfNeededAsync(EvaluatorPointerType data, EvalSubExprsCallback done) {
     m_impl.evalSubExprsIfNeededAsync(NULL, [this, data, done](bool) { done(evalSubExprsIfNeededCommon(data)); });
   }
 #endif
 
-  EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
+  EIGEN_STRONG_INLINE constexpr bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     m_impl.evalSubExprsIfNeeded(NULL);
     return evalSubExprsIfNeededCommon(data);
   }
 
-  EIGEN_STRONG_INLINE void cleanup() {
+  EIGEN_STRONG_INLINE constexpr void cleanup() {
     m_impl.cleanup();
     if (m_result) {
       m_device.deallocate_temp(m_result);
@@ -795,7 +801,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
     }
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const {
     if ((RunningFullReduction || RunningOnGPU) && m_result) {
       return *(m_result + index);
     }
@@ -856,7 +862,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   }
 
   // Must be called after evalSubExprsIfNeeded().
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr TensorOpCost costPerCoeff(bool vectorized) const {
     if (RunningFullReduction && m_result) {
       return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketSize);
     } else {
@@ -867,9 +873,9 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
     }
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_result; }
-  EIGEN_DEVICE_FUNC const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
-  EIGEN_DEVICE_FUNC const Device& device() const { return m_device; }
+  EIGEN_DEVICE_FUNC constexpr EvaluatorPointerType data() const { return m_result; }
+  EIGEN_DEVICE_FUNC constexpr const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
+  EIGEN_DEVICE_FUNC constexpr const Device& device() const { return m_device; }
 
  private:
   template <int, typename, typename>
@@ -919,7 +925,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
   // Returns the Index in the input tensor of the first value that needs to be
   // used to compute the reduction at output index "index".
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index firstInput(Index index) const {
     if (ReducingInnerMostDims) {
       if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
         return index * m_preservedStrides[0];
@@ -995,7 +1001,8 @@ template <typename Op, typename Dims, typename ArgType, template <class> class M
 struct TensorEvaluator<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device>
     : public TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device> {
   typedef TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device> Base;
-  EIGEN_STRONG_INLINE TensorEvaluator(const typename Base::XprType& op, const Device& device) : Base(op, device) {}
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const typename Base::XprType& op, const Device& device)
+      : Base(op, device) {}
 };
 
 template <typename Op, typename Dims, typename ArgType, template <class> class MakePointer_>
@@ -1003,12 +1010,13 @@ struct TensorEvaluator<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>,
     : public TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Eigen::SyclDevice> {
   typedef TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Eigen::SyclDevice>
       Base;
-  EIGEN_STRONG_INLINE TensorEvaluator(const typename Base::XprType& op, const Eigen::SyclDevice& device)
+  EIGEN_STRONG_INLINE constexpr TensorEvaluator(const typename Base::XprType& op, const Eigen::SyclDevice& device)
       : Base(op, device) {}
   // The coeff function in the base the recursive method which is not an standard layout and cannot be used in the SYCL
   // kernel
   // Therefore the coeff function should be overridden by for SYCL kernel
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Base::CoeffReturnType coeff(typename Base::Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr typename Base::CoeffReturnType coeff(
+      typename Base::Index index) const {
     return *(this->data() + index);
   }
   // The packet function in the base the recursive method which is not an standard layout and cannot be used in the SYCL
