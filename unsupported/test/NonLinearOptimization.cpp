@@ -1823,37 +1823,37 @@ void testNistEckerle4(void) {
 
 EIGEN_DECLARE_TEST(NonLinearOptimization) {
   // Tests using the examples provided by (c)minpack
-  CALL_SUBTEST /*_1*/ (testChkder());
-  CALL_SUBTEST /*_1*/ (testLmder1());
-  CALL_SUBTEST /*_1*/ (testLmder());
-  CALL_SUBTEST /*_2*/ (testHybrj1());
-  CALL_SUBTEST /*_2*/ (testHybrj());
-  CALL_SUBTEST /*_2*/ (testHybrd1());
-  CALL_SUBTEST /*_2*/ (testHybrd());
-  CALL_SUBTEST /*_3*/ (testLmstr1());
-  CALL_SUBTEST /*_3*/ (testLmstr());
-  CALL_SUBTEST /*_3*/ (testLmdif1());
-  CALL_SUBTEST /*_3*/ (testLmdif());
+  testChkder();
+  testLmder1();
+  testLmder();
+  testHybrj1();
+  testHybrj();
+  testHybrd1();
+  testHybrd();
+  testLmstr1();
+  testLmstr();
+  testLmdif1();
+  testLmdif();
 
   // NIST tests, level of difficulty = "Lower"
-  CALL_SUBTEST /*_4*/ (testNistMisra1a());
-  CALL_SUBTEST /*_4*/ (testNistChwirut2());
+  testNistMisra1a();
+  testNistChwirut2();
 
   // NIST tests, level of difficulty = "Average"
-  CALL_SUBTEST /*_5*/ (testNistHahn1());
-  CALL_SUBTEST /*_6*/ (testNistMisra1d());
-  CALL_SUBTEST /*_7*/ (testNistMGH17());
-  CALL_SUBTEST /*_8*/ (testNistLanczos1());
+  testNistHahn1();
+  testNistMisra1d();
+  testNistMGH17();
+  testNistLanczos1();
 
-  //     // NIST tests, level of difficulty = "Higher"
-  CALL_SUBTEST /*_9*/ (testNistRat42());
-  //     CALL_SUBTEST/*_10*/(testNistMGH10());
-  CALL_SUBTEST /*_11*/ (testNistBoxBOD());
-  //     CALL_SUBTEST/*_12*/(testNistMGH09());
-  CALL_SUBTEST /*_13*/ (testNistBennett5());
-  CALL_SUBTEST /*_14*/ (testNistThurber());
-  CALL_SUBTEST /*_15*/ (testNistRat43());
-  CALL_SUBTEST /*_16*/ (testNistEckerle4());
+  // NIST tests, level of difficulty = "Higher"
+  testNistRat42();
+  // testNistMGH10();
+  testNistBoxBOD();
+  // testNistMGH09();
+  testNistBennett5();
+  testNistThurber();
+  testNistRat43();
+  testNistEckerle4();
 }
 
 /*

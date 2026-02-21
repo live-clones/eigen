@@ -270,20 +270,20 @@ static void test_argmin_dim() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_argmax) {
-  CALL_SUBTEST(test_simple_index_pairs<RowMajor>());
-  CALL_SUBTEST(test_simple_index_pairs<ColMajor>());
-  CALL_SUBTEST(test_index_pairs_dim<RowMajor>());
-  CALL_SUBTEST(test_index_pairs_dim<ColMajor>());
-  CALL_SUBTEST(test_argmax_pair_reducer<RowMajor>());
-  CALL_SUBTEST(test_argmax_pair_reducer<ColMajor>());
-  CALL_SUBTEST(test_argmin_pair_reducer<RowMajor>());
-  CALL_SUBTEST(test_argmin_pair_reducer<ColMajor>());
-  CALL_SUBTEST(test_simple_argmax<RowMajor>());
-  CALL_SUBTEST(test_simple_argmax<ColMajor>());
-  CALL_SUBTEST(test_simple_argmin<RowMajor>());
-  CALL_SUBTEST(test_simple_argmin<ColMajor>());
-  CALL_SUBTEST(test_argmax_dim<RowMajor>());
-  CALL_SUBTEST(test_argmax_dim<ColMajor>());
-  CALL_SUBTEST(test_argmin_dim<RowMajor>());
-  CALL_SUBTEST(test_argmin_dim<ColMajor>());
+  test_simple_index_pairs<RowMajor>();
+  test_simple_index_pairs<ColMajor>();
+  test_index_pairs_dim<RowMajor>();
+  test_index_pairs_dim<ColMajor>();
+  test_argmax_pair_reducer<RowMajor>();
+  test_argmax_pair_reducer<ColMajor>();
+  test_argmin_pair_reducer<RowMajor>();
+  test_argmin_pair_reducer<ColMajor>();
+  test_simple_argmax<RowMajor>();
+  test_simple_argmax<ColMajor>();
+  test_simple_argmin<RowMajor>();
+  test_simple_argmin<ColMajor>();
+  test_argmax_dim<RowMajor>();
+  test_argmax_dim<ColMajor>();
+  test_argmin_dim<RowMajor>();
+  test_argmin_dim<ColMajor>();
 }

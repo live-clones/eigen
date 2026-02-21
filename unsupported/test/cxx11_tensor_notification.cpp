@@ -62,6 +62,6 @@ static void test_notification_multiple() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_notification) {
-  CALL_SUBTEST(test_notification_single());
-  CALL_SUBTEST(test_notification_multiple());
+  test_notification_single();
+  test_notification_multiple();
 }

@@ -445,17 +445,17 @@ void test_gpu_forced_evals() {
 #endif
 
 EIGEN_DECLARE_TEST(cxx11_tensor_of_float16_gpu) {
-  CALL_SUBTEST_1(test_gpu_numext<void>());
+  test_gpu_numext<void>();
 
 #ifdef EIGEN_HAS_GPU_FP16
-  CALL_SUBTEST_1(test_gpu_conversion<void>());
-  CALL_SUBTEST_1(test_gpu_unary<void>());
-  CALL_SUBTEST_1(test_gpu_elementwise<void>());
-  CALL_SUBTEST_1(test_gpu_trancendental<void>());
-  CALL_SUBTEST_2(test_gpu_contractions<void>());
-  CALL_SUBTEST_3(test_gpu_reductions<void>());
-  CALL_SUBTEST_4(test_gpu_full_reductions<void>());
-  CALL_SUBTEST_5(test_gpu_forced_evals<void>());
+  test_gpu_conversion<void>();
+  test_gpu_unary<void>();
+  test_gpu_elementwise<void>();
+  test_gpu_trancendental<void>();
+  test_gpu_contractions<void>();
+  test_gpu_reductions<void>();
+  test_gpu_full_reductions<void>();
+  test_gpu_forced_evals<void>();
 #else
   std::cout << "Half floats are not supported by this version of gpu: skipping the test" << std::endl;
 #endif

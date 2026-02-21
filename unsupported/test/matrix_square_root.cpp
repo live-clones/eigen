@@ -19,11 +19,11 @@ void testMatrixSqrt(const MatrixType& m) {
 
 EIGEN_DECLARE_TEST(matrix_square_root) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(testMatrixSqrt(Matrix3cf()));
-    CALL_SUBTEST_2(testMatrixSqrt(MatrixXcd(12, 12)));
-    CALL_SUBTEST_3(testMatrixSqrt(Matrix4f()));
-    CALL_SUBTEST_4(testMatrixSqrt(Matrix<double, Dynamic, Dynamic, RowMajor>(9, 9)));
-    CALL_SUBTEST_5(testMatrixSqrt(Matrix<float, 1, 1>()));
-    CALL_SUBTEST_5(testMatrixSqrt(Matrix<std::complex<float>, 1, 1>()));
+    testMatrixSqrt(Matrix3cf());
+    testMatrixSqrt(MatrixXcd(12, 12));
+    testMatrixSqrt(Matrix4f());
+    testMatrixSqrt(Matrix<double, Dynamic, Dynamic, RowMajor>(9, 9));
+    testMatrixSqrt(Matrix<float, 1, 1>());
+    testMatrixSqrt(Matrix<std::complex<float>, 1, 1>());
   }
 }

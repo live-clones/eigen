@@ -1526,30 +1526,30 @@ void testNistEckerle4(void) {
 
 EIGEN_DECLARE_TEST(levenberg_marquardt) {
   // Tests using the examples provided by (c)minpack
-  CALL_SUBTEST(testLmder1());
-  CALL_SUBTEST(testLmder());
-  CALL_SUBTEST(testLmdif1());
-  //     CALL_SUBTEST(testLmstr1());
-  //     CALL_SUBTEST(testLmstr());
-  CALL_SUBTEST(testLmdif());
+  testLmder1();
+  testLmder();
+  testLmdif1();
+  //     testLmstr1();
+  //     testLmstr();
+  testLmdif();
 
   // NIST tests, level of difficulty = "Lower"
-  CALL_SUBTEST(testNistMisra1a());
-  CALL_SUBTEST(testNistChwirut2());
+  testNistMisra1a();
+  testNistChwirut2();
 
   // NIST tests, level of difficulty = "Average"
-  CALL_SUBTEST(testNistHahn1());
-  CALL_SUBTEST(testNistMisra1d());
-  CALL_SUBTEST(testNistMGH17());
-  CALL_SUBTEST(testNistLanczos1());
+  testNistHahn1();
+  testNistMisra1d();
+  testNistMGH17();
+  testNistLanczos1();
 
   //     // NIST tests, level of difficulty = "Higher"
-  CALL_SUBTEST(testNistRat42());
-  CALL_SUBTEST(testNistMGH10());
-  CALL_SUBTEST(testNistBoxBOD());
-  //     CALL_SUBTEST(testNistMGH09());
-  CALL_SUBTEST(testNistBennett5());
-  CALL_SUBTEST(testNistThurber());
-  CALL_SUBTEST(testNistRat43());
-  CALL_SUBTEST(testNistEckerle4());
+  testNistRat42();
+  testNistMGH10();
+  testNistBoxBOD();
+  //     testNistMGH09();
+  testNistBennett5();
+  testNistThurber();
+  testNistRat43();
+  testNistEckerle4();
 }
