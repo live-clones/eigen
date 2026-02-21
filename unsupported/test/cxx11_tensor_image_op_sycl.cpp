@@ -91,10 +91,10 @@ void sycl_computing_test_per_device(dev_Selector s) {
 
 EIGEN_DECLARE_TEST(cxx11_tensor_image_op_sycl) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(sycl_computing_test_per_device<half>(device));
-    CALL_SUBTEST(sycl_computing_test_per_device<float>(device));
+    sycl_computing_test_per_device<half>(device);
+    sycl_computing_test_per_device<float>(device);
 #ifdef EIGEN_SYCL_DOUBLE_SUPPORT
-    CALL_SUBTEST(sycl_computing_test_per_device<double>(device));
+    sycl_computing_test_per_device<double>(device);
 #endif
   }
 }

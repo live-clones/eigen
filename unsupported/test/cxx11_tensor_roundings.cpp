@@ -51,7 +51,7 @@ static void test_float_ceiling() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_roundings) {
-  CALL_SUBTEST(test_float_rounding());
-  CALL_SUBTEST(test_float_ceiling());
-  CALL_SUBTEST(test_float_flooring());
+  test_float_rounding();
+  test_float_ceiling();
+  test_float_flooring();
 }

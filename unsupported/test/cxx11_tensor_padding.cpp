@@ -83,8 +83,8 @@ static void test_padded_expr() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_padding) {
-  CALL_SUBTEST(test_simple_padding<ColMajor>());
-  CALL_SUBTEST(test_simple_padding<RowMajor>());
-  CALL_SUBTEST(test_padded_expr<ColMajor>());
-  CALL_SUBTEST(test_padded_expr<RowMajor>());
+  test_simple_padding<ColMajor>();
+  test_simple_padding<RowMajor>();
+  test_padded_expr<ColMajor>();
+  test_padded_expr<RowMajor>();
 }

@@ -826,21 +826,21 @@ EIGEN_DECLARE_TEST(cxx11_tensor_contract_sycl) {
     std::cout << "Running on " << device.template get_info<cl::sycl::info::device::name>() << std::endl;
     QueueInterface queueInterface(device);
     auto sycl_device = Eigen::SyclDevice(&queueInterface);
-    CALL_SUBTEST_1(tensorOutofBound(sycl_device));
-    CALL_SUBTEST_2(tensorTensor(sycl_device));
-    CALL_SUBTEST_2(tensorTensor_m(sycl_device));
-    CALL_SUBTEST_2(tensorTensor_n(sycl_device));
-    CALL_SUBTEST_2(tensorTensor_k(sycl_device));
-    CALL_SUBTEST_2(tensorTensor_sizes(sycl_device));
-    CALL_SUBTEST_3(vectorVector(sycl_device));
-    CALL_SUBTEST_4(vectorTensor(sycl_device));
-    CALL_SUBTEST_5(tensorVector(sycl_device));
-    CALL_SUBTEST_6(tensorScalar(sycl_device));
-    CALL_SUBTEST_7(skinnyTensor_row(sycl_device));
-    CALL_SUBTEST_7(skinnyTensor_col(sycl_device));
-    CALL_SUBTEST_8(tensor_contraction_batch_per_device(sycl_device));
-    CALL_SUBTEST_9(tensor_contraction_lhs_transposed_per_device(sycl_device));
-    CALL_SUBTEST_10(tensor_contraction_rhs_transposed_per_device(sycl_device));
-    CALL_SUBTEST_11(tensor_contraction_both_transposed_per_device(sycl_device));
+    tensorOutofBound(sycl_device);
+    tensorTensor(sycl_device);
+    tensorTensor_m(sycl_device);
+    tensorTensor_n(sycl_device);
+    tensorTensor_k(sycl_device);
+    tensorTensor_sizes(sycl_device);
+    vectorVector(sycl_device);
+    vectorTensor(sycl_device);
+    tensorVector(sycl_device);
+    tensorScalar(sycl_device);
+    skinnyTensor_row(sycl_device);
+    skinnyTensor_col(sycl_device);
+    tensor_contraction_batch_per_device(sycl_device);
+    tensor_contraction_lhs_transposed_per_device(sycl_device);
+    tensor_contraction_rhs_transposed_per_device(sycl_device);
+    tensor_contraction_both_transposed_per_device(sycl_device);
   }
 }

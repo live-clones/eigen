@@ -784,14 +784,14 @@ static void test_tensor_randacc() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_symmetry) {
-  CALL_SUBTEST(test_symgroups_static());
-  CALL_SUBTEST(test_symgroups_dynamic());
-  CALL_SUBTEST(test_symgroups_selection());
-  CALL_SUBTEST(test_tensor_epsilon());
-  CALL_SUBTEST(test_tensor_sym());
-  CALL_SUBTEST(test_tensor_asym());
-  CALL_SUBTEST(test_tensor_dynsym());
-  CALL_SUBTEST(test_tensor_randacc());
+  test_symgroups_static();
+  test_symgroups_dynamic();
+  test_symgroups_selection();
+  test_tensor_epsilon();
+  test_tensor_sym();
+  test_tensor_asym();
+  test_tensor_dynsym();
+  test_tensor_randacc();
 }
 
 /*

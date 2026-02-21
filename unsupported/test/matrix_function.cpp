@@ -195,16 +195,16 @@ void testMapRef(const MatrixType& A) {
 }
 
 EIGEN_DECLARE_TEST(matrix_function) {
-  CALL_SUBTEST_1(testMatrixType(Matrix<float, 1, 1>()));
-  CALL_SUBTEST_2(testMatrixType(Matrix3cf()));
-  CALL_SUBTEST_3(testMatrixType(MatrixXf(8, 8)));
-  CALL_SUBTEST_4(testMatrixType(Matrix2d()));
-  CALL_SUBTEST_5(testMatrixType(Matrix<double, 5, 5, RowMajor>()));
-  CALL_SUBTEST_6(testMatrixType(Matrix4cd()));
-  CALL_SUBTEST_7(testMatrixType(MatrixXd(13, 13)));
+  testMatrixType(Matrix<float, 1, 1>());
+  testMatrixType(Matrix3cf());
+  testMatrixType(MatrixXf(8, 8));
+  testMatrixType(Matrix2d());
+  testMatrixType(Matrix<double, 5, 5, RowMajor>());
+  testMatrixType(Matrix4cd());
+  testMatrixType(MatrixXd(13, 13));
 
-  CALL_SUBTEST_1(testMapRef(Matrix<float, 1, 1>()));
-  CALL_SUBTEST_2(testMapRef(Matrix3cf()));
-  CALL_SUBTEST_3(testMapRef(MatrixXf(8, 8)));
-  CALL_SUBTEST_7(testMapRef(MatrixXd(13, 13)));
+  testMapRef(Matrix<float, 1, 1>());
+  testMapRef(Matrix3cf());
+  testMapRef(MatrixXf(8, 8));
+  testMapRef(MatrixXd(13, 13));
 }
