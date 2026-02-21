@@ -291,22 +291,22 @@ static void test_simple_broadcasting_one_by_n_by_one_2d() {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_broadcasting) {
-  CALL_SUBTEST(test_simple_broadcasting<ColMajor>());
-  CALL_SUBTEST(test_simple_broadcasting<RowMajor>());
-  CALL_SUBTEST(test_vectorized_broadcasting<ColMajor>());
-  CALL_SUBTEST(test_vectorized_broadcasting<RowMajor>());
-  CALL_SUBTEST(test_static_broadcasting<ColMajor>());
-  CALL_SUBTEST(test_static_broadcasting<RowMajor>());
-  CALL_SUBTEST(test_fixed_size_broadcasting<ColMajor>());
-  CALL_SUBTEST(test_fixed_size_broadcasting<RowMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_one_by_n<RowMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_n_by_one<RowMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_one_by_n<ColMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_n_by_one<ColMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_one_by_n_by_one_1d<ColMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_one_by_n_by_one_2d<ColMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_one_by_n_by_one_1d<RowMajor>());
-  CALL_SUBTEST(test_simple_broadcasting_one_by_n_by_one_2d<RowMajor>());
-  CALL_SUBTEST(test_size_one_broadcasting<ColMajor>());
-  CALL_SUBTEST(test_size_one_broadcasting<RowMajor>());
+  test_simple_broadcasting<ColMajor>();
+  test_simple_broadcasting<RowMajor>();
+  test_vectorized_broadcasting<ColMajor>();
+  test_vectorized_broadcasting<RowMajor>();
+  test_static_broadcasting<ColMajor>();
+  test_static_broadcasting<RowMajor>();
+  test_fixed_size_broadcasting<ColMajor>();
+  test_fixed_size_broadcasting<RowMajor>();
+  test_simple_broadcasting_one_by_n<RowMajor>();
+  test_simple_broadcasting_n_by_one<RowMajor>();
+  test_simple_broadcasting_one_by_n<ColMajor>();
+  test_simple_broadcasting_n_by_one<ColMajor>();
+  test_simple_broadcasting_one_by_n_by_one_1d<ColMajor>();
+  test_simple_broadcasting_one_by_n_by_one_2d<ColMajor>();
+  test_simple_broadcasting_one_by_n_by_one_1d<RowMajor>();
+  test_simple_broadcasting_one_by_n_by_one_2d<RowMajor>();
+  test_size_one_broadcasting<ColMajor>();
+  test_size_one_broadcasting<RowMajor>();
 }

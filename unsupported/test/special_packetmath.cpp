@@ -151,10 +151,10 @@ struct runall {
 EIGEN_DECLARE_TEST(special_packetmath) {
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(test::runner<float>::run());
-    CALL_SUBTEST_2(test::runner<double>::run());
-    CALL_SUBTEST_3(test::runner<Eigen::half>::run());
-    CALL_SUBTEST_4(test::runner<Eigen::bfloat16>::run());
+    test::runner<float>::run();
+    test::runner<double>::run();
+    test::runner<Eigen::half>::run();
+    test::runner<Eigen::bfloat16>::run();
     g_first_pass = false;
   }
 }

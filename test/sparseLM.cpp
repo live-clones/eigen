@@ -146,7 +146,7 @@ void test_sparseLM_T() {
   if (status == LevenbergMarquardtSpace::ImproperInputParameters) return;
 }
 EIGEN_DECLARE_TEST(sparseLM) {
-  CALL_SUBTEST_1(test_sparseLM_T<double>());
+  test_sparseLM_T<double>();
 
-  // CALL_SUBTEST_2(test_sparseLM_T<std::complex<double>());
+  // test_sparseLM_T<std::complex<double>();
 }

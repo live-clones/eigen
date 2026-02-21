@@ -349,34 +349,34 @@ EIGEN_DECLARE_TEST(sycl_basic) {
   cfin.setRandom(data_size);
   cfout.setConstant(data_size, -1);
 
-  CALL_SUBTEST(test_coeff_wise<Vector3f>(num_elements, in, out));
-  CALL_SUBTEST(test_coeff_wise<Array44f>(num_elements, in, out));
+  test_coeff_wise<Vector3f>(num_elements, in, out);
+  test_coeff_wise<Array44f>(num_elements, in, out);
 
-  CALL_SUBTEST(test_complex_operators<Vector3cf>(num_elements, cfin, cfout));
-  CALL_SUBTEST(test_complex_sqrt<Vector3cf>(num_elements, cfin, cfout));
+  test_complex_operators<Vector3cf>(num_elements, cfin, cfout);
+  test_complex_sqrt<Vector3cf>(num_elements, cfin, cfout);
 
-  CALL_SUBTEST(test_redux<Array4f>(num_elements, in, out));
-  CALL_SUBTEST(test_redux<Matrix3f>(num_elements, in, out));
+  test_redux<Array4f>(num_elements, in, out);
+  test_redux<Matrix3f>(num_elements, in, out);
 
-  CALL_SUBTEST(test_replicate<Array4f>(num_elements, in, out));
-  CALL_SUBTEST(test_replicate<Array33f>(num_elements, in, out));
+  test_replicate<Array4f>(num_elements, in, out);
+  test_replicate<Array33f>(num_elements, in, out);
 
   auto test_prod_mm = [&]() { test_product<Matrix3f, Matrix3f>(num_elements, in, out); };
   auto test_prod_mv = [&]() { test_product<Matrix4f, Vector4f>(num_elements, in, out); };
-  CALL_SUBTEST(test_prod_mm());
-  CALL_SUBTEST(test_prod_mv());
+  test_prod_mm();
+  test_prod_mv();
 
   auto test_diagonal_mv3f = [&]() { test_diagonal<Matrix3f, Vector3f>(num_elements, in, out); };
   auto test_diagonal_mv4f = [&]() { test_diagonal<Matrix4f, Vector4f>(num_elements, in, out); };
-  CALL_SUBTEST(test_diagonal_mv3f());
-  CALL_SUBTEST(test_diagonal_mv4f());
+  test_diagonal_mv3f();
+  test_diagonal_mv4f();
 
-  CALL_SUBTEST(test_eigenvalues_direct<Matrix3f>(num_elements, in, out));
-  CALL_SUBTEST(test_eigenvalues_direct<Matrix2f>(num_elements, in, out));
+  test_eigenvalues_direct<Matrix3f>(num_elements, in, out);
+  test_eigenvalues_direct<Matrix2f>(num_elements, in, out);
 
-  CALL_SUBTEST(test_matrix_inverse<Matrix2f>(num_elements, in, out));
-  CALL_SUBTEST(test_matrix_inverse<Matrix3f>(num_elements, in, out));
-  CALL_SUBTEST(test_matrix_inverse<Matrix4f>(num_elements, in, out));
+  test_matrix_inverse<Matrix2f>(num_elements, in, out);
+  test_matrix_inverse<Matrix3f>(num_elements, in, out);
+  test_matrix_inverse<Matrix4f>(num_elements, in, out);
 
-  CALL_SUBTEST(test_numeric_limits<Vector3f>(in, out));
+  test_numeric_limits<Vector3f>(in, out);
 }
