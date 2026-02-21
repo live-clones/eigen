@@ -69,19 +69,19 @@ struct test_cast_runner<Scalar, std::enable_if_t<NumTraits<Scalar>::IsComplex>> 
 };
 
 EIGEN_DECLARE_TEST(cxx11_tensor_casts) {
-  CALL_SUBTEST(test_cast_runner<bool>::run());
-  CALL_SUBTEST(test_cast_runner<int8_t>::run());
-  CALL_SUBTEST(test_cast_runner<int16_t>::run());
-  CALL_SUBTEST(test_cast_runner<int32_t>::run());
-  CALL_SUBTEST(test_cast_runner<int64_t>::run());
-  CALL_SUBTEST(test_cast_runner<uint8_t>::run());
-  CALL_SUBTEST(test_cast_runner<uint16_t>::run());
-  CALL_SUBTEST(test_cast_runner<uint32_t>::run());
-  CALL_SUBTEST(test_cast_runner<uint64_t>::run());
-  CALL_SUBTEST(test_cast_runner<half>::run());
-  CALL_SUBTEST(test_cast_runner<bfloat16>::run());
-  CALL_SUBTEST(test_cast_runner<float>::run());
-  CALL_SUBTEST(test_cast_runner<double>::run());
-  CALL_SUBTEST(test_cast_runner<std::complex<float>>::run());
-  CALL_SUBTEST(test_cast_runner<std::complex<double>>::run());
+  test_cast_runner<bool>::run();
+  test_cast_runner<int8_t>::run();
+  test_cast_runner<int16_t>::run();
+  test_cast_runner<int32_t>::run();
+  test_cast_runner<int64_t>::run();
+  test_cast_runner<uint8_t>::run();
+  test_cast_runner<uint16_t>::run();
+  test_cast_runner<uint32_t>::run();
+  test_cast_runner<uint64_t>::run();
+  test_cast_runner<half>::run();
+  test_cast_runner<bfloat16>::run();
+  test_cast_runner<float>::run();
+  test_cast_runner<double>::run();
+  test_cast_runner<std::complex<float>>::run();
+  test_cast_runner<std::complex<double>>::run();
 }

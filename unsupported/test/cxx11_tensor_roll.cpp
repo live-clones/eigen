@@ -147,10 +147,10 @@ static void test_expr_roll(bool LValue) {
 }
 
 EIGEN_DECLARE_TEST(cxx11_tensor_roll) {
-  CALL_SUBTEST(test_simple_roll<ColMajor>());
-  CALL_SUBTEST(test_simple_roll<RowMajor>());
-  CALL_SUBTEST(test_expr_roll<ColMajor>(true));
-  CALL_SUBTEST(test_expr_roll<RowMajor>(true));
-  CALL_SUBTEST(test_expr_roll<ColMajor>(false));
-  CALL_SUBTEST(test_expr_roll<RowMajor>(false));
+  test_simple_roll<ColMajor>();
+  test_simple_roll<RowMajor>();
+  test_expr_roll<ColMajor>(true);
+  test_expr_roll<RowMajor>(true);
+  test_expr_roll<ColMajor>(false);
+  test_expr_roll<RowMajor>(false);
 }

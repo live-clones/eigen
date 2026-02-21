@@ -102,11 +102,11 @@ EIGEN_DECLARE_TEST(cxx11_tensor_scan_sycl) {
     std::cout << "Running on " << device.template get_info<cl::sycl::info::device::name>() << std::endl;
     QueueInterface queueInterface(device);
     auto sycl_device = Eigen::SyclDevice(&queueInterface);
-    CALL_SUBTEST_1(sycl_scan_test_exclusive_dim0_per_device<float>(sycl_device));
-    CALL_SUBTEST_2(sycl_scan_test_exclusive_dim1_per_device<float>(sycl_device));
-    CALL_SUBTEST_3(sycl_scan_test_exclusive_dim2_per_device<float>(sycl_device));
-    CALL_SUBTEST_4(sycl_scan_test_inclusive_dim0_per_device<float>(sycl_device));
-    CALL_SUBTEST_5(sycl_scan_test_inclusive_dim1_per_device<float>(sycl_device));
-    CALL_SUBTEST_6(sycl_scan_test_inclusive_dim2_per_device<float>(sycl_device));
+    sycl_scan_test_exclusive_dim0_per_device<float>(sycl_device);
+    sycl_scan_test_exclusive_dim1_per_device<float>(sycl_device);
+    sycl_scan_test_exclusive_dim2_per_device<float>(sycl_device);
+    sycl_scan_test_inclusive_dim0_per_device<float>(sycl_device);
+    sycl_scan_test_inclusive_dim1_per_device<float>(sycl_device);
+    sycl_scan_test_inclusive_dim2_per_device<float>(sycl_device);
   }
 }

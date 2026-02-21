@@ -97,6 +97,6 @@ void test_central() {
 }
 
 EIGEN_DECLARE_TEST(NumericalDiff) {
-  CALL_SUBTEST(test_forward());
-  CALL_SUBTEST(test_central());
+  test_forward();
+  test_central();
 }

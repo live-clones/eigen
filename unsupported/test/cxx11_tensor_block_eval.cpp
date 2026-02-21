@@ -711,57 +711,55 @@ static void test_assign_to_tensor_shuffle() {
 
 // -------------------------------------------------------------------------- //
 
-#define CALL_SUBTEST_PART(PART) CALL_SUBTEST_##PART
+#define CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(PART, NAME) \
+  (NAME<float, 1, RowMajor>());                      \
+  (NAME<float, 2, RowMajor>());                      \
+  (NAME<float, 3, RowMajor>());                      \
+  (NAME<float, 4, RowMajor>());                      \
+  (NAME<float, 5, RowMajor>());                      \
+  (NAME<float, 1, ColMajor>());                      \
+  (NAME<float, 2, ColMajor>());                      \
+  (NAME<float, 4, ColMajor>());                      \
+  (NAME<float, 4, ColMajor>());                      \
+  (NAME<float, 5, ColMajor>());                      \
+  (NAME<int, 1, RowMajor>());                        \
+  (NAME<int, 2, RowMajor>());                        \
+  (NAME<int, 3, RowMajor>());                        \
+  (NAME<int, 4, RowMajor>());                        \
+  (NAME<int, 5, RowMajor>());                        \
+  (NAME<int, 1, ColMajor>());                        \
+  (NAME<int, 2, ColMajor>());                        \
+  (NAME<int, 4, ColMajor>());                        \
+  (NAME<int, 4, ColMajor>());                        \
+  (NAME<int, 5, ColMajor>());                        \
+  (NAME<bool, 1, RowMajor>());                       \
+  (NAME<bool, 2, RowMajor>());                       \
+  (NAME<bool, 3, RowMajor>());                       \
+  (NAME<bool, 4, RowMajor>());                       \
+  (NAME<bool, 5, RowMajor>());                       \
+  (NAME<bool, 1, ColMajor>());                       \
+  (NAME<bool, 2, ColMajor>());                       \
+  (NAME<bool, 4, ColMajor>());                       \
+  (NAME<bool, 4, ColMajor>());                       \
+  (NAME<bool, 5, ColMajor>())
 
-#define CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(PART, NAME)     \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 3, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<int, 1, RowMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 2, RowMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 3, RowMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, RowMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 5, RowMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 1, ColMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 2, ColMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 5, ColMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 1, RowMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 2, RowMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 3, RowMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, RowMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 5, RowMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 1, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 2, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 5, ColMajor>()))
+#define CALL_SUBTESTS_DIMS_LAYOUTS(PART, NAME) \
+  (NAME<float, 1, RowMajor>());                \
+  (NAME<float, 2, RowMajor>());                \
+  (NAME<float, 3, RowMajor>());                \
+  (NAME<float, 4, RowMajor>());                \
+  (NAME<float, 5, RowMajor>());                \
+  (NAME<float, 1, ColMajor>());                \
+  (NAME<float, 2, ColMajor>());                \
+  (NAME<float, 4, ColMajor>());                \
+  (NAME<float, 4, ColMajor>());                \
+  (NAME<float, 5, ColMajor>())
 
-#define CALL_SUBTESTS_DIMS_LAYOUTS(PART, NAME)           \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 3, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>()))
-
-#define CALL_SUBTESTS_LAYOUTS_TYPES(PART, NAME)       \
-  CALL_SUBTEST_PART(PART)((NAME<float, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, RowMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, ColMajor>()))
+#define CALL_SUBTESTS_LAYOUTS_TYPES(PART, NAME) \
+  (NAME<float, RowMajor>());                    \
+  (NAME<float, ColMajor>());                    \
+  (NAME<bool, RowMajor>());                     \
+  (NAME<bool, ColMajor>())
 
 EIGEN_DECLARE_TEST(cxx11_tensor_block_eval) {
   // clang-format off
