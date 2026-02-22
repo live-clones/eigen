@@ -1,0 +1,6 @@
+[codespell]
+# Skip build directories, third-party code, and binary files.
+skip = .git,build,.build,*.o,*.a,*.so,*.pyc,blas/f2c,lapack/f2c
+# Ignore words that are false positives (technical terms, variable names).
+# Add entries as needed after initial run.
+ignore-words-list = nd,te,ba,ser
