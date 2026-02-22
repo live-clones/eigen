@@ -1,0 +1,6 @@
+ei_add_test(stdvector)
+ei_add_test(stdvector_overload)
+ei_add_test(stdlist)
+ei_add_test(stdlist_overload)
+ei_add_test(stddeque)
+ei_add_test(stddeque_overload)

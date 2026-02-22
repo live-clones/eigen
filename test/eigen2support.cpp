@@ -50,13 +50,13 @@ void eigen2support(const MatrixType& m) {
   m1.minor(0, 0);
 }
 
-EIGEN_DECLARE_TEST(eigen2support) {
+TEST(Eigen2supportTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(eigen2support(Matrix<double, 1, 1>()));
-    CALL_SUBTEST_2(eigen2support(MatrixXd(1, 1)));
-    CALL_SUBTEST_4(eigen2support(Matrix3f()));
-    CALL_SUBTEST_5(eigen2support(Matrix4d()));
-    CALL_SUBTEST_2(eigen2support(MatrixXf(200, 200)));
-    CALL_SUBTEST_6(eigen2support(MatrixXcd(100, 100)));
+    eigen2support(Matrix<double, 1, 1>());
+    eigen2support(MatrixXd(1, 1));
+    eigen2support(Matrix3f());
+    eigen2support(Matrix4d());
+    eigen2support(MatrixXf(200, 200));
+    eigen2support(MatrixXcd(100, 100));
   }
 }
