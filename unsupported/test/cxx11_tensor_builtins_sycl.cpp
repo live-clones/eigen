@@ -496,7 +496,7 @@ static void test_integer_builtin_binary_sycl(const Eigen::SyclDevice& sycl_devic
   test_binary_builtins_fixed_arg2<DataType, ColMajor, op_modulo>(sycl_device, tensor_range);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_builtins_sycl) {
+TEST(TensorBuiltinsSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     QueueInterface queueInterface(device);
     Eigen::SyclDevice sycl_device(&queueInterface);

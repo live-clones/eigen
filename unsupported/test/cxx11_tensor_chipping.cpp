@@ -405,7 +405,7 @@ static void test_chip_raw_data_row_major() {
   VERIFY_IS_EQUAL(chip4.data(), static_cast<float*>(0));
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_chipping) {
+TEST(TensorChippingTest, Basic) {
   test_simple_chip<ColMajor>();
   test_simple_chip<RowMajor>();
   test_dynamic_chip<ColMajor>();

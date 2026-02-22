@@ -800,7 +800,7 @@ void test_imagenet_patches() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_image_patch) {
+TEST(TensorImagePatchTest, Basic) {
   test_simple_patch();
   test_patch_no_extra_dim();
   test_patch_padding_valid();

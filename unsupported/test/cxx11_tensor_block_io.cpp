@@ -412,7 +412,7 @@ static void test_block_io_squeeze_ones() {
   (NAME<bool, 4, ColMajor>());  \
   (NAME<bool, 5, ColMajor>())
 
-EIGEN_DECLARE_TEST(cxx11_tensor_block_io) {
+TEST(TensorBlockIOTest, Basic) {
   // clang-format off
   CALL_SUBTESTS(test_block_io_copy_data_from_source_to_target);
   CALL_SUBTESTS(test_block_io_copy_using_reordered_dimensions);

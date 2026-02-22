@@ -50,7 +50,7 @@ static void test_swap_as_lvalue() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_layout_swap) {
+TEST(TensorLayoutSwapTest, Basic) {
   test_simple_swap();
   test_swap_as_lvalue();
 }

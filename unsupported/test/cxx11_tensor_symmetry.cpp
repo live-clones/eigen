@@ -783,7 +783,7 @@ static void test_tensor_randacc() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_symmetry) {
+TEST(TensorSymmetryTest, Basic) {
   test_symgroups_static();
   test_symgroups_dynamic();
   test_symgroups_selection();

@@ -69,7 +69,7 @@ static void test_const() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_forced_eval) {
+TEST(TensorForcedEvalTest, Basic) {
   test_simple();
   test_const();
 }

@@ -244,7 +244,7 @@ inline void test_return_by_value(int len) {
   VERIFY((in1 - in).norm() < test_precision<float>());
 }
 
-EIGEN_DECLARE_TEST(FFTW) {
+TEST(FftwTest, Basic) {
   test_return_by_value(32);
   test_complex<float>(32);
   test_complex<double>(32);

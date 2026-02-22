@@ -136,7 +136,7 @@ void test_large_number_of_tasks_with_spill() {
   VERIFY_IS_EQUAL(unique_threads.size() <= (static_cast<size_t>(num_threads + 1)), true);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_thread_local) {
+TEST(TensorThreadLocalTest, Basic) {
   test_simple_thread_local();
   test_zero_sized_thread_local();
   test_large_number_of_tasks_no_spill();

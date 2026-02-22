@@ -81,7 +81,7 @@ void sycl_device_test_per_device(const cl::sycl::device& d) {
   // test_device_exceptions<DataType, ColMajor>(sycl_device);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_device_sycl) {
+TEST(TensorDeviceSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     sycl_device_test_per_device<half>(device);
     sycl_device_test_per_device<float>(device);

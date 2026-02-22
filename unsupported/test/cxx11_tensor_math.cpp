@@ -36,7 +36,7 @@ static void test_sigmoid() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_math) {
+TEST(TensorMathTest, Basic) {
   test_tanh();
   test_sigmoid();
 }

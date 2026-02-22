@@ -253,7 +253,7 @@ static void test_array() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_fixed_size) {
+TEST(TensorFixedSizeTest, Basic) {
   test_0d();
   test_1d();
   test_tensor_map();

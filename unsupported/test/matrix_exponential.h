@@ -7,6 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#ifndef EIGEN_TEST_MATRIX_EXPONENTIAL_H
+#define EIGEN_TEST_MATRIX_EXPONENTIAL_H
+
 #include "matrix_functions.h"
 
 double binom(int n, int k) {
@@ -85,9 +88,6 @@ void testPascal(double tol) {
 
 template <typename MatrixType>
 void randomTest(const MatrixType& m, double tol) {
-  /* this test covers the following files:
-     Inverse.h
-  */
   typename MatrixType::Index rows = m.rows();
   typename MatrixType::Index cols = m.cols();
   MatrixType m1(rows, cols), m2(rows, cols), identity = MatrixType::Identity(rows, cols);
@@ -107,22 +107,4 @@ void randomTest(const MatrixType& m, double tol) {
   }
 }
 
-EIGEN_DECLARE_TEST(matrix_exponential) {
-  test2dRotation<double>(1e-13);
-  test2dRotation<float>(2e-5);  // was 1e-5, relaxed for clang 2.8 / linux / x86-64
-  test2dRotation<long double>(1e-13);
-  test2dHyperbolicRotation<double>(1e-14);
-  test2dHyperbolicRotation<float>(1e-5);
-  test2dHyperbolicRotation<long double>(1e-14);
-  testPascal<float>(1e-6);
-  testPascal<double>(1e-15);
-  randomTest(Matrix2d(), 1e-13);
-  randomTest(Matrix<double, 3, 3, RowMajor>(), 1e-13);
-  randomTest(Matrix4cd(), 1e-13);
-  randomTest(MatrixXd(8, 8), 1e-13);
-  randomTest(Matrix2f(), 1e-4);
-  randomTest(Matrix3cf(), 1e-4);
-  randomTest(Matrix4f(), 1e-4);
-  randomTest(MatrixXf(8, 8), 1e-4);
-  randomTest(Matrix<long double, Dynamic, Dynamic>(7, 7), 1e-13);
-}
+#endif  // EIGEN_TEST_MATRIX_EXPONENTIAL_H

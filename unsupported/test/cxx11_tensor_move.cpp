@@ -65,4 +65,4 @@ static void test_move() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_move) { test_move(); }
+TEST(TensorMoveTest, Basic) { test_move(); }

@@ -230,7 +230,7 @@ static void test_nested_ops_with_ref() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_ref) {
+TEST(TensorRefTest, Basic) {
   test_simple_lvalue_ref();
   test_simple_rvalue_ref();
   test_multiple_dims();

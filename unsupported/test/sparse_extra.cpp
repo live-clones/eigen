@@ -212,7 +212,7 @@ void check_sparse_inverse() {
   VERIFY_IS_APPROX_OR_LESS_THAN(sumdiff, 1e-10);
 }
 
-EIGEN_DECLARE_TEST(sparse_extra) {
+TEST(SparseExtraTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = Eigen::internal::random<int>(1, 50);
     sparse_extra(SparseMatrix<double>(8, 8));

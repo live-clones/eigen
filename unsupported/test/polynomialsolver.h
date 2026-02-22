@@ -7,6 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#ifndef EIGEN_TEST_POLYNOMIALSOLVER_H
+#define EIGEN_TEST_POLYNOMIALSOLVER_H
+
 #include "main.h"
 #include <unsupported/Eigen/Polynomials>
 #include <iostream>
@@ -55,9 +58,6 @@ bool aux_evalSolver(const POLYNOMIAL& pols, SOLVER& psolve) {
     der[i] = numext::maxi(RealScalar(1.), std::abs(poly_eval(pols_der, roots[i])));
   }
 
-  // we need to divide by the magnitude of the derivative because
-  // with a high derivative is very small error in the value of the root
-  // yiels a very large error in the polynomial evaluation.
   bool evalToZero = (evr.cwiseQuotient(der)).isZero(test_precision<Scalar>());
   if (!evalToZero) {
     cerr << "WRONG root: " << endl;
@@ -102,11 +102,6 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
 
   PolynomialSolverType psolve;
   if (aux_evalSolver<Deg, POLYNOMIAL, PolynomialSolverType>(pols, psolve)) {
-    // It is supposed that
-    //  1) the roots found are correct
-    //  2) the roots have distinct moduli
-
-    // Test realRoots
     std::vector<RealScalar> calc_realRoots;
     psolve.realRoots(calc_realRoots, test_precision<RealScalar>());
     VERIFY_IS_EQUAL(calc_realRoots.size(), (size_t)real_roots.size());
@@ -123,35 +118,28 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
       VERIFY(found);
     }
 
-    // Test greatestRoot
     VERIFY(internal::isApprox(roots.array().abs().maxCoeff(), abs(psolve.greatestRoot()), psPrec));
-
-    // Test smallestRoot
     VERIFY(internal::isApprox(roots.array().abs().minCoeff(), abs(psolve.smallestRoot()), psPrec));
 
     bool hasRealRoot;
-    // Test absGreatestRealRoot
     RealScalar r = psolve.absGreatestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().abs().maxCoeff(), abs(r), psPrec));
     }
 
-    // Test absSmallestRealRoot
     r = psolve.absSmallestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().abs().minCoeff(), abs(r), psPrec));
     }
 
-    // Test greatestRealRoot
     r = psolve.greatestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().maxCoeff(), r, psPrec));
     }
 
-    // Test smallestRealRoot
     r = psolve.smallestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
@@ -180,27 +168,10 @@ void polynomialsolver(int deg) {
 
   cout << "Test sugar" << endl;
   RealRootsType realRoots = RealRootsType::Random(deg);
-  // sort by ascending absolute value to mitigate precision lost during polynomial expansion
   std::sort(realRoots.begin(), realRoots.end(),
             [](RealScalar a, RealScalar b) { return numext::abs(a) < numext::abs(b); });
   roots_to_monicPolynomial(realRoots, pols);
   evalSolverSugarFunction<Deg_>(pols, realRoots.template cast<std::complex<RealScalar> >().eval(), realRoots);
 }
 
-EIGEN_DECLARE_TEST(polynomialsolver) {
-  for (int i = 0; i < g_repeat; i++) {
-    (polynomialsolver<float, 1>(1));
-    (polynomialsolver<double, 2>(2));
-    (polynomialsolver<double, 3>(3));
-    (polynomialsolver<float, 4>(4));
-    (polynomialsolver<double, 5>(5));
-    (polynomialsolver<float, 6>(6));
-    (polynomialsolver<float, 7>(7));
-    (polynomialsolver<double, 8>(8));
-
-    (polynomialsolver<float, Dynamic>(internal::random<int>(9, 13)));
-    (polynomialsolver<double, Dynamic>(internal::random<int>(9, 13)));
-    (polynomialsolver<float, Dynamic>(1));
-    (polynomialsolver<std::complex<double>, Dynamic>(internal::random<int>(2, 13)));
-  }
-}
+#endif  // EIGEN_TEST_POLYNOMIALSOLVER_H

@@ -99,7 +99,7 @@ static void test_contractions() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_of_complex) {
+TEST(TensorOfComplexTest, Basic) {
   test_additions();
   test_abs();
   test_arg();

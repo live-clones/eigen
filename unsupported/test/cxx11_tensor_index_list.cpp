@@ -414,7 +414,7 @@ static void test_dim_check() {
   VERIFY(dimensions_match(dim1, dim2));
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_index_list) {
+TEST(TensorIndexListTest, Basic) {
   test_static_index_list();
   test_type2index_list();
   test_type2indexpair_list();

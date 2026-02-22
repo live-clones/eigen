@@ -430,7 +430,7 @@ void test_gpu() {
   test_device_memory<OffByOneScalar<int>>(context.device());
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_device) {
+TEST(TensorDeviceTest, Basic) {
   test_cpu();
   test_gpu();
 }

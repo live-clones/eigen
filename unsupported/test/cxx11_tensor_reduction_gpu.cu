@@ -131,7 +131,7 @@ static void test_last_dim_reductions() {
   dev.deallocate(out_data);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_reduction_gpu) {
+TEST(TensorReductionGPUTest, Basic) {
   (test_full_reductions<float, ColMajor>());
   (test_full_reductions<double, ColMajor>());
   (test_full_reductions<float, RowMajor>());

@@ -99,7 +99,7 @@ void test_multithreaded_reductions() {
   VERIFY_IS_APPROX(full_redux(), full_redux_tp());
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool_async) {
+TEST(TensorThreadPoolAsyncTest, Basic) {
   test_async_multithread_elementwise();
 
   test_async_multithread_chip();

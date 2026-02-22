@@ -487,7 +487,7 @@ void test_sum_accuracy() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_reduction) {
+TEST(TensorReductionTest, Basic) {
   test_trivial_reductions<ColMajor>();
   test_trivial_reductions<RowMajor>();
   (test_simple_reductions<float, ColMajor>());

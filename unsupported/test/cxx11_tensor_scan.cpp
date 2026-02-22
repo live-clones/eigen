@@ -96,7 +96,7 @@ static void test_tensor_maps() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_scan) {
+TEST(TensorScanTest, Basic) {
   (test_1d_scan<ColMajor, float, true>());
   (test_1d_scan<ColMajor, float, false>());
   (test_1d_scan<RowMajor, float, true>());

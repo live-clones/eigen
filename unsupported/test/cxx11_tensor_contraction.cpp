@@ -528,7 +528,7 @@ static void test_large_contraction_with_output_kernel() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_contraction) {
+TEST(TensorContractionTest, Basic) {
   test_evals<ColMajor>();
   test_evals<RowMajor>();
   test_scalar<ColMajor>();

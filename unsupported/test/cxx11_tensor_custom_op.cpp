@@ -96,7 +96,7 @@ static void test_custom_binary_op() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_custom_op) {
+TEST(TensorCustomOpTest, Basic) {
   test_custom_unary_op();
   test_custom_binary_op();
 }

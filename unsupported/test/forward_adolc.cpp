@@ -105,7 +105,7 @@ void adolc_forward_jacobian(const Func& f) {
   VERIFY_IS_APPROX(j, jref);
 }
 
-EIGEN_DECLARE_TEST(forward_adolc) {
+TEST(ForwardAdolcTest, Basic) {
   adtl::setNumDir(NUMBER_DIRECTIONS);
 
   for (int i = 0; i < g_repeat; i++) {

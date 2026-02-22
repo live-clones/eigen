@@ -269,7 +269,7 @@ static void test_argmin_dim() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_argmax) {
+TEST(TensorArgmaxTest, Basic) {
   test_simple_index_pairs<RowMajor>();
   test_simple_index_pairs<ColMajor>();
   test_index_pairs_dim<RowMajor>();

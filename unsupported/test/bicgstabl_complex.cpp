@@ -16,7 +16,6 @@ void test_bicgstabl_T() {
   BiCGSTABL<SparseMatrix<T>, DiagonalPreconditioner<T> > bicgstabl_colmajor_diag;
   BiCGSTABL<SparseMatrix<T>, IncompleteLUT<T> > bicgstabl_colmajor_ilut;
 
-  // This does not change the tolerance of the test, only the tolerance of the solver.
   bicgstabl_colmajor_diag.setTolerance(NumTraits<T>::epsilon() * 20);
   bicgstabl_colmajor_ilut.setTolerance(NumTraits<T>::epsilon() * 20);
 
@@ -24,7 +23,4 @@ void test_bicgstabl_T() {
   check_sparse_square_solving(bicgstabl_colmajor_ilut);
 }
 
-EIGEN_DECLARE_TEST(bicgstabl) {
-  test_bicgstabl_T<double>();
-  test_bicgstabl_T<std::complex<double> >();
-}
+TEST(BicgstablTest, Complex) { test_bicgstabl_T<std::complex<double> >(); }

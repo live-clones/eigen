@@ -84,7 +84,7 @@ void test_cuda_complex_cwise_ops() {
   cudaFree(d_out);
 }
 
-EIGEN_DECLARE_TEST(test_cxx11_tensor_complex_cwise_ops) {
+TEST(TensorComplexCwiseOpsTest, Basic) {
   test_cuda_complex_cwise_ops<float>();
   test_cuda_complex_cwise_ops<double>();
 }

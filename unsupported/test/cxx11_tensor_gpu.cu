@@ -1457,7 +1457,7 @@ void test_gpu_gamma_sample_der_alpha() {
   gpuFree(d_out);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_gpu) {
+TEST(TensorGPUTest, Basic) {
   test_gpu_nullary();
   test_gpu_nullary_max_size<int16_t>();
   test_gpu_nullary_max_size<int32_t>();

@@ -73,7 +73,7 @@ static void test_index_type_promotion() {
   VERIFY_IS_EQUAL(dst1[2], 6L);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_dimension) {
+TEST(TensorDimensionTest, Basic) {
   test_dynamic_size();
   test_fixed_size();
   test_match();

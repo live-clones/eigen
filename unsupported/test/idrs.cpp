@@ -20,7 +20,7 @@ void test_idrs_T() {
   check_sparse_square_solving(idrs_colmajor_ilut);
 }
 
-EIGEN_DECLARE_TEST(idrs) {
+TEST(IdrsTest, Basic) {
   test_idrs_T<double>();
   test_idrs_T<std::complex<double> >();
 }

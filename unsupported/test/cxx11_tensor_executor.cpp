@@ -611,7 +611,7 @@ void test_async_execute_binary_expr(Device d) {
   (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::On, RowMajor>(tp_device))
 // clang-format on
 
-EIGEN_DECLARE_TEST(cxx11_tensor_executor) {
+TEST(TensorExecutorTest, Basic) {
   Eigen::DefaultDevice default_device;
   // Default device is unused in ASYNC tests.
   EIGEN_UNUSED_VARIABLE(default_device);

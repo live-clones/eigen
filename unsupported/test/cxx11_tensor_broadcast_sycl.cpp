@@ -132,7 +132,7 @@ void sycl_broadcast_test_per_device(const cl::sycl::device& d) {
   test_broadcast_sycl_fixed<DataType, ColMajor, int64_t>(sycl_device);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_broadcast_sycl) {
+TEST(TensorBroadcastSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     sycl_broadcast_test_per_device<half>(device);
     sycl_broadcast_test_per_device<float>(device);

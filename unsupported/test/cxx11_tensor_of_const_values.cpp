@@ -91,7 +91,7 @@ static void test_plus_equal() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_of_const_values) {
+TEST(TensorOfConstValuesTest, Basic) {
   test_assign();
   test_plus();
   test_plus_equal();

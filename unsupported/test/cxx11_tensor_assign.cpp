@@ -348,7 +348,7 @@ static void test_std_initializers_tensor() {
   VERIFY_IS_EQUAL(c(2, 1, 3), 27);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_assign) {
+TEST(TensorAssignTest, Basic) {
   test_1d();
   test_2d();
   test_3d();

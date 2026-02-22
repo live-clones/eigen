@@ -75,7 +75,7 @@ void check_sparse_kronecker_product(const MatrixType& ab) {
   VERIFY_IS_APPROX(ab.coeff(8, 9), -0.15);
 }
 
-EIGEN_DECLARE_TEST(kronecker_product) {
+TEST(KroneckerProductTest, Basic) {
   // DM = dense matrix; SM = sparse matrix
 
   Matrix<double, 2, 3> DM_a;

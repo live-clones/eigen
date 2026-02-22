@@ -374,7 +374,7 @@ void test_gpu_forced_evals(const Eigen::SyclDevice& sycl_device) {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_of_float16_sycl) {
+TEST(TensorOfFloat16SYCLTest, Basic) {
   for (const auto& s : Eigen::get_sycl_supported_devices()) {
     QueueInterface queueInterface(s);
     auto sycl_device = Eigen::SyclDevice(&queueInterface);

@@ -260,7 +260,7 @@ void eulerangles_rand() {
   check_all_var(ea);
 }
 
-EIGEN_DECLARE_TEST(EulerAngles) {
+TEST(EulerAnglesTest, Basic) {
   // Simple cast test
   EulerAnglesXYZd onesEd(1, 1, 1);
   EulerAnglesXYZf onesEf = onesEd.cast<float>();

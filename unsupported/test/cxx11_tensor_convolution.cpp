@@ -133,7 +133,7 @@ static void test_strides() {
   VERIFY_IS_APPROX(result(1), (input(6) * kernel(0) + input(9) * kernel(1) + input(12) * kernel(2)));
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_convolution) {
+TEST(TensorConvolutionTest, Basic) {
   test_evals<ColMajor>();
   test_evals<RowMajor>();
   test_expr<ColMajor>();

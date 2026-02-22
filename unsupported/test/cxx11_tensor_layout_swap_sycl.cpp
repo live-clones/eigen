@@ -112,7 +112,7 @@ void sycl_tensor_layout_swap_test_per_device(dev_Selector s) {
   test_simple_swap_sycl<DataType, int64_t>(sycl_device);
   test_swap_as_lvalue_sycl<DataType, int64_t>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_layout_swap_sycl) {
+TEST(TensorLayoutSwapSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     sycl_tensor_layout_swap_test_per_device<half>(device);
     sycl_tensor_layout_swap_test_per_device<float>(device);

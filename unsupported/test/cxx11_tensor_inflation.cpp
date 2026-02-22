@@ -69,7 +69,7 @@ static void test_simple_inflation() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_inflation) {
+TEST(TensorInflationTest, Basic) {
   test_simple_inflation<ColMajor>();
   test_simple_inflation<RowMajor>();
 }

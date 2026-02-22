@@ -282,7 +282,7 @@ void array_bessel_functions() {
   }
 }
 
-EIGEN_DECLARE_TEST(bessel_functions) {
+TEST(BesselFunctionsTest, Basic) {
   array_bessel_functions<ArrayXf>();
   array_bessel_functions<ArrayXd>();
 }

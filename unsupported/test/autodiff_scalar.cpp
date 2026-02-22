@@ -86,7 +86,7 @@ void check_limits_specialization() {
   VERIFY(bool(std::is_base_of<B, A>::value));
 }
 
-EIGEN_DECLARE_TEST(autodiff_scalar) {
+TEST(AutodiffScalarTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     check_atan2<float>();
     check_atan2<double>();

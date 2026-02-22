@@ -17,13 +17,10 @@ void testMatrixSqrt(const MatrixType& m) {
   VERIFY_IS_APPROX(sqrtA * sqrtA, A);
 }
 
-EIGEN_DECLARE_TEST(matrix_square_root) {
+TEST(MatrixSquareRootTest, Complex) {
   for (int i = 0; i < g_repeat; i++) {
     testMatrixSqrt(Matrix3cf());
     testMatrixSqrt(MatrixXcd(12, 12));
-    testMatrixSqrt(Matrix4f());
-    testMatrixSqrt(Matrix<double, Dynamic, Dynamic, RowMajor>(9, 9));
-    testMatrixSqrt(Matrix<float, 1, 1>());
     testMatrixSqrt(Matrix<std::complex<float>, 1, 1>());
   }
 }

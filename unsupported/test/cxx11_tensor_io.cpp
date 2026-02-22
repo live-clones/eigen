@@ -110,7 +110,7 @@ void test_const_tensor_ostream() {
   VERIFY(os.str() == "1");
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_io) {
+TEST(TensorIOTest, Basic) {
   (test_tensor_ostream<float, 0, Eigen::ColMajor>());
   (test_tensor_ostream<float, 1, Eigen::ColMajor>());
   (test_tensor_ostream<float, 2, Eigen::ColMajor>());

@@ -72,7 +72,7 @@ static void test_gaussian() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_generator) {
+TEST(TensorGeneratorTest, Basic) {
   test_1D<ColMajor>();
   test_1D<RowMajor>();
   test_2D<ColMajor>();

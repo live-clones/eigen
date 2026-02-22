@@ -50,7 +50,7 @@ static void test_float_ceiling() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_roundings) {
+TEST(TensorRoundingsTest, Basic) {
   test_float_rounding();
   test_float_ceiling();
   test_float_flooring();

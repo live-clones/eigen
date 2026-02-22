@@ -553,7 +553,7 @@ void openglsupport_test_loop() {
 #endif
 }
 
-EIGEN_DECLARE_TEST(openglsupport) {
+TEST(OpenglsupportTest, Basic) {
   int argc = 0;
   glutInit(&argc, 0);
 

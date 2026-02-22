@@ -260,7 +260,7 @@ void test_gpu_argmin_dim() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_argmax_gpu) {
+TEST(TensorArgmaxGPUTest, Basic) {
   test_gpu_simple_argmax<RowMajor>();
   test_gpu_simple_argmax<ColMajor>();
   test_gpu_argmax_dim<RowMajor>();

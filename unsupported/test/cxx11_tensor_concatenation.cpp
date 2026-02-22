@@ -116,7 +116,7 @@ static void test_concatenation_as_lvalue() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_concatenation) {
+TEST(TensorConcatenationTest, Basic) {
   test_dimension_failures<ColMajor>();
   test_dimension_failures<RowMajor>();
   test_static_dimension_failure<ColMajor>();

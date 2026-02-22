@@ -35,7 +35,7 @@ void test_minres_T() {
   // TO DO: symmetric indefinite matrix
 }
 
-EIGEN_DECLARE_TEST(minres) {
+TEST(MinresTest, Basic) {
   test_minres_T<double>();
   //  test_minres_T<std::complex<double> >();
 }

@@ -156,7 +156,7 @@ static void test_trace_in_expr() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_trace) {
+TEST(TensorTraceTest, Basic) {
   test_0D_trace<ColMajor>();
   test_0D_trace<RowMajor>();
   test_all_dimensions_trace<ColMajor>();

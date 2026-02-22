@@ -186,7 +186,7 @@ void test_gpu_contraction_sizes() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_contract_gpu) {
+TEST(TensorContractGPUTest, Basic) {
   test_gpu_contraction<ColMajor>(128, 128, 128);
   test_gpu_contraction<RowMajor>(128, 128, 128);
 

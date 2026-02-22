@@ -533,7 +533,7 @@ static void test_empty_slice() {
   (NAME<bool, ColMajor>());                     \
   (NAME<bool, RowMajor>())
 
-EIGEN_DECLARE_TEST(cxx11_tensor_morphing) {
+TEST(TensorMorphingTest, Basic) {
   test_simple_reshape<void>();
   test_static_reshape<void>();
   test_reshape_as_lvalue<void>();

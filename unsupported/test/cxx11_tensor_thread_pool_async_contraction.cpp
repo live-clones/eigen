@@ -135,7 +135,7 @@ static void test_async_sharded_by_inner_dim_contraction_with_output_kernel() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool_async_contraction) {
+TEST(TensorThreadPoolAsyncContractionTest, Basic) {
   test_async_multithread_contraction_agrees_with_singlethread<ColMajor>();
   test_async_multithread_contraction_agrees_with_singlethread<RowMajor>();
 

@@ -290,7 +290,7 @@ static void test_simple_broadcasting_one_by_n_by_one_2d() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_broadcasting) {
+TEST(TensorBroadcastingTest, Basic) {
   test_simple_broadcasting<ColMajor>();
   test_simple_broadcasting<RowMajor>();
   test_vectorized_broadcasting<ColMajor>();

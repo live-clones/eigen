@@ -444,7 +444,7 @@ void test_gpu_forced_evals() {
 }
 #endif
 
-EIGEN_DECLARE_TEST(cxx11_tensor_of_float16_gpu) {
+TEST(TensorOfFloat16GPUTest, Basic) {
   test_gpu_numext<void>();
 
 #ifdef EIGEN_HAS_GPU_FP16

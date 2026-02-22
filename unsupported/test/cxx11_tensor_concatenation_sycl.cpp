@@ -183,7 +183,7 @@ void tensorConcat_perDevice(Dev_selector s) {
   test_simple_concatenation<DataType, ColMajor, int64_t>(sycl_device);
   test_concatenation_as_lvalue<DataType, ColMajor, int64_t>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_concatenation_sycl) {
+TEST(TensorConcatenationSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     tensorConcat_perDevice<half>(device);
     tensorConcat_perDevice<float>(device);

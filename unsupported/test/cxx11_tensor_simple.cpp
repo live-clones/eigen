@@ -322,7 +322,7 @@ static void test_resize() {
   VERIFY_IS_EQUAL(epsilon.size(), 3 * 5 * 7);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_simple) {
+TEST(TensorSimpleTest, Basic) {
   test_0d();
   test_1d();
   test_2d();

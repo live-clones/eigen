@@ -92,7 +92,7 @@ void CauchyBounds_scalar() {
   (CauchyBounds<Scalar_, Dynamic>(internal::random<int>(18, 26)));
 }
 
-EIGEN_DECLARE_TEST(polynomialutils) {
+TEST(PolynomialutilsTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     realRoots_to_monicPolynomial_scalar<double>();
     realRoots_to_monicPolynomial_scalar<float>();

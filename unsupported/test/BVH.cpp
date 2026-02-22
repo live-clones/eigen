@@ -218,7 +218,7 @@ struct TreeTest {
   }
 };
 
-EIGEN_DECLARE_TEST(BVH) {
+TEST(BvhTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     TreeTest<2> test2;
     test2.testIntersect1();

@@ -442,7 +442,7 @@ void array_special_functions() {
 #endif  // EIGEN_HAS_C99_MATH
 }
 
-EIGEN_DECLARE_TEST(special_functions) {
+TEST(SpecialFunctionsTest, Basic) {
   array_special_functions<ArrayXf>();
   array_special_functions<ArrayXd>();
   // TODO(cantonios): half/bfloat16 don't have enough precision to reproduce results above.

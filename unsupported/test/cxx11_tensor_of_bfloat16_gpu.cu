@@ -439,7 +439,7 @@ void test_gpu_forced_evals() {
 
 #endif
 
-EIGEN_DECLARE_TEST(cxx11_tensor_of_bfloat16_gpu) {
+TEST(TensorOfBfloat16GPUTest, Basic) {
   test_gpu_numext<void>();
 
 // The reduction unit tests have been excluded until a working

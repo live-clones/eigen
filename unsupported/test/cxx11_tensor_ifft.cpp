@@ -134,7 +134,7 @@ static void test_sub_fft_ifft_invariant(int dim0, int dim1, int dim2, int dim3) 
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_ifft) {
+TEST(TensorIfftTest, Basic) {
   test_1D_fft_ifft_invariant<ColMajor>(4);
   test_1D_fft_ifft_invariant<ColMajor>(16);
   test_1D_fft_ifft_invariant<ColMajor>(32);

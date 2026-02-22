@@ -89,7 +89,7 @@ void sycl_computing_test_per_device(dev_Selector s) {
   test_image_op_sycl<DataType, RowMajor, int64_t>(sycl_device);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_image_op_sycl) {
+TEST(TensorImageOpSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     sycl_computing_test_per_device<half>(device);
     sycl_computing_test_per_device<float>(device);

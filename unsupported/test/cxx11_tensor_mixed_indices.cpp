@@ -50,4 +50,4 @@ static void test_simple() {
   VERIFY_IS_APPROX(vec4(5), 5.0f * 5.0f);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_mixed_indices) { test_simple(); }
+TEST(TensorMixedIndicesTest, Basic) { test_simple(); }

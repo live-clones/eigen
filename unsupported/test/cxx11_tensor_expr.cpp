@@ -462,7 +462,7 @@ static void test_minmax_nan_propagation() {
   test_minmax_nan_propagation_templ<double>();
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_expr) {
+TEST(TensorExprTest, Basic) {
   test_1d();
   test_2d();
   test_3d();

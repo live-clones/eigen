@@ -604,7 +604,7 @@ void sycl_chipping_test_per_device(dev_Selector s) {
   test_chip_as_lvalue_sycl<DataType, RowMajor, int64_t>(sycl_device);
   // test_chip_as_lvalue_sycl<DataType, ColMajor, int64_t>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_chipping_sycl) {
+TEST(TensorChippingSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     sycl_chipping_test_per_device<float>(device);
     sycl_chipping_test_per_device<half>(device);

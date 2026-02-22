@@ -124,7 +124,7 @@ void test_specific() {
   VERIFY_IS_EQUAL(result, result_op);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_intdiv) {
+TEST(TensorIntDivTest, Basic) {
   test_signed_32bit();
   test_unsigned_32bit();
   test_signed_64bit();

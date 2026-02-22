@@ -22,7 +22,4 @@ void test_idrstabl_T() {
   check_sparse_square_solving(idrstabl_colmajor_ilut);
 }
 
-EIGEN_DECLARE_TEST(idrstabl) {
-  (test_idrstabl_T<double>());
-  (test_idrstabl_T<std::complex<double> >());
-}
+TEST(IdrstablTest, Complex) { (test_idrstabl_T<std::complex<double> >()); }

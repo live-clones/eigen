@@ -844,7 +844,7 @@ void sycl_reduction_test_last_dim_per_device(const Dev& sycl_device) {
   sycl_device.synchronize();
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_reduction_sycl) {
+TEST(TensorReductionSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     std::cout << "Running on " << device.template get_info<cl::sycl::info::device::name>() << std::endl;
     QueueInterface queueInterface(device);

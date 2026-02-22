@@ -510,7 +510,7 @@ static void test_empty_dims(const internal::TensorBlockShapeType block_shape) {
   NAME<ColMajor>(ARG);                   \
   NAME<RowMajor>(ARG)
 
-EIGEN_DECLARE_TEST(cxx11_tensor_block_access) {
+TEST(TensorBlockAccessTest, Basic) {
   TEST_LAYOUTS(test_block_mapper_sanity);
   TEST_LAYOUTS_AND_DIMS(float, test_block_mapper_maps_every_element);
   TEST_LAYOUTS(test_uniform_block_shape);

@@ -67,7 +67,7 @@ static void test_custom() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_random) {
+TEST(TensorRandomTest, Basic) {
   (test_default<float>());
   (test_normal<float>());
   (test_default<double>());

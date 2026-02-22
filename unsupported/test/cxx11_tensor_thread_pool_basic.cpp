@@ -156,7 +156,7 @@ void test_threadpool_allocate(TestAllocator* allocator) {
   VERIFY_IS_EQUAL(allocator->dealloc_count(), num_allocs);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool_basic) {
+TEST(TensorThreadPoolBasicTest, Basic) {
   test_multithread_elementwise();
   test_multithread_compound_assignment();
 

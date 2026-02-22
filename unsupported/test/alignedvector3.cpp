@@ -79,7 +79,7 @@ void alignedvector3() {
   VERIFY(ss1.str() == ss2.str());
 }
 
-EIGEN_DECLARE_TEST(alignedvector3) {
+TEST(Alignedvector3Test, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     alignedvector3<float>();
   }

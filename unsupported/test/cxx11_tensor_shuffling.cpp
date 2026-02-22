@@ -256,7 +256,7 @@ static void test_empty_shuffling() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_shuffling) {
+TEST(TensorShufflingTest, Basic) {
   test_simple_shuffling<ColMajor>();
   test_simple_shuffling<RowMajor>();
   test_expr_shuffling<ColMajor>();

@@ -97,7 +97,7 @@ void sycl_scan_test_inclusive_dim2_per_device(const Dev& sycl_device) {
   test_sycl_cumsum<DataType, ColMajor, int64_t>(sycl_device, 1023, 127, 2049, 2, false);
   test_sycl_cumsum<DataType, RowMajor, int64_t>(sycl_device, 1023, 127, 2049, 2, false);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_scan_sycl) {
+TEST(TensorScanSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     std::cout << "Running on " << device.template get_info<cl::sycl::info::device::name>() << std::endl;
     QueueInterface queueInterface(device);

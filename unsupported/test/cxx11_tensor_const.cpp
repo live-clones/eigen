@@ -50,7 +50,7 @@ static void test_assign_of_const_tensor() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_const) {
+TEST(TensorConstTest, Basic) {
   test_simple_assign();
   test_assign_of_const_tensor();
 }

@@ -332,7 +332,7 @@ double bug_1281() {
   return (y1 + y2 + y3).value();
 }
 
-EIGEN_DECLARE_TEST(autodiff) {
+TEST(AutodiffTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     test_autodiff_scalar<1>();
     test_autodiff_vector<1>();

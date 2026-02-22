@@ -326,7 +326,7 @@ void test_full_contraction() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_thread_pool_contraction) {
+TEST(TensorThreadPoolContractionTest, Basic) {
   test_multithread_contraction<ColMajor>();
   test_multithread_contraction<RowMajor>();
 

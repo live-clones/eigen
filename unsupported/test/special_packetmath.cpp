@@ -148,7 +148,7 @@ struct runall {
 }  // namespace test
 }  // namespace Eigen
 
-EIGEN_DECLARE_TEST(special_packetmath) {
+TEST(SpecialPacketmathTest, Basic) {
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
     test::runner<float>::run();

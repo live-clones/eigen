@@ -142,7 +142,7 @@ void test_misc2() {
 }
 #endif
 
-EIGEN_DECLARE_TEST(cxx11_tensor_uint128) {
+TEST(TensorUint128Test, Basic) {
 #ifdef EIGEN_NO_INT128
   // Skip the test on compilers that don't support 128bit integers natively
   return;

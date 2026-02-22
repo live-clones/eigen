@@ -821,7 +821,7 @@ void inline tensor_contraction_both_transposed_per_device(const Dev &sycl_device
             << "s\n";
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_contract_sycl) {
+TEST(TensorContractSYCLTest, Basic) {
   for (const auto &device : Eigen::get_sycl_supported_devices()) {
     std::cout << "Running on " << device.template get_info<cl::sycl::info::device::name>() << std::endl;
     QueueInterface queueInterface(device);

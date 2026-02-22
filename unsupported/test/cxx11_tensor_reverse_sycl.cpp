@@ -217,7 +217,7 @@ void sycl_reverse_test_per_device(const cl::sycl::device& d) {
   test_expr_reverse<DataType, RowMajor, int64_t>(sycl_device, true);
   test_expr_reverse<DataType, ColMajor, int64_t>(sycl_device, true);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_reverse_sycl) {
+TEST(TensorReverseSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     std::cout << "Running on " << device.get_info<cl::sycl::info::device::name>() << std::endl;
     sycl_reverse_test_per_device<short>(device);

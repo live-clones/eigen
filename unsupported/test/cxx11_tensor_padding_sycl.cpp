@@ -140,7 +140,7 @@ void sycl_padding_test_per_device(dev_Selector s) {
   test_padded_expr<DataType, RowMajor, int64_t>(sycl_device);
   test_padded_expr<DataType, ColMajor, int64_t>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_padding_sycl) {
+TEST(TensorPaddingSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     sycl_padding_test_per_device<half>(device);
     sycl_padding_test_per_device<float>(device);

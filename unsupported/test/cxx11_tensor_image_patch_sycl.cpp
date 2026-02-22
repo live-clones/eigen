@@ -1148,7 +1148,7 @@ void sycl_tensor_image_patch_test_per_device(dev_Selector s) {
   test_patch_no_extra_dim_sycl<DataType, int64_t>(sycl_device);
   test_imagenet_patches_sycl<DataType, int64_t>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_image_patch_sycl) {
+TEST(TensorImagePatchSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     sycl_tensor_image_patch_test_per_device<float>(device);
   }

@@ -308,7 +308,7 @@ static void test_0d_const_tensor_map() {
   VERIFY_IS_EQUAL(scalar2(), 14);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_map) {
+TEST(TensorMapTest, Basic) {
   test_0d();
   test_1d();
   test_2d();

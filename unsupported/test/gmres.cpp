@@ -24,7 +24,7 @@ void test_gmres_T() {
   //  check_sparse_square_solving(gmres_colmajor_ssor)     ;
 }
 
-EIGEN_DECLARE_TEST(gmres) {
+TEST(GmresTest, Basic) {
   test_gmres_T<double>();
   test_gmres_T<std::complex<double> >();
 }

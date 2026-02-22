@@ -7,6 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#ifndef EIGEN_TEST_MATRIX_FUNCTION_H
+#define EIGEN_TEST_MATRIX_FUNCTION_H
+
 #include "main.h"
 #include <unsupported/Eigen/MatrixFunctions>
 
@@ -194,17 +197,4 @@ void testMapRef(const MatrixType& A) {
   Y = X.sinh() + Rc.sinh() + Mc.sinh();
 }
 
-EIGEN_DECLARE_TEST(matrix_function) {
-  testMatrixType(Matrix<float, 1, 1>());
-  testMatrixType(Matrix3cf());
-  testMatrixType(MatrixXf(8, 8));
-  testMatrixType(Matrix2d());
-  testMatrixType(Matrix<double, 5, 5, RowMajor>());
-  testMatrixType(Matrix4cd());
-  testMatrixType(MatrixXd(13, 13));
-
-  testMapRef(Matrix<float, 1, 1>());
-  testMapRef(Matrix3cf());
-  testMapRef(MatrixXf(8, 8));
-  testMapRef(MatrixXd(13, 13));
-}
+#endif  // EIGEN_TEST_MATRIX_FUNCTION_H

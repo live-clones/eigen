@@ -68,7 +68,7 @@ struct test_cast_runner<Scalar, std::enable_if_t<NumTraits<Scalar>::IsComplex>> 
   }
 };
 
-EIGEN_DECLARE_TEST(cxx11_tensor_casts) {
+TEST(TensorCastsTest, Basic) {
   test_cast_runner<bool>::run();
   test_cast_runner<int8_t>::run();
   test_cast_runner<int16_t>::run();
