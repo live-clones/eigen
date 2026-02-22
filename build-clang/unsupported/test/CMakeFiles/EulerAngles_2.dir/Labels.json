@@ -1,0 +1,16 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen/eigen-new/unsupported/test/EulerAngles.cpp"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildUnsupported"
+		],
+		"name" : "EulerAngles_2"
+	}
+}

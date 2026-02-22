@@ -1,0 +1,16 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen/eigen-new/unsupported/test/special_packetmath.cpp"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildUnsupported"
+		],
+		"name" : "special_packetmath"
+	}
+}

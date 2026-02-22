@@ -1,0 +1,13 @@
+{
+	"revision" : 0,
+	"rules" : 
+	[
+		{
+			"outputs" : [],
+			"primary-output" : "blas/testing/CMakeFiles/dblat2.dir/dblat2.f.o",
+			"provides" : [],
+			"requires" : []
+		}
+	],
+	"version" : 0
+}

@@ -1,0 +1,16 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen/eigen-new/unsupported/test/sparse_extra.cpp"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildUnsupported"
+		],
+		"name" : "sparse_extra_6"
+	}
+}

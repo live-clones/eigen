@@ -1,0 +1,27 @@
+static bool eigen_did_assert = false;
+#define eigen_assert(X)                                                                \
+  if (!eigen_did_assert && !(X)) {                                                     \
+    std::cout << "### Assertion raised in " << __FILE__ << ":" << __LINE__ << ":\n" #X \
+              << "\n### The following would happen without assertions:\n";             \
+    eigen_did_assert = true;                                                           \
+  }
+
+#include <iostream>
+#include <cassert>
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
+
+using namespace Eigen;
+using namespace std;
+
+int main(int, char**) {
+  cout.precision(3);
+// intentionally remove indentation of snippet
+{
+MatrixXcf ones = MatrixXcf::Ones(3, 3);
+ComplexEigenSolver<MatrixXcf> ces(ones);
+cout << "The first eigenvector of the 3x3 matrix of ones is:" << endl << ces.eigenvectors().col(0) << endl;
+
+}
+  return 0;
+}

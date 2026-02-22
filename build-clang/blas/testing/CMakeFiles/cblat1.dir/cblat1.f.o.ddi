@@ -1,0 +1,13 @@
+{
+	"revision" : 0,
+	"rules" : 
+	[
+		{
+			"outputs" : [],
+			"primary-output" : "blas/testing/CMakeFiles/cblat1.dir/cblat1.f.o",
+			"provides" : [],
+			"requires" : []
+		}
+	],
+	"version" : 0
+}

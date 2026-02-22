@@ -1,0 +1,3 @@
+ninja_dyndep_version = 1.0
+build blas/testing/CMakeFiles/sblat1.dir/sblat1.f.o: dyndep
+

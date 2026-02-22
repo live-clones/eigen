@@ -1,0 +1,16 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen/eigen-new/test/incomplete_cholesky.cpp"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildOfficial"
+		],
+		"name" : "incomplete_cholesky_2"
+	}
+}

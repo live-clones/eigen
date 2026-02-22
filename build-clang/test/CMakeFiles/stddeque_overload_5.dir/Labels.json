@@ -1,0 +1,16 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen/eigen-new/test/stddeque_overload.cpp"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildOfficial"
+		],
+		"name" : "stddeque_overload_5"
+	}
+}

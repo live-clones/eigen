@@ -76,7 +76,7 @@ const unsigned int EvalBeforeNestingBit = 0x2;
 /** \ingroup flags
  * \deprecated
  * means the expression should be evaluated before any assignment */
-EIGEN_DEPRECATED const unsigned int EvalBeforeAssigningBit = 0x4;  // FIXME deprecated
+EIGEN_DEPRECATED const unsigned int EvalBeforeAssigningBit = 0x4;
 
 /** \ingroup flags
  *
