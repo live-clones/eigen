@@ -392,8 +392,8 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
   EIGEN_DEVICE_FUNC constexpr StorageIndex startCol() const noexcept { return m_startCol.value(); }
 
 #ifndef __SUNPRO_CC
-  // FIXME sunstudio is not friendly with the above friend...
-  // META-FIXME there is no 'friend' keyword around here. Is this obsolete?
+  // NOTE: Sun Studio compiler has compatibility issues with friend declarations.
+  // Protected access is used as a workaround for SunPro C++ compiler.
  protected:
 #endif
 
