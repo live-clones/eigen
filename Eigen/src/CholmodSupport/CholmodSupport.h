@@ -387,9 +387,9 @@ class CholmodBase : public SparseSolverBase<Derived> {
       this->m_info = NumericalIssue;
       return;
     }
-    // TODO optimize this copy by swapping when possible (be careful with alignment, etc.)
-    // NOTE cholmod_spsolve in fact just calls the dense solver for blocks of 4 columns at a time (similar to Eigen's
-    // sparse solver)
+    // NOTE: Result is materialized from CHOLMOD sparse format. CHOLMOD internally uses dense
+    // block processing (similar to Eigen's solver) for multiple RHS columns.
+    // TODO: Consider using cholmod_spsolve2() or implementing move/swap semantics to reduce copy overhead.
     dest.derived() = viewAsEigen<typename DestDerived::Scalar, typename DestDerived::StorageIndex>(*x_cs);
     internal::cm_free_sparse<StorageIndex>(x_cs, m_cholmod);
   }

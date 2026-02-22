@@ -15,7 +15,12 @@
 
 namespace Eigen {
 
-/* TODO extract L, extract U, compute det, etc... */
+/* TODO: Add API methods for:
+ *  - Extracting factors (matrixL(), matrixU(), matrixP(), etc.)
+ *  - Computing determinant via LU factors
+ *  - Iterative refinement options
+ *  - Pivoting strategy configuration
+ */
 
 /** \ingroup KLUSupport_Module
  * \brief A sparse LU factorization and solver based on KLU
