@@ -1,0 +1,8 @@
+find_package(Adolc)
+if(Adolc_FOUND)
+  include_directories(${ADOLC_INCLUDES})
+  ei_add_property(EIGEN_TESTED_BACKENDS "Adolc, ")
+  ei_add_test(forward_adolc "" ${ADOLC_LIBRARIES})
+else()
+  ei_add_property(EIGEN_MISSING_BACKENDS "Adolc, ")
+endif()
