@@ -133,7 +133,8 @@ EIGEN_MAKE_CWISE_BINARY_OP(pow, pow)
  */
 EIGEN_MAKE_CWISE_BINARY_OP(atan2, atan2)
 
-// TODO code generating macros could be moved to Macros.h and could include generation of documentation
+// TODO: Consider consolidating code-generating macros into a central location (e.g., Macros.h)
+// and extend them to auto-generate documentation strings to reduce duplication.
 #define EIGEN_MAKE_CWISE_COMP_OP(OP, COMPARATOR)                                                                     \
   template <typename OtherDerived>                                                                                   \
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const                                                                        \
