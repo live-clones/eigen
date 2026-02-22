@@ -32,8 +32,9 @@ struct traits<ReturnByValue<Derived> > : public traits<typename traits<Derived>:
  * So the only way that nesting it in an expression can work, is by evaluating it into a plain matrix.
  * So internal::nested always gives the plain return matrix type.
  *
- * FIXME: I don't understand why we need this specialization: isn't this taken care of by the EvalBeforeNestingBit ??
- * Answer: EvalBeforeNestingBit should be deprecated since we have the evaluators
+ * NOTE: This specialization handles ReturnByValue nesting correctly via forced evaluation.
+ * EvalBeforeNestingBit is now redundant with the evaluator system and should be deprecated.
+ * This specialization ensures that ReturnByValue expressions are always materialized when nested.
  */
 template <typename Derived, int n, typename PlainObject>
 struct nested_eval<ReturnByValue<Derived>, n, PlainObject> {
