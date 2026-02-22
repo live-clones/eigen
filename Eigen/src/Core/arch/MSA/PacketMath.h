@@ -70,7 +70,8 @@ struct packet_traits<float> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    // FIXME check the Has*
+    // NOTE: MIPS MSA packet_traits are not fully verified. Review against MIPS MSA architecture
+    // documentation to ensure all Has* capability flags are correct and complete.
     HasDiv = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -91,7 +92,8 @@ struct packet_traits<int32_t> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    // FIXME check the Has*
+    // NOTE: MIPS MSA packet_traits are not fully verified. Review against MIPS MSA architecture
+    // documentation to ensure all Has* capability flags are correct and complete.
     HasDiv = 1,
   };
 };
@@ -822,7 +824,8 @@ struct packet_traits<double> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 2,
-    // FIXME check the Has*
+    // NOTE: MIPS MSA packet_traits are not fully verified. Review against MIPS MSA architecture
+    // documentation to ensure all Has* capability flags are correct and complete.
     HasDiv = 1,
     HasExp = 1,
     HasSqrt = 1,
