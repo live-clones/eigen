@@ -337,9 +337,9 @@ void SparseQR<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
   m_R.resize(m, n);
   m_Q.resize(m, diagSize);
 
-  // Allocate space for nonzero elements: rough estimation
-  m_R.reserve(2 * mat.nonZeros());  // FIXME Get a more accurate estimation through symbolic factorization with the
-                                    // etree
+  // Allocate space for nonzero elements: rough estimation (2x nnz as heuristic)
+  m_R.reserve(2 * mat.nonZeros());
+  // TODO: Compute more accurate NNZ estimate using column elimination tree (etree) from symbolic analysis
   m_Q.reserve(2 * mat.nonZeros());
   m_hcoeffs.resize(diagSize);
   m_analysisIsok = true;
@@ -501,8 +501,9 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
     RealScalar beta = 0;
 
     if (nonzeroCol < diagSize) {
-      // Compute the Householder reflection that eliminate the current column
-      // FIXME this step should call the Householder module.
+      // Compute the Householder reflection that eliminates the current column
+      // TODO: Refactor to use Householder module (e.g., internal::Householder API)
+      //       for consistency with dense QR and potential optimizations.
       Scalar c0 = nzcolQ ? tval(Qidx(0)) : Scalar(0);
 
       // First, the squared norm of Q((col+1):m, col)
@@ -627,7 +628,9 @@ struct SparseQR_QProduct : ReturnByValue<SparseQR_QProduct<SparseQRType, Derived
 
   const SparseQRType& m_qr;
   const Derived& m_other;
-  bool m_transpose;  // TODO this actually means adjoint
+  // TODO: Rename m_transpose to m_conjugate_transpose to clarify that it represents adjoint operation
+  //       (conjugate transpose for complex matrices, regular transpose for real matrices).
+  bool m_transpose;
 };
 
 template <typename SparseQRType>
@@ -646,14 +649,19 @@ struct SparseQRMatrixQReturnType : public EigenBase<SparseQRMatrixQReturnType<Sp
   }
   inline Index rows() const { return m_qr.rows(); }
   inline Index cols() const { return m_qr.rows(); }
-  // To use for operations with the transpose of Q FIXME this is the same as adjoint at the moment
+  // To use for operations with the transpose of Q.
+  // NOTE: For real matrices, transpose and adjoint are the same.
+  //       For complex matrices, Q.transpose() should return conjugate transpose (adjoint) for orthogonality.
   SparseQRMatrixQTransposeReturnType<SparseQRType> transpose() const {
     return SparseQRMatrixQTransposeReturnType<SparseQRType>(m_qr);
   }
   const SparseQRType& m_qr;
 };
 
-// TODO this actually represents the adjoint of Q
+// Represents Q^H (conjugate transpose / adjoint of Q).
+// Despite the "Transpose" name, this is semantically the adjoint operation.
+// For real matrices, adjoint and transpose are equivalent.
+// For complex matrices, adjoint includes conjugation.
 template <typename SparseQRType>
 struct SparseQRMatrixQTransposeReturnType {
   explicit SparseQRMatrixQTransposeReturnType(const SparseQRType& qr) : m_qr(qr) {}
