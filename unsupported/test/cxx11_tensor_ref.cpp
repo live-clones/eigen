@@ -230,14 +230,14 @@ static void test_nested_ops_with_ref() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_ref) {
-  CALL_SUBTEST(test_simple_lvalue_ref());
-  CALL_SUBTEST(test_simple_rvalue_ref());
-  CALL_SUBTEST(test_multiple_dims());
-  CALL_SUBTEST(test_slice());
-  CALL_SUBTEST(test_ref_of_trace());
-  CALL_SUBTEST(test_ref_of_ref());
-  CALL_SUBTEST(test_ref_in_expr());
-  CALL_SUBTEST(test_coeff_ref());
-  CALL_SUBTEST(test_nested_ops_with_ref());
+TEST(TensorRefTest, Basic) {
+  test_simple_lvalue_ref();
+  test_simple_rvalue_ref();
+  test_multiple_dims();
+  test_slice();
+  test_ref_of_trace();
+  test_ref_of_ref();
+  test_ref_in_expr();
+  test_coeff_ref();
+  test_nested_ops_with_ref();
 }

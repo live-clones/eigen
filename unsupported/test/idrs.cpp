@@ -16,11 +16,11 @@ void test_idrs_T() {
   IDRS<SparseMatrix<T>, DiagonalPreconditioner<T> > idrs_colmajor_diag;
   IDRS<SparseMatrix<T>, IncompleteLUT<T> > idrs_colmajor_ilut;
 
-  CALL_SUBTEST(check_sparse_square_solving(idrs_colmajor_diag));
-  CALL_SUBTEST(check_sparse_square_solving(idrs_colmajor_ilut));
+  check_sparse_square_solving(idrs_colmajor_diag);
+  check_sparse_square_solving(idrs_colmajor_ilut);
 }
 
-EIGEN_DECLARE_TEST(idrs) {
-  CALL_SUBTEST_1(test_idrs_T<double>());
-  CALL_SUBTEST_2(test_idrs_T<std::complex<double> >());
+TEST(IdrsTest, Basic) {
+  test_idrs_T<double>();
+  test_idrs_T<std::complex<double> >();
 }

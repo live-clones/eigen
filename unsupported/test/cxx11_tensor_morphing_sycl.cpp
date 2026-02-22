@@ -363,9 +363,9 @@ void sycl_morphing_test_per_device(dev_Selector s) {
   test_strided_slice_as_rhs_sycl<DataType, RowMajor, int64_t>(sycl_device);
   run_eigen<float, RowMajor, long, int>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_morphing_sycl) {
+TEST(TensorMorphingSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(sycl_morphing_test_per_device<half>(device));
-    CALL_SUBTEST(sycl_morphing_test_per_device<float>(device));
+    sycl_morphing_test_per_device<half>(device);
+    sycl_morphing_test_per_device<float>(device);
   }
 }

@@ -71,8 +71,8 @@ static void test_scalar_sugar_sub_div() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_sugar) {
-  CALL_SUBTEST(test_comparison_sugar());
-  CALL_SUBTEST(test_scalar_sugar_add_mul());
-  CALL_SUBTEST(test_scalar_sugar_sub_div());
+TEST(TensorSugarTest, Basic) {
+  test_comparison_sugar();
+  test_scalar_sugar_add_mul();
+  test_scalar_sugar_sub_div();
 }

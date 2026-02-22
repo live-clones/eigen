@@ -194,12 +194,12 @@ void check_global_interpolation_with_derivatives2d() {
   }
 }
 
-EIGEN_DECLARE_TEST(splines) {
+TEST(SplinesTest, Basic) {
   for (int i = 0; i < g_repeat; ++i) {
-    CALL_SUBTEST(eval_spline3d());
-    CALL_SUBTEST(eval_spline3d_onbrks());
-    CALL_SUBTEST(eval_closed_spline2d());
-    CALL_SUBTEST(check_global_interpolation2d());
-    CALL_SUBTEST(check_global_interpolation_with_derivatives2d());
+    eval_spline3d();
+    eval_spline3d_onbrks();
+    eval_closed_spline2d();
+    check_global_interpolation2d();
+    check_global_interpolation_with_derivatives2d();
   }
 }

@@ -260,7 +260,7 @@ void eulerangles_rand() {
   check_all_var(ea);
 }
 
-EIGEN_DECLARE_TEST(EulerAngles) {
+TEST(EulerAnglesTest, Basic) {
   // Simple cast test
   EulerAnglesXYZd onesEd(1, 1, 1);
   EulerAnglesXYZf onesEf = onesEd.cast<float>();
@@ -269,12 +269,12 @@ EIGEN_DECLARE_TEST(EulerAngles) {
   // Simple Construction from Vector3 test
   VERIFY_IS_APPROX(onesEd, EulerAnglesXYZd(Vector3d::Ones()));
 
-  CALL_SUBTEST_1(eulerangles_manual<float>());
-  CALL_SUBTEST_2(eulerangles_manual<double>());
+  eulerangles_manual<float>();
+  eulerangles_manual<double>();
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_3(eulerangles_rand<float>());
-    CALL_SUBTEST_4(eulerangles_rand<double>());
+    eulerangles_rand<float>();
+    eulerangles_rand<double>();
   }
 
   // TODO: Add tests for auto diff

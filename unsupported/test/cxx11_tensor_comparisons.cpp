@@ -183,10 +183,10 @@ static void test_isfinite() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_comparisons) {
-  CALL_SUBTEST(test_orderings());
-  CALL_SUBTEST(test_equality());
-  CALL_SUBTEST(test_isnan());
-  CALL_SUBTEST(test_isinf());
-  CALL_SUBTEST(test_isfinite());
+TEST(TensorComparisonsTest, Basic) {
+  test_orderings();
+  test_equality();
+  test_isnan();
+  test_isinf();
+  test_isfinite();
 }

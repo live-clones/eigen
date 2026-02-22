@@ -217,16 +217,16 @@ void sycl_reverse_test_per_device(const cl::sycl::device& d) {
   test_expr_reverse<DataType, RowMajor, int64_t>(sycl_device, true);
   test_expr_reverse<DataType, ColMajor, int64_t>(sycl_device, true);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_reverse_sycl) {
+TEST(TensorReverseSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
     std::cout << "Running on " << device.get_info<cl::sycl::info::device::name>() << std::endl;
-    CALL_SUBTEST_1(sycl_reverse_test_per_device<short>(device));
-    CALL_SUBTEST_2(sycl_reverse_test_per_device<int>(device));
-    CALL_SUBTEST_3(sycl_reverse_test_per_device<unsigned int>(device));
+    sycl_reverse_test_per_device<short>(device);
+    sycl_reverse_test_per_device<int>(device);
+    sycl_reverse_test_per_device<unsigned int>(device);
 #ifdef EIGEN_SYCL_DOUBLE_SUPPORT
-    CALL_SUBTEST_4(sycl_reverse_test_per_device<double>(device));
+    sycl_reverse_test_per_device<double>(device);
 #endif
-    CALL_SUBTEST_5(sycl_reverse_test_per_device<half>(device));
-    CALL_SUBTEST_6(sycl_reverse_test_per_device<float>(device));
+    sycl_reverse_test_per_device<half>(device);
+    sycl_reverse_test_per_device<float>(device);
   }
 }

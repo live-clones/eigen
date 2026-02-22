@@ -73,12 +73,12 @@ void sycl_random_test_per_device(dev_Selector s) {
   test_sycl_random_normal<DataType, RowMajor, int64_t>(sycl_device);
   test_sycl_random_normal<DataType, ColMajor, int64_t>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_random_sycl) {
+TEST(TensorRandomSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(sycl_random_test_per_device<half>(device));
-    CALL_SUBTEST(sycl_random_test_per_device<float>(device));
+    sycl_random_test_per_device<half>(device);
+    sycl_random_test_per_device<float>(device);
 #ifdef EIGEN_SYCL_DOUBLE_SUPPORT
-    CALL_SUBTEST(sycl_random_test_per_device<double>(device));
+    sycl_random_test_per_device<double>(device);
 #endif
   }
 }

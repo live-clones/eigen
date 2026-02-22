@@ -163,8 +163,8 @@ static void test_simple_patch() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_patch) {
-  CALL_SUBTEST(test_simple_patch<ColMajor>());
-  CALL_SUBTEST(test_simple_patch<RowMajor>());
-  //   CALL_SUBTEST(test_expr_shuffling());
+TEST(TensorPatchTest, Basic) {
+  test_simple_patch<ColMajor>();
+  test_simple_patch<RowMajor>();
+  //   test_expr_shuffling();
 }

@@ -161,15 +161,19 @@ void array_special_functions() {
     x << 0.5, 0.2, 0.8, 0.9, 0.1, 0.99, 0.01, 0, 1, -0.01, 1.01;
     ref << 0., -0.8416212335729142, 0.8416212335729142, 1.2815515655446004, -1.2815515655446004, 2.3263478740408408,
         -2.3263478740408408, -plusinf, plusinf, nan, nan;
-    CALL_SUBTEST(verify_component_wise(ref, ref););
-    CALL_SUBTEST(res = x.ndtri(); verify_component_wise(res, ref););
-    CALL_SUBTEST(res = ndtri(x); verify_component_wise(res, ref););
+    verify_component_wise(ref, ref);
+    res = x.ndtri();
+    verify_component_wise(res, ref);
+    res = ndtri(x);
+    verify_component_wise(res, ref);
 
     // ndtri(normal_cdf(x)) ~= x
-    CALL_SUBTEST(ArrayType m1 = ArrayType::Random(32); using std::sqrt;
+    ArrayType m1 = ArrayType::Random(32);
+    using std::sqrt;
 
-                 ArrayType cdf_val = (m1 / Scalar(sqrt(2.))).erf(); cdf_val = (cdf_val + Scalar(1)) / Scalar(2);
-                 verify_component_wise(cdf_val.ndtri(), m1););
+    ArrayType cdf_val = (m1 / Scalar(sqrt(2.))).erf();
+    cdf_val = (cdf_val + Scalar(1)) / Scalar(2);
+    verify_component_wise(cdf_val.ndtri(), m1);
   }
 
   // Check the zeta function against scipy.special.zeta
@@ -179,9 +183,11 @@ void array_special_functions() {
     q << 2, 1.5, 3, 1.0001, -2.5, 1.2345, 1.2345, -1, -2, -3, 2000;
     ref << 1.61237534869, 0.234848505667, 1.03086757337e-5, 0.367879440865, 0.054102025820864097, plusinf, nan, plusinf,
         nan, plusinf, 0;
-    CALL_SUBTEST(verify_component_wise(ref, ref););
-    CALL_SUBTEST(res = x.zeta(q); verify_component_wise(res, ref););
-    CALL_SUBTEST(res = zeta(x, q); verify_component_wise(res, ref););
+    verify_component_wise(ref, ref);
+    res = x.zeta(q);
+    verify_component_wise(res, ref);
+    res = zeta(x, q);
+    verify_component_wise(res, ref);
   }
 
   // digamma
@@ -190,10 +196,12 @@ void array_special_functions() {
     x << 1, 1.5, 4, -10.5, 10000.5, 0, -1, -2, -3;
     ref << -0.5772156649015329, 0.03648997397857645, 1.2561176684318, 2.398239129535781, 9.210340372392849, nan, nan,
         nan, nan;
-    CALL_SUBTEST(verify_component_wise(ref, ref););
+    verify_component_wise(ref, ref);
 
-    CALL_SUBTEST(res = x.digamma(); verify_component_wise(res, ref););
-    CALL_SUBTEST(res = digamma(x); verify_component_wise(res, ref););
+    res = x.digamma();
+    verify_component_wise(res, ref);
+    res = digamma(x);
+    verify_component_wise(res, ref);
   }
 
 #if EIGEN_HAS_C99_MATH
@@ -203,15 +211,17 @@ void array_special_functions() {
     x << 2, 3, 25.5, 1.5, 4.7, 11.8, 17.7, 30.2, 15.8, 54.1, 64, -1, -2, -3, -4, -5;
     ref << 0.644934066848, 0.394934066848, 0.0399946696496, nan, 293.334565435, 0.445487887616, -2.47810300902e-07,
         -8.29668781082e-09, -0.434562276666, 0.567742190178, -0.0108615497927, nan, nan, plusinf, nan, plusinf;
-    CALL_SUBTEST(verify_component_wise(ref, ref););
+    verify_component_wise(ref, ref);
 
     if (sizeof(RealScalar) >= 8) {  // double
       // Reason for commented line: http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1232
-      //       CALL_SUBTEST( res = x.polygamma(n); verify_component_wise(res, ref); );
-      CALL_SUBTEST(res = polygamma(n, x); verify_component_wise(res, ref););
+      //        res = x.polygamma(n); verify_component_wise(res, ref); ;
+      res = polygamma(n, x);
+      verify_component_wise(res, ref);
     } else {
-      //       CALL_SUBTEST( res = x.polygamma(n); verify_component_wise(res.head(8), ref.head(8)); );
-      CALL_SUBTEST(res = polygamma(n, x); verify_component_wise(res.head(8), ref.head(8)););
+      //        res = x.polygamma(n); verify_component_wise(res.head(8), ref.head(8)); ;
+      res = polygamma(n, x);
+      verify_component_wise(res.head(8), ref.head(8));
     }
   }
 #endif
@@ -285,7 +295,8 @@ void array_special_functions() {
         2.245072820861537e-101, nan, nan, 0.0, 9.275871147875753e-302, 1.223291302616039e-97, nan, nan, 0.0,
         3.089139308197642e-252, 2.9303043666230076e-60, nan, nan, 2.248913486881819e-196, 0.5000000000000036, 1.0, nan;
 
-    CALL_SUBTEST(res = betainc(a, b, x); verify_component_wise(res, v););
+    res = betainc(a, b, x);
+    verify_component_wise(res, v);
   }
 
   // Test various properties of betainc
@@ -300,39 +311,52 @@ void array_special_functions() {
     ArrayType x = m3.abs();
 
     // betainc(a, 1, x) == x**a
-    CALL_SUBTEST(ArrayType test = betainc(a, one, x); ArrayType expected = x.pow(a);
-                 verify_component_wise(test, expected););
+    {
+      ArrayType test = betainc(a, one, x);
+      ArrayType expected = x.pow(a);
+      verify_component_wise(test, expected);
+    }
 
     // betainc(1, b, x) == 1 - (1 - x)**b
-    CALL_SUBTEST(ArrayType test = betainc(one, b, x); ArrayType expected = one - (one - x).pow(b);
-                 verify_component_wise(test, expected););
+    {
+      ArrayType test = betainc(one, b, x);
+      ArrayType expected = one - (one - x).pow(b);
+      verify_component_wise(test, expected);
+    }
 
     // betainc(a, b, x) == 1 - betainc(b, a, 1-x)
-    CALL_SUBTEST(ArrayType test = betainc(a, b, x) + betainc(b, a, one - x); ArrayType expected = one;
-                 verify_component_wise(test, expected););
+    {
+      ArrayType test = betainc(a, b, x) + betainc(b, a, one - x);
+      ArrayType expected = one;
+      verify_component_wise(test, expected);
+    }
 
     // betainc(a+1, b, x) = betainc(a, b, x) - x**a * (1 - x)**b / (a * beta(a, b))
-    CALL_SUBTEST(
-        ArrayType num = x.pow(a) * (one - x).pow(b);
-        ArrayType denom = a * (a.lgamma() + b.lgamma() - (a + b).lgamma()).exp();
-        // Add eps to rhs and lhs so that component-wise test doesn't result in
-        // nans when both outputs are zeros.
-        ArrayType expected = betainc(a, b, x) - num / denom + eps;
-        ArrayType test = betainc(a + one, b, x) + eps; if (sizeof(Scalar) >= 8) {  // double
-          verify_component_wise(test, expected);
-        } else {
-          // Reason for limited test: http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1232
-          verify_component_wise(test.head(8), expected.head(8));
-        });
+    {
+      ArrayType num = x.pow(a) * (one - x).pow(b);
+      ArrayType denom = a * (a.lgamma() + b.lgamma() - (a + b).lgamma()).exp();
+      // Add eps to rhs and lhs so that component-wise test doesn't result in
+      // nans when both outputs are zeros.
+      ArrayType expected = betainc(a, b, x) - num / denom + eps;
+      ArrayType test = betainc(a + one, b, x) + eps;
+      if (sizeof(Scalar) >= 8) {  // double
+        verify_component_wise(test, expected);
+      } else {
+        // Reason for limited test: http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1232
+        verify_component_wise(test.head(8), expected.head(8));
+      }
+    }
 
     // betainc(a, b+1, x) = betainc(a, b, x) + x**a * (1 - x)**b / (b * beta(a, b))
-    CALL_SUBTEST(
-        // Add eps to rhs and lhs so that component-wise test doesn't result in
-        // nans when both outputs are zeros.
-        ArrayType num = x.pow(a) * (one - x).pow(b);
-        ArrayType denom = b * (a.lgamma() + b.lgamma() - (a + b).lgamma()).exp();
-        ArrayType expected = betainc(a, b, x) + num / denom + eps; ArrayType test = betainc(a, b + one, x) + eps;
-        verify_component_wise(test, expected););
+    {
+      // Add eps to rhs and lhs so that component-wise test doesn't result in
+      // nans when both outputs are zeros.
+      ArrayType num = x.pow(a) * (one - x).pow(b);
+      ArrayType denom = b * (a.lgamma() + b.lgamma() - (a + b).lgamma()).exp();
+      ArrayType expected = betainc(a, b, x) + num / denom + eps;
+      ArrayType test = betainc(a, b + one, x) + eps;
+      verify_component_wise(test, expected);
+    }
   }
 #endif  // EIGEN_HAS_C99_MATH
 
@@ -386,7 +410,8 @@ void array_special_functions() {
         -0.122619605294, -0.0317670267286, -0.0359974812869, -0.0154359225363, -0.0375775365921, -0.00794899153653,
         -0.00777303219211, -0.00796085782042, -0.0125850719397, -0.00455500206958, -0.00476436993148;
 
-    CALL_SUBTEST(res = igamma_der_a(a, x); verify_component_wise(res, v););
+    res = igamma_der_a(a, x);
+    verify_component_wise(res, v);
   }
 
   // Test gamma_sample_der_alpha
@@ -411,15 +436,16 @@ void array_special_functions() {
         1.04193666963, 0.965193152414, 0.976217589464, 0.93008035061, 0.98153216096, 0.909196397698, 0.98434963993,
         0.984738050206, 1.00106492525, 0.97734200649, 1.02198794179;
 
-    CALL_SUBTEST(res = gamma_sample_der_alpha(alpha, sample); verify_component_wise(res, v););
+    res = gamma_sample_der_alpha(alpha, sample);
+    verify_component_wise(res, v);
   }
 #endif  // EIGEN_HAS_C99_MATH
 }
 
-EIGEN_DECLARE_TEST(special_functions) {
-  CALL_SUBTEST_1(array_special_functions<ArrayXf>());
-  CALL_SUBTEST_2(array_special_functions<ArrayXd>());
+TEST(SpecialFunctionsTest, Basic) {
+  array_special_functions<ArrayXf>();
+  array_special_functions<ArrayXd>();
   // TODO(cantonios): half/bfloat16 don't have enough precision to reproduce results above.
-  // CALL_SUBTEST_3(array_special_functions<ArrayX<Eigen::half>>());
-  // CALL_SUBTEST_4(array_special_functions<ArrayX<Eigen::bfloat16>>());
+  // array_special_functions<ArrayX<Eigen::half>>();
+  // array_special_functions<ArrayX<Eigen::bfloat16>>();
 }

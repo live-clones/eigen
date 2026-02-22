@@ -70,9 +70,9 @@ void tensorForced_evalperDevice(Dev_selector s) {
   test_forced_eval_sycl<DataType, RowMajor, int64_t>(sycl_device);
   test_forced_eval_sycl<DataType, ColMajor, int64_t>(sycl_device);
 }
-EIGEN_DECLARE_TEST(cxx11_tensor_forced_eval_sycl) {
+TEST(TensorForcedEvalSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(tensorForced_evalperDevice<float>(device));
-    CALL_SUBTEST(tensorForced_evalperDevice<half>(device));
+    tensorForced_evalperDevice<float>(device);
+    tensorForced_evalperDevice<half>(device);
   }
 }
