@@ -141,7 +141,9 @@ EIGEN_STRONG_INLINE Packet4cf pset1<Packet4cf>(const std::complex<float>& from) 
 
 template <>
 EIGEN_STRONG_INLINE Packet4cf ploaddup<Packet4cf>(const std::complex<float>* from) {
-  // FIXME The following might be optimized using _mm256_movedup_pd
+  // Loads and duplicates two complex floats into 8 floats: {re0, im0, re0, im0, re1, im1, re1, im1}
+  // NOTE: _mm256_insertf128_ps has high latency on some architectures. Consider AVX2
+  // permute/shuffle alternatives if performance profiling shows this as a bottleneck.
   Packet2cf a = ploaddup<Packet2cf>(from);
   Packet2cf b = ploaddup<Packet2cf>(from + 1);
   return Packet4cf(_mm256_insertf128_ps(_mm256_castps128_ps256(a.v), b.v, 1));

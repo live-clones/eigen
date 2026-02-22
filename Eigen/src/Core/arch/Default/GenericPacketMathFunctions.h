@@ -756,9 +756,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   qx = pmadd(qx, x2, cst_cephes_exp_q2);
   qx = pmadd(qx, x2, cst_cephes_exp_q3);
 
-  // I don't really get this bit, copied from the SSE2 routines, so...
-  // TODO(gonnet): Figure out what is going on here, perhaps find a better
-  // rational interpolant?
+  // Normalize the rational approximation: x = px / (qx - px)
+  // Historically derived from SSE2 exp approximation. The rational coefficients and
+  // normalization should be reviewed against more recent exp approximations for potential
+  // improvement in accuracy or performance.
   x = pdiv(px, psub(qx, px));
   x = pmadd(cst_2, x, cst_1);
 
@@ -1047,7 +1048,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   PacketI q_int;
   Packet s;
 
-  // TODO Implement huge angle argument reduction
+  // For large angles |x| > small_th, use improved argument reduction. For huge angles |x| > huge_th,
+  // the vectorized reduction is not yet implemented, so we fall back to scalar evaluation.
+  // TODO: Implement vectorized argument reduction for huge angles (|x| > huge_th) to avoid scalar fallback.
   if (EIGEN_PREDICT_FALSE(predux_any(pcmp_le(pset1<Packet>(small_th), x_abs)))) {
     Packet q_high = pmul(pfloor(pmul(x_abs, pdiv(cst_2oPI, cst_split))), cst_split);
     Packet q_low_noround = psub(pmul(x_abs, cst_2oPI), q_high);
@@ -1143,9 +1146,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
   sFinalRes = pxor(sFinalRes, sign_bit);
 
-  // If the inputs values are higher than that a value that the argument reduction can currently address, compute them
-  // using the C++ standard library.
-  // TODO Remove it when huge angle argument reduction is implemented
+  // Fallback for huge angles: If |x| > huge_th, the vectorized argument reduction is not yet implemented,
+  // so we compute these values element-wise using std::sin/cos.
+  // TODO: Once vectorized huge angle argument reduction is implemented (see similar TODO above),
+  // this scalar fallback can be removed.
   if (EIGEN_PREDICT_FALSE(predux_any(pcmp_le(pset1<Packet>(huge_th), x_abs)))) {
     const int PacketSize = unpacket_traits<Packet>::size;
     EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) double sincos_vals[PacketSize];
