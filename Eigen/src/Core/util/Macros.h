@@ -899,7 +899,6 @@
 // EIGEN_ALWAYS_INLINE is the strongest, it has the effect of making the function inline and adding every possible
 // attribute to maximize inlining. This should only be used when really necessary: in particular,
 // it uses __attribute__((always_inline)) on GCC, which most of the time is useless and can severely harm compile times.
-// FIXME with the always_inline attribute,
 #if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
 #define EIGEN_ALWAYS_INLINE __attribute__((always_inline)) inline
 #else

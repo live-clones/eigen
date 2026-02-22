@@ -1,0 +1,3 @@
+ninja_dyndep_version = 1.0
+build blas/testing/CMakeFiles/zblat2.dir/zblat2.f.o: dyndep
+

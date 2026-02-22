@@ -273,9 +273,9 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       n = (n % nc) == 0 ? nc : (nc - Traits::nr * ((nc /*-1*/ - (n % nc)) / (Traits::nr * (n / nc + 1))));
     } else if (old_k == k) {
       // So far, no blocking at all, i.e., kc==k, and nc==n.
-      // In this case, let's perform a blocking over the rows such that the packed lhs data is kept in cache L1/L2
-      // TODO: part of this blocking strategy is now implemented within the kernel itself, so the L1-based heuristic
-      // here should be obsolete.
+      // In this case, perform blocking over the rows to keep packed LHS data in L1/L2 cache.
+      // TODO: Part of this blocking strategy is now implemented in the kernel itself.
+      //       Evaluate and potentially remove or simplify this L1/L2-based heuristic.
       Index problem_size = k * n * sizeof(LhsScalar);
       Index actual_lm = actual_l2;
       Index max_mc = m;
@@ -881,7 +881,8 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
     ResPacketSize = Vectorizable ? unpacket_traits<ResPacket_>::size : 1,
 
     NumberOfRegisters = EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS,
-    // FIXME: should depend on NumberOfRegisters
+    // TODO: Make nr (RHS panel width) adaptive based on NumberOfRegisters like mr is.
+    //       Currently hardcoded to 4, but could be optimized for different architectures.
     nr = 4,
     mr = (plain_enum_min(16, NumberOfRegisters) / 2 / nr) * ResPacketSize,
 
