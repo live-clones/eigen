@@ -101,7 +101,7 @@ static void test_entire_volume_patch() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_volume_patch) {
-  CALL_SUBTEST(test_single_voxel_patch());
-  CALL_SUBTEST(test_entire_volume_patch());
+TEST(TensorVolumePatchTest, Basic) {
+  test_single_voxel_patch();
+  test_entire_volume_patch();
 }

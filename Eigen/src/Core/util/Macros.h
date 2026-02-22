@@ -906,6 +906,17 @@
 #define EIGEN_ALWAYS_INLINE EIGEN_STRONG_INLINE
 #endif
 
+// EIGEN_LAMBDA_ALWAYS_INLINE forces inlining of lambda functions.
+// On GCC/Clang, __attribute__((always_inline)) works on lambdas.
+// On MSVC, [[msvc::forceinline]] cannot be applied to generic lambdas
+// (those with auto parameters), so we leave it empty and rely on the
+// optimizer to inline small lambda bodies at /O2.
+#if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
+#define EIGEN_LAMBDA_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define EIGEN_LAMBDA_ALWAYS_INLINE
+#endif
+
 #if EIGEN_COMP_GNUC
 #define EIGEN_DONT_INLINE __attribute__((noinline))
 #elif EIGEN_COMP_MSVC

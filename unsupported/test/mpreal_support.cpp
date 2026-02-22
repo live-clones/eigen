@@ -8,7 +8,7 @@
 using namespace mpfr;
 using namespace Eigen;
 
-EIGEN_DECLARE_TEST(mpreal_support) {
+TEST(MprealSupportTest, Basic) {
   // set precision to 256 bits (double has only 53 bits)
   mpreal::set_default_prec(256);
   typedef Matrix<mpreal, Eigen::Dynamic, Eigen::Dynamic> MatrixXmp;

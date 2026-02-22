@@ -134,24 +134,24 @@ static void test_sub_fft_ifft_invariant(int dim0, int dim1, int dim2, int dim3) 
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_ifft) {
-  CALL_SUBTEST(test_1D_fft_ifft_invariant<ColMajor>(4));
-  CALL_SUBTEST(test_1D_fft_ifft_invariant<ColMajor>(16));
-  CALL_SUBTEST(test_1D_fft_ifft_invariant<ColMajor>(32));
-  CALL_SUBTEST(test_1D_fft_ifft_invariant<ColMajor>(1024 * 1024));
+TEST(TensorIfftTest, Basic) {
+  test_1D_fft_ifft_invariant<ColMajor>(4);
+  test_1D_fft_ifft_invariant<ColMajor>(16);
+  test_1D_fft_ifft_invariant<ColMajor>(32);
+  test_1D_fft_ifft_invariant<ColMajor>(1024 * 1024);
 
-  CALL_SUBTEST(test_2D_fft_ifft_invariant<ColMajor>(4, 4));
-  CALL_SUBTEST(test_2D_fft_ifft_invariant<ColMajor>(8, 16));
-  CALL_SUBTEST(test_2D_fft_ifft_invariant<ColMajor>(16, 32));
-  CALL_SUBTEST(test_2D_fft_ifft_invariant<ColMajor>(1024, 1024));
+  test_2D_fft_ifft_invariant<ColMajor>(4, 4);
+  test_2D_fft_ifft_invariant<ColMajor>(8, 16);
+  test_2D_fft_ifft_invariant<ColMajor>(16, 32);
+  test_2D_fft_ifft_invariant<ColMajor>(1024, 1024);
 
-  CALL_SUBTEST(test_3D_fft_ifft_invariant<ColMajor>(4, 4, 4));
-  CALL_SUBTEST(test_3D_fft_ifft_invariant<ColMajor>(8, 16, 32));
-  CALL_SUBTEST(test_3D_fft_ifft_invariant<ColMajor>(16, 4, 8));
-  CALL_SUBTEST(test_3D_fft_ifft_invariant<ColMajor>(256, 256, 256));
+  test_3D_fft_ifft_invariant<ColMajor>(4, 4, 4);
+  test_3D_fft_ifft_invariant<ColMajor>(8, 16, 32);
+  test_3D_fft_ifft_invariant<ColMajor>(16, 4, 8);
+  test_3D_fft_ifft_invariant<ColMajor>(256, 256, 256);
 
-  CALL_SUBTEST(test_sub_fft_ifft_invariant<ColMajor>(4, 4, 4, 4));
-  CALL_SUBTEST(test_sub_fft_ifft_invariant<ColMajor>(8, 16, 32, 64));
-  CALL_SUBTEST(test_sub_fft_ifft_invariant<ColMajor>(16, 4, 8, 12));
-  CALL_SUBTEST(test_sub_fft_ifft_invariant<ColMajor>(64, 64, 64, 64));
+  test_sub_fft_ifft_invariant<ColMajor>(4, 4, 4, 4);
+  test_sub_fft_ifft_invariant<ColMajor>(8, 16, 32, 64);
+  test_sub_fft_ifft_invariant<ColMajor>(16, 4, 8, 12);
+  test_sub_fft_ifft_invariant<ColMajor>(64, 64, 64, 64);
 }

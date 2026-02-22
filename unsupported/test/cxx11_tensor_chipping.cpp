@@ -405,15 +405,15 @@ static void test_chip_raw_data_row_major() {
   VERIFY_IS_EQUAL(chip4.data(), static_cast<float*>(0));
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_chipping) {
-  CALL_SUBTEST(test_simple_chip<ColMajor>());
-  CALL_SUBTEST(test_simple_chip<RowMajor>());
-  CALL_SUBTEST(test_dynamic_chip<ColMajor>());
-  CALL_SUBTEST(test_dynamic_chip<RowMajor>());
-  CALL_SUBTEST(test_chip_in_expr<ColMajor>());
-  CALL_SUBTEST(test_chip_in_expr<RowMajor>());
-  CALL_SUBTEST(test_chip_as_lvalue<ColMajor>());
-  CALL_SUBTEST(test_chip_as_lvalue<RowMajor>());
-  CALL_SUBTEST(test_chip_raw_data_col_major());
-  CALL_SUBTEST(test_chip_raw_data_row_major());
+TEST(TensorChippingTest, Basic) {
+  test_simple_chip<ColMajor>();
+  test_simple_chip<RowMajor>();
+  test_dynamic_chip<ColMajor>();
+  test_dynamic_chip<RowMajor>();
+  test_chip_in_expr<ColMajor>();
+  test_chip_in_expr<RowMajor>();
+  test_chip_as_lvalue<ColMajor>();
+  test_chip_as_lvalue<RowMajor>();
+  test_chip_raw_data_col_major();
+  test_chip_raw_data_row_major();
 }

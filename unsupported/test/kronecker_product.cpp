@@ -9,8 +9,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifdef EIGEN_TEST_PART_1
-
 #include "sparse.h"
 #include <Eigen/SparseExtra>
 #include <Eigen/KroneckerProduct>
@@ -77,7 +75,7 @@ void check_sparse_kronecker_product(const MatrixType& ab) {
   VERIFY_IS_APPROX(ab.coeff(8, 9), -0.15);
 }
 
-EIGEN_DECLARE_TEST(kronecker_product) {
+TEST(KroneckerProductTest, Basic) {
   // DM = dense matrix; SM = sparse matrix
 
   Matrix<double, 2, 3> DM_a;
@@ -103,8 +101,8 @@ EIGEN_DECLARE_TEST(kronecker_product) {
   // test DM_fixedSize = kroneckerProduct(DM_block,DM)
   Matrix<double, 6, 6> DM_fix_ab = kroneckerProduct(DM_a.topLeftCorner<2, 3>(), DM_b);
 
-  CALL_SUBTEST(check_kronecker_product(DM_fix_ab));
-  CALL_SUBTEST(check_kronecker_product(kroneckerProduct(DM_a.topLeftCorner<2, 3>(), DM_b)));
+  check_kronecker_product(DM_fix_ab);
+  check_kronecker_product(kroneckerProduct(DM_a.topLeftCorner<2, 3>(), DM_b));
 
   for (int i = 0; i < DM_fix_ab.rows(); ++i)
     for (int j = 0; j < DM_fix_ab.cols(); ++j)
@@ -113,41 +111,41 @@ EIGEN_DECLARE_TEST(kronecker_product) {
   // test DM_block = kroneckerProduct(DM,DM)
   MatrixXd DM_block_ab(10, 15);
   DM_block_ab.block<6, 6>(2, 5) = kroneckerProduct(DM_a, DM_b);
-  CALL_SUBTEST(check_kronecker_product(DM_block_ab.block<6, 6>(2, 5)));
+  check_kronecker_product(DM_block_ab.block<6, 6>(2, 5));
 
   // test DM = kroneckerProduct(DM,DM)
   MatrixXd DM_ab = kroneckerProduct(DM_a, DM_b);
-  CALL_SUBTEST(check_kronecker_product(DM_ab));
-  CALL_SUBTEST(check_kronecker_product(kroneckerProduct(DM_a, DM_b)));
+  check_kronecker_product(DM_ab);
+  check_kronecker_product(kroneckerProduct(DM_a, DM_b));
 
   // test SM = kroneckerProduct(SM,DM)
   SparseMatrix<double> SM_ab = kroneckerProduct(SM_a, DM_b);
-  CALL_SUBTEST(check_kronecker_product(SM_ab));
+  check_kronecker_product(SM_ab);
   SparseMatrix<double, RowMajor> SM_ab2 = kroneckerProduct(SM_a, DM_b);
-  CALL_SUBTEST(check_kronecker_product(SM_ab2));
-  CALL_SUBTEST(check_kronecker_product(kroneckerProduct(SM_a, DM_b)));
+  check_kronecker_product(SM_ab2);
+  check_kronecker_product(kroneckerProduct(SM_a, DM_b));
 
   // test SM = kroneckerProduct(DM,SM)
   SM_ab.setZero();
   SM_ab.insert(0, 0) = 37.0;
   SM_ab = kroneckerProduct(DM_a, SM_b);
-  CALL_SUBTEST(check_kronecker_product(SM_ab));
+  check_kronecker_product(SM_ab);
   SM_ab2.setZero();
   SM_ab2.insert(0, 0) = 37.0;
   SM_ab2 = kroneckerProduct(DM_a, SM_b);
-  CALL_SUBTEST(check_kronecker_product(SM_ab2));
-  CALL_SUBTEST(check_kronecker_product(kroneckerProduct(DM_a, SM_b)));
+  check_kronecker_product(SM_ab2);
+  check_kronecker_product(kroneckerProduct(DM_a, SM_b));
 
   // test SM = kroneckerProduct(SM,SM)
   SM_ab.resize(2, 33);
   SM_ab.insert(0, 0) = 37.0;
   SM_ab = kroneckerProduct(SM_a, SM_b);
-  CALL_SUBTEST(check_kronecker_product(SM_ab));
+  check_kronecker_product(SM_ab);
   SM_ab2.resize(5, 11);
   SM_ab2.insert(0, 0) = 37.0;
   SM_ab2 = kroneckerProduct(SM_a, SM_b);
-  CALL_SUBTEST(check_kronecker_product(SM_ab2));
-  CALL_SUBTEST(check_kronecker_product(kroneckerProduct(SM_a, SM_b)));
+  check_kronecker_product(SM_ab2);
+  check_kronecker_product(kroneckerProduct(SM_a, SM_b));
 
   // test SM = kroneckerProduct(SM,SM) with sparse pattern
   SM_a.resize(4, 5);
@@ -165,17 +163,17 @@ EIGEN_DECLARE_TEST(kronecker_product) {
   SM_ab.resize(1, 1);
   SM_ab.insert(0, 0) = 37.0;
   SM_ab = kroneckerProduct(SM_a, SM_b);
-  CALL_SUBTEST(check_sparse_kronecker_product(SM_ab));
+  check_sparse_kronecker_product(SM_ab);
 
   // test dimension of result of DM = kroneckerProduct(DM,DM)
   MatrixXd DM_a2 = Eigen::MatrixXd::Random(2, 1);
   MatrixXd DM_b2 = Eigen::MatrixXd::Random(5, 4);
   MatrixXd DM_ab2 = kroneckerProduct(DM_a2, DM_b2);
-  CALL_SUBTEST(check_dimension(DM_ab2, 2 * 5, 1 * 4));
+  check_dimension(DM_ab2, 2 * 5, 1 * 4);
   DM_a2 = Eigen::MatrixXd::Random(10, 9);
   DM_b2 = Eigen::MatrixXd::Random(4, 8);
   DM_ab2 = kroneckerProduct(DM_a2, DM_b2);
-  CALL_SUBTEST(check_dimension(DM_ab2, 10 * 4, 9 * 8));
+  check_dimension(DM_ab2, 10 * 4, 9 * 8);
 
   for (int i = 0; i < g_repeat; i++) {
     double density = Eigen::internal::random<double>(0.01, 0.5);
@@ -221,22 +219,13 @@ EIGEN_DECLARE_TEST(kronecker_product) {
     dC = kroneckerProduct(2 * dA, dB);
     VERIFY_IS_APPROX(MatrixXf(sC2), dC);
   }
+
+  // Verify dense kronecker product works (no sparse module needed at call site).
+  {
+    MatrixXd a(2, 2), b(3, 3), c;
+    a.setRandom();
+    b.setRandom();
+    c = kroneckerProduct(a, b);
+    VERIFY_IS_APPROX(c.block(3, 3, 3, 3), a(1, 1) * b);
+  }
 }
-
-#endif
-
-#ifdef EIGEN_TEST_PART_2
-
-// simply check that for a dense kronecker product, sparse module is not needed
-#include "main.h"
-#include <Eigen/KroneckerProduct>
-
-EIGEN_DECLARE_TEST(kronecker_product) {
-  MatrixXd a(2, 2), b(3, 3), c;
-  a.setRandom();
-  b.setRandom();
-  c = kroneckerProduct(a, b);
-  VERIFY_IS_APPROX(c.block(3, 3, 3, 3), a(1, 1) * b);
-}
-
-#endif

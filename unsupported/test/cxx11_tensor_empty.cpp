@@ -29,7 +29,7 @@ static void test_empty_fixed_size_tensor() {
   tgt3 = tgt2;
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_empty) {
-  CALL_SUBTEST(test_empty_tensor());
-  CALL_SUBTEST(test_empty_fixed_size_tensor());
+TEST(TensorEmptyTest, Basic) {
+  test_empty_tensor();
+  test_empty_fixed_size_tensor();
 }

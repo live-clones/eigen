@@ -374,19 +374,19 @@ void test_gpu_forced_evals(const Eigen::SyclDevice& sycl_device) {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_of_float16_sycl) {
+TEST(TensorOfFloat16SYCLTest, Basic) {
   for (const auto& s : Eigen::get_sycl_supported_devices()) {
     QueueInterface queueInterface(s);
     auto sycl_device = Eigen::SyclDevice(&queueInterface);
 
-    CALL_SUBTEST_1(test_gpu_numext(sycl_device));
-    CALL_SUBTEST_1(test_gpu_conversion(sycl_device));
-    CALL_SUBTEST_1(test_gpu_unary(sycl_device));
-    CALL_SUBTEST_1(test_gpu_elementwise(sycl_device));
-    CALL_SUBTEST_1(test_gpu_trancendental(sycl_device));
-    CALL_SUBTEST_2(test_gpu_contractions(sycl_device));
-    CALL_SUBTEST_3(test_gpu_reductions(sycl_device));
-    CALL_SUBTEST_4(test_gpu_full_reductions(sycl_device));
-    CALL_SUBTEST_5(test_gpu_forced_evals(sycl_device));
+    test_gpu_numext(sycl_device);
+    test_gpu_conversion(sycl_device);
+    test_gpu_unary(sycl_device);
+    test_gpu_elementwise(sycl_device);
+    test_gpu_trancendental(sycl_device);
+    test_gpu_contractions(sycl_device);
+    test_gpu_reductions(sycl_device);
+    test_gpu_full_reductions(sycl_device);
+    test_gpu_forced_evals(sycl_device);
   }
 }

@@ -394,39 +394,39 @@ static void test_block_io_squeeze_ones() {
   }
 }
 
-#define CALL_SUBTESTS(NAME)                   \
-  CALL_SUBTEST((NAME<float, 1, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 2, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 4, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 5, RowMajor>())); \
-  CALL_SUBTEST((NAME<float, 1, ColMajor>())); \
-  CALL_SUBTEST((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST((NAME<float, 4, ColMajor>())); \
-  CALL_SUBTEST((NAME<float, 5, ColMajor>())); \
-  CALL_SUBTEST((NAME<bool, 1, RowMajor>()));  \
-  CALL_SUBTEST((NAME<bool, 2, RowMajor>()));  \
-  CALL_SUBTEST((NAME<bool, 4, RowMajor>()));  \
-  CALL_SUBTEST((NAME<bool, 5, RowMajor>()));  \
-  CALL_SUBTEST((NAME<bool, 1, ColMajor>()));  \
-  CALL_SUBTEST((NAME<bool, 2, ColMajor>()));  \
-  CALL_SUBTEST((NAME<bool, 4, ColMajor>()));  \
-  CALL_SUBTEST((NAME<bool, 5, ColMajor>()))
+#define CALL_SUBTESTS(NAME)     \
+  (NAME<float, 1, RowMajor>()); \
+  (NAME<float, 2, RowMajor>()); \
+  (NAME<float, 4, RowMajor>()); \
+  (NAME<float, 5, RowMajor>()); \
+  (NAME<float, 1, ColMajor>()); \
+  (NAME<float, 2, ColMajor>()); \
+  (NAME<float, 4, ColMajor>()); \
+  (NAME<float, 5, ColMajor>()); \
+  (NAME<bool, 1, RowMajor>());  \
+  (NAME<bool, 2, RowMajor>());  \
+  (NAME<bool, 4, RowMajor>());  \
+  (NAME<bool, 5, RowMajor>());  \
+  (NAME<bool, 1, ColMajor>());  \
+  (NAME<bool, 2, ColMajor>());  \
+  (NAME<bool, 4, ColMajor>());  \
+  (NAME<bool, 5, ColMajor>())
 
-EIGEN_DECLARE_TEST(cxx11_tensor_block_io) {
+TEST(TensorBlockIOTest, Basic) {
   // clang-format off
   CALL_SUBTESTS(test_block_io_copy_data_from_source_to_target);
   CALL_SUBTESTS(test_block_io_copy_using_reordered_dimensions);
 
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_do_not_squeeze<RowMajor>());
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_do_not_squeeze<ColMajor>());
+  test_block_io_copy_using_reordered_dimensions_do_not_squeeze<RowMajor>();
+  test_block_io_copy_using_reordered_dimensions_do_not_squeeze<ColMajor>();
 
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_squeeze<RowMajor>());
-  CALL_SUBTEST(test_block_io_copy_using_reordered_dimensions_squeeze<ColMajor>());
+  test_block_io_copy_using_reordered_dimensions_squeeze<RowMajor>();
+  test_block_io_copy_using_reordered_dimensions_squeeze<ColMajor>();
 
-  CALL_SUBTEST(test_block_io_zero_stride<RowMajor>());
-  CALL_SUBTEST(test_block_io_zero_stride<ColMajor>());
+  test_block_io_zero_stride<RowMajor>();
+  test_block_io_zero_stride<ColMajor>();
 
-  CALL_SUBTEST(test_block_io_squeeze_ones<RowMajor>());
-  CALL_SUBTEST(test_block_io_squeeze_ones<ColMajor>());
+  test_block_io_squeeze_ones<RowMajor>();
+  test_block_io_squeeze_ones<ColMajor>();
   // clang-format on
 }

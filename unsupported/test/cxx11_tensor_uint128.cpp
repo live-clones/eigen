@@ -142,16 +142,16 @@ void test_misc2() {
 }
 #endif
 
-EIGEN_DECLARE_TEST(cxx11_tensor_uint128) {
+TEST(TensorUint128Test, Basic) {
 #ifdef EIGEN_NO_INT128
   // Skip the test on compilers that don't support 128bit integers natively
   return;
 #else
-  CALL_SUBTEST_1(test_add());
-  CALL_SUBTEST_2(test_sub());
-  CALL_SUBTEST_3(test_mul());
-  CALL_SUBTEST_4(test_div());
-  CALL_SUBTEST_5(test_misc1());
-  CALL_SUBTEST_6(test_misc2());
+  test_add();
+  test_sub();
+  test_mul();
+  test_div();
+  test_misc1();
+  test_misc2();
 #endif
 }

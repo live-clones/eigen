@@ -61,7 +61,7 @@ static void test_notification_multiple() {
   VERIFY_IS_EQUAL(counter, 4);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_notification) {
-  CALL_SUBTEST(test_notification_single());
-  CALL_SUBTEST(test_notification_multiple());
+TEST(TensorNotificationTest, Basic) {
+  test_notification_single();
+  test_notification_multiple();
 }

@@ -96,7 +96,7 @@ void test_central() {
   VERIFY_IS_APPROX(jac, actual_jac);
 }
 
-EIGEN_DECLARE_TEST(NumericalDiff) {
-  CALL_SUBTEST(test_forward());
-  CALL_SUBTEST(test_central());
+TEST(NumericalDiffTest, Basic) {
+  test_forward();
+  test_central();
 }

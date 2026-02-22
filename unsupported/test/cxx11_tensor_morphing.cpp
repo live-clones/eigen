@@ -527,20 +527,18 @@ static void test_empty_slice() {
   }
 }
 
-#define CALL_SUBTEST_PART(PART) CALL_SUBTEST_##PART
+#define CALL_SUBTESTS_TYPES_LAYOUTS(PART, NAME) \
+  (NAME<float, ColMajor>());                    \
+  (NAME<float, RowMajor>());                    \
+  (NAME<bool, ColMajor>());                     \
+  (NAME<bool, RowMajor>())
 
-#define CALL_SUBTESTS_TYPES_LAYOUTS(PART, NAME)       \
-  CALL_SUBTEST_PART(PART)((NAME<float, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, RowMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<bool, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, RowMajor>()))
-
-EIGEN_DECLARE_TEST(cxx11_tensor_morphing) {
-  CALL_SUBTEST_1(test_simple_reshape<void>());
-  CALL_SUBTEST_1(test_static_reshape<void>());
-  CALL_SUBTEST_1(test_reshape_as_lvalue<void>());
-  CALL_SUBTEST_1(test_reshape_in_expr<void>());
-  CALL_SUBTEST_1(test_const_slice<float>());
+TEST(TensorMorphingTest, Basic) {
+  test_simple_reshape<void>();
+  test_static_reshape<void>();
+  test_reshape_as_lvalue<void>();
+  test_reshape_in_expr<void>();
+  test_const_slice<float>();
 
   CALL_SUBTESTS_TYPES_LAYOUTS(2, test_simple_slice);
   CALL_SUBTESTS_TYPES_LAYOUTS(3, test_slice_as_lvalue);
