@@ -1,13 +1,14 @@
 checkformat:clangformat:
   stage: checkformat
-  image: alpine:3.19
+  image: alpine:3.20
   only:
     - merge_requests
   allow_failure: true
   before_script:
-    - apk add --no-cache git clang17-extra-tools python3
+    - apk add --no-cache git clang17-extra-tools python3 py3-codespell
   script:
     - git clang-format --diff --commit ${CI_MERGE_REQUEST_DIFF_BASE_SHA}
+    - codespell
 
 checkformat:clangtidy:
   stage: checkformat
@@ -33,15 +34,3 @@ checkformat:clangtidy:
         -DEIGEN_BUILD_TESTING=ON
     - chmod +x ci/scripts/run-clang-tidy.sh
     - ci/scripts/run-clang-tidy.sh ${CI_MERGE_REQUEST_DIFF_BASE_SHA} .tidy-build
-
-checkformat:codespell:
-  stage: checkformat
-  image: alpine:3.19
-  only:
-    - merge_requests
-  allow_failure: true
-  before_script:
-    - apk add --no-cache python3 py3-pip
-    - pip3 install --break-system-packages codespell
-  script:
-    - codespell
