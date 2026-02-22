@@ -532,7 +532,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   /** \brief Copy constructor with in-place evaluation */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(const ReturnByValue<OtherDerived>& other) {
-    // FIXME this does not automatically transpose vectors if necessary
+    // NOTE: Constructing from ReturnByValue uses returned dimensions directly.
+    // TODO: Consider if automatic transpose for vector<->row-vector conversions should be supported.
+    // Currently, shape mismatch is user's responsibility (either handle in ReturnByValue type or
+    // use explicit transpose).
     resize(other.rows(), other.cols());
     other.evalTo(this->derived());
   }
