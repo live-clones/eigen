@@ -55,7 +55,8 @@ struct functor_traits<scalar_sum_op<LhsScalar, RhsScalar>> {
     Cost = (int(NumTraits<LhsScalar>::AddCost) + int(NumTraits<RhsScalar>::AddCost)) / 2,  // rough estimate!
     PacketAccess =
         is_same<LhsScalar, RhsScalar>::value && packet_traits<LhsScalar>::HasAdd && packet_traits<RhsScalar>::HasAdd
-    // TODO vectorize mixed sum
+    // TODO: Extend vectorization to support mixed-type operations when LhsScalar != RhsScalar.
+    // Currently requires type equality for PacketAccess. May need mixed-type SIMD kernels.
   };
 };
 
@@ -94,7 +95,8 @@ struct functor_traits<scalar_product_op<LhsScalar, RhsScalar>> {
     Cost = (int(NumTraits<LhsScalar>::MulCost) + int(NumTraits<RhsScalar>::MulCost)) / 2,  // rough estimate!
     PacketAccess =
         is_same<LhsScalar, RhsScalar>::value && packet_traits<LhsScalar>::HasMul && packet_traits<RhsScalar>::HasMul
-    // TODO vectorize mixed product
+    // TODO: Extend vectorization to support mixed-type operations when LhsScalar != RhsScalar.
+    // Currently requires type equality for PacketAccess. May need mixed-type SIMD kernels.
   };
 };
 

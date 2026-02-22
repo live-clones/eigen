@@ -43,9 +43,10 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
         num_threads_(num_threads),
         allow_spinning_(allow_spinning),
         spin_count_(
-            // TODO(dvyukov,rmlarsen): The time spent in NonEmptyQueueIndex() is proportional to num_threads_ and
-            // we assume that new work is scheduled at a constant rate, so we divide `kSpintCount` by number of
-            // threads and number of spinning threads. The constant was picked based on a fair dice roll, tune it.
+            // TODO(dvyukov,rmlarsen): Tune spin count heuristic based on empirical performance data.
+            // Current formula divides kSpinCount by num_threads and max spinning threads to account for
+            // work search cost growing with thread count. Profile and adjust constants for target
+            // hardware to balance busy-waiting vs context switching overhead.
             allow_spinning && num_threads > 0 ? kSpinCount / kMaxSpinningThreads / num_threads : 0),
         thread_data_(num_threads),
         all_coprimes_(num_threads),
@@ -433,7 +434,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // If we are shutting down and all worker threads blocked without work,
     // that's we are done.
     blocked_++;
-    // TODO is blocked_ required to be unsigned?
+    // NOTE: Could eliminate cast by declaring blocked_ as unsigned. Consider if thread count
+    // fits safely in unsigned and if signedness semantic is needed elsewhere.
     if (done_ && blocked_ == static_cast<unsigned>(num_threads_)) {
       ec_.CancelWait();
       // Almost done, but need to re-check queues.
