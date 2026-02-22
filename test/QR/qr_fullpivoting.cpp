@@ -129,7 +129,7 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
-EIGEN_DECLARE_TEST(qr_fullpivoting) {
+TEST(QRFullpivotingTest, Basic) {
   for (int i = 0; i < 1; i++) {
     qr<Matrix3f>();
     qr<Matrix3d>();

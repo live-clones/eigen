@@ -139,7 +139,7 @@ void orthomethods(int size = Size) {
   VERIFY_IS_APPROX(mcrossN3.row(i), matN3.row(i).cross(vec3));
 }
 
-EIGEN_DECLARE_TEST(geo_orthomethods) {
+TEST(OrthomethodsTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     orthomethods_2<float>();
     orthomethods_2<double>();

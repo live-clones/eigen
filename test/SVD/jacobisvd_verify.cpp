@@ -9,7 +9,7 @@
 
 #include "jacobisvd_helpers.h"
 
-EIGEN_DECLARE_TEST(jacobisvd_verify) {
+TEST(JacobisvdVerifyTest, Basic) {
   (jacobisvd_verify_inputs<Matrix4d>());
   (jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6)));
   (jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>());

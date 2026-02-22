@@ -9,7 +9,7 @@
 
 #include "bdcsvd_helpers.h"
 
-EIGEN_DECLARE_TEST(bdcsvd_double_rowmajor) {
+TEST(BDCSVDDoubleRowmajorTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), c = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
 

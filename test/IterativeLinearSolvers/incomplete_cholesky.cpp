@@ -71,7 +71,7 @@ void test_non_spd() {
   VERIFY_IS_APPROX(A.toDense(), M);
 }
 
-EIGEN_DECLARE_TEST(incomplete_cholesky) {
+TEST(IncompleteCholeskyTest, Basic) {
   (test_incomplete_cholesky_T<double, int>());
   (test_incomplete_cholesky_T<std::complex<double>, int>());
   (test_incomplete_cholesky_T<double, long int>());

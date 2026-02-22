@@ -223,7 +223,7 @@ void test_stress_runqueue() {
   VERIFY(total.load() == 0);
 }
 
-EIGEN_DECLARE_TEST(cxx11_runqueue) {
+TEST(RunqueueTest, Basic) {
   test_basic_runqueue();
   test_empty_runqueue();
   test_stress_runqueue();

@@ -31,7 +31,7 @@ void upperbidiag(const MatrixType& m) {
   VERIFY_IS_APPROX(a.adjoint(), d);
 }
 
-EIGEN_DECLARE_TEST(upperbidiagonalization) {
+TEST(UpperbidiagonalizationTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     upperbidiag(MatrixXf(3, 3));
     upperbidiag(MatrixXd(17, 12));

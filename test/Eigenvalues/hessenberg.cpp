@@ -49,7 +49,7 @@ void hessenberg(int size = Size) {
   // TODO: Add tests for packedMatrix() and householderCoefficients()
 }
 
-EIGEN_DECLARE_TEST(hessenberg) {
+TEST(HessenbergTest, Basic) {
   (hessenberg<std::complex<double>, 1>());
   (hessenberg<std::complex<double>, 2>());
   (hessenberg<std::complex<float>, 4>());

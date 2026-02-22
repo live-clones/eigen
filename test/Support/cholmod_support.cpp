@@ -68,7 +68,7 @@ void test_cholmod_T() {
   test_cholmod_ST<SparseMatrix<T, flags, IdxType> >();
 }
 
-EIGEN_DECLARE_TEST(cholmod_support) {
+TEST(CholmodSupportTest, Basic) {
   (test_cholmod_T<double, ColMajor, int>());
   (test_cholmod_T<double, ColMajor, long>());
   (test_cholmod_T<double, RowMajor, int>());

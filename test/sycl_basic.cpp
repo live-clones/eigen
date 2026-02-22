@@ -338,7 +338,7 @@ void test_numeric_limits(const Input& in, Output& out) {
   run_and_verify<true, true>(operation, 1, in, out);
 }
 
-EIGEN_DECLARE_TEST(sycl_basic) {
+TEST(SyclBasicTest, Basic) {
   Eigen::VectorXf in, out;
   Eigen::VectorXcf cfin, cfout;
 

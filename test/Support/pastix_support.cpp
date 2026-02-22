@@ -44,7 +44,7 @@ void test_pastix_T_LU() {
   check_sparse_square_solving(pastix_lu);
 }
 
-EIGEN_DECLARE_TEST(pastix_support) {
+TEST(PastixSupportTest, Basic) {
   test_pastix_T<float>();
   test_pastix_T<double>();
   (test_pastix_T_LU<std::complex<float> >());

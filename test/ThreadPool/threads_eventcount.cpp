@@ -131,7 +131,7 @@ static void test_stress_eventcount() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_eventcount) {
+TEST(EventcountTest, Basic) {
   test_basic_eventcount();
   test_stress_eventcount();
 }

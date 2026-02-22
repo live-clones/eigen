@@ -109,7 +109,7 @@ void parametrizedline_alignment() {
   VERIFY_IS_APPROX(p1->direction(), p3->direction());
 }
 
-EIGEN_DECLARE_TEST(geo_parametrizedline) {
+TEST(ParametrizedlineTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     parametrizedline(ParametrizedLine<float, 2>());
     parametrizedline(ParametrizedLine<float, 3>());

@@ -692,7 +692,7 @@ void transformations_computed_scaling_continuity() {
   VERIFY((s0 - s1).norm() < c * eps);
 }
 
-EIGEN_DECLARE_TEST(geo_transformations) {
+TEST(TransformationsTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (transformations<double, Affine, AutoAlign>());
     (non_projective_only<double, Affine, AutoAlign>());

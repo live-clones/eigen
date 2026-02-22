@@ -129,7 +129,7 @@ void cod_verify_assert() {
   VERIFY_RAISES_ASSERT(cod.signDeterminant())
 }
 
-EIGEN_DECLARE_TEST(qr_cod) {
+TEST(QRCODTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     cod<MatrixXf>();
     cod<MatrixXd>();

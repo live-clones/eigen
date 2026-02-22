@@ -213,7 +213,7 @@ void householder_update(const MatrixType& m) {
   }
 }
 
-EIGEN_DECLARE_TEST(householder) {
+TEST(HouseholderTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     householder(Matrix<double, 2, 2>());
     householder(Matrix<float, 2, 3>());

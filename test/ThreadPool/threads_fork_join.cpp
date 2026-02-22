@@ -59,7 +59,7 @@ static void test_async_parallel_for() {
   VERIFY_IS_EQUAL(sum.load(), kNumTasks * kNumAsyncCalls);
 }
 
-EIGEN_DECLARE_TEST(fork_join) {
+TEST(ForkJoinTest, Basic) {
   test_parallel_for(1);
   test_parallel_for(2);
   test_async_parallel_for();

@@ -195,7 +195,7 @@ void eigensolver_generic_extra() {
   }
 }
 
-EIGEN_DECLARE_TEST(eigensolver_generic) {
+TEST(EigensolverGenericTest, Basic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     eigensolver(Matrix4f());

@@ -9,7 +9,7 @@
 
 #include "eigensolver_selfadjoint_helpers.h"
 
-EIGEN_DECLARE_TEST(eigensolver_selfadjoint_fixed) {
+TEST(EigensolverSelfadjointFixedTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:
     selfadjointeigensolver(Matrix<float, 1, 1>());

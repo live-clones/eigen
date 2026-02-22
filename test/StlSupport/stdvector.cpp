@@ -114,7 +114,7 @@ void std_vector_gcc_warning() {
   v.push_back(T(1.0f, 2.0f, 3.0f));
 }
 
-EIGEN_DECLARE_TEST(stdvector) {
+TEST(StdvectorTest, Basic) {
   // some non vectorizable fixed sizes
   check_stdvector_matrix(Vector2f());
   check_stdvector_matrix(Matrix3f());

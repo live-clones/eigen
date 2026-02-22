@@ -382,7 +382,7 @@ void test_with_infs_nans(const Kernel& ker, int n, const Input& in, Output& out)
 #endif
 }
 
-EIGEN_DECLARE_TEST(gpu_basic) {
+TEST(GPUBasicTest, Basic) {
   ei_test_init_gpu();
 
   int nthreads = 100;

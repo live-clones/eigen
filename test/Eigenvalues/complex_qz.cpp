@@ -56,7 +56,7 @@ void complex_qz(const MatrixType& A, const MatrixType& B) {
   VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
 }
 
-EIGEN_DECLARE_TEST(complex_qz) {
+TEST(ComplexQZTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     // Check for very small, fixed-sized double- and float complex matrices
     Eigen::Matrix2cd A_2x2, B_2x2;

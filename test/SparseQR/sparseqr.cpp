@@ -132,7 +132,7 @@ void test_sparseqr_scalar() {
   dQ = solver.matrixQ();
   VERIFY_IS_APPROX(Q, dQ);
 }
-EIGEN_DECLARE_TEST(sparseqr) {
+TEST(SparseqrTest, Basic) {
   for (int i = 0; i < g_repeat; ++i) {
     test_sparseqr_scalar<double>();
     test_sparseqr_scalar<std::complex<double> >();

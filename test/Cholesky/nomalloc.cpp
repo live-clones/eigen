@@ -203,7 +203,7 @@ void test_reference(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(Ref r13 = r10);  // r10 has more dynamic strides
 }
 
-EIGEN_DECLARE_TEST(nomalloc) {
+TEST(NomallocTest, Basic) {
   // create some dynamic objects
   Eigen::MatrixXd M1 = MatrixXd::Random(3, 3);
   Ref<const MatrixXd> R1 = 2.0 * M1;  // Ref requires temporary

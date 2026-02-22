@@ -104,7 +104,7 @@ void test_bug2633() {
   VERIFY(schur.info() == Eigen::Success);
 }
 
-EIGEN_DECLARE_TEST(schur_real) {
+TEST(SchurRealTest, Basic) {
   (schur<Matrix4f>());
   (schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)));
   (schur<Matrix<float, 1, 1> >());

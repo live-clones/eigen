@@ -110,7 +110,7 @@ void sparse_solvers(int rows, int cols) {
   }
 }
 
-EIGEN_DECLARE_TEST(sparse_solvers) {
+TEST(SparseSolversTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     sparse_solvers<double>(8, 8);
     int s = internal::random<int>(1, 300);

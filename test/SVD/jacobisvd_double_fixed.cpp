@@ -9,7 +9,7 @@
 
 #include "jacobisvd_helpers.h"
 
-EIGEN_DECLARE_TEST(jacobisvd_double_fixed) {
+TEST(JacobisvdDoubleFixedTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (jacobisvd_thin_options<Matrix4d>());
     (jacobisvd_full_options<Matrix4d>());

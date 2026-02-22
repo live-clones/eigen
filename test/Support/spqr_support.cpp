@@ -53,7 +53,7 @@ void test_spqr_scalar() {
   refX = dA.colPivHouseholderQr().solve(b);
   VERIFY(x.isApprox(refX, test_precision<Scalar>()));
 }
-EIGEN_DECLARE_TEST(spqr_support) {
+TEST(SPQRSupportTest, Basic) {
   test_spqr_scalar<double>();
   test_spqr_scalar<std::complex<double> >();
 }

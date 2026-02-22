@@ -101,7 +101,7 @@ void test_multiply(const T1& type1, const T2& type2, const T3& type3) {
 }
 
 // Declare the test fixture.
-EIGEN_DECLARE_TEST(gpu_example) {
+TEST(GPUExampleTest, Basic) {
   // For the number of repeats, call the desired subtests.
   for (int i = 0; i < g_repeat; i++) {
     // Call subtests with different sized/typed inputs.

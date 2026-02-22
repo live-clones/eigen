@@ -19,4 +19,4 @@ void test_metis_T() {
   check_sparse_square_solving(sparselu_metis);
 }
 
-EIGEN_DECLARE_TEST(metis_support) { test_metis_T<double>(); }
+TEST(MetisSupportTest, Basic) { test_metis_T<double>(); }

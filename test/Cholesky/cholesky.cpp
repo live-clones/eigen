@@ -461,7 +461,7 @@ void cholesky_verify_assert() {
   VERIFY_RAISES_ASSERT(ldlt.solveInPlace(tmp))
 }
 
-EIGEN_DECLARE_TEST(cholesky) {
+TEST(CholeskyTest, Basic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     cholesky(Matrix<double, 1, 1>());

@@ -147,7 +147,7 @@ void eigensolver_verify_assert(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(eig.eigenvectors());
 }
 
-EIGEN_DECLARE_TEST(eigensolver_complex) {
+TEST(EigensolverComplexTest, Basic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     eigensolver(Matrix4cf());

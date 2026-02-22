@@ -226,7 +226,7 @@ void sparse_permutations_all(int size) {
   (sparse_permutations<RowMajor>(SparseMatrix<Scalar, RowMajor>(size, size)));
 }
 
-EIGEN_DECLARE_TEST(sparse_permutations) {
+TEST(SparsePermutationsTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = Eigen::internal::random<int>(1, 50);
     (sparse_permutations_all<double>(s));

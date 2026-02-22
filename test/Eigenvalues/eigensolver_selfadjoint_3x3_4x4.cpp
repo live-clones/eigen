@@ -9,7 +9,7 @@
 
 #include "eigensolver_selfadjoint_helpers.h"
 
-EIGEN_DECLARE_TEST(eigensolver_selfadjoint_3x3_4x4) {
+TEST(EigensolverSelfadjoint3x34x4Test, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     selfadjointeigensolver(Matrix3f());
     selfadjointeigensolver(Matrix3d());

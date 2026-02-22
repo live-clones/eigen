@@ -9,7 +9,7 @@
 
 #include "bdcsvd_helpers.h"
 
-EIGEN_DECLARE_TEST(bdcsvd_float_fixed) {
+TEST(BDCSVDFloatFixedTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (bdcsvd_thin_options<Matrix3f>());
     (bdcsvd_full_options<Matrix3f>());

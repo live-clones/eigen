@@ -79,7 +79,7 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
   }
 }
 
-EIGEN_DECLARE_TEST(schur_complex) {
+TEST(SchurComplexTest, Basic) {
   (schur<Matrix4cd>());
   (schur<MatrixXcf>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)));
   (schur<Matrix<std::complex<float>, 1, 1> >());

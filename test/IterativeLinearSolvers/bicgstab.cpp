@@ -79,7 +79,7 @@ void test_2899() {
   VERIFY(residual.isZero());
 }
 
-EIGEN_DECLARE_TEST(bicgstab) {
+TEST(BicgstabTest, Basic) {
   (test_bicgstab_T<double, int>());
   (test_bicgstab_T<std::complex<double>, int>());
   (test_bicgstab_T<double, long int>());

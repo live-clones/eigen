@@ -106,7 +106,7 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
-EIGEN_DECLARE_TEST(qr) {
+TEST(QRTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     qr(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     qr(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));

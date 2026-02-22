@@ -24,7 +24,7 @@ void test_umfpack_support_T() {
   check_sparse_square_determinant(umfpack_rowmajor);
 }
 
-EIGEN_DECLARE_TEST(umfpack_support) {
+TEST(UmfpackSupportTest, Basic) {
   (test_umfpack_support_T<double, int>());
   (test_umfpack_support_T<std::complex<double>, int>());
   (test_umfpack_support_T<double, long>());

@@ -121,7 +121,7 @@ void generalized_eigensolver_assert() {
   VERIFY_RAISES_ASSERT(eig.betas());
 }
 
-EIGEN_DECLARE_TEST(eigensolver_generalized_real) {
+TEST(EigensolverGeneralizedRealTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = 0;
     generalized_eigensolver_real(Matrix4f());

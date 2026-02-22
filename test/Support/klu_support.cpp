@@ -24,7 +24,7 @@ void test_klu_support_T() {
   // check_sparse_square_determinant(umfpack_rowmajor);
 }
 
-EIGEN_DECLARE_TEST(klu_support) {
+TEST(KluSupportTest, Basic) {
   test_klu_support_T<double>();
   test_klu_support_T<std::complex<double> >();
 }

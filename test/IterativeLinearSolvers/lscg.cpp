@@ -30,7 +30,7 @@ void test_lscg_T() {
   check_sparse_leastsquare_solving(lscg_rowmajor_I);
 }
 
-EIGEN_DECLARE_TEST(lscg) {
+TEST(LSCGTest, Basic) {
   test_lscg_T<double>();
   test_lscg_T<std::complex<double> >();
 }

@@ -113,7 +113,7 @@ void inverse_zerosized() {
   }
 }
 
-EIGEN_DECLARE_TEST(inverse) {
+TEST(InverseTest, Basic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     inverse(Matrix<double, 1, 1>());

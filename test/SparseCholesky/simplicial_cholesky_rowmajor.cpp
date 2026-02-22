@@ -11,7 +11,7 @@
 
 #include "simplicial_cholesky_helpers.h"
 
-EIGEN_DECLARE_TEST(simplicial_cholesky_rowmajor) {
+TEST(SimplicialCholeskyRowmajorTest, Basic) {
   (test_simplicial_cholesky_T<double, int, RowMajor>());
   (test_simplicial_cholesky_T<std::complex<double>, int, RowMajor>());
   (test_simplicial_cholesky_T<double, long int, RowMajor>());

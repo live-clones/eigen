@@ -97,7 +97,7 @@ void check_random_matrix(const MatrixType &m) {
   check_generateRandomMatrixSvs<MatrixType, RealScalar, RealVectorType>(rows, cols, diag_size, min_svs, max_svs);
 }
 
-EIGEN_DECLARE_TEST(random_matrix) {
+TEST(RandomMatrixTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     check_random_matrix(Matrix<float, 1, 1>());
     check_random_matrix(Matrix<float, 4, 4>());

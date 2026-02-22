@@ -145,7 +145,7 @@ void test_sparseLM_T() {
   status = lm.minimizeInit(uv);
   if (status == LevenbergMarquardtSpace::ImproperInputParameters) return;
 }
-EIGEN_DECLARE_TEST(sparseLM) {
+TEST(SparselmTest, Basic) {
   test_sparseLM_T<double>();
 
   // test_sparseLM_T<std::complex<double>();

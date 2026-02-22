@@ -20,7 +20,7 @@ void test_pardiso_T() {
   check_sparse_square_solving(pardiso_lu);
 }
 
-EIGEN_DECLARE_TEST(pardiso_support) {
+TEST(PardisoSupportTest, Basic) {
   test_pardiso_T<float>();
   test_pardiso_T<double>();
   test_pardiso_T<std::complex<float> >();

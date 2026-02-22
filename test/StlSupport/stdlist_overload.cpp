@@ -148,7 +148,7 @@ void check_stdlist_quaternion(const QuaternionType&) {
   }
 }
 
-EIGEN_DECLARE_TEST(stdlist_overload) {
+TEST(StdlistOverloadTest, Basic) {
   // some non vectorizable fixed sizes
   check_stdlist_matrix(Vector2f());
   check_stdlist_matrix(Matrix3f());

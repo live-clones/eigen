@@ -217,7 +217,7 @@ void test_pruning() {
   VERIFY_IS_EQUAL(vec.coeff(5), 1.0);
 }
 
-EIGEN_DECLARE_TEST(sparse_vector) {
+TEST(SparseVectorTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int r = Eigen::internal::random<int>(1, 500), c = Eigen::internal::random<int>(1, 500);
     if (Eigen::internal::random<int>(0, 4) == 0) {

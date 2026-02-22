@@ -203,7 +203,7 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
-EIGEN_DECLARE_TEST(qr_colpivoting) {
+TEST(QRColpivotingTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     qr<MatrixXf>();
     qr<MatrixXd>();

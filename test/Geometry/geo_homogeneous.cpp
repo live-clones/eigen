@@ -135,7 +135,7 @@ void homogeneous(void) {
   }
 }
 
-EIGEN_DECLARE_TEST(geo_homogeneous) {
+TEST(HomogeneousTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (homogeneous<float, 1>());
     (homogeneous<double, 3>());

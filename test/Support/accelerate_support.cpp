@@ -168,7 +168,7 @@ void run_tests() {
   test_accelerate_qr<Scalar, AccelerateQR<MatrixType> >();
 }
 
-EIGEN_DECLARE_TEST(accelerate_support) {
+TEST(AccelerateSupportTest, Basic) {
   run_tests<float>();
   run_tests<double>();
 }

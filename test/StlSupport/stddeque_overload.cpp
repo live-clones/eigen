@@ -116,7 +116,7 @@ void check_stddeque_quaternion(const QuaternionType&) {
   }
 }
 
-EIGEN_DECLARE_TEST(stddeque_overload) {
+TEST(StddequeOverloadTest, Basic) {
   // some non vectorizable fixed sizes
   check_stddeque_matrix(Vector2f());
   check_stddeque_matrix(Matrix3f());

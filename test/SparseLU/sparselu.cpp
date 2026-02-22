@@ -35,7 +35,7 @@ void test_sparselu_T() {
   check_sparse_square_determinant(sparselu_amd);
 }
 
-EIGEN_DECLARE_TEST(sparselu) {
+TEST(SparseluTest, Basic) {
   test_sparselu_T<float>();
   test_sparselu_T<double>();
   test_sparselu_T<std::complex<float> >();

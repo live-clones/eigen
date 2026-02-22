@@ -195,7 +195,7 @@ void eulerangles() {
   check_all_var(ea);
 }
 
-EIGEN_DECLARE_TEST(geo_eulerangles) {
+TEST(EuleranglesTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     eulerangles<float>();
     eulerangles<double>();

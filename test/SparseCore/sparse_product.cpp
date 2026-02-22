@@ -535,7 +535,7 @@ void test_mixed_storage() {
   test_mixed_storage_imp<ColMajor, ColMajor, ColMajor>();
 }
 
-EIGEN_DECLARE_TEST(sparse_product) {
+TEST(SparseProductTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (sparse_product<SparseMatrix<double, ColMajor> >());
     (sparse_product<SparseMatrix<double, RowMajor> >());

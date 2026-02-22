@@ -9,7 +9,7 @@
 
 #include "eigensolver_selfadjoint_helpers.h"
 
-EIGEN_DECLARE_TEST(eigensolver_selfadjoint_dynamic) {
+TEST(EigensolverSelfadjointDynamicTest, Basic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);

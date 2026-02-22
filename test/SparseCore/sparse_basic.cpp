@@ -1011,7 +1011,7 @@ void bug1105() {
 
 #ifndef EIGEN_SPARSE_TEST_INCLUDED_FROM_SPARSE_EXTRA
 
-EIGEN_DECLARE_TEST(sparse_basic) {
+TEST(SparseBasicTest, Basic) {
   g_dense_op_sparse_count = 0;  // Suppresses compiler warning.
   for (int i = 0; i < g_repeat; i++) {
     int r = Eigen::internal::random<int>(1, 200), c = Eigen::internal::random<int>(1, 200);

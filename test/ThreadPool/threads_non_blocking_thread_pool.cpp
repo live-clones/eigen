@@ -164,7 +164,7 @@ static void test_pool_partitions() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_non_blocking_thread_pool) {
+TEST(NonBlockingThreadPoolTest, Basic) {
   test_create_destroy_empty_pool();
   test_parallelism(true);
   test_parallelism(false);

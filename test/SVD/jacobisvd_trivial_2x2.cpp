@@ -9,7 +9,7 @@
 
 #include "jacobisvd_helpers.h"
 
-EIGEN_DECLARE_TEST(jacobisvd_trivial_2x2) {
+TEST(JacobisvdTrivial2x2Test, Basic) {
   svd_all_trivial_2x2(jacobisvd_thin_options<Matrix2cd>);
   svd_all_trivial_2x2(jacobisvd_thin_options<Matrix2d>);
 }

@@ -112,7 +112,7 @@ void check_qtvector_quaternion(const QuaternionType&) {
   }
 }
 
-EIGEN_DECLARE_TEST(qtvector) {
+TEST(QtvectorTest, Basic) {
   // some non vectorizable fixed sizes
   check_qtvector_matrix(Vector2f());
   check_qtvector_matrix(Matrix3f());

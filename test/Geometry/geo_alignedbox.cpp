@@ -495,7 +495,7 @@ void specificTest2() {
   VERIFY_IS_APPROX(topLeftFloor, box.corner(BoxType::TopLeftFloor));
 }
 
-EIGEN_DECLARE_TEST(geo_alignedbox) {
+TEST(AlignedboxTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (alignedboxNonIntegralRotatable<AlignedBox2f, Rotation2Df>(AlignedBox2f(), &rotate2D));
     alignedboxCastTests(AlignedBox2f());

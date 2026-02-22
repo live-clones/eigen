@@ -78,7 +78,7 @@ void test_extract_LU() {
   VERIFY_IS_APPROX(expectedMatU, matU);
 }
 
-EIGEN_DECLARE_TEST(incomplete_LUT) {
+TEST(IncompleteLUTTest, Basic) {
   (test_incompleteLUT_T<double, int>());
   (test_incompleteLUT_T<float, int>());
   (test_incompleteLUT_T<std::complex<double>, int>());

@@ -311,7 +311,7 @@ struct MovableClass {
   Quaternionf m_quat;
 };
 
-EIGEN_DECLARE_TEST(geo_quaternion) {
+TEST(QuaternionTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (quaternion<float, AutoAlign>());
     check_const_correctness(Quaternionf());

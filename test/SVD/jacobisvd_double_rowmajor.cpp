@@ -9,7 +9,7 @@
 
 #include "jacobisvd_helpers.h"
 
-EIGEN_DECLARE_TEST(jacobisvd_double_rowmajor) {
+TEST(JacobisvdDoubleRowmajorTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     (jacobisvd_thin_options<Matrix<double, 5, 7, RowMajor>>());
     (jacobisvd_full_options<Matrix<double, 5, 7, RowMajor>>());

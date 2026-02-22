@@ -9,7 +9,7 @@
 
 #include "jacobisvd_helpers.h"
 
-EIGEN_DECLARE_TEST(jacobisvd_double_dynamic) {
+TEST(JacobisvdDoubleDynamicTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, 30), c = internal::random<int>(1, 30);
 

@@ -9,7 +9,7 @@
 
 #include "bdcsvd_helpers.h"
 
-EIGEN_DECLARE_TEST(bdcsvd_assert) {
+TEST(BDCSVDAssertTest, Basic) {
   (bdcsvd_verify_assert<Matrix3f>());
   (bdcsvd_verify_assert<Matrix4d>());
   (bdcsvd_verify_assert<Matrix<float, 10, 7>>());

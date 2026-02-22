@@ -26,7 +26,7 @@ void test_conjugate_gradient_T() {
   check_sparse_spd_solving(cg_colmajor_upper_I);
 }
 
-EIGEN_DECLARE_TEST(conjugate_gradient) {
+TEST(ConjugateGradientTest, Basic) {
   (test_conjugate_gradient_T<double, int>());
   (test_conjugate_gradient_T<std::complex<double>, int>());
   (test_conjugate_gradient_T<double, long int>());

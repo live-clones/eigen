@@ -70,7 +70,7 @@ void inplace(bool square = false, bool SPD = false) {
   }
 }
 
-EIGEN_DECLARE_TEST(inplace_decomposition) {
+TEST(InplaceDecompositionTest, Basic) {
   EIGEN_UNUSED typedef Matrix<double, 4, 3> Matrix43d;
   for (int i = 0; i < g_repeat; i++) {
     (inplace<LLT<Ref<MatrixXd> >, MatrixXd>(true, true));

@@ -218,7 +218,7 @@ void test_2889() {
   VERIFY_IS_EQUAL(rcond, 0.0);
 }
 
-EIGEN_DECLARE_TEST(lu) {
+TEST(LUTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     lu_non_invertible<Matrix3f>();
     lu_invertible<Matrix3f>();

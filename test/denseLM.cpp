@@ -165,7 +165,7 @@ void test_denseLM_T() {
   test_minimizeSteps(dense_gaussian, uv);
 }
 
-EIGEN_DECLARE_TEST(denseLM) {
+TEST(DenselmTest, Basic) {
   test_denseLM_T<double>();
 
   // test_sparseLM_T<std::complex<double>();

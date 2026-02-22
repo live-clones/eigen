@@ -9,7 +9,7 @@
 
 #include "bdcsvd_helpers.h"
 
-EIGEN_DECLARE_TEST(bdcsvd_trivial_2d) {
+TEST(BDCSVDTrivial2dTest, Basic) {
   (svd_all_trivial_2x2(bdcsvd_thin_options<Matrix2d>));
   (svd_all_trivial_2x2(bdcsvd_full_options<Matrix2d>));
 }

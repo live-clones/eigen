@@ -168,7 +168,7 @@ void hyperplane_alignment() {
   VERIFY_IS_APPROX(p1->coeffs(), p3->coeffs());
 }
 
-EIGEN_DECLARE_TEST(geo_hyperplane) {
+TEST(HyperplaneTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     hyperplane(Hyperplane<float, 2>());
     hyperplane(Hyperplane<float, 3>());
