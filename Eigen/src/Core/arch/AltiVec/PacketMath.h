@@ -1471,8 +1471,8 @@ EIGEN_STRONG_INLINE Packet ploadu_common(const __UNPACK_TYPE__(Packet) * from) {
   Packet16uc MSQ = vec_ld(0, (unsigned char*)from);   // most significant quadword
   Packet16uc LSQ = vec_ld(15, (unsigned char*)from);  // least significant quadword
   Packet16uc mask = vec_lvsl(0, from);                // create the permute mask
-  // Use static_cast for proper C++ style instead of C-style cast
-  return static_cast<Packet>(vec_perm(MSQ, LSQ, mask));  // align the data
+  // TODO: Add static_cast here
+  return (Packet)vec_perm(MSQ, LSQ, mask);  // align the data
 #endif
 }
 

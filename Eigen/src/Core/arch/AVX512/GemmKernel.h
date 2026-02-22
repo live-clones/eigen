@@ -1008,7 +1008,8 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
       Index k = 0;
       // Process 8 RHS columns at a time when PacketSize divides evenly into 8.
       // TODO: Extend transposition to handle PacketSize==4 for better performance on 32-bit types.
-      if ((PacketSize % 8) == 0) {
+      if ((PacketSize % 8) == 0)
+      {
         for (; k < peeled_k; k += PacketSize) {
           PacketBlock<Packet, (PacketSize % 8) == 0 ? 8 : PacketSize> kernel;
 
@@ -1062,7 +1063,8 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
       Index k = 0;
       // Process 4 RHS columns at a time when PacketSize divides evenly into 4.
       // TODO: Extend transposition to support PacketSize==2 (half-sized packets) for smaller data types.
-      if ((PacketSize % 4) == 0) {
+      if ((PacketSize % 4) == 0)
+      {
         for (; k < peeled_k; k += PacketSize) {
           PacketBlock<Packet, (PacketSize % 4) == 0 ? 4 : PacketSize> kernel;
           kernel.packet[0] = dm0.template loadPacket<Packet>(k);
