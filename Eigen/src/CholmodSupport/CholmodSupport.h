@@ -360,8 +360,9 @@ class CholmodBase : public SparseSolverBase<Derived> {
       this->m_info = NumericalIssue;
       return;
     }
-    // TODO optimize this copy by swapping when possible (be careful with alignment, etc.)
-    // NOTE Actually, the copy can be avoided by calling cholmod_solve2 instead of cholmod_solve
+    // NOTE: Currently materializes result via Map from cholmod result vector.
+    // TODO: Consider using cholmod_solve2() instead to avoid this copy, with careful handling
+    // of memory ownership and alignment requirements. Alternatively, optimize with move semantics or swap.
     dest = Matrix<Scalar, Dest::RowsAtCompileTime, Dest::ColsAtCompileTime>::Map(reinterpret_cast<Scalar*>(x_cd->x),
                                                                                  b.rows(), b.cols());
     internal::cm_free_dense<StorageIndex>(x_cd, m_cholmod);
