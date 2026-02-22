@@ -222,7 +222,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     Index nn = numext::div_ceil(nn0, gn);
 
     // If there is enough concurrency in the sharding dimension, we choose not
-    // to paralellize by the other dimension, and execute all kernels in sync
+    // to parallelize by the other dimension, and execute all kernels in sync
     // mode. This reduces parallelism from the nm x nn down to nn
     // (shard_by_col==true) or nm (shard_by_col==false).
     const Index sharding_dim_tasks = shard_by_col ? nn : nm;
@@ -932,9 +932,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         kernel(m, n, k, use_thread_local);
       } else {
         eigen_assert(!use_thread_local);
-        device_.enqueue([this, m, n, k, use_thread_local]() { 
-            kernel(m, n, k, use_thread_local); 
-          });
+        device_.enqueue([this, m, n, k, use_thread_local]() { kernel(m, n, k, use_thread_local); });
       }
     }
 
@@ -982,9 +980,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       } else {
         while (end - start > 1) {
           Index mid = (start + end) / 2;
-          device_.enqueue([this, mid, end, k, rhs]() { 
-              enqueue_packing_helper(mid, end, k, rhs);
-            });
+          device_.enqueue([this, mid, end, k, rhs]() { enqueue_packing_helper(mid, end, k, rhs); });
           end = mid;
         }
 
@@ -1000,9 +996,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                           (k > 0 || std::this_thread::get_id() == created_by_thread_id_);
 
         if (pack_async) {
-          device_.enqueue([this, start, end, k, rhs]() { 
-              enqueue_packing_helper(start, end, k, rhs);
-            });
+          device_.enqueue([this, start, end, k, rhs]() { enqueue_packing_helper(start, end, k, rhs); });
         } else {
           enqueue_packing_helper(start, end, k, rhs);
         }
@@ -1283,9 +1277,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       while (end_block_idx - start_block_idx > 1) {
         Index mid_block_idx = (start_block_idx + end_block_idx) / 2;
         evaluator->m_device.enqueue(
-            [this, mid_block_idx, end_block_idx]() { 
-              evalAsync<Alignment>(mid_block_idx, end_block_idx);
-            });
+            [this, mid_block_idx, end_block_idx]() { evalAsync<Alignment>(mid_block_idx, end_block_idx); });
         end_block_idx = mid_block_idx;
       }
 
