@@ -55,15 +55,14 @@ static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& r
 
   res.reserve(estimated_nnz_prod);
   double ratioColRes = double(estimated_nnz_prod) / (double(lhs.rows()) * double(rhs.cols()));
+  // TODO: Use per-column sparsity ratio instead of global average:
+  //       double ratioColRes = (rhs.innerVector(j).nonZeros() + lhs.nonZeros()/lhs.cols()) / lhs.rows();
   for (Index j = 0; j < cols; ++j) {
-    // FIXME:
-    // double ratioColRes = (double(rhs.innerVector(j).nonZeros()) +
-    // double(lhs.nonZeros())/double(lhs.cols()))/double(lhs.rows());
-    // let's do a more accurate determination of the nnz ratio for the current column j of res
     tempVector.init(ratioColRes);
     tempVector.setZero();
     for (typename evaluator<Rhs>::InnerIterator rhsIt(rhsEval, j); rhsIt; ++rhsIt) {
-      // FIXME should be written like this: tmp += rhsIt.value() * lhs.col(rhsIt.index())
+      // TODO: Rewrite this to use vector operations (e.g., tmp += rhsIt.value() * lhs.col(rhsIt.index()))
+      //       for potential vectorization benefits.
       tempVector.restart();
       RhsScalar x = rhsIt.value();
       for (typename evaluator<Lhs>::InnerIterator lhsIt(lhsEval, rhsIt.index()); lhsIt; ++lhsIt) {
