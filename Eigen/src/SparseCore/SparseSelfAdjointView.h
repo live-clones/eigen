@@ -205,10 +205,9 @@ SparseSelfAdjointView<MatrixType, Mode>& SparseSelfAdjointView<MatrixType, Mode>
 
 namespace internal {
 
-// TODO currently a selfadjoint expression has the form SelfAdjointView<.,.>
-//      in the future selfadjoint-ness should be defined by the expression traits
-//      such that Transpose<SelfAdjointView<.,.> > is valid. (currently TriangularBase::transpose() is overloaded to
-//      make it work)
+// TODO: Refactor SelfAdjointView to use expression traits for selfadjoint-ness detection.
+//       This would make operations like Transpose<SelfAdjointView<...>> work automatically
+//       instead of requiring TriangularBase::transpose() overload workarounds.
 template <typename MatrixType, unsigned int Mode>
 struct evaluator_traits<SparseSelfAdjointView<MatrixType, Mode> > {
   typedef typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind Kind;
@@ -237,8 +236,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, SparseSelfAdjoint2Sparse> {
     internal::permute_symm_to_fullsymm<SrcXprType::Mode, false>(src.matrix(), dst);
   }
 
-  // FIXME: the handling of += and -= in sparse matrices should be cleanup so that next two overloads could be reduced
-  // to:
+  // TODO: Simplify sparse matrix += and -= handling to reduce duplication in the overloads below.
   template <typename DestScalar, int StorageOrder, typename AssignFunc>
   static void run(SparseMatrix<DestScalar, StorageOrder, StorageIndex>& dst, const SrcXprType& src,
                   const AssignFunc& func) {
