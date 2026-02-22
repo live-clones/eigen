@@ -130,7 +130,8 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
         if (!numext::is_exactly_zero(tmp))  // optimization when other is actually sparse
         {
           if (!(Mode & UnitDiag)) {
-            // TODO replace this by a binary search. make sure the binary search is safe for partially sorted elements
+            // TODO: Use binary search for finding diagonal element (currently linear scan).
+            //       Need to verify matrix structure assumptions to ensure correctness.
             LhsIterator it(lhsEval, i);
             while (it && it.index() != i) ++it;
             eigen_assert(it && it.index() == i);
@@ -195,8 +196,9 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
     res.reserve(other.nonZeros());
 
     for (Index col = 0; col < other.cols(); ++col) {
-      // FIXME estimate number of non zeros
-      tempVector.init(.99 /*float(other.col(col).nonZeros())/float(other.rows())*/);
+      // Initialize with a default sparsity estimate. Could be improved by computing the actual sparsity.
+      // TODO: Use per-column sparsity ratio instead of fixed 0.99 value.
+      tempVector.init(.99);
       tempVector.setZero();
       tempVector.restart();
       for (typename Rhs::InnerIterator rhsIt(other, col); rhsIt; ++rhsIt) {
@@ -230,16 +232,11 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
         }
       }
 
-      //       Index count = 0;
-      // FIXME compute a reference value to filter zeros
-      for (typename AmbiVector<Scalar, StorageIndex>::Iterator it(tempVector /*,1e-12*/); it; ++it) {
-        //         ++ count;
-        //         std::cerr << "fill " << it.index() << ", " << col << "\n";
-        //         std::cout << it.value() << "  ";
-        // FIXME use insertBack
+      // Store non-zero coefficients in result matrix
+      for (typename AmbiVector<Scalar, StorageIndex>::Iterator it(tempVector); it; ++it) {
         res.insert(it.index(), col) = it.value();
       }
-      //       std::cout << "tempVector.nonZeros() == " << int(count) << " / " << (other.rows()) << "\n";
+      // TODO: Consider using insertBack for better insertion performance if column-major structure is guaranteed.
     }
     res.finalize();
     other = res.markAsRValue();
@@ -255,17 +252,8 @@ void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(SparseMatrix
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 
-  //   enum { copy = internal::traits<OtherDerived>::Flags & RowMajorBit };
-
-  //   typedef std::conditional_t<copy,
-  //     typename internal::plain_matrix_type_column_major<OtherDerived>::type, OtherDerived&> OtherCopy;
-  //   OtherCopy otherCopy(other.derived());
-
   internal::sparse_solve_triangular_sparse_selector<ExpressionType, OtherDerived, Mode>::run(
       derived().nestedExpression(), other.derived());
-
-  //   if (copy)
-  //     other = otherCopy;
 }
 #endif
 
