@@ -790,7 +790,9 @@ EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::FromT
 template <class Derived>
 EIGEN_DEVICE_FUNC inline Quaternion<typename internal::traits<Derived>::Scalar> QuaternionBase<Derived>::inverse()
     const {
-  // FIXME should this function be called multiplicativeInverse and conjugate() be called inverse() or opposite()  ??
+  // Returns the multiplicative inverse (q^-1 such that q*q^-1 = 1).
+  // NOTE: For unit quaternions, this is equivalent to conjugate(). Method naming convention (inverse vs
+  // conjugate) follows quaternion algebra conventions. For pure rotations where |q|=1, prefer conjugate().
   Scalar n2 = this->squaredNorm();
   if (n2 > Scalar(0))
     return Quaternion<Scalar>(conjugate().coeffs() / n2);

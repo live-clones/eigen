@@ -379,7 +379,8 @@ BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(const Mat
   //**** step 2 - Divide & Conquer
   m_naiveU.setZero();
   m_naiveV.setZero();
-  // FIXME this line involves a temporary matrix
+  // NOTE: toDenseMatrix() creates a temporary. Consider direct assignment via a custom routine if profiling
+  // shows this as a bottleneck in the divide-and-conquer algorithm.
   m_computed.topRows(diagSize()) = bid.bidiagonal().toDenseMatrix().transpose();
   m_computed.template bottomRows<1>().setZero();
   divide(0, diagSize() - 1, 0, 0, 0);
@@ -429,7 +430,8 @@ void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& householderU, const
     m_matrixU = MatrixX::Identity(rows(), Ucols);
     m_matrixU.topLeftCorner(diagSize(), diagSize()) =
         naiveV.template cast<Scalar>().topLeftCorner(diagSize(), diagSize());
-    // FIXME the following conditionals involve temporary buffers
+    // NOTE: Householder application may involve temporary buffers for the update. Profile and optimize
+    // if this becomes a bottleneck in SVD computation.
     if (m_useQrDecomp)
       m_matrixU.topLeftCorner(householderU.cols(), diagSize()).applyOnTheLeft(householderU);
     else
@@ -440,7 +442,8 @@ void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& householderU, const
     m_matrixV = MatrixX::Identity(cols(), Vcols);
     m_matrixV.topLeftCorner(diagSize(), diagSize()) =
         naiveU.template cast<Scalar>().topLeftCorner(diagSize(), diagSize());
-    // FIXME the following conditionals involve temporary buffers
+    // NOTE: Householder application may involve temporary buffers for the update. Profile and optimize
+    // if this becomes a bottleneck in SVD computation.
     if (m_useQrDecomp)
       m_matrixV.topLeftCorner(householderV.cols(), diagSize()).applyOnTheLeft(householderV);
     else
@@ -538,7 +541,8 @@ void BDCSVD<MatrixType, Options>::divide(Index firstCol, Index lastCol, Index fi
   // We use the other algorithm which is more efficient for small
   // matrices.
   if (n < m_algoswap) {
-    // FIXME this block involves temporaries
+    // NOTE: For small matrices below m_algoswap threshold, use Jacobi SVD. This may create
+    // temporary matrices. Consider caching or in-place algorithms if profiling shows overhead.
     if (m_compV) {
       JacobiSVD<MatrixXr, ComputeFullU | ComputeFullV> baseSvd;
       computeBaseCase(baseSvd, n, firstCol, firstRowW, firstColW, shift);
