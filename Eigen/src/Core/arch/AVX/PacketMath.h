@@ -203,8 +203,8 @@ struct packet_traits<Eigen::half> : default_packet_traits {
 template <>
 struct packet_traits<bfloat16> : default_packet_traits {
   typedef Packet8bf type;
-  // There is no half-size packet for current Packet8bf.
-  // TODO: support as SSE path.
+  // TODO: Add Packet4bf (SSE bfloat16) as half packet for AVX context.
+  // Currently falling back to Packet8bf which doesn't reduce packet size.
   typedef Packet8bf half;
   enum {
     Vectorizable = 1,
@@ -272,8 +272,8 @@ struct packet_traits<int64_t> : default_packet_traits {
 template <>
 struct packet_traits<uint64_t> : default_packet_traits {
   typedef Packet4ul type;
-  // There is no half-size packet for current Packet4ul.
-  // TODO: support as SSE path.
+  // TODO: Add Packet2ul (SSE uint64_t) as half packet for AVX context.
+  // Currently falling back to Packet4ul which doesn't reduce packet size.
   typedef Packet4ul half;
   enum {
     Vectorizable = 1,
