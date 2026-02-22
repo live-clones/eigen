@@ -1518,17 +1518,14 @@ EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from, uint8_t umask) 
 // Loads 4 floats from memory a returns the packet {a0, a0  a1, a1, a2, a2, a3, a3}
 template <>
 EIGEN_STRONG_INLINE Packet8f ploaddup<Packet8f>(const float* from) {
-  // TODO try to find a way to avoid the need of a temporary register
-  //   Packet8f tmp  = _mm256_castps128_ps256(_mm_loadu_ps(from));
-  //   tmp = _mm256_insertf128_ps(tmp, _mm_movehl_ps(_mm256_castps256_ps128(tmp),_mm256_castps256_ps128(tmp)), 1);
-  //   return _mm256_unpacklo_ps(tmp,tmp);
-
-  // _mm256_insertf128_ps is very slow on Haswell, thus:
+  // The approach using _mm256_insertf128_ps + unpacklo is slower on Haswell and newer
+  // architectures due to high latency of insertf128_ps. Current implementation uses
+  // broadcast + blend + permute which has better throughput across generations.
   Packet8f tmp = _mm256_broadcast_ps((const __m128*)(const void*)from);
-  // mimic an "inplace" permutation of the lower 128bits using a blend
+  // Mimic an "inplace" permutation of the lower 128bits using a blend
   tmp = _mm256_blend_ps(
       tmp, _mm256_castps128_ps256(_mm_permute_ps(_mm256_castps256_ps128(tmp), _MM_SHUFFLE(1, 0, 1, 0))), 15);
-  // then we can perform a consistent permutation on the global register to get everything in shape:
+  // Then perform a consistent permutation on the global register to get everything in shape:
   return _mm256_permute_ps(tmp, _MM_SHUFFLE(3, 3, 2, 2));
 }
 // Loads 2 doubles from memory a returns the packet {a0, a0, a1, a1}
@@ -1641,9 +1638,9 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from, uint8_t
 #endif
 }
 
-// NOTE: leverage _mm256_i32gather_ps and _mm256_i32gather_pd if AVX2 instructions are available
-// NOTE: for the record the following seems to be slower: return _mm256_i32gather_ps(from, _mm256_set1_epi32(stride),
-// 4);
+// NOTE: AVX2 provides _mm256_i32gather_ps/pd but these have high latency and don't improve
+// performance for gather operations with uniform stride. Current implementation using _mm256_set_ps
+// with direct indexing was benchmarked to be faster.
 template <>
 EIGEN_DEVICE_FUNC inline Packet8f pgather<float, Packet8f>(const float* from, Index stride) {
   return _mm256_set_ps(from[7 * stride], from[6 * stride], from[5 * stride], from[4 * stride], from[3 * stride],

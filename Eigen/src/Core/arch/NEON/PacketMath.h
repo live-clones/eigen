@@ -4611,9 +4611,10 @@ EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b
 #endif
 
 //---------- bfloat16 ----------
-// TODO: Add support for native armv8.6-a bfloat16_t
-
-// TODO: Guard if we have native bfloat16 support
+// NOTE: ARMv8.6-a introduced native BFLOAT16 arithmetic support. We could optimize further
+// by adding NEON intrinsics that directly use those instructions when available via preprocessor
+// guard. Currently uses scalar-emulated bfloat16 via uint16_t representation.
+// TODO: Add native armv8.6-a bfloat16 NEON intrinsics behind __ARM_FEATURE_BF16 guard
 typedef eigen_packet_wrapper<uint16x4_t, 19> Packet4bf;
 
 template <>
@@ -5255,9 +5256,9 @@ EIGEN_STRONG_INLINE void prefetch<double>(const double* addr) {
   EIGEN_ARM_PREFETCH(addr);
 }
 
-// FIXME only store the 2 first elements ?
 template <>
 EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) {
+  // Standard packet operation: extract the first (lowest-indexed) element
   return vgetq_lane_f64(a, 0);
 }
 
