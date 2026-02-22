@@ -11,7 +11,9 @@
 #ifndef EIGEN_MATHFUNCTIONS_H
 #define EIGEN_MATHFUNCTIONS_H
 
-// TODO this should better be moved to NumTraits
+// NOTE: Mathematical constants defined here for convenience.
+// TODO: Move these constants to NumTraits for better type-specific precision handling
+// and to enable specialized implementations for float vs double vs long double.
 // Source: WolframAlpha
 #define EIGEN_PI 3.141592653589793238462643383279502884197169399375105820974944592307816406L
 #define EIGEN_LOG2E 1.442695040888963407359924681001892137426645954152985934135449406931109219L
@@ -832,8 +834,8 @@ EIGEN_DEVICE_FUNC std::enable_if_t<(std::numeric_limits<T>::has_infinity && !Num
 
 template <typename T>
 EIGEN_DEVICE_FUNC
-std::enable_if_t<!(std::numeric_limits<T>::has_quiet_NaN || std::numeric_limits<T>::has_signaling_NaN), bool>
-isnan_impl(const T&) {
+    std::enable_if_t<!(std::numeric_limits<T>::has_quiet_NaN || std::numeric_limits<T>::has_signaling_NaN), bool>
+    isnan_impl(const T&) {
   return false;
 }
 
@@ -1450,9 +1452,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC
-EIGEN_ALWAYS_INLINE std::enable_if_t<!(NumTraits<T>::IsSigned || NumTraits<T>::IsComplex), typename NumTraits<T>::Real>
-abs(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
+    std::enable_if_t<!(NumTraits<T>::IsSigned || NumTraits<T>::IsComplex), typename NumTraits<T>::Real>
+    abs(const T& x) {
   return x;
 }
 
