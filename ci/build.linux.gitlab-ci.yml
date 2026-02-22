@@ -325,6 +325,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
   extends: build:linux:cross:x86-64:gcc-10:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
+    EIGEN_CI_BUILD_PARALLEL: "2"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
