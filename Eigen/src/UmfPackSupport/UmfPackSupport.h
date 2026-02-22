@@ -25,7 +25,12 @@
 
 namespace Eigen {
 
-/* TODO extract L, extract U, compute det, etc... */
+/* TODO: Add API methods for:
+ *  - Extracting factors (matrixL(), matrixU(), matrixP(), etc.)
+ *  - Computing determinant via LU factors
+ *  - Iterative refinement options
+ *  - Reordering strategy configuration
+ */
 
 // generic double/complex<double> wrapper functions:
 
