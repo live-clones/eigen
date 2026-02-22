@@ -131,11 +131,11 @@ static void test_initialization() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_of_strings) {
+TEST(TensorOfStringsTest, Basic) {
   // Beware: none of this is likely to ever work on a GPU.
-  CALL_SUBTEST(test_assign());
-  CALL_SUBTEST(test_concat());
-  CALL_SUBTEST(test_slices());
-  CALL_SUBTEST(test_additions());
-  CALL_SUBTEST(test_initialization());
+  test_assign();
+  test_concat();
+  test_slices();
+  test_additions();
+  test_initialization();
 }

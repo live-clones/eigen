@@ -24,18 +24,18 @@ void test_minres_T() {
   MINRES<SparseMatrix<T>, Lower | Upper, DiagonalPreconditioner<T> > minres_colmajor_uplo_diag;
 
   // call tests for SPD matrix
-  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_lower_I));
-  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_upper_I));
+  check_sparse_spd_solving(minres_colmajor_lower_I);
+  check_sparse_spd_solving(minres_colmajor_upper_I);
 
-  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_lower_diag));
-  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_upper_diag));
-  CALL_SUBTEST(check_sparse_spd_solving(minres_colmajor_uplo_diag));
+  check_sparse_spd_solving(minres_colmajor_lower_diag);
+  check_sparse_spd_solving(minres_colmajor_upper_diag);
+  check_sparse_spd_solving(minres_colmajor_uplo_diag);
 
   // TO DO: symmetric semi-definite matrix
   // TO DO: symmetric indefinite matrix
 }
 
-EIGEN_DECLARE_TEST(minres) {
-  CALL_SUBTEST_1(test_minres_T<double>());
-  //  CALL_SUBTEST_2(test_minres_T<std::complex<double> >());
+TEST(MinresTest, Basic) {
+  test_minres_T<double>();
+  //  test_minres_T<std::complex<double> >();
 }

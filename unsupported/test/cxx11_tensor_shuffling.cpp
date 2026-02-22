@@ -256,15 +256,15 @@ static void test_empty_shuffling() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_shuffling) {
-  CALL_SUBTEST(test_simple_shuffling<ColMajor>());
-  CALL_SUBTEST(test_simple_shuffling<RowMajor>());
-  CALL_SUBTEST(test_expr_shuffling<ColMajor>());
-  CALL_SUBTEST(test_expr_shuffling<RowMajor>());
-  CALL_SUBTEST(test_shuffling_as_value<ColMajor>());
-  CALL_SUBTEST(test_shuffling_as_value<RowMajor>());
-  CALL_SUBTEST(test_shuffle_unshuffle<ColMajor>());
-  CALL_SUBTEST(test_shuffle_unshuffle<RowMajor>());
-  CALL_SUBTEST(test_empty_shuffling<ColMajor>());
-  CALL_SUBTEST(test_empty_shuffling<RowMajor>());
+TEST(TensorShufflingTest, Basic) {
+  test_simple_shuffling<ColMajor>();
+  test_simple_shuffling<RowMajor>();
+  test_expr_shuffling<ColMajor>();
+  test_expr_shuffling<RowMajor>();
+  test_shuffling_as_value<ColMajor>();
+  test_shuffling_as_value<RowMajor>();
+  test_shuffle_unshuffle<ColMajor>();
+  test_shuffle_unshuffle<RowMajor>();
+  test_empty_shuffling<ColMajor>();
+  test_empty_shuffling<RowMajor>();
 }

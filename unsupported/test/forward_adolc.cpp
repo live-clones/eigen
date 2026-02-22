@@ -91,29 +91,29 @@ void adolc_forward_jacobian(const Func& f) {
   jref.setZero();
   yref.setZero();
   f(x, &yref, &jref);
-  //     std::cerr << y.transpose() << "\n\n";;
-  //     std::cerr << j << "\n\n";;
+  //     std::cerr << y.transpose() << "\n\n";
+  //     std::cerr << j << "\n\n";
 
   j.setZero();
   y.setZero();
   AdolcForwardJacobian<Func> autoj(f);
   autoj(x, &y, &j);
-  //     std::cerr << y.transpose() << "\n\n";;
-  //     std::cerr << j << "\n\n";;
+  //     std::cerr << y.transpose() << "\n\n";
+  //     std::cerr << j << "\n\n";
 
   VERIFY_IS_APPROX(y, yref);
   VERIFY_IS_APPROX(j, jref);
 }
 
-EIGEN_DECLARE_TEST(forward_adolc) {
+TEST(ForwardAdolcTest, Basic) {
   adtl::setNumDir(NUMBER_DIRECTIONS);
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST((adolc_forward_jacobian(TestFunc1<double, 2, 2>())));
-    CALL_SUBTEST((adolc_forward_jacobian(TestFunc1<double, 2, 3>())));
-    CALL_SUBTEST((adolc_forward_jacobian(TestFunc1<double, 3, 2>())));
-    CALL_SUBTEST((adolc_forward_jacobian(TestFunc1<double, 3, 3>())));
-    CALL_SUBTEST((adolc_forward_jacobian(TestFunc1<double>(3, 3))));
+    (adolc_forward_jacobian(TestFunc1<double, 2, 2>()));
+    (adolc_forward_jacobian(TestFunc1<double, 2, 3>()));
+    (adolc_forward_jacobian(TestFunc1<double, 3, 2>()));
+    (adolc_forward_jacobian(TestFunc1<double, 3, 3>()));
+    (adolc_forward_jacobian(TestFunc1<double>(3, 3)));
   }
 
   {

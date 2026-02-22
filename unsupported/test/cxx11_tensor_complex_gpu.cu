@@ -168,9 +168,9 @@ static void test_cuda_product_reductions() {
   gpu_device.deallocate(gpu_out_ptr);
 }
 
-EIGEN_DECLARE_TEST(test_cxx11_tensor_complex) {
-  CALL_SUBTEST(test_cuda_nullary());
-  CALL_SUBTEST(test_cuda_sum_reductions());
-  CALL_SUBTEST(test_cuda_mean_reductions());
-  CALL_SUBTEST(test_cuda_product_reductions());
+TEST(TensorComplexTest, Basic) {
+  test_cuda_nullary();
+  test_cuda_sum_reductions();
+  test_cuda_mean_reductions();
+  test_cuda_product_reductions();
 }

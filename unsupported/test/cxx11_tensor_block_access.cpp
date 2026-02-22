@@ -490,27 +490,27 @@ static void test_empty_dims(const internal::TensorBlockShapeType block_shape) {
   }
 }
 
-#define TEST_LAYOUTS(NAME)        \
-  CALL_SUBTEST(NAME<ColMajor>()); \
-  CALL_SUBTEST(NAME<RowMajor>())
+#define TEST_LAYOUTS(NAME) \
+  NAME<ColMajor>();        \
+  NAME<RowMajor>()
 
-#define TEST_LAYOUTS_AND_DIMS(TYPE, NAME)    \
-  CALL_SUBTEST((NAME<TYPE, 1, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 1, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 2, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 2, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 3, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 3, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 4, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 4, RowMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 5, ColMajor>())); \
-  CALL_SUBTEST((NAME<TYPE, 5, RowMajor>()))
+#define TEST_LAYOUTS_AND_DIMS(TYPE, NAME) \
+  (NAME<TYPE, 1, ColMajor>());            \
+  (NAME<TYPE, 1, RowMajor>());            \
+  (NAME<TYPE, 2, ColMajor>());            \
+  (NAME<TYPE, 2, RowMajor>());            \
+  (NAME<TYPE, 3, ColMajor>());            \
+  (NAME<TYPE, 3, RowMajor>());            \
+  (NAME<TYPE, 4, ColMajor>());            \
+  (NAME<TYPE, 4, RowMajor>());            \
+  (NAME<TYPE, 5, ColMajor>());            \
+  (NAME<TYPE, 5, RowMajor>())
 
 #define TEST_LAYOUTS_WITH_ARG(NAME, ARG) \
-  CALL_SUBTEST(NAME<ColMajor>(ARG));     \
-  CALL_SUBTEST(NAME<RowMajor>(ARG))
+  NAME<ColMajor>(ARG);                   \
+  NAME<RowMajor>(ARG)
 
-EIGEN_DECLARE_TEST(cxx11_tensor_block_access) {
+TEST(TensorBlockAccessTest, Basic) {
   TEST_LAYOUTS(test_block_mapper_sanity);
   TEST_LAYOUTS_AND_DIMS(float, test_block_mapper_maps_every_element);
   TEST_LAYOUTS(test_uniform_block_shape);

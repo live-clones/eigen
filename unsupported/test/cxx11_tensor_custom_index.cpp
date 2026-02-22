@@ -71,7 +71,7 @@ static void test_sizes_as_index() {
   VERIFY_IS_EQUAL(tensor.coeffRef(coeffC), tensor.coeffRef(coeff));
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_custom_index) {
+TEST(TensorCustomIndexTest, Basic) {
   test_map_as_index<ColMajor>();
   test_map_as_index<RowMajor>();
   test_matrix_as_index<ColMajor>();

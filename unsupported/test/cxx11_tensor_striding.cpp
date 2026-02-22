@@ -106,9 +106,9 @@ static void test_striding_as_lvalue() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_striding) {
-  CALL_SUBTEST(test_simple_striding<ColMajor>());
-  CALL_SUBTEST(test_simple_striding<RowMajor>());
-  CALL_SUBTEST(test_striding_as_lvalue<ColMajor>());
-  CALL_SUBTEST(test_striding_as_lvalue<RowMajor>());
+TEST(TensorStridingTest, Basic) {
+  test_simple_striding<ColMajor>();
+  test_simple_striding<RowMajor>();
+  test_striding_as_lvalue<ColMajor>();
+  test_striding_as_lvalue<RowMajor>();
 }

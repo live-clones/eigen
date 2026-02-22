@@ -800,12 +800,12 @@ void test_imagenet_patches() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_image_patch) {
-  CALL_SUBTEST_1(test_simple_patch());
-  CALL_SUBTEST_2(test_patch_no_extra_dim());
-  CALL_SUBTEST_3(test_patch_padding_valid());
-  CALL_SUBTEST_4(test_patch_padding_valid_same_value());
-  CALL_SUBTEST_5(test_patch_padding_same());
-  CALL_SUBTEST_6(test_imagenet_patches());
-  CALL_SUBTEST_7(test_patch_padding_same_negative_padding_clip_to_zero());
+TEST(TensorImagePatchTest, Basic) {
+  test_simple_patch();
+  test_patch_no_extra_dim();
+  test_patch_padding_valid();
+  test_patch_padding_valid_same_value();
+  test_patch_padding_same();
+  test_imagenet_patches();
+  test_patch_padding_same_negative_padding_clip_to_zero();
 }

@@ -451,8 +451,8 @@ void tensorConvolutionPerDevice(Dev_selector& s) {
   test_strides<float, RowMajor, int64_t>(sycl_device);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_convolution_sycl) {
+TEST(TensorConvolutionSYCLTest, Basic) {
   for (const auto& device : Eigen::get_sycl_supported_devices()) {
-    CALL_SUBTEST(tensorConvolutionPerDevice(device));
+    tensorConvolutionPerDevice(device);
   }
 }

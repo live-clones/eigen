@@ -131,21 +131,21 @@ static void test_last_dim_reductions() {
   dev.deallocate(out_data);
 }
 
-EIGEN_DECLARE_TEST(cxx11_tensor_reduction_gpu) {
-  CALL_SUBTEST_1((test_full_reductions<float, ColMajor>()));
-  CALL_SUBTEST_1((test_full_reductions<double, ColMajor>()));
-  CALL_SUBTEST_2((test_full_reductions<float, RowMajor>()));
-  CALL_SUBTEST_2((test_full_reductions<double, RowMajor>()));
+TEST(TensorReductionGPUTest, Basic) {
+  (test_full_reductions<float, ColMajor>());
+  (test_full_reductions<double, ColMajor>());
+  (test_full_reductions<float, RowMajor>());
+  (test_full_reductions<double, RowMajor>());
 
-  CALL_SUBTEST_3((test_first_dim_reductions<float, ColMajor>()));
-  CALL_SUBTEST_3((test_first_dim_reductions<double, ColMajor>()));
-  CALL_SUBTEST_4((test_first_dim_reductions<float, RowMajor>()));
+  (test_first_dim_reductions<float, ColMajor>());
+  (test_first_dim_reductions<double, ColMajor>());
+  (test_first_dim_reductions<float, RowMajor>());
   // Outer reductions of doubles aren't supported just yet.
-  //  CALL_SUBTEST_4((test_first_dim_reductions<double, RowMajor>()))
+  //  (test_first_dim_reductions<double, RowMajor>())
 
-  CALL_SUBTEST_5((test_last_dim_reductions<float, ColMajor>()));
+  (test_last_dim_reductions<float, ColMajor>());
   // Outer reductions of doubles aren't supported just yet.
-  //  CALL_SUBTEST_5((test_last_dim_reductions<double, ColMajor>()));
-  CALL_SUBTEST_6((test_last_dim_reductions<float, RowMajor>()));
-  CALL_SUBTEST_6((test_last_dim_reductions<double, RowMajor>()));
+  //  (test_last_dim_reductions<double, ColMajor>());
+  (test_last_dim_reductions<float, RowMajor>());
+  (test_last_dim_reductions<double, RowMajor>());
 }

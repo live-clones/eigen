@@ -212,12 +212,12 @@ void test_autodiff_vector() {
 
 template <int>
 void test_autodiff_jacobian() {
-  CALL_SUBTEST((forward_jacobian(TestFunc1<double, 2, 2>())));
-  CALL_SUBTEST((forward_jacobian(TestFunc1<double, 2, 3>())));
-  CALL_SUBTEST((forward_jacobian(TestFunc1<double, 3, 2>())));
-  CALL_SUBTEST((forward_jacobian(TestFunc1<double, 3, 3>())));
-  CALL_SUBTEST((forward_jacobian(TestFunc1<double>(3, 3))));
-  CALL_SUBTEST((forward_jacobian_cpp11(integratorFunctor<double>(10))));
+  (forward_jacobian(TestFunc1<double, 2, 2>()));
+  (forward_jacobian(TestFunc1<double, 2, 3>()));
+  (forward_jacobian(TestFunc1<double, 3, 2>()));
+  (forward_jacobian(TestFunc1<double, 3, 3>()));
+  (forward_jacobian(TestFunc1<double>(3, 3)));
+  (forward_jacobian_cpp11(integratorFunctor<double>(10)));
 }
 
 template <int>
@@ -332,17 +332,17 @@ double bug_1281() {
   return (y1 + y2 + y3).value();
 }
 
-EIGEN_DECLARE_TEST(autodiff) {
+TEST(AutodiffTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(test_autodiff_scalar<1>());
-    CALL_SUBTEST_2(test_autodiff_vector<1>());
-    CALL_SUBTEST_3(test_autodiff_jacobian<1>());
-    CALL_SUBTEST_4(test_autodiff_hessian<1>());
+    test_autodiff_scalar<1>();
+    test_autodiff_vector<1>();
+    test_autodiff_jacobian<1>();
+    test_autodiff_hessian<1>();
   }
 
-  CALL_SUBTEST_5(bug_1222());
-  CALL_SUBTEST_5(bug_1223());
-  CALL_SUBTEST_5(bug_1260());
-  CALL_SUBTEST_5(bug_1261());
-  CALL_SUBTEST_5(bug_1281());
+  bug_1222();
+  bug_1223();
+  bug_1260();
+  bug_1261();
+  bug_1281();
 }

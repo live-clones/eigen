@@ -212,42 +212,42 @@ void check_sparse_inverse() {
   VERIFY_IS_APPROX_OR_LESS_THAN(sumdiff, 1e-10);
 }
 
-EIGEN_DECLARE_TEST(sparse_extra) {
+TEST(SparseExtraTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = Eigen::internal::random<int>(1, 50);
-    CALL_SUBTEST_1(sparse_extra(SparseMatrix<double>(8, 8)));
-    CALL_SUBTEST_2(sparse_extra(SparseMatrix<std::complex<double> >(s, s)));
-    CALL_SUBTEST_1(sparse_extra(SparseMatrix<double>(s, s)));
+    sparse_extra(SparseMatrix<double>(8, 8));
+    sparse_extra(SparseMatrix<std::complex<double> >(s, s));
+    sparse_extra(SparseMatrix<double>(s, s));
 
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<float, ColMajor, int> >()));
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<double, ColMajor, int> >()));
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<std::complex<float>, ColMajor, int> >()));
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<std::complex<double>, ColMajor, int> >()));
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<float, ColMajor, long int> >()));
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<double, ColMajor, long int> >()));
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<std::complex<float>, ColMajor, long int> >()));
-    CALL_SUBTEST_3((check_marketio<SparseMatrix<std::complex<double>, ColMajor, long int> >()));
+    (check_marketio<SparseMatrix<float, ColMajor, int> >());
+    (check_marketio<SparseMatrix<double, ColMajor, int> >());
+    (check_marketio<SparseMatrix<std::complex<float>, ColMajor, int> >());
+    (check_marketio<SparseMatrix<std::complex<double>, ColMajor, int> >());
+    (check_marketio<SparseMatrix<float, ColMajor, long int> >());
+    (check_marketio<SparseMatrix<double, ColMajor, long int> >());
+    (check_marketio<SparseMatrix<std::complex<float>, ColMajor, long int> >());
+    (check_marketio<SparseMatrix<std::complex<double>, ColMajor, long int> >());
 
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<float, Dynamic, Dynamic> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<float, Dynamic, Dynamic, RowMajor> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<double, Dynamic, Dynamic> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<std::complex<float>, Dynamic, Dynamic> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<std::complex<double>, Dynamic, Dynamic> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<float, Dynamic, 3> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<double, 3, Dynamic> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<double, 3, 4> >()));
-    CALL_SUBTEST_4((check_marketio_dense<Matrix<double, Dynamic, Dynamic, ColMajor, 5, 5> >()));
+    (check_marketio_dense<Matrix<float, Dynamic, Dynamic> >());
+    (check_marketio_dense<Matrix<float, Dynamic, Dynamic, RowMajor> >());
+    (check_marketio_dense<Matrix<double, Dynamic, Dynamic> >());
+    (check_marketio_dense<Matrix<std::complex<float>, Dynamic, Dynamic> >());
+    (check_marketio_dense<Matrix<std::complex<double>, Dynamic, Dynamic> >());
+    (check_marketio_dense<Matrix<float, Dynamic, 3> >());
+    (check_marketio_dense<Matrix<double, 3, Dynamic> >());
+    (check_marketio_dense<Matrix<double, 3, 4> >());
+    (check_marketio_dense<Matrix<double, Dynamic, Dynamic, ColMajor, 5, 5> >());
 
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<float, 1, Dynamic> >()));
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<double, 1, Dynamic> >()));
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<std::complex<float>, 1, Dynamic> >()));
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<std::complex<double>, 1, Dynamic> >()));
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<float, Dynamic, 1> >()));
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<double, Dynamic, 1> >()));
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<std::complex<float>, Dynamic, 1> >()));
-    CALL_SUBTEST_5((check_marketio_vector<Matrix<std::complex<double>, Dynamic, 1> >()));
+    (check_marketio_vector<Matrix<float, 1, Dynamic> >());
+    (check_marketio_vector<Matrix<double, 1, Dynamic> >());
+    (check_marketio_vector<Matrix<std::complex<float>, 1, Dynamic> >());
+    (check_marketio_vector<Matrix<std::complex<double>, 1, Dynamic> >());
+    (check_marketio_vector<Matrix<float, Dynamic, 1> >());
+    (check_marketio_vector<Matrix<double, Dynamic, 1> >());
+    (check_marketio_vector<Matrix<std::complex<float>, Dynamic, 1> >());
+    (check_marketio_vector<Matrix<std::complex<double>, Dynamic, 1> >());
 
-    CALL_SUBTEST_6((check_sparse_inverse<double>()));
+    (check_sparse_inverse<double>());
 
     TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
