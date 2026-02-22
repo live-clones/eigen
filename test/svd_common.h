@@ -291,7 +291,7 @@ void svd_underoverflow() {
   M << -7.90884e-313, -4.94e-324, 0, 5.60844e-313;
   SVD_STATIC_OPTIONS(Matrix2d, ComputeFullU | ComputeFullV) svd;
   svd.compute(M);
-  CALL_SUBTEST(svd_check_full(M, svd));
+  svd_check_full(M, svd);
 
   // Check all 2x2 matrices made with the following coefficients:
   VectorXd value_set(9);
@@ -301,7 +301,7 @@ void svd_underoverflow() {
   do {
     M << value_set(id(0)), value_set(id(1)), value_set(id(2)), value_set(id(3));
     svd.compute(M);
-    CALL_SUBTEST(svd_check_full(M, svd));
+    svd_check_full(M, svd);
 
     id(k)++;
     if (id(k) >= value_set.size()) {
@@ -324,7 +324,7 @@ void svd_underoverflow() {
 
   SVD_STATIC_OPTIONS(Matrix3d, ComputeFullU | ComputeFullV) svd3;
   svd3.compute(M3);  // just check we don't loop indefinitely
-  CALL_SUBTEST(svd_check_full(M3, svd3));
+  svd_check_full(M3, svd3);
 }
 
 template <typename MatrixType>

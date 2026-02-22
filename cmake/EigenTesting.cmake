@@ -107,7 +107,8 @@ macro(ei_add_test_internal testname testname_with_suffix)
   if(EIGEN_TEST_CUSTOM_LINKER_FLAGS)
     target_link_libraries(${targetname} ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
   endif()
-  target_link_libraries(${targetname} Eigen3::Eigen)
+  target_link_libraries(${targetname} Eigen3::Eigen gtest)
+  target_include_directories(${targetname} PRIVATE ${PROJECT_SOURCE_DIR}/test)
 
   if(${ARGC} GREATER 3)
     set(libs_to_link ${ARGV3})
@@ -136,6 +137,12 @@ macro(ei_add_test_internal testname testname_with_suffix)
     set_property(TEST ${testname_with_suffix} APPEND PROPERTY LABELS "gpu")
   endif()
 
+  # Label smoke tests (must be done in the same directory scope as add_test)
+  get_property(_smoke_list GLOBAL PROPERTY EIGEN_SMOKE_TESTS_LIST)
+  if (_smoke_list AND "${testname}" IN_LIST _smoke_list)
+    set_property(TEST ${testname_with_suffix} APPEND PROPERTY LABELS "smoketest")
+  endif()
+
   if(EIGEN_SYCL)
     # Force include of the SYCL file at the end to avoid errors.
     set_property(TARGET ${targetname} PROPERTY COMPUTECPP_INCLUDE_AFTER 1)
@@ -148,81 +155,27 @@ macro(ei_add_test_internal testname testname_with_suffix)
 endmacro(ei_add_test_internal)
 # Macro to add a test
 #
-# the unique mandatory parameter testname must correspond to a file
+# The unique mandatory parameter testname must correspond to a file
 # <testname>.cpp which follows this pattern:
 #
 # #include "main.h"
-# void test_<testname>() { ... }
+# EIGEN_DECLARE_TEST(testname) { ... }
 #
-# Depending on the contents of that file, this macro can have 2 behaviors,
-# see below.
+# This macro adds an executable <testname> as well as a ctest test
+# named <testname>.  Tests are linked against Google Test.
 #
-# The optional 2nd parameter is libraries to link to.
-#
-# A. Default behavior
-#
-# this macro adds an executable <testname> as well as a ctest test
-# named <testname> too.
+# The optional 2nd parameter is additional compiler flags.
+# The optional 3rd parameter is libraries to link to.
 #
 # On platforms with bash simply run:
 #   "ctest -V" or "ctest -V -R <testname>"
 # On other platform use ctest as usual
-#
-# B. Multi-part behavior
-#
-# If the source file matches the regexp
-#    CALL_SUBTEST_[0-9]+|EIGEN_TEST_PART_[0-9]+
-# then it is interpreted as a multi-part test. The behavior then depends on the
-# CMake option EIGEN_SPLIT_LARGE_TESTS, which is ON by default.
-#
-# If EIGEN_SPLIT_LARGE_TESTS is OFF, the behavior is the same as in A (the multi-part
-# aspect is ignored).
-#
-# If EIGEN_SPLIT_LARGE_TESTS is ON, the test is split into multiple executables
-#   test_<testname>_<N>
-# where N runs from 1 to the greatest occurrence found in the source file. Each of these
-# executables is built passing -DEIGEN_TEST_PART_N. This allows to split large tests
-# into smaller executables.
-#
-# Moreover, targets <testname> are still generated, they
-# have the effect of building all the parts of the test.
-#
-# Again, ctest -R allows to run all matching tests.
 macro(ei_add_test testname)
   get_property(EIGEN_TESTS_LIST GLOBAL PROPERTY EIGEN_TESTS_LIST)
   set(EIGEN_TESTS_LIST "${EIGEN_TESTS_LIST}${testname}\n")
   set_property(GLOBAL PROPERTY EIGEN_TESTS_LIST "${EIGEN_TESTS_LIST}")
 
-  if(EIGEN_ADD_TEST_FILENAME_EXTENSION)
-    set(filename ${testname}.${EIGEN_ADD_TEST_FILENAME_EXTENSION})
-  else()
-    set(filename ${testname}.cpp)
-  endif()
-
-  file(READ "${filename}" test_source)
-  string(REGEX MATCHALL "CALL_SUBTEST_[0-9]+|EIGEN_TEST_PART_[0-9]+|EIGEN_SUFFIXES(;[0-9]+)+"
-         occurrences "${test_source}")
-  string(REGEX REPLACE "CALL_SUBTEST_|EIGEN_TEST_PART_|EIGEN_SUFFIXES" "" suffixes "${occurrences}")
-  list(REMOVE_DUPLICATES suffixes)
-  set(explicit_suffixes "")
-  if( (NOT EIGEN_SPLIT_LARGE_TESTS) AND suffixes)
-    # Check whether we have EIGEN_TEST_PART_* statements, in which case we likely must enforce splitting.
-    # For instance, indexed_view activate a different c++ version for each part.
-    string(REGEX MATCHALL "EIGEN_TEST_PART_[0-9]+" occurrences "${test_source}")
-    string(REGEX REPLACE "EIGEN_TEST_PART_" "" explicit_suffixes "${occurrences}")
-    list(REMOVE_DUPLICATES explicit_suffixes)
-  endif()
-  if( (EIGEN_SPLIT_LARGE_TESTS AND suffixes) OR explicit_suffixes)
-    add_custom_target(${testname})
-    foreach(suffix ${suffixes})
-      ei_add_test_internal(${testname} ${testname}_${suffix} "${ARGV1}" "${ARGV2}")
-      add_dependencies(${testname} ${testname}_${suffix})
-      target_compile_definitions(${testname}_${suffix} PRIVATE -DEIGEN_TEST_PART_${suffix}=1)
-    endforeach()
-  else()
-    ei_add_test_internal(${testname} ${testname} "${ARGV1}" "${ARGV2}")
-    target_compile_definitions(${testname} PRIVATE -DEIGEN_TEST_PART_ALL=1)
-  endif()
+  ei_add_test_internal(${testname} ${testname} "${ARGV1}" "${ARGV2}")
 endmacro()
 
 # adds a failtest, i.e. a test that succeed if the program fails to compile
@@ -241,6 +194,10 @@ macro(ei_add_failtest testname)
   set_target_properties(${test_target_ok} ${test_target_ko} PROPERTIES
                         EXCLUDE_FROM_ALL TRUE
                         EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+
+  # Link against Eigen for include paths
+  target_link_libraries(${test_target_ok} Eigen3::Eigen)
+  target_link_libraries(${test_target_ko} Eigen3::Eigen)
 
   # Configure the failing test
   target_compile_definitions(${test_target_ko} PRIVATE EIGEN_SHOULD_FAIL_TO_BUILD)
@@ -439,6 +396,9 @@ macro(ei_init_testing)
   set_property(GLOBAL PROPERTY EIGEN_TESTING_SUMMARY "")
   set_property(GLOBAL PROPERTY EIGEN_TESTS_LIST "")
   set_property(GLOBAL PROPERTY EIGEN_SUBTESTS_LIST "")
+
+  define_property(GLOBAL PROPERTY EIGEN_SMOKE_TESTS_LIST BRIEF_DOCS " " FULL_DOCS " ")
+  set_property(GLOBAL PROPERTY EIGEN_SMOKE_TESTS_LIST "")
 
   define_property(GLOBAL PROPERTY EIGEN_FAILTEST_FAILURE_COUNT BRIEF_DOCS " " FULL_DOCS " ")
   define_property(GLOBAL PROPERTY EIGEN_FAILTEST_COUNT BRIEF_DOCS " " FULL_DOCS " ")
@@ -733,9 +693,9 @@ endmacro(ei_split_testsuite num_splits)
 # Defines the custom command buildsmoketests to build a number of tests
 # specified in smoke_test_list.
 #
-# Test in smoke_test_list can be either test targets (e.g. packetmath) or
-# subtests targets (e.g. packetmath_2). If any of the test are not available
-# in the current configuration they are just skipped.
+# Tests in smoke_test_list must be test targets (e.g. packetmath).
+# If any of the tests are not available in the current configuration they
+# are just skipped.
 #
 # All tests added via this macro are labeled with the smoketest label. This
 # allows running smoketests only using ctest.
@@ -755,29 +715,10 @@ macro(ei_add_smoke_tests smoke_test_list)
 
   # Check if the test in smoke_test_list is a currently valid test target
   foreach(test IN ITEMS ${smoke_test_list})
-    # Add tests in smoke_test_list to our smoke test target but only if the test
-    # is currently available, i.e., is in EIGEN_SUBTESTS_LIST
     if ("${test}" IN_LIST EIGEN_TESTS_LIST)
       add_dependencies("${buildtarget}" "${test}")
-      # In the case of a test we match all subtests
-      set(ctest_regex "${ctest_regex}^${test}_[0-9]+$$|")
-    endif()
-  endforeach()
-
-  # Get list of all subtests and translate it into a CMake list
-  get_property(EIGEN_SUBTESTS_LIST GLOBAL PROPERTY EIGEN_SUBTESTS_LIST)
-  string(REGEX REPLACE "\n" " " EIGEN_SUBTESTS_LIST "${EIGEN_SUBTESTS_LIST}")
-  set(EIGEN_SUBTESTS_LIST "${EIGEN_SUBTESTS_LIST}")
-  separate_arguments(EIGEN_SUBTESTS_LIST)
-
-  # Check if the test in smoke_test_list is a currently valid subtest target
-  foreach(test IN ITEMS ${smoke_test_list})
-    # Add tests in smoke_test_list to our smoke test target but only if the test
-    # is currently available, i.e., is in EIGEN_SUBTESTS_LIST
-    if ("${test}" IN_LIST EIGEN_SUBTESTS_LIST)
-      add_dependencies("${buildtarget}" "${test}")
-      # Add label smoketest to be able to run smoketests using ctest
-      set_property(TEST ${test} APPEND PROPERTY LABELS "smoketest")
+      # The "smoketest" label is applied in ei_add_test_internal (same directory
+      # scope as add_test) using the EIGEN_SMOKE_TESTS_LIST global property.
     endif()
   endforeach()
 endmacro(ei_add_smoke_tests)

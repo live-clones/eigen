@@ -16,7 +16,17 @@ export | grep EIGEN
 # geographical region.
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y > /dev/null
-apt-get install -y --no-install-recommends ninja-build cmake git > /dev/null
+apt-get install -y --no-install-recommends ninja-build cmake git ca-certificates > /dev/null
+
+# Ensure cmake >= 3.14 (required for FetchContent_MakeAvailable / gtest).
+# On older distros (e.g. Ubuntu 18.04), the system cmake may be too old.
+CMAKE_MAJOR=$(cmake --version | head -1 | cut -d' ' -f3 | cut -d. -f1)
+CMAKE_MINOR=$(cmake --version | head -1 | cut -d' ' -f3 | cut -d. -f2)
+if [ "$CMAKE_MAJOR" -eq 3 ] && [ "$CMAKE_MINOR" -lt 14 ]; then
+  apt-get install -y --no-install-recommends python3-pip > /dev/null 2>&1
+  pip3 install --quiet cmake
+  hash -r
+fi
 
 # Install required dependencies and set up compilers.
 # These are required even for testing to ensure that dynamic runtime libraries
