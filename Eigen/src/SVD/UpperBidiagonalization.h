@@ -330,7 +330,7 @@ UpperBidiagonalization<MatrixType_>& UpperBidiagonalization<MatrixType_>::comput
   Index cols = matrix.cols();
   EIGEN_ONLY_USED_FOR_DEBUG(cols);
 
-  eigen_assert(rows >= cols && "UpperBidiagonalization is only for Arices satisfying rows>=cols.");
+  eigen_assert(rows >= cols && "UpperBidiagonalization is only for matrices satisfying rows>=cols.");
 
   m_householder = matrix;
 
@@ -350,7 +350,7 @@ UpperBidiagonalization<MatrixType_>& UpperBidiagonalization<MatrixType_>::comput
   EIGEN_ONLY_USED_FOR_DEBUG(rows);
   EIGEN_ONLY_USED_FOR_DEBUG(cols);
 
-  eigen_assert(rows >= cols && "UpperBidiagonalization is only for Arices satisfying rows>=cols.");
+  eigen_assert(rows >= cols && "UpperBidiagonalization is only for matrices satisfying rows>=cols.");
 
   m_householder = matrix;
   upperbidiagonalization_inplace_blocked(m_householder, m_bidiagonal);
@@ -358,19 +358,6 @@ UpperBidiagonalization<MatrixType_>& UpperBidiagonalization<MatrixType_>::comput
   m_isInitialized = true;
   return *this;
 }
-
-#if 0
-/** \return the Householder QR decomposition of \c *this.
-  *
-  * \sa class Bidiagonalization
-  */
-template<typename Derived>
-const UpperBidiagonalization<typename MatrixBase<Derived>::PlainObject>
-MatrixBase<Derived>::bidiagonalization() const
-{
-  return UpperBidiagonalization<PlainObject>(eval());
-}
-#endif
 
 }  // end namespace internal
 
