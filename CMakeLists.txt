@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.14.0)
 
 #==============================================================================
 # CMake Policy issues.
@@ -379,8 +379,35 @@ if (EIGEN_BUILD_TESTING)
   ei_maybe_separate_arguments(EIGEN_TEST_CUSTOM_LINKER_FLAGS NATIVE_COMMAND "${EIGEN_TEST_CUSTOM_LINKER_FLAGS}")
   ei_maybe_separate_arguments(EIGEN_TEST_CUSTOM_CXX_FLAGS NATIVE_COMMAND "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
 
-  option(EIGEN_SPLIT_LARGE_TESTS "Split large tests into smaller executables" ON)
   set(EIGEN_TEST_MAX_SIZE "320" CACHE STRING "Maximal matrix/vector size, default is 320")
+
+  # Fetch Google Test
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.15.2
+  )
+  # Prevent overriding the parent project's compiler/linker settings on Windows
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  # Do not install gtest when installing Eigen
+  set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+  # gtest uses [[maybe_unused]] unconditionally, which is a C++17 extension.
+  # Suppress the resulting warning when compiling below C++17 with Clang.
+  # Use -Wno-c++17-extensions for older Clang (< 16) and
+  # -Wno-c++17-attribute-extensions for newer Clang.
+  if(CMAKE_CXX_STANDARD LESS 17)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-Wno-c++17-attribute-extensions" EIGEN_HAS_WNO_CXX17_ATTRIBUTE_EXTENSIONS)
+    if(EIGEN_HAS_WNO_CXX17_ATTRIBUTE_EXTENSIONS)
+      target_compile_options(gtest INTERFACE
+        $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++17-attribute-extensions>)
+    else()
+      target_compile_options(gtest INTERFACE
+        $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-c++17-extensions>)
+    endif()
+  endif()
 
   # Flags for tests.
   if(NOT MSVC)
@@ -731,10 +758,10 @@ if (EIGEN_BUILD_TESTING)
   if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
     # CTest automatic test building relies on the "all" target.
     add_subdirectory(test)
-    add_subdirectory(failtest)
+    add_subdirectory(test/failtest)
   else()
     add_subdirectory(test EXCLUDE_FROM_ALL)
-    add_subdirectory(failtest EXCLUDE_FROM_ALL)
+    add_subdirectory(test/failtest EXCLUDE_FROM_ALL)
   endif()
 
   ei_testing_print_summary()
@@ -748,6 +775,13 @@ endif(EIGEN_BUILD_TESTING)
 # Other Build Configurations.
 #==============================================================================
 add_subdirectory(unsupported)
+
+# Register smoke test build target after all test directories (including
+# unsupported/) have been processed so that all smoke tests are included.
+if(EIGEN_BUILD_TESTING)
+  include(EigenSmokeTestList)
+  ei_add_smoke_tests("${ei_smoke_test_list}")
+endif()
 
 if(EIGEN_BUILD_BLAS)
   add_subdirectory(blas)

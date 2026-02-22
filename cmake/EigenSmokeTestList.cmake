@@ -2,135 +2,164 @@
 # of these tests doesn't exists or cannot be build with the current configuration
 # it will just be skipped.
 set(ei_smoke_test_list
-  adjoint_1
+  adjoint
   alignedvector3
-  array_cwise_7
-  array_cwise_8
-  array_for_matrix_1
+  array_cwise_operations
+  array_cwise_operations_int
+  array_cwise_real
+  array_cwise_math
+  array_cwise_bitwise
+  array_cwise_cast
+  array_for_matrix
   array_of_string
-  array_replicate_1
-  array_reverse_1
-  autodiff_1
-  autodiff_scalar_1
+  array_replicate
+  array_reverse
+  autodiff
+  autodiff_scalar
   bandmatrix
-  bdcsvd_9
-  bessel_functions_1
+  bdcsvd_assert
+  bdcsvd_trivial
+  bdcsvd_trivial_2d
+  bdcsvd_compare
+  bdcsvd_float_fixed
+  bdcsvd_float_dynamic
+  bdcsvd_double_colmajor
+  bdcsvd_double_semi
+  bdcsvd_double_rowmajor
+  bessel_functions
   bfloat16_float
-  blasutil_1
-  block_5
+  blasutil
+  block_basic
+  block_extra
   BVH
-  cholesky_1
-  cholmod_support_23
-  cholmod_support_24
-  conservative_resize_1
-  constructor_1
-  corners_1
-  ctorleakmiscmatrices_4
+  cholesky
+  cholmod_support
+  conservative_resize
+  constructor
+  corners
+  ctorleak
   dense_storage
-  determinant_1
-  diagonal_1
-  diagonal_2
-  diagonalmatrices_1
+  determinant
+  diagonal
+  diagonalmatrices
   dynalloc
-  eigensolver_complex_1
-  eigensolver_selfadjoint_8
-  EulerAngles_1
+  eigensolver_complex
+  eigensolver_selfadjoint_fixed
+  eigensolver_selfadjoint_3x3_4x4
+  eigensolver_selfadjoint_dynamic
+  EulerAngles
   exceptions
   fastmath
   first_aligned
-  geo_alignedbox_2
-  geo_eulerangles_1
-  geo_homogeneous_1
-  geo_hyperplane_1
-  geo_orthomethods_1
-  geo_parametrizedline_1
-  geo_transformations_7
+  geo_alignedbox
+  geo_eulerangles
+  geo_homogeneous
+  geo_hyperplane
+  geo_orthomethods
+  geo_parametrizedline
+  geo_transformations
   half_float
-  hessenberg_1
-  hessenberg_6qr_10
-  householder_8
-  indexed_view_1
-  inplace_decomposition_1
-  integer_types_1
-  inverse_1
+  hessenberg
+  householder
+  indexed_view
+  inplace_decomposition
+  integer_types
+  inverse
   is_same_dense
-  jacobi_1
-  jacobisvd_1
+  jacobi
+  jacobisvd_verify
+  jacobisvd_trivial_2x2
+  jacobisvd_misc
+  jacobisvd_float
+  jacobisvd_double_fixed
+  jacobisvd_double_rowmajor
+  jacobisvd_double_dynamic
+  jacobisvd_complex
   kronecker_product
-  linearstructure_1
-  mapped_matrix_1
-  mapstaticmethods_1
-  mapstride_1
-  unaryviewstride_1
-  unaryviewstride_2
-  unaryviewstride_3
-  matrix_square_root_1
+  linearstructure
+  lu
+  mapped_matrix
+  mapstaticmethods
+  mapstride
+  matrix_square_root
   meta
-  minres_2
-  miscmatrices_1
-  mixingtypes_7
+  minres
+  miscmatrices
+  mixingtypes_novectorize
+  mixingtypes_vectorize
   nestbyvalue
-  nesting_ops_1
-  nomalloc_1
-  nullary_1
+  nesting_ops
+  nomalloc
+  nullary
   num_dimensions
   NumericalDiff
   numext
-  packetmath
-  permutationmatrices_1
-  polynomialsolver_1
-  prec_inverse_4x4_1
-  product_extra_5
-  product_selfadjoint_1
-  product_small_7
-  product_symm_1
-  product_syrk_1
-  product_trmm_1
-  product_trmv_1
-  product_trsolve_5
-  qr_1
-  qr_colpivoting_7
-  qr_fullpivoting_4
-  rand_1
-  real_qz_1
-  redux_1
-  ref_1
+  packetmath_float
+  packetmath_integer
+  packetmath_complex
+  packetmath_special
+  permutationmatrices
+  polynomialsolver
+  prec_inverse_4x4
+  product_extra
+  product_selfadjoint
+  product_small
+  product_small_gemm
+  product_small_lazy_float
+  product_small_lazy_double
+  product_symm
+  product_syrk
+  product_trmm_float
+  product_trmm_double
+  product_trmm_cplxfloat
+  product_trmm_cplxdouble
+  product_trmv
+  product_trsolve
+  qr
+  qr_colpivoting
+  qr_cod
+  qr_fullpivoting
+  rand
+  real_qz
+  redux_matrix
+  redux_vector
+  ref
   resize
-  rvalue_types_1
-  schur_complex_1
-  schur_real_1
-  selfadjoint_1
+  rvalue_types
+  schur_complex
+  schur_real
+  selfadjoint
   sizeof
   sizeoverflow
   smallvectors
-  sparse_basic_1
-  sparse_basic_3
-  sparse_block_1
-  sparse_extra_4
-  sparse_permutations_2
-  sparse_product_4
-  sparse_ref_1
-  sparse_solvers_1
-  sparse_vector_1
-  special_functions_1
-  special_numbers_1
-  special_packetmath_1
-  spqr_support_2
-  stable_norm_1
-  stddeque_1
-  stddeque_overload_1
-  stdlist_1
-  stdlist_overload_1
-  stdvector_1
-  stdvector_overload_1
-  stl_iterators_1
-  swap_1
-  symbolic_index_1
-  triangular_1
-  type_aliaslu_9
-  umeyama_3
-  unalignedassert
+  sparse_basic
+  sparse_block
+  sparse_extra
+  sparse_permutations
+  sparse_product
+  sparse_ref
+  sparse_solvers
+  sparse_vector
+  special_functions
+  special_numbers
+  special_packetmath
+  spqr_support
+  stable_norm
+  stddeque
+  stddeque_overload
+  stdlist
+  stdlist_overload
+  stdvector
+  stdvector_overload
+  stl_iterators
+  swap
+  symbolic_index
+  triangular
+  type_alias
+  umeyama
+  unaryview
   unalignedcount
-  vectorwiseop_1
-  visitor_1
-  vectorization_logic_1)
+  vectorization_logic
+  vectorwiseop
+  visitor_matrix
+  visitor_vector)
