@@ -547,9 +547,9 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
   else
     info = NoConvergence;
 
-  // Sort eigenvalues and corresponding vectors.
-  // TODO make the sort optional ?
-  // TODO use a better sort algorithm !!
+  // Sort eigenvalues and corresponding vectors in ascending order.
+  // TODO: Add optional parameter to skip sorting for performance when order is not needed
+  // TODO: Replace O(n^2) selection sort with O(n log n) algorithm (std::sort or similar)
   if (info == Success) {
     for (Index i = 0; i < n - 1; ++i) {
       Index k;
@@ -850,9 +850,10 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
       subdiag[k + 1] = rot.c() * subdiag[k + 1];
     }
 
-    // apply the givens rotation to the unit matrix Q = Q * G
+    // Apply the Givens rotation to the unit matrix Q = Q * G
     if (matrixQ) {
-      // FIXME if StorageOrder == RowMajor this operation is not very efficient
+      // NOTE: Row-major storage makes this operation inefficient (non-contiguous access to columns).
+      // TODO: Consider specializing for RowMajor storage or using column-major internally for better cache behavior.
       Map<Matrix<Scalar, Dynamic, Dynamic, StorageOrder> > q(matrixQ, n, n);
       q.applyOnTheRight(k, k + 1, rot);
     }
