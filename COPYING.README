@@ -3,7 +3,7 @@ Eigen is primarily MPL2 licensed. See COPYING.MPL2 and these links:
   http://www.mozilla.org/MPL/2.0/FAQ.html
 
 Some files contain third-party code under BSD, LGPL, Apache, or other
-MPL2-compatible licenses, whence the other COPYING.* files here.
+MPL2-compatible licenses, hence the other COPYING.* files here.
 
 Note that some optional external dependencies (e.g. FFTW, MPFR C++)
 and some bundled benchmark code (bench/btl/) are distributed under
