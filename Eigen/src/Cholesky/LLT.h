@@ -159,7 +159,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
 
   /** \returns the LLT decomposition matrix
    *
-   * TODO: document the storage layout
+   * TODO: Document storage layout - specify whether lower, upper, or both triangles are stored,
+   *       and which parts are initialized vs. uninitialized.
    */
   inline const MatrixType& matrixLLT() const {
     eigen_assert(m_isInitialized && "LLT is not initialized.");
@@ -406,7 +407,8 @@ LLT<MatrixType, UpLo_>& LLT<MatrixType, UpLo_>::compute(const EigenBase<InputTyp
 
   // Compute matrix L1 norm = max abs column sum.
   m_l1_norm = RealScalar(0);
-  // TODO move this code to SelfAdjointView
+  // TODO: Refactor L1 norm computation to SelfAdjointView to avoid code duplication
+  //       with other decompositions that compute the same norm.
   for (Index col = 0; col < size; ++col) {
     RealScalar abs_col_sum;
     if (UpLo_ == Lower)
