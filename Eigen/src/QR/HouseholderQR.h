@@ -384,15 +384,14 @@ void householder_qr_inplace_unblocked(MatrixQR& mat, HCoeffs& hCoeffs, typename 
   }
 }
 
-// TODO: add a corresponding public API for updating a QR factorization
+// TODO: Expose this as a public update() method similar to LLT/LDLT rank updates.
+//       This would enable efficient incremental QR updates without full recomputation.
 /** \internal
- * Basically a modified copy of @c Eigen::internal::householder_qr_inplace_unblocked that
- * performs a rank-1 update of the QR matrix in compact storage. This function assumes, that
- * the first @c k-1 columns of the matrix @c mat contain the QR decomposition of \f$A^N\f$ up to
- * column k-1. Then the QR decomposition of the k-th column (given by @c newColumn) is computed by
- * applying the k-1 Householder projectors on it and finally compute the projector \f$H_k\f$ of
- * it. On exit the matrix @c mat and the vector @c hCoeffs contain the QR decomposition of the
- * first k columns of \f$A^N\f$. The \a tempData argument must point to at least mat.cols() scalars.  */
+ * Performs a column-by-column update of the QR decomposition. Given a QR decomposition of
+ * the first k-1 columns, efficiently updates to include the k-th column (newColumn).
+ * Applies previous Householder projectors and computes the new projector H_k.
+ * This is more efficient than complete recomputation.
+ * The \a tempData argument must point to at least mat.cols() scalars.  */
 template <typename MatrixQR, typename HCoeffs, typename VectorQR>
 void householder_qr_inplace_update(MatrixQR& mat, HCoeffs& hCoeffs, const VectorQR& newColumn,
                                    typename MatrixQR::Index k, typename MatrixQR::Scalar* tempData) {
