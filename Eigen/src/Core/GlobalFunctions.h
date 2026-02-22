@@ -224,7 +224,7 @@ EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(abs2, scalar_abs2_op)
 }  // namespace internal
 }  // namespace Eigen
 
-// TODO: cleanly disable those functions that are not supported on Array (numext::real_ref, internal::random,
-// internal::isApprox...)
+// TODO: Add proper SFINAE constraints to disable Array-incompatible functions (numext::real_ref,
+// internal::random, internal::isApprox, etc.) instead of relying on compilation errors.
 
 #endif  // EIGEN_GLOBAL_FUNCTIONS_H

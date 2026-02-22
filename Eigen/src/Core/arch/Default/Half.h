@@ -252,8 +252,8 @@ struct half : public half_impl::half_base {
 #endif
 };
 
-// TODO(majnemer): Get rid of this once we can rely on C++17 inline variables do
-// solve the ODR issue.
+// TODO(majnemer): Refactor using C++17 inline variables to cleanly solve the ODR (One Definition Rule)
+// issue with numeric_limits_half_impl specialization.
 namespace half_impl {
 template <typename = void>
 struct numeric_limits_half_impl {
