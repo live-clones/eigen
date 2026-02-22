@@ -237,8 +237,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, SparseSelfAdjoint2Sparse> {
     internal::permute_symm_to_fullsymm<SrcXprType::Mode, false>(src.matrix(), dst);
   }
 
-  // FIXME: the handling of += and -= in sparse matrices should be cleanup so that next two overloads could be reduced
-  // to:
+  // TODO: Simplify sparse matrix += and -= handling to reduce duplication in the overloads below.
   template <typename DestScalar, int StorageOrder, typename AssignFunc>
   static void run(SparseMatrix<DestScalar, StorageOrder, StorageIndex>& dst, const SrcXprType& src,
                   const AssignFunc& func) {

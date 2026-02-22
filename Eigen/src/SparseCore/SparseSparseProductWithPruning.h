@@ -55,6 +55,8 @@ static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& r
 
   res.reserve(estimated_nnz_prod);
   double ratioColRes = double(estimated_nnz_prod) / (double(lhs.rows()) * double(rhs.cols()));
+  // TODO: Use per-column sparsity ratio instead of global average:
+  //       double ratioColRes = (rhs.innerVector(j).nonZeros() + lhs.nonZeros()/lhs.cols()) / lhs.rows();
   for (Index j = 0; j < cols; ++j) {
     // FIXME: compute a more accurate per-column nnz ratio for res.
     tempVector.init(ratioColRes);
