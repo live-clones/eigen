@@ -28,9 +28,7 @@ struct fixed_size_tensor_index_linearization_helper {
   template <typename Dimensions>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          const Dimensions& dimensions) {
-    return array_get < RowMajor                             ? n - 1
-           : (NumIndices - n) > (indices) + dget < RowMajor ? n - 1
-                                                            : (NumIndices - n),
+    return array_get<RowMajor ? n - 1 : (NumIndices - n)>(indices) + dget < RowMajor ? n - 1 : (NumIndices - n),
            Dimensions > ::value * fixed_size_tensor_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(
                                       indices, dimensions);
   }
@@ -133,12 +131,9 @@ template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowM
 struct tensor_index_linearization_helper {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          array<Index, NumIndices> const& dimensions) {
-    return array_get < RowMajor ? n
-           : (NumIndices - n - 1) > (indices) + array_get < RowMajor
-               ? n
-               : (NumIndices - n - 1) >
-                     (dimensions)*tensor_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(
-                         indices, dimensions);
+    return array_get<RowMajor ? n : (NumIndices - n - 1)>(indices) +
+           array_get<RowMajor ? n : (NumIndices - n - 1)>(dimensions) *
+               tensor_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(indices, dimensions);
   }
 };
 
@@ -146,7 +141,7 @@ template <typename Index, std::ptrdiff_t NumIndices, bool RowMajor>
 struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          array<Index, NumIndices> const&) {
-    return array_get < RowMajor ? 0 : NumIndices - 1 > (indices);
+    return array_get<RowMajor ? 0 : NumIndices - 1>(indices);
   }
 };
 }  // end namespace internal
@@ -259,12 +254,9 @@ template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowM
 struct tensor_vsize_index_linearization_helper {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          std::vector<DenseIndex> const& dimensions) {
-    return array_get < RowMajor ? n
-           : (NumIndices - n - 1) > (indices) + array_get < RowMajor
-               ? n
-               : (NumIndices - n - 1) >
-                     (dimensions)*tensor_vsize_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(
-                         indices, dimensions);
+    return array_get<RowMajor ? n : (NumIndices - n - 1)>(indices) +
+           array_get<RowMajor ? n : (NumIndices - n - 1)>(dimensions) *
+               tensor_vsize_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(indices, dimensions);
   }
 };
 
@@ -272,7 +264,7 @@ template <typename Index, std::ptrdiff_t NumIndices, bool RowMajor>
 struct tensor_vsize_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          std::vector<DenseIndex> const&) {
-    return array_get < RowMajor ? 0 : NumIndices - 1 > (indices);
+    return array_get<RowMajor ? 0 : NumIndices - 1>(indices);
   }
 };
 }  // end namespace internal
