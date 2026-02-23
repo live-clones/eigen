@@ -27,10 +27,10 @@ namespace internal {
  * NOTE : This class corresponds to the SCformat structure in SuperLU
  *
  */
-/* TODO
- * InnerIterator as for sparsematrix
- * SuperInnerIterator to iterate through all supernodes
- * Function for triangular solve
+/* TODO: Add iterator interfaces for better API compatibility with SparseMatrix:
+ *  - InnerIterator: Iterate through nonzeros in a column or row
+ *  - SuperInnerIterator: Iterate through supernodes in the factorization
+ *  - Integrate triangular solve functions that work with this supernodal format
  */
 template <typename Scalar_, typename StorageIndex_>
 class MappedSuperNodalMatrix {
@@ -49,10 +49,10 @@ class MappedSuperNodalMatrix {
 
   ~MappedSuperNodalMatrix() {}
   /**
-   * Set appropriate pointers for the lower triangular supernodal matrix
-   * These infos are available at the end of the numerical factorization
-   * FIXME This class will be modified such that it can be use in the course
-   * of the factorization.
+   * Set appropriate pointers for the lower triangular supernodal matrix.
+   * Currently expects infos to be available at the end of numerical factorization.
+   * TODO: Refactor to support incremental updates during factorization for better
+   * integration with the solver's internal state management.
    */
   void setInfos(Index m, Index n, ScalarVector& nzval, IndexVector& nzval_colptr, IndexVector& rowind,
                 IndexVector& rowind_colptr, IndexVector& col_to_sup, IndexVector& sup_to_col) {

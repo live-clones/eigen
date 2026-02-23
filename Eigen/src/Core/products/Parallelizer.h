@@ -182,7 +182,9 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
 
   // compute the maximal number of threads from the total amount of work:
   double work = static_cast<double>(rows) * static_cast<double>(cols) * static_cast<double>(depth);
-  double kMinTaskSize = 50000;  // FIXME improve this heuristic.
+  double kMinTaskSize = 50000;
+  // TODO: Make minimum task size (50000 operations) adaptive based on CPU architecture and cache size.
+  //       Current threshold may be too conservative or aggressive for different CPUs.
   pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>(work / kMinTaskSize)));
 
   // compute the number of threads we are going to use

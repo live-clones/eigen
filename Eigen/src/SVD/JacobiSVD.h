@@ -588,7 +588,9 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
    * \deprecated Will be removed in the next major Eigen version. Options should
    * be specified in the \a Options template parameter.
    */
-  // EIGEN_DEPRECATED // TODO(cantonios): re-enable after fixing a few 3p libraries that error on deprecation warnings.
+  // NOTE: EIGEN_DEPRECATED macro is disabled here. Constructor remains for backward compatibility.
+  // TODO(cantonios): Re-enable EIGEN_DEPRECATED macro after fixing third-party libraries that
+  // incorrectly error on deprecation warnings instead of just warning.
   template <typename Derived>
   JacobiSVD(const MatrixBase<Derived>& matrix, unsigned int computationOptions) {
     internal::check_svd_options_assertions<MatrixBase<Derived>, Options>(computationOptions, matrix.rows(),

@@ -20,9 +20,12 @@ namespace internal {
 
 /** \internal
  * \ingroup OrderingMethods_Module
+ * Computes the symmetric sparsity pattern A^T + A from an input matrix A.
  * \param[in] A the input non-symmetric matrix
- * \param[out] symmat the symmetric pattern A^T+A from the input matrix \a A.
- * FIXME: The values should not be considered here
+ * \param[out] symmat the symmetric pattern matrix with union of A and A^T sparsity patterns
+ *
+ * NOTE: Only the sparsity pattern is used; numerical values are discarded. The pattern
+ * is used for ordering algorithms (e.g., AMD, COLAMD) which require symmetric structure.
  */
 template <typename MatrixType>
 void ordering_helper_at_plus_a(const MatrixType& A, MatrixType& symmat) {

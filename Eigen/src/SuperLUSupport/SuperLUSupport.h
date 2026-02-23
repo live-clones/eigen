@@ -208,7 +208,8 @@ struct SluMatrix : SuperMatrix {
 
     res.setScalarType<typename MatrixType::Scalar>();
 
-    // FIXME the following is not very accurate
+    // NOTE: Matrix type detection for triangular matrices (Upper/Lower) is approximated via flag bits.
+    // A more precise approach would check the actual matrix dimensions and structure.
     if (int(MatrixType::Flags) & int(Upper)) res.Mtype = SLU_TRU;
     if (int(MatrixType::Flags) & int(Lower)) res.Mtype = SLU_TRL;
 
@@ -583,7 +584,9 @@ void SuperLU<MatrixType>::factorize(const MatrixType &a) {
 
   m_extractedDataAreDirty = true;
 
-  // FIXME how to better check for errors ???
+  // NOTE: SuperLU error codes are mapped to Eigen's info types (Success/NumericalIssue).
+  // TODO: Add more granular error classification based on SuperLU-specific error codes for
+  // better diagnostics (e.g., distinguish memory issues, singular matrices, etc.).
   m_info = info == 0 ? Success : NumericalIssue;
   m_factorizationIsOk = true;
 }
@@ -872,7 +875,9 @@ void SuperILU<MatrixType>::factorize(const MatrixType &a) {
                 &info, Scalar());
   StatFree(&m_sluStat);
 
-  // FIXME how to better check for errors ???
+  // NOTE: SuperLU error codes are mapped to Eigen's info types (Success/NumericalIssue).
+  // TODO: Add more granular error classification based on SuperLU-specific error codes for
+  // better diagnostics (e.g., distinguish memory issues, singular matrices, etc.).
   m_info = info == 0 ? Success : NumericalIssue;
   m_factorizationIsOk = true;
 }

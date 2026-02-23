@@ -36,9 +36,10 @@ void make_block_householder_triangular_factor(TriangularFactorType& triFactor, c
       triFactor.row(i).tail(rt).noalias() = -hCoeffs(i) * vectors.col(i).tail(rs).adjoint() *
                                             vectors.bottomRightCorner(rs, rt).template triangularView<UnitLower>();
 
-      // FIXME use the following line with .noalias() once the triangular product can work inplace
-      // triFactor.row(i).tail(rt) = triFactor.row(i).tail(rt) * triFactor.bottomRightCorner(rt,rt).template
-      // triangularView<Upper>();
+      // NOTE: Current implementation uses explicit loop instead of triangular product for row update.
+      // TODO: Once triangularView product expressions support in-place operations, replace loop with:
+      //   triFactor.row(i).tail(rt).noalias() *= triFactor.bottomRightCorner(rt, rt).template
+      //   triangularView<Upper>();
       for (Index j = nbVecs - 1; j > i; --j) {
         typename TriangularFactorType::Scalar z = triFactor(i, j);
         triFactor(i, j) = z * triFactor(j, j);
@@ -71,7 +72,9 @@ void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vec
          (VectorsType::MaxColsAtCompileTime == 1 && MatrixType::MaxColsAtCompileTime != 1) ? RowMajor : ColMajor,
          VectorsType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime>
       tmp = V.adjoint() * mat;
-  // FIXME add .noalias() once the triangular product can work inplace
+  // NOTE: Triangular product assignment requires temporary due to lack of in-place support.
+  // TODO: Once triangularView products support in-place operations, add .noalias() and possibly
+  // combine tmp assignments with final update for better performance.
   if (forward)
     tmp = T.template triangularView<Upper>() * tmp;
   else

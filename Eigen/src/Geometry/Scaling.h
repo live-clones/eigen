@@ -80,7 +80,8 @@ class UniformScaling {
   }
 
   /** Concatenates a uniform scaling and a linear transformation matrix */
-  // TODO returns an expression
+  // TODO: Return an expression template instead of dense matrix for better performance.
+  // Currently materializes the product into a new matrix due to scalar multiplication of matrix.
   template <typename Derived>
   inline typename Eigen::internal::plain_matrix_type<Derived>::type operator*(const MatrixBase<Derived>& other) const {
     return other * m_factor;

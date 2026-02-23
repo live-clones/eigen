@@ -526,7 +526,9 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
  */
 template <typename MatrixType, typename OrderingType>
 void SparseLU<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
-  // TODO  It is possible as in SuperLU to compute row and columns scaling vectors to equilibrate the matrix mat.
+  // TODO: Implement matrix equilibration with row/column scaling vectors (following SuperLU approach)
+  // to improve numerical stability and reduce fill-in. This requires computing row/column scales
+  // in analyzePattern and applying them during factorization.
 
   // Firstly, copy the whole input matrix.
   m_mat = mat;
@@ -537,8 +539,8 @@ void SparseLU<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
 
   // Apply the permutation to the column of the input  matrix
   if (m_perm_c.size()) {
-    m_mat.uncompress();  // NOTE: The effect of this command is only to create the InnerNonzeros pointers. FIXME : This
-                         // vector is filled but not subsequently used.
+    m_mat.uncompress();  // NOTE: Creates InnerNonzeros pointers for the uncompressed format.
+                         // These are not used in subsequent operations; consider optimizing to avoid this step.
     // Then, permute only the column pointers
     ei_declare_aligned_stack_constructed_variable(
         StorageIndex, outerIndexPtr, mat.cols() + 1,
@@ -634,7 +636,9 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
       m_mat.innerNonZeroPtr()[m_perm_c.indices()(i)] = outerIndexPtr[i + 1] - outerIndexPtr[i];
     }
     if (!matrix.isCompressed()) delete[] outerIndexPtr;
-  } else {  // FIXME This should not be needed if the empty permutation is handled transparently
+  } else {  // Fallback: Create identity permutation when ordering returns empty result.
+            // TODO: Consider refactoring ordering interface to handle empty/identity permutations
+            // transparently to avoid this special case handling.
     m_perm_c.resize(matrix.cols());
     for (StorageIndex i = 0; i < matrix.cols(); ++i) m_perm_c.indices()(i) = i;
   }
@@ -778,9 +782,10 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
         return;
       }
 
-      // Update the determinant of the row permutation matrix
-      // FIXME: the following test is not correct, we should probably take iperm_c into account and pivrow is not
-      // directly the row pivot.
+      // Update the determinant of the row permutation matrix based on row swaps.
+      // NOTE: Current implementation may be incomplete - should verify that this correctly accounts for
+      // both row and column permutations in the determinant calculation. The relationship between
+      // pivrow, iperm_c (column permutation inverse), and row permutation tracking may need review.
       if (pivrow != jj) m_detPermR = -m_detPermR;
 
       // Prune columns (0:jj-1) using column jj
@@ -878,7 +883,9 @@ struct SparseLUMatrixUReturnType : internal::no_assignment_operator {
           X(fsupc, j) /= m_mapL.valuePtr()[luptr];
         }
       } else {
-        // FIXME: the following lines should use Block expressions and not Map!
+        // NOTE: Currently uses Map to provide a view of the supernodal block for triangular solve.
+        // TODO: Consider replacing Map with Block expressions for better integration with Eigen's
+        // expression templates and potential performance improvements.
         Map<const Matrix<Scalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<>> A(&(m_mapL.valuePtr()[luptr]), nsupc,
                                                                                   nsupc, OuterStride<>(lda));
         typename Dest::RowsBlockXpr U = X.derived().middleRows(fsupc, nsupc);

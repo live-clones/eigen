@@ -103,7 +103,9 @@ class MetisOrdering {
     output_error = METIS_NodeND(&m, m_indexPtr.data(), m_innerIndices.data(), NULL, NULL, perm.data(), iperm.data());
 
     if (output_error != METIS_OK) {
-      // FIXME The ordering interface should define a class of possible errors
+      // TODO: Implement proper error handling via exception or error codes instead of stderr.
+      // METIS errors include memory allocation failures, invalid inputs, and reordering failures.
+      // These should be surfaced through Eigen's error reporting mechanism.
       std::cerr << "ERROR WHILE CALLING THE METIS PACKAGE \n";
       return;
     }

@@ -1006,7 +1006,9 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
       const LinearMapper dm6 = rhs.getLinearMapper(0, j2 + 6);
       const LinearMapper dm7 = rhs.getLinearMapper(0, j2 + 7);
       Index k = 0;
-      if ((PacketSize % 8) == 0)  // TODO enable vectorized transposition for PacketSize==4
+      // Process 8 RHS columns at a time when PacketSize divides evenly into 8.
+      // TODO: Extend transposition to handle PacketSize==4 for better performance on 32-bit types.
+      if ((PacketSize % 8) == 0)
       {
         for (; k < peeled_k; k += PacketSize) {
           PacketBlock<Packet, (PacketSize % 8) == 0 ? 8 : PacketSize> kernel;
@@ -1059,7 +1061,9 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
       const LinearMapper dm3 = rhs.getLinearMapper(0, j2 + 3);
 
       Index k = 0;
-      if ((PacketSize % 4) == 0)  // TODO enable vectorized transposition for PacketSize==2 ??
+      // Process 4 RHS columns at a time when PacketSize divides evenly into 4.
+      // TODO: Extend transposition to support PacketSize==2 (half-sized packets) for smaller data types.
+      if ((PacketSize % 4) == 0)
       {
         for (; k < peeled_k; k += PacketSize) {
           PacketBlock<Packet, (PacketSize % 4) == 0 ? 4 : PacketSize> kernel;
