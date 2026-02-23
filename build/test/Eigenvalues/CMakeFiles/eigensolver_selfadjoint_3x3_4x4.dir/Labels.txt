@@ -1,4 +1,0 @@
-# Target labels
- BuildOfficial
-# Source files and their labels
-/home/rmlarsen/eigen/rmlarsen/eigen-new/test/Eigenvalues/eigensolver_selfadjoint_3x3_4x4.cpp

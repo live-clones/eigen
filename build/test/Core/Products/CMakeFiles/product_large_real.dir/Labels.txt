@@ -1,4 +1,0 @@
-# Target labels
- BuildOfficial
-# Source files and their labels
-/home/rmlarsen/eigen/rmlarsen/eigen-new/test/Core/Products/product_large_real.cpp
