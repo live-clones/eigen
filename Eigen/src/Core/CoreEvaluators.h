@@ -116,7 +116,7 @@ struct evaluator<const T> : evaluator<T> {
 
 template <typename ExpressionType>
 struct evaluator_base {
-  // TODO that's not very nice to have to propagate all these traits. They are currently only needed to handle
+  // TODO: find a way to avoid propagating all these traits. They are currently only needed to handle
   // outer,inner indices.
   typedef traits<ExpressionType> ExpressionTraits;
 
@@ -1117,7 +1117,7 @@ struct unary_evaluator<CwiseUnaryView<UnaryOp, ArgType, StrideType>, IndexBased>
 
     Flags = (evaluator<ArgType>::Flags & (HereditaryBits | LinearAccessBit | DirectAccessBit)),
 
-    Alignment = 0  // FIXME it is not very clear why alignment is necessarily lost...
+    Alignment = 0  // FIXME: clarify why alignment is lost for CwiseUnaryView.
   };
 
   EIGEN_DEVICE_FUNC explicit unary_evaluator(const XprType& op) : m_d(op) {
@@ -1159,7 +1159,7 @@ struct unary_evaluator<CwiseUnaryView<UnaryOp, ArgType, StrideType>, IndexBased>
 
 // -------------------- Map --------------------
 
-// FIXME perhaps the PlainObjectType could be provided by Derived::PlainObject ?
+// FIXME: consider using Derived::PlainObject for PlainObjectType.
 // but that might complicate template specialization
 template <typename Derived, typename PlainObjectType>
 struct mapbase_evaluator;
