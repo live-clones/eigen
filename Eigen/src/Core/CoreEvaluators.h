@@ -1713,7 +1713,7 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
 
     // let's enable LinearAccess only with vectorization because of the product overhead
-    // FIXME enable DirectAccess with negative strides?
+    // FIXME: consider enabling DirectAccess with negative strides.
     Flags0 = evaluator<ArgType>::Flags,
     LinearAccess =
         ((Direction == BothDirections) && (int(Flags0) & PacketAccessBit)) ||
@@ -1723,7 +1723,7 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
 
     Flags = int(Flags0) & (HereditaryBits | PacketAccessBit | LinearAccess),
 
-    Alignment = 0  // FIXME in some rare cases, Alignment could be preserved, like a Vector4f.
+    Alignment = 0  // FIXME: in some rare cases, Alignment could be preserved.
   };
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit unary_evaluator(const XprType& reverse)
