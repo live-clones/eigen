@@ -9,7 +9,7 @@
 #ifndef TENSOR_INTERFACE_HH
 #define TENSOR_INTERFACE_HH
 
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 #include <vector>
 #include "btl.hh"
 

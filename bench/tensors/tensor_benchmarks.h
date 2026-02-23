@@ -4,7 +4,7 @@
 typedef int TensorIndex;
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 
-#include "unsupported/Eigen/CXX11/Tensor"
+#include "unsupported/Eigen/Tensor"
 #include "benchmark.h"
 
 #define BENCHMARK_RANGE(bench, lo, hi) BENCHMARK(bench)->Range(lo, hi)
