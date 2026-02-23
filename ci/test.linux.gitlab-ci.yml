@@ -291,7 +291,7 @@ test:linux:arm:clang-12:default:unsupported:
 ##### SME ######################################################################
 
 .test:linux:sme:
-  extends: .test:base
+  extends: .test:linux
   stage: test
   variables:
     EIGEN_CI_TARGET_ARCH: aarch64-sme
