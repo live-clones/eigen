@@ -118,38 +118,11 @@ struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, C
   }
 };
 
-// RowMajor LHS packer -- produces the exact same packed layout as ColMajor
-// above, just reads from a row-major source matrix.
+// RowMajor LHS packer -- the DataMapper abstracts storage order via
+// operator()(row, col), so the packing logic is identical to ColMajor.
 template <typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode> {
-  typedef float Scalar;
-
-  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
-                                    Index offset = 0) {
-    constexpr int MR = kSmeMr;
-    const Index peeled_rows = (rows / MR) * MR;
-
-    for (Index i = 0; i < peeled_rows; i += MR) {
-      Scalar* dst = PanelMode ? blockA + (i / MR) * MR * stride + offset * MR : blockA + i * depth;
-
-      for (Index k = 0; k < depth; ++k) {
-        for (Index r = 0; r < MR; ++r) {
-          dst[k * MR + r] = lhs(i + r, k);
-        }
-      }
-    }
-
-    if (peeled_rows < rows) {
-      const Index tail = rows - peeled_rows;
-      Scalar* dst =
-          PanelMode ? blockA + (peeled_rows / MR) * MR * stride + offset * tail : blockA + peeled_rows * depth;
-
-      for (Index k = 0; k < depth; ++k) {
-        for (Index r = 0; r < tail; ++r) dst[k * tail + r] = lhs(peeled_rows + r, k);
-      }
-    }
-  }
-};
+struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode>
+    : gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode> {};
 
 /*****************************************************************************
  * gemm_pack_rhs specialization for SME  (float, ColMajor)
@@ -199,37 +172,11 @@ struct gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMo
   }
 };
 
-// RowMajor RHS packer -- same packed layout, reads from row-major source.
+// RowMajor RHS packer -- the DataMapper abstracts storage order via
+// operator()(row, col), so the packing logic is identical to ColMajor.
 template <typename Index, typename DataMapper, int nr_, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<float, Index, DataMapper, nr_, RowMajor, Conjugate, PanelMode> {
-  typedef float Scalar;
-
-  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
-                                    Index offset = 0) {
-    constexpr int NR = kSmeNr4;
-    const Index peeled_cols = (cols / NR) * NR;
-
-    for (Index j = 0; j < peeled_cols; j += NR) {
-      Scalar* dst = PanelMode ? blockB + (j / NR) * NR * stride + offset * NR : blockB + j * depth;
-
-      for (Index k = 0; k < depth; ++k) {
-        for (Index c = 0; c < NR; ++c) {
-          dst[k * NR + c] = rhs(k, j + c);
-        }
-      }
-    }
-
-    if (peeled_cols < cols) {
-      const Index tail = cols - peeled_cols;
-      Scalar* dst =
-          PanelMode ? blockB + (peeled_cols / NR) * NR * stride + offset * tail : blockB + peeled_cols * depth;
-
-      for (Index k = 0; k < depth; ++k) {
-        for (Index c = 0; c < tail; ++c) dst[k * tail + c] = rhs(k, peeled_cols + c);
-      }
-    }
-  }
-};
+struct gemm_pack_rhs<float, Index, DataMapper, nr_, RowMajor, Conjugate, PanelMode>
+    : gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMode> {};
 
 /*****************************************************************************
  * sme_store_za_tile -- Store one ZA.S tile back to C with alpha scaling.
@@ -418,6 +365,9 @@ EIGEN_ALWAYS_INLINE void sme_process_all_cols(Scalar* EIGEN_RESTRICT C, Index C_
     const int sub_tail = tail % NR;
 
     // Process each VL-wide sub-group with its own ZA tile.
+    // Each sub-group runs a separate depth loop (unlike sme_process_4tiles
+    // which fuses all 4 into one loop with LHS reuse).  This is simpler
+    // and acceptable for the tail path (at most 3 sub-groups).
     // Each sub-group needs a compile-time TileId, so we dispatch via if/else.
     if (n_full_sub >= 1) {
       sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail, depth, alpha, row_start,
@@ -461,6 +411,11 @@ EIGEN_ALWAYS_INLINE void sme_process_all_cols(Scalar* EIGEN_RESTRICT C, Index C_
  *
  * Iterates over LHS panels (all uniform width = MR = 16, plus a tail),
  * dispatching sme_process_all_cols for each.
+ *
+ * NOTE: For very small matrices (< ~32 in all dimensions), the cost of
+ * entering/exiting streaming SVE mode may exceed the FMOPA speedup.
+ * A future improvement could bypass SME for such cases, but this requires
+ * runtime dispatch before packing (since SME and NEON use different pack formats).
  *****************************************************************************/
 
 template <typename Scalar, typename Index>
