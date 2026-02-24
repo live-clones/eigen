@@ -22,16 +22,16 @@ using array = std::array<T, N>;
 namespace internal {
 
 template <std::size_t I_, class T, std::size_t N>
-constexpr T& array_get(std::array<T, N>& a) {
-  return (T&)std::template get<I_, T, N>(a);
+EIGEN_DEVICE_FUNC constexpr T& array_get(std::array<T, N>& a) {
+  return std::template get<I_>(a);
 }
 template <std::size_t I_, class T, std::size_t N>
-constexpr T&& array_get(std::array<T, N>&& a) {
-  return (T&&)std::template get<I_, T, N>(a);
+EIGEN_DEVICE_FUNC constexpr T&& array_get(std::array<T, N>&& a) {
+  return std::template get<I_>(a);
 }
 template <std::size_t I_, class T, std::size_t N>
-constexpr T const& array_get(std::array<T, N> const& a) {
-  return (T const&)std::template get<I_, T, N>(a);
+EIGEN_DEVICE_FUNC constexpr T const& array_get(std::array<T, N> const& a) {
+  return std::template get<I_>(a);
 }
 
 template <typename... tt>
@@ -467,7 +467,7 @@ constexpr decltype(reduce<sum_op, Ts...>::run((*((Ts*)0))...)) arg_sum(Ts... ts)
 
 template <typename Array, int... n>
 constexpr Array h_array_reverse(Array arr, numeric_list<int, n...>) {
-  return {{std::get<sizeof...(n) - n - 1>(arr)...}};
+  return {{array_get<sizeof...(n) - n - 1>(arr)...}};
 }
 
 template <typename T, std::size_t N>
@@ -485,14 +485,14 @@ constexpr array<T, N> array_reverse(array<T, N> arr) {
 template <typename Reducer, typename T, std::size_t N, std::size_t n = N - 1>
 struct h_array_reduce {
   EIGEN_DEVICE_FUNC constexpr static auto run(array<T, N> arr, T identity)
-      -> decltype(Reducer::run(h_array_reduce<Reducer, T, N, n - 1>::run(arr, identity), std::get<n>(arr))) {
-    return Reducer::run(h_array_reduce<Reducer, T, N, n - 1>::run(arr, identity), std::get<n>(arr));
+      -> decltype(Reducer::run(h_array_reduce<Reducer, T, N, n - 1>::run(arr, identity), array_get<n>(arr))) {
+    return Reducer::run(h_array_reduce<Reducer, T, N, n - 1>::run(arr, identity), array_get<n>(arr));
   }
 };
 
 template <typename Reducer, typename T, std::size_t N>
 struct h_array_reduce<Reducer, T, N, 0> {
-  EIGEN_DEVICE_FUNC constexpr static T run(const array<T, N>& arr, T) { return std::get<0>(arr); }
+  EIGEN_DEVICE_FUNC constexpr static T run(const array<T, N>& arr, T) { return array_get<0>(arr); }
 };
 
 template <typename Reducer, typename T>
@@ -534,7 +534,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE t array_prod(const std::vector<t>& a) {
 
 template <typename Op, typename A, typename B, std::size_t N, int... n>
 constexpr array<decltype(Op::run(A(), B())), N> h_array_zip(array<A, N> a, array<B, N> b, numeric_list<int, n...>) {
-  return array<decltype(Op::run(A(), B())), N>{{Op::run(std::get<n>(a), std::get<n>(b))...}};
+  return array<decltype(Op::run(A(), B())), N>{{Op::run(array_get<n>(a), array_get<n>(b))...}};
 }
 
 template <typename Op, typename A, typename B, std::size_t N>
@@ -547,9 +547,9 @@ constexpr array<decltype(Op::run(A(), B())), N> array_zip(array<A, N> a, array<B
 template <typename Reducer, typename Op, typename A, typename B, std::size_t N, int... n>
 constexpr auto h_array_zip_and_reduce(array<A, N> a, array<B, N> b, numeric_list<int, n...>)
     -> decltype(reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A(), B()))>::type...>::run(
-        Op::run(std::get<n>(a), std::get<n>(b))...)) {
+        Op::run(array_get<n>(a), array_get<n>(b))...)) {
   return reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A(), B()))>::type...>::run(
-      Op::run(std::get<n>(a), std::get<n>(b))...);
+      Op::run(array_get<n>(a), array_get<n>(b))...);
 }
 
 template <typename Reducer, typename Op, typename A, typename B, std::size_t N>
@@ -562,7 +562,7 @@ constexpr auto array_zip_and_reduce(array<A, N> a, array<B, N> b)
 
 template <typename Op, typename A, std::size_t N, int... n>
 constexpr array<decltype(Op::run(A())), N> h_array_apply(array<A, N> a, numeric_list<int, n...>) {
-  return array<decltype(Op::run(A())), N>{{Op::run(std::get<n>(a))...}};
+  return array<decltype(Op::run(A())), N>{{Op::run(array_get<n>(a))...}};
 }
 
 template <typename Op, typename A, std::size_t N>
@@ -575,9 +575,9 @@ constexpr array<decltype(Op::run(A())), N> array_apply(array<A, N> a) {
 template <typename Reducer, typename Op, typename A, std::size_t N, int... n>
 constexpr auto h_array_apply_and_reduce(array<A, N> arr, numeric_list<int, n...>)
     -> decltype(reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A()))>::type...>::run(
-        Op::run(std::get<n>(arr))...)) {
+        Op::run(array_get<n>(arr))...)) {
   return reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A()))>::type...>::run(
-      Op::run(std::get<n>(arr))...);
+      Op::run(array_get<n>(arr))...);
 }
 
 template <typename Reducer, typename Op, typename A, std::size_t N>
