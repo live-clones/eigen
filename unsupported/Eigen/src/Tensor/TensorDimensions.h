@@ -18,21 +18,16 @@ namespace Eigen {
 // Boilerplate code
 namespace internal {
 
-template <std::ptrdiff_t n, typename Dimension>
-struct dget {
-  static const std::ptrdiff_t value = get<n, Dimension>::value;
-};
-
 template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowMajor>
 struct fixed_size_tensor_index_linearization_helper {
   template <typename Dimensions>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          const Dimensions& dimensions) {
-    return array_get < RowMajor                             ? n - 1
-           : (NumIndices - n) > (indices) + dget < RowMajor ? n - 1
-                                                            : (NumIndices - n),
-           Dimensions > ::value * fixed_size_tensor_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(
-                                      indices, dimensions);
+    auto constexpr dim = RowMajor ? n - 1 : (NumIndices - n);
+    return array_get<dim>(indices) +
+           get<dim, Dimensions>::value *
+               fixed_size_tensor_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(indices,
+                                                                                                     dimensions);
   }
 };
 
@@ -133,12 +128,10 @@ template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowM
 struct tensor_index_linearization_helper {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          array<Index, NumIndices> const& dimensions) {
-    return array_get < RowMajor ? n
-           : (NumIndices - n - 1) > (indices) + array_get < RowMajor
-               ? n
-               : (NumIndices - n - 1) >
-                     (dimensions)*tensor_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(
-                         indices, dimensions);
+    auto constexpr dim = RowMajor ? n : (NumIndices - n - 1);
+    return array_get<dim>(indices) +
+           array_get<dim>(dimensions) *
+               tensor_index_linearization_helper<Index, NumIndices, n - 1, RowMajor>::run(indices, dimensions);
   }
 };
 
@@ -146,7 +139,8 @@ template <typename Index, std::ptrdiff_t NumIndices, bool RowMajor>
 struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
                                                          array<Index, NumIndices> const&) {
-    return array_get < RowMajor ? 0 : NumIndices - 1 > (indices);
+    auto constexpr dim = RowMajor ? 0 : NumIndices - 1;
+    return array_get<dim>(indices);
   }
 };
 }  // end namespace internal
