@@ -89,7 +89,7 @@ struct product_type {
 /* The following allows to select the kind of product at compile time
  * based on the three dimensions of the product.
  * This is a compile time mapping from {1,Small,Large}^3 -> {product types} */
-// FIXME I'm not sure the current mapping is the ideal one.
+// FIXME: the current compile-time product-type mapping may not be optimal.
 template <int M, int N>
 struct product_type_selector<M, N, 1> {
   enum { ret = OuterProduct };
@@ -193,12 +193,11 @@ struct product_type_selector<Large, Large, Small> {
  *  Implementation of Inner Vector Vector Product
  ***********************************************************************/
 
-// FIXME : maybe the "inner product" could return a Scalar
-// instead of a 1x1 matrix ??
-// Pro: more natural for the user
-// Cons: this could be a problem if in a meta unrolled algorithm a matrix-matrix
-// product ends up to a row-vector times col-vector product... To tackle this use
-// case, we could have a specialization for Block<MatrixType,1,1> with: operator=(Scalar x);
+// FIXME: consider returning a Scalar instead of a 1x1 matrix for inner products.
+// Pro: more natural for the user.
+// Con: in a meta-unrolled algorithm a matrix-matrix product may reduce to a
+// row-vector times column-vector product. To handle this, we could specialize
+// Block<MatrixType,1,1> with operator=(Scalar x).
 
 /***********************************************************************
  *  Implementation of Outer Vector Vector Product
@@ -293,7 +292,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
     typedef std::conditional_t<Dest::IsVectorAtCompileTime, Dest, typename Dest::ColXpr> ActualDest;
 
     enum {
-      // FIXME find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
+      // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
       // on, the other hand it is good for the cache to pack the vector anyways...
       EvalToDestAtCompileTime = (ActualDest::InnerStrideAtCompileTime == 1),
       ComplexByReal = (NumTraits<LhsScalar>::IsComplex) && (!NumTraits<RhsScalar>::IsComplex),
@@ -376,7 +375,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
     ResScalar actualAlpha = combine_scalar_factors(alpha, lhs, rhs);
 
     enum {
-      // FIXME find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
+      // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
       // on, the other hand it is good for the cache to pack the vector anyways...
       DirectlyUseRhs =
           ActualRhsTypeCleaned::InnerStrideAtCompileTime == 1 || ActualRhsTypeCleaned::MaxSizeAtCompileTime == 0
@@ -417,7 +416,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, false> {
   static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
     EIGEN_STATIC_ASSERT((!nested_eval<Lhs, 1>::Evaluate),
                         EIGEN_INTERNAL_COMPILATION_ERROR_OR_YOU_MADE_A_PROGRAMMING_MISTAKE);
-    // TODO if rhs is large enough it might be beneficial to make sure that dest is sequentially stored in memory,
+    // TODO: if rhs is large enough it might be beneficial to make sure that dest is sequentially stored in memory,
     // otherwise use a temp
     typename nested_eval<Rhs, 1>::type actual_rhs(rhs);
     const Index size = rhs.rows();

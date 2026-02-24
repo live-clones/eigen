@@ -63,7 +63,7 @@ struct copy_using_evaluator_traits {
   static constexpr int RestrictedLinearSize = min_size_prefer_fixed(MaxSizeAtCompileTime, MaxPacketSize);
   static constexpr int OuterStride = outer_stride_at_compile_time<Dst>::ret;
 
-  // TODO distinguish between linear traversal and inner-traversals
+  // TODO: distinguish between linear traversal and inner-traversal packet types.
   using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize>::type;
   using InnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize>::type;
 
@@ -762,7 +762,7 @@ class generic_dense_assignment_kernel {
   DstEvaluatorType& m_dst;
   const SrcEvaluatorType& m_src;
   const Functor& m_functor;
-  // TODO find a way to avoid the needs of the original expression
+  // TODO: find a way to avoid the needs of the original expression
   DstXprType& m_dstExpr;
 };
 
@@ -921,7 +921,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
   typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&> ActualDstType;
   ActualDstType actualDst(dst);
 
-  // TODO check whether this is the right place to perform these checks:
+  // TODO: check whether this is the right place to perform these checks:
   EIGEN_STATIC_ASSERT_LVALUE(Dst)
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(ActualDstTypeCleaned, Src)
   EIGEN_CHECK_BINARY_COMPATIBILIY(Func, typename ActualDstTypeCleaned::Scalar, typename Src::Scalar);
@@ -956,7 +956,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
 template <typename Dst, typename Src, typename Func>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias_no_transpose(Dst& dst, const Src& src,
                                                                                            const Func& func) {
-  // TODO check whether this is the right place to perform these checks:
+  // TODO: check whether this is the right place to perform these checks:
   EIGEN_STATIC_ASSERT_LVALUE(Dst)
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Dst, Src)
   EIGEN_CHECK_BINARY_COMPATIBILIY(Func, typename Dst::Scalar, typename Src::Scalar);
@@ -1016,7 +1016,7 @@ struct Assignment<DstXprType, CwiseNullaryOp<scalar_zero_op<typename DstXprType:
 };
 
 // Generic assignment through evalTo.
-// TODO: not sure we have to keep that one, but it helps porting current code to new evaluator mechanism.
+// TODO: evaluate whether this generic evalTo-based assignment path is still needed.
 // Note that the last template argument "Weak" is needed to make it possible to perform
 // both partial specialization+SFINAE without ambiguous specialization
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Weak>

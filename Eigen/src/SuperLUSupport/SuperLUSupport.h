@@ -208,7 +208,7 @@ struct SluMatrix : SuperMatrix {
 
     res.setScalarType<typename MatrixType::Scalar>();
 
-    // FIXME the following is not very accurate
+    // FIXME: the following type mapping is approximate.
     if (int(MatrixType::Flags) & int(Upper)) res.Mtype = SLU_TRU;
     if (int(MatrixType::Flags) & int(Lower)) res.Mtype = SLU_TRL;
 
@@ -259,7 +259,7 @@ struct SluMatrixMapHelper<SparseMatrixBase<Derived> > {
 
     res.setScalarType<typename MatrixType::Scalar>();
 
-    // FIXME the following is not very accurate
+    // FIXME: the following type mapping is approximate.
     if (MatrixType::Flags & Upper) res.Mtype = SLU_TRU;
     if (MatrixType::Flags & Lower) res.Mtype = SLU_TRL;
 
@@ -583,7 +583,7 @@ void SuperLU<MatrixType>::factorize(const MatrixType &a) {
 
   m_extractedDataAreDirty = true;
 
-  // FIXME how to better check for errors ???
+  // FIXME: implement more detailed error checking based on SuperLU info codes.
   m_info = info == 0 ? Success : NumericalIssue;
   m_factorizationIsOk = true;
 }
@@ -872,7 +872,7 @@ void SuperILU<MatrixType>::factorize(const MatrixType &a) {
                 &info, Scalar());
   StatFree(&m_sluStat);
 
-  // FIXME how to better check for errors ???
+  // FIXME: implement more detailed error checking based on SuperLU info codes.
   m_info = info == 0 ? Success : NumericalIssue;
   m_factorizationIsOk = true;
 }
