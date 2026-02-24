@@ -372,8 +372,8 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   static bool run(typename SVD::WorkMatrixType& work_matrix, SVD& svd, Index p, Index q, RealScalar& maxDiagEntry) {
-    using std::abs;
-    using std::sqrt;
+    using numext::abs;
+    using numext::sqrt;
     Scalar z;
     JacobiRotation<Scalar> rot;
     RealScalar n = sqrt(numext::abs2(work_matrix.coeff(p, p)) + numext::abs2(work_matrix.coeff(q, p)));
@@ -653,6 +653,12 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
   template <typename Derived>
   JacobiSVD& compute_impl(const MatrixBase<Derived>& matrix, unsigned int computationOptions);
 
+  // Blocked sweep for the real-scalar Jacobi SVD. Extracted into a separate
+  // EIGEN_DONT_INLINE method to prevent the blocking code from interfering
+  // with the compiler's optimization of the non-blocking scalar sweep.
+  EIGEN_DONT_INLINE bool blocked_sweep(RealScalar considerAsZero, RealScalar precision,
+                                       RealScalar& maxDiagEntry);
+
  protected:
   using Base::m_computationOptions;
   using Base::m_computeFullU;
@@ -711,7 +717,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   EIGEN_STATIC_ASSERT((std::is_same<typename Derived::Scalar, typename MatrixType::Scalar>::value),
                       Input matrix must have the same Scalar type as the BDCSVD object.);
 
-  using std::abs;
+  using numext::abs;
 
   allocate(matrix.rows(), matrix.cols(), computationOptions);
 
@@ -754,7 +760,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   while (!finished) {
     finished = true;
 
-    if constexpr (NumTraits<Scalar>::IsComplex) {
+    EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
       // Complex sweep: condition each 2x2 block to be real before diagonalizing.
       for (Index p = 1; p < diagSize(); ++p) {
         for (Index q = 0; q < p; ++q) {
@@ -777,104 +783,44 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
       }
     } else {
       // Real sweep with optional blocking for large matrices.
-      //
-      // For large n, applying left rotations (row operations on column-major data) causes
-      // cache misses due to strided access. To mitigate this, we accumulate kBlockSize left
-      // rotations into a small dense matrix and apply them via a single GEMM to the contiguous
-      // row block q..q+kBlockSize-1 and the (possibly distant) row p. Right rotations act on
-      // columns (contiguous in column-major) and are applied individually.
-      //
-      // The accumulated rotation matrix has lower-triangular structure in its top-left
-      // kBlockSize x kBlockSize corner, which we exploit with triangularView.
-      RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
-      const Index n = diagSize();
       // Use blocking when the matrix is large enough that individual left rotations
       // (strided row operations on column-major data) cause significant cache misses.
       // The threshold is derived from the L2 cache size: blocking becomes worthwhile
-      // when n^2 * sizeof(RealScalar) exceeds the L2 cache, i.e. n > sqrt(L2 / sizeof).
+      // when n exceeds sqrt(L2 / 4). We divide by sizeof(float) rather than sizeof(RealScalar)
+      // because the cache miss pattern depends on the number of columns accessed (one cache
+      // line per column), not the scalar size. This also makes the threshold appropriately
+      // more conservative for larger types where GEMM overhead is higher.
+      const Index n = diagSize();
 #ifdef EIGEN_JACOBI_SVD_BLOCKING_THRESHOLD
       const Index blockingThreshold = EIGEN_JACOBI_SVD_BLOCKING_THRESHOLD;
 #else
       const Index blockingThreshold =
-          static_cast<Index>(numext::sqrt(static_cast<RealScalar>(l2CacheSize() / sizeof(RealScalar))));
+          static_cast<Index>(numext::sqrt(static_cast<RealScalar>(l2CacheSize() / sizeof(float))));
 #endif
-      const bool useBlocking = (n >= blockingThreshold);
 
-      for (Index p = 1; p < n; ++p) {
-        Index q = 0;
-
-        // Blocked loop: process kBlockSize pairs at a time.
-        for (; useBlocking && q + kBlockSize <= p; q += kBlockSize) {
-          // Extract the submatrix {{W(q:q+k, q:q+k), W(q:q+k, p)}, {W(p, q:q+k), W(p,p)}}
-          // into a cache-local buffer for computing rotations.
-          m_blockBuffer.template topLeftCorner<kBlockSize, kBlockSize>() =
-              m_workMatrix.template block<kBlockSize, kBlockSize>(q, q);
-          m_blockBuffer.col(kBlockSize).template head<kBlockSize>() =
-              m_workMatrix.col(p).template segment<kBlockSize>(q);
-          m_blockBuffer.row(kBlockSize).template head<kBlockSize>() =
-              m_workMatrix.row(p).template segment<kBlockSize>(q);
-          m_blockBuffer(kBlockSize, kBlockSize) = m_workMatrix(p, p);
-
-          Matrix<RealScalar, kBlockSize + 1, kBlockSize + 1> accum;
-          accum.setIdentity(kBlockSize + 1, kBlockSize + 1);
-          bool blockDirty = false;
-
-          for (Index qq = 0; qq < kBlockSize; ++qq) {
-            if (abs(m_blockBuffer.coeff(kBlockSize, qq)) > threshold ||
-                abs(m_blockBuffer.coeff(qq, kBlockSize)) > threshold) {
+      if (n >= blockingThreshold) {
+        // The blocked sweep is in a separate EIGEN_DONT_INLINE method to prevent
+        // the blocking code from interfering with the compiler's optimization of
+        // the non-blocking scalar sweep below.
+        finished = !blocked_sweep(considerAsZero, precision, maxDiagEntry);
+      } else {
+        // Non-blocking path: apply rotations individually.
+        RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
+        for (Index p = 1; p < n; ++p) {
+          for (Index q = 0; q < p; ++q) {
+            if (abs(m_workMatrix.coeff(p, q)) > threshold || abs(m_workMatrix.coeff(q, p)) > threshold) {
               finished = false;
-              blockDirty = true;
-
               JacobiRotation<RealScalar> j_left, j_right;
-              internal::real_2x2_jacobi_svd(m_blockBuffer, kBlockSize, qq, &j_left, &j_right);
-              m_blockBuffer.applyOnTheLeft(kBlockSize, qq, j_left);
-              m_blockBuffer.applyOnTheRight(kBlockSize, qq, j_right);
-
-              accum.applyOnTheLeft(kBlockSize, qq, j_left);
-
-              m_workMatrix.applyOnTheRight(p, q + qq, j_right);
-              if (computeU()) m_matrixU.applyOnTheRight(p, q + qq, j_left.transpose());
-              if (computeV()) m_matrixV.applyOnTheRight(p, q + qq, j_right);
-
+              internal::real_2x2_jacobi_svd(m_workMatrix, p, q, &j_left, &j_right);
+              m_workMatrix.applyOnTheLeft(p, q, j_left);
+              if (computeU()) m_matrixU.applyOnTheRight(p, q, j_left.transpose());
+              m_workMatrix.applyOnTheRight(p, q, j_right);
+              if (computeV()) m_matrixV.applyOnTheRight(p, q, j_right);
               maxDiagEntry = numext::maxi<RealScalar>(
-                  maxDiagEntry, numext::maxi<RealScalar>(abs(m_blockBuffer.coeff(kBlockSize, kBlockSize)),
-                                                         abs(m_blockBuffer.coeff(qq, qq))));
+                  maxDiagEntry,
+                  numext::maxi<RealScalar>(abs(m_workMatrix.coeff(p, p)), abs(m_workMatrix.coeff(q, q))));
               threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
             }
-          }
-
-          // Apply accumulated left rotations to m_workMatrix via GEMM.
-          if (blockDirty) {
-            if (p == q + kBlockSize) {
-              m_workMatrix.template middleRows<kBlockSize + 1>(q) =
-                  accum * m_workMatrix.template middleRows<kBlockSize + 1>(q);
-            } else {
-              const auto L11 = accum.template topLeftCorner<kBlockSize, kBlockSize>();
-              const auto l12 = accum.col(kBlockSize).template head<kBlockSize>();
-              const auto l21 = accum.row(kBlockSize).template head<kBlockSize>();
-              const auto l22 = accum.row(kBlockSize).template tail<1>();
-              auto Mq = m_workMatrix.template middleRows<kBlockSize>(q);
-              auto Mp = m_workMatrix.row(p);
-              Matrix<RealScalar, 1, Dynamic> Mp_save = Mp;
-              Mp.noalias() = l21 * Mq + l22 * Mp_save;
-              Mq = L11.template triangularView<Lower>() * Mq + l12 * Mp_save;
-            }
-          }
-        }
-
-        // Scalar loop for remaining pairs (or all pairs when !useBlocking).
-        for (; q < p; ++q) {
-          if (abs(m_workMatrix.coeff(p, q)) > threshold || abs(m_workMatrix.coeff(q, p)) > threshold) {
-            finished = false;
-            JacobiRotation<RealScalar> j_left, j_right;
-            internal::real_2x2_jacobi_svd(m_workMatrix, p, q, &j_left, &j_right);
-            m_workMatrix.applyOnTheLeft(p, q, j_left);
-            if (computeU()) m_matrixU.applyOnTheRight(p, q, j_left.transpose());
-            m_workMatrix.applyOnTheRight(p, q, j_right);
-            if (computeV()) m_matrixV.applyOnTheRight(p, q, j_right);
-            maxDiagEntry = numext::maxi<RealScalar>(
-                maxDiagEntry, numext::maxi<RealScalar>(abs(m_workMatrix.coeff(p, p)), abs(m_workMatrix.coeff(q, q))));
-            threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
           }
         }
       }
@@ -922,6 +868,109 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
   m_isInitialized = true;
   return *this;
+}
+
+// Blocked Jacobi SVD sweep. For large n, applying left rotations (row operations
+// on column-major data) causes cache misses due to strided access. To mitigate
+// this, we accumulate kBlockSize left rotations into a small dense matrix and
+// apply them via a single GEMM to the contiguous row block q..q+kBlockSize-1
+// and the (possibly distant) row p. Right rotations act on columns (contiguous
+// in column-major) and are applied individually.
+//
+// The accumulated rotation matrix has lower-triangular structure in its top-left
+// kBlockSize x kBlockSize corner, which we exploit with triangularView.
+//
+// Returns true if any off-diagonal element exceeded the threshold (i.e. sweep
+// is not yet converged).
+template <typename MatrixType, int Options>
+EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(
+    RealScalar considerAsZero, RealScalar precision, RealScalar& maxDiagEntry) {
+  using numext::abs;
+  const Index n = diagSize();
+  RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
+  bool notFinished = false;
+
+  for (Index p = 1; p < n; ++p) {
+    Index q = 0;
+
+    // Blocked loop: process kBlockSize pairs at a time.
+    for (; q + kBlockSize <= p; q += kBlockSize) {
+      // Extract the submatrix {{W(q:q+k, q:q+k), W(q:q+k, p)}, {W(p, q:q+k), W(p,p)}}
+      // into a cache-local buffer for computing rotations.
+      m_blockBuffer.template topLeftCorner<kBlockSize, kBlockSize>() =
+          m_workMatrix.template block<kBlockSize, kBlockSize>(q, q);
+      m_blockBuffer.col(kBlockSize).template head<kBlockSize>() =
+          m_workMatrix.col(p).template segment<kBlockSize>(q);
+      m_blockBuffer.row(kBlockSize).template head<kBlockSize>() =
+          m_workMatrix.row(p).template segment<kBlockSize>(q);
+      m_blockBuffer(kBlockSize, kBlockSize) = m_workMatrix(p, p);
+
+      Matrix<RealScalar, kBlockSize + 1, kBlockSize + 1> accum;
+      accum.setIdentity(kBlockSize + 1, kBlockSize + 1);
+      bool blockDirty = false;
+
+      for (Index qq = 0; qq < kBlockSize; ++qq) {
+        if (abs(m_blockBuffer.coeff(kBlockSize, qq)) > threshold ||
+            abs(m_blockBuffer.coeff(qq, kBlockSize)) > threshold) {
+          notFinished = true;
+          blockDirty = true;
+
+          JacobiRotation<RealScalar> j_left, j_right;
+          internal::real_2x2_jacobi_svd(m_blockBuffer, kBlockSize, qq, &j_left, &j_right);
+          m_blockBuffer.applyOnTheLeft(kBlockSize, qq, j_left);
+          m_blockBuffer.applyOnTheRight(kBlockSize, qq, j_right);
+
+          accum.applyOnTheLeft(kBlockSize, qq, j_left);
+
+          m_workMatrix.applyOnTheRight(p, q + qq, j_right);
+          if (computeU()) m_matrixU.applyOnTheRight(p, q + qq, j_left.transpose());
+          if (computeV()) m_matrixV.applyOnTheRight(p, q + qq, j_right);
+
+          maxDiagEntry = numext::maxi<RealScalar>(
+              maxDiagEntry, numext::maxi<RealScalar>(abs(m_blockBuffer.coeff(kBlockSize, kBlockSize)),
+                                                     abs(m_blockBuffer.coeff(qq, qq))));
+          threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
+        }
+      }
+
+      // Apply accumulated left rotations to m_workMatrix via GEMM.
+      if (blockDirty) {
+        if (p == q + kBlockSize) {
+          m_workMatrix.template middleRows<kBlockSize + 1>(q) =
+              accum * m_workMatrix.template middleRows<kBlockSize + 1>(q);
+        } else {
+          const auto L11 = accum.template topLeftCorner<kBlockSize, kBlockSize>();
+          const auto l12 = accum.col(kBlockSize).template head<kBlockSize>();
+          const auto l21 = accum.row(kBlockSize).template head<kBlockSize>();
+          const auto l22 = accum.row(kBlockSize).template tail<1>();
+          auto Mq = m_workMatrix.template middleRows<kBlockSize>(q);
+          auto Mp = m_workMatrix.row(p);
+          Matrix<RealScalar, 1, Dynamic> Mp_save = Mp;
+          Mp.noalias() = l21 * Mq + l22 * Mp_save;
+          Mq = L11.template triangularView<Lower>() * Mq + l12 * Mp_save;
+        }
+      }
+    }
+
+    // Scalar loop for remaining pairs after blocked processing.
+    for (; q < p; ++q) {
+      if (abs(m_workMatrix.coeff(p, q)) > threshold || abs(m_workMatrix.coeff(q, p)) > threshold) {
+        notFinished = true;
+        JacobiRotation<RealScalar> j_left, j_right;
+        internal::real_2x2_jacobi_svd(m_workMatrix, p, q, &j_left, &j_right);
+        m_workMatrix.applyOnTheLeft(p, q, j_left);
+        if (computeU()) m_matrixU.applyOnTheRight(p, q, j_left.transpose());
+        m_workMatrix.applyOnTheRight(p, q, j_right);
+        if (computeV()) m_matrixV.applyOnTheRight(p, q, j_right);
+        maxDiagEntry = numext::maxi<RealScalar>(
+            maxDiagEntry,
+            numext::maxi<RealScalar>(abs(m_workMatrix.coeff(p, p)), abs(m_workMatrix.coeff(q, q))));
+        threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
+      }
+    }
+  }
+
+  return notFinished;
 }
 
 /** \svd_module
