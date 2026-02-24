@@ -222,41 +222,24 @@ test:linux:x86-64:clang-19:generic:avx512dq:unsupported:
 
 ##### Sanitizers ###############################################################
 
-.test:linux:x86-64:clang-19:default:asan:
+.test:linux:x86-64:clang-19:default:asan-ubsan:
   extends: .test:linux:x86-64
   image: ubuntu:24.04
-  needs: [ build:linux:cross:x86-64:clang-19:default:asan ]
+  needs: [ build:linux:cross:x86-64:clang-19:default:asan-ubsan ]
   variables:
     EIGEN_CI_INSTALL: clang-19 llvm-19
     ASAN_OPTIONS: detect_leaks=0:print_stacktrace=1
+    UBSAN_OPTIONS: print_stacktrace=1
     ASAN_SYMBOLIZER_PATH: /usr/lib/llvm-19/bin/llvm-symbolizer
     EIGEN_CI_CTEST_ARGS: --timeout 2000
 
-test:linux:x86-64:clang-19:default:asan:official:
-  extends: .test:linux:x86-64:clang-19:default:asan
+test:linux:x86-64:clang-19:default:asan-ubsan:official:
+  extends: .test:linux:x86-64:clang-19:default:asan-ubsan
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:clang-19:default:asan:unsupported:
-  extends: .test:linux:x86-64:clang-19:default:asan
-  variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
-
-.test:linux:x86-64:clang-19:default:ubsan:
-  extends: .test:linux:x86-64
-  image: ubuntu:24.04
-  needs: [ build:linux:cross:x86-64:clang-19:default:ubsan ]
-  variables:
-    EIGEN_CI_INSTALL: clang-19
-    UBSAN_OPTIONS: print_stacktrace=1
-
-test:linux:x86-64:clang-19:default:ubsan:official:
-  extends: .test:linux:x86-64:clang-19:default:ubsan
-  variables:
-    EIGEN_CI_CTEST_LABEL: Official
-
-test:linux:x86-64:clang-19:default:ubsan:unsupported:
-  extends: .test:linux:x86-64:clang-19:default:ubsan
+test:linux:x86-64:clang-19:default:asan-ubsan:unsupported:
+  extends: .test:linux:x86-64:clang-19:default:asan-ubsan
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
@@ -482,24 +465,9 @@ test:linux:x86-64:clang-12:default:smoketest:
 
 ##### Sanitizer Smoke Tests ####################################################
 
-test:linux:x86-64:clang-12:ubsan:smoketest:
+test:linux:x86-64:clang-12:sanitizer:smoketest:
   extends: .test:linux:x86-64:clang-12:default
-  needs: [ build:linux:cross:x86-64:clang-12:ubsan:smoketest ]
-  variables:
-    EIGEN_CI_INSTALL: clang-12 llvm-12
-    EIGEN_CI_CTEST_LABEL: smoketest
-    ASAN_SYMBOLIZER_PATH: "/usr/lib/llvm-12/bin/llvm-symbolizer"
-    UBSAN_OPTIONS: "halt_on_error=0:print_stacktrace=1"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  tags:
-    - saas-linux-medium-amd64
-  allow_failure: true
-  timeout: 30m
-
-test:linux:x86-64:clang-12:asan:smoketest:
-  extends: .test:linux:x86-64:clang-12:default
-  needs: [ build:linux:cross:x86-64:clang-12:asan:smoketest ]
+  needs: [ build:linux:cross:x86-64:clang-12:sanitizer:smoketest ]
   variables:
     EIGEN_CI_INSTALL: clang-12 llvm-12
     EIGEN_CI_CTEST_LABEL: smoketest
