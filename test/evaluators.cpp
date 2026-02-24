@@ -33,9 +33,8 @@ EIGEN_STRONG_INLINE DstXprType& copy_using_evaluator(const PlainObjectBase<DstXp
   eigen_assert((dst.size() == 0 || (IsVectorAtCompileTime ? (dst.size() == src.size())
                                                           : (dst.rows() == src.rows() && dst.cols() == src.cols()))) &&
                "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
-#else
-  dst.const_cast_derived().resizeLike(src.derived());
 #endif
+  dst.const_cast_derived().resizeLike(src.derived());
 
   call_assignment(dst.const_cast_derived(), src.derived(),
                   internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>());
