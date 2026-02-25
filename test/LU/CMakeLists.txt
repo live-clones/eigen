@@ -1,4 +1,5 @@
-ei_add_test(lu)
+ei_add_test(lu_real)
+ei_add_test(lu_complex)
 ei_add_test(determinant)
 ei_add_test(inverse)
 ei_add_test(inplace_decomposition)

@@ -60,7 +60,8 @@ set(ei_smoke_test_list
   geo_transformations
   half_float
   hessenberg
-  householder
+  householder_fixed
+  householder_dynamic
   indexed_view
   inplace_decomposition
   integer_types
@@ -70,14 +71,17 @@ set(ei_smoke_test_list
   jacobisvd_verify
   jacobisvd_trivial_2x2
   jacobisvd_misc
-  jacobisvd_float
+  jacobisvd_float_options
+  jacobisvd_float_maxsize
   jacobisvd_double_fixed
-  jacobisvd_double_rowmajor
+  jacobisvd_double_rowmajor_5x7
+  jacobisvd_double_rowmajor_7x5
   jacobisvd_double_dynamic
   jacobisvd_complex
   kronecker_product
   linearstructure
-  lu
+  lu_real
+  lu_complex
   mapped_matrix
   mapstaticmethods
   mapstride
