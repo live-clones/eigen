@@ -434,7 +434,7 @@ EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* fr
 template <>
 EIGEN_STRONG_INLINE PacketXcf ploaddup<PacketXcf>(const std::complex<float>* from) {
   return PacketXcf(PacketXf{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
+                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
 }
 template <>
 EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* from) {
@@ -446,14 +446,14 @@ EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* fr
 template <>
 EIGEN_STRONG_INLINE PacketXcf ploaddup<PacketXcf>(const std::complex<float>* from) {
   return PacketXcf(PacketXf{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
-                             std::real(from[2]), std::imag(from[2]), std::real(from[2]), std::imag(from[2]),
-                             std::real(from[3]), std::imag(from[3]), std::real(from[3]), std::imag(from[3])});
+                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
+                            std::real(from[2]), std::imag(from[2]), std::real(from[2]), std::imag(from[2]),
+                            std::real(from[3]), std::imag(from[3]), std::real(from[3]), std::imag(from[3])});
 }
 template <>
 EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* from) {
   return PacketXcd(PacketXd{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
+                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
 }
 
 #endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
@@ -486,9 +486,9 @@ EIGEN_STRONG_INLINE PacketXcd ploadquad<PacketXcd>(const std::complex<double>* f
 template <>
 EIGEN_STRONG_INLINE PacketXcf ploadquad<PacketXcf>(const std::complex<float>* from) {
   return PacketXcf(PacketXf{std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                             std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
-                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
-                             std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
+                            std::real(from[0]), std::imag(from[0]), std::real(from[0]), std::imag(from[0]),
+                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1]),
+                            std::real(from[1]), std::imag(from[1]), std::real(from[1]), std::imag(from[1])});
 }
 template <>
 EIGEN_STRONG_INLINE PacketXcd ploadquad<PacketXcd>(const std::complex<double>* from) {

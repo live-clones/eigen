@@ -635,35 +635,59 @@ EIGEN_STRONG_INLINE Packet preverse_impl_16(const Packet& a) {
 #if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
 
 template <>
-EIGEN_STRONG_INLINE PacketXf preverse<PacketXf>(const PacketXf& a) { return detail::preverse_impl_4(a); }
+EIGEN_STRONG_INLINE PacketXf preverse<PacketXf>(const PacketXf& a) {
+  return detail::preverse_impl_4(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd preverse<PacketXd>(const PacketXd& a) { return detail::preverse_impl_2(a); }
+EIGEN_STRONG_INLINE PacketXd preverse<PacketXd>(const PacketXd& a) {
+  return detail::preverse_impl_2(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi preverse<PacketXi>(const PacketXi& a) { return detail::preverse_impl_4(a); }
+EIGEN_STRONG_INLINE PacketXi preverse<PacketXi>(const PacketXi& a) {
+  return detail::preverse_impl_4(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl preverse<PacketXl>(const PacketXl& a) { return detail::preverse_impl_2(a); }
+EIGEN_STRONG_INLINE PacketXl preverse<PacketXl>(const PacketXl& a) {
+  return detail::preverse_impl_2(a);
+}
 
 #elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
 
 template <>
-EIGEN_STRONG_INLINE PacketXf preverse<PacketXf>(const PacketXf& a) { return detail::preverse_impl_8(a); }
+EIGEN_STRONG_INLINE PacketXf preverse<PacketXf>(const PacketXf& a) {
+  return detail::preverse_impl_8(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd preverse<PacketXd>(const PacketXd& a) { return detail::preverse_impl_4(a); }
+EIGEN_STRONG_INLINE PacketXd preverse<PacketXd>(const PacketXd& a) {
+  return detail::preverse_impl_4(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi preverse<PacketXi>(const PacketXi& a) { return detail::preverse_impl_8(a); }
+EIGEN_STRONG_INLINE PacketXi preverse<PacketXi>(const PacketXi& a) {
+  return detail::preverse_impl_8(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl preverse<PacketXl>(const PacketXl& a) { return detail::preverse_impl_4(a); }
+EIGEN_STRONG_INLINE PacketXl preverse<PacketXl>(const PacketXl& a) {
+  return detail::preverse_impl_4(a);
+}
 
 #else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
 
 template <>
-EIGEN_STRONG_INLINE PacketXf preverse<PacketXf>(const PacketXf& a) { return detail::preverse_impl_16(a); }
+EIGEN_STRONG_INLINE PacketXf preverse<PacketXf>(const PacketXf& a) {
+  return detail::preverse_impl_16(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd preverse<PacketXd>(const PacketXd& a) { return detail::preverse_impl_8(a); }
+EIGEN_STRONG_INLINE PacketXd preverse<PacketXd>(const PacketXd& a) {
+  return detail::preverse_impl_8(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi preverse<PacketXi>(const PacketXi& a) { return detail::preverse_impl_16(a); }
+EIGEN_STRONG_INLINE PacketXi preverse<PacketXi>(const PacketXi& a) {
+  return detail::preverse_impl_16(a);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl preverse<PacketXl>(const PacketXl& a) { return detail::preverse_impl_8(a); }
+EIGEN_STRONG_INLINE PacketXl preverse<PacketXl>(const PacketXl& a) {
+  return detail::preverse_impl_8(a);
+}
 
 #endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
 
@@ -730,56 +754,100 @@ EIGEN_STRONG_INLINE Packet ploadquad16(const typename unpacket_traits<Packet>::t
 #if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
 
 template <>
-EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) { return detail::ploaddup4<PacketXf>(from); }
+EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) {
+  return detail::ploaddup4<PacketXf>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) { return detail::ploaddup2<PacketXd>(from); }
+EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) {
+  return detail::ploaddup2<PacketXd>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const int32_t* from) { return detail::ploaddup4<PacketXi>(from); }
+EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const int32_t* from) {
+  return detail::ploaddup4<PacketXi>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl ploaddup<PacketXl>(const int64_t* from) { return detail::ploaddup2<PacketXl>(from); }
+EIGEN_STRONG_INLINE PacketXl ploaddup<PacketXl>(const int64_t* from) {
+  return detail::ploaddup2<PacketXl>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) { return detail::ploadquad4<PacketXf>(from); }
+EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) {
+  return detail::ploadquad4<PacketXf>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const int32_t* from) { return detail::ploadquad4<PacketXi>(from); }
+EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const int32_t* from) {
+  return detail::ploadquad4<PacketXi>(from);
+}
 // No ploadquad for 2-element packets (PacketXd, PacketXl) at 16 bytes.
 
 #elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
 
 template <>
-EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) { return detail::ploaddup8<PacketXf>(from); }
+EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) {
+  return detail::ploaddup8<PacketXf>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) { return detail::ploaddup4<PacketXd>(from); }
+EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) {
+  return detail::ploaddup4<PacketXd>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const int32_t* from) { return detail::ploaddup8<PacketXi>(from); }
+EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const int32_t* from) {
+  return detail::ploaddup8<PacketXi>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl ploaddup<PacketXl>(const int64_t* from) { return detail::ploaddup4<PacketXl>(from); }
+EIGEN_STRONG_INLINE PacketXl ploaddup<PacketXl>(const int64_t* from) {
+  return detail::ploaddup4<PacketXl>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) { return detail::ploadquad8<PacketXf>(from); }
+EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) {
+  return detail::ploadquad8<PacketXf>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd ploadquad<PacketXd>(const double* from) { return detail::ploadquad4<PacketXd>(from); }
+EIGEN_STRONG_INLINE PacketXd ploadquad<PacketXd>(const double* from) {
+  return detail::ploadquad4<PacketXd>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const int32_t* from) { return detail::ploadquad8<PacketXi>(from); }
+EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const int32_t* from) {
+  return detail::ploadquad8<PacketXi>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl ploadquad<PacketXl>(const int64_t* from) { return detail::ploadquad4<PacketXl>(from); }
+EIGEN_STRONG_INLINE PacketXl ploadquad<PacketXl>(const int64_t* from) {
+  return detail::ploadquad4<PacketXl>(from);
+}
 
 #else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
 
 template <>
-EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) { return detail::ploaddup16<PacketXf>(from); }
+EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) {
+  return detail::ploaddup16<PacketXf>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) { return detail::ploaddup8<PacketXd>(from); }
+EIGEN_STRONG_INLINE PacketXd ploaddup<PacketXd>(const double* from) {
+  return detail::ploaddup8<PacketXd>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const int32_t* from) { return detail::ploaddup16<PacketXi>(from); }
+EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const int32_t* from) {
+  return detail::ploaddup16<PacketXi>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl ploaddup<PacketXl>(const int64_t* from) { return detail::ploaddup8<PacketXl>(from); }
+EIGEN_STRONG_INLINE PacketXl ploaddup<PacketXl>(const int64_t* from) {
+  return detail::ploaddup8<PacketXl>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) { return detail::ploadquad16<PacketXf>(from); }
+EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) {
+  return detail::ploadquad16<PacketXf>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXd ploadquad<PacketXd>(const double* from) { return detail::ploadquad8<PacketXd>(from); }
+EIGEN_STRONG_INLINE PacketXd ploadquad<PacketXd>(const double* from) {
+  return detail::ploadquad8<PacketXd>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const int32_t* from) { return detail::ploadquad16<PacketXi>(from); }
+EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const int32_t* from) {
+  return detail::ploadquad16<PacketXi>(from);
+}
 template <>
-EIGEN_STRONG_INLINE PacketXl ploadquad<PacketXl>(const int64_t* from) { return detail::ploadquad8<PacketXl>(from); }
+EIGEN_STRONG_INLINE PacketXl ploadquad<PacketXl>(const int64_t* from) {
+  return detail::ploadquad8<PacketXl>(from);
+}
 
 #endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
 
@@ -826,7 +894,7 @@ EIGEN_STRONG_INLINE PacketXl plset<PacketXl>(const int64_t& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf plset<PacketXf>(const float& a) {
-  return PacketXf{a + 0.0f,  a + 1.0f,  a + 2.0f,  a + 3.0f, a + 4.0f,  a + 5.0f,  a + 6.0f,  a + 7.0f,
+  return PacketXf{a + 0.0f, a + 1.0f, a + 2.0f,  a + 3.0f,  a + 4.0f,  a + 5.0f,  a + 6.0f,  a + 7.0f,
                   a + 8.0f, a + 9.0f, a + 10.0f, a + 11.0f, a + 12.0f, a + 13.0f, a + 14.0f, a + 15.0f};
 }
 template <>
@@ -962,7 +1030,7 @@ template <>
 EIGEN_ALWAYS_INLINE void zip_in_place<PacketXl>(PacketXl& p1, PacketXl& p2) {
   zip_in_place4(p1, p2);
 }
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
+#else   // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
 template <>
 EIGEN_ALWAYS_INLINE void zip_in_place<PacketXf>(PacketXf& p1, PacketXf& p2) {
   zip_in_place16(p1, p2);
