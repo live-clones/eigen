@@ -40,8 +40,6 @@ using Packet2cf = complex_packet_wrapper<float, 2>;
 #endif
 #if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 64
 using Packet4cf = complex_packet_wrapper<float, 4>;
-#endif
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES >= 64
 using Packet2cd = complex_packet_wrapper<double, 2>;
 #endif
 
