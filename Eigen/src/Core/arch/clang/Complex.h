@@ -193,18 +193,7 @@ EIGEN_STRONG_INLINE PacketXcd pset1<PacketXcd>(const std::complex<double>& from)
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type pfirst<PACKET_TYPE>(const PACKET_TYPE& a) { \
     return a[0];                                                                                     \
   }                                                                                                  \
-  template <>                                                                                        \
-  EIGEN_STRONG_INLINE PACKET_TYPE pexp<PACKET_TYPE>(const PACKET_TYPE& a) {                          \
-    return pexp_complex(a);                                                                          \
-  }                                                                                                  \
-  template <>                                                                                        \
-  EIGEN_STRONG_INLINE PACKET_TYPE plog<PACKET_TYPE>(const PACKET_TYPE& a) {                          \
-    return plog_complex(a);                                                                          \
-  }                                                                                                  \
-  template <>                                                                                        \
-  EIGEN_STRONG_INLINE PACKET_TYPE psqrt<PACKET_TYPE>(const PACKET_TYPE& a) {                         \
-    return psqrt_complex(a);                                                                         \
-  }
+  EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(PACKET_TYPE)
 
 EIGEN_CLANG_COMPLEX_UNARY_CWISE_OPS(PacketXcf);
 EIGEN_CLANG_COMPLEX_UNARY_CWISE_OPS(PacketXcd);
