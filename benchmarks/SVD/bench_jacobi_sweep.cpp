@@ -52,3 +52,11 @@ BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>)->Apply(Sizes)->Name(
 BENCHMARK(BM_JacobiSVD<double, 0>)->Apply(Sizes)->Name("Jacobi_double_VO");
 // double ThinUV
 BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>)->Apply(Sizes)->Name("Jacobi_double_UV");
+// complex<float> ValuesOnly
+BENCHMARK(BM_JacobiSVD<std::complex<float>, 0>)->Apply(Sizes)->Name("Jacobi_cfloat_VO");
+// complex<float> ThinUV
+BENCHMARK((BM_JacobiSVD<std::complex<float>, ComputeThinU | ComputeThinV>))->Apply(Sizes)->Name("Jacobi_cfloat_UV");
+// complex<double> ValuesOnly
+BENCHMARK(BM_JacobiSVD<std::complex<double>, 0>)->Apply(Sizes)->Name("Jacobi_cdouble_VO");
+// complex<double> ThinUV
+BENCHMARK((BM_JacobiSVD<std::complex<double>, ComputeThinU | ComputeThinV>))->Apply(Sizes)->Name("Jacobi_cdouble_UV");
