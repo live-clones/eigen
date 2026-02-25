@@ -1041,7 +1041,7 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
           const auto L11 = accum.template topLeftCorner<kBlockSize, kBlockSize>();
           const auto l12 = accum.col(kBlockSize).template head<kBlockSize>();
           const auto l21 = accum.row(kBlockSize).template head<kBlockSize>();
-          const auto l22 = accum.row(kBlockSize).template tail<1>();
+          const Scalar l22 = accum(kBlockSize, kBlockSize);
           auto Mq = m_workMatrix.template middleRows<kBlockSize>(q);
           auto Mp = m_workMatrix.row(p);
           Matrix<Scalar, 1, Dynamic> Mp_save = Mp;
