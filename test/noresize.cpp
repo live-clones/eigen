@@ -15,10 +15,7 @@
 // Helper to create a random matrix respecting compile-time fixed dimensions.
 template <typename MatrixType>
 MatrixType random_matrix() {
-  enum {
-    RowsAtCompileTime = MatrixType::RowsAtCompileTime,
-    ColsAtCompileTime = MatrixType::ColsAtCompileTime
-  };
+  enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
   Index rows = (RowsAtCompileTime == Dynamic) ? internal::random<Index>(1, 10) : Index(RowsAtCompileTime);
   Index cols = (ColsAtCompileTime == Dynamic) ? internal::random<Index>(1, 10) : Index(ColsAtCompileTime);
   return MatrixType::Random(rows, cols);
@@ -75,10 +72,7 @@ void noresize_col_access() {
 
 template <typename MatrixType>
 void noresize_size_mismatch() {
-  enum {
-    RowsAtCompileTime = MatrixType::RowsAtCompileTime,
-    ColsAtCompileTime = MatrixType::ColsAtCompileTime
-  };
+  enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
   Index rows = (RowsAtCompileTime == Dynamic) ? internal::random<Index>(2, 10) : Index(RowsAtCompileTime);
   Index cols = (ColsAtCompileTime == Dynamic) ? internal::random<Index>(2, 10) : Index(ColsAtCompileTime);
   MatrixType src = MatrixType::Random(rows, cols);
