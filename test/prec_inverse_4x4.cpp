@@ -28,14 +28,9 @@ void inverse_general_4x4(int repeat) {
   typedef typename MatrixType::Scalar Scalar;
   double error_sum = 0., error_max = 0.;
   for (int i = 0; i < repeat; ++i) {
-    MatrixType m;
-    bool is_invertible;
-    int guard = 0;
-    do {
-      m = MatrixType::Random();
-      is_invertible = Eigen::FullPivLU<MatrixType>(m).isInvertible();
-    } while (!is_invertible && (++guard) < 100);
-    VERIFY(guard < 100);
+    // Create a random diagonally dominant (thus invertible) matrix.
+    MatrixType m = MatrixType::Random();
+    m.diagonal().array() += Scalar(8);  // 2 * 4 for a 4x4 matrix.
     MatrixType inv = m.inverse();
     double error = double((m * inv - MatrixType::Identity()).norm());
     error_sum += error;

@@ -56,12 +56,10 @@ void qr() {
   {
     MatrixType m2, m3;
     Index size = rows;
-    int guard = 0;
-    do {
-      m1 = MatrixType::Random(size, size);
-      qr.compute(m1);
-    } while (!qr.isInvertible() && (++guard) < 100);
-    VERIFY(guard < 100);
+    // Create a random diagonally dominant (thus invertible) matrix.
+    m1 = MatrixType::Random(size, size);
+    m1.diagonal().array() += Scalar(2 * size);
+    qr.compute(m1);
     MatrixType m1_inv = qr.inverse();
     m3 = m1 * MatrixType::Random(size, cols2);
     m2 = qr.solve(m3);
