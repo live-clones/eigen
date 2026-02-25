@@ -22,8 +22,9 @@ if [ ! -f "${BUILD_DIR}/compile_commands.json" ]; then
   exit 1
 fi
 
-# External-dependency modules that require third-party headers we don't have.
-SKIP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport"
+# External-dependency modules that require third-party headers we don't have,
+# and utility-only directories with no standalone module header.
+SKIP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport|TensorUtil"
 
 # Get changed files (Added, Modified, Renamed).
 CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "${BASE_SHA}" HEAD)
