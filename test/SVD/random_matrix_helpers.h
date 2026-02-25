@@ -7,6 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Shared header for split random_matrix tests.
+
+#ifndef EIGEN_TEST_RANDOM_MATRIX_HELPERS_H
+#define EIGEN_TEST_RANDOM_MATRIX_HELPERS_H
+
 #include "main.h"
 #include <Eigen/SVD>
 
@@ -97,30 +102,4 @@ void check_random_matrix(const MatrixType &m) {
   check_generateRandomMatrixSvs<MatrixType, RealScalar, RealVectorType>(rows, cols, diag_size, min_svs, max_svs);
 }
 
-TEST(RandomMatrixTest, Basic) {
-  for (int i = 0; i < g_repeat; i++) {
-    check_random_matrix(Matrix<float, 1, 1>());
-    check_random_matrix(Matrix<float, 4, 4>());
-    check_random_matrix(Matrix<float, 2, 3>());
-    check_random_matrix(Matrix<float, 7, 4>());
-
-    check_random_matrix(Matrix<double, 1, 1>());
-    check_random_matrix(Matrix<double, 6, 6>());
-    check_random_matrix(Matrix<double, 5, 3>());
-    check_random_matrix(Matrix<double, 4, 9>());
-
-    check_random_matrix(Matrix<std::complex<float>, 12, 12>());
-    check_random_matrix(Matrix<std::complex<float>, 7, 14>());
-    check_random_matrix(Matrix<std::complex<double>, 15, 11>());
-    check_random_matrix(Matrix<std::complex<double>, 6, 9>());
-
-    check_random_matrix(
-        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    check_random_matrix(
-        MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    check_random_matrix(
-        MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    check_random_matrix(
-        MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-  }
-}
+#endif  // EIGEN_TEST_RANDOM_MATRIX_HELPERS_H
