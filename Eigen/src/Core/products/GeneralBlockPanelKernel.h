@@ -1375,11 +1375,14 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
                                                              Index cols, ResScalar alpha, Index strideA, Index strideB,
                                                              Index offsetA, Index offsetB) {
   Traits traits;
+
   SwappedTraits straits;
 
   if (strideA == -1) strideA = depth;
   if (strideB == -1) strideB = depth;
+
   conj_helper<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs> cj;
+
   Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
   Index packet_cols8 = nr >= 8 ? (cols / 8) * 8 : 0;
   const Index peeled_mc3 = mr >= 3 * Traits::LhsProgress ? (rows / (3 * LhsProgress)) * (3 * LhsProgress) : 0;

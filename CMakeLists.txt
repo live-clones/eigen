@@ -74,6 +74,7 @@ if (EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK)
   endif()
 endif()
 
+option(EIGEN_BUILD_BENCHMARKS "Build benchmarks" OFF)
 option(EIGEN_BUILD_BTL "Build benchmark suite" OFF)
 option(EIGEN_BUILD_SPBENCH "Build sparse benchmark suite" OFF)
 option(EIGEN_BUILD_AOCL_BENCH "Build AOCL benchmark" OFF)
@@ -762,6 +763,10 @@ endif()
 
 if(EIGEN_BUILD_DOC)
   add_subdirectory(doc EXCLUDE_FROM_ALL)
+endif()
+
+if(EIGEN_BUILD_BENCHMARKS)
+  add_subdirectory(bench EXCLUDE_FROM_ALL)
 endif()
 
 # TODO: consider also replacing EIGEN_BUILD_BTL by a custom target "make btl"?

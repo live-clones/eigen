@@ -25,6 +25,8 @@ if(EIGEN_TEST_EXTERNAL_BLAS)
   list(APPEND EXTERNAL_LIBS "${BLAS_LIBRARIES}")
 endif()
 
+option(EIGEN_TEST_SME "Enable SME unit tests" OFF)
+
 # configure blas/lapack (use Eigen's ones)
 set(EIGEN_BLAS_LIBRARIES eigen_blas)
 set(EIGEN_LAPACK_LIBRARIES eigen_lapack)
@@ -220,6 +222,12 @@ ei_add_test(resize)
 ei_add_test(conservative_resize)
 ei_add_test(product_small)
 ei_add_test(product_large)
+if(EIGEN_TEST_SME)
+  # SME tests require -DEIGEN_ARM64_USE_SME to activate the SME backend in
+  # ConfigureVectorization.h.  The compiler must also provide -march=armv9-a+sme
+  # (or similar) and -msve-vector-bits=512 via CMAKE_CXX_FLAGS.
+  ei_add_test(product_sme "-DEIGEN_ARM64_USE_SME" "")
+endif()
 ei_add_test(product_extra)
 ei_add_test(diagonalmatrices)
 ei_add_test(diagonalview)
