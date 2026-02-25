@@ -30,10 +30,12 @@ void inverse_general_4x4(int repeat) {
   for (int i = 0; i < repeat; ++i) {
     MatrixType m;
     bool is_invertible;
+    int guard = 0;
     do {
       m = MatrixType::Random();
       is_invertible = Eigen::FullPivLU<MatrixType>(m).isInvertible();
-    } while (!is_invertible);
+    } while (!is_invertible && (++guard) < 100);
+    VERIFY(guard < 100);
     MatrixType inv = m.inverse();
     double error = double((m * inv - MatrixType::Identity()).norm());
     error_sum += error;

@@ -54,11 +54,13 @@ void stable_norm(const MatrixType& m) {
 
   // get a non-zero random factor
   Scalar factor = internal::random<Scalar>();
-  while (numext::abs2(factor) < RealScalar(1e-4)) factor = internal::random<Scalar>();
+  for (int guard = 0; numext::abs2(factor) < RealScalar(1e-4) && guard < 100; ++guard)
+    factor = internal::random<Scalar>();
   Scalar big = factor * ((std::numeric_limits<RealScalar>::max)() * RealScalar(1e-4));
 
   factor = internal::random<Scalar>();
-  while (numext::abs2(factor) < RealScalar(1e-4)) factor = internal::random<Scalar>();
+  for (int guard = 0; numext::abs2(factor) < RealScalar(1e-4) && guard < 100; ++guard)
+    factor = internal::random<Scalar>();
   Scalar small = factor * ((std::numeric_limits<RealScalar>::min)() * RealScalar(1e4));
 
   Scalar one(1);
@@ -218,11 +220,13 @@ template <typename Scalar>
 void test_hypot() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   Scalar factor = internal::random<Scalar>();
-  while (numext::abs2(factor) < RealScalar(1e-4)) factor = internal::random<Scalar>();
+  for (int guard = 0; numext::abs2(factor) < RealScalar(1e-4) && guard < 100; ++guard)
+    factor = internal::random<Scalar>();
   Scalar big = factor * ((std::numeric_limits<RealScalar>::max)() * RealScalar(1e-4));
 
   factor = internal::random<Scalar>();
-  while (numext::abs2(factor) < RealScalar(1e-4)) factor = internal::random<Scalar>();
+  for (int guard = 0; numext::abs2(factor) < RealScalar(1e-4) && guard < 100; ++guard)
+    factor = internal::random<Scalar>();
   Scalar small = factor * ((std::numeric_limits<RealScalar>::min)() * RealScalar(1e4));
 
   Scalar one(1), zero(0), sqrt2(std::sqrt(2)), nan(std::numeric_limits<RealScalar>::quiet_NaN());
