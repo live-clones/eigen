@@ -7,6 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Shared header for split householder tests.
+
+#ifndef EIGEN_TEST_HOUSEHOLDER_HELPERS_H
+#define EIGEN_TEST_HOUSEHOLDER_HELPERS_H
+
 #include "main.h"
 #include <Eigen/QR>
 
@@ -213,21 +218,4 @@ void householder_update(const MatrixType& m) {
   }
 }
 
-TEST(HouseholderTest, Basic) {
-  for (int i = 0; i < g_repeat; i++) {
-    householder(Matrix<double, 2, 2>());
-    householder(Matrix<float, 2, 3>());
-    householder(Matrix<double, 3, 5>());
-    householder(Matrix<float, 4, 4>());
-    householder(MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    householder(
-        MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    householder(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    householder(Matrix<double, 1, 1>());
-
-    householder_update(Matrix<double, 3, 5>());
-    householder_update(Matrix<float, 4, 2>());
-    householder_update(
-        MatrixXcf(internal::random<Index>(1, EIGEN_TEST_MAX_SIZE), internal::random<Index>(1, EIGEN_TEST_MAX_SIZE)));
-  }
-}
+#endif  // EIGEN_TEST_HOUSEHOLDER_HELPERS_H

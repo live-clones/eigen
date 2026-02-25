@@ -7,9 +7,14 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Shared header for split sparselu tests.
+
 // SparseLU solve does not accept column major matrices for the destination.
 // However, as expected, the generic check_sparse_square_solving routines produces row-major
 // rhs and destination matrices when compiled with EIGEN_DEFAULT_TO_ROW_MAJOR
+
+#ifndef EIGEN_TEST_SPARSELU_HELPERS_H
+#define EIGEN_TEST_SPARSELU_HELPERS_H
 
 #ifdef EIGEN_DEFAULT_TO_ROW_MAJOR
 #undef EIGEN_DEFAULT_TO_ROW_MAJOR
@@ -35,9 +40,4 @@ void test_sparselu_T() {
   check_sparse_square_determinant(sparselu_amd);
 }
 
-TEST(SparseluTest, Basic) {
-  test_sparselu_T<float>();
-  test_sparselu_T<double>();
-  test_sparselu_T<std::complex<float> >();
-  test_sparselu_T<std::complex<double> >();
-}
+#endif  // EIGEN_TEST_SPARSELU_HELPERS_H

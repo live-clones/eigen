@@ -7,6 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Shared header for split matrix_power_singular tests.
+
+#ifndef EIGEN_TEST_MATRIX_POWER_SINGULAR_H
+#define EIGEN_TEST_MATRIX_POWER_SINGULAR_H
+
 #include "matrix_functions.h"
 
 template <typename MatrixType>
@@ -45,17 +50,4 @@ typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
 typedef Matrix<long double, 3, 3> Matrix3e;
 typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
 
-TEST(MatrixPowerTest, Singular) {
-  testSingular(Matrix2d(), 1e-13);
-  testSingular(Matrix3dRowMajor(), 1e-13);
-  testSingular(Matrix4cd(), 1e-13);
-  testSingular(MatrixXd(8, 8), 2e-12);
-  testSingular(Matrix2f(), 1e-4f);
-  testSingular(Matrix3cf(), 1e-4f);
-  testSingular(Matrix4f(), 1e-4f);
-  testSingular(MatrixXf(2, 2), 1e-3f);
-  testSingular(MatrixXe(7, 7), 1e-12L);
-  testSingular(Matrix3d(), 1e-13);
-  testSingular(Matrix3f(), 1e-4f);
-  testSingular(Matrix3e(), 1e-13L);
-}
+#endif  // EIGEN_TEST_MATRIX_POWER_SINGULAR_H

@@ -7,6 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Shared header for split matrix_power_logthenexp tests.
+
+#ifndef EIGEN_TEST_MATRIX_POWER_LOGTHENEXP_H
+#define EIGEN_TEST_MATRIX_POWER_LOGTHENEXP_H
+
 #include "matrix_functions.h"
 
 template <typename MatrixType>
@@ -29,17 +34,4 @@ typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
 typedef Matrix<long double, 3, 3> Matrix3e;
 typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
 
-TEST(MatrixPowerTest, LogThenExp) {
-  testLogThenExp(Matrix2d(), 1e-13);
-  testLogThenExp(Matrix3dRowMajor(), 1e-13);
-  testLogThenExp(Matrix4cd(), 1e-13);
-  testLogThenExp(MatrixXd(8, 8), 2e-12);
-  testLogThenExp(Matrix2f(), 1e-4f);
-  testLogThenExp(Matrix3cf(), 1e-4f);
-  testLogThenExp(Matrix4f(), 1e-4f);
-  testLogThenExp(MatrixXf(2, 2), 1e-3f);
-  testLogThenExp(MatrixXe(7, 7), 1e-12L);
-  testLogThenExp(Matrix3d(), 1e-13);
-  testLogThenExp(Matrix3f(), 1e-4f);
-  testLogThenExp(Matrix3e(), 1e-13L);
-}
+#endif  // EIGEN_TEST_MATRIX_POWER_LOGTHENEXP_H

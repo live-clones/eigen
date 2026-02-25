@@ -7,6 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Shared header for split lu tests.
+
+#ifndef EIGEN_TEST_LU_HELPERS_H
+#define EIGEN_TEST_LU_HELPERS_H
+
 #include "main.h"
 #include <Eigen/LU>
 #include "solverbase.h"
@@ -197,7 +202,7 @@ void lu_verify_assert() {
 
 // Rank-deficient matrix returns 0.
 // https://gitlab.com/libeigen/eigen/-/issues/2889
-void test_2889() {
+inline void test_2889() {
   Eigen::MatrixXd A =
       Eigen::MatrixXd({{0.0000000000000000, 0.0000000000000000, 1.0000000000000000, 0.0000000000000000,
                         0.34149999916553497, 0.0000000000000000, 0.79877008515664061},
@@ -218,43 +223,4 @@ void test_2889() {
   VERIFY_IS_EQUAL(rcond, 0.0);
 }
 
-TEST(LUTest, Basic) {
-  for (int i = 0; i < g_repeat; i++) {
-    lu_non_invertible<Matrix3f>();
-    lu_invertible<Matrix3f>();
-    lu_verify_assert<Matrix3f>();
-    lu_partial_piv<Matrix3f>();
-
-    (lu_non_invertible<Matrix<double, 4, 6> >());
-    (lu_verify_assert<Matrix<double, 4, 6> >());
-    lu_partial_piv<Matrix2d>();
-    lu_partial_piv<Matrix4d>();
-    (lu_partial_piv<Matrix<double, 6, 6> >());
-
-    lu_non_invertible<MatrixXf>();
-    lu_invertible<MatrixXf>();
-    lu_verify_assert<MatrixXf>();
-
-    lu_non_invertible<MatrixXd>();
-    lu_invertible<MatrixXd>();
-    lu_partial_piv<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    lu_verify_assert<MatrixXd>();
-
-    lu_non_invertible<MatrixXcf>();
-    lu_invertible<MatrixXcf>();
-    lu_verify_assert<MatrixXcf>();
-
-    lu_non_invertible<MatrixXcd>();
-    lu_invertible<MatrixXcd>();
-    lu_partial_piv<MatrixXcd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    lu_verify_assert<MatrixXcd>();
-
-    (lu_non_invertible<Matrix<float, Dynamic, 16> >());
-
-    // Test problem size constructors
-    PartialPivLU<MatrixXf>(10);
-    FullPivLU<MatrixXf>(10, 20);
-
-    test_2889();
-  }
-}
+#endif  // EIGEN_TEST_LU_HELPERS_H
