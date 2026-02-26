@@ -1,0 +1,173 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// Copyright (C) 2008 Gael Guennebaud <gael.guennebaud@inria.fr>
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+#include "main.h"
+
+#if EIGEN_MAX_ALIGN_BYTES > 0
+#define ALIGNMENT EIGEN_MAX_ALIGN_BYTES
+#else
+#define ALIGNMENT 1
+#endif
+
+typedef Matrix<float, 16, 1> Vector16f;
+typedef Matrix<float, 8, 1> Vector8f;
+
+void check_handmade_aligned_malloc() {
+  // Hand-make alignment needs at least sizeof(void*) to store the offset.
+  constexpr int alignment = (std::max<int>)(EIGEN_DEFAULT_ALIGN_BYTES, sizeof(void *));
+
+  for (int i = 1; i < 1000; i++) {
+    char *p = (char *)internal::handmade_aligned_malloc(i, alignment);
+    VERIFY(std::uintptr_t(p) % ALIGNMENT == 0);
+    // if the buffer is wrongly allocated this will give a bad write --> check with valgrind
+    for (int j = 0; j < i; j++) p[j] = 0;
+    internal::handmade_aligned_free(p);
+  }
+}
+
+void check_aligned_malloc() {
+  for (int i = ALIGNMENT; i < 1000; i++) {
+    char *p = (char *)internal::aligned_malloc(i);
+    VERIFY(std::uintptr_t(p) % ALIGNMENT == 0);
+    // if the buffer is wrongly allocated this will give a bad write --> check with valgrind
+    for (int j = 0; j < i; j++) p[j] = 0;
+    internal::aligned_free(p);
+  }
+}
+
+void check_aligned_new() {
+  for (int i = ALIGNMENT; i < 1000; i++) {
+    float *p = internal::aligned_new<float>(i);
+    VERIFY(std::uintptr_t(p) % ALIGNMENT == 0);
+    // if the buffer is wrongly allocated this will give a bad write --> check with valgrind
+    for (int j = 0; j < i; j++) p[j] = 0;
+    internal::aligned_delete(p, i);
+  }
+}
+
+void check_aligned_stack_alloc() {
+  for (int i = ALIGNMENT; i < 400; i++) {
+    ei_declare_aligned_stack_constructed_variable(float, p, i, 0);
+    VERIFY(std::uintptr_t(p) % ALIGNMENT == 0);
+    // if the buffer is wrongly allocated this will give a bad write --> check with valgrind
+    for (int j = 0; j < i; j++) p[j] = 0;
+  }
+}
+
+// test compilation with both a struct and a class...
+struct MyStruct {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  char dummychar;
+  Vector16f avec;
+};
+
+class MyClassA {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  char dummychar;
+  Vector16f avec;
+};
+
+template <typename T>
+void check_dynaligned() {
+  // TODO have to be updated once we support multiple alignment values
+  if (T::SizeAtCompileTime % ALIGNMENT == 0) {
+    T *obj = new T;
+    VERIFY(T::NeedsToAlign == 1);
+    VERIFY(std::uintptr_t(obj) % ALIGNMENT == 0);
+    delete obj;
+  }
+}
+
+template <typename T>
+void check_custom_new_delete() {
+  {
+    T *t = new T;
+    delete t;
+  }
+
+  {
+    std::size_t N = internal::random<std::size_t>(1, 10);
+    T *t = new T[N];
+    delete[] t;
+  }
+
+#if EIGEN_MAX_ALIGN_BYTES > 0 && (!EIGEN_HAS_CXX17_OVERALIGN)
+  {
+    T *t = static_cast<T *>((T::operator new)(sizeof(T)));
+    (T::operator delete)(t, sizeof(T));
+  }
+
+  {
+    T *t = static_cast<T *>((T::operator new)(sizeof(T)));
+    (T::operator delete)(t);
+  }
+#endif
+}
+
+TEST(DynAllocTest, HandmadeAlignedMalloc) { check_handmade_aligned_malloc(); }
+
+TEST(DynAllocTest, AlignedMalloc) { check_aligned_malloc(); }
+
+TEST(DynAllocTest, AlignedNew) { check_aligned_new(); }
+
+TEST(DynAllocTest, AlignedStackAlloc) { check_aligned_stack_alloc(); }
+
+TEST(DynAllocTest, CustomNewDelete) {
+  for (int i = 0; i < g_repeat * 100; ++i) {
+    check_custom_new_delete<Vector4f>();
+    check_custom_new_delete<Vector2f>();
+    check_custom_new_delete<Matrix4f>();
+    check_custom_new_delete<MatrixXi>();
+  }
+}
+
+#if EIGEN_MAX_STATIC_ALIGN_BYTES
+TEST(DynAllocTest, DynAligned) {
+  for (int i = 0; i < g_repeat * 100; ++i) {
+    check_dynaligned<Vector4f>();
+    check_dynaligned<Vector2d>();
+    check_dynaligned<Matrix4f>();
+    check_dynaligned<Vector4d>();
+    check_dynaligned<Vector4i>();
+    check_dynaligned<Vector8f>();
+    check_dynaligned<Vector16f>();
+  }
+}
+
+TEST(DynAllocTest, StaticAlignment) {
+  MyStruct foo0;
+  VERIFY(std::uintptr_t(foo0.avec.data()) % ALIGNMENT == 0);
+  MyClassA fooA;
+  VERIFY(std::uintptr_t(fooA.avec.data()) % ALIGNMENT == 0);
+}
+
+TEST(DynAllocTest, DynamicSingleObject) {
+  for (int i = 0; i < g_repeat * 100; ++i) {
+    MyStruct *foo0 = new MyStruct();
+    VERIFY(std::uintptr_t(foo0->avec.data()) % ALIGNMENT == 0);
+    MyClassA *fooA = new MyClassA();
+    VERIFY(std::uintptr_t(fooA->avec.data()) % ALIGNMENT == 0);
+    delete foo0;
+    delete fooA;
+  }
+}
+
+TEST(DynAllocTest, DynamicArray) {
+  const int N = 10;
+  for (int i = 0; i < g_repeat * 100; ++i) {
+    MyStruct *foo0 = new MyStruct[N];
+    VERIFY(std::uintptr_t(foo0->avec.data()) % ALIGNMENT == 0);
+    MyClassA *fooA = new MyClassA[N];
+    VERIFY(std::uintptr_t(fooA->avec.data()) % ALIGNMENT == 0);
+    delete[] foo0;
+    delete[] fooA;
+  }
+}
+#endif

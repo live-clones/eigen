@@ -1,0 +1,1 @@
+ei_add_test(kronecker_product)
