@@ -1,0 +1,42 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// Copyright (C) 2011 Gael Guennebaud <g.gael@free.fr>
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+#include "sparse_solver.h"
+#include <Eigen/IterativeLinearSolvers>
+
+template <typename T>
+void test_lscg_T() {
+  LeastSquaresConjugateGradient<SparseMatrix<T> > lscg_colmajor_diag;
+  LeastSquaresConjugateGradient<SparseMatrix<T>, IdentityPreconditioner> lscg_colmajor_I;
+  LeastSquaresConjugateGradient<SparseMatrix<T, RowMajor> > lscg_rowmajor_diag;
+  LeastSquaresConjugateGradient<SparseMatrix<T, RowMajor>, IdentityPreconditioner> lscg_rowmajor_I;
+
+  check_sparse_square_solving(lscg_colmajor_diag);
+  check_sparse_square_solving(lscg_colmajor_I);
+
+  check_sparse_leastsquare_solving(lscg_colmajor_diag);
+  check_sparse_leastsquare_solving(lscg_colmajor_I);
+
+  check_sparse_square_solving(lscg_rowmajor_diag);
+  check_sparse_square_solving(lscg_rowmajor_I);
+
+  check_sparse_leastsquare_solving(lscg_rowmajor_diag);
+  check_sparse_leastsquare_solving(lscg_rowmajor_I);
+}
+
+// =============================================================================
+// Typed test suite for LSCG
+// =============================================================================
+template <typename T>
+class LSCGTest : public ::testing::Test {};
+
+using LSCGTypes = ::testing::Types<double, std::complex<double> >;
+TYPED_TEST_SUITE(LSCGTest, LSCGTypes);
+
+TYPED_TEST(LSCGTest, Basic) { test_lscg_T<TypeParam>(); }
