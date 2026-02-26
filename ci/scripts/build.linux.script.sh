@@ -23,7 +23,11 @@ fi
 # out of resources.  In that case, keep trying to build the remaining
 # targets (k0), then try to build again with a single thread (j1) to minimize
 # resource use.
-cmake --build . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
+parallel_flag=""
+if [[ -n "${EIGEN_CI_BUILD_PARALLEL}" ]]; then
+  parallel_flag="-j${EIGEN_CI_BUILD_PARALLEL}"
+fi
+cmake --build . ${target} -- -k0 ${parallel_flag} || cmake --build . ${target} -- -k0 -j1
 
 # Return to root directory.
 cd ${rootdir}

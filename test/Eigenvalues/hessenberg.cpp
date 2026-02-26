@@ -1,0 +1,76 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// Copyright (C) 2009 Gael Guennebaud <gael.guennebaud@inria.fr>
+// Copyright (C) 2010 Jitse Niesen <jitse@maths.leeds.ac.uk>
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+#include "main.h"
+#include <Eigen/Eigenvalues>
+
+template <typename Scalar, int Size>
+void hessenberg(int size = Size) {
+  typedef Matrix<Scalar, Size, Size> MatrixType;
+
+  // Test basic functionality: A = U H U* and H is Hessenberg
+  for (int counter = 0; counter < g_repeat; ++counter) {
+    MatrixType m = MatrixType::Random(size, size);
+    HessenbergDecomposition<MatrixType> hess(m);
+    MatrixType Q = hess.matrixQ();
+    MatrixType H = hess.matrixH();
+    VERIFY_IS_APPROX(m, Q * H * Q.adjoint());
+    for (int row = 2; row < size; ++row) {
+      for (int col = 0; col < row - 1; ++col) {
+        VERIFY(H(row, col) == (typename MatrixType::Scalar)0);
+      }
+    }
+  }
+
+  // Test whether compute() and constructor returns same result
+  MatrixType A = MatrixType::Random(size, size);
+  HessenbergDecomposition<MatrixType> cs1;
+  cs1.compute(A);
+  HessenbergDecomposition<MatrixType> cs2(A);
+  VERIFY_IS_EQUAL(cs1.matrixH().eval(), cs2.matrixH().eval());
+  MatrixType cs1Q = cs1.matrixQ();
+  MatrixType cs2Q = cs2.matrixQ();
+  VERIFY_IS_EQUAL(cs1Q, cs2Q);
+
+  // Test assertions for when used uninitialized
+  HessenbergDecomposition<MatrixType> hessUninitialized;
+  VERIFY_RAISES_ASSERT(hessUninitialized.matrixH());
+  VERIFY_RAISES_ASSERT(hessUninitialized.matrixQ());
+  VERIFY_RAISES_ASSERT(hessUninitialized.householderCoefficients());
+  VERIFY_RAISES_ASSERT(hessUninitialized.packedMatrix());
+
+  // TODO: Add tests for packedMatrix() and householderCoefficients()
+}
+
+// =============================================================================
+// Config struct + typed test suite for hessenberg
+// =============================================================================
+template <typename Scalar_, int Size_>
+struct HessenbergConfig {
+  using Scalar = Scalar_;
+  static constexpr int Size = Size_;
+};
+
+template <typename T>
+class HessenbergTest : public ::testing::Test {};
+
+using HessenbergTypes =
+    ::testing::Types<HessenbergConfig<std::complex<double>, 1>, HessenbergConfig<std::complex<double>, 2>,
+                     HessenbergConfig<std::complex<float>, 4>, HessenbergConfig<float, Dynamic>,
+                     HessenbergConfig<std::complex<double>, Dynamic>>;
+TYPED_TEST_SUITE(HessenbergTest, HessenbergTypes);
+
+TYPED_TEST(HessenbergTest, Hessenberg) {
+  constexpr int Size = TypeParam::Size;
+  int size = (Size == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE) : Size;
+  hessenberg<typename TypeParam::Scalar, Size>(size);
+}
+
+TEST(HessenbergRegressionTest, ProblemSizeConstructors) { HessenbergDecomposition<MatrixXf>(10); }
