@@ -20,12 +20,11 @@
 #include "mixingtypes_helpers.h"
 
 // =============================================================================
-// Tests for mixingtypes_vectorize (fixed-size)
+// Tests for mixingtypes_vectorize (dynamic-size)
 // =============================================================================
-TEST(MixingTypesVectorizeTest, Fixed) {
+TEST(MixingTypesVectorizeDynamicTest, Dynamic) {
   g_called = false;  // Silence -Wunneeded-internal-declaration.
   for (int i = 0; i < g_repeat; i++) {
-    mixingtypes<3>();
-    mixingtypes<4>();
+    mixingtypes<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
   }
 }
