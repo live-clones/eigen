@@ -31,14 +31,26 @@ void upperbidiag(const MatrixType& m) {
   VERIFY_IS_APPROX(a.adjoint(), d);
 }
 
-TEST(UpperbidiagonalizationTest, Basic) {
+// =============================================================================
+// Typed test suite for upperbidiagonalization
+// =============================================================================
+template <typename T>
+class UpperbidiagonalizationTest : public ::testing::Test {};
+
+using UpperbidiagonalizationTypes =
+    ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>,
+                     Matrix<float, 6, 4>, Matrix<float, 5, 5>, Matrix<double, 4, 3>>;
+TYPED_TEST_SUITE(UpperbidiagonalizationTest, UpperbidiagonalizationTypes);
+
+TYPED_TEST(UpperbidiagonalizationTest, Upperbidiag) {
   for (int i = 0; i < g_repeat; i++) {
-    upperbidiag(MatrixXf(3, 3));
-    upperbidiag(MatrixXd(17, 12));
-    upperbidiag(MatrixXcf(20, 20));
-    upperbidiag(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(16, 15));
-    upperbidiag(Matrix<float, 6, 4>());
-    upperbidiag(Matrix<float, 5, 5>());
-    upperbidiag(Matrix<double, 4, 3>());
+    // UpperBidiagonalization requires rows >= cols, so generate rows >= cols for dynamic types.
+    if (TypeParam::RowsAtCompileTime == Eigen::Dynamic) {
+      int cols = Eigen::internal::random<int>(1, 20);
+      int rows = Eigen::internal::random<int>(cols, 20);
+      upperbidiag(TypeParam(rows, cols));
+    } else {
+      upperbidiag(TypeParam());
+    }
   }
 }

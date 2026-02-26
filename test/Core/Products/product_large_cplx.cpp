@@ -12,28 +12,47 @@
 #include "product_large_helpers.h"
 
 // =============================================================================
-// Tests for product_large_cplx
+// Typed test suite for product (complex ColMajor types, half max size)
 // =============================================================================
-TEST(ProductLargeCplxTest, Basic) {
-  for (int i = 0; i < g_repeat; i++) {
-    product(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                      internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    product(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                      internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    product(Matrix<double, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                       internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    product(Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                                    internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    product(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-  }
+template <typename T>
+class ProductLargeCplxHalfTest : public ::testing::Test {};
 
-  // Regression test for bug 714:
+using ProductLargeCplxHalfTypes = ::testing::Types<MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(ProductLargeCplxHalfTest, ProductLargeCplxHalfTypes);
+
+TYPED_TEST(ProductLargeCplxHalfTest, Product) {
+  for (int i = 0; i < g_repeat; i++) {
+    product(TypeParam(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
+                      internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+  }
+}
+
+// =============================================================================
+// Typed test suite for product (RowMajor types, full max size)
+// =============================================================================
+template <typename T>
+class ProductLargeCplxRowMajorTest : public ::testing::Test {};
+
+using ProductLargeCplxRowMajorTypes = ::testing::Types<Matrix<double, Dynamic, Dynamic, RowMajor>,
+                                                       Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>,
+                                                       Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(ProductLargeCplxRowMajorTest, ProductLargeCplxRowMajorTypes);
+
+TYPED_TEST(ProductLargeCplxRowMajorTest, Product) {
+  for (int i = 0; i < g_repeat; i++) {
+    product(TypeParam(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+// =============================================================================
+// Regression tests
+// =============================================================================
 #if defined EIGEN_HAS_OPENMP
+TEST(ProductLargeCplxRegressionTest, Bug714_OpenMP) {
   omp_set_dynamic(1);
   for (int i = 0; i < g_repeat; i++) {
     product(Matrix<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                             internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
-#endif
 }
+#endif

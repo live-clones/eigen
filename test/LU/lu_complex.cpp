@@ -11,15 +11,34 @@
 
 #include "lu_helpers.h"
 
-TEST(LUTest, Complex) {
-  for (int i = 0; i < g_repeat; i++) {
-    lu_non_invertible<MatrixXcf>();
-    lu_invertible<MatrixXcf>();
-    lu_verify_assert<MatrixXcf>();
+// =============================================================================
+// Typed test suite for complex LU tests (non_invertible, invertible, verify_assert)
+// =============================================================================
+template <typename T>
+class LUComplexTest : public ::testing::Test {};
 
-    lu_non_invertible<MatrixXcd>();
-    lu_invertible<MatrixXcd>();
+using LUComplexTypes = ::testing::Types<MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(LUComplexTest, LUComplexTypes);
+
+TYPED_TEST(LUComplexTest, NonInvertible) {
+  for (int i = 0; i < g_repeat; i++) {
+    lu_non_invertible<TypeParam>();
+  }
+}
+
+TYPED_TEST(LUComplexTest, Invertible) {
+  for (int i = 0; i < g_repeat; i++) {
+    lu_invertible<TypeParam>();
+  }
+}
+
+TYPED_TEST(LUComplexTest, VerifyAssert) { lu_verify_assert<TypeParam>(); }
+
+// =============================================================================
+// Dynamic-size partial pivot test (MatrixXcd with random size in [1, MAX_SIZE])
+// =============================================================================
+TEST(LUComplexPartialPivTest, DynamicXcd) {
+  for (int i = 0; i < g_repeat; i++) {
     lu_partial_piv<MatrixXcd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    lu_verify_assert<MatrixXcd>();
   }
 }

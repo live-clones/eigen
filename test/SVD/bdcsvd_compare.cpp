@@ -9,7 +9,7 @@
 
 #include "bdcsvd_helpers.h"
 
-TEST(BDCSVDCompareTest, Basic) {
+TEST(BDCSVDCompareTest, CompareWithJacobi) {
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), c = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
 
@@ -19,16 +19,21 @@ TEST(BDCSVDCompareTest, Basic) {
     compare_bdc_jacobi<MatrixXf>(MatrixXf(r, c));
     compare_bdc_jacobi<MatrixXd>(MatrixXd(r, c));
     compare_bdc_jacobi<MatrixXcd>(MatrixXcd(r, c));
-    // Test on inf/nan matrix
+  }
+}
+
+TEST(BDCSVDCompareTest, InfNan) {
+  for (int i = 0; i < g_repeat; i++) {
     svd_inf_nan<MatrixXf>();
     svd_inf_nan<MatrixXd>();
   }
+}
 
-  // Test problem size constructors
-  BDCSVD<MatrixXf>(10, 10);
+TEST(BDCSVDCompareTest, ProblemSizeConstructor) { BDCSVD<MatrixXf>(10, 10); }
 
-  svd_underoverflow<void>();
+TEST(BDCSVDCompareTest, Underoverflow) { svd_underoverflow<void>(); }
 
+TEST(BDCSVDCompareTest, TotalDeflation) {
   // Without total deflation issues.
   compare_bdc_jacobi_instance(true);
   compare_bdc_jacobi_instance(false);
@@ -36,7 +41,7 @@ TEST(BDCSVDCompareTest, Basic) {
   // With total deflation issues before, when it shouldn't be triggered.
   compare_bdc_jacobi_instance(true, 3);
   compare_bdc_jacobi_instance(false, 3);
-
-  // Convergence for large constant matrix (https://gitlab.com/libeigen/eigen/-/issues/2491)
-  bdcsvd_check_convergence<MatrixXf>(MatrixXf::Constant(500, 500, 1));
 }
+
+// Convergence for large constant matrix (https://gitlab.com/libeigen/eigen/-/issues/2491)
+TEST(BDCSVDCompareTest, Convergence) { bdcsvd_check_convergence<MatrixXf>(MatrixXf::Constant(500, 500, 1)); }

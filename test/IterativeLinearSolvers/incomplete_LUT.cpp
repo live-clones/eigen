@@ -78,12 +78,29 @@ void test_extract_LU() {
   VERIFY_IS_APPROX(expectedMatU, matU);
 }
 
-TEST(IncompleteLUTTest, Basic) {
-  test_incompleteLUT_T<double, int>();
-  test_incompleteLUT_T<float, int>();
-  test_incompleteLUT_T<std::complex<double>, int>();
-  test_incompleteLUT_T<double, long int>();
+// =============================================================================
+// Config struct + typed test suite for IncompleteLUT
+// =============================================================================
+template <typename T_, typename I__>
+struct IncompleteLUTConfig {
+  using Scalar = T_;
+  using Index = I__;
+};
 
-  test_extract_LU<double>();
-  test_extract_LU<float>();
-}
+template <typename T>
+class IncompleteLUTTest : public ::testing::Test {};
+
+using IncompleteLUTTypes =
+    ::testing::Types<IncompleteLUTConfig<double, int>, IncompleteLUTConfig<float, int>,
+                     IncompleteLUTConfig<std::complex<double>, int>, IncompleteLUTConfig<double, long int>>;
+TYPED_TEST_SUITE(IncompleteLUTTest, IncompleteLUTTypes);
+
+TYPED_TEST(IncompleteLUTTest, Basic) { test_incompleteLUT_T<typename TypeParam::Scalar, typename TypeParam::Index>(); }
+
+// =============================================================================
+// Separate tests for extract_LU
+// =============================================================================
+
+TEST(IncompleteLUTExtractTest, ExtractLU_double) { test_extract_LU<double>(); }
+
+TEST(IncompleteLUTExtractTest, ExtractLU_float) { test_extract_LU<float>(); }

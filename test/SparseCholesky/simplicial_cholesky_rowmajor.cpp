@@ -11,8 +11,23 @@
 
 #include "simplicial_cholesky_helpers.h"
 
-TEST(SimplicialCholeskyRowmajorTest, Basic) {
-  test_simplicial_cholesky_T<double, int, RowMajor>();
-  test_simplicial_cholesky_T<std::complex<double>, int, RowMajor>();
-  test_simplicial_cholesky_T<double, long int, RowMajor>();
+// =============================================================================
+// Config struct + typed test suite for SimplicialCholesky RowMajor
+// =============================================================================
+template <typename T_, typename I__>
+struct SimplicialCholeskyRowmajorConfig {
+  using Scalar = T_;
+  using Index = I__;
+};
+
+template <typename T>
+class SimplicialCholeskyRowmajorTest : public ::testing::Test {};
+
+using SimplicialCholeskyRowmajorTypes = ::testing::Types<SimplicialCholeskyRowmajorConfig<double, int>,
+                                                         SimplicialCholeskyRowmajorConfig<std::complex<double>, int>,
+                                                         SimplicialCholeskyRowmajorConfig<double, long int>>;
+TYPED_TEST_SUITE(SimplicialCholeskyRowmajorTest, SimplicialCholeskyRowmajorTypes);
+
+TYPED_TEST(SimplicialCholeskyRowmajorTest, Basic) {
+  test_simplicial_cholesky_T<typename TypeParam::Scalar, typename TypeParam::Index, RowMajor>();
 }

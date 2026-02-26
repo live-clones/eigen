@@ -121,19 +121,34 @@ void generalized_eigensolver_assert() {
   VERIFY_RAISES_ASSERT(eig.betas());
 }
 
-TEST(EigensolverGeneralizedRealTest, Basic) {
-  for (int i = 0; i < g_repeat; i++) {
-    int s = 0;
-    generalized_eigensolver_real(Matrix4f());
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-    generalized_eigensolver_real(MatrixXd(s, s));
+// =============================================================================
+// Typed test suite for eigensolver_generalized_real
+// =============================================================================
+template <typename T>
+class EigensolverGeneralizedRealTest : public ::testing::Test {};
 
-    // some trivial but implementation-wise special cases
+using EigensolverGeneralizedRealTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<double, 1, 1>, Matrix2d>;
+TYPED_TEST_SUITE(EigensolverGeneralizedRealTest, EigensolverGeneralizedRealTypes);
+
+TYPED_TEST(EigensolverGeneralizedRealTest, GeneralizedEigensolver) {
+  for (int i = 0; i < g_repeat; i++) {
+    generalized_eigensolver_real(make_square_test_matrix<TypeParam>(EIGEN_TEST_MAX_SIZE / 4));
+  }
+}
+
+// =============================================================================
+// Regression and extra tests
+// =============================================================================
+
+TEST(EigensolverGeneralizedRealRegressionTest, TrivialCases) {
+  for (int i = 0; i < g_repeat; i++) {
     generalized_eigensolver_real(MatrixXd(1, 1));
     generalized_eigensolver_real(MatrixXd(2, 2));
-    generalized_eigensolver_real(Matrix<double, 1, 1>());
-    generalized_eigensolver_real(Matrix2d());
+  }
+}
+
+TEST(EigensolverGeneralizedRealRegressionTest, VerifyAssert) {
+  for (int i = 0; i < g_repeat; i++) {
     generalized_eigensolver_assert<MatrixXd>();
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
   }
 }

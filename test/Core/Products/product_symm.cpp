@@ -111,22 +111,23 @@ void symm(int size = Size, int othersize = OtherSize) {
 }
 
 // =============================================================================
-// Tests for product_symm
+// Typed test suite for product_symm
 // =============================================================================
-TEST(ProductSymmTest, Basic) {
-  for (int i = 0; i < g_repeat; i++) {
-    (symm<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                   internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (symm<double, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                    internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (symm<std::complex<float>, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    (symm<std::complex<double>, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                                                  internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+template <typename T>
+class ProductSymmTest : public ::testing::Test {};
 
-    symm<float, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    symm<double, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    symm<std::complex<float>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    symm<std::complex<double>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+using ProductSymmTypes = ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
+TYPED_TEST_SUITE(ProductSymmTest, ProductSymmTypes);
+
+TYPED_TEST(ProductSymmTest, SymmDynamicDynamic) {
+  const int max_size = NumTraits<TypeParam>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
+  for (int i = 0; i < g_repeat; i++) {
+    symm<TypeParam, Dynamic, Dynamic>(internal::random<int>(1, max_size), internal::random<int>(1, max_size));
+  }
+}
+
+TYPED_TEST(ProductSymmTest, SymmDynamicVector) {
+  for (int i = 0; i < g_repeat; i++) {
+    symm<TypeParam, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
   }
 }

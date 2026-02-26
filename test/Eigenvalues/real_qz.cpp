@@ -76,19 +76,17 @@ void real_qz(const MatrixType& m) {
   VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
 }
 
-TEST(RealQZTest, Basic) {
-  int s = 0;
+// =============================================================================
+// Typed test suite for real_qz
+// =============================================================================
+template <typename T>
+class RealQZTest : public ::testing::Test {};
+
+using RealQZTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<double, 1, 1>, Matrix2d>;
+TYPED_TEST_SUITE(RealQZTest, RealQZTypes);
+
+TYPED_TEST(RealQZTest, RealQZ) {
   for (int i = 0; i < g_repeat; i++) {
-    real_qz(Matrix4f());
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-    real_qz(MatrixXd(s, s));
-
-    // some trivial but implementation-wise tricky cases
-    real_qz(MatrixXd(1, 1));
-    real_qz(MatrixXd(2, 2));
-    real_qz(Matrix<double, 1, 1>());
-    real_qz(Matrix2d());
+    real_qz(make_square_test_matrix<TypeParam>(EIGEN_TEST_MAX_SIZE / 4));
   }
-
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
 }

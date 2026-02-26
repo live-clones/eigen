@@ -49,12 +49,6 @@ void bug_159() {
   EIGEN_UNUSED_VARIABLE(m)
 }
 
-template <typename MatrixType>
-MatrixType make_square_test_matrix() {
-  const int size = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::RowsAtCompileTime;
-  return MatrixType(size, size);
-}
 
 // =============================================================================
 // Typed test suite for selfadjoint

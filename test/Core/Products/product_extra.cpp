@@ -348,28 +348,47 @@ void bug_1308() {
 }
 
 // =============================================================================
-// Tests for product_extra
+// Typed test suite for product_extra + zero_sized_objects
 // =============================================================================
-TEST(ProductExtraTest, Basic) {
+template <typename T>
+class ProductExtraTest : public ::testing::Test {};
+
+using ProductExtraTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(ProductExtraTest, ProductExtraTypes);
+
+TYPED_TEST(ProductExtraTest, ProductExtra) {
+  using Scalar = typename TypeParam::Scalar;
+  const int max_size = NumTraits<Scalar>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
   for (int i = 0; i < g_repeat; i++) {
-    product_extra(
-        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    product_extra(
-        MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    mat_mat_scalar_scalar_product();
-    product_extra(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                            internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    product_extra(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                            internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    zero_sized_objects(
-        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    product_extra(TypeParam(internal::random<int>(1, max_size), internal::random<int>(1, max_size)));
   }
-  bug_127<0>();
-  bug_817<0>();
-  bug_1308<0>();
-  unaligned_objects<0>();
+}
+
+TYPED_TEST(ProductExtraTest, ZeroSizedObjects) {
+  using Scalar = typename TypeParam::Scalar;
+  const int max_size = NumTraits<Scalar>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
+  for (int i = 0; i < g_repeat; i++) {
+    zero_sized_objects(TypeParam(internal::random<int>(1, max_size), internal::random<int>(1, max_size)));
+  }
+}
+
+// =============================================================================
+// Regression and standalone tests
+// =============================================================================
+TEST(ProductExtraRegressionTest, MatMatScalarScalarProduct) { mat_mat_scalar_scalar_product(); }
+
+TEST(ProductExtraRegressionTest, Bug127) { bug_127<0>(); }
+
+TEST(ProductExtraRegressionTest, Bug817) { bug_817<0>(); }
+
+TEST(ProductExtraRegressionTest, Bug1308) { bug_1308<0>(); }
+
+TEST(ProductExtraRegressionTest, UnalignedObjects) { unaligned_objects<0>(); }
+
+TEST(ProductExtraRegressionTest, ComputeBlockSize) {
   compute_block_size<float>();
   compute_block_size<double>();
   compute_block_size<std::complex<double> >();
-  aliasing_with_resize<void>();
 }
+
+TEST(ProductExtraRegressionTest, AliasingWithResize) { aliasing_with_resize<void>(); }

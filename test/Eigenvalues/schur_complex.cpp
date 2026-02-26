@@ -79,12 +79,20 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
   }
 }
 
-TEST(SchurComplexTest, Basic) {
-  schur<Matrix4cd>();
-  schur<MatrixXcf>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4));
-  schur<Matrix<std::complex<float>, 1, 1> >();
-  schur<Matrix<float, 3, 3, Eigen::RowMajor> >();
+// =============================================================================
+// Typed test suite for schur_complex
+// =============================================================================
+template <typename T>
+class SchurComplexTest : public ::testing::Test {};
 
-  // Test problem size constructors
-  ComplexSchur<MatrixXf>(10);
+using SchurComplexTypes =
+    ::testing::Types<Matrix4cd, MatrixXcf, Matrix<std::complex<float>, 1, 1>, Matrix<float, 3, 3, Eigen::RowMajor>>;
+TYPED_TEST_SUITE(SchurComplexTest, SchurComplexTypes);
+
+TYPED_TEST(SchurComplexTest, Schur) {
+  int size = (TypeParam::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)
+                                                       : TypeParam::ColsAtCompileTime;
+  schur<TypeParam>(size);
 }
+
+TEST(SchurComplexRegressionTest, ProblemSizeConstructors) { ComplexSchur<MatrixXf>(10); }

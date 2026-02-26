@@ -49,13 +49,28 @@ void hessenberg(int size = Size) {
   // TODO: Add tests for packedMatrix() and householderCoefficients()
 }
 
-TEST(HessenbergTest, Basic) {
-  hessenberg<std::complex<double>, 1>();
-  hessenberg<std::complex<double>, 2>();
-  hessenberg<std::complex<float>, 4>();
-  hessenberg<float, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-  hessenberg<std::complex<double>, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+// =============================================================================
+// Config struct + typed test suite for hessenberg
+// =============================================================================
+template <typename Scalar_, int Size_>
+struct HessenbergConfig {
+  using Scalar = Scalar_;
+  static constexpr int Size = Size_;
+};
 
-  // Test problem size constructors
-  HessenbergDecomposition<MatrixXf>(10);
+template <typename T>
+class HessenbergTest : public ::testing::Test {};
+
+using HessenbergTypes = ::testing::Types<HessenbergConfig<std::complex<double>, 1>,
+                                         HessenbergConfig<std::complex<double>, 2>,
+                                         HessenbergConfig<std::complex<float>, 4>, HessenbergConfig<float, Dynamic>,
+                                         HessenbergConfig<std::complex<double>, Dynamic>>;
+TYPED_TEST_SUITE(HessenbergTest, HessenbergTypes);
+
+TYPED_TEST(HessenbergTest, Hessenberg) {
+  constexpr int Size = TypeParam::Size;
+  int size = (Size == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE) : Size;
+  hessenberg<typename TypeParam::Scalar, Size>(size);
 }
+
+TEST(HessenbergRegressionTest, ProblemSizeConstructors) { HessenbergDecomposition<MatrixXf>(10); }

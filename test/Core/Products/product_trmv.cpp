@@ -74,22 +74,19 @@ void trmv(const MatrixType& m) {
 }
 
 // =============================================================================
-// Tests for product_trmv
+// Typed test suite for product_trmv
 // =============================================================================
-TEST(ProductTrmvTest, Basic) {
-  int s = 0;
+template <typename T>
+class ProductTrmvTest : public ::testing::Test {};
+
+using ProductTrmvTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3d, MatrixXcf, MatrixXcd,
+                                          Matrix<float, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(ProductTrmvTest, ProductTrmvTypes);
+
+TYPED_TEST(ProductTrmvTest, Trmv) {
+  using Scalar = typename TypeParam::Scalar;
+  const int max_size = NumTraits<Scalar>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
   for (int i = 0; i < g_repeat; i++) {
-    trmv(Matrix<float, 1, 1>());
-    trmv(Matrix<float, 2, 2>());
-    trmv(Matrix3d());
-
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
-    trmv(MatrixXcf(s, s));
-    trmv(MatrixXcd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
-
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
-    trmv(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    trmv(make_square_test_matrix<TypeParam>(max_size));
   }
 }

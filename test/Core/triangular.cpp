@@ -261,21 +261,22 @@ void bug_159() {
   EIGEN_UNUSED_VARIABLE(m)
 }
 
+// triangular.cpp uses a smaller max size and minimum size of 2 for test matrices.
+static const int kTriangularMaxSize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
+
 template <typename MatrixType>
-MatrixType make_square_test_matrix() {
-  const int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
-  const int size =
-      (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(2, maxsize) : MatrixType::RowsAtCompileTime;
+MatrixType make_square_triangular_test_matrix() {
+  const int size = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(2, kTriangularMaxSize)
+                                                              : MatrixType::RowsAtCompileTime;
   return MatrixType(size, size);
 }
 
 template <typename MatrixType>
-MatrixType make_test_matrix() {
-  const int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
-  const int rows =
-      (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(2, maxsize) : MatrixType::RowsAtCompileTime;
-  const int cols =
-      (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(2, maxsize) : MatrixType::ColsAtCompileTime;
+MatrixType make_triangular_test_matrix() {
+  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(2, kTriangularMaxSize)
+                                                              : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(2, kTriangularMaxSize)
+                                                              : MatrixType::ColsAtCompileTime;
   return MatrixType(rows, cols);
 }
 
@@ -292,7 +293,7 @@ TYPED_TEST_SUITE(TriangularSquareTest, TriangularSquareTypes);
 
 TYPED_TEST(TriangularSquareTest, TriangularSquare) {
   for (int i = 0; i < g_repeat; i++) {
-    triangular_square(make_square_test_matrix<TypeParam>());
+    triangular_square(make_square_triangular_test_matrix<TypeParam>());
   }
 }
 
@@ -305,7 +306,7 @@ TYPED_TEST_SUITE(TriangularRectTest, TriangularRectTypes);
 
 TYPED_TEST(TriangularRectTest, TriangularRect) {
   for (int i = 0; i < g_repeat; i++) {
-    triangular_rect(make_test_matrix<TypeParam>());
+    triangular_rect(make_triangular_test_matrix<TypeParam>());
   }
 }
 

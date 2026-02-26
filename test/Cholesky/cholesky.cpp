@@ -461,40 +461,88 @@ void cholesky_verify_assert() {
   VERIFY_RAISES_ASSERT(ldlt.solveInPlace(tmp))
 }
 
-TEST(CholeskyTest, Basic) {
-  int s = 0;
-  for (int i = 0; i < g_repeat; i++) {
-    cholesky(Matrix<double, 1, 1>());
-    cholesky(Matrix2d());
-    cholesky_bug241(Matrix2d());
-    cholesky_definiteness(Matrix2d());
-    cholesky(Matrix3f());
-    cholesky(Matrix4d());
+// =============================================================================
+// Typed test suite for cholesky (fixed-size types)
+// =============================================================================
+template <typename T>
+class CholeskyFixedTest : public ::testing::Test {};
 
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
+using CholeskyFixedTypes = ::testing::Types<Matrix<double, 1, 1>, Matrix2d, Matrix3f, Matrix4d>;
+TYPED_TEST_SUITE(CholeskyFixedTest, CholeskyFixedTypes);
+
+TYPED_TEST(CholeskyFixedTest, Cholesky) {
+  for (int i = 0; i < g_repeat; i++) {
+    cholesky(TypeParam());
+  }
+}
+
+// =============================================================================
+// Dynamic-size cholesky test (MatrixXd with random size in [1, MAX_SIZE])
+// =============================================================================
+TEST(CholeskyTest, DynamicDouble) {
+  for (int i = 0; i < g_repeat; i++) {
+    int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
     cholesky(MatrixXd(s, s));
     TEST_SET_BUT_UNUSED_VARIABLE(s)
+  }
+}
 
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
+// =============================================================================
+// Complex cholesky test (MatrixXcd with random size in [1, MAX_SIZE/2])
+// =============================================================================
+TEST(CholeskyTest, ComplexDouble) {
+  for (int i = 0; i < g_repeat; i++) {
+    int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
     cholesky_cplx(MatrixXcd(s, s));
     TEST_SET_BUT_UNUSED_VARIABLE(s)
   }
-  // empty matrix, regression test for Bug 785:
-  cholesky(MatrixXd(0, 0));
+}
 
-  // This does not work yet:
-  //  cholesky(Matrix<double,0,0>()) ;
+// =============================================================================
+// Regression test: empty matrix (Bug 785)
+// =============================================================================
+TEST(CholeskyRegressionTest, EmptyMatrix_Bug785) { cholesky(MatrixXd(0, 0)); }
 
+// =============================================================================
+// Regression test: Bug 241
+// =============================================================================
+TEST(CholeskyRegressionTest, Bug241) {
+  for (int i = 0; i < g_repeat; i++) {
+    cholesky_bug241(Matrix2d());
+  }
+}
+
+// =============================================================================
+// Definiteness test
+// =============================================================================
+TEST(CholeskyRegressionTest, Definiteness) {
+  for (int i = 0; i < g_repeat; i++) {
+    cholesky_definiteness(Matrix2d());
+  }
+}
+
+// =============================================================================
+// Verify assert test
+// =============================================================================
+TEST(CholeskyTest, VerifyAssert) {
   cholesky_verify_assert<Matrix3f>();
   cholesky_verify_assert<Matrix3d>();
   cholesky_verify_assert<MatrixXf>();
   cholesky_verify_assert<MatrixXd>();
+}
 
-  // Test problem size constructors
+// =============================================================================
+// Problem size constructors
+// =============================================================================
+TEST(CholeskyTest, ProblemSizeConstructors) {
   LLT<MatrixXf>(10);
   LDLT<MatrixXf>(10);
+}
 
+// =============================================================================
+// Failure cases
+// =============================================================================
+TEST(CholeskyTest, FailureCases) {
   cholesky_faillure_cases<void>();
-
   TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries)
 }

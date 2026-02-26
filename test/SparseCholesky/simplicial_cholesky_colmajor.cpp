@@ -11,8 +11,23 @@
 
 #include "simplicial_cholesky_helpers.h"
 
-TEST(SimplicialCholeskyColmajorTest, Basic) {
-  test_simplicial_cholesky_T<double, int, ColMajor>();
-  test_simplicial_cholesky_T<std::complex<double>, int, ColMajor>();
-  test_simplicial_cholesky_T<double, long int, ColMajor>();
+// =============================================================================
+// Config struct + typed test suite for SimplicialCholesky ColMajor
+// =============================================================================
+template <typename T_, typename I__>
+struct SimplicialCholeskyColmajorConfig {
+  using Scalar = T_;
+  using Index = I__;
+};
+
+template <typename T>
+class SimplicialCholeskyColmajorTest : public ::testing::Test {};
+
+using SimplicialCholeskyColmajorTypes = ::testing::Types<SimplicialCholeskyColmajorConfig<double, int>,
+                                                         SimplicialCholeskyColmajorConfig<std::complex<double>, int>,
+                                                         SimplicialCholeskyColmajorConfig<double, long int>>;
+TYPED_TEST_SUITE(SimplicialCholeskyColmajorTest, SimplicialCholeskyColmajorTypes);
+
+TYPED_TEST(SimplicialCholeskyColmajorTest, Basic) {
+  test_simplicial_cholesky_T<typename TypeParam::Scalar, typename TypeParam::Index, ColMajor>();
 }

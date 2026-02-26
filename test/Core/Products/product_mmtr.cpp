@@ -102,13 +102,17 @@ void mmtr(int size) {
 }
 
 // =============================================================================
-// Tests for product_mmtr
+// Typed test suite for product_mmtr
 // =============================================================================
-TEST(ProductMmtrTest, Basic) {
+template <typename T>
+class ProductMmtrTest : public ::testing::Test {};
+
+using ProductMmtrTypes = ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
+TYPED_TEST_SUITE(ProductMmtrTest, ProductMmtrTypes);
+
+TYPED_TEST(ProductMmtrTest, Mmtr) {
+  const int max_size = NumTraits<TypeParam>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
   for (int i = 0; i < g_repeat; i++) {
-    mmtr<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    mmtr<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    mmtr<std::complex<float> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2));
-    mmtr<std::complex<double> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2));
+    mmtr<TypeParam>(internal::random<int>(1, max_size));
   }
 }

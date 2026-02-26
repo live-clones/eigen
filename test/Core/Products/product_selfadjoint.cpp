@@ -64,29 +64,19 @@ void product_selfadjoint(const MatrixType& m) {
 }
 
 // =============================================================================
-// Tests for product_selfadjoint
+// Typed test suite for product_selfadjoint
 // =============================================================================
-TEST(ProductSelfadjointTest, Basic) {
-  int s = 0;
+template <typename T>
+class ProductSelfadjointTest : public ::testing::Test {};
+
+using ProductSelfadjointTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3d, MatrixXcf, MatrixXcd,
+                                                 MatrixXd, Matrix<float, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(ProductSelfadjointTest, ProductSelfadjointTypes);
+
+TYPED_TEST(ProductSelfadjointTest, ProductSelfadjoint) {
+  using Scalar = typename TypeParam::Scalar;
+  const int max_size = NumTraits<Scalar>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
   for (int i = 0; i < g_repeat; i++) {
-    product_selfadjoint(Matrix<float, 1, 1>());
-    product_selfadjoint(Matrix<float, 2, 2>());
-    product_selfadjoint(Matrix3d());
-
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
-    product_selfadjoint(MatrixXcf(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
-
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
-    product_selfadjoint(MatrixXcd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
-
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
-    product_selfadjoint(MatrixXd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
-
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
-    product_selfadjoint(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    product_selfadjoint(make_square_test_matrix<TypeParam>(max_size));
   }
 }

@@ -104,14 +104,21 @@ void test_bug2633() {
   VERIFY(schur.info() == Eigen::Success);
 }
 
-TEST(SchurRealTest, Basic) {
-  schur<Matrix4f>();
-  schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4));
-  schur<Matrix<float, 1, 1> >();
-  schur<Matrix<double, 3, 3, Eigen::RowMajor> >();
+// =============================================================================
+// Typed test suite for schur_real
+// =============================================================================
+template <typename T>
+class SchurRealTest : public ::testing::Test {};
 
-  // Test problem size constructors
-  RealSchur<MatrixXf>(10);
+using SchurRealTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<float, 1, 1>, Matrix<double, 3, 3, Eigen::RowMajor>>;
+TYPED_TEST_SUITE(SchurRealTest, SchurRealTypes);
 
-  test_bug2633();
+TYPED_TEST(SchurRealTest, Schur) {
+  int size = (TypeParam::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)
+                                                       : TypeParam::ColsAtCompileTime;
+  schur<TypeParam>(size);
 }
+
+TEST(SchurRealRegressionTest, ProblemSizeConstructors) { RealSchur<MatrixXf>(10); }
+
+TEST(SchurRealRegressionTest, Bug2633) { test_bug2633(); }

@@ -172,14 +172,6 @@ void bug987() {
   VERIFY_IS_APPROX((res1 = points.topLeftCorner<2, 2>() * diag.asDiagonal()), res2 = tmp2 * diag.asDiagonal());
 }
 
-template <typename MatrixType>
-MatrixType make_test_matrix() {
-  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::RowsAtCompileTime;
-  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::ColsAtCompileTime;
-  return MatrixType(rows, cols);
-}
 
 // =============================================================================
 // Typed test suite for diagonalmatrices

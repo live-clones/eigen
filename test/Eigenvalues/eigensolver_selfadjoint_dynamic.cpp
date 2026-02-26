@@ -9,25 +9,33 @@
 
 #include "eigensolver_selfadjoint_helpers.h"
 
-TEST(EigensolverSelfadjointDynamicTest, Basic) {
-  int s = 0;
-  for (int i = 0; i < g_repeat; i++) {
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-    selfadjointeigensolver(MatrixXf(s, s));
-    selfadjointeigensolver(MatrixXd(s, s));
-    selfadjointeigensolver(MatrixXcd(s, s));
-    selfadjointeigensolver(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(s, s));
+// =============================================================================
+// Typed test suite for eigensolver_selfadjoint_dynamic
+// =============================================================================
+template <typename T>
+class EigensolverSelfadjointDynamicTest : public ::testing::Test {};
 
-    // some trivial but implementation-wise tricky cases
+using EigensolverSelfadjointDynamicTypes =
+    ::testing::Types<MatrixXf, MatrixXd, MatrixXcd, Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(EigensolverSelfadjointDynamicTest, EigensolverSelfadjointDynamicTypes);
+
+TYPED_TEST(EigensolverSelfadjointDynamicTest, Dynamic) {
+  for (int i = 0; i < g_repeat; i++) {
+    selfadjointeigensolver(make_square_test_matrix<TypeParam>(EIGEN_TEST_MAX_SIZE / 4));
+  }
+}
+
+TEST(EigensolverSelfadjointDynamicRegressionTest, TrivialCases) {
+  for (int i = 0; i < g_repeat; i++) {
     selfadjointeigensolver(MatrixXd(1, 1));
     selfadjointeigensolver(MatrixXd(2, 2));
     selfadjointeigensolver(MatrixXcd(1, 1));
     selfadjointeigensolver(MatrixXcd(2, 2));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
   }
+}
 
-  // Test problem size constructors
-  s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
+TEST(EigensolverSelfadjointDynamicRegressionTest, ProblemSizeConstructors) {
+  int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
   SelfAdjointEigenSolver<MatrixXf> tmp1(s);
   Tridiagonalization<MatrixXf> tmp2(s);
   TEST_SET_BUT_UNUSED_VARIABLE(s)

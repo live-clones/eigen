@@ -12,9 +12,9 @@
 
 template <typename T, typename I_>
 void test_bicgstab_T() {
-  BiCGSTAB<SparseMatrix<T, 0, I_>, DiagonalPreconditioner<T> > bicgstab_colmajor_diag;
+  BiCGSTAB<SparseMatrix<T, 0, I_>, DiagonalPreconditioner<T>> bicgstab_colmajor_diag;
   BiCGSTAB<SparseMatrix<T, 0, I_>, IdentityPreconditioner> bicgstab_colmajor_I;
-  BiCGSTAB<SparseMatrix<T, 0, I_>, IncompleteLUT<T, I_> > bicgstab_colmajor_ilut;
+  BiCGSTAB<SparseMatrix<T, 0, I_>, IncompleteLUT<T, I_>> bicgstab_colmajor_ilut;
   // BiCGSTAB<SparseMatrix<T>, SSORPreconditioner<T> >     bicgstab_colmajor_ssor;
 
   bicgstab_colmajor_diag.setTolerance(NumTraits<T>::epsilon() * 4);
@@ -26,8 +26,30 @@ void test_bicgstab_T() {
   //  check_sparse_square_solving(bicgstab_colmajor_ssor)     ;
 }
 
+// =============================================================================
+// Config struct + typed test suite for BiCGSTAB
+// =============================================================================
+template <typename T_, typename I__>
+struct BicgstabConfig {
+  using Scalar = T_;
+  using Index = I__;
+};
+
+template <typename T>
+class BicgstabTest : public ::testing::Test {};
+
+using BicgstabTypes = ::testing::Types<BicgstabConfig<double, int>, BicgstabConfig<std::complex<double>, int>,
+                                       BicgstabConfig<double, long int>>;
+TYPED_TEST_SUITE(BicgstabTest, BicgstabTypes);
+
+TYPED_TEST(BicgstabTest, Basic) { test_bicgstab_T<typename TypeParam::Scalar, typename TypeParam::Index>(); }
+
+// =============================================================================
+// Regression tests
+// =============================================================================
+
 // https://gitlab.com/libeigen/eigen/-/issues/2856
-void test_2856() {
+TEST(BicgstabRegressionTest, Issue2856) {
   Eigen::MatrixXd D = Eigen::MatrixXd::Identity(14, 14);
   D(6, 13) = 1;
   D(13, 12) = 1;
@@ -51,7 +73,7 @@ void test_2856() {
 }
 
 // https://gitlab.com/libeigen/eigen/-/issues/2899
-void test_2899() {
+TEST(BicgstabRegressionTest, Issue2899) {
   Eigen::MatrixXd A = Eigen::MatrixXd::Zero(4, 4);
   A(0, 0) = 1;
   A(1, 0) = -1.0 / 6;
@@ -77,12 +99,4 @@ void test_2899() {
   VERIFY_IS_APPROX(x, expected);
   Eigen::VectorXd residual = b - A * x;
   VERIFY(residual.isZero());
-}
-
-TEST(BicgstabTest, Basic) {
-  test_bicgstab_T<double, int>();
-  test_bicgstab_T<std::complex<double>, int>();
-  test_bicgstab_T<double, long int>();
-  test_2856();
-  test_2899();
 }

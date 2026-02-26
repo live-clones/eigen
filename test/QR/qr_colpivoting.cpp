@@ -203,32 +203,65 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
-TEST(QRColpivotingTest, Basic) {
+// =============================================================================
+// Typed test suite for qr (dynamic types)
+// =============================================================================
+template <typename T>
+class QRColPivotingTest : public ::testing::Test {};
+
+using QRColPivotingTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcd>;
+TYPED_TEST_SUITE(QRColPivotingTest, QRColPivotingTypes);
+
+TYPED_TEST(QRColPivotingTest, QR) {
   for (int i = 0; i < g_repeat; i++) {
-    qr<MatrixXf>();
-    qr<MatrixXd>();
-    qr<MatrixXcd>();
+    qr<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Typed test suite for qr_invertible
+// =============================================================================
+template <typename T>
+class QRColPivotingInvertibleTest : public ::testing::Test {};
+
+using QRColPivotingInvertibleTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(QRColPivotingInvertibleTest, QRColPivotingInvertibleTypes);
+
+TYPED_TEST(QRColPivotingInvertibleTest, Invertible) {
+  for (int i = 0; i < g_repeat; i++) {
+    qr_invertible<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Fixed-size tests
+// =============================================================================
+TEST(QRColPivotingTest, FixedSize) {
+  for (int i = 0; i < g_repeat; i++) {
     qr_fixedsize<Matrix<float, 3, 5>, 4>();
     qr_fixedsize<Matrix<double, 6, 2>, 3>();
     qr_fixedsize<Matrix<double, 1, 1>, 1>();
   }
+}
 
-  for (int i = 0; i < g_repeat; i++) {
-    qr_invertible<MatrixXf>();
-    qr_invertible<MatrixXd>();
-    qr_invertible<MatrixXcf>();
-    qr_invertible<MatrixXcd>();
-  }
-
+// =============================================================================
+// Verify assert tests
+// =============================================================================
+TEST(QRColPivotingTest, VerifyAssert) {
   qr_verify_assert<Matrix3f>();
   qr_verify_assert<Matrix3d>();
   qr_verify_assert<MatrixXf>();
   qr_verify_assert<MatrixXd>();
   qr_verify_assert<MatrixXcf>();
   qr_verify_assert<MatrixXcd>();
+}
 
-  ColPivHouseholderQR<MatrixXf>(10, 20);
+// =============================================================================
+// Regression / misc tests
+// =============================================================================
+TEST(QRColPivotingTest, ProblemSizeConstructor) { ColPivHouseholderQR<MatrixXf>(10, 20); }
 
+TEST(QRColPivotingTest, KahanMatrix) {
   qr_kahan_matrix<MatrixXf>();
   qr_kahan_matrix<MatrixXd>();
 }

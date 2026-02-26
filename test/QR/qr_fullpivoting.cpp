@@ -129,30 +129,53 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
-TEST(QRFullpivotingTest, Basic) {
+// =============================================================================
+// Typed test suite for qr (run once, matching original for(i=0;i<1;i++) loop)
+// =============================================================================
+template <typename T>
+class QRFullPivotingTest : public ::testing::Test {};
+
+using QRFullPivotingTypes = ::testing::Types<Matrix3f, Matrix3d, Matrix2f, MatrixXf, MatrixXd, MatrixXcd>;
+TYPED_TEST_SUITE(QRFullPivotingTest, QRFullPivotingTypes);
+
+TYPED_TEST(QRFullPivotingTest, QR) {
+  // Original test ran with loop count 1 (not g_repeat).
   for (int i = 0; i < 1; i++) {
-    qr<Matrix3f>();
-    qr<Matrix3d>();
-    qr<Matrix2f>();
-    qr<MatrixXf>();
-    qr<MatrixXd>();
-    qr<MatrixXcd>();
+    qr<TypeParam>();
   }
+}
 
+// =============================================================================
+// Typed test suite for qr_invertible
+// =============================================================================
+template <typename T>
+class QRFullPivotingInvertibleTest : public ::testing::Test {};
+
+using QRFullPivotingInvertibleTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(QRFullPivotingInvertibleTest, QRFullPivotingInvertibleTypes);
+
+TYPED_TEST(QRFullPivotingInvertibleTest, Invertible) {
   for (int i = 0; i < g_repeat; i++) {
-    qr_invertible<MatrixXf>();
-    qr_invertible<MatrixXd>();
-    qr_invertible<MatrixXcf>();
-    qr_invertible<MatrixXcd>();
+    qr_invertible<TypeParam>();
   }
+}
 
+// =============================================================================
+// Verify assert tests
+// =============================================================================
+TEST(QRFullPivotingTest, VerifyAssert) {
   qr_verify_assert<Matrix3f>();
   qr_verify_assert<Matrix3d>();
   qr_verify_assert<MatrixXf>();
   qr_verify_assert<MatrixXd>();
   qr_verify_assert<MatrixXcf>();
   qr_verify_assert<MatrixXcd>();
+}
 
+// =============================================================================
+// Regression / misc tests
+// =============================================================================
+TEST(QRFullPivotingTest, ProblemSizeConstructors) {
   // Test problem size constructors
   FullPivHouseholderQR<MatrixXf>(10, 20);
   FullPivHouseholderQR<Matrix<float, 10, 20> >(10, 20);

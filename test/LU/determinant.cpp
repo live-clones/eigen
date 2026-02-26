@@ -50,16 +50,18 @@ void determinant(const MatrixType& m) {
   VERIFY_IS_APPROX(m2.block(0, 0, 0, 0).determinant(), Scalar(1));
 }
 
-TEST(DeterminantTest, Basic) {
+// =============================================================================
+// Typed test suite for determinant
+// =============================================================================
+template <typename T>
+class DeterminantTest : public ::testing::Test {};
+
+using DeterminantTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<double, 2, 2>, Matrix<double, 3, 3>,
+                                          Matrix<double, 4, 4>, Matrix<std::complex<double>, 10, 10>, MatrixXd>;
+TYPED_TEST_SUITE(DeterminantTest, DeterminantTypes);
+
+TYPED_TEST(DeterminantTest, Determinant) {
   for (int i = 0; i < g_repeat; i++) {
-    int s = 0;
-    determinant(Matrix<float, 1, 1>());
-    determinant(Matrix<double, 2, 2>());
-    determinant(Matrix<double, 3, 3>());
-    determinant(Matrix<double, 4, 4>());
-    determinant(Matrix<std::complex<double>, 10, 10>());
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-    determinant(MatrixXd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    determinant(make_square_test_matrix<TypeParam>(EIGEN_TEST_MAX_SIZE / 4));
   }
 }

@@ -129,16 +129,36 @@ void cod_verify_assert() {
   VERIFY_RAISES_ASSERT(cod.signDeterminant())
 }
 
-TEST(QRCODTest, Basic) {
+// =============================================================================
+// Typed test suite for cod (dynamic types)
+// =============================================================================
+template <typename T>
+class CODTest : public ::testing::Test {};
+
+using CODTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcd>;
+TYPED_TEST_SUITE(CODTest, CODTypes);
+
+TYPED_TEST(CODTest, COD) {
   for (int i = 0; i < g_repeat; i++) {
-    cod<MatrixXf>();
-    cod<MatrixXd>();
-    cod<MatrixXcd>();
+    cod<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Fixed-size tests
+// =============================================================================
+TEST(CODTest, FixedSize) {
+  for (int i = 0; i < g_repeat; i++) {
     cod_fixedsize<Matrix<float, 3, 5>, 4>();
     cod_fixedsize<Matrix<double, 6, 2>, 3>();
     cod_fixedsize<Matrix<double, 1, 1>, 1>();
   }
+}
 
+// =============================================================================
+// Verify assert tests
+// =============================================================================
+TEST(CODTest, VerifyAssert) {
   cod_verify_assert<Matrix3f>();
   cod_verify_assert<Matrix3d>();
   cod_verify_assert<MatrixXf>();

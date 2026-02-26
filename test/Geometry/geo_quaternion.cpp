@@ -190,8 +190,8 @@ template <typename Scalar>
 void mapQuaternion(void) {
   typedef Map<Quaternion<Scalar>, Aligned> MQuaternionA;
   typedef Map<const Quaternion<Scalar>, Aligned> MCQuaternionA;
-  typedef Map<Quaternion<Scalar> > MQuaternionUA;
-  typedef Map<const Quaternion<Scalar> > MCQuaternionUA;
+  typedef Map<Quaternion<Scalar>> MQuaternionUA;
+  typedef Map<const Quaternion<Scalar>> MCQuaternionUA;
   typedef Quaternion<Scalar> Quaternionx;
   typedef Matrix<Scalar, 3, 1> Vector3;
   typedef AngleAxis<Scalar> AngleAxisx;
@@ -293,8 +293,8 @@ void check_const_correctness(const PlainObjectType&) {
 
   // verify that map-to-const don't have LvalueBit
   typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
-  VERIFY(!(internal::traits<Map<ConstPlainObjectType> >::Flags & LvalueBit));
-  VERIFY(!(internal::traits<Map<ConstPlainObjectType, Aligned> >::Flags & LvalueBit));
+  VERIFY(!(internal::traits<Map<ConstPlainObjectType>>::Flags & LvalueBit));
+  VERIFY(!(internal::traits<Map<ConstPlainObjectType, Aligned>>::Flags & LvalueBit));
   VERIFY(!(Map<ConstPlainObjectType>::Flags & LvalueBit));
   VERIFY(!(Map<ConstPlainObjectType, Aligned>::Flags & LvalueBit));
 }
@@ -311,23 +311,77 @@ struct MovableClass {
   Quaternionf m_quat;
 };
 
-TEST(QuaternionTest, Basic) {
+// =============================================================================
+// Config struct + typed test suite for quaternion
+// =============================================================================
+template <typename Scalar_, int Options_>
+struct QuaternionConfig {
+  using Scalar = Scalar_;
+  static constexpr int Options = Options_;
+};
+
+template <typename T>
+class QuaternionTest : public ::testing::Test {};
+
+using QuaternionTypes = ::testing::Types<QuaternionConfig<float, AutoAlign>, QuaternionConfig<float, DontAlign>,
+                                         QuaternionConfig<double, AutoAlign>, QuaternionConfig<double, DontAlign>>;
+TYPED_TEST_SUITE(QuaternionTest, QuaternionTypes);
+
+TYPED_TEST(QuaternionTest, Quaternion) {
+  using Scalar = typename TypeParam::Scalar;
+  constexpr int Options = TypeParam::Options;
   for (int i = 0; i < g_repeat; i++) {
-    quaternion<float, AutoAlign>();
-    check_const_correctness(Quaternionf());
-    quaternion<float, DontAlign>();
-    quaternionAlignment<float>();
-    mapQuaternion<float>();
+    quaternion<Scalar, Options>();
+  }
+}
 
-    quaternion<double, AutoAlign>();
-    check_const_correctness(Quaterniond());
-    quaternion<double, DontAlign>();
-    quaternionAlignment<double>();
-    mapQuaternion<double>();
-
+// =============================================================================
+// Separate TEST for AnnoyingScalar quaternion
+// =============================================================================
+TEST(QuaternionAnnoyingScalarTest, Basic) {
+  for (int i = 0; i < g_repeat; i++) {
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
     AnnoyingScalar::dont_throw = true;
 #endif
     quaternion<AnnoyingScalar, AutoAlign>();
+  }
+}
+
+// =============================================================================
+// Separate TESTs for map, alignment, const_correctness
+// =============================================================================
+TEST(QuaternionMapTest, Float) {
+  for (int i = 0; i < g_repeat; i++) {
+    mapQuaternion<float>();
+  }
+}
+
+TEST(QuaternionMapTest, Double) {
+  for (int i = 0; i < g_repeat; i++) {
+    mapQuaternion<double>();
+  }
+}
+
+TEST(QuaternionAlignmentTest, Float) {
+  for (int i = 0; i < g_repeat; i++) {
+    quaternionAlignment<float>();
+  }
+}
+
+TEST(QuaternionAlignmentTest, Double) {
+  for (int i = 0; i < g_repeat; i++) {
+    quaternionAlignment<double>();
+  }
+}
+
+TEST(QuaternionConstCorrectnessTest, Float) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_const_correctness(Quaternionf());
+  }
+}
+
+TEST(QuaternionConstCorrectnessTest, Double) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_const_correctness(Quaterniond());
   }
 }

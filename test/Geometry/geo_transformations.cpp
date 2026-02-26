@@ -700,36 +700,117 @@ void transformations_computed_scaling_continuity() {
   VERIFY((s0 - s1).norm() < c * eps);
 }
 
-TEST(TransformationsTest, Basic) {
+// =============================================================================
+// Config struct + typed test suite for transformations
+// =============================================================================
+template <typename Scalar_, int Mode_, int Options_>
+struct TransformConfig {
+  using Scalar = Scalar_;
+  static constexpr int Mode = Mode_;
+  static constexpr int Options = Options_;
+};
+
+template <typename T>
+class TransformationsTest : public ::testing::Test {};
+
+using TransformationsTypes =
+    ::testing::Types<TransformConfig<double, Affine, AutoAlign>, TransformConfig<float, AffineCompact, AutoAlign>,
+                     TransformConfig<double, Projective, AutoAlign>, TransformConfig<double, Projective, DontAlign>,
+                     TransformConfig<float, Affine, RowMajor | AutoAlign>,
+                     TransformConfig<double, AffineCompact, RowMajor | AutoAlign>,
+                     TransformConfig<double, Projective, RowMajor | AutoAlign>,
+                     TransformConfig<double, Projective, RowMajor | DontAlign>>;
+TYPED_TEST_SUITE(TransformationsTest, TransformationsTypes);
+
+TYPED_TEST(TransformationsTest, Transformations) {
+  using Scalar = typename TypeParam::Scalar;
+  constexpr int Mode = TypeParam::Mode;
+  constexpr int Options = TypeParam::Options;
   for (int i = 0; i < g_repeat; i++) {
-    transformations<double, Affine, AutoAlign>();
-    non_projective_only<double, Affine, AutoAlign>();
-    transformations_computed_scaling_continuity<double, Affine, AutoAlign>();
+    transformations<Scalar, Mode, Options>();
+  }
+}
 
-    transformations<float, AffineCompact, AutoAlign>();
-    non_projective_only<float, AffineCompact, AutoAlign>();
-    transform_alignment<float>();
+// =============================================================================
+// Config struct + typed test suite for non-projective-only tests
+// =============================================================================
+template <typename T>
+class NonProjectiveTest : public ::testing::Test {};
 
-    transformations<double, Projective, AutoAlign>();
-    transformations<double, Projective, DontAlign>();
-    transform_alignment<double>();
+using NonProjectiveTypes =
+    ::testing::Types<TransformConfig<double, Affine, AutoAlign>, TransformConfig<float, AffineCompact, AutoAlign>,
+                     TransformConfig<float, Affine, RowMajor>, TransformConfig<double, AffineCompact, RowMajor>>;
+TYPED_TEST_SUITE(NonProjectiveTest, NonProjectiveTypes);
 
-    transformations<float, Affine, RowMajor | AutoAlign>();
-    non_projective_only<float, Affine, RowMajor>();
+TYPED_TEST(NonProjectiveTest, NonProjectiveOnly) {
+  using Scalar = typename TypeParam::Scalar;
+  constexpr int Mode = TypeParam::Mode;
+  constexpr int Options = TypeParam::Options;
+  for (int i = 0; i < g_repeat; i++) {
+    non_projective_only<Scalar, Mode, Options>();
+  }
+}
 
-    transformations<double, AffineCompact, RowMajor | AutoAlign>();
-    non_projective_only<double, AffineCompact, RowMajor>();
+// =============================================================================
+// Config struct + typed test suite for transformations_no_scale
+// =============================================================================
+template <typename T>
+class TransformationsNoScaleTest : public ::testing::Test {};
 
-    transformations<double, Projective, RowMajor | AutoAlign>();
-    transformations<double, Projective, RowMajor | DontAlign>();
+using TransformationsNoScaleTypes =
+    ::testing::Types<TransformConfig<double, Affine, AutoAlign>, TransformConfig<double, Isometry, AutoAlign>>;
+TYPED_TEST_SUITE(TransformationsNoScaleTest, TransformationsNoScaleTypes);
 
+TYPED_TEST(TransformationsNoScaleTest, NoScale) {
+  using Scalar = typename TypeParam::Scalar;
+  constexpr int Mode = TypeParam::Mode;
+  constexpr int Options = TypeParam::Options;
+  for (int i = 0; i < g_repeat; i++) {
+    transformations_no_scale<Scalar, Mode, Options>();
+  }
+}
+
+// =============================================================================
+// Separate TESTs for products, associativity, alignment, scaling continuity
+// =============================================================================
+TEST(TransformProductsTest, Double3RowMajor) {
+  for (int i = 0; i < g_repeat; i++) {
     transform_products<double, 3, RowMajor | AutoAlign>();
+  }
+}
+
+TEST(TransformProductsTest, Float2AutoAlign) {
+  for (int i = 0; i < g_repeat; i++) {
     transform_products<float, 2, AutoAlign>();
+  }
+}
 
+TEST(TransformAssociativityTest, Double2D) {
+  for (int i = 0; i < g_repeat; i++) {
     transform_associativity<double, 2, ColMajor>(Rotation2D<double>(internal::random<double>() * double(EIGEN_PI)));
-    transform_associativity<double, 3, ColMajor>(Quaterniond::UnitRandom());
+  }
+}
 
-    transformations_no_scale<double, Affine, AutoAlign>();
-    transformations_no_scale<double, Isometry, AutoAlign>();
+TEST(TransformAssociativityTest, Double3D) {
+  for (int i = 0; i < g_repeat; i++) {
+    transform_associativity<double, 3, ColMajor>(Quaterniond::UnitRandom());
+  }
+}
+
+TEST(TransformAlignmentTest, Float) {
+  for (int i = 0; i < g_repeat; i++) {
+    transform_alignment<float>();
+  }
+}
+
+TEST(TransformAlignmentTest, Double) {
+  for (int i = 0; i < g_repeat; i++) {
+    transform_alignment<double>();
+  }
+}
+
+TEST(TransformScalingContinuityTest, DoubleAffineAutoAlign) {
+  for (int i = 0; i < g_repeat; i++) {
+    transformations_computed_scaling_continuity<double, Affine, AutoAlign>();
   }
 }

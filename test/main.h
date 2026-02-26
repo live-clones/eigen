@@ -884,3 +884,24 @@ int main(int argc, char* argv[]) {
 #ifndef EIGEN_TEST_MAX_SIZE
 #define EIGEN_TEST_MAX_SIZE 320
 #endif
+
+// =============================================================================
+// Shared helpers for creating test matrices with appropriate dimensions.
+// For fixed-size types, compile-time dims are used (max_size is ignored).
+// For dynamic-size types, random dims up to max_size are used.
+// =============================================================================
+template <typename MatrixType>
+MatrixType make_test_matrix(int max_size = EIGEN_TEST_MAX_SIZE) {
+  const int rows = (MatrixType::RowsAtCompileTime == Eigen::Dynamic) ? Eigen::internal::random<int>(1, max_size)
+                                                                     : MatrixType::RowsAtCompileTime;
+  const int cols = (MatrixType::ColsAtCompileTime == Eigen::Dynamic) ? Eigen::internal::random<int>(1, max_size)
+                                                                     : MatrixType::ColsAtCompileTime;
+  return MatrixType(rows, cols);
+}
+
+template <typename MatrixType>
+MatrixType make_square_test_matrix(int max_size = EIGEN_TEST_MAX_SIZE) {
+  const int size = (MatrixType::RowsAtCompileTime == Eigen::Dynamic) ? Eigen::internal::random<int>(1, max_size)
+                                                                     : MatrixType::RowsAtCompileTime;
+  return MatrixType(size, size);
+}

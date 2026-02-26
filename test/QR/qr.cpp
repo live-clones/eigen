@@ -34,7 +34,7 @@ void qr_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
   typedef typename MatrixType::Scalar Scalar;
   Matrix<Scalar, Rows, Cols> m1 = Matrix<Scalar, Rows, Cols>::Random();
-  HouseholderQR<Matrix<Scalar, Rows, Cols> > qr(m1);
+  HouseholderQR<Matrix<Scalar, Rows, Cols>> qr(m1);
 
   Matrix<Scalar, Rows, Cols> r = qr.matrixQR();
   // FIXME need better way to construct trapezoid
@@ -44,7 +44,7 @@ void qr_fixedsize() {
 
   VERIFY_IS_APPROX(m1, qr.householderQ() * r);
 
-  check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2> >(m1, qr, Rows, Cols, Cols2);
+  check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2>>(m1, qr, Rows, Cols, Cols2);
 }
 
 template <typename MatrixType>
@@ -106,30 +106,79 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
-TEST(QRTest, Basic) {
+// =============================================================================
+// Config struct + typed test suite for qr
+// =============================================================================
+template <typename MatrixType_, int MaxRows_, int MaxCols_>
+struct QRConfig {
+  using MatrixType = MatrixType_;
+  static constexpr int MaxRows = MaxRows_;
+  static constexpr int MaxCols = MaxCols_;
+};
+
+template <typename T>
+class QRTest : public ::testing::Test {};
+
+using QRTypes = ::testing::Types<QRConfig<MatrixXf, EIGEN_TEST_MAX_SIZE, EIGEN_TEST_MAX_SIZE>,
+                                 QRConfig<MatrixXcd, EIGEN_TEST_MAX_SIZE / 2, EIGEN_TEST_MAX_SIZE / 2>,
+                                 QRConfig<Matrix<float, 1, 1>, 1, 1>>;
+TYPED_TEST_SUITE(QRTest, QRTypes);
+
+TYPED_TEST(QRTest, QR) {
+  using MatrixType = typename TypeParam::MatrixType;
+  constexpr int MaxRows = TypeParam::MaxRows;
+  constexpr int MaxCols = TypeParam::MaxCols;
   for (int i = 0; i < g_repeat; i++) {
-    qr(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    qr(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+    int rows =
+        MatrixType::RowsAtCompileTime == Dynamic ? internal::random<int>(1, MaxRows) : MatrixType::RowsAtCompileTime;
+    int cols =
+        MatrixType::ColsAtCompileTime == Dynamic ? internal::random<int>(1, MaxCols) : MatrixType::ColsAtCompileTime;
+    qr(MatrixType(rows, cols));
+  }
+}
+
+// =============================================================================
+// Typed test suite for qr_invertible
+// =============================================================================
+template <typename T>
+class QRInvertibleTest : public ::testing::Test {};
+
+using QRInvertibleTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(QRInvertibleTest, QRInvertibleTypes);
+
+TYPED_TEST(QRInvertibleTest, Invertible) {
+  for (int i = 0; i < g_repeat; i++) {
+    qr_invertible<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Fixed-size tests
+// =============================================================================
+TEST(QRTest, FixedSize) {
+  for (int i = 0; i < g_repeat; i++) {
     qr_fixedsize<Matrix<float, 3, 4>, 2>();
     qr_fixedsize<Matrix<double, 6, 2>, 4>();
     qr_fixedsize<Matrix<double, 2, 5>, 7>();
-    qr(Matrix<float, 1, 1>());
   }
+}
 
-  for (int i = 0; i < g_repeat; i++) {
-    qr_invertible<MatrixXf>();
-    qr_invertible<MatrixXd>();
-    qr_invertible<MatrixXcf>();
-    qr_invertible<MatrixXcd>();
-  }
-
+// =============================================================================
+// Verify assert tests
+// =============================================================================
+TEST(QRTest, VerifyAssert) {
   qr_verify_assert<Matrix3f>();
   qr_verify_assert<Matrix3d>();
   qr_verify_assert<MatrixXf>();
   qr_verify_assert<MatrixXd>();
   qr_verify_assert<MatrixXcf>();
   qr_verify_assert<MatrixXcd>();
+}
 
+// =============================================================================
+// Regression / misc tests
+// =============================================================================
+TEST(QRTest, ProblemSizeConstructor) {
   // Test problem size constructors
   HouseholderQR<MatrixXf>(10, 20);
 }

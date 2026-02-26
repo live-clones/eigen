@@ -113,29 +113,41 @@ void inverse_zerosized() {
   }
 }
 
-TEST(InverseTest, Basic) {
-  int s = 0;
-  for (int i = 0; i < g_repeat; i++) {
-    inverse(Matrix<double, 1, 1>());
-    inverse(Matrix2d());
-    inverse(Matrix3f());
-    inverse(Matrix4f());
-    inverse(Matrix<float, 4, 4, DontAlign>());
+// =============================================================================
+// Typed test suite for inverse (fixed-size types)
+// =============================================================================
+template <typename T>
+class InverseFixedTest : public ::testing::Test {};
 
-    s = internal::random<int>(50, 320);
+using InverseFixedTypes = ::testing::Types<Matrix<double, 1, 1>, Matrix2d, Matrix3f, Matrix4f,
+                                           Matrix<float, 4, 4, DontAlign>, Matrix4d,
+                                           Matrix<double, 4, 4, DontAlign>, Matrix4cd>;
+TYPED_TEST_SUITE(InverseFixedTest, InverseFixedTypes);
+
+TYPED_TEST(InverseFixedTest, Inverse) {
+  for (int i = 0; i < g_repeat; i++) {
+    inverse(TypeParam());
+  }
+}
+
+TEST(InverseDynamicTest, MatrixXf) {
+  for (int i = 0; i < g_repeat; i++) {
+    int s = internal::random<int>(50, 320);
     inverse(MatrixXf(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+  }
+}
+
+TEST(InverseDynamicTest, MatrixXcd) {
+  for (int i = 0; i < g_repeat; i++) {
+    int s = internal::random<int>(25, 100);
+    inverse(MatrixXcd(s, s));
+  }
+}
+
+TEST(InverseRegressionTest, ZeroSized) {
+  for (int i = 0; i < g_repeat; i++) {
     inverse_zerosized<float>();
     inverse(MatrixXf(0, 0));
     inverse(MatrixXf(1, 1));
-
-    s = internal::random<int>(25, 100);
-    inverse(MatrixXcd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
-
-    inverse(Matrix4d());
-    inverse(Matrix<double, 4, 4, DontAlign>());
-
-    inverse(Matrix4cd());
   }
 }

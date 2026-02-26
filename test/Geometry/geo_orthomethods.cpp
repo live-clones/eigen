@@ -139,21 +139,70 @@ void orthomethods(int size = Size) {
   VERIFY_IS_APPROX(mcrossN3.row(i), matN3.row(i).cross(vec3));
 }
 
-TEST(OrthomethodsTest, Basic) {
+// =============================================================================
+// Typed test suite for orthomethods_2
+// =============================================================================
+template <typename T>
+class Orthomethods2Test : public ::testing::Test {};
+
+using Orthomethods2Types = ::testing::Types<float, double, std::complex<double>>;
+TYPED_TEST_SUITE(Orthomethods2Test, Orthomethods2Types);
+
+TYPED_TEST(Orthomethods2Test, Cross2D) {
   for (int i = 0; i < g_repeat; i++) {
-    orthomethods_2<float>();
-    orthomethods_2<double>();
-    orthomethods_2<std::complex<double> >();
-    orthomethods_3<float>();
-    orthomethods_3<double>();
-    orthomethods_3<std::complex<double> >();
-    orthomethods<float, 2>();
-    orthomethods<double, 2>();
-    orthomethods<float, 3>();
-    orthomethods<double, 3>();
-    orthomethods<float, 7>();
-    orthomethods<std::complex<double>, 8>();
+    orthomethods_2<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Typed test suite for orthomethods_3
+// =============================================================================
+template <typename T>
+class Orthomethods3Test : public ::testing::Test {};
+
+using Orthomethods3Types = ::testing::Types<float, double, std::complex<double>>;
+TYPED_TEST_SUITE(Orthomethods3Test, Orthomethods3Types);
+
+TYPED_TEST(Orthomethods3Test, Cross3D) {
+  for (int i = 0; i < g_repeat; i++) {
+    orthomethods_3<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Config struct + typed test suite for orthomethods<Scalar, Size>
+// =============================================================================
+template <typename Scalar_, int Size_>
+struct OrthoConfig {
+  using Scalar = Scalar_;
+  static constexpr int Size = Size_;
+};
+
+template <typename T>
+class OrthomethodsTest : public ::testing::Test {};
+
+using OrthomethodsTypes =
+    ::testing::Types<OrthoConfig<float, 2>, OrthoConfig<double, 2>, OrthoConfig<float, 3>, OrthoConfig<double, 3>,
+                     OrthoConfig<float, 7>, OrthoConfig<std::complex<double>, 8>>;
+TYPED_TEST_SUITE(OrthomethodsTest, OrthomethodsTypes);
+
+TYPED_TEST(OrthomethodsTest, UnitOrthogonalAndCross) {
+  for (int i = 0; i < g_repeat; i++) {
+    orthomethods<typename TypeParam::Scalar, TypeParam::Size>();
+  }
+}
+
+// =============================================================================
+// Separate TESTs for dynamic-size orthomethods
+// =============================================================================
+TEST(OrthomethodsDynamicTest, FloatSize36) {
+  for (int i = 0; i < g_repeat; i++) {
     orthomethods<float, Dynamic>(36);
+  }
+}
+
+TEST(OrthomethodsDynamicTest, DoubleSize35) {
+  for (int i = 0; i < g_repeat; i++) {
     orthomethods<double, Dynamic>(35);
   }
 }

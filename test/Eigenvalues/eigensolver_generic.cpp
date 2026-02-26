@@ -118,117 +118,124 @@ Matrix<typename CoeffType::Scalar, Dynamic, Dynamic> make_companion(const CoeffT
   return res;
 }
 
-template <int>
-void eigensolver_generic_extra() {
-  {
-    // regression test for bug 793
-    MatrixXd a(3, 3);
-    a << 0, 0, 1, 1, 1, 1, 1, 1e+200, 1;
-    Eigen::EigenSolver<MatrixXd> eig(a);
-    double scale = 1e-200;  // scale to avoid overflow during the comparisons
-    VERIFY_IS_APPROX(a * eig.pseudoEigenvectors() * scale,
-                     eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix() * scale);
-    VERIFY_IS_APPROX(a * eig.eigenvectors() * scale, eig.eigenvectors() * eig.eigenvalues().asDiagonal() * scale);
-  }
-  {
-    // check a case where all eigenvalues are null.
-    MatrixXd a(2, 2);
-    a << 1, 1, -1, -1;
-    Eigen::EigenSolver<MatrixXd> eig(a);
-    VERIFY_IS_APPROX(eig.pseudoEigenvectors().squaredNorm(), 2.);
-    VERIFY_IS_APPROX((a * eig.pseudoEigenvectors()).norm() + 1., 1.);
-    VERIFY_IS_APPROX((eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix()).norm() + 1., 1.);
-    VERIFY_IS_APPROX((a * eig.eigenvectors()).norm() + 1., 1.);
-    VERIFY_IS_APPROX((eig.eigenvectors() * eig.eigenvalues().asDiagonal()).norm() + 1., 1.);
-  }
+// =============================================================================
+// Typed test suite for eigensolver_generic
+// =============================================================================
+template <typename T>
+class EigensolverGenericTest : public ::testing::Test {};
 
-  // regression test for bug 933
-  {
-    {
-      VectorXd coeffs(5);
-      coeffs << 1, -3, -175, -225, 2250;
-      MatrixXd C = make_companion(coeffs);
-      EigenSolver<MatrixXd> eig(C);
-      check_eigensolver_for_given_mat(eig, C);
-    }
-    {
-      // this test is tricky because it requires high accuracy in smallest eigenvalues
-      VectorXd coeffs(5);
-      coeffs << 6.154671e-15, -1.003870e-10, -9.819570e-01, 3.995715e+03, 2.211511e+08;
-      MatrixXd C = make_companion(coeffs);
-      EigenSolver<MatrixXd> eig(C);
-      check_eigensolver_for_given_mat(eig, C);
-      Index n = C.rows();
-      for (Index i = 0; i < n; ++i) {
-        typedef std::complex<double> Complex;
-        MatrixXcd ac = C.cast<Complex>();
-        ac.diagonal().array() -= eig.eigenvalues()(i);
-        VectorXd sv = ac.jacobiSvd().singularValues();
-        // comparing to sv(0) is not enough here to catch the "bug",
-        // the hard-coded 1.0 is important!
-        VERIFY_IS_MUCH_SMALLER_THAN(sv(n - 1), 1.0);
-      }
-    }
-  }
-  // regression test for bug 1557
-  {
-    // this test is interesting because it contains zeros on the diagonal.
-    MatrixXd A_bug1557(3, 3);
-    A_bug1557 << 0, 0, 0, 1, 0, 0.5887907064808635127, 0, 1, 0;
-    EigenSolver<MatrixXd> eig(A_bug1557);
-    check_eigensolver_for_given_mat(eig, A_bug1557);
-  }
+using EigensolverGenericTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<double, 1, 1>, Matrix2d>;
+TYPED_TEST_SUITE(EigensolverGenericTest, EigensolverGenericTypes);
 
-  // regression test for bug 1174
-  {
-    Index n = 12;
-    MatrixXf A_bug1174(n, n);
-    A_bug1174 << 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0, 786432, 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0,
-        786432, 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0, 786432, 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0,
-        786432, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144, 0, 0,
-        262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144,
-        262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144,
-        262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144,
-        262144, 262144, 262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0,
-        0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0;
-    EigenSolver<MatrixXf> eig(A_bug1174);
-    check_eigensolver_for_given_mat(eig, A_bug1174);
+TYPED_TEST(EigensolverGenericTest, Eigensolver) {
+  for (int i = 0; i < g_repeat; i++) {
+    eigensolver(make_square_test_matrix<TypeParam>(EIGEN_TEST_MAX_SIZE / 4));
   }
 }
 
-TEST(EigensolverGenericTest, Basic) {
-  int s = 0;
-  for (int i = 0; i < g_repeat; i++) {
-    eigensolver(Matrix4f());
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-    eigensolver(MatrixXd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+TYPED_TEST(EigensolverGenericTest, VerifyAssert) {
+  int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
+  eigensolver_verify_assert((TypeParam::RowsAtCompileTime == Dynamic) ? TypeParam(s, s) : TypeParam());
+}
 
-    // some trivial but implementation-wise tricky cases
+// =============================================================================
+// Regression and extra tests
+// =============================================================================
+
+TEST(EigensolverGenericRegressionTest, TrivialCases) {
+  for (int i = 0; i < g_repeat; i++) {
     eigensolver(MatrixXd(1, 1));
     eigensolver(MatrixXd(2, 2));
-    eigensolver(Matrix<double, 1, 1>());
-    eigensolver(Matrix2d());
   }
+}
 
-  eigensolver_verify_assert(Matrix4f());
-  s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-  eigensolver_verify_assert(MatrixXd(s, s));
-  eigensolver_verify_assert(Matrix<double, 1, 1>());
-  eigensolver_verify_assert(Matrix2d());
-
-  // Test problem size constructors
+TEST(EigensolverGenericRegressionTest, ProblemSizeConstructors) {
+  int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
   EigenSolver<MatrixXf> tmp(s);
-
-  // regression test for bug 410
-  {
-    MatrixXd A(1, 1);
-    A(0, 0) = std::sqrt(-1.);  // is Not-a-Number
-    Eigen::EigenSolver<MatrixXd> solver(A);
-    VERIFY_IS_EQUAL(solver.info(), NumericalIssue);
-  };
-
-  eigensolver_generic_extra<0>();
-
   TEST_SET_BUT_UNUSED_VARIABLE(s)
+}
+
+TEST(EigensolverGenericRegressionTest, Bug410) {
+  // regression test for bug 410
+  MatrixXd A(1, 1);
+  A(0, 0) = std::sqrt(-1.);  // is Not-a-Number
+  Eigen::EigenSolver<MatrixXd> solver(A);
+  VERIFY_IS_EQUAL(solver.info(), NumericalIssue);
+}
+
+TEST(EigensolverGenericRegressionTest, Bug793) {
+  // regression test for bug 793
+  MatrixXd a(3, 3);
+  a << 0, 0, 1, 1, 1, 1, 1, 1e+200, 1;
+  Eigen::EigenSolver<MatrixXd> eig(a);
+  double scale = 1e-200;  // scale to avoid overflow during the comparisons
+  VERIFY_IS_APPROX(a * eig.pseudoEigenvectors() * scale,
+                   eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix() * scale);
+  VERIFY_IS_APPROX(a * eig.eigenvectors() * scale, eig.eigenvectors() * eig.eigenvalues().asDiagonal() * scale);
+}
+
+TEST(EigensolverGenericRegressionTest, NullEigenvalues) {
+  // check a case where all eigenvalues are null.
+  MatrixXd a(2, 2);
+  a << 1, 1, -1, -1;
+  Eigen::EigenSolver<MatrixXd> eig(a);
+  VERIFY_IS_APPROX(eig.pseudoEigenvectors().squaredNorm(), 2.);
+  VERIFY_IS_APPROX((a * eig.pseudoEigenvectors()).norm() + 1., 1.);
+  VERIFY_IS_APPROX((eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix()).norm() + 1., 1.);
+  VERIFY_IS_APPROX((a * eig.eigenvectors()).norm() + 1., 1.);
+  VERIFY_IS_APPROX((eig.eigenvectors() * eig.eigenvalues().asDiagonal()).norm() + 1., 1.);
+}
+
+TEST(EigensolverGenericRegressionTest, Bug933) {
+  // regression test for bug 933
+  {
+    VectorXd coeffs(5);
+    coeffs << 1, -3, -175, -225, 2250;
+    MatrixXd C = make_companion(coeffs);
+    EigenSolver<MatrixXd> eig(C);
+    check_eigensolver_for_given_mat(eig, C);
+  }
+  {
+    // this test is tricky because it requires high accuracy in smallest eigenvalues
+    VectorXd coeffs(5);
+    coeffs << 6.154671e-15, -1.003870e-10, -9.819570e-01, 3.995715e+03, 2.211511e+08;
+    MatrixXd C = make_companion(coeffs);
+    EigenSolver<MatrixXd> eig(C);
+    check_eigensolver_for_given_mat(eig, C);
+    Index n = C.rows();
+    for (Index i = 0; i < n; ++i) {
+      typedef std::complex<double> Complex;
+      MatrixXcd ac = C.cast<Complex>();
+      ac.diagonal().array() -= eig.eigenvalues()(i);
+      VectorXd sv = ac.jacobiSvd().singularValues();
+      // comparing to sv(0) is not enough here to catch the "bug",
+      // the hard-coded 1.0 is important!
+      VERIFY_IS_MUCH_SMALLER_THAN(sv(n - 1), 1.0);
+    }
+  }
+}
+
+TEST(EigensolverGenericRegressionTest, Bug1557) {
+  // regression test for bug 1557
+  // this test is interesting because it contains zeros on the diagonal.
+  MatrixXd A_bug1557(3, 3);
+  A_bug1557 << 0, 0, 0, 1, 0, 0.5887907064808635127, 0, 1, 0;
+  EigenSolver<MatrixXd> eig(A_bug1557);
+  check_eigensolver_for_given_mat(eig, A_bug1557);
+}
+
+TEST(EigensolverGenericRegressionTest, Bug1174) {
+  // regression test for bug 1174
+  Index n = 12;
+  MatrixXf A_bug1174(n, n);
+  A_bug1174 << 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0, 786432, 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0,
+      786432, 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0, 786432, 262144, 0, 0, 262144, 786432, 0, 0, 0, 0, 0, 0,
+      786432, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144, 0, 0,
+      262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144,
+      262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144,
+      0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144,
+      262144, 262144, 0, 0, 262144, 262144, 0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0, 0, 262144, 262144,
+      0, 0, 262144, 262144, 262144, 262144, 262144, 262144, 0;
+  EigenSolver<MatrixXf> eig(A_bug1174);
+  check_eigensolver_for_given_mat(eig, A_bug1174);
 }

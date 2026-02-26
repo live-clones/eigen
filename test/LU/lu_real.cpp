@@ -11,34 +11,85 @@
 
 #include "lu_helpers.h"
 
-TEST(LUTest, Real) {
+// =============================================================================
+// Typed test suite for lu_non_invertible (types shared with other helpers)
+// =============================================================================
+template <typename T>
+class LURealNonInvertibleTest : public ::testing::Test {};
+
+using LURealNonInvertibleTypes =
+    ::testing::Types<Matrix3f, Matrix<double, 4, 6>, MatrixXf, MatrixXd, Matrix<float, Dynamic, 16>>;
+TYPED_TEST_SUITE(LURealNonInvertibleTest, LURealNonInvertibleTypes);
+
+TYPED_TEST(LURealNonInvertibleTest, NonInvertible) {
   for (int i = 0; i < g_repeat; i++) {
-    lu_non_invertible<Matrix3f>();
-    lu_invertible<Matrix3f>();
-    lu_verify_assert<Matrix3f>();
-    lu_partial_piv<Matrix3f>();
+    lu_non_invertible<TypeParam>();
+  }
+}
 
-    lu_non_invertible<Matrix<double, 4, 6> >();
-    lu_verify_assert<Matrix<double, 4, 6> >();
-    lu_partial_piv<Matrix2d>();
-    lu_partial_piv<Matrix4d>();
-    lu_partial_piv<Matrix<double, 6, 6> >();
+// =============================================================================
+// Typed test suite for lu_invertible
+// =============================================================================
+template <typename T>
+class LURealInvertibleTest : public ::testing::Test {};
 
-    lu_non_invertible<MatrixXf>();
-    lu_invertible<MatrixXf>();
-    lu_verify_assert<MatrixXf>();
+using LURealInvertibleTypes = ::testing::Types<Matrix3f, MatrixXf, MatrixXd>;
+TYPED_TEST_SUITE(LURealInvertibleTest, LURealInvertibleTypes);
 
-    lu_non_invertible<MatrixXd>();
-    lu_invertible<MatrixXd>();
+TYPED_TEST(LURealInvertibleTest, Invertible) {
+  for (int i = 0; i < g_repeat; i++) {
+    lu_invertible<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Typed test suite for lu_verify_assert
+// =============================================================================
+template <typename T>
+class LURealVerifyAssertTest : public ::testing::Test {};
+
+using LURealVerifyAssertTypes = ::testing::Types<Matrix3f, Matrix<double, 4, 6>, MatrixXf, MatrixXd>;
+TYPED_TEST_SUITE(LURealVerifyAssertTest, LURealVerifyAssertTypes);
+
+TYPED_TEST(LURealVerifyAssertTest, VerifyAssert) { lu_verify_assert<TypeParam>(); }
+
+// =============================================================================
+// Typed test suite for lu_partial_piv (fixed-size square types)
+// =============================================================================
+template <typename T>
+class LURealPartialPivFixedTest : public ::testing::Test {};
+
+using LURealPartialPivFixedTypes = ::testing::Types<Matrix3f, Matrix2d, Matrix4d, Matrix<double, 6, 6>>;
+TYPED_TEST_SUITE(LURealPartialPivFixedTest, LURealPartialPivFixedTypes);
+
+TYPED_TEST(LURealPartialPivFixedTest, PartialPiv) {
+  for (int i = 0; i < g_repeat; i++) {
+    lu_partial_piv<TypeParam>();
+  }
+}
+
+// =============================================================================
+// Dynamic-size partial pivot test (MatrixXd with random size in [1, MAX_SIZE])
+// =============================================================================
+TEST(LURealTest, PartialPivDynamic) {
+  for (int i = 0; i < g_repeat; i++) {
     lu_partial_piv<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
-    lu_verify_assert<MatrixXd>();
+  }
+}
 
-    lu_non_invertible<Matrix<float, Dynamic, 16> >();
+// =============================================================================
+// Problem size constructors
+// =============================================================================
+TEST(LURealTest, ProblemSizeConstructors) {
+  PartialPivLU<MatrixXf>(10);
+  FullPivLU<MatrixXf>(10, 20);
+}
 
-    // Test problem size constructors
-    PartialPivLU<MatrixXf>(10);
-    FullPivLU<MatrixXf>(10, 20);
-
+// =============================================================================
+// Regression test for Bug 2889
+// =============================================================================
+TEST(LURealRegressionTest, Bug2889) {
+  for (int i = 0; i < g_repeat; i++) {
     test_2889();
   }
 }

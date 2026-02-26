@@ -37,14 +37,6 @@ void ctor_init1(const MatrixType& m) {
   VERIFY_EVALUATION_COUNT(MatrixType m3(wrapper), 1);
 }
 
-template <typename MatrixType>
-MatrixType make_test_matrix() {
-  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::RowsAtCompileTime;
-  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::ColsAtCompileTime;
-  return MatrixType(rows, cols);
-}
 
 // =============================================================================
 // Typed test suite for constructor

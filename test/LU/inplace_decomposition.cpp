@@ -70,30 +70,83 @@ void inplace(bool square = false, bool SPD = false) {
   }
 }
 
-TEST(InplaceDecompositionTest, Basic) {
-  EIGEN_UNUSED typedef Matrix<double, 4, 3> Matrix43d;
+EIGEN_UNUSED typedef Matrix<double, 4, 3> Matrix43d;
+
+// =============================================================================
+// LLT inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, LLT) {
   for (int i = 0; i < g_repeat; i++) {
     inplace<LLT<Ref<MatrixXd> >, MatrixXd>(true, true);
     inplace<LLT<Ref<Matrix4d> >, Matrix4d>(true, true);
+  }
+}
 
+// =============================================================================
+// LDLT inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, LDLT) {
+  for (int i = 0; i < g_repeat; i++) {
     inplace<LDLT<Ref<MatrixXd> >, MatrixXd>(true, true);
     inplace<LDLT<Ref<Matrix4d> >, Matrix4d>(true, true);
+  }
+}
 
+// =============================================================================
+// PartialPivLU inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, PartialPivLU) {
+  for (int i = 0; i < g_repeat; i++) {
     inplace<PartialPivLU<Ref<MatrixXd> >, MatrixXd>(true, false);
     inplace<PartialPivLU<Ref<Matrix4d> >, Matrix4d>(true, false);
+  }
+}
 
+// =============================================================================
+// FullPivLU inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, FullPivLU) {
+  for (int i = 0; i < g_repeat; i++) {
     inplace<FullPivLU<Ref<MatrixXd> >, MatrixXd>(true, false);
     inplace<FullPivLU<Ref<Matrix4d> >, Matrix4d>(true, false);
+  }
+}
 
+// =============================================================================
+// HouseholderQR inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, HouseholderQR) {
+  for (int i = 0; i < g_repeat; i++) {
     inplace<HouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false);
     inplace<HouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false);
+  }
+}
 
+// =============================================================================
+// ColPivHouseholderQR inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, ColPivHouseholderQR) {
+  for (int i = 0; i < g_repeat; i++) {
     inplace<ColPivHouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false);
     inplace<ColPivHouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false);
+  }
+}
 
+// =============================================================================
+// FullPivHouseholderQR inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, FullPivHouseholderQR) {
+  for (int i = 0; i < g_repeat; i++) {
     inplace<FullPivHouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false);
     inplace<FullPivHouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false);
+  }
+}
 
+// =============================================================================
+// CompleteOrthogonalDecomposition inplace
+// =============================================================================
+TEST(InplaceDecompositionTest, CompleteOrthogonalDecomposition) {
+  for (int i = 0; i < g_repeat; i++) {
     inplace<CompleteOrthogonalDecomposition<Ref<MatrixXd> >, MatrixXd>(false, false);
     inplace<CompleteOrthogonalDecomposition<Ref<Matrix43d> >, Matrix43d>(false, false);
   }

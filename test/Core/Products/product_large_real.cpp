@@ -12,24 +12,40 @@
 #include "product_large_helpers.h"
 
 // =============================================================================
-// Tests for product_large_real
+// Typed test suite for product (real scalar types)
 // =============================================================================
-TEST(ProductLargeRealTest, Basic) {
+template <typename T>
+class ProductLargeRealTest : public ::testing::Test {};
+
+using ProductLargeRealTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXi, Matrix<float, Dynamic, Dynamic, RowMajor>,
+                                               Matrix<bfloat16, Dynamic, Dynamic, RowMajor>>;
+TYPED_TEST_SUITE(ProductLargeRealTest, ProductLargeRealTypes);
+
+TYPED_TEST(ProductLargeRealTest, Product) {
   for (int i = 0; i < g_repeat; i++) {
-    product(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    product(MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    product(TypeParam(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  }
+}
+
+// =============================================================================
+// Separate tests for special sizes, aliasing, and regressions
+// =============================================================================
+TEST(ProductLargeRealExtraTest, MatrixXdSmall) {
+  for (int i = 0; i < g_repeat; i++) {
     product(MatrixXd(internal::random<int>(1, 10), internal::random<int>(1, 10)));
+  }
+}
 
-    product(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    product(Matrix<float, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                      internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    product(Matrix<bfloat16, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                         internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-
+TEST(ProductLargeRealExtraTest, Aliasing) {
+  for (int i = 0; i < g_repeat; i++) {
     test_aliasing<float>();
+  }
+}
 
+TEST(ProductLargeRealRegressionTest, Bug1622) {
+  for (int i = 0; i < g_repeat; i++) {
     bug_1622<1>();
   }
-
-  product_large_regressions<0>();
 }
+
+TEST(ProductLargeRealRegressionTest, LargeRegressions) { product_large_regressions<0>(); }

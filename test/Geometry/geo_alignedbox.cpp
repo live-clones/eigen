@@ -495,26 +495,81 @@ void specificTest2() {
   VERIFY_IS_APPROX(topLeftFloor, box.corner(BoxType::TopLeftFloor));
 }
 
-TEST(AlignedboxTest, Basic) {
+// =============================================================================
+// Separate TESTs for each alignedbox variant
+// =============================================================================
+TEST(AlignedBoxTest, NonIntegralRotatable2f) {
   for (int i = 0; i < g_repeat; i++) {
     alignedboxNonIntegralRotatable<AlignedBox2f, Rotation2Df>(AlignedBox2f(), &rotate2D);
+  }
+}
+
+TEST(AlignedBoxTest, Cast2f) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxCastTests(AlignedBox2f());
+  }
+}
 
+TEST(AlignedBoxTest, NonIntegralRotatable3f) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxNonIntegralRotatable<AlignedBox3f, AngleAxisf>(AlignedBox3f(), &rotate3DZAxis);
+  }
+}
+
+TEST(AlignedBoxTest, Cast3f) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxCastTests(AlignedBox3f());
+  }
+}
 
+TEST(AlignedBoxTest, NonIntegralRotatable4d) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxNonIntegralRotatable<AlignedBox4d, Matrix4d>(AlignedBox4d(), &rotate4DZWAxis);
+  }
+}
+
+TEST(AlignedBoxTest, Cast4d) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxCastTests(AlignedBox4d());
+  }
+}
 
+TEST(AlignedBoxTest, Translatable1d) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxTranslatable(AlignedBox1d());
+  }
+}
+
+TEST(AlignedBoxTest, Cast1d) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxCastTests(AlignedBox1d());
+  }
+}
 
+TEST(AlignedBoxTest, Translatable1i) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedboxTranslatable(AlignedBox1i());
-    alignedboxRotatable<AlignedBox2i, Matrix2i>(AlignedBox2i(), &rotate2DIntegral<int, Matrix2i>);
-    alignedboxRotatable<AlignedBox3i, Matrix3i>(AlignedBox3i(), &rotate3DZAxisIntegral<int, Matrix3i>);
+  }
+}
 
+TEST(AlignedBoxTest, Rotatable2i) {
+  for (int i = 0; i < g_repeat; i++) {
+    alignedboxRotatable<AlignedBox2i, Matrix2i>(AlignedBox2i(), &rotate2DIntegral<int, Matrix2i>);
+  }
+}
+
+TEST(AlignedBoxTest, Rotatable3i) {
+  for (int i = 0; i < g_repeat; i++) {
+    alignedboxRotatable<AlignedBox3i, Matrix3i>(AlignedBox3i(), &rotate3DZAxisIntegral<int, Matrix3i>);
+  }
+}
+
+TEST(AlignedBoxTest, Dynamic4d) {
+  for (int i = 0; i < g_repeat; i++) {
     alignedbox(AlignedBox<double, Dynamic>(4));
   }
-  specificTest1();
-  specificTest2();
 }
+
+TEST(AlignedBoxTest, SpecificTest1) { specificTest1(); }
+
+TEST(AlignedBoxTest, SpecificTest2) { specificTest2(); }

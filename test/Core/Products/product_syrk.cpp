@@ -148,20 +148,19 @@ void syrk(const MatrixType& m) {
 }
 
 // =============================================================================
-// Tests for product_syrk
+// Typed test suite for product_syrk
 // =============================================================================
-TEST(ProductSyrkTest, Basic) {
-  for (int i = 0; i < g_repeat; i++) {
-    int s;
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
-    syrk(MatrixXf(s, s));
-    syrk(MatrixXd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+template <typename T>
+class ProductSyrkTest : public ::testing::Test {};
 
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
-    syrk(MatrixXcf(s, s));
-    syrk(MatrixXcd(s, s));
-    syrk(Matrix<bfloat16, Dynamic, Dynamic>(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+using ProductSyrkTypes =
+    ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd, Matrix<bfloat16, Dynamic, Dynamic>>;
+TYPED_TEST_SUITE(ProductSyrkTest, ProductSyrkTypes);
+
+TYPED_TEST(ProductSyrkTest, Syrk) {
+  using Scalar = typename TypeParam::Scalar;
+  const int max_size = NumTraits<Scalar>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;
+  for (int i = 0; i < g_repeat; i++) {
+    syrk(make_square_test_matrix<TypeParam>(max_size));
   }
 }

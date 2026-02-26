@@ -11,21 +11,19 @@
 
 #include "random_matrix_helpers.h"
 
-TEST(RandomMatrixTest, Real) {
+// =============================================================================
+// Typed test suite for random_matrix_real
+// =============================================================================
+template <typename T>
+class RandomMatrixRealTest : public ::testing::Test {};
+
+using RandomMatrixRealTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 4, 4>, Matrix<float, 2, 3>,
+                                               Matrix<float, 7, 4>, Matrix<double, 1, 1>, Matrix<double, 6, 6>,
+                                               Matrix<double, 5, 3>, Matrix<double, 4, 9>, MatrixXf, MatrixXd>;
+TYPED_TEST_SUITE(RandomMatrixRealTest, RandomMatrixRealTypes);
+
+TYPED_TEST(RandomMatrixRealTest, RandomMatrix) {
   for (int i = 0; i < g_repeat; i++) {
-    check_random_matrix(Matrix<float, 1, 1>());
-    check_random_matrix(Matrix<float, 4, 4>());
-    check_random_matrix(Matrix<float, 2, 3>());
-    check_random_matrix(Matrix<float, 7, 4>());
-
-    check_random_matrix(Matrix<double, 1, 1>());
-    check_random_matrix(Matrix<double, 6, 6>());
-    check_random_matrix(Matrix<double, 5, 3>());
-    check_random_matrix(Matrix<double, 4, 9>());
-
-    check_random_matrix(
-        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    check_random_matrix(
-        MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    check_random_matrix(make_test_matrix<TypeParam>());
   }
 }

@@ -9,21 +9,21 @@
 
 #include "eigensolver_selfadjoint_helpers.h"
 
-TEST(EigensolverSelfadjointFixedTest, Basic) {
+// =============================================================================
+// Typed test suite for eigensolver_selfadjoint_fixed (1x1, 2x2)
+// =============================================================================
+template <typename T>
+class EigensolverSelfadjointFixedTest : public ::testing::Test {};
+
+using EigensolverSelfadjointFixedTypes =
+    ::testing::Types<Matrix<float, 1, 1>, Matrix<double, 1, 1>, Matrix<std::complex<double>, 1, 1>, Matrix2f, Matrix2d,
+                     Matrix2cd>;
+TYPED_TEST_SUITE(EigensolverSelfadjointFixedTest, EigensolverSelfadjointFixedTypes);
+
+TYPED_TEST(EigensolverSelfadjointFixedTest, SelfAdjoint) {
   for (int i = 0; i < g_repeat; i++) {
-    // trivial test for 1x1 matrices:
-    selfadjointeigensolver(Matrix<float, 1, 1>());
-    selfadjointeigensolver(Matrix<double, 1, 1>());
-    selfadjointeigensolver(Matrix<std::complex<double>, 1, 1>());
-
-    // very important to test 2x2 matrices since we provide special paths for them
-    selfadjointeigensolver(Matrix2f());
-    selfadjointeigensolver(Matrix2d());
-    selfadjointeigensolver(Matrix2cd());
-
-    selfadjointeigensolver(Matrix<double, 1, 1>());
-    selfadjointeigensolver(Matrix<double, 2, 2>());
+    selfadjointeigensolver(TypeParam());
   }
-
-  bug_1204<0>();
 }
+
+TEST(EigensolverSelfadjointFixedRegressionTest, Bug1204) { bug_1204<0>(); }

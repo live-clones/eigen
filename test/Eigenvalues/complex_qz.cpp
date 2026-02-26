@@ -56,29 +56,21 @@ void complex_qz(const MatrixType& A, const MatrixType& B) {
   VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
 }
 
-TEST(ComplexQZTest, Basic) {
+// =============================================================================
+// Typed test suite for complex_qz
+// =============================================================================
+template <typename T>
+class ComplexQZTest : public ::testing::Test {};
+
+using ComplexQZTypes = ::testing::Types<Matrix2cd, Matrix3cf, MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(ComplexQZTest, ComplexQZTypes);
+
+TYPED_TEST(ComplexQZTest, ComplexQZ) {
   for (int i = 0; i < g_repeat; i++) {
-    // Check for very small, fixed-sized double- and float complex matrices
-    Eigen::Matrix2cd A_2x2, B_2x2;
-    A_2x2.setRandom();
-    B_2x2.setRandom();
-    B_2x2.row(1).setZero();
-    Eigen::Matrix3cf A_3x3, B_3x3;
-    A_3x3.setRandom();
-    B_3x3.setRandom();
-    B_3x3.col(i % 3).setRandom();
-    complex_qz(A_2x2, B_2x2);
-    complex_qz(A_3x3, B_3x3);
-
-    // Test for float complex matrices
-    const Index dim = internal::random<Index>(15, 80);
-    Eigen::MatrixXcf A_float, B_float;
-    generate_random_matrix_pair(dim, A_float, B_float);
-    complex_qz(A_float, B_float);
-
-    // Test for double complex matrices
-    Eigen::MatrixXcd A_double, B_double;
-    generate_random_matrix_pair(dim, A_double, B_double);
-    complex_qz(A_double, B_double);
+    const Index dim = (TypeParam::ColsAtCompileTime == Eigen::Dynamic) ? internal::random<Index>(15, 80)
+                                                                      : Index(TypeParam::ColsAtCompileTime);
+    TypeParam A, B;
+    generate_random_matrix_pair(dim, A, B);
+    complex_qz(A, B);
   }
 }

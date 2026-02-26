@@ -148,27 +148,37 @@ void eigensolver_verify_assert(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(eig.eigenvectors());
 }
 
-TEST(EigensolverComplexTest, Basic) {
-  int s = 0;
+// =============================================================================
+// Typed test suite for eigensolver_complex
+// =============================================================================
+template <typename T>
+class EigensolverComplexTest : public ::testing::Test {};
+
+using EigensolverComplexTypes = ::testing::Types<Matrix4cf, MatrixXcd, Matrix<std::complex<float>, 1, 1>, Matrix3f>;
+TYPED_TEST_SUITE(EigensolverComplexTest, EigensolverComplexTypes);
+
+TYPED_TEST(EigensolverComplexTest, Eigensolver) {
   for (int i = 0; i < g_repeat; i++) {
-    eigensolver(Matrix4cf());
-    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-    eigensolver(MatrixXcd(s, s));
-    eigensolver(Matrix<std::complex<float>, 1, 1>());
-    eigensolver(Matrix3f());
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    eigensolver(make_square_test_matrix<TypeParam>(EIGEN_TEST_MAX_SIZE / 4));
   }
-  eigensolver_verify_assert(Matrix4cf());
-  s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-  eigensolver_verify_assert(MatrixXcd(s, s));
-  eigensolver_verify_assert(Matrix<std::complex<float>, 1, 1>());
-  eigensolver_verify_assert(Matrix3f());
+}
 
-  // Test problem size constructors
+TYPED_TEST(EigensolverComplexTest, VerifyAssert) {
+  int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
+  eigensolver_verify_assert((TypeParam::RowsAtCompileTime == Dynamic) ? TypeParam(s, s) : TypeParam());
+}
+
+// =============================================================================
+// Regression and extra tests
+// =============================================================================
+
+TEST(EigensolverComplexRegressionTest, ProblemSizeConstructors) {
+  int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
   ComplexEigenSolver<MatrixXf> tmp(s);
+  TEST_SET_BUT_UNUSED_VARIABLE(s)
+}
 
+TEST(EigensolverComplexRegressionTest, CustomComplexScalar) {
   // Test custom complex scalar type.
   eigensolver(Matrix<CustomComplex<double>, 5, 5>());
-
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
 }

@@ -36,14 +36,6 @@ void miscMatrices(const MatrixType& m) {
   VERIFY_IS_APPROX(square, MatrixType::Identity(rows, rows));
 }
 
-template <typename MatrixType>
-MatrixType make_test_matrix() {
-  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::RowsAtCompileTime;
-  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::ColsAtCompileTime;
-  return MatrixType(rows, cols);
-}
 
 // =============================================================================
 // Typed test suite for miscMatrices

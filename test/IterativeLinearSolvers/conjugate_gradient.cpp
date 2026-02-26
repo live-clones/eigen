@@ -26,8 +26,23 @@ void test_conjugate_gradient_T() {
   check_sparse_spd_solving(cg_colmajor_upper_I);
 }
 
-TEST(ConjugateGradientTest, Basic) {
-  test_conjugate_gradient_T<double, int>();
-  test_conjugate_gradient_T<std::complex<double>, int>();
-  test_conjugate_gradient_T<double, long int>();
+// =============================================================================
+// Config struct + typed test suite for ConjugateGradient
+// =============================================================================
+template <typename T_, typename I__>
+struct ConjugateGradientConfig {
+  using Scalar = T_;
+  using Index = I__;
+};
+
+template <typename T>
+class ConjugateGradientTest : public ::testing::Test {};
+
+using ConjugateGradientTypes =
+    ::testing::Types<ConjugateGradientConfig<double, int>, ConjugateGradientConfig<std::complex<double>, int>,
+                     ConjugateGradientConfig<double, long int>>;
+TYPED_TEST_SUITE(ConjugateGradientTest, ConjugateGradientTypes);
+
+TYPED_TEST(ConjugateGradientTest, Basic) {
+  test_conjugate_gradient_T<typename TypeParam::Scalar, typename TypeParam::Index>();
 }

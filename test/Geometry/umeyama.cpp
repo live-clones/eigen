@@ -145,26 +145,49 @@ void run_fixed_size_test(int num_elements) {
   VERIFY(error < Scalar(16) * std::numeric_limits<Scalar>::epsilon());
 }
 
-TEST(UmeyamaTest, Basic) {
+// =============================================================================
+// Typed test suite for dynamic-size umeyama (run_test)
+// =============================================================================
+template <typename T>
+class UmeyamaDynamicTest : public ::testing::Test {};
+
+using UmeyamaDynamicTypes = ::testing::Types<MatrixXd, MatrixXf>;
+TYPED_TEST_SUITE(UmeyamaDynamicTest, UmeyamaDynamicTypes);
+
+TYPED_TEST(UmeyamaDynamicTest, DynamicDimensions) {
   for (int i = 0; i < g_repeat; ++i) {
     const int num_elements = internal::random<int>(40, 500);
-
     // works also for dimensions bigger than 3...
     for (int dim = 2; dim < 8; ++dim) {
-      run_test<MatrixXd>(dim, num_elements);
-      run_test<MatrixXf>(dim, num_elements);
+      run_test<TypeParam>(dim, num_elements);
     }
-
-    run_fixed_size_test<float, 2>(num_elements);
-    run_fixed_size_test<float, 3>(num_elements);
-    run_fixed_size_test<float, 4>(num_elements);
-
-    run_fixed_size_test<double, 2>(num_elements);
-    run_fixed_size_test<double, 3>(num_elements);
-    run_fixed_size_test<double, 4>(num_elements);
   }
-
-  // Those two calls don't compile and result in meaningful error messages!
-  // umeyama(MatrixXcf(),MatrixXcf());
-  // umeyama(MatrixXcd(),MatrixXcd());
 }
+
+// =============================================================================
+// Config struct + typed test suite for fixed-size umeyama (run_fixed_size_test)
+// =============================================================================
+template <typename Scalar_, int Dim_>
+struct UmeyamaFixedConfig {
+  using Scalar = Scalar_;
+  static constexpr int Dim = Dim_;
+};
+
+template <typename T>
+class UmeyamaFixedTest : public ::testing::Test {};
+
+using UmeyamaFixedTypes =
+    ::testing::Types<UmeyamaFixedConfig<float, 2>, UmeyamaFixedConfig<float, 3>, UmeyamaFixedConfig<float, 4>,
+                     UmeyamaFixedConfig<double, 2>, UmeyamaFixedConfig<double, 3>, UmeyamaFixedConfig<double, 4>>;
+TYPED_TEST_SUITE(UmeyamaFixedTest, UmeyamaFixedTypes);
+
+TYPED_TEST(UmeyamaFixedTest, FixedDimensions) {
+  for (int i = 0; i < g_repeat; ++i) {
+    const int num_elements = internal::random<int>(40, 500);
+    run_fixed_size_test<typename TypeParam::Scalar, TypeParam::Dim>(num_elements);
+  }
+}
+
+// Those two calls don't compile and result in meaningful error messages!
+// umeyama(MatrixXcf(),MatrixXcf());
+// umeyama(MatrixXcd(),MatrixXcd());

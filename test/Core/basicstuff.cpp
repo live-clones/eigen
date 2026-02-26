@@ -322,19 +322,6 @@ void fixedSizeMatrixConstruction() {
   }
 }
 
-// =============================================================================
-// Helper: create a MatrixType instance with appropriate dimensions.
-// For fixed-size matrices, uses the compile-time dimensions.
-// For dynamic-size matrices, uses random dimensions up to EIGEN_TEST_MAX_SIZE.
-// =============================================================================
-template <typename MatrixType>
-MatrixType make_test_matrix() {
-  const int rows = (MatrixType::RowsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::RowsAtCompileTime;
-  const int cols = (MatrixType::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE)
-                                                              : MatrixType::ColsAtCompileTime;
-  return MatrixType(rows, cols);
-}
 
 // =============================================================================
 // Typed test suite for basicStuff

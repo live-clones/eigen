@@ -11,16 +11,19 @@
 
 #include "random_matrix_helpers.h"
 
-TEST(RandomMatrixTest, Complex) {
-  for (int i = 0; i < g_repeat; i++) {
-    check_random_matrix(Matrix<std::complex<float>, 12, 12>());
-    check_random_matrix(Matrix<std::complex<float>, 7, 14>());
-    check_random_matrix(Matrix<std::complex<double>, 15, 11>());
-    check_random_matrix(Matrix<std::complex<double>, 6, 9>());
+// =============================================================================
+// Typed test suite for random_matrix_complex
+// =============================================================================
+template <typename T>
+class RandomMatrixComplexTest : public ::testing::Test {};
 
-    check_random_matrix(
-        MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    check_random_matrix(
-        MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+using RandomMatrixComplexTypes =
+    ::testing::Types<Matrix<std::complex<float>, 12, 12>, Matrix<std::complex<float>, 7, 14>,
+                     Matrix<std::complex<double>, 15, 11>, Matrix<std::complex<double>, 6, 9>, MatrixXcf, MatrixXcd>;
+TYPED_TEST_SUITE(RandomMatrixComplexTest, RandomMatrixComplexTypes);
+
+TYPED_TEST(RandomMatrixComplexTest, RandomMatrix) {
+  for (int i = 0; i < g_repeat; i++) {
+    check_random_matrix(make_test_matrix<TypeParam>());
   }
 }

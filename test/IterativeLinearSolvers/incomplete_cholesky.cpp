@@ -14,11 +14,11 @@
 template <typename T, typename I_>
 void test_incomplete_cholesky_T() {
   typedef SparseMatrix<T, 0, I_> SparseMatrixType;
-  ConjugateGradient<SparseMatrixType, Lower, IncompleteCholesky<T, Lower, AMDOrdering<I_> > > cg_illt_lower_amd;
-  ConjugateGradient<SparseMatrixType, Lower, IncompleteCholesky<T, Lower, NaturalOrdering<I_> > > cg_illt_lower_nat;
-  ConjugateGradient<SparseMatrixType, Upper, IncompleteCholesky<T, Upper, AMDOrdering<I_> > > cg_illt_upper_amd;
-  ConjugateGradient<SparseMatrixType, Upper, IncompleteCholesky<T, Upper, NaturalOrdering<I_> > > cg_illt_upper_nat;
-  ConjugateGradient<SparseMatrixType, Upper | Lower, IncompleteCholesky<T, Lower, AMDOrdering<I_> > > cg_illt_uplo_amd;
+  ConjugateGradient<SparseMatrixType, Lower, IncompleteCholesky<T, Lower, AMDOrdering<I_>>> cg_illt_lower_amd;
+  ConjugateGradient<SparseMatrixType, Lower, IncompleteCholesky<T, Lower, NaturalOrdering<I_>>> cg_illt_lower_nat;
+  ConjugateGradient<SparseMatrixType, Upper, IncompleteCholesky<T, Upper, AMDOrdering<I_>>> cg_illt_upper_amd;
+  ConjugateGradient<SparseMatrixType, Upper, IncompleteCholesky<T, Upper, NaturalOrdering<I_>>> cg_illt_upper_nat;
+  ConjugateGradient<SparseMatrixType, Upper | Lower, IncompleteCholesky<T, Lower, AMDOrdering<I_>>> cg_illt_uplo_amd;
 
   check_sparse_spd_solving(cg_illt_lower_amd);
   check_sparse_spd_solving(cg_illt_lower_nat);
@@ -27,9 +27,33 @@ void test_incomplete_cholesky_T() {
   check_sparse_spd_solving(cg_illt_uplo_amd);
 }
 
-template <int>
-void bug1150() {
-  // regression for bug 1150
+// =============================================================================
+// Config struct + typed test suite for IncompleteCholesky
+// =============================================================================
+template <typename T_, typename I__>
+struct IncompleteCholeskyConfig {
+  using Scalar = T_;
+  using Index = I__;
+};
+
+template <typename T>
+class IncompleteCholeskyTest : public ::testing::Test {};
+
+using IncompleteCholeskyTypes =
+    ::testing::Types<IncompleteCholeskyConfig<double, int>, IncompleteCholeskyConfig<std::complex<double>, int>,
+                     IncompleteCholeskyConfig<double, long int>>;
+TYPED_TEST_SUITE(IncompleteCholeskyTest, IncompleteCholeskyTypes);
+
+TYPED_TEST(IncompleteCholeskyTest, Basic) {
+  test_incomplete_cholesky_T<typename TypeParam::Scalar, typename TypeParam::Index>();
+}
+
+// =============================================================================
+// Regression tests
+// =============================================================================
+
+// regression for bug 1150
+TEST(IncompleteCholeskyRegressionTest, Bug1150) {
   for (int N = 1; N < 20; ++N) {
     Eigen::MatrixXd b(N, N);
     b.setOnes();
@@ -47,14 +71,14 @@ void bug1150() {
     A = m * m.transpose();
 
     Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower | Eigen::Upper,
-                             Eigen::IncompleteCholesky<double> >
+                             Eigen::IncompleteCholesky<double>>
         solver(A);
     VERIFY(solver.preconditioner().info() == Eigen::Success);
     VERIFY(solver.info() == Eigen::Success);
   }
 }
 
-void test_non_spd() {
+TEST(IncompleteCholeskyRegressionTest, NonSPD) {
   Eigen::SparseMatrix<double> A(2, 2);
   A.insert(0, 0) = 0;
   A.insert(1, 1) = 3;
@@ -69,13 +93,4 @@ void test_non_spd() {
                        solver.scalingS().asDiagonal().inverse()) *
                       solver.permutationP();
   VERIFY_IS_APPROX(A.toDense(), M);
-}
-
-TEST(IncompleteCholeskyTest, Basic) {
-  test_incomplete_cholesky_T<double, int>();
-  test_incomplete_cholesky_T<std::complex<double>, int>();
-  test_incomplete_cholesky_T<double, long int>();
-
-  bug1150<0>();
-  test_non_spd();
 }
