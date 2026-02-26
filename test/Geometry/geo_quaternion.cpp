@@ -325,7 +325,7 @@ class QuaternionTest : public ::testing::Test {};
 
 using QuaternionTypes = ::testing::Types<QuaternionConfig<float, AutoAlign>, QuaternionConfig<float, DontAlign>,
                                          QuaternionConfig<double, AutoAlign>, QuaternionConfig<double, DontAlign>>;
-TYPED_TEST_SUITE(QuaternionTest, QuaternionTypes);
+EIGEN_TYPED_TEST_SUITE(QuaternionTest, QuaternionTypes);
 
 TYPED_TEST(QuaternionTest, Quaternion) {
   using Scalar = typename TypeParam::Scalar;

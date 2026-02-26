@@ -41,7 +41,7 @@ class ConjugateGradientTest : public ::testing::Test {};
 using ConjugateGradientTypes =
     ::testing::Types<ConjugateGradientConfig<double, int>, ConjugateGradientConfig<std::complex<double>, int>,
                      ConjugateGradientConfig<double, long int>>;
-TYPED_TEST_SUITE(ConjugateGradientTest, ConjugateGradientTypes);
+EIGEN_TYPED_TEST_SUITE(ConjugateGradientTest, ConjugateGradientTypes);
 
 TYPED_TEST(ConjugateGradientTest, Basic) {
   test_conjugate_gradient_T<typename TypeParam::Scalar, typename TypeParam::Index>();

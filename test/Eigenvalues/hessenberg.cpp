@@ -65,7 +65,7 @@ using HessenbergTypes =
     ::testing::Types<HessenbergConfig<std::complex<double>, 1>, HessenbergConfig<std::complex<double>, 2>,
                      HessenbergConfig<std::complex<float>, 4>, HessenbergConfig<float, Dynamic>,
                      HessenbergConfig<std::complex<double>, Dynamic>>;
-TYPED_TEST_SUITE(HessenbergTest, HessenbergTypes);
+EIGEN_TYPED_TEST_SUITE(HessenbergTest, HessenbergTypes);
 
 TYPED_TEST(HessenbergTest, Hessenberg) {
   constexpr int Size = TypeParam::Size;

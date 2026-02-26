@@ -18,7 +18,7 @@ template <typename T>
 class ProductLargeCplxHalfTest : public ::testing::Test {};
 
 using ProductLargeCplxHalfTypes = ::testing::Types<MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(ProductLargeCplxHalfTest, ProductLargeCplxHalfTypes);
+EIGEN_TYPED_TEST_SUITE(ProductLargeCplxHalfTest, ProductLargeCplxHalfTypes);
 
 TYPED_TEST(ProductLargeCplxHalfTest, Product) {
   for (int i = 0; i < g_repeat; i++) {
@@ -36,7 +36,7 @@ class ProductLargeCplxRowMajorTest : public ::testing::Test {};
 using ProductLargeCplxRowMajorTypes = ::testing::Types<Matrix<double, Dynamic, Dynamic, RowMajor>,
                                                        Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>,
                                                        Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(ProductLargeCplxRowMajorTest, ProductLargeCplxRowMajorTypes);
+EIGEN_TYPED_TEST_SUITE(ProductLargeCplxRowMajorTest, ProductLargeCplxRowMajorTypes);
 
 TYPED_TEST(ProductLargeCplxRowMajorTest, Product) {
   for (int i = 0; i < g_repeat; i++) {

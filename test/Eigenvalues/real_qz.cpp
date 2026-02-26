@@ -83,7 +83,7 @@ template <typename T>
 class RealQZTest : public ::testing::Test {};
 
 using RealQZTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<double, 1, 1>, Matrix2d>;
-TYPED_TEST_SUITE(RealQZTest, RealQZTypes);
+EIGEN_TYPED_TEST_SUITE(RealQZTest, RealQZTypes);
 
 TYPED_TEST(RealQZTest, RealQZ) {
   for (int i = 0; i < g_repeat; i++) {

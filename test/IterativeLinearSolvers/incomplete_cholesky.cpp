@@ -42,7 +42,7 @@ class IncompleteCholeskyTest : public ::testing::Test {};
 using IncompleteCholeskyTypes =
     ::testing::Types<IncompleteCholeskyConfig<double, int>, IncompleteCholeskyConfig<std::complex<double>, int>,
                      IncompleteCholeskyConfig<double, long int>>;
-TYPED_TEST_SUITE(IncompleteCholeskyTest, IncompleteCholeskyTypes);
+EIGEN_TYPED_TEST_SUITE(IncompleteCholeskyTest, IncompleteCholeskyTypes);
 
 TYPED_TEST(IncompleteCholeskyTest, Basic) {
   test_incomplete_cholesky_T<typename TypeParam::Scalar, typename TypeParam::Index>();

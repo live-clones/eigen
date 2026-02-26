@@ -146,7 +146,7 @@ template <typename T>
 class Orthomethods2Test : public ::testing::Test {};
 
 using Orthomethods2Types = ::testing::Types<float, double, std::complex<double>>;
-TYPED_TEST_SUITE(Orthomethods2Test, Orthomethods2Types);
+EIGEN_TYPED_TEST_SUITE(Orthomethods2Test, Orthomethods2Types);
 
 TYPED_TEST(Orthomethods2Test, Cross2D) {
   for (int i = 0; i < g_repeat; i++) {
@@ -161,7 +161,7 @@ template <typename T>
 class Orthomethods3Test : public ::testing::Test {};
 
 using Orthomethods3Types = ::testing::Types<float, double, std::complex<double>>;
-TYPED_TEST_SUITE(Orthomethods3Test, Orthomethods3Types);
+EIGEN_TYPED_TEST_SUITE(Orthomethods3Test, Orthomethods3Types);
 
 TYPED_TEST(Orthomethods3Test, Cross3D) {
   for (int i = 0; i < g_repeat; i++) {
@@ -184,7 +184,7 @@ class OrthomethodsTest : public ::testing::Test {};
 using OrthomethodsTypes =
     ::testing::Types<OrthoConfig<float, 2>, OrthoConfig<double, 2>, OrthoConfig<float, 3>, OrthoConfig<double, 3>,
                      OrthoConfig<float, 7>, OrthoConfig<std::complex<double>, 8>>;
-TYPED_TEST_SUITE(OrthomethodsTest, OrthomethodsTypes);
+EIGEN_TYPED_TEST_SUITE(OrthomethodsTest, OrthomethodsTypes);
 
 TYPED_TEST(OrthomethodsTest, UnitOrthogonalAndCross) {
   for (int i = 0; i < g_repeat; i++) {

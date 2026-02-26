@@ -89,7 +89,7 @@ class DiagonalTest : public ::testing::Test {};
 
 using DiagonalTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 4, 9>, Matrix<float, 7, 3>, Matrix4d,
                                        MatrixXcf, MatrixXi, MatrixXcd, MatrixXf, Matrix<float, Dynamic, 4>>;
-TYPED_TEST_SUITE(DiagonalTest, DiagonalTypes);
+EIGEN_TYPED_TEST_SUITE(DiagonalTest, DiagonalTypes);
 
 TYPED_TEST(DiagonalTest, Diagonal) {
   for (int i = 0; i < g_repeat; i++) {

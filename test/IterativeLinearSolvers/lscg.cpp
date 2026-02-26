@@ -37,6 +37,6 @@ template <typename T>
 class LSCGTest : public ::testing::Test {};
 
 using LSCGTypes = ::testing::Types<double, std::complex<double> >;
-TYPED_TEST_SUITE(LSCGTest, LSCGTypes);
+EIGEN_TYPED_TEST_SUITE(LSCGTest, LSCGTypes);
 
 TYPED_TEST(LSCGTest, Basic) { test_lscg_T<TypeParam>(); }

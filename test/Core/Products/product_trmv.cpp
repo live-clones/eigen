@@ -81,7 +81,7 @@ class ProductTrmvTest : public ::testing::Test {};
 
 using ProductTrmvTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3d, MatrixXcf, MatrixXcd,
                                           Matrix<float, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(ProductTrmvTest, ProductTrmvTypes);
+EIGEN_TYPED_TEST_SUITE(ProductTrmvTest, ProductTrmvTypes);
 
 TYPED_TEST(ProductTrmvTest, Trmv) {
   using Scalar = typename TypeParam::Scalar;
