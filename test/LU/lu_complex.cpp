@@ -18,7 +18,7 @@ template <typename T>
 class LUComplexTest : public ::testing::Test {};
 
 using LUComplexTypes = ::testing::Types<MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(LUComplexTest, LUComplexTypes);
+EIGEN_TYPED_TEST_SUITE(LUComplexTest, LUComplexTypes);
 
 TYPED_TEST(LUComplexTest, NonInvertible) {
   for (int i = 0; i < g_repeat; i++) {

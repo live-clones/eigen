@@ -26,7 +26,7 @@ class SimplicialCholeskyColmajorTest : public ::testing::Test {};
 using SimplicialCholeskyColmajorTypes = ::testing::Types<SimplicialCholeskyColmajorConfig<double, int>,
                                                          SimplicialCholeskyColmajorConfig<std::complex<double>, int>,
                                                          SimplicialCholeskyColmajorConfig<double, long int>>;
-TYPED_TEST_SUITE(SimplicialCholeskyColmajorTest, SimplicialCholeskyColmajorTypes);
+EIGEN_TYPED_TEST_SUITE(SimplicialCholeskyColmajorTest, SimplicialCholeskyColmajorTypes);
 
 TYPED_TEST(SimplicialCholeskyColmajorTest, Basic) {
   test_simplicial_cholesky_T<typename TypeParam::Scalar, typename TypeParam::Index, ColMajor>();

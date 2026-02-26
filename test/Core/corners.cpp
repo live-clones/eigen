@@ -117,7 +117,7 @@ template <typename T>
 class CornersTest : public ::testing::Test {};
 
 using CornersTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, Matrix<int, 10, 12>, MatrixXcf, MatrixXf>;
-TYPED_TEST_SUITE(CornersTest, CornersTypes);
+EIGEN_TYPED_TEST_SUITE(CornersTest, CornersTypes);
 
 TYPED_TEST(CornersTest, Corners) {
   for (int i = 0; i < g_repeat; i++) {

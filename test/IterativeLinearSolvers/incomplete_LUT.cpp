@@ -93,7 +93,7 @@ class IncompleteLUTTest : public ::testing::Test {};
 using IncompleteLUTTypes =
     ::testing::Types<IncompleteLUTConfig<double, int>, IncompleteLUTConfig<float, int>,
                      IncompleteLUTConfig<std::complex<double>, int>, IncompleteLUTConfig<double, long int>>;
-TYPED_TEST_SUITE(IncompleteLUTTest, IncompleteLUTTypes);
+EIGEN_TYPED_TEST_SUITE(IncompleteLUTTest, IncompleteLUTTypes);
 
 TYPED_TEST(IncompleteLUTTest, Basic) { test_incompleteLUT_T<typename TypeParam::Scalar, typename TypeParam::Index>(); }
 

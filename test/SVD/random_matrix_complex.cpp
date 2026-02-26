@@ -20,7 +20,7 @@ class RandomMatrixComplexTest : public ::testing::Test {};
 using RandomMatrixComplexTypes =
     ::testing::Types<Matrix<std::complex<float>, 12, 12>, Matrix<std::complex<float>, 7, 14>,
                      Matrix<std::complex<double>, 15, 11>, Matrix<std::complex<double>, 6, 9>, MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(RandomMatrixComplexTest, RandomMatrixComplexTypes);
+EIGEN_TYPED_TEST_SUITE(RandomMatrixComplexTest, RandomMatrixComplexTypes);
 
 TYPED_TEST(RandomMatrixComplexTest, RandomMatrix) {
   for (int i = 0; i < g_repeat; i++) {

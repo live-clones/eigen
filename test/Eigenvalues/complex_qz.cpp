@@ -63,7 +63,7 @@ template <typename T>
 class ComplexQZTest : public ::testing::Test {};
 
 using ComplexQZTypes = ::testing::Types<Matrix2cd, Matrix3cf, MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(ComplexQZTest, ComplexQZTypes);
+EIGEN_TYPED_TEST_SUITE(ComplexQZTest, ComplexQZTypes);
 
 TYPED_TEST(ComplexQZTest, ComplexQZ) {
   for (int i = 0; i < g_repeat; i++) {

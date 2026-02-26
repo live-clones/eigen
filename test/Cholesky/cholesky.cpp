@@ -468,7 +468,7 @@ template <typename T>
 class CholeskyFixedTest : public ::testing::Test {};
 
 using CholeskyFixedTypes = ::testing::Types<Matrix<double, 1, 1>, Matrix2d, Matrix3f, Matrix4d>;
-TYPED_TEST_SUITE(CholeskyFixedTest, CholeskyFixedTypes);
+EIGEN_TYPED_TEST_SUITE(CholeskyFixedTest, CholeskyFixedTypes);
 
 TYPED_TEST(CholeskyFixedTest, Cholesky) {
   for (int i = 0; i < g_repeat; i++) {

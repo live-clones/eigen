@@ -17,7 +17,7 @@ class EigensolverSelfadjointDynamicTest : public ::testing::Test {};
 
 using EigensolverSelfadjointDynamicTypes =
     ::testing::Types<MatrixXf, MatrixXd, MatrixXcd, Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(EigensolverSelfadjointDynamicTest, EigensolverSelfadjointDynamicTypes);
+EIGEN_TYPED_TEST_SUITE(EigensolverSelfadjointDynamicTest, EigensolverSelfadjointDynamicTypes);
 
 TYPED_TEST(EigensolverSelfadjointDynamicTest, Dynamic) {
   for (int i = 0; i < g_repeat; i++) {

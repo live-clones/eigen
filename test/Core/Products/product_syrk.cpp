@@ -154,7 +154,7 @@ template <typename T>
 class ProductSyrkTest : public ::testing::Test {};
 
 using ProductSyrkTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd, Matrix<bfloat16, Dynamic, Dynamic>>;
-TYPED_TEST_SUITE(ProductSyrkTest, ProductSyrkTypes);
+EIGEN_TYPED_TEST_SUITE(ProductSyrkTest, ProductSyrkTypes);
 
 TYPED_TEST(ProductSyrkTest, Syrk) {
   using Scalar = typename TypeParam::Scalar;

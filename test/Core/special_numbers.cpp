@@ -53,7 +53,7 @@ template <typename T>
 class SpecialNumbersTest : public ::testing::Test {};
 
 using SpecialNumbersTypes = ::testing::Types<float, double>;
-TYPED_TEST_SUITE(SpecialNumbersTest, SpecialNumbersTypes);
+EIGEN_TYPED_TEST_SUITE(SpecialNumbersTest, SpecialNumbersTypes);
 
 TYPED_TEST(SpecialNumbersTest, SpecialNumbers) {
   for (int i = 0; i < 10 * g_repeat; i++) {

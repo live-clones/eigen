@@ -103,6 +103,6 @@ template <typename T>
 class NoAutomaticResizingTest : public ::testing::Test {};
 
 using NoAutomaticResizingTypes = ::testing::Types<float, double, std::complex<double>>;
-TYPED_TEST_SUITE(NoAutomaticResizingTest, NoAutomaticResizingTypes);
+EIGEN_TYPED_TEST_SUITE(NoAutomaticResizingTest, NoAutomaticResizingTypes);
 
 TYPED_TEST(NoAutomaticResizingTest, NoAutomaticResizing) { testNoAutomaticResizing<TypeParam>(); }

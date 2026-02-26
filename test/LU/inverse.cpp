@@ -122,7 +122,7 @@ class InverseFixedTest : public ::testing::Test {};
 using InverseFixedTypes =
     ::testing::Types<Matrix<double, 1, 1>, Matrix2d, Matrix3f, Matrix4f, Matrix<float, 4, 4, DontAlign>, Matrix4d,
                      Matrix<double, 4, 4, DontAlign>, Matrix4cd>;
-TYPED_TEST_SUITE(InverseFixedTest, InverseFixedTypes);
+EIGEN_TYPED_TEST_SUITE(InverseFixedTest, InverseFixedTypes);
 
 TYPED_TEST(InverseFixedTest, Inverse) {
   for (int i = 0; i < g_repeat; i++) {

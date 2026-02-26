@@ -57,7 +57,7 @@ class SelfAdjointTest : public ::testing::Test {};
 
 using SelfAdjointTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3cf, MatrixXcd,
                                           Matrix<float, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(SelfAdjointTest, SelfAdjointTypes);
+EIGEN_TYPED_TEST_SUITE(SelfAdjointTest, SelfAdjointTypes);
 
 TYPED_TEST(SelfAdjointTest, SelfAdjoint) {
   for (int i = 0; i < g_repeat; i++) {
