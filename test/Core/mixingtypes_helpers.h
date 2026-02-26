@@ -57,6 +57,12 @@ void mixingtypes(int size = SizeAtCompileType) {
   float epsf = std::sqrt(std::numeric_limits<float>::min EIGEN_EMPTY());
   double epsd = std::sqrt(std::numeric_limits<double>::min EIGEN_EMPTY());
 
+  // More conservative threshold for element-wise division/pow tests.
+  // Mixed-type expressions (e.g. real/complex) use scalar evaluation while
+  // same-type expressions use vectorized pdiv, which can disagree near the
+  // underflow boundary.
+  double div_epsd = std::sqrt(std::numeric_limits<double>::epsilon());
+
   while (std::abs(sf) < epsf) sf = internal::random<float>();
   while (std::abs(sd) < epsd) sd = internal::random<double>();
   while (std::abs(scf) < epsf) scf = internal::random<CF>();
@@ -204,14 +210,14 @@ void mixingtypes(int size = SizeAtCompileType) {
   VERIFY_IS_APPROX(md.array() - mcd.array(), md.template cast<CD>().eval().array() - mcd.array());
   VERIFY_IS_APPROX(mcd.array() - md.array(), mcd.array() - md.template cast<CD>().eval().array());
 
-  if (mcd.array().abs().minCoeff() > epsd) {
+  if (mcd.array().abs().minCoeff() > div_epsd) {
     VERIFY_IS_APPROX(md.array() / mcd.array(), md.template cast<CD>().eval().array() / mcd.array());
   }
-  if (md.array().abs().minCoeff() > epsd) {
+  if (md.array().abs().minCoeff() > div_epsd) {
     VERIFY_IS_APPROX(mcd.array() / md.array(), mcd.array() / md.template cast<CD>().eval().array());
   }
 
-  if (md.array().abs().minCoeff() > epsd || mcd.array().abs().minCoeff() > epsd) {
+  if (md.array().abs().minCoeff() > div_epsd && mcd.array().abs().minCoeff() > div_epsd) {
     VERIFY_IS_APPROX(md.array().pow(mcd.array()), md.template cast<CD>().eval().array().pow(mcd.array()));
     VERIFY_IS_APPROX(mcd.array().pow(md.array()), mcd.array().pow(md.template cast<CD>().eval().array()));
 
@@ -228,7 +234,7 @@ void mixingtypes(int size = SizeAtCompileType) {
   rcd = mcd;
   VERIFY_IS_APPROX(rcd.array() *= md.array(), mcd.array() * md.template cast<CD>().eval().array());
   rcd = mcd;
-  if (md.array().abs().minCoeff() > epsd) {
+  if (md.array().abs().minCoeff() > div_epsd) {
     VERIFY_IS_APPROX(rcd.array() /= md.array(), mcd.array() / md.template cast<CD>().eval().array());
   }
 
