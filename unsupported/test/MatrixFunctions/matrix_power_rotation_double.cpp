@@ -7,14 +7,10 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#include "matrix_power_general.h"
+#include "matrix_power_rotation.h"
 
-typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
-
-TEST(MatrixPowerTest, GeneralDouble) {
-  testGeneral(Matrix2d(), 1e-13);
-  testGeneral(Matrix3dRowMajor(), 1e-13);
-  testGeneral(Matrix4cd(), 1e-13);
-  testGeneral(MatrixXd(8, 8), 2e-12);
-  testGeneral(Matrix3d(), 1e-13);
+TEST(MatrixPowerTest, RotationDouble) {
+  test2dRotation<double>(1e-13);
+  test2dHyperbolicRotation<double>(1e-14);
+  test3dRotation<double>(1e-13);
 }

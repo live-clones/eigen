@@ -7,12 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// matrix_power_singular split: float types only.
-
 #include "matrix_power_singular.h"
 
 TEST(MatrixPowerTest, SingularFloat) {
   testSingular(Matrix2f(), 1e-4f);
+  testSingular(Matrix3cf(), 1e-4f);
   testSingular(Matrix4f(), 1e-4f);
   testSingular(MatrixXf(2, 2), 1e-3f);
   testSingular(Matrix3f(), 1e-4f);

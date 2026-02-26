@@ -7,8 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Shared header for split matrix_power_general tests.
-
 #ifndef EIGEN_TEST_MATRIX_POWER_GENERAL_H
 #define EIGEN_TEST_MATRIX_POWER_GENERAL_H
 
@@ -42,9 +40,5 @@ void testGeneral(const MatrixType& m, const typename MatrixType::RealScalar& tol
     VERIFY(m4.isApprox(m5, tol));
   }
 }
-
-typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
-typedef Matrix<long double, 3, 3> Matrix3e;
-typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
 
 #endif  // EIGEN_TEST_MATRIX_POWER_GENERAL_H

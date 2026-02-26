@@ -7,8 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Shared header for split matrix_power_logthenexp tests.
-
 #ifndef EIGEN_TEST_MATRIX_POWER_LOGTHENEXP_H
 #define EIGEN_TEST_MATRIX_POWER_LOGTHENEXP_H
 
@@ -29,9 +27,5 @@ void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealSc
     VERIFY(m.pow(x).isApprox((x * m.log()).exp(), tol));
   }
 }
-
-typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
-typedef Matrix<long double, 3, 3> Matrix3e;
-typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
 
 #endif  // EIGEN_TEST_MATRIX_POWER_LOGTHENEXP_H

@@ -329,10 +329,9 @@ class MatrixLogarithmReturnValue : public ReturnByValue<MatrixLogarithmReturnVal
   inline void evalTo(ResultType& result) const {
     typedef typename internal::nested_eval<Derived, 10>::type DerivedEvalType;
     typedef internal::remove_all_t<DerivedEvalType> DerivedEvalTypeClean;
-    typedef internal::traits<DerivedEvalTypeClean> Traits;
     typedef internal::make_complex_t<Scalar> ComplexScalar;
-    typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime>
-        DynMatrixType;
+    // Use fully dynamic matrix to reduce template instantiation bloat.
+    typedef Matrix<ComplexScalar, Dynamic, Dynamic> DynMatrixType;
     typedef internal::MatrixLogarithmAtomic<DynMatrixType> AtomicType;
     AtomicType atomic;
 

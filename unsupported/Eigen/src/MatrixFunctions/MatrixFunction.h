@@ -313,7 +313,8 @@ void matrix_function_compute_above_diagonal(const MatrixType& T, const VectorTyp
   typedef internal::traits<MatrixType> Traits;
   typedef typename MatrixType::Scalar Scalar;
   static const int Options = MatrixType::Options;
-  typedef Matrix<Scalar, Dynamic, Dynamic, Options, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime> DynMatrixType;
+  // Use fully dynamic matrix to reduce template instantiation bloat.
+  typedef Matrix<Scalar, Dynamic, Dynamic, Options> DynMatrixType;
 
   for (Index k = 1; k < clusterSize.rows(); k++) {
     for (Index i = 0; i < clusterSize.rows() - k; i++) {
@@ -424,7 +425,7 @@ struct matrix_function_compute<MatrixType, 1> {
     matrix_function_compute_map(T.diagonal(), clusters, eivalToCluster);
 
     // compute permutation which groups ei'vals in same cluster together
-    Matrix<Index, Traits::RowsAtCompileTime, 1> permutation;
+    Matrix<Index, Dynamic, 1> permutation;
     matrix_function_compute_permutation(blockStart, eivalToCluster, permutation);
 
     // permute Schur decomposition
@@ -475,10 +476,9 @@ class MatrixFunctionReturnValue : public ReturnByValue<MatrixFunctionReturnValue
   inline void evalTo(ResultType& result) const {
     typedef typename internal::nested_eval<Derived, 10>::type NestedEvalType;
     typedef internal::remove_all_t<NestedEvalType> NestedEvalTypeClean;
-    typedef internal::traits<NestedEvalTypeClean> Traits;
     typedef internal::make_complex_t<Scalar> ComplexScalar;
-    typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime>
-        DynMatrixType;
+    // Use fully dynamic matrix to reduce template instantiation bloat.
+    typedef Matrix<ComplexScalar, Dynamic, Dynamic> DynMatrixType;
 
     typedef internal::MatrixFunctionAtomic<DynMatrixType> AtomicType;
     AtomicType atomic(m_f);

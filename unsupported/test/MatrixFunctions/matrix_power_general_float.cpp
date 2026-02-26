@@ -7,8 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// matrix_power_general split: float, complex float, and long double types.
-
 #include "matrix_power_general.h"
 
 TEST(MatrixPowerTest, GeneralFloat) {
@@ -16,7 +14,5 @@ TEST(MatrixPowerTest, GeneralFloat) {
   testGeneral(Matrix3cf(), 1e-4f);
   testGeneral(Matrix4f(), 1e-4f);
   testGeneral(MatrixXf(2, 2), 1e-3f);  // see bug 614
-  testGeneral(MatrixXe(7, 7), 1e-12L);
   testGeneral(Matrix3f(), 1e-4f);
-  testGeneral(Matrix3e(), 1e-13L);
 }

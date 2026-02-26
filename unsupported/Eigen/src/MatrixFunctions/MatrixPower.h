@@ -381,8 +381,11 @@ class MatrixPower : internal::noncopyable {
 
  private:
   typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>
-      ComplexMatrix;
+  // Use fully dynamic ComplexMatrix to avoid separate template instantiations
+  // of MatrixPowerAtomic, ComplexSchur, etc. for each fixed-size MatrixType
+  // with the same scalar type. The performance cost of heap allocation is
+  // negligible for these O(n^3) algorithms.
+  typedef Matrix<ComplexScalar, Dynamic, Dynamic> ComplexMatrix;
 
   /** \brief Reference to the base of matrix power. */
   typename MatrixType::Nested m_A;

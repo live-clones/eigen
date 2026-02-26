@@ -7,14 +7,12 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#include "matrix_power_general.h"
+#include "matrix_power_logthenexp.h"
 
-typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
+typedef Matrix<long double, 3, 3> Matrix3e;
+typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
 
-TEST(MatrixPowerTest, GeneralDouble) {
-  testGeneral(Matrix2d(), 1e-13);
-  testGeneral(Matrix3dRowMajor(), 1e-13);
-  testGeneral(Matrix4cd(), 1e-13);
-  testGeneral(MatrixXd(8, 8), 2e-12);
-  testGeneral(Matrix3d(), 1e-13);
+TEST(MatrixPowerTest, LogThenExpLongDouble) {
+  testLogThenExp(MatrixXe(7, 7), 1e-12L);
+  testLogThenExp(Matrix3e(), 1e-13L);
 }

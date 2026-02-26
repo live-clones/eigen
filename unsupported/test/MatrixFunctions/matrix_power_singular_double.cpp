@@ -7,9 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// matrix_power_singular split: double and complex double types.
-
 #include "matrix_power_singular.h"
+
+typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
 
 TEST(MatrixPowerTest, SingularDouble) {
   testSingular(Matrix2d(), 1e-13);

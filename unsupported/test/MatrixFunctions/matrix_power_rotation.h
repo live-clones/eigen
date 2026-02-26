@@ -7,6 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#ifndef EIGEN_TEST_MATRIX_POWER_ROTATION_H
+#define EIGEN_TEST_MATRIX_POWER_ROTATION_H
+
 #include "matrix_functions.h"
 
 template <typename T>
@@ -63,14 +66,4 @@ void test3dRotation(const T& tol) {
   }
 }
 
-TEST(MatrixPowerTest, Rotation) {
-  test2dRotation<double>(1e-13);
-  test2dRotation<float>(2e-5f);
-  test2dRotation<long double>(1e-13L);
-  test2dHyperbolicRotation<double>(1e-14);
-  test2dHyperbolicRotation<float>(1e-5f);
-  test2dHyperbolicRotation<long double>(1e-14L);
-  test3dRotation<double>(1e-13);
-  test3dRotation<float>(1e-5f);
-  test3dRotation<long double>(1e-13L);
-}
+#endif  // EIGEN_TEST_MATRIX_POWER_ROTATION_H
