@@ -45,23 +45,23 @@ module_include_for_header() {
   local header="$1"
   local module
 
-  # Handle Eigen/src/<Module>/... -> Eigen/<Module>
+  # Handle Eigen/src/<Module>/... and unsupported/Eigen/src/<Module>/...
+  # Extract just the bare module name first.
   if [[ "${header}" =~ ^Eigen/src/([^/]+)/ ]]; then
     module="${BASH_REMATCH[1]}"
-  # Handle unsupported/Eigen/src/<Module>/... -> unsupported/Eigen/<Module>
   elif [[ "${header}" =~ ^unsupported/Eigen/src/([^/]+)/ ]]; then
-    module="unsupported/Eigen/${BASH_REMATCH[1]}"
+    module="${BASH_REMATCH[1]}"
   else
     return 1
   fi
 
-  # Skip external-dependency modules.
+  # Skip external-dependency modules and utility-only directories.
   if [[ "${module}" =~ ^(${SKIP_MODULES})$ ]]; then
     return 1
   fi
 
   if [[ "${header}" =~ ^unsupported/ ]]; then
-    echo "${module}"
+    echo "unsupported/Eigen/${module}"
   else
     echo "Eigen/${module}"
   fi
