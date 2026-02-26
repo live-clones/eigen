@@ -1,0 +1,6 @@
+ei_add_test(qr)
+ei_add_test(qr_colpivoting)
+ei_add_test(qr_cod)
+ei_add_test(qr_fullpivoting)
+ei_add_test(householder_fixed)
+ei_add_test(householder_dynamic)
