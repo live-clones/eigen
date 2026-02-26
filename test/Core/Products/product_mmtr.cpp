@@ -106,9 +106,9 @@ void mmtr(int size) {
 // =============================================================================
 TEST(ProductMmtrTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (mmtr<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (mmtr<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (mmtr<std::complex<float> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    (mmtr<std::complex<double> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+    mmtr<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    mmtr<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    mmtr<std::complex<float> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2));
+    mmtr<std::complex<double> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2));
   }
 }

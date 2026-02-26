@@ -528,9 +528,9 @@ static void test_empty_slice() {
 }
 
 #define CALL_SUBTESTS_TYPES_LAYOUTS(PART, NAME) \
-  (NAME<float, ColMajor>());                    \
-  (NAME<float, RowMajor>());                    \
-  (NAME<bool, ColMajor>());                     \
+  NAME<float, ColMajor>();                    \
+  NAME<float, RowMajor>();                    \
+  NAME<bool, ColMajor>();                     \
   (NAME<bool, RowMajor>())
 
 TEST(TensorMorphingTest, Basic) {

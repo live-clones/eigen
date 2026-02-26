@@ -47,6 +47,6 @@ void test_pastix_T_LU() {
 TEST(PastixSupportTest, Basic) {
   test_pastix_T<float>();
   test_pastix_T<double>();
-  (test_pastix_T_LU<std::complex<float> >());
+  test_pastix_T_LU<std::complex<float> >();
   test_pastix_T_LU<std::complex<double> >();
 }

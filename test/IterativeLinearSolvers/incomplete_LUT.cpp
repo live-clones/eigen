@@ -79,10 +79,10 @@ void test_extract_LU() {
 }
 
 TEST(IncompleteLUTTest, Basic) {
-  (test_incompleteLUT_T<double, int>());
-  (test_incompleteLUT_T<float, int>());
-  (test_incompleteLUT_T<std::complex<double>, int>());
-  (test_incompleteLUT_T<double, long int>());
+  test_incompleteLUT_T<double, int>();
+  test_incompleteLUT_T<float, int>();
+  test_incompleteLUT_T<std::complex<double>, int>();
+  test_incompleteLUT_T<double, long int>();
 
   test_extract_LU<double>();
   test_extract_LU<float>();

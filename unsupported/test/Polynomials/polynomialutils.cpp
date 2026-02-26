@@ -46,15 +46,15 @@ void realRoots_to_monicPolynomial_test(int deg) {
 
 template <typename Scalar_>
 void realRoots_to_monicPolynomial_scalar() {
-  (realRoots_to_monicPolynomial_test<Scalar_, 2>(2));
-  (realRoots_to_monicPolynomial_test<Scalar_, 3>(3));
-  (realRoots_to_monicPolynomial_test<Scalar_, 4>(4));
-  (realRoots_to_monicPolynomial_test<Scalar_, 5>(5));
-  (realRoots_to_monicPolynomial_test<Scalar_, 6>(6));
-  (realRoots_to_monicPolynomial_test<Scalar_, 7>(7));
-  (realRoots_to_monicPolynomial_test<Scalar_, 17>(17));
+  realRoots_to_monicPolynomial_test<Scalar_, 2>(2);
+  realRoots_to_monicPolynomial_test<Scalar_, 3>(3);
+  realRoots_to_monicPolynomial_test<Scalar_, 4>(4);
+  realRoots_to_monicPolynomial_test<Scalar_, 5>(5);
+  realRoots_to_monicPolynomial_test<Scalar_, 6>(6);
+  realRoots_to_monicPolynomial_test<Scalar_, 7>(7);
+  realRoots_to_monicPolynomial_test<Scalar_, 17>(17);
 
-  (realRoots_to_monicPolynomial_test<Scalar_, Dynamic>(internal::random<int>(18, 26)));
+  realRoots_to_monicPolynomial_test<Scalar_, Dynamic>(internal::random<int>(18, 26));
 }
 
 template <typename Scalar_, int Deg_>
@@ -81,15 +81,15 @@ void CauchyBounds(int deg) {
 
 template <typename Scalar_>
 void CauchyBounds_scalar() {
-  (CauchyBounds<Scalar_, 2>(2));
-  (CauchyBounds<Scalar_, 3>(3));
-  (CauchyBounds<Scalar_, 4>(4));
-  (CauchyBounds<Scalar_, 5>(5));
-  (CauchyBounds<Scalar_, 6>(6));
-  (CauchyBounds<Scalar_, 7>(7));
-  (CauchyBounds<Scalar_, 17>(17));
+  CauchyBounds<Scalar_, 2>(2);
+  CauchyBounds<Scalar_, 3>(3);
+  CauchyBounds<Scalar_, 4>(4);
+  CauchyBounds<Scalar_, 5>(5);
+  CauchyBounds<Scalar_, 6>(6);
+  CauchyBounds<Scalar_, 7>(7);
+  CauchyBounds<Scalar_, 17>(17);
 
-  (CauchyBounds<Scalar_, Dynamic>(internal::random<int>(18, 26)));
+  CauchyBounds<Scalar_, Dynamic>(internal::random<int>(18, 26));
 }
 
 TEST(PolynomialutilsTest, Basic) {

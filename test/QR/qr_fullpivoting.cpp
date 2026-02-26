@@ -155,8 +155,8 @@ TEST(QRFullpivotingTest, Basic) {
 
   // Test problem size constructors
   FullPivHouseholderQR<MatrixXf>(10, 20);
-  (FullPivHouseholderQR<Matrix<float, 10, 20> >(10, 20));
-  (FullPivHouseholderQR<Matrix<float, 10, 20> >(Matrix<float, 10, 20>::Random()));
-  (FullPivHouseholderQR<Matrix<float, 20, 10> >(20, 10));
-  (FullPivHouseholderQR<Matrix<float, 20, 10> >(Matrix<float, 20, 10>::Random()));
+  FullPivHouseholderQR<Matrix<float, 10, 20> >(10, 20);
+  FullPivHouseholderQR<Matrix<float, 10, 20> >(Matrix<float, 10, 20>::Random());
+  FullPivHouseholderQR<Matrix<float, 20, 10> >(20, 10);
+  FullPivHouseholderQR<Matrix<float, 20, 10> >(Matrix<float, 20, 10>::Random());
 }

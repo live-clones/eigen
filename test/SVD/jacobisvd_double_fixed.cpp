@@ -11,11 +11,11 @@
 
 TEST(JacobisvdDoubleFixedTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (jacobisvd_thin_options<Matrix4d>());
-    (jacobisvd_full_options<Matrix4d>());
-    (jacobisvd_thin_options<Matrix<double, 4, 7>>());
-    (jacobisvd_full_options<Matrix<double, 4, 7>>());
-    (jacobisvd_thin_options<Matrix<double, 7, 4>>());
-    (jacobisvd_full_options<Matrix<double, 7, 4>>());
+    jacobisvd_thin_options<Matrix4d>();
+    jacobisvd_full_options<Matrix4d>();
+    jacobisvd_thin_options<Matrix<double, 4, 7>>();
+    jacobisvd_full_options<Matrix<double, 4, 7>>();
+    jacobisvd_thin_options<Matrix<double, 7, 4>>();
+    jacobisvd_full_options<Matrix<double, 7, 4>>();
   }
 }

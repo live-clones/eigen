@@ -582,32 +582,32 @@ void test_async_execute_binary_expr(Device d) {
 
 // clang-format off
 #define CALL_SUBTEST_COMBINATIONS(PART, NAME, T, NUM_DIMS)                                                  \
-  (NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::Off, ColMajor>(default_device));                \
-  (NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::On, ColMajor>(default_device));                 \
-  (NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, ColMajor>(default_device));\
-  (NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::On, ColMajor>(default_device)); \
-  (NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::Off, RowMajor>(default_device));                \
-  (NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::On, RowMajor>(default_device));                 \
-  (NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, RowMajor>(default_device));\
-  (NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::On, RowMajor>(default_device)); \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, ColMajor>(tp_device));                  \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, ColMajor>(tp_device));                   \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, ColMajor>(tp_device));  \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::On, ColMajor>(tp_device));   \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, RowMajor>(tp_device));                  \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, RowMajor>(tp_device));                   \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, RowMajor>(tp_device));  \
+  NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::Off, ColMajor>(default_device);                \
+  NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::On, ColMajor>(default_device);                 \
+  NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, ColMajor>(default_device);\
+  NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::On, ColMajor>(default_device); \
+  NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::Off, RowMajor>(default_device);                \
+  NAME<T, NUM_DIMS, DefaultDevice, false, TiledEvaluation::On, RowMajor>(default_device);                 \
+  NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, RowMajor>(default_device);\
+  NAME<T, NUM_DIMS, DefaultDevice, VECTORIZABLE(T, true), TiledEvaluation::On, RowMajor>(default_device); \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, ColMajor>(tp_device);                  \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, ColMajor>(tp_device);                   \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, ColMajor>(tp_device);  \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::On, ColMajor>(tp_device);   \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, RowMajor>(tp_device);                  \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, RowMajor>(tp_device);                   \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, RowMajor>(tp_device);  \
   (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::On, RowMajor>(tp_device))
 
 // NOTE: Currently only ThreadPoolDevice supports async expression evaluation.
 #define CALL_ASYNC_SUBTEST_COMBINATIONS(PART, NAME, T, NUM_DIMS)                                            \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, ColMajor>(tp_device));                  \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, ColMajor>(tp_device));                   \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, ColMajor>(tp_device));  \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::On, ColMajor>(tp_device));   \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, RowMajor>(tp_device));                  \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, RowMajor>(tp_device));                   \
-  (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, RowMajor>(tp_device));  \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, ColMajor>(tp_device);                  \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, ColMajor>(tp_device);                   \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, ColMajor>(tp_device);  \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::On, ColMajor>(tp_device);   \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::Off, RowMajor>(tp_device);                  \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, false, TiledEvaluation::On, RowMajor>(tp_device);                   \
+  NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::Off, RowMajor>(tp_device);  \
   (NAME<T, NUM_DIMS, ThreadPoolDevice, VECTORIZABLE(T, true), TiledEvaluation::On, RowMajor>(tp_device))
 // clang-format on
 

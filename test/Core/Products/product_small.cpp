@@ -21,9 +21,9 @@ TEST(ProductSmallTest, Basic) {
     product(Matrix<bfloat16, 3, 2>());
     product1x1<0>();
 
-    (test_linear_but_not_vectorizable<float, 2, 1, Dynamic>());
-    (test_linear_but_not_vectorizable<float, 3, 1, Dynamic>());
-    (test_linear_but_not_vectorizable<float, 2, 1, 16>());
+    test_linear_but_not_vectorizable<float, 2, 1, Dynamic>();
+    test_linear_but_not_vectorizable<float, 3, 1, Dynamic>();
+    test_linear_but_not_vectorizable<float, 2, 1, 16>();
 
     bug_1311<3>();
     bug_1311<5>();

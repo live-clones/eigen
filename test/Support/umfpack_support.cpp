@@ -25,8 +25,8 @@ void test_umfpack_support_T() {
 }
 
 TEST(UmfpackSupportTest, Basic) {
-  (test_umfpack_support_T<double, int>());
-  (test_umfpack_support_T<std::complex<double>, int>());
-  (test_umfpack_support_T<double, long>());
-  (test_umfpack_support_T<std::complex<double>, long>());
+  test_umfpack_support_T<double, int>();
+  test_umfpack_support_T<std::complex<double>, int>();
+  test_umfpack_support_T<double, long>();
+  test_umfpack_support_T<std::complex<double>, long>();
 }

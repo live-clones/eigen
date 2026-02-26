@@ -73,28 +73,28 @@ void inplace(bool square = false, bool SPD = false) {
 TEST(InplaceDecompositionTest, Basic) {
   EIGEN_UNUSED typedef Matrix<double, 4, 3> Matrix43d;
   for (int i = 0; i < g_repeat; i++) {
-    (inplace<LLT<Ref<MatrixXd> >, MatrixXd>(true, true));
-    (inplace<LLT<Ref<Matrix4d> >, Matrix4d>(true, true));
+    inplace<LLT<Ref<MatrixXd> >, MatrixXd>(true, true);
+    inplace<LLT<Ref<Matrix4d> >, Matrix4d>(true, true);
 
-    (inplace<LDLT<Ref<MatrixXd> >, MatrixXd>(true, true));
-    (inplace<LDLT<Ref<Matrix4d> >, Matrix4d>(true, true));
+    inplace<LDLT<Ref<MatrixXd> >, MatrixXd>(true, true);
+    inplace<LDLT<Ref<Matrix4d> >, Matrix4d>(true, true);
 
-    (inplace<PartialPivLU<Ref<MatrixXd> >, MatrixXd>(true, false));
-    (inplace<PartialPivLU<Ref<Matrix4d> >, Matrix4d>(true, false));
+    inplace<PartialPivLU<Ref<MatrixXd> >, MatrixXd>(true, false);
+    inplace<PartialPivLU<Ref<Matrix4d> >, Matrix4d>(true, false);
 
-    (inplace<FullPivLU<Ref<MatrixXd> >, MatrixXd>(true, false));
-    (inplace<FullPivLU<Ref<Matrix4d> >, Matrix4d>(true, false));
+    inplace<FullPivLU<Ref<MatrixXd> >, MatrixXd>(true, false);
+    inplace<FullPivLU<Ref<Matrix4d> >, Matrix4d>(true, false);
 
-    (inplace<HouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false));
-    (inplace<HouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false));
+    inplace<HouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false);
+    inplace<HouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false);
 
-    (inplace<ColPivHouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false));
-    (inplace<ColPivHouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false));
+    inplace<ColPivHouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false);
+    inplace<ColPivHouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false);
 
-    (inplace<FullPivHouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false));
-    (inplace<FullPivHouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false));
+    inplace<FullPivHouseholderQR<Ref<MatrixXd> >, MatrixXd>(false, false);
+    inplace<FullPivHouseholderQR<Ref<Matrix43d> >, Matrix43d>(false, false);
 
-    (inplace<CompleteOrthogonalDecomposition<Ref<MatrixXd> >, MatrixXd>(false, false));
-    (inplace<CompleteOrthogonalDecomposition<Ref<Matrix43d> >, Matrix43d>(false, false));
+    inplace<CompleteOrthogonalDecomposition<Ref<MatrixXd> >, MatrixXd>(false, false);
+    inplace<CompleteOrthogonalDecomposition<Ref<Matrix43d> >, Matrix43d>(false, false);
   }
 }

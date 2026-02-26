@@ -263,8 +263,8 @@ void cholesky(const MatrixType& m) {
   }
 
   // update/downdate
-  (test_chol_update<SquareMatrixType, LLT>(symm));
-  (test_chol_update<SquareMatrixType, LDLT>(symm));
+  test_chol_update<SquareMatrixType, LLT>(symm);
+  test_chol_update<SquareMatrixType, LDLT>(symm);
 }
 
 template <typename MatrixType>

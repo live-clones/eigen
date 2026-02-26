@@ -124,9 +124,9 @@ TEST(ProductSymmTest, Basic) {
     (symm<std::complex<double>, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
                                                   internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
 
-    (symm<float, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (symm<double, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (symm<std::complex<float>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (symm<std::complex<double>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    symm<float, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    symm<double, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    symm<std::complex<float>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    symm<std::complex<double>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
   }
 }

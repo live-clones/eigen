@@ -72,10 +72,10 @@ void test_non_spd() {
 }
 
 TEST(IncompleteCholeskyTest, Basic) {
-  (test_incomplete_cholesky_T<double, int>());
-  (test_incomplete_cholesky_T<std::complex<double>, int>());
-  (test_incomplete_cholesky_T<double, long int>());
+  test_incomplete_cholesky_T<double, int>();
+  test_incomplete_cholesky_T<std::complex<double>, int>();
+  test_incomplete_cholesky_T<double, long int>();
 
-  (bug1150<0>());
+  bug1150<0>();
   test_non_spd();
 }

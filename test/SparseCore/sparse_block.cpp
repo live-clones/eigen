@@ -305,14 +305,14 @@ TEST(SparseBlockTest, Basic) {
       r = c;  // check square matrices in 25% of tries
     }
     EIGEN_UNUSED_VARIABLE(r + c);
-    (sparse_block(SparseMatrix<double>(1, 1)));
-    (sparse_block(SparseMatrix<double>(8, 8)));
-    (sparse_block(SparseMatrix<double>(r, c)));
-    (sparse_block(SparseMatrix<std::complex<double>, ColMajor>(r, c)));
-    (sparse_block(SparseMatrix<std::complex<double>, RowMajor>(r, c)));
+    sparse_block(SparseMatrix<double>(1, 1));
+    sparse_block(SparseMatrix<double>(8, 8));
+    sparse_block(SparseMatrix<double>(r, c));
+    sparse_block(SparseMatrix<std::complex<double>, ColMajor>(r, c));
+    sparse_block(SparseMatrix<std::complex<double>, RowMajor>(r, c));
 
-    (sparse_block(SparseMatrix<double, ColMajor, long int>(r, c)));
-    (sparse_block(SparseMatrix<double, RowMajor, long int>(r, c)));
+    sparse_block(SparseMatrix<double, ColMajor, long int>(r, c));
+    sparse_block(SparseMatrix<double, RowMajor, long int>(r, c));
 
     r = Eigen::internal::random<int>(1, 100);
     c = Eigen::internal::random<int>(1, 100);
@@ -320,11 +320,11 @@ TEST(SparseBlockTest, Basic) {
       r = c;  // check square matrices in 25% of tries
     }
 
-    (sparse_block(SparseMatrix<double, ColMajor, short int>(short(r), short(c))));
-    (sparse_block(SparseMatrix<double, RowMajor, short int>(short(r), short(c))));
+    sparse_block(SparseMatrix<double, ColMajor, short int>(short(r), short(c)));
+    sparse_block(SparseMatrix<double, RowMajor, short int>(short(r), short(c)));
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
     AnnoyingScalar::dont_throw = true;
 #endif
-    (sparse_block(SparseMatrix<AnnoyingScalar>(r, c)));
+    sparse_block(SparseMatrix<AnnoyingScalar>(r, c));
   }
 }

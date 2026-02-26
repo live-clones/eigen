@@ -110,9 +110,9 @@ TEST(QRTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     qr(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     qr(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    (qr_fixedsize<Matrix<float, 3, 4>, 2>());
-    (qr_fixedsize<Matrix<double, 6, 2>, 4>());
-    (qr_fixedsize<Matrix<double, 2, 5>, 7>());
+    qr_fixedsize<Matrix<float, 3, 4>, 2>();
+    qr_fixedsize<Matrix<double, 6, 2>, 4>();
+    qr_fixedsize<Matrix<double, 2, 5>, 7>();
     qr(Matrix<float, 1, 1>());
   }
 

@@ -147,13 +147,13 @@ TEST(OrthomethodsTest, Basic) {
     orthomethods_3<float>();
     orthomethods_3<double>();
     orthomethods_3<std::complex<double> >();
-    (orthomethods<float, 2>());
-    (orthomethods<double, 2>());
-    (orthomethods<float, 3>());
-    (orthomethods<double, 3>());
-    (orthomethods<float, 7>());
-    (orthomethods<std::complex<double>, 8>());
-    (orthomethods<float, Dynamic>(36));
-    (orthomethods<double, Dynamic>(35));
+    orthomethods<float, 2>();
+    orthomethods<double, 2>();
+    orthomethods<float, 3>();
+    orthomethods<double, 3>();
+    orthomethods<float, 7>();
+    orthomethods<std::complex<double>, 8>();
+    orthomethods<float, Dynamic>(36);
+    orthomethods<double, Dynamic>(35);
   }
 }

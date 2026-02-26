@@ -1019,16 +1019,16 @@ TEST(SparseBasicTest, Basic) {
       r = c;  // check square matrices in 25% of tries
     }
     EIGEN_UNUSED_VARIABLE(r + c);
-    (sparse_basic(SparseMatrix<double>(1, 1)));
-    (sparse_basic(SparseMatrix<double>(8, 8)));
-    (sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c)));
-    (sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c)));
-    (sparse_basic(SparseMatrix<float, RowMajor>(r, c)));
-    (sparse_basic(SparseMatrix<float, ColMajor>(r, c)));
-    (sparse_basic(SparseMatrix<double, ColMajor>(r, c)));
-    (sparse_basic(SparseMatrix<double, RowMajor>(r, c)));
-    (sparse_basic(SparseMatrix<double, ColMajor, long int>(r, c)));
-    (sparse_basic(SparseMatrix<double, RowMajor, long int>(r, c)));
+    sparse_basic(SparseMatrix<double>(1, 1));
+    sparse_basic(SparseMatrix<double>(8, 8));
+    sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c));
+    sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c));
+    sparse_basic(SparseMatrix<float, RowMajor>(r, c));
+    sparse_basic(SparseMatrix<float, ColMajor>(r, c));
+    sparse_basic(SparseMatrix<double, ColMajor>(r, c));
+    sparse_basic(SparseMatrix<double, RowMajor>(r, c));
+    sparse_basic(SparseMatrix<double, ColMajor, long int>(r, c));
+    sparse_basic(SparseMatrix<double, RowMajor, long int>(r, c));
 
     r = Eigen::internal::random<int>(1, 100);
     c = Eigen::internal::random<int>(1, 100);
@@ -1036,13 +1036,13 @@ TEST(SparseBasicTest, Basic) {
       r = c;  // check square matrices in 25% of tries
     }
 
-    (sparse_basic(SparseMatrix<double, ColMajor, short int>(short(r), short(c))));
-    (sparse_basic(SparseMatrix<double, RowMajor, short int>(short(r), short(c))));
+    sparse_basic(SparseMatrix<double, ColMajor, short int>(short(r), short(c)));
+    sparse_basic(SparseMatrix<double, RowMajor, short int>(short(r), short(c)));
   }
 
   // Regression test for bug 900: (manually insert higher values here, if you have enough RAM):
-  (big_sparse_triplet<SparseMatrix<float, RowMajor, int>>(10000, 10000, 0.125));
-  (big_sparse_triplet<SparseMatrix<double, ColMajor, long int>>(10000, 10000, 0.125));
+  big_sparse_triplet<SparseMatrix<float, RowMajor, int>>(10000, 10000, 0.125);
+  big_sparse_triplet<SparseMatrix<double, ColMajor, long int>>(10000, 10000, 0.125);
 
   bug1105<0>();
 }

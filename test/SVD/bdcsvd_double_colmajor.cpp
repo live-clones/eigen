@@ -16,11 +16,11 @@ TEST(BDCSVDDoubleColmajorTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
 
-    (bdcsvd_thin_options<MatrixXd>(MatrixXd(20, 17)));
-    (bdcsvd_full_options<MatrixXd>(MatrixXd(20, 17)));
-    (bdcsvd_thin_options<MatrixXd>(MatrixXd(17, 20)));
-    (bdcsvd_full_options<MatrixXd>(MatrixXd(17, 20)));
-    (bdcsvd_thin_options<MatrixXd>(MatrixXd(r, c)));
-    (bdcsvd_full_options<MatrixXd>(MatrixXd(r, c)));
+    bdcsvd_thin_options<MatrixXd>(MatrixXd(20, 17));
+    bdcsvd_full_options<MatrixXd>(MatrixXd(20, 17));
+    bdcsvd_thin_options<MatrixXd>(MatrixXd(17, 20));
+    bdcsvd_full_options<MatrixXd>(MatrixXd(17, 20));
+    bdcsvd_thin_options<MatrixXd>(MatrixXd(r, c));
+    bdcsvd_full_options<MatrixXd>(MatrixXd(r, c));
   }
 }

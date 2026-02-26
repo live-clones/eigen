@@ -313,21 +313,21 @@ struct MovableClass {
 
 TEST(QuaternionTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (quaternion<float, AutoAlign>());
+    quaternion<float, AutoAlign>();
     check_const_correctness(Quaternionf());
-    (quaternion<float, DontAlign>());
-    (quaternionAlignment<float>());
+    quaternion<float, DontAlign>();
+    quaternionAlignment<float>();
     mapQuaternion<float>();
 
-    (quaternion<double, AutoAlign>());
+    quaternion<double, AutoAlign>();
     check_const_correctness(Quaterniond());
-    (quaternion<double, DontAlign>());
-    (quaternionAlignment<double>());
+    quaternion<double, DontAlign>();
+    quaternionAlignment<double>();
     mapQuaternion<double>();
 
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
     AnnoyingScalar::dont_throw = true;
 #endif
-    (quaternion<AnnoyingScalar, AutoAlign>());
+    quaternion<AnnoyingScalar, AutoAlign>();
   }
 }

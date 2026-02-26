@@ -50,11 +50,11 @@ void hessenberg(int size = Size) {
 }
 
 TEST(HessenbergTest, Basic) {
-  (hessenberg<std::complex<double>, 1>());
-  (hessenberg<std::complex<double>, 2>());
-  (hessenberg<std::complex<float>, 4>());
-  (hessenberg<float, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-  (hessenberg<std::complex<double>, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+  hessenberg<std::complex<double>, 1>();
+  hessenberg<std::complex<double>, 2>();
+  hessenberg<std::complex<float>, 4>();
+  hessenberg<float, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+  hessenberg<std::complex<double>, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
 
   // Test problem size constructors
   HessenbergDecomposition<MatrixXf>(10);

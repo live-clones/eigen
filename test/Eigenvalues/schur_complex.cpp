@@ -80,10 +80,10 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
 }
 
 TEST(SchurComplexTest, Basic) {
-  (schur<Matrix4cd>());
-  (schur<MatrixXcf>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)));
-  (schur<Matrix<std::complex<float>, 1, 1> >());
-  (schur<Matrix<float, 3, 3, Eigen::RowMajor> >());
+  schur<Matrix4cd>();
+  schur<MatrixXcf>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4));
+  schur<Matrix<std::complex<float>, 1, 1> >();
+  schur<Matrix<float, 3, 3, Eigen::RowMajor> >();
 
   // Test problem size constructors
   ComplexSchur<MatrixXf>(10);

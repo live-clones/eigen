@@ -134,9 +134,9 @@ TEST(QRCODTest, Basic) {
     cod<MatrixXf>();
     cod<MatrixXd>();
     cod<MatrixXcd>();
-    (cod_fixedsize<Matrix<float, 3, 5>, 4>());
-    (cod_fixedsize<Matrix<double, 6, 2>, 3>());
-    (cod_fixedsize<Matrix<double, 1, 1>, 1>());
+    cod_fixedsize<Matrix<float, 3, 5>, 4>();
+    cod_fixedsize<Matrix<double, 6, 2>, 3>();
+    cod_fixedsize<Matrix<double, 1, 1>, 1>();
   }
 
   cod_verify_assert<Matrix3f>();

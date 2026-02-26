@@ -399,7 +399,7 @@ void test_gpu() {
       for (int k = 0; k < 69; ++k) {
         const float result = out(i, j, k);
         const float expected =
-            (in1(i, j, k) * 3.14f + in1(i, j + 1, k) * 2.7f + in1(i, j, k + 1) * 0.2f + in1(i, j + 1, k + 1) * 7.0f);
+            in1(i, j, k) * 3.14f + in1(i, j + 1, k) * 2.7f + in1(i, j, k + 1) * 0.2f + in1(i, j + 1, k + 1) * 7.0f;
         VERIFY_IS_APPROX(expected, result);
       }
     }

@@ -16,11 +16,11 @@
 // =============================================================================
 TEST(RealviewDynamicCplxFloatTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (test_realview_cplxfloat<Dynamic, Dynamic, Dynamic, Dynamic>());
-    (test_realview_cplxfloat<Dynamic, Dynamic, 17, Dynamic>());
-    (test_realview_cplxfloat<Dynamic, Dynamic, Dynamic, 19>());
-    (test_realview_cplxfloat<Dynamic, Dynamic, 17, 19>());
-    (test_realview_cplxfloat<17, Dynamic, 17, Dynamic>());
-    (test_realview_cplxfloat<Dynamic, 19, Dynamic, 19>());
+    test_realview_cplxfloat<Dynamic, Dynamic, Dynamic, Dynamic>();
+    test_realview_cplxfloat<Dynamic, Dynamic, 17, Dynamic>();
+    test_realview_cplxfloat<Dynamic, Dynamic, Dynamic, 19>();
+    test_realview_cplxfloat<Dynamic, Dynamic, 17, 19>();
+    test_realview_cplxfloat<17, Dynamic, 17, Dynamic>();
+    test_realview_cplxfloat<Dynamic, 19, Dynamic, 19>();
   }
 }

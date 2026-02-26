@@ -490,10 +490,10 @@ void test_sum_accuracy() {
 TEST(TensorReductionTest, Basic) {
   test_trivial_reductions<ColMajor>();
   test_trivial_reductions<RowMajor>();
-  (test_simple_reductions<float, ColMajor>());
-  (test_simple_reductions<float, RowMajor>());
-  (test_simple_reductions<Eigen::half, ColMajor>());
-  (test_simple_reductions<Eigen::bfloat16, ColMajor>());
+  test_simple_reductions<float, ColMajor>();
+  test_simple_reductions<float, RowMajor>();
+  test_simple_reductions<Eigen::half, ColMajor>();
+  test_simple_reductions<Eigen::bfloat16, ColMajor>();
   test_reductions_in_expr<ColMajor>();
   test_reductions_in_expr<RowMajor>();
   test_full_reductions<ColMajor>();
@@ -510,11 +510,11 @@ TEST(TensorReductionTest, Basic) {
   test_innermost_first_dims<RowMajor>();
   test_reduce_middle_dims<ColMajor>();
   test_reduce_middle_dims<RowMajor>();
-  (test_sum_accuracy<float, 10 * 1024 * 1024, 8 * 1024>());
-  (test_sum_accuracy<Eigen::bfloat16, 10 * 1024 * 1024, 8 * 1024>());
+  test_sum_accuracy<float, 10 * 1024 * 1024, 8 * 1024>();
+  test_sum_accuracy<Eigen::bfloat16, 10 * 1024 * 1024, 8 * 1024>();
   // The range of half is limited to 65519 when using round-to-even,
   // so we are severely limited in the size and mean of the tensors
   // we can reduce without overflow.
-  (test_sum_accuracy<Eigen::half, 4 * 1024, 16>());
-  (test_sum_accuracy<Eigen::half, 10 * 1024 * 1024, 0>());
+  test_sum_accuracy<Eigen::half, 4 * 1024, 16>();
+  test_sum_accuracy<Eigen::half, 10 * 1024 * 1024, 0>();
 }

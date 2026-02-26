@@ -395,21 +395,21 @@ static void test_block_io_squeeze_ones() {
 }
 
 #define CALL_SUBTESTS(NAME)     \
-  (NAME<float, 1, RowMajor>()); \
-  (NAME<float, 2, RowMajor>()); \
-  (NAME<float, 4, RowMajor>()); \
-  (NAME<float, 5, RowMajor>()); \
-  (NAME<float, 1, ColMajor>()); \
-  (NAME<float, 2, ColMajor>()); \
-  (NAME<float, 4, ColMajor>()); \
-  (NAME<float, 5, ColMajor>()); \
-  (NAME<bool, 1, RowMajor>());  \
-  (NAME<bool, 2, RowMajor>());  \
-  (NAME<bool, 4, RowMajor>());  \
-  (NAME<bool, 5, RowMajor>());  \
-  (NAME<bool, 1, ColMajor>());  \
-  (NAME<bool, 2, ColMajor>());  \
-  (NAME<bool, 4, ColMajor>());  \
+  NAME<float, 1, RowMajor>(); \
+  NAME<float, 2, RowMajor>(); \
+  NAME<float, 4, RowMajor>(); \
+  NAME<float, 5, RowMajor>(); \
+  NAME<float, 1, ColMajor>(); \
+  NAME<float, 2, ColMajor>(); \
+  NAME<float, 4, ColMajor>(); \
+  NAME<float, 5, ColMajor>(); \
+  NAME<bool, 1, RowMajor>();  \
+  NAME<bool, 2, RowMajor>();  \
+  NAME<bool, 4, RowMajor>();  \
+  NAME<bool, 5, RowMajor>();  \
+  NAME<bool, 1, ColMajor>();  \
+  NAME<bool, 2, ColMajor>();  \
+  NAME<bool, 4, ColMajor>();  \
   (NAME<bool, 5, ColMajor>())
 
 TEST(TensorBlockIOTest, Basic) {

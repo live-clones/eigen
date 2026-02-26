@@ -12,7 +12,7 @@
 #include "simplicial_cholesky_helpers.h"
 
 TEST(SimplicialCholeskyColmajorTest, Basic) {
-  (test_simplicial_cholesky_T<double, int, ColMajor>());
-  (test_simplicial_cholesky_T<std::complex<double>, int, ColMajor>());
-  (test_simplicial_cholesky_T<double, long int, ColMajor>());
+  test_simplicial_cholesky_T<double, int, ColMajor>();
+  test_simplicial_cholesky_T<std::complex<double>, int, ColMajor>();
+  test_simplicial_cholesky_T<double, long int, ColMajor>();
 }

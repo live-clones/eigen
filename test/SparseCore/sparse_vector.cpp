@@ -225,10 +225,10 @@ TEST(SparseVectorTest, Basic) {
     }
     EIGEN_UNUSED_VARIABLE(r + c);
 
-    (sparse_vector<double, int>(8, 8));
-    (sparse_vector<std::complex<double>, int>(r, c));
-    (sparse_vector<double, long int>(r, c));
-    (sparse_vector<double, short>(r, c));
+    sparse_vector<double, int>(8, 8);
+    sparse_vector<std::complex<double>, int>(r, c);
+    sparse_vector<double, long int>(r, c);
+    sparse_vector<double, short>(r, c);
   }
 
   test_pruning();

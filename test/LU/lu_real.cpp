@@ -18,11 +18,11 @@ TEST(LUTest, Real) {
     lu_verify_assert<Matrix3f>();
     lu_partial_piv<Matrix3f>();
 
-    (lu_non_invertible<Matrix<double, 4, 6> >());
-    (lu_verify_assert<Matrix<double, 4, 6> >());
+    lu_non_invertible<Matrix<double, 4, 6> >();
+    lu_verify_assert<Matrix<double, 4, 6> >();
     lu_partial_piv<Matrix2d>();
     lu_partial_piv<Matrix4d>();
-    (lu_partial_piv<Matrix<double, 6, 6> >());
+    lu_partial_piv<Matrix<double, 6, 6> >();
 
     lu_non_invertible<MatrixXf>();
     lu_invertible<MatrixXf>();
@@ -33,7 +33,7 @@ TEST(LUTest, Real) {
     lu_partial_piv<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
     lu_verify_assert<MatrixXd>();
 
-    (lu_non_invertible<Matrix<float, Dynamic, 16> >());
+    lu_non_invertible<Matrix<float, Dynamic, 16> >();
 
     // Test problem size constructors
     PartialPivLU<MatrixXf>(10);

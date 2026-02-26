@@ -20,5 +20,5 @@ TEST(BoostMultiprecSvdTest, Basic) {
   boostmp_bdcsvd(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
                      internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)));
 
-  (boostmp_simplicial_cholesky<Real, int, ColMajor>());
+  boostmp_simplicial_cholesky<Real, int, ColMajor>();
 }

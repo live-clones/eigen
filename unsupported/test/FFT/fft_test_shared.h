@@ -287,25 +287,25 @@ TEST(FftwTest, Basic) {
   test_scalar<long double>(256);
   test_scalar<long double>(2 * 3 * 4 * 5 * 7);
 
-  (test_complex2d<long double, 2 * 3 * 4, 2 * 3 * 4>());
-  (test_complex2d<long double, 3 * 4 * 5, 3 * 4 * 5>());
-  (test_complex2d<long double, 24, 60>());
-  (test_complex2d<long double, 60, 24>());
+  test_complex2d<long double, 2 * 3 * 4, 2 * 3 * 4>();
+  test_complex2d<long double, 3 * 4 * 5, 3 * 4 * 5>();
+  test_complex2d<long double, 24, 60>();
+  test_complex2d<long double, 60, 24>();
 // fail to build since Eigen limit the stack allocation size,too big here.
 //  ( test_complex2d<long double, 256, 256> () ) ;
 #endif
 #if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || \
     defined EIGEN_MKL_DEFAULT
-  (test_complex2d<float, 24, 24>());
-  (test_complex2d<float, 60, 60>());
-  (test_complex2d<float, 24, 60>());
-  (test_complex2d<float, 60, 24>());
+  test_complex2d<float, 24, 24>();
+  test_complex2d<float, 60, 60>();
+  test_complex2d<float, 24, 60>();
+  test_complex2d<float, 60, 24>();
 #endif
 #if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || \
     defined EIGEN_MKL_DEFAULT
-  (test_complex2d<double, 24, 24>());
-  (test_complex2d<double, 60, 60>());
-  (test_complex2d<double, 24, 60>());
-  (test_complex2d<double, 60, 24>());
+  test_complex2d<double, 24, 24>();
+  test_complex2d<double, 60, 60>();
+  test_complex2d<double, 24, 60>();
+  test_complex2d<double, 60, 24>();
 #endif
 }

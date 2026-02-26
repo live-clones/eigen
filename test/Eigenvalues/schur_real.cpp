@@ -105,13 +105,13 @@ void test_bug2633() {
 }
 
 TEST(SchurRealTest, Basic) {
-  (schur<Matrix4f>());
-  (schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)));
-  (schur<Matrix<float, 1, 1> >());
-  (schur<Matrix<double, 3, 3, Eigen::RowMajor> >());
+  schur<Matrix4f>();
+  schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4));
+  schur<Matrix<float, 1, 1> >();
+  schur<Matrix<double, 3, 3, Eigen::RowMajor> >();
 
   // Test problem size constructors
   RealSchur<MatrixXf>(10);
 
-  (test_bug2633());
+  test_bug2633();
 }

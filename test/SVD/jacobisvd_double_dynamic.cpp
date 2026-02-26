@@ -16,12 +16,12 @@ TEST(JacobisvdDoubleDynamicTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
 
-    (jacobisvd_thin_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5)));
-    (jacobisvd_full_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5)));
-    (jacobisvd_thin_options<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c)));
-    (jacobisvd_full_options<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c)));
-    (jacobisvd_thin_options<MatrixXd>(MatrixXd(r, c)));
-    (jacobisvd_full_options<MatrixXd>(MatrixXd(r, c)));
+    jacobisvd_thin_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5));
+    jacobisvd_full_options<Matrix<double, Dynamic, 5>>(Matrix<double, Dynamic, 5>(r, 5));
+    jacobisvd_thin_options<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c));
+    jacobisvd_full_options<Matrix<double, 5, Dynamic>>(Matrix<double, 5, Dynamic>(5, c));
+    jacobisvd_thin_options<MatrixXd>(MatrixXd(r, c));
+    jacobisvd_full_options<MatrixXd>(MatrixXd(r, c));
   }
 
   (jacobisvd_thin_options<MatrixXd>(MatrixXd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2),

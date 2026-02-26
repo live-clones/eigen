@@ -62,14 +62,14 @@ test_lazy_single(int, int, int) {}
 
 template <typename T, int Rows, int Cols, int Depth>
 void test_lazy_all_layout(int rows = Rows, int cols = Cols, int depth = Depth) {
-  (test_lazy_single<T, Rows, Cols, Depth, ColMajor, ColMajor, ColMajor>(rows, cols, depth));
-  (test_lazy_single<T, Rows, Cols, Depth, RowMajor, ColMajor, ColMajor>(rows, cols, depth));
-  (test_lazy_single<T, Rows, Cols, Depth, ColMajor, RowMajor, ColMajor>(rows, cols, depth));
-  (test_lazy_single<T, Rows, Cols, Depth, RowMajor, RowMajor, ColMajor>(rows, cols, depth));
-  (test_lazy_single<T, Rows, Cols, Depth, ColMajor, ColMajor, RowMajor>(rows, cols, depth));
-  (test_lazy_single<T, Rows, Cols, Depth, RowMajor, ColMajor, RowMajor>(rows, cols, depth));
-  (test_lazy_single<T, Rows, Cols, Depth, ColMajor, RowMajor, RowMajor>(rows, cols, depth));
-  (test_lazy_single<T, Rows, Cols, Depth, RowMajor, RowMajor, RowMajor>(rows, cols, depth));
+  test_lazy_single<T, Rows, Cols, Depth, ColMajor, ColMajor, ColMajor>(rows, cols, depth);
+  test_lazy_single<T, Rows, Cols, Depth, RowMajor, ColMajor, ColMajor>(rows, cols, depth);
+  test_lazy_single<T, Rows, Cols, Depth, ColMajor, RowMajor, ColMajor>(rows, cols, depth);
+  test_lazy_single<T, Rows, Cols, Depth, RowMajor, RowMajor, ColMajor>(rows, cols, depth);
+  test_lazy_single<T, Rows, Cols, Depth, ColMajor, ColMajor, RowMajor>(rows, cols, depth);
+  test_lazy_single<T, Rows, Cols, Depth, RowMajor, ColMajor, RowMajor>(rows, cols, depth);
+  test_lazy_single<T, Rows, Cols, Depth, ColMajor, RowMajor, RowMajor>(rows, cols, depth);
+  test_lazy_single<T, Rows, Cols, Depth, RowMajor, RowMajor, RowMajor>(rows, cols, depth);
 }
 
 template <typename T>
@@ -79,25 +79,25 @@ void test_lazy_l1() {
   int depth = internal::random<int>(1, 12);
 
   // Inner
-  (test_lazy_all_layout<T, 1, 1, 1>());
-  (test_lazy_all_layout<T, 1, 1, 2>());
-  (test_lazy_all_layout<T, 1, 1, 3>());
-  (test_lazy_all_layout<T, 1, 1, 8>());
-  (test_lazy_all_layout<T, 1, 1, 9>());
-  (test_lazy_all_layout<T, 1, 1, -1>(1, 1, depth));
+  test_lazy_all_layout<T, 1, 1, 1>();
+  test_lazy_all_layout<T, 1, 1, 2>();
+  test_lazy_all_layout<T, 1, 1, 3>();
+  test_lazy_all_layout<T, 1, 1, 8>();
+  test_lazy_all_layout<T, 1, 1, 9>();
+  test_lazy_all_layout<T, 1, 1, -1>(1, 1, depth);
 
   // Outer
-  (test_lazy_all_layout<T, 2, 1, 1>());
-  (test_lazy_all_layout<T, 1, 2, 1>());
-  (test_lazy_all_layout<T, 2, 2, 1>());
-  (test_lazy_all_layout<T, 3, 3, 1>());
-  (test_lazy_all_layout<T, 4, 4, 1>());
-  (test_lazy_all_layout<T, 4, 8, 1>());
-  (test_lazy_all_layout<T, 4, -1, 1>(4, cols));
-  (test_lazy_all_layout<T, 7, -1, 1>(7, cols));
-  (test_lazy_all_layout<T, -1, 8, 1>(rows));
-  (test_lazy_all_layout<T, -1, 3, 1>(rows));
-  (test_lazy_all_layout<T, -1, -1, 1>(rows, cols));
+  test_lazy_all_layout<T, 2, 1, 1>();
+  test_lazy_all_layout<T, 1, 2, 1>();
+  test_lazy_all_layout<T, 2, 2, 1>();
+  test_lazy_all_layout<T, 3, 3, 1>();
+  test_lazy_all_layout<T, 4, 4, 1>();
+  test_lazy_all_layout<T, 4, 8, 1>();
+  test_lazy_all_layout<T, 4, -1, 1>(4, cols);
+  test_lazy_all_layout<T, 7, -1, 1>(7, cols);
+  test_lazy_all_layout<T, -1, 8, 1>(rows);
+  test_lazy_all_layout<T, -1, 3, 1>(rows);
+  test_lazy_all_layout<T, -1, -1, 1>(rows, cols);
 }
 
 template <typename T>
@@ -107,32 +107,32 @@ void test_lazy_l2() {
   int depth = internal::random<int>(1, 12);
 
   // mat-vec
-  (test_lazy_all_layout<T, 2, 1, 2>());
-  (test_lazy_all_layout<T, 2, 1, 4>());
-  (test_lazy_all_layout<T, 4, 1, 2>());
-  (test_lazy_all_layout<T, 4, 1, 4>());
-  (test_lazy_all_layout<T, 5, 1, 4>());
-  (test_lazy_all_layout<T, 4, 1, 5>());
-  (test_lazy_all_layout<T, 4, 1, 6>());
-  (test_lazy_all_layout<T, 6, 1, 4>());
-  (test_lazy_all_layout<T, 8, 1, 8>());
-  (test_lazy_all_layout<T, -1, 1, 4>(rows));
-  (test_lazy_all_layout<T, 4, 1, -1>(4, 1, depth));
-  (test_lazy_all_layout<T, -1, 1, -1>(rows, 1, depth));
+  test_lazy_all_layout<T, 2, 1, 2>();
+  test_lazy_all_layout<T, 2, 1, 4>();
+  test_lazy_all_layout<T, 4, 1, 2>();
+  test_lazy_all_layout<T, 4, 1, 4>();
+  test_lazy_all_layout<T, 5, 1, 4>();
+  test_lazy_all_layout<T, 4, 1, 5>();
+  test_lazy_all_layout<T, 4, 1, 6>();
+  test_lazy_all_layout<T, 6, 1, 4>();
+  test_lazy_all_layout<T, 8, 1, 8>();
+  test_lazy_all_layout<T, -1, 1, 4>(rows);
+  test_lazy_all_layout<T, 4, 1, -1>(4, 1, depth);
+  test_lazy_all_layout<T, -1, 1, -1>(rows, 1, depth);
 
   // vec-mat
-  (test_lazy_all_layout<T, 1, 2, 2>());
-  (test_lazy_all_layout<T, 1, 2, 4>());
-  (test_lazy_all_layout<T, 1, 4, 2>());
-  (test_lazy_all_layout<T, 1, 4, 4>());
-  (test_lazy_all_layout<T, 1, 5, 4>());
-  (test_lazy_all_layout<T, 1, 4, 5>());
-  (test_lazy_all_layout<T, 1, 4, 6>());
-  (test_lazy_all_layout<T, 1, 6, 4>());
-  (test_lazy_all_layout<T, 1, 8, 8>());
-  (test_lazy_all_layout<T, 1, -1, 4>(1, cols));
-  (test_lazy_all_layout<T, 1, 4, -1>(1, 4, depth));
-  (test_lazy_all_layout<T, 1, -1, -1>(1, cols, depth));
+  test_lazy_all_layout<T, 1, 2, 2>();
+  test_lazy_all_layout<T, 1, 2, 4>();
+  test_lazy_all_layout<T, 1, 4, 2>();
+  test_lazy_all_layout<T, 1, 4, 4>();
+  test_lazy_all_layout<T, 1, 5, 4>();
+  test_lazy_all_layout<T, 1, 4, 5>();
+  test_lazy_all_layout<T, 1, 4, 6>();
+  test_lazy_all_layout<T, 1, 6, 4>();
+  test_lazy_all_layout<T, 1, 8, 8>();
+  test_lazy_all_layout<T, 1, -1, 4>(1, cols);
+  test_lazy_all_layout<T, 1, 4, -1>(1, 4, depth);
+  test_lazy_all_layout<T, 1, -1, -1>(1, cols, depth);
 }
 
 template <typename T>
@@ -141,30 +141,30 @@ void test_lazy_l3() {
   int cols = internal::random<int>(1, 12);
   int depth = internal::random<int>(1, 12);
   // mat-mat
-  (test_lazy_all_layout<T, 2, 4, 2>());
-  (test_lazy_all_layout<T, 2, 6, 4>());
-  (test_lazy_all_layout<T, 4, 3, 2>());
-  (test_lazy_all_layout<T, 4, 8, 4>());
-  (test_lazy_all_layout<T, 5, 6, 4>());
-  (test_lazy_all_layout<T, 4, 2, 5>());
-  (test_lazy_all_layout<T, 4, 7, 6>());
-  (test_lazy_all_layout<T, 6, 8, 4>());
-  (test_lazy_all_layout<T, 8, 3, 8>());
-  (test_lazy_all_layout<T, -1, 6, 4>(rows));
-  (test_lazy_all_layout<T, 4, 3, -1>(4, 3, depth));
-  (test_lazy_all_layout<T, -1, 6, -1>(rows, 6, depth));
-  (test_lazy_all_layout<T, 8, 2, 2>());
-  (test_lazy_all_layout<T, 5, 2, 4>());
-  (test_lazy_all_layout<T, 4, 4, 2>());
-  (test_lazy_all_layout<T, 8, 4, 4>());
-  (test_lazy_all_layout<T, 6, 5, 4>());
-  (test_lazy_all_layout<T, 4, 4, 5>());
-  (test_lazy_all_layout<T, 3, 4, 6>());
-  (test_lazy_all_layout<T, 2, 6, 4>());
-  (test_lazy_all_layout<T, 7, 8, 8>());
-  (test_lazy_all_layout<T, 8, -1, 4>(8, cols));
-  (test_lazy_all_layout<T, 3, 4, -1>(3, 4, depth));
-  (test_lazy_all_layout<T, 4, -1, -1>(4, cols, depth));
+  test_lazy_all_layout<T, 2, 4, 2>();
+  test_lazy_all_layout<T, 2, 6, 4>();
+  test_lazy_all_layout<T, 4, 3, 2>();
+  test_lazy_all_layout<T, 4, 8, 4>();
+  test_lazy_all_layout<T, 5, 6, 4>();
+  test_lazy_all_layout<T, 4, 2, 5>();
+  test_lazy_all_layout<T, 4, 7, 6>();
+  test_lazy_all_layout<T, 6, 8, 4>();
+  test_lazy_all_layout<T, 8, 3, 8>();
+  test_lazy_all_layout<T, -1, 6, 4>(rows);
+  test_lazy_all_layout<T, 4, 3, -1>(4, 3, depth);
+  test_lazy_all_layout<T, -1, 6, -1>(rows, 6, depth);
+  test_lazy_all_layout<T, 8, 2, 2>();
+  test_lazy_all_layout<T, 5, 2, 4>();
+  test_lazy_all_layout<T, 4, 4, 2>();
+  test_lazy_all_layout<T, 8, 4, 4>();
+  test_lazy_all_layout<T, 6, 5, 4>();
+  test_lazy_all_layout<T, 4, 4, 5>();
+  test_lazy_all_layout<T, 3, 4, 6>();
+  test_lazy_all_layout<T, 2, 6, 4>();
+  test_lazy_all_layout<T, 7, 8, 8>();
+  test_lazy_all_layout<T, 8, -1, 4>(8, cols);
+  test_lazy_all_layout<T, 3, 4, -1>(3, 4, depth);
+  test_lazy_all_layout<T, 4, -1, -1>(4, cols, depth);
 }
 
 template <typename T, int N, int M, int K>

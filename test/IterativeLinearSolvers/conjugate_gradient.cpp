@@ -27,7 +27,7 @@ void test_conjugate_gradient_T() {
 }
 
 TEST(ConjugateGradientTest, Basic) {
-  (test_conjugate_gradient_T<double, int>());
-  (test_conjugate_gradient_T<std::complex<double>, int>());
-  (test_conjugate_gradient_T<double, long int>());
+  test_conjugate_gradient_T<double, int>();
+  test_conjugate_gradient_T<std::complex<double>, int>();
+  test_conjugate_gradient_T<double, long int>();
 }

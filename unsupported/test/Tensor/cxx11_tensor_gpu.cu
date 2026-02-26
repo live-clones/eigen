@@ -1461,7 +1461,7 @@ TEST(TensorGPUTest, Basic) {
   test_gpu_nullary();
   test_gpu_nullary_max_size<int16_t>();
   test_gpu_nullary_max_size<int32_t>();
-  (test_gpu_nullary_max_size<int64_t, (std::numeric_limits<int32_t>::max)() + 100ll>());
+  test_gpu_nullary_max_size<int64_t, (std::numeric_limits<int32_t>::max)() + 100ll>();
   test_gpu_elementwise_small();
   test_gpu_elementwise();
   test_gpu_props();

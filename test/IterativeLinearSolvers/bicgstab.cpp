@@ -80,9 +80,9 @@ void test_2899() {
 }
 
 TEST(BicgstabTest, Basic) {
-  (test_bicgstab_T<double, int>());
-  (test_bicgstab_T<std::complex<double>, int>());
-  (test_bicgstab_T<double, long int>());
+  test_bicgstab_T<double, int>();
+  test_bicgstab_T<std::complex<double>, int>();
+  test_bicgstab_T<double, long int>();
   test_2856();
   test_2899();
 }

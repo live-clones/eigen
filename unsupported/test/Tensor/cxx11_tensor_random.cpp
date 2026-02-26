@@ -68,13 +68,13 @@ static void test_custom() {
 }
 
 TEST(TensorRandomTest, Basic) {
-  (test_default<float>());
-  (test_normal<float>());
-  (test_default<double>());
-  (test_normal<double>());
-  (test_default<Eigen::half>());
-  (test_normal<Eigen::half>());
-  (test_default<Eigen::bfloat16>());
-  (test_normal<Eigen::bfloat16>());
+  test_default<float>();
+  test_normal<float>();
+  test_default<double>();
+  test_normal<double>();
+  test_default<Eigen::half>();
+  test_normal<Eigen::half>();
+  test_default<Eigen::bfloat16>();
+  test_normal<Eigen::bfloat16>();
   test_custom();
 }

@@ -16,13 +16,13 @@ TEST(JacobisvdComplexTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
 
-    (jacobisvd_thin_options<MatrixXcd>(MatrixXcd(r, c)));
-    (jacobisvd_full_options<MatrixXcd>(MatrixXcd(r, c)));
+    jacobisvd_thin_options<MatrixXcd>(MatrixXcd(r, c));
+    jacobisvd_full_options<MatrixXcd>(MatrixXcd(r, c));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     svd_fill_random(noQRTest);
-    (svd_thin_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest));
-    (svd_option_checks_full_only<MatrixXcd, NoQRPreconditioner>(noQRTest));
+    svd_thin_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest);
+    svd_option_checks_full_only<MatrixXcd, NoQRPreconditioner>(noQRTest);
   }
 
   (jacobisvd_thin_options<MatrixXcd>(

@@ -219,35 +219,35 @@ TEST(SparseExtraTest, Basic) {
     sparse_extra(SparseMatrix<std::complex<double> >(s, s));
     sparse_extra(SparseMatrix<double>(s, s));
 
-    (check_marketio<SparseMatrix<float, ColMajor, int> >());
-    (check_marketio<SparseMatrix<double, ColMajor, int> >());
-    (check_marketio<SparseMatrix<std::complex<float>, ColMajor, int> >());
-    (check_marketio<SparseMatrix<std::complex<double>, ColMajor, int> >());
-    (check_marketio<SparseMatrix<float, ColMajor, long int> >());
-    (check_marketio<SparseMatrix<double, ColMajor, long int> >());
-    (check_marketio<SparseMatrix<std::complex<float>, ColMajor, long int> >());
-    (check_marketio<SparseMatrix<std::complex<double>, ColMajor, long int> >());
+    check_marketio<SparseMatrix<float, ColMajor, int> >();
+    check_marketio<SparseMatrix<double, ColMajor, int> >();
+    check_marketio<SparseMatrix<std::complex<float>, ColMajor, int> >();
+    check_marketio<SparseMatrix<std::complex<double>, ColMajor, int> >();
+    check_marketio<SparseMatrix<float, ColMajor, long int> >();
+    check_marketio<SparseMatrix<double, ColMajor, long int> >();
+    check_marketio<SparseMatrix<std::complex<float>, ColMajor, long int> >();
+    check_marketio<SparseMatrix<std::complex<double>, ColMajor, long int> >();
 
-    (check_marketio_dense<Matrix<float, Dynamic, Dynamic> >());
-    (check_marketio_dense<Matrix<float, Dynamic, Dynamic, RowMajor> >());
-    (check_marketio_dense<Matrix<double, Dynamic, Dynamic> >());
-    (check_marketio_dense<Matrix<std::complex<float>, Dynamic, Dynamic> >());
-    (check_marketio_dense<Matrix<std::complex<double>, Dynamic, Dynamic> >());
-    (check_marketio_dense<Matrix<float, Dynamic, 3> >());
-    (check_marketio_dense<Matrix<double, 3, Dynamic> >());
-    (check_marketio_dense<Matrix<double, 3, 4> >());
-    (check_marketio_dense<Matrix<double, Dynamic, Dynamic, ColMajor, 5, 5> >());
+    check_marketio_dense<Matrix<float, Dynamic, Dynamic> >();
+    check_marketio_dense<Matrix<float, Dynamic, Dynamic, RowMajor> >();
+    check_marketio_dense<Matrix<double, Dynamic, Dynamic> >();
+    check_marketio_dense<Matrix<std::complex<float>, Dynamic, Dynamic> >();
+    check_marketio_dense<Matrix<std::complex<double>, Dynamic, Dynamic> >();
+    check_marketio_dense<Matrix<float, Dynamic, 3> >();
+    check_marketio_dense<Matrix<double, 3, Dynamic> >();
+    check_marketio_dense<Matrix<double, 3, 4> >();
+    check_marketio_dense<Matrix<double, Dynamic, Dynamic, ColMajor, 5, 5> >();
 
-    (check_marketio_vector<Matrix<float, 1, Dynamic> >());
-    (check_marketio_vector<Matrix<double, 1, Dynamic> >());
-    (check_marketio_vector<Matrix<std::complex<float>, 1, Dynamic> >());
-    (check_marketio_vector<Matrix<std::complex<double>, 1, Dynamic> >());
-    (check_marketio_vector<Matrix<float, Dynamic, 1> >());
-    (check_marketio_vector<Matrix<double, Dynamic, 1> >());
-    (check_marketio_vector<Matrix<std::complex<float>, Dynamic, 1> >());
-    (check_marketio_vector<Matrix<std::complex<double>, Dynamic, 1> >());
+    check_marketio_vector<Matrix<float, 1, Dynamic> >();
+    check_marketio_vector<Matrix<double, 1, Dynamic> >();
+    check_marketio_vector<Matrix<std::complex<float>, 1, Dynamic> >();
+    check_marketio_vector<Matrix<std::complex<double>, 1, Dynamic> >();
+    check_marketio_vector<Matrix<float, Dynamic, 1> >();
+    check_marketio_vector<Matrix<double, Dynamic, 1> >();
+    check_marketio_vector<Matrix<std::complex<float>, Dynamic, 1> >();
+    check_marketio_vector<Matrix<std::complex<double>, Dynamic, 1> >();
 
-    (check_sparse_inverse<double>());
+    check_sparse_inverse<double>();
 
     TEST_SET_BUT_UNUSED_VARIABLE(s);
   }

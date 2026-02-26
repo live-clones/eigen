@@ -11,11 +11,11 @@
 
 TEST(PolynomialsolverTest, Float) {
   for (int i = 0; i < g_repeat; i++) {
-    (polynomialsolver<float, 1>(1));
-    (polynomialsolver<float, 4>(4));
-    (polynomialsolver<float, 6>(6));
-    (polynomialsolver<float, 7>(7));
-    (polynomialsolver<float, Dynamic>(internal::random<int>(9, 13)));
-    (polynomialsolver<float, Dynamic>(1));
+    polynomialsolver<float, 1>(1);
+    polynomialsolver<float, 4>(4);
+    polynomialsolver<float, 6>(6);
+    polynomialsolver<float, 7>(7);
+    polynomialsolver<float, Dynamic>(internal::random<int>(9, 13));
+    polynomialsolver<float, Dynamic>(1);
   }
 }

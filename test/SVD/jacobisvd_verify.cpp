@@ -10,14 +10,14 @@
 #include "jacobisvd_helpers.h"
 
 TEST(JacobisvdVerifyTest, Basic) {
-  (jacobisvd_verify_inputs<Matrix4d>());
-  (jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6)));
-  (jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>());
+  jacobisvd_verify_inputs<Matrix4d>();
+  jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6));
+  jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>();
 
-  (jacobisvd_verify_assert<Matrix3f>());
-  (jacobisvd_verify_assert<Matrix4d>());
-  (jacobisvd_verify_assert<Matrix<float, 10, 12>>());
-  (jacobisvd_verify_assert<Matrix<float, 12, 10>>());
-  (jacobisvd_verify_assert<MatrixXf>(MatrixXf(10, 12)));
-  (jacobisvd_verify_assert<MatrixXcd>(MatrixXcd(7, 5)));
+  jacobisvd_verify_assert<Matrix3f>();
+  jacobisvd_verify_assert<Matrix4d>();
+  jacobisvd_verify_assert<Matrix<float, 10, 12>>();
+  jacobisvd_verify_assert<Matrix<float, 12, 10>>();
+  jacobisvd_verify_assert<MatrixXf>(MatrixXf(10, 12));
+  jacobisvd_verify_assert<MatrixXcd>(MatrixXcd(7, 5));
 }

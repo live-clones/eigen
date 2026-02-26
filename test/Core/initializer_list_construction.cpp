@@ -101,10 +101,10 @@ void fixedsizeVariadicVectorConstruction3() {
 
 template <typename Scalar>
 void fixedsizeVariadicVectorConstruction() {
-  (fixedsizeVariadicVectorConstruction2<Matrix<Scalar, 4, 1>, Matrix<Scalar, 5, 1>>());
-  (fixedsizeVariadicVectorConstruction2<Matrix<Scalar, 1, 4>, Matrix<Scalar, 1, 5>>());
-  (fixedsizeVariadicVectorConstruction2<Array<Scalar, 4, 1>, Array<Scalar, 5, 1>>());
-  (fixedsizeVariadicVectorConstruction2<Array<Scalar, 1, 4>, Array<Scalar, 1, 5>>());
+  fixedsizeVariadicVectorConstruction2<Matrix<Scalar, 4, 1>, Matrix<Scalar, 5, 1>>();
+  fixedsizeVariadicVectorConstruction2<Matrix<Scalar, 1, 4>, Matrix<Scalar, 1, 5>>();
+  fixedsizeVariadicVectorConstruction2<Array<Scalar, 4, 1>, Array<Scalar, 5, 1>>();
+  fixedsizeVariadicVectorConstruction2<Array<Scalar, 1, 4>, Array<Scalar, 1, 5>>();
 }
 
 template <typename Scalar>

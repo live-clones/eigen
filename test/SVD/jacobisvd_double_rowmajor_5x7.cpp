@@ -11,7 +11,7 @@
 
 TEST(JacobisvdDoubleRowmajor5x7Test, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (jacobisvd_thin_options<Matrix<double, 5, 7, RowMajor>>());
-    (jacobisvd_full_options<Matrix<double, 5, 7, RowMajor>>());
+    jacobisvd_thin_options<Matrix<double, 5, 7, RowMajor>>();
+    jacobisvd_full_options<Matrix<double, 5, 7, RowMajor>>();
   }
 }

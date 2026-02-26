@@ -220,17 +220,17 @@ void sparse_permutations(const SparseMatrixType& ref) {
 
 template <typename Scalar>
 void sparse_permutations_all(int size) {
-  (sparse_permutations<ColMajor>(SparseMatrix<Scalar, ColMajor>(size, size)));
-  (sparse_permutations<ColMajor>(SparseMatrix<Scalar, RowMajor>(size, size)));
-  (sparse_permutations<RowMajor>(SparseMatrix<Scalar, ColMajor>(size, size)));
-  (sparse_permutations<RowMajor>(SparseMatrix<Scalar, RowMajor>(size, size)));
+  sparse_permutations<ColMajor>(SparseMatrix<Scalar, ColMajor>(size, size));
+  sparse_permutations<ColMajor>(SparseMatrix<Scalar, RowMajor>(size, size));
+  sparse_permutations<RowMajor>(SparseMatrix<Scalar, ColMajor>(size, size));
+  sparse_permutations<RowMajor>(SparseMatrix<Scalar, RowMajor>(size, size));
 }
 
 TEST(SparsePermutationsTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = Eigen::internal::random<int>(1, 50);
-    (sparse_permutations_all<double>(s));
-    (sparse_permutations_all<std::complex<double> >(s));
+    sparse_permutations_all<double>(s);
+    sparse_permutations_all<std::complex<double> >(s);
   }
 
   VERIFY((internal::is_same<

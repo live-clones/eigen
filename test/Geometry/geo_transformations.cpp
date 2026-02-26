@@ -702,34 +702,34 @@ void transformations_computed_scaling_continuity() {
 
 TEST(TransformationsTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (transformations<double, Affine, AutoAlign>());
-    (non_projective_only<double, Affine, AutoAlign>());
-    (transformations_computed_scaling_continuity<double, Affine, AutoAlign>());
+    transformations<double, Affine, AutoAlign>();
+    non_projective_only<double, Affine, AutoAlign>();
+    transformations_computed_scaling_continuity<double, Affine, AutoAlign>();
 
-    (transformations<float, AffineCompact, AutoAlign>());
-    (non_projective_only<float, AffineCompact, AutoAlign>());
-    (transform_alignment<float>());
+    transformations<float, AffineCompact, AutoAlign>();
+    non_projective_only<float, AffineCompact, AutoAlign>();
+    transform_alignment<float>();
 
-    (transformations<double, Projective, AutoAlign>());
-    (transformations<double, Projective, DontAlign>());
-    (transform_alignment<double>());
+    transformations<double, Projective, AutoAlign>();
+    transformations<double, Projective, DontAlign>();
+    transform_alignment<double>();
 
-    (transformations<float, Affine, RowMajor | AutoAlign>());
-    (non_projective_only<float, Affine, RowMajor>());
+    transformations<float, Affine, RowMajor | AutoAlign>();
+    non_projective_only<float, Affine, RowMajor>();
 
-    (transformations<double, AffineCompact, RowMajor | AutoAlign>());
-    (non_projective_only<double, AffineCompact, RowMajor>());
+    transformations<double, AffineCompact, RowMajor | AutoAlign>();
+    non_projective_only<double, AffineCompact, RowMajor>();
 
-    (transformations<double, Projective, RowMajor | AutoAlign>());
-    (transformations<double, Projective, RowMajor | DontAlign>());
+    transformations<double, Projective, RowMajor | AutoAlign>();
+    transformations<double, Projective, RowMajor | DontAlign>();
 
-    (transform_products<double, 3, RowMajor | AutoAlign>());
-    (transform_products<float, 2, AutoAlign>());
+    transform_products<double, 3, RowMajor | AutoAlign>();
+    transform_products<float, 2, AutoAlign>();
 
-    (transform_associativity<double, 2, ColMajor>(Rotation2D<double>(internal::random<double>() * double(EIGEN_PI))));
-    (transform_associativity<double, 3, ColMajor>(Quaterniond::UnitRandom()));
+    transform_associativity<double, 2, ColMajor>(Rotation2D<double>(internal::random<double>() * double(EIGEN_PI)));
+    transform_associativity<double, 3, ColMajor>(Quaterniond::UnitRandom());
 
-    (transformations_no_scale<double, Affine, AutoAlign>());
-    (transformations_no_scale<double, Isometry, AutoAlign>());
+    transformations_no_scale<double, Affine, AutoAlign>();
+    transformations_no_scale<double, Isometry, AutoAlign>();
   }
 }

@@ -16,11 +16,11 @@ TEST(JacobisvdFloatOptionsTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
 
-    (jacobisvd_thin_options<Matrix3f>());
-    (jacobisvd_full_options<Matrix3f>());
-    (jacobisvd_thin_options<Matrix<float, 2, 3>>());
-    (jacobisvd_full_options<Matrix<float, 2, 3>>());
-    (jacobisvd_thin_options<MatrixXf>(MatrixXf(r, c)));
-    (jacobisvd_full_options<MatrixXf>(MatrixXf(r, c)));
+    jacobisvd_thin_options<Matrix3f>();
+    jacobisvd_full_options<Matrix3f>();
+    jacobisvd_thin_options<Matrix<float, 2, 3>>();
+    jacobisvd_full_options<Matrix<float, 2, 3>>();
+    jacobisvd_thin_options<MatrixXf>(MatrixXf(r, c));
+    jacobisvd_full_options<MatrixXf>(MatrixXf(r, c));
   }
 }

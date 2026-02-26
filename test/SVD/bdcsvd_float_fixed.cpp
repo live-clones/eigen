@@ -11,9 +11,9 @@
 
 TEST(BDCSVDFloatFixedTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (bdcsvd_thin_options<Matrix3f>());
-    (bdcsvd_full_options<Matrix3f>());
-    (bdcsvd_thin_options<Matrix<float, 2, 3>>());
-    (bdcsvd_full_options<Matrix<float, 2, 3>>());
+    bdcsvd_thin_options<Matrix3f>();
+    bdcsvd_full_options<Matrix3f>();
+    bdcsvd_thin_options<Matrix<float, 2, 3>>();
+    bdcsvd_full_options<Matrix<float, 2, 3>>();
   }
 }

@@ -12,7 +12,7 @@
 #include "simplicial_cholesky_helpers.h"
 
 TEST(SimplicialCholeskyRowmajorTest, Basic) {
-  (test_simplicial_cholesky_T<double, int, RowMajor>());
-  (test_simplicial_cholesky_T<std::complex<double>, int, RowMajor>());
-  (test_simplicial_cholesky_T<double, long int, RowMajor>());
+  test_simplicial_cholesky_T<double, int, RowMajor>();
+  test_simplicial_cholesky_T<std::complex<double>, int, RowMajor>();
+  test_simplicial_cholesky_T<double, long int, RowMajor>();
 }

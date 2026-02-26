@@ -69,12 +69,12 @@ void test_cholmod_T() {
 }
 
 TEST(CholmodSupportTest, Basic) {
-  (test_cholmod_T<double, ColMajor, int>());
-  (test_cholmod_T<double, ColMajor, long>());
-  (test_cholmod_T<double, RowMajor, int>());
-  (test_cholmod_T<double, RowMajor, long>());
-  (test_cholmod_T<std::complex<double>, ColMajor, int>());
-  (test_cholmod_T<std::complex<double>, ColMajor, long>());
+  test_cholmod_T<double, ColMajor, int>();
+  test_cholmod_T<double, ColMajor, long>();
+  test_cholmod_T<double, RowMajor, int>();
+  test_cholmod_T<double, RowMajor, long>();
+  test_cholmod_T<std::complex<double>, ColMajor, int>();
+  test_cholmod_T<std::complex<double>, ColMajor, long>();
   // TODO complex row-major matrices do not work at the moment:
   //  (test_cholmod_T<std::complex<double>, RowMajor, int >()) ;
   //  (test_cholmod_T<std::complex<double>, RowMajor, long>()) ;

@@ -116,17 +116,17 @@ void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scala
 }
 
 #define CALL_ALL_ORDERS(SCALAR, MODE)                   \
-  (trmm<SCALAR, MODE, ColMajor, ColMajor, ColMajor>()); \
-  (trmm<SCALAR, MODE, ColMajor, ColMajor, RowMajor>()); \
-  (trmm<SCALAR, MODE, ColMajor, RowMajor, ColMajor>()); \
-  (trmm<SCALAR, MODE, ColMajor, RowMajor, RowMajor>()); \
-  (trmm<SCALAR, MODE, RowMajor, ColMajor, ColMajor>()); \
-  (trmm<SCALAR, MODE, RowMajor, ColMajor, RowMajor>()); \
-  (trmm<SCALAR, MODE, RowMajor, RowMajor, ColMajor>()); \
-  (trmm<SCALAR, MODE, RowMajor, RowMajor, RowMajor>()); \
+  trmm<SCALAR, MODE, ColMajor, ColMajor, ColMajor>(); \
+  trmm<SCALAR, MODE, ColMajor, ColMajor, RowMajor>(); \
+  trmm<SCALAR, MODE, ColMajor, RowMajor, ColMajor>(); \
+  trmm<SCALAR, MODE, ColMajor, RowMajor, RowMajor>(); \
+  trmm<SCALAR, MODE, RowMajor, ColMajor, ColMajor>(); \
+  trmm<SCALAR, MODE, RowMajor, ColMajor, RowMajor>(); \
+  trmm<SCALAR, MODE, RowMajor, RowMajor, ColMajor>(); \
+  trmm<SCALAR, MODE, RowMajor, RowMajor, RowMajor>(); \
                                                         \
-  (trmv<SCALAR, MODE, ColMajor>());                     \
-  (trmv<SCALAR, MODE, RowMajor>());
+  trmv<SCALAR, MODE, ColMajor>();                     \
+  trmv<SCALAR, MODE, RowMajor>();
 
 #define CALL_ALL(SCALAR)                 \
   CALL_ALL_ORDERS(SCALAR, Upper)         \

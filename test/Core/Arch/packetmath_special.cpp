@@ -15,8 +15,8 @@ TEST(PacketmathSpecialTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     test::runner<half>::run();
     test::runner<bfloat16>::run();
-    (packetmath<bool, internal::packet_traits<bool>::type>());
-    (packetmath_scatter_gather<bool, internal::packet_traits<bool>::type>());
+    packetmath<bool, internal::packet_traits<bool>::type>();
+    packetmath_scatter_gather<bool, internal::packet_traits<bool>::type>();
     g_first_pass = false;
   }
 }

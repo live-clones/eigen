@@ -16,8 +16,8 @@ TEST(BDCSVDDoubleRowmajorTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
 
-    (bdcsvd_thin_options<MatrixXcd>(MatrixXcd(r, c)));
-    (bdcsvd_full_options<MatrixXcd>(MatrixXcd(r, c)));
+    bdcsvd_thin_options<MatrixXcd>(MatrixXcd(r, c));
+    bdcsvd_full_options<MatrixXcd>(MatrixXcd(r, c));
     (bdcsvd_thin_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
         Matrix<double, Dynamic, Dynamic, RowMajor>(20, 27)));
     (bdcsvd_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(

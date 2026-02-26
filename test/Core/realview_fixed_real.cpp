@@ -16,9 +16,9 @@
 // =============================================================================
 TEST(RealviewFixedRealTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (test_realview_real_types<17, 19, 17, 19>());
-    (test_realview_real_types<Dynamic, 1>());
-    (test_realview_real_types<1, Dynamic>());
-    (test_realview_real_types<1, 1>());
+    test_realview_real_types<17, 19, 17, 19>();
+    test_realview_real_types<Dynamic, 1>();
+    test_realview_real_types<1, Dynamic>();
+    test_realview_real_types<1, 1>();
   }
 }

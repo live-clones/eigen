@@ -63,14 +63,14 @@ void inverse_general_4x4(int repeat) {
 // Tests for prec_inverse_4x4
 // =============================================================================
 TEST(PrecInverse4x4Test, Basic) {
-  (inverse_permutation_4x4<Matrix4f>());
-  (inverse_general_4x4<Matrix4f>(200000 * g_repeat));
-  (inverse_general_4x4<Matrix<float, 4, 4, RowMajor> >(200000 * g_repeat));
+  inverse_permutation_4x4<Matrix4f>();
+  inverse_general_4x4<Matrix4f>(200000 * g_repeat);
+  inverse_general_4x4<Matrix<float, 4, 4, RowMajor> >(200000 * g_repeat);
 
-  (inverse_permutation_4x4<Matrix<double, 4, 4, RowMajor> >());
-  (inverse_general_4x4<Matrix<double, 4, 4, ColMajor> >(200000 * g_repeat));
-  (inverse_general_4x4<Matrix<double, 4, 4, RowMajor> >(200000 * g_repeat));
+  inverse_permutation_4x4<Matrix<double, 4, 4, RowMajor> >();
+  inverse_general_4x4<Matrix<double, 4, 4, ColMajor> >(200000 * g_repeat);
+  inverse_general_4x4<Matrix<double, 4, 4, RowMajor> >(200000 * g_repeat);
 
-  (inverse_permutation_4x4<Matrix4cf>());
-  (inverse_general_4x4<Matrix4cf>(50000 * g_repeat));
+  inverse_permutation_4x4<Matrix4cf>();
+  inverse_general_4x4<Matrix4cf>(50000 * g_repeat);
 }

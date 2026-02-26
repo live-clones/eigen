@@ -132,20 +132,20 @@ static void test_last_dim_reductions() {
 }
 
 TEST(TensorReductionGPUTest, Basic) {
-  (test_full_reductions<float, ColMajor>());
-  (test_full_reductions<double, ColMajor>());
-  (test_full_reductions<float, RowMajor>());
-  (test_full_reductions<double, RowMajor>());
+  test_full_reductions<float, ColMajor>();
+  test_full_reductions<double, ColMajor>();
+  test_full_reductions<float, RowMajor>();
+  test_full_reductions<double, RowMajor>();
 
-  (test_first_dim_reductions<float, ColMajor>());
-  (test_first_dim_reductions<double, ColMajor>());
-  (test_first_dim_reductions<float, RowMajor>());
+  test_first_dim_reductions<float, ColMajor>();
+  test_first_dim_reductions<double, ColMajor>();
+  test_first_dim_reductions<float, RowMajor>();
   // Outer reductions of doubles aren't supported just yet.
   //  (test_first_dim_reductions<double, RowMajor>())
 
-  (test_last_dim_reductions<float, ColMajor>());
+  test_last_dim_reductions<float, ColMajor>();
   // Outer reductions of doubles aren't supported just yet.
   //  (test_last_dim_reductions<double, ColMajor>());
-  (test_last_dim_reductions<float, RowMajor>());
-  (test_last_dim_reductions<double, RowMajor>());
+  test_last_dim_reductions<float, RowMajor>();
+  test_last_dim_reductions<double, RowMajor>();
 }

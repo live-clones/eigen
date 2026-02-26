@@ -13,8 +13,8 @@
 
 TEST(RealviewDynamicRealBTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (test_realview_real_types<Dynamic, Dynamic, 17, 19>());
-    (test_realview_real_types<17, Dynamic, 17, Dynamic>());
-    (test_realview_real_types<Dynamic, 19, Dynamic, 19>());
+    test_realview_real_types<Dynamic, Dynamic, 17, 19>();
+    test_realview_real_types<17, Dynamic, 17, Dynamic>();
+    test_realview_real_types<Dynamic, 19, Dynamic, 19>();
   }
 }

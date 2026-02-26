@@ -10,10 +10,10 @@
 #include "bdcsvd_helpers.h"
 
 TEST(BDCSVDTrivialTest, Basic) {
-  (svd_all_trivial_2x2(bdcsvd_thin_options<Matrix2cd>));
-  (svd_all_trivial_2x2(bdcsvd_full_options<Matrix2cd>));
+  svd_all_trivial_2x2(bdcsvd_thin_options<Matrix2cd>);
+  svd_all_trivial_2x2(bdcsvd_full_options<Matrix2cd>);
 
   // test matrixbase method
-  (bdcsvd_method<Matrix2cd>());
-  (bdcsvd_method<Matrix3f>());
+  bdcsvd_method<Matrix2cd>();
+  bdcsvd_method<Matrix3f>();
 }

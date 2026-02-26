@@ -155,13 +155,13 @@ TEST(UmeyamaTest, Basic) {
       run_test<MatrixXf>(dim, num_elements);
     }
 
-    (run_fixed_size_test<float, 2>(num_elements));
-    (run_fixed_size_test<float, 3>(num_elements));
-    (run_fixed_size_test<float, 4>(num_elements));
+    run_fixed_size_test<float, 2>(num_elements);
+    run_fixed_size_test<float, 3>(num_elements);
+    run_fixed_size_test<float, 4>(num_elements);
 
-    (run_fixed_size_test<double, 2>(num_elements));
-    (run_fixed_size_test<double, 3>(num_elements));
-    (run_fixed_size_test<double, 4>(num_elements));
+    run_fixed_size_test<double, 2>(num_elements);
+    run_fixed_size_test<double, 3>(num_elements);
+    run_fixed_size_test<double, 4>(num_elements);
   }
 
   // Those two calls don't compile and result in meaningful error messages!

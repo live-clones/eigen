@@ -212,12 +212,12 @@ void test_autodiff_vector() {
 
 template <int>
 void test_autodiff_jacobian() {
-  (forward_jacobian(TestFunc1<double, 2, 2>()));
-  (forward_jacobian(TestFunc1<double, 2, 3>()));
-  (forward_jacobian(TestFunc1<double, 3, 2>()));
-  (forward_jacobian(TestFunc1<double, 3, 3>()));
-  (forward_jacobian(TestFunc1<double>(3, 3)));
-  (forward_jacobian_cpp11(integratorFunctor<double>(10)));
+  forward_jacobian(TestFunc1<double, 2, 2>());
+  forward_jacobian(TestFunc1<double, 2, 3>());
+  forward_jacobian(TestFunc1<double, 3, 2>());
+  forward_jacobian(TestFunc1<double, 3, 3>());
+  forward_jacobian(TestFunc1<double>(3, 3));
+  forward_jacobian_cpp11(integratorFunctor<double>(10));
 }
 
 template <int>

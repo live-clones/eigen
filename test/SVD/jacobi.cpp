@@ -55,25 +55,25 @@ void jacobi(const MatrixType& m = MatrixType()) {
 
 TEST(JacobiTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (jacobi<Matrix3f, float>());
-    (jacobi<Matrix4d, double>());
-    (jacobi<Matrix4cf, float>());
-    (jacobi<Matrix4cf, std::complex<float> >());
+    jacobi<Matrix3f, float>();
+    jacobi<Matrix4d, double>();
+    jacobi<Matrix4cf, float>();
+    jacobi<Matrix4cf, std::complex<float> >();
 
-    (jacobi<Matrix<float, 3, 3, RowMajor>, float>());
-    (jacobi<Matrix<double, 4, 4, RowMajor>, double>());
-    (jacobi<Matrix<std::complex<float>, 4, 4, RowMajor>, float>());
-    (jacobi<Matrix<std::complex<float>, 4, 4, RowMajor>, std::complex<float> >());
+    jacobi<Matrix<float, 3, 3, RowMajor>, float>();
+    jacobi<Matrix<double, 4, 4, RowMajor>, double>();
+    jacobi<Matrix<std::complex<float>, 4, 4, RowMajor>, float>();
+    jacobi<Matrix<std::complex<float>, 4, 4, RowMajor>, std::complex<float> >();
 
     int r = internal::random<int>(2, internal::random<int>(1, EIGEN_TEST_MAX_SIZE) / 2),
         c = internal::random<int>(2, internal::random<int>(1, EIGEN_TEST_MAX_SIZE) / 2);
-    (jacobi<MatrixXf, float>(MatrixXf(r, c)));
-    (jacobi<MatrixXcd, double>(MatrixXcd(r, c)));
-    (jacobi<MatrixXcd, std::complex<double> >(MatrixXcd(r, c)));
+    jacobi<MatrixXf, float>(MatrixXf(r, c));
+    jacobi<MatrixXcd, double>(MatrixXcd(r, c));
+    jacobi<MatrixXcd, std::complex<double> >(MatrixXcd(r, c));
     // complex<float> is really important to test as it is the only way to cover conjugation issues in certain unaligned
     // paths
-    (jacobi<MatrixXcf, float>(MatrixXcf(r, c)));
-    (jacobi<MatrixXcf, std::complex<float> >(MatrixXcf(r, c)));
+    jacobi<MatrixXcf, float>(MatrixXcf(r, c));
+    jacobi<MatrixXcf, std::complex<float> >(MatrixXcf(r, c));
 
     TEST_SET_BUT_UNUSED_VARIABLE(r);
     TEST_SET_BUT_UNUSED_VARIABLE(c);

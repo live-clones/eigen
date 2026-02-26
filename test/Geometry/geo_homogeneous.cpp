@@ -137,8 +137,8 @@ void homogeneous(void) {
 
 TEST(HomogeneousTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (homogeneous<float, 1>());
-    (homogeneous<double, 3>());
-    (homogeneous<double, 8>());
+    homogeneous<float, 1>();
+    homogeneous<double, 3>();
+    homogeneous<double, 8>();
   }
 }

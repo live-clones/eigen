@@ -16,15 +16,15 @@ TEST(BDCSVDFloatDynamicTest, Basic) {
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
 
-    (bdcsvd_thin_options<MatrixXf>(MatrixXf(r, c)));
-    (bdcsvd_full_options<MatrixXf>(MatrixXf(r, c)));
+    bdcsvd_thin_options<MatrixXf>(MatrixXf(r, c));
+    bdcsvd_full_options<MatrixXf>(MatrixXf(r, c));
     (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, ColMajor, 20, 35>, ColPivHouseholderQRPreconditioner>(
         r, c));
 
-    (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, ColMajor, 35, 20>, HouseholderQRPreconditioner>(r, c));
+    svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, ColMajor, 35, 20>, HouseholderQRPreconditioner>(r, c);
     (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 20, 35>, ColPivHouseholderQRPreconditioner>(
         r, c));
 
-    (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 35, 20>, HouseholderQRPreconditioner>(r, c));
+    svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 35, 20>, HouseholderQRPreconditioner>(r, c);
   }
 }

@@ -495,15 +495,15 @@ static void test_empty_dims(const internal::TensorBlockShapeType block_shape) {
   NAME<RowMajor>()
 
 #define TEST_LAYOUTS_AND_DIMS(TYPE, NAME) \
-  (NAME<TYPE, 1, ColMajor>());            \
-  (NAME<TYPE, 1, RowMajor>());            \
-  (NAME<TYPE, 2, ColMajor>());            \
-  (NAME<TYPE, 2, RowMajor>());            \
-  (NAME<TYPE, 3, ColMajor>());            \
-  (NAME<TYPE, 3, RowMajor>());            \
-  (NAME<TYPE, 4, ColMajor>());            \
-  (NAME<TYPE, 4, RowMajor>());            \
-  (NAME<TYPE, 5, ColMajor>());            \
+  NAME<TYPE, 1, ColMajor>();            \
+  NAME<TYPE, 1, RowMajor>();            \
+  NAME<TYPE, 2, ColMajor>();            \
+  NAME<TYPE, 2, RowMajor>();            \
+  NAME<TYPE, 3, ColMajor>();            \
+  NAME<TYPE, 3, RowMajor>();            \
+  NAME<TYPE, 4, ColMajor>();            \
+  NAME<TYPE, 4, RowMajor>();            \
+  NAME<TYPE, 5, ColMajor>();            \
   (NAME<TYPE, 5, RowMajor>())
 
 #define TEST_LAYOUTS_WITH_ARG(NAME, ARG) \

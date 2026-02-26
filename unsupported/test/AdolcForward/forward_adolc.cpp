@@ -109,11 +109,11 @@ TEST(ForwardAdolcTest, Basic) {
   adtl::setNumDir(NUMBER_DIRECTIONS);
 
   for (int i = 0; i < g_repeat; i++) {
-    (adolc_forward_jacobian(TestFunc1<double, 2, 2>()));
-    (adolc_forward_jacobian(TestFunc1<double, 2, 3>()));
-    (adolc_forward_jacobian(TestFunc1<double, 3, 2>()));
-    (adolc_forward_jacobian(TestFunc1<double, 3, 3>()));
-    (adolc_forward_jacobian(TestFunc1<double>(3, 3)));
+    adolc_forward_jacobian(TestFunc1<double, 2, 2>());
+    adolc_forward_jacobian(TestFunc1<double, 2, 3>());
+    adolc_forward_jacobian(TestFunc1<double, 3, 2>());
+    adolc_forward_jacobian(TestFunc1<double, 3, 3>());
+    adolc_forward_jacobian(TestFunc1<double>(3, 3));
   }
 
   {

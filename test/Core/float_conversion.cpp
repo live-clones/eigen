@@ -32,14 +32,14 @@ void test_conversion() {
 
 template <typename To>
 void test_conversion_to() {
-  (test_conversion<int64_t, To>());
-  (test_conversion<uint64_t, To>());
-  (test_conversion<int32_t, To>());
-  (test_conversion<uint32_t, To>());
-  (test_conversion<int16_t, To>());
-  (test_conversion<uint16_t, To>());
-  (test_conversion<int8_t, To>());
-  (test_conversion<uint8_t, To>());
+  test_conversion<int64_t, To>();
+  test_conversion<uint64_t, To>();
+  test_conversion<int32_t, To>();
+  test_conversion<uint32_t, To>();
+  test_conversion<int16_t, To>();
+  test_conversion<uint16_t, To>();
+  test_conversion<int8_t, To>();
+  test_conversion<uint8_t, To>();
 }
 
 // =============================================================================

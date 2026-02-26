@@ -97,10 +97,10 @@ static void test_tensor_maps() {
 }
 
 TEST(TensorScanTest, Basic) {
-  (test_1d_scan<ColMajor, float, true>());
-  (test_1d_scan<ColMajor, float, false>());
-  (test_1d_scan<RowMajor, float, true>());
-  (test_1d_scan<RowMajor, float, false>());
+  test_1d_scan<ColMajor, float, true>();
+  test_1d_scan<ColMajor, float, false>();
+  test_1d_scan<RowMajor, float, true>();
+  test_1d_scan<RowMajor, float, false>();
   test_4d_scan<ColMajor>();
   test_4d_scan<RowMajor>();
   test_tensor_maps<ColMajor>();
