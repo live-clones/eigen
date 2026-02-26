@@ -215,7 +215,7 @@ template <typename T>
 class ProductNoTemporaryTest : public ::testing::Test {};
 
 using ProductNoTemporaryTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(ProductNoTemporaryTest, ProductNoTemporaryTypes);
+EIGEN_TYPED_TEST_SUITE(ProductNoTemporaryTest, ProductNoTemporaryTypes);
 
 TYPED_TEST(ProductNoTemporaryTest, ProductNoTemporary) {
   using Scalar = typename TypeParam::Scalar;

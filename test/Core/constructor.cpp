@@ -44,7 +44,7 @@ template <typename T>
 class ConstructorTest : public ::testing::Test {};
 
 using ConstructorTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, MatrixXcf, MatrixXi>;
-TYPED_TEST_SUITE(ConstructorTest, ConstructorTypes);
+EIGEN_TYPED_TEST_SUITE(ConstructorTest, ConstructorTypes);
 
 TYPED_TEST(ConstructorTest, CtorInit1) {
   for (int i = 0; i < g_repeat; i++) {

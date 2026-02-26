@@ -43,7 +43,7 @@ template <typename T>
 class MiscMatricesTest : public ::testing::Test {};
 
 using MiscMatricesTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, MatrixXcf, MatrixXi, MatrixXcd>;
-TYPED_TEST_SUITE(MiscMatricesTest, MiscMatricesTypes);
+EIGEN_TYPED_TEST_SUITE(MiscMatricesTest, MiscMatricesTypes);
 
 TYPED_TEST(MiscMatricesTest, MiscMatrices) {
   for (int i = 0; i < g_repeat; i++) {

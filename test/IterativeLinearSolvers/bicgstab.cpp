@@ -40,7 +40,7 @@ class BicgstabTest : public ::testing::Test {};
 
 using BicgstabTypes = ::testing::Types<BicgstabConfig<double, int>, BicgstabConfig<std::complex<double>, int>,
                                        BicgstabConfig<double, long int>>;
-TYPED_TEST_SUITE(BicgstabTest, BicgstabTypes);
+EIGEN_TYPED_TEST_SUITE(BicgstabTest, BicgstabTypes);
 
 TYPED_TEST(BicgstabTest, Basic) { test_bicgstab_T<typename TypeParam::Scalar, typename TypeParam::Index>(); }
 

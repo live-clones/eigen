@@ -155,7 +155,7 @@ template <typename T>
 class EigensolverComplexTest : public ::testing::Test {};
 
 using EigensolverComplexTypes = ::testing::Types<Matrix4cf, MatrixXcd, Matrix<std::complex<float>, 1, 1>, Matrix3f>;
-TYPED_TEST_SUITE(EigensolverComplexTest, EigensolverComplexTypes);
+EIGEN_TYPED_TEST_SUITE(EigensolverComplexTest, EigensolverComplexTypes);
 
 TYPED_TEST(EigensolverComplexTest, Eigensolver) {
   for (int i = 0; i < g_repeat; i++) {

@@ -117,7 +117,7 @@ template <typename T>
 class ProductSymmTest : public ::testing::Test {};
 
 using ProductSymmTypes = ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
-TYPED_TEST_SUITE(ProductSymmTest, ProductSymmTypes);
+EIGEN_TYPED_TEST_SUITE(ProductSymmTest, ProductSymmTypes);
 
 TYPED_TEST(ProductSymmTest, SymmDynamicDynamic) {
   const int max_size = NumTraits<TypeParam>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;

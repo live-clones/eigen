@@ -58,7 +58,7 @@ class DeterminantTest : public ::testing::Test {};
 
 using DeterminantTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<double, 2, 2>, Matrix<double, 3, 3>,
                                           Matrix<double, 4, 4>, Matrix<std::complex<double>, 10, 10>, MatrixXd>;
-TYPED_TEST_SUITE(DeterminantTest, DeterminantTypes);
+EIGEN_TYPED_TEST_SUITE(DeterminantTest, DeterminantTypes);
 
 TYPED_TEST(DeterminantTest, Determinant) {
   for (int i = 0; i < g_repeat; i++) {

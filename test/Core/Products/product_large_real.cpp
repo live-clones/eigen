@@ -19,7 +19,7 @@ class ProductLargeRealTest : public ::testing::Test {};
 
 using ProductLargeRealTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXi, Matrix<float, Dynamic, Dynamic, RowMajor>,
                                                Matrix<bfloat16, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(ProductLargeRealTest, ProductLargeRealTypes);
+EIGEN_TYPED_TEST_SUITE(ProductLargeRealTest, ProductLargeRealTypes);
 
 TYPED_TEST(ProductLargeRealTest, Product) {
   for (int i = 0; i < g_repeat; i++) {
