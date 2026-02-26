@@ -108,7 +108,7 @@ template <typename T>
 class ProductMmtrTest : public ::testing::Test {};
 
 using ProductMmtrTypes = ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
-TYPED_TEST_SUITE(ProductMmtrTest, ProductMmtrTypes);
+EIGEN_TYPED_TEST_SUITE(ProductMmtrTest, ProductMmtrTypes);
 
 TYPED_TEST(ProductMmtrTest, Mmtr) {
   const int max_size = NumTraits<TypeParam>::IsComplex ? EIGEN_TEST_MAX_SIZE / 2 : EIGEN_TEST_MAX_SIZE;

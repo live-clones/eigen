@@ -19,7 +19,7 @@ class LURealNonInvertibleTest : public ::testing::Test {};
 
 using LURealNonInvertibleTypes =
     ::testing::Types<Matrix3f, Matrix<double, 4, 6>, MatrixXf, MatrixXd, Matrix<float, Dynamic, 16>>;
-TYPED_TEST_SUITE(LURealNonInvertibleTest, LURealNonInvertibleTypes);
+EIGEN_TYPED_TEST_SUITE(LURealNonInvertibleTest, LURealNonInvertibleTypes);
 
 TYPED_TEST(LURealNonInvertibleTest, NonInvertible) {
   for (int i = 0; i < g_repeat; i++) {
@@ -34,7 +34,7 @@ template <typename T>
 class LURealInvertibleTest : public ::testing::Test {};
 
 using LURealInvertibleTypes = ::testing::Types<Matrix3f, MatrixXf, MatrixXd>;
-TYPED_TEST_SUITE(LURealInvertibleTest, LURealInvertibleTypes);
+EIGEN_TYPED_TEST_SUITE(LURealInvertibleTest, LURealInvertibleTypes);
 
 TYPED_TEST(LURealInvertibleTest, Invertible) {
   for (int i = 0; i < g_repeat; i++) {
@@ -49,7 +49,7 @@ template <typename T>
 class LURealVerifyAssertTest : public ::testing::Test {};
 
 using LURealVerifyAssertTypes = ::testing::Types<Matrix3f, Matrix<double, 4, 6>, MatrixXf, MatrixXd>;
-TYPED_TEST_SUITE(LURealVerifyAssertTest, LURealVerifyAssertTypes);
+EIGEN_TYPED_TEST_SUITE(LURealVerifyAssertTest, LURealVerifyAssertTypes);
 
 TYPED_TEST(LURealVerifyAssertTest, VerifyAssert) { lu_verify_assert<TypeParam>(); }
 
@@ -60,7 +60,7 @@ template <typename T>
 class LURealPartialPivFixedTest : public ::testing::Test {};
 
 using LURealPartialPivFixedTypes = ::testing::Types<Matrix3f, Matrix2d, Matrix4d, Matrix<double, 6, 6>>;
-TYPED_TEST_SUITE(LURealPartialPivFixedTest, LURealPartialPivFixedTypes);
+EIGEN_TYPED_TEST_SUITE(LURealPartialPivFixedTest, LURealPartialPivFixedTypes);
 
 TYPED_TEST(LURealPartialPivFixedTest, PartialPiv) {
   for (int i = 0; i < g_repeat; i++) {

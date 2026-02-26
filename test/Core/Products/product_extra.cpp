@@ -354,7 +354,7 @@ template <typename T>
 class ProductExtraTest : public ::testing::Test {};
 
 using ProductExtraTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(ProductExtraTest, ProductExtraTypes);
+EIGEN_TYPED_TEST_SUITE(ProductExtraTest, ProductExtraTypes);
 
 TYPED_TEST(ProductExtraTest, ProductExtra) {
   using Scalar = typename TypeParam::Scalar;

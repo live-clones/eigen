@@ -136,7 +136,7 @@ template <typename T>
 class QRFullPivotingTest : public ::testing::Test {};
 
 using QRFullPivotingTypes = ::testing::Types<Matrix3f, Matrix3d, Matrix2f, MatrixXf, MatrixXd, MatrixXcd>;
-TYPED_TEST_SUITE(QRFullPivotingTest, QRFullPivotingTypes);
+EIGEN_TYPED_TEST_SUITE(QRFullPivotingTest, QRFullPivotingTypes);
 
 TYPED_TEST(QRFullPivotingTest, QR) {
   // Original test ran with loop count 1 (not g_repeat).
@@ -152,7 +152,7 @@ template <typename T>
 class QRFullPivotingInvertibleTest : public ::testing::Test {};
 
 using QRFullPivotingInvertibleTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(QRFullPivotingInvertibleTest, QRFullPivotingInvertibleTypes);
+EIGEN_TYPED_TEST_SUITE(QRFullPivotingInvertibleTest, QRFullPivotingInvertibleTypes);
 
 TYPED_TEST(QRFullPivotingInvertibleTest, Invertible) {
   for (int i = 0; i < g_repeat; i++) {

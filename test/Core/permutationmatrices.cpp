@@ -199,7 +199,7 @@ class PermutationMatricesTest : public ::testing::Test {};
 using PermutationMatricesTypes =
     ::testing::Types<Matrix<float, 1, 1>, Matrix3f, Matrix<double, 3, 3, RowMajor>, Matrix4d, Matrix<double, 40, 60>,
                      Matrix<double, Dynamic, Dynamic, RowMajor>, MatrixXcf>;
-TYPED_TEST_SUITE(PermutationMatricesTest, PermutationMatricesTypes);
+EIGEN_TYPED_TEST_SUITE(PermutationMatricesTest, PermutationMatricesTypes);
 
 TYPED_TEST(PermutationMatricesTest, PermutationMatrices) {
   for (int i = 0; i < g_repeat; i++) {

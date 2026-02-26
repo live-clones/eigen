@@ -128,7 +128,7 @@ template <typename T>
 class EigensolverGeneralizedRealTest : public ::testing::Test {};
 
 using EigensolverGeneralizedRealTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<double, 1, 1>, Matrix2d>;
-TYPED_TEST_SUITE(EigensolverGeneralizedRealTest, EigensolverGeneralizedRealTypes);
+EIGEN_TYPED_TEST_SUITE(EigensolverGeneralizedRealTest, EigensolverGeneralizedRealTypes);
 
 TYPED_TEST(EigensolverGeneralizedRealTest, GeneralizedEigensolver) {
   for (int i = 0; i < g_repeat; i++) {

@@ -122,7 +122,7 @@ class QRTest : public ::testing::Test {};
 using QRTypes = ::testing::Types<QRConfig<MatrixXf, EIGEN_TEST_MAX_SIZE, EIGEN_TEST_MAX_SIZE>,
                                  QRConfig<MatrixXcd, EIGEN_TEST_MAX_SIZE / 2, EIGEN_TEST_MAX_SIZE / 2>,
                                  QRConfig<Matrix<float, 1, 1>, 1, 1>>;
-TYPED_TEST_SUITE(QRTest, QRTypes);
+EIGEN_TYPED_TEST_SUITE(QRTest, QRTypes);
 
 TYPED_TEST(QRTest, QR) {
   using MatrixType = typename TypeParam::MatrixType;
@@ -144,7 +144,7 @@ template <typename T>
 class QRInvertibleTest : public ::testing::Test {};
 
 using QRInvertibleTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(QRInvertibleTest, QRInvertibleTypes);
+EIGEN_TYPED_TEST_SUITE(QRInvertibleTest, QRInvertibleTypes);
 
 TYPED_TEST(QRInvertibleTest, Invertible) {
   for (int i = 0; i < g_repeat; i++) {

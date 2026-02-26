@@ -40,7 +40,7 @@ class UpperbidiagonalizationTest : public ::testing::Test {};
 using UpperbidiagonalizationTypes =
     ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>,
                      Matrix<float, 6, 4>, Matrix<float, 5, 5>, Matrix<double, 4, 3>>;
-TYPED_TEST_SUITE(UpperbidiagonalizationTest, UpperbidiagonalizationTypes);
+EIGEN_TYPED_TEST_SUITE(UpperbidiagonalizationTest, UpperbidiagonalizationTypes);
 
 TYPED_TEST(UpperbidiagonalizationTest, Upperbidiag) {
   for (int i = 0; i < g_repeat; i++) {

@@ -87,7 +87,7 @@ class SchurComplexTest : public ::testing::Test {};
 
 using SchurComplexTypes =
     ::testing::Types<Matrix4cd, MatrixXcf, Matrix<std::complex<float>, 1, 1>, Matrix<float, 3, 3, Eigen::RowMajor>>;
-TYPED_TEST_SUITE(SchurComplexTest, SchurComplexTypes);
+EIGEN_TYPED_TEST_SUITE(SchurComplexTest, SchurComplexTypes);
 
 TYPED_TEST(SchurComplexTest, Schur) {
   int size = (TypeParam::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)

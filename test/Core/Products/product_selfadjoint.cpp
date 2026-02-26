@@ -71,7 +71,7 @@ class ProductSelfadjointTest : public ::testing::Test {};
 
 using ProductSelfadjointTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3d, MatrixXcf,
                                                  MatrixXcd, MatrixXd, Matrix<float, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(ProductSelfadjointTest, ProductSelfadjointTypes);
+EIGEN_TYPED_TEST_SUITE(ProductSelfadjointTest, ProductSelfadjointTypes);
 
 TYPED_TEST(ProductSelfadjointTest, ProductSelfadjoint) {
   using Scalar = typename TypeParam::Scalar;

@@ -136,7 +136,7 @@ template <typename T>
 class CODTest : public ::testing::Test {};
 
 using CODTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcd>;
-TYPED_TEST_SUITE(CODTest, CODTypes);
+EIGEN_TYPED_TEST_SUITE(CODTest, CODTypes);
 
 TYPED_TEST(CODTest, COD) {
   for (int i = 0; i < g_repeat; i++) {

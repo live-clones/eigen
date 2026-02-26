@@ -16,7 +16,7 @@ template <typename T>
 class EigensolverSelfadjoint3x34x4Test : public ::testing::Test {};
 
 using EigensolverSelfadjoint3x34x4Types = ::testing::Types<Matrix3f, Matrix3d, Matrix3cd, Matrix4d, Matrix4cd>;
-TYPED_TEST_SUITE(EigensolverSelfadjoint3x34x4Test, EigensolverSelfadjoint3x34x4Types);
+EIGEN_TYPED_TEST_SUITE(EigensolverSelfadjoint3x34x4Test, EigensolverSelfadjoint3x34x4Types);
 
 TYPED_TEST(EigensolverSelfadjoint3x34x4Test, SelfAdjoint) {
   for (int i = 0; i < g_repeat; i++) {

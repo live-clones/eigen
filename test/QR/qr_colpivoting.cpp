@@ -210,7 +210,7 @@ template <typename T>
 class QRColPivotingTest : public ::testing::Test {};
 
 using QRColPivotingTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcd>;
-TYPED_TEST_SUITE(QRColPivotingTest, QRColPivotingTypes);
+EIGEN_TYPED_TEST_SUITE(QRColPivotingTest, QRColPivotingTypes);
 
 TYPED_TEST(QRColPivotingTest, QR) {
   for (int i = 0; i < g_repeat; i++) {
@@ -225,7 +225,7 @@ template <typename T>
 class QRColPivotingInvertibleTest : public ::testing::Test {};
 
 using QRColPivotingInvertibleTypes = ::testing::Types<MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(QRColPivotingInvertibleTest, QRColPivotingInvertibleTypes);
+EIGEN_TYPED_TEST_SUITE(QRColPivotingInvertibleTest, QRColPivotingInvertibleTypes);
 
 TYPED_TEST(QRColPivotingInvertibleTest, Invertible) {
   for (int i = 0; i < g_repeat; i++) {

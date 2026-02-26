@@ -152,7 +152,7 @@ template <typename T>
 class UmeyamaDynamicTest : public ::testing::Test {};
 
 using UmeyamaDynamicTypes = ::testing::Types<MatrixXd, MatrixXf>;
-TYPED_TEST_SUITE(UmeyamaDynamicTest, UmeyamaDynamicTypes);
+EIGEN_TYPED_TEST_SUITE(UmeyamaDynamicTest, UmeyamaDynamicTypes);
 
 TYPED_TEST(UmeyamaDynamicTest, DynamicDimensions) {
   for (int i = 0; i < g_repeat; ++i) {
@@ -179,7 +179,7 @@ class UmeyamaFixedTest : public ::testing::Test {};
 using UmeyamaFixedTypes =
     ::testing::Types<UmeyamaFixedConfig<float, 2>, UmeyamaFixedConfig<float, 3>, UmeyamaFixedConfig<float, 4>,
                      UmeyamaFixedConfig<double, 2>, UmeyamaFixedConfig<double, 3>, UmeyamaFixedConfig<double, 4>>;
-TYPED_TEST_SUITE(UmeyamaFixedTest, UmeyamaFixedTypes);
+EIGEN_TYPED_TEST_SUITE(UmeyamaFixedTest, UmeyamaFixedTypes);
 
 TYPED_TEST(UmeyamaFixedTest, FixedDimensions) {
   for (int i = 0; i < g_repeat; ++i) {

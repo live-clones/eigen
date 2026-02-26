@@ -125,7 +125,7 @@ template <typename T>
 class EigensolverGenericTest : public ::testing::Test {};
 
 using EigensolverGenericTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<double, 1, 1>, Matrix2d>;
-TYPED_TEST_SUITE(EigensolverGenericTest, EigensolverGenericTypes);
+EIGEN_TYPED_TEST_SUITE(EigensolverGenericTest, EigensolverGenericTypes);
 
 TYPED_TEST(EigensolverGenericTest, Eigensolver) {
   for (int i = 0; i < g_repeat; i++) {
