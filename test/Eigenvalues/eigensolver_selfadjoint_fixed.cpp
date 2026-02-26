@@ -18,7 +18,7 @@ class EigensolverSelfadjointFixedTest : public ::testing::Test {};
 using EigensolverSelfadjointFixedTypes =
     ::testing::Types<Matrix<float, 1, 1>, Matrix<double, 1, 1>, Matrix<std::complex<double>, 1, 1>, Matrix2f, Matrix2d,
                      Matrix2cd>;
-TYPED_TEST_SUITE(EigensolverSelfadjointFixedTest, EigensolverSelfadjointFixedTypes);
+EIGEN_TYPED_TEST_SUITE(EigensolverSelfadjointFixedTest, EigensolverSelfadjointFixedTypes);
 
 TYPED_TEST(EigensolverSelfadjointFixedTest, SelfAdjoint) {
   for (int i = 0; i < g_repeat; i++) {

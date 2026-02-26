@@ -111,7 +111,7 @@ template <typename T>
 class SchurRealTest : public ::testing::Test {};
 
 using SchurRealTypes = ::testing::Types<Matrix4f, MatrixXd, Matrix<float, 1, 1>, Matrix<double, 3, 3, Eigen::RowMajor>>;
-TYPED_TEST_SUITE(SchurRealTest, SchurRealTypes);
+EIGEN_TYPED_TEST_SUITE(SchurRealTest, SchurRealTypes);
 
 TYPED_TEST(SchurRealTest, Schur) {
   int size = (TypeParam::ColsAtCompileTime == Dynamic) ? internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4)

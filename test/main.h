@@ -65,6 +65,11 @@
 // Google Test must be included before the poison macros below.
 #include <gtest/gtest.h>
 
+// Provide the default name generator to TYPED_TEST_SUITE to avoid
+// -Wgnu-zero-variadic-macro-arguments warnings from Clang.
+#define EIGEN_TYPED_TEST_SUITE(CaseName, Types) \
+  TYPED_TEST_SUITE(CaseName, Types, ::testing::internal::DefaultNameGenerator)
+
 // Configure GPU.
 #if defined(EIGEN_USE_HIP)
 #if defined(__HIPCC__) && !defined(EIGEN_NO_HIP)

@@ -20,7 +20,7 @@ class RandomMatrixRealTest : public ::testing::Test {};
 using RandomMatrixRealTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 4, 4>, Matrix<float, 2, 3>,
                                                Matrix<float, 7, 4>, Matrix<double, 1, 1>, Matrix<double, 6, 6>,
                                                Matrix<double, 5, 3>, Matrix<double, 4, 9>, MatrixXf, MatrixXd>;
-TYPED_TEST_SUITE(RandomMatrixRealTest, RandomMatrixRealTypes);
+EIGEN_TYPED_TEST_SUITE(RandomMatrixRealTest, RandomMatrixRealTypes);
 
 TYPED_TEST(RandomMatrixRealTest, RandomMatrix) {
   for (int i = 0; i < g_repeat; i++) {

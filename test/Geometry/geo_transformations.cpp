@@ -720,7 +720,7 @@ using TransformationsTypes =
                      TransformConfig<double, AffineCompact, RowMajor | AutoAlign>,
                      TransformConfig<double, Projective, RowMajor | AutoAlign>,
                      TransformConfig<double, Projective, RowMajor | DontAlign>>;
-TYPED_TEST_SUITE(TransformationsTest, TransformationsTypes);
+EIGEN_TYPED_TEST_SUITE(TransformationsTest, TransformationsTypes);
 
 TYPED_TEST(TransformationsTest, Transformations) {
   using Scalar = typename TypeParam::Scalar;
@@ -740,7 +740,7 @@ class NonProjectiveTest : public ::testing::Test {};
 using NonProjectiveTypes =
     ::testing::Types<TransformConfig<double, Affine, AutoAlign>, TransformConfig<float, AffineCompact, AutoAlign>,
                      TransformConfig<float, Affine, RowMajor>, TransformConfig<double, AffineCompact, RowMajor>>;
-TYPED_TEST_SUITE(NonProjectiveTest, NonProjectiveTypes);
+EIGEN_TYPED_TEST_SUITE(NonProjectiveTest, NonProjectiveTypes);
 
 TYPED_TEST(NonProjectiveTest, NonProjectiveOnly) {
   using Scalar = typename TypeParam::Scalar;
@@ -759,7 +759,7 @@ class TransformationsNoScaleTest : public ::testing::Test {};
 
 using TransformationsNoScaleTypes =
     ::testing::Types<TransformConfig<double, Affine, AutoAlign>, TransformConfig<double, Isometry, AutoAlign>>;
-TYPED_TEST_SUITE(TransformationsNoScaleTest, TransformationsNoScaleTypes);
+EIGEN_TYPED_TEST_SUITE(TransformationsNoScaleTest, TransformationsNoScaleTypes);
 
 TYPED_TEST(TransformationsNoScaleTest, NoScale) {
   using Scalar = typename TypeParam::Scalar;
