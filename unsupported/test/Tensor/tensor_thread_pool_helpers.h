@@ -7,10 +7,10 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Shared header for split cxx11_tensor_thread_pool tests.
+// Shared header for split tensor_thread_pool tests.
 
-#ifndef EIGEN_TEST_CXX11_TENSOR_THREAD_POOL_HELPERS_H
-#define EIGEN_TEST_CXX11_TENSOR_THREAD_POOL_HELPERS_H
+#ifndef EIGEN_TEST_TENSOR_THREAD_POOL_HELPERS_H
+#define EIGEN_TEST_TENSOR_THREAD_POOL_HELPERS_H
 
 #define EIGEN_USE_THREADS
 
@@ -54,4 +54,4 @@ struct SqrtOutputKernel {
   }
 };
 
-#endif  // EIGEN_TEST_CXX11_TENSOR_THREAD_POOL_HELPERS_H
+#endif  // EIGEN_TEST_TENSOR_THREAD_POOL_HELPERS_H
