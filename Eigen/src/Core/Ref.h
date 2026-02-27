@@ -201,11 +201,15 @@ class RefBase : public MapBase<Derived> {
  * \brief A matrix or vector expression mapping an existing expression
  *
  * \tparam PlainObjectType the equivalent matrix type of the mapped data
- * \tparam Options specifies the pointer alignment in bytes. It can be: \c #Aligned128, , \c #Aligned64, \c #Aligned32,
- * \c #Aligned16, \c #Aligned8 or \c #Unaligned. The default is \c #Unaligned. \tparam StrideType optionally specifies
- * strides. By default, Ref implies a contiguous storage along the inner dimension (inner stride==1), but accepts a
- * variable outer stride (leading dimension). This can be overridden by specifying strides. The type passed here must be
- * a specialization of the Stride template, see examples below.
+ * \tparam Options specifies the pointer alignment in bytes, and whether Ref is allowed to implicitly copy the input. It
+ * can be: \c #Aligned128, , \c #Aligned64, \c #Aligned32, \c #Aligned16, \c #Aligned8 or \c #Unaligned. The default is
+ * \c #Unaligned. In addition, the bit DoNotCopy can be set for Ref<const T>, specifying that the Ref is not allowed to
+ * internally copy its input argument if it does not match its alignment and/or stride requirements. Instead, a
+ * compilation error is reported when that is the case.
+ *
+ * \tparam StrideType optionally specifies strides. By default, Ref implies a contiguous storage along the inner
+ * dimension (inner stride==1), but accepts a variable outer stride (leading dimension). This can be overridden by
+ * specifying strides. The type passed here must be a specialization of the Stride template, see examples below.
  *
  * This class provides a way to write non-template functions taking Eigen objects as parameters while limiting the
  * number of copies. A Ref<> object can represent either a const expression or a l-value: \code
@@ -329,7 +333,8 @@ class Ref<const TPlainObjectType, Options, StrideType>
   template <typename Derived>
   EIGEN_DEVICE_FUNC constexpr inline Ref(
       const DenseBase<Derived>& expr,
-      std::enable_if_t<bool(Traits::template match<Derived>::ScalarTypeMatch), Derived>* = 0) {
+      std::enable_if_t<bool(Traits::template match<Derived>::ScalarTypeMatch) && !(Options & DoNotCopy), Derived>* =
+          0) {
     //      std::cout << match_helper<Derived>::HasDirectAccess << "," << match_helper<Derived>::OuterStrideMatch << ","
     //      << match_helper<Derived>::InnerStrideMatch << "\n"; std::cout << int(StrideType::OuterStrideAtCompileTime)
     //      << " - " << int(Derived::OuterStrideAtCompileTime) << "\n"; std::cout <<
@@ -356,6 +361,32 @@ class Ref<const TPlainObjectType, Options, StrideType>
     EIGEN_STATIC_ASSERT(Traits::template match<OtherRef>::type::value || may_map_m_object_successfully,
                         STORAGE_LAYOUT_DOES_NOT_MATCH);
     construct(other.derived(), typename Traits::template match<OtherRef>::type());
+  }
+
+  // Uncopyable version
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC inline Ref(
+      PlainObjectBase<Derived>& expr,
+      std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime) && (Options & DoNotCopy), Derived>* =
+          0) {
+    EIGEN_STATIC_ASSERT(bool(Traits::template match<Derived>::MatchAtCompileTime), STORAGE_LAYOUT_DOES_NOT_MATCH);
+    // Construction must pass since we will not create temporary storage in the non-const case.
+    const bool success = Base::construct(expr.derived());
+    EIGEN_UNUSED_VARIABLE(success)
+    eigen_assert(success);
+  }
+
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC inline Ref(
+      const DenseBase<Derived>& expr,
+      std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime) && (Options & DoNotCopy), Derived>* =
+          0) {
+    EIGEN_STATIC_ASSERT((static_cast<bool>(Traits::template match<Derived>::MatchAtCompileTime)),
+                        STORAGE_LAYOUT_DOES_NOT_MATCH);
+    // Construction must pass since we will not create temporary storage in the non-const case.
+    const bool success = Base::construct(expr.const_cast_derived());
+    EIGEN_UNUSED_VARIABLE(success)
+    eigen_assert(success);
   }
 
  protected:
