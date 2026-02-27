@@ -16,7 +16,23 @@
 
 namespace Eigen {
 
+template <typename T, std::size_t N>
+using array = std::array<T, N>;
+
 namespace internal {
+
+template <std::size_t I_, class T, std::size_t N>
+EIGEN_DEVICE_FUNC constexpr T& array_get(std::array<T, N>& a) {
+  return std::template get<I_>(a);
+}
+template <std::size_t I_, class T, std::size_t N>
+EIGEN_DEVICE_FUNC constexpr T&& array_get(std::array<T, N>&& a) {
+  return std::template get<I_>(a);
+}
+template <std::size_t I_, class T, std::size_t N>
+EIGEN_DEVICE_FUNC constexpr T const& array_get(std::array<T, N> const& a) {
+  return std::template get<I_>(a);
+}
 
 template <typename... tt>
 struct type_list {
