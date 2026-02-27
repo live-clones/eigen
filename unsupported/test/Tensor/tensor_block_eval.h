@@ -1,5 +1,5 @@
-#ifndef EIGEN_TEST_CXX11_TENSOR_BLOCK_EVAL_H
-#define EIGEN_TEST_CXX11_TENSOR_BLOCK_EVAL_H
+#ifndef EIGEN_TEST_TENSOR_BLOCK_EVAL_H
+#define EIGEN_TEST_TENSOR_BLOCK_EVAL_H
 
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
@@ -764,4 +764,4 @@ static void test_assign_to_tensor_shuffle() {
   NAME<bool, RowMajor>();                       \
   (NAME<bool, ColMajor>())
 
-#endif  // EIGEN_TEST_CXX11_TENSOR_BLOCK_EVAL_H
+#endif  // EIGEN_TEST_TENSOR_BLOCK_EVAL_H
