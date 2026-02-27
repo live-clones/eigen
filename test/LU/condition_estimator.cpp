@@ -21,7 +21,6 @@ void rcond_partial_piv_lu() {
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
-  // Create a random diagonally dominant (thus invertible) matrix.
   MatrixType m = MatrixType::Random(size, size);
   m.diagonal().array() += RealScalar(2 * size);
 
@@ -39,7 +38,6 @@ void rcond_full_piv_lu() {
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
-  // Create a random diagonally dominant (thus invertible) matrix.
   MatrixType m = MatrixType::Random(size, size);
   m.diagonal().array() += RealScalar(2 * size);
 
@@ -56,7 +54,6 @@ void rcond_llt() {
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
-  // Create a random SPD matrix: A^T * A + I.
   MatrixType a = MatrixType::Random(size, size);
   MatrixType m = a.adjoint() * a + MatrixType::Identity(size, size);
 
@@ -74,7 +71,6 @@ void rcond_ldlt() {
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
-  // Create a random SPD matrix: A^T * A + I.
   MatrixType a = MatrixType::Random(size, size);
   MatrixType m = a.adjoint() * a + MatrixType::Identity(size, size);
 
@@ -92,7 +88,6 @@ void rcond_singular() {
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
-  // Create a rank-deficient matrix: first row is zero.
   MatrixType m = MatrixType::Random(size, size);
   m.row(0).setZero();
 
@@ -108,7 +103,6 @@ void rcond_identity() {
 
   MatrixType m = MatrixType::Identity(size, size);
 
-  // All decompositions should give rcond ~= 1 for the identity.
   {
     PartialPivLU<MatrixType> lu(m);
     VERIFY(lu.rcond() > RealScalar(0.5));
@@ -133,14 +127,11 @@ void rcond_ill_conditioned() {
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(4, EIGEN_TEST_MAX_SIZE);
 
-  // Create a diagonal matrix with known large condition number.
-  // Use 1e-3 to stay well within single-precision range.
   MatrixType m = MatrixType::Zero(size, size);
   m(0, 0) = RealScalar(1);
   for (Index i = 1; i < size; ++i) {
     m(i, i) = RealScalar(1e-3);
   }
-  // True condition number = 1e3, so rcond = 1e-3.
 
   {
     PartialPivLU<MatrixType> lu(m);
@@ -186,7 +177,6 @@ void rcond_2x2() {
   typedef typename MatrixType::RealScalar RealScalar;
   typedef Matrix<typename MatrixType::Scalar, 2, 2> Mat2;
 
-  // Well-conditioned 2x2 matrix.
   Mat2 m;
   m << RealScalar(2), RealScalar(1), RealScalar(1), RealScalar(3);
 
@@ -213,53 +203,95 @@ void rcond_2x2() {
   }
 }
 
-EIGEN_DECLARE_TEST(condition_estimator) {
-  for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(rcond_partial_piv_lu<Matrix3f>());
-    CALL_SUBTEST_1(rcond_full_piv_lu<Matrix3f>());
-    CALL_SUBTEST_1(rcond_llt<Matrix3f>());
-    CALL_SUBTEST_1(rcond_ldlt<Matrix3f>());
-    CALL_SUBTEST_1(rcond_singular<Matrix3f>());
-    CALL_SUBTEST_1(rcond_identity<Matrix3f>());
-    CALL_SUBTEST_1(rcond_1x1<Matrix3f>());
-    CALL_SUBTEST_1(rcond_2x2<Matrix3f>());
+// =============================================================================
+// Fixed-size tests (float and double)
+// =============================================================================
+template <typename T>
+class ConditionEstimatorFixedTest : public ::testing::Test {};
 
-    CALL_SUBTEST_2(rcond_partial_piv_lu<Matrix4d>());
-    CALL_SUBTEST_2(rcond_full_piv_lu<Matrix4d>());
-    CALL_SUBTEST_2(rcond_llt<Matrix4d>());
-    CALL_SUBTEST_2(rcond_ldlt<Matrix4d>());
-    CALL_SUBTEST_2(rcond_singular<Matrix4d>());
-    CALL_SUBTEST_2(rcond_identity<Matrix4d>());
-    CALL_SUBTEST_2(rcond_2x2<Matrix4d>());
+using ConditionEstimatorFixedTypes = ::testing::Types<Matrix3f, Matrix4d>;
+EIGEN_TYPED_TEST_SUITE(ConditionEstimatorFixedTest, ConditionEstimatorFixedTypes);
 
-    CALL_SUBTEST_3(rcond_partial_piv_lu<MatrixXf>());
-    CALL_SUBTEST_3(rcond_full_piv_lu<MatrixXf>());
-    CALL_SUBTEST_3(rcond_llt<MatrixXf>());
-    CALL_SUBTEST_3(rcond_ldlt<MatrixXf>());
-    CALL_SUBTEST_3(rcond_singular<MatrixXf>());
-    CALL_SUBTEST_3(rcond_identity<MatrixXf>());
-    CALL_SUBTEST_3(rcond_ill_conditioned<MatrixXf>());
+TYPED_TEST(ConditionEstimatorFixedTest, PartialPivLU) {
+  for (int i = 0; i < g_repeat; i++) rcond_partial_piv_lu<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorFixedTest, FullPivLU) {
+  for (int i = 0; i < g_repeat; i++) rcond_full_piv_lu<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorFixedTest, LLT) {
+  for (int i = 0; i < g_repeat; i++) rcond_llt<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorFixedTest, LDLT) {
+  for (int i = 0; i < g_repeat; i++) rcond_ldlt<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorFixedTest, Singular) {
+  for (int i = 0; i < g_repeat; i++) rcond_singular<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorFixedTest, Identity) {
+  for (int i = 0; i < g_repeat; i++) rcond_identity<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorFixedTest, OneByOne) {
+  for (int i = 0; i < g_repeat; i++) rcond_1x1<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorFixedTest, TwoByTwo) {
+  for (int i = 0; i < g_repeat; i++) rcond_2x2<TypeParam>();
+}
 
-    CALL_SUBTEST_4(rcond_partial_piv_lu<MatrixXd>());
-    CALL_SUBTEST_4(rcond_full_piv_lu<MatrixXd>());
-    CALL_SUBTEST_4(rcond_llt<MatrixXd>());
-    CALL_SUBTEST_4(rcond_ldlt<MatrixXd>());
-    CALL_SUBTEST_4(rcond_singular<MatrixXd>());
-    CALL_SUBTEST_4(rcond_identity<MatrixXd>());
-    CALL_SUBTEST_4(rcond_ill_conditioned<MatrixXd>());
+// =============================================================================
+// Dynamic-size real tests (float and double)
+// =============================================================================
+template <typename T>
+class ConditionEstimatorDynamicRealTest : public ::testing::Test {};
 
-    CALL_SUBTEST_5(rcond_partial_piv_lu<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_full_piv_lu<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_llt<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_ldlt<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_singular<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_identity<MatrixXcf>());
+using ConditionEstimatorDynamicRealTypes = ::testing::Types<MatrixXf, MatrixXd>;
+EIGEN_TYPED_TEST_SUITE(ConditionEstimatorDynamicRealTest, ConditionEstimatorDynamicRealTypes);
 
-    CALL_SUBTEST_6(rcond_partial_piv_lu<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_full_piv_lu<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_llt<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_ldlt<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_singular<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_identity<MatrixXcd>());
-  }
+TYPED_TEST(ConditionEstimatorDynamicRealTest, PartialPivLU) {
+  for (int i = 0; i < g_repeat; i++) rcond_partial_piv_lu<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicRealTest, FullPivLU) {
+  for (int i = 0; i < g_repeat; i++) rcond_full_piv_lu<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicRealTest, LLT) {
+  for (int i = 0; i < g_repeat; i++) rcond_llt<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicRealTest, LDLT) {
+  for (int i = 0; i < g_repeat; i++) rcond_ldlt<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicRealTest, Singular) {
+  for (int i = 0; i < g_repeat; i++) rcond_singular<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicRealTest, Identity) {
+  for (int i = 0; i < g_repeat; i++) rcond_identity<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicRealTest, IllConditioned) {
+  for (int i = 0; i < g_repeat; i++) rcond_ill_conditioned<TypeParam>();
+}
+
+// =============================================================================
+// Dynamic-size complex tests
+// =============================================================================
+template <typename T>
+class ConditionEstimatorDynamicComplexTest : public ::testing::Test {};
+
+using ConditionEstimatorDynamicComplexTypes = ::testing::Types<MatrixXcf, MatrixXcd>;
+EIGEN_TYPED_TEST_SUITE(ConditionEstimatorDynamicComplexTest, ConditionEstimatorDynamicComplexTypes);
+
+TYPED_TEST(ConditionEstimatorDynamicComplexTest, PartialPivLU) {
+  for (int i = 0; i < g_repeat; i++) rcond_partial_piv_lu<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicComplexTest, FullPivLU) {
+  for (int i = 0; i < g_repeat; i++) rcond_full_piv_lu<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicComplexTest, LLT) {
+  for (int i = 0; i < g_repeat; i++) rcond_llt<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicComplexTest, LDLT) {
+  for (int i = 0; i < g_repeat; i++) rcond_ldlt<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicComplexTest, Singular) {
+  for (int i = 0; i < g_repeat; i++) rcond_singular<TypeParam>();
+}
+TYPED_TEST(ConditionEstimatorDynamicComplexTest, Identity) {
+  for (int i = 0; i < g_repeat; i++) rcond_identity<TypeParam>();
 }
