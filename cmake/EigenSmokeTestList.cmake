@@ -1,170 +1,97 @@
 # List of tests that will be build and run during Eigen's smoke testing. If one
 # of these tests doesn't exists or cannot be build with the current configuration
 # it will just be skipped.
+#
+# This is a minimal list (~51 tests, down from 166) chosen to cover all major
+# Eigen modules and all key scalar types (float, double, complex<float>,
+# complex<double>, half, bfloat16, integers) while minimizing compile time.
 set(ei_smoke_test_list
-  adjoint
-  alignedvector3
-  array_cwise_operations
-  array_cwise_operations_int
-  array_cwise_real
-  array_cwise_math
-  array_cwise_bitwise
-  array_cwise_cast
-  array_for_matrix
-  array_of_string
-  array_replicate
-  array_reverse
-  autodiff
-  autodiff_scalar
-  bandmatrix
-  bdcsvd_assert
-  bdcsvd_trivial
-  bdcsvd_trivial_2d
-  bdcsvd_compare
-  bdcsvd_float_fixed
-  bdcsvd_float_dynamic
-  bdcsvd_double_colmajor
-  bdcsvd_double_semi
-  bdcsvd_double_rowmajor
-  bessel_functions
-  bfloat16_float
-  blasutil
-  block_basic
-  block_extra
-  BVH
-  cholesky
-  cholmod_support
-  conservative_resize
-  constructor
-  corners
-  ctorleak
-  dense_storage
-  determinant
-  diagonal
-  diagonalmatrices
-  dynalloc
-  eigensolver_complex
-  eigensolver_selfadjoint_fixed
-  eigensolver_selfadjoint_3x3_4x4
-  eigensolver_selfadjoint_dynamic
-  EulerAngles
-  exceptions
-  fastmath
-  first_aligned
-  geo_alignedbox
-  geo_eulerangles
-  geo_homogeneous
-  geo_hyperplane
-  geo_orthomethods
-  geo_parametrizedline
-  geo_transformations
-  half_float
-  hessenberg
-  householder_fixed
-  householder_dynamic
-  indexed_view
-  inplace_decomposition
-  integer_types
-  inverse
-  is_same_dense
-  jacobi
-  jacobisvd_verify
-  jacobisvd_trivial_2x2
-  jacobisvd_misc
-  jacobisvd_float_options
-  jacobisvd_float_maxsize
-  jacobisvd_double_fixed
-  jacobisvd_double_rowmajor_5x7
-  jacobisvd_double_rowmajor_7x5
-  jacobisvd_double_dynamic
-  jacobisvd_complex
-  kronecker_product
-  linearstructure
-  lu_real
-  lu_complex
-  mapped_matrix
-  mapstaticmethods
-  mapstride
-  matrix_square_root
-  meta
-  minres
-  miscmatrices
-  mixingtypes_novectorize
-  mixingtypes_vectorize
-  mixingtypes_vectorize_dynamic
-  nestbyvalue
-  nesting_ops
-  nomalloc
-  nullary
-  num_dimensions
-  NumericalDiff
-  numext
-  packetmath_float
-  packetmath_integer
-  packetmath_complex
-  packetmath_special
-  permutationmatrices
-  polynomialsolver
-  prec_inverse_4x4
-  product_extra
-  product_selfadjoint
-  product_small
-  product_small_gemm
-  product_small_lazy_float
-  product_small_lazy_double
-  product_symm
-  product_syrk
-  product_trmm_float
-  product_trmm_double
-  product_trmm_cplxfloat
-  product_trmm_cplxdouble
-  product_trmv
-  product_trsolve
-  qr
-  qr_colpivoting
-  qr_cod
-  qr_fullpivoting
-  rand
-  real_qz
-  redux_matrix
-  redux_vector
-  ref
-  resize
-  rvalue_types
-  schur_complex
-  schur_real
-  selfadjoint
-  sizeof
-  sizeoverflow
-  smallvectors
-  sparse_basic
-  sparse_block
-  sparse_extra
-  sparse_permutations
-  sparse_product
-  sparse_ref
-  sparse_solvers
-  sparse_vector
-  special_functions
-  special_numbers
-  special_packetmath
-  spqr_support
-  stable_norm
-  stddeque
-  stddeque_overload
-  stdlist
-  stdlist_overload
-  stdvector
-  stdvector_overload
-  stl_iterators
-  swap
-  symbolic_index
-  triangular
-  type_alias
-  umeyama
-  unaryview
-  unalignedcount
-  vectorization_logic
-  vectorwiseop
-  visitor_matrix
-  visitor_vector)
+  # --- Infrastructure / Low-level (4) ---
+  meta                        # Type traits, metaprogramming utilities
+  numext                      # Scalar math functions (abs, floor, isnan, etc.)
+  dense_storage               # DenseStorage allocation, alignment, trivial constructibility
+  nomalloc                    # No-heap-alloc check; includes Cholesky/LU/QR/SVD/Eigenvalues headers
+
+  # --- Packet math (SIMD) — all scalar types (4) ---
+  packetmath_float            # float, double
+  packetmath_integer          # int8_t .. int64_t, uint8_t .. uint64_t
+  packetmath_complex          # std::complex<float>, std::complex<double>
+  packetmath_special          # Eigen::half, Eigen::bfloat16, bool
+
+  # --- Core Operations (5) ---
+  constructor                 # PlainObjectBase construction paths
+  block_basic                 # Block operations (subsumes corners)
+  indexed_view                # Modern slicing (seq, all, last; subsumes symbolic_index)
+  mapped_matrix               # Map<> with alignments/strides (subsumes mapstride, mapstaticmethods)
+  ref                         # Ref<> lightweight references
+
+  # --- Array coefficient-wise (2) ---
+  array_cwise_real            # float, double, half, bfloat16, complex<float>, complex<double>
+  array_cwise_operations_int  # double, complex<float>, int, Index, uint32_t, uint64_t
+
+  # --- Reductions / Nullary (2) ---
+  redux_matrix                # float, double, int, int64_t, complex<float>, complex<double>
+  nullary                     # LinSpaced, Zero, Ones, Identity, Random
+
+  # --- Mixed scalar type products (1) ---
+  mixingtypes_vectorize       # float*complex, double*complex with SIMD
+
+  # --- Products — all scalar types (4) ---
+  product_small               # float, bfloat16, half (fixed-size)
+  product_small_gemm          # int, double (fixed-size GEMM)
+  product_extra               # float, double, complex<float>, complex<double> (dynamic GEMM)
+  product_trsolve             # float, double, complex<float>, complex<double> (triangular solves)
+
+  # --- Cholesky (1) ---
+  cholesky                    # LLT, LDLT (exercises selfadjoint/triangular products)
+
+  # --- LU (3) ---
+  lu_real                     # PartialPivLU, FullPivLU: float, double
+  lu_complex                  # PartialPivLU, FullPivLU: complex<float>, complex<double>
+  condition_estimator         # rcond() for LU + LLT + LDLT, all types
+
+  # --- QR (1) ---
+  qr_colpivoting              # ColPivHouseholderQR: float, double, complex<float>, complex<double>
+
+  # --- SVD (3) ---
+  bdcsvd_float_dynamic        # BdcSVD: float (dynamic)
+  bdcsvd_double_colmajor      # BdcSVD: double (ColMajor)
+  jacobisvd_complex           # JacobiSVD: complex<float>, complex<double>
+
+  # --- Eigenvalues (3) ---
+  eigensolver_selfadjoint_dynamic  # SelfAdjointEigenSolver: float, double, complex<double>
+  schur_real                  # RealSchur: float, double
+  real_qz                     # RealQZ: float, double
+
+  # --- Geometry (3) ---
+  geo_transformations         # Transform, Quaternion, AngleAxis: float, double
+  geo_orthomethods            # Cross product, unitOrthogonal: float, double, complex<double>
+  umeyama                     # Rigid-body alignment (uses Geometry + LU + SVD)
+
+  # --- Sparse (4) ---
+  sparse_basic                # Core sparse: float, double, complex<double>
+  sparse_product              # Sparse products: float, double, complex<double>
+  sparse_solvers              # Sparse triangular solvers: double, complex<double>
+  sparseqr                    # SparseQR decomposition
+
+  # --- STL Support (2) ---
+  stdvector_overload          # Eigen types in std::vector with aligned allocator
+  stl_iterators               # STL iterator API for dense/sparse
+
+  # --- Type Support (2) ---
+  half_float                  # Eigen::half (float16)
+  bfloat16_float              # Eigen::bfloat16
+
+  # --- Special / Safety (3) ---
+  stable_norm                 # stableNorm, blueNorm with overflow/underflow
+  fastmath                    # -ffast-math compilation mode
+  sizeoverflow                # Integer overflow detection in size calculations
+
+  # --- Unsupported Module (3) ---
+  autodiff                    # AutoDiff (forward-mode AD)
+  special_functions           # igamma, digamma, zeta, betainc (subsumes bessel_functions)
+  kronecker_product           # Kronecker product (dense + sparse)
+
+  # --- External Library Support (conditional) (1) ---
+  cholmod_support             # CHOLMOD backend (skipped if not installed)
+)
