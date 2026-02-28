@@ -19,13 +19,11 @@
 
 #include "mixingtypes_helpers.h"
 
-// Fixed-size instantiations only — the Dynamic variant is in
-// mixingtypes_vectorize_dynamic.cpp to reduce per-TU memory usage
-// under ASAN+UBSAN.
-TEST(MixingTypesVectorizeTest, Basic) {
+// Dynamic-size instantiation — split from mixingtypes_vectorize.cpp to
+// reduce per-TU memory usage under ASAN+UBSAN.
+TEST(MixingTypesVectorizeDynamicTest, Basic) {
   g_called = false;  // Silence -Wunneeded-internal-declaration.
   for (int i = 0; i < g_repeat; i++) {
-    mixingtypes<3>();
-    mixingtypes<4>();
+    mixingtypes<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
   }
 }
