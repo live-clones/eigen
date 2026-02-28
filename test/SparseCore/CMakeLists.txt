@@ -1,4 +1,6 @@
 ei_add_test(sparse_basic)
+ei_add_test(sparse_basic_cplx)
+ei_add_test(sparse_basic_extra)
 ei_add_test(sparse_block)
 ei_add_test(sparse_vector)
 ei_add_test(sparse_product)
