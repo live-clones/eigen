@@ -86,7 +86,6 @@ set(ei_smoke_test_list
   minres
   miscmatrices
   mixingtypes_novectorize
-  mixingtypes_vectorize
   nestbyvalue
   nesting_ops
   nomalloc
