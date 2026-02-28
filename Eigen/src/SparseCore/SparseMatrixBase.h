@@ -205,7 +205,8 @@ class SparseMatrixBase : public EigenBase<Derived> {
     return derived();
   }
 
-  SparseMatrixBase() : m_isRValue(false) { /* TODO: validate traits flags. */ }
+  SparseMatrixBase() : m_isRValue(false) { /* TODO: validate traits flags. */
+  }
 
   template <typename OtherDerived>
   Derived& operator=(const ReturnByValue<OtherDerived>& other);

@@ -1729,8 +1729,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertAtBy
 
 template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
 EIGEN_DEPRECATED EIGEN_DONT_INLINE
-typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
-SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertUncompressed(Index row, Index col) {
+    typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
+    SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertUncompressed(Index row, Index col) {
   eigen_assert(!isCompressed());
   Index outer = IsRowMajor ? row : col;
   Index inner = IsRowMajor ? col : row;
@@ -1754,8 +1754,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertUnco
 
 template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
 EIGEN_DEPRECATED EIGEN_DONT_INLINE
-typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
-SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertCompressed(Index row, Index col) {
+    typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
+    SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertCompressed(Index row, Index col) {
   eigen_assert(isCompressed());
   Index outer = IsRowMajor ? row : col;
   Index inner = IsRowMajor ? col : row;
