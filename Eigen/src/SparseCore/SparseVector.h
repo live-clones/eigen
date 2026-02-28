@@ -29,8 +29,8 @@ namespace Eigen {
  */
 
 namespace internal {
-template <typename Scalar_, int Options_, typename StorageIndex_>
-struct traits<SparseVector<Scalar_, Options_, StorageIndex_> > {
+template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
+struct traits<SparseVector<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_> > {
   typedef Scalar_ Scalar;
   typedef StorageIndex_ StorageIndex;
   typedef Sparse StorageKind;
@@ -38,10 +38,11 @@ struct traits<SparseVector<Scalar_, Options_, StorageIndex_> > {
   enum {
     IsColVector = (Options_ & RowMajorBit) ? 0 : 1,
 
-    RowsAtCompileTime = IsColVector ? Dynamic : 1,
-    ColsAtCompileTime = IsColVector ? 1 : Dynamic,
+    RowsAtCompileTime = IsColVector ? Rows_ : 1,
+    ColsAtCompileTime = IsColVector ? 1 : Cols_,
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
+    MaxNZ = MaxNZ_,
     Flags = Options_ | NestByRefBit | LvalueBit | (IsColVector ? 0 : RowMajorBit) | CompressedAccessBit,
     SupportedAccessPatterns = InnerRandomAccessPattern
   };
@@ -58,8 +59,9 @@ struct sparse_vector_assign_selector;
 
 }  // namespace internal
 
-template <typename Scalar_, int Options_, typename StorageIndex_>
-class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_> > {
+template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
+class SparseVector
+    : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_> > {
   typedef SparseCompressedBase<SparseVector> Base;
   using Base::convert_index;
 
@@ -403,9 +405,10 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
 namespace internal {
 
-template <typename Scalar_, int Options_, typename Index_>
-struct evaluator<SparseVector<Scalar_, Options_, Index_> > : evaluator_base<SparseVector<Scalar_, Options_, Index_> > {
-  typedef SparseVector<Scalar_, Options_, Index_> SparseVectorType;
+template <typename Scalar_, int Options_, typename Index_, int Rows_, int Cols_, int MaxNZ_>
+struct evaluator<SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> >
+    : evaluator_base<SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> > {
+  typedef SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> SparseVectorType;
   typedef evaluator_base<SparseVectorType> Base;
   typedef typename SparseVectorType::InnerIterator InnerIterator;
   typedef typename SparseVectorType::ReverseInnerIterator ReverseInnerIterator;

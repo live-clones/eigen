@@ -98,6 +98,8 @@ class SparseMatrixBase : public EigenBase<Derived> {
 
     IsRowMajor = Flags & RowMajorBit ? 1 : 0,
 
+    IsStaticCompressed = Flags & StaticCompressed ? 1 : 0,
+
     InnerSizeAtCompileTime = int(IsVectorAtCompileTime) ? int(SizeAtCompileTime)
                              : int(IsRowMajor)          ? int(ColsAtCompileTime)
                                                         : int(RowsAtCompileTime),

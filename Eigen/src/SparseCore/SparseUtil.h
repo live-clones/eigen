@@ -43,9 +43,11 @@ const int InnerRandomAccessPattern = 0x2 | CoherentAccessPattern;
 const int OuterRandomAccessPattern = 0x4 | CoherentAccessPattern;
 const int RandomAccessPattern = 0x8 | OuterRandomAccessPattern | InnerRandomAccessPattern;
 
-template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int>
+template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int, int Rows_ = Dynamic, int Cols_ = Dynamic,
+          int MaxNZ_ = Dynamic>
 class SparseMatrix;
-template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int>
+template <typename Scalar_, int Flags_ = 0, typename StorageIndex_ = int, int Rows_ = Dynamic, int Cols_ = Dynamic,
+          int MaxNZ_ = Dynamic>
 class SparseVector;
 
 template <typename MatrixType, unsigned int UpLo>
@@ -113,7 +115,7 @@ struct sparse_eval {
   enum { Options_ = ((Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor };
 
  public:
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> type;
+  typedef SparseMatrix<Scalar_, Options_, StorageIndex_, Dynamic, Dynamic, Dynamic> type;
 };
 
 template <typename T, int Flags>
@@ -128,10 +130,12 @@ template <typename T>
 struct plain_matrix_type<T, Sparse> {
   typedef typename traits<T>::Scalar Scalar_;
   typedef typename traits<T>::StorageIndex StorageIndex_;
-  enum { Options_ = ((evaluator<T>::Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor };
+  enum {
+    Options_ = ((evaluator<T>::Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor,
+  };
 
  public:
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> type;
+  typedef SparseMatrix<Scalar_, Options_, StorageIndex_, Dynamic, Dynamic, Dynamic> type;
 };
 
 template <typename T>
