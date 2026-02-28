@@ -2,7 +2,7 @@
 # of these tests doesn't exists or cannot be build with the current configuration
 # it will just be skipped.
 #
-# This is a minimal list (~51 tests, down from 166) chosen to cover all major
+# This is a minimal list (~59 tests, down from 166) chosen to cover all major
 # Eigen modules and all key scalar types (float, double, complex<float>,
 # complex<double>, half, bfloat16, integers) while minimizing compile time.
 set(ei_smoke_test_list
@@ -68,8 +68,10 @@ set(ei_smoke_test_list
   geo_orthomethods            # Cross product, unitOrthogonal: float, double, complex<double>
   umeyama                     # Rigid-body alignment (uses Geometry + LU + SVD)
 
-  # --- Sparse (4) ---
-  sparse_basic                # Core sparse: float, double, complex<double>
+  # --- Sparse (6) ---
+  sparse_basic                # Core sparse: float, double (ColMajor + RowMajor)
+  sparse_basic_cplx           # Core sparse: complex<double>, long StorageIndex
+  sparse_basic_extra          # Core sparse: short StorageIndex, big triplet regressions
   sparse_product              # Sparse products: float, double, complex<double>
   sparse_solvers              # Sparse triangular solvers: double, complex<double>
   sparseqr                    # SparseQR decomposition
@@ -91,6 +93,14 @@ set(ei_smoke_test_list
   autodiff                    # AutoDiff (forward-mode AD)
   special_functions           # igamma, digamma, zeta, betainc (subsumes bessel_functions)
   kronecker_product           # Kronecker product (dense + sparse)
+
+  # --- Tensor (unsupported) (6) ---
+  tensor_simple               # Basic Tensor operations: construction, coefficient access, arithmetic
+  tensor_contraction           # Tensor contractions (generalized matrix multiply)
+  tensor_reduction             # Reductions: sum, mean, max, min, any, all
+  tensor_morphing              # Reshape, slice, chip, stride, pad
+  tensor_fft                   # Forward/inverse FFT on tensors
+  tensor_thread_pool_basic     # ThreadPoolDevice: elementwise, chip, volume_patch, reductions
 
   # --- External Library Support (conditional) (1) ---
   cholmod_support             # CHOLMOD backend (skipped if not installed)

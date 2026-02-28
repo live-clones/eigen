@@ -9,23 +9,20 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// sparse_basic split: real scalar types (float, double).
+// sparse_basic split: complex scalar types and long StorageIndex.
 
 #include "sparse_basic_helpers.h"
 
-TEST(SparseBasicTest, Real) {
+TEST(SparseBasicCplxTest, ComplexAndLongIndex) {
   g_dense_op_sparse_count = 0;  // Suppresses compiler warning.
   for (int i = 0; i < g_repeat; i++) {
     int r = Eigen::internal::random<int>(1, 200), c = Eigen::internal::random<int>(1, 200);
     if (Eigen::internal::random<int>(0, 3) == 0) {
       r = c;  // check square matrices in 25% of tries
     }
-    EIGEN_UNUSED_VARIABLE(r + c);
-    sparse_basic(SparseMatrix<double>(1, 1));
-    sparse_basic(SparseMatrix<double>(8, 8));
-    sparse_basic(SparseMatrix<float, RowMajor>(r, c));
-    sparse_basic(SparseMatrix<float, ColMajor>(r, c));
-    sparse_basic(SparseMatrix<double, ColMajor>(r, c));
-    sparse_basic(SparseMatrix<double, RowMajor>(r, c));
+    sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c));
+    sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c));
+    sparse_basic(SparseMatrix<double, ColMajor, long int>(r, c));
+    sparse_basic(SparseMatrix<double, RowMajor, long int>(r, c));
   }
 }
