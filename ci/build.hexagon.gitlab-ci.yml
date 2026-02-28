@@ -1,0 +1,140 @@
+# Refined Hexagon DSP CI with Clean Architecture
+# Uses CI-focused Dockerfile in eigen-mirror/ci/Dockerfile
+
+# Build Docker images for CI
+build:docker:hexagon:
+  stage: .pre
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    # Build CI-optimized image for x86_64
+    - |
+      docker buildx build \
+        --platform linux/amd64 \
+        --build-arg HEXAGON_TOOLCHAIN_VERSION=20.1.4 \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest \
+        --tag $CI_REGISTRY_IMAGE/eigen-ci:hexagon-$CI_COMMIT_SHORT_SHA \
+        --file ci/Dockerfile \
+        --push \
+        .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "ci/Dockerfile"
+        - "ci/**/*hexagon*"
+        - "cmake/HexagonToolchain.cmake"
+  # tags:
+  #   - docker
+  #   - linux
+
+# Base CI configuration using clean Docker image
+.build:linux:hexagon:
+  stage: build
+  image: $CI_REGISTRY_IMAGE/eigen-ci:hexagon-latest
+  variables:
+    EIGEN_CI_TARGET_ARCH: hexagon
+    EIGEN_CI_CROSS_TARGET_TRIPLE: hexagon-unknown-linux-musl
+    # HVX-Affected Build Targets: Comprehensive list of 19 tests that validate HVX SIMD operations
+    # Source: eigen-tools/debug-test-fails/hvx-affected-tests.txt
+    # Primary PacketMath Tests (15 tests): packetmath_1 through packetmath_15
+    # Special PacketMath Tests (4 tests): special_packetmath_1 through special_packetmath_4
+    EIGEN_CI_PACKETMATH_TARGETS: "packetmath_1 packetmath_2 packetmath_3 packetmath_4 packetmath_5 packetmath_6 packetmath_7 packetmath_8 packetmath_9 packetmath_10 packetmath_11 packetmath_12 packetmath_13 packetmath_14 packetmath_15"
+    EIGEN_CI_SPECIAL_TARGETS: "special_packetmath_1 special_packetmath_2 special_packetmath_3 special_packetmath_4"
+    # Combined build targets for compilation
+    EIGEN_CI_BUILD_TARGET: "${EIGEN_CI_PACKETMATH_TARGETS} ${EIGEN_CI_SPECIAL_TARGETS}"
+    EIGEN_CI_HEXAGON_TOOLCHAIN_VERSION: "20.1.4"
+    EIGEN_CI_HEXAGON_HVX_LENGTH: "128B"
+  before_script:
+    - export CCACHE_DIR=/workspace/.cache/ccache
+    - mkdir -p ${CCACHE_DIR}
+    - ccache -s
+  script:
+    - mkdir -p ${EIGEN_CI_BUILDDIR:-.build}
+    - cd ${EIGEN_CI_BUILDDIR:-.build}
+    - |
+      cmake \
+        -DCMAKE_TOOLCHAIN_FILE=${PWD}/../cmake/HexagonToolchain.cmake \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DEIGEN_TEST_HEXAGON=ON \
+        -DBUILD_TESTING=ON \
+        -DHEXAGON_ARCH=${EIGEN_CI_HEXAGON_ARCH} \
+        -GNinja \
+        ${EIGEN_CI_ADDITIONAL_ARGS} \
+        ..
+    - ninja ${EIGEN_CI_BUILD_TARGET}
+  after_script:
+    - ccache -s
+  artifacts:
+    paths:
+      - ${EIGEN_CI_BUILDDIR:-.build}/
+    expire_in: 1 week
+    when: always
+  cache:
+    key: "hexagon-ci-$CI_COMMIT_REF_SLUG-$EIGEN_CI_HEXAGON_ARCH"
+    paths:
+      - .cache/ccache/
+    policy: pull-push
+  # tags:
+  #   - linux
+  #   - eigen-runner
+
+######## Hexagon v73 Builds ############################################
+
+# Standard v73 build (default configuration)
+build:linux:hexagon:v73:default:
+  extends: .build:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-default
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# HVX-enabled v73 build
+build:linux:hexagon:v73:hvx:
+  extends: .build:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# HVX-enabled v73 build with relaxed QEMU alignment (test compatibility mode)
+build:linux:hexagon:v73:hvx:relaxed:
+  extends: .build:linux:hexagon
+  variables:
+    EIGEN_CI_HEXAGON_ARCH: v73
+    EIGEN_CI_BUILDDIR: .build-hexagon-v73-hvx-relaxed
+    # Enable both HVX and relaxed QEMU alignment for test compatibility
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_BUILD_TYPE=Release -DEIGEN_TEST_HVX=ON -DEIGEN_TEST_QEMU_RELAX_ALIGNMENT=ON"
+    # Build more targets since relaxed mode can handle broader test suite
+    EIGEN_CI_BUILD_TARGET: "buildtests"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain"
+    - if: $CI_COMMIT_BRANCH == "hexagon_toolchain-mirror"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

@@ -12,6 +12,7 @@ default:
   interruptible: true
 
 stages:
+  - .pre
   - checkformat
   - build
   - test
@@ -31,8 +32,10 @@ variables:
 include:
   - "/ci/checkformat.gitlab-ci.yml"
   - "/ci/common.gitlab-ci.yml"
-  - "/ci/build.linux.gitlab-ci.yml"
-  - "/ci/build.windows.gitlab-ci.yml"
-  - "/ci/test.linux.gitlab-ci.yml"
-  - "/ci/test.windows.gitlab-ci.yml"
-  - "/ci/deploy.gitlab-ci.yml"
+  # - "/ci/build.linux.gitlab-ci.yml"
+  # - "/ci/build.windows.gitlab-ci.yml"
+  - "/ci/build.hexagon.gitlab-ci.yml"
+  # - "/ci/test.linux.gitlab-ci.yml"
+  # - "/ci/test.windows.gitlab-ci.yml"
+  - "/ci/test.hexagon.gitlab-ci.yml"
+  # - "/ci/deploy.gitlab-ci.yml"
