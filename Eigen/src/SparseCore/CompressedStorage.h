@@ -154,19 +154,11 @@ class CompressedStorage {
   const StorageIndex* indexPtr() const { return m_storage.indices; }
   StorageIndex* indexPtr() { return m_storage.indices; }
 
-  inline Scalar& value(Index i) {
-    return m_storage.values[i];
-  }
-  inline const Scalar& value(Index i) const {
-    return m_storage.values[i];
-  }
+  inline Scalar& value(Index i) { return m_storage.values[i]; }
+  inline const Scalar& value(Index i) const { return m_storage.values[i]; }
 
-  inline StorageIndex& index(Index i) {
-    return m_storage.indices[i];
-  }
-  inline const StorageIndex& index(Index i) const {
-    return m_storage.indices[i];
-  }
+  inline StorageIndex& index(Index i) { return m_storage.indices[i]; }
+  inline const StorageIndex& index(Index i) const { return m_storage.indices[i]; }
 
   /** \returns the largest \c k such that for all \c j in [0,k) index[\c j]\<\a key */
   inline Index searchLowerIndex(Index key) const { return searchLowerIndex(0, m_storage.size, key); }

@@ -436,8 +436,8 @@ class BlockSparseMatrix
           // Insert the value
           m_values[idxVal] = it_spmat.value();
         }  // end of this column
-      }  // end of this block
-    }  // end of this outer block
+      }    // end of this block
+    }      // end of this outer block
 
     return *this;
   }
