@@ -7,11 +7,11 @@ set(ei_smoke_test_list
   array_cwise_operations
   array_cwise_operations_int
   array_cwise_real
+  array_cwise_complex
   array_cwise_math
   array_cwise_bitwise
   array_cwise_cast
   array_cwise_cast_dynamic
-  array_cwise_complex
   array_for_matrix
   array_of_string
   array_replicate
