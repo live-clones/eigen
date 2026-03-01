@@ -65,6 +65,10 @@
 // Google Test must be included before the poison macros below.
 #include <gtest/gtest.h>
 
+// Suppress -Wgnu-zero-variadic-macro-arguments from clang when calling
+// TYPED_TEST_SUITE with only two arguments (the third is optional).
+#define EIGEN_TYPED_TEST_SUITE(CaseName, Types) TYPED_TEST_SUITE(CaseName, Types, )
+
 // Configure GPU.
 #if defined(EIGEN_USE_HIP)
 #if defined(__HIPCC__) && !defined(EIGEN_NO_HIP)

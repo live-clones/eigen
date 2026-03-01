@@ -55,7 +55,7 @@ class DontAlignTest : public ::testing::Test {};
 
 using DontAlignTypes = ::testing::Types<Matrix3d, Matrix4f, Matrix3cd, Matrix4cf, Matrix<float, 32, 32>,
                                         Matrix<std::complex<float>, 32, 32>, MatrixXd, MatrixXcf>;
-TYPED_TEST_SUITE(DontAlignTest, DontAlignTypes);
+EIGEN_TYPED_TEST_SUITE(DontAlignTest, DontAlignTypes);
 
 TYPED_TEST(DontAlignTest, DontAlign) {
   for (int i = 0; i < g_repeat; i++) {
