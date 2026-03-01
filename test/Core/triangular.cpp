@@ -288,7 +288,7 @@ class TriangularSquareTest : public ::testing::Test {};
 using TriangularSquareTypes =
     ::testing::Types<Matrix<float, 1, 1>, Matrix<float, 2, 2>, Matrix3d, Matrix<std::complex<float>, 8, 8>, MatrixXcd,
                      Matrix<float, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(TriangularSquareTest, TriangularSquareTypes);
+EIGEN_TYPED_TEST_SUITE(TriangularSquareTest, TriangularSquareTypes);
 
 TYPED_TEST(TriangularSquareTest, TriangularSquare) {
   for (int i = 0; i < g_repeat; i++) {
@@ -301,7 +301,7 @@ class TriangularRectTest : public ::testing::Test {};
 
 using TriangularRectTypes = ::testing::Types<Matrix<float, 4, 5>, Matrix<double, 6, 2>, MatrixXcf, MatrixXcd,
                                              Matrix<float, Dynamic, Dynamic, RowMajor>>;
-TYPED_TEST_SUITE(TriangularRectTest, TriangularRectTypes);
+EIGEN_TYPED_TEST_SUITE(TriangularRectTest, TriangularRectTypes);
 
 TYPED_TEST(TriangularRectTest, TriangularRect) {
   for (int i = 0; i < g_repeat; i++) {
