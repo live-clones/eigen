@@ -5,16 +5,15 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// product_small split: lazy product tests for double only.
-// complex<double> tests are in product_small_lazy_cplxdouble.cpp to reduce
-// per-TU memory usage under ASAN+UBSAN.
+// Larger fixed and Dynamic-size cast tests — split from array_cwise_cast.cpp
+// to reduce per-TU memory usage under ASAN+UBSAN.
 
-#include "product_small_helpers.h"
+#include "array_cwise_helpers.h"
 
-TEST(ProductSmallLazyDoubleTest, Basic) {
+TEST(ArrayCwiseCastDynamicTest, FixedLargeAndDynamic) {
   for (int i = 0; i < g_repeat; i++) {
-    test_lazy_l1<double>();
-    test_lazy_l2<double>();
-    test_lazy_l3<double>();
+    cast_test<9, 1>();
+    cast_test<17, 1>();
+    cast_test<Dynamic, 1>();
   }
 }
