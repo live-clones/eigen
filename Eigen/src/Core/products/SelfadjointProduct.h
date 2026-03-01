@@ -59,10 +59,10 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
         for (; k < alignedEnd; k += PacketSize) {
           Packet xi = internal::ploadu<Packet>(xp + k);
           Packet m0 = internal::ploadu<Packet>(d0 + k);
-          Packet m1 = internal::ploadu<Packet>(d1 + k);
           m0 = pcj.pmadd(xi, ps0, m0);
-          m1 = pcj.pmadd(xi, ps1, m1);
           internal::pstoreu(d0 + k, m0);
+          Packet m1 = internal::ploadu<Packet>(d1 + k);
+          m1 = pcj.pmadd(xi, ps1, m1);
           internal::pstoreu(d1 + k, m1);
         }
         for (; k < len; ++k) {

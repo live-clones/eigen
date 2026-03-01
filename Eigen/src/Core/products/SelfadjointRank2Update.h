@@ -66,12 +66,12 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
         Packet ui = ploadu<Packet>(up + k);
         Packet vi = ploadu<Packet>(vp + k);
         Packet m0 = ploadu<Packet>(d0 + k);
-        Packet m1 = ploadu<Packet>(d1 + k);
         m0 = pmadd(vi, ps0u, m0);
         m0 = pmadd(ui, ps0v, m0);
+        pstoreu(d0 + k, m0);
+        Packet m1 = ploadu<Packet>(d1 + k);
         m1 = pmadd(vi, ps1u, m1);
         m1 = pmadd(ui, ps1v, m1);
-        pstoreu(d0 + k, m0);
         pstoreu(d1 + k, m1);
       }
       for (; k < len; ++k) {
@@ -140,12 +140,12 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
         Packet ui = ploadu<Packet>(u + k);
         Packet vi = ploadu<Packet>(v + k);
         Packet m0 = ploadu<Packet>(col0 + k);
-        Packet m1 = ploadu<Packet>(col1 + k);
         m0 = pmadd(vi, ps0u, m0);
         m0 = pmadd(ui, ps0v, m0);
+        pstoreu(col0 + k, m0);
+        Packet m1 = ploadu<Packet>(col1 + k);
         m1 = pmadd(vi, ps1u, m1);
         m1 = pmadd(ui, ps1v, m1);
-        pstoreu(col0 + k, m0);
         pstoreu(col1 + k, m1);
       }
       for (; k < len; ++k) {
