@@ -1,171 +1,100 @@
 # List of tests that will be build and run during Eigen's smoke testing. If one
 # of these tests doesn't exists or cannot be build with the current configuration
 # it will just be skipped.
+#
+# This is a curated subset (~60 tests) covering all major Eigen modules with
+# representative scalar types (float, double, complex, half, bfloat16, int).
+# The full test suite is run in non-MR CI pipelines.
 set(ei_smoke_test_list
+  # Core: basic operations and storage
   adjoint
-  alignedvector3
-  array_cwise_operations
-  array_cwise_operations_int
-  array_cwise_real
-  array_cwise_math
-  array_cwise_bitwise
-  array_cwise_cast
-  array_cwise_cast_dynamic
-  array_cwise_complex
-  array_for_matrix
-  array_of_string
-  array_replicate
-  array_reverse
-  autodiff
-  autodiff_scalar
-  bandmatrix
-  bdcsvd_assert
-  bdcsvd_trivial
-  bdcsvd_trivial_2d
-  bdcsvd_compare
-  bdcsvd_float_fixed
-  bdcsvd_float_dynamic
-  bdcsvd_double_colmajor
-  bdcsvd_double_semi
-  bdcsvd_double_rowmajor
-  bessel_functions
-  bfloat16_float
-  blasutil
+  basicstuff
   block_basic
-  block_extra
-  BVH
-  cholesky
-  cholmod_support
-  conservative_resize
   constructor
-  corners
-  ctorleak
   dense_storage
-  determinant
   diagonal
   diagonalmatrices
   dynalloc
-  eigensolver_complex
-  eigensolver_selfadjoint_fixed
-  eigensolver_selfadjoint_3x3_4x4
-  eigensolver_selfadjoint_dynamic
-  EulerAngles
-  exceptions
-  fastmath
-  first_aligned
-  geo_alignedbox
-  geo_eulerangles
-  geo_homogeneous
-  geo_hyperplane
-  geo_orthomethods
-  geo_parametrizedline
-  geo_transformations
-  half_float
-  hessenberg
-  householder
   indexed_view
-  inplace_decomposition
-  integer_types
-  inverse
-  is_same_dense
-  jacobi
-  jacobisvd_verify
-  jacobisvd_trivial_2x2
-  jacobisvd_misc
-  jacobisvd_float
-  jacobisvd_double_fixed
-  jacobisvd_double_rowmajor
-  jacobisvd_double_dynamic
-  jacobisvd_complex
-  kronecker_product
   linearstructure
-  lu
   mapped_matrix
-  mapstaticmethods
-  mapstride
-  matrix_square_root
-  meta
-  minres
-  miscmatrices
-  mixingtypes_novectorize
-  mixingtypes_novectorize_dynamic
-  mixingtypes_vectorize
-  mixingtypes_vectorize_dynamic
-  nestbyvalue
-  nesting_ops
-  nomalloc
   nullary
-  num_dimensions
-  NumericalDiff
-  numext
-  packetmath_float
-  packetmath_integer
-  packetmath_complex
-  packetmath_special
   permutationmatrices
-  polynomialsolver
-  prec_inverse_4x4
-  product_extra
-  product_selfadjoint
-  product_small
-  product_small_gemm
-  product_small_lazy_float
-  product_small_lazy_cplxfloat
-  product_small_lazy_double
-  product_small_lazy_cplxdouble
-  product_symm
-  product_syrk
-  product_trmm_float
-  product_trmm_double
-  product_trmm_cplxfloat
-  product_trmm_cplxdouble
-  product_trmv
-  product_trsolve
-  qr
-  qr_colpivoting
-  qr_cod
-  qr_fullpivoting
-  rand
-  real_qz
   redux_matrix
-  redux_vector
   ref
   resize
-  rvalue_types
-  schur_complex
-  schur_real
   selfadjoint
-  sizeof
-  sizeoverflow
-  smallvectors
-  sparse_basic
-  sparse_block
-  sparse_extra
-  sparse_permutations
-  sparse_product
-  sparse_ref
-  sparse_solvers
-  sparse_vector
-  special_functions
-  special_numbers
-  special_packetmath
-  spqr_support
-  stable_norm
-  stddeque
-  stddeque_overload
-  stdlist
-  stdlist_overload
-  stdvector
-  stdvector_overload
-  stl_iterators
   swap
-  symbolic_index
   triangular
-  type_alias
-  umeyama
-  unaryview
-  unalignedcount
-  vectorization_logic
   vectorwiseop
-  visitor_matrix
-  visitor_vector)
+
+  # Core: array operations (representative subset of splits)
+  array_cwise_operations
+  array_cwise_real
+  array_cwise_cast
+
+  # Core: numeric types and special values
+  half_float
+  bfloat16_float
+  integer_types
+  numext
+  special_numbers
+
+  # Core: mixed types
+  mixingtypes_vectorize
+
+  # Products (representative subset)
+  product_small
+  product_small_lazy_float
+  product_trmm_float
+  product_trsolve
+
+  # Arch / vectorization
+  packetmath_float
+  packetmath_complex
+
+  # Decompositions: Cholesky
+  cholesky
+
+  # Decompositions: LU
+  lu
+  determinant
+  inverse
+
+  # Decompositions: QR
+  householder
+  qr_colpivoting
+
+  # Decompositions: SVD (one Jacobi, one BDC)
+  jacobisvd_float
+  bdcsvd_float_dynamic
+
+  # Decompositions: Eigenvalues
+  eigensolver_complex
+  eigensolver_selfadjoint_dynamic
+
+  # Schur
+  schur_real
+
+  # Geometry (representative subset)
+  geo_transformations
+  geo_homogeneous
+  umeyama
+
+  # Sparse (representative subset)
+  sparse_basic
+  sparse_product
+
+  # Special functions
+  special_functions
+
+  # STL compatibility
+  stl_iterators
+
+  # Unsupported: Tensor (representative subset)
+  tensor_simple
+  tensor_contraction
+  tensor_reduction
+  tensor_morphing
+  tensor_fft
+  tensor_thread_pool_basic)
