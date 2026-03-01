@@ -1,6 +1,8 @@
 // Standalone tool to measure ULP accuracy of Eigen's vectorized math functions
 // against either MPFR (high-precision reference) or std C++ math functions.
 //
+// See README.md in this directory for full documentation.
+//
 // Usage:
 //   ./ulp_accuracy --func=sin --lo=0 --hi=6.2832 --threads=16
 //   ./ulp_accuracy --func=exp --threads=16
@@ -32,9 +34,11 @@
 #include <type_traits>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// ULP distance (signed and absolute)
-// ---------------------------------------------------------------------------
+#include "mpfr_reference.h"
+
+// ============================================================================
+// ULP distance computation
+// ============================================================================
 
 // Maps IEEE 754 bits to a linear integer scale where adjacent representable
 // values are adjacent integers. The mapping is strictly monotonic:
@@ -59,6 +63,7 @@ static inline int64_t scalar_to_linear(double x) {
 
 // Returns (eigen_val - ref_val) in ULP space.
 // Positive means Eigen overestimates, negative means it underestimates.
+// Returns INT64_MAX for incomparable values (NaN vs number, inf mismatch).
 template <typename Scalar>
 static inline int64_t signed_ulp_error(Scalar eigen_val, Scalar ref_val) {
   if (eigen_val == ref_val) return 0;  // also handles -0.0 == +0.0
@@ -74,9 +79,9 @@ static inline int64_t signed_ulp_error(Scalar eigen_val, Scalar ref_val) {
   return a - b;
 }
 
-// ---------------------------------------------------------------------------
-// Per-thread accumulator
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Per-thread accumulator with signed ULP histogram
+// ============================================================================
 
 template <typename Scalar>
 struct alignas(128) ThreadResult {
@@ -114,7 +119,7 @@ struct alignas(128) ThreadResult {
     }
     count++;
 
-    // Histogram bin
+    // Histogram bin.
     int bin;
     if (signed_err == INT64_MAX || signed_err > hist_width) {
       bin = 2 * hist_width + 2;  // overflow high
@@ -127,9 +132,9 @@ struct alignas(128) ThreadResult {
   }
 };
 
-// ---------------------------------------------------------------------------
+// ============================================================================
 // Function registry
-// ---------------------------------------------------------------------------
+// ============================================================================
 
 template <typename Scalar>
 struct FuncEntry {
@@ -151,7 +156,7 @@ struct FuncEntry {
   Scalar default_hi;
 };
 
-// Helper: logistic = 1/(1+exp(-x))
+// std::logistic is not part of the C++ standard library.
 template <typename Scalar>
 static Scalar std_logistic(Scalar x) {
   if (x >= 0) {
@@ -162,59 +167,6 @@ static Scalar std_logistic(Scalar x) {
     return e / (Scalar(1) + e);
   }
 }
-
-#ifdef EIGEN_HAS_MPFR
-static int mpfr_logistic(mpfr_t rop, const mpfr_t op, mpfr_rnd_t rnd) {
-  mpfr_t tmp, one;
-  mpfr_init2(tmp, mpfr_get_prec(rop));
-  mpfr_init2(one, mpfr_get_prec(rop));
-  mpfr_set_ui(one, 1, rnd);
-  mpfr_neg(tmp, op, rnd);
-  mpfr_exp(tmp, tmp, rnd);
-  mpfr_add(tmp, tmp, one, rnd);
-  int ret = mpfr_div(rop, one, tmp, rnd);
-  mpfr_clear(tmp);
-  mpfr_clear(one);
-  return ret;
-}
-
-static int mpfr_rsqrt(mpfr_t rop, const mpfr_t op, mpfr_rnd_t rnd) { return mpfr_rec_sqrt(rop, op, rnd); }
-
-static int mpfr_exp2_wrap(mpfr_t rop, const mpfr_t op, mpfr_rnd_t rnd) {
-  mpfr_t two;
-  mpfr_init2(two, mpfr_get_prec(rop));
-  mpfr_set_ui(two, 2, rnd);
-  int ret = mpfr_pow(rop, two, op, rnd);
-  mpfr_clear(two);
-  return ret;
-}
-
-static int mpfr_log2_wrap(mpfr_t rop, const mpfr_t op, mpfr_rnd_t rnd) { return mpfr_log2(rop, op, rnd); }
-
-// MPFR scalar accessors: float <-> mpfr_t
-template <typename Scalar>
-static void mpfr_set_scalar(mpfr_t rop, Scalar x, mpfr_rnd_t rnd);
-template <>
-void mpfr_set_scalar<float>(mpfr_t rop, float x, mpfr_rnd_t rnd) {
-  mpfr_set_flt(rop, x, rnd);
-}
-template <>
-void mpfr_set_scalar<double>(mpfr_t rop, double x, mpfr_rnd_t rnd) {
-  mpfr_set_d(rop, x, rnd);
-}
-
-template <typename Scalar>
-static Scalar mpfr_get_scalar(mpfr_t op, mpfr_rnd_t rnd);
-template <>
-float mpfr_get_scalar<float>(mpfr_t op, mpfr_rnd_t rnd) {
-  return mpfr_get_flt(op, rnd);
-}
-template <>
-double mpfr_get_scalar<double>(mpfr_t op, mpfr_rnd_t rnd) {
-  return mpfr_get_d(op, rnd);
-}
-
-#endif  // EIGEN_HAS_MPFR
 
 template <typename Scalar>
 static std::vector<FuncEntry<Scalar>> build_func_table() {
@@ -234,6 +186,7 @@ static std::vector<FuncEntry<Scalar>> build_func_table() {
 
   constexpr Scalar kInf = std::numeric_limits<Scalar>::infinity();
 
+  // Trigonometric
   // clang-format off
   ADD_FUNC(sin,   a.sin(),   std::sin(x),   mpfr_sin,   -kInf, kInf);
   ADD_FUNC(cos,   a.cos(),   std::cos(x),   mpfr_cos,   -kInf, kInf);
@@ -242,6 +195,7 @@ static std::vector<FuncEntry<Scalar>> build_func_table() {
   ADD_FUNC(acos,  a.acos(),  std::acos(x),  mpfr_acos,  -kInf, kInf);
   ADD_FUNC(atan,  a.atan(),  std::atan(x),  mpfr_atan,  -kInf, kInf);
 
+  // Hyperbolic
   ADD_FUNC(sinh,  a.sinh(),  std::sinh(x),  mpfr_sinh,  -kInf, kInf);
   ADD_FUNC(cosh,  a.cosh(),  std::cosh(x),  mpfr_cosh,  -kInf, kInf);
   ADD_FUNC(tanh,  a.tanh(),  std::tanh(x),  mpfr_tanh,  -kInf, kInf);
@@ -249,6 +203,7 @@ static std::vector<FuncEntry<Scalar>> build_func_table() {
   ADD_FUNC(acosh, a.acosh(), std::acosh(x), mpfr_acosh, -kInf, kInf);
   ADD_FUNC(atanh, a.atanh(), std::atanh(x), mpfr_atanh, -kInf, kInf);
 
+  // Exponential / Logarithmic
   ADD_FUNC(exp,   a.exp(),     std::exp(x),    mpfr_exp,       -kInf, kInf);
   ADD_FUNC(exp2,  a.exp2(),    std::exp2(x),   mpfr_exp2_wrap, -kInf, kInf);
   ADD_FUNC(expm1, a.expm1(),   std::expm1(x),  mpfr_expm1,     -kInf, kInf);
@@ -257,10 +212,12 @@ static std::vector<FuncEntry<Scalar>> build_func_table() {
   ADD_FUNC(log10, a.log10(),   std::log10(x),  mpfr_log10,     -kInf, kInf);
   ADD_FUNC(log2,  a.log2(),    std::log2(x),   mpfr_log2_wrap, -kInf, kInf);
 
-  ADD_FUNC(erf,   a.erf(),    std::erf(x),    mpfr_erf,      -kInf, kInf);
-  ADD_FUNC(erfc,  a.erfc(),   std::erfc(x),   mpfr_erfc,     -kInf, kInf);
+  // Error / Gamma
+  ADD_FUNC(erf,    a.erf(),    std::erf(x),    mpfr_erf,     -kInf, kInf);
+  ADD_FUNC(erfc,   a.erfc(),   std::erfc(x),   mpfr_erfc,    -kInf, kInf);
   ADD_FUNC(lgamma, a.lgamma(), std::lgamma(x), mpfr_lngamma, -kInf, kInf);
 
+  // Other
   ADD_FUNC(logistic, a.logistic(), std_logistic(x), mpfr_logistic, -kInf, kInf);
   ADD_FUNC(sqrt,  a.sqrt(),  std::sqrt(x),            mpfr_sqrt,  -kInf, kInf);
   ADD_FUNC(cbrt,  a.cbrt(),  std::cbrt(x),            mpfr_cbrt,  -kInf, kInf);
@@ -271,9 +228,9 @@ static std::vector<FuncEntry<Scalar>> build_func_table() {
   return table;
 }
 
-// ---------------------------------------------------------------------------
-// Stepping helper
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Range iteration helpers
+// ============================================================================
 
 // Advances x toward +inf by at least 1 ULP. When step_eps > 0, additionally
 // jumps by a relative factor of (1 + step_eps) to sample the range sparsely.
@@ -289,9 +246,48 @@ static inline Scalar advance_by_step(Scalar x, double step_eps) {
   return next;
 }
 
-// ---------------------------------------------------------------------------
-// Worker
-// ---------------------------------------------------------------------------
+// Counts the number of representable scalars in [lo, hi].
+template <typename Scalar>
+static uint64_t count_scalars_in_range(Scalar lo, Scalar hi) {
+  if (lo > hi) return 0;
+  uint64_t lo_u = static_cast<uint64_t>(scalar_to_linear(lo));
+  uint64_t hi_u = static_cast<uint64_t>(scalar_to_linear(hi));
+  uint64_t diff = hi_u - lo_u;
+  return diff == UINT64_MAX ? UINT64_MAX : diff + 1;
+}
+
+// Advances a scalar by n ULPs in the linear representation.
+static float advance_scalar(float x, uint64_t n) {
+  int64_t lin = scalar_to_linear(x);
+  lin += static_cast<int64_t>(n);
+  int32_t ibits;
+  if (lin < 0) {
+    ibits = static_cast<int32_t>(INT32_MIN) - static_cast<int32_t>(lin) - 1;
+  } else {
+    ibits = static_cast<int32_t>(lin);
+  }
+  float result;
+  std::memcpy(&result, &ibits, sizeof(result));
+  return result;
+}
+
+static double advance_scalar(double x, uint64_t n) {
+  int64_t lin = scalar_to_linear(x);
+  lin += static_cast<int64_t>(n);
+  int64_t ibits;
+  if (lin < 0) {
+    ibits = static_cast<int64_t>(INT64_MIN) - lin - 1;
+  } else {
+    ibits = lin;
+  }
+  double result;
+  std::memcpy(&result, &ibits, sizeof(result));
+  return result;
+}
+
+// ============================================================================
+// Worker thread: evaluates Eigen and reference over a subrange
+// ============================================================================
 
 template <typename Scalar>
 static void worker(const FuncEntry<Scalar>& func, Scalar lo, Scalar hi, int batch_size, bool use_mpfr, double step_eps,
@@ -347,7 +343,7 @@ static void worker(const FuncEntry<Scalar>& func, Scalar lo, Scalar hi, int batc
     x = (next > hi) ? hi : next;
   }
 
-  // Process remaining partial batch
+  // Process remaining partial batch.
   if (idx > 0) {
     auto partial_in = input.head(idx);
     auto partial_eigen = eigen_out.head(idx);
@@ -363,50 +359,9 @@ static void worker(const FuncEntry<Scalar>& func, Scalar lo, Scalar hi, int batc
 #endif
 }
 
-// ---------------------------------------------------------------------------
-// Range splitting for threads
-// ---------------------------------------------------------------------------
-
-template <typename Scalar>
-static uint64_t count_scalars_in_range(Scalar lo, Scalar hi) {
-  if (lo > hi) return 0;
-  uint64_t lo_u = static_cast<uint64_t>(scalar_to_linear(lo));
-  uint64_t hi_u = static_cast<uint64_t>(scalar_to_linear(hi));
-  uint64_t diff = hi_u - lo_u;
-  return diff == UINT64_MAX ? UINT64_MAX : diff + 1;
-}
-
-static float advance_scalar(float x, uint64_t n) {
-  int64_t lin = scalar_to_linear(x);
-  lin += static_cast<int64_t>(n);
-  int32_t ibits;
-  if (lin < 0) {
-    ibits = static_cast<int32_t>(INT32_MIN) - static_cast<int32_t>(lin) - 1;
-  } else {
-    ibits = static_cast<int32_t>(lin);
-  }
-  float result;
-  std::memcpy(&result, &ibits, sizeof(result));
-  return result;
-}
-
-static double advance_scalar(double x, uint64_t n) {
-  int64_t lin = scalar_to_linear(x);
-  lin += static_cast<int64_t>(n);
-  int64_t ibits;
-  if (lin < 0) {
-    ibits = static_cast<int64_t>(INT64_MIN) - lin - 1;
-  } else {
-    ibits = lin;
-  }
-  double result;
-  std::memcpy(&result, &ibits, sizeof(result));
-  return result;
-}
-
-// ---------------------------------------------------------------------------
-// Run test for a given scalar type
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Test driver: splits range across threads and prints results
+// ============================================================================
 
 struct Options {
   std::string func_name;
@@ -436,6 +391,7 @@ static int run_test(const Options& opts) {
     return 0;
   }
 
+  // Look up the requested function.
   const FuncEntry<Scalar>* entry = nullptr;
   for (const auto& f : table) {
     if (f.name == opts.func_name) {
@@ -451,10 +407,10 @@ static int run_test(const Options& opts) {
 
   Scalar lo = std::isnan(opts.lo) ? entry->default_lo : static_cast<Scalar>(opts.lo);
   Scalar hi = std::isnan(opts.hi) ? entry->default_hi : static_cast<Scalar>(opts.hi);
-
   uint64_t total_scalars = count_scalars_in_range(lo, hi);
   int num_threads = opts.num_threads;
 
+  // Print test configuration.
   std::printf("Function: %s (%s)\n", opts.func_name.c_str(), kTypeName);
   std::printf("Range: [%.*g, %.*g]\n", kDigits, double(lo), kDigits, double(hi));
   if (opts.step_eps > 0.0) {
@@ -468,7 +424,7 @@ static int run_test(const Options& opts) {
   std::printf("\n");
   std::fflush(stdout);
 
-  // Split range across threads
+  // Split range across threads.
   if (total_scalars > 0 && static_cast<uint64_t>(num_threads) > total_scalars) {
     num_threads = static_cast<int>(total_scalars);
   }
@@ -504,7 +460,7 @@ static int run_test(const Options& opts) {
   auto end_time = std::chrono::steady_clock::now();
   double elapsed = std::chrono::duration<double>(end_time - start_time).count();
 
-  // Reduce per-thread results
+  // Reduce per-thread results.
   ThreadResult<Scalar> global;
   global.init(opts.hist_width);
   for (int t = 0; t < num_threads; t++) {
@@ -524,6 +480,7 @@ static int run_test(const Options& opts) {
 
   double mean_ulp = global.count > 0 ? global.abs_ulp_sum / global.count : 0.0;
 
+  // Print results.
   std::printf("Results:\n");
   std::printf("  Values tested: %lu\n", static_cast<unsigned long>(global.count));
   std::printf("  Time: %.2f seconds (%.1f Mvalues/s)\n", elapsed, global.count / elapsed / 1e6);
@@ -537,7 +494,7 @@ static int run_test(const Options& opts) {
   std::printf("  Mean |ULP error|: %.4f\n", mean_ulp);
   std::printf("\n");
 
-  // Print signed error histogram
+  // Print signed error histogram.
   std::printf("Signed ULP error histogram [-%d, +%d]:\n", opts.hist_width, opts.hist_width);
   int nbins = 2 * opts.hist_width + 3;
   for (int b = 0; b < nbins; b++) {
@@ -556,9 +513,9 @@ static int run_test(const Options& opts) {
   return 0;
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Command-line parsing
+// ============================================================================
 
 static void print_usage() {
   std::printf(
@@ -626,7 +583,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Determine reference mode (default: std)
+  // Determine reference mode (default: std).
   if (ref_mode.empty() || ref_mode == "std") {
     opts.use_mpfr = false;
   } else if (ref_mode == "mpfr") {
