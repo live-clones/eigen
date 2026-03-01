@@ -44,7 +44,7 @@ template <typename T>
 class SmallVectorsTest : public ::testing::Test {};
 
 using SmallVectorsTypes = ::testing::Types<int, float, double>;
-TYPED_TEST_SUITE(SmallVectorsTest, SmallVectorsTypes);
+EIGEN_TYPED_TEST_SUITE(SmallVectorsTest, SmallVectorsTypes);
 
 TYPED_TEST(SmallVectorsTest, SmallVectors) {
   for (int i = 0; i < g_repeat; i++) {
