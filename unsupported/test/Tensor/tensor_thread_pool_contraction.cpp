@@ -7,9 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// cxx11_tensor_thread_pool split: all synchronous contraction tests.
+// tensor_thread_pool split: all synchronous contraction tests.
 
-#include "cxx11_tensor_thread_pool_helpers.h"
+#include "tensor_thread_pool_helpers.h"
 
 template <int DataLayout>
 void test_multithread_contraction() {

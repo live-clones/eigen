@@ -5,7 +5,7 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#include "cxx11_tensor_block_eval.h"
+#include "tensor_block_eval.h"
 
 TEST(TensorBlockEvalTest, Assign) {
   // clang-format off

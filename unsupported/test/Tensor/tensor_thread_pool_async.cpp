@@ -7,9 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// cxx11_tensor_thread_pool split: async elementwise, chip, volume_patch, reductions.
+// tensor_thread_pool split: async elementwise, chip, volume_patch, reductions.
 
-#include "cxx11_tensor_thread_pool_helpers.h"
+#include "tensor_thread_pool_helpers.h"
 
 void test_async_multithread_elementwise() {
   Tensor<float, 3> in1(200, 30, 70);
