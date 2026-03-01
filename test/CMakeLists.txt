@@ -532,10 +532,10 @@ if(EIGEN_TEST_BUILD_DOCUMENTATION)
   add_dependencies(buildtests doc)
 endif()
 
-# ULP accuracy measurement tool
+# ULP accuracy measurement tool (see test/ulp_accuracy/README.md)
 find_package(MPFR)
 find_package(GMP)
-add_executable(ulp_accuracy ulp_accuracy.cpp)
+add_executable(ulp_accuracy ulp_accuracy/ulp_accuracy.cpp)
 target_compile_options(ulp_accuracy PRIVATE -pthread)
 target_link_libraries(ulp_accuracy Eigen3::Eigen ${CMAKE_THREAD_LIBS_INIT} pthread)
 if(MPFR_FOUND AND GMP_FOUND)
