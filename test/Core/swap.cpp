@@ -127,7 +127,7 @@ template <typename T>
 class SwapTest : public ::testing::Test {};
 
 using SwapTypes = ::testing::Types<Matrix3f, Matrix4d, MatrixXd, MatrixXf>;
-TYPED_TEST_SUITE(SwapTest, SwapTypes);
+EIGEN_TYPED_TEST_SUITE(SwapTest, SwapTypes);
 
 TYPED_TEST(SwapTest, Swap) {
   for (int i = 0; i < g_repeat; i++) {

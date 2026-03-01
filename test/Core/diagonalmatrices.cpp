@@ -190,7 +190,7 @@ class DiagonalMatricesTest : public ::testing::Test {};
 using DiagonalMatricesTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix3f, Matrix<double, 3, 3, RowMajor>, Matrix4d,
                                                Matrix<float, 4, 4, RowMajor>, MatrixXcf, MatrixXi,
                                                Matrix<double, Dynamic, Dynamic, RowMajor>, MatrixXf>;
-TYPED_TEST_SUITE(DiagonalMatricesTest, DiagonalMatricesTypes);
+EIGEN_TYPED_TEST_SUITE(DiagonalMatricesTest, DiagonalMatricesTypes);
 
 TYPED_TEST(DiagonalMatricesTest, DiagonalMatrices) {
   for (int i = 0; i < g_repeat; i++) {

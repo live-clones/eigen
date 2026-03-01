@@ -344,7 +344,7 @@ class BasicStuffTest : public ::testing::Test {};
 
 using BasicStuffTypes = ::testing::Types<Matrix<float, 1, 1>, Matrix4d, MatrixXcf, MatrixXi, MatrixXcd,
                                          Matrix<float, 100, 100>, Matrix<long double, Dynamic, Dynamic>>;
-TYPED_TEST_SUITE(BasicStuffTest, BasicStuffTypes);
+EIGEN_TYPED_TEST_SUITE(BasicStuffTest, BasicStuffTypes);
 
 TYPED_TEST(BasicStuffTest, BasicStuff) {
   for (int i = 0; i < g_repeat; i++) {
@@ -359,7 +359,7 @@ template <typename T>
 class BasicStuffComplexTest : public ::testing::Test {};
 
 using BasicStuffComplexTypes = ::testing::Types<MatrixXcf, MatrixXcd>;
-TYPED_TEST_SUITE(BasicStuffComplexTest, BasicStuffComplexTypes);
+EIGEN_TYPED_TEST_SUITE(BasicStuffComplexTest, BasicStuffComplexTypes);
 
 TYPED_TEST(BasicStuffComplexTest, BasicStuffComplex) {
   for (int i = 0; i < g_repeat; i++) {
@@ -374,7 +374,7 @@ template <typename T>
 class FixedSizeConstructionTest : public ::testing::Test {};
 
 using FixedSizeConstructionTypes = ::testing::Types<unsigned char, float, double, int, long int, std::ptrdiff_t>;
-TYPED_TEST_SUITE(FixedSizeConstructionTest, FixedSizeConstructionTypes);
+EIGEN_TYPED_TEST_SUITE(FixedSizeConstructionTest, FixedSizeConstructionTypes);
 
 TYPED_TEST(FixedSizeConstructionTest, FixedSizeMatrixConstruction) { fixedSizeMatrixConstruction<TypeParam>(); }
 
