@@ -353,4 +353,4 @@ build:linux:cross:x86-64:clang-12:sanitizer:smoketest:
   tags:
     - saas-linux-medium-amd64
   allow_failure: true
-  timeout: 60m
+  timeout: 30m
