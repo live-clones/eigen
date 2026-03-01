@@ -46,8 +46,9 @@ namespace internal {
  * \param relax_end last column in a supernode
  */
 template <typename Scalar, typename StorageIndex>
-void SparseLUImpl<Scalar, StorageIndex>::heap_relax_snode(const Index n, IndexVector& et, const Index relax_columns,
-                                                          IndexVector& descendants, IndexVector& relax_end) {
+constexpr void SparseLUImpl<Scalar, StorageIndex>::heap_relax_snode(const Index n, IndexVector& et,
+                                                                    const Index relax_columns, IndexVector& descendants,
+                                                                    IndexVector& relax_end) {
   // The etree may not be postordered, but its heap ordered
   IndexVector post;
   internal::treePostorder(StorageIndex(n), et, post);  // Post order etree

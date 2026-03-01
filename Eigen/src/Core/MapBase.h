@@ -162,16 +162,19 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
 #endif
 
  protected:
-  EIGEN_DEFAULT_COPY_CONSTRUCTOR(MapBase)
-  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(MapBase)
+  EIGEN_DEVICE_FUNC constexpr MapBase(const MapBase&) = default;
+  EIGEN_DEVICE_FUNC constexpr MapBase() = default;
 
   template <typename T>
-  EIGEN_DEVICE_FUNC void checkSanity(std::enable_if_t<(internal::traits<T>::Alignment > 0), void*> = 0) const {
+  EIGEN_DEVICE_FUNC constexpr void checkSanity(
+      std::enable_if_t<(internal::traits<T>::Alignment > 0), void*> = 0) const {
 // Temporary macro to allow scalars to not be properly aligned.  This is while we sort out failures
 // in TensorFlow Lite that are currently relying on this UB.
 #ifndef EIGEN_ALLOW_UNALIGNED_SCALARS
     // Pointer must be aligned to the Scalar type, otherwise we get UB.
-    eigen_assert((std::uintptr_t(m_data) % alignof(Scalar) == 0) && "data is not scalar-aligned");
+    if (!internal::is_constant_evaluated()) {
+      eigen_assert((std::uintptr_t(m_data) % alignof(Scalar) == 0) && "data is not scalar-aligned");
+    }
 #endif
 #if EIGEN_MAX_ALIGN_BYTES > 0
     // innerStride() is not set yet when this function is called, so we optimistically assume the lowest plausible
@@ -185,10 +188,12 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
   }
 
   template <typename T>
-  EIGEN_DEVICE_FUNC void checkSanity(std::enable_if_t<internal::traits<T>::Alignment == 0, void*> = 0) const {
+  EIGEN_DEVICE_FUNC constexpr void checkSanity(std::enable_if_t<internal::traits<T>::Alignment == 0, void*> = 0) const {
 #ifndef EIGEN_ALLOW_UNALIGNED_SCALARS
     // Pointer must be aligned to the Scalar type, otherwise we get UB.
-    eigen_assert((std::uintptr_t(m_data) % alignof(Scalar) == 0) && "data is not scalar-aligned");
+    if (!internal::is_constant_evaluated()) {
+      eigen_assert((std::uintptr_t(m_data) % alignof(Scalar) == 0) && "data is not scalar-aligned");
+    }
 #endif
   }
 
@@ -262,7 +267,7 @@ class MapBase<Derived, WriteAccessors> : public MapBase<Derived, ReadOnlyAccesso
   EIGEN_DEVICE_FUNC constexpr inline MapBase(PointerType dataPtr, Index vecSize) : Base(dataPtr, vecSize) {}
   EIGEN_DEVICE_FUNC constexpr inline MapBase(PointerType dataPtr, Index rows, Index cols) : Base(dataPtr, rows, cols) {}
 
-  EIGEN_DEVICE_FUNC Derived& operator=(const MapBase& other) {
+  EIGEN_DEVICE_FUNC constexpr Derived& operator=(const MapBase& other) {
     ReadOnlyMapBase::Base::operator=(other);
     return derived();
   }
@@ -272,8 +277,8 @@ class MapBase<Derived, WriteAccessors> : public MapBase<Derived, ReadOnlyAccesso
   using ReadOnlyMapBase::Base::operator=;
 
  protected:
-  EIGEN_DEFAULT_COPY_CONSTRUCTOR(MapBase)
-  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(MapBase)
+  EIGEN_DEVICE_FUNC constexpr MapBase(const MapBase&) = default;
+  EIGEN_DEVICE_FUNC constexpr MapBase() = default;
 };
 
 #undef EIGEN_STATIC_ASSERT_INDEX_BASED_ACCESS

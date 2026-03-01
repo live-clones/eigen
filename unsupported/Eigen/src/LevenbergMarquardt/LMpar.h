@@ -20,8 +20,8 @@ namespace Eigen {
 namespace internal {
 
 template <typename QRSolver, typename VectorType>
-void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, typename VectorType::Scalar m_delta,
-            typename VectorType::Scalar &par, VectorType &x)
+constexpr void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb,
+                      typename VectorType::Scalar m_delta, typename VectorType::Scalar &par, VectorType &x)
 
 {
   using std::abs;

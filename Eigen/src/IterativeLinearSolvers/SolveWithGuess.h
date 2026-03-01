@@ -47,15 +47,15 @@ class SolveWithGuess : public internal::generic_xpr_base<SolveWithGuess<Decompos
                                               typename internal::traits<RhsType>::StorageKind>::type Base;
   typedef typename internal::ref_selector<SolveWithGuess>::type Nested;
 
-  SolveWithGuess(const Decomposition &dec, const RhsType &rhs, const GuessType &guess)
+  constexpr SolveWithGuess(const Decomposition &dec, const RhsType &rhs, const GuessType &guess)
       : m_dec(dec), m_rhs(rhs), m_guess(guess) {}
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_dec.cols(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_rhs.cols(); }
 
-  EIGEN_DEVICE_FUNC const Decomposition &dec() const { return m_dec; }
-  EIGEN_DEVICE_FUNC const RhsType &rhs() const { return m_rhs; }
-  EIGEN_DEVICE_FUNC const GuessType &guess() const { return m_guess; }
+  EIGEN_DEVICE_FUNC constexpr const Decomposition &dec() const { return m_dec; }
+  EIGEN_DEVICE_FUNC constexpr const RhsType &rhs() const { return m_rhs; }
+  EIGEN_DEVICE_FUNC constexpr const GuessType &guess() const { return m_guess; }
 
  protected:
   const Decomposition &m_dec;
@@ -63,8 +63,8 @@ class SolveWithGuess : public internal::generic_xpr_base<SolveWithGuess<Decompos
   const GuessType &m_guess;
 
  private:
-  Scalar coeff(Index row, Index col) const;
-  Scalar coeff(Index i) const;
+  constexpr Scalar coeff(Index row, Index col) const;
+  constexpr Scalar coeff(Index i) const;
 };
 
 namespace internal {
@@ -77,7 +77,7 @@ struct evaluator<SolveWithGuess<Decomposition, RhsType, GuessType> >
   typedef typename SolveType::PlainObject PlainObject;
   typedef evaluator<PlainObject> Base;
 
-  evaluator(const SolveType &solve) : m_result(solve.rows(), solve.cols()) {
+  constexpr evaluator(const SolveType &solve) : m_result(solve.rows(), solve.cols()) {
     internal::construct_at<Base>(this, m_result);
     m_result = solve.guess();
     solve.dec()._solve_with_guess_impl(solve.rhs(), m_result);
@@ -94,7 +94,7 @@ template <typename DstXprType, typename DecType, typename RhsType, typename Gues
 struct Assignment<DstXprType, SolveWithGuess<DecType, RhsType, GuessType>, internal::assign_op<Scalar, Scalar>,
                   Dense2Dense> {
   typedef SolveWithGuess<DecType, RhsType, GuessType> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
+  static constexpr void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);

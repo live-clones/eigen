@@ -126,7 +126,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    * The default constructor is useful in cases in which the user intends to
    * perform decompositions via BDCSVD::compute(const MatrixType&).
    */
-  BDCSVD() : m_isTranspose(false), m_numIters(0) {}
+  constexpr BDCSVD() : m_isTranspose(false), m_numIters(0) {}
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -134,7 +134,9 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    * according to the specified problem size and \a Options template parameter.
    * \sa BDCSVD()
    */
-  BDCSVD(Index rows, Index cols) : m_numIters(0) { allocate(rows, cols, internal::get_computation_options(Options)); }
+  constexpr BDCSVD(Index rows, Index cols) : m_numIters(0) {
+    allocate(rows, cols, internal::get_computation_options(Options));
+  }
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -153,7 +155,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    * be specified in the \a Options template parameter.
    */
   EIGEN_DEPRECATED_WITH_REASON("Options should be specified using the class template parameter.")
-  BDCSVD(Index rows, Index cols, unsigned int computationOptions) : m_numIters(0) {
+  constexpr BDCSVD(Index rows, Index cols, unsigned int computationOptions) : m_numIters(0) {
     internal::check_svd_options_assertions<MatrixType, Options>(computationOptions, rows, cols);
     allocate(rows, cols, computationOptions);
   }
@@ -164,7 +166,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    * \param matrix the matrix to decompose
    */
   template <typename Derived>
-  BDCSVD(const MatrixBase<Derived>& matrix) : m_numIters(0) {
+  constexpr BDCSVD(const MatrixBase<Derived>& matrix) : m_numIters(0) {
     compute_impl(matrix, internal::get_computation_options(Options));
   }
 
@@ -182,12 +184,10 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    */
   template <typename Derived>
   EIGEN_DEPRECATED_WITH_REASON("Options should be specified using the class template parameter.")
-  BDCSVD(const MatrixBase<Derived>& matrix, unsigned int computationOptions) : m_numIters(0) {
+  constexpr BDCSVD(const MatrixBase<Derived>& matrix, unsigned int computationOptions) : m_numIters(0) {
     internal::check_svd_options_assertions<MatrixType, Options>(computationOptions, matrix.rows(), matrix.cols());
     compute_impl(matrix, computationOptions);
   }
-
-  ~BDCSVD() {}
 
   /** \brief Method performing the decomposition of given matrix. Computes Thin/Full unitaries U/V if specified
    *         using the \a Options template parameter or the class constructor.
@@ -195,7 +195,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    * \param matrix the matrix to decompose
    */
   template <typename Derived>
-  BDCSVD& compute(const MatrixBase<Derived>& matrix) {
+  constexpr BDCSVD& compute(const MatrixBase<Derived>& matrix) {
     return compute_impl(matrix, m_computationOptions);
   }
 
@@ -210,25 +210,25 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    */
   template <typename Derived>
   EIGEN_DEPRECATED_WITH_REASON("Options should be specified using the class template parameter.")
-  BDCSVD& compute(const MatrixBase<Derived>& matrix, unsigned int computationOptions) {
+  constexpr BDCSVD& compute(const MatrixBase<Derived>& matrix, unsigned int computationOptions) {
     internal::check_svd_options_assertions<MatrixType, Options>(computationOptions, matrix.rows(), matrix.cols());
     return compute_impl(matrix, computationOptions);
   }
 
-  void setSwitchSize(int s) {
+  constexpr void setSwitchSize(int s) {
     eigen_assert(s >= 3 && "BDCSVD the size of the algo switch has to be at least 3.");
     m_impl.setAlgoSwap(s);
   }
 
  private:
   template <typename Derived>
-  BDCSVD& compute_impl(const MatrixBase<Derived>& matrix, unsigned int computationOptions);
+  constexpr BDCSVD& compute_impl(const MatrixBase<Derived>& matrix, unsigned int computationOptions);
   template <typename HouseholderU, typename HouseholderV, typename NaiveU, typename NaiveV>
-  void copyUV(const HouseholderU& householderU, const HouseholderV& householderV, const NaiveU& naiveU,
-              const NaiveV& naivev);
+  constexpr void copyUV(const HouseholderU& householderU, const HouseholderV& householderV, const NaiveU& naiveU,
+                        const NaiveV& naivev);
 
  protected:
-  void allocate(Index rows, Index cols, unsigned int computationOptions);
+  constexpr void allocate(Index rows, Index cols, unsigned int computationOptions);
   internal::bdcsvd_impl<RealScalar> m_impl;
   bool m_isTranspose, m_useQrDecomp;
   JacobiSVD<MatrixX> smallSvd;
@@ -248,12 +248,12 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   using Base::m_singularValues;
 
  public:
-  int m_numIters;
+  int m_numIters = 0;
 };  // end class BDCSVD
 
 // Method to allocate and initialize matrix and attributes
 template <typename MatrixType, int Options>
-void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int computationOptions) {
+constexpr void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int computationOptions) {
   if (Base::allocate(rows, cols, computationOptions)) return;
 
   if (cols < m_impl.algoSwap())
@@ -286,8 +286,8 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
 
 template <typename MatrixType, int Options>
 template <typename Derived>
-EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(
-    const MatrixBase<Derived>& matrix, unsigned int computationOptions) {
+constexpr BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(const MatrixBase<Derived>& matrix,
+                                                                                 unsigned int computationOptions) {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Derived, MatrixType);
   EIGEN_STATIC_ASSERT((std::is_same<typename Derived::Scalar, typename MatrixType::Scalar>::value),
                       Input matrix must have the same Scalar type as the BDCSVD object.);
@@ -391,9 +391,8 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
 
 template <typename MatrixType, int Options>
 template <typename HouseholderU, typename HouseholderV, typename NaiveU, typename NaiveV>
-EIGEN_DONT_INLINE void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& householderU,
-                                                           const HouseholderV& householderV, const NaiveU& naiveU,
-                                                           const NaiveV& naiveV) {
+constexpr void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& householderU, const HouseholderV& householderV,
+                                                   const NaiveU& naiveU, const NaiveV& naiveV) {
   // Note exchange of U and V: m_matrixU is set from m_naiveV and vice versa
   if (computeU()) {
     Index Ucols = m_computeThinU ? diagSize() : rows();
@@ -427,7 +426,7 @@ EIGEN_DONT_INLINE void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& h
  */
 template <typename Derived>
 template <int Options>
-BDCSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::bdcSvd() const {
+constexpr BDCSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::bdcSvd() const {
   return BDCSVD<PlainObject, Options>(*this);
 }
 
@@ -439,7 +438,7 @@ BDCSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::
  */
 template <typename Derived>
 template <int Options>
-BDCSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::bdcSvd(
+constexpr BDCSVD<typename MatrixBase<Derived>::PlainObject, Options> MatrixBase<Derived>::bdcSvd(
     unsigned int computationOptions) const {
   return BDCSVD<PlainObject, Options>(*this, computationOptions);
 }

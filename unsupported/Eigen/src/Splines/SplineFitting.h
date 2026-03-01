@@ -44,7 +44,7 @@ namespace Eigen {
  * \sa Les Piegl and Wayne Tiller, The NURBS book (2nd ed.), 1997, 9.2.1 Global Curve Interpolation to Point Data
  **/
 template <typename KnotVectorType>
-void KnotAveraging(const KnotVectorType& parameters, DenseIndex degree, KnotVectorType& knots) {
+constexpr void KnotAveraging(const KnotVectorType& parameters, DenseIndex degree, KnotVectorType& knots) {
   knots.resize(parameters.size() + degree + 1);
 
   for (DenseIndex j = 1; j < parameters.size() - degree; ++j) knots(j + degree) = parameters.segment(j, degree).mean();
@@ -75,8 +75,8 @@ void KnotAveraging(const KnotVectorType& parameters, DenseIndex degree, KnotVect
  * Engineering with Computers
  **/
 template <typename KnotVectorType, typename ParameterVectorType, typename IndexArray>
-void KnotAveragingWithDerivatives(const ParameterVectorType& parameters, const unsigned int degree,
-                                  const IndexArray& derivativeIndices, KnotVectorType& knots) {
+constexpr void KnotAveragingWithDerivatives(const ParameterVectorType& parameters, const unsigned int degree,
+                                            const IndexArray& derivativeIndices, KnotVectorType& knots) {
   typedef typename ParameterVectorType::Scalar Scalar;
 
   DenseIndex numParameters = parameters.size();
@@ -168,7 +168,7 @@ void KnotAveragingWithDerivatives(const ParameterVectorType& parameters, const u
  * \sa Les Piegl and Wayne Tiller, The NURBS book (2nd ed.), 1997, 9.2.1 Global Curve Interpolation to Point Data
  **/
 template <typename PointArrayType, typename KnotVectorType>
-void ChordLengths(const PointArrayType& pts, KnotVectorType& chord_lengths) {
+constexpr void ChordLengths(const PointArrayType& pts, KnotVectorType& chord_lengths) {
   typedef typename KnotVectorType::Scalar Scalar;
 
   const DenseIndex n = pts.cols();
@@ -205,7 +205,7 @@ struct SplineFitting {
    * \returns A spline interpolating the initially provided points.
    **/
   template <typename PointArrayType>
-  static SplineType Interpolate(const PointArrayType& pts, DenseIndex degree);
+  static constexpr SplineType Interpolate(const PointArrayType& pts, DenseIndex degree);
 
   /**
    * \brief Fits an interpolating Spline to the given data points.
@@ -217,7 +217,8 @@ struct SplineFitting {
    * \returns A spline interpolating the initially provided points.
    **/
   template <typename PointArrayType>
-  static SplineType Interpolate(const PointArrayType& pts, DenseIndex degree, const KnotVectorType& knot_parameters);
+  static constexpr SplineType Interpolate(const PointArrayType& pts, DenseIndex degree,
+                                          const KnotVectorType& knot_parameters);
 
   /**
    * \brief Fits an interpolating spline to the given data points and
@@ -237,8 +238,10 @@ struct SplineFitting {
    * Engineering with Computers
    **/
   template <typename PointArrayType, typename IndexArray>
-  static SplineType InterpolateWithDerivatives(const PointArrayType& points, const PointArrayType& derivatives,
-                                               const IndexArray& derivativeIndices, const unsigned int degree);
+  static constexpr SplineType InterpolateWithDerivatives(const PointArrayType& points,
+                                                         const PointArrayType& derivatives,
+                                                         const IndexArray& derivativeIndices,
+                                                         const unsigned int degree);
 
   /**
    * \brief Fits an interpolating spline to the given data points and derivatives.
@@ -257,15 +260,16 @@ struct SplineFitting {
    * Engineering with Computers
    */
   template <typename PointArrayType, typename IndexArray>
-  static SplineType InterpolateWithDerivatives(const PointArrayType& points, const PointArrayType& derivatives,
-                                               const IndexArray& derivativeIndices, const unsigned int degree,
-                                               const ParameterVectorType& parameters);
+  static constexpr SplineType InterpolateWithDerivatives(const PointArrayType& points,
+                                                         const PointArrayType& derivatives,
+                                                         const IndexArray& derivativeIndices, const unsigned int degree,
+                                                         const ParameterVectorType& parameters);
 };
 
 template <typename SplineType>
 template <typename PointArrayType>
-SplineType SplineFitting<SplineType>::Interpolate(const PointArrayType& pts, DenseIndex degree,
-                                                  const KnotVectorType& knot_parameters) {
+constexpr SplineType SplineFitting<SplineType>::Interpolate(const PointArrayType& pts, DenseIndex degree,
+                                                            const KnotVectorType& knot_parameters) {
   typedef typename SplineType::KnotVectorType::Scalar Scalar;
   typedef typename SplineType::ControlPointVectorType ControlPointVectorType;
 
@@ -295,7 +299,7 @@ SplineType SplineFitting<SplineType>::Interpolate(const PointArrayType& pts, Den
 
 template <typename SplineType>
 template <typename PointArrayType>
-SplineType SplineFitting<SplineType>::Interpolate(const PointArrayType& pts, DenseIndex degree) {
+constexpr SplineType SplineFitting<SplineType>::Interpolate(const PointArrayType& pts, DenseIndex degree) {
   KnotVectorType chord_lengths;  // knot parameters
   ChordLengths(pts, chord_lengths);
   return Interpolate(pts, degree, chord_lengths);
@@ -303,11 +307,11 @@ SplineType SplineFitting<SplineType>::Interpolate(const PointArrayType& pts, Den
 
 template <typename SplineType>
 template <typename PointArrayType, typename IndexArray>
-SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArrayType& points,
-                                                                 const PointArrayType& derivatives,
-                                                                 const IndexArray& derivativeIndices,
-                                                                 const unsigned int degree,
-                                                                 const ParameterVectorType& parameters) {
+constexpr SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArrayType& points,
+                                                                           const PointArrayType& derivatives,
+                                                                           const IndexArray& derivativeIndices,
+                                                                           const unsigned int degree,
+                                                                           const ParameterVectorType& parameters) {
   typedef typename SplineType::KnotVectorType::Scalar Scalar;
   typedef typename SplineType::ControlPointVectorType ControlPointVectorType;
 
@@ -380,10 +384,10 @@ SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArra
 
 template <typename SplineType>
 template <typename PointArrayType, typename IndexArray>
-SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArrayType& points,
-                                                                 const PointArrayType& derivatives,
-                                                                 const IndexArray& derivativeIndices,
-                                                                 const unsigned int degree) {
+constexpr SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArrayType& points,
+                                                                           const PointArrayType& derivatives,
+                                                                           const IndexArray& derivativeIndices,
+                                                                           const unsigned int degree) {
   ParameterVectorType parameters;
   ChordLengths(points, parameters);
   return InterpolateWithDerivatives(points, derivatives, derivativeIndices, degree, parameters);

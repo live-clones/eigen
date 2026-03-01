@@ -50,7 +50,7 @@ class companion {
   typedef DenseIndex Index;
 
  public:
-  EIGEN_STRONG_INLINE const Scalar_ operator()(Index row, Index col) const {
+  EIGEN_STRONG_INLINE constexpr const Scalar_ operator()(Index row, Index col) const {
     if (m_bl_diag.rows() > col) {
       if (0 < row) {
         return m_bl_diag[col];
@@ -63,12 +63,12 @@ class companion {
   }
 
 #ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
-  EIGEN_STRONG_INLINE const Scalar_ operator[](Index row, Index col) const { return operator()(row, col); }
+  EIGEN_STRONG_INLINE constexpr const Scalar_ operator[](Index row, Index col) const { return operator()(row, col); }
 #endif
 
  public:
   template <typename VectorType>
-  void setPolynomial(const VectorType& poly) {
+  constexpr void setPolynomial(const VectorType& poly) {
     const Index deg = poly.size() - 1;
     m_monic = -poly.head(deg) / poly[deg];
     m_bl_diag.setOnes(deg - 1);
@@ -80,7 +80,7 @@ class companion {
   }
 
  public:
-  DenseCompanionMatrixType denseMatrix() const {
+  constexpr DenseCompanionMatrixType denseMatrix() const {
     const Index deg = m_monic.size();
     const Index deg_1 = deg - 1;
     DenseCompanionMatrixType companMat(deg, deg);
@@ -98,7 +98,7 @@ class companion {
    * colB and rowB are respectively the multipliers for
    * the column and the row in order to balance them.
    * */
-  bool balanced(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced, RealScalar& colB, RealScalar& rowB);
+  constexpr bool balanced(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced, RealScalar& colB, RealScalar& rowB);
 
   /** Helper function for the balancing algorithm.
    * \returns true if the row and the column, having colNorm and rowNorm
@@ -106,7 +106,8 @@ class companion {
    * colB and rowB are respectively the multipliers for
    * the column and the row in order to balance them.
    * */
-  bool balancedR(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced, RealScalar& colB, RealScalar& rowB);
+  constexpr bool balancedR(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced, RealScalar& colB,
+                           RealScalar& rowB);
 
  public:
   /**
@@ -117,7 +118,7 @@ class companion {
    * for a certain norm if the i-th row and the i-th column
    * have same norm for all i.
    */
-  void balance();
+  constexpr void balance();
 
  protected:
   RightColumn m_monic;
@@ -125,8 +126,8 @@ class companion {
 };
 
 template <typename Scalar_, int Deg_>
-inline bool companion<Scalar_, Deg_>::balanced(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced,
-                                               RealScalar& colB, RealScalar& rowB) {
+constexpr bool companion<Scalar_, Deg_>::balanced(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced,
+                                                  RealScalar& colB, RealScalar& rowB) {
   if (RealScalar(0) == colNorm || RealScalar(0) == rowNorm || !(numext::isfinite)(colNorm) ||
       !(numext::isfinite)(rowNorm)) {
     return true;
@@ -170,8 +171,8 @@ inline bool companion<Scalar_, Deg_>::balanced(RealScalar colNorm, RealScalar ro
 }
 
 template <typename Scalar_, int Deg_>
-inline bool companion<Scalar_, Deg_>::balancedR(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced,
-                                                RealScalar& colB, RealScalar& rowB) {
+constexpr bool companion<Scalar_, Deg_>::balancedR(RealScalar colNorm, RealScalar rowNorm, bool& isBalanced,
+                                                   RealScalar& colB, RealScalar& rowB) {
   if (RealScalar(0) == colNorm || RealScalar(0) == rowNorm) {
     return true;
   } else {
@@ -193,7 +194,7 @@ inline bool companion<Scalar_, Deg_>::balancedR(RealScalar colNorm, RealScalar r
 }
 
 template <typename Scalar_, int Deg_>
-void companion<Scalar_, Deg_>::balance() {
+constexpr void companion<Scalar_, Deg_>::balance() {
   using std::abs;
   EIGEN_STATIC_ASSERT(Deg == Dynamic || 1 < Deg, YOU_MADE_A_PROGRAMMING_MISTAKE);
   const Index deg = m_monic.size();

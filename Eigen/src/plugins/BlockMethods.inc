@@ -564,14 +564,14 @@ EIGEN_DOC_BLOCK_ADDONS_NOT_INNER_PANEL
 /// \sa class Block
 ///
 template <int CRows, int CCols>
-EIGEN_STRONG_INLINE typename FixedBlockXpr<CRows, CCols>::Type bottomLeftCorner(Index cRows, Index cCols) {
+EIGEN_STRONG_INLINE constexpr typename FixedBlockXpr<CRows, CCols>::Type bottomLeftCorner(Index cRows, Index cCols) {
   return typename FixedBlockXpr<CRows, CCols>::Type(derived(), rows() - cRows, 0, cRows, cCols);
 }
 
 /// This is the const version of bottomLeftCorner<int, int>(Index, Index).
 template <int CRows, int CCols>
-EIGEN_STRONG_INLINE const typename ConstFixedBlockXpr<CRows, CCols>::Type bottomLeftCorner(Index cRows,
-                                                                                           Index cCols) const {
+EIGEN_STRONG_INLINE constexpr const typename ConstFixedBlockXpr<CRows, CCols>::Type bottomLeftCorner(
+    Index cRows, Index cCols) const {
   return typename ConstFixedBlockXpr<CRows, CCols>::Type(derived(), rows() - cRows, 0, cRows, cCols);
 }
 

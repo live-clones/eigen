@@ -47,8 +47,9 @@ namespace internal {
  * \param relax_end last column in a supernode
  */
 template <typename Scalar, typename StorageIndex>
-void SparseLUImpl<Scalar, StorageIndex>::relax_snode(const Index n, IndexVector& et, const Index relax_columns,
-                                                     IndexVector& descendants, IndexVector& relax_end) {
+constexpr void SparseLUImpl<Scalar, StorageIndex>::relax_snode(const Index n, IndexVector& et,
+                                                               const Index relax_columns, IndexVector& descendants,
+                                                               IndexVector& relax_end) {
   // compute the number of descendants of each node in the etree
   Index parent;
   relax_end.setConstant(emptyIdxLU);

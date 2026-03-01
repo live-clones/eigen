@@ -9,9 +9,9 @@ namespace Eigen {
 namespace internal {
 
 template <typename Scalar>
-void chkder(const Matrix<Scalar, Dynamic, 1> &x, const Matrix<Scalar, Dynamic, 1> &fvec,
-            const Matrix<Scalar, Dynamic, Dynamic> &fjac, Matrix<Scalar, Dynamic, 1> &xp,
-            const Matrix<Scalar, Dynamic, 1> &fvecp, int mode, Matrix<Scalar, Dynamic, 1> &err) {
+constexpr void chkder(const Matrix<Scalar, Dynamic, 1> &x, const Matrix<Scalar, Dynamic, 1> &fvec,
+                      const Matrix<Scalar, Dynamic, Dynamic> &fjac, Matrix<Scalar, Dynamic, 1> &xp,
+                      const Matrix<Scalar, Dynamic, 1> &fvecp, int mode, Matrix<Scalar, Dynamic, 1> &err) {
   using std::abs;
   using std::log;
   using std::sqrt;

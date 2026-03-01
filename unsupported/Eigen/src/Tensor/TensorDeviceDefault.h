@@ -17,24 +17,30 @@ namespace Eigen {
 
 // Default device for the machine (typically a single cpu core)
 struct DefaultDevice {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* allocate(size_t num_bytes) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void* allocate(size_t num_bytes) const {
     return internal::aligned_malloc(num_bytes);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void deallocate(void* buffer) const { internal::aligned_free(buffer); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* allocate_temp(size_t num_bytes) const { return allocate(num_bytes); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void deallocate_temp(void* buffer) const { deallocate(buffer); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void deallocate(void* buffer) const {
+    internal::aligned_free(buffer);
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void* allocate_temp(size_t num_bytes) const {
+    return allocate(num_bytes);
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void deallocate_temp(void* buffer) const { deallocate(buffer); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memcpy(void* dst, const void* src, size_t n) const {
     ::memcpy(dst, src, n);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memcpyHostToDevice(void* dst, const void* src, size_t n) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void memcpyHostToDevice(void* dst, const void* src, size_t n) const {
     memcpy(dst, src, n);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memcpyDeviceToHost(void* dst, const void* src, size_t n) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void memcpyDeviceToHost(void* dst, const void* src, size_t n) const {
     memcpy(dst, src, n);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memset(void* buffer, int c, size_t n) const { ::memset(buffer, c, n); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void memset(void* buffer, int c, size_t n) const {
+    ::memset(buffer, c, n);
+  }
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fill(T* begin, T* end, const T& value) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void fill(T* begin, T* end, const T& value) const {
 #ifdef EIGEN_GPU_COMPILE_PHASE
     // std::fill is not a device function, so resort to simple loop.
     for (T* it = begin; it != end; ++it) {
@@ -45,11 +51,11 @@ struct DefaultDevice {
 #endif
   }
   template <typename Type>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Type get(Type data) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Type get(Type data) const {
     return data;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE size_t numThreads() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr size_t numThreads() const {
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
     // Running on the host CPU
     return 1;
@@ -88,11 +94,11 @@ struct DefaultDevice {
 #endif
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void synchronize() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void synchronize() const {
     // Nothing.  Default device operations are synchronous.
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int majorDeviceVersion() const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr int majorDeviceVersion() const {
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
     // Running single threaded on the host CPU
     // Should return an enum that encodes the ISA supported by the CPU

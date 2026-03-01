@@ -131,7 +131,7 @@ class IndexedView
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedView)
 
   template <typename T0, typename T1>
-  IndexedView(XprType& xpr, const T0& rowIndices, const T1& colIndices) : Base(xpr, rowIndices, colIndices) {}
+  constexpr IndexedView(XprType& xpr, const T0& rowIndices, const T1& colIndices) : Base(xpr, rowIndices, colIndices) {}
 };
 
 namespace internal {
@@ -148,26 +148,26 @@ class IndexedViewImpl : public internal::generic_xpr_base<IndexedView<XprType, R
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedViewImpl)
 
   template <typename T0, typename T1>
-  IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices)
+  constexpr IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices)
       : m_xpr(xpr), m_rowIndices(rowIndices), m_colIndices(colIndices) {}
 
   /** \returns number of rows */
-  Index rows() const { return IndexedViewHelper<RowIndices>::size(m_rowIndices); }
+  constexpr Index rows() const { return IndexedViewHelper<RowIndices>::size(m_rowIndices); }
 
   /** \returns number of columns */
-  Index cols() const { return IndexedViewHelper<ColIndices>::size(m_colIndices); }
+  constexpr Index cols() const { return IndexedViewHelper<ColIndices>::size(m_colIndices); }
 
   /** \returns the nested expression */
-  const internal::remove_all_t<XprType>& nestedExpression() const { return m_xpr; }
+  constexpr const internal::remove_all_t<XprType>& nestedExpression() const { return m_xpr; }
 
   /** \returns the nested expression */
-  std::remove_reference_t<XprType>& nestedExpression() { return m_xpr; }
+  constexpr std::remove_reference_t<XprType>& nestedExpression() { return m_xpr; }
 
   /** \returns a const reference to the object storing/generating the row indices */
-  const RowIndices& rowIndices() const { return m_rowIndices; }
+  constexpr const RowIndices& rowIndices() const { return m_rowIndices; }
 
   /** \returns a const reference to the object storing/generating the column indices */
-  const ColIndices& colIndices() const { return m_colIndices; }
+  constexpr const ColIndices& colIndices() const { return m_colIndices; }
 
   constexpr Scalar& coeffRef(Index rowId, Index colId) {
     return nestedExpression().coeffRef(m_rowIndices[rowId], m_colIndices[colId]);
@@ -194,32 +194,33 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedViewImpl)
 
   template <typename T0, typename T1>
-  IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices) : Base(xpr, rowIndices, colIndices) {}
+  constexpr IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices)
+      : Base(xpr, rowIndices, colIndices) {}
 
-  Index rowIncrement() const {
+  constexpr Index rowIncrement() const {
     if (traits<Derived>::RowIncr != DynamicIndex && traits<Derived>::RowIncr != Undefined) {
       return traits<Derived>::RowIncr;
     }
     return IndexedViewHelper<RowIndices>::incr(this->rowIndices());
   }
-  Index colIncrement() const {
+  constexpr Index colIncrement() const {
     if (traits<Derived>::ColIncr != DynamicIndex && traits<Derived>::ColIncr != Undefined) {
       return traits<Derived>::ColIncr;
     }
     return IndexedViewHelper<ColIndices>::incr(this->colIndices());
   }
 
-  Index innerIncrement() const { return traits<Derived>::IsRowMajor ? colIncrement() : rowIncrement(); }
+  constexpr Index innerIncrement() const { return traits<Derived>::IsRowMajor ? colIncrement() : rowIncrement(); }
 
-  Index outerIncrement() const { return traits<Derived>::IsRowMajor ? rowIncrement() : colIncrement(); }
+  constexpr Index outerIncrement() const { return traits<Derived>::IsRowMajor ? rowIncrement() : colIncrement(); }
 
-  std::decay_t<typename XprType::Scalar>* data() {
+  constexpr std::decay_t<typename XprType::Scalar>* data() {
     Index row_offset = this->rowIndices()[0] * this->nestedExpression().rowStride();
     Index col_offset = this->colIndices()[0] * this->nestedExpression().colStride();
     return this->nestedExpression().data() + row_offset + col_offset;
   }
 
-  const std::decay_t<typename XprType::Scalar>* data() const {
+  constexpr const std::decay_t<typename XprType::Scalar>* data() const {
     Index row_offset = this->rowIndices()[0] * this->nestedExpression().rowStride();
     Index col_offset = this->colIndices()[0] * this->nestedExpression().colStride();
     return this->nestedExpression().data() + row_offset + col_offset;

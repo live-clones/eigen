@@ -46,17 +46,19 @@ class ForceAlignedAccess : public internal::dense_xpr_base<ForceAlignedAccess<Ex
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return m_expression.outerStride(); }
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return m_expression.innerStride(); }
 
-  EIGEN_DEVICE_FUNC inline const CoeffReturnType coeff(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC constexpr const CoeffReturnType coeff(Index row, Index col) const {
     return m_expression.coeff(row, col);
   }
 
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index row, Index col) {
+  EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index row, Index col) {
     return m_expression.const_cast_derived().coeffRef(row, col);
   }
 
-  EIGEN_DEVICE_FUNC inline const CoeffReturnType coeff(Index index) const { return m_expression.coeff(index); }
+  EIGEN_DEVICE_FUNC constexpr const CoeffReturnType coeff(Index index) const { return m_expression.coeff(index); }
 
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index index) { return m_expression.const_cast_derived().coeffRef(index); }
+  EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index index) {
+    return m_expression.const_cast_derived().coeffRef(index);
+  }
 
   template <int LoadMode>
   inline const PacketScalar packet(Index row, Index col) const {
@@ -78,7 +80,7 @@ class ForceAlignedAccess : public internal::dense_xpr_base<ForceAlignedAccess<Ex
     m_expression.const_cast_derived().template writePacket<Aligned>(index, x);
   }
 
-  EIGEN_DEVICE_FUNC operator const ExpressionType&() const { return m_expression; }
+  EIGEN_DEVICE_FUNC constexpr operator const ExpressionType&() const { return m_expression; }
 
  protected:
   const ExpressionType& m_expression;
@@ -91,7 +93,7 @@ class ForceAlignedAccess : public internal::dense_xpr_base<ForceAlignedAccess<Ex
  * \sa forceAlignedAccessIf(),class ForceAlignedAccess
  */
 template <typename Derived>
-inline const ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() const {
+constexpr const ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() const {
   return ForceAlignedAccess<Derived>(derived());
 }
 
@@ -99,7 +101,7 @@ inline const ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess
  * \sa forceAlignedAccessIf(), class ForceAlignedAccess
  */
 template <typename Derived>
-inline ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() {
+constexpr ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() {
   return ForceAlignedAccess<Derived>(derived());
 }
 
