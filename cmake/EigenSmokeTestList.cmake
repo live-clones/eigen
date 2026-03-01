@@ -10,6 +10,8 @@ set(ei_smoke_test_list
   array_cwise_math
   array_cwise_bitwise
   array_cwise_cast
+  array_cwise_cast_dynamic
+  array_cwise_complex
   array_for_matrix
   array_of_string
   array_replicate
@@ -86,6 +88,7 @@ set(ei_smoke_test_list
   minres
   miscmatrices
   mixingtypes_novectorize
+  mixingtypes_novectorize_dynamic
   mixingtypes_vectorize
   mixingtypes_vectorize_dynamic
   nestbyvalue
@@ -107,7 +110,9 @@ set(ei_smoke_test_list
   product_small
   product_small_gemm
   product_small_lazy_float
+  product_small_lazy_cplxfloat
   product_small_lazy_double
+  product_small_lazy_cplxdouble
   product_symm
   product_syrk
   product_trmm_float
