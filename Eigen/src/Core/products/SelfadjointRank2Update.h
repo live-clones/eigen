@@ -61,8 +61,8 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
       Scalar* EIGEN_RESTRICT d1 = col1 + 1;
 
       Index k = 0;
-      Index alignedEnd = (len / PacketSize) * PacketSize;
-      for (; k < alignedEnd; k += PacketSize) {
+      Index vectorizedEnd = (len / PacketSize) * PacketSize;
+      for (; k < vectorizedEnd; k += PacketSize) {
         Packet ui = ploadu<Packet>(up + k);
         Packet vi = ploadu<Packet>(vp + k);
         Packet m0 = ploadu<Packet>(d0 + k);
@@ -93,8 +93,8 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
       Index len = size - j;
 
       Index k = 0;
-      Index alignedEnd = (len / PacketSize) * PacketSize;
-      for (; k < alignedEnd; k += PacketSize) {
+      Index vectorizedEnd = (len / PacketSize) * PacketSize;
+      for (; k < vectorizedEnd; k += PacketSize) {
         Packet ui = ploadu<Packet>(up + k);
         Packet vi = ploadu<Packet>(vp + k);
         Packet di = ploadu<Packet>(dst + k);
@@ -135,8 +135,8 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
       // Shared vectorized loop for rows 0..j-1
       Index len = j;
       Index k = 0;
-      Index alignedEnd = (len / PacketSize) * PacketSize;
-      for (; k < alignedEnd; k += PacketSize) {
+      Index vectorizedEnd = (len / PacketSize) * PacketSize;
+      for (; k < vectorizedEnd; k += PacketSize) {
         Packet ui = ploadu<Packet>(u + k);
         Packet vi = ploadu<Packet>(v + k);
         Packet m0 = ploadu<Packet>(col0 + k);
@@ -170,8 +170,8 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
       Index len = j + 1;
 
       Index k = 0;
-      Index alignedEnd = (len / PacketSize) * PacketSize;
-      for (; k < alignedEnd; k += PacketSize) {
+      Index vectorizedEnd = (len / PacketSize) * PacketSize;
+      for (; k < vectorizedEnd; k += PacketSize) {
         Packet ui = ploadu<Packet>(u + k);
         Packet vi = ploadu<Packet>(v + k);
         Packet di = ploadu<Packet>(dst + k);

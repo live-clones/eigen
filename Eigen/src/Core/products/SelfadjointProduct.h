@@ -55,8 +55,8 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
         Scalar* EIGEN_RESTRICT d1 = col1 + 1;
 
         Index k = 0;
-        Index alignedEnd = (len / PacketSize) * PacketSize;
-        for (; k < alignedEnd; k += PacketSize) {
+        Index vectorizedEnd = (len / PacketSize) * PacketSize;
+        for (; k < vectorizedEnd; k += PacketSize) {
           Packet xi = internal::ploadu<Packet>(xp + k);
           Packet m0 = internal::ploadu<Packet>(d0 + k);
           m0 = pcj.pmadd(xi, ps0, m0);
@@ -79,8 +79,8 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
         const Scalar* EIGEN_RESTRICT xp = vecX;
         Index len = j;
         Index k = 0;
-        Index alignedEnd = (len / PacketSize) * PacketSize;
-        for (; k < alignedEnd; k += PacketSize) {
+        Index vectorizedEnd = (len / PacketSize) * PacketSize;
+        for (; k < vectorizedEnd; k += PacketSize) {
           Packet xi = internal::ploadu<Packet>(xp + k);
           Packet m0 = internal::ploadu<Packet>(col0 + k);
           Packet m1 = internal::ploadu<Packet>(col1 + k);
@@ -112,8 +112,8 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
       const Scalar* EIGEN_RESTRICT xp = vecX + start;
 
       Index k = 0;
-      Index alignedEnd = (len / PacketSize) * PacketSize;
-      for (; k < alignedEnd; k += PacketSize) {
+      Index vectorizedEnd = (len / PacketSize) * PacketSize;
+      for (; k < vectorizedEnd; k += PacketSize) {
         Packet xi = internal::ploadu<Packet>(xp + k);
         Packet di = internal::ploadu<Packet>(dst + k);
         di = pcj.pmadd(xi, ps, di);
