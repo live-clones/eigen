@@ -47,10 +47,12 @@ set(ei_smoke_test_list
 
   # Products (representative subset)
   product_large_real
+  product_large_double
   product_small
   product_small_lazy_float
   product_trmm_float
   product_trsolve
+  product_trsolve_complex
 
   # Arch / vectorization
   packetmath_float
@@ -58,15 +60,18 @@ set(ei_smoke_test_list
 
   # Decompositions: Cholesky
   cholesky
+  cholesky_complex
 
   # Decompositions: LU
   lu
+  lu_complex
   determinant
   inverse
 
   # Decompositions: QR
   householder
   qr_colpivoting
+  qr_colpivoting_double
 
   # Decompositions: SVD (one Jacobi, one BDC)
   jacobisvd_float
@@ -81,6 +86,7 @@ set(ei_smoke_test_list
 
   # Geometry (representative subset)
   geo_transformations
+  geo_transformations_projective
   geo_homogeneous
   umeyama
 
