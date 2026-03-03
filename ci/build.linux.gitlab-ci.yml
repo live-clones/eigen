@@ -571,6 +571,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
+    EIGEN_CI_BUILD_JOBS: "2"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
