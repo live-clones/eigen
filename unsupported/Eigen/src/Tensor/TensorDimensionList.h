@@ -40,10 +40,6 @@ struct array_size<const DimensionList<Index, Rank> > {
 };
 
 template <DenseIndex n, typename Index, std::size_t Rank>
-constexpr Index array_get(DimensionList<Index, Rank>&) {
-  return n;
-}
-template <DenseIndex n, typename Index, std::size_t Rank>
 constexpr Index array_get(const DimensionList<Index, Rank>&) {
   return n;
 }
