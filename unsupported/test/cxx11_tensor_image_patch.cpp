@@ -824,8 +824,8 @@ void test_patch_inflate_strides() {
   // With explicit padding=0, VALID-like extraction:
   //   outputRows = ceil((5 + 0 + 0 - 3 + 1) / 1) = 3
   //   outputCols = ceil((10 + 0 + 0 - 4 + 1) / 1) = 7
-  Tensor<float, 5> result = tensor.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, row_inflate, col_inflate,
-                                                         0, 0, 0, 0, 0.0f);
+  Tensor<float, 5> result =
+      tensor.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, row_inflate, col_inflate, 0, 0, 0, 0, 0.0f);
   const int outputRows = 3;
   const int outputCols = 7;
   VERIFY_IS_EQUAL(result.dimension(0), depth);
@@ -863,8 +863,8 @@ void test_patch_inflate_strides() {
 
   // RowMajor
   Tensor<float, 4, RowMajor> tensor_rm = tensor.swap_layout();
-  Tensor<float, 5, RowMajor> result_rm = tensor_rm.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1,
-                                                                          row_inflate, col_inflate, 0, 0, 0, 0, 0.0f);
+  Tensor<float, 5, RowMajor> result_rm =
+      tensor_rm.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, row_inflate, col_inflate, 0, 0, 0, 0, 0.0f);
   VERIFY_IS_EQUAL(result_rm.dimension(4), depth);
   VERIFY_IS_EQUAL(result_rm.dimension(3), patch_rows);
   VERIFY_IS_EQUAL(result_rm.dimension(2), patch_cols);
