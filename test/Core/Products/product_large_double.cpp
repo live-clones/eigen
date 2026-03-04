@@ -22,4 +22,5 @@ TEST(ProductLargeDoubleTest, Basic) {
   }
 
   product_large_regressions<0>();
+  bug_gemv_rowmajor_large_stride<0>();
 }

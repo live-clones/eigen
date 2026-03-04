@@ -15,20 +15,20 @@
 TEST(ProductTrsolveTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     // matrices
-    (trsolve<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                      internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (trsolve<double, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                       internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    trsolve<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    trsolve<double, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                      internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
 
     // vectors
-    (trsolve<float, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (trsolve<double, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    trsolve<float, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    trsolve<double, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
 
     // meta-unrollers
-    (trsolve<float, 4, 1>());
-    (trsolve<double, 4, 1>());
-    (trsolve<float, 1, 1>());
-    (trsolve<float, 1, 2>());
-    (trsolve<float, 3, 1>());
+    trsolve<float, 4, 1>();
+    trsolve<double, 4, 1>();
+    trsolve<float, 1, 1>();
+    trsolve<float, 1, 2>();
+    trsolve<float, 3, 1>();
   }
 }

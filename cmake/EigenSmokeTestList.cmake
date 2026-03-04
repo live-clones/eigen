@@ -90,6 +90,7 @@ set(ei_smoke_test_list
 
   # Sparse (representative subset)
   sparse_basic
+  sparse_basic_extra
   sparse_product
 
   # Special functions
