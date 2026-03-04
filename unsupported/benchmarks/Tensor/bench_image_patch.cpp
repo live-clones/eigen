@@ -108,8 +108,7 @@ static void BM_ImagePatch_ExplicitPadding(benchmark::State& state) {
   input.setRandom();
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result =
-        input.extract_image_patches(kH, kH, 1, 1, 1, 1, 1, 1, pad, pad, pad, pad, Scalar(0));
+    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kH, 1, 1, 1, 1, 1, 1, pad, pad, pad, pad, Scalar(0));
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
