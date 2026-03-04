@@ -9,13 +9,13 @@ used in production (e.g. in TensorFlow), its API may change without notice.
 To use the Tensor module, include the following header:
 
 ```cpp
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 ```
 
 ## Quick Start
 
 ```cpp
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 #include <iostream>
 
 int main() {
@@ -528,7 +528,7 @@ including the Tensor header:
 
 ```cpp
 #define EIGEN_USE_THREADS
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 // Create the Eigen ThreadPool.
 Eigen::ThreadPool pool(8 /* number of threads in pool */);
@@ -550,7 +550,7 @@ with CUDA or HIP APIs.
 
 ```cpp
 #define EIGEN_USE_GPU
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 // Allocate data on GPU.
 float* d_a;
