@@ -16,9 +16,9 @@
 TEST(QRColpivotingTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     qr<MatrixXf>();
-    (qr_fixedsize<Matrix<float, 3, 5>, 4>());
-    (qr_fixedsize<Matrix<double, 6, 2>, 3>());
-    (qr_fixedsize<Matrix<double, 1, 1>, 1>());
+    qr_fixedsize<Matrix<float, 3, 5>, 4>();
+    qr_fixedsize<Matrix<double, 6, 2>, 3>();
+    qr_fixedsize<Matrix<double, 1, 1>, 1>();
   }
 
   for (int i = 0; i < g_repeat; i++) {

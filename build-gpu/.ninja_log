@@ -1,0 +1,12 @@
+# ninja log v5
+3808	3990	1786378646402952228	unsupported/test/GPU/cusparse_spmv_4	6e1fd077c55fee1d
+35	3907	1786378646317209202	unsupported/test/GPU/CMakeFiles/cusparse_spmv_3.dir/cusparse_spmv.cpp.o	44e86653b4826d2b
+3754	3977	1786378646389769850	unsupported/test/GPU/cusparse_spmv_1	117df6738ce48424
+3722	3911	1786378646324290050	unsupported/test/GPU/cusparse_spmv_2	abd5bd2eb00a349c
+3908	4051	1786378646464382023	unsupported/test/GPU/cusparse_spmv_3	4ae427e2acd8398e
+35	3754	1786378646161972596	unsupported/test/GPU/CMakeFiles/cusparse_spmv_1.dir/cusparse_spmv.cpp.o	77705ba60159e4de
+35	3808	1786378646216305409	unsupported/test/GPU/CMakeFiles/cusparse_spmv_4.dir/cusparse_spmv.cpp.o	cff0eec47ba47317
+35	3722	1786378646130925275	unsupported/test/GPU/CMakeFiles/cusparse_spmv_2.dir/cusparse_spmv.cpp.o	9cf489415a5649bd
+44	29361	1786409294450438894	build.ninja	af0460f006e0d078
+52	9608	1786409304156027555	unsupported/test/GPU/CMakeFiles/device_matrix.dir/device_matrix.cpp.o	9c2a14635b20fc2b
+9608	9773	1786409304325717570	unsupported/test/GPU/device_matrix	126231b62b661db9

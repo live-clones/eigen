@@ -1,0 +1,24 @@
+{
+	"bmi-installation" : null,
+	"compiler-frontend-variant" : "GNU",
+	"compiler-id" : "GNU",
+	"compiler-simulate-id" : "",
+	"config" : "Release",
+	"cxx-modules" : {},
+	"dir-cur-bld" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/build-gpu/lapack",
+	"dir-cur-src" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/lapack",
+	"dir-top-bld" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/build-gpu",
+	"dir-top-src" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new",
+	"exports" : [],
+	"forward-modules-from-target-dirs" : [],
+	"include-dirs" : 
+	[
+		"/home/rmlarsen/eigen/rmlarsen3/eigen-new/lapack/../blas",
+		"/home/rmlarsen/eigen/rmlarsen3/eigen-new"
+	],
+	"language" : "Fortran",
+	"linked-target-dirs" : [],
+	"module-dir" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/build-gpu/lapack",
+	"submodule-ext" : ".smod",
+	"submodule-sep" : "@"
+}

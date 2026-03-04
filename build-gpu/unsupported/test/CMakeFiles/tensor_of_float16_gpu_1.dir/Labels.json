@@ -1,0 +1,19 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/build-gpu/unsupported/test/CMakeFiles/tensor_of_float16_gpu_1.dir/tensor_of_float16_gpu_1_generated_tensor_of_float16_gpu.cu.o"
+		},
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/unsupported/test/tensor_of_float16_gpu.cu"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildUnsupported"
+		],
+		"name" : "tensor_of_float16_gpu_1"
+	}
+}

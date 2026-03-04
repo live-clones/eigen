@@ -1,0 +1,6 @@
+# ninja log v5
+2554	2665	1786307200765799803	Core/bench_reshaped	2fb09e170b94bab9
+1	2554	1786307200646465480	Core/CMakeFiles/bench_reshaped.dir/bench_reshaped.cpp.o	db6b9377e74e7e7a
+2	4212	1786307240134341586	build.ninja	35093e9094779881
+2	3131	1786307243261137401	Core/CMakeFiles/bench_broadcasting.dir/bench_broadcasting.cpp.o	b339684639054d51
+3131	3214	1786307243351682810	Core/bench_broadcasting	283acdbba75d1fc8

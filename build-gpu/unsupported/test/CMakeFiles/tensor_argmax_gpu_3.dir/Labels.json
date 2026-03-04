@@ -1,0 +1,22 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/build-gpu/unsupported/test/CMakeFiles/tensor_argmax_gpu_3.dir/tensor_argmax_gpu_3_generated_tensor_argmax_gpu.cu.o"
+		},
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/unsupported/test/tensor_argmax_gpu.cu"
+		},
+		{
+			"file" : "/home/rmlarsen/eigen/rmlarsen3/eigen-new/build-gpu/unsupported/test/CMakeFiles/tensor_argmax_gpu_3.dir/tensor_argmax_gpu_3_generated_tensor_argmax_gpu.cu.o.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"BuildUnsupported"
+		],
+		"name" : "tensor_argmax_gpu_3"
+	}
+}
