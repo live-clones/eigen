@@ -18,7 +18,7 @@ namespace internal {
 
 template <uint64_t n>
 struct static_val {
-  static const uint64_t value = n;
+  static constexpr uint64_t value = n;
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE operator uint64_t() const { return n; }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static_val() {}

@@ -99,7 +99,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // (*) EvalParallelContext & EvalShardedByInnerDimContext owns all the state
     // and temporary buffers, required for executing the tensor contraction.
     // They are responsible for cleaning it up after contraction is done.
-    static const bool IsEvalInSyncMode = std::is_same<DoneCallback, NoCallback>::value;
+    static constexpr bool IsEvalInSyncMode = std::is_same<DoneCallback, NoCallback>::value;
 
     const Index m = this->m_i_size;
     const Index n = this->m_j_size;
@@ -648,7 +648,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     template <typename BlockType, bool is_rhs>
     class ThreadLocalBlocksInitialize {
       static constexpr bool kIsLhs = !is_rhs && std::is_same<BlockType, LhsBlock>::value;
-      static const bool kIsRhs = is_rhs && std::is_same<BlockType, RhsBlock>::value;
+      static constexpr bool kIsRhs = is_rhs && std::is_same<BlockType, RhsBlock>::value;
       static_assert(kIsLhs || kIsRhs, "Unknown block type");
 
       using Blocks = ThreadLocalBlocks<BlockType>;
@@ -1086,7 +1086,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
    private:
     // The underlying GEMM kernel assumes that k is a multiple of
     // the packet size and subtle breakage occurs if this is violated.
-    static const Index packet_size = internal::packet_traits<RhsScalar>::size;
+    static constexpr Index packet_size = internal::packet_traits<RhsScalar>::size;
 
     const Self* evaluator;  // TensorContraction evaluator
 
@@ -1131,7 +1131,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     //
     // TODO(ezhulenev): Add multilevel tree aggregation? Probably will make
     // sense only if number of threads >= ~128?
-    static const Index l0_size = 4;
+    static constexpr Index l0_size = 4;
     Index l0_ranges;
 
     // Keep count of pending gemm tasks for each l0 range.

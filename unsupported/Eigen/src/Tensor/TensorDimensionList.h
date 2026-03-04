@@ -32,11 +32,11 @@ namespace internal {
 
 template <typename Index, std::size_t Rank>
 struct array_size<DimensionList<Index, Rank> > {
-  static const size_t value = Rank;
+  static constexpr size_t value = Rank;
 };
 template <typename Index, std::size_t Rank>
 struct array_size<const DimensionList<Index, Rank> > {
-  static const size_t value = Rank;
+  static constexpr size_t value = Rank;
 };
 
 template <DenseIndex n, typename Index, std::size_t Rank>

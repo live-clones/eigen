@@ -140,12 +140,12 @@ template <typename Device>
 class TensorCostModel {
  public:
   // Scaling from Eigen compute cost to device cycles.
-  static const int kDeviceCyclesPerComputeCycle = 1;
+  static constexpr int kDeviceCyclesPerComputeCycle = 1;
 
   // Costs in device cycles.
-  static const int kStartupCycles = 100000;
-  static const int kPerThreadCycles = 100000;
-  static const int kTaskSize = 40000;
+  static constexpr int kStartupCycles = 100000;
+  static constexpr int kPerThreadCycles = 100000;
+  static constexpr int kTaskSize = 40000;
 
   // Returns the number of threads in [1:max_threads] to use for
   // evaluating an expression with the given output size and cost per

@@ -20,7 +20,7 @@ namespace internal {
 
 template <std::ptrdiff_t n, typename Dimension>
 struct dget {
-  static const std::ptrdiff_t value = get<n, Dimension>::value;
+  static constexpr std::ptrdiff_t value = get<n, Dimension>::value;
 };
 
 template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowMajor>
@@ -80,8 +80,8 @@ template <typename std::ptrdiff_t... Indices>
 struct Sizes {
   typedef internal::numeric_list<std::ptrdiff_t, Indices...> Base;
   const Base t = Base();
-  static const std::ptrdiff_t total_size = internal::arg_prod(Indices...);
-  static const ptrdiff_t count = Base::count;
+  static constexpr std::ptrdiff_t total_size = internal::arg_prod(Indices...);
+  static constexpr ptrdiff_t count = Base::count;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t rank() const { return Base::count; }
 
@@ -165,7 +165,7 @@ struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
 template <typename DenseIndex, int NumDims>
 struct DSizes : array<DenseIndex, NumDims> {
   typedef array<DenseIndex, NumDims> Base;
-  static const int count = NumDims;
+  static constexpr int count = NumDims;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return NumDims; }
 
@@ -281,19 +281,19 @@ namespace internal {
 
 template <typename DenseIndex, int NumDims>
 struct array_size<const DSizes<DenseIndex, NumDims> > {
-  static const ptrdiff_t value = NumDims;
+  static constexpr ptrdiff_t value = NumDims;
 };
 template <typename DenseIndex, int NumDims>
 struct array_size<DSizes<DenseIndex, NumDims> > {
-  static const ptrdiff_t value = NumDims;
+  static constexpr ptrdiff_t value = NumDims;
 };
 template <typename std::ptrdiff_t... Indices>
 struct array_size<const Sizes<Indices...> > {
-  static const std::ptrdiff_t value = Sizes<Indices...>::count;
+  static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
 template <typename std::ptrdiff_t... Indices>
 struct array_size<Sizes<Indices...> > {
-  static const std::ptrdiff_t value = Sizes<Indices...>::count;
+  static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
 template <std::ptrdiff_t n, typename std::ptrdiff_t... Indices>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<Indices...>&) {
