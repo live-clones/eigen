@@ -19,12 +19,12 @@ template <bool cond>
 struct Cond {};
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T1& choose(Cond<true>, const T1& first, const T2&) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T1& choose(Cond<true>, const T1& first, const T2&) {
   return first;
 }
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T2& choose(Cond<false>, const T1&, const T2& second) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T2& choose(Cond<false>, const T1&, const T2& second) {
   return second;
 }
 
