@@ -725,12 +725,12 @@ struct product_promote_storage_type<PermutationStorage, Dense, ProductTag> {
  */
 template <typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
 struct plain_row_type {
-  using MatrixRowType = Matrix<Scalar, 1, ExpressionType::ColsAtCompileTime,
-                               int(ExpressionType::PlainObject::Options) | int(RowMajor), 1,
-                               ExpressionType::MaxColsAtCompileTime>;
-  using ArrayRowType = Array<Scalar, 1, ExpressionType::ColsAtCompileTime,
-                             int(ExpressionType::PlainObject::Options) | int(RowMajor), 1,
-                             ExpressionType::MaxColsAtCompileTime>;
+  using MatrixRowType =
+      Matrix<Scalar, 1, ExpressionType::ColsAtCompileTime, int(ExpressionType::PlainObject::Options) | int(RowMajor), 1,
+             ExpressionType::MaxColsAtCompileTime>;
+  using ArrayRowType =
+      Array<Scalar, 1, ExpressionType::ColsAtCompileTime, int(ExpressionType::PlainObject::Options) | int(RowMajor), 1,
+            ExpressionType::MaxColsAtCompileTime>;
 
   using type = std::conditional_t<is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value, MatrixRowType,
                                   ArrayRowType>;
@@ -738,12 +738,11 @@ struct plain_row_type {
 
 template <typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
 struct plain_col_type {
-  using MatrixColType = Matrix<Scalar, ExpressionType::RowsAtCompileTime, 1,
-                               ExpressionType::PlainObject::Options & ~RowMajor,
-                               ExpressionType::MaxRowsAtCompileTime, 1>;
+  using MatrixColType =
+      Matrix<Scalar, ExpressionType::RowsAtCompileTime, 1, ExpressionType::PlainObject::Options & ~RowMajor,
+             ExpressionType::MaxRowsAtCompileTime, 1>;
   using ArrayColType = Array<Scalar, ExpressionType::RowsAtCompileTime, 1,
-                             ExpressionType::PlainObject::Options & ~RowMajor,
-                             ExpressionType::MaxRowsAtCompileTime, 1>;
+                             ExpressionType::PlainObject::Options & ~RowMajor, ExpressionType::MaxRowsAtCompileTime, 1>;
 
   using type = std::conditional_t<is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value, MatrixColType,
                                   ArrayColType>;
@@ -757,8 +756,7 @@ struct plain_diag_type {
       min_size_prefer_fixed(ExpressionType::MaxRowsAtCompileTime, ExpressionType::MaxColsAtCompileTime);
   using MatrixDiagType =
       Matrix<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1>;
-  using ArrayDiagType =
-      Array<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1>;
+  using ArrayDiagType = Array<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1>;
 
   using type = std::conditional_t<is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value, MatrixDiagType,
                                   ArrayDiagType>;
@@ -772,7 +770,7 @@ struct plain_constant_type {
                            traits<Expr>::MaxRowsAtCompileTime, traits<Expr>::MaxColsAtCompileTime>;
 
   using matrix_type = Matrix<Scalar, traits<Expr>::RowsAtCompileTime, traits<Expr>::ColsAtCompileTime, Options,
-                              traits<Expr>::MaxRowsAtCompileTime, traits<Expr>::MaxColsAtCompileTime>;
+                             traits<Expr>::MaxRowsAtCompileTime, traits<Expr>::MaxColsAtCompileTime>;
 
   using type = CwiseNullaryOp<
       scalar_constant_op<Scalar>,
