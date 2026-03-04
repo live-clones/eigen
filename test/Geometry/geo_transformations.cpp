@@ -15,16 +15,16 @@
 
 TEST(TransformationsAffineTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (transformations<double, Affine, AutoAlign>());
-    (non_projective_only<double, Affine, AutoAlign>());
-    (transformations_computed_scaling_continuity<double, Affine, AutoAlign>());
+    transformations<double, Affine, AutoAlign>();
+    non_projective_only<double, Affine, AutoAlign>();
+    transformations_computed_scaling_continuity<double, Affine, AutoAlign>();
 
-    (transformations<float, AffineCompact, AutoAlign>());
-    (non_projective_only<float, AffineCompact, AutoAlign>());
-    (transform_alignment<float>());
-    (transform_alignment<double>());
+    transformations<float, AffineCompact, AutoAlign>();
+    non_projective_only<float, AffineCompact, AutoAlign>();
+    transform_alignment<float>();
+    transform_alignment<double>();
 
-    (transformations_no_scale<double, Affine, AutoAlign>());
-    (transformations_no_scale<double, Isometry, AutoAlign>());
+    transformations_no_scale<double, Affine, AutoAlign>();
+    transformations_no_scale<double, Isometry, AutoAlign>();
   }
 }
