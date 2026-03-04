@@ -14,22 +14,22 @@
 
 TEST(TransformationsProjectiveTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    (transformations<double, Projective, AutoAlign>());
-    (transformations<double, Projective, DontAlign>());
+    transformations<double, Projective, AutoAlign>();
+    transformations<double, Projective, DontAlign>();
 
-    (transformations<float, Affine, RowMajor | AutoAlign>());
-    (non_projective_only<float, Affine, RowMajor>());
+    transformations<float, Affine, RowMajor | AutoAlign>();
+    non_projective_only<float, Affine, RowMajor>();
 
-    (transformations<double, AffineCompact, RowMajor | AutoAlign>());
-    (non_projective_only<double, AffineCompact, RowMajor>());
+    transformations<double, AffineCompact, RowMajor | AutoAlign>();
+    non_projective_only<double, AffineCompact, RowMajor>();
 
-    (transformations<double, Projective, RowMajor | AutoAlign>());
-    (transformations<double, Projective, RowMajor | DontAlign>());
+    transformations<double, Projective, RowMajor | AutoAlign>();
+    transformations<double, Projective, RowMajor | DontAlign>();
 
-    (transform_products<double, 3, RowMajor | AutoAlign>());
-    (transform_products<float, 2, AutoAlign>());
+    transform_products<double, 3, RowMajor | AutoAlign>();
+    transform_products<float, 2, AutoAlign>();
 
-    (transform_associativity<double, 2, ColMajor>(Rotation2D<double>(internal::random<double>() * double(EIGEN_PI))));
-    (transform_associativity<double, 3, ColMajor>(Quaterniond::UnitRandom()));
+    transform_associativity<double, 2, ColMajor>(Rotation2D<double>(internal::random<double>() * double(EIGEN_PI)));
+    transform_associativity<double, 3, ColMajor>(Quaterniond::UnitRandom());
   }
 }
