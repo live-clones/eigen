@@ -311,24 +311,24 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<>&) {
 
 template <typename Dims1, typename Dims2, ptrdiff_t n, ptrdiff_t m>
 struct sizes_match_below_dim {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(Dims1&, Dims2&) { return false; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const Dims1&, const Dims2&) { return false; }
 };
 template <typename Dims1, typename Dims2, ptrdiff_t n>
 struct sizes_match_below_dim<Dims1, Dims2, n, n> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(Dims1& dims1, Dims2& dims2) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const Dims1& dims1, const Dims2& dims2) {
     return numext::equal_strict(array_get<n - 1>(dims1), array_get<n - 1>(dims2)) &&
            sizes_match_below_dim<Dims1, Dims2, n - 1, n - 1>::run(dims1, dims2);
   }
 };
 template <typename Dims1, typename Dims2>
 struct sizes_match_below_dim<Dims1, Dims2, 0, 0> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(Dims1&, Dims2&) { return true; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const Dims1&, const Dims2&) { return true; }
 };
 
 }  // end namespace internal
 
 template <typename Dims1, typename Dims2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool dimensions_match(Dims1 dims1, Dims2 dims2) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool dimensions_match(const Dims1& dims1, const Dims2& dims2) {
   return internal::sizes_match_below_dim<Dims1, Dims2, internal::array_size<Dims1>::value,
                                          internal::array_size<Dims2>::value>::run(dims1, dims2);
 }
