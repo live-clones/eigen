@@ -15,16 +15,16 @@
 TEST(ProductTrsolveComplexTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     // matrices
-    (trsolve<std::complex<float>, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                                                    internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    (trsolve<std::complex<double>, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+    trsolve<std::complex<float>, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
+                                                   internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2));
+    trsolve<std::complex<double>, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
+                                                    internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2));
 
     // vectors
-    (trsolve<std::complex<float>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    (trsolve<std::complex<double>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    trsolve<std::complex<float>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
+    trsolve<std::complex<double>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE));
 
     // meta-unrollers
-    (trsolve<std::complex<float>, 4, 1>());
+    trsolve<std::complex<float>, 4, 1>();
   }
 }

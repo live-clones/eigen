@@ -8,14 +8,13 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-// SPDX-License-Identifier: MPL-2.0
 
-// sparse_basic split: double and float types with default StorageIndex.
-// Complex types and non-default StorageIndex are in sparse_basic_extra.cpp.
+// sparse_basic split: complex types and non-default StorageIndex.
+// Double and float types with default StorageIndex are in sparse_basic.cpp.
 
 #include "sparse_basic_helpers.h"
 
-TEST(SparseBasicTest, Basic) {
+TEST(SparseBasicExtraTest, Basic) {
   g_dense_op_sparse_count = 0;  // Suppresses compiler warning.
   for (int i = 0; i < g_repeat; i++) {
     int r = Eigen::internal::random<int>(1, 200), c = Eigen::internal::random<int>(1, 200);
@@ -23,19 +22,18 @@ TEST(SparseBasicTest, Basic) {
       r = c;  // check square matrices in 25% of tries
     }
     EIGEN_UNUSED_VARIABLE(r + c);
-    sparse_basic(SparseMatrix<double>(1, 1));
-    sparse_basic(SparseMatrix<double>(8, 8));
-    sparse_basic(SparseMatrix<float, RowMajor>(r, c));
-    sparse_basic(SparseMatrix<float, ColMajor>(r, c));
-    sparse_basic(SparseMatrix<double, ColMajor>(r, c));
-    sparse_basic(SparseMatrix<double, RowMajor>(r, c));
+    sparse_basic(SparseMatrix<std::complex<double>, ColMajor>(r, c));
+    sparse_basic(SparseMatrix<std::complex<double>, RowMajor>(r, c));
+    sparse_basic(SparseMatrix<double, ColMajor, long int>(r, c));
+    sparse_basic(SparseMatrix<double, RowMajor, long int>(r, c));
+
+    r = Eigen::internal::random<int>(1, 100);
+    c = Eigen::internal::random<int>(1, 100);
+    if (Eigen::internal::random<int>(0, 3) == 0) {
+      r = c;  // check square matrices in 25% of tries
+    }
+
+    sparse_basic(SparseMatrix<double, ColMajor, short int>(short(r), short(c)));
+    sparse_basic(SparseMatrix<double, RowMajor, short int>(short(r), short(c)));
   }
-
-  // Regression test for bug 900: (manually insert higher values here, if you have enough RAM):
-  big_sparse_triplet<SparseMatrix<float, RowMajor, int>>(10000, 10000, 0.125);
-  big_sparse_triplet<SparseMatrix<double, ColMajor, long int>>(10000, 10000, 0.125);
-
-  bug1105<0>();
-  sparse_sub_assign_eigenbase<0>();
-  ambivector_coeff<0>();
 }
