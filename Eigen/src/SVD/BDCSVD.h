@@ -19,20 +19,9 @@
 
 #ifndef EIGEN_BDCSVD_H
 #define EIGEN_BDCSVD_H
-// #define EIGEN_BDCSVD_DEBUG_VERBOSE
-// #define EIGEN_BDCSVD_SANITY_CHECKS
-
-#ifdef EIGEN_BDCSVD_SANITY_CHECKS
-#undef eigen_internal_assert
-#define eigen_internal_assert(X) assert(X);
-#endif
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
-
-#ifdef EIGEN_BDCSVD_DEBUG_VERBOSE
-#include <iostream>
-#endif
 
 // Internal D&C implementation, templated only on RealScalar.
 #include "BDCSVDImpl.h"
@@ -323,10 +312,6 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   EIGEN_STATIC_ASSERT((std::is_same<typename Derived::Scalar, typename MatrixType::Scalar>::value),
                       Input matrix must have the same Scalar type as the BDCSVD object.);
 
-#ifdef EIGEN_BDCSVD_DEBUG_VERBOSE
-  std::cout << "\n\n\n================================================================================================="
-               "=====================\n\n\n";
-#endif
   using std::abs;
 
   allocate(matrix.rows(), matrix.cols(), computationOptions);
