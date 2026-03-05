@@ -40,9 +40,7 @@ struct evaluator<Product<Lhs, Rhs, Options>> : public product_evaluator<Product<
 template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typename Plain1>
 struct evaluator_assume_aliasing<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
-                                               const Product<Lhs, Rhs, DefaultProduct>>> {
-  static constexpr bool value = true;
-};
+                                               const Product<Lhs, Rhs, DefaultProduct>>> : std::true_type {};
 template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typename Plain1>
 struct evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
@@ -77,9 +75,7 @@ template <typename Lhs, typename Rhs, typename LhsShape = typename evaluator_tra
 struct generic_product_impl;
 
 template <typename Lhs, typename Rhs>
-struct evaluator_assume_aliasing<Product<Lhs, Rhs, DefaultProduct>> {
-  static constexpr bool value = true;
-};
+struct evaluator_assume_aliasing<Product<Lhs, Rhs, DefaultProduct>> : std::true_type {};
 
 // This is the default evaluator implementation for products:
 // It creates a temporary and call generic_product_impl
@@ -187,18 +183,14 @@ struct evaluator_assume_aliasing<
     CwiseBinaryOp<
         internal::scalar_sum_op<typename OtherXpr::Scalar, typename Product<Lhs, Rhs, DefaultProduct>::Scalar>,
         const OtherXpr, const Product<Lhs, Rhs, DefaultProduct>>,
-    DenseShape> {
-  static constexpr bool value = true;
-};
+    DenseShape> : std::true_type {};
 
 template <typename OtherXpr, typename Lhs, typename Rhs>
 struct evaluator_assume_aliasing<
     CwiseBinaryOp<
         internal::scalar_difference_op<typename OtherXpr::Scalar, typename Product<Lhs, Rhs, DefaultProduct>::Scalar>,
         const OtherXpr, const Product<Lhs, Rhs, DefaultProduct>>,
-    DenseShape> {
-  static constexpr bool value = true;
-};
+    DenseShape> : std::true_type {};
 
 template <typename DstXprType, typename OtherXpr, typename ProductType, typename Func1, typename Func2>
 struct assignment_from_xpr_op_product {
@@ -522,73 +514,72 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   using LhsVecPacketType = typename find_best_packet<Scalar, RowsAtCompileTime>::type;
   using RhsVecPacketType = typename find_best_packet<Scalar, ColsAtCompileTime>::type;
 
-  enum {
+  static constexpr int LhsCoeffReadCost = LhsEtorType::CoeffReadCost;
+  static constexpr int RhsCoeffReadCost = RhsEtorType::CoeffReadCost;
+  static constexpr int CoeffReadCost = InnerSize == 0 ? NumTraits<Scalar>::ReadCost
+                                       : InnerSize == Dynamic
+                                           ? HugeCost
+                                           : InnerSize * (NumTraits<Scalar>::MulCost + int(LhsCoeffReadCost) +
+                                                          int(RhsCoeffReadCost)) +
+                                                 (InnerSize - 1) * NumTraits<Scalar>::AddCost;
 
-    LhsCoeffReadCost = LhsEtorType::CoeffReadCost,
-    RhsCoeffReadCost = RhsEtorType::CoeffReadCost,
-    CoeffReadCost = InnerSize == 0 ? NumTraits<Scalar>::ReadCost
-                    : InnerSize == Dynamic
-                        ? HugeCost
-                        : InnerSize * (NumTraits<Scalar>::MulCost + int(LhsCoeffReadCost) + int(RhsCoeffReadCost)) +
-                              (InnerSize - 1) * NumTraits<Scalar>::AddCost,
+  static constexpr bool Unroll = CoeffReadCost <= EIGEN_UNROLLING_LIMIT;
 
-    Unroll = CoeffReadCost <= EIGEN_UNROLLING_LIMIT,
+  static constexpr int LhsFlags = LhsEtorType::Flags;
+  static constexpr int RhsFlags = RhsEtorType::Flags;
 
-    LhsFlags = LhsEtorType::Flags,
-    RhsFlags = RhsEtorType::Flags,
+  static constexpr int LhsRowMajor = LhsFlags & RowMajorBit;
+  static constexpr int RhsRowMajor = RhsFlags & RowMajorBit;
 
-    LhsRowMajor = LhsFlags & RowMajorBit,
-    RhsRowMajor = RhsFlags & RowMajorBit,
+  static constexpr int LhsVecPacketSize = unpacket_traits<LhsVecPacketType>::size;
+  static constexpr int RhsVecPacketSize = unpacket_traits<RhsVecPacketType>::size;
 
-    LhsVecPacketSize = unpacket_traits<LhsVecPacketType>::size,
-    RhsVecPacketSize = unpacket_traits<RhsVecPacketType>::size,
+  // Here, we don't care about alignment larger than the usable packet size.
+  static constexpr int LhsAlignment =
+      plain_enum_min(LhsEtorType::Alignment, LhsVecPacketSize * int(sizeof(typename LhsNestedCleaned::Scalar)));
+  static constexpr int RhsAlignment =
+      plain_enum_min(RhsEtorType::Alignment, RhsVecPacketSize * int(sizeof(typename RhsNestedCleaned::Scalar)));
 
-    // Here, we don't care about alignment larger than the usable packet size.
-    LhsAlignment =
-        plain_enum_min(LhsEtorType::Alignment, LhsVecPacketSize* int(sizeof(typename LhsNestedCleaned::Scalar))),
-    RhsAlignment =
-        plain_enum_min(RhsEtorType::Alignment, RhsVecPacketSize* int(sizeof(typename RhsNestedCleaned::Scalar))),
+  static constexpr bool SameType = is_same<typename LhsNestedCleaned::Scalar, typename RhsNestedCleaned::Scalar>::value;
 
-    SameType = is_same<typename LhsNestedCleaned::Scalar, typename RhsNestedCleaned::Scalar>::value,
+  static constexpr bool CanVectorizeRhs = bool(RhsRowMajor) && (RhsFlags & PacketAccessBit) && (ColsAtCompileTime != 1);
+  static constexpr bool CanVectorizeLhs = (!LhsRowMajor) && (LhsFlags & PacketAccessBit) && (RowsAtCompileTime != 1);
 
-    CanVectorizeRhs = bool(RhsRowMajor) && (RhsFlags & PacketAccessBit) && (ColsAtCompileTime != 1),
-    CanVectorizeLhs = (!LhsRowMajor) && (LhsFlags & PacketAccessBit) && (RowsAtCompileTime != 1),
+  static constexpr int EvalToRowMajor = (MaxRowsAtCompileTime == 1 && MaxColsAtCompileTime != 1) ? 1
+                                        : (MaxColsAtCompileTime == 1 && MaxRowsAtCompileTime != 1)
+                                            ? 0
+                                            : (bool(RhsRowMajor) && !CanVectorizeLhs);
 
-    EvalToRowMajor = (MaxRowsAtCompileTime == 1 && MaxColsAtCompileTime != 1) ? 1
-                     : (MaxColsAtCompileTime == 1 && MaxRowsAtCompileTime != 1)
-                         ? 0
-                         : (bool(RhsRowMajor) && !CanVectorizeLhs),
+  static constexpr int Flags = ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & ~RowMajorBit) |
+                               (EvalToRowMajor ? RowMajorBit : 0)
+                               // TODO: enable vectorization for mixed types
+                               | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
+                               (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0);
 
-    Flags = ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & ~RowMajorBit) |
-            (EvalToRowMajor ? RowMajorBit : 0)
-            // TODO: enable vectorization for mixed types
-            | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
-            (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0),
+  static constexpr int LhsOuterStrideBytes =
+      int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
+  static constexpr int RhsOuterStrideBytes =
+      int(RhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename RhsNestedCleaned::Scalar));
 
-    LhsOuterStrideBytes =
-        int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar)),
-    RhsOuterStrideBytes =
-        int(RhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename RhsNestedCleaned::Scalar)),
+  static constexpr int Alignment =
+      bool(CanVectorizeLhs)
+          ? (LhsOuterStrideBytes <= 0 || (int(LhsOuterStrideBytes) % plain_enum_max(1, LhsAlignment)) != 0
+                 ? 0
+                 : LhsAlignment)
+      : bool(CanVectorizeRhs)
+          ? (RhsOuterStrideBytes <= 0 || (int(RhsOuterStrideBytes) % plain_enum_max(1, RhsAlignment)) != 0
+                 ? 0
+                 : RhsAlignment)
+          : 0;
 
-    Alignment = bool(CanVectorizeLhs)
-                    ? (LhsOuterStrideBytes <= 0 || (int(LhsOuterStrideBytes) % plain_enum_max(1, LhsAlignment)) != 0
-                           ? 0
-                           : LhsAlignment)
-                : bool(CanVectorizeRhs)
-                    ? (RhsOuterStrideBytes <= 0 || (int(RhsOuterStrideBytes) % plain_enum_max(1, RhsAlignment)) != 0
-                           ? 0
-                           : RhsAlignment)
-                    : 0,
-
-    /* CanVectorizeInner deserves special explanation. It does not affect the product flags. It is not used outside
-     * of Product. If the Product itself is not a packet-access expression, there is still a chance that the inner
-     * loop of the product might be vectorized. This is the meaning of CanVectorizeInner. Since it doesn't affect
-     * the Flags, it is safe to make this value depend on ActualPacketAccessBit, that doesn't affect the ABI.
-     */
-    CanVectorizeInner = SameType && LhsRowMajor && (!RhsRowMajor) &&
-                        (int(LhsFlags) & int(RhsFlags) & ActualPacketAccessBit) &&
-                        (int(InnerSize) % packet_traits<Scalar>::size == 0)
-  };
+  /* CanVectorizeInner deserves special explanation. It does not affect the product flags. It is not used outside
+   * of Product. If the Product itself is not a packet-access expression, there is still a chance that the inner
+   * loop of the product might be vectorized. This is the meaning of CanVectorizeInner. Since it doesn't affect
+   * the Flags, it is safe to make this value depend on ActualPacketAccessBit, that doesn't affect the ABI.
+   */
+  static constexpr bool CanVectorizeInner = SameType && LhsRowMajor && (!RhsRowMajor) &&
+                                            (int(LhsFlags) & int(RhsFlags) & ActualPacketAccessBit) &&
+                                            (int(InnerSize) % packet_traits<Scalar>::size == 0);
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index row, Index col) const {
     return (m_lhs.row(row).transpose().cwiseProduct(m_rhs.col(col))).sum();
