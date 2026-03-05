@@ -516,12 +516,12 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
 
   static constexpr int LhsCoeffReadCost = LhsEtorType::CoeffReadCost;
   static constexpr int RhsCoeffReadCost = RhsEtorType::CoeffReadCost;
-  static constexpr int CoeffReadCost = InnerSize == 0 ? NumTraits<Scalar>::ReadCost
-                                       : InnerSize == Dynamic
-                                           ? HugeCost
-                                           : InnerSize * (NumTraits<Scalar>::MulCost + int(LhsCoeffReadCost) +
-                                                          int(RhsCoeffReadCost)) +
-                                                 (InnerSize - 1) * NumTraits<Scalar>::AddCost;
+  static constexpr int CoeffReadCost =
+      InnerSize == 0 ? NumTraits<Scalar>::ReadCost
+      : InnerSize == Dynamic
+          ? HugeCost
+          : InnerSize * (NumTraits<Scalar>::MulCost + int(LhsCoeffReadCost) + int(RhsCoeffReadCost)) +
+                (InnerSize - 1) * NumTraits<Scalar>::AddCost;
 
   static constexpr bool Unroll = CoeffReadCost <= EIGEN_UNROLLING_LIMIT;
 
@@ -536,9 +536,9 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
 
   // Here, we don't care about alignment larger than the usable packet size.
   static constexpr int LhsAlignment =
-      plain_enum_min(LhsEtorType::Alignment, LhsVecPacketSize * int(sizeof(typename LhsNestedCleaned::Scalar)));
+      plain_enum_min(LhsEtorType::Alignment, LhsVecPacketSize* int(sizeof(typename LhsNestedCleaned::Scalar)));
   static constexpr int RhsAlignment =
-      plain_enum_min(RhsEtorType::Alignment, RhsVecPacketSize * int(sizeof(typename RhsNestedCleaned::Scalar)));
+      plain_enum_min(RhsEtorType::Alignment, RhsVecPacketSize* int(sizeof(typename RhsNestedCleaned::Scalar)));
 
   static constexpr bool SameType = is_same<typename LhsNestedCleaned::Scalar, typename RhsNestedCleaned::Scalar>::value;
 
