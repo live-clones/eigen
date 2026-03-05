@@ -1016,7 +1016,9 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
       m_innerNonZeros = 0;
       resizeNonZeros(n);
       ValueMap valueMap(valuePtr(), n);
-      std::iota(m_outerIndex, m_outerIndex + n + 1, StorageIndex(0));
+      if (n > 0) {
+        std::iota(m_outerIndex, m_outerIndex + n + 1, StorageIndex(0));
+      }
       std::iota(innerIndexPtr(), innerIndexPtr() + n, StorageIndex(0));
       valueMap.setZero();
       internal::call_assignment_no_alias(valueMap, diagXpr, assignFunc);
