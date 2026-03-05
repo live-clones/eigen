@@ -95,9 +95,7 @@ template <typename T>
 struct evaluator_traits : public evaluator_traits_base<T> {};
 
 template <typename T, typename Shape = typename evaluator_traits<T>::Shape>
-struct evaluator_assume_aliasing {
-  static constexpr bool value = false;
-};
+struct evaluator_assume_aliasing : std::false_type {};
 
 // By default, we assume a unary expression:
 template <typename T>
