@@ -1008,7 +1008,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
     const bool overwrite = internal::is_same<Func, internal::assign_op<Scalar, Scalar>>::value;
     if (overwrite) {
-      if ((m_outerSize != n) || (m_innerSize != n)) resize(n, n);
+      if ((m_outerSize != n) || (m_innerSize != n) || (n == 0)) resize(n, n);
     }
 
     if (m_data.size() == 0 || overwrite) {
@@ -1016,9 +1016,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
       m_innerNonZeros = 0;
       resizeNonZeros(n);
       ValueMap valueMap(valuePtr(), n);
-      if (n > 0) {
-        std::iota(m_outerIndex, m_outerIndex + n + 1, StorageIndex(0));
-      }
+      std::iota(m_outerIndex, m_outerIndex + n + 1, StorageIndex(0));
       std::iota(innerIndexPtr(), innerIndexPtr() + n, StorageIndex(0));
       valueMap.setZero();
       internal::call_assignment_no_alias(valueMap, diagXpr, assignFunc);
