@@ -239,7 +239,7 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeff(Index i) {
       while (elid >= 0 && llElements[elid].index < i) elid = llElements[elid].next;
 
       if (llElements[elid].index == i)
-        return llElements[m_llCurrent].value;
+        return llElements[elid].value;
       else
         return m_zero;
     }
