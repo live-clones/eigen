@@ -52,10 +52,8 @@
 #include <queue>
 #include <cassert>
 #include <list>
-#if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 #include <random>
 #include <chrono>
-#endif
 #if __cplusplus > 201703L
 // libstdc++ 9's <memory> indirectly uses max() via <bit>.
 // libstdc++ 10's <memory> indirectly uses max() via ranges headers.
@@ -63,6 +61,13 @@
 // libstdc++ 11's <thread> indirectly uses max() via semaphore headers.
 #include <thread>
 #endif
+
+// Google Test must be included before the poison macros below.
+#include <gtest/gtest.h>
+
+// Suppress -Wgnu-zero-variadic-macro-arguments from clang when calling
+// TYPED_TEST_SUITE with only two arguments (the third is optional).
+#define EIGEN_TYPED_TEST_SUITE(CaseName, Types) TYPED_TEST_SUITE(CaseName, Types, )
 
 // Configure GPU.
 #if defined(EIGEN_USE_HIP)
@@ -159,19 +164,14 @@ inline void on_temporary_creation(long int size, int) {
 #define EIGEN_DENSE_STORAGE_CTOR_PLUGIN \
   { on_temporary_creation(size, Size); }
 
-#define VERIFY_EVALUATION_COUNT(XPR, N)                            \
-  {                                                                \
-    nb_temporaries = 0;                                            \
-    XPR;                                                           \
-    if (nb_temporaries != (N)) {                                   \
-      std::cerr << "nb_temporaries == " << nb_temporaries << "\n"; \
-    }                                                              \
-    VERIFY((#XPR) && nb_temporaries == (N));                       \
+#define VERIFY_EVALUATION_COUNT(XPR, N)                    \
+  {                                                        \
+    nb_temporaries = 0;                                    \
+    XPR;                                                   \
+    EXPECT_EQ(nb_temporaries, (N)) << "Expression: " #XPR; \
   }
 
 #endif
-
-#include "split_test_helper.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -185,43 +185,29 @@ inline void on_temporary_creation(long int size, int) {
 #define DEFAULT_REPEAT 10
 
 namespace Eigen {
-static std::vector<std::string> g_test_stack;
-// level == 0 <=> return 1 if test fail
-// level >= 1 <=> warning message to std::cerr if test fail
-static int g_test_level = 0;
-static int g_repeat = 1;
-static unsigned int g_seed = 0;
-static bool g_has_set_repeat = false, g_has_set_seed = false;
+// g_test_stack: kept for backward compatibility with tests that push/pop context strings.
+// With gtest, test context is tracked automatically, but some tests (e.g. packetmath.cpp)
+// still manipulate this vector directly.
+// clang-format off
+#if defined(__GNUC__) || defined(__clang__)
+#define EIGEN_TEST_UNUSED __attribute__((unused))
+#else
+#define EIGEN_TEST_UNUSED
+#endif
+// clang-format on
+static EIGEN_TEST_UNUSED std::vector<std::string> g_test_stack;
+// g_test_level: when > 0, some tests treat VERIFY failures as non-fatal warnings.
+// With gtest all EXPECT_* are already non-fatal, but tests still modify this variable.
+static EIGEN_TEST_UNUSED int g_test_level = 0;
+static EIGEN_TEST_UNUSED int g_repeat = 1;
+static EIGEN_TEST_UNUSED unsigned int g_seed = 0;
+static EIGEN_TEST_UNUSED bool g_has_set_repeat = false, g_has_set_seed = false;
 
-class EigenTest {
- public:
-  EigenTest() : m_func(0) {}
-  EigenTest(const char* a_name, void (*func)(void)) : m_name(a_name), m_func(func) {
-    get_registered_tests().push_back(this);
-  }
-  const std::string& name() const { return m_name; }
-  void operator()() const { m_func(); }
+// Declare and register a test via Google Test.
+// Usage:  EIGEN_DECLARE_TEST(mytest) { ... }
+// Expands to: TEST(Eigen, mytest) { ... }
+#define EIGEN_DECLARE_TEST(X) TEST(Eigen, X)
 
-  static const std::vector<EigenTest*>& all() { return get_registered_tests(); }
-
- protected:
-  static std::vector<EigenTest*>& get_registered_tests() {
-    static std::vector<EigenTest*>* ms_registered_tests = new std::vector<EigenTest*>();
-    return *ms_registered_tests;
-  }
-  std::string m_name;
-  void (*m_func)(void);
-};
-
-// Declare and register a test, e.g.:
-//    EIGEN_DECLARE_TEST(mytest) { ... }
-// will create a function:
-//    void test_mytest() { ... }
-// that will be automatically called.
-#define EIGEN_DECLARE_TEST(X)                                                              \
-  void EIGEN_CAT(test_, X)();                                                              \
-  static EigenTest EIGEN_CAT(test_handler_, X)(EIGEN_MAKESTRING(X), &EIGEN_CAT(test_, X)); \
-  void EIGEN_CAT(test_, X)()
 }  // namespace Eigen
 
 #define TRACK std::cerr << __FILE__ << " " << __LINE__ << std::endl
@@ -289,10 +275,9 @@ static std::vector<std::string> eigen_assert_list;
       a;                                                                                                         \
       std::cerr << "One of the following asserts should have been triggered:\n";                                 \
       for (uint ai = 0; ai < eigen_assert_list.size(); ++ai) std::cerr << "  " << eigen_assert_list[ai] << "\n"; \
-      VERIFY(Eigen::should_raise_an_assert&& #a);                                                                \
+      EXPECT_TRUE(false) << "Expected assertion in: " #a;                                                        \
     } catch (Eigen::eigen_assert_exception) {                                                                    \
-      Eigen::internal::push_assert = false;                                                                      \
-      VERIFY(true);                                                                                              \
+      EXPECT_TRUE(true);                                                                                         \
     }                                                                                                            \
     Eigen::report_on_cerr_on_assert_failure = true;                                                              \
     Eigen::internal::push_assert = false;                                                                        \
@@ -311,17 +296,17 @@ static std::vector<std::string> eigen_assert_list;
   }
 
 #ifdef EIGEN_EXCEPTIONS
-#define VERIFY_RAISES_ASSERT(a)                      \
-  {                                                  \
-    Eigen::no_more_assert = false;                   \
-    Eigen::report_on_cerr_on_assert_failure = false; \
-    try {                                            \
-      a;                                             \
-      VERIFY(Eigen::should_raise_an_assert&& #a);    \
-    } catch (Eigen::eigen_assert_exception&) {       \
-      VERIFY(true);                                  \
-    }                                                \
-    Eigen::report_on_cerr_on_assert_failure = true;  \
+#define VERIFY_RAISES_ASSERT(a)                           \
+  {                                                       \
+    Eigen::no_more_assert = false;                        \
+    Eigen::report_on_cerr_on_assert_failure = false;      \
+    try {                                                 \
+      a;                                                  \
+      EXPECT_TRUE(false) << "Expected assertion in: " #a; \
+    } catch (Eigen::eigen_assert_exception&) {            \
+      EXPECT_TRUE(true);                                  \
+    }                                                     \
+    Eigen::report_on_cerr_on_assert_failure = true;       \
   }
 #endif  // EIGEN_EXCEPTIONS
 #endif  // EIGEN_DEBUG_ASSERTS
@@ -346,24 +331,17 @@ static std::vector<std::string> eigen_assert_list;
 #endif
 #include <Eigen/Core>
 
-inline void verify_impl(bool condition, const char* testname, const char* file, int line,
-                        const char* condition_as_string) {
-  if (!condition) {
-    if (Eigen::g_test_level > 0) std::cerr << "WARNING: ";
-    std::cerr << "Test " << testname << " failed in " << file << " (" << line << ")" << std::endl
-              << "    " << condition_as_string << std::endl;
-    std::cerr << "Stack:\n";
-    const int test_stack_size = static_cast<int>(Eigen::g_test_stack.size());
-    for (int i = test_stack_size - 1; i >= 0; --i) std::cerr << "  - " << Eigen::g_test_stack[i] << "\n";
-    std::cerr << "\n";
-    if (Eigen::g_test_level == 0) exit(1);
-  }
-}
-
-#define VERIFY(a) ::verify_impl(a, g_test_stack.back().c_str(), __FILE__, __LINE__, EIGEN_MAKESTRING(a))
-
-#define VERIFY_GE(a, b) ::verify_impl(a >= b, g_test_stack.back().c_str(), __FILE__, __LINE__, EIGEN_MAKESTRING(a >= b))
-#define VERIFY_LE(a, b) ::verify_impl(a <= b, g_test_stack.back().c_str(), __FILE__, __LINE__, EIGEN_MAKESTRING(a <= b))
+// =============================================================================
+// Assertion macros using Google Test
+// =============================================================================
+#define VERIFY(a)                                        \
+  do {                                                   \
+    if (Eigen::g_test_level > 0) {                       \
+      if (!(a)) std::cerr << "Warning: " #a " failed\n"; \
+    } else {                                             \
+      EXPECT_TRUE(a) << EIGEN_MAKESTRING(a);             \
+    }                                                    \
+  } while (false)
 
 #define VERIFY_IS_EQUAL(a, b) VERIFY(test_is_equal(a, b, true))
 #define VERIFY_IS_NOT_EQUAL(a, b) VERIFY(test_is_equal(a, b, false))
@@ -379,13 +357,6 @@ inline void verify_impl(bool condition, const char* testname, const char* file, 
 #define VERIFY_IS_UNITARY(a) VERIFY(test_isUnitary(a))
 
 #define STATIC_CHECK(COND) EIGEN_STATIC_ASSERT((COND), EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT)
-
-#define CALL_SUBTEST(FUNC)                          \
-  do {                                              \
-    g_test_stack.push_back(EIGEN_MAKESTRING(FUNC)); \
-    FUNC;                                           \
-    g_test_stack.pop_back();                        \
-  } while (0)
 
 // Forward declarations to avoid ICC warnings
 #if EIGEN_COMP_ICC
@@ -865,36 +836,19 @@ inline void set_seed_from_time() {
 }
 
 int main(int argc, char* argv[]) {
+  // Initialize Google Test first (it will consume --gtest_* flags from argv).
+  ::testing::InitGoogleTest(&argc, argv);
+
   g_has_set_repeat = false;
   g_has_set_seed = false;
-  bool need_help = false;
 
+  // Parse Eigen-specific arguments: rN (repeat) and sN (seed).
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] == 'r') {
-      if (g_has_set_repeat) {
-        std::cout << "Argument " << argv[i] << " conflicting with a former argument" << std::endl;
-        return 1;
-      }
       set_repeat_from_string(argv[i] + 1);
     } else if (argv[i][0] == 's') {
-      if (g_has_set_seed) {
-        std::cout << "Argument " << argv[i] << " conflicting with a former argument" << std::endl;
-        return 1;
-      }
       set_seed_from_string(argv[i] + 1);
-    } else {
-      need_help = true;
     }
-  }
-
-  if (need_help) {
-    std::cout << "This test application takes the following optional arguments:" << std::endl;
-    std::cout << "  rN     Repeat each test N times (default: " << DEFAULT_REPEAT << ")" << std::endl;
-    std::cout << "  sN     Use N as seed for random numbers (default: based on current time)" << std::endl;
-    std::cout << std::endl;
-    std::cout << "If defined, the environment variables EIGEN_REPEAT and EIGEN_SEED" << std::endl;
-    std::cout << "will be used as default values for these parameters." << std::endl;
-    return 1;
   }
 
   char* env_EIGEN_REPEAT = getenv("EIGEN_REPEAT");
@@ -906,22 +860,10 @@ int main(int argc, char* argv[]) {
   if (!g_has_set_repeat) g_repeat = DEFAULT_REPEAT;
 
   std::cout << "Initializing random number generator with seed " << g_seed << std::endl;
-  std::stringstream ss;
-  ss << "Seed: " << g_seed;
-  g_test_stack.push_back(ss.str());
   srand(g_seed);
   std::cout << "Repeating each test " << g_repeat << " times" << std::endl;
 
-  VERIFY(EigenTest::all().size() > 0);
-
-  for (std::size_t i = 0; i < EigenTest::all().size(); ++i) {
-    const EigenTest& current_test = *EigenTest::all()[i];
-    Eigen::g_test_stack.push_back(current_test.name());
-    current_test();
-    Eigen::g_test_stack.pop_back();
-  }
-
-  return 0;
+  return RUN_ALL_TESTS();
 }
 
 // These warning are disabled here such that they are still ON when parsing Eigen's header files.

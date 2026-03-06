@@ -1,0 +1,3 @@
+ei_add_test(polynomialsolver_float)
+ei_add_test(polynomialsolver_double)
+ei_add_test(polynomialutils)
