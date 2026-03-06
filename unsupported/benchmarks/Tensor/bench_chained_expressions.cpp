@@ -131,9 +131,9 @@ static void BM_BatchNorm_ThreadPool(benchmark::State& state) {
   const Scalar eps = 1e-5f;
 
   for (auto _ : state) {
-    result.device(dev) = gamma.broadcast(bcast) * (x - mean.broadcast(bcast)) *
-                             (var.broadcast(bcast) + var.constant(eps)).rsqrt() +
-                         beta.broadcast(bcast);
+    result.device(dev) =
+        gamma.broadcast(bcast) * (x - mean.broadcast(bcast)) * (var.broadcast(bcast) + var.constant(eps)).rsqrt() +
+        beta.broadcast(bcast);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
