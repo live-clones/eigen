@@ -541,37 +541,37 @@ struct ArrayXpr {};
 
 // An evaluator must define its shape. By default, it can be one of the following:
 struct DenseShape {
-  static std::string debugName() { return "DenseShape"; }
+  static constexpr std::string_view debugName() { return "DenseShape"; }
 };
 struct SolverShape {
-  static std::string debugName() { return "SolverShape"; }
+  static constexpr std::string_view debugName() { return "SolverShape"; }
 };
 struct HomogeneousShape {
-  static std::string debugName() { return "HomogeneousShape"; }
+  static constexpr std::string_view debugName() { return "HomogeneousShape"; }
 };
 struct DiagonalShape {
-  static std::string debugName() { return "DiagonalShape"; }
+  static constexpr std::string_view debugName() { return "DiagonalShape"; }
 };
 struct SkewSymmetricShape {
-  static std::string debugName() { return "SkewSymmetricShape"; }
+  static constexpr std::string_view debugName() { return "SkewSymmetricShape"; }
 };
 struct BandShape {
-  static std::string debugName() { return "BandShape"; }
+  static constexpr std::string_view debugName() { return "BandShape"; }
 };
 struct TriangularShape {
-  static std::string debugName() { return "TriangularShape"; }
+  static constexpr std::string_view debugName() { return "TriangularShape"; }
 };
 struct SelfAdjointShape {
-  static std::string debugName() { return "SelfAdjointShape"; }
+  static constexpr std::string_view debugName() { return "SelfAdjointShape"; }
 };
 struct PermutationShape {
-  static std::string debugName() { return "PermutationShape"; }
+  static constexpr std::string_view debugName() { return "PermutationShape"; }
 };
 struct TranspositionsShape {
-  static std::string debugName() { return "TranspositionsShape"; }
+  static constexpr std::string_view debugName() { return "TranspositionsShape"; }
 };
 struct SparseShape {
-  static std::string debugName() { return "SparseShape"; }
+  static constexpr std::string_view debugName() { return "SparseShape"; }
 };
 
 namespace internal {

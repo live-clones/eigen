@@ -1177,7 +1177,7 @@ struct gebp_micro_step {
   EIGEN_IF_CONSTEXPR(                                                                                             \
       (MrPackets <= 2 && NrCols >= 4 &&                                                                           \
        std::is_same<std::remove_all_extents_t<std::remove_reference_t<LhsArray>>, FullLhsPacket>::value &&        \
-       sizeof(ACC[0]) == sizeof(FullLhsPacket))) {                                                                \
+       sizeof(ACC[0]) == sizeof(FullLhsPacket) && std::is_trivially_copyable<decltype(ACC)>::value)) {            \
     EIGEN_IF_CONSTEXPR(MrPackets == 2 && NrCols == 4) {                                                           \
       __asm__(""                                                                                                  \
               : "+x"(ACC[0]), "+x"(ACC[1]), "+x"(ACC[2]), "+x"(ACC[3]), "+x"(ACC[4]), "+x"(ACC[5]), "+x"(ACC[6]), \
