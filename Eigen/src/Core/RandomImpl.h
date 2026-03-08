@@ -88,8 +88,13 @@ inline void set_random_seed(uint64_t seed) { std::srand(static_cast<unsigned>(se
 
 struct eigen_random_device {
   using ReturnType = unsigned;
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
   static constexpr int Entropy = 32;
   static constexpr ReturnType Highest = 0xFFFFFFFFu;
+#else
+  static constexpr int Entropy = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value;
+  static constexpr ReturnType Highest = RAND_MAX;
+#endif
   static EIGEN_DEVICE_FUNC inline ReturnType run() {
 #if EIGEN_HAS_THREAD_LOCAL_RANDOM && !defined(EIGEN_GPU_COMPILE_PHASE)
     eigen_pcg_state& s = eigen_tl_random_state();
