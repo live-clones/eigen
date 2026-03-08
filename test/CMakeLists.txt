@@ -267,7 +267,7 @@ add_test(NAME cmake_project_version
 set_property(TEST cmake_project_version PROPERTY LABELS "Official")
 
 ei_add_test(clz)
-ei_add_test(rand)
+ei_add_test(rand "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(realview)
 ei_add_test(meta)
 ei_add_test(preprocessor_directives)
