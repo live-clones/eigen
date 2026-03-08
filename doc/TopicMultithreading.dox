@@ -54,6 +54,9 @@ Each thread maintains independent random state via a fast PCG-XSH-RS generator w
 Use Eigen::setRandomSeed() to seed the calling thread's generator for reproducible sequences.
 On platforms where \c thread_local is unavailable, the implementation falls back to \c std::rand(), which is not re-entrant.
 
+If your code depends on the exact random sequences produced by the previous \c std::rand()-based implementation,
+define \c EIGEN_USE_STD_RAND before including %Eigen headers to restore the old behavior.
+
 In the case your application is parallelized with OpenMP, you might want to disable %Eigen's own parallelization as detailed in the previous section.
 
 \warning Using OpenMP with custom scalar types that might throw exceptions can lead to unexpected behaviour in the event of throwing.
