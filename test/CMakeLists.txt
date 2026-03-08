@@ -172,7 +172,7 @@ set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Official")
 add_custom_target(BuildOfficial)
 
 ei_add_test(clz)
-ei_add_test(rand)
+ei_add_test(rand "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(realview)
 ei_add_test(meta)
 ei_add_test(maxsizevector)
