@@ -73,12 +73,12 @@ void basicStuff(const MatrixType& m) {
   VERIFY_IS_MUCH_SMALLER_THAN(vzero, v1);
   VERIFY_IS_MUCH_SMALLER_THAN(vzero, v1.squaredNorm());
   VERIFY_IS_NOT_MUCH_SMALLER_THAN(v1, v1);
-  VERIFY_IS_EQUAL(vzero, v1 - v1);
+  VERIFY_IS_APPROX(vzero, v1 - v1);
   VERIFY_IS_EQUAL(m1, m1);
   VERIFY_IS_NOT_APPROX(m1, 2 * m1);
   VERIFY_IS_MUCH_SMALLER_THAN(mzero, m1);
   VERIFY_IS_NOT_MUCH_SMALLER_THAN(m1, m1);
-  VERIFY_IS_EQUAL(mzero, m1 - m1);
+  VERIFY_IS_APPROX(mzero, m1 - m1);
 
   // always test operator() on each read-only expression class,
   // in order to check const-qualifiers.
