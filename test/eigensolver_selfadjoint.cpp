@@ -26,7 +26,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
   VERIFY_IS_EQUAL(eiSymm.info(), Success);
 
   RealScalar scaling = m.cwiseAbs().maxCoeff();
-  RealScalar unitary_error_factor = RealScalar(32);
+  RealScalar unitary_error_factor = RealScalar(16);
 
   if (scaling < (std::numeric_limits<RealScalar>::min)()) {
     VERIFY(eiSymm.eigenvalues().cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
