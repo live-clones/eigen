@@ -35,9 +35,12 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
   for (Index k = 0; k < diagSize; ++k) d(k) = d(k) * pow(RealScalar(10), internal::random<RealScalar>(-s, s));
 
   bool dup = internal::random<int>(0, 10) < 3;
-  bool unit_uv =
-      internal::random<int>(0, 10) < (dup ? 7 : 3);  // if we duplicate some diagonal entries, then increase the chance
-                                                     // to preserve them using unitary U and V factors
+  // For SelfAdjoint, always use unitary U so the eigenvalues are exactly d
+  // and the conditioning is controlled.  For Symmetric/general SVD, randomly
+  // choose unitary or arbitrary U/V.
+  bool unit_uv = (Option == SelfAdjoint) ||
+                 internal::random<int>(0, 10) < (dup ? 7 : 3);  // if we duplicate some diagonal entries, then increase
+                                                                // the chance to preserve them using unitary U and V
 
   // duplicate some singular values
   if (dup) {
@@ -67,8 +70,11 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
       RealScalar(1) / NumTraits<RealScalar>::highest(), (std::numeric_limits<RealScalar>::min)(),
       pow((std::numeric_limits<RealScalar>::min)(), RealScalar(0.8));
 
-  if (Option == Symmetric) {
-    m = U * d.asDiagonal() * U.transpose();
+  if (Option == Symmetric || Option == SelfAdjoint) {
+    if (Option == SelfAdjoint)
+      m = U * d.asDiagonal() * U.adjoint();
+    else
+      m = U * d.asDiagonal() * U.transpose();
 
     // randomly nullify some rows/columns
     {
@@ -85,10 +91,22 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
           for (Index k = 0; k < n; ++k) {
             Index i = internal::random<Index>(0, m.rows() - 1);
             Index j = internal::random<Index>(0, m.cols() - 1);
-            m(j, i) = m(i, j) = samples(internal::random<Index>(0, samples.size() - 1));
+            Scalar val = samples(internal::random<Index>(0, samples.size() - 1));
             if (NumTraits<Scalar>::IsComplex)
-              *(&numext::real_ref(m(j, i)) + 1) = *(&numext::real_ref(m(i, j)) + 1) =
-                  samples.real()(internal::random<Index>(0, samples.size() - 1));
+              numext::imag_ref(val) = samples.real()(internal::random<Index>(0, samples.size() - 1));
+            if (Option == SelfAdjoint) {
+              if (i == j) {
+                // Diagonal entries of a Hermitian matrix must be real.
+                m(i, i) = numext::real(val);
+              } else {
+                // Off-diagonal: m(j,i) = conj(m(i,j)) for Hermitian.
+                m(i, j) = val;
+                m(j, i) = numext::conj(val);
+              }
+            } else {
+              m(i, j) = val;
+              m(j, i) = val;
+            }
           }
         }
     }
