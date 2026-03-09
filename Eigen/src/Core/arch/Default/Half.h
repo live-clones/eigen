@@ -45,7 +45,7 @@
 // Eigen with GPU support.
 // Any functions that require `numext::bit_cast` may also not be constexpr,
 // including any native types when setting via raw bit values.
-#if defined(EIGEN_HAS_GPU_FP16) || defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) || defined(EIGEN_HAS_BUILTIN_FLOAT16)
+#if defined(EIGEN_HAS_GPU_FP16) || EIGEN_HAS_ARM64_FP16 || defined(EIGEN_HAS_BUILTIN_FLOAT16)
 #define _EIGEN_MAYBE_CONSTEXPR
 #else
 #define _EIGEN_MAYBE_CONSTEXPR constexpr
@@ -132,7 +132,7 @@ struct __half_raw {
   EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR __half_raw() : x(0) {}
 #endif
 
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
+#if EIGEN_HAS_ARM64_FP16
   explicit EIGEN_DEVICE_FUNC __half_raw(numext::uint16_t raw) : x(numext::bit_cast<__fp16>(raw)) {}
   EIGEN_DEVICE_FUNC constexpr __half_raw(construct_from_rep_tag, __fp16 rep) : x{rep} {}
   __fp16 x;
@@ -163,6 +163,7 @@ typedef cl::sycl::half __half_raw;
 #endif
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR __half_raw raw_uint16_to_half(numext::uint16_t x);
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC numext::uint16_t raw_half_as_uint16(const __half_raw& h);
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne(float ff);
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h);
 
@@ -218,7 +219,7 @@ struct half : public half_impl::half_base {
 #endif
 #endif
 
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
+#if EIGEN_HAS_ARM64_FP16
   explicit EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR half(__fp16 b)
       : half(__half_raw(__half_raw::construct_from_rep_tag(), b)) {}
 #elif defined(EIGEN_HAS_BUILTIN_FLOAT16)
@@ -461,13 +462,21 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half&
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return vcgth_f16(a.x, b.x); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return vcgeh_f16(a.x, b.x); }
 
-#elif defined(EIGEN_HAS_BUILTIN_FLOAT16) && !defined(EIGEN_GPU_COMPILE_PHASE)
+#elif (EIGEN_HAS_ARM64_FP16 || defined(EIGEN_HAS_BUILTIN_FLOAT16)) && !defined(EIGEN_GPU_COMPILE_PHASE)
 
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) { return half(a.x + b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) { return half(a.x * b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) { return half(a.x - b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) { return half(a.x / b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half(-a.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) {
+  return half(float(a.x) + float(b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) {
+  return half(float(a.x) * float(b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) {
+  return half(float(a.x) - float(b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) {
+  return half(float(a.x) / float(b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half(-float(a.x)); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator+=(half& a, const half& b) {
   a = a + b;
   return a;
@@ -484,12 +493,12 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
   a = a / b;
   return a;
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) { return a.x == b.x; }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) { return a.x != b.x; }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) { return a.x < b.x; }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) { return a.x <= b.x; }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return a.x > b.x; }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return a.x >= b.x; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) { return float(a.x) == float(b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) { return float(a.x) != float(b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) { return float(a.x) < float(b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) { return float(a.x) <= float(b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return float(a.x) > float(b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return float(a.x) >= float(b.x); }
 
 // We need to distinguish ‘clang as the CUDA compiler’ from ‘clang as the host compiler,
 // invoked by NVCC’ (e.g. on MacOS). The former needs to see both host and device implementation
@@ -514,9 +523,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) { return half(float(a) - float(b)); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) { return half(float(a) / float(b)); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) {
-  half result;
-  result.x = a.x ^ 0x8000;
-  return result;
+  return raw_uint16_to_half(static_cast<numext::uint16_t>(raw_half_as_uint16(a) ^ 0x8000));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator+=(half& a, const half& b) {
   a = half(float(a) + float(b));
@@ -644,7 +651,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC numext::uint16_t raw_half_as_uint16(const 
   // HIP/CUDA/Default have a member 'x' of type uint16_t.
   // For ARM64 native half, the member 'x' is of type __fp16, so we need to bit-cast.
   // For SYCL, cl::sycl::half is _Float16, so cast directly.
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
+#if EIGEN_HAS_ARM64_FP16
   return numext::bit_cast<numext::uint16_t>(h.x);
 #elif defined(EIGEN_HAS_BUILTIN_FLOAT16)
   return numext::bit_cast<numext::uint16_t>(h.x);
@@ -661,7 +668,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne(float ff) {
   __half tmp_ff = __float2half(ff);
   return *(__half_raw*)&tmp_ff;
 
-#elif defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
+#elif EIGEN_HAS_ARM64_FP16
   __half_raw h;
   h.x = static_cast<__fp16>(ff);
   return h;
@@ -733,7 +740,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h) {
 #if (defined(EIGEN_HAS_CUDA_FP16) && defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 300) || \
     (defined(EIGEN_HAS_HIP_FP16) && defined(EIGEN_HIP_DEVICE_COMPILE))
   return __half2float(h);
-#elif defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) || defined(EIGEN_HAS_BUILTIN_FLOAT16)
+#elif EIGEN_HAS_ARM64_FP16 || defined(EIGEN_HAS_BUILTIN_FLOAT16)
   return static_cast<float>(h.x);
 #elif defined(EIGEN_HAS_FP16_C)
 #if EIGEN_COMP_MSVC
@@ -765,43 +772,24 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h) {
 
 // --- standard functions ---
 
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const half& a) {
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) || defined(EIGEN_HAS_BUILTIN_FLOAT16)
-  return (numext::bit_cast<numext::uint16_t>(a.x) & 0x7fff) == 0x7c00;
-#else
-  return (a.x & 0x7fff) == 0x7c00;
-#endif
-}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const half& a) { return (raw_half_as_uint16(a) & 0x7fff) == 0x7c00; }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isnan)(const half& a) {
 #if (defined(EIGEN_HAS_CUDA_FP16) && defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 530) || \
     (defined(EIGEN_HAS_HIP_FP16) && defined(EIGEN_HIP_DEVICE_COMPILE))
   return __hisnan(a);
-#elif defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) || defined(EIGEN_HAS_BUILTIN_FLOAT16)
-  return (numext::bit_cast<numext::uint16_t>(a.x) & 0x7fff) > 0x7c00;
 #else
-  return (a.x & 0x7fff) > 0x7c00;
+  return (raw_half_as_uint16(a) & 0x7fff) > 0x7c00;
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isfinite)(const half& a) {
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) || defined(EIGEN_HAS_BUILTIN_FLOAT16)
-  return (numext::bit_cast<numext::uint16_t>(a.x) & 0x7fff) < 0x7c00;
-#else
-  return (a.x & 0x7fff) < 0x7c00;
-#endif
+  return (raw_half_as_uint16(a) & 0x7fff) < 0x7c00;
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half abs(const half& a) {
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
   return half(vabsh_f16(a.x));
-#elif defined(EIGEN_HAS_BUILTIN_FLOAT16)
-  half result;
-  result.x =
-      numext::bit_cast<_Float16>(static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(a.x) & 0x7FFF));
-  return result;
 #else
-  half result;
-  result.x = a.x & 0x7FFF;
-  return result;
+  return raw_uint16_to_half(static_cast<numext::uint16_t>(raw_half_as_uint16(a) & 0x7FFF));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp(const half& a) {
