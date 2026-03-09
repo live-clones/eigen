@@ -87,8 +87,7 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
             Index j = internal::random<Index>(0, m.cols() - 1);
             m(i, j) = samples(internal::random<Index>(0, samples.size() - 1));
             if (NumTraits<Scalar>::IsComplex)
-              *(&numext::real_ref(m(i, j)) + 1) =
-                  samples.real()(internal::random<Index>(0, samples.size() - 1));
+              *(&numext::real_ref(m(i, j)) + 1) = samples.real()(internal::random<Index>(0, samples.size() - 1));
             m(j, i) = numext::conj(m(i, j));
           }
         }
