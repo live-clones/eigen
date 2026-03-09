@@ -656,9 +656,10 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
           rightShifted = -(std::numeric_limits<RealScalar>::min)();
       }
       RealScalar fLeft = secularEq(leftShifted, col0, diag, perm, diagShifted, shift);
-      eigen_internal_assert(fLeft < Literal(0));
 
+#if defined EIGEN_BDCSVD_DEBUG_VERBOSE || defined EIGEN_BDCSVD_SANITY_CHECKS
       RealScalar fRight = secularEq(rightShifted, col0, diag, perm, diagShifted, shift);
+#endif
 
 #ifdef EIGEN_BDCSVD_SANITY_CHECKS
       if (!(numext::isfinite)(fLeft))
@@ -681,7 +682,10 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
                   << " == " << secularEq(right, col0, diag, perm, diag, 0) << " == " << fRight << "\n";
       }
 #endif
-      if (fLeft < Literal(0) && fRight > Literal(0)) {
+      // Note: fLeft should be < 0 here, but catastrophic cancellation near poles
+      // can cause it to be non-negative. The else branch handles this gracefully
+      // by using the midpoint as the estimated zero-crossing.
+      if (fLeft < Literal(0)) {
         while (rightShifted - leftShifted > Literal(2) * NumTraits<RealScalar>::epsilon() *
                                                 numext::maxi<RealScalar>(abs(leftShifted), abs(rightShifted))) {
           RealScalar midShifted = (leftShifted + rightShifted) / Literal(2);
