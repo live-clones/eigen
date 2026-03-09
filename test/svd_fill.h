@@ -68,7 +68,7 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
       pow((std::numeric_limits<RealScalar>::min)(), RealScalar(0.8));
 
   if (Option == Symmetric) {
-    m = U * d.asDiagonal() * U.transpose();
+    m = U * d.asDiagonal() * U.adjoint();
 
     // randomly nullify some rows/columns
     {
@@ -85,10 +85,11 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
           for (Index k = 0; k < n; ++k) {
             Index i = internal::random<Index>(0, m.rows() - 1);
             Index j = internal::random<Index>(0, m.cols() - 1);
-            m(j, i) = m(i, j) = samples(internal::random<Index>(0, samples.size() - 1));
+            m(i, j) = samples(internal::random<Index>(0, samples.size() - 1));
             if (NumTraits<Scalar>::IsComplex)
-              *(&numext::real_ref(m(j, i)) + 1) = *(&numext::real_ref(m(i, j)) + 1) =
+              *(&numext::real_ref(m(i, j)) + 1) =
                   samples.real()(internal::random<Index>(0, samples.size() - 1));
+            m(j, i) = numext::conj(m(i, j));
           }
         }
     }
