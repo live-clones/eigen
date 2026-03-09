@@ -60,8 +60,8 @@ struct functor_traits<scalar_sum_op<LhsScalar, RhsScalar>> {
 };
 
 template <>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_sum_op<bool, bool>::operator()(const bool& a,
-                                                                                           const bool& b) const {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool scalar_sum_op<bool, bool>::operator()(const bool& a,
+                                                                                  const bool& b) const {
   return a || b;
 }
 
@@ -100,8 +100,8 @@ struct functor_traits<scalar_product_op<LhsScalar, RhsScalar>> {
 };
 
 template <>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_product_op<bool, bool>::operator()(const bool& a,
-                                                                                               const bool& b) const {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool scalar_product_op<bool, bool>::operator()(const bool& a,
+                                                                                      const bool& b) const {
   return a && b;
 }
 
