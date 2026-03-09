@@ -69,6 +69,14 @@ class RealSchur {
   typedef internal::make_complex_t<Scalar> ComplexScalar;
   typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
 
+  // The Francis QR iteration algorithm heavily accesses columns of the working matrices.
+  // Using column-major storage internally improves cache efficiency and avoids code generation
+  // issues in some compilers (e.g., gcc-10 with AVX produces incorrect results for small
+  // fixed-size RowMajor matrices).
+  typedef Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options & ~RowMajor, MaxRowsAtCompileTime,
+                 MaxColsAtCompileTime>
+      SchurMatrixType;
+
   typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> EigenvalueType;
   typedef Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> ColumnVectorType;
 
@@ -125,7 +133,7 @@ class RealSchur {
    *
    * \sa RealSchur(const MatrixType&, bool) for an example
    */
-  const MatrixType& matrixU() const {
+  const SchurMatrixType& matrixU() const {
     eigen_assert(m_isInitialized && "RealSchur is not initialized.");
     eigen_assert(m_matUisUptodate && "The matrix U has not been computed during the RealSchur decomposition.");
     return m_matU;
@@ -141,7 +149,7 @@ class RealSchur {
    *
    * \sa RealSchur(const MatrixType&, bool) for an example
    */
-  const MatrixType& matrixT() const {
+  const SchurMatrixType& matrixT() const {
     eigen_assert(m_isInitialized && "RealSchur is not initialized.");
     return m_matT;
   }
@@ -217,10 +225,10 @@ class RealSchur {
   static const int m_maxIterationsPerRow = 40;
 
  private:
-  MatrixType m_matT;
-  MatrixType m_matU;
+  SchurMatrixType m_matT;
+  SchurMatrixType m_matU;
   ColumnVectorType m_workspaceVector;
-  HessenbergDecomposition<MatrixType> m_hess;
+  HessenbergDecomposition<SchurMatrixType> m_hess;
   ComputationInfo m_info;
   bool m_isInitialized;
   bool m_matUisUptodate;
