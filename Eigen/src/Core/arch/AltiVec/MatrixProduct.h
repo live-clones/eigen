@@ -418,7 +418,7 @@ struct dhs_cpack {
   }
 
   EIGEN_ALWAYS_INLINE void dhs_ccopy(Scalar* blockAt, const DataMapper& lhs2, Index& i, Index& rir, Index& rii,
-                                     Index depth, const Index vectorSize) {
+                                     Index depth, const Index vectorSize) const {
     PacketBlock<Packet, 4> blockr, blocki;
     PacketBlock<PacketC, 8> cblock;
 
@@ -1305,7 +1305,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 template <typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, true> {
   EIGEN_ALWAYS_INLINE void dhs_ccopy(double* blockAt, const DataMapper& lhs2, Index& i, Index& rir, Index& rii,
-                                     Index depth, const Index vectorSize) {
+                                     Index depth, const Index vectorSize) const {
     PacketBlock<Packet, 2> blockr, blocki;
     PacketBlock<PacketC, 4> cblock;
 
@@ -1415,7 +1415,7 @@ struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, P
 template <typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, false> {
   EIGEN_ALWAYS_INLINE void dhs_ccopy(double* blockBt, const DataMapper& rhs2, Index& i, Index& rir, Index& rii,
-                                     Index depth, const Index vectorSize) {
+                                     Index depth, const Index vectorSize) const {
     for (; i < depth; i++) {
       PacketBlock<PacketC, 4> cblock;
       PacketBlock<Packet, 2> blockr, blocki;
