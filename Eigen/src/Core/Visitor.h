@@ -336,8 +336,7 @@ struct visit_impl {
   static constexpr int InnerSizeAtCompileTime = IsRowMajor ? ColsAtCompileTime : RowsAtCompileTime;
   static constexpr int OuterSizeAtCompileTime = IsRowMajor ? RowsAtCompileTime : ColsAtCompileTime;
 
-  static constexpr bool LinearAccess =
-      Evaluator::LinearAccess && static_cast<bool>(visitor_has_linear_access<Visitor>::value);
+  static constexpr bool LinearAccess = Evaluator::LinearAccess && visitor_has_linear_access<Visitor>::value;
   static constexpr bool Vectorize = Evaluator::PacketAccess && static_cast<bool>(functor_traits<Visitor>::PacketAccess);
 
   static constexpr int PacketSize = packet_traits<Scalar>::size;
