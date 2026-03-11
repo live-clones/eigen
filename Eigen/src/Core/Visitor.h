@@ -317,6 +317,13 @@ class visitor_evaluator {
   const XprType& m_xpr;
 };
 
+template <typename T, typename = void>
+struct visitor_has_linear_access : std::false_type {};
+
+template <typename T>
+struct visitor_has_linear_access<T, std::enable_if_t<true, decltype((void)functor_traits<T>::LinearAccess, void())>>
+    : std::true_type {};
+
 template <typename Derived, typename Visitor, bool ShortCircuitEvaulation>
 struct visit_impl {
   using Evaluator = visitor_evaluator<Derived>;
@@ -330,7 +337,7 @@ struct visit_impl {
   static constexpr int OuterSizeAtCompileTime = IsRowMajor ? RowsAtCompileTime : ColsAtCompileTime;
 
   static constexpr bool LinearAccess =
-      Evaluator::LinearAccess && static_cast<bool>(functor_traits<Visitor>::LinearAccess);
+      Evaluator::LinearAccess && static_cast<bool>(visitor_has_linear_access<Visitor>::value);
   static constexpr bool Vectorize = Evaluator::PacketAccess && static_cast<bool>(functor_traits<Visitor>::PacketAccess);
 
   static constexpr int PacketSize = packet_traits<Scalar>::size;
