@@ -321,8 +321,8 @@ template <typename T, typename = void>
 struct visitor_has_linear_access : std::false_type {};
 
 template <typename T>
-struct visitor_has_linear_access<T, std::enable_if_t<true, decltype((void)functor_traits<T>::LinearAccess, void())>>
-    : std::true_type {};
+struct visitor_has_linear_access<T, decltype(functor_traits<T>::LinearAccess)>
+    : std::integral_constant<bool, static_cast<bool>(functor_traits<T>::LinearAccess)> {};
 
 template <typename Derived, typename Visitor, bool ShortCircuitEvaulation>
 struct visit_impl {
