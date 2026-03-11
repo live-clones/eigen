@@ -1412,10 +1412,10 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
     const Index rhs_block = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
-    const Index actual_panel_rows = (rhs_block <= l1)
-        ? peeled_mc3
-        : (3 * LhsProgress) * std::max<Index>(1, ((l1 - rhs_block) /
-                                                (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
+    const Index actual_panel_rows =
+        (rhs_block <= l1) ? peeled_mc3
+                          : (3 * LhsProgress) *
+                                std::max<Index>(1, ((l1 - rhs_block) / (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
     for (Index i1 = 0; i1 < peeled_mc3; i1 += actual_panel_rows) {
       const Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc3);
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
@@ -1445,10 +1445,11 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
     const Index rhs_block2 = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
-    Index actual_panel_rows = (rhs_block2 <= l1)
-        ? peeled_mc2 - peeled_mc3
-        : (2 * LhsProgress) * std::max<Index>(1, ((l1 - rhs_block2) /
-                                                (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
+    Index actual_panel_rows =
+        (rhs_block2 <= l1)
+            ? peeled_mc2 - peeled_mc3
+            : (2 * LhsProgress) *
+                  std::max<Index>(1, ((l1 - rhs_block2) / (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
     for (Index i1 = peeled_mc3; i1 < peeled_mc2; i1 += actual_panel_rows) {
       Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc2);
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
