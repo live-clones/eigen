@@ -91,6 +91,16 @@ void vectorwiseop_array(const ArrayType& m) {
   VERIFY((mb.col(c) == (m1.real().col(c) >= 0.7).any()).all());
   mb = (m1.real() >= 0.7).rowwise().any();
   VERIFY((mb.row(r) == (m1.real().row(r) >= 0.7).any()).all());
+
+  // test count()
+  {
+    Array<Index, 1, ArrayType::ColsAtCompileTime> colcounts(cols);
+    Array<Index, ArrayType::RowsAtCompileTime, 1> rowcounts(rows);
+    colcounts = (m1.real() >= 0).colwise().count();
+    for (Index k = 0; k < cols; ++k) VERIFY_IS_EQUAL(colcounts(k), (m1.real().col(k) >= 0).count());
+    rowcounts = (m1.real() >= 0).rowwise().count();
+    for (Index k = 0; k < rows; ++k) VERIFY_IS_EQUAL(rowcounts(k), (m1.real().row(k) >= 0).count());
+  }
 }
 
 template <typename MatrixType>
@@ -206,6 +216,15 @@ void vectorwiseop_matrix(const MatrixType& m) {
   VERIFY_EVALUATION_COUNT(m2 = (m1.rowwise() - m1.colwise().sum() / RealScalar(m1.rows())),
                           (MatrixType::RowsAtCompileTime != 1 ? 1 : 0));
 
+  // test colwise/rowwise reverse
+  {
+    MatrixType m_rev(rows, cols);
+    m_rev = m1.colwise().reverse();
+    for (Index k = 0; k < cols; ++k) VERIFY_IS_APPROX(m_rev.col(k), m1.col(k).reverse());
+    m_rev = m1.rowwise().reverse();
+    for (Index k = 0; k < rows; ++k) VERIFY_IS_APPROX(m_rev.row(k), m1.row(k).reverse());
+  }
+
   // test empty expressions
   VERIFY_IS_APPROX(m1.matrix().middleCols(0, 0).rowwise().sum().eval(), MatrixX::Zero(rows, 1));
   VERIFY_IS_APPROX(m1.matrix().middleRows(0, 0).colwise().sum().eval(), MatrixX::Zero(1, cols));
@@ -248,4 +267,6 @@ EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_7(vectorwiseop_matrix(VectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   CALL_SUBTEST_7(vectorwiseop_matrix(RowVectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   CALL_SUBTEST_8(vectorwiseop_mixedscalar());
+  CALL_SUBTEST_9(vectorwiseop_array(
+      ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
 }
