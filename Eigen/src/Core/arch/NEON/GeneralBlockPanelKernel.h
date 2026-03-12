@@ -249,8 +249,10 @@ struct gebp_traits<half, half, false, false, Architecture::NEON>
     c = vcombine_f16(
         vcvt_f16_f32(vfmaq_lane_f32(vcvt_f32_f16(vget_low_f16(c)), vcvt_f32_f16(vget_low_f16(a)), bf, LaneID % 2)),
         vcvt_f16_f32(vfmaq_lane_f32(vcvt_f32_f16(vget_high_f16(c)), vcvt_f32_f16(vget_high_f16(a)), bf, LaneID % 2)));
+#endif
   }
 
+#if !EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
   template <int LaneID>
   EIGEN_STRONG_INLINE static std::enable_if_t<(LaneID <= 1), float32x2_t> get_half(float32x4_t vec) {
     return vget_low_f32(vec);
@@ -259,8 +261,8 @@ struct gebp_traits<half, half, false, false, Architecture::NEON>
   template <int LaneID>
   EIGEN_STRONG_INLINE static std::enable_if_t<(LaneID > 1), float32x2_t> get_half(float32x4_t vec) {
     return vget_high_f32(vec);
-#endif
   }
+#endif
 };
 #endif  // EIGEN_HAS_ARM64_FP16 && EIGEN_COMP_CLANG
 #endif  // EIGEN_ARCH_ARM64
