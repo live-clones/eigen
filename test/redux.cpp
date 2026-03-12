@@ -206,6 +206,7 @@ void redux_vec_boundary() {
     if (n <= 0) continue;
     typedef Matrix<Scalar, Dynamic, 1> Vec;
     Vec v = Vec::Random(n);
+    // For prod, use values near 1 to avoid underflow (float) or overflow (int).
     Vec v_for_prod = Vec::Ones(n) + Scalar(typename NumTraits<Scalar>::Real(0.2)) * v;
     // Reference: scalar loops
     Scalar ref_sum(0), ref_prod(1);
@@ -313,6 +314,7 @@ EIGEN_DECLARE_TEST(redux) {
 
   // Vectorization boundary sizes — deterministic, run once.
   // Integer types are excluded: full-range random ints overflow in sum/prod (UB).
+  // Integer reductions are already tested by matrixRedux/vectorRedux with clamped values.
   CALL_SUBTEST_12(redux_vec_boundary<float>());
   CALL_SUBTEST_12(redux_vec_boundary<double>());
 
