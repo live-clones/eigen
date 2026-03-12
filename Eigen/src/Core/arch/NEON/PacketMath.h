@@ -5631,16 +5631,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void prefetch(const half* addr) {
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half pfirst(const Packet8hf& a) {
-  float16_t x[8];
-  vst1q_f16(x, a);
-  half h;
-  h.x = x[0];
-  return h;
+  return half(vgetq_lane_f16(0));
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half pfirst(const Packet4hf& a) {
-  return vget_lane_f16(a, 0);
+  return half(vget_lane_f16(a, 0));
 }
 
 template <>
