@@ -80,6 +80,56 @@ static void BM_Pow(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
 }
 
+// Macro for complex unary benchmarks. Random() already produces complex
+// values with real & imag in [-1,1]; scale both parts to [LO, HI].
+#define BENCH_CWISE_UNARY_COMPLEX(NAME, EXPR, LO, HI)                                \
+  template <typename RealScalar>                                                     \
+  static void BM_##NAME##_complex(benchmark::State& state) {                         \
+    using Scalar = std::complex<RealScalar>;                                         \
+    const Index n = state.range(0);                                                  \
+    using Arr = Array<Scalar, Dynamic, 1>;                                           \
+    Arr a = (Arr::Random(n) + Scalar(RealScalar(1), RealScalar(1))) *                \
+                Scalar(RealScalar((double(HI) - double(LO)) / 2.0), RealScalar(0)) + \
+            Scalar(RealScalar(LO), RealScalar(LO));                                  \
+    Arr b(n);                                                                        \
+    for (auto _ : state) {                                                           \
+      b = EXPR;                                                                      \
+      benchmark::DoNotOptimize(b.data());                                            \
+    }                                                                                \
+    state.SetBytesProcessed(state.iterations() * n * Index(sizeof(Scalar)) * 2);     \
+  }
+
+// Macro for complex binary benchmarks (e.g. multiply, divide).
+#define BENCH_CWISE_BINARY_COMPLEX(NAME, EXPR, LO, HI)                               \
+  template <typename RealScalar>                                                     \
+  static void BM_##NAME##_complex(benchmark::State& state) {                         \
+    using Scalar = std::complex<RealScalar>;                                         \
+    const Index n = state.range(0);                                                  \
+    using Arr = Array<Scalar, Dynamic, 1>;                                           \
+    Arr a = (Arr::Random(n) + Scalar(RealScalar(1), RealScalar(1))) *                \
+                Scalar(RealScalar((double(HI) - double(LO)) / 2.0), RealScalar(0)) + \
+            Scalar(RealScalar(LO), RealScalar(LO));                                  \
+    Arr b = (Arr::Random(n) + Scalar(RealScalar(1), RealScalar(1))) *                \
+                Scalar(RealScalar((double(HI) - double(LO)) / 2.0), RealScalar(0)) + \
+            Scalar(RealScalar(LO), RealScalar(LO));                                  \
+    Arr c(n);                                                                        \
+    for (auto _ : state) {                                                           \
+      c = EXPR;                                                                      \
+      benchmark::DoNotOptimize(c.data());                                            \
+    }                                                                                \
+    state.SetBytesProcessed(state.iterations() * n * Index(sizeof(Scalar)) * 3);     \
+  }
+
+// Complex unary (SIMD implementations in GenericPacketMathFunctions.h)
+BENCH_CWISE_UNARY_COMPLEX(Exp, a.exp(), -5, 5)
+BENCH_CWISE_UNARY_COMPLEX(Log, a.log(), 0.01, 100)
+BENCH_CWISE_UNARY_COMPLEX(Sqrt, a.sqrt(), -100, 100)
+BENCH_CWISE_UNARY_COMPLEX(Square, a.square(), -10, 10)
+
+// Complex binary (pdiv_complex, pmul_complex)
+BENCH_CWISE_BINARY_COMPLEX(Mul, a* b, -10, 10)
+BENCH_CWISE_BINARY_COMPLEX(Div, a / b, -10, 10)
+
 static void CwiseSizes(::benchmark::Benchmark* b) {
   for (int n : {1024, 4096, 16384, 65536, 262144, 1048576}) b->Arg(n);
 }
@@ -143,3 +193,19 @@ BENCHMARK(BM_Rint<double>)->Apply(CwiseSizes)->Name("Rint_double");
 BENCHMARK(BM_Trunc<double>)->Apply(CwiseSizes)->Name("Trunc_double");
 BENCHMARK(BM_Sigmoid<double>)->Apply(CwiseSizes)->Name("Sigmoid_double");
 BENCHMARK(BM_Pow<double>)->Apply(CwiseSizes)->Name("Pow_double");
+
+// --- Register complex<float> ---
+BENCHMARK(BM_Exp_complex<float>)->Apply(CwiseSizes)->Name("Exp_complexf");
+BENCHMARK(BM_Log_complex<float>)->Apply(CwiseSizes)->Name("Log_complexf");
+BENCHMARK(BM_Sqrt_complex<float>)->Apply(CwiseSizes)->Name("Sqrt_complexf");
+BENCHMARK(BM_Square_complex<float>)->Apply(CwiseSizes)->Name("Square_complexf");
+BENCHMARK(BM_Mul_complex<float>)->Apply(CwiseSizes)->Name("Mul_complexf");
+BENCHMARK(BM_Div_complex<float>)->Apply(CwiseSizes)->Name("Div_complexf");
+
+// --- Register complex<double> ---
+BENCHMARK(BM_Exp_complex<double>)->Apply(CwiseSizes)->Name("Exp_complexd");
+BENCHMARK(BM_Log_complex<double>)->Apply(CwiseSizes)->Name("Log_complexd");
+BENCHMARK(BM_Sqrt_complex<double>)->Apply(CwiseSizes)->Name("Sqrt_complexd");
+BENCHMARK(BM_Square_complex<double>)->Apply(CwiseSizes)->Name("Square_complexd");
+BENCHMARK(BM_Mul_complex<double>)->Apply(CwiseSizes)->Name("Mul_complexd");
+BENCHMARK(BM_Div_complex<double>)->Apply(CwiseSizes)->Name("Div_complexd");
