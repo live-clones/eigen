@@ -910,6 +910,7 @@ int main(int argc, char* argv[]) {
   ss << "Seed: " << g_seed;
   g_test_stack.push_back(ss.str());
   srand(g_seed);
+  Eigen::internal::set_random_seed(static_cast<uint64_t>(g_seed));
   std::cout << "Repeating each test " << g_repeat << " times" << std::endl;
 
   VERIFY(EigenTest::all().size() > 0);
