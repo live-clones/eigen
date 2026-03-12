@@ -59,9 +59,16 @@ struct functor_traits<scalar_sum_op<LhsScalar, RhsScalar>> {
   };
 };
 
+// GCC < 7 rejects constexpr on member functions of non-literal types (CWG DR 1684).
+#if !EIGEN_COMP_GNUC_STRICT || EIGEN_COMP_GNUC >= 700
+#define EIGEN_CONSTEXPR_FUNCTOR constexpr
+#else
+#define EIGEN_CONSTEXPR_FUNCTOR
+#endif
+
 template <>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_sum_op<bool, bool>::operator()(const bool& a,
-                                                                                           const bool& b) const {
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR_FUNCTOR EIGEN_STRONG_INLINE bool scalar_sum_op<bool, bool>::operator()(
+    const bool& a, const bool& b) const {
   return a || b;
 }
 
@@ -100,10 +107,12 @@ struct functor_traits<scalar_product_op<LhsScalar, RhsScalar>> {
 };
 
 template <>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_product_op<bool, bool>::operator()(const bool& a,
-                                                                                               const bool& b) const {
+EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR_FUNCTOR EIGEN_STRONG_INLINE bool scalar_product_op<bool, bool>::operator()(
+    const bool& a, const bool& b) const {
   return a && b;
 }
+
+#undef EIGEN_CONSTEXPR_FUNCTOR
 
 /** \internal
  * \brief Template functor to compute the conjugate product of two scalars

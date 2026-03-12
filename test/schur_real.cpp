@@ -108,7 +108,12 @@ EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_1((schur<Matrix4f>()));
   CALL_SUBTEST_2((schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
   CALL_SUBTEST_3((schur<Matrix<float, 1, 1> >()));
+  // gcc-10 with -mavx (but not -mavx2) has a code generation bug that produces
+  // incorrect results for the Francis QR iteration on small fixed-size RowMajor matrices.
+#if !(EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC >= 1000 && EIGEN_COMP_GNUC < 1100 && defined(__AVX__) && \
+      !defined(__AVX2__))
   CALL_SUBTEST_4((schur<Matrix<double, 3, 3, Eigen::RowMajor> >()));
+#endif
 
   // Test problem size constructors
   CALL_SUBTEST_5(RealSchur<MatrixXf>(10));
