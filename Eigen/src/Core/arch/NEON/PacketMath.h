@@ -3990,7 +3990,7 @@ template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
   uint32x4_t u = vreinterpretq_u32_f32(x);
 #if EIGEN_ARCH_ARM64
-  return vget_lane_u64(vmovn_u32(vreinterpretq_u64_u32(u)), 0);
+  return vget_lane_u64(vreinterpret_u64_u16(vmovn_u32(u)), 0);
 #else
   uint32x2_t tmp = vorr_u32(vget_low_u32(u), vget_high_u32(u));
   uint32_t a, b;
