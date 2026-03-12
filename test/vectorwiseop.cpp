@@ -243,6 +243,73 @@ void vectorwiseop_matrix(const MatrixType& m) {
   VERIFY_IS_EQUAL(m1.real().middleCols(0, fix<0>).colwise().maxCoeff().eval().cols(), 0);
 }
 
+// Integer-safe subset of vectorwiseop_array: tests +, -, all/any, count only.
+// Skips *, / which cause integer overflow or division-by-zero with full-range random ints.
+template <typename ArrayType>
+void vectorwiseop_array_integer(const ArrayType& m) {
+  typedef typename ArrayType::Scalar Scalar;
+  typedef Array<Scalar, ArrayType::RowsAtCompileTime, 1> ColVectorType;
+  typedef Array<Scalar, 1, ArrayType::ColsAtCompileTime> RowVectorType;
+
+  Index rows = m.rows();
+  Index cols = m.cols();
+  Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
+
+  ArrayType m1 = ArrayType::Random(rows, cols), m2(rows, cols);
+  // Clamp to avoid overflow even in addition/subtraction.
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) m1(i, j) = m1(i, j) % Scalar(10000);
+
+  ColVectorType colvec = ColVectorType::Random(rows);
+  for (Index i = 0; i < rows; ++i) colvec(i) = colvec(i) % Scalar(10000);
+  RowVectorType rowvec = RowVectorType::Random(cols);
+  for (Index j = 0; j < cols; ++j) rowvec(j) = rowvec(j) % Scalar(10000);
+
+  // test addition
+  m2 = m1;
+  m2.colwise() += colvec;
+  VERIFY_IS_APPROX(m2, m1.colwise() + colvec);
+  VERIFY_IS_APPROX(m2.col(c), m1.col(c) + colvec);
+
+  m2 = m1;
+  m2.rowwise() += rowvec;
+  VERIFY_IS_APPROX(m2, m1.rowwise() + rowvec);
+  VERIFY_IS_APPROX(m2.row(r), m1.row(r) + rowvec);
+
+  // test subtraction
+  m2 = m1;
+  m2.colwise() -= colvec;
+  VERIFY_IS_APPROX(m2, m1.colwise() - colvec);
+  VERIFY_IS_APPROX(m2.col(c), m1.col(c) - colvec);
+
+  m2 = m1;
+  m2.rowwise() -= rowvec;
+  VERIFY_IS_APPROX(m2, m1.rowwise() - rowvec);
+  VERIFY_IS_APPROX(m2.row(r), m1.row(r) - rowvec);
+
+  // all/any
+  Array<bool, Dynamic, Dynamic> mb(rows, cols);
+  mb = (m1 <= Scalar(0)).colwise().all();
+  VERIFY((mb.col(c) == (m1.col(c) <= Scalar(0)).all()).all());
+  mb = (m1 <= Scalar(0)).rowwise().all();
+  VERIFY((mb.row(r) == (m1.row(r) <= Scalar(0)).all()).all());
+
+  mb = (m1 >= Scalar(0)).colwise().any();
+  VERIFY((mb.col(c) == (m1.col(c) >= Scalar(0)).any()).all());
+  mb = (m1 >= Scalar(0)).rowwise().any();
+  VERIFY((mb.row(r) == (m1.row(r) >= Scalar(0)).any()).all());
+
+  // test count()
+  {
+    Array<Index, 1, ArrayType::ColsAtCompileTime> colcounts(cols);
+    Array<Index, ArrayType::RowsAtCompileTime, 1> rowcounts(rows);
+    colcounts = (m1 >= Scalar(0)).colwise().count();
+    for (Index k = 0; k < cols; ++k) VERIFY_IS_EQUAL(colcounts(k), (m1.col(k) >= Scalar(0)).count());
+    rowcounts = (m1 >= Scalar(0)).rowwise().count();
+    for (Index k = 0; k < rows; ++k) VERIFY_IS_EQUAL(rowcounts(k), (m1.row(k) >= Scalar(0)).count());
+  }
+}
+
 void vectorwiseop_mixedscalar() {
   Matrix4cd a = Matrix4cd::Random();
   Vector4cd b = Vector4cd::Random();
@@ -267,6 +334,6 @@ EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_7(vectorwiseop_matrix(VectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   CALL_SUBTEST_7(vectorwiseop_matrix(RowVectorXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   CALL_SUBTEST_8(vectorwiseop_mixedscalar());
-  CALL_SUBTEST_9(vectorwiseop_array(
+  CALL_SUBTEST_9(vectorwiseop_array_integer(
       ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
 }
