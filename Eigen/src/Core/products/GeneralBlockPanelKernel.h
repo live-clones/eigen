@@ -1411,9 +1411,19 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR(mr >= 3 * Traits::LhsProgress) {
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
+    // The RHS block (accumulator + RHS panel) and a strip of the LHS panel
+    // must co-reside in L1 for good performance. The LHS data streams
+    // sequentially through L1, so we only need enough room for one
+    // micro-panel strip (depth * 3*LhsProgress) at a time, not the entire
+    // LHS panel. When the RHS block is small enough that the remainder of
+    // L1 can hold the full LHS panel, skip sub-blocking entirely.
+    const Index rhs_block = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
+    const Index lhs_strip = depth * sizeof(LhsScalar) * 3 * LhsProgress;
+    const Index l1_for_lhs = (l1 > rhs_block) ? (l1 - rhs_block) : 0;
     const Index actual_panel_rows =
-        (3 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
-                                                (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
+        (l1_for_lhs >= static_cast<Index>(peeled_mc3) * depth * static_cast<Index>(sizeof(LhsScalar)))
+            ? peeled_mc3
+            : (3 * LhsProgress) * std::max<Index>(1, l1_for_lhs / lhs_strip);
     for (Index i1 = 0; i1 < peeled_mc3; i1 += actual_panel_rows) {
       const Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc3);
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
@@ -1442,9 +1452,14 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR(mr >= 2 * Traits::LhsProgress) {
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
+    const Index rhs_block2 = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
+    const Index lhs_strip2 = depth * sizeof(LhsScalar) * 2 * LhsProgress;
+    const Index l1_for_lhs2 = (l1 > rhs_block2) ? (l1 - rhs_block2) : 0;
+    const Index mc2_range = peeled_mc2 - peeled_mc3;
     Index actual_panel_rows =
-        (2 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
-                                                (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
+        (l1_for_lhs2 >= static_cast<Index>(mc2_range) * depth * static_cast<Index>(sizeof(LhsScalar)))
+            ? mc2_range
+            : (2 * LhsProgress) * std::max<Index>(1, l1_for_lhs2 / lhs_strip2);
     for (Index i1 = peeled_mc3; i1 < peeled_mc2; i1 += actual_panel_rows) {
       Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc2);
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
