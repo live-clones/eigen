@@ -65,14 +65,14 @@ class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> > {
   EIGEN_DEVICE_FUNC constexpr ScalarWithConstIfNotLvalue* data() { return m_expression.data(); }
   EIGEN_DEVICE_FUNC constexpr const Scalar* data() const { return m_expression.data(); }
 
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index rowId, Index colId) const {
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index rowId, Index colId) const {
     return m_expression.coeffRef(rowId, colId);
   }
 
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index index) const { return m_expression.coeffRef(index); }
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index index) const { return m_expression.coeffRef(index); }
 
   template <typename Dest>
-  EIGEN_DEVICE_FUNC inline void evalTo(Dest& dst) const {
+  EIGEN_DEVICE_FUNC constexpr void evalTo(Dest& dst) const {
     dst = m_expression;
   }
 
@@ -82,10 +82,10 @@ class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> > {
 
   /** Forwards the resizing request to the nested expression
    * \sa DenseBase::resize(Index)  */
-  EIGEN_DEVICE_FUNC void resize(Index newSize) { m_expression.resize(newSize); }
+  EIGEN_DEVICE_FUNC constexpr void resize(Index newSize) { m_expression.resize(newSize); }
   /** Forwards the resizing request to the nested expression
    * \sa DenseBase::resize(Index,Index)*/
-  EIGEN_DEVICE_FUNC void resize(Index rows, Index cols) { m_expression.resize(rows, cols); }
+  EIGEN_DEVICE_FUNC constexpr void resize(Index rows, Index cols) { m_expression.resize(rows, cols); }
 
  protected:
   NestedExpressionType m_expression;
@@ -140,11 +140,11 @@ class MatrixWrapper : public MatrixBase<MatrixWrapper<ExpressionType> > {
   EIGEN_DEVICE_FUNC constexpr ScalarWithConstIfNotLvalue* data() { return m_expression.data(); }
   EIGEN_DEVICE_FUNC constexpr const Scalar* data() const { return m_expression.data(); }
 
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index rowId, Index colId) const {
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index rowId, Index colId) const {
     return m_expression.derived().coeffRef(rowId, colId);
   }
 
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index index) const { return m_expression.coeffRef(index); }
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index index) const { return m_expression.coeffRef(index); }
 
   EIGEN_DEVICE_FUNC constexpr const internal::remove_all_t<NestedExpressionType>& nestedExpression() const {
     return m_expression;
@@ -152,10 +152,10 @@ class MatrixWrapper : public MatrixBase<MatrixWrapper<ExpressionType> > {
 
   /** Forwards the resizing request to the nested expression
    * \sa DenseBase::resize(Index)  */
-  EIGEN_DEVICE_FUNC void resize(Index newSize) { m_expression.resize(newSize); }
+  EIGEN_DEVICE_FUNC constexpr void resize(Index newSize) { m_expression.resize(newSize); }
   /** Forwards the resizing request to the nested expression
    * \sa DenseBase::resize(Index,Index)*/
-  EIGEN_DEVICE_FUNC void resize(Index rows, Index cols) { m_expression.resize(rows, cols); }
+  EIGEN_DEVICE_FUNC constexpr void resize(Index rows, Index cols) { m_expression.resize(rows, cols); }
 
  protected:
   NestedExpressionType m_expression;

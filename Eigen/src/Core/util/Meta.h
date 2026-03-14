@@ -200,12 +200,11 @@ using std::is_convertible;
  * A base class do disable default copy ctor and copy assignment operator.
  */
 class noncopyable {
-  EIGEN_DEVICE_FUNC noncopyable(const noncopyable&);
-  EIGEN_DEVICE_FUNC const noncopyable& operator=(const noncopyable&);
+  EIGEN_DEVICE_FUNC constexpr noncopyable(const noncopyable&);
+  EIGEN_DEVICE_FUNC constexpr const noncopyable& operator=(const noncopyable&);
 
  protected:
-  EIGEN_DEVICE_FUNC noncopyable() {}
-  EIGEN_DEVICE_FUNC ~noncopyable() {}
+  EIGEN_DEVICE_FUNC constexpr noncopyable() = default;
 };
 
 /** \internal
@@ -342,9 +341,9 @@ struct meta_no {
 template <typename T>
 struct has_ReturnType {
   template <typename C>
-  static meta_yes testFunctor(C const*, typename C::ReturnType const* = 0);
+  static constexpr meta_yes testFunctor(C const*, typename C::ReturnType const* = 0);
   template <typename C>
-  static meta_no testFunctor(...);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor<T>(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -355,8 +354,8 @@ const T* return_ptr();
 template <typename T, typename IndexType = Index>
 struct has_nullary_operator {
   template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()()) > 0)>* = 0);
-  static meta_no testFunctor(...);
+  static constexpr meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()()) > 0)>* = 0);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -364,8 +363,9 @@ struct has_nullary_operator {
 template <typename T, typename IndexType = Index>
 struct has_unary_operator {
   template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+  static constexpr meta_yes testFunctor(C const*,
+                                        std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0))) > 0)>* = 0);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -373,9 +373,9 @@ struct has_unary_operator {
 template <typename T, typename IndexType = Index>
 struct has_binary_operator {
   template <typename C>
-  static meta_yes testFunctor(
+  static constexpr meta_yes testFunctor(
       C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0), IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+  static constexpr meta_no testFunctor(...);
 
   enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
 };
@@ -617,13 +617,13 @@ constexpr int max_size_prefer_dynamic(A a, B b) {
 }
 
 template <typename A, typename B>
-inline constexpr int size_prefer_fixed(A a, B b) {
+constexpr int size_prefer_fixed(A a, B b) {
   plain_enum_asserts(a, b);
   return int(a) == Dynamic ? int(b) : int(a);
 }
 
 template <typename A, typename B>
-inline constexpr bool enum_eq_not_dynamic(A a, B b) {
+constexpr bool enum_eq_not_dynamic(A a, B b) {
   plain_enum_asserts(a, b);
   if ((int)a == Dynamic || (int)b == Dynamic) return false;
   return (int)a == (int)b;
