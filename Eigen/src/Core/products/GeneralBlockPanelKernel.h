@@ -1918,14 +1918,23 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
   // address both real & imaginary parts on the rhs. This portion will
   // pack those half ones until they match the number expected on the
   // last peeling loop at this point (for the rhs).
+  //
+  // When there are no half/quarter packet types (HasHalf and HasQuarter
+  // are both false), last_lhs_progress can exceed Pack2, producing
+  // interleaved groups that the GEBP micro-kernel cannot consume.  In
+  // that case we use exactly Pack2 rows per group so the kernel's main
+  // loop (which reads Pack2 = LhsProgress values via ploaddup) can
+  // handle them; remaining rows fall through to the scalar loop below.
   if (Pack2 < PacketSize && Pack2 > 1) {
-    for (; i < peeled_mc0; i += last_lhs_progress) {
-      if (PanelMode) count += last_lhs_progress * offset;
+    const Index pack2_progress = (HasHalf || HasQuarter) ? last_lhs_progress : Pack2;
+    const Index peeled = (HasHalf || HasQuarter) ? peeled_mc0 : (rows / Pack2) * Pack2;
+    for (; i < peeled; i += pack2_progress) {
+      if (PanelMode) count += pack2_progress * offset;
 
       for (Index k = 0; k < depth; k++)
-        for (Index w = 0; w < last_lhs_progress; w++) blockA[count++] = cj(lhs(i + w, k));
+        for (Index w = 0; w < pack2_progress; w++) blockA[count++] = cj(lhs(i + w, k));
 
-      if (PanelMode) count += last_lhs_progress * (stride - offset - depth);
+      if (PanelMode) count += pack2_progress * (stride - offset - depth);
     }
   }
   // Pack scalars
@@ -2040,7 +2049,11 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
       // address both real & imaginary parts on the rhs. This portion will
       // pack those half ones until they match the number expected on the
       // last peeling loop at this point (for the rhs).
-      if (Pack2 < PacketSize && !gone_last) {
+      //
+      // When there are no half/quarter packet types, the interleaved
+      // groups cannot be consumed by the GEBP micro-kernel's half/quarter
+      // loops.  Fall through to the scalar loop instead.
+      if (Pack2 < PacketSize && !gone_last && (HasHalf || HasQuarter)) {
         gone_last = true;
         psize = pack = left & ~1;
       }
