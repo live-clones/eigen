@@ -325,8 +325,7 @@ void triangular_at_blocking_boundaries() {
 
 void bug_159() {
   Matrix3d m = Matrix3d::Random().triangularView<Lower>();
-  EIGEN_UNUSED_VARIABLE(m)
-}
+  EIGEN_UNUSED_VARIABLE(m);}
 
 EIGEN_DECLARE_TEST(triangular) {
   int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
