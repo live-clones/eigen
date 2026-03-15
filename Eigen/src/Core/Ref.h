@@ -281,8 +281,7 @@ class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
     EIGEN_STATIC_ASSERT(bool(Traits::template match<Derived>::MatchAtCompileTime), STORAGE_LAYOUT_DOES_NOT_MATCH);
     // Construction must pass since we will not create temporary storage in the non-const case.
     const bool success = Base::construct(expr.derived());
-    EIGEN_UNUSED_VARIABLE(success)
-    eigen_assert(success);
+    EIGEN_UNUSED_VARIABLE(success);    eigen_assert(success);
   }
   template <typename Derived>
   EIGEN_DEVICE_FUNC constexpr inline Ref(
@@ -299,8 +298,7 @@ class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
     EIGEN_STATIC_ASSERT(!Derived::IsPlainObjectBase, THIS_EXPRESSION_IS_NOT_A_LVALUE__IT_IS_READ_ONLY);
     // Construction must pass since we will not create temporary storage in the non-const case.
     const bool success = Base::construct(expr.const_cast_derived());
-    EIGEN_UNUSED_VARIABLE(success)
-    eigen_assert(success);
+    EIGEN_UNUSED_VARIABLE(success);    eigen_assert(success);
   }
 
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Ref)

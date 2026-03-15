@@ -214,15 +214,13 @@ struct TrackedVisitor {
     return this->packet(p, i, j);
   }
   void operator()(Scalar v, Index i, Index j) {
-    EIGEN_UNUSED_VARIABLE(v)
-    visited.emplace_back(i, j);
+    EIGEN_UNUSED_VARIABLE(v);    visited.emplace_back(i, j);
     scalarOps++;
   }
 
   template <typename Packet>
   void packet(Packet p, Index i, Index j) {
-    EIGEN_UNUSED_VARIABLE(p)
-    for (int k = 0; k < PacketSize; k++)
+    EIGEN_UNUSED_VARIABLE(p);    for (int k = 0; k < PacketSize; k++)
       if (RowMajor)
         visited.emplace_back(i, j + k);
       else
