@@ -46,8 +46,7 @@ void selfadjoint(const MatrixType& m) {
 
 void bug_159() {
   Matrix3d m = Matrix3d::Random().selfadjointView<Lower>();
-  EIGEN_UNUSED_VARIABLE(m)
-}
+  EIGEN_UNUSED_VARIABLE(m);}
 
 EIGEN_DECLARE_TEST(selfadjoint) {
   for (int i = 0; i < g_repeat; i++) {

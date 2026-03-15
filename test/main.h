@@ -138,7 +138,6 @@ struct imag {};
 
 // shuts down ICC's remark #593: variable "XXX" was set but never used
 #define TEST_SET_BUT_UNUSED_VARIABLE(X) EIGEN_UNUSED_VARIABLE(X)
-
 #ifdef TEST_ENABLE_TEMPORARY_TRACKING
 
 static long int nb_temporaries;
