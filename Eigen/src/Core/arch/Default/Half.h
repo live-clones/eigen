@@ -430,50 +430,29 @@ EIGEN_STRONG_INLINE __device__ bool operator>=(const half& a, const half& b) { r
 
 #endif  // EIGEN_HAS_NATIVE_GPU_FP16
 
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) && !defined(EIGEN_GPU_COMPILE_PHASE)
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) { return half(vaddh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) { return half(vmulh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) { return half(vsubh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) { return half(vdivh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half(vnegh_f16(a.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator+=(half& a, const half& b) {
-  a = half(vaddh_f16(a.x, b.x));
-  return a;
-}
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator*=(half& a, const half& b) {
-  a = half(vmulh_f16(a.x, b.x));
-  return a;
-}
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator-=(half& a, const half& b) {
-  a = half(vsubh_f16(a.x, b.x));
-  return a;
-}
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
-  a = half(vdivh_f16(a.x, b.x));
-  return a;
-}
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) { return vceqh_f16(a.x, b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) { return !vceqh_f16(a.x, b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) { return vclth_f16(a.x, b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) { return vcleh_f16(a.x, b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return vcgth_f16(a.x, b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return vcgeh_f16(a.x, b.x); }
+#if (EIGEN_HAS_ARM64_FP16 || defined(EIGEN_HAS_BUILTIN_FLOAT16)) && !defined(EIGEN_GPU_COMPILE_PHASE)
 
-#elif (EIGEN_HAS_ARM64_FP16 || defined(EIGEN_HAS_BUILTIN_FLOAT16)) && !defined(EIGEN_GPU_COMPILE_PHASE)
+// NOTE: While GCC appears to only apply `-Wdouble-promotion` to single-to-double
+// conversions, Clang applies the warning to half-to-single implicit conversion also.  For
+// the operations below, implicit conversion is intentional so that---depending on the
+// target features---the compiler can choose between using native half-precision
+// instructions or converting to single-precision.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdouble-promotion"
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) {
-  return half(float(a.x) + float(b.x));
+  return half(a.x + b.x);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) {
-  return half(float(a.x) * float(b.x));
+  return half(a.x * b.x);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) {
-  return half(float(a.x) - float(b.x));
+  return half(a.x - b.x);
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) {
-  return half(float(a.x) / float(b.x));
+  return half(a.x / b.x);
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half(-float(a.x)); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half(-a.x); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator+=(half& a, const half& b) {
   a = a + b;
   return a;
@@ -490,12 +469,14 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
   a = a / b;
   return a;
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) { return float(a.x) == float(b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) { return float(a.x) != float(b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) { return float(a.x) < float(b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) { return float(a.x) <= float(b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return float(a.x) > float(b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return float(a.x) >= float(b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) { return a.x == b.x; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const half& a, const half& b) { return a.x != b.x; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const half& a, const half& b) { return a.x < b.x; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half& b) { return a.x <= b.x; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return a.x > b.x; }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return a.x >= b.x; }
+
+#pragma clang diagnostic pop
 
 // We need to distinguish ‘clang as the CUDA compiler’ from ‘clang as the host compiler,
 // invoked by NVCC’ (e.g. on MacOS). The former needs to see both host and device implementation
