@@ -176,6 +176,8 @@ struct numeric_limits_bfloat16_impl {
   static EIGEN_CONSTEXPR Eigen::bfloat16 denorm_min() { return Eigen::bfloat16_impl::raw_uint16_to_bfloat16(0x0001); }
 };
 
+// Redundant out-of-class definitions are required pre-C++17 but deprecated since.
+#if EIGEN_COMP_CXXVER < 17
 template <typename T>
 EIGEN_CONSTEXPR const bool numeric_limits_bfloat16_impl<T>::is_specialized;
 template <typename T>
@@ -225,6 +227,7 @@ template <typename T>
 EIGEN_CONSTEXPR const bool numeric_limits_bfloat16_impl<T>::traps;
 template <typename T>
 EIGEN_CONSTEXPR const bool numeric_limits_bfloat16_impl<T>::tinyness_before;
+#endif
 }  // end namespace bfloat16_impl
 }  // end namespace Eigen
 
