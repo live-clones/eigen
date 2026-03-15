@@ -203,6 +203,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorUInt128<uint64_t, uint64_t> o
     TensorUInt128<uint64_t, uint64_t> tmp(lhs - d);
     while (lhs >= d) {
       tmp = tmp - d;
+      if (d.high >> 63) break;  // next doubling would overflow 128 bits
       d = d + d;
       power2 = power2 + power2;
     }
