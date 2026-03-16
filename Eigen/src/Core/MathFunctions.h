@@ -170,22 +170,16 @@ struct imag_ref_default_impl {
 
 template <typename Scalar>
 struct imag_ref_default_impl<Scalar, false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  EIGEN_DEVICE_FUNC constexpr static inline RealScalar run(Scalar&) { return RealScalar(0); }
-  EIGEN_DEVICE_FUNC constexpr static inline RealScalar run(const Scalar&) { return RealScalar(0); }
+  EIGEN_DEVICE_FUNC constexpr static Scalar run(Scalar&) { return Scalar(0); }
+  EIGEN_DEVICE_FUNC constexpr static const Scalar run(const Scalar&) { return Scalar(0); }
 };
 
 template <typename Scalar>
 struct imag_ref_impl : imag_ref_default_impl<Scalar, NumTraits<Scalar>::IsComplex> {};
 
-template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+template <typename Scalar>
 struct imag_ref_retval {
   typedef typename NumTraits<Scalar>::Real& type;
-};
-
-template <typename Scalar>
-struct imag_ref_retval<Scalar, false> {
-  typedef typename NumTraits<Scalar>::Real type;
 };
 
 }  // namespace internal
