@@ -23,6 +23,15 @@ Array<T, 4, 1> four_denorms() {
   return four_denorms<double>().cast<T>();
 }
 
+template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct maybe_set_imag_part {
+  static void run(Scalar& x, typename NumTraits<Scalar>::Real y) { numext::imag_ref(x) = y; }
+};
+template <typename Scalar>
+struct maybe_set_imag_part<Scalar, false> {
+  static void run(Scalar&, typename NumTraits<Scalar>::Real) {}
+};
+
 template <typename MatrixType>
 void svd_fill_random(MatrixType &m, int Option = 0) {
   using std::pow;
@@ -92,8 +101,7 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
             Index i = internal::random<Index>(0, m.rows() - 1);
             Index j = internal::random<Index>(0, m.cols() - 1);
             Scalar val = samples(internal::random<Index>(0, samples.size() - 1));
-            if (NumTraits<Scalar>::IsComplex)
-              numext::imag_ref(val) = samples.real()(internal::random<Index>(0, samples.size() - 1));
+            maybe_set_imag_part<Scalar>::run(val, samples.real()(internal::random<Index>(0, samples.size() - 1)));
             if (Option == SelfAdjoint) {
               if (i == j) {
                 // Diagonal entries of a Hermitian matrix must be real.
@@ -119,8 +127,7 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
         Index i = internal::random<Index>(0, m.rows() - 1);
         Index j = internal::random<Index>(0, m.cols() - 1);
         m(i, j) = samples(internal::random<Index>(0, samples.size() - 1));
-        if (NumTraits<Scalar>::IsComplex)
-          *(&numext::real_ref(m(i, j)) + 1) = samples.real()(internal::random<Index>(0, samples.size() - 1));
+        maybe_set_imag_part<Scalar>::run(m(i, j), samples.real()(internal::random<Index>(0, samples.size() - 1)));
       }
     }
   }
