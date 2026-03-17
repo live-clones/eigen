@@ -490,8 +490,12 @@ struct TensorContractionEvaluatorBase {
         if (dim_idx != i) {
           m_lhs_inner_dim_contiguous = false;
         }
-        if (nocontract_idx + 1 < internal::array_size<left_nocontract_t>::value) {
-          m_i_strides[nocontract_idx + 1] = m_i_strides[nocontract_idx] * eval_left_dims[i];
+        EIGEN_IF_CONSTEXPR(internal::array_size<left_nocontract_t>::value > 1) {
+          if (nocontract_idx + 1 < internal::array_size<left_nocontract_t>::value) {
+            m_i_strides[nocontract_idx + 1] = m_i_strides[nocontract_idx] * eval_left_dims[i];
+          } else {
+            m_i_size = m_i_strides[nocontract_idx] * eval_left_dims[i];
+          }
         } else {
           m_i_size = m_i_strides[nocontract_idx] * eval_left_dims[i];
         }
@@ -512,8 +516,12 @@ struct TensorContractionEvaluatorBase {
       }
       if (!contracting) {
         m_dimensions[dim_idx] = eval_right_dims[i];
-        if (nocontract_idx + 1 < internal::array_size<right_nocontract_t>::value) {
-          m_j_strides[nocontract_idx + 1] = m_j_strides[nocontract_idx] * eval_right_dims[i];
+        EIGEN_IF_CONSTEXPR(internal::array_size<right_nocontract_t>::value > 1) {
+          if (nocontract_idx + 1 < internal::array_size<right_nocontract_t>::value) {
+            m_j_strides[nocontract_idx + 1] = m_j_strides[nocontract_idx] * eval_right_dims[i];
+          } else {
+            m_j_size = m_j_strides[nocontract_idx] * eval_right_dims[i];
+          }
         } else {
           m_j_size = m_j_strides[nocontract_idx] * eval_right_dims[i];
         }
@@ -537,8 +545,12 @@ struct TensorContractionEvaluatorBase {
       Index size = eval_left_dims[left];
       eigen_assert(size == eval_right_dims[right] && "Contraction axes must be same size");
 
-      if (i + 1 < static_cast<int>(internal::array_size<contract_t>::value)) {
-        m_k_strides[i + 1] = m_k_strides[i] * size;
+      EIGEN_IF_CONSTEXPR(internal::array_size<contract_t>::value > 1) {
+        if (i + 1 < static_cast<int>(internal::array_size<contract_t>::value)) {
+          m_k_strides[i + 1] = m_k_strides[i] * size;
+        } else {
+          m_k_size = m_k_strides[i] * size;
+        }
       } else {
         m_k_size = m_k_strides[i] * size;
       }
@@ -878,18 +890,18 @@ struct TensorContractionEvaluatorBase {
  protected:
   Dimensions m_dimensions;
 
-  contract_t m_k_strides;
-  contract_t m_left_contracting_strides;
-  contract_t m_right_contracting_strides;
+  contract_t m_k_strides{};
+  contract_t m_left_contracting_strides{};
+  contract_t m_right_contracting_strides{};
 
   bool m_lhs_inner_dim_contiguous;
   bool m_rhs_inner_dim_contiguous;
   bool m_rhs_inner_dim_reordered;
 
-  left_nocontract_t m_i_strides;
-  right_nocontract_t m_j_strides;
-  left_nocontract_t m_left_nocontract_strides;
-  right_nocontract_t m_right_nocontract_strides;
+  left_nocontract_t m_i_strides{};
+  right_nocontract_t m_j_strides{};
+  left_nocontract_t m_left_nocontract_strides{};
+  right_nocontract_t m_right_nocontract_strides{};
 
   Index m_i_size;
   Index m_j_size;
