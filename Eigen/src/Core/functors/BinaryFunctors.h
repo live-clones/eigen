@@ -438,6 +438,31 @@ struct functor_traits<scalar_quotient_op<LhsScalar, RhsScalar>> {
 };
 
 /** \internal
+ * \brief Template functor to compute the modulus of two integer scalars
+ *
+ * \sa class CwiseBinaryOp, ArrayBase::operator%()
+ */
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
+  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_modulus_op>::ReturnType result_type;
+#ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
+  scalar_modulus_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+#endif
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
+  operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return a % b;
+  }
+};
+template <typename LhsScalar, typename RhsScalar>
+struct functor_traits<scalar_modulus_op<LhsScalar, RhsScalar>> {
+  typedef typename scalar_modulus_op<LhsScalar, RhsScalar>::result_type result_type;
+  enum {
+    PacketAccess = false,
+    Cost = scalar_div_cost<result_type, false>::value
+  };
+};
+
+/** \internal
  * \brief Template functor to compute the and of two scalars as if they were booleans
  *
  * \sa class CwiseBinaryOp, ArrayBase::operator&&
