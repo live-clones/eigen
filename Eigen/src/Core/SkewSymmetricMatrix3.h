@@ -159,6 +159,32 @@ class SkewSymmetricBase : public EigenBase<Derived> {
       const SkewSymmetricBase<OtherDerived>& other) const {
     return (vector() - other.vector()).asSkewSymmetric();
   }
+
+  /** \returns the sum of a dense matrix \a lhs and the skew symmetric matrix \a rhs as a dense matrix */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend DenseMatrixType operator+(const MatrixBase<OtherDerived>& lhs,
+                                                     const SkewSymmetricBase& rhs) {
+    return DenseMatrixType(lhs.derived()) + DenseMatrixType(rhs.derived());
+  }
+
+  /** \returns the difference of a dense matrix \a lhs and the skew symmetric matrix \a rhs as a dense matrix */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend DenseMatrixType operator-(const MatrixBase<OtherDerived>& lhs,
+                                                     const SkewSymmetricBase& rhs) {
+    return DenseMatrixType(lhs.derived()) - DenseMatrixType(rhs.derived());
+  }
+
+  /** \returns the sum of the skew symmetric matrix \c *this and a dense matrix \a other as a dense matrix */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC DenseMatrixType operator+(const MatrixBase<OtherDerived>& other) const {
+    return DenseMatrixType(derived()) + DenseMatrixType(other.derived());
+  }
+
+  /** \returns the difference of the skew symmetric matrix \c *this and a dense matrix \a other as a dense matrix */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC DenseMatrixType operator-(const MatrixBase<OtherDerived>& other) const {
+    return DenseMatrixType(derived()) - DenseMatrixType(other.derived());
+  }
 };
 
 /** \class SkewSymmetricMatrix3
