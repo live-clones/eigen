@@ -597,6 +597,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Pa
   const Packet p = patan_reduced<Scalar>::run(x);
   // Apply transformations according to the range reduction masks.
   Packet result = pselect(large_mask, psub(cst_pi_over_two, p), p);
+  // For very small inputs, atan(x) = x to machine precision.
+  // This avoids incorrect results on platforms with flush-to-zero (e.g. ARM NEON)
+  // where intermediate computations in patan_reduced may underflow to zero.
+  const Packet tiny_mask = pcmp_lt(abs_x, pset1<Packet>((std::numeric_limits<Scalar>::min)()));
+  result = pselect(tiny_mask, abs_x, result);
   // Return correct sign
   return pxor(result, x_signmask);
 }

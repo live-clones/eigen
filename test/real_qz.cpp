@@ -50,20 +50,27 @@ void real_qz(const MatrixType& m) {
   // Eigen::internal::set_is_malloc_allowed(true);
 
   VERIFY_IS_EQUAL(qz.info(), Success);
-  // check for zeros
+  // Check structural zeros in T (triangular) and S (quasi-triangular).
+  // Use a tolerance since the QR iteration converges to a relative threshold,
+  // so entries below the diagonal may not be bitwise zero.
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const RealScalar tol = RealScalar(100) * NumTraits<Scalar>::epsilon();
+  const RealScalar normT = qz.matrixT().norm();
+  const RealScalar normS = qz.matrixS().norm();
   bool all_zeros = true;
   for (Index i = 0; i < A.cols(); i++)
     for (Index j = 0; j < i; j++) {
-      if (!numext::is_exactly_zero(abs(qz.matrixT()(i, j)))) {
+      if (abs(qz.matrixT()(i, j)) > tol * normT) {
         std::cerr << "Error: T(" << i << "," << j << ") = " << qz.matrixT()(i, j) << std::endl;
         all_zeros = false;
       }
-      if (j < i - 1 && !numext::is_exactly_zero(abs(qz.matrixS()(i, j)))) {
+      if (j < i - 1 && abs(qz.matrixS()(i, j)) > tol * normS) {
         std::cerr << "Error: S(" << i << "," << j << ") = " << qz.matrixS()(i, j) << std::endl;
         all_zeros = false;
       }
-      if (j == i - 1 && j > 0 && !numext::is_exactly_zero(abs(qz.matrixS()(i, j))) &&
-          !numext::is_exactly_zero(abs(qz.matrixS()(i - 1, j - 1)))) {
+      if (j == i - 1 && j > 0 && abs(qz.matrixS()(i, j)) > tol * normS &&
+          abs(qz.matrixS()(i - 1, j - 1)) > tol * normS) {
         std::cerr << "Error: S(" << i << "," << j << ") = " << qz.matrixS()(i, j) << " && S(" << i - 1 << "," << j - 1
                   << ") = " << qz.matrixS()(i - 1, j - 1) << std::endl;
         all_zeros = false;
