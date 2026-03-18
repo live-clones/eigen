@@ -977,10 +977,6 @@ class aligned_allocator {
 
 //---------- Cache sizes ----------
 
-#if EIGEN_OS_MAC
-#include <sys/sysctl.h>
-#endif
-
 #if !defined(EIGEN_NO_CPUID)
 #if EIGEN_COMP_GNUC && EIGEN_ARCH_i386_OR_x86_64
 #if defined(__PIC__) && EIGEN_ARCH_i386
@@ -1335,7 +1331,7 @@ inline void queryCacheSizes(int& l1, int& l2, int& l3) {
     val_size = sizeof(val);
     if (sysctlbyname("hw.l3cachesize", &val, &val_size, NULL, 0) == 0 && val > 0) l3 = static_cast<int>(val);
   }
-#elif defined(_SC_LEVEL1_DCACHE_SIZE)
+#elif EIGEN_OS_UNIX && defined(_SC_LEVEL1_DCACHE_SIZE)
   // On Linux and other POSIX systems, use sysconf to query cache sizes.
   l1 = sysconf(_SC_LEVEL1_DCACHE_SIZE);
   l2 = sysconf(_SC_LEVEL2_CACHE_SIZE);
