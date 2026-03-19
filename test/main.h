@@ -157,7 +157,9 @@ inline void on_temporary_creation(long int size, int) {
 }
 
 #define EIGEN_DENSE_STORAGE_CTOR_PLUGIN \
-  { on_temporary_creation(size, Size); }
+  {                                     \
+    on_temporary_creation(size, Size);  \
+  }
 
 #define VERIFY_EVALUATION_COUNT(XPR, N)                            \
   {                                                                \
@@ -337,7 +339,8 @@ static std::vector<std::string> eigen_assert_list;
 #else  // EIGEN_NO_ASSERTION_CHECKING
 
 #define VERIFY_RAISES_ASSERT(a) \
-  {}
+  {                             \
+  }
 
 #endif  // EIGEN_NO_ASSERTION_CHECKING
 
@@ -645,8 +648,9 @@ typename NumTraits<Scalar>::Real product_tolerance(Index inner_dim, int num_prod
 // Overload 2: Absolute error bound for arbitrary matrices.
 // Returns lambda * sqrt(k) * epsilon * num_products * || |A|*|B| ||_F.
 template <typename DerivedA, typename DerivedB>
-typename NumTraits<typename DerivedA::Scalar>::Real product_error_bound(
-    const MatrixBase<DerivedA>& A, const MatrixBase<DerivedB>& B, int num_products = 1, double lambda = 5) {
+typename NumTraits<typename DerivedA::Scalar>::Real product_error_bound(const MatrixBase<DerivedA>& A,
+                                                                        const MatrixBase<DerivedB>& B,
+                                                                        int num_products = 1, double lambda = 5) {
   using Scalar = typename DerivedA::Scalar;
   using Real = typename NumTraits<Scalar>::Real;
   Index k = A.cols();
