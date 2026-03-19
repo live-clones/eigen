@@ -636,31 +636,30 @@ typename NumTraits<T>::Real get_test_precision(
 
 // Overload 1: Relative tolerance for random [-1,1] matrices.
 template <typename Scalar>
-typename NumTraits<Scalar>::Real product_tolerance(Index inner_dim, int num_products = 1,
-                                                   typename NumTraits<Scalar>::Real lambda = 5) {
+typename NumTraits<Scalar>::Real product_tolerance(Index inner_dim, int num_products = 1, double lambda = 5) {
   using Real = typename NumTraits<Scalar>::Real;
-  return lambda * Real(num_products) * Real(inner_dim) * NumTraits<Scalar>::epsilon();
+  const Real lambda_real(lambda);
+  return lambda_real * Real(num_products) * Real(inner_dim) * NumTraits<Scalar>::epsilon();
 }
 
 // Overload 2: Absolute error bound for arbitrary matrices.
 // Returns lambda * sqrt(k) * epsilon * num_products * || |A|*|B| ||_F.
 template <typename DerivedA, typename DerivedB>
 typename NumTraits<typename DerivedA::Scalar>::Real product_error_bound(
-    const MatrixBase<DerivedA>& A, const MatrixBase<DerivedB>& B, int num_products = 1,
-    typename NumTraits<typename DerivedA::Scalar>::Real lambda = 5) {
+    const MatrixBase<DerivedA>& A, const MatrixBase<DerivedB>& B, int num_products = 1, double lambda = 5) {
   using Scalar = typename DerivedA::Scalar;
   using Real = typename NumTraits<Scalar>::Real;
   Index k = A.cols();
   Real abs_prod_norm = (A.cwiseAbs() * B.cwiseAbs()).norm();
-  return lambda * numext::sqrt(Real(k)) * NumTraits<Scalar>::epsilon() * Real(num_products) * abs_prod_norm;
+  const Real lambda_real(lambda);
+  return lambda_real * numext::sqrt(Real(k)) * NumTraits<Scalar>::epsilon() * Real(num_products) * abs_prod_norm;
 }
 
 // Verify that two computations of A*B agree within the Higham-Mary bound.
 // Returns true if ||actual - expected||_F <= product_error_bound(A, B, ...).
 template <typename D1, typename D2, typename DA, typename DB>
 inline bool verifyProduct(const MatrixBase<D1>& actual, const MatrixBase<D2>& expected, const MatrixBase<DA>& A,
-                          const MatrixBase<DB>& B, int num_products = 2,
-                          typename NumTraits<typename DA::Scalar>::Real lambda = 5) {
+                          const MatrixBase<DB>& B, int num_products = 2, double lambda = 5) {
   using Real = typename NumTraits<typename DA::Scalar>::Real;
   Real bound = product_error_bound(A, B, num_products, lambda);
   Real error = (actual - expected).norm();
