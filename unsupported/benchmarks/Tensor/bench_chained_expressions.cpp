@@ -122,6 +122,7 @@ static void BM_BatchNorm_ThreadPool(benchmark::State& state) {
   gamma.setRandom();
   beta.setRandom();
   mean.setRandom();
+  var.setRandom();
   var = var.abs() + var.constant(Scalar(0.1));
 
   ThreadPool tp(threads);
