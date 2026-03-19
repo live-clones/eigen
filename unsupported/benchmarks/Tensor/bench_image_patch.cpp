@@ -20,15 +20,16 @@ static void BM_ImagePatch_Valid(benchmark::State& state) {
 
   Tensor<Scalar, 4> input(C, H, W, 1);
   input.setRandom();
+  const int outH = H - kH + 1;
+  const int outW = W - kW + 1;
+  Tensor<Scalar, 5> result(C, kH, kW, outH * outW, 1);
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kW, 1, 1, 1, 1, PADDING_VALID);
+    result = input.extract_image_patches(kH, kW, 1, 1, 1, 1, PADDING_VALID);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
 
-  const int outH = H - kH + 1;
-  const int outW = W - kW + 1;
   const double bytes = static_cast<double>(C) * outH * outW * kH * kW * sizeof(Scalar);
   state.SetBytesProcessed(state.iterations() * bytes);
 }
@@ -43,9 +44,12 @@ static void BM_ImagePatch_Same(benchmark::State& state) {
 
   Tensor<Scalar, 4> input(C, H, W, 1);
   input.setRandom();
+  const int outH = H;
+  const int outW = W;
+  Tensor<Scalar, 5> result(C, kH, kW, outH * outW, 1);
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kW, 1, 1, 1, 1, PADDING_SAME);
+    result = input.extract_image_patches(kH, kW, 1, 1, 1, 1, PADDING_SAME);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
@@ -63,14 +67,15 @@ static void BM_ImagePatch_Strided(benchmark::State& state) {
 
   Tensor<Scalar, 4> input(C, H, H, 1);
   input.setRandom();
+  const int outH = (H + stride - 1) / stride;
+  Tensor<Scalar, 5> result(C, kH, kH, outH * outH, 1);
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kH, stride, stride, 1, 1, PADDING_SAME);
+    result = input.extract_image_patches(kH, kH, stride, stride, 1, 1, PADDING_SAME);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
 
-  const int outH = (H + stride - 1) / stride;
   const double bytes = static_cast<double>(C) * outH * outH * kH * kH * sizeof(Scalar);
   state.SetBytesProcessed(state.iterations() * bytes);
 }
@@ -84,9 +89,11 @@ static void BM_ImagePatch_Dilated(benchmark::State& state) {
 
   Tensor<Scalar, 4> input(C, H, H, 1);
   input.setRandom();
+  const int outH = H;
+  Tensor<Scalar, 5> result(C, kH, kH, outH * outH, 1);
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kH, 1, 1, dilation, dilation, PADDING_SAME);
+    result = input.extract_image_patches(kH, kH, 1, 1, dilation, dilation, PADDING_SAME);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
@@ -106,15 +113,16 @@ static void BM_ImagePatch_ExplicitPadding(benchmark::State& state) {
 
   Tensor<Scalar, 4> input(C, H, W, 1);
   input.setRandom();
+  const int outH = H + 2 * pad - kH + 1;
+  const int outW = W + 2 * pad - kH + 1;
+  Tensor<Scalar, 5> result(C, kH, kH, outH * outW, 1);
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kH, 1, 1, 1, 1, 1, 1, pad, pad, pad, pad, Scalar(0));
+    result = input.extract_image_patches(kH, kH, 1, 1, 1, 1, 1, 1, pad, pad, pad, pad, Scalar(0));
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
 
-  const int outH = H + 2 * pad - kH + 1;
-  const int outW = W + 2 * pad - kH + 1;
   const double bytes = static_cast<double>(C) * outH * outW * kH * kH * sizeof(Scalar);
   state.SetBytesProcessed(state.iterations() * bytes);
 }
@@ -128,9 +136,11 @@ static void BM_ImagePatch_Batched(benchmark::State& state) {
 
   Tensor<Scalar, 4> input(C, H, H, batch);
   input.setRandom();
+  const int outH = H;
+  Tensor<Scalar, 5> result(C, kH, kH, outH * outH, batch);
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kH, 1, 1, 1, 1, PADDING_SAME);
+    result = input.extract_image_patches(kH, kH, 1, 1, 1, 1, PADDING_SAME);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
@@ -148,14 +158,15 @@ static void BM_ImagePatch_ImageNet(benchmark::State& state) {
 
   Tensor<Scalar, 4> input(C, H, H, 1);
   input.setRandom();
+  const int outH = (H + stride - 1) / stride;
+  Tensor<Scalar, 5> result(C, kH, kH, outH * outH, 1);
 
   for (auto _ : state) {
-    Tensor<Scalar, 5> result = input.extract_image_patches(kH, kH, stride, stride, 1, 1, PADDING_SAME);
+    result = input.extract_image_patches(kH, kH, stride, stride, 1, 1, PADDING_SAME);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
 
-  const int outH = (H + stride - 1) / stride;
   const double bytes = static_cast<double>(C) * outH * outH * kH * kH * sizeof(Scalar);
   state.SetBytesProcessed(state.iterations() * bytes);
 }
@@ -173,10 +184,11 @@ static void BM_ImagePatch_ThreadPool(benchmark::State& state) {
   ThreadPool tp(threads);
   ThreadPoolDevice dev(&tp, threads);
 
-  Tensor<Scalar, 5> result;
+  const int outH = H;
+  Tensor<Scalar, 5> result(C, kH, kH, outH * outH, 1);
 
   for (auto _ : state) {
-    result = input.extract_image_patches(kH, kH, 1, 1, 1, 1, PADDING_SAME);
+    result.device(dev) = input.extract_image_patches(kH, kH, 1, 1, 1, 1, PADDING_SAME);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
