@@ -157,9 +157,7 @@ inline void on_temporary_creation(long int size, int) {
 }
 
 #define EIGEN_DENSE_STORAGE_CTOR_PLUGIN \
-  {                                     \
-    on_temporary_creation(size, Size);  \
-  }
+  { on_temporary_creation(size, Size); }
 
 #define VERIFY_EVALUATION_COUNT(XPR, N)                            \
   {                                                                \
@@ -339,8 +337,7 @@ static std::vector<std::string> eigen_assert_list;
 #else  // EIGEN_NO_ASSERTION_CHECKING
 
 #define VERIFY_RAISES_ASSERT(a) \
-  {                             \
-  }
+  {}
 
 #endif  // EIGEN_NO_ASSERTION_CHECKING
 
