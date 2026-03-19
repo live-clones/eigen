@@ -1292,17 +1292,17 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 #else
   constexpr int CSize = 3 * NrCols > MrPackets * NrCols ? 3 * NrCols : MrPackets * NrCols;
 #endif
-  AccPacketLocal C[CSize];
+  alignas(AccPacketLocal) AccPacketLocal C[CSize];
   for (int n = 0; n < MrPackets * NrCols; ++n) traits.initAcc(C[n]);
 
   // Double-accumulation trick for 1pX4 path to break FMA dependency chains
   constexpr bool use_double_accum = (MrPackets == 1 && NrCols == 4);
 #ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
-  AccPacketLocal D[use_double_accum ? NrCols : 1];
+  alignas(AccPacketLocal) AccPacketLocal D[use_double_accum ? NrCols : 1];
 #else
   // Without if constexpr, we must allocate a larger array to satisfy the
   // compiler that D[n] is always in bounds for the use_double_accum path.
-  AccPacketLocal D[CSize];
+  alignas(AccPacketLocal) AccPacketLocal D[CSize];
 #endif
   EIGEN_IF_CONSTEXPR(use_double_accum) {
     for (int n = 0; n < NrCols; ++n) traits.initAcc(D[n]);
@@ -1317,15 +1317,15 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 
   // LHS packet staging area. With if constexpr (C++17) we use exact sizes.
 #ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
-  LhsPacketLocal A[MrPackets];
+  alignas(LhsPacketLocal) LhsPacketLocal A[MrPackets];
 #else
-  LhsPacketLocal A[3];
+  alignas(LhsPacketLocal) LhsPacketLocal A[3];
 #endif
 
   // ---- Peeled k-loop (pk=8 unrolled) ----
   for (Index_ k = 0; k < peeled_kc; k += pk) {
-    RhsPanelType rhs_panel;
-    RhsPacketLocal T0;
+    alignas(RhsPanelType) RhsPanelType rhs_panel;
+    alignas(RhsPacketLocal) RhsPacketLocal T0;
 
     gebp_peeled_loop<MrPackets, NrCols>::template run<GEBPTraits, LhsScalar_, RhsScalar_, decltype(A), RhsPanelType,
                                                       RhsPacketLocal, decltype(C), decltype(D), FullLhsPacket>(
@@ -1342,8 +1342,8 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 
   // ---- Remainder k-loop ----
   for (Index_ k = peeled_kc; k < depth; k++) {
-    RhsPanelType rhs_panel;
-    RhsPacketLocal T0;
+    alignas(RhsPanelType) RhsPanelType rhs_panel;
+    alignas(RhsPacketLocal) RhsPacketLocal T0;
 
     gebp_micro_step<0, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, C);
 
@@ -1352,11 +1352,11 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
   }
 
   // ---- Store results: C[j + p * NrCols] -> res(i + p*ResPacketSz, j2 + j) ----
-  ResPacketLocal alphav = pset1<ResPacketLocal>(alpha);
+  alignas(ResPacketLocal) ResPacketLocal alphav = pset1<ResPacketLocal>(alpha);
   for (int j = 0; j < NrCols; ++j) {
     LinearMapper_ r = res.getLinearMapper(i, j2 + j);
     for (int p = 0; p < MrPackets; ++p) {
-      ResPacketLocal R = r.template loadPacket<ResPacketLocal>(p * ResPacketSz);
+      alignas(ResPacketLocal) ResPacketLocal R = r.template loadPacket<ResPacketLocal>(p * ResPacketSz);
       traits.acc(C[j + p * NrCols], alphav, R);
       r.storePacket(p * ResPacketSz, R);
     }
