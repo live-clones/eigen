@@ -1150,6 +1150,57 @@ void test_patch_asymmetric() {
   }
 }
 
+// Exercises packet loads that span multiple rows/columns within the patch.
+void test_patch_contiguous_packet_span() {
+  const int depth = 1;
+  const int rows = 5;
+  const int cols = 5;
+  const int batch = 1;
+  Tensor<float, 4> tensor(depth, rows, cols, batch);
+  for (int i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<float>(i + 1);
+  }
+
+  const int patch_rows = 3;
+  const int patch_cols = 3;
+  Tensor<float, 5> result = tensor.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, PADDING_VALID);
+  const int outputRows = 3;
+  const int outputCols = 3;
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        const int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            const int inputRow = oi + pr;
+            const int inputCol = oj + pc;
+            VERIFY_IS_EQUAL(result(0, pr, pc, patchId, b), tensor(0, inputRow, inputCol, b));
+          }
+        }
+      }
+    }
+  }
+
+  Tensor<float, 4, RowMajor> tensor_rm = tensor.swap_layout();
+  Tensor<float, 5, RowMajor> result_rm =
+      tensor_rm.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, PADDING_VALID);
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        const int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            const int inputRow = oi + pr;
+            const int inputCol = oj + pc;
+            VERIFY_IS_EQUAL(result_rm(b, patchId, pc, pr, 0), tensor_rm(b, inputCol, inputRow, 0));
+          }
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(cxx11_tensor_image_patch) {
   CALL_SUBTEST_1(test_simple_patch());
   CALL_SUBTEST_2(test_patch_no_extra_dim());
@@ -1162,4 +1213,5 @@ EIGEN_DECLARE_TEST(cxx11_tensor_image_patch) {
   CALL_SUBTEST_9(test_patch_dilation());
   CALL_SUBTEST_10(test_patch_explicit_padding());
   CALL_SUBTEST_11(test_patch_asymmetric());
+  CALL_SUBTEST_12(test_patch_contiguous_packet_span());
 }
