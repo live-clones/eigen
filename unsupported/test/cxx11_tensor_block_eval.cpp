@@ -17,7 +17,8 @@ template <typename T, int NumDims, int Layout>
 static void setRandomForBinaryProduct(Tensor<T, NumDims, Layout>& tensor) {
   EIGEN_IF_CONSTEXPR((std::is_integral<T>::value && !std::is_same<T, bool>::value)) {
     setRandomInRange(tensor, T(-1000), T(1000));
-  } else {
+  }
+  else {
     tensor.setRandom();
   }
 }
