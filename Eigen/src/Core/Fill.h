@@ -25,11 +25,11 @@ struct eigen_fill_helper : std::false_type {};
 // causing measurable regressions for types like AutoDiffScalar (issue #2956).
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct eigen_fill_helper<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>
-    : std::bool_constant<std::is_trivially_copyable<Scalar>::value> {};
+    : std::integral_constant<bool, std::is_trivially_copyable<Scalar>::value> {};
 
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct eigen_fill_helper<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>
-    : std::bool_constant<std::is_trivially_copyable<Scalar>::value> {};
+    : std::integral_constant<bool, std::is_trivially_copyable<Scalar>::value> {};
 
 template <typename Xpr, int BlockRows, int BlockCols>
 struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ true>> : eigen_fill_helper<Xpr> {};
