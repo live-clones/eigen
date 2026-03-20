@@ -14,6 +14,13 @@
 
 using Eigen::Tensor;
 
+template <typename TensorType>
+static void setRandomInRange(TensorType& tensor, typename TensorType::Scalar min_value, typename TensorType::Scalar max_value) {
+  for (Eigen::Index i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = Eigen::internal::random<typename TensorType::Scalar>(min_value, max_value);
+  }
+}
+
 template <int DataLayout, typename Type = float, bool Exclusive = false>
 static void test_1d_scan() {
   int size = 50;
@@ -85,7 +92,7 @@ template <int DataLayout>
 static void test_tensor_maps() {
   int inputs[20];
   TensorMap<Tensor<int, 1, DataLayout> > tensor_map(inputs, 20);
-  tensor_map.setRandom();
+  setRandomInRange(tensor_map, -1000, 1000);
 
   Tensor<int, 1, DataLayout> result = tensor_map.cumsum(0);
 

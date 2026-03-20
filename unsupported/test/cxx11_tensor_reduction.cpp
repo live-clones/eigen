@@ -14,6 +14,13 @@
 
 using Eigen::Tensor;
 
+template <typename TensorType>
+static void setRandomInRange(TensorType& tensor, typename TensorType::Scalar min_value, typename TensorType::Scalar max_value) {
+  for (Eigen::Index i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = Eigen::internal::random<typename TensorType::Scalar>(min_value, max_value);
+  }
+}
+
 template <int DataLayout>
 static void test_trivial_reductions() {
   {
@@ -335,7 +342,7 @@ static void test_tensor_maps() {
   TensorMap<Tensor<const int, 4, DataLayout>> tensor_map_const(inputs, 2, 3, 5, 7);
   const TensorMap<Tensor<const int, 4, DataLayout>> tensor_map_const_const(inputs, 2, 3, 5, 7);
 
-  tensor_map.setRandom();
+  setRandomInRange(tensor_map, -1000, 1000);
   array<ptrdiff_t, 2> reduction_axis;
   reduction_axis[0] = 1;
   reduction_axis[1] = 3;
