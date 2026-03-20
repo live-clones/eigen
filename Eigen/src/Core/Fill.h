@@ -24,12 +24,10 @@ struct eigen_fill_helper : std::false_type {};
 // fill_n pessimizes non-trivially-copyable types (extra moves per iteration),
 // causing measurable regressions for types like AutoDiffScalar (issue #2956).
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
-struct eigen_fill_helper<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>
-    : std::is_trivially_copyable<Scalar> {};
+struct eigen_fill_helper<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::is_trivially_copyable<Scalar> {};
 
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
-struct eigen_fill_helper<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>>
-    : std::is_trivially_copyable<Scalar> {};
+struct eigen_fill_helper<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::is_trivially_copyable<Scalar> {};
 
 template <typename Xpr, int BlockRows, int BlockCols>
 struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ true>> : eigen_fill_helper<Xpr> {};
