@@ -13,6 +13,22 @@
 using Eigen::internal::TensorBlockDescriptor;
 using Eigen::internal::TensorExecutor;
 
+template <typename TensorType>
+static void setRandomInRange(TensorType& tensor, typename TensorType::Scalar min_value, typename TensorType::Scalar max_value) {
+  for (Eigen::Index i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = Eigen::internal::random<typename TensorType::Scalar>(min_value, max_value);
+  }
+}
+
+template <typename T, int NumDims, int Layout>
+static void setRandomForBinaryProduct(Tensor<T, NumDims, Layout>& tensor) {
+  EIGEN_IF_CONSTEXPR((std::is_integral<T>::value && !std::is_same<T, bool>::value)) {
+    setRandomInRange(tensor, T(-1000), T(1000));
+  } else {
+    tensor.setRandom();
+  }
+}
+
 // -------------------------------------------------------------------------- //
 // Utility functions to generate random tensors, blocks, and evaluate them.
 
@@ -220,8 +236,8 @@ template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_binary_expr_block() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> lhs(dims), rhs(dims);
-  lhs.setRandom();
-  rhs.setRandom();
+  setRandomForBinaryProduct(lhs);
+  setRandomForBinaryProduct(rhs);
 
   VerifyBlockEvaluator<T, NumDims, Layout>(lhs * rhs, [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
