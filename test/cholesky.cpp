@@ -473,11 +473,11 @@ EIGEN_DECLARE_TEST(cholesky) {
 
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_2(cholesky(MatrixXd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
     CALL_SUBTEST_6(cholesky_cplx(MatrixXcd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
   // empty matrix, regression test for Bug 785:
   CALL_SUBTEST_2(cholesky(MatrixXd(0, 0)));
@@ -496,5 +496,5 @@ EIGEN_DECLARE_TEST(cholesky) {
 
   CALL_SUBTEST_2(cholesky_faillure_cases<void>());
 
-  TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries)
+  TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries);
 }
