@@ -33,9 +33,9 @@ operator/(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
  * \sa operator/()
  */
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CwiseBinaryOp<
-    internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived, const OtherDerived>
-operator%(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
+    CwiseBinaryOp<internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived, const OtherDerived>
+    operator%(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
   return CwiseBinaryOp<internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived,
                        const OtherDerived>(derived(), other.derived());
 }

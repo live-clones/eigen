@@ -456,10 +456,7 @@ struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
 template <typename LhsScalar, typename RhsScalar>
 struct functor_traits<scalar_modulus_op<LhsScalar, RhsScalar>> {
   typedef typename scalar_modulus_op<LhsScalar, RhsScalar>::result_type result_type;
-  enum {
-    PacketAccess = false,
-    Cost = scalar_div_cost<result_type, false>::value
-  };
+  enum { PacketAccess = false, Cost = scalar_div_cost<result_type, false>::value };
 };
 
 /** \internal
