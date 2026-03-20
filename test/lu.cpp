@@ -228,8 +228,8 @@ void lu_blocking_boundary() {
   typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
 
   const Index PS = internal::packet_traits<Scalar>::size;
-  const Index sizes[] = {1,     2,     3,     PS - 1, PS,     PS + 1, 2 * PS - 1, 2 * PS,
-                         2 * PS + 1, 4 * PS, 4 * PS + 1, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65};
+  const Index sizes[] = {1, 2, 3,  PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1, 7,
+                         8, 9, 15, 16,     17, 31,     32,         33,     63,         64,     65};
   for (Index si = 0; si < Index(sizeof(sizes) / sizeof(sizes[0])); ++si) {
     Index n = sizes[si];
     if (n < 1) continue;
