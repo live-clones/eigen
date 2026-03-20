@@ -16,7 +16,7 @@ using Eigen::internal::TensorExecutor;
 template <typename T, int NumDims, int Layout>
 static void setRandomForBinaryProduct(Tensor<T, NumDims, Layout>& tensor) {
   EIGEN_IF_CONSTEXPR((std::is_integral<T>::value && !std::is_same<T, bool>::value)) {
-    setRandomInRange(tensor, T(-1000), T(1000));
+    setRandomDataInRange(tensor, T(-1000), T(1000));
   }
   else {
     tensor.setRandom();
