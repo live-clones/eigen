@@ -13,13 +13,6 @@
 using Eigen::internal::TensorBlockDescriptor;
 using Eigen::internal::TensorExecutor;
 
-template <typename TensorType>
-static void setRandomInRange(TensorType& tensor, typename TensorType::Scalar min_value, typename TensorType::Scalar max_value) {
-  for (Eigen::Index i = 0; i < tensor.size(); ++i) {
-    tensor.data()[i] = Eigen::internal::random<typename TensorType::Scalar>(min_value, max_value);
-  }
-}
-
 template <typename T, int NumDims, int Layout>
 static void setRandomForBinaryProduct(Tensor<T, NumDims, Layout>& tensor) {
   EIGEN_IF_CONSTEXPR((std::is_integral<T>::value && !std::is_same<T, bool>::value)) {

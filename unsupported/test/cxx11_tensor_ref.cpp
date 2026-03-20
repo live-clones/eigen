@@ -14,13 +14,6 @@
 using Eigen::RowMajor;
 using Eigen::Tensor;
 
-template <typename TensorType>
-static void setRandomInRange(TensorType& tensor, typename TensorType::Scalar min_value, typename TensorType::Scalar max_value) {
-  for (Eigen::Index i = 0; i < tensor.size(); ++i) {
-    tensor.data()[i] = Eigen::internal::random<typename TensorType::Scalar>(min_value, max_value);
-  }
-}
-
 static void test_simple_lvalue_ref() {
   Tensor<int, 1> input(6);
   input.setRandom();

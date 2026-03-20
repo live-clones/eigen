@@ -892,6 +892,13 @@ std::string type_name() {
   return type_name(T());
 }
 
+template <typename TensorLike>
+void setRandomInRange(TensorLike& tensor, typename TensorLike::Scalar min_value, typename TensorLike::Scalar max_value) {
+  for (Eigen::Index i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = Eigen::internal::random<typename TensorLike::Scalar>(min_value, max_value);
+  }
+}
+
 using namespace Eigen;
 
 /**
