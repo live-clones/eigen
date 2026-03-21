@@ -88,7 +88,7 @@ void rcond_ldlt() {
 
 template <typename MatrixType>
 void rcond_singular() {
-  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
@@ -97,7 +97,7 @@ void rcond_singular() {
   m.row(0).setZero();
 
   FullPivLU<MatrixType> lu(m);
-  VERIFY_IS_EQUAL(lu.rcond(), Scalar(0));
+  VERIFY_IS_EQUAL(lu.rcond(), RealScalar(0));
 }
 
 template <typename MatrixType>
@@ -213,53 +213,59 @@ void rcond_2x2() {
   }
 }
 
-EIGEN_DECLARE_TEST(condition_estimator) {
+template <typename T>
+class ConditionEstimatorTest : public ::testing::Test {};
+
+using ConditionEstimatorTypes = ::testing::Types<Matrix3f, Matrix4d, MatrixXf, MatrixXd, MatrixXcf, MatrixXcd>;
+EIGEN_TYPED_TEST_SUITE(ConditionEstimatorTest, ConditionEstimatorTypes);
+
+TYPED_TEST(ConditionEstimatorTest, PartialPivLU) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(rcond_partial_piv_lu<Matrix3f>());
-    CALL_SUBTEST_1(rcond_full_piv_lu<Matrix3f>());
-    CALL_SUBTEST_1(rcond_llt<Matrix3f>());
-    CALL_SUBTEST_1(rcond_ldlt<Matrix3f>());
-    CALL_SUBTEST_1(rcond_singular<Matrix3f>());
-    CALL_SUBTEST_1(rcond_identity<Matrix3f>());
-    CALL_SUBTEST_1(rcond_1x1<Matrix3f>());
-    CALL_SUBTEST_1(rcond_2x2<Matrix3f>());
+    rcond_partial_piv_lu<TypeParam>();
+  }
+}
 
-    CALL_SUBTEST_2(rcond_partial_piv_lu<Matrix4d>());
-    CALL_SUBTEST_2(rcond_full_piv_lu<Matrix4d>());
-    CALL_SUBTEST_2(rcond_llt<Matrix4d>());
-    CALL_SUBTEST_2(rcond_ldlt<Matrix4d>());
-    CALL_SUBTEST_2(rcond_singular<Matrix4d>());
-    CALL_SUBTEST_2(rcond_identity<Matrix4d>());
-    CALL_SUBTEST_2(rcond_2x2<Matrix4d>());
+TYPED_TEST(ConditionEstimatorTest, FullPivLU) {
+  for (int i = 0; i < g_repeat; i++) {
+    rcond_full_piv_lu<TypeParam>();
+  }
+}
 
-    CALL_SUBTEST_3(rcond_partial_piv_lu<MatrixXf>());
-    CALL_SUBTEST_3(rcond_full_piv_lu<MatrixXf>());
-    CALL_SUBTEST_3(rcond_llt<MatrixXf>());
-    CALL_SUBTEST_3(rcond_ldlt<MatrixXf>());
-    CALL_SUBTEST_3(rcond_singular<MatrixXf>());
-    CALL_SUBTEST_3(rcond_identity<MatrixXf>());
-    CALL_SUBTEST_3(rcond_ill_conditioned<MatrixXf>());
+TYPED_TEST(ConditionEstimatorTest, LLT) {
+  for (int i = 0; i < g_repeat; i++) {
+    rcond_llt<TypeParam>();
+  }
+}
 
-    CALL_SUBTEST_4(rcond_partial_piv_lu<MatrixXd>());
-    CALL_SUBTEST_4(rcond_full_piv_lu<MatrixXd>());
-    CALL_SUBTEST_4(rcond_llt<MatrixXd>());
-    CALL_SUBTEST_4(rcond_ldlt<MatrixXd>());
-    CALL_SUBTEST_4(rcond_singular<MatrixXd>());
-    CALL_SUBTEST_4(rcond_identity<MatrixXd>());
-    CALL_SUBTEST_4(rcond_ill_conditioned<MatrixXd>());
+TYPED_TEST(ConditionEstimatorTest, LDLT) {
+  for (int i = 0; i < g_repeat; i++) {
+    rcond_ldlt<TypeParam>();
+  }
+}
 
-    CALL_SUBTEST_5(rcond_partial_piv_lu<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_full_piv_lu<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_llt<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_ldlt<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_singular<MatrixXcf>());
-    CALL_SUBTEST_5(rcond_identity<MatrixXcf>());
+TYPED_TEST(ConditionEstimatorTest, Singular) {
+  for (int i = 0; i < g_repeat; i++) {
+    rcond_singular<TypeParam>();
+  }
+}
 
-    CALL_SUBTEST_6(rcond_partial_piv_lu<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_full_piv_lu<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_llt<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_ldlt<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_singular<MatrixXcd>());
-    CALL_SUBTEST_6(rcond_identity<MatrixXcd>());
+TYPED_TEST(ConditionEstimatorTest, Identity) {
+  for (int i = 0; i < g_repeat; i++) {
+    rcond_identity<TypeParam>();
+  }
+}
+
+TEST(ConditionEstimatorTest, IllConditioned) {
+  for (int i = 0; i < g_repeat; i++) {
+    rcond_ill_conditioned<MatrixXf>();
+    rcond_ill_conditioned<MatrixXd>();
+  }
+}
+
+TEST(ConditionEstimatorTest, SmallFixed) {
+  for (int i = 0; i < g_repeat; i++) {
+    rcond_1x1<Matrix3f>();
+    rcond_2x2<Matrix3f>();
+    rcond_2x2<Matrix4d>();
   }
 }
