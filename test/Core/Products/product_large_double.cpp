@@ -18,6 +18,7 @@ TEST(ProductLargeDoubleTest, Basic) {
     product(MatrixXd(internal::random<int>(1, 10), internal::random<int>(1, 10)));
     product(MatrixXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
 
+    test_aliasing<double>();
     bug_1622<1>();
   }
 
