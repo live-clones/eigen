@@ -57,7 +57,7 @@ struct traits<ConcatOp<Direction, LhsType, RhsType>> : traits<LhsType> {
 
     IsRowMajor = MaxRowsAtCompileTime == 1 && MaxColsAtCompileTime != 1   ? 1
                  : MaxColsAtCompileTime == 1 && MaxRowsAtCompileTime != 1 ? 0
-                 : (int(LhsType::Flags) & RowMajorBit)                   ? 1
+                 : (int(LhsType::Flags) & RowMajorBit)                    ? 1
                                                                           : 0,
     Flags = IsRowMajor ? RowMajorBit : 0
   };
@@ -128,8 +128,7 @@ class ConcatOp : public internal::dense_xpr_base<ConcatOp<Direction, LhsType, Rh
 namespace internal {
 
 template <int Direction, typename LhsType, typename RhsType>
-struct evaluator<ConcatOp<Direction, LhsType, RhsType>>
-    : evaluator_base<ConcatOp<Direction, LhsType, RhsType>> {
+struct evaluator<ConcatOp<Direction, LhsType, RhsType>> : evaluator_base<ConcatOp<Direction, LhsType, RhsType>> {
   typedef ConcatOp<Direction, LhsType, RhsType> XprType;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
 
@@ -195,7 +194,7 @@ struct evaluator<ConcatOp<Direction, LhsType, RhsType>>
  */
 template <typename Lhs, typename Rhs>
 EIGEN_DEVICE_FUNC inline const ConcatOp<Horizontal, Lhs, Rhs> hcat(const DenseBase<Lhs>& lhs,
-                                                                     const DenseBase<Rhs>& rhs) {
+                                                                   const DenseBase<Rhs>& rhs) {
   return ConcatOp<Horizontal, Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
@@ -214,8 +213,7 @@ EIGEN_DEVICE_FUNC inline const ConcatOp<Horizontal, Lhs, Rhs> hcat(const DenseBa
  * \sa hcat(), ConcatOp
  */
 template <typename Lhs, typename Rhs>
-EIGEN_DEVICE_FUNC inline const ConcatOp<Vertical, Lhs, Rhs> vcat(const DenseBase<Lhs>& lhs,
-                                                                    const DenseBase<Rhs>& rhs) {
+EIGEN_DEVICE_FUNC inline const ConcatOp<Vertical, Lhs, Rhs> vcat(const DenseBase<Lhs>& lhs, const DenseBase<Rhs>& rhs) {
   return ConcatOp<Vertical, Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
