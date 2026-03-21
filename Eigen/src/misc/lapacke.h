@@ -128,8 +128,9 @@ lapack_logical LAPACK_lsame(char* ca, char* cb, lapack_int lca, lapack_int lcb);
  * LAPACKE function prototypes used by Eigen.
  *
  * Only the subset of LAPACKE routines that Eigen actually calls is declared
- * here.  The full LAPACKE header from your LAPACK installation can be used
- * instead by defining EIGEN_USE_LAPACKE_STRICT before including Eigen headers.
+ * here.  If you need the full LAPACKE API, include your system's <lapacke.h>
+ * after including Eigen headers, or define EIGEN_LAPACKE_SYSTEM before
+ * including Eigen to use the system header instead of this bundled subset.
  */
 
 /* Schur decomposition (gees) — used by RealSchur_LAPACKE.h, ComplexSchur_LAPACKE.h */
