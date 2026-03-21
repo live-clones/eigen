@@ -470,11 +470,22 @@ EIGEN_DECLARE_TEST(vectorization_logic) {
   CALL_SUBTEST(vectorization_logic_half<std::complex<float> >::run());
   CALL_SUBTEST(vectorization_logic_half<std::complex<double> >::run());
 
+  // For backends without sub-packet types (e.g. the generic clang backend),
+  // find_best_packet may return a packet larger than the matrix, making
+  // MayLinearVectorize false in the assignment path (which requires the
+  // packet to fit). The redux path has no such constraint.
+  auto may_linear_vectorize_assign = [](auto dummy) {
+    using Mat = decltype(dummy);
+    using Scalar = typename Mat::Scalar;
+    constexpr int N = Mat::SizeAtCompileTime;
+    constexpr int PacketSize = internal::unpacket_traits<typename internal::find_best_packet<Scalar, N>::type>::size;
+    (void)PacketSize;  // suppress unused warning when EIGEN_UNALIGNED_VECTORIZE is 0
+    return internal::packet_traits<Scalar>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE && N >= PacketSize;
+  };
+
   if (internal::packet_traits<float>::Vectorizable) {
     VERIFY(test_assign(Matrix<float, 3, 3>(), Matrix<float, 3, 3>() + Matrix<float, 3, 3>(),
-                       internal::packet_traits<float>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE
-                           ? LinearVectorizedTraversal
-                           : LinearTraversal,
+                       may_linear_vectorize_assign(Matrix<float, 3, 3>()) ? LinearVectorizedTraversal : LinearTraversal,
                        CompleteUnrolling));
 
     VERIFY(test_redux(Matrix<float, 5, 2>(),
@@ -485,11 +496,10 @@ EIGEN_DECLARE_TEST(vectorization_logic) {
   }
 
   if (internal::packet_traits<double>::Vectorizable) {
-    VERIFY(test_assign(Matrix<double, 3, 3>(), Matrix<double, 3, 3>() + Matrix<double, 3, 3>(),
-                       internal::packet_traits<double>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE
-                           ? LinearVectorizedTraversal
-                           : LinearTraversal,
-                       CompleteUnrolling));
+    VERIFY(
+        test_assign(Matrix<double, 3, 3>(), Matrix<double, 3, 3>() + Matrix<double, 3, 3>(),
+                    may_linear_vectorize_assign(Matrix<double, 3, 3>()) ? LinearVectorizedTraversal : LinearTraversal,
+                    CompleteUnrolling));
 
     VERIFY(test_redux(Matrix<double, 7, 3>(),
                       internal::packet_traits<double>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE
