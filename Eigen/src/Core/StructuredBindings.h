@@ -33,7 +33,7 @@ namespace std {
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct tuple_size<Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
     : std::enable_if_t<(Rows_ != Eigen::Dynamic && Cols_ != Eigen::Dynamic),
-                        std::integral_constant<size_t, static_cast<size_t>(Rows_ * Cols_)>> {};
+                       std::integral_constant<size_t, static_cast<size_t>(Rows_* Cols_)>> {};
 
 // std::tuple_element for fixed-size Matrix types.
 // Note: uses Idx_ instead of I to avoid conflict with Eigen's test framework macro.
@@ -49,7 +49,7 @@ struct tuple_element<Idx_, Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRow
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct tuple_size<Eigen::Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
     : std::enable_if_t<(Rows_ != Eigen::Dynamic && Cols_ != Eigen::Dynamic),
-                        std::integral_constant<size_t, static_cast<size_t>(Rows_ * Cols_)>> {};
+                       std::integral_constant<size_t, static_cast<size_t>(Rows_* Cols_)>> {};
 
 // std::tuple_element for fixed-size Array types.
 template <size_t Idx_, typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
