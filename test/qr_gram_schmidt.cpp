@@ -135,18 +135,17 @@ void qr_gram_schmidt_edge_cases() {
 
 EIGEN_DECLARE_TEST(qr_gram_schmidt) {
   for (int i = 0; i < g_repeat; ++i) {
-    CALL_SUBTEST_1(qr_gram_schmidt(MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                             internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_2(qr_gram_schmidt(MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                             internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_1(qr_gram_schmidt(
+        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_2(qr_gram_schmidt(
+        MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_3(qr_gram_schmidt(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                                              internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2))));
+                                             internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2))));
   }
 
   for (int i = 0; i < g_repeat; ++i) {
-    CALL_SUBTEST_4(
-        qr_gram_schmidt_solve(MatrixXd(internal::random<int>(2, EIGEN_TEST_MAX_SIZE),
-                                        internal::random<int>(2, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_4(qr_gram_schmidt_solve(
+        MatrixXd(internal::random<int>(2, EIGEN_TEST_MAX_SIZE), internal::random<int>(2, EIGEN_TEST_MAX_SIZE))));
   }
 
   CALL_SUBTEST_5(qr_gram_schmidt_convenience(
