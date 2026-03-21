@@ -31,7 +31,7 @@ void testNoAutomaticResizing() {
     M = Matrix::Zero(rows, cols);
     VERIFY_IS_EQUAL(M.rows(), rows);
     VERIFY_IS_EQUAL(M.cols(), cols);
-    VERIFY_IS_EQUAL(M.norm(), Scalar(0));
+    VERIFY(M.isZero());
   }
 
   // Assignment of Zero expression to default-constructed array.
@@ -100,8 +100,10 @@ void testNoAutomaticResizing() {
   }
 }
 
-EIGEN_DECLARE_TEST(no_automatic_resizing) {
-  CALL_SUBTEST_1(testNoAutomaticResizing<float>());
-  CALL_SUBTEST_2(testNoAutomaticResizing<double>());
-  CALL_SUBTEST_3(testNoAutomaticResizing<std::complex<double>>());
-}
+template <typename T>
+class NoAutomaticResizingTest : public ::testing::Test {};
+
+using NoAutomaticResizingTypes = ::testing::Types<float, double, std::complex<double>>;
+EIGEN_TYPED_TEST_SUITE(NoAutomaticResizingTest, NoAutomaticResizingTypes);
+
+TYPED_TEST(NoAutomaticResizingTest, AssignToEmpty) { testNoAutomaticResizing<TypeParam>(); }
