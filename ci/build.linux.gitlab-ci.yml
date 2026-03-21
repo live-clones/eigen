@@ -110,6 +110,8 @@ build:linux:cross:x86-64:clang-19:cxx20:nightly:
     EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_CXX_STANDARD=20
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
 
 build:linux:docs:
   extends: .build:linux:cross
