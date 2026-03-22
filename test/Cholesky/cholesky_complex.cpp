@@ -16,8 +16,8 @@ TEST(CholeskyComplexTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
     cholesky_cplx(MatrixXcd(s, s));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 
-  TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries)
+  TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries);
 }
