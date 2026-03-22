@@ -104,7 +104,6 @@ TEST(LUTest, Basic) {
 
     test_2889();
   }
-
 }
 
 // Blocking and vectorization boundary tests (deterministic, outside g_repeat).
