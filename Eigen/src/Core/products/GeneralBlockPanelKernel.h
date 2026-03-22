@@ -57,6 +57,10 @@ const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(8 * 10
 const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
 const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(4 * 1024 * 1024);
 #endif
+#elif EIGEN_ARCH_ARM64
+const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(128 * 1024);
+const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(4 * 1024 * 1024);
+const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(32 * 1024 * 1024);
 #else
 const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
 const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
@@ -228,7 +232,9 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 #ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
     const Index actual_l2 = l3;
 #else
-    const Index actual_l2 = 1572864;  // == 1.5 MB
+    // Use L2 as the per-core cache budget for 2nd-level blocking.
+    // The original hardcoded 1.5MB was too conservative for modern platforms.
+    const Index actual_l2 = l2;
 #endif
 
     // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
@@ -1426,14 +1432,11 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
                                                              Index cols, ResScalar alpha, Index strideA, Index strideB,
                                                              Index offsetA, Index offsetB) {
   Traits traits;
-
   SwappedTraits straits;
 
   if (strideA == -1) strideA = depth;
   if (strideB == -1) strideB = depth;
-
   conj_helper<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs> cj;
-
   Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
   Index packet_cols8 = nr >= 8 ? (cols / 8) * 8 : 0;
   const Index peeled_mc3 = mr >= 3 * Traits::LhsProgress ? (rows / (3 * LhsProgress)) * (3 * LhsProgress) : 0;

@@ -19,6 +19,10 @@
 #ifndef EIGEN_MEMORY_H
 #define EIGEN_MEMORY_H
 
+#if EIGEN_ARCH_ARM64 && EIGEN_OS_MAC
+#include <sys/sysctl.h>
+#endif
+
 #ifndef EIGEN_MALLOC_ALREADY_ALIGNED
 
 // Try to determine automatically if malloc is already aligned.
@@ -1305,6 +1309,20 @@ inline void queryCacheSizes(int& l1, int& l2, int& l3) {
     //   ||cpuid_is_vendor(abcd,"SiS SiS SiS ")
     //   ||cpuid_is_vendor(abcd,"UMC UMC UMC ")
     //   ||cpuid_is_vendor(abcd,"NexGenDriven")
+#elif EIGEN_ARCH_ARM64 && EIGEN_OS_MAC
+  // macOS ARM: query cache sizes via sysctlbyname.
+  // Use perflevel0 (P-core) L1 since GEMM runs on P-cores.
+  auto sysctl_cache = [](const char* name) -> int {
+    int64_t val = 0;
+    size_t len = sizeof(val);
+    if (sysctlbyname(name, &val, &len, nullptr, 0) == 0 && val > 0)
+      return static_cast<int>(val);
+    return -1;
+  };
+  l1 = sysctl_cache("hw.perflevel0.l1dcachesize");
+  if (l1 <= 0) l1 = sysctl_cache("hw.l1dcachesize");
+  l2 = sysctl_cache("hw.l2cachesize");
+  l3 = sysctl_cache("hw.l3cachesize");
 #else
   l1 = l2 = l3 = -1;
 #endif

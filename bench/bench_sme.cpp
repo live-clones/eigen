@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
   BENCH(t, 1, rep, gemm(A, B, C));
 
   cout << "Best Time: " << t.best() << " s" << endl;
-  double flops = 2.0 * double(m) * double(n) * double(k);
+  double flops = 2.0 * double(m) * double(n) * double(k) * rep;
   cout << "GFLOPS: " << (flops * 1e-9) / t.best() << endl;
 
   // Prevent dead code elimination

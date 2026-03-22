@@ -75,7 +75,7 @@
 #elif defined(__AVX512F__)
 // 64 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
-#elif defined(EIGEN_VECTORIZE_SME)
+#elif defined(EIGEN_VECTORIZE_SME) || defined(EIGEN_ARM64_USE_SME)
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
 #elif defined(__AVX__)
 // 32 bytes static alignment is preferred only if really required
