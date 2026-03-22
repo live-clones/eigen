@@ -131,9 +131,8 @@ template <typename T, typename = void>
 struct is_eigen_index_expression : std::false_type {};
 
 template <typename T>
-struct is_eigen_index_expression<
-    T, std::enable_if_t<!std::is_same<T, typename T::PlainObject>::value &&
-                        std::is_same<typename T::PlainObject, typename T::PlainObject>::value>> : std::true_type {};
+struct is_eigen_index_expression<T, std::enable_if_t<!std::is_same<T, typename T::PlainObject>::value>>
+    : std::true_type {};
 
 // Potentially wrap indices in a type that is better-suited for IndexedView evaluation.
 template <typename Indices, int NestedSizeAtCompileTime, typename EnableIf = void>
