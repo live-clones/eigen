@@ -339,7 +339,7 @@ class BlockSparseMatrix
     std::swap(first.m_blockPtr, second.m_blockPtr);
     std::swap(first.m_indices, second.m_indices);
     std::swap(first.m_outerIndex, second.m_outerIndex);
-    std::swap(first.m_BlockSize, second.m_blockSize);
+    std::swap(first.m_blockSize, second.m_blockSize);
   }
 
   BlockSparseMatrix& operator=(BlockSparseMatrix other) {
@@ -551,7 +551,7 @@ class BlockSparseMatrix
     eigen_assert((m_innerBSize != 0 && m_outerBSize != 0) &&
                  "TRYING TO RESERVE ZERO-SIZE MATRICES, CALL resize() first");
 
-    // FIXME: Should free if already allocated.
+    // FIXME Should free if already allocated
     m_outerIndex = new StorageIndex[m_outerBSize + 1];
 
     m_nonzerosblocks = nonzerosblocks;
