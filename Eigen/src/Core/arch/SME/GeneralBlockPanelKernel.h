@@ -189,27 +189,47 @@ EIGEN_ALWAYS_INLINE void sme_store_za_tile(Scalar* EIGEN_RESTRICT C, Index C_str
                                            int cw) __arm_streaming __arm_inout("za") {
   const svbool_t pg_m = svwhilelt_b32((uint32_t)0, (uint32_t)pw);
   const svbool_t pg_n = svwhilelt_b32((uint32_t)0, (uint32_t)cw);
-  const svfloat32_t valpha = svdup_f32(alpha);
+  const bool unit_alpha = (alpha == Scalar(1));
 
   if (C_stride_row == 1) {
-    for (int ci = 0; ci < cw; ++ci) {
-      svfloat32_t vres = svread_ver_za32_f32_m(svdup_f32(0.f), pg_m, TileId, (uint32_t)ci);
-      vres = svmul_f32_x(pg_m, vres, valpha);
-      Scalar* pC = C + row_start + (col_start + ci) * C_stride_col;
-      svfloat32_t vc = svld1_f32(pg_m, pC);
-      vc = svadd_f32_x(pg_m, vc, vres);
-      svst1_f32(pg_m, pC, vc);
+    // Column-major C: extract vertical slices (columns of the ZA tile)
+    if (unit_alpha) {
+      for (int ci = 0; ci < cw; ++ci) {
+        svfloat32_t vres = svread_ver_za32_f32_m(svdup_f32(0.f), pg_m, TileId, (uint32_t)ci);
+        Scalar* pC = C + row_start + (col_start + ci) * C_stride_col;
+        svfloat32_t vc = svld1_f32(pg_m, pC);
+        svst1_f32(pg_m, pC, svadd_f32_x(pg_m, vc, vres));
+      }
+    } else {
+      const svfloat32_t valpha = svdup_f32(alpha);
+      for (int ci = 0; ci < cw; ++ci) {
+        svfloat32_t vres = svread_ver_za32_f32_m(svdup_f32(0.f), pg_m, TileId, (uint32_t)ci);
+        Scalar* pC = C + row_start + (col_start + ci) * C_stride_col;
+        svfloat32_t vc = svld1_f32(pg_m, pC);
+        svst1_f32(pg_m, pC, svmla_f32_x(pg_m, vc, vres, valpha));
+      }
     }
   } else if (C_stride_col == 1) {
-    for (int ri = 0; ri < pw; ++ri) {
-      svfloat32_t vres = svread_hor_za32_f32_m(svdup_f32(0.f), pg_n, TileId, (uint32_t)ri);
-      vres = svmul_f32_x(pg_n, vres, valpha);
-      Scalar* pC = C + (row_start + ri) * C_stride_row + col_start;
-      svfloat32_t vc = svld1_f32(pg_n, pC);
-      vc = svadd_f32_x(pg_n, vc, vres);
-      svst1_f32(pg_n, pC, vc);
+    // Row-major C: extract horizontal slices (rows of the ZA tile)
+    if (unit_alpha) {
+      for (int ri = 0; ri < pw; ++ri) {
+        svfloat32_t vres = svread_hor_za32_f32_m(svdup_f32(0.f), pg_n, TileId, (uint32_t)ri);
+        Scalar* pC = C + (row_start + ri) * C_stride_row + col_start;
+        svfloat32_t vc = svld1_f32(pg_n, pC);
+        svst1_f32(pg_n, pC, svadd_f32_x(pg_n, vc, vres));
+      }
+    } else {
+      const svfloat32_t valpha = svdup_f32(alpha);
+      for (int ri = 0; ri < pw; ++ri) {
+        svfloat32_t vres = svread_hor_za32_f32_m(svdup_f32(0.f), pg_n, TileId, (uint32_t)ri);
+        Scalar* pC = C + (row_start + ri) * C_stride_row + col_start;
+        svfloat32_t vc = svld1_f32(pg_n, pC);
+        svst1_f32(pg_n, pC, svmla_f32_x(pg_n, vc, vres, valpha));
+      }
     }
   } else {
+    // General stride: extract rows to temp buffer, scatter to C
+    const svfloat32_t valpha = svdup_f32(alpha);
     for (int ri = 0; ri < pw; ++ri) {
       svfloat32_t vres = svread_hor_za32_f32_m(svdup_f32(0.f), pg_n, TileId, (uint32_t)ri);
       vres = svmul_f32_x(pg_n, vres, valpha);
@@ -238,8 +258,8 @@ EIGEN_ALWAYS_INLINE void sme_store_za_tile(Scalar* EIGEN_RESTRICT C, Index C_str
 template <typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process_4tiles(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                             const Scalar* EIGEN_RESTRICT blA, const Scalar* EIGEN_RESTRICT blB,
-                                            Index depth, Scalar alpha, Index row_start, int pw,
-                                            Index col_start) __arm_streaming __arm_inout("za") {
+                                            Index depth, Scalar alpha, Index row_start, int pw, Index col_start)
+    __arm_streaming __arm_inout("za") {
   constexpr int NR = kSmeNr;    // 16  (sub-panel width)
   constexpr int NR4 = kSmeNr4;  // 64  (super-panel width)
   constexpr int MR = kSmeMr;    // 16  (LHS panel width)
@@ -251,6 +271,10 @@ EIGEN_ALWAYS_INLINE void sme_process_4tiles(Scalar* EIGEN_RESTRICT C, Index C_st
   svzero_za();
 
   // ---- 4x unrolled depth loop ----
+  // Each depth step loads 1 LHS vector + 4 RHS vectors and issues 4 FMOPAs
+  // (one per ZA tile).  Unrolled 4x to give the out-of-order engine enough
+  // independent instructions to hide load and FMOPA latency.
+  //
   // ---- Fast path for full LHS panels (constant MR stride) ----
   if (pw == MR) {
     const Index depth_4 = (depth / 4) * 4;
@@ -334,87 +358,95 @@ EIGEN_ALWAYS_INLINE void sme_process_microblock(Scalar* EIGEN_RESTRICT C, Index 
 }
 
 template <typename Scalar, typename Index>
-EIGEN_ALWAYS_INLINE void sme_process_all_cols(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
-                                              const Scalar* EIGEN_RESTRICT blA, const Scalar* EIGEN_RESTRICT blockB,
-                                              Index depth, Index cols, Scalar alpha, Index strideB, Index offsetB,
-                                              Index row_start, int pw) __arm_streaming __arm_inout("za") {
-  constexpr int NR = kSmeNr;    // 16  (sub-panel width)
-  constexpr int NR4 = kSmeNr4;  // 64  (super-panel width)
-
-  const Index peeled_cols = (cols / NR4) * NR4;
-
-  // --- Full 64-column super-panels: interleaved 4-tile depth loop ---
-  for (Index j = 0; j < peeled_cols; j += NR4) {
-    sme_process_4tiles(C, C_stride_row, C_stride_col, blA, &blockB[j * strideB + offsetB * NR4], depth, alpha,
-                       row_start, pw, j);
-  }
-
-  // --- Tail columns (< 64) ---
-  if (peeled_cols < cols) {
-    const int tail = static_cast<int>(cols - peeled_cols);
-    const Scalar* blB_tail = &blockB[peeled_cols * strideB + offsetB * tail];
-
-    // Decompose tail into full VL-wide (16) sub-groups + remainder.
-    const int n_full_sub = tail / NR;
-    const int sub_tail = tail % NR;
-
-    // Process each VL-wide sub-group with its own ZA tile.
-    if (n_full_sub >= 1) {
-      sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail, depth, alpha, row_start,
-                                pw, peeled_cols + 0 * NR, NR);
-    }
-    if (n_full_sub >= 2) {
-      sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail, depth, alpha, row_start,
-                                pw, peeled_cols + 1 * NR, NR);
-    }
-    if (n_full_sub >= 3) {
-      sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail, depth, alpha, row_start,
-                                pw, peeled_cols + 2 * NR, NR);
-    }
-
-    if (sub_tail > 0) {
-      switch (n_full_sub) {
-        case 0:
-          sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail, depth, alpha,
-                                    row_start, pw, peeled_cols + 0 * NR, sub_tail);
-          break;
-        case 1:
-          sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail, depth, alpha,
-                                    row_start, pw, peeled_cols + 1 * NR, sub_tail);
-          break;
-        case 2:
-          sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail, depth, alpha,
-                                    row_start, pw, peeled_cols + 2 * NR, sub_tail);
-          break;
-        default:
-          sme_process_microblock<3>(C, C_stride_row, C_stride_col, blA, blB_tail + 3 * NR, tail, depth, alpha,
-                                    row_start, pw, peeled_cols + 3 * NR, sub_tail);
-          break;
-      }
-    }
-  }
-}
-
-template <typename Scalar, typename Index>
 __attribute__((noinline)) __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* blockA, const Scalar* blockB, Index rows,
     Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  constexpr int MR = kSmeMr;  // 16
+  constexpr int MR = kSmeMr;    // 16
+  constexpr int NR = kSmeNr;    // 16
+  constexpr int NR4 = kSmeNr4;  // 64
 
-  const Index peeled_rows = (rows / MR) * MR;
+  const Index peeled_cols = (cols / NR4) * NR4;
 
-  // --- Full LHS panels (pw = MR = 16) ---
-  for (Index i = 0; i < peeled_rows; i += MR) {
-    const Scalar* blA = blockA + i * strideA + offsetA * MR;
-    sme_process_all_cols(C, C_stride_row, C_stride_col, blA, blockB, depth, cols, alpha, strideB, offsetB, i, MR);
-  }
+  // Inner mc-block size: fit blockA chunk in L2 alongside blockB.
+  // When blockA significantly exceeds L2, partition into chunks.
+  // blockB occupies ~kc*nc*4 ≈ 2 MB of L2; budget the rest for blockA.
+  constexpr Index L2_SIZE = 4 * 1024 * 1024;
+  constexpr Index L2_BLOCKB_RESERVE = 2 * 1024 * 1024;  // Reserve for blockB
+  constexpr Index L2_BUDGET = L2_SIZE - L2_BLOCKB_RESERVE;  // ~2 MB for blockA
+  const Index mc_inner_raw = L2_BUDGET / (depth * static_cast<Index>(sizeof(Scalar)));
+  const Index mc_inner = (mc_inner_raw / MR) * MR;
+  // Only apply inner blocking when there are enough blocks to amortize the
+  // overhead of re-scanning column panels per block.
+  const Index MC = (mc_inner == 0 || mc_inner >= rows || rows / mc_inner < 4) ? rows : mc_inner;
 
-  // --- Tail LHS panel (pw < MR) ---
-  if (peeled_rows < rows) {
-    const int tail = static_cast<int>(rows - peeled_rows);
-    const Scalar* blA = blockA + peeled_rows * strideA + offsetA * tail;
-    sme_process_all_cols(C, C_stride_row, C_stride_col, blA, blockB, depth, cols, alpha, strideB, offsetB, peeled_rows,
-                         tail);
+  // === Outer: row blocks, Middle: column panels, Inner: row tiles ===
+  // Within each mc block, column-outer order keeps blB hot in L1 while
+  // blA tiles (which now fit in L2) are served at L2 speed, not L3.
+  for (Index i_block = 0; i_block < rows; i_block += MC) {
+    const Index block_rows = (i_block + MC <= rows) ? MC : (rows - i_block);
+    const Index peeled_block_rows = (block_rows / MR) * MR;
+    const int tail_pw = static_cast<int>(block_rows - peeled_block_rows);
+
+    for (Index j = 0; j < peeled_cols; j += NR4) {
+      const Scalar* blB = &blockB[j * strideB + offsetB * NR4];
+
+      for (Index i = 0; i < peeled_block_rows; i += MR) {
+        const Index row = i_block + i;
+        const Scalar* blA = blockA + row * strideA + offsetA * MR;
+        sme_process_4tiles(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, row, MR, j);
+      }
+
+      if (tail_pw > 0) {
+        const Index row = i_block + peeled_block_rows;
+        const Scalar* blA = blockA + row * strideA + offsetA * tail_pw;
+        sme_process_4tiles(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, row, tail_pw, j);
+      }
+    }
+
+    // Tail columns (< 64)
+    if (peeled_cols < cols) {
+      const int tail_cols = static_cast<int>(cols - peeled_cols);
+      const Scalar* blB_tail = &blockB[peeled_cols * strideB + offsetB * tail_cols];
+      const int n_full_sub = tail_cols / NR;
+      const int sub_tail = tail_cols % NR;
+
+      for (Index i = 0; i <= peeled_block_rows; i += MR) {
+        if (i == peeled_block_rows && tail_pw == 0) break;
+        const int pw = (i < peeled_block_rows) ? MR : tail_pw;
+        const Index row = i_block + i;
+        const Scalar* blA = blockA + row * strideA + offsetA * pw;
+
+        if (n_full_sub >= 1)
+          sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail_cols, depth, alpha, row,
+                                    pw, peeled_cols + 0 * NR, NR);
+        if (n_full_sub >= 2)
+          sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail_cols, depth, alpha, row,
+                                    pw, peeled_cols + 1 * NR, NR);
+        if (n_full_sub >= 3)
+          sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail_cols, depth, alpha, row,
+                                    pw, peeled_cols + 2 * NR, NR);
+        if (sub_tail > 0) {
+          switch (n_full_sub) {
+            case 0:
+              sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail_cols, depth, alpha,
+                                        row, pw, peeled_cols + 0 * NR, sub_tail);
+              break;
+            case 1:
+              sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail_cols, depth, alpha,
+                                        row, pw, peeled_cols + 1 * NR, sub_tail);
+              break;
+            case 2:
+              sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail_cols, depth, alpha,
+                                        row, pw, peeled_cols + 2 * NR, sub_tail);
+              break;
+            default:
+              sme_process_microblock<3>(C, C_stride_row, C_stride_col, blA, blB_tail + 3 * NR, tail_cols, depth, alpha,
+                                        row, pw, peeled_cols + 3 * NR, sub_tail);
+              break;
+          }
+        }
+      }
+    }
   }
 }
 
