@@ -366,84 +366,65 @@ __attribute__((noinline)) __arm_locally_streaming __arm_new("za") void sme_gebp_
   constexpr int NR4 = kSmeNr4;  // 64
 
   const Index peeled_cols = (cols / NR4) * NR4;
+  const Index peeled_rows = (rows / MR) * MR;
+  const int tail_pw = static_cast<int>(rows - peeled_rows);
 
-  // Inner mc-block size: fit blockA chunk in L2 alongside blockB.
-  // When blockA significantly exceeds L2, partition into chunks.
-  // blockB occupies ~kc*nc*4 ≈ 2 MB of L2; budget the rest for blockA.
-  constexpr Index L2_SIZE = 4 * 1024 * 1024;
-  constexpr Index L2_BLOCKB_RESERVE = 2 * 1024 * 1024;  // Reserve for blockB
-  constexpr Index L2_BUDGET = L2_SIZE - L2_BLOCKB_RESERVE;  // ~2 MB for blockA
-  const Index mc_inner_raw = L2_BUDGET / (depth * static_cast<Index>(sizeof(Scalar)));
-  const Index mc_inner = (mc_inner_raw / MR) * MR;
-  // Only apply inner blocking when there are enough blocks to amortize the
-  // overhead of re-scanning column panels per block.
-  const Index MC = (mc_inner == 0 || mc_inner >= rows || rows / mc_inner < 4) ? rows : mc_inner;
+  // Column-outer, row-inner: keeps blB (~100 KB) hot in L1 while smaller
+  // blA tiles (~25 KB each) stream from L2.  The outer GOTO loop in
+  // GeneralMatrixMatrix.h ensures blockA fits in L2 via mc-blocking.
+  for (Index j = 0; j < peeled_cols; j += NR4) {
+    const Scalar* blB = &blockB[j * strideB + offsetB * NR4];
 
-  // === Outer: row blocks, Middle: column panels, Inner: row tiles ===
-  // Within each mc block, column-outer order keeps blB hot in L1 while
-  // blA tiles (which now fit in L2) are served at L2 speed, not L3.
-  for (Index i_block = 0; i_block < rows; i_block += MC) {
-    const Index block_rows = (i_block + MC <= rows) ? MC : (rows - i_block);
-    const Index peeled_block_rows = (block_rows / MR) * MR;
-    const int tail_pw = static_cast<int>(block_rows - peeled_block_rows);
-
-    for (Index j = 0; j < peeled_cols; j += NR4) {
-      const Scalar* blB = &blockB[j * strideB + offsetB * NR4];
-
-      for (Index i = 0; i < peeled_block_rows; i += MR) {
-        const Index row = i_block + i;
-        const Scalar* blA = blockA + row * strideA + offsetA * MR;
-        sme_process_4tiles(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, row, MR, j);
-      }
-
-      if (tail_pw > 0) {
-        const Index row = i_block + peeled_block_rows;
-        const Scalar* blA = blockA + row * strideA + offsetA * tail_pw;
-        sme_process_4tiles(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, row, tail_pw, j);
-      }
+    for (Index i = 0; i < peeled_rows; i += MR) {
+      const Scalar* blA = blockA + i * strideA + offsetA * MR;
+      sme_process_4tiles(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, MR, j);
     }
 
-    // Tail columns (< 64)
-    if (peeled_cols < cols) {
-      const int tail_cols = static_cast<int>(cols - peeled_cols);
-      const Scalar* blB_tail = &blockB[peeled_cols * strideB + offsetB * tail_cols];
-      const int n_full_sub = tail_cols / NR;
-      const int sub_tail = tail_cols % NR;
+    if (tail_pw > 0) {
+      const Scalar* blA = blockA + peeled_rows * strideA + offsetA * tail_pw;
+      sme_process_4tiles(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, peeled_rows, tail_pw, j);
+    }
+  }
 
-      for (Index i = 0; i <= peeled_block_rows; i += MR) {
-        if (i == peeled_block_rows && tail_pw == 0) break;
-        const int pw = (i < peeled_block_rows) ? MR : tail_pw;
-        const Index row = i_block + i;
-        const Scalar* blA = blockA + row * strideA + offsetA * pw;
+  // Tail columns (< 64)
+  if (peeled_cols < cols) {
+    const int tail_cols = static_cast<int>(cols - peeled_cols);
+    const Scalar* blB_tail = &blockB[peeled_cols * strideB + offsetB * tail_cols];
+    const int n_full_sub = tail_cols / NR;
+    const int sub_tail = tail_cols % NR;
 
-        if (n_full_sub >= 1)
-          sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail_cols, depth, alpha, row,
-                                    pw, peeled_cols + 0 * NR, NR);
-        if (n_full_sub >= 2)
-          sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail_cols, depth, alpha, row,
-                                    pw, peeled_cols + 1 * NR, NR);
-        if (n_full_sub >= 3)
-          sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail_cols, depth, alpha, row,
-                                    pw, peeled_cols + 2 * NR, NR);
-        if (sub_tail > 0) {
-          switch (n_full_sub) {
-            case 0:
-              sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail_cols, depth, alpha,
-                                        row, pw, peeled_cols + 0 * NR, sub_tail);
-              break;
-            case 1:
-              sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail_cols, depth, alpha,
-                                        row, pw, peeled_cols + 1 * NR, sub_tail);
-              break;
-            case 2:
-              sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail_cols, depth, alpha,
-                                        row, pw, peeled_cols + 2 * NR, sub_tail);
-              break;
-            default:
-              sme_process_microblock<3>(C, C_stride_row, C_stride_col, blA, blB_tail + 3 * NR, tail_cols, depth, alpha,
-                                        row, pw, peeled_cols + 3 * NR, sub_tail);
-              break;
-          }
+    for (Index i = 0; i <= peeled_rows; i += MR) {
+      if (i == peeled_rows && tail_pw == 0) break;
+      const int pw = (i < peeled_rows) ? MR : tail_pw;
+      const Scalar* blA = blockA + i * strideA + offsetA * pw;
+
+      if (n_full_sub >= 1)
+        sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail_cols, depth, alpha, i,
+                                  pw, peeled_cols + 0 * NR, NR);
+      if (n_full_sub >= 2)
+        sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail_cols, depth, alpha, i,
+                                  pw, peeled_cols + 1 * NR, NR);
+      if (n_full_sub >= 3)
+        sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail_cols, depth, alpha, i,
+                                  pw, peeled_cols + 2 * NR, NR);
+      if (sub_tail > 0) {
+        switch (n_full_sub) {
+          case 0:
+            sme_process_microblock<0>(C, C_stride_row, C_stride_col, blA, blB_tail + 0 * NR, tail_cols, depth, alpha,
+                                      i, pw, peeled_cols + 0 * NR, sub_tail);
+            break;
+          case 1:
+            sme_process_microblock<1>(C, C_stride_row, C_stride_col, blA, blB_tail + 1 * NR, tail_cols, depth, alpha,
+                                      i, pw, peeled_cols + 1 * NR, sub_tail);
+            break;
+          case 2:
+            sme_process_microblock<2>(C, C_stride_row, C_stride_col, blA, blB_tail + 2 * NR, tail_cols, depth, alpha,
+                                      i, pw, peeled_cols + 2 * NR, sub_tail);
+            break;
+          default:
+            sme_process_microblock<3>(C, C_stride_row, C_stride_col, blA, blB_tail + 3 * NR, tail_cols, depth, alpha,
+                                      i, pw, peeled_cols + 3 * NR, sub_tail);
+            break;
         }
       }
     }
