@@ -10,7 +10,6 @@ set(ei_smoke_test_list
   adjoint
   basicstuff
   block_basic
-  block_basic_dynamic
   constructor
   dense_storage
   diagonal
