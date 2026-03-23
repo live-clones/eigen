@@ -161,7 +161,7 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
       //    extra C store passes).  For larger depth, kc = 2048 balances
       //    L1 streaming cost against the number of C store passes.
       {
-        constexpr Index SME_L2_SIZE = 4 * 1024 * 1024;  // Apple M4 L2 = 4 MB
+        constexpr Index SME_L2_SIZE = 8 * 1024 * 1024;  // L2 + L3 budget for mc-blocking
         constexpr Index SME_MAX_KC = 2048;
 
         // Use kc = min(depth, 2048) to minimise C matrix store passes while
