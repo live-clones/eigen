@@ -364,6 +364,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
   extends: build:linux:cross:aarch64:gcc-10:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
+    EIGEN_CI_BUILD_JOBS: "3"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
