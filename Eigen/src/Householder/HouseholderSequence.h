@@ -309,11 +309,33 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
   /** \internal */
   template <typename Dest, typename Workspace>
   inline void applyThisOnTheRight(Dest& dst, Workspace& workspace) const {
-    workspace.resize(dst.rows());
-    for (Index k = 0; k < m_length; ++k) {
-      Index actual_k = m_reverse ? m_length - k - 1 : k;
-      dst.rightCols(rows() - m_shift - actual_k)
-          .applyHouseholderOnTheRight(essentialVector(actual_k), m_coeffs.coeff(actual_k), workspace.data());
+    if (m_length >= BlockSize && dst.rows() > 1) {
+      Index blockSize = m_length < Index(2 * BlockSize) ? (m_length + 1) / 2 : Index(BlockSize);
+      for (Index i = 0; i < m_length; i += blockSize) {
+        // Right-side application iterates blocks in the opposite direction from left-side:
+        // scalar right path applies H_0, H_1, ... (forward) when !m_reverse
+        Index end = m_reverse ? m_length - i : (std::min)(m_length, i + blockSize);
+        Index k = m_reverse ? (std::max)(Index(0), end - blockSize) : i;
+        Index bs = end - k;
+        Index start = k + m_shift;
+
+        typedef Block<internal::remove_all_t<VectorsType>, Dynamic, Dynamic> SubVectorsType;
+        SubVectorsType sub_vecs1(m_vectors.const_cast_derived(), Side == OnTheRight ? k : start,
+                                 Side == OnTheRight ? start : k, Side == OnTheRight ? bs : m_vectors.rows() - start,
+                                 Side == OnTheRight ? m_vectors.cols() - start : bs);
+        std::conditional_t<Side == OnTheRight, Transpose<SubVectorsType>, SubVectorsType&> sub_vecs(sub_vecs1);
+
+        Index dstCols = rows() - m_shift - k;
+        auto sub_dst = dst.rightCols(dstCols);
+        internal::apply_block_householder_on_the_right(sub_dst, sub_vecs, m_coeffs.segment(k, bs), !m_reverse);
+      }
+    } else {
+      workspace.resize(dst.rows());
+      for (Index k = 0; k < m_length; ++k) {
+        Index actual_k = m_reverse ? m_length - k - 1 : k;
+        dst.rightCols(rows() - m_shift - actual_k)
+            .applyHouseholderOnTheRight(essentialVector(actual_k), m_coeffs.coeff(actual_k), workspace.data());
+      }
     }
   }
 
