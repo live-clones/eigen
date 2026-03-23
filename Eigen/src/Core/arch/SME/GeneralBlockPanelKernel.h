@@ -147,12 +147,39 @@ struct gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMo
     constexpr int NR = kSmeNr4;  // 64
     const Index peeled_cols = (cols / NR) * NR;
 
+    const Index depth4 = (depth / 4) * 4;
+
     // Full super-panels of width NR = 64.
+    // k-outer, c-inner loop: writes are sequential in the packed output.
+    // NEON 4×4 transpose: load 4 depth values from each of 4 columns,
+    // transpose, and store 4 rows of 4 packed values.
     for (Index j = 0; j < peeled_cols; j += NR) {
       Scalar* dst = PanelMode ? blockB + (j / NR) * NR * stride + offset * NR : blockB + j * depth;
 
-      for (Index c = 0; c < NR; ++c) {
-        for (Index k = 0; k < depth; ++k) {
+      for (Index k = 0; k < depth4; k += 4) {
+        for (Index c = 0; c < NR; c += 4) {
+          float32x4_t v0 = vld1q_f32(&rhs(k, j + c));
+          float32x4_t v1 = vld1q_f32(&rhs(k, j + c + 1));
+          float32x4_t v2 = vld1q_f32(&rhs(k, j + c + 2));
+          float32x4_t v3 = vld1q_f32(&rhs(k, j + c + 3));
+
+          float32x4x2_t t01 = vtrnq_f32(v0, v1);
+          float32x4x2_t t23 = vtrnq_f32(v2, v3);
+          float32x4_t r0 = vcombine_f32(vget_low_f32(t01.val[0]), vget_low_f32(t23.val[0]));
+          float32x4_t r1 = vcombine_f32(vget_low_f32(t01.val[1]), vget_low_f32(t23.val[1]));
+          float32x4_t r2 = vcombine_f32(vget_high_f32(t01.val[0]), vget_high_f32(t23.val[0]));
+          float32x4_t r3 = vcombine_f32(vget_high_f32(t01.val[1]), vget_high_f32(t23.val[1]));
+
+          vst1q_f32(dst + (k + 0) * NR + c, r0);
+          vst1q_f32(dst + (k + 1) * NR + c, r1);
+          vst1q_f32(dst + (k + 2) * NR + c, r2);
+          vst1q_f32(dst + (k + 3) * NR + c, r3);
+        }
+      }
+
+      // Depth tail (< 4 remaining depth steps).
+      for (Index k = depth4; k < depth; ++k) {
+        for (Index c = 0; c < NR; ++c) {
           dst[k * NR + c] = rhs(k, j + c);
         }
       }
@@ -174,10 +201,45 @@ struct gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMo
   }
 };
 
-// RowMajor RHS packer
+// RowMajor RHS packer: consecutive columns are contiguous in memory,
+// so we can use direct NEON load/store without transposing.
 template <typename Index, typename DataMapper, int nr_, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<float, Index, DataMapper, nr_, RowMajor, Conjugate, PanelMode>
-    : gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMode> {};
+struct gemm_pack_rhs<float, Index, DataMapper, nr_, RowMajor, Conjugate, PanelMode> {
+  typedef float Scalar;
+
+  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
+                                    Index offset = 0) {
+    constexpr int NR = kSmeNr4;  // 64
+    const Index peeled_cols = (cols / NR) * NR;
+
+    for (Index j = 0; j < peeled_cols; j += NR) {
+      Scalar* dst = PanelMode ? blockB + (j / NR) * NR * stride + offset * NR : blockB + j * depth;
+
+      for (Index k = 0; k < depth; ++k) {
+        for (Index c = 0; c < NR; c += 4) {
+          vst1q_f32(dst + k * NR + c, vld1q_f32(&rhs(k, j + c)));
+        }
+      }
+    }
+
+    if (peeled_cols < cols) {
+      const Index tail = cols - peeled_cols;
+      const Index tail4 = (tail / 4) * 4;
+
+      Scalar* dst =
+          PanelMode ? blockB + (peeled_cols / NR) * NR * stride + offset * tail : blockB + peeled_cols * depth;
+
+      for (Index k = 0; k < depth; ++k) {
+        for (Index c = 0; c < tail4; c += 4) {
+          vst1q_f32(dst + k * tail + c, vld1q_f32(&rhs(k, peeled_cols + c)));
+        }
+        for (Index c = tail4; c < tail; ++c) {
+          dst[k * tail + c] = rhs(k, peeled_cols + c);
+        }
+      }
+    }
+  }
+};
 
 /*****************************************************************************
  * sme_store_za_tile -- Store one ZA.S tile back to C with alpha scaling.
