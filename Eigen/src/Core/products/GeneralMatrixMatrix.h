@@ -156,24 +156,20 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
       //    iterate mc-blocks that reuse the packed RHS.  This makes
       //    mc-blocking free and keeps blockA slices in L2.
       //
-      // 2. Adaptive blocking: for large matrices (depth > 1280), increase kc
-      //    to ~2048 and decrease nc to 64.  This dramatically reduces the
-      //    number of C matrix store passes (the dominant cost for large GEMM),
-      //    yielding ~25-37% improvement at n=4096-8192.  For smaller matrices
-      //    the default blocking parameters are kept, since the L1 working set
-      //    with large kc would cause more cache misses than the store passes
-      //    it saves.
+      // 2. Adaptive blocking: kc = min(depth, 2048) and nc = 64.  For
+      //    matrices with depth <= 2048, this gives a single kc-strip (no
+      //    extra C store passes).  For larger depth, kc = 2048 balances
+      //    L1 streaming cost against the number of C store passes.
       {
         constexpr Index SME_L2_SIZE = 4 * 1024 * 1024;  // Apple M4 L2 = 4 MB
         constexpr Index SME_MAX_KC = 2048;
 
-        // For large matrices, use larger kc to minimise store passes to C.
-        Index kc_eff = kc;
-        Index nc_eff = nc;
-        if (depth > 1280) {
-          kc_eff = (std::min)(depth, SME_MAX_KC);
-          nc_eff = Index(Traits::nr) * 4;  // NR4 = 64
-        }
+        // Use kc = min(depth, 2048) to minimise C matrix store passes while
+        // keeping the L1 working set manageable.  For small matrices (depth <
+        // 2048), this naturally equals the full depth (1 kc-strip, 0 extra
+        // store passes).  nc = NR4 = 64 matches the 4-tile micro-kernel width.
+        const Index kc_eff = (std::min)(depth, SME_MAX_KC);
+        const Index nc_eff = Index(Traits::nr) * 4;  // NR4 = 64
 
         // Compute mc_inner so that blockA slice fits in L2 alongside one
         // nc-wide strip of packed RHS.
