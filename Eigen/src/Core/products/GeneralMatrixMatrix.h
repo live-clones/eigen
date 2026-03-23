@@ -147,35 +147,31 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
       // this is the sequential version!
 
 #ifdef EIGEN_VECTORIZE_SME
-      // GOTO BLAS-style loop order for SME: kc -> mc -> nc
+      // GOTO BLAS-style loop order for SME: kc -> mc
       //
       // This overrides Eigen's standard mc -> kc -> nc nesting with two
       // important optimisations:
       //
       // 1. GOTO loop order: pack RHS once per kc-strip (all columns), then
-      //    iterate mc-blocks that reuse the packed RHS.  This makes
-      //    mc-blocking free and keeps blockA slices in L2.
+      //    iterate mc-blocks that reuse the packed RHS.  No nc-loop here
+      //    because the SME gebp kernel tiles columns internally.
       //
-      // 2. Adaptive blocking: kc = min(depth, 2048) and nc = 64.  For
-      //    matrices with depth <= 2048, this gives a single kc-strip (no
-      //    extra C store passes).  For larger depth, kc = 2048 balances
-      //    L1 streaming cost against the number of C store passes.
+      // 2. Adaptive blocking: kc = min(depth, 2048).  For matrices with
+      //    depth <= 2048, this gives a single kc-strip (no extra C store
+      //    passes).  For larger depth, kc = 2048 balances L1 streaming
+      //    cost against the number of C store passes.
       {
         constexpr Index SME_L2_SIZE = 8 * 1024 * 1024;  // L2 + L3 budget for mc-blocking
         constexpr Index SME_MAX_KC = 2048;
+        constexpr Index NR4 = 64;  // micro-kernel super-panel width (4 × VL)
 
-        // Use kc = min(depth, 2048) to minimise C matrix store passes while
-        // keeping the L1 working set manageable.  For small matrices (depth <
-        // 2048), this naturally equals the full depth (1 kc-strip, 0 extra
-        // store passes).  nc = NR4 = 64 matches the 4-tile micro-kernel width.
         const Index kc_eff = (std::min)(depth, SME_MAX_KC);
-        const Index nc_eff = Index(Traits::nr) * 4;  // NR4 = 64
 
-        // Compute mc_inner so that blockA slice fits in L2 alongside one
-        // nc-wide strip of packed RHS.
-        const Index blockB_panel_bytes = kc_eff * nc_eff * Index(sizeof(RhsScalar));
-        const Index l2_for_a = SME_L2_SIZE > blockB_panel_bytes
-                                   ? SME_L2_SIZE - blockB_panel_bytes
+        // Compute mc_inner so that blockA fits in cache alongside one
+        // NR4-wide panel of blockB (the "hot" panel inside the gebp kernel).
+        const Index blockB_hot_bytes = kc_eff * NR4 * Index(sizeof(RhsScalar));
+        const Index l2_for_a = SME_L2_SIZE > blockB_hot_bytes
+                                   ? SME_L2_SIZE - blockB_hot_bytes
                                    : Index(Traits::mr) * kc_eff * Index(sizeof(LhsScalar));
         Index mc_inner = l2_for_a / (kc_eff * Index(sizeof(LhsScalar)));
         mc_inner = (mc_inner / Traits::mr) * Traits::mr;
@@ -200,12 +196,9 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
 
             pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
 
-            for (Index j2 = 0; j2 < cols; j2 += nc_eff) {
-              const Index actual_nc = (std::min)(j2 + nc_eff, cols) - j2;
-
-              gebp(res.getSubMapper(i2, j2), blockA, blockB + j2 * actual_kc,
-                   actual_mc, actual_kc, actual_nc, alpha);
-            }
+            // Pass all columns — the SME gebp kernel tiles cols internally.
+            gebp(res.getSubMapper(i2, 0), blockA, blockB,
+                 actual_mc, actual_kc, cols, alpha);
           }
         }
       }
