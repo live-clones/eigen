@@ -383,6 +383,18 @@ void unwind_test(const BaseXpr&) {
   unwind_test_impl<BaseXpr>::run(xpr);
 }
 
+template <typename Xpr>
+void recursive_block_check(const Xpr& xpr) {
+  // Recursively reduce rows/cols until the result is 1x1.  This is just
+  // to ensure we don't introduce infinite compile-time recursion.
+  if (xpr.rows() > 1) {
+    recursive_block_check(xpr.block(0, 0, (xpr.rows() + 1) / 2, xpr.cols()));
+  }
+  if (xpr.cols() > 1) {
+    recursive_block_check(xpr.block(0, 0, xpr.rows(), (xpr.cols() + 1) / 2));
+  }
+}
+
 EIGEN_DECLARE_TEST(block) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(block(Matrix<float, 1, 1>()));
@@ -397,6 +409,7 @@ EIGEN_DECLARE_TEST(block) {
 
     CALL_SUBTEST_8(block(Matrix<float, Dynamic, 4>(3, 4)));
     CALL_SUBTEST_9(unwind_test(MatrixXf()));
+    CALL_SUBTEST_10(recursive_block_check(Matrix<float, Dynamic, 4>(3, 4)));
 
 #ifndef EIGEN_DEFAULT_TO_ROW_MAJOR
     CALL_SUBTEST_6(data_and_stride(MatrixXf(internal::random(5, 50), internal::random(5, 50))));
