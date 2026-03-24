@@ -449,16 +449,27 @@ struct VectorIndexedViewSelector<
     std::enable_if_t<!internal::is_single_range<IvcType<Indices, Derived::SizeAtCompileTime>>::value &&
                      internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>::IncrAtCompileTime ==
                          1>> {
+  static constexpr bool IsRowMajor = DenseBase<Derived>::IsRowMajor;
+  using BlockXprHelper = internal::block_xpr_helper<Derived>;
+  using BlockXprBase = typename BlockXprHelper::BaseType;
   using Helper = internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>;
-  using ReturnType = VectorBlock<Derived, Helper::SizeAtCompileTime>;
-  using ConstReturnType = VectorBlock<const Derived, Helper::SizeAtCompileTime>;
+  static constexpr int Size = Helper::SizeAtCompileTime;
+  using ReturnType = Block<BlockXprBase, IsRowMajor ? 1 : Size, IsRowMajor ? Size : 1>;
+  using ConstReturnType = const Block<const BlockXprBase, IsRowMajor ? 1 : Size, IsRowMajor ? Size : 1>;
   static inline ReturnType run(Derived& derived, const Indices& indices) {
     auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
-    return ReturnType(derived, Helper::first(actualIndices), Helper::size(actualIndices));
+    auto start = Helper::first(actualIndices);
+    auto n = internal::get_runtime_value(Helper::size(actualIndices));
+    return ReturnType(BlockXprHelper::base(derived), BlockXprHelper::row(derived, IsRowMajor ? 0 : start),
+                      BlockXprHelper::col(derived, IsRowMajor ? start : 0), IsRowMajor ? 1 : n, IsRowMajor ? n : 1);
   }
   static inline ConstReturnType run(const Derived& derived, const Indices& indices) {
     auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
-    return ConstReturnType(derived, Helper::first(actualIndices), Helper::size(actualIndices));
+    auto start = Helper::first(actualIndices);
+    auto n = internal::get_runtime_value(Helper::size(actualIndices));
+    return ConstReturnType(BlockXprHelper::base(derived), BlockXprHelper::row(derived, IsRowMajor ? 0 : start),
+                           BlockXprHelper::col(derived, IsRowMajor ? start : 0), IsRowMajor ? 1 : n,
+                           IsRowMajor ? n : 1);
   }
 };
 

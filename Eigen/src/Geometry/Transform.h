@@ -211,23 +211,28 @@ class Transform {
   /** type of the matrix used to represent the linear part of the transformation */
   typedef Matrix<Scalar, Dim, Dim, Options> LinearMatrixType;
   /** type of read/write reference to the linear part of the transformation */
-  typedef Block<MatrixType, Dim, Dim, int(Mode) == (AffineCompact) && (int(Options) & RowMajor) == 0> LinearPart;
+  typedef typename MatrixType::template FixedBlockXpr<
+      Dim, Dim, int(Mode) == (AffineCompact) && (int(Options) & RowMajor) == 0>::Type LinearPart;
   /** type of read reference to the linear part of the transformation */
-  typedef const Block<ConstMatrixType, Dim, Dim, int(Mode) == (AffineCompact) && (int(Options) & RowMajor) == 0>
-      ConstLinearPart;
+  typedef typename MatrixType::template ConstFixedBlockXpr<
+      Dim, Dim, int(Mode) == (AffineCompact) && (int(Options) & RowMajor) == 0>::Type ConstLinearPart;
   /** type of read/write reference to the affine part of the transformation */
-  typedef std::conditional_t<int(Mode) == int(AffineCompact), MatrixType&, Block<MatrixType, Dim, HDim> > AffinePart;
+  typedef std::conditional_t<int(Mode) == int(AffineCompact), MatrixType&,
+                             typename MatrixType::template FixedBlockXpr<Dim, HDim>::Type>
+      AffinePart;
   /** type of read reference to the affine part of the transformation */
   typedef std::conditional_t<int(Mode) == int(AffineCompact), const MatrixType&,
-                             const Block<const MatrixType, Dim, HDim> >
+                             typename MatrixType::template ConstFixedBlockXpr<Dim, HDim>::Type>
       ConstAffinePart;
   /** type of a vector */
   typedef Matrix<Scalar, Dim, 1> VectorType;
   /** type of a read/write reference to the translation part of the rotation */
-  typedef Block<MatrixType, Dim, 1, !(internal::traits<MatrixType>::Flags & RowMajorBit)> TranslationPart;
+  typedef
+      typename MatrixType::template FixedBlockXpr<Dim, 1, !(internal::traits<MatrixType>::Flags & RowMajorBit)>::Type
+          TranslationPart;
   /** type of a read reference to the translation part of the rotation */
-  typedef const Block<ConstMatrixType, Dim, 1, !(internal::traits<MatrixType>::Flags & RowMajorBit)>
-      ConstTranslationPart;
+  typedef typename MatrixType::template ConstFixedBlockXpr<
+      Dim, 1, !(internal::traits<MatrixType>::Flags & RowMajorBit)>::Type ConstTranslationPart;
   /** corresponding translation type */
   typedef Translation<Scalar, Dim> TranslationType;
 
@@ -637,14 +642,18 @@ class Transform {
    * \returns the Dim x Dim linear part if the transformation is affine,
    *          and the HDim x Dim part for projective transformations.
    */
-  EIGEN_DEVICE_FUNC inline Block<MatrixType, int(Mode) == int(Projective) ? HDim : Dim, Dim> linearExt() {
+  EIGEN_DEVICE_FUNC inline
+      typename MatrixType::template FixedBlockXpr<int(Mode) == int(Projective) ? HDim : Dim, Dim>::Type
+      linearExt() {
     return m_matrix.template block < int(Mode) == int(Projective) ? HDim : Dim, Dim > (0, 0);
   }
   /** \internal
    * \returns the Dim x Dim linear part if the transformation is affine,
    *          and the HDim x Dim part for projective transformations.
    */
-  EIGEN_DEVICE_FUNC inline const Block<MatrixType, int(Mode) == int(Projective) ? HDim : Dim, Dim> linearExt() const {
+  EIGEN_DEVICE_FUNC inline
+      typename MatrixType::template ConstFixedBlockXpr<int(Mode) == int(Projective) ? HDim : Dim, Dim>::Type
+      linearExt() const {
     return m_matrix.template block < int(Mode) == int(Projective) ? HDim : Dim, Dim > (0, 0);
   }
 
@@ -652,15 +661,18 @@ class Transform {
    * \returns the translation part if the transformation is affine,
    *          and the last column for projective transformations.
    */
-  EIGEN_DEVICE_FUNC inline Block<MatrixType, int(Mode) == int(Projective) ? HDim : Dim, 1> translationExt() {
+  EIGEN_DEVICE_FUNC inline
+      typename MatrixType::template FixedBlockXpr<int(Mode) == int(Projective) ? HDim : Dim, 1>::Type
+      translationExt() {
     return m_matrix.template block < int(Mode) == int(Projective) ? HDim : Dim, 1 > (0, Dim);
   }
   /** \internal
    * \returns the translation part if the transformation is affine,
    *          and the last column for projective transformations.
    */
-  EIGEN_DEVICE_FUNC inline const Block<MatrixType, int(Mode) == int(Projective) ? HDim : Dim, 1> translationExt()
-      const {
+  EIGEN_DEVICE_FUNC inline
+      typename MatrixType::template ConstFixedBlockXpr<int(Mode) == int(Projective) ? HDim : Dim, 1>::Type
+      translationExt() const {
     return m_matrix.template block < int(Mode) == int(Projective) ? HDim : Dim, 1 > (0, Dim);
   }
 
@@ -1301,10 +1313,8 @@ struct transform_right_product_impl<TransformType, MatrixType, 1, RhsCols> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const TransformType& T, const MatrixType& other) {
     EIGEN_STATIC_ASSERT(OtherRows == HDim, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES);
 
-    typedef Block<ResultType, Dim, OtherCols, int(MatrixType::RowsAtCompileTime) == Dim> TopLeftLhs;
-
     ResultType res(other.rows(), other.cols());
-    TopLeftLhs(res, 0, 0, Dim, other.cols()).noalias() = T.affine() * other;
+    res.template block<Dim, OtherCols>(0, 0, Dim, other.cols()).noalias() = T.affine() * other;
     res.row(OtherRows - 1) = other.row(OtherRows - 1);
 
     return res;
@@ -1325,10 +1335,9 @@ struct transform_right_product_impl<TransformType, MatrixType, 2, RhsCols> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const TransformType& T, const MatrixType& other) {
     EIGEN_STATIC_ASSERT(OtherRows == Dim, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES);
 
-    typedef Block<ResultType, Dim, OtherCols, true> TopLeftLhs;
     ResultType res(
         Replicate<typename TransformType::ConstTranslationPart, 1, OtherCols>(T.translation(), 1, other.cols()));
-    TopLeftLhs(res, 0, 0, Dim, other.cols()).noalias() += T.linear() * other;
+    res.template block<Dim, OtherCols>(0, 0, Dim, other.cols()).noalias() += T.linear() * other;
 
     return res;
   }
