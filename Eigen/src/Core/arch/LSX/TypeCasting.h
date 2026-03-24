@@ -19,6 +19,192 @@ namespace Eigen {
 namespace internal {
 
 //==============================================================================
+// type_casting_traits
+//==============================================================================
+
+// float <-> double
+template <>
+struct type_casting_traits<float, double> : vectorized_type_casting_traits<float, double> {};
+template <>
+struct type_casting_traits<double, float> : vectorized_type_casting_traits<double, float> {};
+
+// float <-> integer types
+template <>
+struct type_casting_traits<float, int8_t> : vectorized_type_casting_traits<float, int8_t> {};
+template <>
+struct type_casting_traits<int8_t, float> : vectorized_type_casting_traits<int8_t, float> {};
+template <>
+struct type_casting_traits<float, uint8_t> : vectorized_type_casting_traits<float, uint8_t> {};
+template <>
+struct type_casting_traits<uint8_t, float> : vectorized_type_casting_traits<uint8_t, float> {};
+template <>
+struct type_casting_traits<float, int16_t> : vectorized_type_casting_traits<float, int16_t> {};
+template <>
+struct type_casting_traits<int16_t, float> : vectorized_type_casting_traits<int16_t, float> {};
+template <>
+struct type_casting_traits<float, uint16_t> : vectorized_type_casting_traits<float, uint16_t> {};
+template <>
+struct type_casting_traits<uint16_t, float> : vectorized_type_casting_traits<uint16_t, float> {};
+template <>
+struct type_casting_traits<float, int32_t> : vectorized_type_casting_traits<float, int32_t> {};
+template <>
+struct type_casting_traits<int32_t, float> : vectorized_type_casting_traits<int32_t, float> {};
+template <>
+struct type_casting_traits<float, uint32_t> : vectorized_type_casting_traits<float, uint32_t> {};
+template <>
+struct type_casting_traits<uint32_t, float> : vectorized_type_casting_traits<uint32_t, float> {};
+template <>
+struct type_casting_traits<float, int64_t> : vectorized_type_casting_traits<float, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, float> : vectorized_type_casting_traits<int64_t, float> {};
+template <>
+struct type_casting_traits<float, uint64_t> : vectorized_type_casting_traits<float, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, float> : vectorized_type_casting_traits<uint64_t, float> {};
+
+// double <-> integer types
+template <>
+struct type_casting_traits<double, int8_t> : vectorized_type_casting_traits<double, int8_t> {};
+template <>
+struct type_casting_traits<int8_t, double> : vectorized_type_casting_traits<int8_t, double> {};
+template <>
+struct type_casting_traits<double, uint8_t> : vectorized_type_casting_traits<double, uint8_t> {};
+template <>
+struct type_casting_traits<uint8_t, double> : vectorized_type_casting_traits<uint8_t, double> {};
+template <>
+struct type_casting_traits<double, int16_t> : vectorized_type_casting_traits<double, int16_t> {};
+template <>
+struct type_casting_traits<int16_t, double> : vectorized_type_casting_traits<int16_t, double> {};
+template <>
+struct type_casting_traits<double, uint16_t> : vectorized_type_casting_traits<double, uint16_t> {};
+template <>
+struct type_casting_traits<uint16_t, double> : vectorized_type_casting_traits<uint16_t, double> {};
+template <>
+struct type_casting_traits<double, int32_t> : vectorized_type_casting_traits<double, int32_t> {};
+template <>
+struct type_casting_traits<int32_t, double> : vectorized_type_casting_traits<int32_t, double> {};
+template <>
+struct type_casting_traits<double, uint32_t> : vectorized_type_casting_traits<double, uint32_t> {};
+template <>
+struct type_casting_traits<uint32_t, double> : vectorized_type_casting_traits<uint32_t, double> {};
+template <>
+struct type_casting_traits<double, int64_t> : vectorized_type_casting_traits<double, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, double> : vectorized_type_casting_traits<int64_t, double> {};
+template <>
+struct type_casting_traits<double, uint64_t> : vectorized_type_casting_traits<double, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, double> : vectorized_type_casting_traits<uint64_t, double> {};
+
+// int8_t <-> other integer types
+template <>
+struct type_casting_traits<int8_t, int16_t> : vectorized_type_casting_traits<int8_t, int16_t> {};
+template <>
+struct type_casting_traits<int16_t, int8_t> : vectorized_type_casting_traits<int16_t, int8_t> {};
+template <>
+struct type_casting_traits<int8_t, uint16_t> : vectorized_type_casting_traits<int8_t, uint16_t> {};
+template <>
+struct type_casting_traits<uint16_t, int8_t> : vectorized_type_casting_traits<uint16_t, int8_t> {};
+template <>
+struct type_casting_traits<int8_t, int32_t> : vectorized_type_casting_traits<int8_t, int32_t> {};
+template <>
+struct type_casting_traits<int32_t, int8_t> : vectorized_type_casting_traits<int32_t, int8_t> {};
+template <>
+struct type_casting_traits<int8_t, uint32_t> : vectorized_type_casting_traits<int8_t, uint32_t> {};
+template <>
+struct type_casting_traits<uint32_t, int8_t> : vectorized_type_casting_traits<uint32_t, int8_t> {};
+template <>
+struct type_casting_traits<int8_t, int64_t> : vectorized_type_casting_traits<int8_t, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, int8_t> : vectorized_type_casting_traits<int64_t, int8_t> {};
+template <>
+struct type_casting_traits<int8_t, uint64_t> : vectorized_type_casting_traits<int8_t, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, int8_t> : vectorized_type_casting_traits<uint64_t, int8_t> {};
+
+// uint8_t <-> other integer types
+template <>
+struct type_casting_traits<uint8_t, int16_t> : vectorized_type_casting_traits<uint8_t, int16_t> {};
+template <>
+struct type_casting_traits<int16_t, uint8_t> : vectorized_type_casting_traits<int16_t, uint8_t> {};
+template <>
+struct type_casting_traits<uint8_t, uint16_t> : vectorized_type_casting_traits<uint8_t, uint16_t> {};
+template <>
+struct type_casting_traits<uint16_t, uint8_t> : vectorized_type_casting_traits<uint16_t, uint8_t> {};
+template <>
+struct type_casting_traits<uint8_t, int32_t> : vectorized_type_casting_traits<uint8_t, int32_t> {};
+template <>
+struct type_casting_traits<int32_t, uint8_t> : vectorized_type_casting_traits<int32_t, uint8_t> {};
+template <>
+struct type_casting_traits<uint8_t, uint32_t> : vectorized_type_casting_traits<uint8_t, uint32_t> {};
+template <>
+struct type_casting_traits<uint32_t, uint8_t> : vectorized_type_casting_traits<uint32_t, uint8_t> {};
+template <>
+struct type_casting_traits<uint8_t, int64_t> : vectorized_type_casting_traits<uint8_t, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, uint8_t> : vectorized_type_casting_traits<int64_t, uint8_t> {};
+template <>
+struct type_casting_traits<uint8_t, uint64_t> : vectorized_type_casting_traits<uint8_t, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, uint8_t> : vectorized_type_casting_traits<uint64_t, uint8_t> {};
+
+// int16_t <-> wider integer types
+template <>
+struct type_casting_traits<int16_t, int32_t> : vectorized_type_casting_traits<int16_t, int32_t> {};
+template <>
+struct type_casting_traits<int32_t, int16_t> : vectorized_type_casting_traits<int32_t, int16_t> {};
+template <>
+struct type_casting_traits<int16_t, uint32_t> : vectorized_type_casting_traits<int16_t, uint32_t> {};
+template <>
+struct type_casting_traits<uint32_t, int16_t> : vectorized_type_casting_traits<uint32_t, int16_t> {};
+template <>
+struct type_casting_traits<int16_t, int64_t> : vectorized_type_casting_traits<int16_t, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, int16_t> : vectorized_type_casting_traits<int64_t, int16_t> {};
+template <>
+struct type_casting_traits<int16_t, uint64_t> : vectorized_type_casting_traits<int16_t, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, int16_t> : vectorized_type_casting_traits<uint64_t, int16_t> {};
+
+// uint16_t <-> wider integer types
+template <>
+struct type_casting_traits<uint16_t, int32_t> : vectorized_type_casting_traits<uint16_t, int32_t> {};
+template <>
+struct type_casting_traits<int32_t, uint16_t> : vectorized_type_casting_traits<int32_t, uint16_t> {};
+template <>
+struct type_casting_traits<uint16_t, uint32_t> : vectorized_type_casting_traits<uint16_t, uint32_t> {};
+template <>
+struct type_casting_traits<uint32_t, uint16_t> : vectorized_type_casting_traits<uint32_t, uint16_t> {};
+template <>
+struct type_casting_traits<uint16_t, int64_t> : vectorized_type_casting_traits<uint16_t, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, uint16_t> : vectorized_type_casting_traits<int64_t, uint16_t> {};
+template <>
+struct type_casting_traits<uint16_t, uint64_t> : vectorized_type_casting_traits<uint16_t, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, uint16_t> : vectorized_type_casting_traits<uint64_t, uint16_t> {};
+
+// int32_t <-> 64-bit integer types
+template <>
+struct type_casting_traits<int32_t, int64_t> : vectorized_type_casting_traits<int32_t, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, int32_t> : vectorized_type_casting_traits<int64_t, int32_t> {};
+template <>
+struct type_casting_traits<int32_t, uint64_t> : vectorized_type_casting_traits<int32_t, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, int32_t> : vectorized_type_casting_traits<uint64_t, int32_t> {};
+
+// uint32_t <-> 64-bit integer types
+template <>
+struct type_casting_traits<uint32_t, int64_t> : vectorized_type_casting_traits<uint32_t, int64_t> {};
+template <>
+struct type_casting_traits<int64_t, uint32_t> : vectorized_type_casting_traits<int64_t, uint32_t> {};
+template <>
+struct type_casting_traits<uint32_t, uint64_t> : vectorized_type_casting_traits<uint32_t, uint64_t> {};
+template <>
+struct type_casting_traits<uint64_t, uint32_t> : vectorized_type_casting_traits<uint64_t, uint32_t> {};
+
+//==============================================================================
 // preinterpret
 //==============================================================================
 template <>
