@@ -145,11 +145,7 @@ class GramSchmidtQR : public SolverBase<GramSchmidtQR<MatrixType_>> {
 
     // For wide matrices (cols > rows), compute R entries for remaining columns.
     if (cols > rows) {
-      for (Index i = size; i < cols; ++i) {
-        for (Index j = 0; j < rows; ++j) {
-          m_r(j, i) = m_q.col(j).dot(work.col(i));
-        }
-      }
+      m_r.rightCols(cols - rows).noalias() = m_q.adjoint() * work.rightCols(cols - rows);
     }
 
     // Fill remaining Q columns to complete an orthonormal basis.
@@ -161,8 +157,7 @@ class GramSchmidtQR : public SolverBase<GramSchmidtQR<MatrixType_>> {
       for (Index k = 0; k < rows && filled < rows; ++k) {
         // Try standard basis vector e_k.
         typename MatrixQType::ColXpr qcol = m_q.col(filled);
-        qcol.setZero();
-        qcol(k) = Scalar(1);
+        qcol.setUnit(k);
         // Orthogonalize against all existing columns.
         for (Index j = 0; j < filled; ++j) {
           qcol -= m_q.col(j).dot(qcol) * m_q.col(j);
