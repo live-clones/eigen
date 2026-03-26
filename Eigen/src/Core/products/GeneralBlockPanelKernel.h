@@ -1424,6 +1424,17 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
     // micro-panel strip (depth * 3*LhsProgress) at a time, not the entire
     // LHS panel. When the RHS block is small enough that the remainder of
     // L1 can hold the full LHS panel, skip sub-blocking entirely.
+    //
+    // Sub-blocking trades L1 cache misses for extra column passes (iterating
+    // over the RHS columns multiple times). On modern x86, L1 misses that
+    // hit L2 are cheap (~5 cycles) compared to the cost of extra column
+    // passes (more loop overhead and reduced IPC). When the LHS panel fits
+    // within a generous fraction of L2, the L1 misses are absorbed by the
+    // L1↔L2 bandwidth and sub-blocking is counterproductive.
+    // Use the L2 budget for the sub-blocking decision on x86.
+#if EIGEN_ARCH_i386_OR_x86_64
+    l1 = l2 / 2;
+#endif
     const Index rhs_block = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
     const Index lhs_strip = depth * sizeof(LhsScalar) * 3 * LhsProgress;
     const Index l1_for_lhs = (l1 > rhs_block) ? (l1 - rhs_block) : 0;
@@ -1457,6 +1468,9 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR(mr >= 2 * Traits::LhsProgress) {
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
+#if EIGEN_ARCH_i386_OR_x86_64
+    l1 = l2 / 2;
+#endif
     const Index rhs_block2 = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
     const Index lhs_strip2 = depth * sizeof(LhsScalar) * 2 * LhsProgress;
     const Index l1_for_lhs2 = (l1 > rhs_block2) ? (l1 - rhs_block2) : 0;
