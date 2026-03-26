@@ -1433,7 +1433,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
             : (3 * LhsProgress) * std::max<Index>(1, l1_for_lhs / lhs_strip);
     for (Index i1 = 0; i1 < peeled_mc3; i1 += actual_panel_rows) {
       const Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc3);
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
       EIGEN_IF_CONSTEXPR(nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
           for (Index i = i1; i < actual_panel_end; i += 3 * LhsProgress) {
@@ -1441,7 +1440,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
           }
         }
       }
-#endif
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         for (Index i = i1; i < actual_panel_end; i += 3 * LhsProgress) {
           micro_panel(fix<3>, fix<4>, traits, i, j2);
@@ -1469,7 +1467,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
             : (2 * LhsProgress) * std::max<Index>(1, l1_for_lhs2 / lhs_strip2);
     for (Index i1 = peeled_mc3; i1 < peeled_mc2; i1 += actual_panel_rows) {
       Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc2);
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
       EIGEN_IF_CONSTEXPR(nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
           for (Index i = i1; i < actual_panel_end; i += 2 * LhsProgress) {
@@ -1477,7 +1474,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
           }
         }
       }
-#endif
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         for (Index i = i1; i < actual_panel_end; i += 2 * LhsProgress) {
           micro_panel(fix<2>, fix<4>, traits, i, j2);
@@ -1494,13 +1490,11 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   //---------- Process 1 * LhsProgress rows at once ----------
   EIGEN_IF_CONSTEXPR(mr >= 1 * Traits::LhsProgress) {
     for (Index i = peeled_mc2; i < peeled_mc1; i += LhsProgress) {
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
       EIGEN_IF_CONSTEXPR(nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
           micro_panel(fix<1>, fix<8>, traits, i, j2);
         }
       }
-#endif
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         micro_panel(fix<1>, fix<4>, traits, i, j2);
       }
@@ -1514,7 +1508,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR((LhsProgressHalf < LhsProgress) && mr >= LhsProgressHalf) {
     HalfTraits half_traits;
     for (Index i = peeled_mc1; i < peeled_mc_half; i += LhsProgressHalf) {
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
       EIGEN_IF_CONSTEXPR(nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
           gebp_micro_panel_impl<1, 8, HalfTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
@@ -1522,7 +1515,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
                                            offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
         }
       }
-#endif
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         gebp_micro_panel_impl<1, 4, HalfTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
                               LhsPacket>(half_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
@@ -1540,7 +1532,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR((LhsProgressQuarter < LhsProgressHalf) && mr >= LhsProgressQuarter) {
     QuarterTraits quarter_traits;
     for (Index i = peeled_mc_half; i < peeled_mc_quarter; i += LhsProgressQuarter) {
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
       EIGEN_IF_CONSTEXPR(nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
           gebp_micro_panel_impl<1, 8, QuarterTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
@@ -1548,7 +1539,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
                                            offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
         }
       }
-#endif
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         gebp_micro_panel_impl<1, 4, QuarterTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
                               LhsPacket>(quarter_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
@@ -1564,7 +1554,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 
   //---------- Process remaining rows, 1 at once ----------
   if (peeled_mc_quarter < rows) {
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
     EIGEN_IF_CONSTEXPR(nr >= 8) {
       // loop on each panel of the rhs
       for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
@@ -1616,7 +1605,6 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
         }
       }
     }
-#endif
 
     for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
       // loop on each row of the lhs (1*LhsProgress x depth)
@@ -2106,7 +2094,6 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
   Index count = 0;
   const Index peeled_k = (depth / PacketSize) * PacketSize;
 
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
   EIGEN_IF_CONSTEXPR(nr >= 8) {
     for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
       // skip what we have before
@@ -2212,7 +2199,6 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
       if (PanelMode) count += 8 * (stride - offset - depth);
     }
   }
-#endif
 
   EIGEN_IF_CONSTEXPR(nr >= 4) {
     for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
@@ -2289,7 +2275,6 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
     Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
     Index count = 0;
 
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
     EIGEN_IF_CONSTEXPR(nr >= 8) {
       for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
         // skip what we have before
@@ -2322,7 +2307,6 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
         if (PanelMode) count += 8 * (stride - offset - depth);
       }
     }
-#endif
 
     if (nr >= 4) {
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
