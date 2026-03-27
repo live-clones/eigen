@@ -134,7 +134,7 @@ class GramSchmidtQR : public SolverBase<GramSchmidtQR<MatrixType_>> {
         work.col(i) -= rji * m_q.col(j);
       }
       // Normalize.
-      RealScalar norm = work.col(i).norm();
+      RealScalar norm = work.col(i).stableNorm();
       m_r(i, i) = norm;
       if (norm > RealScalar(0)) {
         m_q.col(i) = work.col(i) / norm;
@@ -162,7 +162,7 @@ class GramSchmidtQR : public SolverBase<GramSchmidtQR<MatrixType_>> {
         for (Index j = 0; j < filled; ++j) {
           qcol -= m_q.col(j).dot(qcol) * m_q.col(j);
         }
-        RealScalar norm = qcol.norm();
+        RealScalar norm = qcol.stableNorm();
         if (norm > RealScalar(1e-10)) {
           qcol /= norm;
           ++filled;
