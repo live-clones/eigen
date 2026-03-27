@@ -1454,7 +1454,10 @@ EIGEN_STRONG_INLINE Packet16b ploaddup<Packet16b>(const bool* from) {
 // {b0, b0  b0, b0, b1, b1, b1, b1, b2, b2, b2, b2, b3, b3, b3, b3}
 template <>
 EIGEN_STRONG_INLINE Packet16b ploadquad<Packet16b>(const bool* from) {
-  __m128i tmp = _mm_loadu_si32(reinterpret_cast<const void*>(from));
+  EIGEN_USING_STD(memcpy);
+  int val;
+  memcpy(&val, from, sizeof(int));
+  __m128i tmp = _mm_cvtsi32_si128(val);
   tmp = _mm_unpacklo_epi8(tmp, tmp);
   return _mm_unpacklo_epi16(tmp, tmp);
 }
