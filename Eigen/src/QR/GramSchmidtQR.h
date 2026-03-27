@@ -159,9 +159,11 @@ class GramSchmidtQR : public SolverBase<GramSchmidtQR<MatrixType_>> {
         typename MatrixQType::ColXpr qcol = m_q.col(filled);
         qcol.setUnit(k);
         // Orthogonalize against all existing columns.
-        qcol -= m_q.leftCols(filled) * (m_q.leftCols(filled).adjoint() * qcol);
+        for (Index j = 0; j < filled; ++j) {
+          qcol -= m_q.col(j).dot(qcol) * m_q.col(j);
+        }
         RealScalar norm = qcol.stableNorm();
-        if (norm > RealScalar(1e-10)) {
+        if (norm > RealScalar(rows) * NumTraits<RealScalar>::epsilon()) {
           qcol /= norm;
           ++filled;
         }
