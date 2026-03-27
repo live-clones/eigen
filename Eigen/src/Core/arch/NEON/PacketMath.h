@@ -5430,113 +5430,399 @@ struct unpacket_traits<Packet8hf> : neon_unpacket_default<Packet8hf, half> {
   using half = Packet4hf;
 };
 
+// FIXME: Deduplicate the definitions in this preprocessor conditional.  Specifically,
+// the functions only manipulating the lanes bitwise can be lifted outside.
+#if EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pset1(const half& from) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf predux_half<Packet8hf>(const Packet8hf& a) {
+  return vadd_f16(vget_low_f16(a), vget_high_f16(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pset1<Packet8hf>(const Eigen::half& from) {
   return vdupq_n_f16(from.x);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pset1(const half& from) {
+EIGEN_STRONG_INLINE Packet4hf pset1<Packet4hf>(const Eigen::half& from) {
   return vdup_n_f16(from.x);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pand(const Packet8hf& a, const Packet8hf& b) {
+EIGEN_STRONG_INLINE Packet8hf plset<Packet8hf>(const Eigen::half& a) {
+  const float16_t f[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  Packet8hf countdown = vld1q_f16(f);
+  return vaddq_f16(pset1<Packet8hf>(a), countdown);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf plset<Packet4hf>(const Eigen::half& a) {
+  const float16_t f[] = {0, 1, 2, 3};
+  Packet4hf countdown = vld1_f16(f);
+  return vadd_f16(pset1<Packet4hf>(a), countdown);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf padd<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vaddq_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf padd<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vadd_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf psub<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vsubq_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf psub<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vsub_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pnegate(const Packet8hf& a) {
+  return vnegq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pnegate(const Packet4hf& a) {
+  return vneg_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pconj(const Packet8hf& a) {
+  return a;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pconj(const Packet4hf& a) {
+  return a;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmul<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vmulq_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmul<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vmul_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pdiv<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vdivq_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pdiv<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vdiv_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmadd(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
+  return vfmaq_f16(c, a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmadd(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
+  return vfma_f16(c, a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pnmadd(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
+  return vfmsq_f16(c, a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pnmadd(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
+  return vfms_f16(c, a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmsub(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
+  return pnegate(pnmadd(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmsub(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
+  return pnegate(pnmadd(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pnmsub(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
+  return pnegate(pmadd(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pnmsub(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
+  return pnegate(pmadd(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmin<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vminq_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmin<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vmin_f16(a, b);
+}
+
+#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
+// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8
+// systems).
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmin<PropagateNumbers, Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vminnm_f16(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmin<PropagateNumbers, Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vminnmq_f16(a, b);
+}
+#endif
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmin<PropagateNaN, Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return pmin<Packet4hf>(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmin<PropagateNaN, Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return pmin<Packet8hf>(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmax<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vmaxq_f16(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmax<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vmax_f16(a, b);
+}
+
+#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
+// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8
+// systems).
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmax<PropagateNumbers, Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vmaxnm_f16(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmax<PropagateNumbers, Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vmaxnmq_f16(a, b);
+}
+#endif
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmax<PropagateNaN, Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return pmax<Packet4hf>(a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmax<PropagateNaN, Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return pmax<Packet8hf>(a, b);
+}
+
+#define EIGEN_MAKE_ARM_FP16_CMP_8(name)                                               \
+  template <>                                                                         \
+  EIGEN_STRONG_INLINE Packet8hf pcmp_##name(const Packet8hf& a, const Packet8hf& b) { \
+    return vreinterpretq_f16_u16(vc##name##q_f16(a, b));                              \
+  }
+
+#define EIGEN_MAKE_ARM_FP16_CMP_4(name)                                               \
+  template <>                                                                         \
+  EIGEN_STRONG_INLINE Packet4hf pcmp_##name(const Packet4hf& a, const Packet4hf& b) { \
+    return vreinterpret_f16_u16(vc##name##_f16(a, b));                                \
+  }
+
+EIGEN_MAKE_ARM_FP16_CMP_8(eq)
+EIGEN_MAKE_ARM_FP16_CMP_8(lt)
+EIGEN_MAKE_ARM_FP16_CMP_8(le)
+
+EIGEN_MAKE_ARM_FP16_CMP_4(eq)
+EIGEN_MAKE_ARM_FP16_CMP_4(lt)
+EIGEN_MAKE_ARM_FP16_CMP_4(le)
+
+#undef EIGEN_MAKE_ARM_FP16_CMP_8
+#undef EIGEN_MAKE_ARM_FP16_CMP_4
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pcmp_lt_or_nan<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
+  return vreinterpretq_f16_u16(vmvnq_u16(vcgeq_f16(a, b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pcmp_lt_or_nan<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
+  return vreinterpret_f16_u16(vmvn_u16(vcge_f16(a, b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf print<Packet8hf>(const Packet8hf& a) {
+  return vrndnq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf print<Packet4hf>(const Packet4hf& a) {
+  return vrndn_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pfloor<Packet8hf>(const Packet8hf& a) {
+  return vrndmq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pfloor<Packet4hf>(const Packet4hf& a) {
+  return vrndm_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pceil<Packet8hf>(const Packet8hf& a) {
+  return vrndpq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pceil<Packet4hf>(const Packet4hf& a) {
+  return vrndp_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pround<Packet8hf>(const Packet8hf& a) {
+  return vrndaq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pround<Packet4hf>(const Packet4hf& a) {
+  return vrnda_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf ptrunc<Packet8hf>(const Packet8hf& a) {
+  return vrndq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf ptrunc<Packet4hf>(const Packet4hf& a) {
+  return vrnd_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf psqrt<Packet8hf>(const Packet8hf& a) {
+  return vsqrtq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf psqrt<Packet4hf>(const Packet4hf& a) {
+  return vsqrt_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pand<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
   return vreinterpretq_f16_u16(vandq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pand(const Packet4hf& a, const Packet4hf& b) {
+EIGEN_STRONG_INLINE Packet4hf pand<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
   return vreinterpret_f16_u16(vand_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8hf por(const Packet8hf& a, const Packet8hf& b) {
+EIGEN_STRONG_INLINE Packet8hf por<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
   return vreinterpretq_f16_u16(vorrq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf por(const Packet4hf& a, const Packet4hf& b) {
+EIGEN_STRONG_INLINE Packet4hf por<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
   return vreinterpret_f16_u16(vorr_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pxor(const Packet8hf& a, const Packet8hf& b) {
+EIGEN_STRONG_INLINE Packet8hf pxor<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
   return vreinterpretq_f16_u16(veorq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pxor(const Packet4hf& a, const Packet4hf& b) {
+EIGEN_STRONG_INLINE Packet4hf pxor<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
   return vreinterpret_f16_u16(veor_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pandnot(const Packet8hf& a, const Packet8hf& b) {
+EIGEN_STRONG_INLINE Packet8hf pandnot<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
   return vreinterpretq_f16_u16(vbicq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pandnot(const Packet4hf& a, const Packet4hf& b) {
+EIGEN_STRONG_INLINE Packet4hf pandnot<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
   return vreinterpret_f16_u16(vbic_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pload(const half* from) {
-  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(assume_aligned<unpacket_traits<Packet8hf>::alignment>(&from->x));
+EIGEN_STRONG_INLINE Packet8hf pload<Packet8hf>(const Eigen::half* from) {
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet8hf>::alignment>(from)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pload(const half* from) {
-  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(assume_aligned<unpacket_traits<Packet4hf>::alignment>(&from->x));
+EIGEN_STRONG_INLINE Packet4hf pload<Packet4hf>(const Eigen::half* from) {
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet4hf>::alignment>(from)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf ploadu(const half* from) {
-  EIGEN_DEBUG_UNALIGNED_LOAD return vld1q_f16(&from->x);
+EIGEN_STRONG_INLINE Packet8hf ploadu<Packet8hf>(const Eigen::half* from) {
+  EIGEN_DEBUG_UNALIGNED_LOAD return vld1q_f16(reinterpret_cast<const float16_t*>(from));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf ploadu(const half* from) {
-  EIGEN_DEBUG_UNALIGNED_LOAD return vld1_f16(&from->x);
+EIGEN_STRONG_INLINE Packet4hf ploadu<Packet4hf>(const Eigen::half* from) {
+  EIGEN_DEBUG_UNALIGNED_LOAD return vld1_f16(reinterpret_cast<const float16_t*>(from));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf ploaddup(const half* from) {
-  Packet8hf packet{};
-  packet = vsetq_lane_f16(from[0].x, packet, 0);
-  packet = vsetq_lane_f16(from[0].x, packet, 1);
-  packet = vsetq_lane_f16(from[1].x, packet, 2);
-  packet = vsetq_lane_f16(from[1].x, packet, 3);
-  packet = vsetq_lane_f16(from[2].x, packet, 4);
-  packet = vsetq_lane_f16(from[2].x, packet, 5);
-  packet = vsetq_lane_f16(from[3].x, packet, 6);
-  packet = vsetq_lane_f16(from[3].x, packet, 7);
+EIGEN_STRONG_INLINE Packet8hf ploaddup<Packet8hf>(const Eigen::half* from) {
+  Packet8hf packet;
+  packet[0] = from[0].x;
+  packet[1] = from[0].x;
+  packet[2] = from[1].x;
+  packet[3] = from[1].x;
+  packet[4] = from[2].x;
+  packet[5] = from[2].x;
+  packet[6] = from[3].x;
+  packet[7] = from[3].x;
   return packet;
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf ploaddup(const half* from) {
-  float16x4_t packet{};
-  packet = vset_lane_f16(from[0].x, packet, 0);
-  packet = vset_lane_f16(from[0].x, packet, 1);
-  packet = vset_lane_f16(from[1].x, packet, 2);
-  packet = vset_lane_f16(from[1].x, packet, 3);
+EIGEN_STRONG_INLINE Packet4hf ploaddup<Packet4hf>(const Eigen::half* from) {
+  float16x4_t packet;
+  float16_t* tmp;
+  tmp = (float16_t*)&packet;
+  tmp[0] = from[0].x;
+  tmp[1] = from[0].x;
+  tmp[2] = from[1].x;
+  tmp[3] = from[1].x;
   return packet;
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf ploadquad(const half* from) {
+EIGEN_STRONG_INLINE Packet8hf ploadquad<Packet8hf>(const Eigen::half* from) {
   Packet4hf lo, hi;
-  lo = vld1_dup_f16(&from[0].x);
-  hi = vld1_dup_f16(&from[1].x);
+  lo = vld1_dup_f16(reinterpret_cast<const float16_t*>(from));
+  hi = vld1_dup_f16(reinterpret_cast<const float16_t*>(from + 1));
   return vcombine_f16(lo, hi);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pinsertfirst(const Packet8hf& a, half b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pinsertfirst(const Packet8hf& a, Eigen::half b) {
   return vsetq_lane_f16(b.x, a, 0);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertfirst(const Packet4hf& a, half b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertfirst(const Packet4hf& a, Eigen::half b) {
   return vset_lane_f16(b.x, a, 0);
 }
 
@@ -5550,37 +5836,39 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pselect(const Packet4hf& mask, c
   return vbsl_f16(vreinterpret_u16_f16(mask), a, b);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pinsertlast(const Packet8hf& a, half b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pinsertlast(const Packet8hf& a, Eigen::half b) {
   return vsetq_lane_f16(b.x, a, 7);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertlast(const Packet4hf& a, half b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertlast(const Packet4hf& a, Eigen::half b) {
   return vset_lane_f16(b.x, a, 3);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstore(half* to, const Packet8hf& from) {
-  EIGEN_DEBUG_ALIGNED_STORE vst1q_f16(assume_aligned<unpacket_traits<Packet8hf>::alignment>(&to->x), from);
+EIGEN_STRONG_INLINE void pstore<Eigen::half>(Eigen::half* to, const Packet8hf& from) {
+  EIGEN_DEBUG_ALIGNED_STORE vst1q_f16(
+      reinterpret_cast<float16_t*>(assume_aligned<unpacket_traits<Packet8hf>::alignment>(to)), from);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstore(half* to, const Packet4hf& from) {
-  EIGEN_DEBUG_ALIGNED_STORE vst1_f16(assume_aligned<unpacket_traits<Packet4hf>::alignment>(&to->x), from);
+EIGEN_STRONG_INLINE void pstore<Eigen::half>(Eigen::half* to, const Packet4hf& from) {
+  EIGEN_DEBUG_ALIGNED_STORE vst1_f16(
+      reinterpret_cast<float16_t*>(assume_aligned<unpacket_traits<Packet4hf>::alignment>(to)), from);
 }
 
 template <>
-EIGEN_STRONG_INLINE void pstoreu(half* to, const Packet8hf& from) {
-  EIGEN_DEBUG_UNALIGNED_STORE vst1q_f16(&to->x, from);
+EIGEN_STRONG_INLINE void pstoreu<Eigen::half>(Eigen::half* to, const Packet8hf& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE vst1q_f16(reinterpret_cast<float16_t*>(to), from);
 }
 
 template <>
-EIGEN_STRONG_INLINE void pstoreu(half* to, const Packet4hf& from) {
-  EIGEN_DEBUG_UNALIGNED_STORE vst1_f16(&to->x, from);
+EIGEN_STRONG_INLINE void pstoreu<Eigen::half>(Eigen::half* to, const Packet4hf& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE vst1_f16(reinterpret_cast<float16_t*>(to), from);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pgather(const half* from, Index stride) {
-  Packet8hf res = pset1<Packet8hf>(half(0.f));
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pgather<Eigen::half, Packet8hf>(const Eigen::half* from, Index stride) {
+  Packet8hf res = pset1<Packet8hf>(Eigen::half(0.f));
   res = vsetq_lane_f16(from[0 * stride].x, res, 0);
   res = vsetq_lane_f16(from[1 * stride].x, res, 1);
   res = vsetq_lane_f16(from[2 * stride].x, res, 2);
@@ -5593,8 +5881,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pgather(const half* from, Index 
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pgather(const half* from, Index stride) {
-  Packet4hf res = pset1<Packet4hf>(half(0.f));
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pgather<Eigen::half, Packet4hf>(const Eigen::half* from, Index stride) {
+  Packet4hf res = pset1<Packet4hf>(Eigen::half(0.f));
   res = vset_lane_f16(from[0 * stride].x, res, 0);
   res = vset_lane_f16(from[1 * stride].x, res, 1);
   res = vset_lane_f16(from[2 * stride].x, res, 2);
@@ -5603,7 +5891,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pgather(const half* from, Index 
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(half* to, const Packet8hf& from, Index stride) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter<Eigen::half, Packet8hf>(Eigen::half* to, const Packet8hf& from,
+                                                                            Index stride) {
   to[stride * 0].x = vgetq_lane_f16(from, 0);
   to[stride * 1].x = vgetq_lane_f16(from, 1);
   to[stride * 2].x = vgetq_lane_f16(from, 2);
@@ -5615,7 +5904,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(half* to, const Packet8hf& f
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(half* to, const Packet4hf& from, Index stride) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter<Eigen::half, Packet4hf>(Eigen::half* to, const Packet4hf& from,
+                                                                            Index stride) {
   to[stride * 0].x = vget_lane_f16(from, 0);
   to[stride * 1].x = vget_lane_f16(from, 1);
   to[stride * 2].x = vget_lane_f16(from, 2);
@@ -5623,49 +5913,148 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(half* to, const Packet4hf& f
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void prefetch(const half* addr) {
+EIGEN_STRONG_INLINE void prefetch<Eigen::half>(const Eigen::half* addr) {
   EIGEN_ARM_PREFETCH(addr);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half pfirst(const Packet8hf& a) {
-  return half(vgetq_lane_f16(a, 0));
+EIGEN_STRONG_INLINE Eigen::half pfirst<Packet8hf>(const Packet8hf& a) {
+  float16_t x[8];
+  vst1q_f16(x, a);
+  Eigen::half h;
+  h.x = x[0];
+  return h;
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half pfirst(const Packet4hf& a) {
-  return half(vget_lane_f16(a, 0));
+EIGEN_STRONG_INLINE Eigen::half pfirst<Packet4hf>(const Packet4hf& a) {
+  float16_t x[4];
+  vst1_f16(x, a);
+  Eigen::half h;
+  h.x = x[0];
+  return h;
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf preverse(const Packet8hf& a) {
-  float16x8_t r = vrev64q_f16(a);
-  return vcombine_f16(vget_high_f16(r), vget_low_f16(r));
+EIGEN_STRONG_INLINE Packet8hf preverse(const Packet8hf& a) {
+  float16x4_t a_lo, a_hi;
+  Packet8hf a_r64;
+
+  a_r64 = vrev64q_f16(a);
+  a_lo = vget_low_f16(a_r64);
+  a_hi = vget_high_f16(a_r64);
+  return vcombine_f16(a_hi, a_lo);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf preverse(const Packet4hf& a) {
+EIGEN_STRONG_INLINE Packet4hf preverse<Packet4hf>(const Packet4hf& a) {
   return vrev64_f16(a);
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf psignbit(const Packet8hf& a) {
+EIGEN_STRONG_INLINE Packet8hf pabs<Packet8hf>(const Packet8hf& a) {
+  return vabsq_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf psignbit(const Packet8hf& a) {
   return vreinterpretq_f16_s16(vshrq_n_s16(vreinterpretq_s16_f16(a), 15));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psignbit(const Packet4hf& a) {
+EIGEN_STRONG_INLINE Packet4hf pabs<Packet4hf>(const Packet4hf& a) {
+  return vabs_f16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf psignbit(const Packet4hf& a) {
   return vreinterpret_f16_s16(vshr_n_s16(vreinterpret_s16_f16(a), 15));
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pconj(const Packet8hf& a) {
-  return a;
+EIGEN_STRONG_INLINE Eigen::half predux<Packet8hf>(const Packet8hf& a) {
+  float16x4_t a_lo, a_hi, sum;
+
+  a_lo = vget_low_f16(a);
+  a_hi = vget_high_f16(a);
+  sum = vpadd_f16(a_lo, a_hi);
+  sum = vpadd_f16(sum, sum);
+  sum = vpadd_f16(sum, sum);
+
+  Eigen::half h;
+  h.x = vget_lane_f16(sum, 0);
+  return h;
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pconj(const Packet4hf& a) {
-  return a;
+EIGEN_STRONG_INLINE Eigen::half predux<Packet4hf>(const Packet4hf& a) {
+  float16x4_t sum;
+
+  sum = vpadd_f16(a, a);
+  sum = vpadd_f16(sum, sum);
+  Eigen::half h;
+  h.x = vget_lane_f16(sum, 0);
+  return h;
+}
+
+template <>
+EIGEN_STRONG_INLINE Eigen::half predux_mul<Packet8hf>(const Packet8hf& a) {
+  float16x4_t a_lo, a_hi, prod;
+
+  a_lo = vget_low_f16(a);
+  a_hi = vget_high_f16(a);
+  prod = vmul_f16(a_lo, a_hi);
+  prod = vmul_f16(prod, vrev64_f16(prod));
+
+  Eigen::half h;
+  h.x = vmulh_f16(vget_lane_f16(prod, 0), vget_lane_f16(prod, 1));
+  return h;
+}
+
+template <>
+EIGEN_STRONG_INLINE Eigen::half predux_mul<Packet4hf>(const Packet4hf& a) {
+  float16x4_t prod;
+  prod = vmul_f16(a, vrev64_f16(a));
+  Eigen::half h;
+  h.x = vmulh_f16(vget_lane_f16(prod, 0), vget_lane_f16(prod, 1));
+  return h;
+}
+
+template <>
+EIGEN_STRONG_INLINE Eigen::half predux_min<Packet8hf>(const Packet8hf& a) {
+  Eigen::half h;
+  h.x = vminvq_f16(a);
+  return h;
+}
+
+template <>
+EIGEN_STRONG_INLINE Eigen::half predux_min<Packet4hf>(const Packet4hf& a) {
+  Eigen::half h;
+  h.x = vminv_f16(a);
+  return h;
+}
+
+template <>
+EIGEN_STRONG_INLINE Eigen::half predux_max<Packet8hf>(const Packet8hf& a) {
+  Eigen::half h;
+  h.x = vmaxvq_f16(a);
+  return h;
+}
+
+template <>
+EIGEN_STRONG_INLINE Eigen::half predux_max<Packet4hf>(const Packet4hf& a) {
+  Eigen::half h;
+  h.x = vmaxv_f16(a);
+  return h;
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet8hf& a) {
+  return vget_lane_u64(vreinterpret_u64_u8(vmovn_u16(vreinterpretq_u16_f16(a))), 0);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet4hf& a) {
+  return vget_lane_u64(vreinterpret_u64_f16(a), 0);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 4>& kernel) {
@@ -5683,7 +6072,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 4>&
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet4hf, 4>& kernel) {
   EIGEN_ALIGN16 float16x4x4_t tmp_x4;
-  float16_t* tmp = reinterpret_cast<float16_t*>(&kernel);
+  float16_t* tmp = (float16_t*)&kernel;
   tmp_x4 = vld4_f16(tmp);
 
   kernel.packet[0] = tmp_x4.val[0];
@@ -5722,372 +6111,20 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 8>&
   kernel.packet[7] = T_3[3].val[1];
 }
 
-#if EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf predux_half<Packet8hf>(const Packet8hf& a) {
-  return vadd_f16(vget_low_f16(a), vget_high_f16(a));
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf plset<Packet8hf>(const half& a) {
-  const float16_t f[] = {0, 1, 2, 3, 4, 5, 6, 7};
-  Packet8hf countdown = vld1q_f16(f);
-  return vaddq_f16(pset1<Packet8hf>(a), countdown);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf plset<Packet4hf>(const half& a) {
-  const float16_t f[] = {0, 1, 2, 3};
-  Packet4hf countdown = vld1_f16(f);
-  return vadd_f16(pset1<Packet4hf>(a), countdown);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf padd<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return vaddq_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf padd<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return vadd_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf psub<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return vsubq_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psub<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return vsub_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pnegate(const Packet8hf& a) {
-  return vnegq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pnegate(const Packet4hf& a) {
-  return vneg_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmul<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return vmulq_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmul<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return vmul_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pdiv<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return vdivq_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pdiv<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return vdiv_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmadd(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
-  return vfmaq_f16(c, a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmadd(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
-  return vfma_f16(c, a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pnmadd(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
-  return vfmsq_f16(c, a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pnmadd(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
-  return vfms_f16(c, a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmsub(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
-  return pnegate(pnmadd(a, b, c));
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmsub(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
-  return pnegate(pnmadd(a, b, c));
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pnmsub(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
-  return pnegate(pmadd(a, b, c));
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pnmsub(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
-  return pnegate(pmadd(a, b, c));
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmin<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return vminq_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmin<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return vmin_f16(a, b);
-}
-
-#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
-// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8
-// systems).
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmin<PropagateNumbers, Packet4hf>(const Packet4hf& a,
-                                                                                  const Packet4hf& b) {
-  return vminnm_f16(a, b);
-}
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmin<PropagateNumbers, Packet8hf>(const Packet8hf& a,
-                                                                                  const Packet8hf& b) {
-  return vminnmq_f16(a, b);
-}
-#endif
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmin<PropagateNaN, Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return pmin<Packet4hf>(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmin<PropagateNaN, Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return pmin<Packet8hf>(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmax<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return vmaxq_f16(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmax<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return vmax_f16(a, b);
-}
-
-#ifdef __ARM_FEATURE_NUMERIC_MAXMIN
-// numeric max and min are only available if ARM_FEATURE_NUMERIC_MAXMIN is defined (which can only be the case for Armv8
-// systems).
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmax<PropagateNumbers, Packet4hf>(const Packet4hf& a,
-                                                                                  const Packet4hf& b) {
-  return vmaxnm_f16(a, b);
-}
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmax<PropagateNumbers, Packet8hf>(const Packet8hf& a,
-                                                                                  const Packet8hf& b) {
-  return vmaxnmq_f16(a, b);
-}
-#endif
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pmax<PropagateNaN, Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return pmax<Packet4hf>(a, b);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pmax<PropagateNaN, Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return pmax<Packet8hf>(a, b);
-}
-
-#define EIGEN_MAKE_ARM_FP16_CMP_8(name)                                               \
-  template <>                                                                         \
-  EIGEN_STRONG_INLINE Packet8hf pcmp_##name(const Packet8hf& a, const Packet8hf& b) { \
-    return vreinterpretq_f16_u16(vc##name##q_f16(a, b));                              \
-  }
-
-#define EIGEN_MAKE_ARM_FP16_CMP_4(name)                                               \
-  template <>                                                                         \
-  EIGEN_STRONG_INLINE Packet4hf pcmp_##name(const Packet4hf& a, const Packet4hf& b) { \
-    return vreinterpret_f16_u16(vc##name##_f16(a, b));                                \
-  }
-
-EIGEN_MAKE_ARM_FP16_CMP_8(eq)
-EIGEN_MAKE_ARM_FP16_CMP_8(lt)
-EIGEN_MAKE_ARM_FP16_CMP_8(le)
-
-EIGEN_MAKE_ARM_FP16_CMP_4(eq)
-EIGEN_MAKE_ARM_FP16_CMP_4(lt)
-EIGEN_MAKE_ARM_FP16_CMP_4(le)
-
-#undef EIGEN_MAKE_ARM_FP16_CMP_8
-#undef EIGEN_MAKE_ARM_FP16_CMP_4
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pcmp_lt_or_nan<Packet8hf>(const Packet8hf& a, const Packet8hf& b) {
-  return vreinterpretq_f16_u16(vmvnq_u16(vcgeq_f16(a, b)));
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pcmp_lt_or_nan<Packet4hf>(const Packet4hf& a, const Packet4hf& b) {
-  return vreinterpret_f16_u16(vmvn_u16(vcge_f16(a, b)));
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf print<Packet8hf>(const Packet8hf& a) {
-  return vrndnq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf print<Packet4hf>(const Packet4hf& a) {
-  return vrndn_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pfloor<Packet8hf>(const Packet8hf& a) {
-  return vrndmq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pfloor<Packet4hf>(const Packet4hf& a) {
-  return vrndm_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pceil<Packet8hf>(const Packet8hf& a) {
-  return vrndpq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pceil<Packet4hf>(const Packet4hf& a) {
-  return vrndp_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pround<Packet8hf>(const Packet8hf& a) {
-  return vrndaq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pround<Packet4hf>(const Packet4hf& a) {
-  return vrnda_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf ptrunc<Packet8hf>(const Packet8hf& a) {
-  return vrndq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf ptrunc<Packet4hf>(const Packet4hf& a) {
-  return vrnd_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf psqrt<Packet8hf>(const Packet8hf& a) {
-  return vsqrtq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psqrt<Packet4hf>(const Packet4hf& a) {
-  return vsqrt_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pabs<Packet8hf>(const Packet8hf& a) {
-  return vabsq_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pabs<Packet4hf>(const Packet4hf& a) {
-  return vabs_f16(a);
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux<Packet8hf>(const Packet8hf& a) {
-  float16x4_t a_lo, a_hi, sum;
-
-  a_lo = vget_low_f16(a);
-  a_hi = vget_high_f16(a);
-  sum = vpadd_f16(a_lo, a_hi);
-  sum = vpadd_f16(sum, sum);
-  sum = vpadd_f16(sum, sum);
-
-  half h;
-  h.x = vget_lane_f16(sum, 0);
-  return h;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux<Packet4hf>(const Packet4hf& a) {
-  float16x4_t sum;
-
-  sum = vpadd_f16(a, a);
-  sum = vpadd_f16(sum, sum);
-  half h;
-  h.x = vget_lane_f16(sum, 0);
-  return h;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_mul<Packet8hf>(const Packet8hf& a) {
-  float16x4_t a_lo, a_hi, prod;
-
-  a_lo = vget_low_f16(a);
-  a_hi = vget_high_f16(a);
-  prod = vmul_f16(a_lo, a_hi);
-  prod = vmul_f16(prod, vrev64_f16(prod));
-
-  half h;
-  h.x = vmulh_f16(vget_lane_f16(prod, 0), vget_lane_f16(prod, 1));
-  return h;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_mul<Packet4hf>(const Packet4hf& a) {
-  float16x4_t prod;
-  prod = vmul_f16(a, vrev64_f16(a));
-  half h;
-  h.x = vmulh_f16(vget_lane_f16(prod, 0), vget_lane_f16(prod, 1));
-  return h;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_min<Packet8hf>(const Packet8hf& a) {
-  half h;
-  h.x = vminvq_f16(a);
-  return h;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_min<Packet4hf>(const Packet4hf& a) {
-  half h;
-  h.x = vminv_f16(a);
-  return h;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_max<Packet8hf>(const Packet8hf& a) {
-  half h;
-  h.x = vmaxvq_f16(a);
-  return h;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_max<Packet4hf>(const Packet4hf& a) {
-  half h;
-  h.x = vmaxv_f16(a);
-  return h;
-}
-
 #else
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf predux_half(const Packet8hf& a) {
   return vcvt_f16_f32(vaddq_f32(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a))));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pset1(const half& from) {
+  return vdupq_n_f16(from.x);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pset1(const half& from) {
+  return vdup_n_f16(from.x);
 }
 
 template <>
@@ -6135,6 +6172,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pnegate(const Packet8hf& a) {
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pnegate(const Packet4hf& a) {
   return vreinterpret_f16_u16(veor_u16(vreinterpret_u16_f16(a), vdup_n_u16(0x8000)));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pconj(const Packet8hf& a) {
+  return a;
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pconj(const Packet4hf& a) {
+  return a;
 }
 
 EIGEN_MAKE_HALF_BINOP(pmul, mul);
@@ -6246,6 +6292,198 @@ EIGEN_MAKE_HALF_UNOP(ptrunc, rnd);
 EIGEN_MAKE_HALF_UNOP(psqrt, sqrt);
 
 template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pand(const Packet8hf& a, const Packet8hf& b) {
+  return vreinterpretq_f16_u16(vandq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pand(const Packet4hf& a, const Packet4hf& b) {
+  return vreinterpret_f16_u16(vand_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf por(const Packet8hf& a, const Packet8hf& b) {
+  return vreinterpretq_f16_u16(vorrq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf por(const Packet4hf& a, const Packet4hf& b) {
+  return vreinterpret_f16_u16(vorr_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pxor(const Packet8hf& a, const Packet8hf& b) {
+  return vreinterpretq_f16_u16(veorq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pxor(const Packet4hf& a, const Packet4hf& b) {
+  return vreinterpret_f16_u16(veor_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pandnot(const Packet8hf& a, const Packet8hf& b) {
+  return vreinterpretq_f16_u16(vbicq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b)));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pandnot(const Packet4hf& a, const Packet4hf& b) {
+  return vreinterpret_f16_u16(vbic_u16(vreinterpret_u16_f16(a), vreinterpret_u16_f16(b)));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pload(const half* from) {
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(assume_aligned<unpacket_traits<Packet8hf>::alignment>(&from->x));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pload(const half* from) {
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(assume_aligned<unpacket_traits<Packet4hf>::alignment>(&from->x));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf ploadu(const half* from) {
+  EIGEN_DEBUG_UNALIGNED_LOAD return vld1q_f16(&from->x);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf ploadu(const half* from) {
+  EIGEN_DEBUG_UNALIGNED_LOAD return vld1_f16(&from->x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf ploaddup(const half* from) {
+  Packet8hf packet{};
+  packet = vsetq_lane_f16(from[0].x, packet, 0);
+  packet = vsetq_lane_f16(from[0].x, packet, 1);
+  packet = vsetq_lane_f16(from[1].x, packet, 2);
+  packet = vsetq_lane_f16(from[1].x, packet, 3);
+  packet = vsetq_lane_f16(from[2].x, packet, 4);
+  packet = vsetq_lane_f16(from[2].x, packet, 5);
+  packet = vsetq_lane_f16(from[3].x, packet, 6);
+  packet = vsetq_lane_f16(from[3].x, packet, 7);
+  return packet;
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf ploaddup(const half* from) {
+  float16x4_t packet{};
+  packet = vset_lane_f16(from[0].x, packet, 0);
+  packet = vset_lane_f16(from[0].x, packet, 1);
+  packet = vset_lane_f16(from[1].x, packet, 2);
+  packet = vset_lane_f16(from[1].x, packet, 3);
+  return packet;
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf ploadquad(const half* from) {
+  Packet4hf lo, hi;
+  lo = vld1_dup_f16(&from[0].x);
+  hi = vld1_dup_f16(&from[1].x);
+  return vcombine_f16(lo, hi);
+}
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pinsertfirst(const Packet8hf& a, half b) {
+  return vsetq_lane_f16(b.x, a, 0);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertfirst(const Packet4hf& a, half b) {
+  return vset_lane_f16(b.x, a, 0);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pselect(const Packet8hf& mask, const Packet8hf& a, const Packet8hf& b) {
+  return vbslq_f16(vreinterpretq_u16_f16(mask), a, b);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pselect(const Packet4hf& mask, const Packet4hf& a, const Packet4hf& b) {
+  return vbsl_f16(vreinterpret_u16_f16(mask), a, b);
+}
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pinsertlast(const Packet8hf& a, half b) {
+  return vsetq_lane_f16(b.x, a, 7);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertlast(const Packet4hf& a, half b) {
+  return vset_lane_f16(b.x, a, 3);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstore(half* to, const Packet8hf& from) {
+  EIGEN_DEBUG_ALIGNED_STORE vst1q_f16(assume_aligned<unpacket_traits<Packet8hf>::alignment>(&to->x), from);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstore(half* to, const Packet4hf& from) {
+  EIGEN_DEBUG_ALIGNED_STORE vst1_f16(assume_aligned<unpacket_traits<Packet4hf>::alignment>(&to->x), from);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstoreu(half* to, const Packet8hf& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE vst1q_f16(&to->x, from);
+}
+template <>
+EIGEN_STRONG_INLINE void pstoreu(half* to, const Packet4hf& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE vst1_f16(&to->x, from);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pgather(const half* from, Index stride) {
+  Packet8hf res = pset1<Packet8hf>(half(0.f));
+  res = vsetq_lane_f16(from[0 * stride].x, res, 0);
+  res = vsetq_lane_f16(from[1 * stride].x, res, 1);
+  res = vsetq_lane_f16(from[2 * stride].x, res, 2);
+  res = vsetq_lane_f16(from[3 * stride].x, res, 3);
+  res = vsetq_lane_f16(from[4 * stride].x, res, 4);
+  res = vsetq_lane_f16(from[5 * stride].x, res, 5);
+  res = vsetq_lane_f16(from[6 * stride].x, res, 6);
+  res = vsetq_lane_f16(from[7 * stride].x, res, 7);
+  return res;
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pgather(const half* from, Index stride) {
+  Packet4hf res = pset1<Packet4hf>(half(0.f));
+  res = vset_lane_f16(from[0 * stride].x, res, 0);
+  res = vset_lane_f16(from[1 * stride].x, res, 1);
+  res = vset_lane_f16(from[2 * stride].x, res, 2);
+  res = vset_lane_f16(from[3 * stride].x, res, 3);
+  return res;
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(half* to, const Packet8hf& from, Index stride) {
+  to[stride * 0].x = vgetq_lane_f16(from, 0);
+  to[stride * 1].x = vgetq_lane_f16(from, 1);
+  to[stride * 2].x = vgetq_lane_f16(from, 2);
+  to[stride * 3].x = vgetq_lane_f16(from, 3);
+  to[stride * 4].x = vgetq_lane_f16(from, 4);
+  to[stride * 5].x = vgetq_lane_f16(from, 5);
+  to[stride * 6].x = vgetq_lane_f16(from, 6);
+  to[stride * 7].x = vgetq_lane_f16(from, 7);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(half* to, const Packet4hf& from, Index stride) {
+  to[stride * 0].x = vget_lane_f16(from, 0);
+  to[stride * 1].x = vget_lane_f16(from, 1);
+  to[stride * 2].x = vget_lane_f16(from, 2);
+  to[stride * 3].x = vget_lane_f16(from, 3);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void prefetch(const half* addr) {
+  EIGEN_ARM_PREFETCH(addr);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half pfirst(const Packet8hf& a) {
+  return half(vgetq_lane_f16(a, 0));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half pfirst(const Packet4hf& a) {
+  return half(vget_lane_f16(a, 0));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf preverse(const Packet8hf& a) {
+  float16x8_t r = vrev64q_f16(a);
+  return vcombine_f16(vget_high_f16(r), vget_low_f16(r));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf preverse(const Packet4hf& a) {
+  return vrev64_f16(a);
+}
+
+template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pabs(const Packet8hf& a) {
   return vreinterpretq_f16_u16(vbicq_u16(vreinterpretq_u16_f16(a), vdupq_n_u16(0x8000)));
 }
@@ -6255,13 +6493,38 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pabs(const Packet4hf& a) {
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux(const Packet8hf& a) {
-  return half(vaddvq_f32(vaddq_f32(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a)))));
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf psignbit(const Packet8hf& a) {
+  return vreinterpretq_f16_s16(vshrq_n_s16(vreinterpretq_s16_f16(a), 15));
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux(const Packet4hf& a) {
-  return half(vaddvq_f32(vcvt_f32_f16(a)));
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psignbit(const Packet4hf& a) {
+  return vreinterpret_f16_s16(vshr_n_s16(vreinterpret_s16_f16(a), 15));
 }
+
+#define EIGEN_MAKE_HALF_REDUX(name, op)                                                                      \
+  template <>                                                                                                \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half name(const Packet8hf& a) {                                      \
+    return half(v##op##vq_f32(v##op##q_f32(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a))))); \
+  }                                                                                                          \
+  template <>                                                                                                \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half name(const Packet4hf& a) {                                      \
+    return half(v##op##vq_f32(vcvt_f32_f16(a)));                                                             \
+  }                                                                                                          \
+  static_assert(true, "Trailing semicolon required")
+
+EIGEN_MAKE_HALF_REDUX(predux, add);
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_mul(const Packet4hf& a) {
+  return half(predux_mul(vcvt_f32_f16(a)));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_mul(const Packet8hf& a) {
+  return half(predux_mul<Packet4f>(pmul(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a)))));
+}
+
+EIGEN_MAKE_HALF_REDUX(predux_min, min);
+EIGEN_MAKE_HALF_REDUX(predux_max, max);
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet8hf& a) {
@@ -6270,6 +6533,61 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet8hf& a) {
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet4hf& a) {
   return vget_lane_u64(vreinterpret_u64_f16(a), 0);
+}
+
+#undef EIGEN_MAKE_HALF_REDUX
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 4>& kernel) {
+  const float16x8x2_t zip16_1 = vzipq_f16(kernel.packet[0], kernel.packet[1]);
+  const float16x8x2_t zip16_2 = vzipq_f16(kernel.packet[2], kernel.packet[3]);
+
+  const float32x4x2_t zip32_1 = vzipq_f32(vreinterpretq_f32_f16(zip16_1.val[0]), vreinterpretq_f32_f16(zip16_2.val[0]));
+  const float32x4x2_t zip32_2 = vzipq_f32(vreinterpretq_f32_f16(zip16_1.val[1]), vreinterpretq_f32_f16(zip16_2.val[1]));
+
+  kernel.packet[0] = vreinterpretq_f16_f32(zip32_1.val[0]);
+  kernel.packet[1] = vreinterpretq_f16_f32(zip32_1.val[1]);
+  kernel.packet[2] = vreinterpretq_f16_f32(zip32_2.val[0]);
+  kernel.packet[3] = vreinterpretq_f16_f32(zip32_2.val[1]);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet4hf, 4>& kernel) {
+  EIGEN_ALIGN16 float16x4x4_t tmp_x4;
+  float16_t* tmp = reinterpret_cast<float16_t*>(&kernel);
+  tmp_x4 = vld4_f16(tmp);
+
+  kernel.packet[0] = tmp_x4.val[0];
+  kernel.packet[1] = tmp_x4.val[1];
+  kernel.packet[2] = tmp_x4.val[2];
+  kernel.packet[3] = tmp_x4.val[3];
+}
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 8>& kernel) {
+  float16x8x2_t T_1[4];
+
+  T_1[0] = vuzpq_f16(kernel.packet[0], kernel.packet[1]);
+  T_1[1] = vuzpq_f16(kernel.packet[2], kernel.packet[3]);
+  T_1[2] = vuzpq_f16(kernel.packet[4], kernel.packet[5]);
+  T_1[3] = vuzpq_f16(kernel.packet[6], kernel.packet[7]);
+
+  float16x8x2_t T_2[4];
+  T_2[0] = vuzpq_f16(T_1[0].val[0], T_1[1].val[0]);
+  T_2[1] = vuzpq_f16(T_1[0].val[1], T_1[1].val[1]);
+  T_2[2] = vuzpq_f16(T_1[2].val[0], T_1[3].val[0]);
+  T_2[3] = vuzpq_f16(T_1[2].val[1], T_1[3].val[1]);
+
+  float16x8x2_t T_3[4];
+  T_3[0] = vuzpq_f16(T_2[0].val[0], T_2[2].val[0]);
+  T_3[1] = vuzpq_f16(T_2[0].val[1], T_2[2].val[1]);
+  T_3[2] = vuzpq_f16(T_2[1].val[0], T_2[3].val[0]);
+  T_3[3] = vuzpq_f16(T_2[1].val[1], T_2[3].val[1]);
+
+  kernel.packet[0] = T_3[0].val[0];
+  kernel.packet[1] = T_3[2].val[0];
+  kernel.packet[2] = T_3[1].val[0];
+  kernel.packet[3] = T_3[3].val[0];
+  kernel.packet[4] = T_3[0].val[1];
+  kernel.packet[5] = T_3[2].val[1];
+  kernel.packet[6] = T_3[1].val[1];
+  kernel.packet[7] = T_3[3].val[1];
 }
 
 #undef EIGEN_MAKE_HALF_UNOP
