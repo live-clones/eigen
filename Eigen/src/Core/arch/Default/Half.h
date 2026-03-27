@@ -447,8 +447,10 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half&
 // the operations below, implicit conversion is intentional so that---depending on the
 // target features---the compiler can choose between using native half-precision
 // instructions or converting to single-precision.
+#if EIGEN_COMP_CLANG
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdouble-promotion"
+#endif
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) { return half(a.x + b.x); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) { return half(a.x * b.x); }
@@ -478,7 +480,9 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const half& a, const half&
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const half& a, const half& b) { return a.x > b.x; }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half& b) { return a.x >= b.x; }
 
+#if EIGEN_COMP_CLANG
 #pragma clang diagnostic pop
+#endif
 
 // We need to distinguish ‘clang as the CUDA compiler’ from ‘clang as the host compiler,
 // invoked by NVCC’ (e.g. on MacOS). The former needs to see both host and device implementation
