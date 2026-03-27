@@ -592,12 +592,12 @@ EIGEN_STRONG_INLINE Packet4f pset1frombits<Packet4f>(uint32_t from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2f plset<Packet2f>(const float& a) {
-  const float c[] = {0.0f, 1.0f};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet2f)) const float c[] = {0.0f, 1.0f};
   return vadd_f32(pset1<Packet2f>(a), vld1_f32(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f plset<Packet4f>(const float& a) {
-  const float c[] = {0.0f, 1.0f, 2.0f, 3.0f};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet4f)) const float c[] = {0.0f, 1.0f, 2.0f, 3.0f};
   return vaddq_f32(pset1<Packet4f>(a), vld1q_f32(c));
 }
 template <>
@@ -606,12 +606,12 @@ EIGEN_STRONG_INLINE Packet4c plset<Packet4c>(const int8_t& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c plset<Packet8c>(const int8_t& a) {
-  const int8_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet8c)) const int8_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
   return vadd_s8(pset1<Packet8c>(a), vld1_s8(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet16c plset<Packet16c>(const int8_t& a) {
-  const int8_t c[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet16c)) const int8_t c[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
   return vaddq_s8(pset1<Packet16c>(a), vld1q_s8(c));
 }
 template <>
@@ -620,62 +620,63 @@ EIGEN_STRONG_INLINE Packet4uc plset<Packet4uc>(const uint8_t& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc plset<Packet8uc>(const uint8_t& a) {
-  const uint8_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet8uc)) const uint8_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
   return vadd_u8(pset1<Packet8uc>(a), vld1_u8(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet16uc plset<Packet16uc>(const uint8_t& a) {
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet16uc))
   const uint8_t c[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
   return vaddq_u8(pset1<Packet16uc>(a), vld1q_u8(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s plset<Packet4s>(const int16_t& a) {
-  const int16_t c[] = {0, 1, 2, 3};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet4s)) const int16_t c[] = {0, 1, 2, 3};
   return vadd_s16(pset1<Packet4s>(a), vld1_s16(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us plset<Packet4us>(const uint16_t& a) {
-  const uint16_t c[] = {0, 1, 2, 3};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet4us)) const uint16_t c[] = {0, 1, 2, 3};
   return vadd_u16(pset1<Packet4us>(a), vld1_u16(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8s plset<Packet8s>(const int16_t& a) {
-  const int16_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet8s)) const int16_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
   return vaddq_s16(pset1<Packet8s>(a), vld1q_s16(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8us plset<Packet8us>(const uint16_t& a) {
-  const uint16_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet8us)) const uint16_t c[] = {0, 1, 2, 3, 4, 5, 6, 7};
   return vaddq_u16(pset1<Packet8us>(a), vld1q_u16(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i plset<Packet2i>(const int32_t& a) {
-  const int32_t c[] = {0, 1};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet2i)) const int32_t c[] = {0, 1};
   return vadd_s32(pset1<Packet2i>(a), vld1_s32(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i plset<Packet4i>(const int32_t& a) {
-  const int32_t c[] = {0, 1, 2, 3};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet4i)) const int32_t c[] = {0, 1, 2, 3};
   return vaddq_s32(pset1<Packet4i>(a), vld1q_s32(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui plset<Packet2ui>(const uint32_t& a) {
-  const uint32_t c[] = {0, 1};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet2ui)) const uint32_t c[] = {0, 1};
   return vadd_u32(pset1<Packet2ui>(a), vld1_u32(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ui plset<Packet4ui>(const uint32_t& a) {
-  const uint32_t c[] = {0, 1, 2, 3};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet4ui)) const uint32_t c[] = {0, 1, 2, 3};
   return vaddq_u32(pset1<Packet4ui>(a), vld1q_u32(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l plset<Packet2l>(const int64_t& a) {
-  const int64_t c[] = {0, 1};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet2l)) const int64_t c[] = {0, 1};
   return vaddq_s64(pset1<Packet2l>(a), vld1q_s64(c));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ul plset<Packet2ul>(const uint64_t& a) {
-  const uint64_t c[] = {0, 1};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet2ul)) const uint64_t c[] = {0, 1};
   return vaddq_u64(pset1<Packet2ul>(a), vld1q_u64(c));
 }
 
@@ -5073,7 +5074,7 @@ EIGEN_STRONG_INLINE Packet2d pset1<Packet2d>(const double& from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2d plset<Packet2d>(const double& a) {
-  const double c[] = {0.0, 1.0};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet2d)) const double c[] = {0.0, 1.0};
   return vaddq_f64(pset1<Packet2d>(a), vld1q_f64(c));
 }
 
@@ -5451,14 +5452,14 @@ EIGEN_STRONG_INLINE Packet4hf pset1<Packet4hf>(const Eigen::half& from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8hf plset<Packet8hf>(const Eigen::half& a) {
-  const float16_t f[] = {0, 1, 2, 3, 4, 5, 6, 7};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet8hf)) const float16_t f[] = {0, 1, 2, 3, 4, 5, 6, 7};
   Packet8hf countdown = vld1q_f16(f);
   return vaddq_f16(pset1<Packet8hf>(a), countdown);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4hf plset<Packet4hf>(const Eigen::half& a) {
-  const float16_t f[] = {0, 1, 2, 3};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet4hf)) const float16_t f[] = {0, 1, 2, 3};
   Packet4hf countdown = vld1_f16(f);
   return vadd_f16(pset1<Packet4hf>(a), countdown);
 }
@@ -6129,14 +6130,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pset1(const half& from) {
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf plset(const half& a) {
-  const float f[] = {0, 1, 2, 3};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet8hf)) const float f[] = {0, 1, 2, 3};
   float32x4_t countdown = vld1q_f32(f);
   float32x4_t base = vaddq_f32(vcvt_f32_f16(pset1<Packet4hf>(a)), countdown);
   return vcombine_f16(vcvt_f16_f32(base), vcvt_f16_f32(vaddq_f32(base, vdupq_n_f32(4))));
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf plset(const half& a) {
-  const float f[] = {0, 1, 2, 3};
+  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet4hf)) const float f[] = {0, 1, 2, 3};
   Packet4f countdown = vld1q_f32(f);
   return vcvt_f16_f32(vaddq_f32(pset1<Packet4f>(a), countdown));
 }
