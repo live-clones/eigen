@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include <cstdlib>
+#include <thread>
+#include <vector>
+
 #include "main.h"
 #include "SafeScalar.h"
 
@@ -185,6 +188,54 @@ void check_histogram<bool>(int) {
   VERIFY(numext::abs(p - 0.5) < 0.05);
 }
 
+template <typename Scalar>
+void check_reproducibility() {
+  constexpr int n = 100;
+  Eigen::internal::set_random_seed(42);
+  std::vector<Scalar> seq1(n);
+  for (int i = 0; i < n; ++i) seq1[i] = Eigen::internal::random<Scalar>();
+  // Re-seed with the same value.
+  Eigen::internal::set_random_seed(42);
+  for (int i = 0; i < n; ++i) {
+    Scalar val = Eigen::internal::random<Scalar>();
+    VERIFY_IS_EQUAL(val, seq1[i]);
+  }
+}
+
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+void check_thread_safety() {
+  constexpr int num_threads = 4;
+  constexpr int samples_per_thread = 10000;
+  // Each thread generates random values; we verify no crashes and that
+  // threads with different seeds produce different sequences.
+  std::vector<std::vector<uint32_t>> results(num_threads);
+  std::vector<std::thread> threads;
+  for (int t = 0; t < num_threads; ++t) {
+    threads.emplace_back([t, &results]() {
+      Eigen::internal::set_random_seed(static_cast<uint64_t>(t + 1));
+      results[t].resize(samples_per_thread);
+      for (int i = 0; i < samples_per_thread; ++i) {
+        results[t][i] = Eigen::internal::random<uint32_t>();
+      }
+    });
+  }
+  for (auto& th : threads) th.join();
+  // Verify different threads produce different sequences.
+  for (int t1 = 0; t1 < num_threads; ++t1) {
+    for (int t2 = t1 + 1; t2 < num_threads; ++t2) {
+      bool all_same = true;
+      for (int i = 0; i < samples_per_thread; ++i) {
+        if (results[t1][i] != results[t2][i]) {
+          all_same = false;
+          break;
+        }
+      }
+      VERIFY(!all_same);
+    }
+  }
+}
+#endif  // EIGEN_HAS_THREAD_LOCAL_RANDOM
+
 EIGEN_DECLARE_TEST(rand) {
   int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
   // the minimum guarantees that these conversions are safe
@@ -297,4 +348,13 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_15(check_histogram<SafeScalar<float>>(/*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<SafeScalar<half>>(/*bins=*/512));
   CALL_SUBTEST_15(check_histogram<SafeScalar<bfloat16>>(/*bins=*/64));
+
+  CALL_SUBTEST_16(check_reproducibility<float>());
+  CALL_SUBTEST_16(check_reproducibility<double>());
+  CALL_SUBTEST_16(check_reproducibility<int32_t>());
+  CALL_SUBTEST_16(check_reproducibility<uint64_t>());
+
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+  CALL_SUBTEST_17(check_thread_safety());
+#endif
 }
