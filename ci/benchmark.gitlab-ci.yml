@@ -12,6 +12,10 @@
 variables:
   EIGEN_BENCH_BUILDDIR: .bench-build
   EIGEN_BENCH_REPETITIONS: "5"
+  # Scope: "nightly" runs core subset, "weekly" runs all benchmarks.
+  # The run script auto-promotes to "weekly" on Sundays so the full suite
+  # runs once a week without a separate schedule.  Override via web UI or
+  # a dedicated GitLab schedule with EIGEN_BENCH_SCOPE=weekly.
   EIGEN_BENCH_SCOPE: "nightly"
 
 # ============================================================================
