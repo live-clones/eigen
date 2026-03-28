@@ -425,6 +425,8 @@ struct inverse_impl;
 }
 template <typename MatrixType>
 class HouseholderQR;
+template <typename MatrixType>
+class GramSchmidtQR;
 template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
 class ColPivHouseholderQR;
 template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
