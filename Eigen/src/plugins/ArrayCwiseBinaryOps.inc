@@ -21,6 +21,27 @@ operator/(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
                        const OtherDerived>(derived(), other.derived());
 }
 
+/** \returns an expression of the coefficient-wise modulus of \c *this and \a other
+ *
+ * \note This operator is for integer scalar types only.
+ *
+ * Example: \code
+ * Array3i a(7, 8, 9), b(2, 3, 4);
+ * cout << a % b << endl;  // prints 1 2 1
+ * \endcode
+ *
+ * \sa operator/()
+ */
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
+    CwiseBinaryOp<internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived, const OtherDerived>
+    operator%(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
+  return CwiseBinaryOp<internal::scalar_modulus_op<Scalar, typename OtherDerived::Scalar>, const Derived,
+                       const OtherDerived>(derived(), other.derived());
+}
+
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator%, modulus)
+
 /** \returns an expression of the coefficient-wise min of \c *this and \a other
  *
  * Example: \include Cwise_min.cpp
