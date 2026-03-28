@@ -369,6 +369,20 @@ void test_contiguous_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
   VERIFY(test_is_equal(cref.data(), m.data(), true));
 }
 
+template <typename MatrixType>
+void test_non_contiguous_const_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
+  typedef Ref<MatrixType, Unaligned, Stride<0, 0>> Ref_;
+  typedef Ref<const MatrixType, Unaligned | DoNotCopy, Stride<0, 0>> CRef_;
+  const MatrixType m(obj);
+  // Does no compile on purpose since m is const
+  // Ref_ ref(m);
+  CRef_ cref1(m.col(0));
+  VERIFY(test_is_equal(cref1.data(), m.col(0).data(), true));
+  // Does not compile on purpose, since CRef_ has DoNotCopy
+  // CRef_ cref2(m.row(0));
+  // VERIFY(test_is_equal(cref2.data(), m.row(0).data(), false));
+}
+
 EIGEN_DECLARE_TEST(ref) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(ref_vector(Matrix<float, 1, 1>()));
@@ -406,4 +420,5 @@ EIGEN_DECLARE_TEST(ref) {
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Vector3d()));
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(MatrixXd(9, 5)));
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Matrix3d()));
+  CALL_SUBTEST_11(test_non_contiguous_const_ref_no_copy(MatrixXd(9, 5)));
 }
