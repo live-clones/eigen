@@ -38,7 +38,7 @@ struct CommaInitializer {
   }
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline CommaInitializer(XprType& xpr, const DenseBase<OtherDerived>& other)
+  EIGEN_DEVICE_FUNC constexpr CommaInitializer(XprType& xpr, const DenseBase<OtherDerived>& other)
       : m_xpr(xpr), m_row(0), m_col(other.cols()), m_currentBlockRows(other.rows()) {
     eigen_assert(m_xpr.rows() >= other.rows() && m_xpr.cols() >= other.cols() &&
                  "Cannot comma-initialize a 0x0 matrix (operator<<)");
@@ -48,7 +48,7 @@ struct CommaInitializer {
 
   /* Copy/Move constructor which transfers ownership. This is crucial in
    * absence of return value optimization to avoid assertions during destruction. */
-  EIGEN_DEVICE_FUNC inline CommaInitializer(const CommaInitializer& o)
+  EIGEN_DEVICE_FUNC constexpr CommaInitializer(const CommaInitializer& o)
       : m_xpr(o.m_xpr), m_row(o.m_row), m_col(o.m_col), m_currentBlockRows(o.m_currentBlockRows) {
     // Mark original object as finished. In absence of R-value references we need to const_cast:
     const_cast<CommaInitializer&>(o).m_row = m_xpr.rows();
@@ -57,7 +57,7 @@ struct CommaInitializer {
   }
 
   /* inserts a scalar value in the target matrix */
-  EIGEN_DEVICE_FUNC CommaInitializer &operator,(const Scalar& s) {
+  EIGEN_DEVICE_FUNC constexpr CommaInitializer& operator,(const Scalar& s) {
     if (m_col == m_xpr.cols()) {
       m_row += m_currentBlockRows;
       m_col = 0;
@@ -72,7 +72,7 @@ struct CommaInitializer {
 
   /* inserts a matrix expression in the target matrix */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC CommaInitializer &operator,(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr CommaInitializer& operator,(const DenseBase<OtherDerived>& other) {
     if (m_col == m_xpr.cols() && (other.cols() != 0 || other.rows() != m_currentBlockRows)) {
       m_row += m_currentBlockRows;
       m_col = 0;
@@ -89,7 +89,7 @@ struct CommaInitializer {
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC inline ~CommaInitializer()
+  EIGEN_DEVICE_FUNC ~CommaInitializer()
 #if defined VERIFY_RAISES_ASSERT && (!defined EIGEN_NO_ASSERTION_CHECKING) && defined EIGEN_EXCEPTIONS
       noexcept(false)  // Eigen::eigen_assert_exception
 #endif
@@ -104,7 +104,7 @@ struct CommaInitializer {
    * quaternion.fromRotationMatrix((Matrix3f() << axis0, axis1, axis2).finished());
    * \endcode
    */
-  EIGEN_DEVICE_FUNC inline XprType& finished() {
+  EIGEN_DEVICE_FUNC constexpr XprType& finished() {
     eigen_assert(((m_row + m_currentBlockRows) == m_xpr.rows() || m_xpr.cols() == 0) && m_col == m_xpr.cols() &&
                  "Too few coefficients passed to comma initializer (operator<<)");
     return m_xpr;
@@ -131,14 +131,14 @@ struct CommaInitializer {
  * \sa CommaInitializer::finished(), class CommaInitializer
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline CommaInitializer<Derived> DenseBase<Derived>::operator<<(const Scalar& s) {
+EIGEN_DEVICE_FUNC constexpr CommaInitializer<Derived> DenseBase<Derived>::operator<<(const Scalar& s) {
   return CommaInitializer<Derived>(*static_cast<Derived*>(this), s);
 }
 
 /** \sa operator<<(const Scalar&) */
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC inline CommaInitializer<Derived> DenseBase<Derived>::operator<<(
+EIGEN_DEVICE_FUNC constexpr CommaInitializer<Derived> DenseBase<Derived>::operator<<(
     const DenseBase<OtherDerived>& other) {
   return CommaInitializer<Derived>(*static_cast<Derived*>(this), other);
 }
