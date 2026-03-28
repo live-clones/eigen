@@ -45,8 +45,9 @@ namespace internal {
  *            Gram-Schmidt QR factorization", Math. Comp. 30 (1976), 772-795.
  */
 template <typename MatrixType, typename VectorType, typename CoeffVectorType>
-typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(
-    const MatrixType& Q, VectorType& v, Index numCols, CoeffVectorType* coeffs, Index maxIter = 2) {
+typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(const MatrixType& Q, VectorType& v,
+                                                                         Index numCols, CoeffVectorType* coeffs,
+                                                                         Index maxIter = 2) {
   typedef typename VectorType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
@@ -79,9 +80,9 @@ typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(
  */
 template <typename MatrixType, typename VectorType>
 typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(const MatrixType& Q, VectorType& v,
-                                                                        Index numCols, Index maxIter = 2) {
-  return dgks_orthogonalize(
-      Q, v, numCols, static_cast<Matrix<typename VectorType::Scalar, Dynamic, 1>*>(nullptr), maxIter);
+                                                                         Index numCols, Index maxIter = 2) {
+  return dgks_orthogonalize(Q, v, numCols, static_cast<Matrix<typename VectorType::Scalar, Dynamic, 1>*>(nullptr),
+                            maxIter);
 }
 
 }  // end namespace internal
