@@ -18,6 +18,13 @@ target=${EIGEN_BENCH_TARGET:?EIGEN_BENCH_TARGET must be set}
 scope=${EIGEN_BENCH_SCOPE:-nightly}
 reps=${EIGEN_BENCH_REPETITIONS:-5}
 
+# Auto-promote to weekly on Sundays (day 0) so the full suite runs once a
+# week without requiring a separate GitLab schedule.
+if [ "${scope}" = "nightly" ] && [ "$(date -u +%u)" = "7" ]; then
+  echo "Sunday detected, promoting scope from nightly to weekly."
+  scope="weekly"
+fi
+
 # Runtime ISA check: skip if the runner lacks the required instruction set.
 if [[ "${target}" == *"avx512"* ]]; then
   if ! grep -q 'avx512dq' /proc/cpuinfo 2>/dev/null; then
