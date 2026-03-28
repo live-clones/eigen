@@ -174,7 +174,7 @@ bench:analyze:
       python3 ci/scripts/detect_regressions.py
       --results-dir "${EIGEN_BENCH_BUILDDIR}/results/"
       --perf-branch perf-data
-      --history-count 14
+      --history-count 30
       --significance 0.01
       --min-change-pct 5.0
       --output-report "${EIGEN_BENCH_BUILDDIR}/results/regression_report.txt"
