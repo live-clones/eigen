@@ -2,7 +2,7 @@
 #
 # Runs nightly (core subset) or weekly (all benchmarks) on scheduled
 # pipelines, with separate jobs per ISA target.  Results are analyzed
-# using Welch's t-test against the last 14 runs stored on the perf-data
+# using Welch's t-test against the last 30 runs stored on the perf-data
 # branch.
 
 # ============================================================================
@@ -170,14 +170,20 @@ bench:analyze:
     - apt-get update -qq && apt-get install -y --no-install-recommends git
     - pip install --quiet scipy
   script:
-    - >-
-      python3 ci/scripts/detect_regressions.py
-      --results-dir "${EIGEN_BENCH_BUILDDIR}/results/"
-      --perf-branch perf-data
-      --history-count 30
-      --significance 0.01
-      --min-change-pct 5.0
-      --output-report "${EIGEN_BENCH_BUILDDIR}/results/regression_report.txt"
+    - |
+      status=0
+      python3 ci/scripts/detect_regressions.py \
+        --results-dir "${EIGEN_BENCH_BUILDDIR}/results/" \
+        --perf-branch perf-data \
+        --history-count 30 \
+        --significance 0.01 \
+        --min-change-pct 5.0 \
+        --output-report "${EIGEN_BENCH_BUILDDIR}/results/regression_report.txt" || status=$?
+      case "${status}" in
+        0|1) ;;
+        *) exit "${status}" ;;
+      esac
+      printf '%s\n' "${status}" > "${EIGEN_BENCH_BUILDDIR}/results/regression_exit_code.txt"
   artifacts:
     when: always
     paths:
@@ -192,7 +198,7 @@ bench:analyze:
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
 
 # ============================================================================
-# Storage: push results to the perf-data branch
+# Storage and gating
 # ============================================================================
 
 bench:store-results:
@@ -212,3 +218,22 @@ bench:store-results:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+bench:regression-gate:
+  stage: deploy
+  image: alpine:edge
+  needs:
+    - job: bench:analyze
+      artifacts: true
+    - job: bench:store-results
+      optional: true
+  script:
+    - code=$(cat "${EIGEN_BENCH_BUILDDIR}/results/regression_exit_code.txt")
+    - test "${code}" != "1"
+  variables:
+    EIGEN_CI_BUILDDIR: ${EIGEN_BENCH_BUILDDIR}
+  tags:
+    - saas-linux-small-amd64
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"

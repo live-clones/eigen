@@ -67,8 +67,9 @@ fi
 
 # Collect system info.
 cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo "unknown")
-date_str=$(date -u +%Y-%m-%d)
+timestamp=$(date -u +%Y-%m-%dT%H-%M-%SZ)
 commit=${CI_COMMIT_SHORT_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}
+successful_runs=0
 
 # Run each benchmark executable.
 for bench_exe in "${bench_list[@]}"; do
@@ -86,26 +87,33 @@ for bench_exe in "${bench_list[@]}"; do
     rm -f "${outfile}"
     continue
   fi
+  successful_runs=$((successful_runs + 1))
 done
 
 cd "${rootdir}"
 
+if [[ ${successful_runs} -eq 0 ]]; then
+  echo "ERROR: No benchmark executables completed successfully."
+  exit 1
+fi
+
 # Wrap each result file with metadata and produce a combined output.
-python3 - "${results_dir}" "${date_str}" "${commit}" "${target}" "${cpu_model}" "${scope}" <<'PYEOF'
+python3 - "${results_dir}" "${timestamp}" "${commit}" "${target}" "${cpu_model}" "${scope}" <<'PYEOF'
 import json
 import glob
 import os
 import sys
 
 results_dir = sys.argv[1]
-date_str    = sys.argv[2]
+timestamp   = sys.argv[2]
 commit      = sys.argv[3]
 target      = sys.argv[4]
 cpu_model   = sys.argv[5]
 scope       = sys.argv[6]
 
 metadata = {
-    "date": date_str,
+    "timestamp": timestamp,
+    "date": timestamp[:10],
     "commit": commit,
     "target": target,
     "cpu_model": cpu_model,
@@ -127,7 +135,7 @@ for jf in sorted(glob.glob(os.path.join(results_dir, "bench_*.json"))):
     }
     combined["files"][name] = entry
 
-outpath = os.path.join(results_dir, f"{date_str}_{commit}_{target}.json")
+outpath = os.path.join(results_dir, f"{timestamp}_{commit}_{target}.json")
 with open(outpath, "w") as f:
     json.dump(combined, f, indent=2)
 

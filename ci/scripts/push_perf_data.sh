@@ -52,19 +52,22 @@ fi
 cd "${clone_dir}"
 
 # Copy combined result files into target subdirectories.
-# Only match the canonical format: YYYY-MM-DD_<hex>_<target>.json
+# Only match canonical combined formats:
+#   YYYY-MM-DDTHH-MM-SSZ_<hex>_<target>.json
+#   YYYY-MM-DD_<hex>_<target>.json
 # This avoids picking up raw per-benchmark files like bench_gemm_double.json.
 copied=0
 for combined_json in "${results_dir}"/*.json; do
   [ -f "${combined_json}" ] || continue
   filename=$(basename "${combined_json}")
-  # Must start with a date (YYYY-MM-DD_) followed by a hex commit hash and underscore.
+  # Must start with a UTC timestamp or date, followed by a hex commit hash.
   case "${filename}" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]-[0-9][0-9]-[0-9][0-9]Z_[0-9a-f]*_*.json) ;;
     [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9a-f]*_*.json) ;;
     *) continue ;;
   esac
-  # Extract target: strip date_commit_ prefix and .json suffix.
-  target=$(echo "${filename}" | sed 's/^[0-9-]*_[a-f0-9]*_//' | sed 's/\.json$//')
+  # Extract target: strip timestamp/date + commit prefix and .json suffix.
+  target=$(echo "${filename}" | sed 's/^[^_]*_[a-f0-9]*_//' | sed 's/\.json$//')
   mkdir -p "${target}"
   cp "${combined_json}" "${target}/${filename}"
   copied=$((copied + 1))

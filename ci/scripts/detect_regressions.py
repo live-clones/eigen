@@ -102,6 +102,20 @@ def clone_perf_branch(branch, clone_dir):
         return False
 
 
+def _history_sort_key(fpath):
+    """Sort key for historical result files.
+
+    Prefer the recorded UTC timestamp in the JSON metadata. Fall back to the
+    filename so older date-only files still participate in the history window.
+    """
+    try:
+        with open(fpath) as f:
+            metadata = json.load(f).get("metadata", {})
+    except Exception:
+        metadata = {}
+    return metadata.get("timestamp") or metadata.get("date") or os.path.basename(fpath)
+
+
 def load_historical_data(perf_dir, target, history_count):
     """Load per-repetition real_time values from the last *history_count* runs.
 
@@ -115,7 +129,11 @@ def load_historical_data(perf_dir, target, history_count):
     if not os.path.isdir(target_dir):
         return {}
 
-    files = sorted(glob.glob(os.path.join(target_dir, "*.json")), reverse=True)
+    files = sorted(
+        glob.glob(os.path.join(target_dir, "*.json")),
+        key=_history_sort_key,
+        reverse=True,
+    )
     files = files[:history_count]
 
     history = defaultdict(list)
