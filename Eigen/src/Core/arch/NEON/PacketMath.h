@@ -6113,6 +6113,17 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 8>&
 
 #else
 
+// Even if we do not have native vector arithmetic on fp16 types, we can still
+// assume the presence of conversion instructions to/from fp32 on AArch64
+// ([ref]).  As a result, packet arithmetic on AArch64 without `+fp16` is
+// implemented through conversion to fp32.  Beware that this comes at the
+// expense of additional instructions for casting and potential differences in
+// floating-point error accumulation.  The performance is still much better than
+// manual fp16, however.
+//
+// [ref]:
+// <https://developer.arm.com/documentation/101028/0012/13--Advanced-SIMD--Neon--intrinsics#availability-of-16-bit-floating-point-vector-interchange-types>
+
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf predux_half(const Packet8hf& a) {
   return vcvt_f16_f32(vaddq_f32(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a))));
