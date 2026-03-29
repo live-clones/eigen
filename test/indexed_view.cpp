@@ -880,6 +880,19 @@ void check_expression_indices() {
     expected << m.col(0), m.col(1), m.col(2);
     VERIFY_IS_APPROX(result, expected);
   }
+
+  // 1D vector indexed view (VectorIndexedViewSelector path).
+  {
+    VectorXd v(5);
+    v << 10, 20, 30, 40, 50;
+    ArrayXi idx(3);
+    idx << 4, 2, 0;
+    auto view = v(idx.reverse());
+    VectorXd result = view;
+    VectorXd expected(3);
+    expected << 10, 30, 50;
+    VERIFY_IS_APPROX(result, expected);
+  }
 }
 
 void check_aliasing() {
