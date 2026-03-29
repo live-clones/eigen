@@ -325,7 +325,172 @@ static void test_release_reuse_cycle() {
 }
 
 // ---------------------------------------------------------------------------
-// 13. C++17 interop
+// 13. Write-after-allocate — memset full regions to catch overflows
+// ---------------------------------------------------------------------------
+static void test_write_after_allocate() {
+  Eigen::monotonic_buffer_resource arena(4096);
+
+  for (int i = 0; i < 20; ++i) {
+    std::size_t sz = 64 + (i * 31) % 300;
+    void* p = arena.allocate(sz);
+    VERIFY(p != nullptr);
+    // Write every byte to trigger ASAN on any overflow.
+    std::memset(p, 0xCD, sz);
+  }
+
+  // Same through new_delete_resource.
+  Eigen::memory_resource* r = Eigen::new_delete_resource();
+  void* p = r->allocate(512);
+  std::memset(p, 0xAB, 512);
+  r->deallocate(p, 512);
+}
+
+// ---------------------------------------------------------------------------
+// 14. User buffer is NOT freed by destructor
+// ---------------------------------------------------------------------------
+static void test_user_buffer_not_freed() {
+  counting_resource counter;
+  alignas(64) char buf[512];
+  std::memset(buf, 0, sizeof(buf));
+
+  {
+    Eigen::monotonic_buffer_resource arena(buf, sizeof(buf), &counter);
+    // Small allocation fits in user buffer — no upstream alloc.
+    void* p = arena.allocate(64);
+    VERIFY(p != nullptr);
+    VERIFY(p >= buf && p < buf + sizeof(buf));
+    VERIFY_IS_EQUAL(counter.alloc_count(), 0);
+
+    // Large allocation forces upstream block.
+    arena.allocate(1024);
+    VERIFY(counter.alloc_count() >= 1);
+  }
+  // Destructor must free upstream blocks but NOT the user buffer.
+  // If it tried to free buf, ASAN would catch a non-heap free.
+  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
+
+  // Verify user buffer is still intact (not corrupted by free).
+  // We zeroed it above; check first bytes are still zero.
+  VERIFY_IS_EQUAL(buf[0], 0);
+}
+
+// ---------------------------------------------------------------------------
+// 15. Alignment extremes
+// ---------------------------------------------------------------------------
+static void test_alignment_extremes() {
+  Eigen::memory_resource* r = Eigen::new_delete_resource();
+
+  // Small alignment = sizeof(void*) minimum.
+  void* p1 = r->allocate(128, sizeof(void*));
+  VERIFY(p1 != nullptr);
+  VERIFY(is_aligned(p1, sizeof(void*)));
+  r->deallocate(p1, 128, sizeof(void*));
+
+  // Large alignment = 256.
+  void* p2 = r->allocate(128, 256);
+  VERIFY(p2 != nullptr);
+  VERIFY(is_aligned(p2, 256));
+  r->deallocate(p2, 128, 256);
+
+  // Monotonic with various alignments.
+  Eigen::monotonic_buffer_resource arena(8192);
+  for (std::size_t align : {8u, 16u, 32u, 64u, 128u, 256u}) {
+    void* p = arena.allocate(64, align);
+    VERIFY(p != nullptr);
+    VERIFY(is_aligned(p, align));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 16. Empty monotonic — destroy without any allocations
+// ---------------------------------------------------------------------------
+static void test_empty_monotonic() {
+  counting_resource counter;
+
+  // Default-constructed, never used.
+  {
+    Eigen::monotonic_buffer_resource arena(&counter);
+  }
+  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
+  counter.reset_counts();
+
+  // With initial size, never used.
+  {
+    Eigen::monotonic_buffer_resource arena(1024, &counter);
+  }
+  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
+  counter.reset_counts();
+
+  // With user buffer, never used.
+  {
+    alignas(64) char buf[256];
+    Eigen::monotonic_buffer_resource arena(buf, sizeof(buf), &counter);
+  }
+  VERIFY_IS_EQUAL(counter.alloc_count(), 0);
+  VERIFY_IS_EQUAL(counter.dealloc_count(), 0);
+}
+
+// ---------------------------------------------------------------------------
+// 17. Stress test — many block growths
+// ---------------------------------------------------------------------------
+static void test_stress_many_blocks() {
+  counting_resource counter;
+  {
+    // Start very small to force many growth events.
+    Eigen::monotonic_buffer_resource arena(16, &counter);
+    for (int i = 0; i < 1000; ++i) {
+      void* p = arena.allocate(128);
+      VERIFY(p != nullptr);
+      std::memset(p, static_cast<unsigned char>(i & 0xFF), 128);
+    }
+    VERIFY(counter.alloc_count() > 5);  // Must have grown multiple times.
+  }
+  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
+}
+
+// ---------------------------------------------------------------------------
+// 18. polymorphic_allocator with monotonic — full cycle
+// ---------------------------------------------------------------------------
+static void test_allocator_with_monotonic() {
+  Eigen::monotonic_buffer_resource arena(4096);
+  Eigen::polymorphic_allocator alloc(&arena);
+
+  // Allocate various types worth of bytes, write, read back.
+  double* d = static_cast<double*>(alloc.allocate(10 * sizeof(double)));
+  for (int i = 0; i < 10; ++i) d[i] = static_cast<double>(i) * 1.5;
+  for (int i = 0; i < 10; ++i) VERIFY_IS_APPROX(d[i], static_cast<double>(i) * 1.5);
+
+  int* n = static_cast<int*>(alloc.allocate(20 * sizeof(int)));
+  for (int i = 0; i < 20; ++i) n[i] = i * 7;
+  for (int i = 0; i < 20; ++i) VERIFY_IS_EQUAL(n[i], i * 7);
+
+  // Deallocate is no-op on monotonic, but should not crash.
+  alloc.deallocate(d, 10 * sizeof(double));
+  alloc.deallocate(n, 20 * sizeof(int));
+}
+
+// ---------------------------------------------------------------------------
+// 19. C++14 path verification
+// ---------------------------------------------------------------------------
+static void test_cpp14_path() {
+  // Verify the feature detection macro is consistent.
+#if EIGEN_HAS_CXX17_PMR
+  // If PMR is available, std::pmr::memory_resource must exist.
+  std::pmr::memory_resource* r = Eigen::new_delete_resource();
+  VERIFY(r != nullptr);
+  (void)r;
+#else
+  // If PMR is not available, Eigen classes are standalone.
+  // Just verify they work without std::pmr.
+  Eigen::memory_resource* r = Eigen::new_delete_resource();
+  void* p = r->allocate(64);
+  VERIFY(p != nullptr);
+  r->deallocate(p, 64);
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// 20. C++17 interop
 // ---------------------------------------------------------------------------
 #if EIGEN_HAS_CXX17_PMR
 static void test_cpp17_interop() {
@@ -368,6 +533,13 @@ EIGEN_DECLARE_TEST(allocator) {
   CALL_SUBTEST(test_no_leaks());
   CALL_SUBTEST(test_no_overlap());
   CALL_SUBTEST(test_release_reuse_cycle());
+  CALL_SUBTEST(test_write_after_allocate());
+  CALL_SUBTEST(test_user_buffer_not_freed());
+  CALL_SUBTEST(test_alignment_extremes());
+  CALL_SUBTEST(test_empty_monotonic());
+  CALL_SUBTEST(test_stress_many_blocks());
+  CALL_SUBTEST(test_allocator_with_monotonic());
+  CALL_SUBTEST(test_cpp14_path());
 #if EIGEN_HAS_CXX17_PMR
   CALL_SUBTEST(test_cpp17_interop());
 #endif
