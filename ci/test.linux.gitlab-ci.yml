@@ -91,24 +91,6 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-# Clang-6 (minimum on Ubuntu 20.04)
-.test:linux:x86-64:clang-6:default:
-  extends: .test:linux:x86-64
-  image: ubuntu:20.04
-  needs: [ build:linux:cross:x86-64:clang-6:default ]
-  variables:
-    EIGEN_CI_INSTALL: g++-8 clang-6.0 lld-6.0
-
-test:linux:x86-64:clang-6:default:official:
-  extends: .test:linux:x86-64:clang-6:default
-  variables:
-    EIGEN_CI_CTEST_LABEL: Official
-
-test:linux:x86-64:clang-6:default:unsupported:
-  extends: .test:linux:x86-64:clang-6:default
-  variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
-
 # Clang-12 (modern stable)
 .test:linux:x86-64:clang-12:default:
   extends: .test:linux:x86-64
@@ -123,22 +105,6 @@ test:linux:x86-64:clang-12:default:official:
 
 test:linux:x86-64:clang-12:default:unsupported:
   extends: .test:linux:x86-64:clang-12:default
-  variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
-
-.test:linux:x86-64:clang-12:avx:
-  extends: .test:linux:x86-64
-  needs: [ build:linux:cross:x86-64:clang-12:avx ]
-  variables:
-    EIGEN_CI_INSTALL: clang-12
-
-test:linux:x86-64:clang-12:avx:official:
-  extends: .test:linux:x86-64:clang-12:avx
-  variables:
-    EIGEN_CI_CTEST_LABEL: Official
-
-test:linux:x86-64:clang-12:avx:unsupported:
-  extends: .test:linux:x86-64:clang-12:avx
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
