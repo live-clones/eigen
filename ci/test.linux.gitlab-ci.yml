@@ -378,6 +378,28 @@ test:linux:aarch64:clang-12:default:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
+# Nightly SVE tests on native ARM64 runners.
+.test:linux:aarch64:gcc-14:sve:nightly:
+  extends: .test:linux:aarch64
+  image: ubuntu:24.04
+  needs: [ build:linux:aarch64:gcc-14:sve:nightly ]
+  variables:
+    EIGEN_CI_INSTALL: g++-14
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+
+test:linux:aarch64:gcc-14:sve:nightly:official:
+  extends: .test:linux:aarch64:gcc-14:sve:nightly
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:aarch64:gcc-14:sve:nightly:unsupported:
+  extends: .test:linux:aarch64:gcc-14:sve:nightly
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+
 ##### ppc64le ##################################################################
 
 .test:linux:ppc64le:
