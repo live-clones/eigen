@@ -519,6 +519,73 @@ static void test_cpp17_interop() {
 #endif
 
 // ---------------------------------------------------------------------------
+// 21. DenseStorage integration — MatrixXd with custom allocator
+// ---------------------------------------------------------------------------
+static void test_matrix_with_allocator() {
+  counting_resource counter;
+  Eigen::monotonic_buffer_resource arena(64 * 1024, &counter);
+  Eigen::byte_allocator alloc(&arena);
+
+  // Construct a dynamic matrix using a custom allocator.
+  Eigen::MatrixXd A(5, 5, alloc);
+  A.setIdentity();
+  VERIFY_IS_APPROX(A(0, 0), 1.0);
+  VERIFY_IS_APPROX(A(0, 1), 0.0);
+  VERIFY_IS_APPROX(A.trace(), 5.0);
+
+  // Construct another matrix with the same allocator.
+  Eigen::MatrixXd B(5, 5, alloc);
+  B.setOnes();
+
+  // Arithmetic on allocator-backed matrices.
+  Eigen::MatrixXd C(5, 5, alloc);
+  C = A + B;
+  VERIFY_IS_APPROX(C(0, 0), 2.0);
+  VERIFY_IS_APPROX(C(1, 0), 1.0);
+
+  // Matrix multiply.
+  Eigen::MatrixXd D(5, 5, alloc);
+  D = A * B;
+  VERIFY_IS_APPROX(D, B);
+
+  // All allocations went through the arena.
+  VERIFY(counter.alloc_count() >= 1);
+
+  // Copy to a default-allocated matrix (PMR semantics: copies data, not allocator).
+  Eigen::MatrixXd E = C;
+  VERIFY_IS_APPROX(E, C);
+
+  // Resize on an allocator-backed matrix.
+  A.resize(3, 3);
+  A.setIdentity();
+  VERIFY_IS_APPROX(A.trace(), 3.0);
+}
+
+// ---------------------------------------------------------------------------
+// 22. Move semantics with same/different resources
+// ---------------------------------------------------------------------------
+static void test_matrix_move_semantics() {
+  Eigen::monotonic_buffer_resource arena1(8192);
+  Eigen::monotonic_buffer_resource arena2(8192);
+  Eigen::byte_allocator alloc1(&arena1);
+  Eigen::byte_allocator alloc2(&arena2);
+
+  // Move between matrices with same resource — should steal pointer.
+  Eigen::MatrixXd A(3, 3, alloc1);
+  A.setOnes();
+  double* a_data = A.data();
+  Eigen::MatrixXd B(std::move(A));
+  VERIFY(B.data() == a_data);  // Pointer stolen.
+  VERIFY_IS_APPROX(B(0, 0), 1.0);
+
+  // Assign from default-allocated to allocator-backed (different resources).
+  Eigen::MatrixXd C(3, 3, alloc2);
+  C.setZero();
+  C = B;  // Copy assignment: keeps C's allocator, copies data.
+  VERIFY_IS_APPROX(C, B);
+}
+
+// ---------------------------------------------------------------------------
 // Main test entry point
 // ---------------------------------------------------------------------------
 EIGEN_DECLARE_TEST(allocator) {
@@ -541,6 +608,8 @@ EIGEN_DECLARE_TEST(allocator) {
   CALL_SUBTEST(test_stress_many_blocks());
   CALL_SUBTEST(test_allocator_with_monotonic());
   CALL_SUBTEST(test_cpp14_path());
+  CALL_SUBTEST(test_matrix_with_allocator());
+  CALL_SUBTEST(test_matrix_move_semantics());
 #if EIGEN_HAS_CXX17_PMR
   CALL_SUBTEST(test_cpp17_interop());
 #endif
