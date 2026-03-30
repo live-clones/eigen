@@ -586,7 +586,14 @@ if (EIGEN_BUILD_TESTING)
     #         throw exceptions - in particular in the unit tests we are throwing extra many
     #         exceptions to cover indexing errors.
     # C4505 - unreferenced local function has been removed (impossible to deactivate selectively)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /wd4127 /wd4505 /wd4714")
+    # C4244 - conversion from 'type1' to 'type2', possible loss of data (occurs in generic code
+    #         instantiated with integer types narrower than int)
+    # C4305 - truncation from 'type1' to 'type2' (e.g. unsigned int to bool in bitmask tests)
+    # C4723 - potential divide by 0 (false positive in intentional test code and compile-time
+    #         constant expressions)
+    # C4804 - unsafe use of type 'bool' in operation (unavoidable in generic code instantiated
+    #         with bool scalars)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /wd4127 /wd4244 /wd4305 /wd4505 /wd4714 /wd4723 /wd4804")
 
     # replace all /Wx by /W4
     string(REGEX REPLACE "/W[0-9]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
