@@ -285,6 +285,24 @@ build:linux:cross:aarch64:clang-12:default:
     EIGEN_CI_CXX_COMPILER: clang++-12
     EIGEN_CI_CROSS_INSTALL: g++-10-aarch64-linux-gnu clang-12
 
+# Nightly SVE build on native ARM64 runners.
+# Eigen requires a fixed SVE vector length at compile time.
+build:linux:aarch64:gcc-14:sve:nightly:
+  extends: .build:linux:cross:aarch64
+  image: ubuntu:24.04
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu
+    EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-14
+    EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-14
+    EIGEN_CI_ADDITIONAL_ARGS: >
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv8-a+sve;-msve-vector-bits=128;-DEIGEN_ARM64_USE_SVE=1
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+
 ######## ppc64le ###############################################################
 
 .build:linux:cross:ppc64le:
