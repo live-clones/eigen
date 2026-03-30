@@ -84,9 +84,10 @@ static void test_new_delete_resource() {
     r->deallocate(q, 256, align);
   }
 
-  // Zero-size allocation.
+  // Zero-size allocation must return non-null (C++ standard requirement).
   void* z = r->allocate(0);
-  VERIFY(z == nullptr);
+  VERIFY(z != nullptr);
+  r->deallocate(z, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -195,12 +196,12 @@ static void test_alignment() {
 // ---------------------------------------------------------------------------
 static void test_polymorphic_allocator() {
   // Default construction uses default resource.
-  Eigen::polymorphic_allocator alloc;
+  Eigen::byte_allocator alloc;
   VERIFY(alloc.resource() == Eigen::get_default_resource());
 
   // Construction from resource.
   Eigen::monotonic_buffer_resource arena(1024);
-  Eigen::polymorphic_allocator arena_alloc(&arena);
+  Eigen::byte_allocator arena_alloc(&arena);
   VERIFY(arena_alloc.resource() == &arena);
 
   // Allocate and deallocate.
@@ -209,7 +210,7 @@ static void test_polymorphic_allocator() {
   arena_alloc.deallocate(p, 256);
 
   // Copy construction.
-  Eigen::polymorphic_allocator copy(arena_alloc);
+  Eigen::byte_allocator copy(arena_alloc);
   VERIFY(copy.resource() == arena_alloc.resource());
 }
 
@@ -229,9 +230,9 @@ static void test_resource_equality() {
   VERIFY(a == a);
 
   // Allocator equality follows resource equality.
-  Eigen::polymorphic_allocator alloc_a(&a);
-  Eigen::polymorphic_allocator alloc_b(&b);
-  Eigen::polymorphic_allocator alloc_a2(&a);
+  Eigen::byte_allocator alloc_a(&a);
+  Eigen::byte_allocator alloc_b(&b);
+  Eigen::byte_allocator alloc_a2(&a);
   VERIFY(alloc_a == alloc_a2);
   VERIFY(alloc_a != alloc_b);
 }
@@ -242,9 +243,9 @@ static void test_resource_equality() {
 static void test_edge_cases() {
   Eigen::monotonic_buffer_resource arena(64);
 
-  // Zero-size allocation.
+  // Zero-size allocation must return non-null (C++ standard requirement).
   void* p = arena.allocate(0);
-  VERIFY(p == nullptr);
+  VERIFY(p != nullptr);
 
   // Allocation larger than initial size triggers growth.
   void* big = arena.allocate(1024);
@@ -453,7 +454,7 @@ static void test_stress_many_blocks() {
 // ---------------------------------------------------------------------------
 static void test_allocator_with_monotonic() {
   Eigen::monotonic_buffer_resource arena(4096);
-  Eigen::polymorphic_allocator alloc(&arena);
+  Eigen::byte_allocator alloc(&arena);
 
   // Allocate various types worth of bytes, write, read back.
   double* d = static_cast<double*>(alloc.allocate(10 * sizeof(double)));

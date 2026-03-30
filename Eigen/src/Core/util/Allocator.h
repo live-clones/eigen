@@ -1,6 +1,9 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
+// Based on the design from MR !1608 and MR !1638 by
+// Steve Bronder <sbronder@flatironinstitute.org> (2024).
+//
 // Copyright (C) 2024 Steve Bronder <sbronder@flatironinstitute.org>
 // Copyright (C) 2026 Pavel Guzenfeld <pavelguzenfeld@gmail.com>
 //
@@ -32,11 +35,11 @@
 #include <memory_resource>
 #endif
 
+#ifndef EIGEN_GPU_COMPILE_PHASE
+
 #include <atomic>
 #include <cstddef>
 #include <memory>
-
-#ifndef EIGEN_GPU_COMPILE_PHASE
 
 namespace Eigen {
 
@@ -46,6 +49,27 @@ namespace internal {
 // (alignment disabled), fall back to max_align_t.
 static constexpr std::size_t pmr_default_alignment =
     EIGEN_DEFAULT_ALIGN_BYTES > 0 ? static_cast<std::size_t>(EIGEN_DEFAULT_ALIGN_BYTES) : alignof(std::max_align_t);
+
+// Maximum alignment supported by handmade_aligned_malloc (offset stored in uint8_t).
+static constexpr std::size_t max_supported_alignment = 256;
+
+// Clamp alignment to the range [sizeof(void*), max_supported_alignment] and
+// ensure it is a power of two. Returns the clamped value.
+inline std::size_t clamp_alignment(std::size_t alignment) noexcept {
+  if (alignment < sizeof(void*)) alignment = sizeof(void*);
+  if (alignment > max_supported_alignment) alignment = max_supported_alignment;
+  return alignment;
+}
+
+// Check whether a + b overflows std::size_t.
+inline bool size_add_overflows(std::size_t a, std::size_t b) noexcept {
+  return a > std::size_t(-1) - b;
+}
+
+// Check whether a * b overflows std::size_t.
+inline bool size_mul_overflows(std::size_t a, std::size_t b) noexcept {
+  return b != 0 && a > std::size_t(-1) / b;
+}
 
 }  // namespace internal
 
@@ -57,13 +81,22 @@ static constexpr std::size_t pmr_default_alignment =
  * std::pmr::memory_resource, allowing Eigen resources to be used with standard
  * PMR containers (e.g. std::pmr::vector).
  *
- * The default alignment is EIGEN_DEFAULT_ALIGN_BYTES (SIMD-friendly), unlike
- * std::pmr which defaults to alignof(max_align_t).
+ * \note When accessed through an Eigen::memory_resource pointer the default
+ * alignment is EIGEN_DEFAULT_ALIGN_BYTES (SIMD-friendly). When accessed through
+ * a std::pmr::memory_resource pointer (C++17 interop) the standard default of
+ * alignof(max_align_t) applies. Both paths dispatch to the same virtual
+ * do_allocate, so the returned memory satisfies whichever alignment was
+ * requested.
  *
  * \note This class is not thread-safe. External synchronization is required
  * when a single resource is shared across threads.
  *
- * \sa polymorphic_allocator, monotonic_buffer_resource, new_delete_resource()
+ * \note GPU/device memory is not covered by this class. GPU memory resources
+ * (e.g. wrapping cudaMalloc / hipMalloc) can be implemented as host-side
+ * memory_resource subclasses — virtual dispatch occurs on the host and the
+ * returned pointers are device-accessible.
+ *
+ * \sa byte_allocator, monotonic_buffer_resource, new_delete_resource()
  */
 class memory_resource
 #if EIGEN_HAS_CXX17_PMR
@@ -118,12 +151,14 @@ inline bool operator!=(const memory_resource& a, const memory_resource& b) noexc
 
 namespace internal {
 
-/** Default memory resource using Eigen's handmade aligned malloc/free. */
+/** Default memory resource using Eigen's handmade aligned malloc/free.
+ * Alignment is clamped to [sizeof(void*), 256] — the range supported by
+ * handmade_aligned_malloc. */
 class new_delete_memory_resource final : public memory_resource {
   void* do_allocate(std::size_t bytes, std::size_t alignment) override {
-    if (bytes == 0) return nullptr;
-    // Ensure alignment meets handmade_aligned_malloc requirements.
-    if (alignment < sizeof(void*)) alignment = sizeof(void*);
+    // C++ standard: allocate(0) must return a non-null pointer.
+    if (bytes == 0) bytes = 1;
+    alignment = clamp_alignment(alignment);
     void* p = handmade_aligned_malloc(bytes, alignment);
     if (!p) internal::throw_std_bad_alloc();
     return p;
@@ -157,14 +192,18 @@ inline memory_resource* new_delete_resource() noexcept {
   return &instance;
 }
 
-/** Returns the current default memory resource. If none has been set, returns new_delete_resource(). */
+/** Returns the current default memory resource. If none has been set, returns new_delete_resource().
+ * \note Thread-safe (uses std::atomic). The returned pointer is valid until the next
+ * call to set_default_resource(). Ownership is not transferred. */
 inline memory_resource* get_default_resource() noexcept {
   memory_resource* r = internal::default_resource_instance().load(std::memory_order_acquire);
   return r ? r : new_delete_resource();
 }
 
 /** Sets the default memory resource to \a r. Returns the previous default resource.
- * Pass nullptr to restore new_delete_resource() as the default. */
+ * Pass nullptr to restore new_delete_resource() as the default.
+ * \note Thread-safe (uses std::atomic). The caller is responsible for ensuring the
+ * resource remains alive for the duration of its use as the default. */
 inline memory_resource* set_default_resource(memory_resource* r) noexcept {
   memory_resource* prev = internal::default_resource_instance().exchange(r, std::memory_order_acq_rel);
   return prev ? prev : new_delete_resource();
@@ -185,7 +224,7 @@ inline memory_resource* set_default_resource(memory_resource* r) noexcept {
  *
  * \note Not thread-safe. Not copyable. Not movable.
  *
- * \sa memory_resource, polymorphic_allocator
+ * \sa memory_resource, byte_allocator
  */
 class monotonic_buffer_resource : public memory_resource {
  public:
@@ -252,7 +291,8 @@ class monotonic_buffer_resource : public memory_resource {
   }
 
   void* do_allocate(std::size_t bytes, std::size_t alignment) override {
-    if (bytes == 0) return nullptr;
+    // C++ standard: allocate(0) must return a non-null pointer.
+    if (bytes == 0) bytes = 1;
 
     // Try to allocate from the current buffer.
     if (m_current_buffer) {
@@ -281,16 +321,27 @@ class monotonic_buffer_resource : public memory_resource {
   }
 
   void* allocate_from_new_block(std::size_t bytes, std::size_t alignment) {
-    const std::size_t hdr_size = header_aligned_size(alignment > alignof(block_header) ? alignment : alignof(block_header));
+    const std::size_t hdr_align = alignment > alignof(block_header) ? alignment : alignof(block_header);
+    const std::size_t hdr_size = header_aligned_size(hdr_align);
+
+    // Overflow-safe computation of minimum block size.
+    if (internal::size_add_overflows(hdr_size, bytes) ||
+        internal::size_add_overflows(hdr_size + bytes, alignment)) {
+      internal::throw_std_bad_alloc();
+    }
     const std::size_t min_block = hdr_size + bytes + alignment;
 
     // Growth: at least 2x previous, at least min_block, at least m_initial_size.
-    std::size_t grow = m_current_size > 0 ? m_current_size * 2 : m_initial_size;
+    std::size_t grow;
+    if (m_current_size > 0 && !internal::size_mul_overflows(m_current_size, 2)) {
+      grow = m_current_size * 2;
+    } else if (m_current_size > 0) {
+      grow = min_block;  // 2x overflowed, use exact fit.
+    } else {
+      grow = m_initial_size;
+    }
     if (grow < min_block) grow = min_block;
     if (grow < 256) grow = 256;
-
-    // Check for overflow.
-    if (grow < bytes) internal::throw_std_bad_alloc();
 
     void* raw = m_upstream->allocate(grow, alignof(block_header));
 
@@ -329,30 +380,31 @@ class monotonic_buffer_resource : public memory_resource {
 };
 
 /** \ingroup Core_Module
- * \brief Type-erased polymorphic allocator for Eigen types.
+ * \brief Type-erased byte-level allocator for Eigen types.
  *
- * Unlike std::pmr::polymorphic_allocator\<T\>, this allocator is not templated
- * on a value type. It operates on raw bytes, with the caller responsible for
- * computing sizes. This avoids type-mismatch issues when mixing scalar types
- * in expression templates.
+ * Unlike std::pmr::polymorphic_allocator\<T\>, this allocator is intentionally
+ * not templated on a value type and does not satisfy the C++ Allocator named
+ * requirements. It operates on raw bytes, with the caller responsible for
+ * computing sizes (sizeof(T) * n). This avoids type-mismatch issues when
+ * mixing scalar types in expression templates.
  *
  * Following PMR semantics, copy assignment is deleted (allocators do not
  * propagate on container assignment).
  *
  * \sa memory_resource, monotonic_buffer_resource, new_delete_resource()
  */
-class polymorphic_allocator {
+class byte_allocator {
  public:
   /** Default-construct using get_default_resource(). */
-  polymorphic_allocator() noexcept : m_resource(get_default_resource()) {}
+  byte_allocator() noexcept : m_resource(get_default_resource()) {}
 
   /** Construct from a memory resource. \a r must not be null. */
-  polymorphic_allocator(memory_resource* r) : m_resource(r) { eigen_assert(r != nullptr); }
+  byte_allocator(memory_resource* r) : m_resource(r) { eigen_assert(r != nullptr); }
 
-  polymorphic_allocator(const polymorphic_allocator&) = default;
+  byte_allocator(const byte_allocator&) = default;
 
   // PMR semantics: allocator does not propagate on assignment.
-  polymorphic_allocator& operator=(const polymorphic_allocator&) = delete;
+  byte_allocator& operator=(const byte_allocator&) = delete;
 
   /** Allocate \a bytes bytes with the given \a alignment. */
   void* allocate(std::size_t bytes, std::size_t alignment = internal::pmr_default_alignment) {
@@ -367,12 +419,10 @@ class polymorphic_allocator {
   /** Returns the underlying memory resource. */
   memory_resource* resource() const noexcept { return m_resource; }
 
-  friend bool operator==(const polymorphic_allocator& a, const polymorphic_allocator& b) noexcept {
+  friend bool operator==(const byte_allocator& a, const byte_allocator& b) noexcept {
     return *a.m_resource == *b.m_resource;
   }
-  friend bool operator!=(const polymorphic_allocator& a, const polymorphic_allocator& b) noexcept {
-    return !(a == b);
-  }
+  friend bool operator!=(const byte_allocator& a, const byte_allocator& b) noexcept { return !(a == b); }
 
  private:
   memory_resource* m_resource;
