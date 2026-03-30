@@ -428,6 +428,8 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
     // first decide whether it's closer to the left end or the right end
     RealScalar mid = left + (right - left) / Literal(2);
     RealScalar fMid = secularEq(mid, col0, diag, perm, diag, Literal(0));
+    // Prevent FMA contraction from changing the sign of fMid (GCC + ARM).
+    EIGEN_OPTIMIZATION_BARRIER(fMid);
     RealScalar shift = (k == actual_n - 1 || fMid > Literal(0)) ? left : right;
 
     // measure everything relative to shift
@@ -440,6 +442,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       // we can test exact equality here, because shift comes from `... ? left : right`
       if (numext::equal_strict(shift, right)) midShifted = -midShifted;
       RealScalar fMidShifted = secularEq(midShifted, col0, diag, perm, diagShifted, shift);
+      EIGEN_OPTIMIZATION_BARRIER(fMidShifted);
       if (fMidShifted > 0) {
         // fMid was erroneous, fix it:
         shift = fMidShifted > Literal(0) ? left : right;
