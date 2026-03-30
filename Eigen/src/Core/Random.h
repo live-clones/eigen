@@ -29,10 +29,11 @@ struct functor_traits<scalar_random_op<Scalar> > {
 
 }  // end namespace internal
 
-/** Sets the random seed for the calling thread's random number generator.
+/** Sets the random seed for the random number generator.
  *
- * Each thread has independent random state, so this function only affects
- * the calling thread. Use this to produce reproducible random sequences.
+ * When \c EIGEN_USE_PCG_RANDOM is defined, each thread has independent random
+ * state via a PCG-XSH-RS generator, and this function only affects the calling
+ * thread. Otherwise, this calls \c std::srand().
  *
  * \sa DenseBase::Random(), DenseBase::setRandom()
  */

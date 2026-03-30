@@ -50,12 +50,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE unsigned pcg_xsh_rs_step(uint64_t* state, 
   return static_cast<unsigned>((current ^ (current >> 22)) >> (22 + (current >> 61)));
 }
 
-// Define EIGEN_USE_STD_RAND before including Eigen to force the legacy std::rand() backend.
-// This preserves the old (non-thread-safe) RNG behavior for code that depends on the exact
-// sequence produced by std::rand().
+// Define EIGEN_USE_PCG_RANDOM before including Eigen to enable the thread-safe PCG-XSH-RS
+// backend instead of std::rand(). This provides 32 bits of entropy per call, is thread-safe
+// via thread_local state, and avoids the data races inherent in std::rand().
 //
 // Detect thread_local support, reusing the EIGEN_AVOID_THREAD_LOCAL pattern from Memory.h.
-#if !defined(EIGEN_USE_STD_RAND) && !defined(EIGEN_AVOID_THREAD_LOCAL) && !defined(EIGEN_GPU_COMPILE_PHASE) && \
+#if defined(EIGEN_USE_PCG_RANDOM) && !defined(EIGEN_AVOID_THREAD_LOCAL) && !defined(EIGEN_GPU_COMPILE_PHASE) && \
     ((EIGEN_COMP_GNUC) || __has_feature(cxx_thread_local) || EIGEN_COMP_MSVC >= 1900)
 #define EIGEN_HAS_THREAD_LOCAL_RANDOM 1
 #else
