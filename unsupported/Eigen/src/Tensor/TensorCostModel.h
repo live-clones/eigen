@@ -156,10 +156,14 @@ class TensorCostModel {
   static constexpr int kMemBandwidthSaturationThreads = 4;
 
   // If memory_time / compute_time exceeds this ratio, the op is memory-bound.
-  // With vectorized costs, simple ops like Add have ratios of 4-6, while
-  // compute-heavy ops like Polynomial have ~2.7 (inflated by NullaryOp byte
-  // counts). Threshold of 3.0 correctly classifies Polynomial as compute-bound.
-  static constexpr double kMemBoundThreshold = 3.0;
+  // With vectorized costs (AVX2, PacketSize=8), typical ratios are:
+  //   Add/Mul (2 loads + 1 store): mem/comp = 6.0
+  //   FMA (3 loads + 1 store):     mem/comp = 4.0
+  //   ReLU max(x,0) (1 load + 1 store): mem/comp = 4.0
+  //   Polynomial 3rd-order (3 loads + 1 store, 6 ops): mem/comp = 1.3
+  //   Exp (1 load + 1 store, ~8 ops): mem/comp = 0.5
+  // Threshold of 2.0 cleanly separates memory-bound (>=4) from compute-bound.
+  static constexpr double kMemBoundThreshold = 2.0;
 
   // Data sets larger than this are assumed to be DRAM-resident.
   // Below this threshold, data is likely L2-cache-resident and benefits from
