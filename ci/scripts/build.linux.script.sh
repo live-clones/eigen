@@ -39,10 +39,22 @@ fi
 # ninja/shuf are not available.
 batch_size=${EIGEN_CI_BUILD_BATCH_SIZE:-48}
 shuffled=false
-if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1 && command -v shuf >/dev/null 2>&1; then
+if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
          | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
-  shuffled_deps=$(echo "$deps" | shuf 2>/dev/null)
+  # Deterministic shuffle so batch composition is stable across runs
+  # (helps ninja's .ninja_log and build caches).  We use shuf with a
+  # fixed random source where available, falling back to an awk-based
+  # hash shuffle for portability (e.g. Windows CI without shuf).
+  if command -v shuf >/dev/null 2>&1 && shuf --random-source=/dev/zero </dev/null >/dev/null 2>&1; then
+    shuffled_deps=$(echo "$deps" | shuf --random-source=/dev/zero)
+  else
+    shuffled_deps=$(echo "$deps" | awk '
+      BEGIN { for(i=0;i<128;i++) ord[sprintf("%c",i)]=i }
+      { h=5381
+        for(i=1;i<=length($0);i++) h=(h*33 + ord[substr($0,i,1)]) % 1000000007
+        printf "%010d %s\n",h,$0 }' | sort | sed 's/^[^ ]* //')
+  fi
   if [[ -n "$shuffled_deps" ]]; then
     shuffled=true
     # Build in batches: ninja parallelises within each batch, but batches
