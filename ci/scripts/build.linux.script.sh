@@ -40,6 +40,9 @@ fi
 batch_size=${EIGEN_CI_BUILD_BATCH_SIZE:-48}
 shuffled=false
 if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
+  # Suppress xtrace while extracting and shuffling the target list
+  # to avoid dumping ~1200 lines to the CI log.
+  { set +x; } 2>/dev/null
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
          | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
   # Deterministic shuffle so batch composition is stable across runs
@@ -55,6 +58,9 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
         for(i=1;i<=length($0);i++) h=(h*33 + ord[substr($0,i,1)]) % 1000000007
         printf "%010d %s\n",h,$0 }' | sort | sed 's/^[^ ]* //')
   fi
+  ndeps=$(echo "$shuffled_deps" | wc -l)
+  echo "Shuffled ${ndeps} targets into batches of ${batch_size}"
+  set -x
   if [[ -n "$shuffled_deps" ]]; then
     shuffled=true
     # Build in batches: ninja parallelises within each batch, but batches
