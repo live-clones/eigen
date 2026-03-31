@@ -933,8 +933,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_float(const Pac
   const Packet large_threshold = pset1<Packet>(20.0f);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
 
-  const Packet e_normal = pexp(abs_x);
-  Packet p_normal = pmul(half, padd(e_normal, pdiv(one, e_normal)));
+  // cosh(x) = (exp(|x|) + exp(-|x|)) / 2 = (e + 1/e) / 2.
+  const Packet e = pexp(abs_x);
+  Packet p_normal = pmul(half, padd(e, pdiv(one, e)));
 
   // For large |x|, cosh(x) ~ exp(|x|)/2 = exp(|x| - ln2).
   Packet p_large = pexp(psub(abs_x, ln2));
@@ -951,8 +952,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_double(const Pa
   const Packet large_threshold = pset1<Packet>(20.0);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
 
-  const Packet e_normal = pexp(abs_x);
-  Packet p_normal = pmul(half, padd(e_normal, pdiv(one, e_normal)));
+  const Packet e = pexp(abs_x);
+  Packet p_normal = pmul(half, padd(e, pdiv(one, e)));
 
   Packet p_large = pexp(psub(abs_x, ln2));
 
