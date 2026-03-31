@@ -29,7 +29,25 @@ jobs=""
 if [[ -n "${EIGEN_CI_BUILD_JOBS}" ]]; then
   jobs="-j${EIGEN_CI_BUILD_JOBS}"
 fi
-cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 -j1
+
+# For phony meta-targets (e.g. buildtests), shuffle the dependency list so
+# that memory-hungry compilations (like bdcsvd with nvc++) are spread out
+# instead of all running at once.  Falls back to the normal build if the
+# target is not a phony or if ninja is not available.
+shuffled=false
+if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
+  deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
+         | awk '/^  input:/{found=1; next} found && /^    /{print $1}')
+  if [[ -n "$deps" ]]; then
+    shuffled_deps=$(echo "$deps" | shuf)
+    ninja -k0 ${jobs} ${shuffled_deps} || ninja -k0 -j1 ${shuffled_deps}
+    shuffled=true
+  fi
+fi
+
+if [[ "$shuffled" != "true" ]]; then
+  cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 -j1
+fi
 
 # Return to root directory.
 cd ${rootdir}
