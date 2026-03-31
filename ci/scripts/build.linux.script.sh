@@ -62,19 +62,22 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
     shuffled=true
     # Build in batches: ninja parallelises within each batch, but batches
     # run sequentially so memory-hungry targets from different families
-    # don't pile up simultaneously.  Ignore per-batch failures (compiler
-    # ICEs, OOM kills) so remaining batches still run.
+    # don't pile up simultaneously.  Track failures so we can report the
+    # right exit code at the end.
     # Note: xtrace stays off to avoid dumping the full target list.
+    # Use process substitution so the while loop runs in the current
+    # shell and build_failed propagates.
     batch_num=0
-    echo "$shuffled_deps" | xargs -n "${batch_size}" | while IFS= read -r batch; do
+    build_failed=false
+    while IFS= read -r batch; do
       batch_num=$((batch_num + 1))
       echo "=== Batch ${batch_num} ==="
-      ninja -k0 ${jobs} ${batch} || ninja -k0 -j1 ${batch} || true
-    done
-    # Final pass: retry any targets that failed above (ninja skips
-    # already-succeeded targets).  This produces the real exit code.
-    echo "=== Final pass (retry failures) ==="
-    ninja -k0 ${jobs} ${shuffled_deps} || ninja -k0 -j1 ${shuffled_deps}
+      ninja -k0 ${jobs} ${batch} || ninja -k0 -j1 ${batch} || build_failed=true
+    done < <(echo "$shuffled_deps" | xargs -n "${batch_size}")
+    if [[ "$build_failed" == "true" ]]; then
+      echo "Some batches failed."
+      exit 1
+    fi
   fi
   set -x
 fi
