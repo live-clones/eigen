@@ -58,22 +58,27 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
         for(i=1;i<=length($0);i++) h=(h*33 + ord[substr($0,i,1)]) % 1000000007
         printf "%010d %s\n",h,$0 }' | sort | sed 's/^[^ ]* //')
   fi
-  ndeps=$(echo "$shuffled_deps" | wc -l)
-  echo "Shuffled ${ndeps} targets into batches of ${batch_size}"
-  set -x
   if [[ -n "$shuffled_deps" ]]; then
+    ndeps=$(echo "$shuffled_deps" | wc -l)
+    echo "Building ${ndeps} targets in batches of ${batch_size}"
     shuffled=true
     # Build in batches: ninja parallelises within each batch, but batches
     # run sequentially so memory-hungry targets from different families
     # don't pile up simultaneously.  Ignore per-batch failures (compiler
     # ICEs, OOM kills) so remaining batches still run.
+    # Note: xtrace stays off to avoid dumping the full target list.
+    batch_num=0
     echo "$shuffled_deps" | xargs -n "${batch_size}" | while IFS= read -r batch; do
+      batch_num=$((batch_num + 1))
+      echo "=== Batch ${batch_num} ==="
       ninja -k0 ${jobs} ${batch} || ninja -k0 -j1 ${batch} || true
     done
     # Final pass: retry any targets that failed above (ninja skips
     # already-succeeded targets).  This produces the real exit code.
+    echo "=== Final pass (retry failures) ==="
     ninja -k0 ${jobs} ${shuffled_deps} || ninja -k0 -j1 ${shuffled_deps}
   fi
+  set -x
 fi
 
 if [[ "$shuffled" != "true" ]]; then
