@@ -30,18 +30,27 @@ if [[ -n "${EIGEN_CI_BUILD_JOBS}" ]]; then
   jobs="-j${EIGEN_CI_BUILD_JOBS}"
 fi
 
-# For phony meta-targets (e.g. buildtests), shuffle the dependency list so
-# that memory-hungry compilations (like bdcsvd with nvc++) are spread out
-# instead of all running at once.  Falls back to the normal build if the
-# target is not a phony or if ninja is not available.
+# For phony meta-targets (e.g. buildtests), shuffle the dependency list and
+# build in batches so that memory-hungry compilations (like bdcsvd with
+# nvc++) are spread out instead of all running at once.  Ninja ignores the
+# command-line target order and schedules by its dependency graph, so we
+# must feed it small batches to actually influence scheduling.
+# Falls back to the normal build if the target is not a phony or if
+# ninja/shuf are not available.
+batch_size=${EIGEN_CI_BUILD_BATCH_SIZE:-48}
 shuffled=false
 if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1 && command -v shuf >/dev/null 2>&1; then
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
          | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
   shuffled_deps=$(echo "$deps" | shuf 2>/dev/null)
   if [[ -n "$shuffled_deps" ]]; then
-    ninja -k0 ${jobs} ${shuffled_deps} || ninja -k0 -j1 ${shuffled_deps}
     shuffled=true
+    # Build in batches: ninja parallelises within each batch, but batches
+    # run sequentially so memory-hungry targets from different families
+    # don't pile up simultaneously.
+    echo "$shuffled_deps" | xargs -n "${batch_size}" | while IFS= read -r batch; do
+      ninja -k0 ${jobs} ${batch} || ninja -k0 -j1 ${batch}
+    done
   fi
 fi
 
