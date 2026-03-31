@@ -4,6 +4,8 @@ checkformat:clangformat:
   only:
     - merge_requests
   allow_failure: true
+  tags:
+    - saas-linux-small-amd64
   before_script:
     - apk add --no-cache git clang17-extra-tools python3
   script:
@@ -15,6 +17,8 @@ checkformat:codespell:
   only:
     - merge_requests
   allow_failure: true
+  tags:
+    - saas-linux-small-amd64
   before_script:
     - apk add --no-cache py3-codespell
   script:
