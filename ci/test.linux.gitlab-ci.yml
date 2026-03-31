@@ -303,6 +303,8 @@ test:linux:cuda-12.2:clang-12:
     EIGEN_CI_CROSS_TARGET_TRIPLE: arm-linux-gnueabihf
     EIGEN_CI_CTEST_ARGS: --timeout 2000
     EIGEN_CI_CTEST_PARALLEL: "4"
+  tags:
+    - saas-linux-large-amd64
 
 .test:linux:arm:gcc-10:default:
   extends: .test:linux:arm
@@ -388,6 +390,8 @@ test:linux:aarch64:clang-12:default:unsupported:
     EIGEN_CI_CROSS_TARGET_TRIPLE: powerpc64le-linux-gnu
     EIGEN_CI_CTEST_ARGS: --timeout 2000
     EIGEN_CI_CTEST_PARALLEL: "4"
+  tags:
+    - saas-linux-large-amd64
 
 .test:linux:ppc64le:gcc-14:default:
   extends: .test:linux:ppc64le
@@ -432,6 +436,8 @@ test:linux:ppc64le:clang-16:default:unsupported:
     EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu qemu-user-static
     EIGEN_CI_CTEST_ARGS: --timeout 2000
     EIGEN_CI_CTEST_PARALLEL: "4"
+  tags:
+    - saas-linux-large-amd64
 
 # GCC-14 (Ubuntu 24)
 .test:linux:loongarch64:gcc-14:default:
