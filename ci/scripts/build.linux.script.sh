@@ -45,19 +45,17 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
   { set +x; } 2>/dev/null
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
          | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
-  # Deterministic shuffle so batch composition is stable across runs
-  # (helps ninja's .ninja_log and build caches).  We use shuf with a
-  # fixed random source where available, falling back to an awk-based
-  # hash shuffle for portability (e.g. Windows CI without shuf).
-  if command -v shuf >/dev/null 2>&1 && shuf --random-source=/dev/zero </dev/null >/dev/null 2>&1; then
-    shuffled_deps=$(echo "$deps" | shuf --random-source=/dev/zero)
-  else
-    shuffled_deps=$(echo "$deps" | awk '
-      BEGIN { for(i=0;i<128;i++) ord[sprintf("%c",i)]=i }
-      { h=5381
-        for(i=1;i<=length($0);i++) h=(h*33 + ord[substr($0,i,1)]) % 1000000007
-        printf "%010d %s\n",h,$0 }' | sort | sed 's/^[^ ]* //')
-  fi
+  # Deterministic shuffle: hash each target name and sort by hash.
+  # Stable across runs (helps ninja's .ninja_log and build caches),
+  # portable (no shuf dependency), and spreads same-family targets apart.
+  # Uses Knuth's multiplicative hash (golden-ratio prime 2654435761) for
+  # good avalanche — similar names like bdcsvd_1..bdcsvd_51 get widely
+  # dispersed instead of clustering together.
+  shuffled_deps=$(echo "$deps" | awk '
+    BEGIN { for(i=0;i<128;i++) ord[sprintf("%c",i)]=i }
+    { h=0
+      for(i=1;i<=length($0);i++) h=(h+ord[substr($0,i,1)])*2654435761%2147483647
+      printf "%010d %s\n",h,$0 }' | sort | sed 's/^[^ ]* //')
   if [[ -n "$shuffled_deps" ]]; then
     ndeps=$(echo "$shuffled_deps" | wc -l)
     echo "Building ${ndeps} targets in batches of ${batch_size}"
