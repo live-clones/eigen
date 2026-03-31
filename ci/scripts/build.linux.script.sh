@@ -35,11 +35,11 @@ fi
 # instead of all running at once.  Falls back to the normal build if the
 # target is not a phony or if ninja is not available.
 shuffled=false
-if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
+if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1 && command -v shuf >/dev/null 2>&1; then
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
          | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
-  if [[ -n "$deps" ]]; then
-    shuffled_deps=$(echo "$deps" | shuf)
+  shuffled_deps=$(echo "$deps" | shuf 2>/dev/null)
+  if [[ -n "$shuffled_deps" ]]; then
     ninja -k0 ${jobs} ${shuffled_deps} || ninja -k0 -j1 ${shuffled_deps}
     shuffled=true
   fi
