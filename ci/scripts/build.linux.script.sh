@@ -37,7 +37,7 @@ fi
 shuffled=false
 if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
-         | awk '/^  input:/{found=1; next} found && /^    /{print $1}')
+         | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
   if [[ -n "$deps" ]]; then
     shuffled_deps=$(echo "$deps" | shuf)
     ninja -k0 ${jobs} ${shuffled_deps} || ninja -k0 -j1 ${shuffled_deps}
