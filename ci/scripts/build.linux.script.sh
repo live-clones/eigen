@@ -47,10 +47,14 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1 && co
     shuffled=true
     # Build in batches: ninja parallelises within each batch, but batches
     # run sequentially so memory-hungry targets from different families
-    # don't pile up simultaneously.
+    # don't pile up simultaneously.  Ignore per-batch failures (compiler
+    # ICEs, OOM kills) so remaining batches still run.
     echo "$shuffled_deps" | xargs -n "${batch_size}" | while IFS= read -r batch; do
-      ninja -k0 ${jobs} ${batch} || ninja -k0 -j1 ${batch}
+      ninja -k0 ${jobs} ${batch} || ninja -k0 -j1 ${batch} || true
     done
+    # Final pass: retry any targets that failed above (ninja skips
+    # already-succeeded targets).  This produces the real exit code.
+    ninja -k0 ${jobs} ${shuffled_deps} || ninja -k0 -j1 ${shuffled_deps}
   fi
 fi
 
