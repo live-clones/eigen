@@ -14,8 +14,6 @@
 
 #include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
 
-#include "src/TensorUtil/CXX11Meta.h"
-
 /** \defgroup TensorSymmetry_Module Tensor Symmetry Module
  *
  * This module provides a classes that allow for the definition of
