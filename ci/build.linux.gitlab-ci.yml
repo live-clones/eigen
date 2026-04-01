@@ -150,6 +150,7 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
 build:linux:x86-64:nvhpc-26.1:default:
   extends: .build:linux:cross:x86-64
   image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
+  timeout: 4h
   variables:
     EIGEN_CI_C_COMPILER: nvc
     EIGEN_CI_CXX_COMPILER: nvc++
@@ -160,6 +161,7 @@ build:linux:x86-64:nvhpc-26.1:default:
     # The shuffled-batch build strategy spreads memory-hungry targets across
     # batches, preventing simultaneous OOM-prone compilations.
     EIGEN_CI_BUILD_JOBS: "16"
+    EIGEN_CI_FALLBACK_JOBS: "4"
 
 ######## CUDA ##################################################################
 
