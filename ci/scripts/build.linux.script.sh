@@ -47,6 +47,16 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
   { set +x; } 2>/dev/null
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
          | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
+  # CMake custom targets like BuildOfficial have an intermediate phony
+  # (e.g. test/BuildOfficial) that holds the real dependencies.  If we
+  # got exactly one dep, resolve it one more level.
+  if [[ $(echo "$deps" | wc -l) -eq 1 ]] && [[ -n "$deps" ]]; then
+    inner=$(ninja -t query "$deps" 2>/dev/null \
+            | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
+    if [[ -n "$inner" ]]; then
+      deps="$inner"
+    fi
+  fi
   # Deterministic shuffle: hash each target name and sort by hash.
   # Stable across runs (helps ninja's .ninja_log and build caches),
   # portable (no shuf dependency), and spreads same-family targets apart.
