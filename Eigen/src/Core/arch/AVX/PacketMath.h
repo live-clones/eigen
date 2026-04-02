@@ -152,6 +152,7 @@ struct packet_traits<double> : default_packet_traits {
     HasTan = EIGEN_FAST_MATH,
 #endif
     HasSinh = 1,
+    HasCosh = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = 1,
     HasErfc = 1,

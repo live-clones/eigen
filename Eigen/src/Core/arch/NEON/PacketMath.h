@@ -5050,6 +5050,7 @@ struct packet_traits<double> : default_packet_traits {
     HasATan = 1,
     HasATanh = 1,
     HasSinh = 1,
+    HasCosh = 1,
 #endif
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,

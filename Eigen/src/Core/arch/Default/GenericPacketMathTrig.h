@@ -852,23 +852,24 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_float(const Pac
   Packet p_small = ppolevl<Packet, 3>::run(x2, alpha);
   p_small = pmadd(pmul(x2, x), p_small, x);
 
-  // For 1 <= |x| < 20: sinh(x) = (exp(|x|) - exp(-|x|)) / 2.
-  // For |x| >= 20: exp(-|x|) is negligible (<2e-9), so
-  // sinh(x) ~ exp(|x|)/2 = exp(|x| - ln2) to avoid overflow.
-  const Packet half = pset1<Packet>(0.5f);
+  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
+  // Using a single exp avoids a second expensive call, and subtracting 1 (exactly
+  // representable) instead of ln2 avoids rounding error in the argument to exp,
+  // which would be amplified into large relative output error.
+  const Packet half_e = pset1<Packet>(1.3591409142295225f);  // e/2
   const Packet one = pset1<Packet>(1.0f);
-  const Packet ln2 = pset1<Packet>(0.6931471805599453f);
+  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+
+  // Medium path (1 <= |x| < 20):
+  //   sinh(x) = (exp(|x|) - exp(-|x|)) / 2
+  //           = (2*e - 1/(2*e)) / 2 = e - 1/(4*e)
+  const Packet quarter = pset1<Packet>(0.25f);
+  Packet p_medium = psub(e, pdiv(quarter, e));
+
+  // Large path (|x| >= 20): exp(-|x|) is negligible, sinh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0f);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
-
-  // Normal path.
-  const Packet e_normal = pexp(abs_x);
-  Packet p_normal = pmul(half, psub(e_normal, pdiv(one, e_normal)));
-
-  // Large path: exp(|x|)/2 = exp(|x| - ln2).
-  Packet p_large_val = pexp(psub(abs_x, ln2));
-
-  Packet p_large = pselect(large_mask, p_large_val, p_normal);
+  Packet p_large = pselect(large_mask, e, p_medium);
   p_large = por(x_sign, p_large);
 
   const Packet small_mask = pcmp_lt(abs_x, one);
@@ -902,20 +903,23 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Pa
   Packet p_small = ppolevl<Packet, 8>::run(x2, alpha);
   p_small = pmadd(pmul(x2, x), p_small, x);
 
-  const Packet half = pset1<Packet>(0.5);
+  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
+  // Subtracting 1 (exactly representable) instead of ln2 avoids rounding error
+  // in the argument to exp, which would be amplified into large relative error.
+  const Packet half_e = pset1<Packet>(1.3591409142295225);  // e/2
   const Packet one = pset1<Packet>(1.0);
-  const Packet ln2 = pset1<Packet>(0.6931471805599453);
+  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+
+  // Medium path (1 <= |x| < 20):
+  //   sinh(x) = (exp(|x|) - exp(-|x|)) / 2 = e - 1/(4*e)
+  const Packet quarter = pset1<Packet>(0.25);
+  Packet p_medium = psub(e, pdiv(quarter, e));
+
+  // Large path (|x| >= 20): exp(-|x|) is negligible, sinh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
-
-  const Packet e_normal = pexp(abs_x);
-  Packet p_normal = pmul(half, psub(e_normal, pdiv(one, e_normal)));
-
-  Packet p_large_val = pexp(psub(abs_x, ln2));
-
-  Packet p_large = pselect(large_mask, p_large_val, p_normal);
+  Packet p_large = pselect(large_mask, e, p_medium);
   p_large = por(x_sign, p_large);
-
   const Packet small_mask = pcmp_lt(abs_x, one);
   return pselect(small_mask, p_small, p_large);
 }
@@ -926,38 +930,46 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Pa
 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_float(const Packet& x) {
-  const Packet half = pset1<Packet>(0.5f);
-  const Packet one = pset1<Packet>(1.0f);
   const Packet abs_x = pabs(x);
-  const Packet ln2 = pset1<Packet>(0.6931471805599453f);
+
+  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
+  // Using a single exp avoids a second expensive call, and subtracting 1 (exactly
+  // representable) instead of ln2 avoids rounding error in the argument to exp,
+  // which would be amplified into large relative output error.
+  const Packet half_e = pset1<Packet>(1.3591409142295225f);  // e/2
+  const Packet one = pset1<Packet>(1.0f);
+  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+
+  // Medium path: cosh(x) = (exp(|x|) + exp(-|x|)) / 2
+  //            = (2*e + 1/(2*e)) / 2 = e + 1/(4*e)
+  const Packet quarter = pset1<Packet>(0.25f);
+  Packet p_medium = padd(e, pdiv(quarter, e));
+
+  // Large path (|x| >= 20): exp(-|x|) is negligible, cosh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0f);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
-
-  // cosh(x) = (exp(|x|) + exp(-|x|)) / 2 = (e + 1/e) / 2.
-  const Packet e = pexp(abs_x);
-  Packet p_normal = pmul(half, padd(e, pdiv(one, e)));
-
-  // For large |x|, cosh(x) ~ exp(|x|)/2 = exp(|x| - ln2).
-  Packet p_large = pexp(psub(abs_x, ln2));
-
-  return pselect(large_mask, p_large, p_normal);
+  return pselect(large_mask, e, p_medium);
 }
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_double(const Packet& x) {
-  const Packet half = pset1<Packet>(0.5);
-  const Packet one = pset1<Packet>(1.0);
   const Packet abs_x = pabs(x);
-  const Packet ln2 = pset1<Packet>(0.6931471805599453);
+
+  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
+  // Subtracting 1 (exactly representable) instead of ln2 avoids rounding error
+  // in the argument to exp, which would be amplified into large relative error.
+  const Packet half_e = pset1<Packet>(1.3591409142295225);  // e/2
+  const Packet one = pset1<Packet>(1.0);
+  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+
+  // Medium path: cosh(x) = (exp(|x|) + exp(-|x|)) / 2 = e + 1/(4*e)
+  const Packet quarter = pset1<Packet>(0.25);
+  Packet p_medium = padd(e, pdiv(quarter, e));
+
+  // Large path (|x| >= 20): exp(-|x|) is negligible, cosh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
-
-  const Packet e = pexp(abs_x);
-  Packet p_normal = pmul(half, padd(e, pdiv(one, e)));
-
-  Packet p_large = pexp(psub(abs_x, ln2));
-
-  return pselect(large_mask, p_large, p_normal);
+  return pselect(large_mask, e, p_medium);
 }
 
 //----------------------------------------------------------------------
