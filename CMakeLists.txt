@@ -299,6 +299,15 @@ if (PROJECT_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
+# CMake's default CMAKE_CXX_FLAGS_RELEASE for NVHPC is "-fast -O3".
+# The -fast flag implies -Mfprelaxed, which breaks IEEE compliance
+# (NaN/Inf handling, exact rounding) and causes widespread test failures.
+# Override with -O3 -Mvect to get vectorization without relaxed FP math.
+if(CMAKE_CXX_COMPILER_ID MATCHES "NVHPC")
+  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Mvect" CACHE STRING "" FORCE)
+  set(CMAKE_C_FLAGS_RELEASE "-O3 -Mvect" CACHE STRING "" FORCE)
+endif()
+
 # Only try to figure out how to link the math library if we are building something.
 # Otherwise, let the parent project deal with dependencies.
 if (EIGEN_IS_BUILDING_)
