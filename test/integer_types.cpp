@@ -15,8 +15,19 @@
 #define VERIFY_IS_NOT_APPROX(a, b) VERIFY((a) != (b));
 
 template <typename MatrixType>
+void random_fill(DenseBase<MatrixType>& matrix, typename MatrixType::Scalar min, typename MatrixType::Scalar max) {
+  using Scalar = typename MatrixType::Scalar;
+  for (Index j = 0; i < matrix.outerSize(); j++) {
+    for (Index i = 0; i < matrix.innerSize(); i++) {
+      matrix.coeffRefByOuterInner(j, i) = internal::random<Scalar>(min, max);
+    }
+  }
+}
+
+template <typename MatrixType>
 void signed_integer_type_tests(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
+  constexpr Scalar kMax = (Scalar(1) << ((8 * sizeof(Scalar) - 2) / 2)) - 1;
 
   enum { is_signed = (Scalar(-1) > Scalar(0)) ? 0 : 1 };
   VERIFY(is_signed == 1);
@@ -24,26 +35,15 @@ void signed_integer_type_tests(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m1(rows, cols), m2 = MatrixType::Random(rows, cols), mzero = MatrixType::Zero(rows, cols);
+  MatrixType m1(rows, cols);
+  MatrixType m2(rows, cols);
 
-  {
-    int guard = 0;
-    do {
-      m1 = MatrixType::Random(rows, cols);
-    } while ((m1 == mzero || m1 == m2) && (++guard) < 100);
-    VERIFY(guard < 100);
-  }
+  random_fill(m1, 0, kMax);
+  random_fill(m2, 0, kMax);
 
   // check linear structure
 
-  Scalar s1;
-  {
-    int guard = 0;
-    do {
-      s1 = internal::random<Scalar>();
-    } while (s1 == 0 && (++guard) < 100);
-    VERIFY(guard < 100);
-  }
+  Scalar s1 = internal::random<Scalar>(1, kMax);
 
   VERIFY_IS_EQUAL(-(-m1), m1);
   VERIFY_IS_EQUAL(-m2 + m1 + m2, m1);
@@ -53,46 +53,37 @@ void signed_integer_type_tests(const MatrixType& m) {
 template <typename MatrixType>
 void integer_type_tests(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
+  constexpr Scalar kMax = (Scalar(1) << ((8 * sizeof(Scalar) - 2) / 2)) - 1;
 
   VERIFY(NumTraits<Scalar>::IsInteger);
   enum { is_signed = (Scalar(-1) > Scalar(0)) ? 0 : 1 };
   VERIFY(int(NumTraits<Scalar>::IsSigned) == is_signed);
 
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
 
   Index rows = m.rows();
   Index cols = m.cols();
 
-  // this test relies a lot on Random.h, and there's not much more that we can do
-  // to test it, hence I consider that we will have tested Random.h
-  MatrixType m1(rows, cols), m2 = MatrixType::Random(rows, cols), m3(rows, cols), mzero = MatrixType::Zero(rows, cols);
+  MatrixType m1(rows, cols);
+  MatrixType m2(rows, cols);
+  MatrixType m3(rows, cols);
+  SquareMatrixType square(rows, rows);
+  VectorType v1(rows);
 
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
-  SquareMatrixType identity = SquareMatrixType::Identity(rows, rows), square = SquareMatrixType::Random(rows, rows);
-  VectorType v1(rows), v2 = VectorType::Random(rows), vzero = VectorType::Zero(rows);
-
-  {
-    int guard = 0;
-    do {
-      m1 = MatrixType::Random(rows, cols);
-    } while ((m1 == mzero || m1 == m2) && (++guard) < 100);
-    VERIFY(guard < 100);
-  }
-
-  {
-    int guard = 0;
-    do {
-      v1 = VectorType::Random(rows);
-    } while ((v1 == vzero || v1 == v2) && (++guard) < 100);
-    VERIFY(guard < 100);
-  }
+  random_fill(m1, 0, kMax);
+  random_fill(m2, 0, kMax);
+  random_fill(m3, 0, kMax);
+  random_fill(square, 0, kMax);
+  random_fill(v1, 0, NumTraits<Scalar>::highest() / 2);
 
   VERIFY_IS_APPROX(v1, v1);
   VERIFY_IS_NOT_APPROX(v1, 2 * v1);
-  VERIFY_IS_APPROX(vzero, v1 - v1);
+  VERIFY_IS_APPROX(VectorType::Zero(rows), v1 - v1);
+
   VERIFY_IS_APPROX(m1, m1);
   VERIFY_IS_NOT_APPROX(m1, 2 * m1);
-  VERIFY_IS_APPROX(mzero, m1 - m1);
+  VERIFY_IS_APPROX(MatrixType::Zero(rows, cols), m1 - m1);
 
   VERIFY_IS_APPROX(m3 = m1, m1);
   MatrixType m4;
@@ -113,10 +104,7 @@ void integer_type_tests(const MatrixType& m) {
 
   // check linear structure
 
-  Scalar s1;
-  do {
-    s1 = internal::random<Scalar>();
-  } while (s1 == 0);
+  Scalar s1 = internal::random<Scalar>(1, kMax);
 
   VERIFY_IS_EQUAL(m1 + m1, 2 * m1);
   VERIFY_IS_EQUAL(m1 + m2 - m1, m2);
@@ -134,7 +122,7 @@ void integer_type_tests(const MatrixType& m) {
 
   // check matrix product.
 
-  VERIFY_IS_APPROX(identity * m1, m1);
+  VERIFY_IS_APPROX(SquareMatrixType::Identity(rows, rows) * m1, m1);
   VERIFY_IS_APPROX(square * (m1 + m2), square * m1 + square * m2);
   VERIFY_IS_APPROX((m1 + m2).transpose() * square, m1.transpose() * square + m2.transpose() * square);
   VERIFY_IS_APPROX((m1 * m2.transpose()) * m1, m1 * (m2.transpose() * m1));
