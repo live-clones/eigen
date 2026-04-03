@@ -233,20 +233,6 @@ static std::vector<FuncEntry<Scalar>> build_func_table() {
 // Range iteration helpers
 // ============================================================================
 
-// Advances x toward +inf by at least 1 ULP. When step_eps > 0, additionally
-// jumps by a relative factor of (1 + step_eps) to sample the range sparsely.
-template <typename Scalar>
-static inline Scalar advance_by_step(Scalar x, double step_eps) {
-  Scalar next = std::nextafter(x, std::numeric_limits<Scalar>::infinity());
-  if (step_eps > 0.0 && std::isfinite(next)) {
-    // Try to jump further by a relative amount.
-    Scalar jumped = next > 0 ? next * static_cast<Scalar>(1.0 + step_eps) : next / static_cast<Scalar>(1.0 + step_eps);
-    // Use the jump only if it actually advances further (handles denormal stalling).
-    if (jumped > next) next = jumped;
-  }
-  return next;
-}
-
 // Counts the number of representable scalars in [lo, hi].
 template <typename Scalar>
 static uint64_t count_scalars_in_range(Scalar lo, Scalar hi) {
@@ -281,28 +267,49 @@ static double linear_to_scalar(int64_t lin, double /*tag*/) {
 // Dynamic work queue: threads atomically claim chunks for load balancing
 // ============================================================================
 
+// The queue works in linear integer (ULP) space.  When skip_bits > 0, only
+// every 2^skip_bits-th representable value is visited, which makes the total
+// number of samples = total_ulps >> skip_bits.  Chunks are sized in terms of
+// samples (not ULPs), so work is evenly distributed regardless of skip_bits.
+
 template <typename Scalar>
 struct WorkQueue {
-  int64_t range_hi_lin;
-  int64_t chunk_size;
-  double step_eps;
-  std::atomic<int64_t> next_lin;
+  int64_t range_lo_lin;   // linear index of lo
+  int64_t range_hi_lin;   // linear index of hi
+  int64_t stride;         // 1 << skip_bits (step in linear space)
+  int64_t chunk_samples;  // number of samples per chunk
+  // Next sample index to claim (in sample space: sample i → linear lo + i*stride).
+  std::atomic<int64_t> next_sample;
 
-  void init(Scalar lo, Scalar hi, int64_t csz, double step) {
+  void init(Scalar lo, Scalar hi, int skip_bits, int64_t csz) {
+    range_lo_lin = scalar_to_linear(lo);
     range_hi_lin = scalar_to_linear(hi);
-    chunk_size = csz;
-    step_eps = step;
-    next_lin.store(scalar_to_linear(lo), std::memory_order_relaxed);
+    stride = int64_t(1) << skip_bits;
+    chunk_samples = csz;
+    next_sample.store(0, std::memory_order_relaxed);
   }
 
-  // Claim the next chunk. Returns false when no work remains.
-  bool claim(Scalar& chunk_lo, Scalar& chunk_hi) {
-    int64_t lo_lin = next_lin.fetch_add(chunk_size, std::memory_order_relaxed);
-    if (lo_lin > range_hi_lin) return false;
-    int64_t hi_lin = lo_lin + chunk_size - 1;
-    if (hi_lin > range_hi_lin) hi_lin = range_hi_lin;
-    chunk_lo = linear_to_scalar(lo_lin, Scalar(0));
-    chunk_hi = linear_to_scalar(hi_lin, Scalar(0));
+  int64_t total_samples() const {
+    // Use unsigned subtraction to avoid overflow for ranges spanning the
+    // full floating-point space (e.g. -inf to +inf).
+    uint64_t total_ulps = static_cast<uint64_t>(range_hi_lin) - static_cast<uint64_t>(range_lo_lin);
+    return static_cast<int64_t>(total_ulps / static_cast<uint64_t>(stride) + 1);
+  }
+
+  // Claim the next chunk of samples.  Returns the start/end linear indices,
+  // or false when no work remains.
+  bool claim(int64_t& lin_lo, int64_t& lin_hi) {
+    int64_t s = next_sample.fetch_add(chunk_samples, std::memory_order_relaxed);
+    int64_t total = total_samples();
+    if (s >= total) return false;
+    // Compute linear index using unsigned arithmetic to avoid overflow.
+    lin_lo = static_cast<int64_t>(static_cast<uint64_t>(range_lo_lin) +
+                                  static_cast<uint64_t>(s) * static_cast<uint64_t>(stride));
+    int64_t s_end = s + chunk_samples - 1;
+    if (s_end >= total) s_end = total - 1;
+    lin_hi = static_cast<int64_t>(static_cast<uint64_t>(range_lo_lin) +
+                                  static_cast<uint64_t>(s_end) * static_cast<uint64_t>(stride));
+    if (lin_hi > range_hi_lin) lin_hi = range_hi_lin;
     return true;
   }
 };
@@ -348,12 +355,12 @@ static void worker(const FuncEntry<Scalar>& func, WorkQueue<Scalar>& queue, int 
     }
   };
 
-  Scalar chunk_lo, chunk_hi;
-  while (queue.claim(chunk_lo, chunk_hi)) {
+  int64_t lin_lo, lin_hi;
+  while (queue.claim(lin_lo, lin_hi)) {
     int idx = 0;
-    Scalar x = chunk_lo;
+    int64_t lin = lin_lo;
     for (;;) {
-      input[idx] = x;
+      input[idx] = linear_to_scalar(lin, Scalar(0));
       idx++;
 
       if (idx == batch_size) {
@@ -362,9 +369,11 @@ static void worker(const FuncEntry<Scalar>& func, WorkQueue<Scalar>& queue, int 
         idx = 0;
       }
 
-      if (x >= chunk_hi) break;
-      Scalar next = advance_by_step(x, queue.step_eps);
-      x = (next > chunk_hi) ? chunk_hi : next;
+      if (lin >= lin_hi) break;
+      // Advance using unsigned arithmetic to avoid signed overflow.
+      uint64_t next = static_cast<uint64_t>(lin) + static_cast<uint64_t>(queue.stride);
+      if (next > static_cast<uint64_t>(lin_hi)) break;
+      lin = static_cast<int64_t>(next);
     }
 
     // Process remaining partial batch.  Pad unused slots with the last valid
@@ -397,7 +406,7 @@ struct Options {
   int hist_width = 10;
   bool use_mpfr = false;
   bool use_double = false;
-  double step_eps = 0.0;
+  int skip_bits = 0;  // sample every 2^skip_bits-th representable value
   bool list_funcs = false;
 };
 
@@ -438,10 +447,10 @@ static int run_test(const Options& opts) {
   // Print test configuration.
   std::printf("Function: %s (%s)\n", opts.func_name.c_str(), kTypeName);
   std::printf("Range: [%.*g, %.*g]\n", kDigits, double(lo), kDigits, double(hi));
-  if (opts.step_eps > 0.0) {
-    std::printf("Sampling step: (1 + %g) * nextafter(x)\n", opts.step_eps);
-  } else {
-    std::printf("Representable values in range: %lu\n", static_cast<unsigned long>(total_scalars));
+  std::printf("Representable values in range: %lu\n", static_cast<unsigned long>(total_scalars));
+  if (opts.skip_bits > 0) {
+    std::printf("Skip bits: %d (stride = 2^%d, sampling every %ld-th value)\n", opts.skip_bits, opts.skip_bits,
+                static_cast<long>(int64_t(1) << opts.skip_bits));
   }
   std::printf("Reference: %s\n", opts.use_mpfr ? "MPFR (128-bit)" : "std C++ math");
   std::printf("Threads: %d\n", num_threads);
@@ -462,10 +471,14 @@ static int run_test(const Options& opts) {
   // Use dynamic work distribution: threads claim small chunks from a shared
   // queue.  This ensures even load balancing regardless of how per-value
   // work varies across the range (e.g. log on negatives is trivial).
-  // Choose chunk_size so we get ~16 chunks per thread for good balancing.
-  int64_t chunk_size = std::max(int64_t(1), static_cast<int64_t>(total_scalars / (num_threads * 16)));
   WorkQueue<Scalar> queue;
-  queue.init(lo, hi, chunk_size, opts.step_eps);
+  queue.init(lo, hi, opts.skip_bits, /*chunk_samples=*/0);
+  int64_t total_samples = queue.total_samples();
+  // Choose chunk_samples so we get ~16 chunks per thread for good balancing.
+  int64_t chunk_samples = std::max(int64_t(1), total_samples / (num_threads * 16));
+  queue.chunk_samples = chunk_samples;
+  std::printf("Total samples: %ld\n\n", static_cast<long>(total_samples));
+  std::fflush(stdout);
 
   std::vector<std::thread> threads;
   auto start_time = std::chrono::steady_clock::now();
@@ -543,8 +556,8 @@ static void print_usage() {
       "  --lo=VAL       Start of range (default: -inf)\n"
       "  --hi=VAL       End of range (default: +inf)\n"
       "  --double       Test double precision (default: float)\n"
-      "  --step=EPS     Sampling step: advance by (1+EPS)*nextafter(x)\n"
-      "                 (default: 0 = exhaustive; useful for double, e.g. 1e-6)\n"
+      "  --skip=K       Skip lower K mantissa bits: sample every 2^K-th value\n"
+      "                 (default: 0 = exhaustive; e.g. --skip=20 for double)\n"
       "  --threads=N    Number of threads (default: all cores)\n"
       "  --batch=N      Batch size for Eigen eval (default: 4096)\n"
       "  --ref=MODE     Reference: 'std' (default) or 'mpfr'\n"
@@ -586,8 +599,8 @@ int main(int argc, char* argv[]) {
       ref_mode = arg.substr(6);
     } else if (arg.substr(0, 13) == "--hist_width=") {
       opts.hist_width = std::stoi(arg.substr(13));
-    } else if (arg.substr(0, 7) == "--step=") {
-      opts.step_eps = std::stod(arg.substr(7));
+    } else if (arg.substr(0, 7) == "--skip=") {
+      opts.skip_bits = std::stoi(arg.substr(7));
     } else if (arg == "--double") {
       opts.use_double = true;
     } else if (arg == "--list") {
