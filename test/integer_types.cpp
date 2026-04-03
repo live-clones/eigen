@@ -103,7 +103,6 @@ void integer_type_tests(const MatrixType& m) {
 
   // check matrix product.
 
-  // matrix products
   if (!NumTraits<Scalar>::IsSigned) {
     VERIFY_IS_APPROX(SquareMatrixType::Identity(rows, rows) * m1, m1);
     VERIFY_IS_APPROX(square * (m1 + m2), square * m1 + square * m2);
