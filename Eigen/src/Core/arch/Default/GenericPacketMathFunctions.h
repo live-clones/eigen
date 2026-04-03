@@ -30,17 +30,22 @@ namespace internal {
 // Exponential and Logarithmic Functions
 //----------------------------------------------------------------------
 
-// Natural or base-2 logarithm for float packets.
+// Core range reduction and polynomial evaluation for float logarithm.
 //
-// Computes log(x) as e*C + log(m), where x = 2^e * m with m in [sqrt(1/2), sqrt(2))
-// and C = ln(2) for natural log, C = 1 for log2.
+// Given a positive float value v (may be denormal), decomposes it as
+// v = 2^e * (1+f) with f in [sqrt(0.5)-1, sqrt(2)-1], then evaluates
+// log(1+f) ≈ f + f^2 * P(f) using a degree-7 minimax polynomial.
+//
+// Returns the approximation of log(v_mantissa) in log_mantissa and the
+// integer exponent in e. The caller combines these as appropriate
+// (e.g. e*ln2 + log_mantissa for natural log, or log_mantissa*log2e + e
+// for log2).
 //
 // Range reduction uses integer bit manipulation (musl-inspired) instead of the
-// heavier pfrexp_generic, saving ~12 ops. The approximation uses the decomposition
-// log(1+f) ≈ f + f^2 * P(f), where P is a degree-7 minimax polynomial found via
+// heavier pfrexp_generic, saving ~12 ops. The minimax polynomial was found via
 // Sollya's fpminimax, giving faithfully-rounded results (max 1 ULP for log).
-template <typename Packet, bool base2>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const Packet _x) {
+template <typename Packet>
+EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, Packet& e) {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
 
   const PacketI cst_min_normal = pset1<PacketI>(0x00800000);
@@ -54,25 +59,24 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const
   const PacketI cst_half_mant = pset1<PacketI>(0x3f3504f3);  // sqrt(0.5)
 
   // Normalize denormals by multiplying by 2^23.
-  PacketI xi = preinterpret<PacketI>(_x);
-  PacketI is_denormal = pcmp_lt(xi, cst_min_normal);         // also catches negatives/zero (sign bit set → less than)
-  const Packet cst_norm_factor = pset1<Packet>(8388608.0f);  // 2^23
-  Packet x_normalized = pmul(_x, cst_norm_factor);
-  xi = pselect(is_denormal, preinterpret<PacketI>(x_normalized), xi);
+  PacketI vi = preinterpret<PacketI>(v);
+  PacketI is_denormal = pcmp_lt(vi, cst_min_normal);
+  Packet v_normalized = pmul(v, pset1<Packet>(8388608.0f));  // 2^23
+  vi = pselect(is_denormal, preinterpret<PacketI>(v_normalized), vi);
   // Denormal exponent adjustment: subtract 23 from exponent.
   PacketI denorm_adj = pand(is_denormal, pset1<PacketI>(23));
 
   // Combined range reduction: bias integer representation so that exponent
   // extraction automatically shifts mantissa to [sqrt(0.5), sqrt(2)).
-  PacketI xi_biased = padd(xi, cst_sqrt_half_offset);
+  PacketI vi_biased = padd(vi, cst_sqrt_half_offset);
   // Extract exponent as integer, subtract bias and denormal adjustment.
-  PacketI e_int = psub(psub(plogical_shift_right<23>(xi_biased), cst_exp_bias), denorm_adj);
-  Packet e = pcast<PacketI, Packet>(e_int);
+  PacketI e_int = psub(psub(plogical_shift_right<23>(vi_biased), cst_exp_bias), denorm_adj);
+  e = pcast<PacketI, Packet>(e_int);
   // Reconstruct mantissa in [sqrt(0.5), sqrt(2)). The integer addition of the
   // masked mantissa with 0x3f3504f3 (sqrt(0.5)) naturally produces carry into
   // the exponent field, yielding values in [sqrt(0.5), 1) or [1, sqrt(2)).
   // Then subtract 1 to center on 0 → f in [sqrt(0.5)-1, sqrt(2)-1].
-  Packet x = psub(preinterpret<Packet>(padd(pand(xi_biased, cst_mant_mask), cst_half_mant)), pset1<Packet>(1.0f));
+  Packet f = psub(preinterpret<Packet>(padd(pand(vi_biased, cst_mant_mask), cst_half_mant)), pset1<Packet>(1.0f));
 
   // Minimax degree-7 polynomial for g(f) = (log(1+f) - f) / f^2 on
   // [sqrt(0.5)-1, sqrt(2)-1], so log(1+f) ≈ f + f^2 * P(f).
@@ -91,17 +95,28 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const
   };
 
   // Evaluate P(f) via Horner's method, then log(1+f) ≈ f + f^2 * P(f).
-  Packet x2 = pmul(x, x);
-  Packet p = ppolevl<Packet, 7>::run(x, coeffs);
-  x = pmadd(p, x2, x);
+  Packet f2 = pmul(f, f);
+  Packet p = ppolevl<Packet, 7>::run(f, coeffs);
+  log_mantissa = pmadd(p, f2, f);
+}
+
+// Natural or base-2 logarithm for float packets.
+//
+// Computes log(x) as e*C + log(m), where x = 2^e * m with m in [sqrt(1/2), sqrt(2))
+// and C = ln(2) for natural log, C = 1 for log2.
+template <typename Packet, bool base2>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const Packet _x) {
+  Packet log_mantissa, e;
+  plog_core_float(_x, log_mantissa, e);
 
   // Add the logarithm of the exponent back to the result.
+  Packet x;
   if (base2) {
     const Packet cst_log2e = pset1<Packet>(static_cast<float>(EIGEN_LOG2E));
-    x = pmadd(x, cst_log2e, e);
+    x = pmadd(log_mantissa, cst_log2e, e);
   } else {
     const Packet cst_ln2 = pset1<Packet>(static_cast<float>(EIGEN_LN2));
-    x = pmadd(e, cst_ln2, x);
+    x = pmadd(e, cst_ln2, log_mantissa);
   }
 
   // Filter out invalid inputs:
@@ -232,10 +247,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_double(const Pa
 }
 
 /** \internal \returns log(1 + x) for single precision float.
-    Computes log(1+x) directly with inline range reduction, avoiding
-    the double rounding in the Kahan formula (which calls plog(1+x)
-    as a black box). The rounding error from forming u = fl(1+x) is
-    recovered as dx = x - (u - 1), and folded in as a first-order
+    Computes log(1+x) using plog_core_float for the core range reduction
+    and polynomial evaluation. The rounding error from forming u = fl(1+x)
+    is recovered as dx = x - (u - 1), and folded in as a first-order
     correction dx/u after the polynomial evaluation.
  */
 template <typename Packet>
@@ -253,28 +267,14 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_float(c
   // For u = +inf (x very large), return +inf.
   Packet inf_mask = pcmp_eq(u, cst_pos_inf);
 
-  // Inline the plog range reduction on u = 1 + x.
-  const Packet cst_cephes_SQRTHF = pset1<Packet>(0.707106781186547524f);
-  Packet e;
-  Packet m = pfrexp(u, e);
-  Packet mask = pcmp_lt(m, cst_cephes_SQRTHF);
-  Packet tmp = pand(m, mask);
-  m = psub(m, one);
-  e = psub(e, pand(one, mask));
-  m = padd(m, tmp);
+  // Core range reduction and polynomial on u.
+  Packet log_u, e;
+  plog_core_float(u, log_u, e);
 
-  // Same rational polynomial as plog_float.
-  constexpr float alpha[] = {0.18256296349849254f, 1.0000000190281063f, 1.0000000190281136f};
-  constexpr float beta[] = {0.049616247954120038f, 0.59923249590823520f, 1.4999999999999927f, 1.0f};
-  Packet p = ppolevl<Packet, 2>::run(m, alpha);
-  p = pmul(m, p);
-  Packet q = ppolevl<Packet, 3>::run(m, beta);
-  Packet log_m = pdiv(p, q);
-
-  // result = e * ln2 + log(m) + dx/u.
+  // result = e * ln2 + log(u) + dx/u.
   // The dx/u term corrects for the rounding error in u = fl(1+x).
   const Packet cst_ln2 = pset1<Packet>(static_cast<float>(EIGEN_LN2));
-  Packet result = pmadd(e, cst_ln2, padd(log_m, pdiv(dx, u)));
+  Packet result = pmadd(e, cst_ln2, padd(log_u, pdiv(dx, u)));
 
   // Handle special cases.
   Packet neg_mask = pcmp_lt(u, pzero(u));
