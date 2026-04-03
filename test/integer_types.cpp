@@ -17,7 +17,7 @@
 template <typename MatrixType>
 void random_fill(DenseBase<MatrixType>& matrix, typename MatrixType::Scalar min, typename MatrixType::Scalar max) {
   using Scalar = typename MatrixType::Scalar;
-  for (Index j = 0; i < matrix.outerSize(); j++) {
+  for (Index j = 0; j < matrix.outerSize(); j++) {
     for (Index i = 0; i < matrix.innerSize(); i++) {
       matrix.coeffRefByOuterInner(j, i) = internal::random<Scalar>(min, max);
     }
