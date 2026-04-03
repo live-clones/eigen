@@ -28,7 +28,6 @@ void signed_integer_type_tests(const MatrixType& m) {
   MatrixType m1 = RandomMatrix<MatrixType>(rows, cols, Scalar(0), kMax);
   MatrixType m2 = RandomMatrix<MatrixType>(rows, cols, Scalar(0), kMax);
 
-
   // check linear structure
 
   Scalar s1 = internal::random<Scalar>(1, kMax);
@@ -104,7 +103,7 @@ void integer_type_tests(const MatrixType& m) {
 
   // check matrix product.
 
-  // matrix products 
+  // matrix products
   if (!NumTraits<Scalar>::IsSigned) {
     VERIFY_IS_APPROX(SquareMatrixType::Identity(rows, rows) * m1, m1);
     VERIFY_IS_APPROX(square * (m1 + m2), square * m1 + square * m2);
