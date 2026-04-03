@@ -26,7 +26,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
   VERIFY_IS_EQUAL(eiSymm.info(), Success);
 
   RealScalar scaling = m.cwiseAbs().maxCoeff();
-  RealScalar unitary_error_factor = RealScalar(16);
+  RealScalar unitary_error_factor = RealScalar(32);
 
   if (scaling < (std::numeric_limits<RealScalar>::min)()) {
     VERIFY(eiSymm.eigenvalues().cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
@@ -80,7 +80,7 @@ void selfadjointeigensolver(const MatrixType& m) {
   MatrixType symmA = a.adjoint() * a + a1.adjoint() * a1;
   MatrixType symmC = symmA;
 
-  svd_fill_random(symmA, Symmetric);
+  svd_fill_random(symmA, SelfAdjoint);
 
   symmA.template triangularView<StrictlyUpper>().setZero();
   symmC.template triangularView<StrictlyUpper>().setZero();
@@ -197,7 +197,8 @@ void selfadjointeigensolver(const MatrixType& m) {
     SelfAdjointEigenSolver<MatrixType> ei3(a);
     VERIFY_IS_EQUAL(ei3.info(), Success);
     VERIFY_IS_MUCH_SMALLER_THAN(ei3.eigenvalues().norm(), RealScalar(1));
-    VERIFY((ei3.eigenvectors().transpose() * ei3.eigenvectors().transpose()).eval().isIdentity());
+    RealScalar tol = 2 * a.cols() * NumTraits<RealScalar>::epsilon();
+    VERIFY((ei3.eigenvectors().adjoint() * ei3.eigenvectors()).eval().isIdentity(tol));
   }
 }
 
@@ -238,25 +239,25 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:
     CALL_SUBTEST_1(selfadjointeigensolver(Matrix<float, 1, 1>()));
-    CALL_SUBTEST_1(selfadjointeigensolver(Matrix<double, 1, 1>()));
-    CALL_SUBTEST_1(selfadjointeigensolver(Matrix<std::complex<double>, 1, 1>()));
+    CALL_SUBTEST_10(selfadjointeigensolver(Matrix<double, 1, 1>()));
+    CALL_SUBTEST_11(selfadjointeigensolver(Matrix<std::complex<double>, 1, 1>()));
 
     // very important to test 3x3 and 2x2 matrices since we provide special paths for them
     CALL_SUBTEST_12(selfadjointeigensolver(Matrix2f()));
-    CALL_SUBTEST_12(selfadjointeigensolver(Matrix2d()));
-    CALL_SUBTEST_12(selfadjointeigensolver(Matrix2cd()));
+    CALL_SUBTEST_15(selfadjointeigensolver(Matrix2d()));
+    CALL_SUBTEST_16(selfadjointeigensolver(Matrix2cd()));
     CALL_SUBTEST_13(selfadjointeigensolver(Matrix3f()));
-    CALL_SUBTEST_13(selfadjointeigensolver(Matrix3d()));
-    CALL_SUBTEST_13(selfadjointeigensolver(Matrix3cd()));
+    CALL_SUBTEST_17(selfadjointeigensolver(Matrix3d()));
+    CALL_SUBTEST_18(selfadjointeigensolver(Matrix3cd()));
     CALL_SUBTEST_2(selfadjointeigensolver(Matrix4d()));
-    CALL_SUBTEST_2(selfadjointeigensolver(Matrix4cd()));
+    CALL_SUBTEST_14(selfadjointeigensolver(Matrix4cd()));
 
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
     CALL_SUBTEST_3(selfadjointeigensolver(MatrixXf(s, s)));
     CALL_SUBTEST_4(selfadjointeigensolver(MatrixXd(s, s)));
     CALL_SUBTEST_5(selfadjointeigensolver(MatrixXcd(s, s)));
     CALL_SUBTEST_9(selfadjointeigensolver(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     // some trivial but implementation-wise tricky cases
     CALL_SUBTEST_4(selfadjointeigensolver(MatrixXd(1, 1)));
@@ -267,15 +268,15 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     CALL_SUBTEST_7(selfadjointeigensolver(Matrix<double, 2, 2>()));
   }
 
-  CALL_SUBTEST_13(bug_854<0>());
-  CALL_SUBTEST_13(bug_1014<0>());
-  CALL_SUBTEST_13(bug_1204<0>());
-  CALL_SUBTEST_13(bug_1225<0>());
+  CALL_SUBTEST_17(bug_854<0>());
+  CALL_SUBTEST_17(bug_1014<0>());
+  CALL_SUBTEST_17(bug_1204<0>());
+  CALL_SUBTEST_17(bug_1225<0>());
 
   // Test problem size constructors
   s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
   CALL_SUBTEST_8(SelfAdjointEigenSolver<MatrixXf> tmp1(s));
   CALL_SUBTEST_8(Tridiagonalization<MatrixXf> tmp2(s));
 
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+  TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

@@ -1,5 +1,5 @@
 
-// This file strutures pages and modules into a convenient hierarchical structure.
+// This file structures pages and modules into a convenient hierarchical structure.
 
 namespace Eigen {
 
@@ -35,7 +35,6 @@ namespace Eigen {
 */
 
 /** \page UnclassifiedPages Unclassified pages
-  - \subpage TopicResizing
   - \subpage TopicVectorization
   - \subpage TopicEigenExpressionTemplates
   - \subpage TopicScalarTypes
@@ -69,6 +68,8 @@ namespace Eigen {
 /** \addtogroup TutorialReductionsVisitorsBroadcasting
     \ingroup DenseMatrixManipulation_chapter */
 /** \addtogroup TutorialReshape
+    \ingroup DenseMatrixManipulation_chapter */
+/** \addtogroup TopicResizing
     \ingroup DenseMatrixManipulation_chapter */
 /** \addtogroup TutorialSTL
     \ingroup DenseMatrixManipulation_chapter */

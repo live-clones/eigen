@@ -10,7 +10,7 @@
 #include "main.h"
 #include <limits>
 #include <numeric>
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::Tensor;
 
@@ -335,7 +335,7 @@ static void test_tensor_maps() {
   TensorMap<Tensor<const int, 4, DataLayout>> tensor_map_const(inputs, 2, 3, 5, 7);
   const TensorMap<Tensor<const int, 4, DataLayout>> tensor_map_const_const(inputs, 2, 3, 5, 7);
 
-  tensor_map.setRandom();
+  setRandomDataInRange(tensor_map, -1000, 1000);
   array<ptrdiff_t, 2> reduction_axis;
   reduction_axis[0] = 1;
   reduction_axis[1] = 3;
@@ -471,7 +471,7 @@ void test_sum_accuracy() {
     Tensor<ScalarType, 0> sum;
     sum = tensor.sum();
 
-    // Compute the reference value in double precsion.
+    // Compute the reference value in double precision.
     double expected_sum = 0.0;
     double abs_sum = 0.0;
     for (int i = 0; i < num_elements; ++i) {

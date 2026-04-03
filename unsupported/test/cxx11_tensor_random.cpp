@@ -9,30 +9,49 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 template <typename Scalar>
 static void test_default() {
   Tensor<Scalar, 1> vec(6);
-  vec.setRandom();
 
   // Fixme: we should check that the generated numbers follow a uniform
   // distribution instead.
-  for (int i = 1; i < 6; ++i) {
-    VERIFY_IS_NOT_EQUAL(vec(i), vec(i - 1));
+  // For low-precision types (half, bfloat16), the RNG has limited distinct
+  // values (e.g. 128 for bfloat16), so adjacent collisions are possible.
+  // Retry a few times to avoid spurious failures.
+  bool all_distinct = false;
+  for (int attempt = 0; attempt < 10 && !all_distinct; ++attempt) {
+    vec.setRandom();
+    all_distinct = true;
+    for (int i = 1; i < 6; ++i) {
+      if (vec(i) == vec(i - 1)) {
+        all_distinct = false;
+        break;
+      }
+    }
   }
+  VERIFY(all_distinct);
 }
 
 template <typename Scalar>
 static void test_normal() {
   Tensor<Scalar, 1> vec(6);
-  vec.template setRandom<Eigen::internal::NormalRandomGenerator<Scalar>>();
 
   // Fixme: we should check that the generated numbers follow a gaussian
   // distribution instead.
-  for (int i = 1; i < 6; ++i) {
-    VERIFY_IS_NOT_EQUAL(vec(i), vec(i - 1));
+  bool all_distinct = false;
+  for (int attempt = 0; attempt < 10 && !all_distinct; ++attempt) {
+    vec.template setRandom<Eigen::internal::NormalRandomGenerator<Scalar>>();
+    all_distinct = true;
+    for (int i = 1; i < 6; ++i) {
+      if (vec(i) == vec(i - 1)) {
+        all_distinct = false;
+        break;
+      }
+    }
   }
+  VERIFY(all_distinct);
 }
 
 struct MyGenerator {

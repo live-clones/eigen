@@ -9,8 +9,8 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
-#include <Eigen/CXX11/TensorSymmetry>
+#include <Eigen/Tensor>
+#include <Eigen/TensorSymmetry>
 
 #include <map>
 #include <set>
@@ -30,7 +30,7 @@ using Eigen::GlobalRealFlag;
 using Eigen::GlobalZeroFlag;
 using Eigen::NegationFlag;
 
-// helper function to determine if the compiler intantiated a static
+// helper function to determine if the compiler instantiated a static
 // or dynamic symmetry group
 template <typename... Sym>
 bool isDynGroup(StaticSGroup<Sym...> const& dummy) {

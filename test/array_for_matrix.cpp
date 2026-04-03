@@ -73,12 +73,12 @@ void array_for_matrix(const MatrixType& m) {
   VERIFY_IS_EQUAL(m1.block(0, 0, rows, 0).rowwise().prod(), ColVectorType::Ones(rows));
 
   // verify the const accessors exist
-  const Scalar& ref_m1 = m.matrix().array().coeffRef(0);
-  const Scalar& ref_m2 = m.matrix().array().coeffRef(0, 0);
-  const Scalar& ref_a1 = m.array().matrix().coeffRef(0);
-  const Scalar& ref_a2 = m.array().matrix().coeffRef(0, 0);
-  VERIFY(&ref_a1 == &ref_m1);
-  VERIFY(&ref_a2 == &ref_m2);
+  const Scalar* ptr_m1 = &m.matrix().array().coeffRef(0);
+  const Scalar* ptr_m2 = &m.matrix().array().coeffRef(0, 0);
+  const Scalar* ptr_a1 = &m.array().matrix().coeffRef(0);
+  const Scalar* ptr_a2 = &m.array().matrix().coeffRef(0, 0);
+  VERIFY(ptr_a1 == ptr_m1);
+  VERIFY(ptr_a2 == ptr_m2);
 
   // Check write accessors:
   m1.array().coeffRef(0, 0) = 1;
@@ -273,6 +273,45 @@ void resize(const MatrixTraits& t) {
   VERIFY(a1.size() == cols);
 }
 
+// Test lpNorm for matrices (not just vectors).
+// lpNorm treats the matrix as a flat coefficient vector,
+// so the reference is computed element-by-element.
+template <typename MatrixType>
+void lpNorm_matrix(const MatrixType& m) {
+  using std::abs;
+  using std::pow;
+  using std::sqrt;
+  typedef typename MatrixType::RealScalar RealScalar;
+
+  Index rows = m.rows();
+  Index cols = m.cols();
+  MatrixType u = MatrixType::Random(rows, cols);
+
+  // L1 norm
+  RealScalar ref_l1(0);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) ref_l1 += abs(u(i, j));
+  VERIFY_IS_APPROX(u.template lpNorm<1>(), ref_l1);
+
+  // L2 norm
+  RealScalar ref_l2_sq(0);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) ref_l2_sq += numext::abs2(u(i, j));
+  VERIFY_IS_APPROX(u.template lpNorm<2>(), sqrt(ref_l2_sq));
+
+  // L-Infinity norm
+  RealScalar ref_linf(0);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) ref_linf = (std::max)(ref_linf, abs(u(i, j)));
+  VERIFY_IS_APPROX(u.template lpNorm<Infinity>(), ref_linf);
+
+  // L5 norm
+  RealScalar ref_l5(0);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) ref_l5 += pow(abs(u(i, j)), RealScalar(5));
+  VERIFY_IS_APPROX(u.template lpNorm<5>(), pow(ref_l5, RealScalar(1) / RealScalar(5)));
+}
+
 template <int>
 void regression_bug_654() {
   ArrayXf a = RowVectorXf(3);
@@ -346,4 +385,17 @@ EIGEN_DECLARE_TEST(array_for_matrix) {
   }
   CALL_SUBTEST_6(regression_bug_654<0>());
   CALL_SUBTEST_6(regrrssion_bug_1410<0>());
+
+  // lpNorm for matrices (not just vectors)
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_9(lpNorm_matrix(Matrix2f()));
+    CALL_SUBTEST_9(lpNorm_matrix(Matrix4d()));
+    CALL_SUBTEST_9(lpNorm_matrix(
+        MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_9(lpNorm_matrix(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
+                                           internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2))));
+  }
+  // empty matrix
+  CALL_SUBTEST_9(lpNorm_matrix(MatrixXf(0, 0)));
+  CALL_SUBTEST_9(lpNorm_matrix(MatrixXf(0, 3)));
 }

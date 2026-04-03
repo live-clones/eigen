@@ -24,7 +24,7 @@ namespace Eigen {
 
 namespace internal {
 
-// Note: cannot re-use tuple_impl, since that will cause havoc for
+// Note: cannot reuse tuple_impl, since that will cause havoc for
 // tuple_test.
 namespace test_detail {
 // Use std::tuple on CPU, otherwise use the GPU-specific versions.
@@ -136,7 +136,7 @@ EIGEN_DEVICE_FUNC void run_serialized(std::index_sequence<Indices...>, std::inde
   read_ptr = Eigen::deserialize(read_ptr, read_end, input_size);
   // Create value-type instances to populate.
   auto args = make_tuple(typename std::decay<Args>::type{}...);
-  EIGEN_UNUSED_VARIABLE(args)  // Avoid NVCC compile warning.
+  EIGEN_UNUSED_VARIABLE(args);  // Avoid NVCC compile warning.
   // NVCC 9.1 requires us to spell out the template parameters explicitly.
   read_ptr = Eigen::deserialize(read_ptr, read_end, get<Indices, typename std::decay<Args>::type...>(args)...);
 
@@ -262,7 +262,7 @@ auto run_serialized_on_gpu(size_t buffer_capacity_hint, std::index_sequence<Indi
 
   // Deserialize outputs.
   auto args_tuple = test_detail::tie(args...);
-  EIGEN_UNUSED_VARIABLE(args_tuple)  // Avoid NVCC compile warning.
+  EIGEN_UNUSED_VARIABLE(args_tuple);  // Avoid NVCC compile warning.
   c_host_ptr = Eigen::deserialize(c_host_ptr, host_data_end, test_detail::get<OutputIndices, Args&...>(args_tuple)...);
 
   // Maybe deserialize return value, properly handling void.
@@ -389,6 +389,7 @@ void print_gpu_device_info() {
   std::cout << "  warpSize:                    " << deviceProp.warpSize << std::endl;
   std::cout << "  regsPerBlock:                " << deviceProp.regsPerBlock << std::endl;
   std::cout << "  concurrentKernels:           " << deviceProp.concurrentKernels << std::endl;
+  std::cout << "  canMapHostMemory:            " << deviceProp.canMapHostMemory << "\n";
 }
 
 #endif  // EIGEN_GPUCC
@@ -435,7 +436,7 @@ auto run_with_hint(size_t buffer_capacity_hint, Kernel kernel, Args&&... args) -
 #ifdef EIGEN_GPUCC
   return run_on_gpu_with_hint(buffer_capacity_hint, kernel, std::forward<Args>(args)...);
 #else
-  EIGEN_UNUSED_VARIABLE(buffer_capacity_hint)
+  EIGEN_UNUSED_VARIABLE(buffer_capacity_hint);
   return run_on_cpu(kernel, std::forward<Args>(args)...);
 #endif
 }

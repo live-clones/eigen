@@ -10,7 +10,7 @@
 #include "main.h"
 #include <limits>
 #include <numeric>
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::Tensor;
 
@@ -85,7 +85,7 @@ template <int DataLayout>
 static void test_tensor_maps() {
   int inputs[20];
   TensorMap<Tensor<int, 1, DataLayout> > tensor_map(inputs, 20);
-  tensor_map.setRandom();
+  setRandomDataInRange(tensor_map, -1000, 1000);
 
   Tensor<int, 1, DataLayout> result = tensor_map.cumsum(0);
 
