@@ -15,16 +15,6 @@
 #define VERIFY_IS_NOT_APPROX(a, b) VERIFY((a) != (b));
 
 template <typename MatrixType>
-void random_fill(DenseBase<MatrixType>& matrix, typename MatrixType::Scalar min, typename MatrixType::Scalar max) {
-  using Scalar = typename MatrixType::Scalar;
-  for (Index j = 0; j < matrix.outerSize(); j++) {
-    for (Index i = 0; i < matrix.innerSize(); i++) {
-      matrix.coeffRefByOuterInner(j, i) = internal::random<Scalar>(min, max);
-    }
-  }
-}
-
-template <typename MatrixType>
 void signed_integer_type_tests(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   constexpr Scalar kMax = (Scalar(1) << ((8 * sizeof(Scalar) - 2) / 2)) - 1;
@@ -35,11 +25,9 @@ void signed_integer_type_tests(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m1(rows, cols);
-  MatrixType m2(rows, cols);
+  MatrixType m1 = RandomMatrix<MatrixType>(rows, cols, Scalar(0), kMax);
+  MatrixType m2 = RandomMatrix<MatrixType>(rows, cols, Scalar(0), kMax);
 
-  random_fill(m1, 0, kMax);
-  random_fill(m2, 0, kMax);
 
   // check linear structure
 
@@ -65,17 +53,11 @@ void integer_type_tests(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m1(rows, cols);
-  MatrixType m2(rows, cols);
-  MatrixType m3(rows, cols);
-  SquareMatrixType square(rows, rows);
-  VectorType v1(rows);
-
-  random_fill(m1, 0, kMax);
-  random_fill(m2, 0, kMax);
-  random_fill(m3, 0, kMax);
-  random_fill(square, 0, kMax);
-  random_fill(v1, 0, NumTraits<Scalar>::highest() / 2);
+  MatrixType m1 = RandomMatrix<MatrixType>(rows, cols, Scalar(0), kMax);
+  MatrixType m2 = RandomMatrix<MatrixType>(rows, cols, Scalar(0), kMax);
+  MatrixType m3 = RandomMatrix<MatrixType>(rows, cols, Scalar(0), kMax);
+  SquareMatrixType square = RandomMatrix<SquareMatrixType>(rows, rows, Scalar(0), kMax);
+  VectorType v1 = RandomMatrix<VectorType, Scalar>(rows, Index(1), Scalar(0), NumTraits<Scalar>::highest() / Scalar(2));
 
   VERIFY_IS_APPROX(v1, v1);
   VERIFY_IS_NOT_APPROX(v1, 2 * v1);
@@ -122,10 +104,13 @@ void integer_type_tests(const MatrixType& m) {
 
   // check matrix product.
 
-  VERIFY_IS_APPROX(SquareMatrixType::Identity(rows, rows) * m1, m1);
-  VERIFY_IS_APPROX(square * (m1 + m2), square * m1 + square * m2);
-  VERIFY_IS_APPROX((m1 + m2).transpose() * square, m1.transpose() * square + m2.transpose() * square);
-  VERIFY_IS_APPROX((m1 * m2.transpose()) * m1, m1 * (m2.transpose() * m1));
+  // matrix products 
+  if (!NumTraits<Scalar>::IsSigned) {
+    VERIFY_IS_APPROX(SquareMatrixType::Identity(rows, rows) * m1, m1);
+    VERIFY_IS_APPROX(square * (m1 + m2), square * m1 + square * m2);
+    VERIFY_IS_APPROX((m1 + m2).transpose() * square, m1.transpose() * square + m2.transpose() * square);
+    VERIFY_IS_APPROX((m1 * m2.transpose()) * m1, m1 * (m2.transpose() * m1));
+  }
 }
 
 template <int>
