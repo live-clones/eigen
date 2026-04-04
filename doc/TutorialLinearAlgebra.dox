@@ -124,13 +124,15 @@ All of these decompositions offer a solve() method that works as in the above ex
     for this class of problems. If your matrix is only positive or negative semidefinite, use \b LDLT.
 \li For a general invertible matrix, \b PartialPivLU is the best choice. It is fast (uses cache-friendly
     blocking) and reliable for the vast majority of problems.
-\li If you need to handle rank-deficient matrices or solve least squares problems, use
-    \b ColPivHouseholderQR or \b CompleteOrthogonalDecomposition (the latter computes a minimum-norm
-    solution for rank-deficient problems).
+\li For least squares problems (over- or under-determined systems), \b CompleteOrthogonalDecomposition
+    is the recommended default. Like the SVD, it robustly computes the minimum-norm solution for
+    rank-deficient and under-determined problems, but at the cost of a QR decomposition rather than
+    an SVD. Use \b ColPivHouseholderQR if you only need least squares for full-rank overdetermined
+    systems and don't need the minimum-norm property.
 \li \b SVD decompositions (BDCSVD, JacobiSVD) are the most robust but also the slowest. Use these when
-    you need singular values/vectors or when maximum robustness for rank-deficient problems matters.
-\li \b HouseholderQR is fast and well-suited for full-rank least squares problems, but it does not
-    reveal rank.
+    you need singular values/vectors, not just the solution.
+\li \b HouseholderQR is the fastest option for full-rank least squares problems, but it does not
+    reveal rank and cannot compute minimum-norm solutions for rank-deficient problems.
 \li FullPivLU and FullPivHouseholderQR use complete pivoting, which is significantly slower due to
     lack of blocking. In practice, they rarely provide meaningful benefits over PartialPivLU and
     ColPivHouseholderQR, respectively, and are not recommended for general use. They are primarily useful
@@ -154,14 +156,15 @@ supports many other decompositions), see our special page on
 
 \section TutorialLinAlgLeastsquares Least squares solving
 
-The most general and accurate method to solve under- or over-determined linear systems
-in the least squares sense, is the SVD decomposition. Eigen provides two implementations.
-The recommended one is the BDCSVD class, which scales well for large problems
-and automatically falls back to the JacobiSVD class for smaller problems.
-For both classes, their solve() method solved the linear system in the least-squares
-sense. 
+The recommended method to solve under- or over-determined linear systems in the least squares sense is
+\b CompleteOrthogonalDecomposition. Like the SVD, it robustly computes the minimum-norm least squares
+solution, correctly handling rank-deficient and under-determined problems, but it is significantly faster
+since it is based on a rank-revealing QR decomposition rather than a full SVD.
 
-Here is an example:
+If you also need the singular values or vectors themselves (not just the least squares solution), use
+\b BDCSVD, which scales well for large problems and automatically falls back to JacobiSVD for smaller ones.
+
+Here is an example using the SVD:
 <table class="example">
 <tr><th>Example:</th><th>Output:</th></tr>
 <tr>
@@ -170,11 +173,9 @@ Here is an example:
 </tr>
 </table>
 
-An alternative to the SVD, which is usually faster and about as accurate, is CompleteOrthogonalDecomposition. 
-
-Again, if you know more about the problem, the table above contains methods that are potentially faster.
-If your matrix is full rank, HouseHolderQR is the method of choice. If your matrix is full rank and well conditioned,
-using the Cholesky decomposition (LLT) on the matrix of the normal equations can be faster still.
+If you know more about the problem, faster methods are available.
+If your matrix is full rank, HouseholderQR is the fastest method. If your matrix is full rank and
+well conditioned, using the Cholesky decomposition (LLT) on the normal equations can be faster still.
 Our page on \link LeastSquares least squares solving \endlink has more details.
 
 

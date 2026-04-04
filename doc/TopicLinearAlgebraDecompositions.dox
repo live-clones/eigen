@@ -266,13 +266,13 @@ The following recommendations apply to the most common use cases:
 \li <b>General invertible systems:</b> Use \b PartialPivLU. It uses cache-friendly blocking and implicit
     multi-threading, making it the fastest general-purpose solver. Partial pivoting is sufficient for
     virtually all practical problems.
-\li <b>Rank-deficient or rectangular systems:</b> Use \b ColPivHouseholderQR for a good balance of speed and
-    robustness. For minimum-norm least squares solutions of rank-deficient problems, use
-    \b CompleteOrthogonalDecomposition. When maximum robustness is needed or you also need singular
-    values, use \b BDCSVD.
-\li <b>Full-rank least squares (overdetermined systems):</b> Use \b HouseholderQR for speed, or
-    \b ColPivHouseholderQR if you are unsure about the rank. For very tall and skinny matrices where
-    the matrix is well-conditioned, solving via the normal equations with \b LLT can be faster.
+\li <b>Least squares (over- or under-determined systems):</b> Use \b CompleteOrthogonalDecomposition as
+    the default. Like the SVD, it robustly computes the minimum-norm solution for rank-deficient and
+    under-determined problems, but at QR-like speed. Use \b BDCSVD when you also need singular values
+    or vectors, not just the least squares solution.
+\li <b>Full-rank least squares (overdetermined systems):</b> When the matrix is known to be full rank,
+    \b HouseholderQR is the fastest option. For very tall and skinny well-conditioned matrices,
+    solving via the normal equations with \b LLT can be faster still.
 \li <b>FullPivLU and FullPivHouseholderQR</b> use complete pivoting, which prevents the use of
     cache-friendly blocking algorithms and makes them significantly slower than their partial/column
     pivoting counterparts. In practice, complete pivoting rarely provides meaningful accuracy benefits.
