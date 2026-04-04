@@ -293,10 +293,10 @@ struct WorkQueue {
   int64_t chunk_size;
   double step_eps;
   std::atomic<int64_t> next_lin;
-  Scalar orig_lo;   // original range for sign filtering
+  Scalar orig_lo;  // original range for sign filtering
   Scalar orig_hi;
-  bool test_pos;    // whether any positive values are in [lo, hi]
-  bool test_neg;    // whether any negative values are in [lo, hi]
+  bool test_pos;  // whether any positive values are in [lo, hi]
+  bool test_neg;  // whether any negative values are in [lo, hi]
 
   void init(Scalar lo, Scalar hi, int num_threads, double step) {
     orig_lo = lo;
@@ -325,8 +325,7 @@ struct WorkQueue {
       // can actually skip the denormal region.  The denormal region contains
       // count_scalars_in_range(0, min_normal) ULPs; any chunk must span at
       // least that many so the min_normal-based jump lands past chunk_hi.
-      int64_t denorm_span = static_cast<int64_t>(
-          count_scalars_in_range(Scalar(0), std::numeric_limits<Scalar>::min()));
+      int64_t denorm_span = static_cast<int64_t>(count_scalars_in_range(Scalar(0), std::numeric_limits<Scalar>::min()));
       chunk_size = std::max(chunk_size, denorm_span);
     }
   }
