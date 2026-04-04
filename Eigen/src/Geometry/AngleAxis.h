@@ -130,6 +130,18 @@ class AngleAxis : public RotationBase<AngleAxis<Scalar_>, 3> {
   EIGEN_DEVICE_FUNC AngleAxis& fromRotationMatrix(const MatrixBase<Derived>& m);
   EIGEN_DEVICE_FUNC Matrix3 toRotationMatrix(void) const;
 
+  /** Applies the rotation to a 3D vector using Rodrigues' formula directly,
+   * without constructing the full rotation matrix. */
+  template <typename OtherVectorType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Vector3 _transformVector(const OtherVectorType& v) const {
+    EIGEN_USING_STD(sin)
+    EIGEN_USING_STD(cos)
+    // Rodrigues' rotation formula: v' = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+    const Scalar c = cos(m_angle);
+    const Scalar s = sin(m_angle);
+    return v * c + m_axis.cross(v) * s + m_axis * (m_axis.dot(v) * (Scalar(1) - c));
+  }
+
   /** \returns \c *this with scalar type casted to \a NewScalarType
    *
    * Note that if \a NewScalarType is equal to the current scalar type of \c *this
