@@ -8,8 +8,8 @@ vector \a x which is closest to being a solution, in the sense that the differen
 as small as possible. This \a x is called the least square solution (if the Euclidean norm is used).
 
 The three methods discussed on this page are the SVD decomposition, the QR decomposition and normal
-equations. Of these, the SVD decomposition is generally the most accurate but the slowest, normal
-equations is the fastest but least accurate, and the QR decomposition is in between.
+equations. Of these, the SVD decomposition is generally the most robust but the slowest, normal
+equations is the fastest but least robust, and the QR decomposition is in between.
 
 \eigenAutoToc
 
@@ -37,9 +37,10 @@ faster alternative method is CompleteOrthogonalDecomposition.
 \section LeastSquaresQR Using the QR decomposition
 
 The solve() method in QR decomposition classes also computes the least squares solution. There are
-three QR decomposition classes: HouseholderQR (no pivoting, fast but unstable if your matrix is
-not rull rank), ColPivHouseholderQR (column pivoting, thus a bit slower but more stable) and
-FullPivHouseholderQR (full pivoting, so slowest and slightly more stable than ColPivHouseholderQR).
+three QR decomposition classes: HouseholderQR (no pivoting, so fast but unreliable if your matrix is
+not full rank), ColPivHouseholderQR (column pivoting, thus a bit slower but rank-revealing and more
+robust), and FullPivHouseholderQR (full pivoting, significantly slower and rarely needed in practice).
+ColPivHouseholderQR is the recommended choice for most least squares problems.
 Here is an example with column pivoting:
 
 <table class="example">
