@@ -690,19 +690,10 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(con
   Scalar c = v1.dot(v0);
 
   // if dot == -1, vectors are nearly opposites
-  // => accurately compute the rotation axis by computing the
-  //    intersection of the two planes. This is done by solving:
-  //       x^T v0 = 0
-  //       x^T v1 = 0
-  //    under the constraint:
-  //       ||x|| = 1
-  //    which yields a singular value problem
+  // => any axis perpendicular to v0 will do for a ~180 degree rotation.
   if (c < Scalar(-1) + NumTraits<Scalar>::dummy_precision()) {
     c = numext::maxi(c, Scalar(-1));
-    Matrix<Scalar, 2, 3> m;
-    m << v0.transpose(), v1.transpose();
-    JacobiSVD<Matrix<Scalar, 2, 3>, ComputeFullV> svd(m);
-    Vector3 axis = svd.matrixV().col(2);
+    Vector3 axis = v0.unitOrthogonal();
 
     Scalar w2 = (Scalar(1) + c) * Scalar(0.5);
     this->w() = sqrt(w2);
