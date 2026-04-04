@@ -258,7 +258,6 @@ Packet trig_reduce_small_double(const Packet& x, const Packet& q) {
   return t;
 }
 
-
 template <TrigFunction Func, typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #if EIGEN_COMP_GNUC_STRICT
@@ -277,8 +276,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   const double huge_th = 1e14;
 
   // 2/PI as a double-word: hi + lo = 2/pi to ~107 bits. Computed by Sollya.
-  const Packet cst_2oPI_hi = pset1<Packet>(0.63661977236758138243288840385503135621547698974609375);       // 0x1.45f306dc9c883p-1
-  const Packet cst_2oPI_lo = pset1<Packet>(-3.9357353350364971763790381828183628368294820823718866e-17);    // -0x1.6b01ec5417056p-55
+  const Packet cst_2oPI_hi =
+      pset1<Packet>(0.63661977236758138243288840385503135621547698974609375);  // 0x1.45f306dc9c883p-1
+  const Packet cst_2oPI_lo =
+      pset1<Packet>(-3.9357353350364971763790381828183628368294820823718866e-17);  // -0x1.6b01ec5417056p-55
   // Integer Packet constants
   const PacketI cst_one = pset1<PacketI>(ScalarI(1));
 
