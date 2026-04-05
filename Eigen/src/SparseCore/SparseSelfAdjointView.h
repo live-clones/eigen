@@ -60,10 +60,13 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
 
   typedef EigenBase<SparseSelfAdjointView> Base;
   typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef typename MatrixType::StorageIndex StorageIndex;
   typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
   typedef typename internal::ref_selector<MatrixType>::non_const_type MatrixTypeNested;
   typedef internal::remove_all_t<MatrixTypeNested> MatrixTypeNested_;
+  typedef SparseMatrix<Scalar, (MatrixTypeNested_::Flags & RowMajorBit) ? RowMajor : ColMajor, StorageIndex>
+      PlainObject;
 
   explicit inline SparseSelfAdjointView(MatrixType& matrix) : m_matrix(matrix) {
     eigen_assert(rows() == cols() && "SelfAdjointView is only for squared matrices");
@@ -112,6 +115,12 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
   friend Product<OtherDerived, SparseSelfAdjointView> operator*(const MatrixBase<OtherDerived>& lhs,
                                                                 const SparseSelfAdjointView& rhs) {
     return Product<OtherDerived, SparseSelfAdjointView>(lhs.derived(), rhs);
+  }
+
+  friend PlainObject operator*(const RealScalar& s, const SparseSelfAdjointView& mat) {
+    PlainObject res(mat);
+    res *= s;
+    return res;
   }
 
   /** Perform a symmetric rank K update of the selfadjoint matrix \c *this:
