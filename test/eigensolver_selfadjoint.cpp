@@ -625,6 +625,23 @@ void bug_1204() {
   SelfAdjointEigenSolver<Eigen::SparseMatrix<double> > eig(A);
 }
 
+template <int>
+void selfadjointeigensolver_tridiagonal_zerosized() {
+  SelfAdjointEigenSolver<MatrixXd> eig;
+  VectorXd diag(0), subdiag(0);
+
+  eig.computeFromTridiagonal(diag, subdiag, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+  VERIFY_IS_EQUAL(eig.eigenvalues().size(), 0);
+  VERIFY_RAISES_ASSERT(eig.eigenvectors());
+
+  eig.computeFromTridiagonal(diag, subdiag, ComputeEigenvectors);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+  VERIFY_IS_EQUAL(eig.eigenvalues().size(), 0);
+  VERIFY_IS_EQUAL(eig.eigenvectors().rows(), 0);
+  VERIFY_IS_EQUAL(eig.eigenvectors().cols(), 0);
+}
+
 // Specific 3x3 test cases that stress the direct solver.
 template <int>
 void direct_3x3_stress() {
@@ -782,6 +799,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_17(bug_1014<0>());
   CALL_SUBTEST_17(bug_1204<0>());
   CALL_SUBTEST_17(bug_1225<0>());
+  CALL_SUBTEST_8(selfadjointeigensolver_tridiagonal_zerosized<0>());
 
   // Stress tests for direct 3x3 and 2x2 solvers.
   CALL_SUBTEST_17(direct_3x3_stress<0>());
