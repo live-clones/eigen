@@ -10,6 +10,7 @@
 
 #include "main.h"
 #include "svd_fill.h"
+#include "tridiag_test_matrices.h"
 #include <limits>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SparseCore>
@@ -408,6 +409,59 @@ void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
   VERIFY_IS_APPROX(eig2.eigenvalues(), eig2v.eigenvalues());
 }
 
+// Test computeFromTridiagonal with structured hard-case matrices from the literature.
+template <typename RealScalar>
+void selfadjointeigensolver_structured_tridiagonal() {
+  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+
+  test::for_all_symmetric_tridiag_test_matrices<RealScalar>([](const auto& diag, const auto& offdiag) {
+    Index n = diag.size();
+
+    // Build the full symmetric tridiagonal matrix for residual checking.
+    MatrixType T = MatrixType::Zero(n, n);
+    T.diagonal() = diag;
+    if (n > 1) {
+      T.template diagonal<1>() = offdiag;
+      T.template diagonal<-1>() = offdiag;
+    }
+    RealScalar Tnorm = T.cwiseAbs().maxCoeff();
+
+    // Test with eigenvectors.
+    SelfAdjointEigenSolver<MatrixType> eig;
+    eig.computeFromTridiagonal(diag, offdiag, ComputeEigenvectors);
+    VERIFY_IS_EQUAL(eig.info(), Success);
+
+    // Eigenvalues must be sorted.
+    for (Index i = 1; i < n; ++i) {
+      VERIFY(eig.eigenvalues()(i) >= eig.eigenvalues()(i - 1));
+    }
+
+    // Eigenvectors must be orthonormal.
+    RealScalar unitary_tol =
+        numext::maxi(RealScalar(4) * RealScalar(n) * NumTraits<RealScalar>::epsilon(), test_precision<RealScalar>());
+    VERIFY(eig.eigenvectors().isUnitary(unitary_tol));
+
+    // Residual check: ||T*V - V*D||_F / ||T||_F should be O(n*eps).
+    // Scale T to avoid overflow in the matrix product when entries span extreme ranges.
+    RealScalar Tnorm_F = T.norm();
+    if (Tnorm_F > (std::numeric_limits<RealScalar>::min)()) {
+      MatrixType Tscaled = T / Tnorm;
+      MatrixType residual =
+          Tscaled * eig.eigenvectors() - eig.eigenvectors() * (eig.eigenvalues() / Tnorm).asDiagonal();
+      RealScalar rel_err = residual.norm() / Tscaled.norm();
+      VERIFY(rel_err <= RealScalar(8) * RealScalar(n) * NumTraits<RealScalar>::epsilon());
+    }
+
+    // Eigenvalues-only mode must produce the same eigenvalues.
+    SelfAdjointEigenSolver<MatrixType> eig_vals;
+    eig_vals.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly);
+    VERIFY_IS_EQUAL(eig_vals.info(), Success);
+    if (Tnorm > (std::numeric_limits<RealScalar>::min)()) {
+      VERIFY_IS_APPROX(eig.eigenvalues() / Tnorm, eig_vals.eigenvalues() / Tnorm);
+    }
+  });
+}
+
 // Test with diagonal matrices (tridiagonalization is trivial).
 template <typename MatrixType>
 void selfadjointeigensolver_diagonal(const MatrixType& m) {
@@ -705,6 +759,10 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     // computeFromTridiagonal with scaled inputs
     CALL_SUBTEST_4(selfadjointeigensolver_tridiagonal_scaled(MatrixXd(s, s)));
     CALL_SUBTEST_3(selfadjointeigensolver_tridiagonal_scaled(MatrixXf(s, s)));
+
+    // structured tridiagonal hard cases from the literature
+    CALL_SUBTEST_4(selfadjointeigensolver_structured_tridiagonal<double>());
+    CALL_SUBTEST_3(selfadjointeigensolver_structured_tridiagonal<float>());
 
     // diagonal matrices
     CALL_SUBTEST_17(selfadjointeigensolver_diagonal(Matrix3d()));
