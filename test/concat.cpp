@@ -74,7 +74,7 @@ void test_concat_dynamic(const MatrixType& m) {
 
 // ============================================================================
 // Test 2: Expression inputs (not plain objects)
-// Verifies that ConcatOp works with CwiseBinaryOp, CwiseUnaryOp, etc.
+// Verifies that Concat works with CwiseBinaryOp, CwiseUnaryOp, etc.
 // ============================================================================
 template <typename MatrixType>
 void test_concat_with_expressions(const MatrixType& m) {
@@ -127,55 +127,54 @@ void test_concat_with_expressions(const MatrixType& m) {
 // ============================================================================
 // Test 3: Fixed-size concat with compile-time dimension propagation
 // ============================================================================
-template <typename Scalar, int LhsRows, int LhsCols, int RhsRows, int RhsCols>
-void test_concat_fixed() {
-  typedef Matrix<Scalar, LhsRows, LhsCols> LhsType;
-  typedef Matrix<Scalar, RhsRows, RhsCols> RhsType;
+template <typename Scalar, int LhsRows, int CommonCols, int RhsRows>
+void test_vcat_fixed() {
+  typedef Matrix<Scalar, LhsRows, CommonCols> LhsType;
+  typedef Matrix<Scalar, RhsRows, CommonCols> RhsType;
 
   LhsType a = LhsType::Random();
   RhsType b = RhsType::Random();
 
-  // Vertical concat (same cols, different rows)
-  if (LhsCols == RhsCols) {
-    auto vc = vcat(a, b);
-    VERIFY_IS_EQUAL(vc.rows(), a.rows() + b.rows());
-    VERIFY_IS_EQUAL(vc.cols(), a.cols());
+  auto vc = vcat(a, b);
+  VERIFY_IS_EQUAL(vc.rows(), a.rows() + b.rows());
+  VERIFY_IS_EQUAL(vc.cols(), a.cols());
 
-    // Verify compile-time dimensions are propagated correctly
-    typedef ConcatOp<Vertical, LhsType, RhsType> VConcatType;
-    VERIFY((int(VConcatType::RowsAtCompileTime) == LhsRows + RhsRows));
-    VERIFY((int(VConcatType::ColsAtCompileTime) == LhsCols));
-    // MaxRows/MaxCols should also be set
-    VERIFY((int(VConcatType::MaxRowsAtCompileTime) == LhsRows + RhsRows));
-    VERIFY((int(VConcatType::MaxColsAtCompileTime) == LhsCols));
+  typedef Concat<Vertical, LhsType, RhsType> VConcatType;
+  VERIFY((int(VConcatType::RowsAtCompileTime) == LhsRows + RhsRows));
+  VERIFY((int(VConcatType::ColsAtCompileTime) == CommonCols));
+  VERIFY((int(VConcatType::MaxRowsAtCompileTime) == LhsRows + RhsRows));
+  VERIFY((int(VConcatType::MaxColsAtCompileTime) == CommonCols));
 
-    // Verify values
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-    MatrixX expected(a.rows() + b.rows(), a.cols());
-    expected.topRows(a.rows()) = a;
-    expected.bottomRows(b.rows()) = b;
-    VERIFY_IS_APPROX(expected, MatrixX(vc));
-  }
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  MatrixX expected(a.rows() + b.rows(), a.cols());
+  expected.topRows(a.rows()) = a;
+  expected.bottomRows(b.rows()) = b;
+  VERIFY_IS_APPROX(expected, MatrixX(vc));
+}
 
-  // Horizontal concat (same rows, different cols)
-  if (LhsRows == RhsRows) {
-    auto hc = hcat(a, b);
-    VERIFY_IS_EQUAL(hc.rows(), a.rows());
-    VERIFY_IS_EQUAL(hc.cols(), a.cols() + b.cols());
+template <typename Scalar, int CommonRows, int LhsCols, int RhsCols>
+void test_hcat_fixed() {
+  typedef Matrix<Scalar, CommonRows, LhsCols> LhsType;
+  typedef Matrix<Scalar, CommonRows, RhsCols> RhsType;
 
-    // Verify compile-time dimensions
-    typedef ConcatOp<Horizontal, LhsType, RhsType> HConcatType;
-    VERIFY((int(HConcatType::RowsAtCompileTime) == LhsRows));
-    VERIFY((int(HConcatType::ColsAtCompileTime) == LhsCols + RhsCols));
-    VERIFY((int(HConcatType::MaxRowsAtCompileTime) == LhsRows));
-    VERIFY((int(HConcatType::MaxColsAtCompileTime) == LhsCols + RhsCols));
+  LhsType a = LhsType::Random();
+  RhsType b = RhsType::Random();
 
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-    MatrixX expected(a.rows(), a.cols() + b.cols());
-    expected.leftCols(a.cols()) = a;
-    expected.rightCols(b.cols()) = b;
-    VERIFY_IS_APPROX(expected, MatrixX(hc));
-  }
+  auto hc = hcat(a, b);
+  VERIFY_IS_EQUAL(hc.rows(), a.rows());
+  VERIFY_IS_EQUAL(hc.cols(), a.cols() + b.cols());
+
+  typedef Concat<Horizontal, LhsType, RhsType> HConcatType;
+  VERIFY((int(HConcatType::RowsAtCompileTime) == CommonRows));
+  VERIFY((int(HConcatType::ColsAtCompileTime) == LhsCols + RhsCols));
+  VERIFY((int(HConcatType::MaxRowsAtCompileTime) == CommonRows));
+  VERIFY((int(HConcatType::MaxColsAtCompileTime) == LhsCols + RhsCols));
+
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  MatrixX expected(a.rows(), a.cols() + b.cols());
+  expected.leftCols(a.cols()) = a;
+  expected.rightCols(b.cols()) = b;
+  VERIFY_IS_APPROX(expected, MatrixX(hc));
 }
 
 // ============================================================================
@@ -434,7 +433,7 @@ void test_concat_vectors() {
     Vector4 b = Vector4::Random();
     auto result = vcat(a, b);
 
-    typedef ConcatOp<Vertical, Vector3, Vector4> VConcatType;
+    typedef Concat<Vertical, Vector3, Vector4> VConcatType;
     VERIFY((int(VConcatType::RowsAtCompileTime) == 7));
     VERIFY((int(VConcatType::ColsAtCompileTime) == 1));
 
@@ -452,7 +451,7 @@ void test_concat_vectors() {
     RowVector4 b = RowVector4::Random();
     auto result = hcat(a, b);
 
-    typedef ConcatOp<Horizontal, RowVector3, RowVector4> HConcatType;
+    typedef Concat<Horizontal, RowVector3, RowVector4> HConcatType;
     VERIFY((int(HConcatType::RowsAtCompileTime) == 1));
     VERIFY((int(HConcatType::ColsAtCompileTime) == 7));
 
@@ -503,7 +502,7 @@ void test_concat_array() {
     FixedArray23 a = FixedArray23::Random();
     FixedArray23 b = FixedArray23::Random();
 
-    typedef ConcatOp<Vertical, FixedArray23, FixedArray23> VConcatType;
+    typedef Concat<Vertical, FixedArray23, FixedArray23> VConcatType;
     VERIFY((int(VConcatType::RowsAtCompileTime) == 4));
     VERIFY((int(VConcatType::ColsAtCompileTime) == 3));
 
@@ -568,7 +567,7 @@ void test_concat_coeff_access() {
 
 // ============================================================================
 // Test 10: Expression used in further Eigen operations
-// Verifies ConcatOp integrates with Eigen's expression machinery
+// Verifies Concat integrates with Eigen's expression machinery
 // ============================================================================
 template <typename Scalar>
 void test_concat_in_expressions() {
@@ -668,7 +667,7 @@ void test_concat_single_row_col() {
 
 // ============================================================================
 // Test 12: RowMajor matrices
-// Verifies IsRowMajor flag logic in ConcatOp traits
+// Verifies IsRowMajor flag logic in Concat traits
 // ============================================================================
 template <typename Scalar>
 void test_concat_row_major() {
@@ -775,6 +774,22 @@ void test_concat_self() {
   }
 }
 
+// ============================================================================
+// Test 14: Runtime assertion for mismatched dimensions
+// ============================================================================
+template <typename Scalar>
+void test_concat_mismatched_dimensions() {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+
+  MatrixX a(3, 4);
+  MatrixX b(3, 5);
+  VERIFY_RAISES_ASSERT(vcat(a, b));  // cols don't match
+
+  MatrixX c(3, 4);
+  MatrixX d(2, 4);
+  VERIFY_RAISES_ASSERT(hcat(c, d));  // rows don't match
+}
+
 EIGEN_DECLARE_TEST(concat) {
   for (int i = 0; i < g_repeat; i++) {
     // Dynamic-size matrix concat
@@ -787,9 +802,10 @@ EIGEN_DECLARE_TEST(concat) {
     CALL_SUBTEST_2(test_concat_with_expressions(MatrixXd(5, 7)));
 
     // Fixed-size concat with compile-time dimension checks
-    CALL_SUBTEST_3((test_concat_fixed<float, 2, 3, 4, 3>()));   // vcat: 2x3 + 4x3
-    CALL_SUBTEST_3((test_concat_fixed<double, 3, 2, 3, 5>()));  // hcat: 3x2 + 3x5
-    CALL_SUBTEST_3((test_concat_fixed<float, 4, 4, 4, 4>()));   // square: both vcat and hcat
+    CALL_SUBTEST_3((test_vcat_fixed<float, 2, 3, 4>()));   // vcat: 2x3 + 4x3
+    CALL_SUBTEST_3((test_hcat_fixed<double, 3, 2, 5>()));  // hcat: 3x2 + 3x5
+    CALL_SUBTEST_3((test_vcat_fixed<float, 4, 4, 4>()));   // square vcat: 4x4 + 4x4
+    CALL_SUBTEST_3((test_hcat_fixed<float, 4, 4, 4>()));   // square hcat: 4x4 + 4x4
 
     // Mixed fixed/dynamic
     CALL_SUBTEST_4(test_concat_mixed_fixed_dynamic<float>());
@@ -830,5 +846,9 @@ EIGEN_DECLARE_TEST(concat) {
     // Self-concatenation and aliasing
     CALL_SUBTEST_13(test_concat_self<float>());
     CALL_SUBTEST_13(test_concat_self<double>());
+
+    // Runtime assertion for mismatched dimensions
+    CALL_SUBTEST_14(test_concat_mismatched_dimensions<float>());
+    CALL_SUBTEST_14(test_concat_mismatched_dimensions<double>());
   }
 }

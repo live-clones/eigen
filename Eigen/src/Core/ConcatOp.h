@@ -18,8 +18,8 @@ namespace Eigen {
 namespace internal {
 
 template <int Direction, typename LhsType, typename RhsType>
-struct traits<ConcatOp<Direction, LhsType, RhsType>> : traits<LhsType> {
-  typedef typename ScalarBinaryOpTraits<typename LhsType::Scalar, typename RhsType::Scalar>::ReturnType Scalar;
+struct traits<Concat<Direction, LhsType, RhsType>> : traits<LhsType> {
+  typedef typename LhsType::Scalar Scalar;
   typedef typename traits<LhsType>::StorageKind StorageKind;
   typedef typename traits<LhsType>::XprKind XprKind;
   typedef typename ref_selector<LhsType>::type LhsTypeNested;
@@ -66,7 +66,7 @@ struct traits<ConcatOp<Direction, LhsType, RhsType>> : traits<LhsType> {
 }  // namespace internal
 
 /**
- * \class ConcatOp
+ * \class Concat
  * \ingroup Core_Module
  *
  * \brief Expression of the concatenation of two dense expressions
@@ -83,25 +83,37 @@ struct traits<ConcatOp<Direction, LhsType, RhsType>> : traits<LhsType> {
  * \sa hcat(), vcat()
  */
 template <int Direction, typename LhsType, typename RhsType>
-class ConcatOp : public internal::dense_xpr_base<ConcatOp<Direction, LhsType, RhsType>>::type {
-  typedef typename internal::traits<ConcatOp>::LhsTypeNested LhsTypeNested;
-  typedef typename internal::traits<ConcatOp>::RhsTypeNested RhsTypeNested;
-  typedef typename internal::traits<ConcatOp>::LhsTypeNested_ LhsTypeNested_;
-  typedef typename internal::traits<ConcatOp>::RhsTypeNested_ RhsTypeNested_;
+class Concat : public internal::dense_xpr_base<Concat<Direction, LhsType, RhsType>>::type {
+  typedef typename internal::traits<Concat>::LhsTypeNested LhsTypeNested;
+  typedef typename internal::traits<Concat>::RhsTypeNested RhsTypeNested;
+  typedef typename internal::traits<Concat>::LhsTypeNested_ LhsTypeNested_;
+  typedef typename internal::traits<Concat>::RhsTypeNested_ RhsTypeNested_;
 
  public:
-  typedef typename internal::dense_xpr_base<ConcatOp>::type Base;
-  EIGEN_DENSE_PUBLIC_INTERFACE(ConcatOp)
+  typedef typename internal::dense_xpr_base<Concat>::type Base;
+  EIGEN_DENSE_PUBLIC_INTERFACE(Concat)
   typedef internal::remove_all_t<LhsType> LhsNestedExpression;
   typedef internal::remove_all_t<RhsType> RhsNestedExpression;
 
   template <typename OriginalLhsType, typename OriginalRhsType>
-  EIGEN_DEVICE_FUNC constexpr inline ConcatOp(const OriginalLhsType& lhs, const OriginalRhsType& rhs)
+  EIGEN_DEVICE_FUNC constexpr inline Concat(const OriginalLhsType& lhs, const OriginalRhsType& rhs)
       : m_lhs(lhs), m_rhs(rhs) {
     EIGEN_STATIC_ASSERT((internal::is_same<std::remove_const_t<LhsType>, OriginalLhsType>::value),
                         THE_MATRIX_OR_EXPRESSION_THAT_YOU_PASSED_DOES_NOT_HAVE_THE_EXPECTED_TYPE)
     EIGEN_STATIC_ASSERT((internal::is_same<std::remove_const_t<RhsType>, OriginalRhsType>::value),
                         THE_MATRIX_OR_EXPRESSION_THAT_YOU_PASSED_DOES_NOT_HAVE_THE_EXPECTED_TYPE)
+    EIGEN_STATIC_ASSERT(
+        (internal::is_same<typename LhsType::Scalar, typename RhsType::Scalar>::value),
+        YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
+    EIGEN_STATIC_ASSERT_SAME_XPR_KIND(LhsType, RhsType)
+    EIGEN_STATIC_ASSERT(Direction != Horizontal || int(LhsType::RowsAtCompileTime) == Dynamic ||
+                            int(RhsType::RowsAtCompileTime) == Dynamic ||
+                            int(LhsType::RowsAtCompileTime) == int(RhsType::RowsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
+    EIGEN_STATIC_ASSERT(Direction != Vertical || int(LhsType::ColsAtCompileTime) == Dynamic ||
+                            int(RhsType::ColsAtCompileTime) == Dynamic ||
+                            int(LhsType::ColsAtCompileTime) == int(RhsType::ColsAtCompileTime),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     if (Direction == Vertical) {
       eigen_assert(lhs.cols() == rhs.cols() && "vcat: number of columns must match");
     } else {
@@ -124,12 +136,12 @@ class ConcatOp : public internal::dense_xpr_base<ConcatOp<Direction, LhsType, Rh
   RhsTypeNested m_rhs;
 };
 
-// Evaluator for ConcatOp
+// Evaluator for Concat
 namespace internal {
 
 template <int Direction, typename LhsType, typename RhsType>
-struct evaluator<ConcatOp<Direction, LhsType, RhsType>> : evaluator_base<ConcatOp<Direction, LhsType, RhsType>> {
-  typedef ConcatOp<Direction, LhsType, RhsType> XprType;
+struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Direction, LhsType, RhsType>> {
+  typedef Concat<Direction, LhsType, RhsType> XprType;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
 
   typedef typename nested_eval<LhsType, 1>::type LhsNested;
@@ -141,7 +153,14 @@ struct evaluator<ConcatOp<Direction, LhsType, RhsType>> : evaluator_base<ConcatO
     CoeffReadCost = plain_enum_max(evaluator<LhsNestedCleaned>::CoeffReadCost,
                                    evaluator<RhsNestedCleaned>::CoeffReadCost) +
                     NumTraits<typename XprType::Scalar>::AddCost,  // cost of the branch
-    Flags = (traits<XprType>::Flags & RowMajorBit),
+    LhsFlags = evaluator<LhsNestedCleaned>::Flags,
+    RhsFlags = evaluator<RhsNestedCleaned>::Flags,
+    BothHavePacketAccess = (int(LhsFlags) & PacketAccessBit) && (int(RhsFlags) & PacketAccessBit),
+    BothHaveLinearAccess = (int(LhsFlags) & LinearAccessBit) && (int(RhsFlags) & LinearAccessBit),
+    IsRowMajor = int(traits<XprType>::Flags) & RowMajorBit,
+    IsVectorAtCompileTime = XprType::IsVectorAtCompileTime,
+    Flags = (traits<XprType>::Flags & RowMajorBit) | (BothHavePacketAccess ? PacketAccessBit : 0) |
+            (IsVectorAtCompileTime && BothHaveLinearAccess ? LinearAccessBit : 0),
     Alignment = 0  // conservative: no alignment guarantees across boundary
   };
 
@@ -167,7 +186,63 @@ struct evaluator<ConcatOp<Direction, LhsType, RhsType>> : evaluator_base<ConcatO
     }
   }
 
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+    const Index boundary = Direction == Vertical ? m_lhsRows.value() : m_lhsCols.value();
+    if (index < boundary)
+      return m_lhsImpl.coeff(index);
+    else
+      return m_rhsImpl.coeff(index - boundary);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+    constexpr int packetSize = unpacket_traits<PacketType>::size;
+    if (Direction == Vertical) {
+      const Index boundary = m_lhsRows.value();
+      if (row >= boundary) return m_rhsImpl.template packet<LoadMode, PacketType>(row - boundary, col);
+      // Column-major: inner=rows, packet extends along rows and may straddle the row boundary.
+      // Row-major: inner=cols, packet extends along cols — never crosses the row boundary.
+      if (!IsRowMajor && row + packetSize > boundary) return packetBoundary<LoadMode, PacketType>(row, col);
+      return m_lhsImpl.template packet<LoadMode, PacketType>(row, col);
+    } else {
+      const Index boundary = m_lhsCols.value();
+      if (col >= boundary) return m_rhsImpl.template packet<LoadMode, PacketType>(row, col - boundary);
+      // Row-major: inner=cols, packet extends along cols and may straddle the col boundary.
+      // Column-major: inner=rows, packet extends along rows — never crosses the col boundary.
+      if (IsRowMajor && col + packetSize > boundary) return packetBoundary<LoadMode, PacketType>(row, col);
+      return m_lhsImpl.template packet<LoadMode, PacketType>(row, col);
+    }
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    constexpr int packetSize = unpacket_traits<PacketType>::size;
+    const Index boundary = Direction == Vertical ? m_lhsRows.value() : m_lhsCols.value();
+    if (index >= boundary) return m_rhsImpl.template packet<LoadMode, PacketType>(index - boundary);
+    if (index + packetSize > boundary) return packetBoundaryLinear<LoadMode, PacketType>(index);
+    return m_lhsImpl.template packet<LoadMode, PacketType>(index);
+  }
+
  protected:
+  typedef typename XprType::Scalar Scalar;
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetBoundary(Index row, Index col) const {
+    constexpr int packetSize = unpacket_traits<PacketType>::size;
+    EIGEN_ALIGN_MAX Scalar tmp[packetSize];
+    for (int i = 0; i < packetSize; ++i)
+      tmp[i] = coeff(row + (Direction == Vertical ? i : 0), col + (Direction == Horizontal ? i : 0));
+    return pload<PacketType>(tmp);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetBoundaryLinear(Index index) const {
+    constexpr int packetSize = unpacket_traits<PacketType>::size;
+    EIGEN_ALIGN_MAX Scalar tmp[packetSize];
+    for (int i = 0; i < packetSize; ++i) tmp[i] = coeff(index + i);
+    return pload<PacketType>(tmp);
+  }
+
   const LhsNested m_lhs;
   const RhsNested m_rhs;
   evaluator<LhsNestedCleaned> m_lhsImpl;
@@ -179,7 +254,7 @@ struct evaluator<ConcatOp<Direction, LhsType, RhsType>> : evaluator_base<ConcatO
 }  // namespace internal
 
 /**
- * \relates ConcatOp
+ * \relates Concat
  * \returns an expression of \a lhs and \a rhs concatenated horizontally (side by side).
  *
  * Both arguments must have the same number of rows.
@@ -190,16 +265,15 @@ struct evaluator<ConcatOp<Direction, LhsType, RhsType>> : evaluator_base<ConcatO
  * auto C = hcat(A, B);  // C is 2x4
  * \endcode
  *
- * \sa vcat(), ConcatOp
+ * \sa vcat(), Concat
  */
 template <typename Lhs, typename Rhs>
-EIGEN_DEVICE_FUNC inline const ConcatOp<Horizontal, Lhs, Rhs> hcat(const DenseBase<Lhs>& lhs,
-                                                                   const DenseBase<Rhs>& rhs) {
-  return ConcatOp<Horizontal, Lhs, Rhs>(lhs.derived(), rhs.derived());
+EIGEN_DEVICE_FUNC inline const Concat<Horizontal, Lhs, Rhs> hcat(const DenseBase<Lhs>& lhs, const DenseBase<Rhs>& rhs) {
+  return Concat<Horizontal, Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
 /**
- * \relates ConcatOp
+ * \relates Concat
  * \returns an expression of \a lhs and \a rhs concatenated vertically (stacked on top of each other).
  *
  * Both arguments must have the same number of columns.
@@ -210,11 +284,11 @@ EIGEN_DEVICE_FUNC inline const ConcatOp<Horizontal, Lhs, Rhs> hcat(const DenseBa
  * auto C = vcat(A, B);  // C is 4x2
  * \endcode
  *
- * \sa hcat(), ConcatOp
+ * \sa hcat(), Concat
  */
 template <typename Lhs, typename Rhs>
-EIGEN_DEVICE_FUNC inline const ConcatOp<Vertical, Lhs, Rhs> vcat(const DenseBase<Lhs>& lhs, const DenseBase<Rhs>& rhs) {
-  return ConcatOp<Vertical, Lhs, Rhs>(lhs.derived(), rhs.derived());
+EIGEN_DEVICE_FUNC inline const Concat<Vertical, Lhs, Rhs> vcat(const DenseBase<Lhs>& lhs, const DenseBase<Rhs>& rhs) {
+  return Concat<Vertical, Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
 }  // end namespace Eigen
