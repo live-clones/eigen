@@ -543,9 +543,6 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
   // Deflation: set subdiag[i] to zero when it is negligible relative to
   // its neighboring diagonal entries. Uses the LAPACK dsteqr criterion:
   //   |subdiag[i]| <= eps * (|diag[i]| + |diag[i+1]|)
-  // To avoid underflow in the comparison, we test the equivalent:
-  //   |subdiag[i]| / eps <= |diag[i]| + |diag[i+1]|
-  // using multiplication by 1/eps instead of division by eps.
   auto deflate = [&](Index first, Index last) {
     for (Index i = first; i < last; ++i) {
       if (numext::abs(subdiag[i]) <= considerAsZero) {
