@@ -60,6 +60,101 @@ static void fillTriBandUpper(T* a, int n, int k, int lda) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Type-dispatched BLAS wrappers
+// ---------------------------------------------------------------------------
+
+inline float blas_dot(int* n, float* x, int* incx, float* y, int* incy) { return sdot_(n, x, incx, y, incy); }
+inline double blas_dot(int* n, double* x, int* incx, double* y, int* incy) { return ddot_(n, x, incx, y, incy); }
+
+inline void blas_axpy(int* n, float* a, float* x, int* incx, float* y, int* incy) {
+  saxpy_(n, a, x, incx, y, incy);
+}
+inline void blas_axpy(int* n, double* a, double* x, int* incx, double* y, int* incy) {
+  daxpy_(n, a, x, incx, y, incy);
+}
+
+inline float blas_nrm2(int* n, float* x, int* incx) { return snrm2_(n, x, incx); }
+inline double blas_nrm2(int* n, double* x, int* incx) { return dnrm2_(n, x, incx); }
+
+inline void blas_rotm(int* n, float* x, int* incx, float* y, int* incy, float* p) {
+  srotm_(n, x, incx, y, incy, p);
+}
+inline void blas_rotm(int* n, double* x, int* incx, double* y, int* incy, double* p) {
+  drotm_(n, x, incx, y, incy, p);
+}
+
+inline void blas_rotmg(float* d1, float* d2, float* x1, float* y1, float* p) { srotmg_(d1, d2, x1, y1, p); }
+inline void blas_rotmg(double* d1, double* d2, double* x1, double* y1, double* p) { drotmg_(d1, d2, x1, y1, p); }
+
+inline void blas_dotcw(int* n, float* cx, int* incx, float* cy, int* incy, float* res) {
+  cdotcw_(n, cx, incx, cy, incy, res);
+}
+inline void blas_dotcw(int* n, double* cx, int* incx, double* cy, int* incy, double* res) {
+  zdotcw_(n, cx, incx, cy, incy, res);
+}
+
+inline void blas_gemv(char* t, int* m, int* n, float* a, float* A, int* lda, float* x, int* incx, float* b, float* y,
+                      int* incy) {
+  sgemv_(t, m, n, a, A, lda, x, incx, b, y, incy);
+}
+inline void blas_gemv(char* t, int* m, int* n, double* a, double* A, int* lda, double* x, int* incx, double* b,
+                      double* y, int* incy) {
+  dgemv_(t, m, n, a, A, lda, x, incx, b, y, incy);
+}
+
+inline void blas_spmv(char* uplo, int* n, float* alpha, float* ap, float* x, int* incx, float* beta, float* y,
+                      int* incy) {
+  sspmv_(uplo, n, alpha, ap, x, incx, beta, y, incy);
+}
+inline void blas_spmv(char* uplo, int* n, double* alpha, double* ap, double* x, int* incx, double* beta, double* y,
+                      int* incy) {
+  dspmv_(uplo, n, alpha, ap, x, incx, beta, y, incy);
+}
+
+inline void blas_sbmv(char* uplo, int* n, int* k, float* alpha, float* a, int* lda, float* x, int* incx, float* beta,
+                      float* y, int* incy) {
+  ssbmv_(uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
+}
+inline void blas_sbmv(char* uplo, int* n, int* k, double* alpha, double* a, int* lda, double* x, int* incx,
+                      double* beta, double* y, int* incy) {
+  dsbmv_(uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
+}
+
+inline void blas_tbmv(char* uplo, char* trans, char* diag, int* n, int* k, float* a, int* lda, float* x, int* incx) {
+  stbmv_(uplo, trans, diag, n, k, a, lda, x, incx);
+}
+inline void blas_tbmv(char* uplo, char* trans, char* diag, int* n, int* k, double* a, int* lda, double* x, int* incx) {
+  dtbmv_(uplo, trans, diag, n, k, a, lda, x, incx);
+}
+
+inline void blas_hbmv(char* uplo, int* n, int* k, float* alpha, float* a, int* lda, float* x, int* incx, float* beta,
+                      float* y, int* incy) {
+  chbmv_(uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
+}
+inline void blas_hbmv(char* uplo, int* n, int* k, double* alpha, double* a, int* lda, double* x, int* incx,
+                      double* beta, double* y, int* incy) {
+  zhbmv_(uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
+}
+
+inline void blas_hpmv(char* uplo, int* n, float* alpha, float* ap, float* x, int* incx, float* beta, float* y,
+                      int* incy) {
+  chpmv_(uplo, n, alpha, ap, x, incx, beta, y, incy);
+}
+inline void blas_hpmv(char* uplo, int* n, double* alpha, double* ap, double* x, int* incx, double* beta, double* y,
+                      int* incy) {
+  zhpmv_(uplo, n, alpha, ap, x, incx, beta, y, incy);
+}
+
+inline void blas_gemm(char* ta, char* tb, int* m, int* n, int* k, float* alpha, float* a, int* lda, float* b,
+                      int* ldb, float* beta, float* c, int* ldc) {
+  sgemm_(ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+inline void blas_gemm(char* ta, char* tb, int* m, int* n, int* k, double* alpha, double* a, int* lda, double* b,
+                      int* ldb, double* beta, double* c, int* ldc) {
+  dgemm_(ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+
 // =========================================================================
 //  Level 1 — Real
 // =========================================================================
@@ -73,11 +168,7 @@ static void BM_dot(benchmark::State& state) {
   fillRand(x.data(), n);
   fillRand(y.data(), n);
   for (auto _ : state) {
-    T r;
-    if constexpr (std::is_same_v<T, float>)
-      r = sdot_(&n, x.data(), &one, y.data(), &one);
-    else
-      r = ddot_(&n, x.data(), &one, y.data(), &one);
+    T r = blas_dot(&n, x.data(), &one, y.data(), &one);
     benchmark::DoNotOptimize(r);
   }
   state.counters["GFLOPS"] = GflopsCounter(2.0 * n);
@@ -93,10 +184,7 @@ static void BM_axpy(benchmark::State& state) {
   fillRand(x.data(), n);
   fillRand(y.data(), n);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      saxpy_(&n, &alpha, x.data(), &one, y.data(), &one);
-    else
-      daxpy_(&n, &alpha, x.data(), &one, y.data(), &one);
+    blas_axpy(&n, &alpha, x.data(), &one, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
   state.counters["GFLOPS"] = GflopsCounter(2.0 * n);
@@ -110,11 +198,7 @@ static void BM_nrm2(benchmark::State& state) {
   std::vector<T> x(n);
   fillRand(x.data(), n);
   for (auto _ : state) {
-    T r;
-    if constexpr (std::is_same_v<T, float>)
-      r = snrm2_(&n, x.data(), &one);
-    else
-      r = dnrm2_(&n, x.data(), &one);
+    T r = blas_nrm2(&n, x.data(), &one);
     benchmark::DoNotOptimize(r);
   }
   // Nominal flops; Eigen's stableNorm() does more work internally.
@@ -131,10 +215,7 @@ static void BM_rotm(benchmark::State& state) {
   fillRand(x.data(), n);
   fillRand(y.data(), n);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      srotm_(&n, x.data(), &one, y.data(), &one, param);
-    else
-      drotm_(&n, x.data(), &one, y.data(), &one, param);
+    blas_rotm(&n, x.data(), &one, y.data(), &one, param);
     benchmark::DoNotOptimize(x.data());
     benchmark::DoNotOptimize(y.data());
   }
@@ -149,10 +230,7 @@ static void BM_rotmg(benchmark::State& state) {
   T param[5];
   for (auto _ : state) {
     T td1 = d1, td2 = d2, tx1 = x1;
-    if constexpr (std::is_same_v<T, float>)
-      srotmg_(&td1, &td2, &tx1, &y1, param);
-    else
-      drotmg_(&td1, &td2, &tx1, &y1, param);
+    blas_rotmg(&td1, &td2, &tx1, &y1, param);
     benchmark::DoNotOptimize(param);
   }
 }
@@ -173,10 +251,7 @@ static void BM_dotc(benchmark::State& state) {
   fillRand(y.data(), 2 * n);
   T res[2];
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      cdotcw_(&n, x.data(), &one, y.data(), &one, res);
-    else
-      zdotcw_(&n, x.data(), &one, y.data(), &one, res);
+    blas_dotcw(&n, x.data(), &one, y.data(), &one, res);
     benchmark::DoNotOptimize(res);
   }
   // Conjugate dot: 6 mul + 2 add per element = 8n flops.
@@ -199,10 +274,7 @@ static void BM_gemv(benchmark::State& state) {
   fillRand(x.data(), n);
   fillRand(y.data(), m);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      sgemv_(&trans, &m, &n, &alpha, a.data(), &m, x.data(), &one, &beta, y.data(), &one);
-    else
-      dgemv_(&trans, &m, &n, &alpha, a.data(), &m, x.data(), &one, &beta, y.data(), &one);
+    blas_gemv(&trans, &m, &n, &alpha, a.data(), &m, x.data(), &one, &beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
   state.counters["GFLOPS"] = GflopsCounter(2.0 * m * n);
@@ -224,10 +296,7 @@ static void BM_spmv(benchmark::State& state) {
   fillRand(x.data(), n);
   fillRand(y.data(), n);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      sspmv_(&uplo, &n, &alpha, ap.data(), x.data(), &one, &beta, y.data(), &one);
-    else
-      dspmv_(&uplo, &n, &alpha, ap.data(), x.data(), &one, &beta, y.data(), &one);
+    blas_spmv(&uplo, &n, &alpha, ap.data(), x.data(), &one, &beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
   // Symmetric: each off-diag element contributes to two y entries.
@@ -251,10 +320,7 @@ static void BM_sbmv(benchmark::State& state) {
   fillRand(x.data(), n);
   fillRand(y.data(), n);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      ssbmv_(&uplo, &n, &k, &alpha, a.data(), &lda, x.data(), &one, &beta, y.data(), &one);
-    else
-      dsbmv_(&uplo, &n, &k, &alpha, a.data(), &lda, x.data(), &one, &beta, y.data(), &one);
+    blas_sbmv(&uplo, &n, &k, &alpha, a.data(), &lda, x.data(), &one, &beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
   state.counters["GFLOPS"] = GflopsCounter(2.0 * n * (2 * k + 1));
@@ -278,10 +344,7 @@ static void BM_tbmv(benchmark::State& state) {
     state.PauseTiming();
     std::copy(x_orig.begin(), x_orig.end(), x.begin());
     state.ResumeTiming();
-    if constexpr (std::is_same_v<T, float>)
-      stbmv_(&uplo, &trans, &diag, &n, &k, a.data(), &lda, x.data(), &one);
-    else
-      dtbmv_(&uplo, &trans, &diag, &n, &k, a.data(), &lda, x.data(), &one);
+    blas_tbmv(&uplo, &trans, &diag, &n, &k, a.data(), &lda, x.data(), &one);
     benchmark::DoNotOptimize(x.data());
   }
   state.counters["GFLOPS"] = GflopsCounter(1.0 * n * (k + 1));
@@ -308,10 +371,7 @@ static void BM_hbmv(benchmark::State& state) {
   fillRand(x.data(), 2 * n);
   fillRand(y.data(), 2 * n);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      chbmv_(&uplo, &n, &k, alpha, a.data(), &lda, x.data(), &one, beta, y.data(), &one);
-    else
-      zhbmv_(&uplo, &n, &k, alpha, a.data(), &lda, x.data(), &one, beta, y.data(), &one);
+    blas_hbmv(&uplo, &n, &k, alpha, a.data(), &lda, x.data(), &one, beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
   // Complex hermitian band: 8*n*(2k+1) flops approximately.
@@ -341,10 +401,7 @@ static void BM_hpmv(benchmark::State& state) {
   fillRand(x.data(), 2 * n);
   fillRand(y.data(), 2 * n);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      chpmv_(&uplo, &n, alpha, ap.data(), x.data(), &one, beta, y.data(), &one);
-    else
-      zhpmv_(&uplo, &n, alpha, ap.data(), x.data(), &one, beta, y.data(), &one);
+    blas_hpmv(&uplo, &n, alpha, ap.data(), x.data(), &one, beta, y.data(), &one);
     benchmark::DoNotOptimize(y.data());
   }
   state.counters["GFLOPS"] = GflopsCounter(8.0 * n * n);
@@ -364,10 +421,7 @@ static void BM_gemm(benchmark::State& state) {
   fillRand(b.data(), n * n);
   fillRand(c.data(), n * n);
   for (auto _ : state) {
-    if constexpr (std::is_same_v<T, float>)
-      sgemm_(&trans, &trans, &n, &n, &n, &alpha, a.data(), &n, b.data(), &n, &beta, c.data(), &n);
-    else
-      dgemm_(&trans, &trans, &n, &n, &n, &alpha, a.data(), &n, b.data(), &n, &beta, c.data(), &n);
+    blas_gemm(&trans, &trans, &n, &n, &n, &alpha, a.data(), &n, b.data(), &n, &beta, c.data(), &n);
     benchmark::DoNotOptimize(c.data());
   }
   state.counters["GFLOPS"] = GflopsCounter(2.0 * n * n * n);

@@ -20,7 +20,11 @@ function(eigen_add_benchmark name source)
   if(BENCH_LIBRARIES)
     target_link_libraries(${name} PRIVATE ${BENCH_LIBRARIES})
   endif()
-  target_compile_options(${name} PRIVATE -O3 -DNDEBUG)
+  target_compile_options(${name} PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/O2>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O3>
+  )
+  target_compile_definitions(${name} PRIVATE NDEBUG)
   if(BENCH_DEFINITIONS)
     target_compile_definitions(${name} PRIVATE ${BENCH_DEFINITIONS})
   endif()
