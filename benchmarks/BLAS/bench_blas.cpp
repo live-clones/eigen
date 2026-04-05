@@ -67,22 +67,14 @@ static void fillTriBandUpper(T* a, int n, int k, int lda) {
 inline float blas_dot(int* n, float* x, int* incx, float* y, int* incy) { return sdot_(n, x, incx, y, incy); }
 inline double blas_dot(int* n, double* x, int* incx, double* y, int* incy) { return ddot_(n, x, incx, y, incy); }
 
-inline void blas_axpy(int* n, float* a, float* x, int* incx, float* y, int* incy) {
-  saxpy_(n, a, x, incx, y, incy);
-}
-inline void blas_axpy(int* n, double* a, double* x, int* incx, double* y, int* incy) {
-  daxpy_(n, a, x, incx, y, incy);
-}
+inline void blas_axpy(int* n, float* a, float* x, int* incx, float* y, int* incy) { saxpy_(n, a, x, incx, y, incy); }
+inline void blas_axpy(int* n, double* a, double* x, int* incx, double* y, int* incy) { daxpy_(n, a, x, incx, y, incy); }
 
 inline float blas_nrm2(int* n, float* x, int* incx) { return snrm2_(n, x, incx); }
 inline double blas_nrm2(int* n, double* x, int* incx) { return dnrm2_(n, x, incx); }
 
-inline void blas_rotm(int* n, float* x, int* incx, float* y, int* incy, float* p) {
-  srotm_(n, x, incx, y, incy, p);
-}
-inline void blas_rotm(int* n, double* x, int* incx, double* y, int* incy, double* p) {
-  drotm_(n, x, incx, y, incy, p);
-}
+inline void blas_rotm(int* n, float* x, int* incx, float* y, int* incy, float* p) { srotm_(n, x, incx, y, incy, p); }
+inline void blas_rotm(int* n, double* x, int* incx, double* y, int* incy, double* p) { drotm_(n, x, incx, y, incy, p); }
 
 inline void blas_rotmg(float* d1, float* d2, float* x1, float* y1, float* p) { srotmg_(d1, d2, x1, y1, p); }
 inline void blas_rotmg(double* d1, double* d2, double* x1, double* y1, double* p) { drotmg_(d1, d2, x1, y1, p); }
@@ -146,8 +138,8 @@ inline void blas_hpmv(char* uplo, int* n, double* alpha, double* ap, double* x, 
   zhpmv_(uplo, n, alpha, ap, x, incx, beta, y, incy);
 }
 
-inline void blas_gemm(char* ta, char* tb, int* m, int* n, int* k, float* alpha, float* a, int* lda, float* b,
-                      int* ldb, float* beta, float* c, int* ldc) {
+inline void blas_gemm(char* ta, char* tb, int* m, int* n, int* k, float* alpha, float* a, int* lda, float* b, int* ldb,
+                      float* beta, float* c, int* ldc) {
   sgemm_(ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 inline void blas_gemm(char* ta, char* tb, int* m, int* n, int* k, double* alpha, double* a, int* lda, double* b,
