@@ -538,22 +538,31 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
 
   typedef typename DiagType::RealScalar RealScalar;
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
-  const RealScalar precision_inv = RealScalar(1) / NumTraits<RealScalar>::epsilon();
-  while (end > 0) {
-    for (Index i = start; i < end; ++i) {
-      if (numext::abs(subdiag[i]) < considerAsZero) {
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+
+  // Deflation: set subdiag[i] to zero when it is negligible relative to
+  // its neighboring diagonal entries. Uses the LAPACK dsteqr criterion:
+  //   |subdiag[i]| <= eps * (|diag[i]| + |diag[i+1]|)
+  // To avoid underflow in the comparison, we test the equivalent:
+  //   |subdiag[i]| / eps <= |diag[i]| + |diag[i+1]|
+  // using multiplication by 1/eps instead of division by eps.
+  auto deflate = [&](Index first, Index last) {
+    for (Index i = first; i < last; ++i) {
+      if (numext::abs(subdiag[i]) <= considerAsZero) {
         subdiag[i] = RealScalar(0);
       } else {
-        // abs(subdiag[i]) <= epsilon * sqrt(abs(diag[i]) + abs(diag[i+1]))
-        // Scaled to prevent underflows.
-        const RealScalar scaled_subdiag = precision_inv * subdiag[i];
-        if (scaled_subdiag * scaled_subdiag <= (numext::abs(diag[i]) + numext::abs(diag[i + 1]))) {
+        if (numext::abs(subdiag[i]) <= eps * (numext::abs(diag[i]) + numext::abs(diag[i + 1]))) {
           subdiag[i] = RealScalar(0);
         }
       }
     }
+  };
 
-    // find the largest unreduced block at the end of the matrix.
+  // Initial deflation pass.
+  deflate(0, end);
+
+  while (end > 0) {
+    // Find the largest unreduced block at the end of the matrix.
     while (end > 0 && numext::is_exactly_zero(subdiag[end - 1])) {
       end--;
     }
@@ -568,6 +577,10 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
 
     internal::tridiagonal_qr_step<MatrixType::Flags & RowMajorBit ? RowMajor : ColMajor>(
         diag.data(), subdiag.data(), start, end, computeEigenvectors ? eivec.data() : (Scalar*)0, n);
+
+    // Deflation pass after the QR step to detect newly negligible subdiagonal
+    // entries, which can split the unreduced block for the next iteration.
+    deflate(start, end);
   }
   if (iter <= maxIterations * n)
     info = Success;
