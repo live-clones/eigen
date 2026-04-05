@@ -14,3 +14,4 @@ set(EIGEN_BLAS_SRCS
 
 eigen_add_benchmark(bench_blas bench_blas.cpp)
 target_sources(bench_blas PRIVATE ${EIGEN_BLAS_SRCS})
+target_include_directories(bench_blas PRIVATE ${EIGEN_SOURCE_DIR}/blas)

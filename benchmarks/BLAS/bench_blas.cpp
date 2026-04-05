@@ -117,7 +117,8 @@ static void BM_nrm2(benchmark::State& state) {
       r = dnrm2_(&n, x.data(), &one);
     benchmark::DoNotOptimize(r);
   }
-  state.counters["GFLOPS"] = GflopsCounter(2.0 * n);
+  // Nominal flops; Eigen's stableNorm() does more work internally.
+  state.counters["GFLOPS"] = GflopsCounter(2.0 * n - 1);
 }
 
 // ----- SROTM / DROTM -----
