@@ -151,6 +151,8 @@ void triangular_square(const MatrixType& m) {
   m6.setRandom();
   VERIFY_IS_APPROX(m1.template triangularView<Upper>() * m5, m3 * m5);
   VERIFY_IS_APPROX(m6 * m1.template triangularView<Upper>(), m6 * m3);
+  VERIFY_IS_APPROX((RealScalar(1.234) * MatrixType::Ones(rows, cols).template triangularView<Lower>()).toDenseMatrix(),
+                   (RealScalar(1.234) * MatrixType::Ones(rows, cols)).template triangularView<Lower>().toDenseMatrix());
 
   m1up = m1.template triangularView<Upper>();
   VERIFY_IS_APPROX(m1.template selfadjointView<Upper>().template triangularView<Upper>().toDenseMatrix(), m1up);
@@ -228,6 +230,8 @@ void triangular_rect(const MatrixType& m) {
   m1.setZero();
   m1.template triangularView<StrictlyLower>() = 3 * m2;
   VERIFY_IS_APPROX(m3.template triangularView<StrictlyLower>().toDenseMatrix(), m1);
+  VERIFY_IS_APPROX((RealScalar(1.234) * MatrixType::Ones(rows, cols).template triangularView<Lower>()).toDenseMatrix(),
+                   (RealScalar(1.234) * MatrixType::Ones(rows, cols)).template triangularView<Lower>().toDenseMatrix());
   m1.setRandom();
   m2 = m1.template triangularView<Upper>();
   VERIFY(m2.isUpperTriangular());
