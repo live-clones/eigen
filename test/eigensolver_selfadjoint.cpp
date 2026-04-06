@@ -32,8 +32,19 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
   if (scaling < (std::numeric_limits<RealScalar>::min)()) {
     VERIFY(eiSymm.eigenvalues().cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
   } else {
-    VERIFY_IS_APPROX((m.template selfadjointView<Lower>() * eiSymm.eigenvectors()) / scaling,
-                     (eiSymm.eigenvectors() * eiSymm.eigenvalues().asDiagonal()) / scaling);
+    // Check ||A*V - V*D||_F / ||A||_max <= c * n * eps.
+    // Compute in scaled space to avoid overflow in the matrix product.
+    MatrixType scaledA = m.template selfadjointView<Lower>();
+    scaledA /= scaling;
+    MatrixType residual =
+        scaledA * eiSymm.eigenvectors() - eiSymm.eigenvectors() * (eiSymm.eigenvalues() / scaling).asDiagonal();
+    // Backward stable eigensolver: (A+E)*V = V*D with ||E||_F <= c*n*eps*||A||_F.
+    // Since ||A||_F <= sqrt(n)*scaling, the bound is c*n*sqrt(n)*eps.
+    RealScalar rel_err = residual.norm();
+    using std::sqrt;
+    RealScalar tol =
+        RealScalar(4) * RealScalar(n) * sqrt(RealScalar(numext::maxi(Index(1), n))) * NumTraits<RealScalar>::epsilon();
+    VERIFY(rel_err <= tol);
   }
   VERIFY_IS_APPROX(m.template selfadjointView<Lower>().eigenvalues(), eiSymm.eigenvalues());
 
@@ -65,6 +76,8 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
       VERIFY(eiDirect.eigenvalues().cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
     } else {
       VERIFY_IS_APPROX(eiSymm.eigenvalues() / scaling, eiDirect.eigenvalues() / scaling);
+      // TODO: the direct 3x3 solver can produce large backward errors (>>n*eps*||A||)
+      // on some matrices. Investigate and fix, then tighten this to a Frobenius norm check.
       VERIFY_IS_APPROX((m.template selfadjointView<Lower>() * eiDirect.eigenvectors()) / scaling,
                        (eiDirect.eigenvectors() * eiDirect.eigenvalues().asDiagonal()) / scaling);
       VERIFY_IS_APPROX(m.template selfadjointView<Lower>().eigenvalues() / scaling, eiDirect.eigenvalues() / scaling);
@@ -409,6 +422,85 @@ void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
   VERIFY_IS_APPROX(eig2.eigenvalues(), eig2v.eigenvalues());
 }
 
+// Test computeFromTridiagonal with wide dynamic range across decoupled blocks.
+// This exercises the per-block scaling in computeFromTridiagonal_impl: a zero on the
+// subdiagonal decouples the matrix into blocks with vastly different scales. Global
+// scaling would underflow the small block; per-block scaling handles both correctly.
+template <typename RealScalar>
+void selfadjointeigensolver_tridiagonal_wide_range() {
+  using std::sqrt;
+  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+
+  // Block 1: entries near overflow threshold.
+  // Block 2: entries near 1.
+  // Separated by a zero subdiagonal entry.
+  const RealScalar big = sqrt(NumTraits<RealScalar>::highest()) / RealScalar(10);
+  const Index n = 6;
+  VectorType diag(n), subdiag(n - 1);
+
+  // First block: [0..2], large scale.
+  diag(0) = big;
+  diag(1) = big * RealScalar(1.1);
+  diag(2) = big * RealScalar(0.9);
+  subdiag(0) = big * RealScalar(0.01);
+  subdiag(1) = big * RealScalar(0.02);
+  // Zero subdiagonal decouples the two blocks.
+  subdiag(2) = RealScalar(0);
+  // Second block: [3..5], O(1) scale.
+  diag(3) = RealScalar(1);
+  diag(4) = RealScalar(2);
+  diag(5) = RealScalar(3);
+  subdiag(3) = RealScalar(0.5);
+  subdiag(4) = RealScalar(0.3);
+
+  // Build the full tridiagonal matrix for residual checking.
+  MatrixType T = MatrixType::Zero(n, n);
+  T.diagonal() = diag;
+  T.template diagonal<1>() = subdiag;
+  T.template diagonal<-1>() = subdiag;
+
+  SelfAdjointEigenSolver<MatrixType> eig;
+  eig.computeFromTridiagonal(diag, subdiag, ComputeEigenvectors);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+
+  // Eigenvalues must be sorted.
+  for (Index i = 1; i < n; ++i) {
+    VERIFY(eig.eigenvalues()(i) >= eig.eigenvalues()(i - 1));
+  }
+
+  // Eigenvectors must be orthonormal.
+  RealScalar unitary_tol = RealScalar(4) * RealScalar(n) * NumTraits<RealScalar>::epsilon();
+  VERIFY(eig.eigenvectors().isUnitary(unitary_tol));
+
+  // Full residual check in scaled coordinates.
+  RealScalar Tnorm = T.cwiseAbs().maxCoeff();
+  MatrixType Tscaled = T / Tnorm;
+  MatrixType residual = Tscaled * eig.eigenvectors() - eig.eigenvectors() * (eig.eigenvalues() / Tnorm).asDiagonal();
+  RealScalar rel_err = residual.norm() / Tscaled.norm();
+  VERIFY(rel_err <= RealScalar(8) * RealScalar(n) * NumTraits<RealScalar>::epsilon());
+
+  // The small eigenvalues (~1,2,3) must be accurate, not lost to underflow.
+  // With global scaling to [-1,1], dividing by 'big' would underflow these to zero.
+  // Verify the small eigenvalues are within O(eps) of their true values.
+  // The small block is exactly [[1, 0.5, 0], [0.5, 2, 0.3], [0, 0.3, 3]].
+  MatrixType T_small(3, 3);
+  T_small << RealScalar(1), RealScalar(0.5), RealScalar(0), RealScalar(0.5), RealScalar(2), RealScalar(0.3),
+      RealScalar(0), RealScalar(0.3), RealScalar(3);
+  SelfAdjointEigenSolver<MatrixType> eig_small(T_small);
+  VectorType small_evals = eig_small.eigenvalues();
+
+  // Find the 3 smallest eigenvalues from the combined solver (they should be sorted first).
+  VectorType combined_small = eig.eigenvalues().head(3);
+  VERIFY_IS_APPROX(combined_small, small_evals);
+
+  // Eigenvalues-only mode must agree.
+  SelfAdjointEigenSolver<MatrixType> eig_vals;
+  eig_vals.computeFromTridiagonal(diag, subdiag, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(eig_vals.info(), Success);
+  VERIFY_IS_APPROX(eig.eigenvalues() / Tnorm, eig_vals.eigenvalues() / Tnorm);
+}
+
 // Test computeFromTridiagonal with structured hard-case matrices from the literature.
 template <typename RealScalar>
 void selfadjointeigensolver_structured_tridiagonal() {
@@ -441,10 +533,9 @@ void selfadjointeigensolver_structured_tridiagonal() {
         numext::maxi(RealScalar(4) * RealScalar(n) * NumTraits<RealScalar>::epsilon(), test_precision<RealScalar>());
     VERIFY(eig.eigenvectors().isUnitary(unitary_tol));
 
-    // Residual check: ||T*V - V*D||_F / ||T||_F should be O(n*eps).
+    // Residual check: ||T*V - V*D||_F / ||T||_max should be O(n*eps).
     // Scale T to avoid overflow in the matrix product when entries span extreme ranges.
-    RealScalar Tnorm_F = T.norm();
-    if (Tnorm_F > (std::numeric_limits<RealScalar>::min)()) {
+    if (Tnorm > (std::numeric_limits<RealScalar>::min)()) {
       MatrixType Tscaled = T / Tnorm;
       MatrixType residual =
           Tscaled * eig.eigenvectors() - eig.eigenvectors() * (eig.eigenvalues() / Tnorm).asDiagonal();
@@ -780,6 +871,10 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     // structured tridiagonal hard cases from the literature
     CALL_SUBTEST_4(selfadjointeigensolver_structured_tridiagonal<double>());
     CALL_SUBTEST_3(selfadjointeigensolver_structured_tridiagonal<float>());
+
+    // wide dynamic range tridiagonal (per-block scaling regression)
+    CALL_SUBTEST_4(selfadjointeigensolver_tridiagonal_wide_range<double>());
+    CALL_SUBTEST_3(selfadjointeigensolver_tridiagonal_wide_range<float>());
 
     // diagonal matrices
     CALL_SUBTEST_17(selfadjointeigensolver_diagonal(Matrix3d()));
