@@ -60,7 +60,6 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
 
   typedef EigenBase<SparseSelfAdjointView> Base;
   typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef typename MatrixType::StorageIndex StorageIndex;
   typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
   typedef typename internal::ref_selector<MatrixType>::non_const_type MatrixTypeNested;
@@ -117,7 +116,11 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
     return Product<OtherDerived, SparseSelfAdjointView>(lhs.derived(), rhs);
   }
 
-  friend PlainObject operator*(const RealScalar& s, const SparseSelfAdjointView& mat) {
+  // Scalar multiplication intentionally materializes the full matrix, unlike dense SelfAdjointView's lazy wrapper,
+  // matching the existing SparseSelfAdjointView products.
+  PlainObject operator*(const Scalar& s) const { return s * *this; }
+
+  friend PlainObject operator*(const Scalar& s, const SparseSelfAdjointView& mat) {
     PlainObject res(mat);
     res *= s;
     return res;
