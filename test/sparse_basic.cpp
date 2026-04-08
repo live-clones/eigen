@@ -796,9 +796,22 @@ void sparse_basic(const SparseMatrixType& ref) {
     m3 -= m2.template selfadjointView<Lower>();
     VERIFY_IS_APPROX(m3, refMat3);
 
-    RealScalar s2 = internal::random<RealScalar>();
-    refMat3 = s2 * refMat2.template selfadjointView<Upper>();
+    Scalar s2 = internal::random<Scalar>();
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Upper>());
+    refMat3 *= s2;
     SparseMatrixType m4 = s2 * m2.template selfadjointView<Upper>();
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Upper>());
+    refMat3 *= s2;
+    m4 = m2.template selfadjointView<Upper>() * s2;
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Lower>());
+    refMat3 *= s2;
+    m4 = s2 * m2.template selfadjointView<Lower>();
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Lower>());
+    refMat3 *= s2;
+    m4 = m2.template selfadjointView<Lower>() * s2;
     VERIFY_IS_APPROX(m4, refMat3);
 
     // selfadjointView only works for square matrices:
