@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.17)
 
 #==============================================================================
 # CMake Policy issues.
@@ -9,7 +9,7 @@ if (POLICY CMP0077)
 endif (POLICY CMP0077)
 
 # NOTE Remove setting the policy once the minimum required CMake version is
-# increased to at least 3.15. Retain enabling the export to package registry.
+# increased to at least 3.21. Retain enabling the export to package registry.
 if (POLICY CMP0090)
   # The export command does not populate package registry by default
   cmake_policy (SET CMP0090 NEW)
@@ -45,8 +45,8 @@ endif ()
 
 project(Eigen3)
 
-# Remove this block after bumping CMake to v3.21.0
-# PROJECT_IS_TOP_LEVEL is defined then by default
+# Remove this block after bumping CMake to v3.21.0.
+# PROJECT_IS_TOP_LEVEL is defined then by default.
 if(CMAKE_VERSION VERSION_LESS 3.21.0)
   if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(PROJECT_IS_TOP_LEVEL ON)
@@ -672,7 +672,7 @@ if (EIGEN_BUILD_TESTING)
   endif()
 
   set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-  set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
+  set(EIGEN_CUDA_COMPUTE_ARCH 70 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
 
   option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
   if(EIGEN_TEST_SYCL)
@@ -817,4 +817,3 @@ endif()
 message(STATUS "")
 message(STATUS "Configured Eigen ${EIGEN_VERSION_STRING}")
 message(STATUS "")
-
