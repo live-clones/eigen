@@ -36,7 +36,7 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
 
-# GCC-13 (strict support for _Float16)
+# GCC-13 for AVX512-FP16 (_Float16 support).
 build:linux:cross:x86-64:gcc-13:default:
   extends: .build:linux:cross:x86-64
   variables:
@@ -61,10 +61,28 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
-build:linux:cross:x86-64:gcc-13:avx512fp16:
+# AVX512-FP16 builds are split into official/unsupported because building all
+# tests exceeds the 3-hour GitLab SaaS shared-runner timeout.
+.build:linux:cross:x86-64:gcc-13:avx512fp16:
   extends: build:linux:cross:x86-64:gcc-13:default
+  # Disable cache: uploading the build directory takes ~35 minutes and the
+  # savings from cache hits do not compensate for the upload cost.
+  cache: []
   variables:
-    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on"
+    # Use RelWithDebInfo (-O2): GCC bug generates invalid masked vmovsh
+    # with {z} on memory stores at -O3 for _Float16 operations (zero-masking
+    # on memory destinations is architecturally illegal in AVX-512).
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+
+build:linux:cross:x86-64:gcc-13:avx512fp16:official:
+  extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildOfficial
+
+build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported:
+  extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildUnsupported
 
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:
@@ -197,7 +215,7 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
     # Compute architectures present in the GitLab CI runners.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "50;75"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "70;80"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_TEST_CUDA_CLANG: "off"
     EIGEN_CI_TEST_CUDA_NVC: "off"
@@ -207,6 +225,11 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
       -DEIGEN_CUDA_COMPUTE_ARCH=${EIGEN_CI_CUDA_COMPUTE_ARCH}
       -DEIGEN_TEST_CUDA_CLANG=${EIGEN_CI_TEST_CUDA_CLANG}
       -DEIGEN_TEST_CUDA_NVC=${EIGEN_CI_TEST_CUDA_NVC}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/gpu-tests/"
   tags:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
@@ -232,14 +255,19 @@ build:linux:cuda-12.2:clang-12:
 # Note: these are currently build-only, until we get an AMD-supported runner.
 
 # ROCm HIP
-build:linux:rocm-latest:gcc-10:
+build:linux:rocm-latest:gcc-11:
   extends: .build:linux:cross
-  image: rocm/dev-ubuntu-24.04:latest
+  image: rocm/dev-ubuntu-24.04:6.3.1
   variables:
-    EIGEN_CI_C_COMPILER: gcc-10
-    EIGEN_CI_CXX_COMPILER: g++-10
+    EIGEN_CI_C_COMPILER: gcc-11
+    EIGEN_CI_CXX_COMPILER: g++-11
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/gpu-tests/"
   cache: [] # Disable cache for ROCm, since it fails whenever the image updates.
 
 
@@ -386,6 +414,6 @@ build:linux:cross:x86-64:clang-14:sanitizer:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
   allow_failure: true
   timeout: 30m

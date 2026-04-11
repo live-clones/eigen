@@ -91,7 +91,7 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-# GCC-13 (strict support for _Float16)
+# GCC-13 for AVX512-FP16 (_Float16 support).
 .test:linux:x86-64:gcc-13:default:
   extends: .test:linux:x86-64
   needs: [ build:linux:cross:x86-64:gcc-13:default ]
@@ -100,7 +100,6 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
 
 .test:linux:x86-64:gcc-13:avx512fp16:
   extends: .test:linux:x86-64:gcc-13:default
-  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16 ]
   tags:
     - eigen-runner
     - linux
@@ -109,11 +108,13 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
 
 test:linux:x86-64:gcc-13:avx512fp16:official:
   extends: .test:linux:x86-64:gcc-13:avx512fp16
+  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:official ]
   variables:
     EIGEN_CI_TEST_LABEL: Official
 
 test:linux:x86-64:gcc-13:avx512fp16:unsupported:
   extends: .test:linux:x86-64:gcc-13:avx512fp16
+  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported ]
   variables:
     EIGEN_CI_TEST_LABEL: Unsupported
 
@@ -262,6 +263,11 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   allow_failure: true
   variables:
     EIGEN_CI_CTEST_LABEL: gpu
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/gpu-tests/"
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
@@ -488,7 +494,6 @@ test:linux:x86-64:clang-14:sanitizer:smoketest:
   variables:
     EIGEN_CI_INSTALL: clang-14 llvm-14 libclang-rt-14-dev
     EIGEN_CI_CTEST_LABEL: smoketest
-    EIGEN_CI_CTEST_PARALLEL: "2"
     EIGEN_CI_CTEST_ARGS: --timeout 120
     ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1:abort_on_error=1:allocator_may_return_null=1:print_stacktrace=1:detect_stack_use_after_return=0"
     ASAN_SYMBOLIZER_PATH: "/usr/lib/llvm-14/bin/llvm-symbolizer"
@@ -496,6 +501,6 @@ test:linux:x86-64:clang-14:sanitizer:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
   allow_failure: true
   timeout: 30m
