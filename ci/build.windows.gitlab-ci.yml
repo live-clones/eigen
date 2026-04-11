@@ -55,7 +55,7 @@ build:windows:x86-64:msvc-14.29:avx512dq:
   extends: .build:windows
   variables:
     # Compute architectures present in the GitLab CI runners.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "70;75"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "70;80"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS:
       -DEIGEN_TEST_CUDA=on
