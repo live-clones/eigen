@@ -1,0 +1,45 @@
+# Pre-built CI image for Eigen builds and tests on x86-64 runners.
+#
+# Includes all compilers, cross toolchains, and tools used by CI jobs
+# that run on saas-linux-*-amd64 runners, so individual jobs skip
+# apt-get install entirely.
+#
+# Build and push (from repo root):
+#   docker build -t registry.gitlab.com/libeigen/eigen/ci-x86-64:24.04 \
+#       -f ci/docker/Dockerfile.x86-64 .
+#   docker push registry.gitlab.com/libeigen/eigen/ci-x86-64:24.04
+#
+# Update whenever compiler versions change in the CI YAML files.
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        # Core build tools
+        cmake ninja-build git ca-certificates pkg-config \
+        # GCC cross-compilers targeting x86-64
+        g++-10-x86-64-linux-gnu \
+        g++-13-x86-64-linux-gnu \
+        g++-14-x86-64-linux-gnu \
+        # Clang
+        clang-14 \
+        clang-19 \
+        # ASAN/UBSAN runtime libraries
+        libclang-rt-14-dev \
+        libclang-rt-19-dev \
+        # ARM 32-bit cross toolchain
+        g++-10-arm-linux-gnueabihf \
+        # ppc64le cross toolchain
+        g++-14-powerpc64le-linux-gnu \
+        # loongarch64 cross toolchain
+        g++-14-loongarch64-linux-gnu \
+        # QEMU user-mode emulation (ARM, ppc64le, loongarch64)
+        qemu-user-static \
+        # clang-tidy (checkformat stage)
+        clang-tidy \
+        # Documentation build dependencies
+        flex bison graphviz python3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*

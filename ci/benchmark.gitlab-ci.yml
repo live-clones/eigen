@@ -23,7 +23,7 @@ variables:
 # ============================================================================
 
 .bench:linux:base:
-  image: ubuntu:22.04
+  image: ubuntu:24.04
   variables:
     EIGEN_CI_BUILDDIR: ${EIGEN_BENCH_BUILDDIR}
     EIGEN_CI_TARGET_ARCH: ""
