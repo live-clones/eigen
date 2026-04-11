@@ -23,7 +23,7 @@ variables:
 # ============================================================================
 
 .bench:linux:base:
-  image: ubuntu:22.04
+  image: registry.gitlab.com/libeigen/eigen/ci-x86-64:24.04
   variables:
     EIGEN_CI_BUILDDIR: ${EIGEN_BENCH_BUILDDIR}
     EIGEN_CI_TARGET_ARCH: ""
@@ -99,6 +99,7 @@ bench:build:x86-64:avx512dq:
 
 bench:build:aarch64:neon:
   extends: .bench:linux:build
+  image: ubuntu:24.04
   variables:
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
@@ -140,6 +141,7 @@ bench:run:x86-64:avx512dq:
 
 bench:run:aarch64:neon:
   extends: .bench:linux:run
+  image: ubuntu:24.04
   needs: [bench:build:aarch64:neon]
   variables:
     EIGEN_BENCH_TARGET: aarch64-neon
