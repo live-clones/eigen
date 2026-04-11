@@ -91,7 +91,7 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-# GCC-14 (strict support for _Float16, fixes vmovsh assembler bug in gcc-13)
+# GCC-14 for AVX512-FP16 (_Float16 support).
 .test:linux:x86-64:gcc-14:default:
   extends: .test:linux:x86-64
   needs: [ build:linux:cross:x86-64:gcc-14:default ]
