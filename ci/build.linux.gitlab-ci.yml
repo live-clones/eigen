@@ -64,10 +64,10 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
 build:linux:cross:x86-64:gcc-13:avx512fp16:
   extends: build:linux:cross:x86-64:gcc-13:default
   variables:
-    # Use -O2: GCC bug generates invalid masked vmovsh with {z} on memory
-    # stores at -O3 for _Float16 operations (zero-masking on memory
-    # destinations is architecturally illegal in AVX-512).
-    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DCMAKE_CXX_FLAGS_RELEASE='-O2 -DNDEBUG'"
+    # Use RelWithDebInfo (-O2): GCC bug generates invalid masked vmovsh
+    # with {z} on memory stores at -O3 for _Float16 operations (zero-masking
+    # on memory destinations is architecturally illegal in AVX-512).
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DCMAKE_BUILD_TYPE=RelWithDebInfo"
 
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:
