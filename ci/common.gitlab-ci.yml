@@ -1,4 +1,6 @@
 # Base configuration for linux builds and tests.
+# NOTE: aarch64 jobs that run on ARM runners must override image to
+# ubuntu:24.04 since this pre-built image is x86-64 only.
 .common:linux:cross:
   image: registry.gitlab.com/libeigen/eigen/ci-x86-64:24.04
   variables:

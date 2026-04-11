@@ -45,8 +45,9 @@ else
   fi
 fi
 
-# Strip whitespace and install if there are any packages to install.
-pkgs=$(echo $pkgs)
+# Strip leading/trailing whitespace and install if there are any packages.
+pkgs="${pkgs## }"
+pkgs="${pkgs%% }"
 if [[ -n "${pkgs}" ]]; then
   apt-get update -y > /dev/null
   apt-get install -y --no-install-recommends ${pkgs} > /dev/null

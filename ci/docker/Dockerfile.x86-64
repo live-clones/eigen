@@ -25,12 +25,15 @@ RUN apt-get update -y && \
         g++-14-x86-64-linux-gnu \
         # Clang
         clang-14 \
+        clang-16 \
         clang-19 \
         # ASAN/UBSAN runtime libraries
         libclang-rt-14-dev \
         libclang-rt-19-dev \
         # ARM 32-bit cross toolchain
         g++-10-arm-linux-gnueabihf \
+        # aarch64 cross toolchain (for x86 cross-compilation jobs)
+        g++-10-aarch64-linux-gnu \
         # ppc64le cross toolchain
         g++-14-powerpc64le-linux-gnu \
         # loongarch64 cross toolchain
