@@ -369,6 +369,7 @@ class MatrixBase : public DenseBase<Derived> {
   /////////// QR module ///////////
 
   inline HouseholderQR<PlainObject> householderQr() const;
+  inline const GramSchmidtQR<PlainObject> gramSchmidtQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
   inline ColPivHouseholderQR<PlainObject, PermutationIndex> colPivHouseholderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
