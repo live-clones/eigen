@@ -905,10 +905,9 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
   RealScalar mu = diag[end];
   if (numext::is_exactly_zero(td)) {
     mu -= numext::abs(e);
-  } else if (!numext::is_exactly_zero(e)) {
-    const RealScalar e2 = numext::abs2(e);
-    const RealScalar h = numext::hypot(td, e);
-    mu -= e2 / (td + (td > RealScalar(0) ? h : -h));
+  } else {
+    RealScalar h = numext::hypot(td, e);
+    mu -= e * (e / (td + (td > RealScalar(0) ? h : -h)));
   }
 
   RealScalar x = diag[start] - mu;
