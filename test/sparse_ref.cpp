@@ -97,6 +97,17 @@ auto innerpanel(T &xpr, Index start, Index size)
   return xpr.middleCols(start, size);
 }
 
+template <typename T>
+auto innervector(T &xpr, Index index)
+    -> std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, decltype(xpr.row(index))> {
+  return xpr.row(index);
+}
+
+template <typename T>
+auto innervector(T &xpr, Index index) -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(xpr.col(index))> {
+  return xpr.col(index);
+}
+
 template <typename XprType, typename ExpectedType>
 void verify_coeffs(const XprType &xpr, const ExpectedType &expected) {
   auto coeffs = xpr.coeffs();
@@ -193,6 +204,12 @@ float storage_innerpanel_coeff(const MatrixType &storage, Index outer, Index inn
   return storage.coeff(inner, outer + 1);
 }
 
+template <typename MatrixType>
+float storage_innervector_coeff(const MatrixType &storage, Index outer, Index inner) {
+  if ((MatrixType::Flags & RowMajorBit) == RowMajorBit) return storage.coeff(outer, inner);
+  return storage.coeff(inner, outer);
+}
+
 template <typename XprType, typename MatrixType>
 void verify_noncompressed_middle_binding(XprType &xpr, MatrixType &storage, int variant) {
   struct Entry {
@@ -222,6 +239,34 @@ void verify_noncompressed_middle_binding(XprType &xpr, MatrixType &storage, int 
   VERIFY_IS_EQUAL(storage_innerpanel_coeff(storage, 1, 0), updated1);
 }
 
+template <typename XprType, typename MatrixType>
+void verify_noncompressed_inner_vector_binding(XprType &xpr, MatrixType &storage, int variant) {
+  Array<float, 2, 1> expected;
+  expected << 20.f, 30.f;
+
+  Ref<SparseVector<float>> inner(innervector(xpr, 2));
+  Ref<const SparseVector<float>> const_inner(innervector(xpr, 2));
+  const float updated0 = 211.f + variant;
+  const float updated1 = 221.f + variant;
+
+  VERIFY(inner.isCompressed());
+  VERIFY_IS_EQUAL(inner.rows(), 4);
+  VERIFY_IS_EQUAL(inner.cols(), 1);
+  VERIFY_IS_EQUAL(inner.nonZeros(), 2);
+  VERIFY(const_inner.isCompressed());
+  VERIFY_IS_EQUAL(const_inner.rows(), 4);
+  VERIFY_IS_EQUAL(const_inner.cols(), 1);
+  VERIFY_IS_EQUAL(const_inner.nonZeros(), 2);
+  verify_coeffs(inner, expected);
+  verify_coeffs(const_inner, expected);
+
+  auto coeffs = inner.coeffs();
+  coeffs[0] = updated0;
+  coeffs[1] = updated1;
+  VERIFY_IS_EQUAL(storage_innervector_coeff(storage, 2, 0), updated0);
+  VERIFY_IS_EQUAL(storage_innervector_coeff(storage, 2, 2), updated1);
+}
+
 void check_ref_slice_coeffs() {
   verify_ref_and_map<SparseMatrix<float>>(
       [](SparseMatrix<float> &matrix) { init_diag(matrix); },
@@ -240,14 +285,21 @@ void check_noncompressed_ref_slices() {
       [](auto &xpr, auto &matrix, int variant) { verify_noncompressed_middle_binding(xpr, matrix, variant); });
 }
 
+void check_noncompressed_ref_inner_vectors() {
+  verify_ref_and_map<SparseMatrix<float>>(
+      [](SparseMatrix<float> &matrix) { init_noncompressed_inner_panel(matrix); },
+      [](auto &xpr, auto &matrix, int variant) { verify_noncompressed_inner_vector_binding(xpr, matrix, variant); });
+  verify_ref_and_map<SparseMatrix<float, RowMajor>>(
+      [](SparseMatrix<float, RowMajor> &matrix) { init_noncompressed_inner_panel(matrix); },
+      [](auto &xpr, auto &matrix, int variant) { verify_noncompressed_inner_vector_binding(xpr, matrix, variant); });
+}
+
 void call_ref() {
   SparseMatrix<float> A = MatrixXf::Random(10, 10).sparseView(0.5, 1);
   SparseMatrix<float, RowMajor> B = MatrixXf::Random(10, 10).sparseView(0.5, 1);
   SparseMatrix<float> C = MatrixXf::Random(10, 10).sparseView(0.5, 1);
   C.reserve(VectorXi::Constant(C.outerSize(), 2));
   const SparseMatrix<float> &Ac(A);
-  Block<SparseMatrix<float>> Ab(A, 0, 1, 3, 3);
-  const Block<SparseMatrix<float>> Abc(A, 0, 1, 3, 3);
   SparseVector<float> vc = VectorXf::Random(10).sparseView(0.5, 1);
   SparseVector<float, RowMajor> vr = VectorXf::Random(10).sparseView(0.5, 1);
   SparseMatrix<float> AA = A * A;
@@ -287,6 +339,8 @@ void call_ref() {
   VERIFY_EVALUATION_COUNT(call_ref_2(Br.transpose(), Br.transpose()), 0);
   VERIFY_EVALUATION_COUNT(call_ref_rm_1(Br.middleRows(1, 3), B.middleRows(1, 3)), 0);
   VERIFY_EVALUATION_COUNT(call_ref_rm_2(Br.middleRows(1, 3), B.middleRows(1, 3)), 0);
+  VERIFY_EVALUATION_COUNT(call_ref_4(Br.row(2), B.row(2).transpose()), 0);
+  VERIFY_EVALUATION_COUNT(call_ref_5(Br.row(2), B.row(2).transpose()), 0);
 
   auto Am = make_map(A);
   VERIFY_EVALUATION_COUNT(call_ref_1(Am.middleCols(1, 3), A.middleCols(1, 3)), 0);
@@ -297,6 +351,8 @@ void call_ref() {
   auto Bm = make_map(B);
   VERIFY_EVALUATION_COUNT(call_ref_rm_1(Bm.middleRows(1, 3), B.middleRows(1, 3)), 0);
   VERIFY_EVALUATION_COUNT(call_ref_rm_2(Bm.middleRows(1, 3), B.middleRows(1, 3)), 0);
+  VERIFY_EVALUATION_COUNT(call_ref_4(Bm.row(2), B.row(2).transpose()), 0);
+  VERIFY_EVALUATION_COUNT(call_ref_5(Bm.row(2), B.row(2).transpose()), 0);
 
   Ref<const SparseMatrix<float>> Arc(A);
   //   VERIFY_EVALUATION_COUNT( call_ref_1(Arc, Arc),  0); // does not compile on purpose
@@ -329,6 +385,7 @@ EIGEN_DECLARE_TEST(sparse_ref) {
     CALL_SUBTEST_2(call_ref());
     CALL_SUBTEST_4(check_ref_slice_coeffs());
     CALL_SUBTEST_4(check_noncompressed_ref_slices());
+    CALL_SUBTEST_4(check_noncompressed_ref_inner_vectors());
 
     CALL_SUBTEST_3(check_const_correctness(SparseVector<float>()));
     CALL_SUBTEST_3(check_const_correctness(SparseVector<double, RowMajor>()));
