@@ -76,13 +76,8 @@ struct packet_traits<std::complex<float>> : generic_complex_packet_traits {
 };
 
 template <>
-struct unpacket_traits<PacketXcf> : generic_unpacket_traits {
-  using type = std::complex<float>;
-  using half = PacketXcf;
-  using as_real = PacketXf;
-  enum {
-    size = kComplexFloatSize,
-  };
+struct unpacket_traits<Packet8cf> : generic_unpacket_traits<Packet8cf, std::complex<float>> {
+  using as_real = Packet16f;
 };
 
 template <>
@@ -95,13 +90,8 @@ struct packet_traits<std::complex<double>> : generic_complex_packet_traits {
 };
 
 template <>
-struct unpacket_traits<PacketXcd> : generic_unpacket_traits {
-  using type = std::complex<double>;
-  using half = PacketXcd;
-  using as_real = PacketXd;
-  enum {
-    size = kComplexDoubleSize,
-  };
+struct unpacket_traits<Packet4cd> : generic_unpacket_traits<Packet4cd, std::complex<double>> {
+  using as_real = Packet8d;
 };
 
 // ------------ Load and store ops ----------

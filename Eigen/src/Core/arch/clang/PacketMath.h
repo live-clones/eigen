@@ -165,48 +165,18 @@ struct packet_traits<int64_t> : generic_integer_packet_traits {
   };
 };
 
-// --- unpacket_traits specializations ---
-struct generic_unpacket_traits : default_unpacket_traits {
-  enum {
-    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
-    vectorizable = true,
-  };
-};
-
 template <>
-struct unpacket_traits<PacketXf> : generic_unpacket_traits {
-  using type = float;
-  using half = PacketXf;
-  using integer_packet = PacketXi;
-  enum {
-    size = kFloatPacketSize,
-  };
+struct unpacket_traits<Packet16f> : generic_unpacket_traits<Packet16f, float> {
+  using integer_packet = Packet16i;
 };
 template <>
-struct unpacket_traits<PacketXd> : generic_unpacket_traits {
-  using type = double;
-  using half = PacketXd;
-  using integer_packet = PacketXl;
-  enum {
-    size = kDoublePacketSize,
-  };
+struct unpacket_traits<Packet8d> : generic_unpacket_traits<Packet8d, double> {
+  using integer_packet = Packet8l;
 };
 template <>
-struct unpacket_traits<PacketXi> : generic_unpacket_traits {
-  using type = int32_t;
-  using half = PacketXi;
-  enum {
-    size = kFloatPacketSize,
-  };
-};
+struct unpacket_traits<Packet16i> : generic_unpacket_traits<Packet16i, int32_t> {};
 template <>
-struct unpacket_traits<PacketXl> : generic_unpacket_traits {
-  using type = int64_t;
-  using half = PacketXl;
-  enum {
-    size = kDoublePacketSize,
-  };
-};
+struct unpacket_traits<Packet8l> : generic_unpacket_traits<Packet8l, int64_t> {};
 
 namespace detail {
 // --- vector type helpers ---
