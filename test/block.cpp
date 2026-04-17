@@ -116,6 +116,8 @@ void block(const MatrixType& m) {
 
   // check row() and col()
   VERIFY_IS_EQUAL(m1.col(c1).transpose(), m1.transpose().row(c1));
+  VERIFY_IS_EQUAL(m1.innerVector(MatrixType::IsRowMajor ? r1 : c1).transpose(),
+                  m1.transpose().innerVector(MatrixType::IsRowMajor ? r1 : c1));
   // check operator(), both constant and non-constant, on row() and col()
   m1 = m1_copy;
   m1.row(r1) += s1 * m1_copy.row(r2);
@@ -241,6 +243,10 @@ void block(const MatrixType& m) {
   VERIFY_IS_APPROX((m1 * 1).transpose().leftCols(r1), m1.transpose().leftCols(r1));
   VERIFY_IS_APPROX((m1 * 1).transpose().middleRows(c1, c2 - c1 + 1), m1.transpose().middleRows(c1, c2 - c1 + 1));
   VERIFY_IS_APPROX((m1 * 1).transpose().middleCols(r1, r2 - r1 + 1), m1.transpose().middleCols(r1, r2 - r1 + 1));
+  VERIFY_IS_APPROX((m1 * 1).transpose().innerVectors(MatrixType::IsRowMajor ? r1 : c1,
+                                                     MatrixType::IsRowMajor ? r2 - r1 + 1 : c2 - c1 + 1),
+                   m1.transpose().innerVectors(MatrixType::IsRowMajor ? r1 : c1,
+                                               MatrixType::IsRowMajor ? r2 - r1 + 1 : c2 - c1 + 1));
 
   // evaluation into plain matrices from expressions with direct access (stress MapBase)
   DynamicMatrixType dm;
