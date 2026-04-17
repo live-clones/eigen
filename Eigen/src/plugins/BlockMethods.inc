@@ -66,12 +66,20 @@ struct ConstFixedSegmentReturnType {
 };
 
 /// \internal inner-vector
-typedef Block<Derived, IsRowMajor ? 1 : Dynamic, IsRowMajor ? Dynamic : 1, true> InnerVectorReturnType;
-typedef Block<const Derived, IsRowMajor ? 1 : Dynamic, IsRowMajor ? Dynamic : 1, true> ConstInnerVectorReturnType;
+typedef Block<Derived, IsRowMajor ? 1 : internal::traits<Derived>::RowsAtCompileTime,
+              IsRowMajor ? internal::traits<Derived>::ColsAtCompileTime : 1, true>
+    InnerVectorReturnType;
+typedef Block<const Derived, IsRowMajor ? 1 : internal::traits<Derived>::RowsAtCompileTime,
+              IsRowMajor ? internal::traits<Derived>::ColsAtCompileTime : 1, true>
+    ConstInnerVectorReturnType;
 
 /// \internal set of inner-vectors
-typedef Block<Derived, Dynamic, Dynamic, true> InnerVectorsReturnType;
-typedef Block<const Derived, Dynamic, Dynamic, true> ConstInnerVectorsReturnType;
+typedef Block<Derived, IsRowMajor ? Dynamic : internal::traits<Derived>::RowsAtCompileTime,
+              IsRowMajor ? internal::traits<Derived>::ColsAtCompileTime : Dynamic, true>
+    InnerVectorsReturnType;
+typedef Block<const Derived, IsRowMajor ? Dynamic : internal::traits<Derived>::RowsAtCompileTime,
+              IsRowMajor ? internal::traits<Derived>::ColsAtCompileTime : Dynamic, true>
+    ConstInnerVectorsReturnType;
 
 #endif  // not EIGEN_PARSED_BY_DOXYGEN
 
@@ -1341,8 +1349,8 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const ConstInnerVectorReturnType
 /// is col-major (resp. row-major).
 ///
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE InnerVectorsReturnType innerVectors(Index outerStart, Index outerSize) {
-  return Block<Derived, Dynamic, Dynamic, true>(derived(), IsRowMajor ? outerStart : 0, IsRowMajor ? 0 : outerStart,
-                                                IsRowMajor ? outerSize : rows(), IsRowMajor ? cols() : outerSize);
+  return InnerVectorsReturnType(derived(), IsRowMajor ? outerStart : 0, IsRowMajor ? 0 : outerStart,
+                                IsRowMajor ? outerSize : rows(), IsRowMajor ? cols() : outerSize);
 }
 
 /// \returns the \a outer -th column (resp. row) of the matrix \c *this if \c *this
@@ -1350,9 +1358,8 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE InnerVectorsReturnType innerVect
 ///
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const ConstInnerVectorsReturnType innerVectors(Index outerStart,
                                                                                                Index outerSize) const {
-  return Block<const Derived, Dynamic, Dynamic, true>(derived(), IsRowMajor ? outerStart : 0,
-                                                      IsRowMajor ? 0 : outerStart, IsRowMajor ? outerSize : rows(),
-                                                      IsRowMajor ? cols() : outerSize);
+  return ConstInnerVectorsReturnType(derived(), IsRowMajor ? outerStart : 0, IsRowMajor ? 0 : outerStart,
+                                     IsRowMajor ? outerSize : rows(), IsRowMajor ? cols() : outerSize);
 }
 
 /** \returns the i-th subvector (column or vector) according to the \c Direction
