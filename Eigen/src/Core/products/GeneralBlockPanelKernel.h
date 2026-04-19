@@ -255,6 +255,10 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 // the empirically-tuned constant (1.5MB) previously used when L2 was 1MB.
 #ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
     const Index actual_l2 = static_cast<Index>(l3);
+#elif defined(EIGEN_VECTORIZE_SME)
+    // SME tops out L2 bandwidth well before the 1.5x L3 overflow pays off;
+    // use a strict L2 budget so blockA doesn't spill past the P-core cache.
+    const Index actual_l2 = l2;
 #else
     const Index actual_l2 = static_cast<Index>(l2 * 3 / 2);
 #endif
