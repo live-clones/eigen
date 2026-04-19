@@ -290,6 +290,12 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
   // Assign to a vector
   template <typename ResType>
   void evalTo(ResType& res) const {
+    evalToImpl(res, internal::bool_constant<(int(Derived::Flags) & DirectAccessBit) == DirectAccessBit>());
+  }
+
+ private:
+  template <typename ResType>
+  void evalToImpl(ResType& res, const internal::true_type&) const {
     cholmod_dense y_cd;
     cholmod_dense* x_cd;
     int method = m_transpose ? SPQR_QTX : SPQR_QX;
@@ -300,6 +306,22 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
         reinterpret_cast<Scalar*>(x_cd->x), x_cd->nrow, x_cd->ncol);
     cholmod_l_free_dense(&x_cd, cc);
   }
+
+  template <typename ResType>
+  void evalToImpl(ResType& res, const internal::false_type&) const {
+    cholmod_dense y_cd;
+    cholmod_dense* x_cd;
+    int method = m_transpose ? SPQR_QTX : SPQR_QX;
+    cholmod_common* cc = m_spqr.cholmodCommon();
+    typename Derived::PlainObject other = m_other;
+    y_cd = viewAsCholmod(other);
+    x_cd = SuiteSparseQR_qmult<Scalar>(method, m_spqr.m_H, m_spqr.m_HTau, m_spqr.m_HPinv, &y_cd, cc);
+    res = Matrix<Scalar, ResType::RowsAtCompileTime, ResType::ColsAtCompileTime>::Map(
+        reinterpret_cast<Scalar*>(x_cd->x), x_cd->nrow, x_cd->ncol);
+    cholmod_l_free_dense(&x_cd, cc);
+  }
+
+ public:
   const SPQRType& m_spqr;
   const Derived& m_other;
   bool m_transpose;
