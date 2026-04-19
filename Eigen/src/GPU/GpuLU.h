@@ -64,8 +64,7 @@ class LU {
   LU() { init_context(); }
 
   template <typename InputType>
-  explicit LU(const EigenBase<InputType>& A) {
-    init_context();
+  explicit LU(const EigenBase<InputType>& A) : LU() {
     compute(A);
   }
 

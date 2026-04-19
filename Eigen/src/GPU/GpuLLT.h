@@ -58,7 +58,7 @@ class LLT {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   // ---- Construction / destruction ------------------------------------------
 
@@ -67,8 +67,7 @@ class LLT {
 
   /** Factor A immediately. Equivalent to LLT llt; llt.compute(A). */
   template <typename InputType>
-  explicit LLT(const EigenBase<InputType>& A) {
-    init_context();
+  explicit LLT(const EigenBase<InputType>& A) : LLT() {
     compute(A);
   }
 
@@ -279,11 +278,11 @@ class LLT {
 
   bool begin_compute(Index rows) {
     n_ = rows;
-    info_ = InvalidInput;
     if (n_ == 0) {
       info_ = Success;
       return false;
     }
+    info_ = InvalidInput;
     return true;
   }
 
@@ -327,7 +326,7 @@ class LLT {
   template <typename CopyRhs>
   DeviceMatrix<Scalar> solve_impl(int64_t nrhs, int64_t ldb, CopyRhs&& copy_rhs) const {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
-    constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_, ColMajor>::value;
+    constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_>::value;
 
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
     Scalar* d_x_ptr = static_cast<Scalar*>(d_x.ptr);
@@ -364,7 +363,7 @@ class LLT {
   // Workspaces are stored as members to ensure they outlive the async kernels.
   void factorize() {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
-    constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_, ColMajor>::value;
+    constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_>::value;
 
     info_synced_ = false;
     info_ = InvalidInput;

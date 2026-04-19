@@ -68,28 +68,20 @@ struct CusolverParams {
 template <typename Scalar>
 using cusolver_data_type = cuda_data_type<Scalar>;
 
-// ---- (UpLo, StorageOrder) → cublasFillMode_t --------------------------------
-// cuSOLVER always interprets the matrix as column-major. A row-major matrix A
-// appears as A^T to cuSOLVER, so the upper/lower triangle is swapped.
+// ---- UpLo → cublasFillMode_t ------------------------------------------------
+// cuSOLVER always interprets the matrix as column-major. Callers pass the
+// triangle that holds the data in column-major layout.
 
-template <int UpLo, int StorageOrder>
+template <int UpLo>
 struct cusolver_fill_mode;
 
 template <>
-struct cusolver_fill_mode<Lower, ColMajor> {
+struct cusolver_fill_mode<Lower> {
   static constexpr cublasFillMode_t value = CUBLAS_FILL_MODE_LOWER;
 };
 template <>
-struct cusolver_fill_mode<Upper, ColMajor> {
+struct cusolver_fill_mode<Upper> {
   static constexpr cublasFillMode_t value = CUBLAS_FILL_MODE_UPPER;
-};
-template <>
-struct cusolver_fill_mode<Lower, RowMajor> {
-  static constexpr cublasFillMode_t value = CUBLAS_FILL_MODE_UPPER;
-};
-template <>
-struct cusolver_fill_mode<Upper, RowMajor> {
-  static constexpr cublasFillMode_t value = CUBLAS_FILL_MODE_LOWER;
 };
 
 }  // namespace internal

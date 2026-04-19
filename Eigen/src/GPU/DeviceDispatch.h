@@ -105,7 +105,7 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
 
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
-    dst.resize(n == 0 ? 0 : n, B.cols());
+    dst.resize(n, B.cols());
     return;
   }
 
@@ -114,7 +114,7 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   if (!dst.empty()) dst.waitReady(ctx.stream());
 
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
-  constexpr cublasFillMode_t uplo = cusolver_fill_mode<UpLo, ColMajor>::value;
+  constexpr cublasFillMode_t uplo = cusolver_fill_mode<UpLo>::value;
   const int64_t lda = static_cast<int64_t>(A.outerStride());
   const int64_t ldb = static_cast<int64_t>(B.outerStride());
   const size_t mat_bytes = static_cast<size_t>(lda) * static_cast<size_t>(n) * sizeof(Scalar);
@@ -172,7 +172,7 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
 
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
-    dst.resize(n == 0 ? 0 : n, B.cols());
+    dst.resize(n, B.cols());
     return;
   }
 
@@ -247,7 +247,7 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
 
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
-    dst.resize(n == 0 ? 0 : n, B.cols());
+    dst.resize(n, B.cols());
     return;
   }
 
