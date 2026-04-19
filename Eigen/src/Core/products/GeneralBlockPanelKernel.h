@@ -1414,34 +1414,33 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
                                      offsetB, prefetch_res_offset, peeled_kc, pk);
   };
 
-  //---------- Process 3 * LhsProgress rows at once ----------
-  EIGEN_IF_CONSTEXPR(mr >= 3 * Traits::LhsProgress) {
+  // Budget (in bytes) for co-residency of the RHS block and a strip of the
+  // LHS panel. On most architectures this is L1: the LHS streams sequentially
+  // through L1 and we only need room for one micro-panel strip at a time.
+  // Sub-blocking trades cache misses for extra passes over the RHS columns,
+  // which hurts IPC and loop overhead. On modern x86, L1→L2 traffic is cheap
+  // (~5 cycles) and hardware prefetchers absorb the LHS misses, so we use a
+  // fraction of L2 instead — effectively disabling sub-blocking when the LHS
+  // panel already fits in L2.
+  Index lhs_budget;
+  {
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
-    // The RHS block (accumulator + RHS panel) and a strip of the LHS panel
-    // must co-reside in L1 for good performance. The LHS data streams
-    // sequentially through L1, so we only need enough room for one
-    // micro-panel strip (depth * 3*LhsProgress) at a time, not the entire
-    // LHS panel. When the RHS block is small enough that the remainder of
-    // L1 can hold the full LHS panel, skip sub-blocking entirely.
-    //
-    // Sub-blocking trades L1 cache misses for extra column passes (iterating
-    // over the RHS columns multiple times). On modern x86, L1 misses that
-    // hit L2 are cheap (~5 cycles) compared to the cost of extra column
-    // passes (more loop overhead and reduced IPC). When the LHS panel fits
-    // within a generous fraction of L2, the L1 misses are absorbed by the
-    // L1↔L2 bandwidth and sub-blocking is counterproductive.
-    // Use the L2 budget for the sub-blocking decision on x86.
 #if EIGEN_ARCH_i386_OR_x86_64
-    l1 = l2 / 2;
+    lhs_budget = static_cast<Index>(l2 / 2);
+#else
+    lhs_budget = static_cast<Index>(l1);
 #endif
+  }
+
+  //---------- Process 3 * LhsProgress rows at once ----------
+  EIGEN_IF_CONSTEXPR(mr >= 3 * Traits::LhsProgress) {
     const Index rhs_block = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
     const Index lhs_strip = depth * sizeof(LhsScalar) * 3 * LhsProgress;
-    const Index l1_for_lhs = (l1 > rhs_block) ? (l1 - rhs_block) : 0;
-    const Index actual_panel_rows =
-        (l1_for_lhs >= static_cast<Index>(peeled_mc3) * depth * static_cast<Index>(sizeof(LhsScalar)))
-            ? peeled_mc3
-            : (3 * LhsProgress) * std::max<Index>(1, l1_for_lhs / lhs_strip);
+    const Index lhs_avail = (lhs_budget > rhs_block) ? (lhs_budget - rhs_block) : 0;
+    const Index actual_panel_rows = (lhs_avail >= peeled_mc3 * depth * static_cast<Index>(sizeof(LhsScalar)))
+                                        ? peeled_mc3
+                                        : (3 * LhsProgress) * std::max<Index>(1, lhs_avail / lhs_strip);
     for (Index i1 = 0; i1 < peeled_mc3; i1 += actual_panel_rows) {
       const Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc3);
       EIGEN_IF_CONSTEXPR(nr >= 8) {
@@ -1466,19 +1465,13 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 
   //---------- Process 2 * LhsProgress rows at once ----------
   EIGEN_IF_CONSTEXPR(mr >= 2 * Traits::LhsProgress) {
-    std::ptrdiff_t l1, l2, l3;
-    manage_caching_sizes(GetAction, &l1, &l2, &l3);
-#if EIGEN_ARCH_i386_OR_x86_64
-    l1 = l2 / 2;
-#endif
     const Index rhs_block2 = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
     const Index lhs_strip2 = depth * sizeof(LhsScalar) * 2 * LhsProgress;
-    const Index l1_for_lhs2 = (l1 > rhs_block2) ? (l1 - rhs_block2) : 0;
+    const Index lhs_avail2 = (lhs_budget > rhs_block2) ? (lhs_budget - rhs_block2) : 0;
     const Index mc2_range = peeled_mc2 - peeled_mc3;
-    Index actual_panel_rows =
-        (l1_for_lhs2 >= static_cast<Index>(mc2_range) * depth * static_cast<Index>(sizeof(LhsScalar)))
-            ? mc2_range
-            : (2 * LhsProgress) * std::max<Index>(1, l1_for_lhs2 / lhs_strip2);
+    Index actual_panel_rows = (lhs_avail2 >= mc2_range * depth * static_cast<Index>(sizeof(LhsScalar)))
+                                  ? mc2_range
+                                  : (2 * LhsProgress) * std::max<Index>(1, lhs_avail2 / lhs_strip2);
     for (Index i1 = peeled_mc3; i1 < peeled_mc2; i1 += actual_panel_rows) {
       Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc2);
       EIGEN_IF_CONSTEXPR(nr >= 8) {
