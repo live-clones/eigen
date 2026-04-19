@@ -23,6 +23,8 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include <functional>
+
 namespace Eigen {
 namespace gpu {
 
@@ -45,8 +47,8 @@ class LltSolveExpr {
   const DeviceMatrix<Scalar>& rhs() const { return B_; }
 
  private:
-  const DeviceMatrix<Scalar>& A_;
-  const DeviceMatrix<Scalar>& B_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> A_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> B_;
 };
 
 // ---- LU solve expression ----------------------------------------------------
@@ -62,8 +64,8 @@ class LuSolveExpr {
   const DeviceMatrix<Scalar>& rhs() const { return B_; }
 
  private:
-  const DeviceMatrix<Scalar>& A_;
-  const DeviceMatrix<Scalar>& B_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> A_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> B_;
 };
 
 // ---- LLTView: d_A.llt() -> view with .solve() and .device() ----------------
@@ -86,7 +88,7 @@ class LLTView {
   //   auto d_X2 = llt.solve(d_B2);
 
  private:
-  const DeviceMatrix<Scalar>& mat_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;
 };
 
 // ---- LUView: d_A.lu() -> view with .solve() and .device() ------------------
@@ -108,7 +110,7 @@ class LUView {
   //   auto d_X2 = lu.solve(d_B2);
 
  private:
-  const DeviceMatrix<Scalar>& mat_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;
 };
 
 }  // namespace gpu

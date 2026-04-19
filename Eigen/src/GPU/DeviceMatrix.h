@@ -99,18 +99,7 @@ class HostTransfer {
   /** Block until the transfer completes and return the host matrix.
    * Idempotent: subsequent calls return the same matrix without re-syncing.
    * On first call, copies from pinned staging buffer into a regular matrix. */
-  PlainMatrix& get() {
-    if (!synced_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventSynchronize(event_));
-      // Copy from pinned staging buffer into the regular (pageable) host matrix.
-      if (pinned_buf_.ptr && host_buf_.size() > 0) {
-        std::memcpy(host_buf_.data(), pinned_buf_.ptr, static_cast<size_t>(host_buf_.size()) * sizeof(Scalar));
-      }
-      pinned_buf_ = internal::PinnedHostBuffer();  // free pinned memory early
-      synced_ = true;
-    }
-    return host_buf_;
-  }
+  PlainMatrix& get();
 
   /** Non-blocking check: has the transfer completed? */
   bool ready() const {
@@ -159,6 +148,20 @@ class HostTransfer {
   cudaEvent_t event_ = nullptr;
   bool synced_ = false;
 };
+
+template <typename Scalar_>
+typename HostTransfer<Scalar_>::PlainMatrix& HostTransfer<Scalar_>::get() {
+  if (!synced_) {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaEventSynchronize(event_));
+    // Copy from pinned staging buffer into the regular (pageable) host matrix.
+    if (pinned_buf_.ptr && host_buf_.size() > 0) {
+      std::memcpy(host_buf_.data(), pinned_buf_.ptr, static_cast<size_t>(host_buf_.size()) * sizeof(Scalar));
+    }
+    pinned_buf_ = internal::PinnedHostBuffer();  // free pinned memory early
+    synced_ = true;
+  }
+  return host_buf_;
+}
 
 // --------------------------------------------------------------------------
 // Matrix — typed RAII wrapper for a dense matrix in device memory.
