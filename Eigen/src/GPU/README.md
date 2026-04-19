@@ -193,6 +193,23 @@ via CUDA events. When a matrix written on stream A is read on stream B, the
 module automatically inserts `cudaStreamWaitEvent`. Same-stream operations
 skip the wait (CUDA guarantees in-order execution within a stream).
 
+**Lifetime of cached factorizations.** A `gpu::LLT` / `gpu::LU` object owns
+its CUDA stream, library handle, and the cached factor on device. Destroying
+the factorization object while a `solve()` it issued is still in flight is
+*correct* but not actually async: `cudaStreamDestroy` returns immediately,
+but the destructor of the cached factor calls `cudaFree`, which is fully
+device-synchronous and stalls until the in-flight `potrs`/`getrs` retires.
+For genuine async pipelining keep the factorization object alive until you
+have drained its results (e.g. via `toHost()` or by binding consumption to
+an explicit `gpu::Context` that outlives both producer and consumer):
+
+```cpp
+gpu::LLT<double> llt(d_A);             // factor stays on device
+auto h_x = d_X = llt.solve(d_B).toHostAsync(stream);
+h_x.get();                             // sync: factor + result complete
+// llt may now be destroyed without stalling the device
+```
+
 ## Reference
 
 ### Supported scalar types
