@@ -216,6 +216,28 @@ inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cubla
                      reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
+// DGMM wrappers: C = A * diag(x)  (side=RIGHT) or C = diag(x) * A  (side=LEFT).
+// Useful for applying a diagonal scaling without materialising diag(x) as a
+// dense matrix. cuBLAS docs guarantee in-place is safe when C == A.
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const float* A, int lda,
+                                  const float* x, int incx, float* C, int ldc) {
+  return cublasSdgmm(h, side, m, n, A, lda, x, incx, C, ldc);
+}
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const double* A, int lda,
+                                  const double* x, int incx, double* C, int ldc) {
+  return cublasDdgmm(h, side, m, n, A, lda, x, incx, C, ldc);
+}
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const std::complex<float>* A,
+                                  int lda, const std::complex<float>* x, int incx, std::complex<float>* C, int ldc) {
+  return cublasCdgmm(h, side, m, n, reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<const cuComplex*>(x),
+                     incx, reinterpret_cast<cuComplex*>(C), ldc);
+}
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const std::complex<double>* A,
+                                  int lda, const std::complex<double>* x, int incx, std::complex<double>* C, int ldc) {
+  return cublasZdgmm(h, side, m, n, reinterpret_cast<const cuDoubleComplex*>(A), lda,
+                     reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+}
+
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen

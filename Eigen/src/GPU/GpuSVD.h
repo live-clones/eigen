@@ -393,24 +393,34 @@ class SVD {
       }
     }
 
-    // Step 2: Scale row i of tmp by D_ii (host round-trip).
+    // Step 2: Apply diag(D) to tmp on device via cublasXdgmm.
+    // D is built on host from the (small, k-entry) singular-values vector S
+    // and uploaded to a small device buffer; tmp itself stays on device.
+    //
+    // For lambda == 0 we mirror Eigen's SVDBase::_solve_impl: drop singular
+    // values below S(0) * k * eps (numerical-rank truncation), so this
+    // pseudoinverse solve agrees with CPU BDCSVD::solve on near-singular A.
     {
-      PlainMatrix tmp(kk, nrhs);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(tmp.data(), d_tmp.get(),
-                                               static_cast<size_t>(kk) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                                               cudaMemcpyDeviceToHost, ctx_.stream_));
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_.stream_));
-
+      PlainMatrix D(kk, 1);  // dgmm wants the diagonal in matrix scalar type
+      const RealScalar drop_threshold = S(0) * RealScalar(k) * NumTraits<RealScalar>::epsilon();
       for (Index i = 0; i < kk; ++i) {
-        RealScalar si = S(i);
-        RealScalar di = (lambda == RealScalar(0)) ? (si > 0 ? RealScalar(1) / si : RealScalar(0))
-                                                  : si / (si * si + lambda * lambda);
-        tmp.row(i) *= Scalar(di);
+        const RealScalar si = S(i);
+        RealScalar di;
+        if (lambda == RealScalar(0)) {
+          di = (si > drop_threshold) ? RealScalar(1) / si : RealScalar(0);
+        } else {
+          di = si / (si * si + lambda * lambda);
+        }
+        D(i, 0) = Scalar(di);
       }
 
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_tmp.get(), tmp.data(),
-                                               static_cast<size_t>(kk) * static_cast<size_t>(nrhs) * sizeof(Scalar),
+      internal::DeviceBuffer d_D(static_cast<size_t>(kk) * sizeof(Scalar));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_D.get(), D.data(), static_cast<size_t>(kk) * sizeof(Scalar),
                                                cudaMemcpyHostToDevice, ctx_.stream_));
+
+      EIGEN_CUBLAS_CHECK(internal::cublasXdgmm(
+          ctx_.cublas_, CUBLAS_SIDE_LEFT, static_cast<int>(kk), static_cast<int>(nrhs), tmp_dev, static_cast<int>(kk),
+          static_cast<const Scalar*>(d_D.get()), 1, tmp_dev, static_cast<int>(kk)));
     }
 
     // Step 3: X = V_orig * tmp  (n_orig × nrhs).
