@@ -120,7 +120,9 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
     cholmod_l_free_sparse(&m_cR, &m_cc);
     cholmod_l_free_dense(&m_HTau, &m_cc);
     std::free(m_E);
+    m_E = nullptr;
     std::free(m_HPinv);
+    m_HPinv = nullptr;
   }
 
   void compute(const MatrixType_& matrix) {
@@ -146,6 +148,12 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
                                    &m_cR, &m_E, &m_H, &m_HPinv, &m_HTau, &m_cc);
 
     if (!m_cR) {
+      m_info = NumericalIssue;
+      m_isInitialized = false;
+      return;
+    }
+    if (!m_E && !initIdentityPermutation(m_cR->ncol)) {
+      SPQR_free();
       m_info = NumericalIssue;
       m_isInitialized = false;
       return;
@@ -255,6 +263,16 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
   mutable cholmod_common m_cc;              // Workspace and parameters
   bool m_useDefaultThreshold;               // Use default threshold
   Index m_rows;
+
+  bool initIdentityPermutation(StorageIndex size) {
+    if (m_E || size == 0) return true;
+    // SuiteSparse can omit the permutation array when no column reordering is applied.
+    m_E = static_cast<StorageIndex*>(std::malloc(sizeof(StorageIndex) * size));
+    if (!m_E) return false;
+    for (StorageIndex i = 0; i < size; ++i) m_E[i] = i;
+    return true;
+  }
+
   template <typename, typename>
   friend struct SPQR_QProduct;
 };

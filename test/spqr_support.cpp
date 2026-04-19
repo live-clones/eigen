@@ -53,7 +53,48 @@ void test_spqr_scalar() {
   refX = dA.colPivHouseholderQr().solve(b);
   VERIFY(x.isApprox(refX, test_precision<Scalar>()));
 }
+
+void test_spqr_fixed_ordering_uses_identity_permutation() {
+  typedef SparseMatrix<double, ColMajor> MatrixType;
+  typedef Matrix<double, Dynamic, Dynamic> DenseMatrix;
+  typedef Matrix<double, Dynamic, 1> DenseVector;
+
+  DenseMatrix dA(6, 4);
+  dA << 4.0, 1.0, 0.0, 0.0,  //
+      1.0, 0.0, 2.0, 0.0,    //
+      -2.0, 3.0, 0.0, 6.0,   //
+      0.0, 5.0, -1.0, 0.0,   //
+      0.0, 0.0, 7.0, 2.0,    //
+      0.0, 0.0, 0.0, 3.0;
+
+  MatrixType A = dA.sparseView();
+  A.makeCompressed();
+
+  DenseVector b(6);
+  b << 1.0, -2.0, 0.5, 4.0, -1.0, 3.0;
+
+  SPQR<MatrixType> solver;
+  solver.setSPQROrdering(SPQR_ORDERING_FIXED);
+  solver.setPivotThreshold(SPQR_NO_TOL);
+  solver.compute(A);
+
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_EQUAL(solver.rank(), A.cols());
+
+  const auto permutation = solver.colsPermutation();
+  VERIFY_IS_EQUAL(permutation.size(), A.cols());
+  for (Index i = 0; i < permutation.size(); ++i) {
+    VERIFY_IS_EQUAL(permutation.indices()(i), i);
+  }
+
+  const DenseVector refX = dA.colPivHouseholderQr().solve(b);
+  DenseVector x = solver.solve(b);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_APPROX(x, refX);
+}
+
 EIGEN_DECLARE_TEST(spqr_support) {
   CALL_SUBTEST_1(test_spqr_scalar<double>());
   CALL_SUBTEST_2(test_spqr_scalar<std::complex<double> >());
+  CALL_SUBTEST_3(test_spqr_fixed_ordering_uses_identity_permutation());
 }
