@@ -206,7 +206,7 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
 
   /** \returns the sparse triangular factor R. It is a sparse matrix
    */
-  const MatrixType matrixR() const {
+  const MatrixType& matrixR() const {
     eigen_assert(m_isInitialized && " The QR factorization should be computed first, call compute()");
     if (!m_isRUpToDate) {
       m_R = viewAsEigen<Scalar, StorageIndex>(*m_cR);

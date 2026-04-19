@@ -98,6 +98,7 @@ void test_spqr_matrix_q_times_identity_expression() {
   typedef Matrix<double, Dynamic, Dynamic> DenseMatrix;
   typedef SPQR<MatrixType> SolverType;
   typedef typename SolverType::MatrixType SolverSparseMatrix;
+  typedef Matrix<double, Dynamic, 1> DenseVector;
 
   DenseMatrix dA(6, 4);
   dA << 4.0, 1.0, 0.0, 0.0,  //
@@ -130,13 +131,18 @@ void test_spqr_matrix_q_times_identity_expression() {
   VERIFY_IS_APPROX(denseAssignedQ, Q);
 
   const DenseMatrix R = DenseMatrix(solver.matrixR().template triangularView<Upper>());
+  const auto sparseR = solver.matrixR().template triangularView<Upper>();
   SolverSparseMatrix sparseIdentity(A.rows(), A.rows());
   sparseIdentity.setIdentity();
   SolverSparseMatrix sparseAssignedQ(A.rows(), A.rows());
   sparseAssignedQ = solver.matrixQ();
   SolverSparseMatrix sparseProductQ(A.rows(), A.rows());
   sparseProductQ = solver.matrixQ() * sparseIdentity;
+  const DenseVector rhs = DenseVector::LinSpaced(A.cols(), 1.0, double(A.cols()));
+  const DenseVector x = sparseR.solve(rhs);
+  const DenseVector expected = R.template triangularView<Upper>().solve(rhs);
   const DenseMatrix recoveredA = Q.leftCols(A.cols()) * R * solver.colsPermutation().transpose();
+  VERIFY_IS_APPROX(x, expected);
   VERIFY_IS_APPROX(DenseMatrix(sparseAssignedQ), denseAssignedQ);
   VERIFY_IS_APPROX(DenseMatrix(sparseProductQ), denseAssignedQ);
   VERIFY_IS_APPROX(recoveredA, dA);
