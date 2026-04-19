@@ -285,7 +285,7 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
   SPQR_QProduct(const SPQRType& spqr, const Derived& other, bool transpose)
       : m_spqr(spqr), m_other(other), m_transpose(transpose) {}
 
-  inline Index rows() const { return m_transpose ? m_spqr.rows() : m_spqr.cols(); }
+  inline Index rows() const { return m_spqr.rows(); }
   inline Index cols() const { return m_other.cols(); }
   // Assign to a vector
   template <typename ResType>

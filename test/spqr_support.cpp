@@ -115,7 +115,10 @@ void test_spqr_matrix_q_times_identity_expression() {
 
   const DenseMatrix Q = solver.matrixQ() * DenseMatrix::Identity(A.rows(), A.rows());
   const DenseMatrix denseIdentity = DenseMatrix::Identity(A.rows(), A.rows());
-  const DenseMatrix qFromDenseIdentity = solver.matrixQ() * denseIdentity;
+  const auto qProduct = solver.matrixQ() * denseIdentity;
+  VERIFY_IS_EQUAL(qProduct.rows(), A.rows());
+  VERIFY_IS_EQUAL(qProduct.cols(), A.rows());
+  const DenseMatrix qFromDenseIdentity = qProduct;
   VERIFY_IS_EQUAL(Q.rows(), A.rows());
   VERIFY_IS_EQUAL(Q.cols(), A.rows());
   VERIFY_IS_APPROX(Q.transpose() * Q, DenseMatrix::Identity(A.rows(), A.rows()));
