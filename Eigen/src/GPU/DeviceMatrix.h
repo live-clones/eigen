@@ -154,8 +154,8 @@ typename HostTransfer<Scalar_>::PlainMatrix& HostTransfer<Scalar_>::get() {
   if (!synced_) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventSynchronize(event_));
     // Copy from pinned staging buffer into the regular (pageable) host matrix.
-    if (pinned_buf_.ptr && host_buf_.size() > 0) {
-      std::memcpy(host_buf_.data(), pinned_buf_.ptr, static_cast<size_t>(host_buf_.size()) * sizeof(Scalar));
+    if (pinned_buf_ && host_buf_.size() > 0) {
+      std::memcpy(host_buf_.data(), pinned_buf_.get(), static_cast<size_t>(host_buf_.size()) * sizeof(Scalar));
     }
     pinned_buf_ = internal::PinnedHostBuffer();  // free pinned memory early
     synced_ = true;
@@ -197,26 +197,26 @@ class DeviceMatrix {
     eigen_assert(rows >= 0 && cols >= 0);
     size_t bytes = sizeInBytes();
     if (bytes > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(reinterpret_cast<void**>(&data_), bytes));
+      void* p = nullptr;
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+      data_.reset(static_cast<Scalar*>(p));
     }
   }
 
   ~DeviceMatrix() {
-    if (data_) (void)cudaFree(data_);
     if (ready_event_) (void)cudaEventDestroy(ready_event_);
   }
 
   // ---- Move-only -----------------------------------------------------------
 
   DeviceMatrix(DeviceMatrix&& o) noexcept
-      : data_(o.data_),
+      : data_(std::move(o.data_)),
         rows_(o.rows_),
         cols_(o.cols_),
         outerStride_(o.outerStride_),
         ready_event_(o.ready_event_),
         ready_stream_(o.ready_stream_),
         retained_buffer_(std::move(o.retained_buffer_)) {
-    o.data_ = nullptr;
     o.rows_ = 0;
     o.cols_ = 0;
     o.outerStride_ = 0;
@@ -226,16 +226,14 @@ class DeviceMatrix {
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
     if (this != &o) {
-      if (data_) (void)cudaFree(data_);
       if (ready_event_) (void)cudaEventDestroy(ready_event_);
-      data_ = o.data_;
+      data_ = std::move(o.data_);
       rows_ = o.rows_;
       cols_ = o.cols_;
       outerStride_ = o.outerStride_;
       ready_event_ = o.ready_event_;
       ready_stream_ = o.ready_stream_;
       retained_buffer_ = std::move(o.retained_buffer_);
-      o.data_ = nullptr;
       o.rows_ = 0;
       o.cols_ = 0;
       o.outerStride_ = 0;
@@ -263,7 +261,8 @@ class DeviceMatrix {
     const PlainMatrix mat(host.derived());
     DeviceMatrix dm(mat.rows(), mat.cols());
     if (dm.sizeInBytes() > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dm.data_, mat.data(), dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(
+          cudaMemcpyAsync(dm.data_.get(), mat.data(), dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
     }
     return dm;
@@ -291,10 +290,10 @@ class DeviceMatrix {
       // Otherwise, copy column by column (strided layout).
       if (outerStride == rows) {
         EIGEN_CUDA_RUNTIME_CHECK(
-            cudaMemcpyAsync(dm.data_, host_data, dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
+            cudaMemcpyAsync(dm.data_.get(), host_data, dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
       } else {
-        EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(dm.data_, static_cast<size_t>(rows) * sizeof(Scalar), host_data,
-                                                   static_cast<size_t>(outerStride) * sizeof(Scalar),
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(dm.data_.get(), static_cast<size_t>(rows) * sizeof(Scalar),
+                                                   host_data, static_cast<size_t>(outerStride) * sizeof(Scalar),
                                                    static_cast<size_t>(rows) * sizeof(Scalar),
                                                    static_cast<size_t>(cols), cudaMemcpyHostToDevice, stream));
       }
@@ -316,7 +315,8 @@ class DeviceMatrix {
     PlainMatrix host_buf(rows_, cols_);
     if (sizeInBytes() > 0) {
       waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(host_buf.data(), data_, sizeInBytes(), cudaMemcpyDeviceToHost, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(
+          cudaMemcpyAsync(host_buf.data(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
     }
     return host_buf;
@@ -336,7 +336,8 @@ class DeviceMatrix {
     if (sizeInBytes() > 0) {
       waitReady(stream);
       // DMA into pinned staging buffer for truly async transfer.
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(pinned_buf.ptr, data_, sizeInBytes(), cudaMemcpyDeviceToHost, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(
+          cudaMemcpyAsync(pinned_buf.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
     }
     // Record a transfer-complete event.
     cudaEvent_t transfer_event;
@@ -355,7 +356,8 @@ class DeviceMatrix {
     DeviceMatrix result(rows_, cols_);
     if (sizeInBytes() > 0) {
       waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(result.data_, data_, sizeInBytes(), cudaMemcpyDeviceToDevice, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(
+          cudaMemcpyAsync(result.data_.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToDevice, stream));
       result.recordReady(stream);
     }
     return result;
@@ -366,10 +368,7 @@ class DeviceMatrix {
   /** Discard contents and reallocate to (rows x cols). Clears the ready event. */
   void resize(Index rows, Index cols) {
     if (rows == rows_ && cols == cols_) return;
-    if (data_) {
-      (void)cudaFree(data_);
-      data_ = nullptr;
-    }
+    data_.reset();
     if (ready_event_) {
       (void)cudaEventDestroy(ready_event_);
       ready_event_ = nullptr;
@@ -381,14 +380,16 @@ class DeviceMatrix {
     outerStride_ = rows;
     size_t bytes = sizeInBytes();
     if (bytes > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(reinterpret_cast<void**>(&data_), bytes));
+      void* p = nullptr;
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+      data_.reset(static_cast<Scalar*>(p));
     }
   }
 
   // ---- Accessors -----------------------------------------------------------
 
-  Scalar* data() { return data_; }
-  const Scalar* data() const { return data_; }
+  Scalar* data() { return data_.get(); }
+  const Scalar* data() const { return data_.get(); }
   Index rows() const { return rows_; }
   Index cols() const { return cols_; }
   Index outerStride() const { return outerStride_; }
@@ -486,7 +487,7 @@ class DeviceMatrix {
   /** Adopt an existing device pointer. Caller relinquishes ownership. */
   static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols) {
     DeviceMatrix dm;
-    dm.data_ = device_ptr;
+    dm.data_.reset(device_ptr);
     dm.rows_ = rows;
     dm.cols_ = cols;
     dm.outerStride_ = rows;
@@ -495,8 +496,7 @@ class DeviceMatrix {
 
   /** Transfer ownership of the device pointer out. Zeros internal state. */
   Scalar* release() {
-    Scalar* p = data_;
-    data_ = nullptr;
+    Scalar* p = data_.release();
     rows_ = 0;
     cols_ = 0;
     outerStride_ = 0;
@@ -521,7 +521,7 @@ class DeviceMatrix {
 
   // ---- Data members --------------------------------------------------------
 
-  Scalar* data_ = nullptr;
+  std::unique_ptr<Scalar, internal::CudaFreeDeleter> data_;
   Index rows_ = 0;
   Index cols_ = 0;
   Index outerStride_ = 0;

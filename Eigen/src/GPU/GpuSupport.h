@@ -22,6 +22,8 @@
 
 #include <cuda_runtime.h>
 
+#include <memory>
+
 namespace Eigen {
 namespace gpu {
 namespace internal {
@@ -35,72 +37,72 @@ namespace internal {
     eigen_assert(_e == cudaSuccess && "CUDA runtime call failed"); \
   } while (0)
 
+// ---- Custom deleters for CUDA-allocated memory ------------------------------
+// Used with std::unique_ptr to give CUDA allocations RAII semantics with no
+// hand-rolled move/dtor boilerplate.
+
+struct CudaFreeDeleter {
+  void operator()(void* p) const noexcept {
+    if (p) (void)cudaFree(p);
+  }
+};
+
+struct CudaFreeHostDeleter {
+  void operator()(void* p) const noexcept {
+    if (p) (void)cudaFreeHost(p);
+  }
+};
+
 // ---- RAII: device buffer ----------------------------------------------------
 
-struct DeviceBuffer {
-  void* ptr = nullptr;
-
+class DeviceBuffer {
+ public:
   DeviceBuffer() = default;
 
   explicit DeviceBuffer(size_t bytes) {
-    if (bytes > 0) EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&ptr, bytes));
-  }
-
-  ~DeviceBuffer() {
-    if (ptr) (void)cudaFree(ptr);  // destructor: ignore errors
-  }
-
-  // Move-only.
-  DeviceBuffer(DeviceBuffer&& o) noexcept : ptr(o.ptr) { o.ptr = nullptr; }
-  DeviceBuffer& operator=(DeviceBuffer&& o) noexcept {
-    if (this != &o) {
-      if (ptr) (void)cudaFree(ptr);
-      ptr = o.ptr;
-      o.ptr = nullptr;
+    if (bytes > 0) {
+      void* p = nullptr;
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+      ptr_.reset(p);
     }
-    return *this;
   }
 
-  DeviceBuffer(const DeviceBuffer&) = delete;
-  DeviceBuffer& operator=(const DeviceBuffer&) = delete;
+  void* get() const noexcept { return ptr_.get(); }
+  void* release() noexcept { return ptr_.release(); }
+  explicit operator bool() const noexcept { return static_cast<bool>(ptr_); }
 
   // Adopt an existing device pointer. Caller relinquishes ownership.
-  static DeviceBuffer adopt(void* p) {
+  static DeviceBuffer adopt(void* p) noexcept {
     DeviceBuffer b;
-    b.ptr = p;
+    b.ptr_.reset(p);
     return b;
   }
+
+ private:
+  std::unique_ptr<void, CudaFreeDeleter> ptr_;
 };
 
 // ---- RAII: pinned host buffer -----------------------------------------------
 // For async D2H copies (cudaMemcpyAsync requires pinned host memory for true
 // asynchrony and to avoid compute-sanitizer warnings).
 
-struct PinnedHostBuffer {
-  void* ptr = nullptr;
-
+class PinnedHostBuffer {
+ public:
   PinnedHostBuffer() = default;
 
   explicit PinnedHostBuffer(size_t bytes) {
-    if (bytes > 0) EIGEN_CUDA_RUNTIME_CHECK(cudaMallocHost(&ptr, bytes));
-  }
-
-  ~PinnedHostBuffer() {
-    if (ptr) (void)cudaFreeHost(ptr);
-  }
-
-  PinnedHostBuffer(PinnedHostBuffer&& o) noexcept : ptr(o.ptr) { o.ptr = nullptr; }
-  PinnedHostBuffer& operator=(PinnedHostBuffer&& o) noexcept {
-    if (this != &o) {
-      if (ptr) (void)cudaFreeHost(ptr);
-      ptr = o.ptr;
-      o.ptr = nullptr;
+    if (bytes > 0) {
+      void* p = nullptr;
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMallocHost(&p, bytes));
+      ptr_.reset(p);
     }
-    return *this;
   }
 
-  PinnedHostBuffer(const PinnedHostBuffer&) = delete;
-  PinnedHostBuffer& operator=(const PinnedHostBuffer&) = delete;
+  void* get() const noexcept { return ptr_.get(); }
+  explicit operator bool() const noexcept { return static_cast<bool>(ptr_); }
+
+ private:
+  std::unique_ptr<void, CudaFreeHostDeleter> ptr_;
 };
 
 // ---- Scalar → cudaDataType_t ------------------------------------------------

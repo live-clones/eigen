@@ -142,7 +142,7 @@ class LU {
     const PlainMatrix mat(A.derived());
     lda_ = static_cast<int64_t>(mat.outerStride());
     allocate_lu_storage();
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu_.ptr, mat.data(), matrixBytes(), cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu_.get(), mat.data(), matrixBytes(), cudaMemcpyHostToDevice, stream_));
 
     factorize();
     return *this;
@@ -156,7 +156,8 @@ class LU {
     lda_ = static_cast<int64_t>(d_A.outerStride());
     d_A.waitReady(stream_);
     allocate_lu_storage();
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu_.ptr, d_A.data(), matrixBytes(), cudaMemcpyDeviceToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_lu_.get(), d_A.data(), matrixBytes(), cudaMemcpyDeviceToDevice, stream_));
 
     factorize();
     return *this;
@@ -247,8 +248,8 @@ class LU {
   internal::PinnedHostBuffer pinned_info_{sizeof(int)};  // pinned host memory for async D2H
   bool info_synced_ = true;                              // has the stream been synced for info?
 
-  int& info_word() { return *static_cast<int*>(pinned_info_.ptr); }
-  int info_word() const { return *static_cast<const int*>(pinned_info_.ptr); }
+  int& info_word() { return *static_cast<int*>(pinned_info_.get()); }
+  int info_word() const { return *static_cast<const int*>(pinned_info_.get()); }
 
   bool begin_compute(Index rows) {
     n_ = rows;
@@ -284,15 +285,15 @@ class LU {
     workspace_bytes = (workspace_bytes + kAlign - 1) & ~(kAlign - 1);
     size_t needed = workspace_bytes + sizeof(int);
     if (needed > scratch_size_) {
-      if (d_scratch_.ptr) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+      if (d_scratch_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
       d_scratch_ = internal::DeviceBuffer(needed);
       scratch_size_ = needed;
     }
   }
 
-  void* scratch_workspace() const { return d_scratch_.ptr; }
+  void* scratch_workspace() const { return d_scratch_.get(); }
   int* scratch_info() const {
-    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.ptr) + scratch_size_ - sizeof(int));
+    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + scratch_size_ - sizeof(int));
   }
 
   template <typename CopyRhs>
@@ -301,16 +302,15 @@ class LU {
     const cublasOperation_t trans = to_cublas_op(mode);
 
     internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
-    Scalar* d_x_ptr = static_cast<Scalar*>(d_x.ptr);
+    Scalar* d_x_ptr = static_cast<Scalar*>(d_x.get());
     copy_rhs(d_x_ptr);
 
-    EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(handle_, params_.p, trans, static_cast<int64_t>(n_), nrhs, dtype, d_lu_.ptr,
-                                          lda_, static_cast<const int64_t*>(d_ipiv_.ptr), dtype, d_x_ptr, ldb,
+    EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(handle_, params_.p, trans, static_cast<int64_t>(n_), nrhs, dtype, d_lu_.get(),
+                                          lda_, static_cast<const int64_t*>(d_ipiv_.get()), dtype, d_x_ptr, ldb,
                                           scratch_info()));
 
     DeviceMatrix<Scalar> result =
-        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs));
-    d_x.ptr = nullptr;  // ownership transferred to result
+        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
     result.recordReady(stream_);
     return result;
   }
@@ -344,15 +344,15 @@ class LU {
 
     size_t dev_ws_bytes = 0, host_ws_bytes = 0;
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(handle_, params_.p, static_cast<int64_t>(n_),
-                                                     static_cast<int64_t>(n_), dtype, d_lu_.ptr, lda_, dtype,
+                                                     static_cast<int64_t>(n_), dtype, d_lu_.get(), lda_, dtype,
                                                      &dev_ws_bytes, &host_ws_bytes));
 
     ensure_scratch(dev_ws_bytes);
     h_workspace_.resize(host_ws_bytes);
 
     EIGEN_CUSOLVER_CHECK(
-        cusolverDnXgetrf(handle_, params_.p, static_cast<int64_t>(n_), static_cast<int64_t>(n_), dtype, d_lu_.ptr, lda_,
-                         static_cast<int64_t*>(d_ipiv_.ptr), dtype, scratch_workspace(), dev_ws_bytes,
+        cusolverDnXgetrf(handle_, params_.p, static_cast<int64_t>(n_), static_cast<int64_t>(n_), dtype, d_lu_.get(),
+                         lda_, static_cast<int64_t*>(d_ipiv_.get()), dtype, scratch_workspace(), dev_ws_bytes,
                          host_ws_bytes > 0 ? h_workspace_.data() : nullptr, host_ws_bytes, scratch_info()));
 
     EIGEN_CUDA_RUNTIME_CHECK(

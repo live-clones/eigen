@@ -121,25 +121,27 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   const size_t rhs_bytes = static_cast<size_t>(ldb) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
   DeviceBuffer d_factor(mat_bytes);
-  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_factor.ptr, A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMemcpyAsync(d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   PinnedHostBuffer h_info(sizeof(int));
-  int& info_word = *static_cast<int*>(h_info.ptr);
+  int& info_word = *static_cast<int*>(h_info.get());
 
   CusolverParams params;
   DeviceBuffer d_info(sizeof(int));
   size_t dev_ws = 0, host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), dtype,
-                                                   d_factor.ptr, lda, dtype, &dev_ws, &host_ws));
+                                                   d_factor.get(), lda, dtype, &dev_ws, &host_ws));
 
   DeviceBuffer d_workspace(dev_ws);
   std::vector<char> h_workspace(host_ws);
 
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(
-      ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), dtype, d_factor.ptr, lda, dtype, d_workspace.ptr,
-      dev_ws, host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_info.ptr)));
+      ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), dtype, d_factor.get(), lda, dtype,
+      d_workspace.get(), dev_ws, host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_info.get())));
 
-  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMemcpyAsync(&info_word, d_info.get(), sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
   eigen_assert(info_word == 0 && "cuSOLVER LLT factorization failed (matrix not positive definite)");
 
@@ -147,10 +149,11 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), nrhs, dtype,
-                                        d_factor.ptr, lda, dtype, dst.data(), static_cast<int64_t>(dst.outerStride()),
-                                        static_cast<int*>(d_info.ptr)));
+                                        d_factor.get(), lda, dtype, dst.data(), static_cast<int64_t>(dst.outerStride()),
+                                        static_cast<int*>(d_info.get())));
 
-  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMemcpyAsync(&info_word, d_info.get(), sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
   eigen_assert(info_word == 0 && "cuSOLVER LLT solve failed");
 
@@ -188,18 +191,18 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
   const size_t ipiv_bytes = static_cast<size_t>(n) * sizeof(int64_t);
 
   DeviceBuffer d_lu(mat_bytes);
-  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu.ptr, A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   DeviceBuffer d_ipiv(ipiv_bytes);
 
   PinnedHostBuffer h_info(sizeof(int));
-  int& info_word = *static_cast<int*>(h_info.ptr);
+  int& info_word = *static_cast<int*>(h_info.get());
 
   CusolverParams params;
   DeviceBuffer d_info(sizeof(int));
   size_t dev_ws = 0, host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(ctx.cusolverHandle(), params.p, static_cast<int64_t>(n),
-                                                   static_cast<int64_t>(n), dtype, d_lu.ptr, lda, dtype, &dev_ws,
+                                                   static_cast<int64_t>(n), dtype, d_lu.get(), lda, dtype, &dev_ws,
                                                    &host_ws));
 
   DeviceBuffer d_workspace(dev_ws);
@@ -207,10 +210,11 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
 
   EIGEN_CUSOLVER_CHECK(
       cusolverDnXgetrf(ctx.cusolverHandle(), params.p, static_cast<int64_t>(n), static_cast<int64_t>(n), dtype,
-                       d_lu.ptr, lda, static_cast<int64_t*>(d_ipiv.ptr), dtype, d_workspace.ptr, dev_ws,
-                       host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_info.ptr)));
+                       d_lu.get(), lda, static_cast<int64_t*>(d_ipiv.get()), dtype, d_workspace.get(), dev_ws,
+                       host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_info.get())));
 
-  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMemcpyAsync(&info_word, d_info.get(), sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
   eigen_assert(info_word == 0 && "cuSOLVER LU factorization failed (singular matrix)");
 
@@ -218,11 +222,12 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(ctx.cusolverHandle(), params.p, CUBLAS_OP_N, static_cast<int64_t>(n), nrhs,
-                                        dtype, d_lu.ptr, lda, static_cast<const int64_t*>(d_ipiv.ptr), dtype,
+                                        dtype, d_lu.get(), lda, static_cast<const int64_t*>(d_ipiv.get()), dtype,
                                         dst.data(), static_cast<int64_t>(dst.outerStride()),
-                                        static_cast<int*>(d_info.ptr)));
+                                        static_cast<int*>(d_info.get())));
 
-  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMemcpyAsync(&info_word, d_info.get(), sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
   eigen_assert(info_word == 0 && "cuSOLVER LU solve failed");
 
