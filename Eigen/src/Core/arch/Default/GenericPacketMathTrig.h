@@ -198,7 +198,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
 
   if ((Func == TrigFunction::SinCos) || (Func == TrigFunction::Tan)) {
-    // TODO(rmlarsen): Add single polynomial for tan(x) instead of paying for sin+cos+div.
     Packet peven = peven_mask(x);
     Packet ysin = pselect(poly_mask, y2, y1);
     Packet ycos = pselect(poly_mask, y1, y2);
@@ -380,7 +379,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     sign_bit = sign_cos;
     sFinalRes = pselect(poly_mask, scos, ssin);
   } else if (Func == TrigFunction::Tan) {
-    // TODO(rmlarsen): Add single polynomial for tan(x) instead of paying for sin+cos+div.
     sign_bit = pxor(sign_sin, sign_cos);
     sFinalRes = pdiv(pselect(poly_mask, ssin, scos), pselect(poly_mask, scos, ssin));
   } else if (Func == TrigFunction::SinCos) {
