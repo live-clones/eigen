@@ -583,8 +583,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
-    // TODO(wuke): Targeting L1 size is 30% faster than targeting L{-1} on large
-    // tensors. But this might need further tuning.
+    // Target the L1 cache: measured ~30% faster than targeting the last-level
+    // cache on large tensors.
     const size_t target_size = m_device.firstLevelCacheSize();
     return internal::TensorBlockResourceRequirements::merge(
         m_impl.getResourceRequirements(), internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size));
