@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## Breaking Changes
+
+* Eigen 5.X.X requires C++17.  When building with GNU-compatible compilers, set `-std=c++17` or later.
+
+
 New features:
 - ComplexQZ implementation [!1962]
 - Generic clang vector extension backend [!2051]
@@ -57,7 +62,7 @@ Many bug fixes have been backported from the main branch.
 
 A list of new issues addressed can be found via the [3.4.1](https://gitlab.com/libeigen/eigen/-/issues?state=all&label_name%5B%5D=3.4.1) label on GitLab.
 
-Check the [git commit history](https://gitlab.com/libeigen/eigen/-/commits/3.4.1) for the full list of changes.  
+Check the [git commit history](https://gitlab.com/libeigen/eigen/-/commits/3.4.1) for the full list of changes.
 
 ## [3.4.0] - 2021-08-18
 
@@ -79,7 +84,7 @@ Check the [git commit history](https://gitlab.com/libeigen/eigen/-/commits/3.4.1
 ### New backends
 
 * **Arm SVE:** fixed-length [Scalable Vector Extensions](https://developer.arm.com/Architectures/Scalable%20Vector%20Extensions) vectors for `uint32_t` and `float` are available.
-* **MIPS MSA:**: [MIPS SIMD Architecture (MSA)](https://www.mips.com/products/architectures/ase/simd/) 
+* **MIPS MSA:**: [MIPS SIMD Architecture (MSA)](https://www.mips.com/products/architectures/ase/simd/)
 * **AMD ROCm/HIP:** generic GPU backend that unifies support for [NVIDIA/CUDA](https://developer.nvidia.com/cuda-toolkit) and [AMD/HIP](https://rocmdocs.amd.com/en/latest/).
 * **Power 10 MMA:** initial support for [Power 10 matrix multiplication assist instructions](https://arxiv.org/pdf/2104.03142.pdf) for float32 and float64, real and complex.
 

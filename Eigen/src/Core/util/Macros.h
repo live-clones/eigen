@@ -759,10 +759,10 @@
 // but in practice we should not rely on them but rather on the availability of
 // individual features as defined later.
 // This is why there is no EIGEN_HAS_CXX17.
-#if EIGEN_MAX_CPP_VER < 17 || EIGEN_COMP_CXXVER < 17 || (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1900) || \
-    (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1500) || (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 80000) ||       \
+#if EIGEN_MAX_CPP_VER < 17 || EIGEN_COMP_CXXVER < 17 || (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1914) || \
+    (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 110000) ||       \
     (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 390) ||                                             \
-    (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 9000000) || (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 510)
+    (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 10000000) || (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 710)
 #error Eigen requires at least c++17 support.
 #endif
 
