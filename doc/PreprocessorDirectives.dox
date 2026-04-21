@@ -52,11 +52,11 @@ By default, %Eigen strive to automatically detect and enable language features a
 the information provided by the compiler.
 
  - \b EIGEN_MAX_CPP_VER - disables usage of C++ features requiring a version greater than EIGEN_MAX_CPP_VER.
-   Possible values are: 14, 17, etc. If not defined (the default), %Eigen enables all features supported
+   Possible values are: 17, 20, etc. If not defined (the default), %Eigen enables all features supported
    by the compiler.
 
 Individual features can be explicitly enabled or disabled by defining the following token to 0 or 1 respectively.
-For instance, one might limit the C++ version to C++14 by defining EIGEN_MAX_CPP_VER=14, but still enable C99 math
+For instance, one might limit the C++ version to C++14 by defining EIGEN_MAX_CPP_VER=17, but still enable C99 math
 functions by defining EIGEN_HAS_C99_MATH=1.
 
  - \b EIGEN_HAS_C99_MATH - controls the usage of C99 math functions such as erf, erfc, lgamma, etc.
