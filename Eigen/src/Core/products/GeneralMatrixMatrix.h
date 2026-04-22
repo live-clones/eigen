@@ -73,7 +73,17 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
     if (info) {
       // this is the parallel version!
       int tid = info->logical_thread_id;
-      int threads = info->num_threads;
+      int t_n = info->t_n;
+      int tid_m = info->tid_m();
+      int tid_n = info->tid_n();
+      int group_base = tid_m * t_n;  // first thread id in this row group
+
+      // The row group this thread belongs to owns blockA rows
+      // [group_row_start, group_row_start + group_row_length).
+      Index group_row_start = info->task_info[group_base].lhs_start;
+      Index group_row_end =
+          info->task_info[group_base + t_n - 1].lhs_start + info->task_info[group_base + t_n - 1].lhs_length;
+      Index group_row_length = group_row_end - group_row_start;
 
       LhsScalar* blockA = blocking.blockA();
       eigen_internal_assert(blockA != 0);
@@ -89,31 +99,32 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
         // let's start by packing B'.
         pack_rhs(blockB, rhs.getSubMapper(k, 0), actual_kc, nc);
 
-        // Pack A_k to A' in a parallel fashion:
-        // each thread packs the sub block A_k,i to A'_i where i is the thread id.
-
-        // However, before copying to A'_i, we have to make sure that no other thread is still using it,
-        // i.e., we test that info->task_info[tid].users equals 0.
-        // Then, we set info->task_info[tid].users to the number of threads to mark that all other threads are going to
-        // use it.
+        // Pack A_k to A' cooperatively: each thread packs its own slice of its
+        // row group's share of the shared blockA.
+        //
+        // Before overwriting our slice, we need every consumer from the previous
+        // kc iteration (there are t_n consumers per slice, the threads that
+        // share our row group) to be done. Then set users = t_n so the t_n
+        // threads in our row group can decrement it.
         while (info->task_info[tid].users != 0) {
           std::this_thread::yield();
         }
-        info->task_info[tid].users = threads;
+        info->task_info[tid].users = t_n;
 
         pack_lhs(blockA + info->task_info[tid].lhs_start * actual_kc,
                  lhs.getSubMapper(info->task_info[tid].lhs_start, k), actual_kc, info->task_info[tid].lhs_length);
 
-        // Notify the other threads that the part A'_i is ready to go.
+        // Signal that our A' slice is ready for consumption.
         info->task_info[tid].sync = k;
 
-        // Computes C_i += A' * B' per A'_i
-        for (int shift = 0; shift < threads; ++shift) {
-          int i = (tid + shift) % threads;
+        // Computes C_i += A' * B' per A'_i for the slices in this thread's row
+        // group. In 1-D mode (t_m == 1, t_n == num_threads) this iterates over
+        // every blockA slice, matching the historical behavior.
+        for (int shift = 0; shift < t_n; ++shift) {
+          int i = group_base + (tid_n + shift) % t_n;
 
-          // At this point we have to make sure that A'_i has been updated by the thread i,
-          // we use testAndSetOrdered to mimic a volatile access.
-          // However, no need to wait for the B' part which has been updated by the current thread!
+          // Wait for slice i (produced by thread i) to be ready. No need to wait
+          // on our own slice (shift == 0).
           if (shift > 0) {
             while (info->task_info[i].sync != k) {
               std::this_thread::yield();
@@ -124,7 +135,8 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
                blockB, info->task_info[i].lhs_length, actual_kc, nc, alpha);
         }
 
-        // Then keep going as usual with the remaining B'
+        // Then keep going as usual with the remaining B', bounded to this
+        // thread's row group.
         for (Index j = nc; j < cols; j += nc) {
           const Index actual_nc = (std::min)(j + nc, cols) - j;
 
@@ -132,12 +144,16 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
           pack_rhs(blockB, rhs.getSubMapper(k, j), actual_kc, actual_nc);
 
           // C_j += A' * B'
-          gebp(res.getSubMapper(0, j), blockA, blockB, rows, actual_kc, actual_nc, alpha);
+          gebp(res.getSubMapper(group_row_start, j), blockA + group_row_start * actual_kc, blockB, group_row_length,
+               actual_kc, actual_nc, alpha);
         }
 
-        // Release all the sub blocks A'_i of A' for the current thread,
-        // i.e., we simply decrement the number of users by 1
-        for (Index i = 0; i < threads; ++i) info->task_info[i].users -= 1;
+        // We are done with every slice in our row group; decrement their
+        // user counts so the next kc iteration can overwrite them.
+        for (int shift = 0; shift < t_n; ++shift) {
+          int i = group_base + (tid_n + shift) % t_n;
+          info->task_info[i].users -= 1;
+        }
       }
     } else
 #endif  // defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
