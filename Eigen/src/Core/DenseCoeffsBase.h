@@ -242,6 +242,9 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   }
 
  protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(DenseCoeffsBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(DenseCoeffsBase)
+
   // explanation: DenseBase is doing "using ..." on the methods from DenseCoeffsBase.
   // But some methods are only available in the DirectAccess case.
   // So we add dummy methods here with these names, so that "using... " doesn't fail.
@@ -412,6 +415,10 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
     EIGEN_STATIC_ASSERT(Derived::SizeAtCompileTime == -1 || Derived::SizeAtCompileTime >= 4, OUT_OF_RANGE_ACCESS);
     return (*this)[3];
   }
+
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(DenseCoeffsBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(DenseCoeffsBase)
 };
 
 /** \brief Base class providing direct read-only coefficient access to matrices and arrays.
@@ -465,6 +472,10 @@ class DenseCoeffsBase<Derived, DirectAccessors> : public DenseCoeffsBase<Derived
    * \sa innerStride(), outerStride(), rowStride()
    */
   EIGEN_DEVICE_FUNC constexpr Index colStride() const { return Derived::IsRowMajor ? innerStride() : outerStride(); }
+
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(DenseCoeffsBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(DenseCoeffsBase)
 };
 
 /** \brief Base class providing direct read/write coefficient access to matrices and arrays.
@@ -522,6 +533,10 @@ class DenseCoeffsBase<Derived, DirectWriteAccessors> : public DenseCoeffsBase<De
   EIGEN_DEVICE_FUNC constexpr Index colStride() const noexcept {
     return Derived::IsRowMajor ? innerStride() : outerStride();
   }
+
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(DenseCoeffsBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(DenseCoeffsBase)
 };
 
 namespace internal {

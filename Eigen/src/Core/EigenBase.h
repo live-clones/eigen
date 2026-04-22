@@ -110,6 +110,10 @@ struct EigenBase {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<Derived, Device> device(Device& device);
   template <typename Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> device(Device& device) const;
+
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(EigenBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(EigenBase)
 };
 
 /***************************************************************************

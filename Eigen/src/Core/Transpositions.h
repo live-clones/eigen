@@ -96,6 +96,8 @@ class TranspositionsBase {
   inline Transpose<TranspositionsBase> transpose() const { return Transpose<TranspositionsBase>(derived()); }
 
  protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(TranspositionsBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(TranspositionsBase)
 };
 
 namespace internal {

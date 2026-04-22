@@ -39,6 +39,9 @@ class BandMatrixBase : public EigenBase<Derived> {
   typedef EigenBase<Derived> Base;
 
  protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(BandMatrixBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(BandMatrixBase)
+
   enum {
     DataRowsAtCompileTime = ((Supers != Dynamic) && (Subs != Dynamic)) ? 1 + Supers + Subs : Dynamic,
     SizeAtCompileTime = min_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime)

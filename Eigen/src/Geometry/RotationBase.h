@@ -40,6 +40,10 @@ class RotationBase {
   typedef Matrix<Scalar, Dim, Dim> RotationMatrixType;
   typedef Matrix<Scalar, Dim, 1> VectorType;
 
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(RotationBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(RotationBase)
+
  public:
   EIGEN_DEVICE_FUNC inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
   EIGEN_DEVICE_FUNC inline Derived& derived() { return *static_cast<Derived*>(this); }

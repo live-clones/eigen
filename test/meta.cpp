@@ -11,6 +11,11 @@
 #include "main.h"
 
 #include <array>
+#include <Eigen/Cholesky>
+#include <Eigen/Geometry>
+#include <Eigen/LU>
+#include <Eigen/SVD>
+#include <Eigen/SparseCore>
 #include <Eigen/src/Core/util/Meta.h>
 
 struct FooReturnType {
@@ -24,6 +29,12 @@ struct MyInterface {
 struct MyImpl : public MyInterface {
   void func() {}
 };
+
+template <typename T>
+void check_base_constructors_hidden() {
+  static_assert(!std::is_default_constructible<T>::value, "Base default constructor must stay hidden");
+  static_assert(!std::is_constructible<T, const T&>::value, "Base copy constructor must stay hidden");
+}
 
 using Eigen::internal::apply_op_from_left;
 using Eigen::internal::apply_op_from_right;
@@ -331,6 +342,34 @@ EIGEN_DECLARE_TEST(meta) {
   {
     VERIFY((std::is_convertible<decltype(fix<3>()), int>::value));
     VERIFY((!std::is_convertible<int, decltype(fix<DynamicIndex>())>::value));
+  }
+
+  {
+    using DiagonalExpr = internal::remove_all_t<decltype(std::declval<const Vector3d&>().asDiagonal())>;
+    using TriangularExpr =
+        internal::remove_all_t<decltype(std::declval<Matrix3d&>().template triangularView<Upper>())>;
+    using SparseMapType = Map<SparseMatrix<double>>;
+    using SparseRefType = Ref<SparseMatrix<double>>;
+
+    check_base_constructors_hidden<EigenBase<MatrixXd>>();
+    check_base_constructors_hidden<DenseCoeffsBase<MatrixXd, ReadOnlyAccessors>>();
+    check_base_constructors_hidden<DenseCoeffsBase<MatrixXd, WriteAccessors>>();
+    check_base_constructors_hidden<DenseCoeffsBase<MatrixXd, DirectAccessors>>();
+    check_base_constructors_hidden<DenseCoeffsBase<MatrixXd, DirectWriteAccessors>>();
+    check_base_constructors_hidden<DiagonalBase<DiagonalExpr>>();
+    check_base_constructors_hidden<PermutationBase<PermutationMatrix<Dynamic, Dynamic>>>();
+    check_base_constructors_hidden<TranspositionsBase<Transpositions<Dynamic>>>();
+    check_base_constructors_hidden<TriangularBase<TriangularExpr>>();
+    check_base_constructors_hidden<SkewSymmetricBase<SkewSymmetricMatrix3<double>>>();
+    check_base_constructors_hidden<RotationBase<Quaterniond, 3>>();
+    check_base_constructors_hidden<QuaternionBase<Quaterniond>>();
+    check_base_constructors_hidden<SolverBase<LLT<Matrix3d>>>();
+    check_base_constructors_hidden<RankRevealingBase<FullPivLU<MatrixXd>>>();
+    check_base_constructors_hidden<SVDBase<JacobiSVD<MatrixXd>>>();
+    check_base_constructors_hidden<SparseMatrixBase<SparseMatrix<double>>>();
+    check_base_constructors_hidden<SparseCompressedBase<SparseMatrix<double>>>();
+    check_base_constructors_hidden<SparseMapBase<SparseMapType, WriteAccessors>>();
+    check_base_constructors_hidden<internal::SparseRefBase<SparseRefType>>();
   }
 
   VERIFY((internal::has_ReturnType<FooReturnType>::value));

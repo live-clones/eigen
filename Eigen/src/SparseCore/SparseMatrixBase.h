@@ -204,9 +204,13 @@ class SparseMatrixBase : public EigenBase<Derived> {
     return derived();
   }
 
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SparseMatrixBase)
+
   SparseMatrixBase() : m_isRValue(false) { /* TODO: validate traits flags. */
   }
 
+ public:
   template <typename OtherDerived>
   Derived& operator=(const ReturnByValue<OtherDerived>& other);
 
