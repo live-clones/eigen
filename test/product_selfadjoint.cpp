@@ -29,6 +29,18 @@ void product_selfadjoint(const MatrixType& m) {
 
   m1 = (m1.adjoint() + m1).eval();
 
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Upper>().setIdentity();
+  m3.template triangularView<Upper>().setIdentity();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Lower>().setRandom();
+  VERIFY_IS_APPROX(m2.template triangularView<StrictlyUpper>().toDenseMatrix(),
+                   m3.template triangularView<StrictlyUpper>().toDenseMatrix());
+
   // rank2 update
   m2 = m1.template triangularView<Lower>();
   m2.template selfadjointView<Lower>().rankUpdate(v1, v2);

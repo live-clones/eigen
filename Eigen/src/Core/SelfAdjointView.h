@@ -61,8 +61,6 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   /** \brief The type of coefficients in this matrix */
   typedef typename internal::traits<SelfAdjointView>::Scalar Scalar;
   typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef internal::remove_all_t<typename MatrixType::ConjugateReturnType> MatrixConjugateReturnType;
-  typedef SelfAdjointView<std::add_const_t<MatrixType>, UpLo> ConstSelfAdjointView;
 
   enum {
     Mode = internal::traits<SelfAdjointView>::Mode,
@@ -72,47 +70,13 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   typedef typename MatrixType::PlainObject PlainObject;
 
   EIGEN_DEVICE_FUNC explicit inline SelfAdjointView(MatrixType& matrix) : m_matrix(matrix) {}
-
-  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_matrix.rows(); }
-  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_matrix.cols(); }
-  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return m_matrix.outerStride(); }
-  EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return m_matrix.innerStride(); }
-
-  /** \sa MatrixBase::coeff()
-   * \warning the coordinates must fit into the referenced triangular part
-   */
-  EIGEN_DEVICE_FUNC inline Scalar coeff(Index row, Index col) const {
-    Base::check_coordinates_internal(row, col);
-    return m_matrix.coeff(row, col);
-  }
-
-  /** \sa MatrixBase::coeffRef()
-   * \warning the coordinates must fit into the referenced triangular part
-   */
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index row, Index col) {
-    EIGEN_STATIC_ASSERT_LVALUE(SelfAdjointView);
-    Base::check_coordinates_internal(row, col);
-    return m_matrix.coeffRef(row, col);
-  }
+  using Base::operator*;
 
   /** \internal */
-  EIGEN_DEVICE_FUNC const MatrixTypeNestedCleaned& _expression() const { return m_matrix; }
+  EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& _expression() const noexcept { return m_matrix; }
 
-  EIGEN_DEVICE_FUNC const MatrixTypeNestedCleaned& nestedExpression() const { return m_matrix; }
-  EIGEN_DEVICE_FUNC MatrixTypeNestedCleaned& nestedExpression() { return m_matrix; }
-
-  /** Efficient triangular matrix times vector/matrix product */
-  template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC const Product<SelfAdjointView, OtherDerived> operator*(const MatrixBase<OtherDerived>& rhs) const {
-    return Product<SelfAdjointView, OtherDerived>(*this, rhs.derived());
-  }
-
-  /** Efficient vector/matrix times triangular matrix product */
-  template <typename OtherDerived>
-  friend EIGEN_DEVICE_FUNC const Product<OtherDerived, SelfAdjointView> operator*(const MatrixBase<OtherDerived>& lhs,
-                                                                                  const SelfAdjointView& rhs) {
-    return Product<OtherDerived, SelfAdjointView>(lhs.derived(), rhs);
-  }
+  EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& nestedExpression() const noexcept { return m_matrix; }
+  EIGEN_DEVICE_FUNC constexpr MatrixTypeNestedCleaned& nestedExpression() noexcept { return m_matrix; }
 
   EIGEN_DEVICE_FUNC const
       SelfAdjointView<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, product), UpLo>
@@ -178,40 +142,6 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     return std::conditional_t<(TriMode & (Upper | Lower)) == (UpLo & (Upper | Lower)),
                               TriangularView<MatrixType, TriMode>,
                               TriangularView<typename MatrixType::AdjointReturnType, TriMode> >(tmp2);
-  }
-
-  typedef SelfAdjointView<const MatrixConjugateReturnType, UpLo> ConjugateReturnType;
-  /** \sa MatrixBase::conjugate() const */
-  EIGEN_DEVICE_FUNC inline const ConjugateReturnType conjugate() const {
-    return ConjugateReturnType(m_matrix.conjugate());
-  }
-
-  /** \returns an expression of the complex conjugate of \c *this if Cond==true,
-   *           returns \c *this otherwise.
-   */
-  template <bool Cond>
-  EIGEN_DEVICE_FUNC inline std::conditional_t<Cond, ConjugateReturnType, ConstSelfAdjointView> conjugateIf() const {
-    typedef std::conditional_t<Cond, ConjugateReturnType, ConstSelfAdjointView> ReturnType;
-    return ReturnType(m_matrix.template conjugateIf<Cond>());
-  }
-
-  typedef SelfAdjointView<const typename MatrixType::AdjointReturnType, TransposeMode> AdjointReturnType;
-  /** \sa MatrixBase::adjoint() const */
-  EIGEN_DEVICE_FUNC inline const AdjointReturnType adjoint() const { return AdjointReturnType(m_matrix.adjoint()); }
-
-  typedef SelfAdjointView<typename MatrixType::TransposeReturnType, TransposeMode> TransposeReturnType;
-  /** \sa MatrixBase::transpose() */
-  template <class Dummy = int>
-  EIGEN_DEVICE_FUNC inline TransposeReturnType transpose(
-      std::enable_if_t<Eigen::internal::is_lvalue<MatrixType>::value, Dummy*> = nullptr) {
-    typename MatrixType::TransposeReturnType tmp(m_matrix);
-    return TransposeReturnType(tmp);
-  }
-
-  typedef SelfAdjointView<const typename MatrixType::ConstTransposeReturnType, TransposeMode> ConstTransposeReturnType;
-  /** \sa MatrixBase::transpose() const */
-  EIGEN_DEVICE_FUNC inline const ConstTransposeReturnType transpose() const {
-    return ConstTransposeReturnType(m_matrix.transpose());
   }
 
   /** \returns a const expression of the main diagonal of the matrix \c *this
