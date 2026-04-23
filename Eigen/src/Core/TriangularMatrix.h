@@ -837,6 +837,17 @@ struct AssignmentKind<TriangularShape, DenseShape> {
   typedef Dense2Triangular Kind;
 };
 
+template <typename Shape>
+struct is_dense_structured_shape : std::integral_constant<bool, std::is_same<Shape, TriangularShape>::value ||
+                                                                    std::is_same<Shape, SelfAdjointShape>::value> {};
+
+template <typename Lhs, typename Rhs>
+struct is_dense_structured_diagonal_product
+    : std::integral_constant<bool, (is_dense_structured_shape<typename evaluator_traits<Lhs>::Shape>::value &&
+                                    std::is_same<typename evaluator_traits<Rhs>::Shape, DiagonalShape>::value) ||
+                                       (std::is_same<typename evaluator_traits<Lhs>::Shape, DiagonalShape>::value &&
+                                        is_dense_structured_shape<typename evaluator_traits<Rhs>::Shape>::value)> {};
+
 template <typename DstXprType, typename SrcXprType, typename Functor>
 struct Assignment<DstXprType, SrcXprType, Functor, Triangular2Triangular> {
   EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
@@ -962,18 +973,42 @@ EIGEN_DEVICE_FUNC void TriangularBase<Derived>::evalToLazy(MatrixBase<DenseDeriv
 
 namespace internal {
 
+template <bool UseTriangularAssignmentLoop>
+struct triangular_product_assignment_dispatcher {
+  template <typename DstXprType, typename SrcXprType, typename Functor, typename Scalar>
+  static void run(DstXprType& dst, const SrcXprType& src, const Functor&, const Scalar& alpha, bool beta) {
+    if (!beta) {
+      Index dstRows = src.rows();
+      Index dstCols = src.cols();
+      if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
+    }
+
+    dst._assignProduct(src, alpha, beta);
+  }
+};
+
+template <>
+struct triangular_product_assignment_dispatcher<true> {
+  template <typename DstXprType, typename SrcXprType, typename Functor, typename Scalar>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src, const Functor& func,
+                                                        const Scalar& alpha, bool beta) {
+    EIGEN_UNUSED_VARIABLE(alpha);
+    EIGEN_UNUSED_VARIABLE(beta);
+    EIGEN_STATIC_ASSERT((int(DstXprType::Mode) & int(UnitDiag)) == 0,
+                        WRITING_TO_TRIANGULAR_PART_WITH_UNIT_DIAGONAL_IS_NOT_SUPPORTED);
+    call_triangular_assignment_loop<DstXprType::Mode, false>(dst, src, func);
+  }
+};
+
 // Triangular = Product
 template <typename DstXprType, typename Lhs, typename Rhs, typename Scalar>
 struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   internal::assign_op<Scalar, typename Product<Lhs, Rhs, DefaultProduct>::Scalar>, Dense2Triangular> {
   typedef Product<Lhs, Rhs, DefaultProduct> SrcXprType;
   static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<Scalar, typename SrcXprType::Scalar>&) {
-    Index dstRows = src.rows();
-    Index dstCols = src.cols();
-    if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
-
-    dst._assignProduct(src, Scalar(1), false);
+                  const internal::assign_op<Scalar, typename SrcXprType::Scalar>& func) {
+    enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
+    triangular_product_assignment_dispatcher<UseTriangularAssignmentLoop>::run(dst, src, func, Scalar(1), false);
   }
 };
 
@@ -984,8 +1019,9 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   Dense2Triangular> {
   typedef Product<Lhs, Rhs, DefaultProduct> SrcXprType;
   static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::add_assign_op<Scalar, typename SrcXprType::Scalar>&) {
-    dst._assignProduct(src, Scalar(1), true);
+                  const internal::add_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
+    enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
+    triangular_product_assignment_dispatcher<UseTriangularAssignmentLoop>::run(dst, src, func, Scalar(1), true);
   }
 };
 
@@ -996,8 +1032,9 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   Dense2Triangular> {
   typedef Product<Lhs, Rhs, DefaultProduct> SrcXprType;
   static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::sub_assign_op<Scalar, typename SrcXprType::Scalar>&) {
-    dst._assignProduct(src, Scalar(-1), true);
+                  const internal::sub_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
+    enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
+    triangular_product_assignment_dispatcher<UseTriangularAssignmentLoop>::run(dst, src, func, Scalar(-1), true);
   }
 };
 
