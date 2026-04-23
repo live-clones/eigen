@@ -33,6 +33,37 @@ inline void on_temporary_creation() {
     VERIFY((#XPR) && nb_temporaries == N);                                                \
   }
 
+template <typename Lhs, typename Rhs, typename = void>
+struct has_product : std::false_type {};
+
+template <typename Lhs, typename Rhs>
+struct has_product<Lhs, Rhs, internal::void_t<decltype(std::declval<const Lhs&>() * std::declval<const Rhs&>())>>
+    : std::true_type {};
+
+template <typename SparseMatrixType>
+void sparse_structured_view_product_sfinae() {
+  typedef typename SparseMatrixType::Scalar Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> DenseVectorType;
+  typedef decltype(std::declval<SparseMatrixType&>().template triangularView<Lower>()) TriangularViewType;
+  typedef decltype(std::declval<SparseMatrixType&>().template selfadjointView<Lower>()) SelfAdjointViewType;
+  typedef decltype(std::declval<const DenseVectorType&>().asDiagonal()) DiagonalType;
+
+  STATIC_CHECK((has_product<TriangularViewType, SparseMatrixType>::value));
+  STATIC_CHECK((has_product<SparseMatrixType, TriangularViewType>::value));
+  STATIC_CHECK((has_product<TriangularViewType, DenseMatrixType>::value));
+  STATIC_CHECK((has_product<DenseMatrixType, TriangularViewType>::value));
+  STATIC_CHECK((has_product<TriangularViewType, DiagonalType>::value));
+  STATIC_CHECK((has_product<DiagonalType, TriangularViewType>::value));
+
+  STATIC_CHECK((has_product<SelfAdjointViewType, SparseMatrixType>::value));
+  STATIC_CHECK((has_product<SparseMatrixType, SelfAdjointViewType>::value));
+  STATIC_CHECK((has_product<SelfAdjointViewType, DenseMatrixType>::value));
+  STATIC_CHECK((has_product<DenseMatrixType, SelfAdjointViewType>::value));
+  STATIC_CHECK((has_product<SelfAdjointViewType, DiagonalType>::value));
+  STATIC_CHECK((has_product<DiagonalType, SelfAdjointViewType>::value));
+}
+
 template <typename SparseMatrixType>
 void sparse_product() {
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
@@ -554,6 +585,9 @@ void test_sparse_vector_dense_product() {
 }
 
 EIGEN_DECLARE_TEST(sparse_product) {
+  sparse_structured_view_product_sfinae<SparseMatrix<double, ColMajor>>();
+  sparse_structured_view_product_sfinae<SparseMatrix<double, RowMajor>>();
+
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_sparse_vector_dense_product()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor> >()));
