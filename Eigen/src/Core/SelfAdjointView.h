@@ -71,6 +71,50 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   EIGEN_DEVICE_FUNC explicit inline SelfAdjointView(MatrixType& matrix) : m_matrix(matrix) {}
   using Base::operator*;
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SelfAdjointView)
+
+  /** Assigns a matrix expression to the referenced triangular part of the selfadjoint matrix. */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const MatrixBase<OtherDerived>& other) {
+    m_matrix.template triangularView<UpLo>() = other;
+    return *this;
+  }
+
+  /** Assigns a triangular or selfadjoint expression to the referenced triangular part. */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const TriangularBase<OtherDerived>& other) {
+    return *this = other.toDenseMatrix();
+  }
+
+  EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const SelfAdjointView& other) {
+    return *this = static_cast<const Base&>(other);
+  }
+
+  /** \sa MatrixBase::operator+=() */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC SelfAdjointView& operator+=(const DenseBase<OtherDerived>& other) {
+    m_matrix.template triangularView<UpLo>() += other;
+    return *this;
+  }
+
+  /** \sa MatrixBase::operator-=() */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC SelfAdjointView& operator-=(const DenseBase<OtherDerived>& other) {
+    m_matrix.template triangularView<UpLo>() -= other;
+    return *this;
+  }
+
+  /** \sa MatrixBase::operator*=() */
+  EIGEN_DEVICE_FUNC SelfAdjointView& operator*=(const Scalar& other) {
+    m_matrix.template triangularView<UpLo>() *= other;
+    return *this;
+  }
+
+  /** \sa DenseBase::operator/=() */
+  EIGEN_DEVICE_FUNC SelfAdjointView& operator/=(const Scalar& other) {
+    m_matrix.template triangularView<UpLo>() /= other;
+    return *this;
+  }
 
   /** \internal */
   EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& _expression() const noexcept { return m_matrix; }
