@@ -847,6 +847,53 @@ struct etor_product_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode> {
 template <int Mode, bool LhsIsTriangular, typename Lhs, bool LhsIsVector, typename Rhs, bool RhsIsVector>
 struct triangular_product_impl;
 
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType>
+struct triangular_diagonal_product_impl {
+  typedef typename MatrixType::Scalar MatrixScalar;
+
+  template <typename Dest, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const MatrixType& matrix,
+                                                        const DiagonalType& diagonal, const Alpha& alpha) {
+    eigen_assert(((ProductOrder == OnTheLeft && diagonal.size() == matrix.rows()) ||
+                  (ProductOrder == OnTheRight && diagonal.size() == matrix.cols())) &&
+                 "invalid matrix product");
+
+    const Index rows = matrix.rows();
+    const Index cols = matrix.cols();
+    for (Index col = 0; col < cols; ++col) {
+      if ((Mode & Upper) == Upper) {
+        const Index end = (std::min)(rows, ((Mode & (UnitDiag | ZeroDiag)) ? col : col + 1));
+        for (Index row = 0; row < end; ++row) addStoredCoeff(dst, matrix, diagonal, row, col, alpha);
+      } else {
+        const Index begin = ((Mode & (UnitDiag | ZeroDiag)) ? col + 1 : col);
+        for (Index row = begin; row < rows; ++row) addStoredCoeff(dst, matrix, diagonal, row, col, alpha);
+      }
+
+      if ((Mode & UnitDiag) == UnitDiag && col < rows) addUnitCoeff(dst, diagonal, col, alpha);
+    }
+  }
+
+ private:
+  template <typename Dest, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addStoredCoeff(Dest& dst, const MatrixType& matrix,
+                                                                   const DiagonalType& diagonal, Index row, Index col,
+                                                                   const Alpha& alpha) {
+    if (ProductOrder == OnTheLeft)
+      dst.coeffRef(row, col) += alpha * (diagonal.coeff(row) * matrix.coeff(row, col));
+    else
+      dst.coeffRef(row, col) += alpha * (matrix.coeff(row, col) * diagonal.coeff(col));
+  }
+
+  template <typename Dest, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addUnitCoeff(Dest& dst, const DiagonalType& diagonal, Index index,
+                                                                 const Alpha& alpha) {
+    if (ProductOrder == OnTheLeft)
+      dst.coeffRef(index, index) += alpha * (diagonal.coeff(index) * MatrixScalar(1));
+    else
+      dst.coeffRef(index, index) += alpha * (MatrixScalar(1) * diagonal.coeff(index));
+  }
+};
+
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, TriangularShape, DenseShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, TriangularShape, DenseShape, ProductTag>> {
@@ -871,11 +918,77 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, TriangularShape, ProductTag>
   }
 };
 
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag>
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag>> {
+  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                  const Scalar& alpha) {
+    triangular_diagonal_product_impl<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                     typename Rhs::DiagonalVectorType>::run(dst, lhs.nestedExpression(), rhs.diagonal(),
+                                                                            alpha);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, DiagonalShape, TriangularShape, ProductTag>
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DiagonalShape, TriangularShape, ProductTag>> {
+  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                  const Scalar& alpha) {
+    triangular_diagonal_product_impl<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                     typename Lhs::DiagonalVectorType>::run(dst, rhs.nestedExpression(), lhs.diagonal(),
+                                                                            alpha);
+  }
+};
+
 /***************************************************************************
  * SelfAdjoint products
  ***************************************************************************/
 template <typename Lhs, int LhsMode, bool LhsIsVector, typename Rhs, int RhsMode, bool RhsIsVector>
 struct selfadjoint_product_impl;
+
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType>
+struct selfadjoint_diagonal_product_impl {
+  template <typename Dest, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const MatrixType& matrix,
+                                                        const DiagonalType& diagonal, const Alpha& alpha) {
+    eigen_assert(matrix.rows() == matrix.cols() && "SelfAdjointView is only for squared matrices");
+    eigen_assert(diagonal.size() == matrix.rows() && "invalid matrix product");
+
+    const Index size = matrix.rows();
+    for (Index col = 0; col < size; ++col) {
+      for (Index row = 0; row < size; ++row) {
+        if ((Mode & Upper) == Upper) {
+          if (col >= row)
+            addStoredCoeff(dst, matrix.coeff(row, col), diagonal, row, col, alpha);
+          else
+            addStoredCoeff(dst, numext::conj(matrix.coeff(col, row)), diagonal, row, col, alpha);
+        } else {
+          if (row >= col)
+            addStoredCoeff(dst, matrix.coeff(row, col), diagonal, row, col, alpha);
+          else
+            addStoredCoeff(dst, numext::conj(matrix.coeff(col, row)), diagonal, row, col, alpha);
+        }
+      }
+    }
+  }
+
+ private:
+  template <typename Dest, typename Coeff, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addStoredCoeff(Dest& dst, const Coeff& coeff,
+                                                                   const DiagonalType& diagonal, Index row, Index col,
+                                                                   const Alpha& alpha) {
+    if (ProductOrder == OnTheLeft)
+      dst.coeffRef(row, col) += alpha * (diagonal.coeff(row) * coeff);
+    else
+      dst.coeffRef(row, col) += alpha * (coeff * diagonal.coeff(col));
+  }
+};
 
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DenseShape, ProductTag>
@@ -898,6 +1011,34 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, SelfAdjointShape, ProductTag>
   static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     selfadjoint_product_impl<Lhs, 0, Lhs::RowsAtCompileTime == 1, typename Rhs::MatrixType, Rhs::Mode, false>::run(
         dst, lhs, rhs.nestedExpression(), alpha);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTag>
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTag>> {
+  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                  const Scalar& alpha) {
+    selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                      typename Rhs::DiagonalVectorType>::run(dst, lhs.nestedExpression(),
+                                                                             rhs.diagonal(), alpha);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTag>
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTag>> {
+  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                  const Scalar& alpha) {
+    selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                      typename Lhs::DiagonalVectorType>::run(dst, rhs.nestedExpression(),
+                                                                             lhs.diagonal(), alpha);
   }
 };
 

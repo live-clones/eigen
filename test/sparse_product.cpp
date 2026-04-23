@@ -365,12 +365,26 @@ void sparse_product() {
     VERIFY_IS_APPROX(x.noalias() -= mLo.template selfadjointView<Lower>() * b, refX -= refS * b);
     VERIFY_IS_APPROX(x.noalias() += mS.template selfadjointView<Upper | Lower>() * b, refX += refS * b);
 
+    DenseVector scale = DenseVector::Random(rows);
+    VERIFY_IS_APPROX(x = mLo.template selfadjointView<Lower>() * scale.asDiagonal(), refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(x = scale.asDiagonal() * mLo.template selfadjointView<Lower>(), refX = scale.asDiagonal() * refS);
+    VERIFY_IS_APPROX(x = mUp.template selfadjointView<Upper>() * scale.asDiagonal(), refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(x = scale.asDiagonal() * mUp.template selfadjointView<Upper>(), refX = scale.asDiagonal() * refS);
+
     // sparse selfadjointView with sparse matrices
     SparseMatrixType mSres(rows, rows);
     VERIFY_IS_APPROX(mSres = mLo.template selfadjointView<Lower>() * mS,
                      refX = refLo.template selfadjointView<Lower>() * refS);
     VERIFY_IS_APPROX(mSres = mS * mLo.template selfadjointView<Lower>(),
                      refX = refS * refLo.template selfadjointView<Lower>());
+    VERIFY_IS_APPROX(mSres = mLo.template selfadjointView<Lower>() * scale.asDiagonal(),
+                     refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mLo.template selfadjointView<Lower>(),
+                     refX = scale.asDiagonal() * refS);
+    VERIFY_IS_APPROX(mSres = mUp.template selfadjointView<Upper>() * scale.asDiagonal(),
+                     refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mUp.template selfadjointView<Upper>(),
+                     refX = scale.asDiagonal() * refS);
 
     // sparse triangularView with dense matrices
     VERIFY_IS_APPROX(x = mA.template triangularView<Upper>() * b, refX = refA.template triangularView<Upper>() * b);
@@ -387,6 +401,15 @@ void sparse_product() {
                      refX = refA.template triangularView<Upper>() * refS);
     VERIFY_IS_APPROX(mSres = mS * mA.template triangularView<Upper>(),
                      refX = refS * refA.template triangularView<Upper>());
+
+    VERIFY_IS_APPROX(mSres = mA.template triangularView<UnitLower>() * scale.asDiagonal(),
+                     refX = DenseMatrix(refA.template triangularView<UnitLower>()) * scale.asDiagonal());
+    VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mA.template triangularView<UnitLower>(),
+                     refX = scale.asDiagonal() * DenseMatrix(refA.template triangularView<UnitLower>()));
+    VERIFY_IS_APPROX(mSres = mA.template triangularView<UnitUpper>() * scale.asDiagonal(),
+                     refX = DenseMatrix(refA.template triangularView<UnitUpper>()) * scale.asDiagonal());
+    VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mA.template triangularView<UnitUpper>(),
+                     refX = scale.asDiagonal() * DenseMatrix(refA.template triangularView<UnitUpper>()));
   }
 }
 
@@ -590,14 +613,14 @@ EIGEN_DECLARE_TEST(sparse_product) {
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_sparse_vector_dense_product()));
-    CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor> >()));
-    CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor> >()));
+    CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor>>()));
+    CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor>>()));
     CALL_SUBTEST_1((bug_942<double>()));
-    CALL_SUBTEST_2((sparse_product<SparseMatrix<std::complex<double>, ColMajor> >()));
-    CALL_SUBTEST_2((sparse_product<SparseMatrix<std::complex<double>, RowMajor> >()));
-    CALL_SUBTEST_3((sparse_product<SparseMatrix<float, ColMajor, long int> >()));
-    CALL_SUBTEST_4((
-        sparse_product_regression_test<SparseMatrix<double, RowMajor>, Matrix<double, Dynamic, Dynamic, RowMajor> >()));
+    CALL_SUBTEST_2((sparse_product<SparseMatrix<std::complex<double>, ColMajor>>()));
+    CALL_SUBTEST_2((sparse_product<SparseMatrix<std::complex<double>, RowMajor>>()));
+    CALL_SUBTEST_3((sparse_product<SparseMatrix<float, ColMajor, long int>>()));
+    CALL_SUBTEST_4(
+        (sparse_product_regression_test<SparseMatrix<double, RowMajor>, Matrix<double, Dynamic, Dynamic, RowMajor>>()));
 
     CALL_SUBTEST_5((test_mixing_types<float>()));
     CALL_SUBTEST_5((test_mixed_storage()));
