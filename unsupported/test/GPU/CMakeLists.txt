@@ -40,10 +40,10 @@ if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
   ei_add_gpu_test(cublas EXTRA_LIBS CUDA::cublas CUDA::cusolver)
 endif()
 
-# cuSOLVER dense factorizations (LLT, LU).
+# cuSOLVER dense factorizations (LLT, LU, QR, SVD, self-adjoint eigensolver).
 option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" ON)
 if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
-  foreach(_cusolver_test IN ITEMS cusolver_llt cusolver_lu)
+  foreach(_cusolver_test IN ITEMS cusolver_llt cusolver_lu cusolver_qr cusolver_svd cusolver_eigen)
     ei_add_gpu_test(${_cusolver_test} EXTRA_LIBS CUDA::cusolver CUDA::cublas)
   endforeach()
 endif()
