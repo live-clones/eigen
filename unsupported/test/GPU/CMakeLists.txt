@@ -1,9 +1,9 @@
 # GPU module tests. Included from unsupported/test/CMakeLists.txt inside the
 # if(CUDA_FOUND AND EIGEN_TEST_CUDA) block.
 
-find_package(CUDAToolkit)
+find_package(CUDAToolkit QUIET)
 
-# ei_add_gpu_test(<name> [EXTRA_LIBS <lib>...])
+# ei_add_gpu_test(<name> [EXTRA_LIBS <lib>...] [EXTRA_INCLUDES <dir>...] [EXTRA_DEFINES <def>...])
 #
 # Declares a GPU test executable built from <name>.cpp, registers it with
 # CTest under the "Official;gpu" labels, links Eigen3 + CUDA runtime + any
@@ -33,8 +33,9 @@ function(ei_add_gpu_test test_name)
   set_property(TEST ${test_name} PROPERTY SKIP_RETURN_CODE 77)
 endfunction()
 
-# DeviceMatrix core: CUDA runtime only.
-ei_add_gpu_test(device_matrix)
+# DeviceMatrix core: CUDA runtime + cuBLAS + cuSOLVER (for BLAS-1 ops via GpuContext).
+ei_add_gpu_test(device_matrix
+  EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 
 # cuBLAS integration. OFF by default; later MRs in the stack opt in.
 option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
@@ -55,9 +56,13 @@ if(TARGET CUDA::cufft)
   ei_add_gpu_test(cufft EXTRA_LIBS CUDA::cufft CUDA::cublas)
 endif()
 
-# cuSPARSE SpMV (part of the CUDA toolkit).
+# cuSPARSE SpMV (part of the CUDA toolkit) and the end-to-end CG test that
+# exercises Eigen::ConjugateGradient with DeviceMatrix + device-resident SpMV.
 if(TARGET CUDA::cusparse)
-  ei_add_gpu_test(cusparse_spmv EXTRA_LIBS CUDA::cusparse)
+  ei_add_gpu_test(cusparse_spmv
+    EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
+  ei_add_gpu_test(cg
+    EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 endif()
 
 option(EIGEN_TEST_CUSPARSE "Test cuSPARSE integration" OFF)
