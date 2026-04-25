@@ -10,9 +10,10 @@
 language: en-US
 
 tone_instructions: >-
-  Eigen is a header-only C++14 template library. Focus on correctness, ABI
-  stability, performance regressions, and template metaprogramming pitfalls.
-  Avoid style nits and do not suggest C++17+ features.
+  Eigen, header-only C++14. Focus: correctness, numerical accuracy (SOTA;
+  flag regressions, defer few-ULP tradeoffs to humans), ABI, performance,
+  template metaprogramming pitfalls, missing numerical tests. Skip style
+  nits and C++17+.
 
 early_access: false
 
@@ -45,6 +46,22 @@ reviews:
     - path: "Eigen/src/**"
       instructions: |
         Eigen is a header-only C++14 template library with a strict ABI policy.
+        - **Numerical accuracy is a top priority.** Eigen aims to match or
+          beat state-of-the-art numerical methods (LAPACK and beyond). Flag
+          any change that may degrade accuracy, condition handling, stability
+          under near-singular / ill-conditioned inputs, or behavior near
+          subnormals, infinities, NaNs, or extreme exponents. In general,
+          do not trade accuracy for speed.
+        - **Acceptable accuracy tradeoff:** a faster algorithm whose
+          worst-case error is bounded to a few ULPs by a principled
+          analysis may be acceptable. In such cases, surface the tradeoff
+          and the bound clearly so a human reviewer can judge; do not
+          auto-approve or auto-reject these.
+        - **Numerical changes require numerical tests.** Any new numerical
+          algorithm, kernel, or accuracy-sensitive change MUST come with
+          tests that exercise its accuracy claims (random ill-conditioned
+          inputs, edge values, comparisons against a reference). If such
+          tests are missing, request them.
         - Treat the public API surface as frozen: do not propose renames or
           signature changes for non-internal types.
         - Performance and inlining matter; flag possible regressions in hot
