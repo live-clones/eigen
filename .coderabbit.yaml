@@ -16,6 +16,7 @@ tone_instructions: >-
   nits and C++17+.
 
 early_access: false
+enable_free_tier: true
 
 reviews:
   profile: chill
