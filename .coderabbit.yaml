@@ -1,7 +1,7 @@
 # CodeRabbit configuration for Eigen.
 # Schema: https://docs.coderabbit.ai/reference/configuration
 #
-# Eigen is a header-only C++17 template library, GitLab-hosted, with a strict
+# Eigen is a header-only C++14 template library, GitLab-hosted, with a strict
 # ABI policy and several major downstream consumers (notably TensorFlow). The
 # settings below favor signal over volume: chill profile, minimal noise on
 # auto-generated docs and vendored Fortran, and explicit guidance for the
@@ -10,9 +10,9 @@
 language: en-US
 
 tone_instructions: >-
-  Eigen is a header-only C++17 template library. Focus on correctness, ABI
+  Eigen is a header-only C++14 template library. Focus on correctness, ABI
   stability, performance regressions, and template metaprogramming pitfalls.
-  Avoid style nits and do not suggest C++20+ features.
+  Avoid style nits and do not suggest C++17+ features.
 
 early_access: false
 
@@ -44,14 +44,16 @@ reviews:
   path_instructions:
     - path: "Eigen/src/**"
       instructions: |
-        Eigen is a header-only C++17 template library with a strict ABI policy.
+        Eigen is a header-only C++14 template library with a strict ABI policy.
         - Treat the public API surface as frozen: do not propose renames or
           signature changes for non-internal types.
         - Performance and inlining matter; flag possible regressions in hot
           paths (products, packet kernels, evaluators, decompositions).
         - Watch for accidental allocations in templates that should be
           allocation-free.
-        - C++17 is the minimum; do not suggest C++20+ features.
+        - C++14 is the minimum; do not suggest C++17+ features. (A migration
+          to C++17 is planned on a separate branch; until it lands on master,
+          new code must compile under C++14.)
         - Do not propose reordering internal includes; Eigen relies on a
           specific include order.
     - path: "test/**"
