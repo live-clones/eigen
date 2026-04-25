@@ -1,0 +1,89 @@
+# CodeRabbit configuration for Eigen.
+# Schema: https://docs.coderabbit.ai/reference/configuration
+#
+# Eigen is a header-only C++17 template library, GitLab-hosted, with a strict
+# ABI policy and several major downstream consumers (notably TensorFlow). The
+# settings below favor signal over volume: chill profile, minimal noise on
+# auto-generated docs and vendored Fortran, and explicit guidance for the
+# template-heavy core.
+
+language: en-US
+
+tone_instructions: >-
+  Eigen is a header-only C++17 template library. Focus on correctness, ABI
+  stability, performance regressions, and template metaprogramming pitfalls.
+  Avoid style nits and do not suggest C++20+ features.
+
+early_access: false
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    base_branches:
+      - master
+
+  path_filters:
+    - "!doc/snippets/**"
+    - "!doc/examples/**"
+    - "!lapack/*.f"
+    - "!blas/testing/**"
+    - "!**/*.png"
+    - "!**/*.bin"
+    - "!**/*.svg"
+    - "!**/*.pdf"
+
+  path_instructions:
+    - path: "Eigen/src/**"
+      instructions: |
+        Eigen is a header-only C++17 template library with a strict ABI policy.
+        - Treat the public API surface as frozen: do not propose renames or
+          signature changes for non-internal types.
+        - Performance and inlining matter; flag possible regressions in hot
+          paths (products, packet kernels, evaluators, decompositions).
+        - Watch for accidental allocations in templates that should be
+          allocation-free.
+        - C++17 is the minimum; do not suggest C++20+ features.
+        - Do not propose reordering internal includes; Eigen relies on a
+          specific include order.
+    - path: "test/**"
+      instructions: |
+        Tests use the EIGEN_REPEAT-N harness and shard each .cpp into many
+        ctest targets. Do not suggest restructuring the harness or
+        deduplicating shards. Numerical-tolerance comparisons are deliberate;
+        do not push for exact equality. Tests may be long and procedural.
+    - path: "unsupported/Eigen/**"
+      instructions: |
+        Treat unsupported modules as more permissive than core Eigen, but
+        keep the public API stable for known downstream consumers (the Tensor
+        module is used by TensorFlow).
+    - path: "blas/**"
+      instructions: |
+        These are Reference BLAS API wrappers around Eigen. Match the BLAS
+        standard exactly; do not suggest deviating from netlib semantics.
+    - path: "lapack/**"
+      instructions: |
+        The .f sources are vendored netlib LAPACK reference; do not review
+        them. The C++ wrappers should faithfully implement the LAPACK
+        contract.
+    - path: "ci/**"
+      instructions: |
+        GitLab CI configuration. Be conservative -- do not suggest
+        restructuring the existing job graph or changing runner tags without
+        strong reason.
+    - path: "benchmarks/**"
+      instructions: |
+        Microbenchmarks built against Google Benchmark. Clarity matters less
+        than realistic measurement; flag only correctness or measurement
+        methodology issues, not style.
+
+chat:
+  auto_reply: true
