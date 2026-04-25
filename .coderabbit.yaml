@@ -31,9 +31,8 @@ reviews:
     drafts: false
     # Eigen MRs often see many WIP pushes; reviewing every push burns the
     # per-developer hourly rate limit on the free/OSS tier. Review the first
-    # diff only and require an explicit `@coderabbitai review` to re-review.
+    # diff only; further reviews can be requested with `@coderabbitai review`.
     auto_incremental_review: false
-    auto_pause_after_reviewed_commits: 1
     base_branches:
       - master
 
