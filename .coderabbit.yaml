@@ -46,8 +46,8 @@ reviews:
     - path: "Eigen/src/**"
       instructions: |
         Eigen is a header-only C++14 template library with a strict ABI policy.
-        - **Numerical accuracy is a top priority.** Eigen aims to match or
-          beat state-of-the-art numerical methods (LAPACK and beyond). Flag
+        - **Numerical accuracy is a top priority.** Eigen targets accuracy
+          comparable to established numerical libraries such as LAPACK. Flag
           any change that may degrade accuracy, condition handling, stability
           under near-singular / ill-conditioned inputs, or behavior near
           subnormals, infinities, NaNs, or extreme exponents. In general,
