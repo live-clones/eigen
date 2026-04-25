@@ -22,6 +22,9 @@ reviews:
   profile: chill
   request_changes_workflow: false
   high_level_summary: true
+  # Post the high-level summary in the walkthrough comment, NOT in the MR
+  # description. Eigen maintainers want the description left alone.
+  high_level_summary_in_walkthrough: true
   poem: false
   review_status: true
   collapse_walkthrough: true
