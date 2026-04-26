@@ -189,13 +189,28 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
+
+    // Fast path: when the entire packet stays inside one inner-most slice
+    // of both the output and the rolled input (no modular wrap on the
+    // inner dim), the PacketSize coeff() calls collapse to a single
+    // contiguous packet load from the underlying tensor.
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    const Index inner_size = m_dimensions[inner_dim];
+    const Index inner_pos = index - (index / inner_size) * inner_size;
+    if (inner_pos + PacketSize <= inner_size) {
+      const Index rolled_inner_pos = roll(inner_pos, m_rolls[inner_dim], inner_size);
+      if (rolled_inner_pos + PacketSize <= inner_size) {
+        return m_impl.template packet<Unaligned>(rollIndex(index));
+      }
+    }
+
+    // Slow path: the packet straddles a slice boundary on either side.
     EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
       values[i] = coeff(index + i);
     }
-    PacketReturnType rslt = internal::pload<PacketReturnType>(values);
-    return rslt;
+    return internal::pload<PacketReturnType>(values);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
