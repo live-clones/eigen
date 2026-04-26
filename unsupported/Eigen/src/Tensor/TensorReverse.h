@@ -335,7 +335,9 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
         compute_cost += 2 * TensorOpCost::AddCost<Index>();
       }
     }
-    return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost, false /* vectorized */, PacketSize);
+    // The inner-slice fast path runs the per-coeff index math once per packet,
+    // so the amortized compute cost matches the vectorized convention.
+    return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
   }
 
   EIGEN_DEVICE_FUNC typename Storage::Type data() const { return NULL; }
