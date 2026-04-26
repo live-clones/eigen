@@ -465,12 +465,12 @@ class SVD {
     internal::DeviceBuffer d_tmp(static_cast<size_t>(kk) * static_cast<size_t>(nrhs) * sizeof(Scalar));
     auto* tmp_dev = static_cast<Scalar*>(d_tmp.get());
     if (!transposed_) {
-      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublas_lt_handle(), solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, kk,
+      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublasLtHandle(), solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, kk,
                                       nrhs, m_, &scalars[0], U_dev, m_, B_dev, m_orig, &scalars[1], tmp_dev, kk,
                                       &solver_ctx_.gemm_workspace_, &solver_ctx_.gemm_plan_cache_, solver_ctx_.stream_);
     } else {
       const Index vtrows_stored = (swap_uv_options(options_) & ComputeFullV) ? n_ : k;
-      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublas_lt_handle(), solver_ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, kk,
+      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublasLtHandle(), solver_ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, kk,
                                       nrhs, m_orig, &scalars[0], VT_dev, vtrows_stored, B_dev, m_orig, &scalars[1],
                                       tmp_dev, kk, &solver_ctx_.gemm_workspace_, &solver_ctx_.gemm_plan_cache_,
                                       solver_ctx_.stream_);
@@ -509,12 +509,12 @@ class SVD {
 
     if (!transposed_) {
       const Index vtrows = (options_ & ComputeFullV) ? n_ : k;
-      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublas_lt_handle(), solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N,
+      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublasLtHandle(), solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N,
                                       n_orig, nrhs, kk, &scalars[0], VT_dev, vtrows, tmp_dev, kk, &scalars[1], X_dev,
                                       n_orig, &solver_ctx_.gemm_workspace_, &solver_ctx_.gemm_plan_cache_,
                                       solver_ctx_.stream_);
     } else {
-      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublas_lt_handle(), solver_ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N,
+      internal::cublaslt_gemm<Scalar>(solver_ctx_.cublasLtHandle(), solver_ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N,
                                       n_orig, nrhs, kk, &scalars[0], U_dev, m_, tmp_dev, kk, &scalars[1], X_dev, n_orig,
                                       &solver_ctx_.gemm_workspace_, &solver_ctx_.gemm_plan_cache_, solver_ctx_.stream_);
     }
