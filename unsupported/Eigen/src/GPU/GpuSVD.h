@@ -390,16 +390,14 @@ class SVD {
       Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
       if (!transposed_) {
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(kk),
-                                                 static_cast<int>(nrhs), static_cast<int>(m_), &scalars[0], U_dev,
-                                                 static_cast<int>(m_), B_dev, static_cast<int>(m_orig), &scalars[1],
-                                                 tmp_dev, static_cast<int>(kk)));
+        internal::cublaslt_gemm<Scalar>(ctx_.cublas_lt_handle(), ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, kk, nrhs, m_,
+                                        &scalars[0], U_dev, m_, B_dev, m_orig, &scalars[1], tmp_dev, kk,
+                                        &ctx_.gemm_workspace_, &ctx_.gemm_plan_cache_, ctx_.stream_);
       } else {
         const Index vtrows_stored = (swap_uv_options(options_) & ComputeFullV) ? n_ : k;
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, static_cast<int>(kk),
-                                                 static_cast<int>(nrhs), static_cast<int>(m_orig), &scalars[0], VT_dev,
-                                                 static_cast<int>(vtrows_stored), B_dev, static_cast<int>(m_orig),
-                                                 &scalars[1], tmp_dev, static_cast<int>(kk)));
+        internal::cublaslt_gemm<Scalar>(ctx_.cublas_lt_handle(), ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, kk, nrhs,
+                                        m_orig, &scalars[0], VT_dev, vtrows_stored, B_dev, m_orig, &scalars[1], tmp_dev,
+                                        kk, &ctx_.gemm_workspace_, &ctx_.gemm_plan_cache_, ctx_.stream_);
       }
     }
 
@@ -442,15 +440,13 @@ class SVD {
 
       if (!transposed_) {
         const Index vtrows = (options_ & ComputeFullV) ? n_ : k;
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(n_orig),
-                                                 static_cast<int>(nrhs), static_cast<int>(kk), &scalars[0], VT_dev,
-                                                 static_cast<int>(vtrows), tmp_dev, static_cast<int>(kk), &scalars[1],
-                                                 X_dev, static_cast<int>(n_orig)));
+        internal::cublaslt_gemm<Scalar>(ctx_.cublas_lt_handle(), ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, n_orig, nrhs,
+                                        kk, &scalars[0], VT_dev, vtrows, tmp_dev, kk, &scalars[1], X_dev, n_orig,
+                                        &ctx_.gemm_workspace_, &ctx_.gemm_plan_cache_, ctx_.stream_);
       } else {
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, static_cast<int>(n_orig),
-                                                 static_cast<int>(nrhs), static_cast<int>(kk), &scalars[0], U_dev,
-                                                 static_cast<int>(m_), tmp_dev, static_cast<int>(kk), &scalars[1],
-                                                 X_dev, static_cast<int>(n_orig)));
+        internal::cublaslt_gemm<Scalar>(ctx_.cublas_lt_handle(), ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, n_orig, nrhs,
+                                        kk, &scalars[0], U_dev, m_, tmp_dev, kk, &scalars[1], X_dev, n_orig,
+                                        &ctx_.gemm_workspace_, &ctx_.gemm_plan_cache_, ctx_.stream_);
       }
 
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_X.get(),

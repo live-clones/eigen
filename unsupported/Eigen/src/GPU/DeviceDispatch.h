@@ -9,7 +9,7 @@
 
 // Dispatch functions that map DeviceMatrix expressions to NVIDIA library calls.
 //
-// dispatch_gemm()  — GemmExpr → cublasXgemm
+// dispatch_gemm()  — GemmExpr → cublasLtMatmul (with cublasGemmEx fallback)
 //
 // Each function documents the exact library call and parameters.
 
@@ -32,7 +32,8 @@ namespace gpu {
 namespace internal {
 
 // ---- GEMM dispatch ----------------------------------------------------------
-// GemmExpr<Lhs, Rhs> → cublasXgemm (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
+// GemmExpr<Lhs, Rhs> → cublasLtMatmul via cublaslt_gemm (with shape-keyed plan
+// cache and cublasGemmEx fallback).
 
 template <typename Lhs, typename Rhs>
 void dispatch_gemm(
@@ -89,17 +90,14 @@ void dispatch_gemm(
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
   }
 
-  eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
-               "cublasXgemm dimensions exceed int range");
-
   // cuBLAS reads alpha and beta through host pointers.  Store them in an
   // array to prevent the compiler from eliding their stack slots — clang
   // and MSVC at -O1+ otherwise optimise away the stores for complex types,
   // leaving cuBLAS with a dangling pointer.
   Scalar scalars[2] = {alpha_local, beta_val};
-  EIGEN_CUBLAS_CHECK(cublasXgemm(ctx.cublasHandle(), transA, transB, static_cast<int>(m), static_cast<int>(n),
-                                 static_cast<int>(k), &scalars[0], A.data(), static_cast<int>(lda), B.data(),
-                                 static_cast<int>(ldb), &scalars[1], dst.data(), static_cast<int>(ldc)));
+  cublaslt_gemm<Scalar>(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &scalars[0], A.data(), lda,
+                        B.data(), ldb, &scalars[1], dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
+                        ctx.stream());
 
   dst.recordReady(ctx.stream());
 }
