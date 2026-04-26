@@ -129,6 +129,7 @@ void test_zero_diagonal_2626() {
 
 // A structurally singular matrix (empty row) cannot be made diagonal-nonzero
 // by any row permutation; the factorization must report NumericalIssue.
+// This covers the rownorm == 0 early-return path.
 template <typename T>
 void test_structurally_singular() {
   typedef Eigen::SparseMatrix<T> SparseMatrixT;
@@ -148,6 +149,50 @@ void test_structurally_singular() {
   VERIFY(ilut.info() == Eigen::NumericalIssue);
 }
 
+// A matrix where every row is structurally non-empty (so rownorm != 0) but
+// no full bipartite matching exists, forcing at least one pivot to be shifted.
+// Rows 0 and 1 only have entries in column 0, so columns 1 and 2 cannot both
+// be matched. This exercises the shifted-pivot path that flips info() to
+// NumericalIssue.
+template <typename T>
+void test_zero_pivot_numerical_issue() {
+  typedef Eigen::SparseMatrix<T> SparseMatrixT;
+  SparseMatrixT A(3, 3);
+  std::vector<Eigen::Triplet<T>> triplets;
+  triplets.emplace_back(0, 0, T(1));
+  triplets.emplace_back(1, 0, T(2));  // row 1 competes with row 0 for column 0
+  triplets.emplace_back(2, 2, T(3));
+  A.setFromTriplets(triplets.begin(), triplets.end());
+
+  Eigen::IncompleteLUT<T> ilut;
+  ilut.compute(A);
+  VERIFY(ilut.info() == Eigen::NumericalIssue);
+}
+
+// analyzePattern() must depend only on the stored sparsity pattern and not on
+// numerical values. Otherwise, the two-step API contract breaks: the same
+// analysis would no longer be reusable for any matrix sharing this stored
+// pattern. Repro: analyze a pattern with all-zero placeholder values, then
+// factorize a numerically nonzero matrix sharing that pattern.
+template <typename T>
+void test_pattern_value_separation() {
+  typedef Eigen::SparseMatrix<T> SparseMatrixT;
+  SparseMatrixT pattern(2, 2);
+  pattern.insert(0, 1) = T(0);
+  pattern.insert(1, 0) = T(0);
+  pattern.makeCompressed();
+
+  SparseMatrixT A(2, 2);
+  A.insert(0, 1) = T(1);
+  A.insert(1, 0) = T(1);
+  A.makeCompressed();
+
+  Eigen::IncompleteLUT<T> ilut;
+  ilut.analyzePattern(pattern);
+  ilut.factorize(A);
+  VERIFY(ilut.info() == Eigen::Success);
+}
+
 EIGEN_DECLARE_TEST(incomplete_LUT) {
   CALL_SUBTEST_1((test_incompleteLUT_T<double, int>()));
   CALL_SUBTEST_1((test_incompleteLUT_T<float, int>()));
@@ -160,4 +205,6 @@ EIGEN_DECLARE_TEST(incomplete_LUT) {
   CALL_SUBTEST_5(test_zero_diagonal_2626<double>());
   CALL_SUBTEST_5(test_zero_diagonal_2626<float>());
   CALL_SUBTEST_5(test_structurally_singular<double>());
+  CALL_SUBTEST_5(test_zero_pivot_numerical_issue<double>());
+  CALL_SUBTEST_5(test_pattern_value_separation<double>());
 }

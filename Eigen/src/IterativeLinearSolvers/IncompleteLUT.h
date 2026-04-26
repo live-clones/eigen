@@ -268,10 +268,13 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
 
   typedef typename SparseMatrix<Scalar, ColMajor, StorageIndex>::InnerIterator ColIter;
 
+  // The matching uses the stored sparsity pattern only and is independent of
+  // numerical values. This preserves the analyzePattern/factorize contract:
+  // the same analysis is reusable for any matrix sharing this stored pattern.
   // Phase 1: greedy diagonal preference.
   for (Index j = 0; j < n; ++j) {
     for (ColIter it(mat, j); it; ++it) {
-      if (it.row() == j && it.value() != Scalar(0)) {
+      if (it.row() == j) {
         match_row[j] = convert_index<StorageIndex>(j);
         match_col[j] = convert_index<StorageIndex>(j);
         break;
@@ -282,7 +285,6 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
   for (Index j = 0; j < n; ++j) {
     if (match_row[j] != kUnmatched) continue;
     for (ColIter it(mat, j); it; ++it) {
-      if (it.value() == Scalar(0)) continue;
       Index i = it.row();
       if (match_col[i] == kUnmatched) {
         match_row[j] = convert_index<StorageIndex>(i);
@@ -304,7 +306,6 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
 
   const StorageIndex* outer = mat.outerIndexPtr();
   const StorageIndex* inner = mat.innerIndexPtr();
-  const Scalar* values = mat.valuePtr();
 
   for (Index start = 0; start < n; ++start) {
     if (match_row[start] != kUnmatched) continue;
@@ -324,9 +325,7 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
 
       while (pos < col_end) {
         Index i = inner[pos];
-        Scalar v = values[pos];
         ++pos;
-        if (v == Scalar(0)) continue;
         if (visited[i] == epoch) continue;
         visited[i] = epoch;
 
@@ -389,6 +388,7 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
 template <typename Scalar, typename StorageIndex>
 template <typename MatrixType_>
 void IncompleteLUT<Scalar, StorageIndex>::analyzePattern(const MatrixType_& amat) {
+  eigen_assert((amat.rows() == amat.cols()) && "The factorization should be done on a square matrix");
   // 1. Compute a static row permutation that makes the diagonal structurally
   //    nonzero. This is a workaround for the lack of partial pivoting in ILUT.
   //    For matrices that already have a nonzero diagonal, this returns the
