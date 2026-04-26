@@ -211,18 +211,16 @@ class CublasLtPlanCache {
   CublasLtPlanEntry* insert(cublasLtHandle_t lt_handle, int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
                             int64_t ldc, cudaDataType_t dtype, cublasComputeType_t compute, cudaDataType_t alpha_type,
                             cublasOperation_t transA, cublasOperation_t transB) {
-    // Evict oldest if full.
-    //
-    // The shift is a bitwise copy that conceptually transfers descriptor
-    // ownership leftward — entries_[size_-1] is then a stale alias of
-    // entries_[size_-2]. We rely on the immediately following insert to
-    // overwrite that stale alias's pointer fields via cublasLtMatmulDescCreate
-    // / cublasLtMatrixLayoutCreate. Do not insert any code between the shift
-    // and the overwrite that observes the stale slot, or it will see a
-    // double-owned descriptor.
+    // Evict oldest if full. The shift transfers descriptor ownership leftward;
+    // null the now-vacant trailing slot so it never aliases the descriptor that
+    // moved into entries_[size_-2].
     if (size_ >= kMaxEntries) {
       destroy_entry(entries_[0]);
       for (int i = 1; i < size_; ++i) entries_[i - 1] = entries_[i];
+      entries_[size_ - 1].matmul_desc = nullptr;
+      entries_[size_ - 1].layout_A = nullptr;
+      entries_[size_ - 1].layout_B = nullptr;
+      entries_[size_ - 1].layout_C = nullptr;
       --size_;
     }
 
