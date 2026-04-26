@@ -209,5 +209,5 @@ BENCHMARK(BM_Slice)->Apply(MorphSizes);
 BENCHMARK(BM_Chip)->Apply(ChipSizes);
 BENCHMARK(BM_Pad)->Apply(PadSizes);
 BENCHMARK(BM_Stride)->Apply(StrideSizes);
-BENCHMARK(BM_Slice_ThreadPool)->Apply(MorphThreadPoolSizes);
-BENCHMARK(BM_Pad_ThreadPool)->Apply(MorphThreadPoolSizes);
+BENCHMARK(BM_Slice_ThreadPool)->Apply(MorphThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_Pad_ThreadPool)->Apply(MorphThreadPoolSizes)->UseRealTime();

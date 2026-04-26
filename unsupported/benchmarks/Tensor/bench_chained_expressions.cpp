@@ -133,7 +133,7 @@ static void BM_BatchNorm_ThreadPool(benchmark::State& state) {
 
   for (auto _ : state) {
     result.device(dev) =
-        gamma.broadcast(bcast) * (x - mean.broadcast(bcast)) * (var.broadcast(bcast) + var.constant(eps)).rsqrt() +
+        gamma.broadcast(bcast) * (x - mean.broadcast(bcast)) * (var.broadcast(bcast) + x.constant(eps)).rsqrt() +
         beta.broadcast(bcast);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
@@ -150,8 +150,8 @@ static void ChainedSizes(::benchmark::Benchmark* b) {
   }
 }
 
-BENCHMARK(BM_Copy_ThreadPool)->Apply(ChainedSizes);
-BENCHMARK(BM_BiasReLU_ThreadPool)->Apply(ChainedSizes);
-BENCHMARK(BM_Polynomial_ThreadPool)->Apply(ChainedSizes);
-BENCHMARK(BM_ExpNormalize_ThreadPool)->Apply(ChainedSizes);
-BENCHMARK(BM_BatchNorm_ThreadPool)->Apply(ChainedSizes);
+BENCHMARK(BM_Copy_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
+BENCHMARK(BM_BiasReLU_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
+BENCHMARK(BM_Polynomial_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
+BENCHMARK(BM_ExpNormalize_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
+BENCHMARK(BM_BatchNorm_ThreadPool)->Apply(ChainedSizes)->UseRealTime();

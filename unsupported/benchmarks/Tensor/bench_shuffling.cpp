@@ -186,5 +186,5 @@ BENCHMARK(BM_Shuffle2D)->Apply(Shuffle2DSizes);
 BENCHMARK(BM_ShuffleIdentity)->Apply(Shuffle2DSizes);
 BENCHMARK(BM_Shuffle3D)->Apply(Shuffle3DSizes);
 BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC)->Apply(Shuffle4DSizes);
-BENCHMARK(BM_Shuffle2D_ThreadPool)->Apply(Shuffle2DThreadPoolSizes);
-BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC_ThreadPool)->Apply(Shuffle4DThreadPoolSizes);
+BENCHMARK(BM_Shuffle2D_ThreadPool)->Apply(Shuffle2DThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC_ThreadPool)->Apply(Shuffle4DThreadPoolSizes)->UseRealTime();

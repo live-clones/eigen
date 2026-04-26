@@ -194,6 +194,13 @@ class TensorCostModel {
 
     // Memory-bound ops on DRAM-resident data: cap at bandwidth saturation.
     // Cache-resident data has high per-core L2 bandwidth, so no cap needed.
+    //
+    // The total-traffic proxy below overestimates the working set whenever an
+    // operand is reused (e.g. broadcasted): every output coefficient charges a
+    // fresh load, so a 1xN broadcast can show up as MxN bytes even though the
+    // live data is N. A working-set-aware estimate would need each evaluator to
+    // surface its unique-operand footprint; until that exists we accept a small
+    // bias toward over-capping for reuse-heavy expressions.
     if (candidate > kMemBandwidthSaturationThreads) {
       bool is_memory_bound = (comp > 0) ? (mem / comp > kMemBoundThreshold) : (mem > 0);
       if (is_memory_bound) {

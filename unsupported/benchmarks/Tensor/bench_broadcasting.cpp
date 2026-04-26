@@ -170,5 +170,5 @@ BENCHMARK(BM_BroadcastRow)->Apply(BroadcastSizes);
 BENCHMARK(BM_BroadcastCol)->Apply(BroadcastSizes);
 BENCHMARK(BM_BroadcastAdd)->Apply(BroadcastSizes);
 BENCHMARK(BM_BroadcastRank4)->Apply(Rank4Sizes);
-BENCHMARK(BM_BroadcastRow_ThreadPool)->Apply(BroadcastThreadPoolSizes);
-BENCHMARK(BM_BroadcastAdd_ThreadPool)->Apply(BroadcastThreadPoolSizes);
+BENCHMARK(BM_BroadcastRow_ThreadPool)->Apply(BroadcastThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_BroadcastAdd_ThreadPool)->Apply(BroadcastThreadPoolSizes)->UseRealTime();
