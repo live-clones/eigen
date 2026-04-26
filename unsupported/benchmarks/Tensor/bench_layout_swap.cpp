@@ -19,7 +19,8 @@ static void BM_LayoutSwap_2D(benchmark::State& state) {
     benchmark::DoNotOptimize(B.data());
     benchmark::ClobberMemory();
   }
-  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+  // 1 read (A) + 1 write (B).
+  state.SetBytesProcessed(state.iterations() * 2ll * static_cast<int64_t>(M) * N * sizeof(Scalar));
 }
 
 static void BM_LayoutSwap_3D(benchmark::State& state) {
@@ -35,7 +36,8 @@ static void BM_LayoutSwap_3D(benchmark::State& state) {
     benchmark::DoNotOptimize(B.data());
     benchmark::ClobberMemory();
   }
-  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(D0) * D1 * D2 * sizeof(Scalar));
+  // 1 read (A) + 1 write (B).
+  state.SetBytesProcessed(state.iterations() * 2ll * static_cast<int64_t>(D0) * D1 * D2 * sizeof(Scalar));
 }
 
 // Composing swap_layout with a coefficient-wise op forces evaluation through
@@ -54,7 +56,8 @@ static void BM_LayoutSwap_Composed(benchmark::State& state) {
     benchmark::DoNotOptimize(C.data());
     benchmark::ClobberMemory();
   }
-  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+  // 2 reads (A, B) + 1 write (C).
+  state.SetBytesProcessed(state.iterations() * 3ll * static_cast<int64_t>(M) * N * sizeof(Scalar));
 }
 
 static void LayoutSwapSizes(::benchmark::Benchmark* b) {
