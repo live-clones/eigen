@@ -290,6 +290,25 @@ static void test_eval_tensor_scan() {
 }
 
 template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_fft() {
+  // FFT eagerly materializes m_data during evalSubExprsIfNeeded; this
+  // exercises the block() wrapper around that buffer. Use RealPart so
+  // the output type matches the input type and the harness's slice
+  // comparison stays straightforward.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 12);
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  Eigen::array<int, 1> fft_dims = {0};
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.template fft<RealPart, FFT_FORWARD>(fft_dims),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 5); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.template fft<RealPart, FFT_FORWARD>(fft_dims),
+                                           [&dims]() { return FixedSizeBlock(dims); });
+}
+
+template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_reshape() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 10);
 
@@ -837,6 +856,12 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 2, ColMajor>()));
   CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 3, ColMajor>()));
   CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 4, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 2, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 3, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 4, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 2, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 3, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 4, ColMajor>()));
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_cast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_select);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_padding);
