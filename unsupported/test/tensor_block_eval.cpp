@@ -274,6 +274,22 @@ static void test_eval_tensor_broadcast() {
 }
 
 template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_scan() {
+  // Scan eagerly materializes m_output during evalSubExprsIfNeeded; this
+  // exercises the block() wrapper around that buffer.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 12);
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  const Index axis = NumDims == 1 ? 0 : NumDims / 2;
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 5); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis), [&dims]() { return FixedSizeBlock(dims); });
+}
+
+template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_reshape() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 10);
 
@@ -815,6 +831,12 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS(2, test_eval_tensor_binary_with_unary_expr_block);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_broadcast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_reshape);
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 2, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 3, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 4, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 2, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 3, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 4, ColMajor>()));
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_cast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_select);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_padding);
