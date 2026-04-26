@@ -283,8 +283,7 @@ static void test_eval_tensor_scan() {
 
   const Index axis = NumDims == 1 ? 0 : NumDims / 2;
 
-  VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis),
-                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 5); });
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis), [&dims]() { return RandomBlock<Layout>(dims, 1, 5); });
 
   VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis), [&dims]() { return FixedSizeBlock(dims); });
 }
@@ -306,6 +305,28 @@ static void test_eval_tensor_fft() {
 
   VerifyBlockEvaluator<T, NumDims, Layout>(input.template fft<RealPart, FFT_FORWARD>(fft_dims),
                                            [&dims]() { return FixedSizeBlock(dims); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_layout_swap() {
+  // The swap_layout expression has the opposite layout of its operand. Build
+  // the input with the opposite layout and assert the block evaluator on the
+  // resulting expression matches the slice-based reference.
+  constexpr int InputLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
+  DSizes<Index, NumDims> input_dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, InputLayout> input(input_dims);
+  input.setRandom();
+
+  DSizes<Index, NumDims> swapped_dims;
+  for (int i = 0; i < NumDims; ++i) {
+    swapped_dims[i] = input_dims[NumDims - 1 - i];
+  }
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.swap_layout(),
+                                           [&swapped_dims]() { return RandomBlock<Layout>(swapped_dims, 1, 10); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.swap_layout(),
+                                           [&swapped_dims]() { return FixedSizeBlock(swapped_dims); });
 }
 
 template <typename T, int NumDims, int Layout>
@@ -850,6 +871,7 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS(2, test_eval_tensor_binary_with_unary_expr_block);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_broadcast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_reshape);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_layout_swap);
   CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 2, RowMajor>()));
   CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 3, RowMajor>()));
   CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 4, RowMajor>()));
