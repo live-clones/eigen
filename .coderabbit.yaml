@@ -41,6 +41,12 @@ reviews:
   suggested_reviewers: false
   in_progress_fortune: false
 
+  pre_merge_checks:
+    # Eigen is a header-only template library where docstring coverage
+    # has limited value; the docstrings precheck adds noise without signal.
+    docstrings:
+      mode: off
+
   auto_review:
     enabled: true
     drafts: false
@@ -125,9 +131,3 @@ reviews:
 
 chat:
   auto_reply: true
-
-pre_merge_checks:
-  # Eigen is a header-only template library where docstring coverage
-  # has limited value; the docstrings precheck adds noise without signal.
-  docstrings:
-    mode: off
