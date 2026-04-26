@@ -78,6 +78,76 @@ void test_extract_LU() {
   VERIFY_IS_APPROX(expectedMatU, matU);
 }
 
+// https://gitlab.com/libeigen/eigen/-/issues/2626
+// IncompleteLUT must apply a static row permutation so that matrices whose
+// natural diagonal has zeros (but admit a full bipartite matching on the
+// sparsity pattern) can still be factorized. Without it, ILUT silently
+// produces a useless preconditioner.
+template <typename T>
+void test_zero_diagonal_2626() {
+  typedef Eigen::SparseMatrix<T> SparseMatrixT;
+  typedef Eigen::Matrix<T, Eigen::Dynamic, 1> Vector;
+
+  const int n = 50;
+  // 1D Laplacian: SPD, fully nonzero diagonal.
+  std::vector<Eigen::Triplet<T>> triplets;
+  for (int i = 0; i < n; ++i) {
+    triplets.emplace_back(i, i, T(2));
+    if (i > 0) triplets.emplace_back(i, i - 1, T(-1));
+    if (i + 1 < n) triplets.emplace_back(i, i + 1, T(-1));
+  }
+  SparseMatrixT base(n, n);
+  base.setFromTriplets(triplets.begin(), triplets.end());
+
+  // Cyclic-shift row permutation by 2: separates the natural diagonal from
+  // the tridiagonal nonzero band, so all diagonal entries of (Pshift * base)
+  // are zero. A valid row matching must find the inverse shift.
+  Eigen::PermutationMatrix<Eigen::Dynamic> Pshift(n);
+  for (int i = 0; i < n; ++i) Pshift.indices()(i) = (i + 2) % n;
+  SparseMatrixT A = Pshift * base;
+
+  // Verify the test setup: every diagonal is zero.
+  int nz_diag = 0;
+  for (int i = 0; i < n; ++i)
+    if (A.coeff(i, i) != T(0)) ++nz_diag;
+  VERIFY(nz_diag == 0);
+
+  // BiCGSTAB + IncompleteLUT must converge to a reasonable residual.
+  Vector b = Vector::Random(n);
+  Eigen::BiCGSTAB<SparseMatrixT, Eigen::IncompleteLUT<T>> solver;
+  solver.setTolerance(typename Eigen::NumTraits<T>::Real(16) * Eigen::NumTraits<T>::epsilon());
+  solver.compute(A);
+  VERIFY(solver.preconditioner().info() == Eigen::Success);
+  Vector x = solver.solve(b);
+  VERIFY(solver.info() == Eigen::Success);
+  Vector residual = b - A * x;
+  // Solver was set to tol = 16*eps; allow some slack for the residual check.
+  typename Eigen::NumTraits<T>::Real residual_bound =
+      typename Eigen::NumTraits<T>::Real(1024) * Eigen::NumTraits<T>::epsilon() * b.norm();
+  VERIFY(residual.norm() < residual_bound);
+}
+
+// A structurally singular matrix (empty row) cannot be made diagonal-nonzero
+// by any row permutation; the factorization must report NumericalIssue.
+template <typename T>
+void test_structurally_singular() {
+  typedef Eigen::SparseMatrix<T> SparseMatrixT;
+  std::vector<Eigen::Triplet<T>> triplets;
+  triplets.emplace_back(0, 0, T(2));
+  triplets.emplace_back(0, 1, T(1));
+  triplets.emplace_back(1, 0, T(1));
+  triplets.emplace_back(1, 1, T(2));
+  // row 2 is intentionally empty
+  triplets.emplace_back(3, 0, T(1));
+  triplets.emplace_back(3, 3, T(2));
+  SparseMatrixT A(4, 4);
+  A.setFromTriplets(triplets.begin(), triplets.end());
+
+  Eigen::IncompleteLUT<T> ilut;
+  ilut.compute(A);
+  VERIFY(ilut.info() == Eigen::NumericalIssue);
+}
+
 EIGEN_DECLARE_TEST(incomplete_LUT) {
   CALL_SUBTEST_1((test_incompleteLUT_T<double, int>()));
   CALL_SUBTEST_1((test_incompleteLUT_T<float, int>()));
@@ -86,4 +156,8 @@ EIGEN_DECLARE_TEST(incomplete_LUT) {
 
   CALL_SUBTEST_4(test_extract_LU<double>());
   CALL_SUBTEST_4(test_extract_LU<float>());
+
+  CALL_SUBTEST_5(test_zero_diagonal_2626<double>());
+  CALL_SUBTEST_5(test_zero_diagonal_2626<float>());
+  CALL_SUBTEST_5(test_structurally_singular<double>());
 }
