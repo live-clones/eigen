@@ -56,7 +56,7 @@ the information provided by the compiler.
    by the compiler.
 
 Individual features can be explicitly enabled or disabled by defining the following token to 0 or 1 respectively.
-For instance, one might limit the C++ version to C++14 by defining EIGEN_MAX_CPP_VER=17, but still enable C99 math
+For instance, one might limit the C++ version to C++17 by defining EIGEN_MAX_CPP_VER=17, but still enable C99 math
 functions by defining EIGEN_HAS_C99_MATH=1.
 
  - \b EIGEN_HAS_C99_MATH - controls the usage of C99 math functions such as erf, erfc, lgamma, etc.
