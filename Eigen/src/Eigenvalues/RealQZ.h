@@ -544,9 +544,9 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::compute(const MatrixType& A_in, const Ma
         // and T.block(f,f, l-f+1,l-f+1) is invertible uper-triangular, which allows to
         // apply a QR-like iteration to rows and columns f..l.
         step(f, l, local_iter);
-        local_iter++;
         m_global_iter++;
       }
+      local_iter++;
     }
   }
   // check if we converged before reaching iterations limit
