@@ -485,6 +485,29 @@ void partial_lu_inplace(MatrixType& lu, TranspositionType& row_transpositions,
                  nb_transpositions);
 }
 
+/** \internal returns the determinant computed from an in-place partial-pivoting
+ * LU decomposition of \a m without constructing a PartialPivLU object.
+ */
+template <typename Derived>
+typename traits<Derived>::Scalar partial_lu_determinant(const Derived& m) {
+  typedef typename traits<Derived>::Scalar Scalar;
+  if (m.rows() == 0) return Scalar(1);
+  EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
+
+  typedef typename plain_matrix_type<Derived>::type PlainObject;
+  typedef Transpositions<PlainObject::RowsAtCompileTime, PlainObject::MaxRowsAtCompileTime, DefaultPermutationIndex>
+      TranspositionType;
+
+  eigen_assert(m.rows() < NumTraits<DefaultPermutationIndex>::highest());
+  PlainObject lu(m);
+
+  TranspositionType row_transpositions(lu.rows());
+  typename TranspositionType::StorageIndex nb_transpositions;
+  partial_lu_inplace(lu, row_transpositions, nb_transpositions);
+
+  return Scalar((nb_transpositions % 2) ? -1 : 1) * lu.diagonal().prod();
+}
+
 }  // end namespace internal
 
 template <typename MatrixType, typename PermutationIndex>
