@@ -338,9 +338,10 @@ struct partial_lu_impl {
     const Index rows = lu.rows();
     const Index cols = lu.cols();
     const Index size = (std::min)(rows, cols);
-    // For small compile-time matrices it is worth processing the last row separately:
+    // For small compile-time matrices and square runtime matrices it is worth processing the last row separately:
     //  speedup: +100% for 2x2, +10% for others.
-    const Index endk = UnBlockedAtCompileTime ? size - 1 : size;
+    const bool process_last_row_separately = UnBlockedAtCompileTime || rows == cols;
+    const Index endk = process_last_row_separately ? size - 1 : size;
     nb_transpositions = 0;
     Index first_zero_pivot = -1;
     for (Index k = 0; k < endk; ++k) {
@@ -366,13 +367,14 @@ struct partial_lu_impl {
         first_zero_pivot = k;
       }
 
-      if (k < rows - 1)
+      // Skip the trailing update for rectangular panels with no remaining columns.
+      if (rrows > 0 && rcols > 0)
         lu.bottomRightCorner(fix<RRows>(rrows), fix<RCols>(rcols)).noalias() -=
             lu.col(k).tail(fix<RRows>(rrows)) * lu.row(k).tail(fix<RCols>(rcols));
     }
 
     // special handling of the last entry
-    if (UnBlockedAtCompileTime) {
+    if (process_last_row_separately) {
       Index k = endk;
       row_transpositions[k] = PivIndex(k);
       if (numext::is_exactly_zero(Scoring()(lu(k, k))) && first_zero_pivot == -1) first_zero_pivot = k;
