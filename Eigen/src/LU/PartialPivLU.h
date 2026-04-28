@@ -429,7 +429,6 @@ struct partial_lu_impl {
       //                          A00 | A01 | A02
       // lu  = A_0 | A_1 | A_2 =  A10 | A11 | A12
       //                          A20 | A21 | A22
-      BlockType A_0 = lu.block(0, 0, rows, k);
       BlockType A_2 = lu.block(0, k + bs, rows, tsize);
       BlockType A11 = lu.block(k, k, bs, bs);
       BlockType A12 = lu.block(k, k + bs, bs, tsize);
@@ -445,9 +444,12 @@ struct partial_lu_impl {
 
       nb_transpositions += nb_transpositions_in_panel;
       // update permutations and apply them to A_0
-      for (Index i = k; i < k + bs; ++i) {
-        Index piv = (row_transpositions[i] += internal::convert_index<PivIndex>(k));
-        A_0.row(i).swap(A_0.row(piv));
+      if (k > 0) {
+        BlockType A_0 = lu.block(0, 0, rows, k);
+        for (Index i = k; i < k + bs; ++i) {
+          Index piv = (row_transpositions[i] += internal::convert_index<PivIndex>(k));
+          A_0.row(i).swap(A_0.row(piv));
+        }
       }
 
       if (trows) {
