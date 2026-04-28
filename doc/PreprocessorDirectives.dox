@@ -57,8 +57,8 @@ the information provided by the compiler.
    functions by defining EIGEN_HAS_C99_MATH=1.
 
 Individual features can be explicitly enabled or disabled by defining the following token to 0 or 1 respectively.
-For instance, one might disable use of \c std::invoke_result by defining
-EIGEN_HAS_STD_INVOKE_RESULT=0.
+For instance, one might limit the C++ version to C++17 by defining EIGEN_MAX_CPP_VER=17, but still enable C99 math
+functions by defining EIGEN_HAS_C99_MATH=1.
 
  - \b EIGEN_HAS_STD_INVOKE_RESULT - controls the usage of \c std::invoke_result (C++17). When disabled,
    \c std::result_of is used as a fallback.
