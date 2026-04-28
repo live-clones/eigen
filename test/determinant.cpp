@@ -24,6 +24,7 @@ void determinant(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   Scalar x = internal::random<Scalar>();
   VERIFY_IS_APPROX(MatrixType::Identity(size, size).determinant(), Scalar(1));
+  if (size > 4) VERIFY_IS_APPROX(m1.determinant(), m1.partialPivLu().determinant());
   VERIFY_IS_APPROX((m1 * m2).eval().determinant(), m1.determinant() * m2.determinant());
   if (size == 1) return;
   Index i = internal::random<Index>(0, size - 1);
@@ -57,6 +58,7 @@ EIGEN_DECLARE_TEST(determinant) {
     CALL_SUBTEST_2(determinant(Matrix<double, 2, 2>()));
     CALL_SUBTEST_3(determinant(Matrix<double, 3, 3>()));
     CALL_SUBTEST_4(determinant(Matrix<double, 4, 4>()));
+    CALL_SUBTEST_5(determinant(Matrix<double, 5, 5>()));
     CALL_SUBTEST_5(determinant(Matrix<std::complex<double>, 10, 10>()));
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
     CALL_SUBTEST_6(determinant(MatrixXd(s, s)));

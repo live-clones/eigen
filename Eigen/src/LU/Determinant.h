@@ -25,9 +25,24 @@ EIGEN_DEVICE_FUNC inline const typename Derived::Scalar bruteforce_det3_helper(c
 
 template <typename Derived, int DeterminantType = Derived::RowsAtCompileTime>
 struct determinant_impl {
+  typedef typename traits<Derived>::Scalar Scalar;
+
   static inline typename traits<Derived>::Scalar run(const Derived& m) {
-    if (Derived::ColsAtCompileTime == Dynamic && m.rows() == 0) return typename traits<Derived>::Scalar(1);
-    return m.partialPivLu().determinant();
+    if (Derived::ColsAtCompileTime == Dynamic && m.rows() == 0) return Scalar(1);
+    EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
+
+    typedef typename plain_matrix_type<Derived>::type PlainObject;
+    typedef Transpositions<PlainObject::RowsAtCompileTime, PlainObject::MaxRowsAtCompileTime, DefaultPermutationIndex>
+        TranspositionType;
+
+    PlainObject lu(m);
+    eigen_assert(lu.rows() < NumTraits<DefaultPermutationIndex>::highest());
+
+    TranspositionType row_transpositions(lu.rows());
+    typename TranspositionType::StorageIndex nb_transpositions;
+    internal::partial_lu_inplace(lu, row_transpositions, nb_transpositions);
+
+    return Scalar((nb_transpositions % 2) ? -1 : 1) * lu.diagonal().prod();
   }
 };
 
