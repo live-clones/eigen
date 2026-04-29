@@ -5,10 +5,7 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// EIGEN_RUNTIME_NO_MALLOC lets us bracket sections of test code with
-// set_is_malloc_allowed(false) to verify the no-malloc contract for static
-// sparse matrices. EIGEN_NO_MALLOC would bake the prohibition in for the
-// whole binary, which prevents the test harness itself from allocating.
+// Verifies that fixed-size SparseMatrix operations do not allocate.
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #ifndef EIGEN_SPARSE_TEST_INCLUDED_FROM_SPARSE_EXTRA
@@ -26,8 +23,7 @@ struct triplet_sort {
   }
 };
 
-// Builds a dense reference and a sorted triplet list for a given fixed-size
-// shape and number of nonzeros, deterministically and without duplicates.
+// Builds a dense reference and a sorted, duplicate-free triplet list for SparseMatrixType.
 template <typename SparseMatrixType>
 void make_reference(std::vector<Triplet<typename SparseMatrixType::Scalar>>& triplets,
                     Matrix<typename SparseMatrixType::Scalar, SparseMatrixType::RowsAtCompileTime,
@@ -49,9 +45,7 @@ void make_reference(std::vector<Triplet<typename SparseMatrixType::Scalar>>& tri
   for (const auto& t : triplets) dense(t.row(), t.col()) = t.value();
 }
 
-// Verifies the basic assignFromSortedTriplets path under EIGEN_RUNTIME_NO_MALLOC,
-// and that reusing the same matrix with a fresh triplet list discards the
-// previous contents (regression test for the "stale state" bug).
+// Tests assignFromSortedTriplets under EIGEN_RUNTIME_NO_MALLOC, including reuse on a second list.
 template <typename SparseMatrixType>
 void sparse_fixed_nnz_test(const SparseMatrixType&) {
   typedef typename SparseMatrixType::Scalar Scalar;
@@ -78,8 +72,7 @@ void sparse_fixed_nnz_test(const SparseMatrixType&) {
   VERIFY(m.isCompressed());
   VERIFY_IS_EQUAL(m.nonZeros(), Index(triplets.size()));
 
-  // Reuse: a second assignment with a different triplet set must not leak the
-  // previous contents.
+  // reuse: second assignment must not leak previous contents
   std::vector<Triplet<Scalar>> triplets2(triplets);
   for (auto& t : triplets2) t = Triplet<Scalar>(t.row(), t.col(), Scalar(2) * t.value());
   internal::set_is_malloc_allowed(false);
@@ -88,8 +81,7 @@ void sparse_fixed_nnz_test(const SparseMatrixType&) {
   VERIFY_IS_APPROX(m, DenseMatrixType(Scalar(2) * dense));
 }
 
-// Static sparse matrices must still be wrappable by Ref<> and behave
-// transparently (regression test for the partial-specializations issue).
+// Tests that a fixed-size SparseMatrix is wrappable by Ref<>.
 template <typename SparseMatrixType>
 void sparse_fixed_ref_test(const SparseMatrixType&) {
   typedef typename SparseMatrixType::Scalar Scalar;
@@ -112,9 +104,7 @@ void sparse_fixed_ref_test(const SparseMatrixType&) {
   VERIFY_IS_APPROX(r.toDense(), dense);
 }
 
-// The constructor SparseMatrix(rows, cols) silently accepted any size for
-// static matrices and produced an empty matrix; assert that compile-time and
-// runtime sizes now match.
+// Tests that the (rows, cols) constructor accepts only the compile-time sizes.
 template <typename SparseMatrixType>
 void sparse_fixed_ctor_size_match_test(const SparseMatrixType&) {
   const int Rows = SparseMatrixType::RowsAtCompileTime;
@@ -124,8 +114,7 @@ void sparse_fixed_ctor_size_match_test(const SparseMatrixType&) {
   VERIFY_IS_EQUAL(m.cols(), Cols);
 }
 
-// Diagonal extraction must report a length of min(rows, cols) for off-square
-// fixed-size matrices.
+// Tests diagonal().size() on off-square fixed-size matrices.
 template <typename SparseMatrixType>
 void sparse_fixed_diagonal_test(const SparseMatrixType&) {
   typedef typename SparseMatrixType::Scalar Scalar;

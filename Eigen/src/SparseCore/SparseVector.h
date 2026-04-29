@@ -70,7 +70,7 @@ class SparseVector
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, +=)
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, -=)
 
-  typedef internal::CompressedStorage<Scalar, StorageIndex> Storage;
+  typedef internal::CompressedStorage<Scalar, StorageIndex, MaxNZ_> Storage;
   enum { IsColVector = internal::traits<SparseVector>::IsColVector };
 
   enum { Options = Options_ };
@@ -234,6 +234,9 @@ class SparseVector
    *
    * \sa  conservativeResize(), setZero() */
   void resize(Index newSize) {
+    // when the inner size is fixed at compile time, the only valid runtime size is that one
+    constexpr int FixedSize = IsColVector ? Rows_ : Cols_;
+    eigen_assert((FixedSize == Dynamic || newSize == FixedSize) && "size mismatch on a fixed-size SparseVector");
     m_size = newSize;
     m_data.clear();
   }
@@ -256,7 +259,10 @@ class SparseVector
 
   void resizeNonZeros(Index size) { m_data.resize(size); }
 
-  inline SparseVector() : m_size(0) { resize(0); }
+  inline SparseVector() : m_size(0) {
+    constexpr int FixedSize = IsColVector ? Rows_ : Cols_;
+    resize(FixedSize == Dynamic ? Index(0) : Index(FixedSize));
+  }
 
   explicit inline SparseVector(Index size) : m_size(0) { resize(size); }
 
@@ -467,10 +473,10 @@ struct sparse_vector_assign_selector<Dest, Src, SVA_RuntimeSwitch> {
 
 // Specialization for SparseVector.
 // Serializes [size, numNonZeros, innerIndices, values].
-template <typename Scalar, int Options, typename StorageIndex>
-class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
+template <typename Scalar, int Options, typename StorageIndex, int Rows, int Cols, int MaxNZ>
+class Serializer<SparseVector<Scalar, Options, StorageIndex, Rows, Cols, MaxNZ>, void> {
  public:
-  typedef SparseVector<Scalar, Options, StorageIndex> SparseMat;
+  typedef SparseVector<Scalar, Options, StorageIndex, Rows, Cols, MaxNZ> SparseMat;
 
   struct Header {
     typename SparseMat::Index size;

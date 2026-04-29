@@ -112,8 +112,7 @@ class SparseCompressedBase : public SparseMatrixBase<Derived> {
 
   /** \returns whether \c *this is in compressed form. */
   inline bool isCompressed() const {
-    // test the StaticCompressed bit via Flags so this also works for wrappers
-    // (Ref/Map) that don't expose IsStaticCompressed as a class member
+    // check Flags so wrappers (Ref/Map) without an IsStaticCompressed member are handled
     return ((int(internal::traits<Derived>::Flags) & int(StaticCompressed)) != 0) ? true : innerNonZeroPtr() == 0;
   }
 

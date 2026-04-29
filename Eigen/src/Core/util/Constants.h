@@ -322,10 +322,10 @@ enum StorageOptions {
   AutoAlign = 0,
   /** Don't require alignment for the matrix itself (the array of coefficients, if dynamically allocated, may still be requested to be aligned) */ // FIXME --- clarify the situation
   DontAlign = 0x2,
-  /** \brief For a sparse matrix with fixed MaxNZ, indicates that the outer‑index
-   * array is also stack‑allocated and the matrix is always in compressed form.
-   * Bit chosen above CompressedAccessBit (0x400) to avoid colliding with any
-   * other flag bit when ORed into an expression's Flags. */
+  /** \brief For a sparse matrix with fixed MaxNZ, indicates that the outer-index
+   * array is also stack-allocated and the matrix is always in compressed form.
+   * Chosen above CompressedAccessBit (0x400) to avoid colliding with any other
+   * flag bit when ORed into an expression's Flags. */
   StaticCompressed = 0x800
 };
 

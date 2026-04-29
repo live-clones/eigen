@@ -436,8 +436,8 @@ class BlockSparseMatrix
           // Insert the value
           m_values[idxVal] = it_spmat.value();
         }  // end of this column
-      }    // end of this block
-    }      // end of this outer block
+      }  // end of this block
+    }  // end of this outer block
 
     return *this;
   }
@@ -551,18 +551,23 @@ class BlockSparseMatrix
     eigen_assert((m_innerBSize != 0 && m_outerBSize != 0) &&
                  "TRYING TO RESERVE ZERO-SIZE MATRICES, CALL resize() first");
 
-    // FIXME Should free if already allocated
+    // free any storage from a previous reserve() before reallocating
+    delete[] m_outerIndex;
     m_outerIndex = new StorageIndex[m_outerBSize + 1];
 
     m_nonzerosblocks = nonzerosblocks;
     if (m_blockSize != Dynamic) {
       m_nonzeros = nonzerosblocks * (m_blockSize * m_blockSize);
+      delete[] m_blockPtr;
       m_blockPtr = 0;
     } else {
-      // m_nonzeros  is already computed in setBlockLayout()
+      // m_nonzeros is already computed in setBlockLayout()
+      delete[] m_blockPtr;
       m_blockPtr = new StorageIndex[m_nonzerosblocks + 1];
     }
+    delete[] m_indices;
     m_indices = new StorageIndex[m_nonzerosblocks + 1];
+    delete[] m_values;
     m_values = new Scalar[m_nonzeros];
   }
 

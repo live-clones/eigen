@@ -138,7 +138,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   using Base::operator+=;
   using Base::operator-=;
 
-  typedef Eigen::Map<SparseMatrix<Scalar, Options_, StorageIndex>> Map;
+  typedef Eigen::Map<SparseMatrix<Scalar, Options_, StorageIndex, Rows_, Cols_, MaxNZ_>> Map;
   typedef Diagonal<SparseMatrix> DiagonalReturnType;
   typedef Diagonal<const SparseMatrix> ConstDiagonalReturnType;
   typedef typename Base::InnerIterator InnerIterator;
@@ -665,8 +665,11 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
   /** Turns the matrix into the uncompressed mode */
   void uncompress() {
-    // IsStaticCompressed matrices have no innerNonZeros buffer by design
-    eigen_assert(!IsStaticCompressed && "uncompress() is not supported for IsStaticCompressed matrices");
+    // IsStaticCompressed matrices are always compressed and have no innerNonZeros buffer
+    if (IsStaticCompressed) {
+      eigen_assert(false && "uncompress() is not supported for IsStaticCompressed matrices");
+      return;
+    }
     if (!isCompressed()) return;
     m_idx_data.innerNonZeros = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize);
     if (m_idx_data.outerIndex[m_outerSize] == 0) {
@@ -1020,6 +1023,13 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
  protected:
   template <typename Other>
   void initAssignment(const Other& other) {
+    // for static matrices, sizes are baked into the type; resize() asserts and
+    // innerNonZeros stays null when IsStaticCompressed
+    if (IsStatic) {
+      eigen_assert(other.rows() == rows() && other.cols() == cols() &&
+                   "size mismatch when assigning to a fixed-size SparseMatrix");
+      return;
+    }
     resize(other.rows(), other.cols());
     internal::conditional_aligned_delete_auto<StorageIndex, true>(m_idx_data.innerNonZeros, m_outerSize);
     m_idx_data.innerNonZeros = 0;
@@ -1276,6 +1286,7 @@ void assign_from_sorted_triplets(const InputIterator& begin, const InputIterator
   typename SparseMatrixType::Scalar* values = mat.data().valuePtr();
   typename SparseMatrixType::StorageIndex* inner_indices = mat.data().indexPtr();
   typename SparseMatrixType::StorageIndex* outer_indices = mat.outerIndexPtr();
+  const Index capacity = mat.data().allocatedSize();
 
   for (InputIterator it(begin); it != end; ++it) {
     StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
@@ -1285,6 +1296,7 @@ void assign_from_sorted_triplets(const InputIterator& begin, const InputIterator
     if (duplicate) {
       values[back - 1] = dup_func(values[back - 1], it->value());
     } else {
+      eigen_assert(back < capacity && "triplet count exceeds the matrix's fixed capacity");
       // push triplets to back
       typename SparseMatrixType::Scalar val = it->value();
       values[back] = val;
@@ -1911,10 +1923,10 @@ struct evaluator<SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, Ma
 // Specialization for SparseMatrix.
 // Serializes [rows, cols, isCompressed, outerSize, innerBufferSize,
 // innerNonZeros, outerIndices, innerIndices, values].
-template <typename Scalar, int Options, typename StorageIndex>
-class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
+template <typename Scalar, int Options, typename StorageIndex, int Rows, int Cols, int MaxNZ>
+class Serializer<SparseMatrix<Scalar, Options, StorageIndex, Rows, Cols, MaxNZ>, void> {
  public:
-  typedef SparseMatrix<Scalar, Options, StorageIndex> SparseMat;
+  typedef SparseMatrix<Scalar, Options, StorageIndex, Rows, Cols, MaxNZ> SparseMat;
 
   struct Header {
     typename SparseMat::Index rows;
