@@ -398,6 +398,9 @@ class SparseVector
  protected:
   EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned, THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
   EIGEN_STATIC_ASSERT((Options_ & (ColMajor | RowMajor)) == Options, INVALID_MATRIX_TEMPLATE_PARAMETERS)
+  // the non-vector dimension must be 1 (or Dynamic)
+  EIGEN_STATIC_ASSERT((IsColVector ? (Cols_ == 1 || Cols_ == Dynamic) : (Rows_ == 1 || Rows_ == Dynamic)),
+                      INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
   Storage m_data;
   Index m_size;

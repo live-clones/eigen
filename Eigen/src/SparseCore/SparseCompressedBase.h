@@ -111,7 +111,11 @@ class SparseCompressedBase : public SparseMatrixBase<Derived> {
   inline StorageIndex* innerNonZeroPtr() { return derived().innerNonZeroPtr(); }
 
   /** \returns whether \c *this is in compressed form. */
-  inline bool isCompressed() const { return Derived::IsStaticCompressed ? true : innerNonZeroPtr() == 0; }
+  inline bool isCompressed() const {
+    // test the StaticCompressed bit via Flags so this also works for wrappers
+    // (Ref/Map) that don't expose IsStaticCompressed as a class member
+    return ((int(internal::traits<Derived>::Flags) & int(StaticCompressed)) != 0) ? true : innerNonZeroPtr() == 0;
+  }
 
  protected:
   Index coeffsStart() const {

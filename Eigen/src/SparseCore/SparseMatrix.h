@@ -75,10 +75,15 @@ struct traits<Diagonal<SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Col
   typedef StorageIndex_ StorageIndex;
   typedef MatrixXpr XprKind;
 
+  // diagonal length: see Eigen/src/Core/Diagonal.h
   enum {
-    RowsAtCompileTime = Rows_,
+    DiagSizeAtCompileTime = (int(Rows_) == Dynamic || int(Cols_) == Dynamic || int(DiagIndex) == DynamicIndex)
+                                ? Dynamic
+                                : plain_enum_min(int(Rows_) - plain_enum_max(-int(DiagIndex), 0),
+                                                 int(Cols_) - plain_enum_max(int(DiagIndex), 0)),
+    RowsAtCompileTime = DiagSizeAtCompileTime,
     ColsAtCompileTime = 1,
-    MaxRowsAtCompileTime = Rows_,
+    MaxRowsAtCompileTime = DiagSizeAtCompileTime,
     MaxColsAtCompileTime = 1,
     MaxNZ = MaxNZ_,
     Flags = LvalueBit
@@ -584,9 +589,6 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   void setFromSortedTriplets(const InputIterators& begin, const InputIterators& end);
 
   template <typename InputIterators>
-  void assignFromTriplets(const InputIterators& begin, const InputIterators& end);
-
-  template <typename InputIterators>
   void assignFromSortedTriplets(const InputIterators& begin, const InputIterators& end);
 
   template <typename InputIterators, typename DupFunctor>
@@ -663,6 +665,8 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
   /** Turns the matrix into the uncompressed mode */
   void uncompress() {
+    // IsStaticCompressed matrices have no innerNonZeros buffer by design
+    eigen_assert(!IsStaticCompressed && "uncompress() is not supported for IsStaticCompressed matrices");
     if (!isCompressed()) return;
     m_idx_data.innerNonZeros = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize);
     if (m_idx_data.outerIndex[m_outerSize] == 0) {
@@ -722,6 +726,12 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
    *
    * \sa reserve(), setZero(), makeCompressed()
    */
+  template <int A = MaxNZ_, typename std::enable_if<A != Dynamic, int>::type = 0>
+  void conservativeResize(Index, Index) {
+    eigen_assert(false && "You cannot call dynamic size methods for static size matrices");
+  }
+
+  template <int A = MaxNZ_, typename std::enable_if<A == Dynamic, int>::type = 0>
   void conservativeResize(Index rows, Index cols) {
     // If one dimension is null, then there is nothing to be preserved
     if (rows == 0 || cols == 0) return resize(rows, cols);
@@ -826,7 +836,14 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   /** Constructs a \a rows \c x \a cols empty matrix */
 
   inline SparseMatrix(Index rows, Index cols) : m_outerSize(0), m_innerSize(0), m_idx_data() {
-    if (!IsStatic) resize(rows, cols);
+    if (!IsStatic) {
+      resize(rows, cols);
+    } else {
+      eigen_assert(rows == Rows_ && cols == Cols_ &&
+                   "for a fixed-size SparseMatrix, runtime sizes must match the compile-time ones");
+      m_outerSize = IsRowMajor ? Rows_ : Cols_;
+      m_innerSize = IsRowMajor ? Cols_ : Rows_;
+    }
   }
 
   /** Constructs a sparse matrix from the sparse expression \a other */
@@ -984,8 +1001,11 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
   /** Destructor */
   inline ~SparseMatrix() {
+    // outerIndex is stack-allocated when IsStatic, innerNonZeros only when IsStaticCompressed
     if (!IsStatic) {
       internal::conditional_aligned_delete_auto<StorageIndex, true>(m_idx_data.outerIndex, m_outerSize + 1);
+    }
+    if (!IsStaticCompressed) {
       internal::conditional_aligned_delete_auto<StorageIndex, true>(m_idx_data.innerNonZeros, m_outerSize);
     }
   }
@@ -1242,6 +1262,9 @@ void assign_from_sorted_triplets(const InputIterator& begin, const InputIterator
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
   using StorageIndex = typename SparseMatrixType::StorageIndex;
 
+  // reset destination state so reusing a matrix doesn't accumulate stale entries
+  mat.setZero();
+
   if (begin == end) return;
 
   constexpr StorageIndex kEmptyIndexValue(-1);
@@ -1278,6 +1301,8 @@ void assign_from_sorted_triplets(const InputIterator& begin, const InputIterator
   for (Index j = 1; j < mat.outerSize() + 1; ++j) {
     outer_indices[j] += outer_indices[j - 1];
   }
+
+  mat.resizeNonZeros(back);
 }
 
 // Creates a compressed sparse matrix from a sorted range of triplets
@@ -1435,15 +1460,6 @@ template <typename InputIterators>
 void SparseMatrix<Scalar, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::setFromTriplets(const InputIterators& begin,
                                                                                           const InputIterators& end) {
   internal::set_from_triplets<InputIterators, SparseMatrix<Scalar, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>>(
-      begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
-}
-
-template <typename Scalar, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
-template <typename InputIterators>
-void SparseMatrix<Scalar, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::assignFromTriplets(
-    const InputIterators& begin, const InputIterators& end) {
-  internal::assign_from_sorted_triplets<InputIterators,
-                                        SparseMatrix<Scalar, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>>(
       begin, end, *this, internal::scalar_sum_op<Scalar, Scalar>());
 }
 
@@ -1730,8 +1746,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertAtBy
 
 template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
 EIGEN_DEPRECATED EIGEN_DONT_INLINE
-    typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
-    SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertUncompressed(Index row, Index col) {
+typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
+SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertUncompressed(Index row, Index col) {
   eigen_assert(!isCompressed());
   Index outer = IsRowMajor ? row : col;
   Index inner = IsRowMajor ? col : row;
@@ -1755,8 +1771,8 @@ EIGEN_DEPRECATED EIGEN_DONT_INLINE
 
 template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
 EIGEN_DEPRECATED EIGEN_DONT_INLINE
-    typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
-    SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertCompressed(Index row, Index col) {
+typename SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::Scalar&
+SparseMatrix<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_>::insertCompressed(Index row, Index col) {
   eigen_assert(isCompressed());
   Index outer = IsRowMajor ? row : col;
   Index inner = IsRowMajor ? col : row;
