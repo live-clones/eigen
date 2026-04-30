@@ -261,6 +261,22 @@ h_x.get();                             // sync: factor + result complete
 | `selfadjointView<UpLo>()` | -- | Self-adjoint view (SYMM, rankUpdate) |
 | `device(ctx)` | -- | Assignment proxy bound to context |
 
+### CUDA RAII wrappers
+
+Small move-only wrappers are available for code that wants Eigen-owned CUDA
+stream/event lifetime while still interoperating with raw CUDA APIs:
+
+```cpp
+gpu::CudaStream stream = gpu::CudaStream::create();      // Owns a dedicated CUDA stream
+gpu::CudaEvent event(cudaEventDisableTiming);            // Owns a CUDA event
+
+event.record(stream);
+stream.wait(event);
+```
+
+`DeviceMatrix` upload/download/clone/wait helpers accept either raw
+`cudaStream_t` or `gpu::CudaStream`.
+
 ### `gpu::Context`
 
 Unified GPU execution context owning a CUDA stream and library handles.

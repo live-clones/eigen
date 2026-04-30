@@ -65,8 +65,8 @@ void test_roundtrip_async(Index rows, Index cols) {
   using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(rows, cols);
 
-  cudaStream_t stream;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
+  gpu::CudaStream stream = gpu::CudaStream::create();
+  VERIFY(stream.get() != nullptr);
 
   // Async upload from raw pointer.
   auto dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, rows, stream);
@@ -80,20 +80,41 @@ void test_roundtrip_async(Index rows, Index cols) {
   MatrixType result = transfer.get();
   VERIFY_IS_APPROX(result, host);
 
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
-
-  cudaStream_t producer_stream;
-  cudaStream_t consumer_stream;
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&producer_stream));
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&consumer_stream));
+  gpu::CudaStream producer_stream = gpu::CudaStream::create();
+  gpu::CudaStream consumer_stream = gpu::CudaStream::create();
 
   auto cross_stream_dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, rows, producer_stream);
   auto cross_stream_transfer = cross_stream_dm.toHostAsync(consumer_stream);
   MatrixType cross_stream_result = cross_stream_transfer.get();
   VERIFY_IS_APPROX(cross_stream_result, host);
+}
 
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(consumer_stream));
-  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(producer_stream));
+// ---- CudaEvent / CudaStream wrappers ----------------------------------------
+
+void test_cuda_event_stream_wrappers() {
+  gpu::CudaStream producer_stream = gpu::CudaStream::create();
+  gpu::CudaStream consumer_stream = gpu::CudaStream::create();
+  VERIFY(producer_stream.get() != nullptr);
+  VERIFY(consumer_stream.get() != nullptr);
+  VERIFY(producer_stream.get() != consumer_stream.get());
+
+  gpu::CudaEvent event(cudaEventDisableTiming);
+  event.record(producer_stream);
+  consumer_stream.wait(event);
+  EIGEN_CUDA_RUNTIME_CHECK(event.sync());
+  VERIFY_IS_EQUAL(event.query(), cudaSuccess);
+}
+
+template <typename Scalar>
+void test_stream_wrapper_roundtrip(Index rows, Index cols) {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  MatrixType host_mat = MatrixType::Random(rows, cols);
+
+  gpu::CudaStream stream = gpu::CudaStream::create();
+  auto device_mat = gpu::DeviceMatrix<Scalar>::fromHost(host_mat, stream);
+  auto device_cloned = device_mat.clone(stream);
+  MatrixType result = device_cloned.toHost(stream);
+  VERIFY_IS_APPROX(result, host_mat);
 }
 
 // ---- HostTransfer::ready() and idempotent get() -----------------------------
@@ -239,6 +260,7 @@ void test_scalar() {
   // Async roundtrip.
   CALL_SUBTEST(test_roundtrip_async<Scalar>(64, 64));
   CALL_SUBTEST(test_roundtrip_async<Scalar>(100, 7));
+  CALL_SUBTEST(test_stream_wrapper_roundtrip<Scalar>(64, 64));
 
   CALL_SUBTEST(test_clone<Scalar>(64, 64));
   CALL_SUBTEST(test_move_construct<Scalar>(64, 64));
@@ -249,6 +271,7 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_default_construct());
   CALL_SUBTEST(test_empty());
   CALL_SUBTEST(test_resize());
+  CALL_SUBTEST(test_cuda_event_stream_wrappers());
   CALL_SUBTEST(test_host_transfer_ready());
   CALL_SUBTEST(test_host_transfer_move());
   CALL_SUBTEST((test_allocate<float>(100, 50)));
