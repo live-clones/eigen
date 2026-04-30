@@ -108,13 +108,13 @@ void test_cuda_event_stream_wrappers() {
 template <typename Scalar>
 void test_stream_wrapper_roundtrip(Index rows, Index cols) {
   using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
-  MatrixType host = MatrixType::Random(rows, cols);
+  MatrixType host_mat = MatrixType::Random(rows, cols);
 
   gpu::CudaStream stream = gpu::CudaStream::create();
-  auto dm = gpu::DeviceMatrix<Scalar>::fromHost(host, stream);
-  auto cloned = dm.clone(stream);
-  MatrixType result = cloned.toHost(stream);
-  VERIFY_IS_APPROX(result, host);
+  auto device_mat = gpu::DeviceMatrix<Scalar>::fromHost(host_mat, stream);
+  auto device_cloned = device_mat.clone(stream);
+  MatrixType result = device_cloned.toHost(stream);
+  VERIFY_IS_APPROX(result, host_mat);
 }
 
 // ---- HostTransfer::ready() and idempotent get() -----------------------------
