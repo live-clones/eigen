@@ -8,9 +8,10 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // Generic CUDA runtime support shared across all GPU library integrations
-// (cuSOLVER and cuBLAS):
+// (cuSOLVER, cuBLAS, cuDSS, etc.):
 //   - Error-checking macros
-//   - RAII device buffer
+//   - RAII device / pinned-host buffers
+//   - RAII wrappers for cudaEvent_t / cudaStream_t
 //
 // Only depends on <cuda_runtime.h>. No NVIDIA library headers.
 
@@ -19,10 +20,12 @@
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
+#include "./fwd_decl.h"
 
 #include <cuda_runtime.h>
 
 #include <memory>
+#include <type_traits>
 
 namespace Eigen {
 namespace gpu {
@@ -66,6 +69,12 @@ class DeviceBuffer {
       ptr_.reset(p);
     }
   }
+
+  // Construct by taking ownership of a DeviceMatrix's device allocation.
+  // Lets code move a typed DeviceMatrix<Scalar> into a type-erased
+  // DeviceBuffer without a re-allocation.
+  template <typename Scalar_>
+  explicit DeviceBuffer(DeviceMatrix<Scalar_>&& mat);
 
   void* get() const noexcept { return ptr_.get(); }
   void* release() noexcept { return ptr_.release(); }
@@ -129,7 +138,129 @@ struct cuda_data_type<std::complex<double>> {
   static constexpr cudaDataType_t value = CUDA_C_64F;
 };
 
+// ---- Deleters for CUDA event / stream RAII wrappers -------------------------
+
+struct CudaEventDeleter {
+  void operator()(cudaEvent_t e) const {
+    if (e) (void)cudaEventDestroy(e);
+  }
+};
+
+struct CudaStreamDeleter {
+  void operator()(cudaStream_t s) const {
+    if (s) (void)cudaStreamDestroy(s);
+  }
+};
+
 }  // namespace internal
+
+struct CudaStream;
+
+// ---- RAII: CUDA event -------------------------------------------------------
+// Move-only. reset() and destruction sync before destroying so work waiting on
+// this event does not reference freed memory guarded by the event.
+
+struct CudaEvent {
+  std::unique_ptr<std::remove_pointer_t<cudaEvent_t>, internal::CudaEventDeleter> ptr{nullptr};
+
+  // Adopt an existing raw event (may be nullptr).
+  explicit CudaEvent(cudaEvent_t event) : ptr(event) {}
+
+  // Create a new event with the given flags (default: cudaEventDefault).
+  explicit CudaEvent(unsigned int flags = cudaEventDefault) {
+    cudaEvent_t raw = nullptr;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&raw, flags));
+    ptr.reset(raw);
+  }
+
+  CudaEvent(CudaEvent&& o) noexcept : ptr(std::move(o.ptr)) {}
+  CudaEvent& operator=(CudaEvent&& o) noexcept {
+    if (this != &o) {
+      reset();
+      ptr = std::move(o.ptr);
+    }
+    return *this;
+  }
+
+  CudaEvent(const CudaEvent&) = delete;
+  CudaEvent& operator=(const CudaEvent&) = delete;
+
+  ~CudaEvent() { reset(); }
+
+  // Lifted std::unique_ptr API.
+  cudaEvent_t get() { return ptr.get(); }
+  cudaEvent_t get() const { return ptr.get(); }
+  explicit operator bool() const { return static_cast<bool>(ptr); }
+
+  void reset() {
+    if (ptr) (void)sync();
+    ptr.reset();
+  }
+
+  // CUDA API.
+  cudaError_t sync() const { return cudaEventSynchronize(ptr.get()); }
+  cudaError_t query() const { return cudaEventQuery(ptr.get()); }
+
+  void record(cudaStream_t stream) { EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(ptr.get(), stream)); }
+  void record(const CudaStream& stream);
+};
+
+// ---- RAII: CUDA stream ------------------------------------------------------
+// Move-only owning wrapper. Default-constructed wraps the null (default) stream
+// and does not free it on destruction (deleter is a no-op on null).
+
+struct CudaStream {
+  std::unique_ptr<std::remove_pointer_t<cudaStream_t>, internal::CudaStreamDeleter> ptr{nullptr};
+
+  CudaStream() = default;
+  explicit CudaStream(cudaStream_t stream) : ptr(stream) {}
+
+  static CudaStream create(unsigned int flags = cudaStreamDefault) {
+    cudaStream_t raw = nullptr;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreateWithFlags(&raw, flags));
+    return CudaStream(raw);
+  }
+
+  CudaStream(CudaStream&& o) noexcept : ptr(std::move(o.ptr)) {}
+  CudaStream& operator=(CudaStream&& o) noexcept {
+    if (this != &o) ptr = std::move(o.ptr);
+    return *this;
+  }
+
+  CudaStream(const CudaStream&) = delete;
+  CudaStream& operator=(const CudaStream&) = delete;
+
+  // Lifted std::unique_ptr API.
+  cudaStream_t get() { return ptr.get(); }
+  cudaStream_t get() const { return ptr.get(); }
+  void reset() { ptr.reset(); }
+  explicit operator bool() const { return static_cast<bool>(ptr); }
+
+  void wait(const CudaEvent& event) { EIGEN_CUDA_RUNTIME_CHECK(cudaStreamWaitEvent(ptr.get(), event.get(), 0)); }
+};
+
+inline void CudaEvent::record(const CudaStream& stream) {
+  record(stream.get());
+}
+
+// ---- Non-owning stream reference --------------------------------------------
+// Lets DeviceMatrix track the producer stream without taking ownership.
+
+struct CudaStreamRef {
+  cudaStream_t ptr{nullptr};
+
+  CudaStreamRef() = default;
+  explicit CudaStreamRef(cudaStream_t stream) : ptr(stream) {}
+
+  cudaStream_t get() { return ptr; }
+  cudaStream_t get() const { return ptr; }
+  void reset() { ptr = nullptr; }
+  void reset(cudaStream_t stream) { ptr = stream; }
+  explicit operator bool() const { return ptr != nullptr; }
+
+  void wait(const CudaEvent& event) { EIGEN_CUDA_RUNTIME_CHECK(cudaStreamWaitEvent(ptr, event.get(), 0)); }
+};
+
 }  // namespace gpu
 }  // namespace Eigen
 

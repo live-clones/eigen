@@ -728,6 +728,19 @@ void test_lu_singular() {
   VERIFY_IS_EQUAL(lu.info(), NumericalIssue);
 }
 
+void test_context_owns_dedicated_streams() {
+  gpu::Context ctx1;
+  gpu::Context ctx2;
+
+  VERIFY(ctx1.stream() != nullptr);
+  VERIFY(ctx2.stream() != nullptr);
+  VERIFY(ctx1.stream() != ctx2.stream());
+  VERIFY(ctx1.cublasHandle() != nullptr);
+  VERIFY(ctx1.cusolverHandle() != nullptr);
+  VERIFY(ctx2.cublasHandle() != nullptr);
+  VERIFY(ctx2.cusolverHandle() != nullptr);
+}
+
 EIGEN_DECLARE_TEST(gpu_cublas) {
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
@@ -736,4 +749,5 @@ EIGEN_DECLARE_TEST(gpu_cublas) {
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
   CALL_SUBTEST_5(test_llt_not_spd());
   CALL_SUBTEST_5(test_lu_singular());
+  CALL_SUBTEST_5(test_context_owns_dedicated_streams());
 }

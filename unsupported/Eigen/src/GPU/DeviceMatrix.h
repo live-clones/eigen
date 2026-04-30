@@ -38,45 +38,11 @@
 
 #include <cstring>
 
+#include "./fwd_decl.h"
 #include "./GpuSupport.h"
 
 namespace Eigen {
 namespace gpu {
-
-// Forward declarations.
-template <typename, int>
-class LLT;
-template <typename>
-class LU;
-template <typename>
-class AdjointView;
-template <typename>
-class TransposeView;
-template <typename>
-class Assignment;
-template <typename, typename>
-class GemmExpr;
-template <typename, int>
-class LltSolveExpr;
-template <typename>
-class LuSolveExpr;
-template <typename, int>
-class LLTView;
-template <typename>
-class LUView;
-template <typename, int>
-class TriangularView;
-template <typename, int>
-class SelfAdjointView;
-template <typename, int>
-class ConstSelfAdjointView;
-template <typename, int>
-class TrsmExpr;
-template <typename, int>
-class SymmExpr;
-template <typename, int>
-class SyrkExpr;
-class Context;
 
 // --------------------------------------------------------------------------
 // HostTransfer — future-like wrapper for an async device-to-host transfer.
@@ -104,30 +70,27 @@ class HostTransfer {
   /** Non-blocking check: has the transfer completed? */
   bool ready() const {
     if (synced_) return true;
-    cudaError_t err = cudaEventQuery(event_);
+    cudaError_t err = event_.query();
     if (err == cudaSuccess) return true;
     eigen_assert(err == cudaErrorNotReady && "cudaEventQuery failed");
     return false;
   }
 
-  ~HostTransfer() {
-    if (event_) (void)cudaEventDestroy(event_);
-  }
-
   HostTransfer(HostTransfer&& o) noexcept
-      : host_buf_(std::move(o.host_buf_)), pinned_buf_(std::move(o.pinned_buf_)), event_(o.event_), synced_(o.synced_) {
-    o.event_ = nullptr;
+      : host_buf_(std::move(o.host_buf_)),
+        pinned_buf_(std::move(o.pinned_buf_)),
+        event_(std::move(o.event_)),
+        synced_(o.synced_) {
     o.synced_ = true;
   }
 
   HostTransfer& operator=(HostTransfer&& o) noexcept {
     if (this != &o) {
-      if (event_) (void)cudaEventDestroy(event_);
+      if (event_) (void)event_.sync();
       host_buf_ = std::move(o.host_buf_);
       pinned_buf_ = std::move(o.pinned_buf_);
-      event_ = o.event_;
+      event_ = std::move(o.event_);
       synced_ = o.synced_;
-      o.event_ = nullptr;
       o.synced_ = true;
     }
     return *this;
@@ -140,19 +103,19 @@ class HostTransfer {
   template <typename>
   friend class DeviceMatrix;
 
-  HostTransfer(PlainMatrix&& buf, internal::PinnedHostBuffer&& pinned, cudaEvent_t event)
-      : host_buf_(std::move(buf)), pinned_buf_(std::move(pinned)), event_(event), synced_(false) {}
+  HostTransfer(PlainMatrix&& buf, internal::PinnedHostBuffer&& pinned, CudaEvent event)
+      : host_buf_(std::move(buf)), pinned_buf_(std::move(pinned)), event_(std::move(event)), synced_(false) {}
 
   PlainMatrix host_buf_;                   // final destination (pageable)
   internal::PinnedHostBuffer pinned_buf_;  // staging buffer for async DMA
-  cudaEvent_t event_ = nullptr;
+  CudaEvent event_{nullptr};
   bool synced_ = false;
 };
 
 template <typename Scalar_>
 typename HostTransfer<Scalar_>::PlainMatrix& HostTransfer<Scalar_>::get() {
   if (!synced_) {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaEventSynchronize(event_));
+    EIGEN_CUDA_RUNTIME_CHECK(event_.sync());
     // Copy from pinned staging buffer into the regular (pageable) host matrix.
     if (pinned_buf_ && host_buf_.size() > 0) {
       std::memcpy(host_buf_.data(), pinned_buf_.get(), static_cast<size_t>(host_buf_.size()) * sizeof(Scalar));
@@ -203,10 +166,6 @@ class DeviceMatrix {
     }
   }
 
-  ~DeviceMatrix() {
-    if (ready_event_) (void)cudaEventDestroy(ready_event_);
-  }
-
   // ---- Move-only -----------------------------------------------------------
 
   DeviceMatrix(DeviceMatrix&& o) noexcept
@@ -214,31 +173,31 @@ class DeviceMatrix {
         rows_(o.rows_),
         cols_(o.cols_),
         outerStride_(o.outerStride_),
-        ready_event_(o.ready_event_),
-        ready_stream_(o.ready_stream_),
+        ready_event_(std::move(o.ready_event_)),
+        ready_stream_(o.ready_stream_.get()),
         retained_buffer_(std::move(o.retained_buffer_)) {
     o.rows_ = 0;
     o.cols_ = 0;
     o.outerStride_ = 0;
-    o.ready_event_ = nullptr;
-    o.ready_stream_ = nullptr;
+    o.ready_stream_.reset();
   }
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
     if (this != &o) {
-      if (ready_event_) (void)cudaEventDestroy(ready_event_);
+      // Sync before destroying the old event so kernels waiting on it don't
+      // race with free-ing memory guarded by the event.
+      if (ready_event_) (void)ready_event_.sync();
       data_ = std::move(o.data_);
       rows_ = o.rows_;
       cols_ = o.cols_;
       outerStride_ = o.outerStride_;
-      ready_event_ = o.ready_event_;
-      ready_stream_ = o.ready_stream_;
+      ready_event_ = std::move(o.ready_event_);
+      ready_stream_.reset(o.ready_stream_.get());
       retained_buffer_ = std::move(o.retained_buffer_);
       o.rows_ = 0;
       o.cols_ = 0;
       o.outerStride_ = 0;
-      o.ready_event_ = nullptr;
-      o.ready_stream_ = nullptr;
+      o.ready_stream_.reset();
     }
     return *this;
   }
@@ -266,6 +225,10 @@ class DeviceMatrix {
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
     }
     return dm;
+  }
+  template <typename Derived>
+  static DeviceMatrix fromHost(const MatrixBase<Derived>& host, const CudaStream& stream) {
+    return fromHost(host, stream.get());
   }
 
   /** Upload from a raw host pointer to device memory (asynchronous).
@@ -301,6 +264,10 @@ class DeviceMatrix {
     }
     return dm;
   }
+  static DeviceMatrix fromHostAsync(const Scalar* host_data, Index rows, Index cols, Index outerStride,
+                                    const CudaStream& stream) {
+    return fromHostAsync(host_data, rows, cols, outerStride, stream.get());
+  }
 
   // ---- Download to host ----------------------------------------------------
 
@@ -321,6 +288,7 @@ class DeviceMatrix {
     }
     return host_buf;
   }
+  PlainMatrix toHost(const CudaStream& stream) const { return toHost(stream.get()); }
 
   /** Enqueue an async device-to-host transfer and return a future.
    *
@@ -340,11 +308,11 @@ class DeviceMatrix {
           cudaMemcpyAsync(pinned_buf.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
     }
     // Record a transfer-complete event.
-    cudaEvent_t transfer_event;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&transfer_event, cudaEventDisableTiming));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(transfer_event, stream));
-    return HostTransfer<Scalar>(std::move(host_buf), std::move(pinned_buf), transfer_event);
+    CudaEvent transfer_event(cudaEventDisableTiming);
+    transfer_event.record(stream);
+    return HostTransfer<Scalar>(std::move(host_buf), std::move(pinned_buf), std::move(transfer_event));
   }
+  HostTransfer<Scalar> toHostAsync(const CudaStream& stream) const { return toHostAsync(stream.get()); }
 
   // ---- Device-to-device copy -----------------------------------------------
 
@@ -362,6 +330,7 @@ class DeviceMatrix {
     }
     return result;
   }
+  DeviceMatrix clone(const CudaStream& stream) const { return clone(stream.get()); }
 
   // ---- Resize (destructive) ------------------------------------------------
 
@@ -369,12 +338,12 @@ class DeviceMatrix {
   void resize(Index rows, Index cols) {
     eigen_assert(rows >= 0 && cols >= 0);
     if (rows == rows_ && cols == cols_) return;
+    // Wait for any in-flight writes to complete before freeing the backing
+    // allocation.
+    if (ready_event_) (void)ready_event_.sync();
     data_.reset();
-    if (ready_event_) {
-      (void)cudaEventDestroy(ready_event_);
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
+    ready_event_.reset();
+    ready_stream_.reset();
     retained_buffer_ = internal::DeviceBuffer();
     rows_ = rows;
     cols_ = cols;
@@ -404,18 +373,19 @@ class DeviceMatrix {
   /** Record that device data is ready after work on \p stream. */
   void recordReady(cudaStream_t stream) {
     ensureEvent();
-    EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(ready_event_, stream));
-    ready_stream_ = stream;
+    ready_event_.record(stream);
+    ready_stream_.reset(stream);
   }
 
   /** Make \p stream wait until the device data is ready.
    * No-op if no event recorded, or if the consumer stream is the same as the
    * producer stream (CUDA guarantees in-order execution within a stream). */
   void waitReady(cudaStream_t stream) const {
-    if (ready_event_ && stream != ready_stream_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamWaitEvent(stream, ready_event_, 0));
+    if (ready_event_ && stream != ready_stream_.get()) {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamWaitEvent(stream, ready_event_.get(), 0));
     }
   }
+  void waitReady(const CudaStream& stream) const { waitReady(stream.get()); }
 
   // ---- Expression methods (dispatch to cuBLAS/cuSOLVER) --------------------
 
@@ -501,11 +471,8 @@ class DeviceMatrix {
     rows_ = 0;
     cols_ = 0;
     outerStride_ = 0;
-    if (ready_event_) {
-      (void)cudaEventDestroy(ready_event_);
-      ready_event_ = nullptr;
-    }
-    ready_stream_ = nullptr;
+    ready_event_.reset();
+    ready_stream_.reset();
     return p;
   }
 
@@ -514,7 +481,7 @@ class DeviceMatrix {
 
   void ensureEvent() {
     if (!ready_event_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&ready_event_, cudaEventDisableTiming));
+      ready_event_ = CudaEvent(cudaEventDisableTiming);
     }
   }
 
@@ -526,10 +493,21 @@ class DeviceMatrix {
   Index rows_ = 0;
   Index cols_ = 0;
   Index outerStride_ = 0;
-  cudaEvent_t ready_event_ = nullptr;       // internal: tracks last write completion
-  cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
-  internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
+  CudaEvent ready_event_{nullptr};           // tracks last write completion
+  CudaStreamRef ready_stream_{nullptr};      // stream that recorded ready_event_ (for same-stream skip)
+  internal::DeviceBuffer retained_buffer_;   // keeps async aux buffers alive
 };
+
+namespace internal {
+
+// Out-of-line definition: take ownership of a DeviceMatrix's device pointer.
+// Defined here (not in GpuSupport.h) so DeviceMatrix is a complete type.
+template <typename Scalar_>
+DeviceBuffer::DeviceBuffer(DeviceMatrix<Scalar_>&& mat) {
+  ptr_.reset(static_cast<void*>(mat.release()));
+}
+
+}  // namespace internal
 
 }  // namespace gpu
 }  // namespace Eigen
