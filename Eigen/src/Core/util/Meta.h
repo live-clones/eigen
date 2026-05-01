@@ -319,54 +319,35 @@ template <bool... values>
 using reduce_any = std::integral_constant<bool, !std::is_same<std::integer_sequence<bool, values..., false>,
                                                               std::integer_sequence<bool, false, values...>>::value>;
 
-struct meta_yes {
-  char a[1];
-};
-struct meta_no {
-  char a[2];
-};
-
 // Check whether T::ReturnType does exist
-template <typename T>
-struct has_ReturnType {
-  template <typename C>
-  static meta_yes testFunctor(C const*, typename C::ReturnType const* = 0);
-  template <typename C>
-  static meta_no testFunctor(...);
-
-  enum { value = sizeof(testFunctor<T>(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
+template <typename T, typename EnableIf = void>
+struct has_ReturnType : false_type {};
 
 template <typename T>
-const T* return_ptr();
+struct has_ReturnType<T, void_t<typename T::ReturnType>> : true_type {};
 
-template <typename T, typename IndexType = Index>
-struct has_nullary_operator {
-  template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()()) > 0)>* = 0);
-  static meta_no testFunctor(...);
+template <typename T, typename IndexType = Index, typename EnableIf = void>
+struct has_nullary_operator : false_type {};
 
-  enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
+template <typename T, typename IndexType>
+struct has_nullary_operator<T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()())) > 0)>>
+    : true_type {};
 
-template <typename T, typename IndexType = Index>
-struct has_unary_operator {
-  template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+template <typename T, typename IndexType = Index, typename EnableIf = void>
+struct has_unary_operator : false_type {};
 
-  enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
+template <typename T, typename IndexType>
+struct has_unary_operator<T, IndexType,
+                          std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0)))) > 0)>>
+    : true_type {};
 
-template <typename T, typename IndexType = Index>
-struct has_binary_operator {
-  template <typename C>
-  static meta_yes testFunctor(
-      C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0), IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+template <typename T, typename IndexType = Index, typename EnableIf = void>
+struct has_binary_operator : false_type {};
 
-  enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
+template <typename T, typename IndexType>
+struct has_binary_operator<
+    T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0), IndexType(0)))) > 0)>>
+    : true_type {};
 
 /** \internal In short, it computes int(sqrt(\a Y)) with \a Y an integer.
  * Usage example: \code meta_sqrt<1023>::ret \endcode
