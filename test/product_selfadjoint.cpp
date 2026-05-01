@@ -98,21 +98,28 @@ void product_selfadjoint(const MatrixType& m) {
   VERIFY_IS_APPROX(m2, m3);
 
   m2.setRandom();
-  m3 = m2;
   m2.template selfadjointView<Lower>() = m1.template selfadjointView<Lower>();
-  m3.template triangularView<Lower>() = m1.template selfadjointView<Lower>().toDenseMatrix();
+  m3 = m1.template selfadjointView<Lower>().toDenseMatrix();
   VERIFY_IS_APPROX(m2, m3);
 
   m2.setRandom();
-  m3 = m2;
   m2.template selfadjointView<Lower>() = m1.template selfadjointView<Upper>();
-  m3.template triangularView<Lower>() = m1.template selfadjointView<Upper>().toDenseMatrix();
+  m3 = m1.template selfadjointView<Upper>().toDenseMatrix();
   VERIFY_IS_APPROX(m2, m3);
 
   m2.setRandom();
-  m3 = m2;
   m2.template selfadjointView<Lower>() = m1.template triangularView<Upper>();
-  m3.template triangularView<Lower>() = m1.template triangularView<Upper>().toDenseMatrix();
+  m3 = m1.template triangularView<Upper>().toDenseMatrix();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m2.template selfadjointView<Lower>() = m1.template triangularView<UnitUpper>();
+  m3 = m1.template triangularView<UnitUpper>().toDenseMatrix();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m2.template selfadjointView<Upper>() = m1.template triangularView<StrictlyLower>();
+  m3 = m1.template triangularView<StrictlyLower>().toDenseMatrix();
   VERIFY_IS_APPROX(m2, m3);
 
   // rank2 update
