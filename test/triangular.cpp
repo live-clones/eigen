@@ -69,17 +69,15 @@ struct selfadjoint_structured_sum_impl<Mode, MatrixType, true> {
     if (a.rows() != a.cols()) return;
 
     result.setRandom();
-    reference = result;
     result.template selfadjointView<Mode>() =
         s * a.template selfadjointView<Mode>() + b.template selfadjointView<Mode>();
-    reference.template selfadjointView<Mode>() = s * a + b;
+    reference = (s * a + b).template selfadjointView<Mode>().toDenseMatrix();
     VERIFY_IS_APPROX(result, reference);
 
     result.setRandom();
-    reference = result;
     result.template selfadjointView<Mode>() =
         a.template selfadjointView<Mode>() - s * b.template selfadjointView<Mode>();
-    reference.template selfadjointView<Mode>() = a - s * b;
+    reference = (a - s * b).template selfadjointView<Mode>().toDenseMatrix();
     VERIFY_IS_APPROX(result, reference);
   }
 };

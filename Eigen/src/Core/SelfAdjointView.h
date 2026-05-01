@@ -45,6 +45,7 @@ struct traits<SelfAdjointView<MatrixType, UpLo> > : traits<MatrixType> {
             (~(PacketAccessBit | DirectAccessBit | LinearAccessBit))  // FIXME these flags should be preserved
   };
 };
+
 }  // namespace internal
 
 template <typename MatrixType_, unsigned int UpLo>
@@ -80,10 +81,11 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     return *this;
   }
 
-  /** Assigns a triangular or selfadjoint expression to the referenced triangular part. */
+  /** Assigns a triangular or selfadjoint expression without materializing a dense temporary. */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const TriangularBase<OtherDerived>& other) {
-    return *this = other.toDenseMatrix();
+    other.evalToLazy(m_matrix);
+    return *this;
   }
 
   EIGEN_DEVICE_FUNC SelfAdjointView& operator=(const SelfAdjointView& other) {
