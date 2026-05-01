@@ -116,9 +116,15 @@ SparsityPatternRef<typename Derived::StorageIndex> make_col_major_pattern_ref(
 
 /** \internal
  * Materialize a column-major sparsity pattern view as a compressed
- * \c SparseMatrix with a 1-byte placeholder \c Scalar. Values are left
- * uninitialized — this overload is intended for fill-reducing ordering
- * algorithms that read only the pattern (AMD, COLAMD).
+ * \c SparseMatrix with a 1-byte placeholder \c Scalar. Values are filled with
+ * a fixed nonzero sentinel — downstream pattern consumers (\c transpose(),
+ * sparse \c operator+, \c selfadjointView expansion) read coefficients even
+ * when the algorithm only cares about the pattern, so leaving them
+ * uninitialized would be UB.
+ *
+ * Intended for fill-reducing ordering algorithms (AMD, COLAMD) that read only
+ * the pattern. \b Precondition: \c out's storage must not alias \c pat —
+ * \c resize / \c resizeNonZeros may reallocate and invalidate the view.
  *
  * If \c row_perm is non-null, each inner row index is remapped through it
  * (entry \c (i, j) of \c pat becomes \c (row_perm[i], j) in the result),
@@ -154,7 +160,10 @@ void materialize_col_major_pattern(const SparsityPatternRef<StorageIndex>& pat, 
       std::sort(dst, dst + nz);
     }
   }
-  // Values are intentionally left uninitialized.
+  // Fill values with a fixed nonzero sentinel so downstream consumers that
+  // read coefficients (transpose, sparse +, selfadjointView expansion) do not
+  // observe uninitialized memory.
+  std::fill_n(out.valuePtr(), total, static_cast<signed char>(1));
 }
 
 /** \internal Convenience overload — identity row permutation. */
