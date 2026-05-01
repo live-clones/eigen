@@ -83,8 +83,8 @@ SparsityPatternRef<StorageIndex> make_col_major_pattern_ref(const SparseMatrix<S
 /** \internal
  * Generic fallback for any other sparse expression (row-major, products,
  * permutations, etc.). The pattern is materialized into \c outer_buf and
- * \c inner_buf via a value-free counting transpose driven by the source's
- * \c InnerIterator.
+ * \c inner_buf via a value-free counting transpose driven by the expression
+ * evaluator. Some evaluators may materialize internally.
  */
 template <typename Derived>
 SparsityPatternRef<typename Derived::StorageIndex> make_col_major_pattern_ref(
@@ -92,17 +92,18 @@ SparsityPatternRef<typename Derived::StorageIndex> make_col_major_pattern_ref(
     Matrix<typename Derived::StorageIndex, Dynamic, 1>& inner_buf) {
   typedef typename Derived::StorageIndex StorageIndex;
   const Derived& amat = amat_base.derived();
+  internal::evaluator<Derived> amat_eval(amat);
   const Index n_cols = amat.cols();
   const Index n_outer = amat.outerSize();
 
   outer_buf.setZero(n_cols + 1);
   for (Index i = 0; i < n_outer; ++i)
-    for (typename Derived::InnerIterator it(amat, i); it; ++it) ++outer_buf(it.col() + 1);
+    for (typename internal::evaluator<Derived>::InnerIterator it(amat_eval, i); it; ++it) ++outer_buf(it.col() + 1);
   for (Index j = 0; j < n_cols; ++j) outer_buf(j + 1) += outer_buf(j);
   inner_buf.resize(outer_buf(n_cols));
   Matrix<StorageIndex, Dynamic, 1> head = outer_buf.head(n_cols);
   for (Index i = 0; i < n_outer; ++i)
-    for (typename Derived::InnerIterator it(amat, i); it; ++it)
+    for (typename internal::evaluator<Derived>::InnerIterator it(amat_eval, i); it; ++it)
       inner_buf(head(it.col())++) = convert_index<StorageIndex>(it.row());
 
   SparsityPatternRef<StorageIndex> p;
