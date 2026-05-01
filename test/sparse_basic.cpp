@@ -1134,7 +1134,7 @@ void sparsity_pattern_ref_sparse_expressions() {
   typedef Matrix<int, Dynamic, 1> VectorI;
 
   SparseMatrixType a(3, 3);
-  std::vector<Triplet<Scalar, int> > triplets;
+  std::vector<Triplet<Scalar, int>> triplets;
   triplets.emplace_back(0, 0, Scalar(1.0, 1.0));
   triplets.emplace_back(1, 0, Scalar(2.0, -1.0));
   triplets.emplace_back(2, 1, Scalar(3.0, 2.0));
@@ -1146,8 +1146,7 @@ void sparsity_pattern_ref_sparse_expressions() {
 
   VectorI outer, inner;
   SparseMatrixType permuted = p * a;
-  const internal::SparsityPatternRef<int> permuted_pattern =
-      internal::make_col_major_pattern_ref(p * a, outer, inner);
+  const internal::SparsityPatternRef<int> permuted_pattern = internal::make_col_major_pattern_ref(p * a, outer, inner);
   verify_sparsity_pattern_ref_matches(permuted_pattern, permuted);
 
   RealSparseMatrixType real_part = a.real();
