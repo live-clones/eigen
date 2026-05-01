@@ -665,8 +665,11 @@ EIGEN_DEVICE_FUNC T* smart_move(T* start, T* end, T* target) {
 // This helper class construct the allocated memory, and takes care of destructing and freeing the handled data
 // at destruction time. In practice this helper class is mainly useful to avoid memory leak in case of exceptions.
 template <typename T>
-class aligned_stack_memory_handler : noncopyable {
+class aligned_stack_memory_handler {
  public:
+  aligned_stack_memory_handler(const aligned_stack_memory_handler&) = delete;
+  aligned_stack_memory_handler& operator=(const aligned_stack_memory_handler&) = delete;
+
   /* Creates a stack_memory_handler responsible for the buffer \a ptr of size \a size.
    * Note that \a ptr can be 0 regardless of the other parameters.
    * This constructor takes care of constructing/initializing the elements of the buffer if required by the scalar type
@@ -734,10 +737,13 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
 #endif  // EIGEN_ALLOCA
 
 template <typename T>
-class scoped_array : noncopyable {
+class scoped_array {
   T* m_ptr;
 
  public:
+  scoped_array(const scoped_array&) = delete;
+  scoped_array& operator=(const scoped_array&) = delete;
+
   explicit scoped_array(std::ptrdiff_t size) { m_ptr = new T[size]; }
   ~scoped_array() { delete[] m_ptr; }
   T& operator[](std::ptrdiff_t i) { return m_ptr[i]; }
