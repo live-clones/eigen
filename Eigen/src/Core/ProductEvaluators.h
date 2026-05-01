@@ -847,6 +847,29 @@ struct etor_product_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode> {
 template <int Mode, bool LhsIsTriangular, typename Lhs, bool LhsIsVector, typename Rhs, bool RhsIsVector>
 struct triangular_product_impl;
 
+template <int ProductOrder>
+struct diagonal_product_segment_impl;
+
+template <>
+struct diagonal_product_segment_impl<OnTheLeft> {
+  template <typename DstSegment, typename Coeffs, typename DiagonalType, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstSegment& dst, const Coeffs& coeffs,
+                                                        const DiagonalType& diagonal, Index begin, Index /*col*/,
+                                                        const Alpha& alpha) {
+    dst += alpha * diagonal.segment(begin, dst.size()).cwiseProduct(coeffs);
+  }
+};
+
+template <>
+struct diagonal_product_segment_impl<OnTheRight> {
+  template <typename DstSegment, typename Coeffs, typename DiagonalType, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstSegment& dst, const Coeffs& coeffs,
+                                                        const DiagonalType& diagonal, Index /*begin*/, Index col,
+                                                        const Alpha& alpha) {
+    dst += alpha * (coeffs * diagonal.coeff(col));
+  }
+};
+
 template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType>
 struct triangular_diagonal_product_impl {
   typedef typename MatrixType::Scalar MatrixScalar;
@@ -863,10 +886,10 @@ struct triangular_diagonal_product_impl {
     for (Index col = 0; col < cols; ++col) {
       if ((Mode & Upper) == Upper) {
         const Index end = (std::min)(rows, ((Mode & (UnitDiag | ZeroDiag)) ? col : col + 1));
-        for (Index row = 0; row < end; ++row) addStoredCoeff(dst, matrix, diagonal, row, col, alpha);
+        addStoredSegment(dst, matrix, diagonal, 0, end, col, alpha);
       } else {
         const Index begin = ((Mode & (UnitDiag | ZeroDiag)) ? col + 1 : col);
-        for (Index row = begin; row < rows; ++row) addStoredCoeff(dst, matrix, diagonal, row, col, alpha);
+        addStoredSegment(dst, matrix, diagonal, begin, rows - begin, col, alpha);
       }
 
       if ((Mode & UnitDiag) == UnitDiag && col < rows) addUnitCoeff(dst, diagonal, col, alpha);
@@ -875,13 +898,13 @@ struct triangular_diagonal_product_impl {
 
  private:
   template <typename Dest, typename Alpha>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addStoredCoeff(Dest& dst, const MatrixType& matrix,
-                                                                   const DiagonalType& diagonal, Index row, Index col,
-                                                                   const Alpha& alpha) {
-    if (ProductOrder == OnTheLeft)
-      dst.coeffRef(row, col) += alpha * (diagonal.coeff(row) * matrix.coeff(row, col));
-    else
-      dst.coeffRef(row, col) += alpha * (matrix.coeff(row, col) * diagonal.coeff(col));
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addStoredSegment(Dest& dst, const MatrixType& matrix,
+                                                                     const DiagonalType& diagonal, Index begin,
+                                                                     Index size, Index col, const Alpha& alpha) {
+    if (size <= 0) return;
+    auto dstSegment = dst.col(col).segment(begin, size);
+    diagonal_product_segment_impl<ProductOrder>::run(dstSegment, matrix.col(col).segment(begin, size), diagonal, begin,
+                                                     col, alpha);
   }
 
   template <typename Dest, typename Alpha>
@@ -962,31 +985,35 @@ struct selfadjoint_diagonal_product_impl {
 
     const Index size = matrix.rows();
     for (Index col = 0; col < size; ++col) {
-      for (Index row = 0; row < size; ++row) {
-        if ((Mode & Upper) == Upper) {
-          if (col >= row)
-            addStoredCoeff(dst, matrix.coeff(row, col), diagonal, row, col, alpha);
-          else
-            addStoredCoeff(dst, numext::conj(matrix.coeff(col, row)), diagonal, row, col, alpha);
-        } else {
-          if (row >= col)
-            addStoredCoeff(dst, matrix.coeff(row, col), diagonal, row, col, alpha);
-          else
-            addStoredCoeff(dst, numext::conj(matrix.coeff(col, row)), diagonal, row, col, alpha);
-        }
+      if ((Mode & Upper) == Upper) {
+        addStoredSegment(dst, matrix, diagonal, 0, col + 1, col, alpha);
+        addConjugateSegment(dst, matrix, diagonal, col + 1, size - col - 1, col, alpha);
+      } else {
+        addConjugateSegment(dst, matrix, diagonal, 0, col, col, alpha);
+        addStoredSegment(dst, matrix, diagonal, col, size - col, col, alpha);
       }
     }
   }
 
  private:
-  template <typename Dest, typename Coeff, typename Alpha>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addStoredCoeff(Dest& dst, const Coeff& coeff,
-                                                                   const DiagonalType& diagonal, Index row, Index col,
-                                                                   const Alpha& alpha) {
-    if (ProductOrder == OnTheLeft)
-      dst.coeffRef(row, col) += alpha * (diagonal.coeff(row) * coeff);
-    else
-      dst.coeffRef(row, col) += alpha * (coeff * diagonal.coeff(col));
+  template <typename Dest, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addStoredSegment(Dest& dst, const MatrixType& matrix,
+                                                                     const DiagonalType& diagonal, Index begin,
+                                                                     Index size, Index col, const Alpha& alpha) {
+    if (size <= 0) return;
+    auto dstSegment = dst.col(col).segment(begin, size);
+    diagonal_product_segment_impl<ProductOrder>::run(dstSegment, matrix.col(col).segment(begin, size), diagonal, begin,
+                                                     col, alpha);
+  }
+
+  template <typename Dest, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addConjugateSegment(Dest& dst, const MatrixType& matrix,
+                                                                        const DiagonalType& diagonal, Index begin,
+                                                                        Index size, Index col, const Alpha& alpha) {
+    if (size <= 0) return;
+    auto dstSegment = dst.col(col).segment(begin, size);
+    diagonal_product_segment_impl<ProductOrder>::run(
+        dstSegment, matrix.row(col).segment(begin, size).conjugate().transpose(), diagonal, begin, col, alpha);
   }
 };
 
