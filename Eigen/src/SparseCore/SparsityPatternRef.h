@@ -157,6 +157,13 @@ void materialize_col_major_pattern(const SparsityPatternRef<StorageIndex>& pat, 
   // Values are intentionally left uninitialized.
 }
 
+/** \internal Convenience overload — identity row permutation. */
+template <typename StorageIndex>
+void materialize_col_major_pattern(const SparsityPatternRef<StorageIndex>& pat,
+                                   SparseMatrix<signed char, ColMajor, StorageIndex>& out) {
+  materialize_col_major_pattern(pat, static_cast<const StorageIndex*>(nullptr), out);
+}
+
 }  // namespace internal
 }  // namespace Eigen
 
