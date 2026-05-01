@@ -197,18 +197,6 @@ using add_const_on_value_type_t = typename add_const_on_value_type<T>::type;
 using std::is_convertible;
 
 /** \internal
- * A base class do disable default copy ctor and copy assignment operator.
- */
-class noncopyable {
-  EIGEN_DEVICE_FUNC noncopyable(const noncopyable&);
-  EIGEN_DEVICE_FUNC const noncopyable& operator=(const noncopyable&);
-
- protected:
-  EIGEN_DEVICE_FUNC noncopyable() {}
-  EIGEN_DEVICE_FUNC ~noncopyable() {}
-};
-
-/** \internal
  * Provides access to the number of elements in the object of as a compile-time constant expression.
  * It "returns" Eigen::Dynamic if the size cannot be resolved at compile-time (default).
  *
