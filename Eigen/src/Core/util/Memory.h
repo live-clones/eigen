@@ -634,11 +634,6 @@ struct smart_memmove_helper<T, false> {
   }
 };
 
-template <typename T>
-EIGEN_DEVICE_FUNC T* smart_move(T* start, T* end, T* target) {
-  return std::move(start, end, target);
-}
-
 /*****************************************************************************
 *** Implementation of runtime stack allocation (falling back to malloc)    ***
 *****************************************************************************/
@@ -735,28 +730,6 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
 };
 
 #endif  // EIGEN_ALLOCA
-
-template <typename T>
-class scoped_array {
-  T* m_ptr;
-
- public:
-  scoped_array(const scoped_array&) = delete;
-  scoped_array& operator=(const scoped_array&) = delete;
-
-  explicit scoped_array(std::ptrdiff_t size) { m_ptr = new T[size]; }
-  ~scoped_array() { delete[] m_ptr; }
-  T& operator[](std::ptrdiff_t i) { return m_ptr[i]; }
-  const T& operator[](std::ptrdiff_t i) const { return m_ptr[i]; }
-  T*& ptr() { return m_ptr; }
-  const T* ptr() const { return m_ptr; }
-  operator const T*() const { return m_ptr; }
-};
-
-template <typename T>
-void swap(scoped_array<T>& a, scoped_array<T>& b) {
-  std::swap(a.ptr(), b.ptr());
-}
 
 }  // end namespace internal
 
