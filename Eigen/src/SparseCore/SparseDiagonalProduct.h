@@ -77,6 +77,7 @@ struct sparse_selfadjoint_diagonal_product_impl {
   typedef typename MatrixEvaluator::InnerIterator MatrixIterator;
   typedef typename Dest::StorageIndex StorageIndex;
   typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
+  enum { IsFullMode = Mode == int(Upper | Lower), IsLowerMode = (Mode & int(Lower)) == int(Lower) };
 
   static void run(Dest& dest, const SelfAdjointViewType& selfadjoint, const DiagonalType& diagonal) {
     MatrixEvaluator matrixEval(selfadjoint.matrix());
@@ -100,12 +101,10 @@ struct sparse_selfadjoint_diagonal_product_impl {
       for (MatrixIterator it(matrixEval, outer); it; ++it) {
         const Index row = it.row();
         const Index col = it.col();
-        if (Mode == int(Upper | Lower)) {
+        if (isStored(row, col)) {
           insertEntry(dest, count, diagonal, row, col, it.value());
-        } else if (row == col) {
-          insertEntry(dest, count, diagonal, row, col, it.value());
-        } else if (((Mode & Lower) == Lower && row > col) || ((Mode & Upper) == Upper && row < col)) {
-          insertEntry(dest, count, diagonal, row, col, it.value());
+        }
+        if (mirrorsStoredEntry(row, col)) {
           insertEntry(dest, count, diagonal, col, row, numext::conj(it.value()));
         }
       }
@@ -113,13 +112,19 @@ struct sparse_selfadjoint_diagonal_product_impl {
   }
 
  private:
+  static EIGEN_STRONG_INLINE bool isStored(Index row, Index col) {
+    return IsFullMode || row == col || (IsLowerMode ? row > col : row < col);
+  }
+
+  static EIGEN_STRONG_INLINE bool mirrorsStoredEntry(Index row, Index col) {
+    return !IsFullMode && row != col && (IsLowerMode ? row > col : row < col);
+  }
+
   static void countEntry(VectorI& count, Index row, Index col) {
-    if (Mode == int(Upper | Lower)) {
+    if (isStored(row, col)) {
       ++count[outerIndex(row, col)];
-    } else if (row == col) {
-      ++count[outerIndex(row, col)];
-    } else if (((Mode & Lower) == Lower && row > col) || ((Mode & Upper) == Upper && row < col)) {
-      ++count[outerIndex(row, col)];
+    }
+    if (mirrorsStoredEntry(row, col)) {
       ++count[outerIndex(col, row)];
     }
   }
