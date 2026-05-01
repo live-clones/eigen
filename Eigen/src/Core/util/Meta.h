@@ -398,7 +398,7 @@ struct equal_strict_impl<X, Y, true, false, true, true> {
   // X is an unsigned integer
   // Y is a signed integer
   // if Y is non-negative, it may be represented exactly as its unsigned counterpart.
-  using UnsignedY = typename internal::make_unsigned<Y>::type;
+  using UnsignedY = std::make_unsigned_t<Y>;
   static constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
     return y < Y(0) ? false : (x == static_cast<UnsignedY>(y));
   }
