@@ -56,29 +56,17 @@ struct rvv_half_packet {
 template <typename Packet>
 using rvv_half_packet_t = typename rvv_half_packet<Packet>::type;
 
-template <typename Scalar, typename Packet>
-struct rvv_default_packet_traits : default_packet_traits {
-  typedef Packet type;
-  typedef rvv_half_packet_t<type> half;
-  static constexpr int size = unpacket_traits<Packet>::size_t;
-
+template <typename Scalar, typename Packet, std::size_t VectorLMul>
+struct rvv_default_unpacket_traits {
+  typedef Scalar type;
+  typedef rvv_half_packet_t<Packet> half;
+  typedef numext::uint8_t mask_t;
   enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0
+    size = rvv_packet_size_selector<Scalar, EIGEN_RISCV64_RVV_VL, VectorLMul>::size,
+    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, VectorLMul>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
   };
 };
 
@@ -261,17 +249,29 @@ typedef Packet4Xf PacketXf;
 typedef Packet4Xd PacketXd;
 #endif
 
-template <typename Scalar, typename Packet, std::size_t VectorLMul>
-struct rvv_default_unpacket_traits {
-  typedef Scalar type;
-  typedef rvv_half_packet_t<Packet> half;
-  typedef numext::uint8_t mask_t;
+template <typename Scalar, typename Packet>
+struct rvv_default_packet_traits : default_packet_traits {
+  typedef Packet type;
+  typedef rvv_half_packet_t<type> half;
+
   enum {
-    size = rvv_packet_size_selector<Scalar, EIGEN_RISCV64_RVV_VL, VectorLMul>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, VectorLMul>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
+    size = unpacket_traits<Packet>::size,
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 1,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasAbs2 = 1,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasBlend = 0,
+    HasReduxp = 0
   };
 };
 
