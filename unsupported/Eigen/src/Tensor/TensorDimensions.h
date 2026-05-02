@@ -20,8 +20,14 @@ namespace Eigen {
 namespace internal {
 
 template <std::ptrdiff_t n, typename Dimension>
-struct dget {
-  static constexpr std::ptrdiff_t value = get<n, Dimension>::value;
+struct dget;
+
+template <std::ptrdiff_t n, typename T, T first, T... rest>
+struct dget<n, std::integer_sequence<T, first, rest...>> : dget<n - 1, std::integer_sequence<T, rest...>> {};
+
+template <typename T, T first, T... rest>
+struct dget<0, std::integer_sequence<T, first, rest...>> {
+  static constexpr T value = first;
 };
 
 template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowMajor>
@@ -50,7 +56,7 @@ struct fixed_size_tensor_index_extraction_helper {
   template <typename Dimensions>
   constexpr EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(const Index index, const Dimensions& dimensions) {
     const Index mult = (index == n - 1) ? 1 : 0;
-    return array_get<n - 1>(dimensions) * mult +
+    return dget<n - 1, Dimensions>::value * mult +
            fixed_size_tensor_index_extraction_helper<Index, n - 1>::run(index, dimensions);
   }
 };
@@ -79,12 +85,12 @@ struct fixed_size_tensor_index_extraction_helper<Index, 0> {
  */
 template <typename std::ptrdiff_t... Indices>
 struct Sizes {
-  typedef internal::numeric_list<std::ptrdiff_t, Indices...> Base;
+  typedef std::integer_sequence<std::ptrdiff_t, Indices...> Base;
   const Base t = Base();
   static constexpr std::ptrdiff_t total_size = internal::arg_prod(Indices...);
-  static constexpr ptrdiff_t count = Base::count;
+  static constexpr ptrdiff_t count = sizeof...(Indices);
 
-  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t rank() const { return Base::count; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t rank() const { return count; }
 
   static constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t TotalSize() {
     return internal::arg_prod(Indices...);
@@ -92,7 +98,7 @@ struct Sizes {
 
   constexpr EIGEN_DEVICE_FUNC Sizes() {}
   template <typename DenseIndex>
-  explicit constexpr EIGEN_DEVICE_FUNC Sizes(const array<DenseIndex, Base::count>& /*indices*/) {
+  explicit constexpr EIGEN_DEVICE_FUNC Sizes(const array<DenseIndex, count>& /*indices*/) {
     // TODO: Add assertion.
   }
   template <typename... DenseIndex>
@@ -108,20 +114,18 @@ struct Sizes {
   }
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t operator[](const std::ptrdiff_t index) const {
-    return internal::fixed_size_tensor_index_extraction_helper<std::ptrdiff_t, Base::count>::run(index, t);
+    return internal::fixed_size_tensor_index_extraction_helper<std::ptrdiff_t, count>::run(index, t);
   }
 
   template <typename DenseIndex>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ptrdiff_t
-  IndexOfColMajor(const array<DenseIndex, Base::count>& indices) const {
-    return internal::fixed_size_tensor_index_linearization_helper<DenseIndex, Base::count, Base::count, false>::run(
-        indices, t);
+  IndexOfColMajor(const array<DenseIndex, count>& indices) const {
+    return internal::fixed_size_tensor_index_linearization_helper<DenseIndex, count, count, false>::run(indices, t);
   }
   template <typename DenseIndex>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ptrdiff_t
-  IndexOfRowMajor(const array<DenseIndex, Base::count>& indices) const {
-    return internal::fixed_size_tensor_index_linearization_helper<DenseIndex, Base::count, Base::count, true>::run(
-        indices, t);
+  IndexOfRowMajor(const array<DenseIndex, count>& indices) const {
+    return internal::fixed_size_tensor_index_linearization_helper<DenseIndex, count, count, true>::run(indices, t);
   }
 };
 
@@ -301,7 +305,7 @@ struct array_size<Sizes<Indices...> > {
 };
 template <std::ptrdiff_t n, typename std::ptrdiff_t... Indices>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<Indices...>&) {
-  return get<n, internal::numeric_list<std::ptrdiff_t, Indices...> >::value;
+  return dget<n, typename Sizes<Indices...>::Base>::value;
 }
 template <std::ptrdiff_t n>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<>&) {

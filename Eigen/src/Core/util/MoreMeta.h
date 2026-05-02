@@ -30,64 +30,6 @@ struct type_list<t, tt...> {
   typedef t first_type;
 };
 
-template <typename T, T... nn>
-struct numeric_list {
-  constexpr static std::size_t count = sizeof...(nn);
-};
-
-template <typename T, T n, T... nn>
-struct numeric_list<T, n, nn...> {
-  static constexpr std::size_t count = sizeof...(nn) + 1;
-  static constexpr T first_value = n;
-};
-
-// Ddoxygen doesn't like the recursive definition of gen_numeric_list.
-#ifndef EIGEN_PARSED_BY_DOXYGEN
-/* numeric list constructors
- *
- * equivalencies:
- *     constructor                                              result
- *     typename gen_numeric_list<int, 5>::type                  numeric_list<int, 0,1,2,3,4>
- *     typename gen_numeric_list_reversed<int, 5>::type         numeric_list<int, 4,3,2,1,0>
- *     typename gen_numeric_list_swapped_pair<int, 5,1,2>::type numeric_list<int, 0,2,1,3,4>
- *     typename gen_numeric_list_repeated<int, 0, 5>::type      numeric_list<int, 0,0,0,0,0>
- */
-
-template <typename T, std::size_t n, T start = 0, T... ii>
-struct gen_numeric_list : gen_numeric_list<T, n - 1, start, start + n - 1, ii...> {};
-
-template <typename T, T start, T... ii>
-struct gen_numeric_list<T, 0, start, ii...> {
-  typedef numeric_list<T, ii...> type;
-};
-
-template <typename T, std::size_t n, T start = 0, T... ii>
-struct gen_numeric_list_reversed : gen_numeric_list_reversed<T, n - 1, start, ii..., start + n - 1> {};
-template <typename T, T start, T... ii>
-struct gen_numeric_list_reversed<T, 0, start, ii...> {
-  typedef numeric_list<T, ii...> type;
-};
-
-template <typename T, std::size_t n, T a, T b, T start = 0, T... ii>
-struct gen_numeric_list_swapped_pair
-    : gen_numeric_list_swapped_pair<T, n - 1, a, b, start,
-                                    (start + n - 1) == a ? b : ((start + n - 1) == b ? a : (start + n - 1)), ii...> {};
-template <typename T, T a, T b, T start, T... ii>
-struct gen_numeric_list_swapped_pair<T, 0, a, b, start, ii...> {
-  typedef numeric_list<T, ii...> type;
-};
-
-template <typename T, std::size_t n, T V, T... nn>
-struct gen_numeric_list_repeated : gen_numeric_list_repeated<T, n - 1, V, V, nn...> {};
-template <typename T, T V, T... nn>
-struct gen_numeric_list_repeated<T, 0, V, nn...> {
-  typedef numeric_list<T, nn...> type;
-};
-#else
-template <typename T, std::size_t n, T start = 0, T... ii>
-struct gen_numeric_list;
-#endif  // not EIGEN_PARSED_BY_DOXYGEN
-
 /* list manipulation: concatenate */
 
 template <class a, class b>
@@ -96,10 +38,6 @@ struct concat;
 template <typename... as, typename... bs>
 struct concat<type_list<as...>, type_list<bs...>> {
   typedef type_list<as..., bs...> type;
-};
-template <typename T, T... as, T... bs>
-struct concat<numeric_list<T, as...>, numeric_list<T, bs...>> {
-  typedef numeric_list<T, as..., bs...> type;
 };
 
 template <typename... p>
@@ -136,37 +74,6 @@ struct take<0, type_list<>> {
   typedef type_list<> type;
 };
 
-template <typename T, int n, T a, T... as>
-struct take<n, numeric_list<T, a, as...>>
-    : concat<numeric_list<T, a>, typename take<n - 1, numeric_list<T, as...>>::type> {};
-
-template <typename T, T a, T... as>
-struct take<0, numeric_list<T, a, as...>> {
-  typedef numeric_list<T> type;
-};
-
-template <typename T>
-struct take<0, numeric_list<T>> {
-  typedef numeric_list<T> type;
-};
-
-template <typename T, int n, T... ii>
-struct h_skip_helper_numeric;
-template <typename T, int n, T i, T... ii>
-struct h_skip_helper_numeric<T, n, i, ii...> : h_skip_helper_numeric<T, n - 1, ii...> {};
-template <typename T, T i, T... ii>
-struct h_skip_helper_numeric<T, 0, i, ii...> {
-  typedef numeric_list<T, i, ii...> type;
-};
-template <typename T, int n>
-struct h_skip_helper_numeric<T, n> {
-  typedef numeric_list<T> type;
-};
-template <typename T>
-struct h_skip_helper_numeric<T, 0> {
-  typedef numeric_list<T> type;
-};
-
 template <int n, typename... tt>
 struct h_skip_helper_type;
 template <int n, typename t, typename... tt>
@@ -186,10 +93,6 @@ struct h_skip_helper_type<0> {
 
 template <int n>
 struct h_skip {
-  template <typename T, T... ii>
-  constexpr static typename h_skip_helper_numeric<T, n, ii...>::type helper(numeric_list<T, ii...>) {
-    return typename h_skip_helper_numeric<T, n, ii...>::type();
-  }
   template <typename... tt>
   constexpr static typename h_skip_helper_type<n, tt...>::type helper(type_list<tt...>) {
     return typename h_skip_helper_type<n, tt...>::type();
@@ -217,16 +120,11 @@ struct get<0, type_list<a, as...>> {
 };
 
 template <typename T, int n, T a, T... as>
-struct get<n, numeric_list<T, a, as...>> : get<n - 1, numeric_list<T, as...>> {};
+struct get<n, std::integer_sequence<T, a, as...>> : get<n - 1, std::integer_sequence<T, as...>> {};
 template <typename T, T a, T... as>
-struct get<0, numeric_list<T, a, as...>> {
+struct get<0, std::integer_sequence<T, a, as...>> {
   constexpr static T value = a;
 };
-
-template <std::size_t n, typename T, T a, T... as>
-constexpr T array_get(const numeric_list<T, a, as...>&) {
-  return get<(int)n, numeric_list<T, a, as...>>::value;
-}
 
 /* always get type, regardless of dummy; good for parameter pack expansion */
 

@@ -61,8 +61,8 @@ class DynamicSGroup {
     eigen_assert(N >= m_numIndices &&
                  "Can only apply symmetry group to objects that have at least the required amount of indices.");
     for (std::size_t i = 0; i < size(); i++)
-      initial = Op::run(h_permute(i, idx, typename internal::gen_numeric_list<int, N>::type()), m_elements[i].flags,
-                        initial, std::forward<Args>(args)...);
+      initial = Op::run(h_permute(i, idx, std::make_integer_sequence<int, N>{}), m_elements[i].flags, initial,
+                        std::forward<Args>(args)...);
     return initial;
   }
 
@@ -117,7 +117,7 @@ class DynamicSGroup {
 
   template <typename Index, std::size_t N, int... n>
   inline std::array<Index, N> h_permute(std::size_t which, const std::array<Index, N>& idx,
-                                        internal::numeric_list<int, n...>) const {
+                                        std::integer_sequence<int, n...>) const {
     return std::array<Index, N>{{idx[n >= m_numIndices ? n : m_elements[which].representation[n]]...}};
   }
 
