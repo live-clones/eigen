@@ -1348,24 +1348,24 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
       : Base(xpr.rhs().nestedExpression(), xpr.lhs().diagonal()) {}
 };
 
+// Dense SelfAdjointView statically rejects the Upper|Lower mode (only one half is stored), so the
+// off-stored coefficient is always reconstructed by conjugating its mirror.
 template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
 struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived> {
   using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
-  using MatrixScalar = typename MatrixType::Scalar;
 
   enum {
     CoeffReadCost = int(NumTraits<Scalar>::MulCost) + int(evaluator<MatrixType>::CoeffReadCost) +
                     int(evaluator<DiagonalType>::CoeffReadCost),
     Flags = HereditaryBits & static_cast<unsigned int>(evaluator<MatrixType>::Flags),
-    Alignment = 0,
-    BothStored_ = (Mode & (Upper | Lower)) == (Upper | Lower)
+    Alignment = 0
   };
 
   EIGEN_DEVICE_FUNC selfadjoint_diagonal_product_lazy_evaluator_base(const MatrixType& mat, const DiagonalType& diag)
       : m_diagImpl(diag), m_matImpl(mat) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
-    const bool storedHere = BothStored_ ? true : ((Mode & Upper) == Upper ? (row <= col) : (row >= col));
+    const bool storedHere = ((Mode & Upper) == Upper) ? (row <= col) : (row >= col);
     const Scalar matCoeff =
         storedHere ? Scalar(m_matImpl.coeff(row, col)) : Scalar(numext::conj(m_matImpl.coeff(col, row)));
     return ProductOrder == OnTheLeft ? Scalar(m_diagImpl.coeff(row) * matCoeff)
