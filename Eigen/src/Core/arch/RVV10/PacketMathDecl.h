@@ -84,9 +84,13 @@ typedef eigen_packet_wrapper<vuint16m4_t __attribute__((riscv_rvv_vector_bits(EI
     Packet4Xsu;
 
 template <>
-struct rvv_half_packet<Packet2Xs> : rvv_half_packet<Packet1Xs> {};
+struct rvv_half_packet<Packet2Xs> {
+  typedef Packet1Xs type;
+};
 template <>
-struct rvv_half_packet<Packet4Xs> : rvv_half_packet<Packet2Xs> {};
+struct rvv_half_packet<Packet4Xs> {
+  typedef Packet2Xs type;
+};
 
 template <>
 struct unpacket_traits<Packet1Xs> : rvv_default_unpacket_traits<numext::int16_t, Packet1Xs, 1> {};
@@ -108,13 +112,13 @@ typedef eigen_packet_wrapper<vint32m4_t __attribute__((riscv_rvv_vector_bits(EIG
 typedef eigen_packet_wrapper<vuint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 5> Packet4Xu;
 
 template <>
-struct rvv_half_packet<Packet2Xi> : rvv_half_packet<Packet1Xi> {};
+struct rvv_half_packet<Packet2Xi> {
+  typedef Packet1Xi type;
+};
 template <>
-struct rvv_half_packet<Packet2Xu> : rvv_half_packet<Packet1Xu> {};
-template <>
-struct rvv_half_packet<Packet4Xi> : rvv_half_packet<Packet2Xi> {};
-template <>
-struct rvv_half_packet<Packet4Xu> : rvv_half_packet<Packet2Xu> {};
+struct rvv_half_packet<Packet4Xi> {
+  typedef Packet2Xi type;
+};
 
 template <>
 struct unpacket_traits<Packet1Xi> : rvv_default_unpacket_traits<numext::int32_t, Packet1Xi, 1> {};
@@ -137,9 +141,13 @@ typedef eigen_packet_wrapper<vuint64m4_t __attribute__((riscv_rvv_vector_bits(EI
     Packet4Xul;
 
 template <>
-struct rvv_half_packet<Packet2Xl> : rvv_half_packet<Packet1Xl> {};
+struct rvv_half_packet<Packet2Xl> {
+  typedef Packet1Xl type;
+};
 template <>
-struct rvv_half_packet<Packet4Xl> : rvv_half_packet<Packet2Xl> {};
+struct rvv_half_packet<Packet4Xl> {
+  typedef Packet2Xl type;
+};
 
 template <>
 struct unpacket_traits<Packet1Xl> : rvv_default_unpacket_traits<numext::int64_t, Packet1Xl, 1> {};
@@ -159,9 +167,13 @@ typedef eigen_packet_wrapper<vfloat32m4_t __attribute__((riscv_rvv_vector_bits(E
     Packet4Xf;
 
 template <>
-struct rvv_half_packet<Packet2Xf> : rvv_half_packet<Packet1Xf> {};
+struct rvv_half_packet<Packet2Xf> {
+  typedef Packet1Xf type;
+};
 template <>
-struct rvv_half_packet<Packet4Xf> : rvv_half_packet<Packet2Xf> {};
+struct rvv_half_packet<Packet4Xf> {
+  typedef Packet2Xf type;
+};
 
 template <>
 struct unpacket_traits<Packet1Xf> : rvv_default_unpacket_traits<float, Packet1Xf, 1> {
@@ -190,9 +202,13 @@ typedef eigen_packet_wrapper<vfloat64m4_t __attribute__((riscv_rvv_vector_bits(E
     Packet4Xd;
 
 template <>
-struct rvv_half_packet<Packet2Xd> : rvv_half_packet<Packet1Xd> {};
+struct rvv_half_packet<Packet2Xd> {
+  typedef Packet1Xd type;
+};
 template <>
-struct rvv_half_packet<Packet4Xd> : rvv_half_packet<Packet2Xd> {};
+struct rvv_half_packet<Packet4Xd> {
+  typedef Packet2Xd type;
+};
 
 template <>
 struct unpacket_traits<Packet1Xd> : rvv_default_unpacket_traits<double, Packet1Xd, 1> {

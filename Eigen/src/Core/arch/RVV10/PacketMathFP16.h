@@ -21,7 +21,9 @@ typedef eigen_packet_wrapper<vfloat16m2_t __attribute__((riscv_rvv_vector_bits(E
     Packet2Xh;
 
 template <>
-struct rvv_half_packet<Packet2Xh> : rvv_half_packet<Packet1Xh> {};
+struct rvv_half_packet<Packet2Xh> {
+  typedef Packet1Xh type;
+};
 
 template <>
 struct unpacket_traits<Packet1Xh> : rvv_default_unpacket_traits<Eigen::half, Packet1Xh, 1> {
