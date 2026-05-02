@@ -174,6 +174,22 @@ void materialize_col_major_pattern(const SparsityPatternRef<StorageIndex>& pat,
   materialize_col_major_pattern(pat, static_cast<const StorageIndex*>(nullptr), out);
 }
 
+// The two materializers below — materialize_at_plus_a_pattern and
+// materialize_selfadjoint_pattern<UpLo> — share a common skeleton (counting
+// sort to build A^T, then two passes of linear two-way merge to count and
+// write column sizes). The two-way merge bodies are duplicated rather than
+// extracted into shared helpers because every attempt to factor them out
+// regressed performance by 2–5% on medium matrices: lambda-predicate
+// unification (because the lambda call wasn't elided across the inner loop)
+// and EIGEN_STRONG_INLINE function-template helpers (the compiler inlined
+// them but the function-template boundary still produced measurably worse
+// codegen than the explicit inline loops, presumably from differences in
+// register allocation or vectorization heuristics around the merge's
+// local-variable life-ranges). The merge logic is short enough that the
+// duplication is a small maintenance burden in exchange for stable codegen
+// on the AMD hot path. If a future compiler change makes the abstraction
+// free, this can be revisited.
+
 /** \internal
  * Materialize the symmetric pattern \c pattern(A + A^T) of a square column-major
  * sparsity pattern \a A as a compressed \c SparseMatrix with a 1-byte placeholder
