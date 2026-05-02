@@ -199,12 +199,6 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool checkIndexRange(const array<Index, NumIndices>& /*indices*/) const {
-    using internal::array_apply_and_reduce;
-    using internal::array_zip_and_reduce;
-    using internal::greater_equal_zero_op;
-    using internal::lesser_op;
-    using internal::logical_and_op;
-
     return true;
   }
 

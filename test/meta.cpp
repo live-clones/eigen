@@ -118,14 +118,9 @@ using Eigen::internal::apply_op_from_left;
 using Eigen::internal::apply_op_from_right;
 using Eigen::internal::arg_prod;
 using Eigen::internal::arg_sum;
-using Eigen::internal::array_apply;
-using Eigen::internal::array_apply_and_reduce;
 using Eigen::internal::array_prod;
 using Eigen::internal::array_reduce;
-using Eigen::internal::array_reverse;
 using Eigen::internal::array_sum;
-using Eigen::internal::array_zip;
-using Eigen::internal::array_zip_and_reduce;
 using Eigen::internal::concat;
 using Eigen::internal::contained_in_list;
 using Eigen::internal::contained_in_list_gf;
@@ -138,16 +133,12 @@ using Eigen::internal::gen_numeric_list_swapped_pair;
 // free functions `Eigen::get` that would otherwise clash with this metafunction.
 using Eigen::internal::id_numeric;
 using Eigen::internal::id_type;
-using Eigen::internal::instantiate_by_c_array;
 using Eigen::internal::is_same;
 using Eigen::internal::is_same_gf;
 using Eigen::internal::mconcat;
 using Eigen::internal::numeric_list;
-using Eigen::internal::product_op;
-using Eigen::internal::repeat;
 using Eigen::internal::skip;
 using Eigen::internal::slice;
-using Eigen::internal::sum_op;
 using Eigen::internal::take;
 using Eigen::internal::type_list;
 
@@ -216,24 +207,6 @@ template <>
 struct dummy_test<dummy_c, dummy_c> {
   constexpr static bool value = true;
   constexpr static int global_flags = 4;
-};
-
-struct times2_op {
-  template <typename A>
-  static A run(A v) {
-    return v * 2;
-  }
-};
-
-struct dummy_inst {
-  int c;
-
-  dummy_inst() : c(0) {}
-  explicit dummy_inst(int) : c(1) {}
-  dummy_inst(int, int) : c(2) {}
-  dummy_inst(int, int, int) : c(3) {}
-  dummy_inst(int, int, int, int) : c(4) {}
-  dummy_inst(int, int, int, int, int) : c(5) {}
 };
 
 static void test_gen_numeric_list() {
@@ -456,49 +429,14 @@ static void test_arg_reductions() {
   VERIFY_IS_APPROX(arg_prod(0.5, 2, 5), 5.0);
 }
 
-static void test_array_reverse_and_reduce() {
+static void test_array_reductions() {
   array<int, 6> a{{4, 8, 15, 16, 23, 42}};
   array<int, 6> b{{42, 23, 16, 15, 8, 4}};
 
-  // there is no operator<< for std::array, so VERIFY_IS_EQUAL will
-  // not compile
-  VERIFY((array_reverse(a) == b));
-  VERIFY((array_reverse(b) == a));
   VERIFY_IS_EQUAL((array_sum(a)), 108);
   VERIFY_IS_EQUAL((array_sum(b)), 108);
   VERIFY_IS_EQUAL((array_prod(a)), 7418880);
   VERIFY_IS_EQUAL((array_prod(b)), 7418880);
-}
-
-static void test_array_zip_and_apply() {
-  array<int, 6> a{{4, 8, 15, 16, 23, 42}};
-  array<int, 6> b{{0, 1, 2, 3, 4, 5}};
-  array<int, 6> c{{4, 9, 17, 19, 27, 47}};
-  array<int, 6> d{{0, 8, 30, 48, 92, 210}};
-  array<int, 6> e{{0, 2, 4, 6, 8, 10}};
-
-  VERIFY((array_zip<sum_op>(a, b) == c));
-  VERIFY((array_zip<product_op>(a, b) == d));
-  VERIFY((array_apply<times2_op>(b) == e));
-  VERIFY_IS_EQUAL((array_apply_and_reduce<sum_op, times2_op>(a)), 216);
-  VERIFY_IS_EQUAL((array_apply_and_reduce<sum_op, times2_op>(b)), 30);
-  VERIFY_IS_EQUAL((array_zip_and_reduce<product_op, sum_op>(a, b)), 14755932);
-  VERIFY_IS_EQUAL((array_zip_and_reduce<sum_op, product_op>(a, b)), 388);
-}
-
-static void test_array_misc() {
-  array<int, 3> a3{{1, 1, 1}};
-  array<int, 6> a6{{2, 2, 2, 2, 2, 2}};
-  VERIFY((repeat<3, int>(1) == a3));
-  VERIFY((repeat<6, int>(2) == a6));
-
-  int data[5] = {0, 1, 2, 3, 4};
-  VERIFY_IS_EQUAL((instantiate_by_c_array<dummy_inst, int, 0>(data).c), 0);
-  VERIFY_IS_EQUAL((instantiate_by_c_array<dummy_inst, int, 1>(data).c), 1);
-  VERIFY_IS_EQUAL((instantiate_by_c_array<dummy_inst, int, 2>(data).c), 2);
-  VERIFY_IS_EQUAL((instantiate_by_c_array<dummy_inst, int, 3>(data).c), 3);
-  VERIFY_IS_EQUAL((instantiate_by_c_array<dummy_inst, int, 4>(data).c), 4);
-  VERIFY_IS_EQUAL((instantiate_by_c_array<dummy_inst, int, 5>(data).c), 5);
 }
 
 EIGEN_DECLARE_TEST(cxx11_meta) {
@@ -511,7 +449,5 @@ EIGEN_DECLARE_TEST(cxx11_meta) {
   CALL_SUBTEST(test_apply_op());
   CALL_SUBTEST(test_contained_in_list());
   CALL_SUBTEST(test_arg_reductions());
-  CALL_SUBTEST(test_array_reverse_and_reduce());
-  CALL_SUBTEST(test_array_zip_and_apply());
-  CALL_SUBTEST(test_array_misc());
+  CALL_SUBTEST(test_array_reductions());
 }
