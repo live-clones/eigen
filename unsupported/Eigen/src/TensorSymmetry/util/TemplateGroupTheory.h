@@ -68,7 +68,7 @@ namespace group_theory {
  *
  * The main interface for Dimino's algorithm is the template
  * enumerate_group_elements. All lists are implemented as variadic
- * type_list<typename...> and numeric_list<typename = int, int...>
+ * type_list<typename...> and std::integer_sequence<int, ...>
  * templates.
  *
  * 'Calling' templates is usually done via typedefs.
