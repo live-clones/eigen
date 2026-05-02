@@ -91,17 +91,22 @@ namespace internal {
  * we however don't want to add a dependency to Boost.
  */
 
-using std::false_type;
-using std::true_type;
-
 template <bool Condition>
 using bool_constant = std::integral_constant<bool, Condition>;
 
-// Third-party libraries rely on these.
+// Deprecated compatibility aliases. Third-party libraries rely on these, but new code should use std:: directly.
 using std::conditional;
+using std::false_type;
+using std::is_const;
+using std::is_convertible;
+using std::is_integral;
+using std::is_same;
+using std::is_void;
+using std::make_unsigned;
 using std::remove_const;
 using std::remove_pointer;
 using std::remove_reference;
+using std::true_type;
 
 template <typename T>
 struct remove_all {
@@ -146,10 +151,6 @@ struct is_arithmetic<long double> {
 };
 #endif
 
-using std::is_same;
-
-using std::is_void;
-
 /** \internal
  * Implementation of std::void_t for SFINAE.
  *
@@ -164,12 +165,6 @@ using std::void_t;
 template <typename...>
 using void_t = void;
 #endif
-
-using std::is_integral;
-
-using std::make_unsigned;
-
-using std::is_const;
 
 template <typename T>
 struct add_const_on_value_type {
@@ -194,8 +189,6 @@ struct add_const_on_value_type<T const* const> {
 
 template <typename T>
 using add_const_on_value_type_t = typename add_const_on_value_type<T>::type;
-
-using std::is_convertible;
 
 /** \internal
  * Provides access to the number of elements in the object of as a compile-time constant expression.
@@ -305,33 +298,33 @@ using reduce_all =
 
 // Check whether T::ReturnType does exist
 template <typename T, typename EnableIf = void>
-struct has_ReturnType : false_type {};
+struct has_ReturnType : std::false_type {};
 
 template <typename T>
-struct has_ReturnType<T, void_t<typename T::ReturnType>> : true_type {};
+struct has_ReturnType<T, void_t<typename T::ReturnType>> : std::true_type {};
 
 template <typename T, typename IndexType = Index, typename EnableIf = void>
-struct has_nullary_operator : false_type {};
+struct has_nullary_operator : std::false_type {};
 
 template <typename T, typename IndexType>
 struct has_nullary_operator<T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()())) > 0)>>
-    : true_type {};
+    : std::true_type {};
 
 template <typename T, typename IndexType = Index, typename EnableIf = void>
-struct has_unary_operator : false_type {};
+struct has_unary_operator : std::false_type {};
 
 template <typename T, typename IndexType>
 struct has_unary_operator<T, IndexType,
                           std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0)))) > 0)>>
-    : true_type {};
+    : std::true_type {};
 
 template <typename T, typename IndexType = Index, typename EnableIf = void>
-struct has_binary_operator : false_type {};
+struct has_binary_operator : std::false_type {};
 
 template <typename T, typename IndexType>
 struct has_binary_operator<
     T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0), IndexType(0)))) > 0)>>
-    : true_type {};
+    : std::true_type {};
 
 /** \internal Computes the least common multiple of two positive integer A and B
  * at compile-time.

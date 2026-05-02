@@ -344,7 +344,7 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
   }
 
   template <typename ResType, typename OtherScalar, int OtherOptions, typename OtherStorageIndex,
-            std::enable_if_t<internal::is_same<OtherStorageIndex, StorageIndex>::value, int> = 0>
+            std::enable_if_t<std::is_same<OtherStorageIndex, StorageIndex>::value, int> = 0>
   void evalToImpl(ResType& res, const SparseMatrix<OtherScalar, OtherOptions, OtherStorageIndex>& otherExpr) const {
     cholmod_sparse y_cs;
     cholmod_sparse* x_cs;

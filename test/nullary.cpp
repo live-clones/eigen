@@ -35,8 +35,8 @@ void check_extremity_accuracy(const VectorType& v, const typename VectorType::Sc
   typedef typename VectorType::Scalar Scalar;
   typedef typename VectorType::RealScalar RealScalar;
 
-  RealScalar prec = internal::is_same<RealScalar, float>::value ? NumTraits<RealScalar>::dummy_precision() * 10
-                                                                : NumTraits<RealScalar>::dummy_precision() / 10;
+  RealScalar prec = std::is_same<RealScalar, float>::value ? NumTraits<RealScalar>::dummy_precision() * 10
+                                                           : NumTraits<RealScalar>::dummy_precision() / 10;
   Index size = v.size();
 
   if (size < 20) return;

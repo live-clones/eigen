@@ -67,7 +67,7 @@ EIGEN_DEVICE_FUNC inline IndexDest convert_index(const IndexSrc& idx) {
 // true if T can be considered as an integral index (i.e., and integral type or enum)
 template <typename T>
 struct is_valid_index_type {
-  enum { value = internal::is_integral<T>::value || std::is_enum<T>::value };
+  enum { value = std::is_integral<T>::value || std::is_enum<T>::value };
 };
 
 // true if both types are not valid index types
@@ -102,7 +102,7 @@ struct promote_scalar_arg<S, T, true> {
 
 // Recursively check safe conversion to PromotedType, and then ExprScalar if they are different.
 template <typename ExprScalar, typename T, typename PromotedType,
-          bool ConvertibleToLiteral = internal::is_convertible<T, PromotedType>::value,
+          bool ConvertibleToLiteral = std::is_convertible<T, PromotedType>::value,
           bool IsSafe = NumTraits<T>::IsInteger || !NumTraits<PromotedType>::IsInteger>
 struct promote_scalar_arg_unsupported;
 
@@ -270,7 +270,7 @@ struct unpacket_traits;
 
 template <int Size, typename PacketType,
           bool Stop = Size == Dynamic || (Size % unpacket_traits<PacketType>::size) == 0 ||
-                      is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
+                      std::is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
 struct find_best_packet_helper;
 
 template <int Size, typename PacketType>
@@ -290,7 +290,7 @@ struct find_best_packet {
 
 template <int Size, typename PacketType,
           bool Stop = (Size == unpacket_traits<PacketType>::size) ||
-                      is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
+                      std::is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
 struct find_packet_by_size_helper;
 template <int Size, typename PacketType>
 struct find_packet_by_size_helper<Size, PacketType, true> {
@@ -554,7 +554,7 @@ struct cast_return_type {
   using CurrentScalarType = typename XprType::Scalar;
   using CastType_ = remove_all_t<CastType>;
   using NewScalarType = typename CastType_::Scalar;
-  using type = std::conditional_t<is_same<CurrentScalarType, NewScalarType>::value, const XprType&, CastType>;
+  using type = std::conditional_t<std::is_same<CurrentScalarType, NewScalarType>::value, const XprType&, CastType>;
 };
 
 template <typename A, typename B>
@@ -733,8 +733,8 @@ struct plain_row_type {
       Array<Scalar, 1, ExpressionType::ColsAtCompileTime, int(ExpressionType::PlainObject::Options) | int(RowMajor), 1,
             ExpressionType::MaxColsAtCompileTime>;
 
-  using type = std::conditional_t<is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value, MatrixRowType,
-                                  ArrayRowType>;
+  using type = std::conditional_t<std::is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value,
+                                  MatrixRowType, ArrayRowType>;
 };
 
 template <typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
@@ -745,8 +745,8 @@ struct plain_col_type {
   using ArrayColType = Array<Scalar, ExpressionType::RowsAtCompileTime, 1,
                              ExpressionType::PlainObject::Options & ~RowMajor, ExpressionType::MaxRowsAtCompileTime, 1>;
 
-  using type = std::conditional_t<is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value, MatrixColType,
-                                  ArrayColType>;
+  using type = std::conditional_t<std::is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value,
+                                  MatrixColType, ArrayColType>;
 };
 
 template <typename ExpressionType, typename Scalar = typename ExpressionType::Scalar>
@@ -759,8 +759,8 @@ struct plain_diag_type {
       Matrix<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1>;
   using ArrayDiagType = Array<Scalar, diag_size, 1, ExpressionType::PlainObject::Options & ~RowMajor, max_diag_size, 1>;
 
-  using type = std::conditional_t<is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value, MatrixDiagType,
-                                  ArrayDiagType>;
+  using type = std::conditional_t<std::is_same<typename traits<ExpressionType>::XprKind, MatrixXpr>::value,
+                                  MatrixDiagType, ArrayDiagType>;
 };
 
 template <typename Expr, typename Scalar = typename Expr::Scalar>
@@ -773,14 +773,14 @@ struct plain_constant_type {
   using matrix_type = Matrix<Scalar, traits<Expr>::RowsAtCompileTime, traits<Expr>::ColsAtCompileTime, Options,
                              traits<Expr>::MaxRowsAtCompileTime, traits<Expr>::MaxColsAtCompileTime>;
 
-  using type = CwiseNullaryOp<
-      scalar_constant_op<Scalar>,
-      const std::conditional_t<is_same<typename traits<Expr>::XprKind, MatrixXpr>::value, matrix_type, array_type>>;
+  using type = CwiseNullaryOp<scalar_constant_op<Scalar>,
+                              const std::conditional_t<std::is_same<typename traits<Expr>::XprKind, MatrixXpr>::value,
+                                                       matrix_type, array_type>>;
 };
 
 template <typename ExpressionType>
 struct is_lvalue {
-  enum { value = (!bool(is_const<ExpressionType>::value)) && bool(traits<ExpressionType>::Flags & LvalueBit) };
+  enum { value = (!bool(std::is_const<ExpressionType>::value)) && bool(traits<ExpressionType>::Flags & LvalueBit) };
 };
 
 template <typename T>
@@ -824,7 +824,7 @@ template <typename T1, typename T2>
 struct possibly_same_dense {
   enum {
     value = has_direct_access<T1>::ret && has_direct_access<T2>::ret &&
-            is_same<typename T1::Scalar, typename T2::Scalar>::value
+            std::is_same<typename T1::Scalar, typename T2::Scalar>::value
   };
 };
 
@@ -857,11 +857,11 @@ struct scalar_div_cost<T, Vectorized, std::enable_if_t<NumTraits<T>::IsComplex>>
 };
 
 template <bool Vectorized>
-struct scalar_div_cost<signed long, Vectorized, std::conditional_t<sizeof(long) == 8, void, false_type>> {
+struct scalar_div_cost<signed long, Vectorized, std::conditional_t<sizeof(long) == 8, void, std::false_type>> {
   enum { value = 24 };
 };
 template <bool Vectorized>
-struct scalar_div_cost<unsigned long, Vectorized, std::conditional_t<sizeof(long) == 8, void, false_type>> {
+struct scalar_div_cost<unsigned long, Vectorized, std::conditional_t<sizeof(long) == 8, void, std::false_type>> {
   enum { value = 21 };
 };
 

@@ -366,18 +366,18 @@ struct matrix_exp_computeUV<MatrixType, long double> {
 };
 
 template <typename T>
-struct is_exp_known_type : false_type {};
+struct is_exp_known_type : std::false_type {};
 template <>
-struct is_exp_known_type<float> : true_type {};
+struct is_exp_known_type<float> : std::true_type {};
 template <>
-struct is_exp_known_type<double> : true_type {};
+struct is_exp_known_type<double> : std::true_type {};
 #if LDBL_MANT_DIG <= 113
 template <>
-struct is_exp_known_type<long double> : true_type {};
+struct is_exp_known_type<long double> : std::true_type {};
 #endif
 
 template <typename ArgType, typename ResultType>
-void matrix_exp_compute(const ArgType& arg, ResultType& result, true_type)  // natively supported scalar type
+void matrix_exp_compute(const ArgType& arg, ResultType& result, std::true_type)  // natively supported scalar type
 {
   typedef typename ArgType::PlainObject MatrixType;
   MatrixType U, V;
@@ -395,7 +395,7 @@ void matrix_exp_compute(const ArgType& arg, ResultType& result, true_type)  // n
  * \param result variable in which result will be stored
  */
 template <typename ArgType, typename ResultType>
-void matrix_exp_compute(const ArgType& arg, ResultType& result, false_type)  // default
+void matrix_exp_compute(const ArgType& arg, ResultType& result, std::false_type)  // default
 {
   typedef typename ArgType::PlainObject MatrixType;
   typedef make_complex_t<typename traits<MatrixType>::Scalar> ComplexScalar;
