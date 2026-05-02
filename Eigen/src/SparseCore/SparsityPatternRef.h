@@ -175,56 +175,6 @@ void materialize_col_major_pattern(const SparsityPatternRef<StorageIndex>& pat,
 }
 
 /** \internal
- * Linear two-way merge of two sorted ranges, returning the size of their
- * deduplicated union. No output is written. Both ranges must be strictly
- * increasing. Used as the count pass of the symmetric-pattern materializers
- * below.
- */
-template <typename StorageIndex>
-EIGEN_STRONG_INLINE Index count_merged_sorted(const StorageIndex* a, Index a_nz, const StorageIndex* b, Index b_nz) {
-  Index ia = 0, it = 0, count = 0;
-  while (ia < a_nz && it < b_nz) {
-    const StorageIndex va = a[ia], vt = b[it];
-    if (va < vt) {
-      ++ia;
-    } else if (va > vt) {
-      ++it;
-    } else {
-      ++ia;
-      ++it;
-    }
-    ++count;
-  }
-  return count + (a_nz - ia) + (b_nz - it);
-}
-
-/** \internal
- * Linear two-way merge of two sorted ranges, writing the deduplicated union
- * into \c dst. Both ranges must be strictly increasing.
- */
-template <typename StorageIndex>
-EIGEN_STRONG_INLINE void write_merged_sorted(const StorageIndex* a, Index a_nz, const StorageIndex* b, Index b_nz,
-                                             StorageIndex* dst) {
-  Index ia = 0, it = 0;
-  while (ia < a_nz && it < b_nz) {
-    const StorageIndex va = a[ia], vt = b[it];
-    if (va < vt) {
-      *dst++ = va;
-      ++ia;
-    } else if (va > vt) {
-      *dst++ = vt;
-      ++it;
-    } else {
-      *dst++ = va;
-      ++ia;
-      ++it;
-    }
-  }
-  while (ia < a_nz) *dst++ = a[ia++];
-  while (it < b_nz) *dst++ = b[it++];
-}
-
-/** \internal
  * Materialize the symmetric pattern \c pattern(A + A^T) of a square column-major
  * sparsity pattern \a A as a compressed \c SparseMatrix with a 1-byte placeholder
  * \c Scalar. Values are filled with a fixed nonzero sentinel.
@@ -268,7 +218,8 @@ void materialize_at_plus_a_pattern(const SparsityPatternRef<StorageIndex>& A,
     for (Index k = 0; k < nz; ++k) AT_i(head(col[k])++) = convert_index<StorageIndex>(j);
   }
 
-  // 3. First merge pass: count column sizes of pattern(A + A^T).
+  // 3. First merge pass: count column sizes of pattern(A + A^T) by two-way
+  //    merge of A's and A^T's sorted columns.
   out.resize(n, n);
   StorageIndex* out_p = out.outerIndexPtr();
   out_p[0] = 0;
@@ -277,7 +228,21 @@ void materialize_at_plus_a_pattern(const SparsityPatternRef<StorageIndex>& A,
     const Index a_nz = A.nonZeros(j);
     const StorageIndex* at_col = AT_i.data() + AT_p(j);
     const Index at_nz = AT_p(j + 1) - AT_p(j);
-    out_p[j + 1] = out_p[j] + convert_index<StorageIndex>(count_merged_sorted(a_col, a_nz, at_col, at_nz));
+    Index ia = 0, it = 0, count = 0;
+    while (ia < a_nz && it < at_nz) {
+      const StorageIndex va = a_col[ia], vt = at_col[it];
+      if (va < vt) {
+        ++ia;
+      } else if (va > vt) {
+        ++it;
+      } else {
+        ++ia;
+        ++it;
+      }
+      ++count;
+    }
+    count += (a_nz - ia) + (at_nz - it);
+    out_p[j + 1] = out_p[j] + convert_index<StorageIndex>(count);
   }
 
   const StorageIndex total = out_p[n];
@@ -290,7 +255,24 @@ void materialize_at_plus_a_pattern(const SparsityPatternRef<StorageIndex>& A,
     const Index a_nz = A.nonZeros(j);
     const StorageIndex* at_col = AT_i.data() + AT_p(j);
     const Index at_nz = AT_p(j + 1) - AT_p(j);
-    write_merged_sorted(a_col, a_nz, at_col, at_nz, out_i + out_p[j]);
+    StorageIndex* dst = out_i + out_p[j];
+    Index ia = 0, it = 0;
+    while (ia < a_nz && it < at_nz) {
+      const StorageIndex va = a_col[ia], vt = at_col[it];
+      if (va < vt) {
+        *dst++ = va;
+        ++ia;
+      } else if (va > vt) {
+        *dst++ = vt;
+        ++it;
+      } else {
+        *dst++ = va;
+        ++ia;
+        ++it;
+      }
+    }
+    while (ia < a_nz) *dst++ = a_col[ia++];
+    while (it < at_nz) *dst++ = at_col[it++];
   }
   std::fill_n(out.valuePtr(), total, static_cast<signed char>(1));
 }
@@ -374,7 +356,21 @@ void materialize_selfadjoint_pattern(const SparsityPatternRef<StorageIndex>& A,
     const Index a_kept_nz = IsLower ? (a_nz - a_split(j)) : a_split(j);
     const StorageIndex* at_col = AT_i.data() + AT_p(j);
     const Index at_nz = AT_p(j + 1) - AT_p(j);
-    out_p[j + 1] = out_p[j] + convert_index<StorageIndex>(count_merged_sorted(a_kept, a_kept_nz, at_col, at_nz));
+    Index ia = 0, it = 0, count = 0;
+    while (ia < a_kept_nz && it < at_nz) {
+      const StorageIndex va = a_kept[ia], vt = at_col[it];
+      if (va < vt) {
+        ++ia;
+      } else if (va > vt) {
+        ++it;
+      } else {
+        ++ia;
+        ++it;
+      }
+      ++count;
+    }
+    count += (a_kept_nz - ia) + (at_nz - it);
+    out_p[j + 1] = out_p[j] + convert_index<StorageIndex>(count);
   }
 
   const StorageIndex total = out_p[n];
@@ -389,7 +385,24 @@ void materialize_selfadjoint_pattern(const SparsityPatternRef<StorageIndex>& A,
     const Index a_kept_nz = IsLower ? (a_nz - a_split(j)) : a_split(j);
     const StorageIndex* at_col = AT_i.data() + AT_p(j);
     const Index at_nz = AT_p(j + 1) - AT_p(j);
-    write_merged_sorted(a_kept, a_kept_nz, at_col, at_nz, out_i + out_p[j]);
+    StorageIndex* dst = out_i + out_p[j];
+    Index ia = 0, it = 0;
+    while (ia < a_kept_nz && it < at_nz) {
+      const StorageIndex va = a_kept[ia], vt = at_col[it];
+      if (va < vt) {
+        *dst++ = va;
+        ++ia;
+      } else if (va > vt) {
+        *dst++ = vt;
+        ++it;
+      } else {
+        *dst++ = va;
+        ++ia;
+        ++it;
+      }
+    }
+    while (ia < a_kept_nz) *dst++ = a_kept[ia++];
+    while (it < at_nz) *dst++ = at_col[it++];
   }
   std::fill_n(out.valuePtr(), total, static_cast<signed char>(1));
 }
