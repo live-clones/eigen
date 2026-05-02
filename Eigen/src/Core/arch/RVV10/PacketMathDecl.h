@@ -142,12 +142,6 @@ template <>
 struct rvv_half_packet<Packet4Xl> : rvv_half_packet<Packet2Xl> {};
 
 template <>
-struct packet_traits<numext::int64_t> : rvv_default_packet_traits<numext::int64_t> {
-  typedef PacketXl type;
-  typedef rvv_half_packet_t<type> half;
-};
-
-template <>
 struct unpacket_traits<Packet1Xl> : rvv_default_unpacket_traits<numext::int64_t, Packet1Xl, 1> {};
 
 template <>
@@ -299,6 +293,9 @@ struct packet_traits<numext::int16_t> : rvv_default_packet_traits<numext::int16_
 
 template <>
 struct packet_traits<numext::int32_t> : rvv_default_packet_traits<numext::int32_t, PacketXi> {};
+
+template <>
+struct packet_traits<numext::int64_t> : rvv_default_packet_traits<numext::int64_t, PacketXl> {};
 
 template <>
 struct packet_traits<float> : rvv_default_float_packet_traits<float, PacketXf> {};
