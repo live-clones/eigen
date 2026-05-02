@@ -287,13 +287,13 @@ struct result_of;
 
 template <typename F, typename... ArgTypes>
 struct result_of<F(ArgTypes...)> {
-  typedef typename std::invoke_result<F, ArgTypes...>::type type1;
+  typedef std::invoke_result_t<F, ArgTypes...> type1;
   typedef remove_all_t<type1> type;
 };
 #else
 template <typename T>
 struct result_of {
-  typedef typename std::result_of<T>::type type1;
+  typedef std::result_of_t<T> type1;
   typedef remove_all_t<type1> type;
 };
 #endif
