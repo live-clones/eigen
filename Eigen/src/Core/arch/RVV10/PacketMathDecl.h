@@ -8,8 +8,8 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef EIGEN_PACKET_MATH_RVV10_H
-#define EIGEN_PACKET_MATH_RVV10_H
+#ifndef EIGEN_PACKET_MATH_RVV10_DECL_H
+#define EIGEN_PACKET_MATH_RVV10_DECL_H
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
@@ -50,7 +50,7 @@ typedef vbool4_t PacketMask4;
 
 template <typename Packet>
 struct rvv_half_packet {
-  typedef Packet half;
+  typedef Packet type;
 };
 
 template <typename Packet>
@@ -216,7 +216,7 @@ struct unpacket_traits<Packet4Xd> : rvv_default_unpacket_traits<double, Packet4X
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xs PacketXs;
-typedef Packet1Xul PacketXsu;
+typedef Packet1Xsu PacketXsu;
 typedef Packet1Xi PacketXi;
 typedef Packet1Xu PacketXu;
 typedef Packet1Xl PacketXl;
@@ -225,7 +225,7 @@ typedef Packet1Xf PacketXf;
 typedef Packet1Xd PacketXd;
 #elif EIGEN_RISCV64_DEFAULT_LMUL == 2
 typedef Packet2Xs PacketXs;
-typedef Packet2Xul PacketXsu;
+typedef Packet2Xsu PacketXsu;
 typedef Packet2Xi PacketXi;
 typedef Packet2Xu PacketXu;
 typedef Packet2Xl PacketXl;
@@ -234,7 +234,7 @@ typedef Packet2Xf PacketXf;
 typedef Packet2Xd PacketXd;
 #elif EIGEN_RISCV64_DEFAULT_LMUL == 4
 typedef Packet4Xs PacketXs;
-typedef Packet4Xul PacketXsu;
+typedef Packet4Xsu PacketXsu;
 typedef Packet4Xi PacketXi;
 typedef Packet4Xu PacketXu;
 typedef Packet4Xl PacketXl;
@@ -329,4 +329,4 @@ EIGEN_STRONG_INLINE void prefetch<numext::int64_t>(const numext::int64_t* addr) 
 }  // namespace internal
 }  // namespace Eigen
 
-#endif  // EIGEN_PACKET_MATH_RVV10_H
+#endif  // EIGEN_PACKET_MATH_RVV10_DECL_H
