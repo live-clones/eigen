@@ -51,7 +51,7 @@ struct traits<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
   enum {
     Options = Options_,
-    Flags = compute_tensor_flags<Scalar_, Options_>::ret | (is_const<Scalar_>::value ? 0 : LvalueBit)
+    Flags = compute_tensor_flags<Scalar_, Options_>::ret | (std::is_const<Scalar_>::value ? 0 : LvalueBit)
   };
   template <typename T>
   struct MakePointer {
@@ -69,7 +69,7 @@ struct traits<TensorFixedSize<Scalar_, Dimensions, Options_, IndexType_> > {
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
   enum {
     Options = Options_,
-    Flags = compute_tensor_flags<Scalar_, Options_>::ret | (is_const<Scalar_>::value ? 0 : LvalueBit)
+    Flags = compute_tensor_flags<Scalar_, Options_>::ret | (std::is_const<Scalar_>::value ? 0 : LvalueBit)
   };
   template <typename T>
   struct MakePointer {

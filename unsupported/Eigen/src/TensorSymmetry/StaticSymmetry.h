@@ -88,7 +88,7 @@ struct tensor_static_symgroup_equality {
   constexpr static int ffb = B::flags;
   static_assert(iia::size() == iib::size(), "Cannot compare symmetry elements with different number of indices.");
 
-  constexpr static bool value = is_same<iia, iib>::value;
+  constexpr static bool value = std::is_same<iia, iib>::value;
 
  private:
   /* this should be zero if they are identical, or else the tensor

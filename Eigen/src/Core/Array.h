@@ -247,8 +247,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(
       const EigenBase<OtherDerived>& other,
-      std::enable_if_t<internal::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType> =
-          PrivateType())
+      std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType> = PrivateType())
       : Base(other.derived()) {}
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }

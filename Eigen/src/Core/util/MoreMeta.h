@@ -140,7 +140,7 @@ struct id_type {
 /* equality checking, flagged version */
 
 template <typename a, typename b>
-struct is_same_gf : is_same<a, b> {
+struct is_same_gf : std::is_same<a, b> {
   constexpr static int global_flags = 0;
 };
 

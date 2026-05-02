@@ -200,8 +200,8 @@ class DenseBase
    * the return type of eval() is a const reference to a matrix, not a matrix! It is however guaranteed
    * that the return type of eval() is either PlainObject or const PlainObject&.
    */
-  typedef std::conditional_t<internal::is_same<typename internal::traits<Derived>::XprKind, MatrixXpr>::value,
-                             PlainMatrix, PlainArray>
+  typedef std::conditional_t<std::is_same<typename internal::traits<Derived>::XprKind, MatrixXpr>::value, PlainMatrix,
+                             PlainArray>
       PlainObject;
 
   /** \returns the outer size.
@@ -602,7 +602,7 @@ class DenseBase
   // disable the use of evalTo for dense objects with a nice compilation error
   template <typename Dest>
   EIGEN_DEVICE_FUNC inline void evalTo(Dest&) const {
-    EIGEN_STATIC_ASSERT((internal::is_same<Dest, void>::value),
+    EIGEN_STATIC_ASSERT((std::is_same<Dest, void>::value),
                         THE_EVAL_EVALTO_FUNCTION_SHOULD_NEVER_BE_CALLED_FOR_DENSE_OBJECTS);
   }
 

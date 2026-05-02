@@ -158,7 +158,7 @@ struct unpacket_traits<const T> : unpacket_traits<T> {};
 template <typename Packet>
 struct is_scalar {
   using Scalar = typename unpacket_traits<Packet>::type;
-  enum { value = internal::is_same<Packet, Scalar>::value };
+  enum { value = std::is_same<Packet, Scalar>::value };
 };
 
 // automatically and succinctly define combinations of pcast<SrcPacket,TgtPacket> when
@@ -167,7 +167,7 @@ struct is_scalar {
 // In both of these cases, preinterpret (bit_cast) is equivalent to pcast (static_cast)
 template <typename SrcPacket, typename TgtPacket,
           bool Scalar = is_scalar<SrcPacket>::value && is_scalar<TgtPacket>::value>
-struct is_degenerate_helper : is_same<SrcPacket, TgtPacket> {};
+struct is_degenerate_helper : std::is_same<SrcPacket, TgtPacket> {};
 template <>
 struct is_degenerate_helper<int8_t, uint8_t, true> : std::true_type {};
 template <>
@@ -240,7 +240,7 @@ struct eigen_packet_wrapper {
   T m_val;
 };
 
-template <typename Target, typename Packet, bool IsSame = is_same<Target, Packet>::value>
+template <typename Target, typename Packet, bool IsSame = std::is_same<Target, Packet>::value>
 struct preinterpret_generic;
 
 template <typename Target, typename Packet>
@@ -352,7 +352,7 @@ EIGEN_DEVICE_FUNC inline Packet psub(const Packet& a, const Packet& b) {
 /** \internal \returns -a (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnegate(const Packet& a) {
-  EIGEN_STATIC_ASSERT((!is_same<typename unpacket_traits<Packet>::type, bool>::value),
+  EIGEN_STATIC_ASSERT((!std::is_same<typename unpacket_traits<Packet>::type, bool>::value),
                       NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
   return numext::negate(a);
 }

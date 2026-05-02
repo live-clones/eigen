@@ -221,13 +221,14 @@ struct TensorPrinter {
     typedef typename Tensor::Index IndexType;
 
     eigen_assert(Tensor::Layout == RowMajor);
-    typedef std::conditional_t<is_same<Scalar, char>::value || is_same<Scalar, unsigned char>::value ||
-                                   is_same<Scalar, numext::int8_t>::value || is_same<Scalar, numext::uint8_t>::value,
+    typedef std::conditional_t<std::is_same<Scalar, char>::value || std::is_same<Scalar, unsigned char>::value ||
+                                   std::is_same<Scalar, numext::int8_t>::value ||
+                                   std::is_same<Scalar, numext::uint8_t>::value,
                                int,
-                               std::conditional_t<is_same<Scalar, std::complex<char>>::value ||
-                                                      is_same<Scalar, std::complex<unsigned char>>::value ||
-                                                      is_same<Scalar, std::complex<numext::int8_t>>::value ||
-                                                      is_same<Scalar, std::complex<numext::uint8_t>>::value,
+                               std::conditional_t<std::is_same<Scalar, std::complex<char>>::value ||
+                                                      std::is_same<Scalar, std::complex<unsigned char>>::value ||
+                                                      std::is_same<Scalar, std::complex<numext::int8_t>>::value ||
+                                                      std::is_same<Scalar, std::complex<numext::uint8_t>>::value,
                                                   std::complex<int>, const Scalar&>>
         PrintType;
 

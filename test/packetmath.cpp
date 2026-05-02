@@ -334,7 +334,7 @@ struct test_cast {
 template <typename SrcPacket, typename TgtScalar,
           typename TgtPacket = typename internal::packet_traits<TgtScalar>::type,
           bool Vectorized = internal::packet_traits<TgtScalar>::Vectorizable,
-          bool HasHalf = !internal::is_same<typename internal::unpacket_traits<TgtPacket>::half, TgtPacket>::value>
+          bool HasHalf = !std::is_same<typename internal::unpacket_traits<TgtPacket>::half, TgtPacket>::value>
 struct test_cast_runner;
 
 template <typename SrcPacket, typename TgtScalar, typename TgtPacket>
@@ -459,8 +459,7 @@ struct packetmath_boolean_mask_ops_notcomplex_test {
 
 template <typename Scalar, typename Packet>
 struct packetmath_boolean_mask_ops_notcomplex_test<
-    Scalar, Packet,
-    std::enable_if_t<internal::packet_traits<Scalar>::HasCmp && !internal::is_same<Scalar, bool>::value>> {
+    Scalar, Packet, std::enable_if_t<internal::packet_traits<Scalar>::HasCmp && !std::is_same<Scalar, bool>::value>> {
   static void run() {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
     const int size = 2 * PacketSize;
@@ -526,8 +525,8 @@ struct eigen_optimization_barrier_test {
 
 template <typename Packet>
 struct eigen_optimization_barrier_test<
-    Packet, std::enable_if_t<!NumTraits<Packet>::IsComplex && !internal::is_same<Packet, Eigen::half>::value &&
-                             !internal::is_same<Packet, Eigen::bfloat16>::value>> {
+    Packet, std::enable_if_t<!NumTraits<Packet>::IsComplex && !std::is_same<Packet, Eigen::half>::value &&
+                             !std::is_same<Packet, Eigen::bfloat16>::value>> {
   static void run() {
     typedef typename internal::unpacket_traits<Packet>::type Scalar;
     Scalar s = internal::random<Scalar>();
@@ -731,7 +730,7 @@ void packetmath() {
   for (int i = 0; i < PacketSize; ++i) ref[0] += data1[i];
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
 
-  if (!internal::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
+  if (!std::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
     int HalfPacketSize = PacketSize > 4 ? PacketSize / 2 : PacketSize;
     for (int i = 0; i < HalfPacketSize; ++i) ref[i] = Scalar(0);
     for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] += data1[i];
@@ -1106,7 +1105,7 @@ void packetmath_real() {
       h.store(data2, internal::plog(h.load(data1)));
       VERIFY((numext::isnan)(data2[0]));
       // TODO(cantonios): Re-enable for bfloat16.
-      if (!internal::is_same<Scalar, bfloat16>::value) {
+      if (!std::is_same<Scalar, bfloat16>::value) {
         VERIFY_IS_APPROX(std::log(data1[1]), data2[1]);
       }
 
@@ -1120,7 +1119,7 @@ void packetmath_real() {
       data1[1] = -(std::numeric_limits<Scalar>::min)();
       h.store(data2, internal::plog(h.load(data1)));
       // TODO(cantonios): Re-enable for bfloat16.
-      if (!internal::is_same<Scalar, bfloat16>::value) {
+      if (!std::is_same<Scalar, bfloat16>::value) {
         VERIFY_IS_APPROX(std::log((std::numeric_limits<Scalar>::min)()), data2[0]);
       }
       VERIFY((numext::isnan)(data2[1]));
@@ -1132,7 +1131,7 @@ void packetmath_real() {
         data1[1] = -std::numeric_limits<Scalar>::denorm_min();
         h.store(data2, internal::plog(h.load(data1)));
         // TODO(rmlarsen): Re-enable for bfloat16.
-        if (!internal::is_same<Scalar, bfloat16>::value) {
+        if (!std::is_same<Scalar, bfloat16>::value) {
           VERIFY_IS_APPROX(std::log(std::numeric_limits<Scalar>::denorm_min()), data2[0]);
         }
         VERIFY((numext::isnan)(data2[1]));
@@ -1165,8 +1164,7 @@ void packetmath_real() {
     }
 
     // TODO(rmlarsen): Re-enable for half and bfloat16.
-    if (PacketTraits::HasCos && !internal::is_same<Scalar, half>::value &&
-        !internal::is_same<Scalar, bfloat16>::value) {
+    if (PacketTraits::HasCos && !std::is_same<Scalar, half>::value && !std::is_same<Scalar, bfloat16>::value) {
       test::packet_helper<PacketTraits::HasCos, Packet> h;
       for (Scalar k = Scalar(1); k < Scalar(10000) / NumTraits<Scalar>::epsilon(); k *= Scalar(2)) {
         for (int k1 = 0; k1 <= 1; ++k1) {

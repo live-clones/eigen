@@ -411,9 +411,10 @@ EIGEN_DEVICE_FUNC inline NewType cast(const OldType& x) {
 // This seems to be fixed in VS 2019.
 #if (!EIGEN_COMP_MSVC || EIGEN_COMP_MSVC >= 1920)
 // std::arg is only defined for types of std::complex, or integer types or float/double/long double
-template <typename Scalar, bool HasStdImpl = NumTraits<Scalar>::IsComplex || is_integral<Scalar>::value ||
-                                             is_same<Scalar, float>::value || is_same<Scalar, double>::value ||
-                                             is_same<Scalar, long double>::value>
+template <typename Scalar, bool HasStdImpl = NumTraits<Scalar>::IsComplex || std::is_integral<Scalar>::value ||
+                                             std::is_same<Scalar, float>::value ||
+                                             std::is_same<Scalar, double>::value ||
+                                             std::is_same<Scalar, long double>::value>
 struct arg_default_impl;
 
 template <typename Scalar>
@@ -942,7 +943,7 @@ struct negate_impl {
 
 template <typename Scalar>
 struct negate_impl<Scalar, true> {
-  EIGEN_STATIC_ASSERT((!is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
+  EIGEN_STATIC_ASSERT((!std::is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
 };
 
@@ -1013,7 +1014,7 @@ struct fma_impl<T, std::enable_if_t<has_fma<T>::value>> {
 
 #if defined(EIGEN_GPUCC)
 template <>
-struct has_fma<float> : public true_type {};
+struct has_fma<float> : public std::true_type {};
 
 template <>
 struct fma_impl<float, void> {
@@ -1023,7 +1024,7 @@ struct fma_impl<float, void> {
 };
 
 template <>
-struct has_fma<double> : public true_type {};
+struct has_fma<double> : public std::true_type {};
 
 template <>
 struct fma_impl<double, void> {
