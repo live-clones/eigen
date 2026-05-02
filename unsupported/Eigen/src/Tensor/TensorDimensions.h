@@ -206,8 +206,8 @@ struct DSizes : array<DenseIndex, NumDims> {
   EIGEN_DEVICE_FUNC explicit DSizes(
       const array<OtherIndex, NumDims>& other,
       std::enable_if_t<
-          internal::is_same<DenseIndex, typename internal::promote_index_type<DenseIndex, OtherIndex>::type>::value,
-          void*> = 0) {
+          std::is_same<DenseIndex, typename internal::promote_index_type<DenseIndex, OtherIndex>::type>::value, void*> =
+          0) {
     for (int i = 0; i < NumDims; ++i) {
       (*this)[i] = static_cast<DenseIndex>(other[i]);
     }

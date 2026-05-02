@@ -151,7 +151,7 @@ struct bfloat16 : public bfloat16_impl::bfloat16_base {
   template <class T>
   explicit EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bfloat16(T val)
       : bfloat16_impl::bfloat16_base(
-            bfloat16_impl::float_to_bfloat16_rtne<internal::is_integral<T>::value>(static_cast<float>(val))) {}
+            bfloat16_impl::float_to_bfloat16_rtne<std::is_integral<T>::value>(static_cast<float>(val))) {}
 
   explicit EIGEN_DEVICE_FUNC bfloat16(float f)
       : bfloat16_impl::bfloat16_base(bfloat16_impl::float_to_bfloat16_rtne<false>(f)) {}

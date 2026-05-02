@@ -556,10 +556,10 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
   // For full reductions
 #if defined(EIGEN_USE_GPU) && (defined(EIGEN_GPUCC))
-  static constexpr bool RunningOnGPU = internal::is_same<Device, Eigen::GpuDevice>::value;
+  static constexpr bool RunningOnGPU = std::is_same<Device, Eigen::GpuDevice>::value;
   static constexpr bool RunningOnSycl = false;
 #elif defined(EIGEN_USE_SYCL)
-  static constexpr bool RunningOnSycl = internal::is_same<internal::remove_all_t<Device>, Eigen::SyclDevice>::value;
+  static constexpr bool RunningOnSycl = std::is_same<internal::remove_all_t<Device>, Eigen::SyclDevice>::value;
   static constexpr bool RunningOnGPU = false;
 #else
   static constexpr bool RunningOnGPU = false;

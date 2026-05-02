@@ -13,11 +13,6 @@
 #include <array>
 #include <Eigen/src/Core/util/Meta.h>
 
-template <typename From, typename To>
-bool check_is_convertible(const From&, const To&) {
-  return internal::is_convertible<From, To>::value;
-}
-
 struct FooReturnType {
   typedef int ReturnType;
 };
@@ -31,81 +26,78 @@ struct MyImpl : public MyInterface {
 };
 
 EIGEN_DECLARE_TEST(meta) {
-  VERIFY((internal::is_same<float, float>::value));
-  VERIFY((!internal::is_same<float, double>::value));
-  VERIFY((!internal::is_same<float, float&>::value));
-  VERIFY((!internal::is_same<float, const float&>::value));
+  VERIFY((std::is_same<float, float>::value));
+  VERIFY((!std::is_same<float, double>::value));
+  VERIFY((!std::is_same<float, float&>::value));
+  VERIFY((!std::is_same<float, const float&>::value));
 
-  VERIFY((internal::is_same<float, internal::remove_all_t<const float&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<const float*>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<const float*&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float**>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float**&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float* const*&>>::value));
-  VERIFY((internal::is_same<float, internal::remove_all_t<float* const>>::value));
+  VERIFY((std::is_same<float, internal::remove_all_t<const float&>>::value));
+  VERIFY((std::is_same<float, internal::remove_all_t<const float*>>::value));
+  VERIFY((std::is_same<float, internal::remove_all_t<const float*&>>::value));
+  VERIFY((std::is_same<float, internal::remove_all_t<float**>>::value));
+  VERIFY((std::is_same<float, internal::remove_all_t<float**&>>::value));
+  VERIFY((std::is_same<float, internal::remove_all_t<float* const*&>>::value));
+  VERIFY((std::is_same<float, internal::remove_all_t<float* const>>::value));
 
   // test add_const_on_value_type
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float&>, float const&>::value));
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float*>, float const*>::value));
+  VERIFY((std::is_same<internal::add_const_on_value_type_t<float&>, float const&>::value));
+  VERIFY((std::is_same<internal::add_const_on_value_type_t<float*>, float const*>::value));
 
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float>, const float>::value));
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<const float>, const float>::value));
+  VERIFY((std::is_same<internal::add_const_on_value_type_t<float>, const float>::value));
+  VERIFY((std::is_same<internal::add_const_on_value_type_t<const float>, const float>::value));
 
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<const float* const>, const float* const>::value));
-  VERIFY((internal::is_same<internal::add_const_on_value_type_t<float* const>, const float* const>::value));
+  VERIFY((std::is_same<internal::add_const_on_value_type_t<const float* const>, const float* const>::value));
+  VERIFY((std::is_same<internal::add_const_on_value_type_t<float* const>, const float* const>::value));
 
   // is_convertible
-  STATIC_CHECK((internal::is_convertible<float, double>::value));
-  STATIC_CHECK((internal::is_convertible<int, double>::value));
-  STATIC_CHECK((internal::is_convertible<int, short>::value));
-  STATIC_CHECK((internal::is_convertible<short, int>::value));
-  STATIC_CHECK((internal::is_convertible<double, int>::value));
-  STATIC_CHECK((internal::is_convertible<double, std::complex<double>>::value));
-  STATIC_CHECK((!internal::is_convertible<std::complex<double>, double>::value));
-  STATIC_CHECK((internal::is_convertible<Array33f, Matrix3f>::value));
-  STATIC_CHECK((internal::is_convertible<Matrix3f&, Matrix3f>::value));
-  STATIC_CHECK((internal::is_convertible<Matrix3f&, Matrix3f&>::value));
-  STATIC_CHECK((internal::is_convertible<Matrix3f&, const Matrix3f&>::value));
-  STATIC_CHECK((internal::is_convertible<const Matrix3f&, Matrix3f>::value));
-  STATIC_CHECK((internal::is_convertible<const Matrix3f&, const Matrix3f&>::value));
-  STATIC_CHECK((!internal::is_convertible<const Matrix3f&, Matrix3f&>::value));
-  STATIC_CHECK((!internal::is_convertible<const Matrix3f, Matrix3f&>::value));
-  STATIC_CHECK(!(internal::is_convertible<Matrix3f, Matrix3f&>::value));
+  STATIC_CHECK((std::is_convertible<float, double>::value));
+  STATIC_CHECK((std::is_convertible<int, double>::value));
+  STATIC_CHECK((std::is_convertible<int, short>::value));
+  STATIC_CHECK((std::is_convertible<short, int>::value));
+  STATIC_CHECK((std::is_convertible<double, int>::value));
+  STATIC_CHECK((std::is_convertible<double, std::complex<double>>::value));
+  STATIC_CHECK((!std::is_convertible<std::complex<double>, double>::value));
+  STATIC_CHECK((std::is_convertible<Array33f, Matrix3f>::value));
+  STATIC_CHECK((std::is_convertible<Matrix3f&, Matrix3f>::value));
+  STATIC_CHECK((std::is_convertible<Matrix3f&, Matrix3f&>::value));
+  STATIC_CHECK((std::is_convertible<Matrix3f&, const Matrix3f&>::value));
+  STATIC_CHECK((std::is_convertible<const Matrix3f&, Matrix3f>::value));
+  STATIC_CHECK((std::is_convertible<const Matrix3f&, const Matrix3f&>::value));
+  STATIC_CHECK((!std::is_convertible<const Matrix3f&, Matrix3f&>::value));
+  STATIC_CHECK((!std::is_convertible<const Matrix3f, Matrix3f&>::value));
+  STATIC_CHECK(!(std::is_convertible<Matrix3f, Matrix3f&>::value));
 
-  STATIC_CHECK(!(internal::is_convertible<int, int&>::value));
-  STATIC_CHECK((internal::is_convertible<const int, const int&>::value));
+  STATIC_CHECK(!(std::is_convertible<int, int&>::value));
+  STATIC_CHECK((std::is_convertible<const int, const int&>::value));
 
-  // STATIC_CHECK((!internal::is_convertible<Matrix3f,Matrix3d>::value )); //does not even compile because the
+  // STATIC_CHECK((!std::is_convertible<Matrix3f,Matrix3d>::value )); //does not even compile because the
   // conversion is prevented by a static assertion
-  STATIC_CHECK((!internal::is_convertible<Array33f, int>::value));
-  STATIC_CHECK((!internal::is_convertible<MatrixXf, float>::value));
+  STATIC_CHECK((!std::is_convertible<Array33f, int>::value));
+  STATIC_CHECK((!std::is_convertible<MatrixXf, float>::value));
   {
-    float f = 0.0f;
     MatrixXf A, B;
     VectorXf a, b;
-    VERIFY((check_is_convertible(a.dot(b), f)));
-    VERIFY((check_is_convertible(a.transpose() * b, f)));
-    VERIFY((!check_is_convertible(A * B, f)));
-    VERIFY((check_is_convertible(A * B, A)));
+    VERIFY((std::is_convertible<decltype(a.dot(b)), float>::value));
+    VERIFY((std::is_convertible<decltype(a.transpose() * b), float>::value));
+    VERIFY((!std::is_convertible<decltype(A * B), float>::value));
+    VERIFY((std::is_convertible<decltype(A * B), MatrixXf>::value));
   }
 
 #if (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC <= 990) || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <= 990) || \
     (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC <= 1914)
   // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1752,
-  // a fix in the c++ standard breaks our is_convertible implementation
-  // for abstract classes.
+  // a fix in the c++ standard changes std::is_convertible behavior for abstract classes.
   // So the following tests are expected to fail with recent compilers.
 
-  STATIC_CHECK((!internal::is_convertible<MyInterface, MyImpl>::value));
-  STATIC_CHECK((!internal::is_convertible<MyImpl, MyInterface>::value));
-  STATIC_CHECK((internal::is_convertible<MyImpl, const MyInterface&>::value));
+  STATIC_CHECK((!std::is_convertible<MyInterface, MyImpl>::value));
+  STATIC_CHECK((!std::is_convertible<MyImpl, MyInterface>::value));
+  STATIC_CHECK((std::is_convertible<MyImpl, const MyInterface&>::value));
 
 #endif
 
   {
-    int i = 0;
-    VERIFY((check_is_convertible(fix<3>(), i)));
-    VERIFY((!check_is_convertible(i, fix<DynamicIndex>())));
+    VERIFY((std::is_convertible<decltype(fix<3>()), int>::value));
+    VERIFY((!std::is_convertible<int, decltype(fix<DynamicIndex>())>::value));
   }
 
   VERIFY((internal::has_ReturnType<FooReturnType>::value));
@@ -129,7 +121,6 @@ using Eigen::internal::contained_in_list_gf;
 // free functions `Eigen::get` that would otherwise clash with this metafunction.
 using Eigen::internal::id_numeric;
 using Eigen::internal::id_type;
-using Eigen::internal::is_same;
 using Eigen::internal::is_same_gf;
 using Eigen::internal::mconcat;
 using Eigen::internal::skip;
@@ -205,60 +196,63 @@ struct dummy_test<dummy_c, dummy_c> {
 };
 
 static void test_concat() {
-  VERIFY(
-      (is_same<typename concat<type_list<dummy_a, dummy_a>, type_list<>>::type, type_list<dummy_a, dummy_a>>::value));
-  VERIFY(
-      (is_same<typename concat<type_list<>, type_list<dummy_a, dummy_a>>::type, type_list<dummy_a, dummy_a>>::value));
-  VERIFY((is_same<typename concat<type_list<dummy_a, dummy_a>, type_list<dummy_a, dummy_a>>::type,
-                  type_list<dummy_a, dummy_a, dummy_a, dummy_a>>::value));
-  VERIFY((is_same<typename concat<type_list<dummy_a, dummy_a>, type_list<dummy_b, dummy_c>>::type,
-                  type_list<dummy_a, dummy_a, dummy_b, dummy_c>>::value));
-  VERIFY((is_same<typename concat<type_list<dummy_a>, type_list<dummy_b, dummy_c>>::type,
-                  type_list<dummy_a, dummy_b, dummy_c>>::value));
+  VERIFY((std::is_same<typename concat<type_list<dummy_a, dummy_a>, type_list<>>::type,
+                       type_list<dummy_a, dummy_a>>::value));
+  VERIFY((std::is_same<typename concat<type_list<>, type_list<dummy_a, dummy_a>>::type,
+                       type_list<dummy_a, dummy_a>>::value));
+  VERIFY((std::is_same<typename concat<type_list<dummy_a, dummy_a>, type_list<dummy_a, dummy_a>>::type,
+                       type_list<dummy_a, dummy_a, dummy_a, dummy_a>>::value));
+  VERIFY((std::is_same<typename concat<type_list<dummy_a, dummy_a>, type_list<dummy_b, dummy_c>>::type,
+                       type_list<dummy_a, dummy_a, dummy_b, dummy_c>>::value));
+  VERIFY((std::is_same<typename concat<type_list<dummy_a>, type_list<dummy_b, dummy_c>>::type,
+                       type_list<dummy_a, dummy_b, dummy_c>>::value));
 
-  VERIFY((is_same<typename mconcat<type_list<dummy_a>>::type, type_list<dummy_a>>::value));
-  VERIFY((is_same<typename mconcat<type_list<dummy_a>, type_list<dummy_b>>::type, type_list<dummy_a, dummy_b>>::value));
-  VERIFY((is_same<typename mconcat<type_list<dummy_a>, type_list<dummy_b>, type_list<dummy_c>>::type,
-                  type_list<dummy_a, dummy_b, dummy_c>>::value));
-  VERIFY((is_same<typename mconcat<type_list<dummy_a>, type_list<dummy_b, dummy_c>>::type,
-                  type_list<dummy_a, dummy_b, dummy_c>>::value));
-  VERIFY((is_same<typename mconcat<type_list<dummy_a, dummy_b>, type_list<dummy_c>>::type,
-                  type_list<dummy_a, dummy_b, dummy_c>>::value));
+  VERIFY((std::is_same<typename mconcat<type_list<dummy_a>>::type, type_list<dummy_a>>::value));
+  VERIFY((std::is_same<typename mconcat<type_list<dummy_a>, type_list<dummy_b>>::type,
+                       type_list<dummy_a, dummy_b>>::value));
+  VERIFY((std::is_same<typename mconcat<type_list<dummy_a>, type_list<dummy_b>, type_list<dummy_c>>::type,
+                       type_list<dummy_a, dummy_b, dummy_c>>::value));
+  VERIFY((std::is_same<typename mconcat<type_list<dummy_a>, type_list<dummy_b, dummy_c>>::type,
+                       type_list<dummy_a, dummy_b, dummy_c>>::value));
+  VERIFY((std::is_same<typename mconcat<type_list<dummy_a, dummy_b>, type_list<dummy_c>>::type,
+                       type_list<dummy_a, dummy_b, dummy_c>>::value));
 }
 
 static void test_slice() {
   typedef type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c> tl;
 
-  VERIFY((is_same<typename take<0, tl>::type, type_list<>>::value));
-  VERIFY((is_same<typename take<1, tl>::type, type_list<dummy_a>>::value));
-  VERIFY((is_same<typename take<2, tl>::type, type_list<dummy_a, dummy_a>>::value));
-  VERIFY((is_same<typename take<3, tl>::type, type_list<dummy_a, dummy_a, dummy_b>>::value));
-  VERIFY((is_same<typename take<4, tl>::type, type_list<dummy_a, dummy_a, dummy_b, dummy_b>>::value));
-  VERIFY((is_same<typename take<5, tl>::type, type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c>>::value));
-  VERIFY((is_same<typename take<6, tl>::type, type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>>::value));
+  VERIFY((std::is_same<typename take<0, tl>::type, type_list<>>::value));
+  VERIFY((std::is_same<typename take<1, tl>::type, type_list<dummy_a>>::value));
+  VERIFY((std::is_same<typename take<2, tl>::type, type_list<dummy_a, dummy_a>>::value));
+  VERIFY((std::is_same<typename take<3, tl>::type, type_list<dummy_a, dummy_a, dummy_b>>::value));
+  VERIFY((std::is_same<typename take<4, tl>::type, type_list<dummy_a, dummy_a, dummy_b, dummy_b>>::value));
+  VERIFY((std::is_same<typename take<5, tl>::type, type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c>>::value));
+  VERIFY((std::is_same<typename take<6, tl>::type,
+                       type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>>::value));
 
-  VERIFY((is_same<typename skip<0, tl>::type, type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>>::value));
-  VERIFY((is_same<typename skip<1, tl>::type, type_list<dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>>::value));
-  VERIFY((is_same<typename skip<2, tl>::type, type_list<dummy_b, dummy_b, dummy_c, dummy_c>>::value));
-  VERIFY((is_same<typename skip<3, tl>::type, type_list<dummy_b, dummy_c, dummy_c>>::value));
-  VERIFY((is_same<typename skip<4, tl>::type, type_list<dummy_c, dummy_c>>::value));
-  VERIFY((is_same<typename skip<5, tl>::type, type_list<dummy_c>>::value));
-  VERIFY((is_same<typename skip<6, tl>::type, type_list<>>::value));
+  VERIFY((std::is_same<typename skip<0, tl>::type,
+                       type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>>::value));
+  VERIFY((std::is_same<typename skip<1, tl>::type, type_list<dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>>::value));
+  VERIFY((std::is_same<typename skip<2, tl>::type, type_list<dummy_b, dummy_b, dummy_c, dummy_c>>::value));
+  VERIFY((std::is_same<typename skip<3, tl>::type, type_list<dummy_b, dummy_c, dummy_c>>::value));
+  VERIFY((std::is_same<typename skip<4, tl>::type, type_list<dummy_c, dummy_c>>::value));
+  VERIFY((std::is_same<typename skip<5, tl>::type, type_list<dummy_c>>::value));
+  VERIFY((std::is_same<typename skip<6, tl>::type, type_list<>>::value));
 
-  VERIFY((is_same<typename slice<0, 3, tl>::type, typename take<3, tl>::type>::value));
-  VERIFY((is_same<typename slice<1, 3, tl>::type, type_list<dummy_a, dummy_b, dummy_b>>::value));
+  VERIFY((std::is_same<typename slice<0, 3, tl>::type, typename take<3, tl>::type>::value));
+  VERIFY((std::is_same<typename slice<1, 3, tl>::type, type_list<dummy_a, dummy_b, dummy_b>>::value));
 }
 
 static void test_get() {
   typedef type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c> tl;
   typedef std::integer_sequence<int, 4, 8, 15, 16, 23, 42> il;
 
-  VERIFY((is_same<typename Eigen::internal::get<0, tl>::type, dummy_a>::value));
-  VERIFY((is_same<typename Eigen::internal::get<1, tl>::type, dummy_a>::value));
-  VERIFY((is_same<typename Eigen::internal::get<2, tl>::type, dummy_b>::value));
-  VERIFY((is_same<typename Eigen::internal::get<3, tl>::type, dummy_b>::value));
-  VERIFY((is_same<typename Eigen::internal::get<4, tl>::type, dummy_c>::value));
-  VERIFY((is_same<typename Eigen::internal::get<5, tl>::type, dummy_c>::value));
+  VERIFY((std::is_same<typename Eigen::internal::get<0, tl>::type, dummy_a>::value));
+  VERIFY((std::is_same<typename Eigen::internal::get<1, tl>::type, dummy_a>::value));
+  VERIFY((std::is_same<typename Eigen::internal::get<2, tl>::type, dummy_b>::value));
+  VERIFY((std::is_same<typename Eigen::internal::get<3, tl>::type, dummy_b>::value));
+  VERIFY((std::is_same<typename Eigen::internal::get<4, tl>::type, dummy_c>::value));
+  VERIFY((std::is_same<typename Eigen::internal::get<5, tl>::type, dummy_c>::value));
 
   VERIFY_IS_EQUAL(((int)Eigen::internal::get<0, il>::value), 4);
   VERIFY_IS_EQUAL(((int)Eigen::internal::get<1, il>::value), 8);
@@ -300,20 +294,20 @@ static void test_is_same_gf() {
 
 static void test_apply_op() {
   typedef type_list<dummy_a, dummy_b, dummy_c> tl;
-  VERIFY((!!is_same<typename apply_op_from_left<dummy_op, dummy_a, tl>::type,
-                    type_list<dummy_e, dummy_c, dummy_d>>::value));
-  VERIFY((!!is_same<typename apply_op_from_right<dummy_op, dummy_a, tl>::type,
-                    type_list<dummy_e, dummy_d, dummy_b>>::value));
+  VERIFY((!!std::is_same<typename apply_op_from_left<dummy_op, dummy_a, tl>::type,
+                         type_list<dummy_e, dummy_c, dummy_d>>::value));
+  VERIFY((!!std::is_same<typename apply_op_from_right<dummy_op, dummy_a, tl>::type,
+                         type_list<dummy_e, dummy_d, dummy_b>>::value));
 }
 
 static void test_contained_in_list() {
   typedef type_list<dummy_a, dummy_b, dummy_c> tl;
 
-  VERIFY((!!contained_in_list<is_same, dummy_a, tl>::value));
-  VERIFY((!!contained_in_list<is_same, dummy_b, tl>::value));
-  VERIFY((!!contained_in_list<is_same, dummy_c, tl>::value));
-  VERIFY((!contained_in_list<is_same, dummy_d, tl>::value));
-  VERIFY((!contained_in_list<is_same, dummy_e, tl>::value));
+  VERIFY((!!contained_in_list<std::is_same, dummy_a, tl>::value));
+  VERIFY((!!contained_in_list<std::is_same, dummy_b, tl>::value));
+  VERIFY((!!contained_in_list<std::is_same, dummy_c, tl>::value));
+  VERIFY((!contained_in_list<std::is_same, dummy_d, tl>::value));
+  VERIFY((!contained_in_list<std::is_same, dummy_e, tl>::value));
 
   VERIFY((!!contained_in_list_gf<dummy_test, dummy_a, tl>::value));
   VERIFY((!!contained_in_list_gf<dummy_test, dummy_b, tl>::value));

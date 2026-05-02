@@ -235,12 +235,12 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
  private:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalToBuf(EvaluatorPointerType data) {
-    const bool write_to_out = internal::is_same<OutputScalar, ComplexScalar>::value;
+    const bool write_to_out = std::is_same<OutputScalar, ComplexScalar>::value;
     ComplexScalar* buf =
         write_to_out ? (ComplexScalar*)data : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * m_size);
 
     for (Index i = 0; i < m_size; ++i) {
-      buf[i] = MakeComplex<internal::is_same<InputScalar, RealScalar>::value>()(m_impl.coeff(i));
+      buf[i] = MakeComplex<std::is_same<InputScalar, RealScalar>::value>()(m_impl.coeff(i));
     }
 
     for (size_t i = 0; i < m_fft.size(); ++i) {

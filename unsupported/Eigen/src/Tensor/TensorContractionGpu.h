@@ -1260,7 +1260,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef typename RightEvaluator::Dimensions RightDimensions;
 
   TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {
-    EIGEN_STATIC_ASSERT((internal::is_same<OutputKernelType, const NoOpOutputKernel>::value),
+    EIGEN_STATIC_ASSERT((std::is_same<OutputKernelType, const NoOpOutputKernel>::value),
                         GPU_TENSOR_CONTRACTION_DOES_NOT_SUPPORT_OUTPUT_KERNELS);
   }
 

@@ -305,7 +305,7 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef typename PacketType<SrcType, Device>::type PacketSourceType;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  static constexpr bool IsSameType = internal::is_same<TargetType, SrcType>::value;
+  static constexpr bool IsSameType = std::is_same<TargetType, SrcType>::value;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 

@@ -921,8 +921,8 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
     Arg1Flags = evaluator<Arg1>::Flags,
     Arg2Flags = evaluator<Arg2>::Flags,
     Arg3Flags = evaluator<Arg3>::Flags,
-    SameType = is_same<typename Arg1::Scalar, typename Arg2::Scalar>::value &&
-               is_same<typename Arg1::Scalar, typename Arg3::Scalar>::value,
+    SameType = std::is_same<typename Arg1::Scalar, typename Arg2::Scalar>::value &&
+               std::is_same<typename Arg1::Scalar, typename Arg3::Scalar>::value,
     StorageOrdersAgree = (int(Arg1Flags) & RowMajorBit) == (int(Arg2Flags) & RowMajorBit) &&
                          (int(Arg1Flags) & RowMajorBit) == (int(Arg3Flags) & RowMajorBit),
     Flags0 = (int(Arg1Flags) | int(Arg2Flags) | int(Arg3Flags)) &
@@ -1047,7 +1047,7 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
 
     LhsFlags = evaluator<Lhs>::Flags,
     RhsFlags = evaluator<Rhs>::Flags,
-    SameType = is_same<typename Lhs::Scalar, typename Rhs::Scalar>::value,
+    SameType = std::is_same<typename Lhs::Scalar, typename Rhs::Scalar>::value,
     StorageOrdersAgree = (int(LhsFlags) & RowMajorBit) == (int(RhsFlags) & RowMajorBit),
     Flags0 = (int(LhsFlags) | int(RhsFlags)) &
              (HereditaryBits |
@@ -1480,20 +1480,20 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
 
  protected:
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType
-  linear_coeff_impl(Index index, internal::true_type /* ForwardLinearAccess */) const {
+  linear_coeff_impl(Index index, std::true_type /* ForwardLinearAccess */) const {
     return m_argImpl.coeff(m_linear_offset.value() + index);
   }
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType
-  linear_coeff_impl(Index index, internal::false_type /* not ForwardLinearAccess */) const {
+  linear_coeff_impl(Index index, std::false_type /* not ForwardLinearAccess */) const {
     return coeff(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0);
   }
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& linear_coeffRef_impl(
-      Index index, internal::true_type /* ForwardLinearAccess */) {
+      Index index, std::true_type /* ForwardLinearAccess */) {
     return m_argImpl.coeffRef(m_linear_offset.value() + index);
   }
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& linear_coeffRef_impl(
-      Index index, internal::false_type /* not ForwardLinearAccess */) {
+      Index index, std::false_type /* not ForwardLinearAccess */) {
     return coeffRef(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0);
   }
 

@@ -180,7 +180,7 @@ template <typename T>
 struct is_symbolic {
   // BaseExpr has no conversion ctor, so we only have to check whether T can be statically cast to its base class
   // BaseExpr<T>.
-  enum { value = internal::is_convertible<T, BaseExpr<T>>::value };
+  enum { value = std::is_convertible<T, BaseExpr<T>>::value };
 };
 
 // A simple wrapper around an integral value to provide the eval method.
