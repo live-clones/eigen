@@ -389,8 +389,7 @@ struct cast_impl<OldType, bool> {
 // Casting from S -> Complex<T> leads to an implicit conversion from S to T,
 // generating warnings on clang.  Here we explicitly cast the real component.
 template <typename OldType, typename NewType>
-struct cast_impl<OldType, NewType,
-                 typename std::enable_if_t<!NumTraits<OldType>::IsComplex && NumTraits<NewType>::IsComplex>> {
+struct cast_impl<OldType, NewType, std::enable_if_t<!NumTraits<OldType>::IsComplex && NumTraits<NewType>::IsComplex>> {
   EIGEN_DEVICE_FUNC static inline NewType run(const OldType& x) {
     typedef typename NumTraits<NewType>::Real NewReal;
     return static_cast<NewType>(static_cast<NewReal>(x));

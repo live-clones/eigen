@@ -25,7 +25,7 @@ template <typename XprType, int SizeAtCompileTime_>
 struct traits<CoherentPadOp<XprType, SizeAtCompileTime_>> : public traits<XprType> {
   typedef internal::remove_all_t<XprType> PlainXprType;
   typedef typename internal::ref_selector<XprType>::type XprNested;
-  typedef typename std::remove_reference_t<XprNested> XprNested_;
+  typedef std::remove_reference_t<XprNested> XprNested_;
   enum : int {
     IsRowMajor = traits<PlainXprType>::Flags & RowMajorBit,
     SizeAtCompileTime = SizeAtCompileTime_,
@@ -77,7 +77,7 @@ template <typename ArgType, int SizeAtCompileTime>
 struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
     : evaluator_base<CoherentPadOp<ArgType, SizeAtCompileTime>> {
   typedef CoherentPadOp<ArgType, SizeAtCompileTime> XprType;
-  typedef typename internal::remove_all_t<typename XprType::CoeffReturnType> CoeffReturnType;
+  typedef internal::remove_all_t<typename XprType::CoeffReturnType> CoeffReturnType;
   typedef typename internal::nested_eval<ArgType, 1>::type ArgTypeNested;
   typedef internal::remove_all_t<ArgTypeNested> ArgTypeNestedCleaned;
 
