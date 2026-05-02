@@ -363,28 +363,6 @@ struct product_op {
   static constexpr int Identity = 1;
 };
 
-struct logical_and_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a && b) {
-    return a && b;
-  }
-};
-struct lesser_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a < b) {
-    return a < b;
-  }
-};
-
-/* generic unary operations */
-
-struct greater_equal_zero_op {
-  template <typename A>
-  constexpr static auto run(A a) -> decltype(a >= 0) {
-    return a >= 0;
-  }
-};
-
 /* reductions for lists */
 
 // Using auto -> return value spec makes ICC 13.0 and 13.1 crash here,
@@ -397,18 +375,6 @@ EIGEN_DEVICE_FUNC constexpr decltype(reduce<product_op, Ts...>::run((*((Ts*)0)).
 template <typename... Ts>
 constexpr decltype(reduce<sum_op, Ts...>::run((*((Ts*)0))...)) arg_sum(Ts... ts) {
   return reduce<sum_op, Ts...>::run(ts...);
-}
-
-/* reverse arrays */
-
-template <typename Array, int... n>
-constexpr Array h_array_reverse(Array arr, numeric_list<int, n...>) {
-  return {{array_get<sizeof...(n) - n - 1>(arr)...}};
-}
-
-template <typename T, std::size_t N>
-constexpr array<T, N> array_reverse(array<T, N> arr) {
-  return h_array_reverse(arr, typename gen_numeric_list<int, N>::type());
 }
 
 /* generic array reductions */
@@ -464,119 +430,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE t array_prod(const std::vector<t>& a) {
     prod *= a[i];
   }
   return prod;
-}
-
-/* zip an array */
-
-template <typename Op, typename A, typename B, std::size_t N, int... n>
-constexpr array<decltype(Op::run(A(), B())), N> h_array_zip(array<A, N> a, array<B, N> b, numeric_list<int, n...>) {
-  return array<decltype(Op::run(A(), B())), N>{{Op::run(array_get<n>(a), array_get<n>(b))...}};
-}
-
-template <typename Op, typename A, typename B, std::size_t N>
-constexpr array<decltype(Op::run(A(), B())), N> array_zip(array<A, N> a, array<B, N> b) {
-  return h_array_zip<Op>(a, b, typename gen_numeric_list<int, N>::type());
-}
-
-/* zip an array and reduce the result */
-
-template <typename Reducer, typename Op, typename A, typename B, std::size_t N, int... n>
-constexpr auto h_array_zip_and_reduce(array<A, N> a, array<B, N> b, numeric_list<int, n...>)
-    -> decltype(reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A(), B()))>::type...>::run(
-        Op::run(array_get<n>(a), array_get<n>(b))...)) {
-  return reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A(), B()))>::type...>::run(
-      Op::run(array_get<n>(a), array_get<n>(b))...);
-}
-
-template <typename Reducer, typename Op, typename A, typename B, std::size_t N>
-constexpr auto array_zip_and_reduce(array<A, N> a, array<B, N> b)
-    -> decltype(h_array_zip_and_reduce<Reducer, Op, A, B, N>(a, b, typename gen_numeric_list<int, N>::type())) {
-  return h_array_zip_and_reduce<Reducer, Op, A, B, N>(a, b, typename gen_numeric_list<int, N>::type());
-}
-
-/* apply stuff to an array */
-
-template <typename Op, typename A, std::size_t N, int... n>
-constexpr array<decltype(Op::run(A())), N> h_array_apply(array<A, N> a, numeric_list<int, n...>) {
-  return array<decltype(Op::run(A())), N>{{Op::run(array_get<n>(a))...}};
-}
-
-template <typename Op, typename A, std::size_t N>
-constexpr array<decltype(Op::run(A())), N> array_apply(array<A, N> a) {
-  return h_array_apply<Op>(a, typename gen_numeric_list<int, N>::type());
-}
-
-/* apply stuff to an array and reduce */
-
-template <typename Reducer, typename Op, typename A, std::size_t N, int... n>
-constexpr auto h_array_apply_and_reduce(array<A, N> arr, numeric_list<int, n...>)
-    -> decltype(reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A()))>::type...>::run(
-        Op::run(array_get<n>(arr))...)) {
-  return reduce<Reducer, typename id_numeric<int, n, decltype(Op::run(A()))>::type...>::run(
-      Op::run(array_get<n>(arr))...);
-}
-
-template <typename Reducer, typename Op, typename A, std::size_t N>
-constexpr auto array_apply_and_reduce(array<A, N> a)
-    -> decltype(h_array_apply_and_reduce<Reducer, Op, A, N>(a, typename gen_numeric_list<int, N>::type())) {
-  return h_array_apply_and_reduce<Reducer, Op, A, N>(a, typename gen_numeric_list<int, N>::type());
-}
-
-/* repeat a value n times (and make an array out of it
- * usage:
- *   array<int, 16> = repeat<16>(42);
- */
-
-template <int n>
-struct h_repeat {
-  template <typename t, int... ii>
-  constexpr static array<t, n> run(t v, numeric_list<int, ii...>) {
-    return {{typename id_numeric<int, ii, t>::type(v)...}};
-  }
-};
-
-template <int n, typename t>
-constexpr array<t, n> repeat(t v) {
-  return h_repeat<n>::run(v, typename gen_numeric_list<int, n>::type());
-}
-
-/* instantiate a class by a C-style array */
-template <class InstType, typename ArrType, std::size_t N, bool Reverse, typename... Ps>
-struct h_instantiate_by_c_array;
-
-template <class InstType, typename ArrType, std::size_t N, typename... Ps>
-struct h_instantiate_by_c_array<InstType, ArrType, N, false, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
-    return h_instantiate_by_c_array<InstType, ArrType, N - 1, false, Ps..., ArrType>::run(arr + 1, args..., arr[0]);
-  }
-};
-
-template <class InstType, typename ArrType, std::size_t N, typename... Ps>
-struct h_instantiate_by_c_array<InstType, ArrType, N, true, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
-    return h_instantiate_by_c_array<InstType, ArrType, N - 1, false, ArrType, Ps...>::run(arr + 1, arr[0], args...);
-  }
-};
-
-template <class InstType, typename ArrType, typename... Ps>
-struct h_instantiate_by_c_array<InstType, ArrType, 0, false, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
-    (void)arr;
-    return InstType(args...);
-  }
-};
-
-template <class InstType, typename ArrType, typename... Ps>
-struct h_instantiate_by_c_array<InstType, ArrType, 0, true, Ps...> {
-  static InstType run(ArrType* arr, Ps... args) {
-    (void)arr;
-    return InstType(args...);
-  }
-};
-
-template <class InstType, typename ArrType, std::size_t N, bool Reverse = false>
-InstType instantiate_by_c_array(ArrType* arr) {
-  return h_instantiate_by_c_array<InstType, ArrType, N, Reverse>::run(arr);
 }
 
 }  // end namespace internal
