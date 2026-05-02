@@ -528,8 +528,8 @@ struct bitwise_helper : public bytewise_bitwise_helper<T> {};
 
 // For integers or non-trivial scalars, use binary operators.
 template <typename T>
-struct bitwise_helper<T, typename std::enable_if_t<is_scalar<T>::value &&
-                                                   (NumTraits<T>::IsInteger || NumTraits<T>::RequireInitialization)>>
+struct bitwise_helper<
+    T, std::enable_if_t<is_scalar<T>::value && (NumTraits<T>::IsInteger || NumTraits<T>::RequireInitialization)>>
     : public operator_bitwise_helper<T> {};
 
 /** \internal \returns the bitwise and of \a a and \a b */
