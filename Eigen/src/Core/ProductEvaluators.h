@@ -1366,8 +1366,8 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Derived
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
     const bool storedHere = BothStored_ ? true : ((Mode & Upper) == Upper ? (row <= col) : (row >= col));
-    const Scalar matCoeff = storedHere ? Scalar(m_matImpl.coeff(row, col))
-                                       : Scalar(numext::conj(m_matImpl.coeff(col, row)));
+    const Scalar matCoeff =
+        storedHere ? Scalar(m_matImpl.coeff(row, col)) : Scalar(numext::conj(m_matImpl.coeff(col, row)));
     return ProductOrder == OnTheLeft ? Scalar(m_diagImpl.coeff(row) * matCoeff)
                                      : Scalar(matCoeff * m_diagImpl.coeff(col));
   }

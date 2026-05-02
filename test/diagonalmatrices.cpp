@@ -238,7 +238,8 @@ void bug2013() {
   dynamic_expected.template triangularView<Upper>() =
       MatrixXd(dynamic_m.template triangularView<Upper>()) * dynamic_d.asDiagonal();
   internal::set_is_malloc_allowed(false);
-  no_malloc_result.template triangularView<Upper>() = dynamic_m.template triangularView<Upper>() * dynamic_d.asDiagonal();
+  no_malloc_result.template triangularView<Upper>() =
+      dynamic_m.template triangularView<Upper>() * dynamic_d.asDiagonal();
   internal::set_is_malloc_allowed(true);
   VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
 
@@ -247,7 +248,8 @@ void bug2013() {
   dynamic_expected.template triangularView<Lower>() =
       dynamic_d.asDiagonal() * MatrixXd(dynamic_m.template triangularView<Lower>());
   internal::set_is_malloc_allowed(false);
-  no_malloc_result.template triangularView<Lower>() = dynamic_d.asDiagonal() * dynamic_m.template triangularView<Lower>();
+  no_malloc_result.template triangularView<Lower>() =
+      dynamic_d.asDiagonal() * dynamic_m.template triangularView<Lower>();
   internal::set_is_malloc_allowed(true);
   VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
 }
