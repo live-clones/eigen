@@ -977,6 +977,14 @@ struct selfadjoint_product_impl;
 
 template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType>
 struct selfadjoint_diagonal_product_impl {
+  // The mirror half (writing the strict-other-triangle from a row of the source)
+  // has stride = leading dim, so a per-column inner-loop over the whole matrix
+  // streams cold cache lines. We instead walk the mirror in BlockSize-square
+  // tiles: off-diagonal tiles use a blocked transpose (cache-hot reads of the
+  // source tile, packet writes to the destination tile) and the small diagonal
+  // tiles fall back to the row-strided loop where the working set is L1-hot.
+  static constexpr Index BlockSize = 32;
+
   template <typename Dest, typename Alpha>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const MatrixType& matrix,
                                                         const DiagonalType& diagonal, const Alpha& alpha) {
@@ -984,13 +992,38 @@ struct selfadjoint_diagonal_product_impl {
     eigen_assert(diagonal.size() == matrix.rows() && "invalid matrix product");
 
     const Index size = matrix.rows();
+
+    // Stored half: one column-strided segment per output column.
     for (Index col = 0; col < size; ++col) {
       if ((Mode & Upper) == Upper) {
         addStoredSegment(dst, matrix, diagonal, 0, col + 1, col, alpha);
-        addConjugateSegment(dst, matrix, diagonal, col + 1, size - col - 1, col, alpha);
       } else {
-        addConjugateSegment(dst, matrix, diagonal, 0, col, col, alpha);
         addStoredSegment(dst, matrix, diagonal, col, size - col, col, alpha);
+      }
+    }
+
+    // Mirror half: off-diagonal tiles via blocked conjugate-transpose, plus
+    // a per-column row segment for the small diagonal tile.
+    for (Index ib = 0; ib < size; ib += BlockSize) {
+      const Index ib_end = numext::mini(size, ib + BlockSize);
+      const Index br = ib_end - ib;
+      if ((Mode & Upper) == Upper) {
+        // Off-diagonal: write strict-lower of dst from strict-upper of source.
+        for (Index jb = 0; jb < ib; jb += BlockSize) {
+          const Index bc = numext::mini(jb + BlockSize, ib) - jb;
+          addMirrorBlock(dst, matrix, diagonal, ib, jb, br, bc, alpha);
+        }
+        // Diagonal tile: in-tile strict-lower mirror.
+        for (Index col = ib; col < ib_end; ++col)
+          addConjugateSegment(dst, matrix, diagonal, col + 1, ib_end - col - 1, col, alpha);
+      } else {
+        // Off-diagonal: write strict-upper of dst from strict-lower of source.
+        for (Index jb = ib_end; jb < size; jb += BlockSize) {
+          const Index bc = numext::mini(size, jb + BlockSize) - jb;
+          addMirrorBlock(dst, matrix, diagonal, ib, jb, br, bc, alpha);
+        }
+        // Diagonal tile: in-tile strict-upper mirror.
+        for (Index col = ib; col < ib_end; ++col) addConjugateSegment(dst, matrix, diagonal, ib, col - ib, col, alpha);
       }
     }
   }
@@ -1014,6 +1047,22 @@ struct selfadjoint_diagonal_product_impl {
     auto dstSegment = dst.col(col).segment(begin, size);
     diagonal_product_segment_impl<ProductOrder>::run(
         dstSegment, matrix.row(col).segment(begin, size).conjugate().transpose(), diagonal, begin, col, alpha);
+  }
+
+  // dst.block(ib, jb, br, bc) += alpha * matrix.block(jb, ib, bc, br).adjoint() * <diag>,
+  // where <diag> scales each output column (OnTheRight) or row (OnTheLeft).
+  template <typename Dest, typename Alpha>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addMirrorBlock(Dest& dst, const MatrixType& matrix,
+                                                                   const DiagonalType& diagonal, Index ib, Index jb,
+                                                                   Index br, Index bc, const Alpha& alpha) {
+    if (br <= 0 || bc <= 0) return;
+    auto dstBlock = dst.block(ib, jb, br, bc);
+    auto srcAdjoint = matrix.block(jb, ib, bc, br).adjoint();
+    if (ProductOrder == OnTheRight) {
+      dstBlock.noalias() += alpha * (srcAdjoint * diagonal.segment(jb, bc).asDiagonal());
+    } else {
+      dstBlock.noalias() += alpha * (diagonal.segment(ib, br).asDiagonal() * srcAdjoint);
+    }
   }
 };
 
