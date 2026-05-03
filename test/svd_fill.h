@@ -33,7 +33,7 @@ struct maybe_set_imag_part<Scalar, false> {
 };
 
 template <typename MatrixType>
-void svd_fill_random(MatrixType &m, int Option = 0) {
+void svd_fill_random(MatrixType& m, int Option = 0) {
   using std::pow;
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
