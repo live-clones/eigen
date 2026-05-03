@@ -226,7 +226,7 @@ class Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideTy
   }
 
  protected:
-  typename internal::aligned_storage<sizeof(TPlainObjectType), EIGEN_ALIGNOF(TPlainObjectType)>::type m_storage;
+  typename std::aligned_storage<sizeof(TPlainObjectType), EIGEN_ALIGNOF(TPlainObjectType)>::type m_storage;
   bool m_hasCopy;
 };
 
@@ -328,7 +328,7 @@ class Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideTy
   }
 
  protected:
-  typename internal::aligned_storage<sizeof(TPlainObjectType), EIGEN_ALIGNOF(TPlainObjectType)>::type m_storage;
+  typename std::aligned_storage<sizeof(TPlainObjectType), EIGEN_ALIGNOF(TPlainObjectType)>::type m_storage;
   bool m_hasCopy;
 };
 

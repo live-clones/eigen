@@ -348,16 +348,6 @@ struct scalar_product_traits {
   enum { Defined = 0 };
 };
 
-/** \internal Obtains a POD type suitable to use as storage for an object of a size
- * of at most Len bytes, aligned as specified by \c Align.
- */
-template <unsigned Len, unsigned Align>
-struct aligned_storage {
-  struct type {
-    EIGEN_ALIGN_TO_BOUNDARY(Align) unsigned char data[Len];
-  };
-};
-
 }  // end namespace internal
 
 template <typename T>
