@@ -24,7 +24,42 @@ void test_dgmres_T() {
   //  check_sparse_square_solving(dgmres_colmajor_ssor)     ;
 }
 
+template <typename T>
+void test_dgmres_breakdown_T() {
+  typedef SparseMatrix<T> Mat;
+  typedef Matrix<T, 2, 1> Vec;
+
+  // Nilpotent A with singular Hessenberg pivot on the first step.
+  Mat A(2, 2);
+  A.insert(0, 1) = T(1);
+  A.makeCompressed();
+  Vec b;
+  b << T(1), T(0);
+
+  DGMRES<Mat, IdentityPreconditioner> solver;
+  solver.compute(A);
+  Vec x = solver.solve(b);
+  VERIFY(x.allFinite());
+  VERIFY(solver.info() != Success);
+
+  // Diagonal A with b in an eigenspace: Arnoldi converges after one step.
+  Mat D(2, 2);
+  D.insert(0, 0) = T(2);
+  D.insert(1, 1) = T(2);
+  D.makeCompressed();
+  Vec d;
+  d << T(2), T(2);
+
+  DGMRES<Mat, DiagonalPreconditioner<T> > solver2;
+  solver2.compute(D);
+  Vec y = solver2.solve(d);
+  VERIFY_IS_EQUAL(solver2.info(), Success);
+  VERIFY_IS_APPROX(y, (Vec() << T(1), T(1)).finished());
+}
+
 TEST(DgmresTest, Basic) {
   test_dgmres_T<double>();
   test_dgmres_T<std::complex<double> >();
+  test_dgmres_breakdown_T<double>();
+  test_dgmres_breakdown_T<std::complex<double> >();
 }

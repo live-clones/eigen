@@ -157,6 +157,7 @@ TEST(TensorConcatenationTest, Basic) {
   test_static_dimension_failure<RowMajor>();
   test_simple_concatenation<ColMajor>();
   test_simple_concatenation<RowMajor>();
-  // test_vectorized_concatenation();
+  test_concatenation_packet_axis_not_innermost<ColMajor>();
+  test_concatenation_packet_axis_not_innermost<RowMajor>();
   test_concatenation_as_lvalue();
 }
