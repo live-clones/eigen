@@ -207,6 +207,12 @@ static EIGEN_TEST_UNUSED bool g_has_set_repeat = false, g_has_set_seed = false;
 // Expands to: TEST(Eigen, mytest) { ... }
 #define EIGEN_DECLARE_TEST(X) TEST(Eigen, X)
 
+// Backwards-compatible passthrough for legacy CALL_SUBTEST(...) call sites.
+// In the old framework these expanded to no-ops unless EIGEN_TEST_PART_N was
+// set; under gtest all test bodies always execute, so the call collapses to
+// the inner statement.
+#define CALL_SUBTEST(FUNC) FUNC
+
 }  // namespace Eigen
 
 #define TRACK std::cerr << __FILE__ << " " << __LINE__ << std::endl

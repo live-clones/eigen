@@ -188,25 +188,25 @@ void check_tuple_element() {
   STATIC_CHECK((std::is_same<std::tuple_element_t<0, Array3i>, int>::value));
 }
 
-EIGEN_DECLARE_TEST(structured_bindings) {
-  CALL_SUBTEST_1(check_vector_bindings<double>());
-  CALL_SUBTEST_1(check_vector_bindings<float>());
-  CALL_SUBTEST_1(check_vector_bindings<int>());
-  CALL_SUBTEST_2(check_array_bindings<double>());
-  CALL_SUBTEST_2(check_array_bindings<int>());
-  CALL_SUBTEST_3(check_reference_bindings<double>());
-  CALL_SUBTEST_3(check_reference_bindings<float>());
-  CALL_SUBTEST_4(check_matrix_bindings<double>());
-  CALL_SUBTEST_4(check_matrix_bindings<int>());
-  CALL_SUBTEST_5(check_tuple_size());
-  CALL_SUBTEST_5(check_tuple_element());
-  CALL_SUBTEST_6(check_storage_order_semantics<double>());
-  CALL_SUBTEST_6(check_storage_order_semantics<int>());
+TEST(StructuredBindingsTest, Basic) {
+  check_vector_bindings<double>();
+  check_vector_bindings<float>();
+  check_vector_bindings<int>();
+  check_array_bindings<double>();
+  check_array_bindings<int>();
+  check_reference_bindings<double>();
+  check_reference_bindings<float>();
+  check_matrix_bindings<double>();
+  check_matrix_bindings<int>();
+  check_tuple_size();
+  check_tuple_element();
+  check_storage_order_semantics<double>();
+  check_storage_order_semantics<int>();
 }
 
 #else
 
-EIGEN_DECLARE_TEST(structured_bindings) {
+TEST(StructuredBindingsTest, Basic) {
   // Structured bindings require C++17.
   VERIFY(true);
 }
