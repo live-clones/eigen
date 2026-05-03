@@ -18,32 +18,12 @@ namespace Eigen {
 
 namespace internal {
 
+template <typename T>
+auto is_ref_compatible_test(T& matrix) -> decltype(Ref<const T>(matrix), std::true_type());
+std::false_type is_ref_compatible_test(...);
+
 template <typename MatrixType>
-struct is_ref_compatible_impl {
- private:
-  template <typename T0>
-  struct any_conversion {
-    template <typename T>
-    any_conversion(const volatile T&);
-    template <typename T>
-    any_conversion(T&);
-  };
-  struct yes {
-    int a[1];
-  };
-  struct no {
-    int a[2];
-  };
-
-  template <typename T>
-  static yes test(const Ref<const T>&, int);
-  template <typename T>
-  static no test(any_conversion<T>, ...);
-
- public:
-  static MatrixType ms_from;
-  enum { value = sizeof(test<MatrixType>(ms_from, 0)) == sizeof(yes) };
-};
+struct is_ref_compatible_impl : decltype(is_ref_compatible_test(std::declval<MatrixType&>())) {};
 
 template <typename MatrixType>
 struct is_ref_compatible {
