@@ -73,43 +73,16 @@ EIGEN_DEVICE_FUNC void update_value(type2indexpair<f, s>& val, IndexPair<Index> 
 }
 
 template <typename T>
-struct is_compile_time_constant {
-  static constexpr bool value = false;
-};
-
-template <Index idx>
-struct is_compile_time_constant<type2index<idx>> {
-  static constexpr bool value = true;
-};
-template <Index idx>
-struct is_compile_time_constant<const type2index<idx>> {
-  static constexpr bool value = true;
-};
-template <Index idx>
-struct is_compile_time_constant<type2index<idx>&> {
-  static constexpr bool value = true;
-};
-template <Index idx>
-struct is_compile_time_constant<const type2index<idx>&> {
-  static constexpr bool value = true;
-};
+struct is_compile_time_constant_impl : std::false_type {};
 
 template <Index f, Index s>
-struct is_compile_time_constant<type2indexpair<f, s>> {
-  static constexpr bool value = true;
-};
-template <Index f, Index s>
-struct is_compile_time_constant<const type2indexpair<f, s>> {
-  static constexpr bool value = true;
-};
-template <Index f, Index s>
-struct is_compile_time_constant<type2indexpair<f, s>&> {
-  static constexpr bool value = true;
-};
-template <Index f, Index s>
-struct is_compile_time_constant<const type2indexpair<f, s>&> {
-  static constexpr bool value = true;
-};
+struct is_compile_time_constant_impl<type2indexpair<f, s>> : std::true_type {};
+
+template <Index idx>
+struct is_compile_time_constant_impl<type2index<idx>> : std::true_type {};
+
+template <typename T>
+struct is_compile_time_constant : is_compile_time_constant_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
 
 template <typename... T>
 struct IndexTuple;

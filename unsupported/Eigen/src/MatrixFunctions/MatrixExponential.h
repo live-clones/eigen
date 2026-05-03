@@ -366,15 +366,11 @@ struct matrix_exp_computeUV<MatrixType, long double> {
 };
 
 template <typename T>
-struct is_exp_known_type : std::false_type {};
-template <>
-struct is_exp_known_type<float> : std::true_type {};
-template <>
-struct is_exp_known_type<double> : std::true_type {};
+using is_exp_known_type = std::integral_constant<bool, std::is_same<T, float>::value || std::is_same<T, double>::value
 #if LDBL_MANT_DIG <= 113
-template <>
-struct is_exp_known_type<long double> : std::true_type {};
+                                                           || std::is_same<T, long double>::value
 #endif
+                                                 >;
 
 template <typename ArgType, typename ResultType>
 void matrix_exp_compute(const ArgType& arg, ResultType& result, std::true_type)  // natively supported scalar type

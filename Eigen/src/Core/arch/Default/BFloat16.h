@@ -734,9 +734,7 @@ EIGEN_ALWAYS_INLINE std::ostream& operator<<(std::ostream& os, const bfloat16& v
 namespace internal {
 
 template <>
-struct is_arithmetic<bfloat16> {
-  enum { value = true };
-};
+struct is_arithmetic<bfloat16> : std::true_type {};
 
 template <>
 struct random_impl<bfloat16> {

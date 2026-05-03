@@ -156,10 +156,7 @@ struct unpacket_traits<const T> : unpacket_traits<T> {};
  * This is used to enable some generic packet implementations.
  */
 template <typename Packet>
-struct is_scalar {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  enum { value = std::is_same<Packet, Scalar>::value };
-};
+struct is_scalar : std::is_same<Packet, typename unpacket_traits<Packet>::type> {};
 
 // automatically and succinctly define combinations of pcast<SrcPacket,TgtPacket> when
 // 1) the packets are the same type, or
