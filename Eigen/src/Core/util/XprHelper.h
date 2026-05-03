@@ -64,12 +64,6 @@ EIGEN_DEVICE_FUNC inline IndexDest convert_index(const IndexSrc& idx) {
   return convert_index_impl<IndexDest, IndexSrc>::run(idx);
 }
 
-// true if T can be considered as an integral index (i.e., and integral type or enum)
-template <typename T>
-struct is_valid_index_type {
-  enum { value = std::is_integral<T>::value || std::is_enum<T>::value };
-};
-
 // true if both types are not valid index types
 template <typename RowIndices, typename ColIndices>
 struct valid_indexed_view_overload {
