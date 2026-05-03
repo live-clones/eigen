@@ -587,6 +587,8 @@ TEST(TensorContractionTest, Basic) {
   test_large_contraction<RowMajor>();
   test_matrix_vector<ColMajor>();
   test_matrix_vector<RowMajor>();
+  test_matrix_transpose_vector<ColMajor>();
+  test_matrix_transpose_vector<RowMajor>();
   test_tensor_vector<ColMajor>();
   test_tensor_vector<RowMajor>();
   test_small_blocking_factors<ColMajor>();
@@ -597,7 +599,4 @@ TEST(TensorContractionTest, Basic) {
   test_const_inputs<RowMajor>();
   test_large_contraction_with_output_kernel<ColMajor>();
   test_large_contraction_with_output_kernel<RowMajor>();
-
-  // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8
 }

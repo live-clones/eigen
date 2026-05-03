@@ -272,6 +272,7 @@ void eulerangles_gimbal_lock_regression() {
   check_all_var(Vector3(Scalar(10) * deg, Scalar(89.5) * deg, Scalar(30) * deg));
   check_all_var(Vector3(Scalar(10) * deg, Scalar(-89.5) * deg, Scalar(30) * deg));
 }
+
 void eulerangles_gimbal_lock_reproducer() {
   Quaterniond q;
   q.coeffs() << numext::bit_cast<double>(numext::uint64_t(0x3FDFFFFFC0000000ull)),
@@ -305,9 +306,9 @@ TEST(EulerAnglesTest, Basic) {
     eulerangles_rand<double>();
   }
 
-  CALL_SUBTEST_5(eulerangles_gimbal_lock_regression<float>());
-  CALL_SUBTEST_5(eulerangles_gimbal_lock_regression<double>());
-  CALL_SUBTEST_5(eulerangles_gimbal_lock_reproducer());
+  eulerangles_gimbal_lock_regression<float>();
+  eulerangles_gimbal_lock_regression<double>();
+  eulerangles_gimbal_lock_reproducer();
 
   // TODO: Add tests for auto diff
   // TODO: Add tests for complex numbers

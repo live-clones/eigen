@@ -880,69 +880,54 @@ void test_concat_packet_segment() {
   }
 }
 
-EIGEN_DECLARE_TEST(concat) {
+TEST(ConcatTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    // Dynamic-size matrix concat
-    CALL_SUBTEST_1(test_concat_dynamic(MatrixXf(4, 3)));
-    CALL_SUBTEST_1(test_concat_dynamic(MatrixXd(5, 7)));
-    CALL_SUBTEST_1(test_concat_dynamic(MatrixXcf(3, 4)));
+    test_concat_dynamic(MatrixXf(4, 3));
+    test_concat_dynamic(MatrixXd(5, 7));
+    test_concat_dynamic(MatrixXcf(3, 4));
 
-    // Expression inputs
-    CALL_SUBTEST_2(test_concat_with_expressions(MatrixXf(4, 3)));
-    CALL_SUBTEST_2(test_concat_with_expressions(MatrixXd(5, 7)));
+    test_concat_with_expressions(MatrixXf(4, 3));
+    test_concat_with_expressions(MatrixXd(5, 7));
 
-    // Fixed-size concat with compile-time dimension checks
-    CALL_SUBTEST_3((test_vcat_fixed<float, 2, 3, 4>()));   // vcat: 2x3 + 4x3
-    CALL_SUBTEST_3((test_hcat_fixed<double, 3, 2, 5>()));  // hcat: 3x2 + 3x5
-    CALL_SUBTEST_3((test_vcat_fixed<float, 4, 4, 4>()));   // square vcat: 4x4 + 4x4
-    CALL_SUBTEST_3((test_hcat_fixed<float, 4, 4, 4>()));   // square hcat: 4x4 + 4x4
+    (test_vcat_fixed<float, 2, 3, 4>());
+    (test_hcat_fixed<double, 3, 2, 5>());
+    (test_vcat_fixed<float, 4, 4, 4>());
+    (test_hcat_fixed<float, 4, 4, 4>());
 
-    // Mixed fixed/dynamic
-    CALL_SUBTEST_4(test_concat_mixed_fixed_dynamic<float>());
-    CALL_SUBTEST_4(test_concat_mixed_fixed_dynamic<double>());
+    test_concat_mixed_fixed_dynamic<float>();
+    test_concat_mixed_fixed_dynamic<double>();
 
-    // Rvalue temporaries (lifetime safety)
-    CALL_SUBTEST_5(test_concat_rvalue_temporaries<float>());
-    CALL_SUBTEST_5(test_concat_rvalue_temporaries<double>());
+    test_concat_rvalue_temporaries<float>();
+    test_concat_rvalue_temporaries<double>();
 
-    // Chained concat (binary API)
-    CALL_SUBTEST_6(test_concat_chained<float>());
-    CALL_SUBTEST_6(test_concat_chained<double>());
+    test_concat_chained<float>();
+    test_concat_chained<double>();
 
-    // Vector concat
-    CALL_SUBTEST_7(test_concat_vectors<float>());
-    CALL_SUBTEST_7(test_concat_vectors<double>());
+    test_concat_vectors<float>();
+    test_concat_vectors<double>();
 
-    // Array concat (XprKind propagation)
-    CALL_SUBTEST_8(test_concat_array<float>());
-    CALL_SUBTEST_8(test_concat_array<double>());
+    test_concat_array<float>();
+    test_concat_array<double>();
 
-    // Coefficient-level access
-    CALL_SUBTEST_9(test_concat_coeff_access<float>());
-    CALL_SUBTEST_9(test_concat_coeff_access<double>());
+    test_concat_coeff_access<float>();
+    test_concat_coeff_access<double>();
 
-    // Integration with other Eigen operations
-    CALL_SUBTEST_10(test_concat_in_expressions<float>());
-    CALL_SUBTEST_10(test_concat_in_expressions<double>());
+    test_concat_in_expressions<float>();
+    test_concat_in_expressions<double>();
 
-    // Single row/column edge cases
-    CALL_SUBTEST_11(test_concat_single_row_col<float>());
-    CALL_SUBTEST_11(test_concat_single_row_col<double>());
+    test_concat_single_row_col<float>();
+    test_concat_single_row_col<double>();
 
-    // RowMajor matrices
-    CALL_SUBTEST_12(test_concat_row_major<float>());
-    CALL_SUBTEST_12(test_concat_row_major<double>());
+    test_concat_row_major<float>();
+    test_concat_row_major<double>();
 
-    // Self-concatenation and aliasing
-    CALL_SUBTEST_13(test_concat_self<float>());
-    CALL_SUBTEST_13(test_concat_self<double>());
+    test_concat_self<float>();
+    test_concat_self<double>();
 
-    // Runtime assertion for mismatched dimensions
-    CALL_SUBTEST_14(test_concat_mismatched_dimensions<float>());
-    CALL_SUBTEST_14(test_concat_mismatched_dimensions<double>());
+    test_concat_mismatched_dimensions<float>();
+    test_concat_mismatched_dimensions<double>();
 
-    // Packet segment tail path (AVX/AVX-512 has_packet_segment)
-    CALL_SUBTEST_15(test_concat_packet_segment<float>());
-    CALL_SUBTEST_15(test_concat_packet_segment<double>());
+    test_concat_packet_segment<float>();
+    test_concat_packet_segment<double>();
   }
 }

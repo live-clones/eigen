@@ -35,9 +35,74 @@ void test_sparselu_T() {
   check_sparse_square_determinant(sparselu_amd);
 }
 
+template <typename T>
+void test_sparselu_rowmajor_compressed_input() {
+  typedef SparseMatrix<T, RowMajor> RowMajorSparseMatrix;
+  typedef Matrix<T, Dynamic, 1> Vector;
+
+  Vector b(2);
+  b << T(1.1), T(3.14);
+
+  Vector expected(2);
+  expected << T(1.1 - 0.0001 * 3.14), T(3.14);
+
+  RowMajorSparseMatrix compressed(2, 2);
+  compressed.insert(0, 0) = T(1.0);
+  compressed.insert(0, 1) = T(0.0001);
+  compressed.insert(1, 1) = T(1.0);
+  compressed.makeCompressed();
+
+  RowMajorSparseMatrix uncompressed(2, 2);
+  uncompressed.insert(0, 0) = T(1.0);
+  uncompressed.insert(0, 1) = T(0.0001);
+  uncompressed.insert(1, 1) = T(1.0);
+
+  SparseLU<RowMajorSparseMatrix> compressed_solver;
+  compressed_solver.compute(compressed);
+  VERIFY_IS_EQUAL(compressed_solver.info(), Success);
+  VERIFY_IS_APPROX(compressed_solver.solve(b), expected);
+
+  SparseLU<RowMajorSparseMatrix> two_step_solver;
+  two_step_solver.analyzePattern(compressed);
+  two_step_solver.factorize(compressed);
+  VERIFY_IS_EQUAL(two_step_solver.info(), Success);
+  VERIFY_IS_APPROX(two_step_solver.solve(b), expected);
+
+  SparseLU<RowMajorSparseMatrix> uncompressed_solver;
+  uncompressed_solver.compute(uncompressed);
+  VERIFY_IS_EQUAL(uncompressed_solver.info(), Success);
+  VERIFY_IS_APPROX(uncompressed_solver.solve(b), expected);
+}
+
+template <typename T>
+void test_sparselu_colmajor_uncompressed_input() {
+  typedef SparseMatrix<T, ColMajor> ColMajorSparseMatrix;
+  typedef Matrix<T, Dynamic, 1> Vector;
+
+  Vector b(2);
+  b << T(1.1), T(3.14);
+
+  Vector expected(2);
+  expected << T(1.1 - 0.0001 * 3.14), T(3.14);
+
+  ColMajorSparseMatrix uncompressed(2, 2);
+  uncompressed.insert(0, 0) = T(1.0);
+  uncompressed.insert(0, 1) = T(0.0001);
+  uncompressed.insert(1, 1) = T(1.0);
+
+  SparseLU<ColMajorSparseMatrix> uncompressed_solver;
+  uncompressed_solver.compute(uncompressed);
+  VERIFY_IS_EQUAL(uncompressed_solver.info(), Success);
+  VERIFY_IS_APPROX(uncompressed_solver.solve(b), expected);
+}
+
 TEST(SparseluTest, Basic) {
   test_sparselu_T<float>();
   test_sparselu_T<double>();
   test_sparselu_T<std::complex<float> >();
   test_sparselu_T<std::complex<double> >();
+  test_sparselu_rowmajor_compressed_input<float>();
+  test_sparselu_rowmajor_compressed_input<double>();
+  test_sparselu_colmajor_uncompressed_input<float>();
+  test_sparselu_colmajor_uncompressed_input<double>();
 }

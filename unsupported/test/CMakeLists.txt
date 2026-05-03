@@ -38,3 +38,11 @@ add_subdirectory(LevenbergMarquardt)
 add_subdirectory(KroneckerProduct)
 add_subdirectory(SpecialFunctions)
 add_subdirectory(Tensor)
+
+# unsupported/Eigen/GPU module: host-side dispatch to CUDA libraries
+# (cuBLAS / cuSOLVER / DeviceMatrix). Tests are plain .cpp by design and
+# only require the CUDA runtime / SDK at link time, not NVCC for compile.
+# CUDA_FOUND is set by the find_package(CUDA ...) call inside Tensor/.
+if(CUDA_FOUND AND EIGEN_TEST_CUDA)
+  add_subdirectory(GPU)
+endif()

@@ -133,6 +133,7 @@ void test_sparseqr_scalar() {
   dQ = solver.matrixQ();
   VERIFY_IS_APPROX(Q, dQ);
 }
+
 void test_sparseqr_factorize_uncompressed_input() {
   typedef SparseMatrix<double, ColMajor> MatrixType;
   typedef VectorXd Vector;
@@ -301,11 +302,11 @@ TEST(SparseqrTest, Basic) {
     test_sparseqr_scalar<double>();
     test_sparseqr_scalar<std::complex<double> >();
   }
-  CALL_SUBTEST_3(test_sparseqr_factorize_uncompressed_input());
-  CALL_SUBTEST_4(test_sparseqr_lookahead_rejects_replaceable_weak_pivot());
-  CALL_SUBTEST_5(test_sparseqr_tiny_independent_column());
-  CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead());
-  CALL_SUBTEST_7(test_sparseqr_lookahead_preserves_needed_weak_direction());
-  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::half>(400));
-  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::bfloat16>(64));
+  test_sparseqr_factorize_uncompressed_input();
+  test_sparseqr_lookahead_rejects_replaceable_weak_pivot();
+  test_sparseqr_tiny_independent_column();
+  test_sparseqr_explicit_threshold_disables_lookahead();
+  test_sparseqr_lookahead_preserves_needed_weak_direction();
+  test_sparseqr_16bit_default_threshold<Eigen::half>(400);
+  test_sparseqr_16bit_default_threshold<Eigen::bfloat16>(64);
 }

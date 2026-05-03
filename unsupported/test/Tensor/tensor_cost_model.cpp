@@ -47,8 +47,8 @@ static void test_nullary_zero_bytes_loaded() {
   }
 }
 
-EIGEN_DECLARE_TEST(tensor_cost_model) {
-  CALL_SUBTEST(test_nullary_zero_bytes_loaded<float>());
-  CALL_SUBTEST(test_nullary_zero_bytes_loaded<double>());
-  CALL_SUBTEST(test_nullary_zero_bytes_loaded<int>());
+TEST(TensorCostModelTest, Basic) {
+  test_nullary_zero_bytes_loaded<float>();
+  test_nullary_zero_bytes_loaded<double>();
+  test_nullary_zero_bytes_loaded<int>();
 }
