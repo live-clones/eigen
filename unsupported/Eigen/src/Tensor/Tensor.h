@@ -89,7 +89,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
 
   template <typename CustomIndices>
   struct isOfNormalIndex {
-    static constexpr bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
+    static constexpr bool is_array = std::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
     static constexpr bool is_int = NumTraits<CustomIndices>::IsInteger;
     static constexpr bool value = is_array | is_int;
   };
