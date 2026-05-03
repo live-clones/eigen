@@ -38,7 +38,7 @@ class PartialReduxExpr;
 namespace internal {
 
 template <typename MatrixType, typename MemberOp, int Direction>
-struct traits<PartialReduxExpr<MatrixType, MemberOp, Direction> > : traits<MatrixType> {
+struct traits<PartialReduxExpr<MatrixType, MemberOp, Direction>> : traits<MatrixType> {
   typedef typename MemberOp::result_type Scalar;
   typedef typename traits<MatrixType>::StorageKind StorageKind;
   typedef typename traits<MatrixType>::XprKind XprKind;
@@ -55,7 +55,7 @@ struct traits<PartialReduxExpr<MatrixType, MemberOp, Direction> > : traits<Matri
 }  // namespace internal
 
 template <typename MatrixType, typename MemberOp, int Direction>
-class PartialReduxExpr : public internal::dense_xpr_base<PartialReduxExpr<MatrixType, MemberOp, Direction> >::type,
+class PartialReduxExpr : public internal::dense_xpr_base<PartialReduxExpr<MatrixType, MemberOp, Direction>>::type,
                          internal::no_assignment_operator {
  public:
   typedef typename internal::dense_xpr_base<PartialReduxExpr>::type Base;
@@ -103,7 +103,7 @@ namespace internal {
 EIGEN_MEMBER_FUNCTOR(norm, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost);
 EIGEN_MEMBER_FUNCTOR(stableNorm, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost);
 EIGEN_MEMBER_FUNCTOR(blueNorm, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost);
-EIGEN_MEMBER_FUNCTOR(hypotNorm, (Size - 1) * functor_traits<scalar_hypot_op<Scalar> >::Cost);
+EIGEN_MEMBER_FUNCTOR(hypotNorm, (Size - 1) * functor_traits<scalar_hypot_op<Scalar>>::Cost);
 EIGEN_MEMBER_FUNCTOR(all, (Size - 1) * NumTraits<Scalar>::AddCost);
 EIGEN_MEMBER_FUNCTOR(any, (Size - 1) * NumTraits<Scalar>::AddCost);
 EIGEN_MEMBER_FUNCTOR(count, (Size - 1) * NumTraits<Scalar>::AddCost);
@@ -694,7 +694,7 @@ class VectorwiseOp {
   typedef CwiseBinaryOp<internal::scalar_quotient_op<typename internal::traits<ExpressionType>::Scalar>,
                         const HNormalized_Block,
                         const Replicate<HNormalized_Factors, Direction == Vertical ? HNormalized_SizeMinusOne : 1,
-                                        Direction == Horizontal ? HNormalized_SizeMinusOne : 1> >
+                                        Direction == Horizontal ? HNormalized_SizeMinusOne : 1>>
       HNormalizedReturnType;
 
   EIGEN_DEVICE_FUNC const HNormalizedReturnType hnormalized() const;
