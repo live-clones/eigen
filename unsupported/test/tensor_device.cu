@@ -196,7 +196,9 @@ void test_device_memory(const TensorDevice& device) {
   device.memset(device_data, byte_value, count * sizeof(DataType));
   device.memcpyDeviceToHost(host.data(), device_data, count * sizeof(DataType));
   synchronize(device);
-  memset(expected.data(), byte_value, count * sizeof(DataType));
+  // Cast to void* so the byte-level fill is not diagnosed as writing to a
+  // non-trivial type for scalars like OffByOneScalar.
+  memset(static_cast<void*>(expected.data()), byte_value, count * sizeof(DataType));
   for (Index i = 0; i < count; i++) {
     VERIFY_IS_EQUAL(host(i), expected(i));
   }
