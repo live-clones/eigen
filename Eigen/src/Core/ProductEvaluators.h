@@ -1152,10 +1152,16 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
   // off-triangle. Strip the scalar factor with blas_traits and re-fold it into
   // the kernel's alpha so the same scalar multiplies every output entry.
   using LhsBlasTraits = blas_traits<typename Lhs::MatrixType>;
-  using ActualLhsMatrixType = remove_all_t<typename LhsBlasTraits::ExtractType>;
+  using ActualLhsMatrix = decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>())
+                                       .template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>());
+  using ActualLhsMatrixType = remove_all_t<ActualLhsMatrix>;
   typedef selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType,
                                             typename Rhs::DiagonalVectorType>
       Kernel;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualLhsMatrix actualLhsMatrix(const typename Lhs::MatrixType& matrix) {
+    return LhsBlasTraits::extract(matrix).template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>();
+  }
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
@@ -1163,10 +1169,10 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
       // Folded scalar factor present: zero dst then accumulate at the extracted alpha.
       Scalar factor = LhsBlasTraits::extractScalarFactor(lhs.nestedExpression());
       dst.setZero();
-      Kernel::run(dst, LhsBlasTraits::extract(lhs.nestedExpression()), rhs.diagonal(), factor);
+      Kernel::run(dst, actualLhsMatrix(lhs.nestedExpression()), rhs.diagonal(), factor);
     } else {
       // No scalar factor: kernel writes every entry exactly once, skip setZero.
-      Kernel::runOverwrite(dst, LhsBlasTraits::extract(lhs.nestedExpression()), rhs.diagonal());
+      Kernel::runOverwrite(dst, actualLhsMatrix(lhs.nestedExpression()), rhs.diagonal());
     }
   }
 
@@ -1174,7 +1180,7 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
                                                                   const Scalar& alpha) {
     Scalar combinedAlpha = alpha * LhsBlasTraits::extractScalarFactor(lhs.nestedExpression());
-    Kernel::run(dst, LhsBlasTraits::extract(lhs.nestedExpression()), rhs.diagonal(), combinedAlpha);
+    Kernel::run(dst, actualLhsMatrix(lhs.nestedExpression()), rhs.diagonal(), combinedAlpha);
   }
 };
 
@@ -1185,18 +1191,24 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
   // See note on the SelfAdjointShape, DiagonalShape specialization above for why
   // we extract the scalar factor with blas_traits.
   using RhsBlasTraits = blas_traits<typename Rhs::MatrixType>;
-  using ActualRhsMatrixType = remove_all_t<typename RhsBlasTraits::ExtractType>;
+  using ActualRhsMatrix = decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>())
+                                       .template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>());
+  using ActualRhsMatrixType = remove_all_t<ActualRhsMatrix>;
   typedef selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>
       Kernel;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualRhsMatrix actualRhsMatrix(const typename Rhs::MatrixType& matrix) {
+    return RhsBlasTraits::extract(matrix).template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>();
+  }
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     if (RhsBlasTraits::HasScalarFactor) {
       Scalar factor = RhsBlasTraits::extractScalarFactor(rhs.nestedExpression());
       dst.setZero();
-      Kernel::run(dst, RhsBlasTraits::extract(rhs.nestedExpression()), lhs.diagonal(), factor);
+      Kernel::run(dst, actualRhsMatrix(rhs.nestedExpression()), lhs.diagonal(), factor);
     } else {
-      Kernel::runOverwrite(dst, RhsBlasTraits::extract(rhs.nestedExpression()), lhs.diagonal());
+      Kernel::runOverwrite(dst, actualRhsMatrix(rhs.nestedExpression()), lhs.diagonal());
     }
   }
 
@@ -1204,7 +1216,7 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
                                                                   const Scalar& alpha) {
     Scalar combinedAlpha = alpha * RhsBlasTraits::extractScalarFactor(rhs.nestedExpression());
-    Kernel::run(dst, RhsBlasTraits::extract(rhs.nestedExpression()), lhs.diagonal(), combinedAlpha);
+    Kernel::run(dst, actualRhsMatrix(rhs.nestedExpression()), lhs.diagonal(), combinedAlpha);
   }
 };
 

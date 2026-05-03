@@ -410,6 +410,28 @@ void selfadjoint_diagonal_products_at(Index n) {
   dst = MatType::Constant(n, n, Scalar(-3));
   dst.noalias() = alpha * (d.asDiagonal() * m.template selfadjointView<Upper>());
   VERIFY_IS_APPROX(dst, alpha * (d.asDiagonal() * ref_upper));
+
+  // Conjugated nested expressions go through the same blas_traits extraction
+  // path. The extracted matrix must keep NeedToConjugate, otherwise the kernel
+  // computes with m instead of m.conjugate().
+  MatType conj_ref_lower = m.conjugate().template selfadjointView<Lower>();
+  MatType conj_ref_upper = m.conjugate().template selfadjointView<Upper>();
+
+  dst = MatType::Constant(n, n, Scalar(23));
+  dst.noalias() = m.conjugate().template selfadjointView<Upper>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, conj_ref_upper * d.asDiagonal());
+
+  dst = MatType::Constant(n, n, Scalar(-29));
+  dst.noalias() = d.asDiagonal() * m.conjugate().template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(dst, d.asDiagonal() * conj_ref_lower);
+
+  dst = base;
+  dst.noalias() += alpha * (m.conjugate().template selfadjointView<Lower>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, base + alpha * (conj_ref_lower * d.asDiagonal()));
+
+  dst = base;
+  dst.noalias() -= alpha * (d.asDiagonal() * m.conjugate().template selfadjointView<Upper>());
+  VERIFY_IS_APPROX(dst, base - alpha * (d.asDiagonal() * conj_ref_upper));
 }
 
 template <int>
