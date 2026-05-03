@@ -1,4 +1,6 @@
 // Benchmarks for Eigen Tensor convolution (1D and 2D).
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 

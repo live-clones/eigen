@@ -1,5 +1,7 @@
 // Benchmarks for Eigen Tensor reductions (sum, maximum, mean).
 // Tests full and partial reductions, inner vs outer dimension, DefaultDevice and ThreadPoolDevice.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 

@@ -4,6 +4,8 @@
 # pipelines, with separate jobs per ISA target.  Results are analyzed
 # using Welch's t-test against the last 30 runs stored on the perf-data
 # branch.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 
 # ============================================================================
 # Variables

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 eigen_add_benchmark(bench_contraction bench_contraction.cpp)
 eigen_add_benchmark(bench_convolution bench_convolution.cpp)
 eigen_add_benchmark(bench_reduction bench_reduction.cpp)

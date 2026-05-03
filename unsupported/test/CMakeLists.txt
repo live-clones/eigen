@@ -1,5 +1,7 @@
 # The file split_test_helper.h was generated at first run,
 # it is now included in test/
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
   file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
 endif()

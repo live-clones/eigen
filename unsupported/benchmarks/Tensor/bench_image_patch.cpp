@@ -1,4 +1,6 @@
 // Benchmarks for Eigen TensorImagePatch extraction.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 

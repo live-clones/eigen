@@ -1,4 +1,6 @@
 # Base configuration for linux builds and tests.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 .common:linux:cross:
   image: ubuntu:24.04
   variables:

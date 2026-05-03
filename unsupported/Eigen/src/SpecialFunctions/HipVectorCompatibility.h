@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
 #ifndef HIP_VECTOR_COMPATIBILITY_H
 #define HIP_VECTOR_COMPATIBILITY_H
 

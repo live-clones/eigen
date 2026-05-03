@@ -1,6 +1,8 @@
 // Benchmarks for special functions beyond what bench_cwise_math.cpp covers.
 // Includes Bessel functions, two-argument functions (igamma, betainc),
 // and additional functions (lgamma, digamma, zeta, polygamma).
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
