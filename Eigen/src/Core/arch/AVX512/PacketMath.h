@@ -94,27 +94,17 @@ EIGEN_STRONG_INLINE void _eigen_mm_storeu_epi32(void* to, const __m128i& from) {
 }
 
 template <>
-struct is_arithmetic<__m512> {
-  enum { value = true };
-};
+struct is_arithmetic<__m512> : std::true_type {};
 template <>
-struct is_arithmetic<__m512i> {
-  enum { value = true };
-};
+struct is_arithmetic<__m512i> : std::true_type {};
 template <>
-struct is_arithmetic<__m512d> {
-  enum { value = true };
-};
+struct is_arithmetic<__m512d> : std::true_type {};
 template <>
-struct is_arithmetic<Packet8l> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet8l> : std::true_type {};
 
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
-struct is_arithmetic<Packet16h> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet16h> : std::true_type {};
 
 template <>
 struct packet_traits<half> : default_packet_traits {
@@ -2558,9 +2548,7 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16h, 4>& kernel) {
 #endif  // EIGEN_VECTORIZE_AVX512FP16
 
 template <>
-struct is_arithmetic<Packet16bf> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet16bf> : std::true_type {};
 
 template <>
 struct packet_traits<bfloat16> : default_packet_traits {

@@ -50,50 +50,32 @@ typedef eigen_packet_wrapper<__m256i, 5> Packet4ul;
 #define SIGN_MASK_I64 static_cast<int64_t>(0x8000000000000000ULL)
 
 template <>
-struct is_arithmetic<__m256> {
-  enum { value = true };
-};
+struct is_arithmetic<__m256> : std::true_type {};
 template <>
-struct is_arithmetic<__m256i> {
-  enum { value = true };
-};
+struct is_arithmetic<__m256i> : std::true_type {};
 template <>
-struct is_arithmetic<__m256d> {
-  enum { value = true };
-};
+struct is_arithmetic<__m256d> : std::true_type {};
 template <>
-struct is_arithmetic<Packet8i> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet8i> : std::true_type {};
 // Note that `Packet8ui` uses the underlying type `__m256i`, which is
 // interpreted as a vector of _signed_ `int32`s, which breaks some arithmetic
 // operations used in `GenericPacketMath.h`.
 template <>
-struct is_arithmetic<Packet8ui> {
-  enum { value = false };
-};
+struct is_arithmetic<Packet8ui> : std::false_type {};
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
-struct is_arithmetic<Packet8h> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet8h> : std::true_type {};
 #endif
 template <>
-struct is_arithmetic<Packet8bf> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet8bf> : std::true_type {};
 #ifdef EIGEN_VECTORIZE_AVX2
 template <>
-struct is_arithmetic<Packet4l> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet4l> : std::true_type {};
 // Note that `Packet4ul` uses the underlying type `__m256i`, which is
 // interpreted as a vector of _signed_ `int32`s, which breaks some arithmetic
 // operations used in `GenericPacketMath.h`.
 template <>
-struct is_arithmetic<Packet4ul> {
-  enum { value = false };
-};
+struct is_arithmetic<Packet4ul> : std::false_type {};
 #endif
 
 // Use the packet_traits defined in AVX512/PacketMath.h instead if we're going
@@ -303,13 +285,9 @@ struct packet_traits<uint64_t> : default_packet_traits {
 #endif
 
 template <>
-struct scalar_div_cost<float, true> {
-  enum { value = 14 };
-};
+struct scalar_div_cost<float, true> : std::integral_constant<int, 14> {};
 template <>
-struct scalar_div_cost<double, true> {
-  enum { value = 16 };
-};
+struct scalar_div_cost<double, true> : std::integral_constant<int, 16> {};
 
 template <>
 struct unpacket_traits<Packet8f> {

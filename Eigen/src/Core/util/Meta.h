@@ -140,15 +140,11 @@ using remove_all_t = typename remove_all<T>::type;
 // for SIMD packet types and other Eigen-specific types. The primary template
 // delegates to std::is_arithmetic for fundamental types.
 template <typename T>
-struct is_arithmetic {
-  enum { value = std::is_arithmetic<T>::value };
-};
+struct is_arithmetic : std::is_arithmetic<T> {};
 // GPU devices treat `long double` as `double`.
 #ifdef EIGEN_GPU_COMPILE_PHASE
 template <>
-struct is_arithmetic<long double> {
-  enum { value = false };
-};
+struct is_arithmetic<long double> : std::false_type {};
 #endif
 
 /** \internal

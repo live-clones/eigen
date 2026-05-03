@@ -4631,9 +4631,7 @@ EIGEN_STRONG_INLINE Packet2f pdiv<Packet2f>(const Packet2f& a, const Packet2f& b
 typedef eigen_packet_wrapper<uint16x4_t, 19> Packet4bf;
 
 template <>
-struct is_arithmetic<Packet4bf> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet4bf> : std::true_type {};
 
 template <>
 struct packet_traits<bfloat16> : default_packet_traits {
