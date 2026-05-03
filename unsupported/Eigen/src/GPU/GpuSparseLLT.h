@@ -21,7 +21,7 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
-#include "./SparseSolverBase.h"
+#include "./GpuSparseSolverBase.h"
 
 namespace Eigen {
 namespace gpu {
