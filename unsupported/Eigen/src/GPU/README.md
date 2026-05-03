@@ -399,11 +399,21 @@ MatrixXd result = x.toHost();
 
 ### Precision control
 
-GEMM dispatch uses `cublasXgemm` (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
-cuBLAS may internally use tensor cores depending on the GPU architecture,
-matrix dimensions, and CUDA math mode settings. No Eigen-specific macros
-control this; use the standard `CUDA_MATH_MODE` environment variable or
-`cublasSetMathMode()` to configure tensor core behavior if needed.
+GEMM dispatch routes through `cublasLtMatmul`. The compute type is selected
+per scalar via the `cuda_compute_type` trait in `CuBlasSupport.h`, gated by
+two compile-time macros:
+
+| Macro | Effect |
+|---|---|
+| (default) | `CUBLAS_COMPUTE_32F` / `CUBLAS_COMPUTE_64F`. cublasLt heuristics may pick tensor-core algorithms; on `sm_80+` doubles can land on Ozaki-emulated tensor cores. |
+| `EIGEN_CUDA_TF32` | `CUBLAS_COMPUTE_32F_FAST_TF32` for `float` and `complex<float>` (~2x faster, 10-bit mantissa). No effect on `double` / `complex<double>`. |
+| `EIGEN_NO_CUDA_TENSOR_OPS` | Pedantic compute types (`CUBLAS_COMPUTE_*_PEDANTIC`) for every scalar — disables tensor-core algorithms. Use for bit-exact reproducibility. Takes precedence over `EIGEN_CUDA_TF32`. |
+
+These are independent of cuBLAS's runtime `cublasSetMathMode()` /
+`CUBLAS_TF32_OVERRIDE` controls; the cublasLt path keys off the compile-time
+compute type instead. The `cublasGemmEx` fallback (used when cublasLt's
+heuristic returns no candidate) honors `EIGEN_NO_CUDA_TENSOR_OPS` via its
+algorithm hint (`CUBLAS_GEMM_DEFAULT` vs `CUBLAS_GEMM_DEFAULT_TENSOR_OP`).
 
 ### Stream control and async execution
 
