@@ -622,19 +622,18 @@ template <unsigned int n, int lower = 0, int upper = sizeof(unsigned int) * CHAR
 struct meta_floor_log2 {};
 
 template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_down> {
-  enum { value = meta_floor_log2<n, lower, meta_floor_log2_selector<n, lower, upper>::middle>::value };
+struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_down>
+    : std::integral_constant<int, meta_floor_log2<n, lower, meta_floor_log2_selector<n, lower, upper>::middle>::value> {
 };
 
 template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_up> {
-  enum { value = meta_floor_log2<n, meta_floor_log2_selector<n, lower, upper>::middle, upper>::value };
+struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_up>
+    : std::integral_constant<int, meta_floor_log2<n, meta_floor_log2_selector<n, lower, upper>::middle, upper>::value> {
 };
 
 template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_terminate> {
-  enum { value = (n >= ((unsigned int)(1) << (lower + 1))) ? lower + 1 : lower };
-};
+struct meta_floor_log2<n, lower, upper, meta_floor_log2_terminate>
+    : std::integral_constant<int, (n >= ((unsigned int)(1) << (lower + 1))) ? lower + 1 : lower> {};
 
 template <unsigned int n, int lower, int upper>
 struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus> {

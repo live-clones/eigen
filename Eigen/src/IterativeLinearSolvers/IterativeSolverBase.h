@@ -26,9 +26,7 @@ template <typename MatrixType>
 struct is_ref_compatible_impl : decltype(is_ref_compatible_test(std::declval<MatrixType&>())) {};
 
 template <typename MatrixType>
-struct is_ref_compatible {
-  enum { value = is_ref_compatible_impl<remove_all_t<MatrixType>>::value };
-};
+struct is_ref_compatible : std::integral_constant<bool, is_ref_compatible_impl<remove_all_t<MatrixType>>::value> {};
 
 template <typename MatrixType, bool MatrixFree = !internal::is_ref_compatible<MatrixType>::value>
 class generic_matrix_wrapper;

@@ -46,17 +46,11 @@ struct nested<TensorBroadcastingOp<Broadcast, XprType>, 1,
 };
 
 template <typename Dims>
-struct is_input_scalar {
-  static constexpr bool value = false;
-};
+struct is_input_scalar : std::false_type {};
 template <>
-struct is_input_scalar<Sizes<>> {
-  static constexpr bool value = true;
-};
+struct is_input_scalar<Sizes<>> : std::true_type {};
 template <typename std::ptrdiff_t... Indices>
-struct is_input_scalar<Sizes<Indices...>> {
-  static constexpr bool value = (Sizes<Indices...>::total_size == 1);
-};
+struct is_input_scalar<Sizes<Indices...>> : std::integral_constant<bool, Sizes<Indices...>::total_size == 1> {};
 
 }  // end namespace internal
 
