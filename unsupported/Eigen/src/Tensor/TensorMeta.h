@@ -268,24 +268,6 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE array<Index, NumIndices> customI
   return customIndices2Array(idx, std::make_integer_sequence<Index, NumIndices>{});
 }
 
-template <typename B, typename D>
-struct is_base_of {
-  typedef char (&yes)[1];
-  typedef char (&no)[2];
-
-  template <typename BB, typename DD>
-  struct Host {
-    operator BB*() const;
-    operator DD*();
-  };
-
-  template <typename T>
-  static yes check(D*, T);
-  static no check(B*, int);
-
-  static constexpr bool value = sizeof(check(Host<B, D>(), int())) == sizeof(yes);
-};
-
 }  // namespace internal
 
 }  // namespace Eigen
