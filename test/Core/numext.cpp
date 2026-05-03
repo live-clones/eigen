@@ -224,7 +224,7 @@ struct check_sqrt_impl {
 };
 
 template <typename T>
-struct check_sqrt_impl<std::complex<T> > {
+struct check_sqrt_impl<std::complex<T>> {
   static void run() {
     typedef typename std::complex<T> ComplexT;
 
@@ -292,7 +292,7 @@ struct check_rsqrt_impl {
 };
 
 template <typename T>
-struct check_rsqrt_impl<std::complex<T> > {
+struct check_rsqrt_impl<std::complex<T>> {
   static void run() {
     typedef typename std::complex<T> ComplexT;
     const T zero = T(0);
@@ -431,8 +431,8 @@ TEST(NumextTest, NegateFloat) {
     check_negate<float>();
     check_negate<double>();
     check_negate<long double>();
-    check_negate<std::complex<float> >();
-    check_negate<std::complex<double> >();
+    check_negate<std::complex<float>>();
+    check_negate<std::complex<double>>();
   }
 }
 
@@ -457,25 +457,25 @@ TEST(NumextTest, AbsFloat) {
     check_abs<float>();
     check_abs<double>();
     check_abs<long double>();
-    check_abs<std::complex<float> >();
-    check_abs<std::complex<double> >();
+    check_abs<std::complex<float>>();
+    check_abs<std::complex<double>>();
   }
 }
 
 TEST(NumextTest, SqrtRsqrtArg) {
   for (int k = 0; k < g_repeat; ++k) {
-    check_arg<std::complex<float> >();
-    check_arg<std::complex<double> >();
+    check_arg<std::complex<float>>();
+    check_arg<std::complex<double>>();
 
     check_sqrt<float>();
     check_sqrt<double>();
-    check_sqrt<std::complex<float> >();
-    check_sqrt<std::complex<double> >();
+    check_sqrt<std::complex<float>>();
+    check_sqrt<std::complex<double>>();
 
     check_rsqrt<float>();
     check_rsqrt<double>();
-    check_rsqrt<std::complex<float> >();
-    check_rsqrt<std::complex<double> >();
+    check_rsqrt<std::complex<float>>();
+    check_rsqrt<std::complex<double>>();
   }
 }
 

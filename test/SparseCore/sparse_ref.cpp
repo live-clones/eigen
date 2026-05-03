@@ -93,14 +93,14 @@ auto innerpanel(T &xpr, Index start, Index size)
 }
 
 template <typename T>
-auto innerpanel(T &xpr, Index start, Index size)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(xpr.middleCols(start, size))> {
+auto innerpanel(T &xpr, Index start,
+                Index size) -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(xpr.middleCols(start, size))> {
   return xpr.middleCols(start, size);
 }
 
 template <typename T>
-auto innervector(T &xpr, Index index)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, decltype(xpr.row(index))> {
+auto innervector(T &xpr,
+                 Index index) -> std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, decltype(xpr.row(index))> {
   return xpr.row(index);
 }
 
