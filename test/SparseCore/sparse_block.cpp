@@ -34,8 +34,8 @@ auto innerpanel(T& A, Index start, Index size)
 }
 
 template <typename T>
-auto innerpanel(T& A, Index start, Index size)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(A.middleCols(start, size))> {
+auto innerpanel(T& A, Index start,
+                Index size) -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(A.middleCols(start, size))> {
   return A.middleCols(start, size);
 }
 
