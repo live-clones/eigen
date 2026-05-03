@@ -80,8 +80,7 @@ static void test_larg_expr1D(const Eigen::SyclDevice& sycl_device) {
       for (IndexType k = 0; k < outdim2; k++) {
         if (!(Eigen::internal::isApprox(result(i, j, k), result_host(i, j, k), error_threshold))) {
           std::cout << std::setprecision(16) << "mismatch detected at index  ( " << i << " , " << j << ", " << k
-                    << " ) "
-                    << " \t " << result(i, j, k) << " vs " << result_host(i, j, k) << std::endl;
+                    << " ) " << " \t " << result(i, j, k) << " vs " << result_host(i, j, k) << std::endl;
           assert(false);
         }
       }
@@ -140,8 +139,7 @@ static void test_larg_expr2D(const Eigen::SyclDevice& sycl_device) {
       for (IndexType k = 0; k < outdim2; k++) {
         if (!(Eigen::internal::isApprox(result(i, j, k), result_host(i, j, k), error_threshold))) {
           std::cout << std::setprecision(16) << "mismatch detected at index  ( " << i << " , " << j << ", " << k
-                    << " ) "
-                    << " \t " << result(i, j, k) << " vs " << result_host(i, j, k) << std::endl;
+                    << " ) " << " \t " << result(i, j, k) << " vs " << result_host(i, j, k) << std::endl;
           assert(false);
         }
       }
@@ -200,8 +198,7 @@ static void test_larg_expr3D(const Eigen::SyclDevice& sycl_device) {
       for (IndexType k = 0; k < outdim2; k++) {
         if (!(Eigen::internal::isApprox(result(i, j, k), result_host(i, j, k), error_threshold))) {
           std::cout << std::setprecision(16) << "mismatch detected at index  ( " << i << " , " << j << ", " << k
-                    << " ) "
-                    << " \t " << result(i, j, k) << " vs " << result_host(i, j, k) << std::endl;
+                    << " ) " << " \t " << result(i, j, k) << " vs " << result_host(i, j, k) << std::endl;
           assert(false);
         }
       }

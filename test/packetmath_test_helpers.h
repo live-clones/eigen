@@ -1643,7 +1643,7 @@ struct exp_complex_test_impl {
 template <typename Scalar, typename Packet>
 struct exp_complex_test_impl<Scalar, Packet, false> {
   typedef typename Scalar::value_type RealScalar;
-  static void run(Scalar*, Scalar*, Scalar*, int){};
+  static void run(Scalar*, Scalar*, Scalar*, int) {};
 };
 
 template <typename Scalar, typename Packet>
