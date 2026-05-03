@@ -10,6 +10,8 @@
 # For header files under Eigen/src/<Module>/, the script generates a minimal
 # driver .cpp that includes the parent module header so that
 # InternalHeaderCheck.h does not #error out.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 
 set -euo pipefail
 

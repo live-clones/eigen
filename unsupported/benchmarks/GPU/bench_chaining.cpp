@@ -9,6 +9,8 @@
 // Host round-trip creates visible idle gaps; chaining should show back-to-back kernels.
 //
 //   nsys profile --trace=cuda,nvtx ./bench_chaining
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 

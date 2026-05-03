@@ -1,4 +1,6 @@
 // Benchmarks for Kronecker product (dense and sparse).
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>

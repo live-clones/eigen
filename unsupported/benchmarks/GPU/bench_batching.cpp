@@ -13,6 +13,8 @@
 // different streams in the timeline view.
 //
 //   nsys profile --trace=cuda ./bench_batching
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 

@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 // Tests for cuBLAS GEMM dispatch via DeviceMatrix expression syntax.
 // Covers: d_C = d_A * d_B, adjoint, transpose, scaled, +=, .device(ctx).

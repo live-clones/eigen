@@ -9,6 +9,8 @@
 # Profiling:
 #   nsys profile --trace=cuda ./build-bench-gpu/bench_solvers
 #   ncu --set full -o profile ./build-bench-gpu/bench_solvers --benchmark_filter=BM_GpuLLT_Compute/4096
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 
 cmake_minimum_required(VERSION 3.17)
 project(EigenGpuBenchmarks CXX)

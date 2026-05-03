@@ -6,6 +6,8 @@
 // Covers Level 1, 2, and 3 routines — with emphasis on the routines that
 // were recently rewritten from f2c to C++: rotm, rotmg, spmv, sbmv, hbmv,
 // hpmv, tbmv, lsame, and complex dot products.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 

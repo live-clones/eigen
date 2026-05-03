@@ -3,6 +3,8 @@
 // Tests makeHouseholder, makeHouseholderInPlace, applyHouseholderOnTheLeft,
 // applyHouseholderOnTheRight, HouseholderSequence evaluation, and block
 // Householder operations.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Householder>

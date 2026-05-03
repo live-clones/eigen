@@ -12,6 +12,8 @@
 //
 // Build:
 //   cd build && cmake .. && make ulp_accuracy
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <Eigen/Core>
 #include <unsupported/Eigen/SpecialFunctions>

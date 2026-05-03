@@ -18,6 +18,8 @@
 //   GemvTrans  y += A^T * x         -> RowMajor kernel, no conjugation
 //   GemvConj   y += conj(A) * x     -> ColMajor kernel, ConjugateLhs=true
 //   GemvAdj    y += A^H * x         -> RowMajor kernel, ConjugateLhs=true
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>

@@ -1,5 +1,7 @@
 // Benchmarks for Eigen Tensor contraction (generalized GEMM).
 // Tests single-threaded (DefaultDevice) and multi-threaded (ThreadPoolDevice) variants.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 

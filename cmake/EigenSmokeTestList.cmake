@@ -1,6 +1,8 @@
 # List of tests that will be build and run during Eigen's smoke testing. If one
 # of these tests doesn't exists or cannot be build with the current configuration
 # it will just be skipped.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 set(ei_smoke_test_list
   adjoint_1
   alignedvector3

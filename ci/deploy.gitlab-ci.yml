@@ -1,4 +1,6 @@
  # Push a nightly tag if the pipeline succeeded.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 deploy:tag:nightly:
   stage: deploy
   image: alpine:edge

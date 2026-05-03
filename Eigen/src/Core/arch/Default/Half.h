@@ -23,6 +23,7 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// SPDX-License-Identifier: MPL-2.0
 
 // Standard 16-bit float type, mostly useful for GPUs. Defines a new
 // type Eigen::half (inheriting either from CUDA's or HIP's __half struct) with
