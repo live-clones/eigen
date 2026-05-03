@@ -216,7 +216,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4Xl pcast<Packet1Xl, Packet4Xl>(const Packet1Xl& a, const Packet1Xl& b, const Packet1Xl& c,
                                                           const Packet1Xl& d) {
   return __riscv_vcreate_v_i64m1_i64m4(a, b, c, d);
-  ;
 }
 
 template <>
