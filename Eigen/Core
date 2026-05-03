@@ -49,7 +49,6 @@
 #include "src/Core/util/MKL_support.h"
 #include "src/Core/util/AOCL_Support.h"
 
-
 // EIGEN_HAS_GPU_FP16 is now always true when compiling with CUDA or HIP.
 // Use EIGEN_GPUCC (compile-time) or EIGEN_GPU_COMPILE_PHASE (device phase) instead.
 // TODO: Remove EIGEN_HAS_GPU_BF16 similarly once HIP bf16 guards are cleaned up.
@@ -152,8 +151,8 @@
 
 namespace Eigen {
 
-using std::size_t;
 using std::ptrdiff_t;
+using std::size_t;
 
 }  // namespace Eigen
 

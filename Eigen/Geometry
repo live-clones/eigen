@@ -23,7 +23,8 @@
  *  - \link Quaternion quaternions \endlink
  *  - cross products (\ref MatrixBase::cross(), \ref MatrixBase::cross3())
  *  - orthogonal vector generation (MatrixBase::unitOrthogonal)
- *  - some linear components: \link ParametrizedLine parametrized-lines \endlink and \link Hyperplane hyperplanes \endlink
+ *  - some linear components: \link ParametrizedLine parametrized-lines \endlink and \link Hyperplane hyperplanes
+ * \endlink
  *  - \link AlignedBox axis aligned bounding boxes \endlink
  *  - \link umeyama() least-square transformation fitting \endlink
  * \code
