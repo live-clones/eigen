@@ -597,30 +597,30 @@ void shear_ground_truth() {
   }
 }
 
-EIGEN_DECLARE_TEST(geo_misc) {
+TEST(GeoMiscTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(angleaxis_edge_cases<float>());
-    CALL_SUBTEST_2(angleaxis_edge_cases<double>());
+    angleaxis_edge_cases<float>();
+    angleaxis_edge_cases<double>();
 
-    CALL_SUBTEST_3(rotation2d_standalone<float>());
-    CALL_SUBTEST_4(rotation2d_standalone<double>());
+    rotation2d_standalone<float>();
+    rotation2d_standalone<double>();
 
-    CALL_SUBTEST_5(translation_standalone<float>());
-    CALL_SUBTEST_5(translation_standalone<double>());
+    translation_standalone<float>();
+    translation_standalone<double>();
 
-    CALL_SUBTEST_6(scaling_standalone<float>());
-    CALL_SUBTEST_6(scaling_standalone<double>());
+    scaling_standalone<float>();
+    scaling_standalone<double>();
 
-    CALL_SUBTEST_7(quaternion_from_non_orthogonal_matrix<float>());
-    CALL_SUBTEST_7(quaternion_from_non_orthogonal_matrix<double>());
+    quaternion_from_non_orthogonal_matrix<float>();
+    quaternion_from_non_orthogonal_matrix<double>();
 
-    CALL_SUBTEST_8(quaternion_slerp_edge_cases<float>());
-    CALL_SUBTEST_8(quaternion_slerp_edge_cases<double>());
+    quaternion_slerp_edge_cases<float>();
+    quaternion_slerp_edge_cases<double>();
 
-    CALL_SUBTEST_9(umeyama_degenerate<float>());
-    CALL_SUBTEST_9(umeyama_degenerate<double>());
+    umeyama_degenerate<float>();
+    umeyama_degenerate<double>();
 
-    CALL_SUBTEST_10(shear_ground_truth<float>());
-    CALL_SUBTEST_10(shear_ground_truth<double>());
+    shear_ground_truth<float>();
+    shear_ground_truth<double>();
   }
 }

@@ -137,6 +137,33 @@ void test_unaryview_solve() {
   //             .solve(mat_in.unaryViewExpr([&](const auto& x){ return std::real(x); }));
 }
 
+void test_unaryview_direct_access_product() {
+  typedef Matrix<UnaryViewBox, Dynamic, Dynamic> BoxMatrix;
+
+  BoxMatrix a(4, 4), b(4, 4);
+  MatrixXd a_values(4, 4), b_values(4, 4);
+
+  for (Index j = 0; j < a.cols(); ++j) {
+    for (Index i = 0; i < a.rows(); ++i) {
+      a_values(i, j) = 1. + 0.5 * i + 0.25 * j;
+      b_values(i, j) = -0.75 + 0.125 * i - 0.5 * j;
+      a(i, j).value = a_values(i, j);
+      b(i, j).value = b_values(i, j);
+    }
+  }
+
+  CwiseUnaryView<internal::unaryview_box_ref_op, BoxMatrix> a_view(a);
+  CwiseUnaryView<internal::unaryview_box_ref_op, BoxMatrix> b_view(b);
+
+  const auto& const_a_view = a_view;
+  const auto& const_b_view = b_view;
+  VERIFY_IS_EQUAL(&const_a_view.coeffRef(0, 0), &a(0, 0).value);
+  VERIFY_IS_EQUAL(&const_b_view.coeffRef(0, 0), &b(0, 0).value);
+
+  MatrixXd actual = a_view * b_view;
+  VERIFY_IS_APPROX(actual, a_values * b_values);
+}
+
 // =============================================================================
 // Tests for unaryview
 // =============================================================================
@@ -152,3 +179,5 @@ TEST(UnaryViewTest, Stride) {
 TEST(UnaryViewTest, MutableUnaryView) { test_mutable_unaryview(); }
 
 TEST(UnaryViewTest, UnaryViewSolve) { test_unaryview_solve(); }
+
+TEST(UnaryViewTest, DirectAccessProduct) { test_unaryview_direct_access_product(); }
