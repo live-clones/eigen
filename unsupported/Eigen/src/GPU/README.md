@@ -475,6 +475,10 @@ RealVector         singularValues()                      // -> host vector (sync
 PlainMatrix        matrixU()                             // -> host Matrix (syncs, downloads)
 PlainMatrix        matrixVT()                            // -> host Matrix (syncs, downloads V^T)
 
+DeviceMatrix       d_singularValues()                    // -> DeviceMatrix view (zero-copy)
+DeviceMatrix       d_matrixU()                           // -> DeviceMatrix view (zero-copy when m >= n)
+DeviceMatrix       d_matrixVT()                          // -> DeviceMatrix view (zero-copy when m >= n)
+
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (pseudoinverse)
 PlainMatrix        solve(const MatrixBase<D>& B, Index k)       // Truncated (top k triplets)
 PlainMatrix        solve(const MatrixBase<D>& B, RealScalar l)  // Tikhonov regularized
@@ -486,8 +490,10 @@ cudaStream_t       stream()
 ```
 
 **Note:** `singularValues()`, `matrixU()`, and `matrixVT()` download to host
-on each call. Device-side accessors returning `DeviceMatrix` are planned but
-not yet implemented.
+on each call. The `d_*` accessors return non-owning `DeviceMatrix` views into
+the solver's internal buffers; the `gpu::SVD` object must outlive any view
+derived from it. For wide matrices (m < n) the U/V^T views are owning (one
+`cublasXgeam` adjoint pass).
 
 ### `gpu::SelfAdjointEigenSolver<Scalar>` -- Eigendecomposition (cuSOLVER)
 
@@ -504,14 +510,18 @@ gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, ComputeMode mode =
 RealVector         eigenvalues()                         // -> host vector (syncs, downloads, ascending order)
 PlainMatrix        eigenvectors()                        // -> host Matrix (syncs, downloads, columns)
 
+DeviceMatrix       d_eigenvalues()                       // -> DeviceMatrix view (zero-copy)
+DeviceMatrix       d_eigenvectors()                      // -> DeviceMatrix view (zero-copy, requires ComputeEigenvectors)
+
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
 ```
 
 **Note:** `eigenvalues()` and `eigenvectors()` download to host on each call.
-Device-side accessors returning `DeviceMatrix` are planned but not yet
-implemented.
+The `d_*` accessors return non-owning `DeviceMatrix` views into the solver's
+internal buffers; the `gpu::SelfAdjointEigenSolver` object must outlive any
+view derived from it.
 
 ### `HostTransfer<Scalar>`
 
@@ -655,12 +665,6 @@ ctest --test-dir build -R '^cudss_' --output-on-failure
 
 ## Future work
 
-- **Device-side accessors for decomposition results.** `gpu::SVD`,
-  `gpu::SelfAdjointEigenSolver`, and `gpu::QR` currently download decomposition
-  results to host on access (e.g., `svd.matrixU()` returns a host `MatrixXd`).
-  Device-side accessors returning `DeviceMatrix` views of the internal buffers
-  would allow chaining GPU operations (e.g., `svd.deviceU() * d_A`) without
-  round-tripping through host memory.
 - **Device-resident sparse matrix-vector products.** `gpu::SparseContext`
   currently operates on host vectors and matrices, uploading and downloading
   on each call. The key missing piece is a `DeviceSparseView` that holds a
