@@ -33,7 +33,7 @@ EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(const DSizes<IndexType, N
   if (NumDims == 0) return strides;
 
   // TODO(ezhulenev): Use templates to unroll this loop (similar to
-  // h_array_reduce in CXX11meta.h)? Benchmark it.
+  // h_array_reduce in MoreMeta.h)? Benchmark it.
   if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
     strides[0] = 1;
     for (int i = 1; i < NumDims; ++i) {
