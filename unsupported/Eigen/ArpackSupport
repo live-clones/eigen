@@ -27,7 +27,7 @@
 #include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
 
 // IWYU pragma: begin_exports
-#include "src/Eigenvalues/ArpackSelfAdjointEigenSolver.h"
+#include "src/ArpackSupport/ArpackSelfAdjointEigenSolver.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
