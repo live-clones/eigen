@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
-#define EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
+#ifndef EIGEN_TENSOR_TENSOR_EVALUATOR_H
+#define EIGEN_TENSOR_TENSOR_EVALUATOR_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -862,4 +862,4 @@ struct cl::sycl::is_device_copyable<
     std::enable_if_t<!std::is_trivially_copyable<Eigen::TensorEvaluator<Derived, Device>>::value>> : std::true_type {};
 #endif
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
+#endif  // EIGEN_TENSOR_TENSOR_EVALUATOR_H

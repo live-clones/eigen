@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_DIMENSIONS_H
-#define EIGEN_CXX11_TENSOR_TENSOR_DIMENSIONS_H
+#ifndef EIGEN_TENSOR_TENSOR_DIMENSIONS_H
+#define EIGEN_TENSOR_TENSOR_DIMENSIONS_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -335,4 +335,4 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool dimensions_match(const Dims1& dims1, 
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_DIMENSIONS_H
+#endif  // EIGEN_TENSOR_TENSOR_DIMENSIONS_H
