@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_TEST_NO_LONGDOUBLE
 #define EIGEN_TEST_NO_COMPLEX
@@ -196,7 +197,9 @@ void test_device_memory(const TensorDevice& device) {
   device.memset(device_data, byte_value, count * sizeof(DataType));
   device.memcpyDeviceToHost(host.data(), device_data, count * sizeof(DataType));
   synchronize(device);
-  memset(expected.data(), byte_value, count * sizeof(DataType));
+  // Cast to void* so the byte-level fill is not diagnosed as writing to a
+  // non-trivial type for scalars like OffByOneScalar.
+  memset(static_cast<void*>(expected.data()), byte_value, count * sizeof(DataType));
   for (Index i = 0; i < count; i++) {
     VERIFY_IS_EQUAL(host(i), expected(i));
   }

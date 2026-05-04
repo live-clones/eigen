@@ -1,5 +1,7 @@
 # The file split_test_helper.h was generated at first run,
 # it is now included in test/
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
   file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
 endif()
@@ -186,6 +188,7 @@ ei_add_test(tensor_comparisons)
 ei_add_test(tensor_concatenation)
 ei_add_test(tensor_const)
 ei_add_test(tensor_contraction)
+ei_add_test(tensor_cost_model)
 ei_add_test(tensor_convolution)
 ei_add_test(tensor_custom_index)
 ei_add_test(tensor_custom_op)
@@ -287,6 +290,8 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   ei_add_test(tensor_random_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+
+  add_subdirectory(GPU)
 endif()
 
 # Add HIP specific tests

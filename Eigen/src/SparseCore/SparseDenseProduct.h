@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SPARSEDENSEPRODUCT_H
 #define EIGEN_SPARSEDENSEPRODUCT_H
@@ -82,8 +83,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
 #pragma omp parallel for schedule(dynamic, (n + threads * 4 - 1) / (threads * 4)) num_threads(threads)
         for (Index i = 0; i < n; ++i) {
           Index k = outer ? outer[i] : 0;
-          const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i]
-                                     : (outer ? outer[i + 1] : mat.nonZeros());
+          const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i] : (outer ? outer[i + 1] : mat.nonZeros());
           ResScalar sum0(0), sum1(0);
           for (; k < end; ++k) {
             sum0 += vals[k] * x[inds[k]];
@@ -99,8 +99,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
       {
         for (Index i = 0; i < n; ++i) {
           Index k = outer ? outer[i] : 0;
-          const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i]
-                                     : (outer ? outer[i + 1] : mat.nonZeros());
+          const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i] : (outer ? outer[i + 1] : mat.nonZeros());
           // Two independent accumulators to break the dependency chain
           ResScalar sum0(0), sum1(0);
           for (; k < end; ++k) {
@@ -130,8 +129,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     // Non-unit rhs stride (or no direct access): use direct pointers for sparse side, coeff() for rhs
     for (Index i = 0; i < n; ++i) {
       Index k = outer ? outer[i] : 0;
-      const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i]
-                                 : (outer ? outer[i + 1] : mat.nonZeros());
+      const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i] : (outer ? outer[i + 1] : mat.nonZeros());
       ResScalar sum0(0), sum1(0);
       for (; k < end; ++k) {
         sum0 += vals[k] * rhs.coeff(inds[k], c);
@@ -288,10 +286,8 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     // Sparse vectors don't store outer indices.
     const Index start = mat.outerIndexPtr() ? mat.outerIndexPtr()[i] : 0;
     const auto* innerNnz = mat.innerNonZeroPtr();
-    const Index end = innerNnz
-                          ? start + innerNnz[i]
-                          : (mat.outerIndexPtr() ? mat.outerIndexPtr()[i + 1]
-                                                 : mat.nonZeros());
+    const Index end =
+        innerNnz ? start + innerNnz[i] : (mat.outerIndexPtr() ? mat.outerIndexPtr()[i + 1] : mat.nonZeros());
     typename Res::RowXpr res_i(res.row(i));
     for (Index k = start; k < end; ++k) res_i += (alpha * vals[k]) * rhs.row(inds[k]);
   }

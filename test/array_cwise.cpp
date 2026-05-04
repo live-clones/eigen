@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include <vector>
 #include "main.h"
@@ -191,6 +192,7 @@ void unary_ops_test() {
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp2));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log10));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sin));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(cos));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(tan));

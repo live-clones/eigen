@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
@@ -886,6 +887,7 @@ void packetmath_real() {
 
   CHECK_CWISE1_IF(PacketTraits::HasLog, std::log, internal::plog);
   CHECK_CWISE1_IF(PacketTraits::HasLog, log2, internal::plog2);
+  CHECK_CWISE1_IF(PacketTraits::HasLog10, std::log10, internal::plog10);
   CHECK_CWISE1_IF(PacketTraits::HasRsqrt, numext::rsqrt, internal::prsqrt);
 
   for (int i = 0; i < size; ++i) {
@@ -1144,6 +1146,14 @@ void packetmath_real() {
       data1[0] = NumTraits<Scalar>::infinity();
       h.store(data2, internal::plog(h.load(data1)));
       VERIFY((numext::isinf)(data2[0]));
+    }
+    if (PacketTraits::HasLog10) {
+      test::packet_helper<PacketTraits::HasLog10, Packet> h;
+      data1[0] = Scalar(0);
+      data1[1] = NumTraits<Scalar>::infinity();
+      h.store(data2, internal::plog10(h.load(data1)));
+      VERIFY_IS_EQUAL(std::log10(Scalar(0)), data2[0]);
+      VERIFY_IS_EQUAL(std::log10(NumTraits<Scalar>::infinity()), data2[1]);
     }
     if (PacketTraits::HasLog1p) {
       test::packet_helper<PacketTraits::HasLog1p, Packet> h;

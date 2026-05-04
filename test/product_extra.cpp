@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 
@@ -214,6 +215,13 @@ void bug_817() {
   C = (x.transpose() * B.matrix());
   B = (x.transpose() * B.matrix());
   VERIFY_IS_APPROX(B, C);
+}
+
+template <int>
+void triangular_product_assignment_size_mismatch() {
+  MatrixXd m1 = MatrixXd::Random(5, 5);
+  MatrixXd m2(6, 6);
+  VERIFY_RAISES_ASSERT(m2.triangularView<Lower>() = m1 * m1);
 }
 
 template <int>
@@ -734,6 +742,7 @@ EIGEN_DECLARE_TEST(product_extra) {
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
   CALL_SUBTEST_5(bug_127<0>());
+  CALL_SUBTEST_5(triangular_product_assignment_size_mismatch<0>());
   CALL_SUBTEST_5(bug_817<0>());
   CALL_SUBTEST_5(bug_1308<0>());
   CALL_SUBTEST_6(unaligned_objects<0>());

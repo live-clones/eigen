@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
 #define EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
@@ -360,7 +361,12 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketType<CoeffReturnType, Device>::size);
+    // NullaryOps (constants, zero, identity, random) generate values from
+    // registers or minimal state — they do not load from memory.  Report
+    // zero bytes_loaded so the cost model correctly classifies expressions
+    // containing many constants (e.g. Horner polynomials) as compute-bound
+    // rather than memory-bound.
+    return TensorOpCost(0, 0, 0, vectorized, PacketType<CoeffReturnType, Device>::size);
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }

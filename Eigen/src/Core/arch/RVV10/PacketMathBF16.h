@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_PACKET_MATH_BF16_RVV10_H
 #define EIGEN_PACKET_MATH_BF16_RVV10_H
@@ -20,118 +21,59 @@ typedef eigen_packet_wrapper<vbfloat16m1_t __attribute__((riscv_rvv_vector_bits(
 typedef eigen_packet_wrapper<vbfloat16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 27>
     Packet2Xbf;
 
+template <>
+struct rvv_half_packet<Packet2Xbf> {
+  typedef Packet1Xbf type;
+};
+
+template <>
+struct unpacket_traits<Packet1Xbf> : rvv_default_unpacket_traits<bfloat16, Packet1Xbf, 1> {
+  typedef Packet1Xs integer_packet;
+  typedef PacketMask16 packet_mask;
+};
+
+template <>
+struct unpacket_traits<Packet2Xbf> : rvv_default_unpacket_traits<bfloat16, Packet2Xbf, 2> {
+  typedef Packet2Xs integer_packet;
+  typedef PacketMask8 packet_mask;
+};
+
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xbf PacketXbf;
-
-template <>
-struct packet_traits<bfloat16> : default_packet_traits {
-  typedef Packet1Xbf type;
-  typedef Packet1Xbf half;
-
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = rvv_packet_size_selector<bfloat16, EIGEN_RISCV64_RVV_VL, 1>::size,
-
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0,
-    HasSign = 0,
-
-    HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 0,
-
-    HasSin = 0,
-    HasCos = 0,
-    HasLog = 0,
-    HasExp = 0,
-    HasSqrt = 1,
-    HasTanh = 0,
-    HasErf = 0
-  };
-};
-
 #else
 typedef Packet2Xbf PacketXbf;
-
-template <>
-struct packet_traits<bfloat16> : default_packet_traits {
-  typedef Packet2Xbf type;
-  typedef Packet1Xbf half;
-
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = rvv_packet_size_selector<bfloat16, EIGEN_RISCV64_RVV_VL, 2>::size,
-
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0,
-    HasSign = 0,
-
-    HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 0,
-
-    HasSin = 0,
-    HasCos = 0,
-    HasLog = 0,
-    HasExp = 0,
-    HasSqrt = 1,
-    HasTanh = 0,
-    HasErf = 0
-  };
-};
 #endif
 
 template <>
-struct unpacket_traits<Packet1Xbf> : default_unpacket_traits {
-  typedef bfloat16 type;
-  typedef Packet1Xbf half;  // Half not yet implemented
-  typedef Packet1Xs integer_packet;
-  typedef numext::uint8_t mask_t;
-
+struct packet_traits<bfloat16> : rvv_default_packet_traits<bfloat16, PacketXbf> {
   enum {
-    size = rvv_packet_size_selector<bfloat16, EIGEN_RISCV64_RVV_VL, 1>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
-    vectorizable = true
-  };
-};
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 1,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasAbs2 = 1,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasBlend = 0,
+    HasReduxp = 0,
+    HasSign = 0,
 
-template <>
-struct unpacket_traits<Packet2Xbf> : default_unpacket_traits {
-  typedef bfloat16 type;
-  typedef Packet1Xbf half;
-  typedef Packet2Xs integer_packet;
-  typedef numext::uint8_t mask_t;
+    HasCmp = 1,
+    HasDiv = 1,
+    HasRound = 0,
 
-  enum {
-    size = rvv_packet_size_selector<bfloat16, EIGEN_RISCV64_RVV_VL, 2>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 2>::alignment,
-    vectorizable = true
+    HasSin = 0,
+    HasCos = 0,
+    HasLog = 0,
+    HasExp = 0,
+    HasSqrt = 1,
+    HasTanh = 0,
+    HasErf = 0
   };
 };
 

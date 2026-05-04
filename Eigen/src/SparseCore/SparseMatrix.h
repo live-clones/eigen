@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SPARSEMATRIX_H
 #define EIGEN_SPARSEMATRIX_H
@@ -1147,7 +1148,9 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
     StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->col() : it->row());
-    if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
+    eigen_assert(nonZeros < NumTraits<StorageIndex>::highest() &&
+                 "non-zero count exceeds StorageIndex range, use a wider StorageIndex (e.g. int64_t)");
+    if (nonZeros >= NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
     trmat.outerIndexPtr()[j + 1]++;
     nonZeros++;
   }
@@ -1201,7 +1204,9 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
     // identify duplicates by examining previous location
     bool duplicate = (previous_j == j) && (previous_i == i);
     if (!duplicate) {
-      if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
+      eigen_assert(nonZeros < NumTraits<StorageIndex>::highest() &&
+                   "non-zero count exceeds StorageIndex range, use a wider StorageIndex (e.g. int64_t)");
+      if (nonZeros >= NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
       nonZeros++;
       mat.outerIndexPtr()[j + 1]++;
       previous_j = j;
