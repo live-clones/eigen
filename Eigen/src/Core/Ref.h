@@ -35,7 +35,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
   struct match {
     enum {
       IsVectorAtCompileTime = PlainObjectType::IsVectorAtCompileTime || Derived::IsVectorAtCompileTime,
-      HasDirectAccess = internal::has_direct_access<Derived>::ret,
+      HasDirectAccess = internal::has_direct_access<Derived>::value,
       StorageOrderMatch =
           IsVectorAtCompileTime || ((PlainObjectType::Flags & RowMajorBit) == (Derived::Flags & RowMajorBit)),
       InnerStrideMatch = int(InnerStrideAtCompileTime) == int(Dynamic) ||

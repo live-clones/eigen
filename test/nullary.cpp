@@ -256,17 +256,17 @@ void nullary_internal_logic() {
   VERIFY((internal::has_nullary_operator<internal::scalar_constant_op<double> >::value));
   VERIFY((!internal::has_unary_operator<internal::scalar_constant_op<double> >::value));
   VERIFY((!internal::has_binary_operator<internal::scalar_constant_op<double> >::value));
-  VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<double> >::ret));
+  VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<double> >::value));
 
   VERIFY((!internal::has_nullary_operator<internal::scalar_identity_op<double> >::value));
   VERIFY((!internal::has_unary_operator<internal::scalar_identity_op<double> >::value));
   VERIFY((internal::has_binary_operator<internal::scalar_identity_op<double> >::value));
-  VERIFY((!internal::functor_has_linear_access<internal::scalar_identity_op<double> >::ret));
+  VERIFY((!internal::functor_has_linear_access<internal::scalar_identity_op<double> >::value));
 
   VERIFY((!internal::has_nullary_operator<internal::linspaced_op<float> >::value));
   VERIFY((internal::has_unary_operator<internal::linspaced_op<float> >::value));
   VERIFY((!internal::has_binary_operator<internal::linspaced_op<float> >::value));
-  VERIFY((internal::functor_has_linear_access<internal::linspaced_op<float> >::ret));
+  VERIFY((internal::functor_has_linear_access<internal::linspaced_op<float> >::value));
 
   // Regression unit test for an MSVC bug.
   // Search "nullary_wrapper_workaround_msvc" in CoreEvaluators.h for the details.
@@ -285,12 +285,12 @@ void nullary_internal_logic() {
     VERIFY((internal::has_nullary_operator<internal::scalar_constant_op<float> >::value));
     VERIFY((!internal::has_unary_operator<internal::scalar_constant_op<float> >::value));
     VERIFY((!internal::has_binary_operator<internal::scalar_constant_op<float> >::value));
-    VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<float> >::ret));
+    VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<float> >::value));
 
     VERIFY((!internal::has_nullary_operator<internal::linspaced_op<int> >::value));
     VERIFY((internal::has_unary_operator<internal::linspaced_op<int> >::value));
     VERIFY((!internal::has_binary_operator<internal::linspaced_op<int> >::value));
-    VERIFY((internal::functor_has_linear_access<internal::linspaced_op<int> >::ret));
+    VERIFY((internal::functor_has_linear_access<internal::linspaced_op<int> >::value));
   }
 }
 

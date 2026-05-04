@@ -326,17 +326,12 @@ struct has_binary_operator<
  * at compile-time.
  */
 template <int A, int B, int K = 1, bool Done = ((A * K) % B) == 0, bool Big = (A >= B)>
-struct meta_least_common_multiple {
-  enum { ret = meta_least_common_multiple<A, B, K + 1>::ret };
-};
+struct meta_least_common_multiple : std::integral_constant<int, meta_least_common_multiple<A, B, K + 1>::value> {};
 template <int A, int B, int K, bool Done>
-struct meta_least_common_multiple<A, B, K, Done, false> {
-  enum { ret = meta_least_common_multiple<B, A, K>::ret };
-};
+struct meta_least_common_multiple<A, B, K, Done, false>
+    : std::integral_constant<int, meta_least_common_multiple<B, A, K>::value> {};
 template <int A, int B, int K>
-struct meta_least_common_multiple<A, B, K, true, true> {
-  enum { ret = A * K };
-};
+struct meta_least_common_multiple<A, B, K, true, true> : std::integral_constant<int, A * K> {};
 
 /** \internal determines whether the product of two numeric types is allowed and what the return type is */
 template <typename T, typename U>
