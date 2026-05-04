@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(condition_estimator)
 ei_add_test(condition_estimator_complex)
 ei_add_test(lu)

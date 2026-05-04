@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 find_package(MPREAL)
 if(MPREAL_FOUND)
   ei_add_property(EIGEN_TESTED_BACKENDS "MPFR C++, ")

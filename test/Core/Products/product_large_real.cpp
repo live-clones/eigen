@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 // product_large split: float scalar types, bfloat16, aliasing.
 // Double/int types and regressions are in product_large_double.cpp.

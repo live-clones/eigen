@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 find_package(Adolc)
 if(Adolc_FOUND)
   include_directories(${ADOLC_INCLUDES})
