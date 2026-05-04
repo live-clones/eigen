@@ -452,7 +452,7 @@ struct evaluator<CwiseNullaryOp<NullaryOp, PlainObjectType>>
     CoeffReadCost = functor_traits<NullaryOp>::Cost,
 
     Flags = (evaluator<PlainObjectTypeCleaned>::Flags &
-             (HereditaryBits | (functor_has_linear_access<NullaryOp>::ret ? LinearAccessBit : 0) |
+             (HereditaryBits | (functor_has_linear_access<NullaryOp>::value ? LinearAccessBit : 0) |
               (functor_traits<NullaryOp>::PacketAccess ? PacketAccessBit : 0))) |
             (functor_traits<NullaryOp>::IsRepeatable ? 0 : EvalBeforeNestingBit),
     Alignment = AlignedMax
@@ -1188,7 +1188,7 @@ struct mapbase_evaluator : evaluator_base<Derived> {
         m_innerStride(map.innerStride()),
         m_outerStride(map.outerStride()) {
     EIGEN_STATIC_ASSERT(check_implication((evaluator<Derived>::Flags & PacketAccessBit) != 0,
-                                          inner_stride_at_compile_time<Derived>::ret == 1),
+                                          inner_stride_at_compile_time<Derived>::value == 1),
                         PACKET_ACCESS_REQUIRES_TO_HAVE_INNER_STRIDE_FIXED_TO_1);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
@@ -1319,7 +1319,7 @@ struct evaluator<Ref<PlainObjectType, RefOptions, StrideType>>
 // -------------------- Block --------------------
 
 template <typename ArgType, int BlockRows, int BlockCols, bool InnerPanel,
-          bool HasDirectAccess = has_direct_access<ArgType>::ret>
+          bool HasDirectAccess = has_direct_access<ArgType>::value>
 struct block_evaluator;
 
 template <typename ArgType, int BlockRows, int BlockCols, bool InnerPanel>
@@ -1344,10 +1344,10 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>>
                                                                             : ArgTypeIsRowMajor,
     HasSameStorageOrderAsArgType = (IsRowMajor == ArgTypeIsRowMajor),
     InnerSize = IsRowMajor ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
-    InnerStrideAtCompileTime = HasSameStorageOrderAsArgType ? int(inner_stride_at_compile_time<ArgType>::ret)
-                                                            : int(outer_stride_at_compile_time<ArgType>::ret),
-    OuterStrideAtCompileTime = HasSameStorageOrderAsArgType ? int(outer_stride_at_compile_time<ArgType>::ret)
-                                                            : int(inner_stride_at_compile_time<ArgType>::ret),
+    InnerStrideAtCompileTime = HasSameStorageOrderAsArgType ? int(inner_stride_at_compile_time<ArgType>::value)
+                                                            : int(outer_stride_at_compile_time<ArgType>::value),
+    OuterStrideAtCompileTime = HasSameStorageOrderAsArgType ? int(outer_stride_at_compile_time<ArgType>::value)
+                                                            : int(inner_stride_at_compile_time<ArgType>::value),
     MaskPacketAccessBit = (InnerStrideAtCompileTime == 1 || HasSameStorageOrderAsArgType) ? PacketAccessBit : 0,
 
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1 ||

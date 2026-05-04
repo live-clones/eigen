@@ -363,9 +363,9 @@ constexpr int size_at_compile_time(int rows, int cols) {
 }
 
 template <typename XprType>
-struct size_of_xpr_at_compile_time {
-  enum { ret = size_at_compile_time(traits<XprType>::RowsAtCompileTime, traits<XprType>::ColsAtCompileTime) };
-};
+struct size_of_xpr_at_compile_time
+    : std::integral_constant<int, size_at_compile_time(traits<XprType>::RowsAtCompileTime,
+                                                       traits<XprType>::ColsAtCompileTime)> {};
 
 /* plain_matrix_type : the difference from eval is that plain_matrix_type is always a plain matrix type,
  * whereas eval is a const reference in the case of a matrix
@@ -764,24 +764,16 @@ struct is_lvalue : std::integral_constant<bool, (!bool(std::is_const<ExpressionT
                                                     bool((traits<ExpressionType>::Flags & LvalueBit))> {};
 
 template <typename T>
-struct is_diagonal {
-  enum { ret = false };
-};
+struct is_diagonal : std::false_type {};
 
 template <typename T>
-struct is_diagonal<DiagonalBase<T>> {
-  enum { ret = true };
-};
+struct is_diagonal<DiagonalBase<T>> : std::true_type {};
 
 template <typename T>
-struct is_diagonal<DiagonalWrapper<T>> {
-  enum { ret = true };
-};
+struct is_diagonal<DiagonalWrapper<T>> : std::true_type {};
 
 template <typename T, int S>
-struct is_diagonal<DiagonalMatrix<T, S>> {
-  enum { ret = true };
-};
+struct is_diagonal<DiagonalMatrix<T, S>> : std::true_type {};
 
 template <typename T>
 struct is_identity : std::false_type {};
@@ -798,7 +790,7 @@ struct glue_shapes<DenseShape, TriangularShape> {
 
 template <typename T1, typename T2>
 struct possibly_same_dense
-    : std::integral_constant<bool, has_direct_access<T1>::ret && has_direct_access<T2>::ret &&
+    : std::integral_constant<bool, has_direct_access<T1>::value && has_direct_access<T2>::value &&
                                        std::is_same<typename T1::Scalar, typename T2::Scalar>::value> {};
 
 template <typename T1, typename T2>

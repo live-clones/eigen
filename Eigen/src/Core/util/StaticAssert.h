@@ -65,8 +65,8 @@
       YOU_MIXED_VECTORS_OF_DIFFERENT_SIZES)
 
 #define EIGEN_PREDICATE_SAME_MATRIX_SIZE(TYPE0, TYPE1)                                                     \
-  ((int(Eigen::internal::size_of_xpr_at_compile_time<TYPE0>::ret) == 0 &&                                  \
-    int(Eigen::internal::size_of_xpr_at_compile_time<TYPE1>::ret) == 0) ||                                 \
+  ((int(Eigen::internal::size_of_xpr_at_compile_time<TYPE0>::value) == 0 &&                                \
+    int(Eigen::internal::size_of_xpr_at_compile_time<TYPE1>::value) == 0) ||                               \
    ((int(TYPE0::RowsAtCompileTime) == Eigen::Dynamic || int(TYPE1::RowsAtCompileTime) == Eigen::Dynamic || \
      int(TYPE0::RowsAtCompileTime) == int(TYPE1::RowsAtCompileTime)) &&                                    \
     (int(TYPE0::ColsAtCompileTime) == Eigen::Dynamic || int(TYPE1::ColsAtCompileTime) == Eigen::Dynamic || \
