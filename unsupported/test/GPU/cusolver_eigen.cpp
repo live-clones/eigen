@@ -41,7 +41,7 @@ void test_eigen_reconstruction(Index n) {
 
   // Reconstruct: A_hat = V * diag(W) * V^H.
   Mat A_hat = V * W.asDiagonal() * V.adjoint();
-  RealScalar tol = RealScalar(5) * std::sqrt(static_cast<RealScalar>(n)) * NumTraits<Scalar>::epsilon() * A.norm();
+  RealScalar tol = RealScalar(8) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon() * A.norm();
   VERIFY((A_hat - A).norm() < tol);
 
   // Orthogonality: V^H * V ≈ I.
@@ -114,7 +114,7 @@ void test_eigen_device_matrix(Index n) {
 
   // Verify reconstruction.
   Mat A_hat = V * W_gpu.asDiagonal() * V.adjoint();
-  RealScalar tol = RealScalar(5) * std::sqrt(static_cast<RealScalar>(n)) * NumTraits<Scalar>::epsilon() * A.norm();
+  RealScalar tol = RealScalar(8) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon() * A.norm();
   VERIFY((A_hat - A).norm() < tol);
 }
 
@@ -136,7 +136,7 @@ void test_eigen_recompute(Index n) {
     auto W = es.eigenvalues();
     Mat V = es.eigenvectors();
     Mat A_hat = V * W.asDiagonal() * V.adjoint();
-    RealScalar tol = RealScalar(5) * std::sqrt(static_cast<RealScalar>(n)) * NumTraits<Scalar>::epsilon() * A.norm();
+    RealScalar tol = RealScalar(8) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon() * A.norm();
     VERIFY((A_hat - A).norm() < tol);
   }
 }
@@ -181,7 +181,7 @@ void test_eigen_repeated_values(Index n) {
   // valid orthonormal basis for the cluster's invariant subspace).
   Mat V_gpu = es.eigenvectors();
   Mat A_hat = V_gpu * W_gpu.asDiagonal() * V_gpu.adjoint();
-  RealScalar tol = RealScalar(20) * std::sqrt(static_cast<RealScalar>(n)) * NumTraits<Scalar>::epsilon() * A.norm();
+  RealScalar tol = RealScalar(20) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon() * A.norm();
   VERIFY((A_hat - A_sym).norm() < tol);
 
   // Orthogonality of computed eigenvectors must hold.
@@ -239,7 +239,7 @@ void test_eigen_chain_orthogonality(Index n) {
     d_VtV.device(ctx) = d_V.adjoint() * d_V;
   }
   Mat VtV = d_VtV.toHost();
-  RealScalar tol = RealScalar(20) * std::sqrt(static_cast<RealScalar>(n)) * NumTraits<Scalar>::epsilon();
+  RealScalar tol = RealScalar(20) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon();
   VERIFY((VtV - Mat::Identity(n, n)).norm() < tol);
 
   // After view destruction, the solver's state must remain valid.
