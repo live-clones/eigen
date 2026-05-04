@@ -226,7 +226,7 @@ struct nested<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType>, 1,
 }  // end namespace internal
 
 /** Tensor convolution class.
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  */
 template <typename Indices, typename InputXprType, typename KernelXprType>
 class TensorConvolutionOp

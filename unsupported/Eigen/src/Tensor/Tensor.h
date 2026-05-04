@@ -18,7 +18,7 @@
 namespace Eigen {
 
 /** \class Tensor
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief The tensor class.
  *

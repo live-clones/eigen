@@ -253,7 +253,7 @@ struct tuple_coeff<0, ValueT> {
 
 /** \internal
  *
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Set of classes used to encode a set of Tensor dimensions/indices.
  *

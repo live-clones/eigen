@@ -44,7 +44,7 @@ struct nested<TensorReverseOp<ReverseDimensions, XprType>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor reverse elements class.
  *

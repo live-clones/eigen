@@ -45,7 +45,7 @@ struct nested<TensorImagePatchOp<Rows, Cols, XprType>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Patch extraction specialized for image processing.
  * This assumes that the input has a least 3 dimensions ordered as follow:

@@ -47,7 +47,7 @@ struct nested<TensorTraceOp<Dims, XprType>, 1, typename eval<TensorTraceOp<Dims,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor Trace class.
  */

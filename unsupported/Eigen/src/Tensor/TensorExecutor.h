@@ -58,7 +58,7 @@ struct ExpressionHasTensorBroadcastingOp<const TensorBroadcastingOp<Broadcast, X
 // -------------------------------------------------------------------------- //
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief The tensor executor class.
  *

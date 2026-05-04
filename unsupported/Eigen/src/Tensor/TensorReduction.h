@@ -493,7 +493,7 @@ struct ReductionReturnType {
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor reduction class.
  *

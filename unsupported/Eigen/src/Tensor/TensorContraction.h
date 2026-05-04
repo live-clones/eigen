@@ -338,7 +338,7 @@ struct NoOpOutputKernel {
 };
 
 /** Tensor contraction class.
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  */
 template <typename Indices, typename LhsXprType, typename RhsXprType,
           typename OutputKernelType = const NoOpOutputKernel>

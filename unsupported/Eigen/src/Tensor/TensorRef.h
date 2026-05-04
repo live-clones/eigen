@@ -231,7 +231,7 @@ class TensorRefBase : public TensorBase<Derived> {
 }  // namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief A reference to a tensor expression
  * The expression will be evaluated lazily (as much as possible).
@@ -295,7 +295,7 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
 };
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief A reference to a constant tensor expression
  * The expression will be evaluated lazily (as much as possible).

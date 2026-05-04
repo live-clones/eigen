@@ -42,7 +42,7 @@ struct nested<TensorCustomUnaryOp<CustomUnaryFunc, XprType> > {
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor custom class.
  */
@@ -150,7 +150,7 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
 };
 
 /** \class TensorCustomBinaryOp
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor custom class.
  *

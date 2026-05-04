@@ -19,7 +19,7 @@ namespace Eigen {
 // FIXME: Use proper doxygen documentation (e.g. \tparam MakePointer_).
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief A tensor expression mapping an existing array of data.
  *

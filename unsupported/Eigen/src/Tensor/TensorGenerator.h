@@ -43,7 +43,7 @@ struct nested<TensorGeneratorOp<Generator, XprType>, 1, typename eval<TensorGene
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor generator class.
  */

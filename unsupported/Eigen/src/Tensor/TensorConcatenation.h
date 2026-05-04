@@ -51,7 +51,7 @@ struct nested<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor concatenation class.
  */

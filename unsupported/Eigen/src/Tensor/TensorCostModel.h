@@ -129,7 +129,7 @@ class TensorOpCost {
 };
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief A cost model used to limit the number of threads used for evaluating
  * tensor expression.

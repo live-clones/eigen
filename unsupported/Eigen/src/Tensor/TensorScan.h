@@ -42,7 +42,7 @@ struct nested<TensorScanOp<Op, XprType>, 1, typename eval<TensorScanOp<Op, XprTy
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor scan class.
  */

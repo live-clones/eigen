@@ -43,7 +43,7 @@ struct nested<TensorStridingOp<Strides, XprType>, 1, typename eval<TensorStridin
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor striding class.
  */
