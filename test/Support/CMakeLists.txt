@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 if(CHOLMOD_FOUND AND EIGEN_BUILD_BLAS AND EIGEN_BUILD_LAPACK)
   ei_add_test(cholmod_support "" "${CHOLMOD_ALL_LIBS}")
 endif()
