@@ -71,6 +71,37 @@ void bdcsvd_thin_options(const MatrixType& input = MatrixType()) {
   svd_thin_option_checks<MatrixType, 0>(input);
 }
 
+// First half of bdcsvd_thin_options - for further-split tests over budget.
+template <typename MatrixType>
+void bdcsvd_thin_options_part1(const MatrixType& input = MatrixType()) {
+  MatrixType m(input.rows(), input.cols());
+  svd_fill_random(m);
+  svd_compute_checks<MatrixType, 0>(m);
+  svd_compute_checks<MatrixType, ComputeThinU>(m);
+  svd_compute_checks<MatrixType, ComputeThinV>(m);
+}
+
+// Second half of bdcsvd_thin_options - mixed thin/full options.
+template <typename MatrixType>
+void bdcsvd_thin_options_part2(const MatrixType& input = MatrixType()) {
+  MatrixType m(input.rows(), input.cols());
+  svd_fill_random(m);
+  svd_compute_checks<MatrixType, ComputeThinU | ComputeThinV>(m);
+  svd_compute_checks<MatrixType, ComputeThinU | ComputeFullV>(m);
+  svd_compute_checks<MatrixType, ComputeFullU | ComputeThinV>(m);
+}
+
+// Third part of bdcsvd_thin_options - full SVD comparison.
+template <typename MatrixType>
+void bdcsvd_thin_options_part3(const MatrixType& input = MatrixType()) {
+  MatrixType m(input.rows(), input.cols());
+  svd_fill_random(m);
+  typedef BDCSVD<MatrixType, ComputeFullU | ComputeFullV> FullSvdType;
+  FullSvdType fullSvd(m);
+  svd_check_full(m, fullSvd);
+  svd_compare_to_full<MatrixType, FullSvdType, ComputeFullU | ComputeFullV>(m, fullSvd);
+}
+
 template <typename MatrixType>
 void bdcsvd_full_options(const MatrixType& input = MatrixType()) {
   svd_option_checks_full_only<MatrixType, 0>(input);

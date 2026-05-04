@@ -15,9 +15,13 @@ TEST(MatrixExponentialTest, Double) {
   test2dHyperbolicRotation<double>(1e-14);
   test2dHyperbolicRotation<long double>(1e-14);
   testPascal<double>(1e-15);
+
+  // Fixed-size sample for fast-path codegen coverage.
   randomTest(Matrix2d(), 1e-13);
-  randomTest(Matrix<double, 3, 3, RowMajor>(), 1e-13);
-  randomTest(Matrix4cd(), 1e-13);
-  randomTest(MatrixXd(8, 8), 1e-13);
-  randomTest(Matrix<long double, Dynamic, Dynamic>(7, 7), 1e-13);
+
+  // Dynamic-size coverage at varying sizes / scalars.
+  randomTestDynamic(MatrixXd(3, 3), 1e-13);
+  randomTestDynamic(MatrixXd(8, 8), 1e-13);
+  randomTestDynamic(Matrix<std::complex<double>, Dynamic, Dynamic>(4, 4), 1e-13);
+  randomTestDynamic(Matrix<long double, Dynamic, Dynamic>(7, 7), 1e-13);
 }

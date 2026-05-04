@@ -7,25 +7,16 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// product_large split: complex scalar types and OpenMP regression.
+// product_large split: complex<float> scalar types.
 
 #include "product_large_helpers.h"
 
-// =============================================================================
-// Tests for product_large_cplx
-// =============================================================================
-TEST(ProductLargeCplxTest, Basic) {
+TEST(ProductLargeCplxTest, ComplexFloat) {
   for (int i = 0; i < g_repeat; i++) {
     product(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
                       internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    product(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                      internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    product(Matrix<double, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                       internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     product(Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    product(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
-                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
 
   // Regression test for bug 714:

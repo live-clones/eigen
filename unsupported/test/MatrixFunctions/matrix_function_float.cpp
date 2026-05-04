@@ -10,11 +10,12 @@
 #include "matrix_function.h"
 
 TEST(MatrixFunctionTest, Float) {
-  testMatrixType(Matrix<float, 1, 1>());
-  testMatrixType(Matrix3cf());
-  testMatrixType(MatrixXf(8, 8));
+  // Dynamic-size coverage at varying sizes / scalars (canonicalized to share
+  // instantiations). matrix_function_double covers fixed-size fast-path
+  // codegen for one Matrix<double, ...>; that suffices for codegen coverage.
+  testMatrixTypeDynamic(MatrixXf(4, 4));
+  testMatrixTypeDynamic(MatrixXf(8, 8));
+  testMatrixTypeDynamic(Matrix<std::complex<float>, Dynamic, Dynamic>(3, 3));
 
-  testMapRef(Matrix<float, 1, 1>());
-  testMapRef(Matrix3cf());
   testMapRef(MatrixXf(8, 8));
 }

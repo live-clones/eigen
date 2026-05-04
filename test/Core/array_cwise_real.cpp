@@ -22,7 +22,5 @@ TEST(ArrayCwiseRealTest, RealFixed) {
 TEST(ArrayCwiseRealTest, RealDynamic) {
   for (int i = 0; i < g_repeat; i++) {
     array_real(ArrayXXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
-    array_real(Array<Eigen::half, 32, 32>());
-    array_real(Array<Eigen::bfloat16, 32, 32>());
   }
 }

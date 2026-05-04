@@ -241,11 +241,38 @@ void test_realview_real_types() {
 }
 
 template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_float() {
+  test_realview_readwrite<float, Rows, Cols, MaxRows, MaxCols>();
+}
+
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_double() {
+  test_realview_readwrite<double, Rows, Cols, MaxRows, MaxCols>();
+}
+
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_longdouble() {
+  test_realview_readwrite<long double, Rows, Cols, MaxRows, MaxCols>();
+}
+
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
 void test_realview_complex_types() {
   test_realview_readwrite<std::complex<float>, Rows, Cols, MaxRows, MaxCols>();
   test_realview_readwrite<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
   test_realview_readwrite<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
   test_realview_readonly<TestComplex, Rows, Cols, MaxRows, MaxCols>();
+}
+
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_cfloat_only() {
+  test_realview_readwrite<std::complex<float>, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_readonly<TestComplex, Rows, Cols, MaxRows, MaxCols>();
+}
+
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_complex_double_long() {
+  test_realview_readwrite<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_readwrite<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
 }
 
 template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
@@ -257,6 +284,16 @@ void test_realview_cplxfloat() {
 template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
 void test_realview_cplxdouble() {
   test_realview_readwrite<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_readwrite<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
+}
+
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_cplxdouble_only() {
+  test_realview_readwrite<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
+}
+
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_cplxlongdouble_only() {
   test_realview_readwrite<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
 }
 

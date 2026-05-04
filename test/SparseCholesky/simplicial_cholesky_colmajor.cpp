@@ -7,12 +7,12 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// simplicial_cholesky split: ColMajor tests.
+// simplicial_cholesky split: ColMajor double tests. Complex case lives in
+// simplicial_cholesky_colmajor_complex.cpp.
 
 #include "simplicial_cholesky_helpers.h"
 
 TEST(SimplicialCholeskyColmajorTest, Basic) {
   (test_simplicial_cholesky_T<double, int, ColMajor>());
-  (test_simplicial_cholesky_T<std::complex<double>, int, ColMajor>());
   (test_simplicial_cholesky_T<double, long int, ColMajor>());
 }

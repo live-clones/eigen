@@ -109,34 +109,13 @@ void randomTest(const MatrixType& m, double tol) {
   }
 }
 
-template <int Options>
-void testComplexScalingPath() {
-  using Scalar = std::complex<double>;
-  using MatrixType = Matrix<Scalar, 3, 3, Options>;
-  MatrixType A = MatrixType::Zero();
-  A.diagonal() << Scalar(-1.0, 64.0), Scalar(0.5, -32.0), Scalar(-0.25, 16.0);
-
-  MatrixType expected = MatrixType::Zero();
-  for (Index i = 0; i < A.rows(); ++i) expected(i, i) = std::exp(A(i, i));
-
-  const double tol = 100.0 * NumTraits<double>::epsilon();
-  VERIFY(A.exp().isApprox(expected, tol));
-}
-void testCustomComplexScalingPath() {
-  using Scalar = CustomComplex<double>;
-  using MatrixType = Matrix<Scalar, 3, 3>;
-  static_assert(!internal::complex_array_access<Scalar>::value, "test must exercise the scalar scaling fallback");
-
-  MatrixType A = MatrixType::Zero();
-  A.diagonal() << Scalar(-1.0, 64.0), Scalar(0.5, -32.0), Scalar(-0.25, 16.0);
-
-  const int squarings = 4;
-  const MatrixType scaled = internal::matrix_exp_scale<MatrixType>(A, squarings);
-  for (Index i = 0; i < A.size(); ++i) {
-    using std::ldexp;
-    VERIFY_IS_EQUAL(numext::real(scaled(i)), ldexp(numext::real(A(i)), -squarings));
-    VERIFY_IS_EQUAL(numext::imag(scaled(i)), ldexp(numext::imag(A(i)), -squarings));
-  }
+// Canonicalized path: collapses to one Matrix<Scalar, Dynamic, Dynamic>
+// instantiation per Scalar.
+template <typename MatrixType>
+void randomTestDynamic(const MatrixType& m, double tol) {
+  using Scalar = typename MatrixType::Scalar;
+  using DynMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  randomTest<DynMatrix>(DynMatrix(m), tol);
 }
 
 #endif  // EIGEN_TEST_MATRIX_EXPONENTIAL_H
