@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 option(EIGEN_TEST_OPENGL "Enable OpenGL support in unit tests" OFF)
 if(EIGEN_TEST_OPENGL)
   find_package(OpenGL)

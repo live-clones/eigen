@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(geo_orthomethods)
 ei_add_test(geo_quaternion)
 ei_add_test(geo_eulerangles)

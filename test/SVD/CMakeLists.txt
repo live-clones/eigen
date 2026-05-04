@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(jacobisvd_verify)
 ei_add_test(jacobisvd_verify_complex)
 ei_add_test(jacobisvd_trivial_2x2)

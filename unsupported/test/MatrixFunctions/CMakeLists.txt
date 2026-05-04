@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(matrix_exponential_float)
 ei_add_test(matrix_exponential_double)
 ei_add_test(matrix_function_float)

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(packetmath_float "-DEIGEN_FAST_MATH=1")
 ei_add_test(packetmath_integer "-DEIGEN_FAST_MATH=1")
 ei_add_test(packetmath_complex "-DEIGEN_FAST_MATH=1")

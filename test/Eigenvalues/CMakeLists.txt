@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(eigensolver_selfadjoint_fixed)
 ei_add_test(eigensolver_selfadjoint_fixed_float)
 ei_add_test(eigensolver_selfadjoint_fixed_complex)

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 if(EIGEN_TEST_SYCL)
   set(EIGEN_SYCL ON)
   include(SyclConfigureTesting)

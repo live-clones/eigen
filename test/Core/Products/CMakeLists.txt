@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(product_small)
 ei_add_test(product_small_lowprec)
 ei_add_test(product_small_gemm)
