@@ -536,4 +536,4 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_TENSOR_TENSOR_CONVOLUTION_H
+#endif  // EIGEN_TENSOR_TENSOR_CONVOLUTION_SYCL_H
