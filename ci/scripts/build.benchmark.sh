@@ -6,6 +6,8 @@
 #   EIGEN_CI_CXX_COMPILER     - C++ compiler
 #   EIGEN_CI_C_COMPILER        - C compiler
 #   EIGEN_BENCH_ISA_FLAGS     - ISA-specific compiler flags (e.g. "-mavx2 -mfma")
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 
 set -ex
 

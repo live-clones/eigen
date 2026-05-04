@@ -5,6 +5,8 @@
 // between float/double and mpfr_t.
 //
 // Only compiled when EIGEN_HAS_MPFR is defined (i.e., MPFR and GMP are found).
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_ULP_ACCURACY_MPFR_REFERENCE_H
 #define EIGEN_ULP_ACCURACY_MPFR_REFERENCE_H

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 """Benchmark regression detection using Welch's t-test.
 
 Compares the current benchmark run against historical data stored on

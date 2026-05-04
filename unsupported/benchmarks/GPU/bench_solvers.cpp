@@ -8,6 +8,8 @@
 //
 // For Nsight Compute kernel analysis:
 //   ncu --set full -o profile ./bench_solvers --benchmark_filter=BM_GpuLLT_Compute/4096
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 

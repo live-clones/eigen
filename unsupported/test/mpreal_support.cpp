@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
 #include <mpreal.h>  // Must be included before main.h.
 #include "main.h"
 #include <Eigen/MPRealSupport>

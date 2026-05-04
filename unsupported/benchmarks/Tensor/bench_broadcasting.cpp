@@ -1,5 +1,7 @@
 // Benchmarks for Eigen Tensor broadcasting.
 // Tests broadcasting along various dimensions and ranks.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 

@@ -1,4 +1,6 @@
 // Benchmarks for matrix power functions: sqrt, pow, cos, sin, cosh, sinh.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>

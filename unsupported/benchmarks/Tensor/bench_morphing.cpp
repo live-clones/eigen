@@ -1,4 +1,6 @@
 // Benchmarks for Eigen Tensor morphing operations: reshape, slice, chip, pad, stride.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 

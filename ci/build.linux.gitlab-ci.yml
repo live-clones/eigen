@@ -1,4 +1,6 @@
 # Base configuration for linux cross-compilation.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 .build:linux:cross:
   needs: []
   extends: .common:linux:cross

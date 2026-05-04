@@ -8,6 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // #define EIGEN_DONT_VECTORIZE
 // #define EIGEN_MAX_ALIGN_BYTES 0
+// SPDX-License-Identifier: MPL-2.0
 #include "sparse_solver.h"
 #include <Eigen/IterativeLinearSolvers>
 

@@ -1,4 +1,6 @@
 // Benchmarks for Eigen Tensor shuffling (transpose / permutation).
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 

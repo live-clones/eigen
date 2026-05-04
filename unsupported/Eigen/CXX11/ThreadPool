@@ -1,2 +1,4 @@
 // Forwarding header for backward compatibility.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 #include "../ThreadPool"  // IWYU pragma: export

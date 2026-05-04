@@ -1,4 +1,6 @@
 # Initialize default variables used by the CI.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 $EIGEN_CI_ADDITIONAL_ARGS       = ""
 $EIGEN_CI_BEFORE_SCRIPT         = ""
 $EIGEN_CI_BUILD_TARGET          = "buildtests"
