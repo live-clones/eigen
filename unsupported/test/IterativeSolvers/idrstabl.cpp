@@ -13,8 +13,8 @@
 
 template <typename T>
 void test_idrstabl_T() {
-  IDRSTABL<SparseMatrix<T>, DiagonalPreconditioner<T> > idrstabl_colmajor_diag;
-  IDRSTABL<SparseMatrix<T>, IncompleteLUT<T> > idrstabl_colmajor_ilut;
+  IDRSTABL<SparseMatrix<T>, DiagonalPreconditioner<T>> idrstabl_colmajor_diag;
+  IDRSTABL<SparseMatrix<T>, IncompleteLUT<T>> idrstabl_colmajor_ilut;
 
   idrstabl_colmajor_diag.setTolerance(NumTraits<T>::epsilon() * 4);
   idrstabl_colmajor_ilut.setTolerance(NumTraits<T>::epsilon() * 4);
@@ -23,4 +23,10 @@ void test_idrstabl_T() {
   check_sparse_square_solving(idrstabl_colmajor_ilut);
 }
 
-TEST(IdrstablTest, Complex) { (test_idrstabl_T<std::complex<double> >()); }
+template <typename T>
+class IdrstablTest : public ::testing::Test {};
+
+using IdrstablTypes = ::testing::Types<double, std::complex<double>>;
+EIGEN_TYPED_TEST_SUITE(IdrstablTest, IdrstablTypes);
+
+TYPED_TEST(IdrstablTest, Solve) { test_idrstabl_T<TypeParam>(); }

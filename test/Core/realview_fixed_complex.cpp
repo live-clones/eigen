@@ -7,18 +7,15 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// realview split: complex scalar types with fixed-size combinations.
+// realview split: complex<float> (+ TestComplex) with fixed-size combinations.
 
 #include "realview_helpers.h"
 
-// =============================================================================
-// Tests for realview_fixed_complex
-// =============================================================================
-TEST(RealviewFixedComplexTest, Basic) {
+TEST(RealviewFixedComplexTest, ComplexFloat) {
   for (int i = 0; i < g_repeat; i++) {
-    (test_realview_complex_types<17, 19, 17, 19>());
-    (test_realview_complex_types<Dynamic, 1>());
-    (test_realview_complex_types<1, Dynamic>());
-    (test_realview_complex_types<1, 1>());
+    (test_realview_cfloat_only<17, 19, 17, 19>());
+    (test_realview_cfloat_only<Dynamic, 1>());
+    (test_realview_cfloat_only<1, Dynamic>());
+    (test_realview_cfloat_only<1, 1>());
   }
 }

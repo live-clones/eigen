@@ -108,4 +108,13 @@ void randomTest(const MatrixType& m, double tol) {
   }
 }
 
+// Canonicalized path: collapses to one Matrix<Scalar, Dynamic, Dynamic>
+// instantiation per Scalar.
+template <typename MatrixType>
+void randomTestDynamic(const MatrixType& m, double tol) {
+  using Scalar = typename MatrixType::Scalar;
+  using DynMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  randomTest<DynMatrix>(DynMatrix(m), tol);
+}
+
 #endif  // EIGEN_TEST_MATRIX_EXPONENTIAL_H
