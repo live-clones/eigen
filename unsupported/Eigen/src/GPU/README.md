@@ -483,15 +483,15 @@ noted otherwise).
 
 | DeviceMatrix expression | Library call | Parameters |
 |---|---|---|
-| `C = A * B` | `cublasXgemm` | transA=N, transB=N, alpha=1, beta=0 |
-| `C = A.adjoint() * B` | `cublasXgemm` | transA=C, transB=N |
-| `C = A.transpose() * B` | `cublasXgemm` | transA=T, transB=N |
-| `C = A * B.adjoint()` | `cublasXgemm` | transA=N, transB=C |
-| `C = A * B.transpose()` | `cublasXgemm` | transA=N, transB=T |
-| `C = alpha * A * B` | `cublasXgemm` | alpha from LHS |
-| `C = A * (alpha * B)` | `cublasXgemm` | alpha from RHS |
-| `C += A * B` | `cublasXgemm` | alpha=1, beta=1 |
-| `C.device(ctx) -= A * B` | `cublasXgemm` | alpha=-1, beta=1 |
+| `C = A * B` | `cublasLtMatmul` (with `cublasGemmEx` fallback) | transA=N, transB=N, alpha=1, beta=0 |
+| `C = A.adjoint() * B` | `cublasLtMatmul` | transA=C, transB=N |
+| `C = A.transpose() * B` | `cublasLtMatmul` | transA=T, transB=N |
+| `C = A * B.adjoint()` | `cublasLtMatmul` | transA=N, transB=C |
+| `C = A * B.transpose()` | `cublasLtMatmul` | transA=N, transB=T |
+| `C = alpha * A * B` | `cublasLtMatmul` | alpha from LHS |
+| `C = A * (alpha * B)` | `cublasLtMatmul` | alpha from RHS |
+| `C += A * B` | `cublasLtMatmul` | alpha=1, beta=1 |
+| `C.device(ctx) -= A * B` | `cublasLtMatmul` | alpha=-1, beta=1 |
 | `X = A.llt().solve(B)` | `cusolverDnXpotrf` + `Xpotrs` | uplo, n, nrhs |
 | `X = A.llt<Upper>().solve(B)` | same | uplo=Upper |
 | `X = A.lu().solve(B)` | `cusolverDnXgetrf` + `Xgetrs` | n, nrhs |
@@ -609,6 +609,9 @@ cublasHandle_t     cublasHandle()
 cusolverDnHandle_t cusolverHandle()
 cublasLtHandle_t   cublasLtHandle()                     // Lazy-initialized
 cusparseHandle_t   cusparseHandle()                     // Lazy-initialized
+
+internal::DeviceBuffer*       gemmWorkspace()           // cublasLtMatmul scratch (lazy-grown per context)
+internal::CublasLtPlanCache*  gemmPlanCache()           // shape-keyed plan cache (per context, ~8-entry LRU)
 ```
 
 Non-copyable, non-movable (owns library handles).
