@@ -125,15 +125,13 @@ void generalized_eigensolver_assert() {
 TEST(EigensolverGeneralizedRealTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
     int s = 0;
-    generalized_eigensolver_real(Matrix4f());
+    generalized_eigensolver_real(MatrixXf(4, 4));
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
     generalized_eigensolver_real(MatrixXd(s, s));
 
     // some trivial but implementation-wise special cases
     generalized_eigensolver_real(MatrixXd(1, 1));
     generalized_eigensolver_real(MatrixXd(2, 2));
-    generalized_eigensolver_real(Matrix<double, 1, 1>());
-    generalized_eigensolver_real(Matrix2d());
     generalized_eigensolver_assert<MatrixXd>();
     TEST_SET_BUT_UNUSED_VARIABLE(s);
   }

@@ -10,10 +10,14 @@
 #include "matrix_function.h"
 
 TEST(MatrixFunctionTest, Double) {
+  // Fixed-size sample for fast-path codegen coverage.
   testMatrixType(Matrix2d());
-  testMatrixType(Matrix<double, 5, 5, RowMajor>());
-  testMatrixType(Matrix4cd());
-  testMatrixType(MatrixXd(13, 13));
+
+  // Dynamic-size coverage at varying sizes (canonicalized to share
+  // instantiations) and a complex<double> case.
+  testMatrixTypeDynamic(MatrixXd(5, 5));
+  testMatrixTypeDynamic(MatrixXd(13, 13));
+  testMatrixTypeDynamic(Matrix<std::complex<double>, Dynamic, Dynamic>(4, 4));
 
   testMapRef(MatrixXd(13, 13));
 }
