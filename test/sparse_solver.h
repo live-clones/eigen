@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_TEST_SPARSE_SOLVER_H
+#define EIGEN_TEST_SPARSE_SOLVER_H
+
 #include "sparse.h"
 #include <Eigen/SparseCore>
 #include <Eigen/SparseLU>
@@ -149,6 +152,8 @@ void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, 
     }
   }
 }
+
+#endif  // EIGEN_TEST_SPARSE_SOLVER_H
 
 // specialization of generic check_sparse_solving for SuperLU in order to also test adjoint and transpose solves
 template <typename Scalar, typename Rhs, typename DenseMat, typename DenseRhs>
