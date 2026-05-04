@@ -206,6 +206,7 @@ class EventCount {
     eigen_plain_assert(waiters >= signals);
     eigen_plain_assert(waiters < (1 << kWaiterBits) - 1);
     eigen_plain_assert(!waiter || waiters > 0);
+    (void)waiter;
     (void)waiters;
     (void)signals;
   }
