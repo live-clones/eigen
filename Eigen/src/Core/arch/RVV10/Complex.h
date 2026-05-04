@@ -454,7 +454,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,
-    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
+    size = rvv_packet_size_selector<std::complex<double>, EIGEN_RISCV64_RVV_VL, 1>::size,
 
     HasAdd = 1,
     HasSub = 1,
@@ -488,7 +488,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,
-    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size,
+    size = rvv_packet_size_selector<std::complex<double>, EIGEN_RISCV64_RVV_VL, 2>::size,
 
     HasAdd = 1,
     HasSub = 1,
@@ -522,7 +522,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,
-    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 2>::size,
+    size = rvv_packet_size_selector<std::complex<double>, EIGEN_RISCV64_RVV_VL, 4>::size,
 
     HasAdd = 1,
     HasSub = 1,
@@ -554,7 +554,7 @@ struct unpacket_traits<Packet2Xcd> : default_unpacket_traits {
 #endif
   typedef Packet2Xd as_real;
   enum {
-    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size,
+    size = rvv_packet_size_selector<std::complex<double>, EIGEN_RISCV64_RVV_VL, 2>::size,
     alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 2>::alignment,
     vectorizable = true,
     masked_load_available = false,
@@ -572,7 +572,7 @@ struct unpacket_traits<Packet4Xcd> : default_unpacket_traits {
 #endif
   typedef Packet4Xd as_real;
   enum {
-    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 2>::size,
+    size = rvv_packet_size_selector<std::complex<double>, EIGEN_RISCV64_RVV_VL, 4>::size,
     alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 4>::alignment,
     vectorizable = true,
     masked_load_available = false,
@@ -586,7 +586,7 @@ struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
   typedef Packet1Xcd half;
   typedef Packet1Xd as_real;
   enum {
-    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
+    size = rvv_packet_size_selector<std::complex<double>, EIGEN_RISCV64_RVV_VL, 1>::size,
     alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
     vectorizable = true,
     masked_load_available = false,
