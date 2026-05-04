@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_SHUFFLING_H
-#define EIGEN_CXX11_TENSOR_TENSOR_SHUFFLING_H
+#ifndef EIGEN_TENSOR_TENSOR_SHUFFLING_H
+#define EIGEN_TENSOR_TENSOR_SHUFFLING_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -411,4 +411,4 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_SHUFFLING_H
+#endif  // EIGEN_TENSOR_TENSOR_SHUFFLING_H

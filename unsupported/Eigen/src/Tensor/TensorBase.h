@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_BASE_H
-#define EIGEN_CXX11_TENSOR_TENSOR_BASE_H
+#ifndef EIGEN_TENSOR_TENSOR_BASE_H
+#define EIGEN_TENSOR_TENSOR_BASE_H
 
 // clang-format off
 
@@ -1242,4 +1242,4 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
 #endif // EIGEN_PARSED_BY_DOXYGEN
 } // end namespace Eigen
 
-#endif // EIGEN_CXX11_TENSOR_TENSOR_BASE_H
+#endif // EIGEN_TENSOR_TENSOR_BASE_H

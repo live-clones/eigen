@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSORSYMMETRY_TEMPLATEGROUPTHEORY_H
-#define EIGEN_CXX11_TENSORSYMMETRY_TEMPLATEGROUPTHEORY_H
+#ifndef EIGEN_TENSORSYMMETRY_TEMPLATEGROUPTHEORY_H
+#define EIGEN_TENSORSYMMETRY_TEMPLATEGROUPTHEORY_H
 
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
@@ -485,7 +485,7 @@ struct enumerate_group_elements
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSORSYMMETRY_TEMPLATEGROUPTHEORY_H
+#endif  // EIGEN_TENSORSYMMETRY_TEMPLATEGROUPTHEORY_H
 
 /*
  * kate: space-indent on; indent-width 2; mixedindent off; indent-mode cstyle;

@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_THREADPOOL_THREAD_LOCAL_H
-#define EIGEN_CXX11_THREADPOOL_THREAD_LOCAL_H
+#ifndef EIGEN_THREADPOOL_THREAD_LOCAL_H
+#define EIGEN_THREADPOOL_THREAD_LOCAL_H
 
 #ifdef EIGEN_AVOID_THREAD_LOCAL
 
@@ -286,4 +286,4 @@ class ThreadLocal {
 
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_THREADPOOL_THREAD_LOCAL_H
+#endif  // EIGEN_THREADPOOL_THREAD_LOCAL_H
