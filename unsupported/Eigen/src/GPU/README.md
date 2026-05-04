@@ -574,14 +574,14 @@ void                     setZero()                       // cudaMemsetAsync
 void                     addScaled(gpu::Context&, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
 void                     scale(gpu::Context&, Scalar alpha)                              // this *= alpha (scal)
 void                     copyFrom(gpu::Context&, const DeviceMatrix& other)              // this = other (D2D copy)
-DeviceMatrix& operator+=(Scalar * DeviceMatrix)          // cuBLAS axpy
-DeviceMatrix& operator-=(Scalar * DeviceMatrix)          // cuBLAS axpy (negated)
-DeviceMatrix& operator+=(const DeviceMatrix&)            // cuBLAS axpy
-DeviceMatrix& operator-=(const DeviceMatrix&)            // cuBLAS axpy
-DeviceMatrix& operator+=(const DeviceScaledDevice&)      // cuBLAS axpy (DeviceScalar * DeviceMatrix)
-DeviceMatrix& operator-=(const DeviceScaledDevice&)      // cuBLAS axpy (DeviceScalar * DeviceMatrix, negated)
-DeviceMatrix& operator*=(Scalar)                         // cuBLAS scal
-DeviceMatrix& operator*=(const DeviceScalar<Scalar>&)    // cuBLAS scal (device pointer)
+DeviceMatrix& operator+=(const Scaled<DeviceMatrix>&)    // axpy; spelled `mat += alpha * other`
+DeviceMatrix& operator-=(const Scaled<DeviceMatrix>&)    // axpy negated; spelled `mat -= alpha * other`
+DeviceMatrix& operator+=(const DeviceMatrix&)            // cuBLAS axpy (alpha=1)
+DeviceMatrix& operator-=(const DeviceMatrix&)            // cuBLAS axpy (alpha=-1)
+DeviceMatrix& operator+=(const DeviceScaledDevice<Scalar>&)  // axpy with device scalar; spelled `mat += d_alpha * other`
+DeviceMatrix& operator-=(const DeviceScaledDevice<Scalar>&)  // negated; spelled `mat -= d_alpha * other`
+DeviceMatrix& operator*=(Scalar)                         // cuBLAS scal (host pointer mode)
+DeviceMatrix& operator*=(const DeviceScalar<Scalar>&)    // cuBLAS scal (device pointer mode, no host sync)
 DeviceMatrix  cwiseProduct(gpu::Context&, const DeviceMatrix&)            // NPP nppsMul (float/double only)
 void          cwiseProduct(gpu::Context&, const DeviceMatrix&, const DeviceMatrix&)  // in-place: this = a .* b
 
