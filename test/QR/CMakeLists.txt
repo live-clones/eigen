@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 ei_add_test(qr)
 ei_add_test(qr_complex)
 ei_add_test(qr_colpivoting)
