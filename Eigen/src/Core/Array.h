@@ -145,8 +145,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * constructor must match the fixed number of rows (resp. columns) of \c *this.
    *
    *
-   * Example: \include Array_variadic_ctor_cxx11.cpp
-   * Output: \verbinclude Array_variadic_ctor_cxx11.out
+   * Example: \include Array_variadic_ctor.cpp
+   * Output: \verbinclude Array_variadic_ctor.out
    *
    * \sa Array(const std::initializer_list<std::initializer_list<Scalar>>&)
    * \sa Array(const Scalar&), Array(const Scalar&,const Scalar&)
@@ -160,8 +160,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    *
    * In the general case, the constructor takes a list of rows, each row being represented as a list of coefficients:
    *
-   * Example: \include Array_initializer_list_23_cxx11.cpp
-   * Output: \verbinclude Array_initializer_list_23_cxx11.out
+   * Example: \include Array_initializer_list_23.cpp
+   * Output: \verbinclude Array_initializer_list_23.out
    *
    * Each of the inner initializer lists must contain the exact same number of elements, otherwise an assertion is
    * triggered.
@@ -170,8 +170,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * Therefore <code> Array<int,Dynamic,1>{{1,2,3,4,5}}</code> is legal and the more verbose syntax
    * <code>Array<int,Dynamic,1>{{1},{2},{3},{4},{5}}</code> can be avoided:
    *
-   * Example: \include Array_initializer_list_vector_cxx11.cpp
-   * Output: \verbinclude Array_initializer_list_vector_cxx11.out
+   * Example: \include Array_initializer_list_vector.cpp
+   * Output: \verbinclude Array_initializer_list_vector.out
    *
    * In the case of fixed-sized arrays, the initializer list sizes must exactly match the array sizes,
    * and implicit transposition is allowed for compile-time 1D arrays only.

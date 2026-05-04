@@ -189,8 +189,8 @@ struct functor_traits<scalar_replace_zero_with_one_op<Scalar>> {
  * return STL-compatible begin/end iterators to the rows or columns of the nested expression.
  * Typical use cases include for-range-loop and calls to STL algorithms:
  *
- * Example: \include MatrixBase_colwise_iterator_cxx11.cpp
- * Output: \verbinclude MatrixBase_colwise_iterator_cxx11.out
+ * Example: \include MatrixBase_colwise_iterator.cpp
+ * Output: \verbinclude MatrixBase_colwise_iterator.out
  *
  * For a partial reduction on an empty input, some rules apply.
  * For the sake of clarity, let's consider a vertical reduction:
