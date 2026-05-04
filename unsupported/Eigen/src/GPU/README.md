@@ -607,8 +607,9 @@ cudaStream_t       stream()
 Unlike Eigen's `Matrix`, where omitting `.noalias()` triggers a copy to a
 temporary, DeviceMatrix dispatches directly to NVIDIA library calls which have
 no built-in aliasing protection. All operations are implicitly noalias.
-The caller must ensure operands don't alias the destination for GEMM and TRSM
-(debug asserts catch violations).
+The caller must ensure operands don't alias the destination for GEMM, TRSM,
+SYMM/HEMM, and SYRK/HERK. Debug builds assert on these violations before
+dispatching to cuBLAS.
 
 ## File layout
 
