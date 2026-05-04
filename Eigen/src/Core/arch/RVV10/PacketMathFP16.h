@@ -21,120 +21,58 @@ typedef eigen_packet_wrapper<vfloat16m1_t __attribute__((riscv_rvv_vector_bits(E
 typedef eigen_packet_wrapper<vfloat16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 25>
     Packet2Xh;
 
+template <>
+struct rvv_half_packet<Packet2Xh> {
+  typedef Packet1Xh type;
+};
+
+template <>
+struct unpacket_traits<Packet1Xh> : rvv_default_unpacket_traits<Eigen::half, Packet1Xh, 1> {
+  typedef Packet1Xs integer_packet;
+  typedef PacketMask16 packet_mask;
+};
+
+template <>
+struct unpacket_traits<Packet2Xh> : rvv_default_unpacket_traits<Eigen::half, Packet2Xh, 2> {
+  typedef Packet2Xs integer_packet;
+  typedef PacketMask8 packet_mask;
+};
+
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xh PacketXh;
-
-template <>
-struct packet_traits<Eigen::half> : default_packet_traits {
-  typedef Packet1Xh type;
-  typedef Packet1Xh half;
-
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = rvv_packet_size_selector<Eigen::half, EIGEN_RISCV64_RVV_VL, 1>::size,
-
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0,
-
-    HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-
-    HasSin = EIGEN_FAST_MATH,
-    HasCos = EIGEN_FAST_MATH,
-    HasLog = 0,
-    HasExp = 0,
-    HasSqrt = 1,
-    HasTanh = EIGEN_FAST_MATH,
-    HasErf = 0
-  };
-};
-
 #else
 typedef Packet2Xh PacketXh;
-
-template <>
-struct packet_traits<Eigen::half> : default_packet_traits {
-  typedef Packet2Xh type;
-  typedef Packet1Xh half;
-
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = rvv_packet_size_selector<Eigen::half, EIGEN_RISCV64_RVV_VL, 2>::size,
-
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0,
-
-    HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-
-    HasSin = EIGEN_FAST_MATH,
-    HasCos = EIGEN_FAST_MATH,
-    HasLog = 0,
-    HasExp = 0,
-    HasSqrt = 1,
-    HasTanh = EIGEN_FAST_MATH,
-    HasErf = 0
-  };
-};
 #endif
 
 template <>
-struct unpacket_traits<Packet1Xh> {
-  typedef Eigen::half type;
-  typedef Packet1Xh half;  // Half not yet implemented
-  typedef Packet1Xs integer_packet;
-  typedef numext::uint8_t mask_t;
-
+struct packet_traits<Eigen::half> : rvv_default_packet_traits<Eigen::half, PacketXh> {
   enum {
-    size = rvv_packet_size_selector<Eigen::half, EIGEN_RISCV64_RVV_VL, 1>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 1,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasAbs2 = 1,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasBlend = 0,
+    HasReduxp = 0,
 
-template <>
-struct unpacket_traits<Packet2Xh> {
-  typedef Eigen::half type;
-  typedef Packet1Xh half;
-  typedef Packet2Xs integer_packet;
-  typedef numext::uint8_t mask_t;
+    HasCmp = 1,
+    HasDiv = 1,
+    HasRound = 1,
 
-  enum {
-    size = rvv_packet_size_selector<Eigen::half, EIGEN_RISCV64_RVV_VL, 2>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 2>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
+    HasSin = EIGEN_FAST_MATH,
+    HasCos = EIGEN_FAST_MATH,
+    HasLog = 0,
+    HasExp = 0,
+    HasSqrt = 1,
+    HasTanh = EIGEN_FAST_MATH,
+    HasErf = 0
   };
 };
 
