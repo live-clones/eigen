@@ -22,6 +22,8 @@
 //   # Append results to the log:
 //   BAL_FILE=problem-49-7776-pre.txt ./build-bench-gpu/bench_gpu_ba \
 //     --benchmark_format=console 2>&1 | tee -a benchmarks/GPU/ba_results.log
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 
