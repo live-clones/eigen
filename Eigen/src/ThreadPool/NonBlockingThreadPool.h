@@ -240,6 +240,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     eigen_plain_assert(start >= 0);
     eigen_plain_assert(start < end);  // non-zero sized partition
     eigen_plain_assert(end <= num_threads_);
+    (void)start;
+    (void)end;
   }
 
   inline void SetStealPartition(size_t i, unsigned val) {
