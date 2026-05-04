@@ -268,31 +268,14 @@ struct rvv_default_packet_traits : default_packet_traits {
     size = unpacket_traits<Packet>::size,
     Vectorizable = 1,
     AlignedOnScalar = 1,
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0
+    HasCmp = 1
   };
 };
 
 template <typename Scalar, typename Packet>
 struct rvv_default_float_packet_traits : rvv_default_packet_traits<Scalar, Packet> {
   enum {
-    HasCmp = 1,
     HasDiv = 1,
-    HasRound = 1,
-    HasMul = 1,
-
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasTan = EIGEN_FAST_MATH,
