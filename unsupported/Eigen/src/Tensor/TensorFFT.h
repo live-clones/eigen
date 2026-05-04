@@ -89,7 +89,7 @@ struct nested<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor FFT class.
  *

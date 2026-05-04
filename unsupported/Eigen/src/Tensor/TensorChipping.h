@@ -60,7 +60,7 @@ struct DimensionId<Dynamic> {
 }  // end namespace internal
 
 /** A chip is a thin slice, corresponding to a column or a row in a 2-d tensor.
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  */
 template <DenseIndex DimId, typename XprType>
 class TensorChippingOp : public TensorBase<TensorChippingOp<DimId, XprType> > {

@@ -17,7 +17,7 @@
 namespace Eigen {
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Pseudo expression providing an operator = that will evaluate its argument
  * on the specified computing 'device' (GPU, thread pool, ...)
@@ -71,7 +71,7 @@ class TensorDevice {
 };
 
 /** \class TensorAsyncDevice
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Pseudo expression providing an operator = that will evaluate its
  * argument asynchronously on the specified device. Currently only

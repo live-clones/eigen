@@ -126,7 +126,7 @@ struct DividerHelper<64, T> {
 
 /** \internal
  *
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Fast integer division by a constant.
  *

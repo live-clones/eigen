@@ -67,7 +67,7 @@ struct fixed_size_tensor_index_extraction_helper<Index, 0> {
 
 /** \internal
  *
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Fixed dimensions of a Tensor.
  *
@@ -158,7 +158,7 @@ struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
 
 /** \internal
  *
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Dynamic dimensions of a Tensor.
  *

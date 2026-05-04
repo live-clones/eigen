@@ -43,7 +43,7 @@ struct nested<TensorIndexPairOp<XprType>, 1, typename eval<TensorIndexPairOp<Xpr
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor + Index Pair class.
  */
@@ -119,7 +119,7 @@ struct TensorEvaluator<const TensorIndexPairOp<ArgType>, Device> {
 namespace internal {
 
 /** \class TensorPairIndex
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Converts to Tensor<Pair<Index, Scalar> > and reduces to Tensor<Index>.
  *

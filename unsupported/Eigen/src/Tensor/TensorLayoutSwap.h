@@ -43,7 +43,7 @@ struct nested<TensorLayoutSwapOp<XprType>, 1, typename eval<TensorLayoutSwapOp<X
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Swap the layout from col-major to row-major, or row-major
  * to col-major, and invert the order of the dimensions.

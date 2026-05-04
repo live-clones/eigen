@@ -44,7 +44,7 @@ struct nested<TensorPaddingOp<PaddingDimensions, XprType>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor padding class.
  * At the moment only padding with a constant value is supported.

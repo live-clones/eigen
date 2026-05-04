@@ -42,7 +42,7 @@ struct nested<TensorRollOp<RollDimensions, XprType>, 1, typename eval<TensorRoll
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor roll (circular shift) elements class.
  *

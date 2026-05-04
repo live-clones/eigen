@@ -17,7 +17,7 @@
 namespace Eigen {
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief The fixed sized version of the tensor class.
  *

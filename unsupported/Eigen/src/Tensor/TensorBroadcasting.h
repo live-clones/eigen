@@ -61,7 +61,7 @@ struct is_input_scalar<Sizes<Indices...>> {
 }  // end namespace internal
 
 /** Tensor broadcasting class.
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  */
 template <typename Broadcast, typename XprType>
 class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors> {

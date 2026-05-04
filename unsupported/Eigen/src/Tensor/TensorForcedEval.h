@@ -47,7 +47,7 @@ struct nested<TensorForcedEvalOp<XprType>, 1, typename eval<TensorForcedEvalOp<X
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor forced evaluation class.
  */

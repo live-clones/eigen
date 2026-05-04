@@ -21,7 +21,7 @@ namespace Eigen {
 namespace internal {
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Helper template to initialize Tensors from std::initializer_lists.
  */

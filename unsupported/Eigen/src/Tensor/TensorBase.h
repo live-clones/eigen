@@ -19,7 +19,7 @@
 namespace Eigen {
 
 /** \class TensorBase
-  * \ingroup CXX11_Tensor_Module
+  * \ingroup Tensor_Module
   *
   * \brief The tensor base class.
   *

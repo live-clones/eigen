@@ -157,7 +157,7 @@ struct PacketConverter<TensorEvaluator, SrcPacket, TgtPacket, 1, TgtCoeffRatio> 
 };
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor conversion class. This class makes it possible to vectorize
  * type casting operations when the number of scalars per packet in the source

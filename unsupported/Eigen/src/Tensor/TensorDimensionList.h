@@ -18,7 +18,7 @@ namespace Eigen {
 
 /** \internal
  *
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Special case of tensor index list used to list all the dimensions of a tensor of rank n.
  *

@@ -43,7 +43,7 @@ struct nested<TensorPatchOp<PatchDim, XprType>, 1, typename eval<TensorPatchOp<P
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor patch class.
  */
