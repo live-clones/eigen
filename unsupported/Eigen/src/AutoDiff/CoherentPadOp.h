@@ -150,4 +150,4 @@ struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
 
 }  // namespace Eigen
 
-#endif  // EIGEN_CWISE_BINARY_OP_H
+#endif  // EIGEN_COHERENT_PAD_OP_H
