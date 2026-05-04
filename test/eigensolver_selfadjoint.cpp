@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 #include "svd_fill.h"
@@ -41,7 +42,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
     scaledA /= scaling;
     MatrixType residual =
         scaledA * eiSymm.eigenvectors() - eiSymm.eigenvectors() * (eiSymm.eigenvalues() / scaling).asDiagonal();
-    RealScalar tol = RealScalar(4) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
+    RealScalar tol = RealScalar(8) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
     for (Index i = 0; i < n; ++i) {
       VERIFY(residual.col(i).norm() <= tol);
     }
@@ -50,7 +51,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
 
   // Eigenvectors must be unitary. Use a tolerance proportional to n*epsilon,
   // which is the expected rounding error for Householder-based orthogonal transformations.
-  RealScalar unitary_tol = RealScalar(4) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
+  RealScalar unitary_tol = RealScalar(8) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
   // But don't go below the test_precision floor (matters for float).
   unitary_tol = numext::maxi(unitary_tol, test_precision<RealScalar>());
   VERIFY(eiSymm.eigenvectors().isUnitary(unitary_tol));

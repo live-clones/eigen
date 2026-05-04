@@ -10,6 +10,7 @@
 // https://mozilla.org/MPL/2.0/.
 //
 // Derived from: Eigen/src/Eigenvalues/RealQZ.h
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 eigen_add_benchmark(bench_transforms bench_transforms.cpp)
 eigen_add_benchmark(bench_geometry bench_geometry.cpp)
 eigen_add_benchmark(bench_quatmul bench_quatmul.cpp)

@@ -72,6 +72,7 @@
  * Email: shbhaska@amd.com
  * Organization: Advanced Micro Devices, Inc.
  */
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_AOCL_SUPPORT_H
 #define EIGEN_AOCL_SUPPORT_H

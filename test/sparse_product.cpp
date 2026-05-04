@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #if defined(_MSC_VER) && (_MSC_VER == 1800)
 // This unit test takes forever to compile in Release mode with MSVC 2013,
@@ -370,6 +371,10 @@ void sparse_product() {
     VERIFY_IS_APPROX(x = scale.asDiagonal() * mLo.template selfadjointView<Lower>(), refX = scale.asDiagonal() * refS);
     VERIFY_IS_APPROX(x = mUp.template selfadjointView<Upper>() * scale.asDiagonal(), refX = refS * scale.asDiagonal());
     VERIFY_IS_APPROX(x = scale.asDiagonal() * mUp.template selfadjointView<Upper>(), refX = scale.asDiagonal() * refS);
+    VERIFY_IS_APPROX(x = mS.template selfadjointView<Upper | Lower>() * scale.asDiagonal(),
+                     refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(x = scale.asDiagonal() * mS.template selfadjointView<Upper | Lower>(),
+                     refX = scale.asDiagonal() * refS);
 
     // sparse selfadjointView with sparse matrices
     SparseMatrixType mSres(rows, rows);
@@ -384,6 +389,10 @@ void sparse_product() {
     VERIFY_IS_APPROX(mSres = mUp.template selfadjointView<Upper>() * scale.asDiagonal(),
                      refX = refS * scale.asDiagonal());
     VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mUp.template selfadjointView<Upper>(),
+                     refX = scale.asDiagonal() * refS);
+    VERIFY_IS_APPROX(mSres = mS.template selfadjointView<Upper | Lower>() * scale.asDiagonal(),
+                     refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mS.template selfadjointView<Upper | Lower>(),
                      refX = scale.asDiagonal() * refS);
 
     // sparse triangularView with dense matrices

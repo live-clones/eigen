@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 // discard stack allocation as that too bypasses malloc
 #define EIGEN_STACK_ALLOCATION_LIMIT 0
@@ -230,6 +231,28 @@ void bug2013() {
   no_malloc_result.noalias() = dynamic_d.asDiagonal() * dynamic_m.template triangularView<UnitUpper>();
   internal::set_is_malloc_allowed(true);
   VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  // Triangular destination assignment from a structured*diagonal product must go through the
+  // lazy product_evaluator and avoid materializing a full PlainObject temporary.
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Upper>() =
+      MatrixXd(dynamic_m.template triangularView<Upper>()) * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Upper>() =
+      dynamic_m.template triangularView<Upper>() * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Lower>() =
+      dynamic_d.asDiagonal() * MatrixXd(dynamic_m.template triangularView<Lower>());
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Lower>() =
+      dynamic_d.asDiagonal() * dynamic_m.template triangularView<Lower>();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
 }
 
 template <int>
@@ -290,6 +313,200 @@ void selfadjoint_diagonal_products() {
   no_malloc_result.noalias() = dynamic_d.asDiagonal() * dynamic_m.template selfadjointView<Upper>();
   internal::set_is_malloc_allowed(true);
   VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  // Triangular destination assignment from selfadjoint*diagonal must use the lazy
+  // product_evaluator (with conjugate-mirror coeffs) and not materialize a temporary.
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Lower>() =
+      MatrixXcd(dynamic_m.template selfadjointView<Upper>()) * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Lower>() =
+      dynamic_m.template selfadjointView<Upper>() * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Upper>() =
+      dynamic_d.asDiagonal() * MatrixXcd(dynamic_m.template selfadjointView<Lower>());
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Upper>() =
+      dynamic_d.asDiagonal() * dynamic_m.template selfadjointView<Lower>();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+}
+
+// Exercise the block-tile path of the dense selfadjoint x diagonal kernel
+// (BlockSize = 32 in ProductEvaluators.h). Picks a few sizes that hit
+// full blocks (size = 64), partial blocks (size = 33, 65), and a tiny size
+// that bypasses the block loop entirely (size = 8). Also verifies the
+// overwrite path leaves no stale data when dst is pre-filled.
+template <typename Scalar>
+void selfadjoint_diagonal_products_at(Index n) {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatType;
+  typedef Matrix<Scalar, Dynamic, 1> VecType;
+
+  MatType m = MatType::Random(n, n);
+  m.diagonal() = m.diagonal().real().template cast<Scalar>();  // Hermitian diagonal
+  VecType d = VecType::Random(n);
+
+  MatType ref_lower = m.template selfadjointView<Lower>();
+  MatType ref_upper = m.template selfadjointView<Upper>();
+
+  // Plain assignment goes through evalTo (overwrite kernel).
+  // Pre-fill dst with garbage to verify no stale entries remain.
+  MatType dst = MatType::Constant(n, n, Scalar(42));
+  dst.noalias() = m.template selfadjointView<Upper>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, ref_upper * d.asDiagonal());
+
+  dst = MatType::Constant(n, n, Scalar(-7));
+  dst.noalias() = m.template selfadjointView<Lower>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, ref_lower * d.asDiagonal());
+
+  dst = MatType::Constant(n, n, Scalar(13));
+  dst.noalias() = d.asDiagonal() * m.template selfadjointView<Upper>();
+  VERIFY_IS_APPROX(dst, d.asDiagonal() * ref_upper);
+
+  dst = MatType::Constant(n, n, Scalar(99));
+  dst.noalias() = d.asDiagonal() * m.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(dst, d.asDiagonal() * ref_lower);
+
+  // Accumulating paths (scaleAndAddTo).
+  MatType base = MatType::Random(n, n);
+  dst = base;
+  dst.noalias() += m.template selfadjointView<Upper>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, base + ref_upper * d.asDiagonal());
+
+  dst = base;
+  dst.noalias() -= d.asDiagonal() * m.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(dst, base - d.asDiagonal() * ref_lower);
+
+  // Scalar-scaled products: the "Dense ?= scalar * Product" rewriting rule
+  // folds alpha into the SelfAdjointView. For a complex alpha that fold is
+  // not Hermitian, so the dispatch must restore alpha rather than apply it
+  // straight to the kernel — verify all four orientation x triangle combos.
+  Scalar alpha = internal::random<Scalar>();
+  dst = base;
+  dst.noalias() += alpha * (m.template selfadjointView<Lower>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, base + alpha * (ref_lower * d.asDiagonal()));
+
+  dst = base;
+  dst.noalias() -= alpha * (m.template selfadjointView<Upper>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, base - alpha * (ref_upper * d.asDiagonal()));
+
+  dst = base;
+  dst.noalias() += alpha * (d.asDiagonal() * m.template selfadjointView<Upper>());
+  VERIFY_IS_APPROX(dst, base + alpha * (d.asDiagonal() * ref_upper));
+
+  dst = base;
+  dst.noalias() -= alpha * (d.asDiagonal() * m.template selfadjointView<Lower>());
+  VERIFY_IS_APPROX(dst, base - alpha * (d.asDiagonal() * ref_lower));
+
+  // Overwrite-with-scalar path: hits evalTo's HasScalarFactor branch.
+  dst = MatType::Constant(n, n, Scalar(17));
+  dst.noalias() = alpha * (m.template selfadjointView<Lower>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, alpha * (ref_lower * d.asDiagonal()));
+
+  dst = MatType::Constant(n, n, Scalar(-3));
+  dst.noalias() = alpha * (d.asDiagonal() * m.template selfadjointView<Upper>());
+  VERIFY_IS_APPROX(dst, alpha * (d.asDiagonal() * ref_upper));
+
+  // Conjugated nested expressions go through the same blas_traits extraction
+  // path. The extracted matrix must keep NeedToConjugate, otherwise the kernel
+  // computes with m instead of m.conjugate().
+  MatType conj_ref_lower = m.conjugate().template selfadjointView<Lower>();
+  MatType conj_ref_upper = m.conjugate().template selfadjointView<Upper>();
+
+  dst = MatType::Constant(n, n, Scalar(23));
+  dst.noalias() = m.conjugate().template selfadjointView<Upper>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, conj_ref_upper * d.asDiagonal());
+
+  dst = MatType::Constant(n, n, Scalar(-29));
+  dst.noalias() = d.asDiagonal() * m.conjugate().template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(dst, d.asDiagonal() * conj_ref_lower);
+
+  dst = base;
+  dst.noalias() += alpha * (m.conjugate().template selfadjointView<Lower>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, base + alpha * (conj_ref_lower * d.asDiagonal()));
+
+  dst = base;
+  dst.noalias() -= alpha * (d.asDiagonal() * m.conjugate().template selfadjointView<Upper>());
+  VERIFY_IS_APPROX(dst, base - alpha * (d.asDiagonal() * conj_ref_upper));
+}
+
+template <int>
+void selfadjoint_diagonal_products_block_path() {
+  selfadjoint_diagonal_products_at<double>(8);
+  selfadjoint_diagonal_products_at<double>(33);  // partial off-diagonal block
+  selfadjoint_diagonal_products_at<double>(64);  // exact multiple of BlockSize
+  selfadjoint_diagonal_products_at<double>(65);  // off-by-one
+  selfadjoint_diagonal_products_at<std::complex<double>>(33);
+  selfadjoint_diagonal_products_at<std::complex<double>>(65);
+}
+
+// In-place patterns where the diagonal operand shares storage with the destination view.
+// The fast path in triangular_product_assignment_dispatcher detects the run-time overlap
+// and materializes a temporary, so the result must match a reference computed against a
+// materialized source. The structured (triangular/selfadjoint) operand can safely share
+// storage with dst because the kernel reads each cell before writing it.
+template <unsigned int Mode, typename Mat>
+void verify_triangular_in_place_with_aliased_diagonal(const Mat& m) {
+  // diagonal * tri_view
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_tri = actual.template triangularView<Mode>();
+    expected.template triangularView<Mode>() = (ref_diag * ref_tri).eval();
+    actual.template triangularView<Mode>() = actual.diagonal().asDiagonal() * actual.template triangularView<Mode>();
+    VERIFY_IS_APPROX(actual, expected);
+  }
+  // tri_view * diagonal
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_tri = actual.template triangularView<Mode>();
+    expected.template triangularView<Mode>() = (ref_tri * ref_diag).eval();
+    actual.template triangularView<Mode>() = actual.template triangularView<Mode>() * actual.diagonal().asDiagonal();
+    VERIFY_IS_APPROX(actual, expected);
+  }
+}
+
+template <unsigned int Mode, typename Mat>
+void verify_selfadjoint_in_place_with_aliased_diagonal(const Mat& m) {
+  // diagonal * sa_view
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_sa = actual.template selfadjointView<Mode>();
+    expected.template triangularView<Mode>() = (ref_diag * ref_sa).eval();
+    actual.template selfadjointView<Mode>() = actual.diagonal().asDiagonal() * actual.template selfadjointView<Mode>();
+    VERIFY_IS_APPROX(actual.template triangularView<Mode>().toDenseMatrix(),
+                     expected.template triangularView<Mode>().toDenseMatrix());
+  }
+  // sa_view * diagonal
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_sa = actual.template selfadjointView<Mode>();
+    expected.template triangularView<Mode>() = (ref_sa * ref_diag).eval();
+    actual.template selfadjointView<Mode>() = actual.template selfadjointView<Mode>() * actual.diagonal().asDiagonal();
+    VERIFY_IS_APPROX(actual.template triangularView<Mode>().toDenseMatrix(),
+                     expected.template triangularView<Mode>().toDenseMatrix());
+  }
+}
+
+template <int>
+void structured_diagonal_aliasing() {
+  for (int n : {3, 5, 8, 17, 32, 33, 64, 65}) {
+    MatrixXcd m = MatrixXcd::Random(n, n);
+    m.diagonal() = m.diagonal().real();  // Hermitian-friendly diagonal
+
+    verify_triangular_in_place_with_aliased_diagonal<Upper>(m);
+    verify_triangular_in_place_with_aliased_diagonal<Lower>(m);
+    verify_selfadjoint_in_place_with_aliased_diagonal<Upper>(m);
+    verify_selfadjoint_in_place_with_aliased_diagonal<Lower>(m);
+  }
 }
 
 EIGEN_DECLARE_TEST(diagonalmatrices) {
@@ -316,4 +533,6 @@ EIGEN_DECLARE_TEST(diagonalmatrices) {
   CALL_SUBTEST_10(bug987<0>());
   CALL_SUBTEST_10(bug2013<0>());
   CALL_SUBTEST_10(selfadjoint_diagonal_products<0>());
+  CALL_SUBTEST_10(selfadjoint_diagonal_products_block_path<0>());
+  CALL_SUBTEST_10(structured_diagonal_aliasing<0>());
 }

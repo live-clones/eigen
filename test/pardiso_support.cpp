@@ -1,6 +1,7 @@
 /*
    Intel Copyright (C) ....
 */
+// SPDX-License-Identifier: MPL-2.0
 
 #include "sparse_solver.h"
 #include <Eigen/PardisoSupport>

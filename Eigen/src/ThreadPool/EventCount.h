@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_CXX11_THREADPOOL_EVENTCOUNT_H
 #define EIGEN_CXX11_THREADPOOL_EVENTCOUNT_H
@@ -205,6 +206,7 @@ class EventCount {
     eigen_plain_assert(waiters >= signals);
     eigen_plain_assert(waiters < (1 << kWaiterBits) - 1);
     eigen_plain_assert(!waiter || waiters > 0);
+    (void)waiter;
     (void)waiters;
     (void)signals;
   }

@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SELFADJOINTMATRIX_H
 #define EIGEN_SELFADJOINTMATRIX_H
@@ -108,12 +109,20 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /** \sa MatrixBase::operator*=() */
   EIGEN_DEVICE_FUNC SelfAdjointView& operator*=(const Scalar& other) {
+    eigen_assert(numext::imag(other) == typename NumTraits<Scalar>::Real(0) &&
+                 "SelfAdjointView in-place scaling requires a real scalar; "
+                 "scaling only the stored triangle by a non-real scalar would "
+                 "leave conj(other) on the unstored half.");
     m_matrix.template triangularView<UpLo>() *= other;
     return *this;
   }
 
   /** \sa DenseBase::operator/=() */
   EIGEN_DEVICE_FUNC SelfAdjointView& operator/=(const Scalar& other) {
+    eigen_assert(numext::imag(other) == typename NumTraits<Scalar>::Real(0) &&
+                 "SelfAdjointView in-place division requires a real scalar; "
+                 "dividing only the stored triangle by a non-real scalar would "
+                 "leave conj(other) on the unstored half.");
     m_matrix.template triangularView<UpLo>() /= other;
     return *this;
   }
