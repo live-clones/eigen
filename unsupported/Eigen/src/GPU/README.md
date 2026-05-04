@@ -278,6 +278,8 @@ h_x.get();                             // sync: factor + result complete
 | `DeviceMatrix(rows, cols)` | -- | Allocate uninitialized |
 | `fromHost(matrix, stream)` | yes | Upload from Eigen matrix |
 | `fromHostAsync(ptr, rows, cols, stream)` | no | Async upload (caller manages lifetime) |
+| `adopt(ptr, rows, cols)` | -- | Owning wrapper over a device pointer (caller relinquishes ownership) |
+| `view(ptr, rows, cols)` | -- | Non-owning view over a device pointer (does not free on destruction) |
 | `toHost(stream)` | yes | Synchronous download |
 | `toHostAsync(stream)` | no | Returns `HostTransfer` future |
 | `clone(stream)` | no | Device-to-device deep copy |
@@ -429,11 +431,12 @@ dispatching to cuBLAS.
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>` | cuBLAS error macro, op/compute type maps |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
-| `GpuLLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
-| `GpuLU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
-| `GpuQR.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense QR decomposition |
-| `GpuSVD.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense SVD decomposition |
-| `GpuEigenSolver.h` | `CuSolverSupport.h` | Self-adjoint eigenvalue decomposition |
+| `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Shared solver context (stream, handles, scratch) |
+| `GpuLLT.h` | `GpuSolverContext.h` | Cached dense Cholesky factorization |
+| `GpuLU.h` | `GpuSolverContext.h` | Cached dense LU factorization |
+| `GpuQR.h` | `GpuSolverContext.h` | Dense QR decomposition |
+| `GpuSVD.h` | `GpuSolverContext.h` | Dense SVD decomposition |
+| `GpuEigenSolver.h` | `GpuSolverContext.h` | Self-adjoint eigenvalue decomposition |
 
 ## Building and testing
 
