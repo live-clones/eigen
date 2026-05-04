@@ -179,14 +179,23 @@ MatrixXd U = svd.matrixU();
 MatrixXd VT = svd.matrixVT();
 MatrixXd X = svd.solve(B);          // pseudoinverse solve
 
+// SVD: device-side views (no D2H transfer; svd must outlive the views)
+auto d_S = svd.d_singularValues();   // DeviceMatrix view of singular values
+auto d_U = svd.d_matrixU();          // DeviceMatrix view of U
+auto d_VT = svd.d_matrixVT();        // DeviceMatrix view of V^T
+
 // Self-adjoint eigenvalue decomposition
 gpu::SelfAdjointEigenSolver<double> es(A);
 VectorXd eigenvals = es.eigenvalues();
 MatrixXd eigenvecs = es.eigenvectors();
+auto d_W = es.d_eigenvalues();        // DeviceMatrix view of eigenvalues
+auto d_V = es.d_eigenvectors();       // DeviceMatrix view of eigenvectors
 ```
 
 The cached API keeps the factored matrix on device, avoiding redundant
-host-device transfers and re-factorizations.
+host-device transfers and re-factorizations. The `d_*` accessors return
+non-owning `DeviceMatrix` views so downstream cuBLAS/cuSOLVER work can chain
+without round-tripping through host memory.
 
 ### Precision control
 
@@ -332,6 +341,7 @@ Q^H) + `trsm` (back-substitute on R) -- Q is never formed explicitly.
 | `compute(DeviceMatrix)` | D2D copy + factorize |
 | `solve(host_matrix)` | Solve, return host matrix (syncs) |
 | `solve(DeviceMatrix)` | Solve, return `DeviceMatrix` (async) |
+| `matrixR()` | Download upper-triangular factor R to host (m >= n only) |
 | `info()` | Lazy sync |
 | `rows()`, `cols()`, `stream()` | Dimensions and CUDA stream |
 
@@ -349,7 +359,11 @@ or `0` (values only).
 | `compute(DeviceMatrix, options)` | Compute from device matrix |
 | `singularValues()` | Download singular values to host |
 | `matrixU()` | Download U to host (requires `ComputeThinU` or `ComputeFullU`) |
+| `matrixV()` | Download V to host (matches `JacobiSVD::matrixV()`) |
 | `matrixVT()` | Download V^T to host (requires `ComputeThinV` or `ComputeFullV`) |
+| `d_singularValues()` | `DeviceMatrix` view of singular values (zero-copy) |
+| `d_matrixU()` | `DeviceMatrix` view of U (zero-copy when m >= n) |
+| `d_matrixVT()` | `DeviceMatrix` view of V^T (zero-copy when m >= n) |
 | `solve(B)` | Pseudoinverse solve (returns host matrix) |
 | `solve(B, k)` | Truncated solve (top k singular triplets) |
 | `solve(B, lambda)` | Tikhonov regularized solve |
@@ -357,7 +371,9 @@ or `0` (values only).
 | `info()` | Lazy sync |
 | `rows()`, `cols()`, `stream()` | Dimensions and CUDA stream |
 
-Wide matrices (m < n) are handled by internally transposing via cuBLAS `geam`.
+Wide matrices (m < n) are handled by internally transposing via cuBLAS `geam`;
+in that case `d_matrixU()` and `d_matrixVT()` allocate an owning result via a
+single `cublasXgeam` adjoint pass. `d_singularValues()` is always zero-copy.
 
 ### `gpu::SelfAdjointEigenSolver<Scalar>` API
 
@@ -371,11 +387,16 @@ GPU symmetric/Hermitian eigenvalue decomposition via cuSOLVER (`syevd`).
 | `compute(DeviceMatrix, mode)` | Compute from device matrix |
 | `eigenvalues()` | Download eigenvalues to host (ascending order) |
 | `eigenvectors()` | Download eigenvectors to host (columns) |
+| `d_eigenvalues()` | `DeviceMatrix` view of eigenvalues (zero-copy) |
+| `d_eigenvectors()` | `DeviceMatrix` view of eigenvectors (zero-copy, requires `ComputeEigenvectors`) |
 | `info()` | Lazy sync |
 | `rows()`, `cols()`, `stream()` | Dimensions and CUDA stream |
 
 `ComputeMode`: `gpu::SelfAdjointEigenSolver::EigenvaluesOnly` or
 `gpu::SelfAdjointEigenSolver::ComputeEigenvectors`.
+
+The `d_*` accessors return non-owning views into the solver's internal device
+buffers; the solver must outlive any view derived from it.
 
 ### `HostTransfer<Scalar>` API
 
