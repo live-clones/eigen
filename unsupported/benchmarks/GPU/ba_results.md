@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: The Eigen Authors
+SPDX-License-Identifier: MPL-2.0
+-->
+
 # Bundle Adjustment: GPU CG vs CPU CG Results
 
 Benchmark of Eigen's GPU CG pipeline on normal equations arising from bundle
