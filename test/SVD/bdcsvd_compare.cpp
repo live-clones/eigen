@@ -5,11 +5,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/
 
-// bdcsvd split: compare, inf/nan, and misc tests.
+// bdcsvd split: compare and misc tests, real types.
 
 #include "bdcsvd_helpers.h"
 
-TEST(BDCSVDCompareTest, Basic) {
+TEST(BDCSVDCompareTest, Real) {
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), c = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
 
@@ -18,7 +18,6 @@ TEST(BDCSVDCompareTest, Basic) {
 
     (compare_bdc_jacobi<MatrixXf>(MatrixXf(r, c)));
     (compare_bdc_jacobi<MatrixXd>(MatrixXd(r, c)));
-    (compare_bdc_jacobi<MatrixXcd>(MatrixXcd(r, c)));
     // Test on inf/nan matrix
     (svd_inf_nan<MatrixXf>());
     (svd_inf_nan<MatrixXd>());

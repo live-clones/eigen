@@ -9,9 +9,6 @@
 
 #include "block_helpers.h"
 
-// =============================================================================
-// Tests for block_basic
-// =============================================================================
 TEST(BlockBasicTest, Fixed) {
   for (int i = 0; i < g_repeat; i++) {
     block(Matrix<float, 1, 1>());
@@ -23,13 +20,5 @@ TEST(BlockBasicTest, DynamicVector) {
   for (int i = 0; i < g_repeat; i++) {
     block(Matrix<float, 1, Dynamic>(internal::random(2, 50)));
     block(Matrix<float, Dynamic, 1>(internal::random(2, 50)));
-  }
-}
-
-TEST(BlockBasicTest, DynamicMatrix) {
-  for (int i = 0; i < g_repeat; i++) {
-    block(MatrixXcf(internal::random(2, 50), internal::random(2, 50)));
-    block(MatrixXi(internal::random(2, 50), internal::random(2, 50)));
-    block(MatrixXcd(internal::random(2, 50), internal::random(2, 50)));
   }
 }

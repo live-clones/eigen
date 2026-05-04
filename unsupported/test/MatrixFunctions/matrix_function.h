@@ -166,6 +166,16 @@ void testMatrixType(const MatrixType& m) {
   }
 }
 
+// Canonicalized path: collapses to one Matrix<Scalar, Dynamic, Dynamic>
+// instantiation per Scalar so a TU can cover several runtime sizes / scalars
+// without the full per-MatrixType template explosion of testMatrixType.
+template <typename MatrixType>
+void testMatrixTypeDynamic(const MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  using DynMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  testMatrixType<DynMatrix>(DynMatrix(m));
+}
+
 template <typename MatrixType>
 void testMapRef(const MatrixType& A) {
   // Test if passing Ref and Map objects is possible

@@ -8,115 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#include "main.h"
-
-template <typename MatrixType>
-void product_extra(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, 1, Dynamic> RowVectorType;
-  typedef Matrix<Scalar, Dynamic, 1> ColVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, MatrixType::Flags & RowMajorBit> OtherMajorMatrixType;
-
-  Index rows = m.rows();
-  Index cols = m.cols();
-
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols), m3(rows, cols),
-             mzero = MatrixType::Zero(rows, cols), identity = MatrixType::Identity(rows, rows),
-             square = MatrixType::Random(rows, rows), res = MatrixType::Random(rows, rows),
-             square2 = MatrixType::Random(cols, cols), res2 = MatrixType::Random(cols, cols);
-  RowVectorType v1 = RowVectorType::Random(rows), vrres(rows);
-  ColVectorType vc2 = ColVectorType::Random(cols), vcres(cols);
-  OtherMajorMatrixType tm1 = m1;
-
-  Scalar s1 = internal::random<Scalar>(), s2 = internal::random<Scalar>(), s3 = internal::random<Scalar>();
-
-  VERIFY_IS_APPROX(m3.noalias() = m1 * m2.adjoint(), m1 * m2.adjoint().eval());
-  VERIFY_IS_APPROX(m3.noalias() = m1.adjoint() * square.adjoint(), m1.adjoint().eval() * square.adjoint().eval());
-  VERIFY_IS_APPROX(m3.noalias() = m1.adjoint() * m2, m1.adjoint().eval() * m2);
-  VERIFY_IS_APPROX(m3.noalias() = (s1 * m1.adjoint()) * m2, (s1 * m1.adjoint()).eval() * m2);
-  VERIFY_IS_APPROX(m3.noalias() = ((s1 * m1).adjoint()) * m2, (numext::conj(s1) * m1.adjoint()).eval() * m2);
-  VERIFY_IS_APPROX(m3.noalias() = (-m1.adjoint() * s1) * (s3 * m2), (-m1.adjoint() * s1).eval() * (s3 * m2).eval());
-  VERIFY_IS_APPROX(m3.noalias() = (s2 * m1.adjoint() * s1) * m2, (s2 * m1.adjoint() * s1).eval() * m2);
-  VERIFY_IS_APPROX(m3.noalias() = (-m1 * s2) * s1 * m2.adjoint(), (-m1 * s2).eval() * (s1 * m2.adjoint()).eval());
-
-  // a very tricky case where a scale factor has to be automatically conjugated:
-  VERIFY_IS_APPROX(m1.adjoint() * (s1 * m2).conjugate(), (m1.adjoint()).eval() * ((s1 * m2).conjugate()).eval());
-
-  // test all possible conjugate combinations for the four matrix-vector product cases:
-
-  VERIFY_IS_APPROX((-m1.conjugate() * s2) * (s1 * vc2), (-m1.conjugate() * s2).eval() * (s1 * vc2).eval());
-  VERIFY_IS_APPROX((-m1 * s2) * (s1 * vc2.conjugate()), (-m1 * s2).eval() * (s1 * vc2.conjugate()).eval());
-  VERIFY_IS_APPROX((-m1.conjugate() * s2) * (s1 * vc2.conjugate()),
-                   (-m1.conjugate() * s2).eval() * (s1 * vc2.conjugate()).eval());
-
-  VERIFY_IS_APPROX((s1 * vc2.transpose()) * (-m1.adjoint() * s2),
-                   (s1 * vc2.transpose()).eval() * (-m1.adjoint() * s2).eval());
-  VERIFY_IS_APPROX((s1 * vc2.adjoint()) * (-m1.transpose() * s2),
-                   (s1 * vc2.adjoint()).eval() * (-m1.transpose() * s2).eval());
-  VERIFY_IS_APPROX((s1 * vc2.adjoint()) * (-m1.adjoint() * s2),
-                   (s1 * vc2.adjoint()).eval() * (-m1.adjoint() * s2).eval());
-
-  VERIFY_IS_APPROX((-m1.adjoint() * s2) * (s1 * v1.transpose()),
-                   (-m1.adjoint() * s2).eval() * (s1 * v1.transpose()).eval());
-  VERIFY_IS_APPROX((-m1.transpose() * s2) * (s1 * v1.adjoint()),
-                   (-m1.transpose() * s2).eval() * (s1 * v1.adjoint()).eval());
-  VERIFY_IS_APPROX((-m1.adjoint() * s2) * (s1 * v1.adjoint()),
-                   (-m1.adjoint() * s2).eval() * (s1 * v1.adjoint()).eval());
-
-  VERIFY_IS_APPROX((s1 * v1) * (-m1.conjugate() * s2), (s1 * v1).eval() * (-m1.conjugate() * s2).eval());
-  VERIFY_IS_APPROX((s1 * v1.conjugate()) * (-m1 * s2), (s1 * v1.conjugate()).eval() * (-m1 * s2).eval());
-  VERIFY_IS_APPROX((s1 * v1.conjugate()) * (-m1.conjugate() * s2),
-                   (s1 * v1.conjugate()).eval() * (-m1.conjugate() * s2).eval());
-
-  VERIFY_IS_APPROX((-m1.adjoint() * s2) * (s1 * v1.adjoint()),
-                   (-m1.adjoint() * s2).eval() * (s1 * v1.adjoint()).eval());
-
-  // test the vector-matrix product with non aligned starts
-  Index i = internal::random<Index>(0, m1.rows() - 2);
-  Index j = internal::random<Index>(0, m1.cols() - 2);
-  Index r = internal::random<Index>(1, m1.rows() - i);
-  Index c = internal::random<Index>(1, m1.cols() - j);
-  Index i2 = internal::random<Index>(0, m1.rows() - 1);
-  Index j2 = internal::random<Index>(0, m1.cols() - 1);
-
-  VERIFY_IS_APPROX(m1.col(j2).adjoint() * m1.block(0, j, m1.rows(), c),
-                   m1.col(j2).adjoint().eval() * m1.block(0, j, m1.rows(), c).eval());
-  VERIFY_IS_APPROX(m1.block(i, 0, r, m1.cols()) * m1.row(i2).adjoint(),
-                   m1.block(i, 0, r, m1.cols()).eval() * m1.row(i2).adjoint().eval());
-
-  // test negative strides
-  {
-    Map<MatrixType, Unaligned, Stride<Dynamic, Dynamic> > map1(&m1(rows - 1, cols - 1), rows, cols,
-                                                               Stride<Dynamic, Dynamic>(-m1.outerStride(), -1));
-    Map<MatrixType, Unaligned, Stride<Dynamic, Dynamic> > map2(&m2(rows - 1, cols - 1), rows, cols,
-                                                               Stride<Dynamic, Dynamic>(-m2.outerStride(), -1));
-    Map<RowVectorType, Unaligned, InnerStride<-1> > mapv1(&v1(v1.size() - 1), v1.size(), InnerStride<-1>(-1));
-    Map<ColVectorType, Unaligned, InnerStride<-1> > mapvc2(&vc2(vc2.size() - 1), vc2.size(), InnerStride<-1>(-1));
-    VERIFY_IS_APPROX(MatrixType(map1), m1.reverse());
-    VERIFY_IS_APPROX(MatrixType(map2), m2.reverse());
-    VERIFY_IS_APPROX(m3.noalias() = MatrixType(map1) * MatrixType(map2).adjoint(),
-                     m1.reverse() * m2.reverse().adjoint());
-    VERIFY_IS_APPROX(m3.noalias() = map1 * map2.adjoint(), m1.reverse() * m2.reverse().adjoint());
-    VERIFY_IS_APPROX(map1 * vc2, m1.reverse() * vc2);
-    VERIFY_IS_APPROX(m1 * mapvc2, m1 * mapvc2);
-    VERIFY_IS_APPROX(map1.adjoint() * v1.transpose(), m1.adjoint().reverse() * v1.transpose());
-    VERIFY_IS_APPROX(m1.adjoint() * mapv1.transpose(), m1.adjoint() * v1.reverse().transpose());
-  }
-
-  // regression test
-  MatrixType tmp = m1 * m1.adjoint() * s1;
-  VERIFY_IS_APPROX(tmp, m1 * m1.adjoint() * s1);
-
-  // regression test for bug 1343, assignment to arrays
-  Array<Scalar, Dynamic, 1> a1 = m1 * vc2;
-  VERIFY_IS_APPROX(a1.matrix(), m1 * vc2);
-  Array<Scalar, Dynamic, 1> a2 = s1 * (m1 * vc2);
-  VERIFY_IS_APPROX(a2.matrix(), s1 * m1 * vc2);
-  Array<Scalar, 1, Dynamic> a3 = v1 * m1;
-  VERIFY_IS_APPROX(a3.matrix(), v1 * m1);
-  Array<Scalar, Dynamic, Dynamic> a4 = m1 * m2.adjoint();
-  VERIFY_IS_APPROX(a4.matrix(), m1 * m2.adjoint());
-}
+#include "product_extra.h"
 
 // Regression test for bug reported at http://forum.kde.org/viewtopic.php?f=74&t=96947
 void mat_mat_scalar_scalar_product() {
@@ -124,64 +16,6 @@ void mat_mat_scalar_scalar_product() {
   dNdxy << -0.5, 0.5, 0, -0.3, 0, 0.3;
   double det = 6.0, wt = 0.5;
   VERIFY_IS_APPROX(dNdxy.transpose() * dNdxy * det * wt, det * wt * dNdxy.transpose() * dNdxy);
-}
-
-template <typename MatrixType>
-void zero_sized_objects(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  const int PacketSize = internal::packet_traits<Scalar>::size;
-  const int PacketSize1 = PacketSize > 1 ? PacketSize - 1 : 1;
-  Index rows = m.rows();
-  Index cols = m.cols();
-
-  {
-    MatrixType res, a(rows, 0), b(0, cols);
-    VERIFY_IS_APPROX((res = a * b), MatrixType::Zero(rows, cols));
-    VERIFY_IS_APPROX((res = a * a.transpose()), MatrixType::Zero(rows, rows));
-    VERIFY_IS_APPROX((res = b.transpose() * b), MatrixType::Zero(cols, cols));
-    VERIFY_IS_APPROX((res = b.transpose() * a.transpose()), MatrixType::Zero(cols, rows));
-  }
-
-  {
-    MatrixType res, a(rows, cols), b(cols, 0);
-    res = a * b;
-    VERIFY(res.rows() == rows && res.cols() == 0);
-    b.resize(0, rows);
-    res = b * a;
-    VERIFY(res.rows() == 0 && res.cols() == cols);
-  }
-
-  {
-    Matrix<Scalar, PacketSize, 0> a;
-    Matrix<Scalar, 0, 1> b;
-    Matrix<Scalar, PacketSize, 1> res;
-    VERIFY_IS_APPROX((res = a * b), MatrixType::Zero(PacketSize, 1));
-    VERIFY_IS_APPROX((res = a.lazyProduct(b)), MatrixType::Zero(PacketSize, 1));
-  }
-
-  {
-    Matrix<Scalar, PacketSize1, 0> a;
-    Matrix<Scalar, 0, 1> b;
-    Matrix<Scalar, PacketSize1, 1> res;
-    VERIFY_IS_APPROX((res = a * b), MatrixType::Zero(PacketSize1, 1));
-    VERIFY_IS_APPROX((res = a.lazyProduct(b)), MatrixType::Zero(PacketSize1, 1));
-  }
-
-  {
-    Matrix<Scalar, PacketSize, Dynamic> a(PacketSize, 0);
-    Matrix<Scalar, Dynamic, 1> b(0, 1);
-    Matrix<Scalar, PacketSize, 1> res;
-    VERIFY_IS_APPROX((res = a * b), MatrixType::Zero(PacketSize, 1));
-    VERIFY_IS_APPROX((res = a.lazyProduct(b)), MatrixType::Zero(PacketSize, 1));
-  }
-
-  {
-    Matrix<Scalar, PacketSize1, Dynamic> a(PacketSize1, 0);
-    Matrix<Scalar, Dynamic, 1> b(0, 1);
-    Matrix<Scalar, PacketSize1, 1> res;
-    VERIFY_IS_APPROX((res = a * b), MatrixType::Zero(PacketSize1, 1));
-    VERIFY_IS_APPROX((res = a.lazyProduct(b)), MatrixType::Zero(PacketSize1, 1));
-  }
 }
 
 template <int>
@@ -577,90 +411,8 @@ void product_custom_scalar_types() {
   }
 }
 
-// Test complex GEMV with all conjugation combinations at sizes that
-// exercise full, half, and quarter packet code paths.
-// The GEMV kernels in GeneralMatrixVector.h use conj_helper at three
-// packet levels. The existing product_extra tests cover conjugation
-// but only at random sizes, never systematically at packet boundaries.
-template <int>
-void gemv_complex_conjugate() {
-  typedef std::complex<float> Scf;
-  typedef std::complex<double> Scd;
-  const Index PS_f = internal::packet_traits<Scf>::size;
-  const Index PS_d = internal::packet_traits<Scd>::size;
-
-  // Sizes chosen to exercise packet boundaries for both float and double.
-  const Index sizes[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33};
-
-  for (int si = 0; si < 14; ++si) {
-    Index m = sizes[si];
-    // Test complex<float> GEMV with all conjugation combos.
-    {
-      typedef Matrix<Scf, Dynamic, Dynamic> Mat;
-      typedef Matrix<Scf, Dynamic, 1> Vec;
-      Mat A = Mat::Random(m, m);
-      Vec v = Vec::Random(m);
-      Vec res(m);
-
-      // A * v (no conjugation)
-      res.noalias() = A * v;
-      VERIFY_IS_APPROX(res, (A.eval() * v.eval()).eval());
-
-      // A.conjugate() * v
-      res.noalias() = A.conjugate() * v;
-      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.eval()).eval());
-
-      // A * v.conjugate()
-      res.noalias() = A * v.conjugate();
-      VERIFY_IS_APPROX(res, (A.eval() * v.conjugate().eval()).eval());
-
-      // A.conjugate() * v.conjugate()
-      res.noalias() = A.conjugate() * v.conjugate();
-      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.conjugate().eval()).eval());
-
-      // A.adjoint() * v (transpose + conjugate of lhs)
-      Vec res2(m);
-      res2.noalias() = A.adjoint() * v;
-      VERIFY_IS_APPROX(res2, (A.adjoint().eval() * v.eval()).eval());
-
-      // Row-major complex GEMV
-      typedef Matrix<Scf, Dynamic, Dynamic, RowMajor> RMat;
-      RMat B = A;
-      res.noalias() = B * v;
-      VERIFY_IS_APPROX(res, (A.eval() * v.eval()).eval());
-
-      res.noalias() = B.conjugate() * v;
-      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.eval()).eval());
-    }
-
-    // Test complex<double> GEMV with conjugation.
-    {
-      typedef Matrix<Scd, Dynamic, Dynamic> Mat;
-      typedef Matrix<Scd, Dynamic, 1> Vec;
-      Mat A = Mat::Random(m, m);
-      Vec v = Vec::Random(m);
-      Vec res(m);
-
-      res.noalias() = A.conjugate() * v;
-      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.eval()).eval());
-
-      res.noalias() = A * v.conjugate();
-      VERIFY_IS_APPROX(res, (A.eval() * v.conjugate().eval()).eval());
-
-      // Non-square: wide matrix x vector (exercises different cols path).
-      Mat C = Mat::Random(m, m + 3);
-      Vec w = Vec::Random(m + 3);
-      Vec res3(m);
-      res3.noalias() = C.conjugate() * w;
-      VERIFY_IS_APPROX(res3, (C.conjugate().eval() * w.eval()).eval());
-    }
-  }
-  (void)PS_f;
-  (void)PS_d;
-}
-
 // =============================================================================
-// Tests for product_extra
+// Tests for product_extra (real types)
 // =============================================================================
 TEST(ProductExtraTest, Basic) {
   for (int i = 0; i < g_repeat; i++) {
@@ -669,10 +421,6 @@ TEST(ProductExtraTest, Basic) {
     product_extra(
         MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     mat_mat_scalar_scalar_product();
-    product_extra(MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                            internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    product_extra(MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2),
-                            internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
     zero_sized_objects(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
@@ -682,11 +430,7 @@ TEST(ProductExtraTest, Basic) {
   unaligned_objects<0>();
   compute_block_size<float>();
   compute_block_size<double>();
-  compute_block_size<std::complex<double> >();
   aliasing_with_resize<void>();
   product_custom_scalar_types<0>();
   test_small_block_correctness<0>();
-
-  // Complex GEMV conjugation at varied sizes (deterministic, outside g_repeat).
-  gemv_complex_conjugate<0>();
 }
