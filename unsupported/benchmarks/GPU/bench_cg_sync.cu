@@ -10,6 +10,8 @@
 // Usage:
 //   cmake --build build-bench-gpu --target bench_gpu_cg_sync
 //   ./build-bench-gpu/bench_gpu_cg_sync
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 
