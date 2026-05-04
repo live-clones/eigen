@@ -6,6 +6,8 @@
 // Usage:
 //   cmake --build build-bench-gpu --target bench_gpu_cg_vs_cpu
 //   ./build-bench-gpu/bench_gpu_cg_vs_cpu
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 
