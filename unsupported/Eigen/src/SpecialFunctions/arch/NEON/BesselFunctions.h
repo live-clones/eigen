@@ -7,7 +7,7 @@
 namespace Eigen {
 namespace internal {
 
-#if EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+#if EIGEN_HAS_ARM64_FP16
 
 #define NEON_HALF_TO_FLOAT_FUNCTIONS(METHOD)                                              \
   template <>                                                                             \
