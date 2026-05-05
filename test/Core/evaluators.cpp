@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-
 #include "main.h"
 
 namespace Eigen {
