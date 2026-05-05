@@ -54,8 +54,77 @@ void jacobi(const MatrixType& m = MatrixType()) {
   }
 }
 
+// Verify that JacobiRotation::makeGivens(p, q, &r) produces a rotation that
+// zeros out q, even when (p, q) straddle the over-/underflow thresholds
+// where the direct formula r = p * sqrt(1 + (q/p)^2) would over- or
+// underflow.  Eigen's convention is r >= 0 with sign carried in c.
+template <typename Scalar>
+void verify_makeGivens(const Scalar& p, const Scalar& q) {
+  using std::abs;
+  Scalar r;
+  JacobiRotation<Scalar> rot;
+  rot.makeGivens(p, q, &r);
+
+  // Eigen's J^T * [p; q] = [r; 0] with J = [c s; -s c], so:
+  //   c*p - s*q = r,  s*p + c*q = 0.
+  Scalar rotated0 = rot.c() * p - rot.s() * q;
+  Scalar rotated1 = rot.s() * p + rot.c() * q;
+
+  Scalar tol = NumTraits<Scalar>::epsilon() * (abs(r) + (std::numeric_limits<Scalar>::min)()) * Scalar(8);
+  VERIFY(abs(rotated0 - r) <= tol);
+  VERIFY(abs(rotated1) <= tol);
+  VERIFY(r >= Scalar(0));
+  VERIFY_IS_APPROX(numext::abs2(rot.c()) + numext::abs2(rot.s()), Scalar(1));
+}
+
+template <typename Scalar>
+void jacobi_makegivens_safe_scaling() {
+  using std::sqrt;
+  const Scalar safmin = (std::numeric_limits<Scalar>::min)();
+  const Scalar safmax = Scalar(1) / safmin;
+  const Scalar rtmin = sqrt(safmin);
+  const Scalar rtmax = sqrt(safmax / Scalar(2));
+  const Scalar one(1);
+  const Scalar two(2);
+  const Scalar half(0.5);
+
+  // Safe-range cases (regression — must keep existing fast path working).
+  verify_makeGivens<Scalar>(Scalar(3), Scalar(4));
+  verify_makeGivens<Scalar>(Scalar(-3), Scalar(4));
+  verify_makeGivens<Scalar>(Scalar(3), Scalar(-4));
+  verify_makeGivens<Scalar>(Scalar(-3), Scalar(-4));
+
+  // Both inputs near overflow: direct formula r = p * sqrt(1+(q/p)^2) would
+  // overflow because sqrt(1+1) > 1.  Prescaling avoids this.
+  verify_makeGivens<Scalar>(rtmax * two, rtmax);
+  verify_makeGivens<Scalar>(-rtmax * two, rtmax);
+  verify_makeGivens<Scalar>(rtmax, rtmax);
+  verify_makeGivens<Scalar>(rtmax * Scalar(1.5), rtmax * Scalar(1.5));
+
+  // Both inputs near underflow / subnormal: direct (q/p)^2 underflows to 0.
+  verify_makeGivens<Scalar>(rtmin * half, rtmin * half);
+  verify_makeGivens<Scalar>(safmin, safmin);
+  verify_makeGivens<Scalar>(-safmin, safmin);
+
+  // Mixed: one near overflow, one normal.
+  verify_makeGivens<Scalar>(rtmax * Scalar(1.5), one);
+  verify_makeGivens<Scalar>(one, rtmax * Scalar(1.5));
+  verify_makeGivens<Scalar>(-rtmax * Scalar(1.5), one);
+
+  // Mixed: one near underflow, one normal.
+  verify_makeGivens<Scalar>(safmin, one);
+  verify_makeGivens<Scalar>(one, safmin);
+
+  // Mixed: subnormal and near-overflow simultaneously.
+  verify_makeGivens<Scalar>(safmin, rtmax);
+  verify_makeGivens<Scalar>(rtmax, safmin);
+}
+
 EIGEN_DECLARE_TEST(jacobi) {
   for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<float>()));
+    CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<double>()));
+
     CALL_SUBTEST_1((jacobi<Matrix3f, float>()));
     CALL_SUBTEST_2((jacobi<Matrix4d, double>()));
     CALL_SUBTEST_3((jacobi<Matrix4cf, float>()));
