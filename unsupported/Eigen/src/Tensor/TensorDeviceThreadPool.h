@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #if defined(EIGEN_USE_THREADS) && !defined(EIGEN_CXX11_TENSOR_TENSOR_DEVICE_THREAD_POOL_H)
 #define EIGEN_CXX11_TENSOR_TENSOR_DEVICE_THREAD_POOL_H
@@ -55,11 +56,10 @@ struct ThreadPoolDevice {
     ::memcpy(dst, src, n);
 #else
     // TODO(rmlarsen): Align blocks on cache lines.
-    // We have observed that going beyond 4 threads usually just wastes
-    // CPU cycles due to the threads competing for memory bandwidth, so we
-    // statically schedule at most 4 block copies here.
     const size_t kMinBlockSize = 32768;
-    const size_t num_threads = CostModel::numThreads(n, TensorOpCost(1.0, 1.0, 0), 4);
+    // Pure memory op (zero compute) — the cost model's bandwidth saturation
+    // cap will limit threads appropriately.
+    const size_t num_threads = CostModel::numThreads(n, TensorOpCost(1.0, 1.0, 0), static_cast<int>(numThreads()));
     if (n <= kMinBlockSize || num_threads < 2) {
       ::memcpy(dst, src, n);
     } else {

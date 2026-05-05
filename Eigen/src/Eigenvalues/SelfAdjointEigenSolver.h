@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SELFADJOINTEIGENSOLVER_H
 #define EIGEN_SELFADJOINTEIGENSOLVER_H
@@ -626,11 +627,21 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
   // TODO: make the sort optional and use a more efficient sorting algorithm.
   if (info == Success) {
     for (Index i = 0; i < n - 1; ++i) {
-      Index k;
-      diag.segment(i, n - i).minCoeff(&k);
-      if (k > 0) {
-        numext::swap(diag[i], diag[k + i]);
-        if (computeEigenvectors) eivec.col(i).swap(eivec.col(k + i));
+      // Scalar argmin: the vectorized minCoeff path can return the wrong
+      // index on targets whose SIMD reduction flushes subnormals (32-bit ARM
+      // NEON always treats subnormal inputs to vminq_f32 as zero), which
+      // corrupts ordering when eigenvalues span the subnormal range.
+      Index k = i;
+      RealScalar min_val = diag[i];
+      for (Index j = i + 1; j < n; ++j) {
+        if (diag[j] < min_val) {
+          min_val = diag[j];
+          k = j;
+        }
+      }
+      if (k != i) {
+        numext::swap(diag[i], diag[k]);
+        if (computeEigenvectors) eivec.col(i).swap(eivec.col(k));
       }
     }
   }

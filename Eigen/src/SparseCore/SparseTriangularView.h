@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SPARSE_TRIANGULARVIEW_H
 #define EIGEN_SPARSE_TRIANGULARVIEW_H
@@ -57,6 +58,9 @@ class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<Tri
       dst = rhs;
     this->solveInPlace(dst);
   }
+
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return derived().nestedExpression().rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return derived().nestedExpression().cols(); }
 
   /** Applies the inverse of \c *this to the dense vector or matrix \a other, "in-place" */
   template <typename OtherDerived>

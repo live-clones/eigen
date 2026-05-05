@@ -1,4 +1,6 @@
 // #define EIGEN_POWER_USE_PREFETCH  // Use prefetching in gemm routines
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 #ifdef EIGEN_POWER_USE_PREFETCH
 #define EIGEN_POWER_PREFETCH(p) prefetch(p)
 #else

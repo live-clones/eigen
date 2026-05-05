@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "sparse.h"
 
@@ -26,7 +27,12 @@ void sparse_vector(int rows, int cols) {
   DenseVector refV1 = DenseVector::Random(rows), refV2 = DenseVector::Random(rows), refV3 = DenseVector::Random(rows);
 
   std::vector<int> zerocoords, nonzerocoords;
-  initSparse<Scalar>(densityVec, refV1, v1, &zerocoords, &nonzerocoords);
+  // Retry until at least one nonzero is produced: code below indexes nonzerocoords[0].
+  do {
+    zerocoords.clear();
+    nonzerocoords.clear();
+    initSparse<Scalar>(densityVec, refV1, v1, &zerocoords, &nonzerocoords);
+  } while (nonzerocoords.empty());
   initSparse<Scalar>(densityMat, refM1, m1);
 
   initSparse<Scalar>(densityVec, refV2, v2);

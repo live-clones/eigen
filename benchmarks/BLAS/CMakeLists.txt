@@ -1,6 +1,8 @@
 # Benchmarks for Eigen's built-in BLAS implementation.
 # Compiles the Eigen BLAS sources directly into the benchmark executable
 # so there is no external BLAS dependency.
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 
 set(EIGEN_BLAS_SRCS
   ${EIGEN_SOURCE_DIR}/blas/single.cpp

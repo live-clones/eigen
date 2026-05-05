@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
 #ifndef TEST_SOLVERBASE_H
 #define TEST_SOLVERBASE_H
 

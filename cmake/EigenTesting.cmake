@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
 
 macro(ei_add_property prop value)
   get_property(previous GLOBAL PROPERTY ${prop})

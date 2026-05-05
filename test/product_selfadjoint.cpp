@@ -6,12 +6,14 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 
 template <typename MatrixType>
 void product_selfadjoint(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
   typedef Matrix<Scalar, 1, MatrixType::RowsAtCompileTime> RowVectorType;
 
@@ -28,6 +30,102 @@ void product_selfadjoint(const MatrixType& m) {
   Scalar s1 = internal::random<Scalar>(), s2 = internal::random<Scalar>(), s3 = internal::random<Scalar>();
 
   m1 = (m1.adjoint() + m1).eval();
+
+  // Dense selfadjoint assignment is documented as writing only the referenced triangle.
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Upper>() = m1 + m1.adjoint();
+  m3.template triangularView<Upper>() = m1 + m1.adjoint();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Upper>().setZero();
+  m3.template triangularView<Upper>().setZero();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Lower>().setOnes();
+  m3.template triangularView<Lower>().setOnes();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Upper>().setConstant(s1);
+  m3.template triangularView<Upper>().setConstant(s1);
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Lower>().fill(s2);
+  m3.template triangularView<Lower>().fill(s2);
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Upper>().setIdentity();
+  m3.template triangularView<Upper>().setIdentity();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Lower>().setRandom();
+  VERIFY_IS_APPROX(m2.template triangularView<StrictlyUpper>().toDenseMatrix(),
+                   m3.template triangularView<StrictlyUpper>().toDenseMatrix());
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Upper>() += m1;
+  m3.template triangularView<Upper>() += m1;
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Lower>() -= m1;
+  m3.template triangularView<Lower>() -= m1;
+  VERIFY_IS_APPROX(m2, m3);
+
+  // SelfAdjointView in-place scaling/division accept real scalars only: scaling only the
+  // stored triangle by a non-real factor would leave conj(other) on the unstored half.
+  const RealScalar real_s1 = numext::real(s1);
+  const RealScalar real_divisor = numext::real(s2) + RealScalar(2);
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Upper>() *= real_s1;
+  m3.template triangularView<Upper>() *= real_s1;
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m3 = m2;
+  m2.template selfadjointView<Lower>() /= real_divisor;
+  m3.template triangularView<Lower>() /= real_divisor;
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m2.template selfadjointView<Lower>() = m1.template selfadjointView<Lower>();
+  m3 = m1.template selfadjointView<Lower>().toDenseMatrix();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m2.template selfadjointView<Lower>() = m1.template selfadjointView<Upper>();
+  m3 = m1.template selfadjointView<Upper>().toDenseMatrix();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m2.template selfadjointView<Lower>() = m1.template triangularView<Upper>();
+  m3 = m1.template triangularView<Upper>().toDenseMatrix();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m2.template selfadjointView<Lower>() = m1.template triangularView<UnitUpper>();
+  m3 = m1.template triangularView<UnitUpper>().toDenseMatrix();
+  VERIFY_IS_APPROX(m2, m3);
+
+  m2.setRandom();
+  m2.template selfadjointView<Upper>() = m1.template triangularView<StrictlyLower>();
+  m3 = m1.template triangularView<StrictlyLower>().toDenseMatrix();
+  VERIFY_IS_APPROX(m2, m3);
 
   // rank2 update
   m2 = m1.template triangularView<Lower>();

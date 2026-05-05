@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SPARSEINVERSE_H
 #define EIGEN_SPARSEINVERSE_H
@@ -171,7 +172,7 @@ class SparseInverse {
     {
       RowMatrixType DU = slu.matrixU().toSparse();
       invD = DU.diagonal().cwiseInverse();
-      Upper = (invD.asDiagonal() * DU).template triangularView<StrictlyUpper>();
+      Upper = invD.asDiagonal() * DU.template triangularView<StrictlyUpper>();
     }
     MatrixType Lower = slu.matrixL().toSparse().template triangularView<StrictlyLower>();
 

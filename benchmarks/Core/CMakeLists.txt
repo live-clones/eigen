@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
 eigen_add_benchmark(bench_gemm bench_gemm.cpp)
 eigen_add_benchmark(bench_gemm_double bench_gemm.cpp DEFINITIONS SCALAR=double)
 eigen_add_benchmark(bench_gemv bench_gemv.cpp)

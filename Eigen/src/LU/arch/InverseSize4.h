@@ -32,6 +32,7 @@
 // See LEGAL.TXT for all the legal information.
 //
 // TODO: Unify implementations of different data types (i.e. float and double).
+// SPDX-License-Identifier: MPL-2.0
 #ifndef EIGEN_INVERSE_SIZE_4_H
 #define EIGEN_INVERSE_SIZE_4_H
 

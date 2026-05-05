@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 
@@ -223,7 +224,7 @@ struct check_sqrt_impl {
 };
 
 template <typename T>
-struct check_sqrt_impl<std::complex<T> > {
+struct check_sqrt_impl<std::complex<T>> {
   static void run() {
     typedef typename std::complex<T> ComplexT;
 
@@ -291,7 +292,7 @@ struct check_rsqrt_impl {
 };
 
 template <typename T>
-struct check_rsqrt_impl<std::complex<T> > {
+struct check_rsqrt_impl<std::complex<T>> {
   static void run() {
     typedef typename std::complex<T> ComplexT;
     const T zero = T(0);
@@ -460,8 +461,8 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_negate<float>());
     CALL_SUBTEST(check_negate<double>());
     CALL_SUBTEST(check_negate<long double>());
-    CALL_SUBTEST(check_negate<std::complex<float> >());
-    CALL_SUBTEST(check_negate<std::complex<double> >());
+    CALL_SUBTEST(check_negate<std::complex<float>>());
+    CALL_SUBTEST(check_negate<std::complex<double>>());
 
     CALL_SUBTEST(check_abs<bool>());
     CALL_SUBTEST(check_abs<signed char>());
@@ -477,21 +478,21 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_abs<float>());
     CALL_SUBTEST(check_abs<double>());
     CALL_SUBTEST(check_abs<long double>());
-    CALL_SUBTEST(check_abs<std::complex<float> >());
-    CALL_SUBTEST(check_abs<std::complex<double> >());
+    CALL_SUBTEST(check_abs<std::complex<float>>());
+    CALL_SUBTEST(check_abs<std::complex<double>>());
 
-    CALL_SUBTEST(check_arg<std::complex<float> >());
-    CALL_SUBTEST(check_arg<std::complex<double> >());
+    CALL_SUBTEST(check_arg<std::complex<float>>());
+    CALL_SUBTEST(check_arg<std::complex<double>>());
 
     CALL_SUBTEST(check_sqrt<float>());
     CALL_SUBTEST(check_sqrt<double>());
-    CALL_SUBTEST(check_sqrt<std::complex<float> >());
-    CALL_SUBTEST(check_sqrt<std::complex<double> >());
+    CALL_SUBTEST(check_sqrt<std::complex<float>>());
+    CALL_SUBTEST(check_sqrt<std::complex<double>>());
 
     CALL_SUBTEST(check_rsqrt<float>());
     CALL_SUBTEST(check_rsqrt<double>());
-    CALL_SUBTEST(check_rsqrt<std::complex<float> >());
-    CALL_SUBTEST(check_rsqrt<std::complex<double> >());
+    CALL_SUBTEST(check_rsqrt<std::complex<float>>());
+    CALL_SUBTEST(check_rsqrt<std::complex<double>>());
 
     CALL_SUBTEST(check_signbit<half>());
     CALL_SUBTEST(check_signbit<bfloat16>());

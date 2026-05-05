@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_MATRIX_VECTOR_PRODUCT_ALTIVEC_H
 #define EIGEN_MATRIX_VECTOR_PRODUCT_ALTIVEC_H
@@ -2439,6 +2440,7 @@ EIGEN_STRONG_INLINE void gemv_row(Index rows, Index cols, const LhsMapper& alhs,
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,                  \
                                                         const RhsMapper& rhs, ResScalar* res, Index resIncr,           \
                                                         ResScalar alpha) {                                             \
+      if (numext::is_exactly_zero(alpha)) return;                                                                      \
       gemv_col<Scalar, LhsMapper, Scalar, RhsMapper, ResScalar>(rows, cols, lhs, rhs, res, resIncr, alpha);            \
     }                                                                                                                  \
   };
@@ -2452,6 +2454,7 @@ EIGEN_STRONG_INLINE void gemv_row(Index rows, Index cols, const LhsMapper& alhs,
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,                  \
                                                         const RhsMapper& rhs, ResScalar* res, Index resIncr,           \
                                                         ResScalar alpha) {                                             \
+      if (numext::is_exactly_zero(alpha)) return;                                                                      \
       gemv_row<Scalar, LhsMapper, Scalar, RhsMapper, ResScalar>(rows, cols, lhs, rhs, res, resIncr, alpha);            \
     }                                                                                                                  \
   };
@@ -2476,6 +2479,7 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(double)
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,                  \
                                                         const RhsMapper& rhs, bfloat16* res, Index resIncr,            \
                                                         bfloat16 alpha) {                                              \
+      if (numext::is_exactly_zero(alpha)) return;                                                                      \
       gemv_bf16_col<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha);                                  \
     }                                                                                                                  \
   };
@@ -2487,6 +2491,7 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW(double)
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,                  \
                                                         const RhsMapper& rhs, bfloat16* res, Index resIncr,            \
                                                         bfloat16 alpha) {                                              \
+      if (numext::is_exactly_zero(alpha)) return;                                                                      \
       gemv_bf16_row<LhsMapper, RhsMapper>(rows, cols, lhs, rhs, res, resIncr, alpha);                                  \
     }                                                                                                                  \
   };
@@ -2785,6 +2790,7 @@ EIGEN_STRONG_INLINE void gemv_complex_row(Index rows, Index cols, const LhsMappe
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,                  \
                                                         const RhsMapper& rhs, ResScalar* res, Index resIncr,           \
                                                         ResScalar alpha) {                                             \
+      if (numext::is_exactly_zero(alpha)) return;                                                                      \
       gemv_complex_col<Scalar, LhsScalar, LhsMapper, ConjugateLhs, sizeof(Scalar) == sizeof(LhsScalar), RhsScalar,     \
                        RhsMapper, ConjugateRhs, sizeof(Scalar) == sizeof(RhsScalar), ResScalar>(rows, cols, lhs, rhs,  \
                                                                                                 res, resIncr, alpha);  \
@@ -2800,6 +2806,7 @@ EIGEN_STRONG_INLINE void gemv_complex_row(Index rows, Index cols, const LhsMappe
     EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run(Index rows, Index cols, const LhsMapper& lhs,                  \
                                                         const RhsMapper& rhs, ResScalar* res, Index resIncr,           \
                                                         ResScalar alpha) {                                             \
+      if (numext::is_exactly_zero(alpha)) return;                                                                      \
       gemv_complex_row<Scalar, LhsScalar, LhsMapper, ConjugateLhs, sizeof(Scalar) == sizeof(LhsScalar), RhsScalar,     \
                        RhsMapper, ConjugateRhs, sizeof(Scalar) == sizeof(RhsScalar), ResScalar>(rows, cols, lhs, rhs,  \
                                                                                                 res, resIncr, alpha);  \
