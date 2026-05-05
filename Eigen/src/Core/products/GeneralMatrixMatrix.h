@@ -21,6 +21,79 @@ namespace internal {
 template <typename LhsScalar_, typename RhsScalar_>
 class level3_blocking;
 
+// LHS-first loop order: mc -> kc -> nc. This is Eigen's usual sequential
+// schedule, with a fast path that can pack RHS once for tall skinny blocking.
+struct gemm_pack_lhs_first_loop_policy {
+  template <typename Index, typename LhsScalar, typename RhsScalar, typename ResScalar, typename LhsMapper,
+            typename RhsMapper, typename ResMapper, typename PackLhs, typename PackRhs, typename Gebp>
+  static EIGEN_STRONG_INLINE void run(Index rows, Index cols, Index depth, Index kc, Index mc, Index nc,
+                                      const LhsMapper& lhs, const RhsMapper& rhs, ResMapper& res, PackLhs& pack_lhs,
+                                      PackRhs& pack_rhs, Gebp& gebp, LhsScalar* blockA, RhsScalar* blockB,
+                                      ResScalar alpha) {
+    const bool pack_rhs_once = mc != rows && kc == depth && nc == cols;
+
+    // For each horizontal panel of the rhs, and corresponding panel of the lhs...
+    for (Index i2 = 0; i2 < rows; i2 += mc) {
+      const Index actual_mc = (std::min)(i2 + mc, rows) - i2;
+
+      for (Index k2 = 0; k2 < depth; k2 += kc) {
+        const Index actual_kc = (std::min)(k2 + kc, depth) - k2;
+
+        // OK, here we have selected one horizontal panel of rhs and one vertical panel of lhs.
+        // => Pack lhs's panel into a sequential chunk of memory (L2/L3 caching)
+        // Note that this panel will be read as many times as the number of blocks in the rhs's
+        // horizontal panel which is, in practice, a very low number.
+        pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
+
+        // For each kc x nc block of the rhs's horizontal panel...
+        for (Index j2 = 0; j2 < cols; j2 += nc) {
+          const Index actual_nc = (std::min)(j2 + nc, cols) - j2;
+
+          // We pack the rhs's block into a sequential chunk of memory (L2 caching)
+          // Note that this block will be read a very high number of times, which is equal to the number of
+          // micro horizontal panel of the large rhs's panel (e.g., rows/12 times).
+          if ((!pack_rhs_once) || i2 == 0) pack_rhs(blockB, rhs.getSubMapper(k2, j2), actual_kc, actual_nc);
+
+          // Everything is packed, we can now call the panel * block kernel:
+          gebp(res.getSubMapper(i2, j2), blockA, blockB, actual_mc, actual_kc, actual_nc, alpha);
+        }
+      }
+    }
+  }
+};
+
+// RHS-first loop order: nc -> kc -> mc. Used by SME to stream ColMajor result
+// stores through adjacent row panels.
+struct gemm_pack_rhs_first_loop_policy {
+  template <typename Index, typename LhsScalar, typename RhsScalar, typename ResScalar, typename LhsMapper,
+            typename RhsMapper, typename ResMapper, typename PackLhs, typename PackRhs, typename Gebp>
+  static EIGEN_STRONG_INLINE void run(Index rows, Index cols, Index depth, Index kc, Index mc, Index nc,
+                                      const LhsMapper& lhs, const RhsMapper& rhs, ResMapper& res, PackLhs& pack_lhs,
+                                      PackRhs& pack_rhs, Gebp& gebp, LhsScalar* blockA, RhsScalar* blockB,
+                                      ResScalar alpha) {
+    // Mirror of pack_rhs_once: reuse one full LHS panel across column blocks.
+    const bool pack_lhs_once = nc != cols && kc == depth && mc == rows;
+
+    for (Index j2 = 0; j2 < cols; j2 += nc) {
+      const Index actual_nc = (std::min)(j2 + nc, cols) - j2;
+
+      for (Index k2 = 0; k2 < depth; k2 += kc) {
+        const Index actual_kc = (std::min)(k2 + kc, depth) - k2;
+
+        // Pack one nc-strip of RHS and reuse it across all row panels.
+        pack_rhs(blockB, rhs.getSubMapper(k2, j2), actual_kc, actual_nc);
+
+        for (Index i2 = 0; i2 < rows; i2 += mc) {
+          const Index actual_mc = (std::min)(i2 + mc, rows) - i2;
+
+          if ((!pack_lhs_once) || j2 == 0) pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
+          gebp(res.getSubMapper(i2, j2), blockA, blockB, actual_mc, actual_kc, actual_nc, alpha);
+        }
+      }
+    }
+  }
+};
+
 /* Specialization for a row-major destination matrix => simple transposition of the product */
 template <typename Index, typename LhsScalar, int LhsStorageOrder, bool ConjugateLhs, typename RhsScalar,
           int RhsStorageOrder, bool ConjugateRhs, int ResInnerStride>
@@ -149,128 +222,23 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
       EIGEN_UNUSED_VARIABLE(info);
 
       // this is the sequential version!
+      std::size_t sizeA = kc * mc;
+      std::size_t sizeB = kc * nc;
 
+      ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, blocking.blockA());
+      ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, blocking.blockB());
+
+      // SME uses RHS-first order so consecutive gebp calls stream through
+      // adjacent row panels of a ColMajor result. Other kernels keep Eigen's
+      // default LHS-first order.
 #ifdef EIGEN_VECTORIZE_SME
-      // GOTO BLAS-style loop order for SME: kc -> nc -> mc
-      //
-      // This overrides Eigen's standard mc -> kc -> nc nesting with three
-      // optimisations:
-      //
-      // 1. GOTO loop order: pack an nc-strip of the RHS once per (k2, j2)
-      //    iteration, then sweep mc-blocks that reuse the packed RHS.
-      //    The SME gebp kernel tiles columns internally in NR-wide steps,
-      //    so we only need a coarse nc blocking to cap blockB size.
-      //
-      // 2. Adaptive kc: kc_eff = min(depth, 2048).  For matrices with
-      //    depth <= 2048, this gives a single kc-strip (no extra C store
-      //    passes).  For larger depth, kc_eff = 2048 balances L1 streaming
-      //    cost against the number of C store passes.
-      //
-      // 3. Bounded nc: nc_eff is sized so that blockB (kc_eff * nc_eff)
-      //    fits in an L2/L3-aware budget; very wide matrices no longer
-      //    allocate an unbounded panel.
-      {
-        // The SME path computes its own kc/mc/nc and ignores the caller's
-        // blocking hint.  Silence the unused-variable warnings.
-        EIGEN_UNUSED_VARIABLE(kc);
-        EIGEN_UNUSED_VARIABLE(mc);
-        EIGEN_UNUSED_VARIABLE(nc);
-
-        constexpr Index SME_L2_SIZE = 7 * 1024 * 1024;  // L2 + L3 budget for mc-blocking
-        constexpr Index SME_MAX_KC = 2048;
-        // Cap blockB at the L3 size of mainstream SME-capable CPUs (32 MB).
-        // At 4096x4096x4096 this matches cols exactly so no nc-splitting kicks
-        // in; only pathologically wide matrices pay the extra LHS repacking.
-        constexpr Index SME_MAX_NC_BYTES = 32 * 1024 * 1024;
-        constexpr Index NR = Traits::nr;  // micro-kernel panel width (2 × VL)
-
-        const Index kc_eff = (std::min)(depth, SME_MAX_KC);
-
-        // Bound the nc-strip so blockB (kc_eff * nc_eff * sizeof) stays in cache.
-        Index nc_eff = SME_MAX_NC_BYTES / ((std::max<Index>)(1, kc_eff * Index(sizeof(RhsScalar))));
-        nc_eff = (nc_eff / NR) * NR;
-        if (nc_eff < NR) nc_eff = NR;
-        if (nc_eff > cols) nc_eff = cols;
-
-        // Compute mc_inner so that blockA fits in cache alongside one
-        // NR-wide panel of blockB (the "hot" panel inside the gebp kernel).
-        const Index blockB_hot_bytes = kc_eff * NR * Index(sizeof(RhsScalar));
-        const Index l2_for_a = SME_L2_SIZE > blockB_hot_bytes ? SME_L2_SIZE - blockB_hot_bytes
-                                                              : Index(Traits::mr) * kc_eff * Index(sizeof(LhsScalar));
-        Index mc_inner = l2_for_a / (kc_eff * Index(sizeof(LhsScalar)));
-        mc_inner = (mc_inner / Traits::mr) * Traits::mr;
-        if (mc_inner < Index(Traits::mr)) mc_inner = Index(Traits::mr);
-        if (mc_inner > rows) mc_inner = rows;
-
-        // Pass 0 as buffer (ei_declare_aligned_stack_constructed_variable will
-        // stack-allocate via alloca); blocking.blockA()'s static buffer is
-        // sized for the generic path's kc*mc and may not match our sizeA.
-        std::size_t sizeA = static_cast<std::size_t>(kc_eff) * mc_inner;
-        ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, 0);
-
-        std::size_t sizeB = static_cast<std::size_t>(kc_eff) * nc_eff;
-        ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, 0);
-
-        for (Index k2 = 0; k2 < depth; k2 += kc_eff) {
-          const Index actual_kc = (std::min)(k2 + kc_eff, depth) - k2;
-
-          for (Index j2 = 0; j2 < cols; j2 += nc_eff) {
-            const Index actual_nc = (std::min)(j2 + nc_eff, cols) - j2;
-
-            // Pack one nc-strip of RHS.
-            pack_rhs(blockB, rhs.getSubMapper(k2, j2), actual_kc, actual_nc);
-
-            for (Index i2 = 0; i2 < rows; i2 += mc_inner) {
-              const Index actual_mc = (std::min)(i2 + mc_inner, rows) - i2;
-
-              pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
-
-              // The SME gebp kernel tiles actual_nc into NR-wide sub-panels
-              // internally, so a single call covers the whole strip.
-              gebp(res.getSubMapper(i2, j2), blockA, blockB, actual_mc, actual_kc, actual_nc, alpha);
-            }
-          }
-        }
-      }
+      typedef gemm_pack_rhs_first_loop_policy SequentialGemmLoop;
 #else
-      {
-        std::size_t sizeA = kc * mc;
-        std::size_t sizeB = kc * nc;
-
-        ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, blocking.blockA());
-        ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, blocking.blockB());
-
-        const bool pack_rhs_once = mc != rows && kc == depth && nc == cols;
-
-        // For each horizontal panel of the rhs, and corresponding panel of the lhs...
-        for (Index i2 = 0; i2 < rows; i2 += mc) {
-          const Index actual_mc = (std::min)(i2 + mc, rows) - i2;
-
-          for (Index k2 = 0; k2 < depth; k2 += kc) {
-            const Index actual_kc = (std::min)(k2 + kc, depth) - k2;
-
-            // OK, here we have selected one horizontal panel of rhs and one vertical panel of lhs.
-            // => Pack lhs's panel into a sequential chunk of memory (L2/L3 caching)
-            // Note that this panel will be read as many times as the number of blocks in the rhs's
-            // horizontal panel which is, in practice, a very low number.
-            pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
-
-            // For each kc x nc block of the rhs's horizontal panel...
-            for (Index j2 = 0; j2 < cols; j2 += nc) {
-              const Index actual_nc = (std::min)(j2 + nc, cols) - j2;
-
-              // We pack the rhs's block into a sequential chunk of memory (L2 caching)
-              // Note that this block will be read a very high number of times, which is equal to the number of
-              // micro horizontal panel of the large rhs's panel (e.g., rows/12 times).
-              if ((!pack_rhs_once) || i2 == 0) pack_rhs(blockB, rhs.getSubMapper(k2, j2), actual_kc, actual_nc);
-
-              // Everything is packed, we can now call the panel * block kernel:
-              gebp(res.getSubMapper(i2, j2), blockA, blockB, actual_mc, actual_kc, actual_nc, alpha);
-            }
-          }
-        }
-      }
+      typedef gemm_pack_lhs_first_loop_policy SequentialGemmLoop;
 #endif
+
+      SequentialGemmLoop::run(rows, cols, depth, kc, mc, nc, lhs, rhs, res, pack_lhs, pack_rhs, gebp, blockA, blockB,
+                              alpha);
     }
   }
 };

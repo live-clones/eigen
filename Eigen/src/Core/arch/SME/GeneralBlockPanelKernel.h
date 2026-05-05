@@ -4,6 +4,8 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SME_GENERALBLOCKPANELKERNEL_H
 #define EIGEN_SME_GENERALBLOCKPANELKERNEL_H
@@ -34,6 +36,65 @@ static constexpr int kSmeVlFloats = EIGEN_ARM64_SVE_VL / 32;
 static constexpr int kSmeVl = kSmeVlFloats;  // 16 -- one VL's worth of floats
 static constexpr int kSmeMr = 2 * kSmeVl;    // 32 -- LHS panel width
 static constexpr int kSmeNr = 2 * kSmeVl;    // 32 -- RHS panel width
+
+template <typename Scalar, typename Index>
+static EIGEN_ALWAYS_INLINE void sve_copy_panel(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
+                                               Index src_stride, Index depth, int width) __arm_streaming {
+  const int lo_w = width > kSmeVl ? kSmeVl : width;
+  const int hi_w = width > kSmeVl ? width - kSmeVl : 0;
+  const svbool_t pred_lo = svwhilelt_b32(uint32_t(0), uint32_t(lo_w));
+  const svbool_t pred_hi = svwhilelt_b32(uint32_t(0), uint32_t(hi_w));
+  for (Index k = 0; k < depth; ++k) {
+    svst1_f32(pred_lo, &dst[k * width], svld1_f32(pred_lo, &src[k * src_stride]));
+    if (hi_w > 0) {
+      svst1_f32(pred_hi, &dst[k * width + kSmeVl], svld1_f32(pred_hi, &src[k * src_stride + kSmeVl]));
+    }
+  }
+}
+
+template <typename Scalar, typename Index>
+static EIGEN_ALWAYS_INLINE void sme_transpose_pack_32(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
+                                                      Index src_stride, Index depth) __arm_streaming __arm_inout("za") {
+  static_assert(kSmeMr == kSmeNr, "SME transpose pack assumes square 32-wide panels");
+  constexpr int PACK = kSmeMr;
+  constexpr int VL = kSmeVl;
+  const Index depth_vl = (depth / VL) * VL;
+  const svbool_t pg_all = svptrue_b32();
+  const svfloat32_t zero = svdup_f32(0.f);
+
+  for (Index k = 0; k < depth_vl; k += VL) {
+    for (uint32_t r = 0; r < VL; ++r) {
+      svld1_hor_za32(0, r, pg_all, &src[(r + 0) * src_stride + k]);
+      svld1_hor_za32(1, r, pg_all, &src[(r + VL) * src_stride + k]);
+    }
+    for (uint32_t c = 0; c < VL; ++c) {
+      svst1_f32(pg_all, &dst[(k + c) * PACK + 0], svread_ver_za32_f32_m(zero, pg_all, 0, c));
+      svst1_f32(pg_all, &dst[(k + c) * PACK + VL], svread_ver_za32_f32_m(zero, pg_all, 1, c));
+    }
+  }
+  if (depth_vl < depth) {
+    const int dtail = static_cast<int>(depth - depth_vl);
+    const svbool_t pg_tail = svwhilelt_b32(uint32_t(0), uint32_t(dtail));
+    for (uint32_t r = 0; r < VL; ++r) {
+      svld1_hor_za32(0, r, pg_tail, &src[(r + 0) * src_stride + depth_vl]);
+      svld1_hor_za32(1, r, pg_tail, &src[(r + VL) * src_stride + depth_vl]);
+    }
+    for (int c = 0; c < dtail; ++c) {
+      svst1_f32(pg_all, &dst[(depth_vl + c) * PACK + 0], svread_ver_za32_f32_m(zero, pg_all, 0, uint32_t(c)));
+      svst1_f32(pg_all, &dst[(depth_vl + c) * PACK + VL], svread_ver_za32_f32_m(zero, pg_all, 1, uint32_t(c)));
+    }
+  }
+}
+
+template <typename Scalar, typename Index>
+static EIGEN_ALWAYS_INLINE void scalar_tail_pack(Scalar* EIGEN_RESTRICT dst_panel, const Scalar* EIGEN_RESTRICT src,
+                                                 Index src_stride, Index depth, Index tail) __arm_streaming {
+  for (Index k = 0; k < depth; ++k) {
+    for (Index i = 0; i < tail; ++i) {
+      dst_panel[k * tail + i] = src[i * src_stride + k];
+    }
+  }
+}
 
 /*****************************************************************************
  * gebp_traits specialization for SME  (float x float)
@@ -72,39 +133,34 @@ template <typename Index, typename DataMapper, int Pack1, int Pack2, typename Pa
 struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
-  // SVE copy helper — runs in streaming mode for 512-bit vector operations.
-  // Handles any width up to MR=32 via two VL-wide slices.
-  __arm_locally_streaming static void sve_copy_panel(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
-                                                     Index src_stride, Index depth, int width) {
-    const int lo_w = width > kSmeVl ? kSmeVl : width;
-    const int hi_w = width > kSmeVl ? width - kSmeVl : 0;
-    const svbool_t pred_lo = svwhilelt_b32(int32_t(0), int32_t(lo_w));
-    const svbool_t pred_hi = svwhilelt_b32(int32_t(0), int32_t(hi_w));
-    for (Index k = 0; k < depth; ++k) {
-      svst1_f32(pred_lo, &dst[k * width], svld1_f32(pred_lo, &src[k * src_stride]));
-      if (hi_w > 0) {
-        svst1_f32(pred_hi, &dst[k * width + kSmeVl], svld1_f32(pred_hi, &src[k * src_stride + kSmeVl]));
-      }
-    }
-  }
-
-  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
-                                    Index offset = 0) {
+  __arm_locally_streaming static void pack_lhs_colmajor(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src,
+                                                        Index src_stride, Index depth, Index rows, Index dst_stride,
+                                                        Index dst_offset) {
     constexpr int MR = kSmeMr;  // 32
     const Index peeled_rows = (rows / MR) * MR;
 
     // Full panels of width MR — two VL-wide SVE load+stores per depth step.
     for (Index i = 0; i < peeled_rows; i += MR) {
-      Scalar* dst = PanelMode ? blockA + i * stride + offset * MR : blockA + i * depth;
-      sve_copy_panel(dst, &lhs(i, 0), lhs.stride(), depth, MR);
+      Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * MR : dst_base + i * depth;
+      sve_copy_panel(dst_panel, src + i, src_stride, depth, MR);
     }
 
     // Tail panel: rows < MR, use predicated SVE.
     if (peeled_rows < rows) {
       const Index tail = rows - peeled_rows;
-      Scalar* dst = PanelMode ? blockA + peeled_rows * stride + offset * tail : blockA + peeled_rows * depth;
-      sve_copy_panel(dst, &lhs(peeled_rows, 0), lhs.stride(), depth, static_cast<int>(tail));
+      Scalar* dst_panel =
+          PanelMode ? dst_base + peeled_rows * dst_stride + dst_offset * tail : dst_base + peeled_rows * depth;
+      sve_copy_panel(dst_panel, src + peeled_rows, src_stride, depth, static_cast<int>(tail));
     }
+  }
+
+  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
+                                    Index offset = 0) {
+    if (PanelMode) {
+      eigen_assert(stride >= depth && offset <= stride);
+    }
+    const Scalar* src = (rows > 0 && depth > 0) ? &lhs(0, 0) : nullptr;
+    pack_lhs_colmajor(blockA, src, lhs.stride(), depth, rows, stride, offset);
   }
 };
 
@@ -121,49 +177,16 @@ template <typename Index, typename DataMapper, int Pack1, int Pack2, typename Pa
 struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
-  __arm_locally_streaming __arm_new("za") static void sme_pack_mr_rows(Scalar* EIGEN_RESTRICT dst,
-                                                                       const Scalar* EIGEN_RESTRICT src,
-                                                                       Index src_stride, Index depth) {
-    constexpr int MR = kSmeMr;
-    constexpr int VL = kSmeVl;
-    const Index depth_vl = (depth / VL) * VL;
-    const svbool_t pg_all = svptrue_b32();
-    const svfloat32_t zero = svdup_f32(0.f);
-
-    for (Index k = 0; k < depth_vl; k += VL) {
-      for (uint32_t r = 0; r < 16; ++r) {
-        svld1_hor_za32(0, r, pg_all, &src[(r + 0) * src_stride + k]);
-        svld1_hor_za32(1, r, pg_all, &src[(r + 16) * src_stride + k]);
-      }
-      for (uint32_t c = 0; c < VL; ++c) {
-        svst1_f32(pg_all, &dst[(k + c) * MR + 0], svread_ver_za32_f32_m(zero, pg_all, 0, c));
-        svst1_f32(pg_all, &dst[(k + c) * MR + VL], svread_ver_za32_f32_m(zero, pg_all, 1, c));
-      }
-    }
-    // Depth tail (< VL): predicated loads; only the first dtail vertical
-    // reads/stores are valid.
-    if (depth_vl < depth) {
-      const int dtail = static_cast<int>(depth - depth_vl);
-      const svbool_t pg_tail = svwhilelt_b32(uint32_t(0), uint32_t(dtail));
-      for (uint32_t r = 0; r < 16; ++r) {
-        svld1_hor_za32(0, r, pg_tail, &src[(r + 0) * src_stride + depth_vl]);
-        svld1_hor_za32(1, r, pg_tail, &src[(r + 16) * src_stride + depth_vl]);
-      }
-      for (int c = 0; c < dtail; ++c) {
-        svst1_f32(pg_all, &dst[(depth_vl + c) * MR + 0], svread_ver_za32_f32_m(zero, pg_all, 0, uint32_t(c)));
-        svst1_f32(pg_all, &dst[(depth_vl + c) * MR + VL], svread_ver_za32_f32_m(zero, pg_all, 1, uint32_t(c)));
-      }
-    }
-  }
-
-  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
-                                    Index offset = 0) {
+  __arm_locally_streaming __arm_new("za") static void pack_lhs_rowmajor(Scalar* dst_base,
+                                                                        const Scalar* EIGEN_RESTRICT src,
+                                                                        Index src_stride, Index depth, Index rows,
+                                                                        Index dst_stride, Index dst_offset) {
     constexpr int MR = kSmeMr;
     const Index peeled_rows = (rows / MR) * MR;
 
     for (Index i = 0; i < peeled_rows; i += MR) {
-      Scalar* dst = PanelMode ? blockA + i * stride + offset * MR : blockA + i * depth;
-      sme_pack_mr_rows(dst, &lhs(i, 0), lhs.stride(), depth);
+      Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * MR : dst_base + i * depth;
+      sme_transpose_pack_32(dst_panel, src + i * src_stride, src_stride, depth);
     }
 
     // Row tail (rows - peeled_rows in [1, MR-1]).  This branch runs at most
@@ -172,13 +195,19 @@ struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, C
     // is noise vs the main packer's workload, so scalar is the simple choice.
     if (peeled_rows < rows) {
       const Index tail = rows - peeled_rows;
-      Scalar* dst = PanelMode ? blockA + peeled_rows * stride + offset * tail : blockA + peeled_rows * depth;
-      for (Index k = 0; k < depth; ++k) {
-        for (Index r = 0; r < tail; ++r) {
-          dst[k * tail + r] = lhs(peeled_rows + r, k);
-        }
-      }
+      Scalar* dst_panel =
+          PanelMode ? dst_base + peeled_rows * dst_stride + dst_offset * tail : dst_base + peeled_rows * depth;
+      scalar_tail_pack(dst_panel, src + peeled_rows * src_stride, src_stride, depth, tail);
     }
+  }
+
+  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
+                                    Index offset = 0) {
+    if (PanelMode) {
+      eigen_assert(stride >= depth && offset <= stride);
+    }
+    const Scalar* src = (rows > 0 && depth > 0) ? &lhs(0, 0) : nullptr;
+    pack_lhs_rowmajor(blockA, src, lhs.stride(), depth, rows, stride, offset);
   }
 };
 
@@ -195,47 +224,16 @@ template <typename Index, typename DataMapper, int nr_, bool Conjugate, bool Pan
 struct gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
-  __arm_locally_streaming __arm_new("za") static void sme_pack_nr_cols(Scalar* EIGEN_RESTRICT dst,
-                                                                       const Scalar* EIGEN_RESTRICT src,
-                                                                       Index src_stride, Index depth) {
-    constexpr int NR = kSmeNr;
-    constexpr int VL = kSmeVl;
-    const Index depth_vl = (depth / VL) * VL;
-    const svbool_t pg_all = svptrue_b32();
-    const svfloat32_t zero = svdup_f32(0.f);
-
-    for (Index k = 0; k < depth_vl; k += VL) {
-      for (uint32_t c = 0; c < 16; ++c) {
-        svld1_hor_za32(0, c, pg_all, &src[(c + 0) * src_stride + k]);
-        svld1_hor_za32(1, c, pg_all, &src[(c + 16) * src_stride + k]);
-      }
-      for (uint32_t d = 0; d < VL; ++d) {
-        svst1_f32(pg_all, &dst[(k + d) * NR + 0], svread_ver_za32_f32_m(zero, pg_all, 0, d));
-        svst1_f32(pg_all, &dst[(k + d) * NR + VL], svread_ver_za32_f32_m(zero, pg_all, 1, d));
-      }
-    }
-    if (depth_vl < depth) {
-      const int dtail = static_cast<int>(depth - depth_vl);
-      const svbool_t pg_tail = svwhilelt_b32(uint32_t(0), uint32_t(dtail));
-      for (uint32_t c = 0; c < 16; ++c) {
-        svld1_hor_za32(0, c, pg_tail, &src[(c + 0) * src_stride + depth_vl]);
-        svld1_hor_za32(1, c, pg_tail, &src[(c + 16) * src_stride + depth_vl]);
-      }
-      for (int d = 0; d < dtail; ++d) {
-        svst1_f32(pg_all, &dst[(depth_vl + d) * NR + 0], svread_ver_za32_f32_m(zero, pg_all, 0, uint32_t(d)));
-        svst1_f32(pg_all, &dst[(depth_vl + d) * NR + VL], svread_ver_za32_f32_m(zero, pg_all, 1, uint32_t(d)));
-      }
-    }
-  }
-
-  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
-                                    Index offset = 0) {
+  __arm_locally_streaming __arm_new("za") static void pack_rhs_colmajor(Scalar* dst_base,
+                                                                        const Scalar* EIGEN_RESTRICT src,
+                                                                        Index src_stride, Index depth, Index cols,
+                                                                        Index dst_stride, Index dst_offset) {
     constexpr int NR = kSmeNr;
     const Index peeled_cols = (cols / NR) * NR;
 
     for (Index j = 0; j < peeled_cols; j += NR) {
-      Scalar* dst = PanelMode ? blockB + j * stride + offset * NR : blockB + j * depth;
-      sme_pack_nr_cols(dst, &rhs(0, j), rhs.stride(), depth);
+      Scalar* dst_panel = PanelMode ? dst_base + j * dst_stride + dst_offset * NR : dst_base + j * depth;
+      sme_transpose_pack_32(dst_panel, src + j * src_stride, src_stride, depth);
     }
 
     // Col tail (cols - peeled_cols in [1, NR-1]).  Same reasoning as the LHS
@@ -243,13 +241,19 @@ struct gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMo
     // not worth the partial-ZA-tile handling.
     if (peeled_cols < cols) {
       const Index tail = cols - peeled_cols;
-      Scalar* dst = PanelMode ? blockB + peeled_cols * stride + offset * tail : blockB + peeled_cols * depth;
-      for (Index k = 0; k < depth; ++k) {
-        for (Index c = 0; c < tail; ++c) {
-          dst[k * tail + c] = rhs(k, peeled_cols + c);
-        }
-      }
+      Scalar* dst_panel =
+          PanelMode ? dst_base + peeled_cols * dst_stride + dst_offset * tail : dst_base + peeled_cols * depth;
+      scalar_tail_pack(dst_panel, src + peeled_cols * src_stride, src_stride, depth, tail);
     }
+  }
+
+  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
+                                    Index offset = 0) {
+    if (PanelMode) {
+      eigen_assert(stride >= depth && offset <= stride);
+    }
+    const Scalar* src = (cols > 0 && depth > 0) ? &rhs(0, 0) : nullptr;
+    pack_rhs_colmajor(blockB, src, rhs.stride(), depth, cols, stride, offset);
   }
 };
 
@@ -260,35 +264,32 @@ template <typename Index, typename DataMapper, int nr_, bool Conjugate, bool Pan
 struct gemm_pack_rhs<float, Index, DataMapper, nr_, RowMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
-  __arm_locally_streaming static void sve_copy_panel(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
-                                                     Index src_stride, Index depth, int width) {
-    const int lo_w = width > kSmeVl ? kSmeVl : width;
-    const int hi_w = width > kSmeVl ? width - kSmeVl : 0;
-    const svbool_t pred_lo = svwhilelt_b32(int32_t(0), int32_t(lo_w));
-    const svbool_t pred_hi = svwhilelt_b32(int32_t(0), int32_t(hi_w));
-    for (Index k = 0; k < depth; ++k) {
-      svst1_f32(pred_lo, &dst[k * width], svld1_f32(pred_lo, &src[k * src_stride]));
-      if (hi_w > 0) {
-        svst1_f32(pred_hi, &dst[k * width + kSmeVl], svld1_f32(pred_hi, &src[k * src_stride + kSmeVl]));
-      }
+  __arm_locally_streaming static void pack_rhs_rowmajor(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src,
+                                                        Index src_stride, Index depth, Index cols, Index dst_stride,
+                                                        Index dst_offset) {
+    constexpr int NR = kSmeNr;
+    const Index peeled_cols = (cols / NR) * NR;
+
+    for (Index j = 0; j < peeled_cols; j += NR) {
+      Scalar* dst_panel = PanelMode ? dst_base + j * dst_stride + dst_offset * NR : dst_base + j * depth;
+      sve_copy_panel(dst_panel, src + j, src_stride, depth, NR);
+    }
+
+    if (peeled_cols < cols) {
+      const Index tail = cols - peeled_cols;
+      Scalar* dst_panel =
+          PanelMode ? dst_base + peeled_cols * dst_stride + dst_offset * tail : dst_base + peeled_cols * depth;
+      sve_copy_panel(dst_panel, src + peeled_cols, src_stride, depth, static_cast<int>(tail));
     }
   }
 
   EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
                                     Index offset = 0) {
-    constexpr int NR = kSmeNr;
-    const Index peeled_cols = (cols / NR) * NR;
-
-    for (Index j = 0; j < peeled_cols; j += NR) {
-      Scalar* dst = PanelMode ? blockB + j * stride + offset * NR : blockB + j * depth;
-      sve_copy_panel(dst, &rhs(0, j), rhs.stride(), depth, NR);
+    if (PanelMode) {
+      eigen_assert(stride >= depth && offset <= stride);
     }
-
-    if (peeled_cols < cols) {
-      const Index tail = cols - peeled_cols;
-      Scalar* dst = PanelMode ? blockB + peeled_cols * stride + offset * tail : blockB + peeled_cols * depth;
-      sve_copy_panel(dst, &rhs(0, peeled_cols), rhs.stride(), depth, static_cast<int>(tail));
-    }
+    const Scalar* src = (cols > 0 && depth > 0) ? &rhs(0, 0) : nullptr;
+    pack_rhs_rowmajor(blockB, src, rhs.stride(), depth, cols, stride, offset);
   }
 };
 
@@ -310,12 +311,13 @@ EIGEN_ALWAYS_INLINE void sme_store_za_tile(Scalar* EIGEN_RESTRICT C, Index C_str
   // keeps the store compact and measures no worse (and a few percent
   // better on small matrices, where the branch would otherwise disrupt
   // instruction scheduling).
+  const svfloat32_t vzero = svdup_f32(0.f);
   const svfloat32_t valpha = svdup_f32(alpha);
 
   if (C_stride_row == 1) {
     // Column-major C: extract vertical slices (columns of the ZA tile)
     for (int ci = 0; ci < cw; ++ci) {
-      svfloat32_t vres = svread_ver_za32_f32_m(svdup_f32(0.f), pg_m, TileId, (uint32_t)ci);
+      svfloat32_t vres = svread_ver_za32_f32_m(vzero, pg_m, TileId, (uint32_t)ci);
       Scalar* pC = C + row_start + (col_start + ci) * C_stride_col;
       svfloat32_t vc = svld1_f32(pg_m, pC);
       svst1_f32(pg_m, pC, svmla_f32_x(pg_m, vc, vres, valpha));
@@ -323,20 +325,20 @@ EIGEN_ALWAYS_INLINE void sme_store_za_tile(Scalar* EIGEN_RESTRICT C, Index C_str
   } else if (C_stride_col == 1) {
     // Row-major C: extract horizontal slices (rows of the ZA tile)
     for (int ri = 0; ri < pw; ++ri) {
-      svfloat32_t vres = svread_hor_za32_f32_m(svdup_f32(0.f), pg_n, TileId, (uint32_t)ri);
+      svfloat32_t vres = svread_hor_za32_f32_m(vzero, pg_n, TileId, (uint32_t)ri);
       Scalar* pC = C + (row_start + ri) * C_stride_row + col_start;
       svfloat32_t vc = svld1_f32(pg_n, pC);
       svst1_f32(pg_n, pC, svmla_f32_x(pg_n, vc, vres, valpha));
     }
   } else {
     // General stride: extract rows to temp buffer, scatter to C
+    Scalar scratch[kSmeVl];
     for (int ri = 0; ri < pw; ++ri) {
-      svfloat32_t vres = svread_hor_za32_f32_m(svdup_f32(0.f), pg_n, TileId, (uint32_t)ri);
+      svfloat32_t vres = svread_hor_za32_f32_m(vzero, pg_n, TileId, (uint32_t)ri);
       vres = svmul_f32_x(pg_n, vres, valpha);
-      EIGEN_ALIGN64 Scalar tmp[kSmeVl];
-      svst1_f32(pg_n, tmp, vres);
+      svst1_f32(pg_n, scratch, vres);
       for (int ci = 0; ci < cw; ++ci) {
-        C[(row_start + ri) * C_stride_row + (col_start + ci) * C_stride_col] += tmp[ci];
+        C[(row_start + ri) * C_stride_row + (col_start + ci) * C_stride_col] += scratch[ci];
       }
     }
   }
@@ -491,9 +493,11 @@ EIGEN_ALWAYS_INLINE void sme_process_microblock(Scalar* EIGEN_RESTRICT C, Index 
 }
 
 template <typename Scalar, typename Index>
-__attribute__((noinline)) __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
+EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* blockA, const Scalar* blockB, Index rows,
     Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
+  static_assert(Eigen::internal::is_same<Scalar, float>::value, "SME fp32 kernel only supports float");
+
   constexpr int MR = kSmeMr;  // 32
   constexpr int NR = kSmeNr;  // 32
   constexpr int VL = kSmeVl;  // 16
@@ -526,9 +530,8 @@ __attribute__((noinline)) __arm_locally_streaming __arm_new("za") void sme_gebp_
     const int lo_cw = tail_cols > VL ? VL : tail_cols;
     const int hi_cw = tail_cols > VL ? tail_cols - VL : 0;
 
-    // Iterate rows including the tail row panel.
-    for (Index i = 0; i <= peeled_rows; i += MR) {
-      if (i == peeled_rows && tail_pw == 0) break;
+    const Index num_panels = peeled_rows + (tail_pw > 0 ? MR : 0);
+    for (Index i = 0; i < num_panels; i += MR) {
       const int pw = (i < peeled_rows) ? MR : tail_pw;
       const int pw_lo = pw > VL ? VL : pw;
       const int pw_hi = pw > VL ? pw - VL : 0;
@@ -562,6 +565,8 @@ struct gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
   EIGEN_DONT_INLINE void operator()(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index rows,
                                     Index depth, Index cols, ResScalar alpha, Index strideA = -1, Index strideB = -1,
                                     Index offsetA = 0, Index offsetB = 0) {
+    static_assert(!ConjugateLhs && !ConjugateRhs, "SME fp32 kernel does not support conjugation");
+
     if (strideA == -1) strideA = depth;
     if (strideB == -1) strideB = depth;
 

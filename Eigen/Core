@@ -265,6 +265,12 @@ using std::size_t;
 #include "src/Core/arch/NEON/TypeCasting.h"
 #include "src/Core/arch/NEON/MathFunctions.h"
 #include "src/Core/arch/NEON/Complex.h"
+#elif defined EIGEN_VECTORIZE_SME
+// Utilize NEON for non-GEMM kernels.
+#include "src/Core/arch/NEON/PacketMath.h"
+#include "src/Core/arch/NEON/TypeCasting.h"
+#include "src/Core/arch/NEON/MathFunctions.h"
+#include "src/Core/arch/NEON/Complex.h"
 #elif defined EIGEN_VECTORIZE_LSX
 #include "src/Core/arch/LSX/PacketMath.h"
 #include "src/Core/arch/LSX/TypeCasting.h"
@@ -274,12 +280,6 @@ using std::size_t;
 #include "src/Core/arch/SVE/PacketMath.h"
 #include "src/Core/arch/SVE/TypeCasting.h"
 #include "src/Core/arch/SVE/MathFunctions.h"
-#elif defined EIGEN_VECTORIZE_SME
-// Utilize NEON for non-GEMM kernels
-#include "src/Core/arch/NEON/PacketMath.h"
-#include "src/Core/arch/NEON/TypeCasting.h"
-#include "src/Core/arch/NEON/MathFunctions.h"
-#include "src/Core/arch/NEON/Complex.h"
 #elif defined EIGEN_VECTORIZE_RVV10
 #include "src/Core/arch/RVV10/PacketMathDecl.h"
 #include "src/Core/arch/RVV10/PacketMath.h"
