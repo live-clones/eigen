@@ -474,6 +474,9 @@ build:linux:aarch64:gcc-10:default:smoketest:
 build:linux:cross:x86-64:clang-14:sanitizer:smoketest:
   extends: build:linux:cross:x86-64:clang-14:default
   variables:
+    # libclang-rt-14-dev provides libclang_rt.asan*.a / .ubsan*.a runtime
+    # archives required when linking with -fsanitize=address,undefined.
+    EIGEN_CI_INSTALL: clang-14 libclang-rt-14-dev
     EIGEN_CI_BUILD_TARGET: buildsmoketests
     EIGEN_CI_BUILD_JOBS: "2"
     EIGEN_CI_ADDITIONAL_ARGS: >-
