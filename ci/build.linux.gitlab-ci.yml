@@ -478,7 +478,11 @@ build:linux:cross:x86-64:clang-14:sanitizer:smoketest:
     # archives required when linking with -fsanitize=address,undefined.
     EIGEN_CI_INSTALL: clang-14 libclang-rt-14-dev
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-    EIGEN_CI_BUILD_JOBS: "2"
+    # Try -j3 now that heavy TUs have been split. The non-sanitizer gcc-10
+    # smoketest already runs at -j3 on the same medium-amd64 runner (16 GB).
+    # ASAN+UBSAN inflates per-TU RSS ~2-3x, so -j4 has no headroom; revisit
+    # if this proves stable.
+    EIGEN_CI_BUILD_JOBS: "3"
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-fsanitize=address,undefined;-fno-sanitize-recover=address;-fno-omit-frame-pointer
       -DEIGEN_TEST_CUSTOM_LINKER_FLAGS=-fsanitize=address,undefined
