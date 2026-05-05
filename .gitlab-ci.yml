@@ -32,6 +32,10 @@ stages:
   - deploy
 
 variables:
+  # Pre-baked CI images hosted in the GitLab container registry.
+  # Override in project/fork settings if you host the images elsewhere.
+  # See ci/docker/ for the corresponding Dockerfiles.
+  EIGEN_CI_IMAGE_LINUX_AMD64: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64:latest"
   # CMake build directory.
   EIGEN_CI_BUILDDIR: .build
   # Specify the CMake build target.

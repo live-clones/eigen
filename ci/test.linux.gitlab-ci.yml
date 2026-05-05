@@ -379,6 +379,7 @@ test:linux:arm:clang-14:default:unsupported:
 
 .test:linux:aarch64:
   extends: .test:linux
+  image: ubuntu:24.04
   variables:
     EIGEN_CI_TARGET_ARCH: aarch64
     EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu

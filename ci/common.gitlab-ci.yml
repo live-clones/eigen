@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 .common:linux:cross:
-  image: ubuntu:24.04
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64}
   variables:
     EIGEN_CI_TARGET_ARCH: ""
     EIGEN_CI_ADDITIONAL_ARGS: ""

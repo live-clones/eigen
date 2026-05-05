@@ -369,6 +369,7 @@ build:linux:cross:arm:clang-14:default:
 
 .build:linux:cross:aarch64:
   extends: .build:linux:cross
+  image: ubuntu:24.04
   variables:
     EIGEN_CI_TARGET_ARCH: aarch64
     EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
