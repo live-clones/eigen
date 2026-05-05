@@ -8,12 +8,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Dispatch functions that map DeviceMatrix expressions to NVIDIA library calls.
-//
-// dispatch_gemm()  — GemmExpr → cublasXgemm
-//
-// Each function documents the exact library call and parameters.
-
 #ifndef EIGEN_GPU_DEVICE_DISPATCH_H
 #define EIGEN_GPU_DEVICE_DISPATCH_H
 
@@ -37,9 +31,6 @@ bool aliases_device_memory(const DeviceMatrix<Scalar>& a, const DeviceMatrix<Sca
   return a.data() != nullptr && a.data() == b.data();
 }
 
-// ---- GEMM dispatch ----------------------------------------------------------
-// GemmExpr<Lhs, Rhs> → cublasXgemm (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
-
 template <typename Lhs, typename Rhs>
 void dispatch_gemm(
     Context& ctx, DeviceMatrix<typename device_expr_traits<Lhs>::scalar_type>& dst, const GemmExpr<Lhs, Rhs>& expr,
@@ -55,8 +46,6 @@ void dispatch_gemm(
   constexpr cublasOperation_t transA = to_cublas_op(traits_lhs::op);
   constexpr cublasOperation_t transB = to_cublas_op(traits_rhs::op);
 
-  // GEMM dimensions: C(m,n) = op(A)(m,k) * op(B)(k,n)
-  // op(A) has dimensions (A.rows, A.cols) if NoTrans, (A.cols, A.rows) if Trans/ConjTrans.
   const int64_t m = (traits_lhs::op == GpuOp::NoTrans) ? A.rows() : A.cols();
   const int64_t k = (traits_lhs::op == GpuOp::NoTrans) ? A.cols() : A.rows();
   const int64_t n = (traits_rhs::op == GpuOp::NoTrans) ? B.cols() : B.rows();
@@ -70,12 +59,10 @@ void dispatch_gemm(
   eigen_assert(!aliases_device_memory(dst, A) && "DeviceMatrix GEMM destination aliases lhs operand");
   eigen_assert(!aliases_device_memory(dst, B) && "DeviceMatrix GEMM destination aliases rhs operand");
 
-  // Serialize all accesses to the destination buffer on this stream.
   if (!dst.empty()) {
     dst.waitReady(ctx.stream());
   }
 
-  // Allocate or resize destination.
   const bool resized = dst.empty() || dst.rows() != m || dst.cols() != n;
   if (resized) {
     dst.resize(m, n);
@@ -84,12 +71,9 @@ void dispatch_gemm(
 
   Scalar alpha_local = alpha_scale * traits_lhs::alpha(expr.lhs()) * traits_rhs::alpha(expr.rhs());
 
-  // Wait for operands to be ready on this stream.
   A.waitReady(ctx.stream());
   B.waitReady(ctx.stream());
 
-  // If there is no existing valid destination to accumulate into, treat it as
-  // zero rather than reading uninitialized memory.
   if (resized && beta_val != Scalar(0) && dst.sizeInBytes() > 0) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
   }
@@ -97,10 +81,10 @@ void dispatch_gemm(
   eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
                "cublasXgemm dimensions exceed int range");
 
-  // cuBLAS reads alpha and beta through host pointers.  Store them in an
-  // array to prevent the compiler from eliding their stack slots — clang
-  // and MSVC at -O1+ otherwise optimise away the stores for complex types,
-  // leaving cuBLAS with a dangling pointer.
+  // cuBLAS reads alpha and beta through host pointers. Store them in an array
+  // to prevent the compiler from eliding their stack slots — clang and MSVC
+  // at -O1+ otherwise optimise away the stores for complex types, leaving
+  // cuBLAS with a dangling pointer.
   Scalar scalars[2] = {alpha_local, beta_val};
   EIGEN_CUBLAS_CHECK(cublasXgemm(ctx.cublasHandle(), transA, transB, static_cast<int>(m), static_cast<int>(n),
                                  static_cast<int>(k), &scalars[0], A.data(), static_cast<int>(lda), B.data(),
@@ -108,10 +92,6 @@ void dispatch_gemm(
 
   dst.recordReady(ctx.stream());
 }
-
-// ---- LLT solve dispatch -----------------------------------------------------
-// LltSolveExpr → cusolverDnXpotrf (factorize) + cusolverDnXpotrs (solve).
-// No caching — factor and workspace are temporary. Syncs to check info.
 
 template <typename Scalar, int UpLo>
 void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveExpr<Scalar, UpLo>& expr) {
@@ -124,8 +104,6 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   const int64_t n = static_cast<int64_t>(A.rows());
   const int64_t nrhs = static_cast<int64_t>(B.cols());
 
-  // Zero-size fast paths: no work, just resize dst.
-  // Wait on dst before resize to avoid freeing memory another stream is using.
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
     dst.resize(n == 0 ? 0 : n, B.cols());
@@ -143,7 +121,6 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   const size_t mat_bytes = static_cast<size_t>(lda) * static_cast<size_t>(n) * sizeof(Scalar);
   const size_t rhs_bytes = static_cast<size_t>(ldb) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
-  // D2D copy A → factor buffer (potrf is in-place).
   DeviceBuffer d_factor(mat_bytes);
   EIGEN_CUDA_RUNTIME_CHECK(
       cudaMemcpyAsync(d_factor.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
@@ -154,7 +131,6 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
   PinnedHostBuffer h_info(2 * sizeof(int));
   int* info_words = static_cast<int*>(h_info.get());
 
-  // Query workspace and factorize.
   CusolverParams params;
   DeviceBuffer d_info(2 * sizeof(int));
   int* d_info_potrf = static_cast<int*>(d_info.get());
@@ -170,20 +146,16 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
                                         d_workspace.get(), dev_ws, host_ws > 0 ? h_workspace.data() : nullptr, host_ws,
                                         d_info_potrf));
 
-  // Async download of potrf info, no sync yet — let potrs run optimistically.
   EIGEN_CUDA_RUNTIME_CHECK(
       cudaMemcpyAsync(&info_words[0], d_info_potrf, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
 
-  // D2D copy B → dst (potrs is in-place on the RHS).
   dst.resize(n, B.cols());
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
-  // Solve.
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, n, nrhs, dtype, d_factor.get(), lda,
                                         dtype, dst.data(), static_cast<int64_t>(dst.rows()), d_info_potrs));
 
-  // Async download of potrs info + single end-of-chain sync. Workspace locals
-  // must outlive the async kernels.
+  // Workspace locals must outlive the async kernels — sync before they unwind.
   EIGEN_CUDA_RUNTIME_CHECK(
       cudaMemcpyAsync(&info_words[1], d_info_potrs, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
@@ -192,9 +164,6 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
 
   dst.recordReady(ctx.stream());
 }
-
-// ---- LU solve dispatch ------------------------------------------------------
-// LuSolveExpr → cusolverDnXgetrf (factorize) + cusolverDnXgetrs (solve).
 
 template <typename Scalar>
 void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExpr<Scalar>& expr) {
@@ -224,17 +193,14 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
   const size_t rhs_bytes = static_cast<size_t>(ldb) * static_cast<size_t>(nrhs) * sizeof(Scalar);
   const size_t ipiv_bytes = static_cast<size_t>(n) * sizeof(int64_t);
 
-  // D2D copy A → LU buffer (getrf is in-place).
   DeviceBuffer d_lu(mat_bytes);
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu.get(), A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   DeviceBuffer d_ipiv(ipiv_bytes);
 
-  // See dispatch_llt_solve: two info slots + single end-of-chain sync.
   PinnedHostBuffer h_info(2 * sizeof(int));
   int* info_words = static_cast<int*>(h_info.get());
 
-  // Query workspace and factorize.
   CusolverParams params;
   DeviceBuffer d_info(2 * sizeof(int));
   int* d_info_getrf = static_cast<int*>(d_info.get());
@@ -253,17 +219,14 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
   EIGEN_CUDA_RUNTIME_CHECK(
       cudaMemcpyAsync(&info_words[0], d_info_getrf, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
 
-  // D2D copy B → dst (getrs is in-place on the RHS).
   dst.resize(n, B.cols());
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
-  // Solve (NoTranspose).
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(ctx.cusolverHandle(), params.p, CUBLAS_OP_N, n, nrhs, dtype, d_lu.get(), lda,
                                         static_cast<const int64_t*>(d_ipiv.get()), dtype, dst.data(),
                                         static_cast<int64_t>(dst.rows()), d_info_getrs));
 
-  // Async download of getrs info + single end-of-chain sync. Workspace locals
-  // must outlive the async kernels.
+  // Workspace locals must outlive the async kernels — sync before they unwind.
   EIGEN_CUDA_RUNTIME_CHECK(
       cudaMemcpyAsync(&info_words[1], d_info_getrs, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
@@ -272,10 +235,6 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
 
   dst.recordReady(ctx.stream());
 }
-
-// ---- TRSM dispatch ----------------------------------------------------------
-// TrsmExpr → cublasXtrsm: solve op(A) * X = B where A is triangular.
-// Side=Left, Diag=NonUnit. A is square, B is n×nrhs.
 
 template <typename Scalar, int UpLo>
 void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scalar, UpLo>& expr) {
@@ -302,7 +261,6 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
   eigen_assert(!aliases_device_memory(dst, B) && "DeviceMatrix TRSM destination aliases RHS operand");
   if (!dst.empty()) dst.waitReady(ctx.stream());
 
-  // D2D copy B → dst (trsm is in-place on the RHS).
   dst.resize(n, B.cols());
   const size_t rhs_bytes = static_cast<size_t>(dst.rows()) * static_cast<size_t>(nrhs) * sizeof(Scalar);
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
@@ -316,10 +274,6 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
 
   dst.recordReady(ctx.stream());
 }
-
-// ---- SYMM/HEMM dispatch -----------------------------------------------------
-// SymmExpr → cublasXsymm (real) or cublasXhemm (complex).
-// C = A * B where A is symmetric/Hermitian. Side=Left.
 
 template <typename Scalar, int UpLo>
 void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scalar, UpLo>& expr) {
@@ -349,7 +303,7 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
   dst.resize(m, n);
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
-  // Array prevents the compiler from eliding stack slots (see dispatch_gemm).
+  // See dispatch_gemm: array prevents compiler from eliding host-pointer stack slots.
   Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
   EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(),
@@ -358,10 +312,6 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
 
   dst.recordReady(ctx.stream());
 }
-
-// ---- SYRK/HERK dispatch -----------------------------------------------------
-// SyrkExpr → cublasXsyrk (real) or cublasXherk (complex).
-// C = alpha * A * A^H + beta * C. UpLo specifies which triangle of C is stored.
 
 template <typename Scalar, int UpLo>
 void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scalar, UpLo>& expr,
@@ -400,8 +350,6 @@ void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scala
 }
 
 }  // namespace internal
-// ---- Assignment: d_C.device(ctx) = expr ------------------------------
-// Returned by DeviceMatrix::device(ctx). Dispatches expressions to library calls.
 
 template <typename Scalar_>
 class Assignment {
@@ -410,55 +358,47 @@ class Assignment {
 
   Assignment(DeviceMatrix<Scalar>& dst, Context& ctx) : dst_(dst), ctx_(ctx) {}
 
-  // operator= dispatches GEMM with beta=0 (overwrite).
   template <typename Lhs, typename Rhs>
   DeviceMatrix<Scalar>& operator=(const GemmExpr<Lhs, Rhs>& expr) {
     internal::dispatch_gemm(ctx_, dst_, expr, Scalar(0));
     return dst_;
   }
 
-  // operator+= dispatches GEMM with beta=1 (accumulate).
   template <typename Lhs, typename Rhs>
   DeviceMatrix<Scalar>& operator+=(const GemmExpr<Lhs, Rhs>& expr) {
     internal::dispatch_gemm(ctx_, dst_, expr, Scalar(1));
     return dst_;
   }
 
-  // operator-= dispatches GEMM with negated alpha, beta=1: C = C - alpha*op(A)*op(B).
   template <typename Lhs, typename Rhs>
   DeviceMatrix<Scalar>& operator-=(const GemmExpr<Lhs, Rhs>& expr) {
     internal::dispatch_gemm(ctx_, dst_, expr, Scalar(1), Scalar(-1));
     return dst_;
   }
 
-  // operator= dispatches LLT solve (potrf + potrs).
   template <int UpLo>
   DeviceMatrix<Scalar>& operator=(const LltSolveExpr<Scalar, UpLo>& expr) {
     internal::dispatch_llt_solve(ctx_, dst_, expr);
     return dst_;
   }
 
-  // operator= dispatches LU solve (getrf + getrs).
   DeviceMatrix<Scalar>& operator=(const LuSolveExpr<Scalar>& expr) {
     internal::dispatch_lu_solve(ctx_, dst_, expr);
     return dst_;
   }
 
-  // operator= dispatches TRSM (triangular solve).
   template <int UpLo>
   DeviceMatrix<Scalar>& operator=(const TrsmExpr<Scalar, UpLo>& expr) {
     internal::dispatch_trsm(ctx_, dst_, expr);
     return dst_;
   }
 
-  // operator= dispatches SYMM/HEMM (symmetric/Hermitian multiply).
   template <int UpLo>
   DeviceMatrix<Scalar>& operator=(const SymmExpr<Scalar, UpLo>& expr) {
     internal::dispatch_symm(ctx_, dst_, expr);
     return dst_;
   }
 
-  // Catch-all: static_assert for unsupported expressions.
   template <typename Expr>
   DeviceMatrix<Scalar>& operator=(const Expr&) {
     static_assert(sizeof(Expr) == 0,
@@ -473,9 +413,8 @@ class Assignment {
   Context& ctx_;
 };
 
-// ---- Out-of-line DeviceMatrix expression operator= definitions -------------
-// These are declared in DeviceMatrix.h but defined here because they need
-// Context::threadLocal() which requires the full Context definition.
+// Out-of-line definitions: these depend on Context::threadLocal(), which
+// requires the full Context definition unavailable in DeviceMatrix.h.
 
 template <typename Scalar_>
 template <typename Lhs, typename Rhs>
@@ -518,7 +457,6 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SymmExpr<Scalar_, 
   return *this;
 }
 
-// SelfAdjointView::rankUpdate — defined here because it needs Context.
 template <typename Scalar_, int UpLo_>
 void SelfAdjointView<Scalar_, UpLo_>::rankUpdate(const DeviceMatrix<Scalar_>& A, RealScalar alpha) {
   SyrkExpr<Scalar_, UpLo_> expr(A);
