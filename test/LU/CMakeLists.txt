@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+ei_add_test(condition_estimator)
+ei_add_test(condition_estimator_complex)
+ei_add_test(lu)
+ei_add_test(lu_double)
+ei_add_test(lu_complex)
+ei_add_test(lu_blocking)
+ei_add_test(lu_blocking_complex)
+ei_add_test(determinant)
+ei_add_test(inverse)
+ei_add_test(inverse_complex)
+ei_add_test(inplace_decomposition)

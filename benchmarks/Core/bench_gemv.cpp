@@ -117,32 +117,44 @@ static void BM_GemvAdj(benchmark::State& state) {
 // ---------- Size configurations ----------
 // All sizes refer to the stored matrix A (m rows, n cols).
 
-// ---------- Register benchmarks ----------
+static void GemvSizes(::benchmark::Benchmark* b) {
+  // Square matrices: exercises balanced kernel behavior.
+  for (int size : {8, 16, 32, 64, 128, 256, 512, 1024, 4096}) {
+    b->Args({size, size});
+  }
+  // Tall-thin (m >> n): in ColMajor kernel, the inner vectorized loop over rows
+  // is long while the outer column loop is short. In RowMajor kernel (transpose),
+  // there are many rows to process but short dot products.
+  for (int n : {1, 4, 16, 64}) {
+    for (int m : {256, 1024, 4096}) {
+      if (m != n) b->Args({m, n});
+    }
+  }
+  // Short-wide (m << n): in ColMajor kernel, the outer column loop is long but
+  // the inner vectorized loop over rows is short. In RowMajor kernel (transpose),
+  // there are few rows but long dot products.
+  for (int m : {1, 4, 16, 64}) {
+    for (int n : {256, 1024, 4096}) {
+      if (m != n) b->Args({m, n});
+    }
+  }
+}
 
-// clang-format off
-// Square matrices; tall-thin (m >> n); short-wide (m << n).
-// The 4096..32768-row x 1..3-col cases straddle the run_small_cols
-// "stride*sizeof > L1" threshold where the 8-row inner unroll flips off.
-#define GEMV_SIZES \
-    ->Args({8, 8})->Args({32, 32})->Args({128, 128})->Args({512, 512})->Args({1024, 1024}) \
-    ->Args({256, 1})->Args({1024, 1})->Args({256, 16})->Args({1024, 16}) \
-    ->Args({1, 256})->Args({1, 1024})->Args({16, 256})->Args({16, 1024}) \
-    ->Args({4096, 1})->Args({8192, 1})->Args({16384, 1})->Args({32768, 1}) \
-    ->Args({4096, 2})->Args({8192, 2})->Args({16384, 2})
+// ---------- Register benchmarks ----------
 
 // Real types: Gemv and GemvTrans exercise the two kernel specializations.
 // Conjugation is a no-op for real scalars.
-BENCHMARK(BM_Gemv<float>) GEMV_SIZES ->Name("Gemv_float");
-BENCHMARK(BM_Gemv<double>) GEMV_SIZES ->Name("Gemv_double");
-BENCHMARK(BM_GemvTrans<float>) GEMV_SIZES ->Name("GemvTrans_float");
-BENCHMARK(BM_GemvTrans<double>) GEMV_SIZES ->Name("GemvTrans_double");
+BENCHMARK(BM_Gemv<float>)->Apply(GemvSizes)->Name("Gemv_float");
+BENCHMARK(BM_Gemv<double>)->Apply(GemvSizes)->Name("Gemv_double");
+BENCHMARK(BM_GemvTrans<float>)->Apply(GemvSizes)->Name("GemvTrans_float");
+BENCHMARK(BM_GemvTrans<double>)->Apply(GemvSizes)->Name("GemvTrans_double");
 
 // Complex types: all four variants exercise distinct kernel code paths.
-// Only cfloat is benchmarked since cdouble exercises the same paths but slower.
-BENCHMARK(BM_Gemv<std::complex<float>>) GEMV_SIZES ->Name("Gemv_cfloat");
-BENCHMARK(BM_GemvTrans<std::complex<float>>) GEMV_SIZES ->Name("GemvTrans_cfloat");
-BENCHMARK(BM_GemvConj<std::complex<float>>) GEMV_SIZES ->Name("GemvConj_cfloat");
-BENCHMARK(BM_GemvAdj<std::complex<float>>) GEMV_SIZES ->Name("GemvAdj_cfloat");
-
-#undef GEMV_SIZES
-// clang-format on
+BENCHMARK(BM_Gemv<std::complex<float>>)->Apply(GemvSizes)->Name("Gemv_cfloat");
+BENCHMARK(BM_Gemv<std::complex<double>>)->Apply(GemvSizes)->Name("Gemv_cdouble");
+BENCHMARK(BM_GemvTrans<std::complex<float>>)->Apply(GemvSizes)->Name("GemvTrans_cfloat");
+BENCHMARK(BM_GemvTrans<std::complex<double>>)->Apply(GemvSizes)->Name("GemvTrans_cdouble");
+BENCHMARK(BM_GemvConj<std::complex<float>>)->Apply(GemvSizes)->Name("GemvConj_cfloat");
+BENCHMARK(BM_GemvConj<std::complex<double>>)->Apply(GemvSizes)->Name("GemvConj_cdouble");
+BENCHMARK(BM_GemvAdj<std::complex<float>>)->Apply(GemvSizes)->Name("GemvAdj_cfloat");
+BENCHMARK(BM_GemvAdj<std::complex<double>>)->Apply(GemvSizes)->Name("GemvAdj_cdouble");

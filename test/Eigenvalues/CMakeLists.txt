@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+
+ei_add_test(eigensolver_selfadjoint_fixed)
+ei_add_test(eigensolver_selfadjoint_fixed_float)
+ei_add_test(eigensolver_selfadjoint_fixed_complex)
+ei_add_test(eigensolver_selfadjoint_3x3_4x4)
+ei_add_test(eigensolver_selfadjoint_3x3_4x4_complex)
+ei_add_test(eigensolver_selfadjoint_dynamic)
+ei_add_test(eigensolver_selfadjoint_dynamic_complex)
+ei_add_test(eigensolver_generic)
+ei_add_test(eigensolver_generic_extra)
+ei_add_test(eigensolver_complex)
+ei_add_test(eigensolver_complex_extra)
+ei_add_test(eigensolver_generalized_real)
+ei_add_test(hessenberg)
+ei_add_test(schur_real)
+ei_add_test(schur_complex)
+ei_add_test(real_qz)
+ei_add_test(complex_qz)

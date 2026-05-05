@@ -1,0 +1,18 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// SPDX-FileCopyrightText: The Eigen Authors
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+// SPDX-License-Identifier: MPL-2.0
+
+// bdcsvd split: verify_assert tests for real fixed-size types (square).
+
+#include "bdcsvd_helpers.h"
+
+TEST(BDCSVDAssertTest, Real) {
+  (bdcsvd_verify_assert<Matrix3f>());
+  (bdcsvd_verify_assert<Matrix4d>());
+}
