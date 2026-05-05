@@ -411,6 +411,10 @@ extern "C" {
 #undef vector
 #undef pixel
 
+#elif defined(EIGEN_ARM64_USE_SME) && !defined(__ARM_FEATURE_SME)
+
+#error "EIGEN_ARM64_USE_SME requires compiler support for SME."
+
 #elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE) && \
     !(defined EIGEN_ARM64_USE_SME)
 

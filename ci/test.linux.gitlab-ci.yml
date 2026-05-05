@@ -390,6 +390,7 @@ test:linux:arm:clang-14:default:unsupported:
   extends: .test:linux:sme
   needs: [ build:linux:cross:sme:gcc-12:default ]
   rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_BRANCH == "master"
