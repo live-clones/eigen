@@ -18,8 +18,8 @@
  *
  *****************************************************************/
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_SYCL_H
-#define EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_SYCL_H
+#ifndef EIGEN_TENSOR_TENSOR_CONTRACTION_SYCL_H
+#define EIGEN_TENSOR_TENSOR_CONTRACTION_SYCL_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -1652,4 +1652,4 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   }
 };
 }  // namespace Eigen
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_SYCL_H
+#endif  // EIGEN_TENSOR_TENSOR_CONTRACTION_SYCL_H

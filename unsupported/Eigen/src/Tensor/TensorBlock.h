@@ -7,8 +7,8 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_BLOCK_H
-#define EIGEN_CXX11_TENSOR_TENSOR_BLOCK_H
+#ifndef EIGEN_TENSOR_TENSOR_BLOCK_H
+#define EIGEN_TENSOR_TENSOR_BLOCK_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -1473,4 +1473,4 @@ class TensorBlockAssignment {
 }  // namespace internal
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_BLOCK_H
+#endif  // EIGEN_TENSOR_TENSOR_BLOCK_H
