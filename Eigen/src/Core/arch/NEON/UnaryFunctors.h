@@ -17,7 +17,7 @@ namespace Eigen {
 
 namespace internal {
 
-#if EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+#if EIGEN_HAS_ARM64_FP16
 /** \internal
  * \brief Template specialization of the logistic function for Eigen::half.
  */
@@ -50,7 +50,7 @@ struct functor_traits<scalar_logistic_op<Eigen::half>> {
     PacketAccess = functor_traits<scalar_logistic_op<float>>::PacketAccess,
   };
 };
-#endif  // EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+#endif  // EIGEN_HAS_ARM64_FP16
 
 }  // end namespace internal
 
