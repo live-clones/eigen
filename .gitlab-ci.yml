@@ -36,6 +36,8 @@ variables:
   # Override in project/fork settings if you host the images elsewhere.
   # See ci/docker/ for the corresponding Dockerfiles.
   EIGEN_CI_IMAGE_LINUX_AMD64: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64:latest"
+  # Slim image used for MR smoke tests (gcc-10 + clang-14 only).
+  EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64-smoketest:latest"
   # CMake build directory.
   EIGEN_CI_BUILDDIR: .build
   # Specify the CMake build target.
@@ -49,6 +51,7 @@ variables:
 include:
   - "/ci/checkformat.gitlab-ci.yml"
   - "/ci/common.gitlab-ci.yml"
+  - "/ci/images.gitlab-ci.yml"
   - "/ci/build.linux.gitlab-ci.yml"
   - "/ci/build.windows.gitlab-ci.yml"
   - "/ci/test.linux.gitlab-ci.yml"

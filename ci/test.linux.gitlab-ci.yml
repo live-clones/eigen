@@ -21,6 +21,7 @@
 .test:linux:x86-64:
   extends: .test:linux
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: x86_64
     EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
 
@@ -246,6 +247,7 @@ test:linux:x86-64:clang-19:default:asan-ubsan:unsupported:
   extends: .test:linux:x86-64
   image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
   variables:
+    EIGEN_CI_SKIP_APT: "false"
     EIGEN_CI_INSTALL: ""
 
 test:linux:x86-64:nvhpc-26.1:default:official:
@@ -265,6 +267,7 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   extends: .test:linux
   allow_failure: true
   variables:
+    EIGEN_CI_SKIP_APT: "false"
     EIGEN_CI_CTEST_LABEL: gpu
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
@@ -334,6 +337,7 @@ test:linux:cuda-12.6:clang-19:
 .test:linux:arm:
   extends: .test:linux
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: arm
     EIGEN_CI_CROSS_TARGET_TRIPLE: arm-linux-gnueabihf
     EIGEN_CI_CTEST_ARGS: --timeout 2000
@@ -423,6 +427,7 @@ test:linux:aarch64:clang-14:default:unsupported:
 .test:linux:ppc64le:
   extends: .test:linux
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: ppc64le
     EIGEN_CI_CROSS_TARGET_TRIPLE: powerpc64le-linux-gnu
     EIGEN_CI_CTEST_ARGS: --timeout 2000
@@ -469,6 +474,7 @@ test:linux:ppc64le:clang-16:default:unsupported:
 .test:linux:loongarch64:
   extends: .test:linux
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: loongarch64
     EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
     EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu qemu-user-static
@@ -498,6 +504,7 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 
 test:linux:x86-64:gcc-10:default:smoketest:
   extends: .test:linux:x86-64:gcc-10:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST}
   needs: [ build:linux:cross:x86-64:gcc-10:default:smoketest ]
   variables:
     EIGEN_CI_CTEST_LABEL: smoketest
@@ -508,6 +515,7 @@ test:linux:x86-64:gcc-10:default:smoketest:
 
 test:linux:x86-64:clang-14:default:smoketest:
   extends: .test:linux:x86-64:clang-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST}
   needs: [ build:linux:cross:x86-64:clang-14:default:smoketest ]
   variables:
     EIGEN_CI_CTEST_LABEL: smoketest
