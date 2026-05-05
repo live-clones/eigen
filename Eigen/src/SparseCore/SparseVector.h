@@ -30,8 +30,8 @@ namespace Eigen {
  */
 
 namespace internal {
-template <typename Scalar_, int Options_, typename StorageIndex_>
-struct traits<SparseVector<Scalar_, Options_, StorageIndex_> > {
+template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
+struct traits<SparseVector<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_> > {
   typedef Scalar_ Scalar;
   typedef StorageIndex_ StorageIndex;
   typedef Sparse StorageKind;
@@ -39,10 +39,11 @@ struct traits<SparseVector<Scalar_, Options_, StorageIndex_> > {
   enum {
     IsColVector = (Options_ & RowMajorBit) ? 0 : 1,
 
-    RowsAtCompileTime = IsColVector ? Dynamic : 1,
-    ColsAtCompileTime = IsColVector ? 1 : Dynamic,
+    RowsAtCompileTime = IsColVector ? Rows_ : 1,
+    ColsAtCompileTime = IsColVector ? 1 : Cols_,
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
+    MaxNZ = MaxNZ_,
     Flags = Options_ | NestByRefBit | LvalueBit | (IsColVector ? 0 : RowMajorBit) | CompressedAccessBit,
     SupportedAccessPatterns = InnerRandomAccessPattern
   };
@@ -59,8 +60,9 @@ struct sparse_vector_assign_selector;
 
 }  // namespace internal
 
-template <typename Scalar_, int Options_, typename StorageIndex_>
-class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_> > {
+template <typename Scalar_, int Options_, typename StorageIndex_, int Rows_, int Cols_, int MaxNZ_>
+class SparseVector
+    : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_, Rows_, Cols_, MaxNZ_> > {
   typedef SparseCompressedBase<SparseVector> Base;
   using Base::convert_index;
 
@@ -69,7 +71,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, +=)
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, -=)
 
-  typedef internal::CompressedStorage<Scalar, StorageIndex> Storage;
+  typedef internal::CompressedStorage<Scalar, StorageIndex, MaxNZ_> Storage;
   enum { IsColVector = internal::traits<SparseVector>::IsColVector };
 
   enum { Options = Options_ };
@@ -233,6 +235,9 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
    *
    * \sa  conservativeResize(), setZero() */
   void resize(Index newSize) {
+    // when the inner size is fixed at compile time, the only valid runtime size is that one
+    constexpr int FixedSize = IsColVector ? Rows_ : Cols_;
+    eigen_assert((FixedSize == Dynamic || newSize == FixedSize) && "size mismatch on a fixed-size SparseVector");
     m_size = newSize;
     m_data.clear();
   }
@@ -255,7 +260,10 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
   void resizeNonZeros(Index size) { m_data.resize(size); }
 
-  inline SparseVector() : m_size(0) { resize(0); }
+  inline SparseVector() : m_size(0) {
+    constexpr int FixedSize = IsColVector ? Rows_ : Cols_;
+    resize(FixedSize == Dynamic ? Index(0) : Index(FixedSize));
+  }
 
   explicit inline SparseVector(Index size) : m_size(0) { resize(size); }
 
@@ -397,6 +405,9 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
  protected:
   EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned, THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
   EIGEN_STATIC_ASSERT((Options_ & (ColMajor | RowMajor)) == Options, INVALID_MATRIX_TEMPLATE_PARAMETERS)
+  // the non-vector dimension must be 1 (or Dynamic)
+  EIGEN_STATIC_ASSERT((IsColVector ? (Cols_ == 1 || Cols_ == Dynamic) : (Rows_ == 1 || Rows_ == Dynamic)),
+                      INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
   Storage m_data;
   Index m_size;
@@ -404,9 +415,10 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
 namespace internal {
 
-template <typename Scalar_, int Options_, typename Index_>
-struct evaluator<SparseVector<Scalar_, Options_, Index_> > : evaluator_base<SparseVector<Scalar_, Options_, Index_> > {
-  typedef SparseVector<Scalar_, Options_, Index_> SparseVectorType;
+template <typename Scalar_, int Options_, typename Index_, int Rows_, int Cols_, int MaxNZ_>
+struct evaluator<SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> >
+    : evaluator_base<SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> > {
+  typedef SparseVector<Scalar_, Options_, Index_, Rows_, Cols_, MaxNZ_> SparseVectorType;
   typedef evaluator_base<SparseVectorType> Base;
   typedef typename SparseVectorType::InnerIterator InnerIterator;
   typedef typename SparseVectorType::ReverseInnerIterator ReverseInnerIterator;
@@ -462,10 +474,10 @@ struct sparse_vector_assign_selector<Dest, Src, SVA_RuntimeSwitch> {
 
 // Specialization for SparseVector.
 // Serializes [size, numNonZeros, innerIndices, values].
-template <typename Scalar, int Options, typename StorageIndex>
-class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
+template <typename Scalar, int Options, typename StorageIndex, int Rows, int Cols, int MaxNZ>
+class Serializer<SparseVector<Scalar, Options, StorageIndex, Rows, Cols, MaxNZ>, void> {
  public:
-  typedef SparseVector<Scalar, Options, StorageIndex> SparseMat;
+  typedef SparseVector<Scalar, Options, StorageIndex, Rows, Cols, MaxNZ> SparseMat;
 
   struct Header {
     typename SparseMat::Index size;
