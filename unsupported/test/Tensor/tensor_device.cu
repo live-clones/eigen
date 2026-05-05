@@ -177,7 +177,8 @@ void test_3d_convolution(Context* context) {
 
 // Helper method to synchronize device.
 template <typename Device>
-void synchronize(Device& /*device*/) { /*nothing*/ }
+void synchronize(Device& /*device*/) { /*nothing*/
+}
 template <>
 void synchronize(Eigen::GpuDevice& device) {
   device.synchronize();
