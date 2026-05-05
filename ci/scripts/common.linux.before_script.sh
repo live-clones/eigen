@@ -18,7 +18,7 @@ export | grep EIGEN
 # geographical region.
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y > /dev/null
-apt-get install -y --no-install-recommends ninja-build cmake git > /dev/null
+apt-get install -y --no-install-recommends ninja-build cmake git xsltproc > /dev/null
 
 # Install required dependencies and set up compilers.
 # These are required even for testing to ensure that dynamic runtime libraries
