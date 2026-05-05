@@ -213,24 +213,68 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
     m_c = p < Scalar(0) ? Scalar(-1) : Scalar(1);
     m_s = Scalar(0);
     if (r) *r = abs(p);
-  } else if (numext::is_exactly_zero(p)) {
+    return;
+  }
+  if (numext::is_exactly_zero(p)) {
     m_c = Scalar(0);
     m_s = q < Scalar(0) ? Scalar(1) : Scalar(-1);
     if (r) *r = abs(q);
-  } else if (abs(p) > abs(q)) {
-    Scalar t = q / p;
-    Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-    if (p < Scalar(0)) u = -u;
-    m_c = Scalar(1) / u;
-    m_s = -t * m_c;
-    if (r) *r = p * u;
+    return;
+  }
+
+  // Safe-range thresholds following Anderson, "Algorithm 978: Safe Scaling
+  // in the Level 1 BLAS", ACM TOMS 44(1), 2017.  When both |p| and |q| lie
+  // in (rtmin, rtmax), the direct formula r = p * sqrt(1 + (q/p)^2) cannot
+  // over- or underflow before the true result would.  Outside that range
+  // we prescale by max(|p|, |q|) (clamped into [safmin, safmax]) so that
+  // the squared sum stays in the representable range.  This preserves the
+  // existing Eigen sign convention (r >= 0, sign carried in c).
+  const Scalar safmin = (std::numeric_limits<Scalar>::min)();
+  const Scalar safmax = Scalar(1) / safmin;
+  const Scalar rtmin = sqrt(safmin);
+  const Scalar rtmax = sqrt(safmax / Scalar(2));
+  const Scalar abs_p = abs(p);
+  const Scalar abs_q = abs(q);
+  const Scalar mx = numext::maxi(abs_p, abs_q);
+  const Scalar mn = numext::mini(abs_p, abs_q);
+
+  if (EIGEN_PREDICT_TRUE(mx < rtmax && mn > rtmin)) {
+    // Safe range: existing direct formulas are stable.
+    if (abs_p > abs_q) {
+      Scalar t = q / p;
+      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+      if (p < Scalar(0)) u = -u;
+      m_c = Scalar(1) / u;
+      m_s = -t * m_c;
+      if (r) *r = p * u;
+    } else {
+      Scalar t = p / q;
+      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+      if (q < Scalar(0)) u = -u;
+      m_s = -Scalar(1) / u;
+      m_c = -t * m_s;
+      if (r) *r = q * u;
+    }
   } else {
-    Scalar t = p / q;
-    Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-    if (q < Scalar(0)) u = -u;
-    m_s = -Scalar(1) / u;
-    m_c = -t * m_s;
-    if (r) *r = q * u;
+    // Out of safe range: prescale by max(|p|, |q|) clamped into [safmin, safmax].
+    const Scalar scale = numext::mini(safmax, numext::maxi(safmin, numext::maxi(abs_p, abs_q)));
+    const Scalar ps = p / scale;
+    const Scalar qs = q / scale;
+    if (abs_p > abs_q) {
+      Scalar t = qs / ps;
+      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+      if (ps < Scalar(0)) u = -u;
+      m_c = Scalar(1) / u;
+      m_s = -t * m_c;
+      if (r) *r = (ps * u) * scale;
+    } else {
+      Scalar t = ps / qs;
+      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
+      if (qs < Scalar(0)) u = -u;
+      m_s = -Scalar(1) / u;
+      m_c = -t * m_s;
+      if (r) *r = (qs * u) * scale;
+    }
   }
 }
 
