@@ -127,11 +127,11 @@ path = [
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"
 
-# failtest/ contains minimal compile-failure stubs (a few `#include`s plus a
-# trivial main); no novel IP, but they are MPL-2.0 by virtue of being part of
-# the Eigen test suite.
+# test/failtest/ contains minimal compile-failure stubs (a few `#include`s
+# plus a trivial main); no novel IP, but they are MPL-2.0 by virtue of being
+# part of the Eigen test suite.
 [[annotations]]
-path = "failtest/*.cpp"
+path = "test/failtest/*.cpp"
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"
 
