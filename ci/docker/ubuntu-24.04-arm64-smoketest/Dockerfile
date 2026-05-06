@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+#
+# Slim CI image for arm64 MR smoke test jobs (Ubuntu 24.04).
+# Builds all four smoke test configurations from arm64 runners:
+#   gcc-10 and clang-14 for aarch64 (native), and for x86-64 (cross-compiled).
+#
+# Rebuild and push when this file changes:
+#   docker buildx build --platform linux/arm64 \
+#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-arm64-smoketest:latest \
+#     --push ci/docker/ubuntu-24.04-arm64-smoketest/
+
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+      cmake ninja-build git \
+      gcc-10 g++-10 \
+      g++-10-x86-64-linux-gnu \
+      clang-14 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
