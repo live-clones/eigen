@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_PACKET_MATH_RVV10_DECL_H
 #define EIGEN_PACKET_MATH_RVV10_DECL_H
@@ -227,6 +228,13 @@ struct unpacket_traits<Packet4Xd> : rvv_default_unpacket_traits<double, Packet4X
   typedef Packet4Xl integer_packet;
   typedef PacketMask16 packet_mask;
 };
+
+/********************************* char ************************************/
+
+typedef eigen_packet_wrapper<vint8m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 28> Packet1Xc;
+
+template <>
+struct unpacket_traits<Packet1Xc> : rvv_default_unpacket_traits<numext::int8_t, Packet1Xc, 1> {};
 
 /********************************* default **************************************/
 
