@@ -1427,4 +1427,4 @@ struct functor_traits<scalar_unary_pow_op<Scalar, ExponentScalar>> {
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_FUNCTORS_H
+#endif  // EIGEN_UNARY_FUNCTORS_H
