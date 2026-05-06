@@ -19,22 +19,18 @@
 
 #else
 
-#if ((EIGEN_COMP_GNUC) || __has_feature(cxx_thread_local) || EIGEN_COMP_MSVC)
 #define EIGEN_THREAD_LOCAL static thread_local
-#endif
 
 // Disable TLS for Apple and Android builds with older toolchains.
 #if defined(__APPLE__)
 // Included for TARGET_OS_IPHONE, __IPHONE_OS_VERSION_MIN_REQUIRED,
-// __IPHONE_8_0.
+// __IPHONE_9_0.
 #include <Availability.h>
 #include <TargetConditionals.h>
 #endif
 // Checks whether the `thread_local` storage duration specifier is supported.
-#if EIGEN_COMP_CLANGAPPLE && \
-    ((EIGEN_COMP_CLANGAPPLE < 8000042) || (TARGET_OS_IPHONE && __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_9_0))
-// Notes: Xcode's clang did not support `thread_local` until version
-// 8, and even then not for all iOS < 9.0.
+#if EIGEN_COMP_CLANGAPPLE && TARGET_OS_IPHONE && __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_9_0
+// Notes: `thread_local` is not supported for all iOS < 9.0.
 #undef EIGEN_THREAD_LOCAL
 
 #elif defined(__ANDROID__) && EIGEN_COMP_CLANG
