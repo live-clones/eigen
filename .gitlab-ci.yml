@@ -35,9 +35,10 @@ variables:
   # Pre-baked CI images hosted in the GitLab container registry.
   # Override in project/fork settings if you host the images elsewhere.
   # See ci/docker/ for the corresponding Dockerfiles.
-  EIGEN_CI_IMAGE_LINUX_AMD64: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64:latest"
-  # Slim image used for MR smoke tests (gcc-10 + clang-14 only).
+  # Slim images used for MR smoke tests (gcc-10 + clang-14).
+  # Builds are cross-compiled on arm64; tests run on their native runner.
   EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64-smoketest:latest"
+  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-arm64-smoketest:latest"
   # CMake build directory.
   EIGEN_CI_BUILDDIR: .build
   # Specify the CMake build target.

@@ -7,6 +7,7 @@
   stage: build
   variables:
     EIGEN_CI_BUILD_TARGET: buildtests
+    EIGEN_CI_SKIP_APT: "false"
   script:
     - . ci/scripts/build.linux.script.sh
   tags:
@@ -25,7 +26,6 @@
 .build:linux:cross:x86-64:
   extends: .build:linux:cross
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: x86_64
     EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
 
@@ -192,7 +192,6 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
   extends: .build:linux:cross:x86-64
   image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
   variables:
-    EIGEN_CI_SKIP_APT: "false"
     EIGEN_CI_C_COMPILER: nvc
     EIGEN_CI_CXX_COMPILER: nvc++
     EIGEN_CI_INSTALL: ""
@@ -222,7 +221,6 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
   # directory can retain stale compiler-feature detection across pipeline runs.
   cache: []
   variables:
-    EIGEN_CI_SKIP_APT: "false"
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
     # Compute architectures present in the GitLab CI runners.
@@ -346,7 +344,6 @@ build:linux:rocm-latest:gcc-11:
 .build:linux:cross:arm:
   extends: .build:linux:cross
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: arm
     EIGEN_CI_CROSS_TARGET_TRIPLE: arm-linux-gnueabihf
     EIGEN_CI_ADDITIONAL_ARGS: >
@@ -403,7 +400,6 @@ build:linux:cross:aarch64:clang-14:default:
 .build:linux:cross:ppc64le:
   extends: .build:linux:cross
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: ppc64le
     EIGEN_CI_CROSS_TARGET_TRIPLE: powerpc64le-linux-gnu
     EIGEN_CI_ADDITIONAL_ARGS: >-
@@ -429,7 +425,6 @@ build:linux:cross:ppc64le:clang-16:default:
 .build:linux:cross:loongarch64:
   extends: .build:linux:cross
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_TARGET_ARCH: loongarch64
     EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
 
@@ -446,30 +441,48 @@ build:linux:cross:loongarch64:gcc-14:default:
       -DEIGEN_TEST_LSX=on
 
 ######## MR Smoke Tests ########################################################
+# All builds run on arm64 runners using the slim arm64 smoketest image.
+# x86-64 targets are cross-compiled via g++-10-x86-64-linux-gnu / clang-14.
+# Tests run on their respective native runners (see test.linux.gitlab-ci.yml).
 
 build:linux:cross:x86-64:gcc-10:default:smoketest:
   extends: build:linux:cross:x86-64:gcc-10:default
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST}
+  image: ${EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-medium-arm64
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
   extends: build:linux:cross:x86-64:clang-14:default
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST}
+  image: ${EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-medium-arm64
 
 build:linux:aarch64:gcc-10:default:smoketest:
   extends: build:linux:cross:aarch64:gcc-10:default
+  image: ${EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-medium-arm64
+
+build:linux:aarch64:clang-14:default:smoketest:
+  extends: build:linux:cross:aarch64:clang-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST}
+  variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

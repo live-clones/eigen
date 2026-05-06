@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # Slim CI image for amd64 MR smoke test jobs (Ubuntu 24.04).
-# Covers only what the two x86-64 smoke test configurations need:
-#   gcc-10 native builds and clang-14 native builds.
+# Used only for running x86-64 smoke tests (not building — builds are
+# cross-compiled on arm64 runners using ubuntu-24.04-arm64-smoketest).
 #
 # Rebuild and push when this file changes:
 #   docker buildx build --platform linux/amd64 \

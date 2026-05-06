@@ -7,7 +7,7 @@
 # Manual:    available as a manual job in any pipeline for routine rebuilds
 #            (e.g. to pick up upstream package updates without touching the file).
 
-.build:docker:linux:amd64:
+.build:docker:
   stage: deploy
   image: docker:latest
   services:
@@ -19,23 +19,16 @@
   needs: []
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+.build:docker:linux:amd64:
+  extends: .build:docker
   tags:
     - saas-linux-small-amd64
 
-build:docker:ubuntu-24.04-amd64:
-  extends: .build:docker:linux:amd64
-  script:
-    - docker buildx build --platform linux/amd64
-        -t $EIGEN_CI_IMAGE_LINUX_AMD64
-        --push
-        ci/docker/ubuntu-24.04-amd64/
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
-        - ci/docker/ubuntu-24.04-amd64/Dockerfile
-    - if: $CI_PROJECT_NAMESPACE == "libeigen"
-      when: manual
-      allow_failure: true
+.build:docker:linux:arm64:
+  extends: .build:docker
+  tags:
+    - saas-linux-small-arm64
 
 build:docker:ubuntu-24.04-amd64-smoketest:
   extends: .build:docker:linux:amd64
@@ -48,6 +41,21 @@ build:docker:ubuntu-24.04-amd64-smoketest:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - ci/docker/ubuntu-24.04-amd64-smoketest/Dockerfile
+    - if: $CI_PROJECT_NAMESPACE == "libeigen"
+      when: manual
+      allow_failure: true
+
+build:docker:ubuntu-24.04-arm64-smoketest:
+  extends: .build:docker:linux:arm64
+  script:
+    - docker buildx build --platform linux/arm64
+        -t $EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST
+        --push
+        ci/docker/ubuntu-24.04-arm64-smoketest/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - ci/docker/ubuntu-24.04-arm64-smoketest/Dockerfile
     - if: $CI_PROJECT_NAMESPACE == "libeigen"
       when: manual
       allow_failure: true
