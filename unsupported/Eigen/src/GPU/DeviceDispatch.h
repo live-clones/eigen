@@ -106,7 +106,7 @@ void dispatch_llt_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LltSolveE
 
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
-    dst.resize(n == 0 ? 0 : n, B.cols());
+    dst.resize(n, B.cols());
     return;
   }
 
@@ -178,7 +178,7 @@ void dispatch_lu_solve(Context& ctx, DeviceMatrix<Scalar>& dst, const LuSolveExp
 
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
-    dst.resize(n == 0 ? 0 : n, B.cols());
+    dst.resize(n, B.cols());
     return;
   }
 
@@ -251,7 +251,7 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
 
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
-    dst.resize(n == 0 ? 0 : n, B.cols());
+    dst.resize(n, B.cols());
     return;
   }
 
@@ -290,7 +290,7 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
 
   if (m == 0 || n == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
-    dst.resize(m == 0 ? 0 : m, B.cols());
+    dst.resize(m, B.cols());
     return;
   }
 
