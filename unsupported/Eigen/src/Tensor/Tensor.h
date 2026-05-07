@@ -89,7 +89,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
 
   template <typename CustomIndices>
   struct isOfNormalIndex {
-    static constexpr bool is_array = internal::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
+    static constexpr bool is_array = std::is_base_of<array<Index, NumIndices>, CustomIndices>::value;
     static constexpr bool is_int = NumTraits<CustomIndices>::IsInteger;
     static constexpr bool value = is_array | is_int;
   };
@@ -356,17 +356,10 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
 
  protected:
   bool checkIndexRange(const array<Index, NumIndices>& indices) const {
-    using internal::array_apply_and_reduce;
-    using internal::array_zip_and_reduce;
-    using internal::greater_equal_zero_op;
-    using internal::lesser_op;
-    using internal::logical_and_op;
-
-    return
-        // check whether the indices are all >= 0
-        array_apply_and_reduce<logical_and_op, greater_equal_zero_op>(indices) &&
-        // check whether the indices fit in the dimensions
-        array_zip_and_reduce<logical_and_op, lesser_op>(indices, m_storage.dimensions());
+    for (std::size_t i = 0; i < NumIndices; ++i) {
+      if (indices[i] < 0 || indices[i] >= m_storage.dimensions()[i]) return false;
+    }
+    return true;
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index linearizedIndex(const array<Index, NumIndices>& indices) const {

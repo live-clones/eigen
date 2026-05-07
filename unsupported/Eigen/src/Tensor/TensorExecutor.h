@@ -29,31 +29,23 @@ namespace internal {
 // TODO(ezhulenev): Add specializations for all other types of Tensor ops.
 
 template <typename Expression>
-struct ExpressionHasTensorBroadcastingOp {
-  enum { value = false };
-};
+struct ExpressionHasTensorBroadcastingOp : std::false_type {};
 
 template <typename LhsXprType, typename RhsXprType>
-struct ExpressionHasTensorBroadcastingOp<const TensorAssignOp<LhsXprType, RhsXprType> > {
-  enum { value = ExpressionHasTensorBroadcastingOp<RhsXprType>::value };
-};
+struct ExpressionHasTensorBroadcastingOp<const TensorAssignOp<LhsXprType, RhsXprType> >
+    : ExpressionHasTensorBroadcastingOp<RhsXprType> {};
 
 template <typename UnaryOp, typename XprType>
-struct ExpressionHasTensorBroadcastingOp<const TensorCwiseUnaryOp<UnaryOp, XprType> > {
-  enum { value = ExpressionHasTensorBroadcastingOp<XprType>::value };
-};
+struct ExpressionHasTensorBroadcastingOp<const TensorCwiseUnaryOp<UnaryOp, XprType> >
+    : ExpressionHasTensorBroadcastingOp<XprType> {};
 
 template <typename BinaryOp, typename LhsXprType, typename RhsXprType>
-struct ExpressionHasTensorBroadcastingOp<const TensorCwiseBinaryOp<BinaryOp, LhsXprType, RhsXprType> > {
-  enum {
-    value = ExpressionHasTensorBroadcastingOp<LhsXprType>::value || ExpressionHasTensorBroadcastingOp<RhsXprType>::value
-  };
-};
+struct ExpressionHasTensorBroadcastingOp<const TensorCwiseBinaryOp<BinaryOp, LhsXprType, RhsXprType> >
+    : std::integral_constant<bool, ExpressionHasTensorBroadcastingOp<LhsXprType>::value ||
+                                       ExpressionHasTensorBroadcastingOp<RhsXprType>::value> {};
 
 template <typename Broadcast, typename XprType>
-struct ExpressionHasTensorBroadcastingOp<const TensorBroadcastingOp<Broadcast, XprType> > {
-  enum { value = true };
-};
+struct ExpressionHasTensorBroadcastingOp<const TensorBroadcastingOp<Broadcast, XprType> > : std::true_type {};
 
 // -------------------------------------------------------------------------- //
 

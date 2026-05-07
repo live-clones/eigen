@@ -390,8 +390,7 @@ struct FullReductionLauncher {
 template <typename Self, typename Op, typename OutputType, bool PacketAccess>
 struct FullReductionLauncher<
     Self, Op, OutputType, PacketAccess,
-    std::enable_if_t<internal::is_same<float, OutputType>::value || internal::is_same<double, OutputType>::value,
-                     void>> {
+    std::enable_if_t<std::is_same<float, OutputType>::value || std::is_same<double, OutputType>::value, void>> {
   static void run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output,
                   typename Self::Index num_coeffs) {
     typedef typename Self::Index Index;
@@ -451,9 +450,9 @@ struct FullReducer<Self, Op, GpuDevice, Vectorizable> {
   // of doubles, floats and half floats
   // Half-float reduction specializations.
   static constexpr bool HasOptimizedImplementation =
-      !Self::ReducerTraits::IsStateful && (internal::is_same<typename Self::CoeffReturnType, float>::value ||
-                                           internal::is_same<typename Self::CoeffReturnType, double>::value ||
-                                           (internal::is_same<typename Self::CoeffReturnType, Eigen::half>::value &&
+      !Self::ReducerTraits::IsStateful && (std::is_same<typename Self::CoeffReturnType, float>::value ||
+                                           std::is_same<typename Self::CoeffReturnType, double>::value ||
+                                           (std::is_same<typename Self::CoeffReturnType, Eigen::half>::value &&
                                             reducer_traits<Op, GpuDevice>::PacketAccess));
 
   template <typename OutputType>
@@ -713,8 +712,7 @@ struct InnerReductionLauncher {
 template <typename Self, typename Op, typename OutputType, bool PacketAccess>
 struct InnerReductionLauncher<
     Self, Op, OutputType, PacketAccess,
-    std::enable_if_t<internal::is_same<float, OutputType>::value || internal::is_same<double, OutputType>::value,
-                     void>> {
+    std::enable_if_t<std::is_same<float, OutputType>::value || std::is_same<double, OutputType>::value, void>> {
   static bool run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output,
                   typename Self::Index num_coeffs_to_reduce, typename Self::Index num_preserved_vals) {
     typedef typename Self::Index Index;
@@ -791,9 +789,9 @@ struct InnerReducer<Self, Op, GpuDevice> {
   // of floats and half floats.
   // Half-float reduction specializations.
   static constexpr bool HasOptimizedImplementation =
-      !Self::ReducerTraits::IsStateful && (internal::is_same<typename Self::CoeffReturnType, float>::value ||
-                                           internal::is_same<typename Self::CoeffReturnType, double>::value ||
-                                           (internal::is_same<typename Self::CoeffReturnType, Eigen::half>::value &&
+      !Self::ReducerTraits::IsStateful && (std::is_same<typename Self::CoeffReturnType, float>::value ||
+                                           std::is_same<typename Self::CoeffReturnType, double>::value ||
+                                           (std::is_same<typename Self::CoeffReturnType, Eigen::half>::value &&
                                             reducer_traits<Op, GpuDevice>::PacketAccess));
 
   template <typename OutputType>
@@ -851,8 +849,8 @@ struct OuterReducer<Self, Op, GpuDevice> {
   // so reduce the scope of the optimized version of the code to the simple case
   // of floats.
   static constexpr bool HasOptimizedImplementation =
-      !Self::ReducerTraits::IsStateful && (internal::is_same<typename Self::CoeffReturnType, float>::value ||
-                                           internal::is_same<typename Self::CoeffReturnType, double>::value);
+      !Self::ReducerTraits::IsStateful && (std::is_same<typename Self::CoeffReturnType, float>::value ||
+                                           std::is_same<typename Self::CoeffReturnType, double>::value);
   template <typename Device, typename OutputType>
   static
 #if !defined(EIGEN_HIPCC)

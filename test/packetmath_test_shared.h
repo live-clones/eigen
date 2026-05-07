@@ -298,7 +298,7 @@ struct runall;
 
 template <typename Scalar, typename PacketType = typename internal::packet_traits<Scalar>::type,
           bool Vectorized = internal::packet_traits<Scalar>::Vectorizable,
-          bool HasHalf = !internal::is_same<typename internal::unpacket_traits<PacketType>::half, PacketType>::value>
+          bool HasHalf = !std::is_same<typename internal::unpacket_traits<PacketType>::half, PacketType>::value>
 struct runner;
 
 template <typename Scalar, typename PacketType>
