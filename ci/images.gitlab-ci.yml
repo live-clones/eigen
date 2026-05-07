@@ -30,17 +30,17 @@
   tags:
     - saas-linux-small-arm64
 
-build:docker:ubuntu-24.04-amd64-smoketest:
+build:docker:ubuntu-24.04-amd64-smoketest-run:
   extends: .build:docker:linux:amd64
   script:
     - docker buildx build --platform linux/amd64
-        -t $EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST
+        -t $EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_RUN
         --push
-        ci/docker/ubuntu-24.04-amd64-smoketest/
+        ci/docker/ubuntu-24.04-amd64-smoketest-run/
   rules:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
-        - ci/docker/ubuntu-24.04-amd64-smoketest/Dockerfile
+        - ci/docker/ubuntu-24.04-amd64-smoketest-run/Dockerfile
     - if: $CI_PROJECT_NAMESPACE == "libeigen"
       when: manual
       allow_failure: true

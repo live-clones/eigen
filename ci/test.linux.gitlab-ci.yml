@@ -497,7 +497,7 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 
 test:linux:x86-64:gcc-10:default:smoketest:
   extends: .test:linux:x86-64:gcc-10:default
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST}
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_RUN}
   needs: [ build:linux:cross:x86-64:gcc-10:default:smoketest ]
   variables:
     EIGEN_CI_SKIP_APT: "true"
@@ -509,7 +509,7 @@ test:linux:x86-64:gcc-10:default:smoketest:
 
 test:linux:x86-64:clang-14:default:smoketest:
   extends: .test:linux:x86-64:clang-14:default
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST}
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_RUN}
   needs: [ build:linux:cross:x86-64:clang-14:default:smoketest ]
   variables:
     EIGEN_CI_SKIP_APT: "true"
