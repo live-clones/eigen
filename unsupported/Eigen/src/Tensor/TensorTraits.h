@@ -17,30 +17,32 @@
 namespace Eigen {
 namespace internal {
 
-template <typename Scalar, int Options>
-class compute_tensor_flags {
+template <int Options>
+struct tensor_alignment_for_options {
   enum {
     is_dynamic_size_storage = 1,
 
-    is_aligned = (((Options & DontAlign) == 0) && (
+    value = (((Options & DontAlign) == 0) && (
 #if EIGEN_MAX_STATIC_ALIGN_BYTES > 0
-                                                      (!is_dynamic_size_storage)
+                                                 (!is_dynamic_size_storage)
 #else
-                                                      0
+                                                 0
 #endif
-                                                      |
+                                                 |
 #if EIGEN_MAX_ALIGN_BYTES > 0
-                                                      is_dynamic_size_storage
+                                                 is_dynamic_size_storage
 #else
-                                                      0
+                                                 0
 #endif
-                                                      )),
-    packet_access_bit = packet_traits<Scalar>::Vectorizable && is_aligned ? PacketAccessBit : 0
+                                                 ))
   };
-
- public:
-  enum { ret = packet_access_bit };
 };
+
+template <typename Scalar, int Options>
+struct compute_tensor_flags
+    : std::integral_constant<int, packet_traits<Scalar>::Vectorizable && tensor_alignment_for_options<Options>::value
+                                      ? PacketAccessBit
+                                      : 0> {};
 
 template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
 struct traits<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
@@ -51,7 +53,7 @@ struct traits<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
   enum {
     Options = Options_,
-    Flags = compute_tensor_flags<Scalar_, Options_>::ret | (is_const<Scalar_>::value ? 0 : LvalueBit)
+    Flags = compute_tensor_flags<Scalar_, Options_>::value | (std::is_const<Scalar_>::value ? 0 : LvalueBit)
   };
   template <typename T>
   struct MakePointer {
@@ -69,7 +71,7 @@ struct traits<TensorFixedSize<Scalar_, Dimensions, Options_, IndexType_> > {
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
   enum {
     Options = Options_,
-    Flags = compute_tensor_flags<Scalar_, Options_>::ret | (is_const<Scalar_>::value ? 0 : LvalueBit)
+    Flags = compute_tensor_flags<Scalar_, Options_>::value | (std::is_const<Scalar_>::value ? 0 : LvalueBit)
   };
   template <typename T>
   struct MakePointer {
