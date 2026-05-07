@@ -402,7 +402,7 @@ bool test_is_equal(const T& actual, const U& expected, bool expect_equal = true)
 namespace Eigen {
 
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_type(const T1&, const T2&) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_type(const T1&, const T2&) {
   return true;
 }
 

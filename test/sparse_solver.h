@@ -371,7 +371,7 @@ int generate_sparse_spd_problem(Solver&, typename Solver::MatrixType& A, typenam
 template <typename Scalar>
 inline std::string get_matrixfolder() {
   std::string mat_folder = TEST_REAL_CASES;
-  if (internal::is_same<Scalar, std::complex<float>>::value || internal::is_same<Scalar, std::complex<double>>::value)
+  if (std::is_same<Scalar, std::complex<float>>::value || std::is_same<Scalar, std::complex<double>>::value)
     mat_folder = mat_folder + static_cast<std::string>("/complex/");
   else
     mat_folder = mat_folder + static_cast<std::string>("/real/");
@@ -440,7 +440,7 @@ void check_sparse_spd_solving(Solver& solver, int maxSize = (std::min)(300, EIGE
   // First, get the folder
 #ifdef TEST_REAL_CASES
   // Test real problems with double precision only
-  if (internal::is_same<typename NumTraits<Scalar>::Real, double>::value) {
+  if (std::is_same<typename NumTraits<Scalar>::Real, double>::value) {
     std::string mat_folder = get_matrixfolder<Scalar>();
     MatrixMarketIterator<Scalar> it(mat_folder);
     for (; it; ++it) {
@@ -662,7 +662,7 @@ void check_sparse_square_solving(Solver& solver, int maxSize = 300, int maxRealW
   // First, get the folder
 #ifdef TEST_REAL_CASES
   // Test real problems with double precision only
-  if (internal::is_same<typename NumTraits<Scalar>::Real, double>::value) {
+  if (std::is_same<typename NumTraits<Scalar>::Real, double>::value) {
     std::string mat_folder = get_matrixfolder<Scalar>();
     MatrixMarketIterator<Scalar> it(mat_folder);
     for (; it; ++it) {

@@ -56,36 +56,22 @@ typedef eigen_packet_wrapper<__m128i, 4> Packet4ui;
 typedef eigen_packet_wrapper<__m128i, 5> Packet2l;
 
 template <>
-struct is_arithmetic<__m128> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128> : std::true_type {};
 template <>
-struct is_arithmetic<__m128i> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128i> : std::true_type {};
 template <>
-struct is_arithmetic<__m128d> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128d> : std::true_type {};
 template <>
-struct is_arithmetic<Packet4i> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet4i> : std::true_type {};
 template <>
-struct is_arithmetic<Packet2l> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet2l> : std::true_type {};
 // Note that `Packet4ui` uses the underlying type `__m128i`, which is
 // interpreted as a vector of _signed_ `int32`s, which breaks some arithmetic
 // operations used in `GenericPacketMath.h`.
 template <>
-struct is_arithmetic<Packet4ui> {
-  enum { value = false };
-};
+struct is_arithmetic<Packet4ui> : std::false_type {};
 template <>
-struct is_arithmetic<Packet16b> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet16b> : std::true_type {};
 
 template <int p, int q, int r, int s>
 struct shuffle_mask {
@@ -386,13 +372,9 @@ struct unpacket_traits<Packet16b> {
 
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
-struct scalar_div_cost<float, true> {
-  enum { value = 7 };
-};
+struct scalar_div_cost<float, true> : std::integral_constant<int, 7> {};
 template <>
-struct scalar_div_cost<double, true> {
-  enum { value = 8 };
-};
+struct scalar_div_cost<double, true> : std::integral_constant<int, 8> {};
 #endif
 
 template <>
