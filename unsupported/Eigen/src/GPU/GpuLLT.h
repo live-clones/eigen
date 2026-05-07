@@ -79,7 +79,7 @@ class LLT {
 
   // Movable.
   LLT(LLT&& o) noexcept
-      : ctx_(std::move(o.ctx_)),
+      : solver_ctx_(std::move(o.solver_ctx_)),
         d_factor_(std::move(o.d_factor_)),
         factor_alloc_size_(o.factor_alloc_size_),
         n_(o.n_),
@@ -91,7 +91,7 @@ class LLT {
 
   LLT& operator=(LLT&& o) noexcept {
     if (this != &o) {
-      ctx_ = std::move(o.ctx_);
+      solver_ctx_ = std::move(o.solver_ctx_);
       d_factor_ = std::move(o.d_factor_);
       factor_alloc_size_ = o.factor_alloc_size_;
       n_ = o.n_;
@@ -115,7 +115,7 @@ class LLT {
     lda_ = static_cast<int64_t>(mat.rows());
     allocate_factor_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_factor_.get(), mat.data(), factorBytes(), cudaMemcpyHostToDevice, ctx_.stream_));
+        cudaMemcpyAsync(d_factor_.get(), mat.data(), factorBytes(), cudaMemcpyHostToDevice, solver_ctx_.stream_));
 
     factorize();
     return *this;
@@ -127,10 +127,10 @@ class LLT {
     if (!begin_compute(d_A.rows())) return *this;
 
     lda_ = static_cast<int64_t>(d_A.rows());
-    d_A.waitReady(ctx_.stream_);
+    d_A.waitReady(solver_ctx_.stream_);
     allocate_factor_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_factor_.get(), d_A.data(), factorBytes(), cudaMemcpyDeviceToDevice, ctx_.stream_));
+        cudaMemcpyAsync(d_factor_.get(), d_A.data(), factorBytes(), cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
 
     factorize();
     return *this;
@@ -142,7 +142,7 @@ class LLT {
     if (!begin_compute(d_A.rows())) return *this;
 
     lda_ = static_cast<int64_t>(d_A.rows());
-    d_A.waitReady(ctx_.stream_);
+    d_A.waitReady(solver_ctx_.stream_);
     d_factor_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
     factor_alloc_size_ = factorBytes();
 
@@ -155,8 +155,8 @@ class LLT {
   /** Solve A * X = B using the cached Cholesky factor (host → host). */
   template <typename Rhs>
   PlainMatrix solve(const MatrixBase<Rhs>& B) const {
-    ctx_.sync_info();
-    eigen_assert(ctx_.info_ == Success && "LLT::solve called on a failed or uninitialized factorization");
+    solver_ctx_.sync_info();
+    eigen_assert(solver_ctx_.info_ == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == n_);
 
     const PlainMatrix rhs(B);
@@ -164,16 +164,16 @@ class LLT {
     const int64_t ldb = static_cast<int64_t>(rhs.rows());
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_x.get(), rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, ctx_.stream_));
+        cudaMemcpyAsync(d_x.get(), rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, solver_ctx_.stream_));
     DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, std::move(d_x));
 
     PlainMatrix X(n_, B.cols());
     int solve_info = 0;
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(X.data(), d_X.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToHost, ctx_.stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(&solve_info, ctx_.scratch_info(), sizeof(int), cudaMemcpyDeviceToHost, ctx_.stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_.stream_));
+        cudaMemcpyAsync(X.data(), d_X.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&solve_info, solver_ctx_.scratch_info(), sizeof(int),
+                                             cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream_));
 
     eigen_assert(solve_info == 0 && "cusolverDnXpotrs reported an error");
     return X;
@@ -182,24 +182,24 @@ class LLT {
   /** Solve A * X = B with device-resident RHS. Fully async. */
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
     eigen_assert(d_B.rows() == n_);
-    d_B.waitReady(ctx_.stream_);
+    d_B.waitReady(solver_ctx_.stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_x.get(), d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, ctx_.stream_));
+        cudaMemcpyAsync(d_x.get(), d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
 
   // ---- Accessors -----------------------------------------------------------
 
-  ComputationInfo info() const { return ctx_.info(); }
+  ComputationInfo info() const { return solver_ctx_.info(); }
   Index rows() const { return n_; }
   Index cols() const { return n_; }
-  cudaStream_t stream() const { return ctx_.stream_; }
+  cudaStream_t stream() const { return solver_ctx_.stream_; }
 
  private:
-  mutable internal::GpuSolverContext ctx_;
+  mutable internal::GpuSolverContext solver_ctx_;
   internal::DeviceBuffer d_factor_;
   size_t factor_alloc_size_ = 0;
   int64_t n_ = 0;
@@ -207,10 +207,10 @@ class LLT {
 
   bool begin_compute(Index rows) {
     n_ = rows;
-    ctx_.info_ = InvalidInput;
+    solver_ctx_.info_ = InvalidInput;
     if (n_ == 0) {
-      ctx_.info_ = Success;
-      ctx_.info_synced_ = true;
+      solver_ctx_.info_ = Success;
+      solver_ctx_.info_synced_ = true;
       return false;
     }
     return true;
@@ -238,12 +238,12 @@ class LLT {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
     constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_>::value;
 
-    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx_.cusolver_, ctx_.params_.p, uplo, n_, nrhs, dtype, d_factor_.get(), lda_,
-                                          dtype, d_x.get(), ldb, ctx_.scratch_info()));
+    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, nrhs, dtype,
+                                          d_factor_.get(), lda_, dtype, d_x.get(), ldb, solver_ctx_.scratch_info()));
 
     DeviceMatrix<Scalar> result =
         DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
-    result.recordReady(ctx_.stream_);
+    result.recordReady(solver_ctx_.stream_);
     return result;
   }
 
@@ -251,21 +251,22 @@ class LLT {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
     constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_>::value;
 
-    ctx_.mark_pending();
+    solver_ctx_.mark_pending();
 
     size_t dev_ws_bytes = 0, host_ws_bytes = 0;
-    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(ctx_.cusolver_, ctx_.params_.p, uplo, n_, dtype, d_factor_.get(),
-                                                     lda_, dtype, &dev_ws_bytes, &host_ws_bytes));
+    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, dtype,
+                                                     d_factor_.get(), lda_, dtype, &dev_ws_bytes, &host_ws_bytes));
 
-    ctx_.ensure_scratch(dev_ws_bytes);
-    ctx_.h_workspace_.resize(host_ws_bytes);
+    solver_ctx_.ensure_scratch(dev_ws_bytes);
+    solver_ctx_.h_workspace_.resize(host_ws_bytes);
 
-    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(
-        ctx_.cusolver_, ctx_.params_.p, uplo, n_, dtype, d_factor_.get(), lda_, dtype, ctx_.scratch_workspace(),
-        dev_ws_bytes, host_ws_bytes > 0 ? ctx_.h_workspace_.data() : nullptr, host_ws_bytes, ctx_.scratch_info()));
+    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, dtype,
+                                          d_factor_.get(), lda_, dtype, solver_ctx_.scratch_workspace(), dev_ws_bytes,
+                                          host_ws_bytes > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws_bytes,
+                                          solver_ctx_.scratch_info()));
 
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(&ctx_.info_word(), ctx_.scratch_info(), sizeof(int), cudaMemcpyDeviceToHost, ctx_.stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&solver_ctx_.info_word(), solver_ctx_.scratch_info(), sizeof(int),
+                                             cudaMemcpyDeviceToHost, solver_ctx_.stream_));
   }
 };
 
