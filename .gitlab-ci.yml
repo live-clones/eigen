@@ -38,7 +38,8 @@ variables:
   # Slim images used for MR smoke tests (gcc-10 + clang-14).
   # Builds are cross-compiled on arm64; tests run on their native runner.
   EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64-smoketest:latest"
-  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-arm64-smoketest:latest"
+  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_BUILD: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-arm64-smoketest-build:latest"
+  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_RUN: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-arm64-smoketest-run:latest"
   # CMake build directory.
   EIGEN_CI_BUILDDIR: .build
   # Specify the CMake build target.

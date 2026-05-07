@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 #
-# Minimal CI image for running x86-64 MR smoke tests (Ubuntu 24.04).
-# Test-only: no compilers. Binaries are cross-compiled on arm64 runners
+# Minimal CI image for running aarch64 MR smoke tests (Ubuntu 24.04).
+# Test-only: no compilers. Binaries are built natively on arm64 runners
 # using ubuntu-24.04-arm64-smoketest-build and transferred as artifacts.
 #
 # Packages:
@@ -12,9 +12,9 @@
 #               are already present in the Ubuntu 24.04 base image)
 #
 # Rebuild and push when this file changes:
-#   docker buildx build --platform linux/amd64 \
-#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-amd64-smoketest:latest \
-#     --push ci/docker/ubuntu-24.04-amd64-smoketest/
+#   docker buildx build --platform linux/arm64 \
+#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-arm64-smoketest-run:latest \
+#     --push ci/docker/ubuntu-24.04-arm64-smoketest-run/
 
 FROM ubuntu:24.04
 

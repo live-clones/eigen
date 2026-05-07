@@ -7,8 +7,8 @@
 #
 # Rebuild and push when this file changes:
 #   docker buildx build --platform linux/arm64 \
-#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-arm64-smoketest:latest \
-#     --push ci/docker/ubuntu-24.04-arm64-smoketest/
+#     -t registry.gitlab.com/libeigen/eigen/ubuntu-24.04-arm64-smoketest-build:latest \
+#     --push ci/docker/ubuntu-24.04-arm64-smoketest-build/
 
 FROM ubuntu:24.04
 
