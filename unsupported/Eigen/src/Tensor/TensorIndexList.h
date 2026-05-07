@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_INDEX_LIST_H
-#define EIGEN_CXX11_TENSOR_TENSOR_INDEX_LIST_H
+#ifndef EIGEN_TENSOR_TENSOR_INDEX_LIST_H
+#define EIGEN_TENSOR_TENSOR_INDEX_LIST_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -253,7 +253,7 @@ struct tuple_coeff<0, ValueT> {
 
 /** \internal
  *
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Set of classes used to encode a set of Tensor dimensions/indices.
  *
@@ -617,4 +617,4 @@ static EIGEN_DEVICE_FUNC constexpr bool index_pair_second_statically_eq(Index i,
 }  // end namespace internal
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_INDEX_LIST_H
+#endif  // EIGEN_TENSOR_TENSOR_INDEX_LIST_H

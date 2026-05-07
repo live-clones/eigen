@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_BROADCASTING_H
-#define EIGEN_CXX11_TENSOR_TENSOR_BROADCASTING_H
+#ifndef EIGEN_TENSOR_TENSOR_BROADCASTING_H
+#define EIGEN_TENSOR_TENSOR_BROADCASTING_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -61,7 +61,7 @@ struct is_input_scalar<Sizes<Indices...>> {
 }  // end namespace internal
 
 /** Tensor broadcasting class.
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  */
 template <typename Broadcast, typename XprType>
 class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors> {
@@ -1004,4 +1004,4 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_BROADCASTING_H
+#endif  // EIGEN_TENSOR_TENSOR_BROADCASTING_H

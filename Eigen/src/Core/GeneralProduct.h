@@ -516,4 +516,4 @@ MatrixBase<Derived>::lazyProduct(const MatrixBase<OtherDerived>& other) const {
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_PRODUCT_H
+#endif  // EIGEN_GENERAL_PRODUCT_H

@@ -1780,4 +1780,4 @@ struct generic_product_impl<Lhs, Rhs, HomogeneousShape, PermutationShape, Produc
 #pragma warning(pop)
 #endif
 
-#endif  // EIGEN_PRODUCT_EVALUATORS_H
+#endif  // EIGEN_PRODUCTEVALUATORS_H

@@ -9,6 +9,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_TEST_PACKETMATH_TEST_SHARED_H
+#define EIGEN_TEST_PACKETMATH_TEST_SHARED_H
+
 #include "main.h"
 #include <typeinfo>
 
@@ -318,3 +321,5 @@ struct runner<Scalar, PacketType, false, false> {
 
 }  // namespace test
 }  // namespace Eigen
+
+#endif  // EIGEN_TEST_PACKETMATH_TEST_SHARED_H
