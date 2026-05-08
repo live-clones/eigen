@@ -179,8 +179,13 @@ class LLT {
     return X;
   }
 
-  /** Solve A * X = B with device-resident RHS. Fully async. */
+  /** Solve A * X = B with device-resident RHS. Returns immediately after enqueuing
+   * the solve; the sync_info()/info_ check at entry forces a host wait on the
+   * factorization status so a singular A causes a clean assert rather than a
+   * silently-bad result. */
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
+    solver_ctx_.sync_info();
+    eigen_assert(solver_ctx_.info_ == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
