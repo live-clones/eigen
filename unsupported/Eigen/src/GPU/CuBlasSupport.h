@@ -228,6 +228,21 @@ inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, 
   return cublasZdscal(h, n, alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
 }
 
+// By-value alpha overloads: convenience for callers that hold the scale as a
+// scalar rather than a host pointer (e.g. inverse-FFT 1/n normalization).
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, float alpha, float* x, int incx) {
+  return cublasSscal(h, n, &alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, double alpha, double* x, int incx) {
+  return cublasDscal(h, n, &alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, float alpha, std::complex<float>* x, int incx) {
+  return cublasCsscal(h, n, &alpha, reinterpret_cast<cuComplex*>(x), incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, double alpha, std::complex<double>* x, int incx) {
+  return cublasZdscal(h, n, &alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
+}
+
 // DGMM wrappers: C = A * diag(x)  (side=RIGHT) or C = diag(x) * A  (side=LEFT).
 // Useful for applying a diagonal scaling without materialising diag(x) as a
 // dense matrix. cuBLAS docs guarantee in-place is safe when C == A.

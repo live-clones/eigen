@@ -633,10 +633,9 @@ dispatching to cuBLAS.
   device-input (`compute(DeviceMatrix)`, `solve(DeviceMatrix)`) overloads, plus
   host- and device-side accessors (`matrixU()` vs `d_matrixU()`). This eases
   migration from CPU Eigen but may invite accidental host ↔ device round-trips
-  when users mix the two without realising the cost. Revisit after the initial
-  GPU module roll-out (MRs !2408, !2412, !2413, !2414, !2415) is in users'
-  hands; if the convenience overloads cause more confusion than they save,
-  narrow toward a single explicit `fromHost` / `toHost` boundary.
+  when users mix the two without realising the cost. Revisit once the module
+  is in users' hands; if the convenience overloads cause more confusion than
+  they save, narrow toward a single explicit `fromHost` / `toHost` boundary.
 
 - **cuDSS configuration knobs.** cuDSS exposes settings for accuracy /
   robustness (e.g. matching, pivoting) and execution mode (e.g. hybrid

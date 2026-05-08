@@ -270,8 +270,8 @@ class SparseSolverBase {
 
   void sync_info() const {
     if (!info_synced_) {
-      // cudssDataGet for CUDSS_DATA_INFO synchronizes internally — no explicit
-      // cudaStreamSynchronize needed here (kvvoronin on !2414).
+      // cudssDataGet for CUDSS_DATA_INFO synchronizes the stream internally,
+      // so an explicit cudaStreamSynchronize would be redundant.
       int cudss_info = 0;
       EIGEN_CUDSS_CHECK(cudssDataGet(handle_, data_, CUDSS_DATA_INFO, &cudss_info, sizeof(cudss_info), nullptr));
       info_ = (cudss_info == 0) ? Success : NumericalIssue;
@@ -348,10 +348,10 @@ class SparseSolverBase {
                                            mtype, mview, CUDSS_BASE_ZERO));
   }
 
-  // TODO: expose cuDSS reordering algorithm choice once cuDSS publishes
-  // stable, named mappings (the previous AMD/METIS/RCM enum was removed
-  // because cuDSS's CUDSS_ALG_1/2/3 reordering values are not documented
-  // as stable across releases — kvvoronin on !2414).
+  // TODO: expose a fill-reducing reordering choice. cuDSS's
+  // CUDSS_CONFIG_REORDERING_ALG accepts CUDSS_ALG_1/2/3, but their mapping to
+  // specific algorithms (AMD, METIS, RCM, ...) is not currently documented as
+  // stable across cuDSS releases, so we leave the cuDSS default in place.
 
   void create_placeholder_dense() {
     if (d_x_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_x_cudss_));

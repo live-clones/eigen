@@ -61,7 +61,10 @@ class FFT {
   using RealVector = Matrix<Scalar, Dynamic, 1>;
   using ComplexMatrix = Matrix<Complex, Dynamic, Dynamic, ColMajor>;
 
-  /** Construct an FFT bound to the thread-local default Context. */
+  /** Construct an FFT bound to the calling thread's default Context.
+   * The instance is thread-affine: it must not outlive the thread that
+   * constructed it, since it borrows a pointer into thread-local storage.
+   * For cross-thread lifetimes, pass an explicit Context. */
   FFT() : ctx_(&Context::threadLocal()) {}
 
   /** Construct an FFT bound to the given Context. The Context must outlive
@@ -116,8 +119,8 @@ class FFT {
                                                       static_cast<Complex*>(d_out_.get()), CUFFT_INVERSE));
 
     // Scale by 1/n.
-    const Scalar inv_n = Scalar(1) / Scalar(n);
-    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, &inv_n, static_cast<Complex*>(d_out_.get()), 1));
+    EIGEN_CUBLAS_CHECK(
+        internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), static_cast<Complex*>(d_out_.get()), 1));
 
     ComplexVector result(n);
     EIGEN_CUDA_RUNTIME_CHECK(
@@ -174,8 +177,8 @@ class FFT {
         internal::cufftExecC2R_dispatch(plan, static_cast<Complex*>(d_in_.get()), static_cast<Scalar*>(d_out_.get())));
 
     // Scale by 1/n.
-    const Scalar inv_n = Scalar(1) / Scalar(n);
-    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, &inv_n, static_cast<Scalar*>(d_out_.get()), 1));
+    EIGEN_CUBLAS_CHECK(
+        internal::cublasXscal(ctx_->cublasHandle(), n, Scalar(1) / Scalar(n), static_cast<Scalar*>(d_out_.get()), 1));
 
     RealVector result(n);
     EIGEN_CUDA_RUNTIME_CHECK(
@@ -229,9 +232,8 @@ class FFT {
 
     // Scale by 1/(rows*cols).
     const int total_elems = rows * cols;
-    const Scalar inv_total = Scalar(1) / Scalar(total_elems);
-    EIGEN_CUBLAS_CHECK(
-        internal::cublasXscal(ctx_->cublasHandle(), total_elems, &inv_total, static_cast<Complex*>(d_out_.get()), 1));
+    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), total_elems, Scalar(1) / Scalar(total_elems),
+                                             static_cast<Complex*>(d_out_.get()), 1));
 
     ComplexMatrix result(rows, cols);
     EIGEN_CUDA_RUNTIME_CHECK(
