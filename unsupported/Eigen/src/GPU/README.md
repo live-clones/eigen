@@ -293,7 +293,7 @@ control this; use the standard `CUDA_MATH_MODE` environment variable or
 Operations are asynchronous by default. The compute-solve chain runs without
 host synchronization until you need a result on the host:
 
-```
+```text
 fromHost(A) --sync-->  compute() --async-->  solve() --async-->  toHost()
    H2D                  potrf                 potrs                D2H
                                                                    sync
@@ -679,7 +679,7 @@ cmake --build build --target cudss_llt cudss_ldlt cudss_lu
 ctest --test-dir build -R '^cudss_' --output-on-failure
 ```
 
-## Future work
+## Future enhancements
 
 - **Device-resident sparse matrix-vector products.** `gpu::SparseContext`
   currently operates on host vectors and matrices, uploading and downloading

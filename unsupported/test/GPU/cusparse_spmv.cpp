@@ -30,17 +30,31 @@ static void require_cusparse_context() {
 
 // ---- Helper: build a random sparse matrix -----------------------------------
 
+namespace {
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar im, std::true_type /*is_complex*/) {
+  return Scalar(re, im);
+}
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar /*im*/, std::false_type /*is_complex*/) {
+  return Scalar(re);
+}
+}  // namespace
+
 template <typename Scalar>
 SparseMatrix<Scalar, ColMajor, int> make_sparse(Index rows, Index cols, double density = 0.1) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   using RealScalar = typename NumTraits<Scalar>::Real;
+  using IsComplex = std::integral_constant<bool, NumTraits<Scalar>::IsComplex>;
 
   SpMat R(rows, cols);
   R.reserve(VectorXi::Constant(cols, static_cast<int>(rows * density) + 1));
   for (Index j = 0; j < cols; ++j) {
     for (Index i = 0; i < rows; ++i) {
       if ((std::rand() / double(RAND_MAX)) < density) {
-        R.insert(i, j) = Scalar(RealScalar(std::rand() / double(RAND_MAX) - 0.5));
+        const RealScalar re = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        const RealScalar im = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        R.insert(i, j) = make_value<Scalar>(re, im, IsComplex{});
       }
     }
   }

@@ -19,18 +19,37 @@ using namespace Eigen;
 
 // ---- Helper: build a random sparse symmetric indefinite matrix ---------------
 
+namespace {
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar im, std::true_type /*is_complex*/) {
+  return Scalar(re, im);
+}
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar /*im*/, std::false_type /*is_complex*/) {
+  return Scalar(re);
+}
+}  // namespace
+
 template <typename Scalar>
 SparseMatrix<Scalar, ColMajor, int> make_symmetric_indefinite(Index n, double density = 0.1) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using IsComplex = std::integral_constant<bool, NumTraits<Scalar>::IsComplex>;
 
   // Build a random sparse matrix and symmetrize it.
   // The diagonal has mixed signs to ensure indefiniteness.
+  // For complex Scalar: off-diagonals carry nonzero imaginary parts so the
+  // Hermitian path is genuinely exercised; diagonal entries stay real (R +
+  // R.adjoint() makes the diagonal 2*Re(R_ii) regardless, but writing real
+  // values here makes the intent explicit).
   SpMat R(n, n);
   R.reserve(VectorXi::Constant(n, static_cast<int>(n * density) + 1));
   for (Index j = 0; j < n; ++j) {
     for (Index i = 0; i < n; ++i) {
       if (i == j || (std::rand() / double(RAND_MAX)) < density) {
-        R.insert(i, j) = Scalar(std::rand() / double(RAND_MAX) - 0.5);
+        const RealScalar re = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        const RealScalar im = (i == j) ? RealScalar(0) : RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        R.insert(i, j) = make_value<Scalar>(re, im, IsComplex{});
       }
     }
   }

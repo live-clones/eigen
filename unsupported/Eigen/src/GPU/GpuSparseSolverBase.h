@@ -239,8 +239,8 @@ class SparseSolverBase {
   // ---- State ----------------------------------------------------------------
   int64_t n_ = 0;
   int64_t nnz_ = 0;
-  ComputationInfo info_ = InvalidInput;
-  bool info_synced_ = true;
+  mutable ComputationInfo info_ = InvalidInput;
+  mutable bool info_synced_ = true;
   bool analysis_done_ = false;
   GpuSparseOrdering ordering_ = GpuSparseOrdering::AMD;
 
@@ -260,9 +260,8 @@ class SparseSolverBase {
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
       int cudss_info = 0;
       EIGEN_CUDSS_CHECK(cudssDataGet(handle_, data_, CUDSS_DATA_INFO, &cudss_info, sizeof(cudss_info), nullptr));
-      auto* self = const_cast<SparseSolverBase*>(this);
-      self->info_ = (cudss_info == 0) ? Success : NumericalIssue;
-      self->info_synced_ = true;
+      info_ = (cudss_info == 0) ? Success : NumericalIssue;
+      info_synced_ = true;
     }
   }
 
