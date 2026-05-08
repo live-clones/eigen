@@ -54,6 +54,33 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver(const SelfAdjointEigenSolver&) = delete;
   SelfAdjointEigenSolver& operator=(const SelfAdjointEigenSolver&) = delete;
 
+  SelfAdjointEigenSolver(SelfAdjointEigenSolver&& o) noexcept
+      : solver_ctx_(std::move(o.solver_ctx_)),
+        d_A_(std::move(o.d_A_)),
+        d_W_(std::move(o.d_W_)),
+        compute_eigenvectors_(o.compute_eigenvectors_),
+        n_(o.n_),
+        lda_(o.lda_) {
+    o.compute_eigenvectors_ = true;
+    o.n_ = 0;
+    o.lda_ = 0;
+  }
+
+  SelfAdjointEigenSolver& operator=(SelfAdjointEigenSolver&& o) noexcept {
+    if (this != &o) {
+      solver_ctx_ = std::move(o.solver_ctx_);
+      d_A_ = std::move(o.d_A_);
+      d_W_ = std::move(o.d_W_);
+      compute_eigenvectors_ = o.compute_eigenvectors_;
+      n_ = o.n_;
+      lda_ = o.lda_;
+      o.compute_eigenvectors_ = true;
+      o.n_ = 0;
+      o.lda_ = 0;
+    }
+    return *this;
+  }
+
   // ---- Factorization -------------------------------------------------------
 
   template <typename InputType>

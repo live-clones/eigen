@@ -247,6 +247,34 @@ void test_eigen_chain_orthogonality(Index n) {
   VERIFY_IS_EQUAL(V_again.rows(), n);
 }
 
+// ---- Move support -------------------------------------------------------------
+
+template <typename Scalar>
+void test_eigen_move(Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat R = Mat::Random(n, n);
+  Mat A = R + R.adjoint();
+
+  gpu::SelfAdjointEigenSolver<Scalar> es(A);
+  VERIFY_IS_EQUAL(es.info(), Success);
+
+  gpu::SelfAdjointEigenSolver<Scalar> moved(std::move(es));
+  VERIFY_IS_EQUAL(moved.info(), Success);
+  Mat V = moved.eigenvectors();
+  auto W = moved.eigenvalues();
+  RealScalar tol = RealScalar(8) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon() * A.norm();
+  VERIFY((V * W.asDiagonal() * V.adjoint() - A).norm() < tol);
+
+  gpu::SelfAdjointEigenSolver<Scalar> assigned;
+  assigned = std::move(moved);
+  VERIFY_IS_EQUAL(assigned.info(), Success);
+  V = assigned.eigenvectors();
+  W = assigned.eigenvalues();
+  VERIFY((V * W.asDiagonal() * V.adjoint() - A).norm() < tol);
+}
+
 // ---- Empty matrix -----------------------------------------------------------
 
 void test_eigen_empty() {
@@ -285,6 +313,9 @@ void test_scalar() {
 
   // Chain device view into a downstream GEMM.
   CALL_SUBTEST(test_eigen_chain_orthogonality<Scalar>(64));
+
+  // Move constructor/assignment.
+  CALL_SUBTEST(test_eigen_move<Scalar>(32));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_eigen) {

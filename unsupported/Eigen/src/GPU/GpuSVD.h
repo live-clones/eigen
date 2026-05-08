@@ -112,8 +112,14 @@ class SVD {
     options_ = options;
     m_ = d_A.rows();
     n_ = d_A.cols();
+    lda_ = 0;
+    transposed_ = false;
 
     if (m_ == 0 || n_ == 0) {
+      d_A_ = internal::DeviceBuffer();
+      d_U_ = internal::DeviceBuffer();
+      d_S_ = internal::DeviceBuffer();
+      d_VT_ = internal::DeviceBuffer();
       solver_ctx_.info_ = Success;
       solver_ctx_.info_synced_ = true;
       return *this;
@@ -254,7 +260,7 @@ class SVD {
       return v;
     }
     // transposed: U_orig = VT_stored^H -> conjugate-transpose via cublasXgeam.
-    const Index vtrows_stored = (options_ & ComputeFullU) ? m_ : k;
+    const Index vtrows_stored = (options_ & ComputeFullU) ? n_ : k;
     DeviceMatrix<Scalar> result(n_, vtrows_stored);
     if (n_ > 0 && vtrows_stored > 0) {
       Scalar alpha_one(1), beta_zero(0);
@@ -382,6 +388,8 @@ class SVD {
     const int64_t ldu = m_;
     const int64_t ldvt = vtrows > 0 ? vtrows : 1;
 
+    d_U_ = internal::DeviceBuffer();
+    d_VT_ = internal::DeviceBuffer();
     if (ucols > 0) d_U_ = internal::DeviceBuffer(static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
     if (vtrows > 0)
       d_VT_ = internal::DeviceBuffer(static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));

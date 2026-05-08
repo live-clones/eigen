@@ -280,6 +280,34 @@ void test_svd_device_accessors(Index m, Index n) {
   VERIFY_IS_APPROX(svd.matrixVT(), VT_host);
 }
 
+template <typename Scalar>
+void test_svd_device_accessors_full_wide(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  eigen_assert(m < n);
+  Mat A = Mat::Random(m, n);
+  gpu::SVD<Scalar> svd(A, ComputeFullU | ComputeFullV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+
+  auto d_S = svd.d_singularValues();
+  auto d_U = svd.d_matrixU();
+  auto d_VT = svd.d_matrixVT();
+
+  VERIFY_IS_EQUAL(d_U.rows(), m);
+  VERIFY_IS_EQUAL(d_U.cols(), m);
+  VERIFY_IS_EQUAL(d_VT.rows(), n);
+  VERIFY_IS_EQUAL(d_VT.cols(), n);
+
+  Matrix<RealScalar, Dynamic, 1> S_host = d_S.toHost();
+  Mat U_host = d_U.toHost();
+  Mat VT_host = d_VT.toHost();
+
+  VERIFY_IS_APPROX(S_host, svd.singularValues());
+  VERIFY_IS_APPROX(U_host, svd.matrixU());
+  VERIFY_IS_APPROX(VT_host, svd.matrixVT());
+}
+
 // ---- Chain device views into a downstream cuBLAS GEMM (no D2D copy) ---------
 //
 // d_matrixU() returns a non-owning view over the SVD's internal d_U_ buffer.
@@ -333,6 +361,21 @@ void test_svd_empty() {
   VERIFY_IS_EQUAL(svd.info(), Success);
   VERIFY_IS_EQUAL(svd.rows(), 0);
   VERIFY_IS_EQUAL(svd.cols(), 0);
+
+  svd.compute(MatrixXd::Random(4, 6), ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+
+  svd.compute(MatrixXd(0, 7), 0);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  VERIFY_IS_EQUAL(svd.rows(), 0);
+  VERIFY_IS_EQUAL(svd.cols(), 7);
+  VERIFY_IS_EQUAL(svd.singularValues().size(), 0);
+
+  svd.compute(MatrixXd(5, 0), 0);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  VERIFY_IS_EQUAL(svd.rows(), 5);
+  VERIFY_IS_EQUAL(svd.cols(), 0);
+  VERIFY_IS_EQUAL(svd.singularValues().size(), 0);
 }
 
 // ---- Per-scalar driver ------------------------------------------------------
@@ -371,6 +414,7 @@ void test_scalar() {
   CALL_SUBTEST(test_svd_device_accessors<Scalar>(64, 64));
   CALL_SUBTEST(test_svd_device_accessors<Scalar>(96, 64));
   CALL_SUBTEST(test_svd_device_accessors<Scalar>(64, 96));
+  CALL_SUBTEST(test_svd_device_accessors_full_wide<Scalar>(64, 96));
 
   // Chain device views into a downstream GEMM (orthogonality check).
   CALL_SUBTEST(test_svd_chain_orthogonality<Scalar>(64, 64));
