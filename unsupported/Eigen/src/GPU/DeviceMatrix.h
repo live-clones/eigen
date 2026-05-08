@@ -134,7 +134,7 @@ class HostTransfer {
 
   HostTransfer& operator=(HostTransfer&& o) noexcept {
     if (this != &o) {
-      if (event_) (void)cudaEventDestroy(event_);
+      if (event_) EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(event_));
       host_buf_ = std::move(o.host_buf_);
       pinned_buf_ = std::move(o.pinned_buf_);
       event_ = o.event_;
@@ -226,7 +226,7 @@ class DeviceMatrix {
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
     if (this != &o) {
-      if (ready_event_) (void)cudaEventDestroy(ready_event_);
+      if (ready_event_) EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
       data_ = std::move(o.data_);
       rows_ = o.rows_;
       cols_ = o.cols_;
@@ -358,7 +358,7 @@ class DeviceMatrix {
     if (rows == rows_ && cols == cols_) return;
     data_.reset();
     if (ready_event_) {
-      (void)cudaEventDestroy(ready_event_);
+      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
       ready_event_ = nullptr;
     }
     ready_stream_ = nullptr;
@@ -502,7 +502,7 @@ class DeviceMatrix {
     rows_ = 0;
     cols_ = 0;
     if (ready_event_) {
-      (void)cudaEventDestroy(ready_event_);
+      EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
       ready_event_ = nullptr;
     }
     ready_stream_ = nullptr;
