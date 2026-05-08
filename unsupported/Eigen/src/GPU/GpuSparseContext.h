@@ -85,7 +85,7 @@ class SparseContext {
     const InputType& input = A.derived();
     check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
     const SpMat mat(input);
-    multiply_impl(mat, x.derived(), y.derived(), alpha, beta, cusparse_op_for_scalar(op));
+    multiply_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op_for_scalar<Scalar>(op));
   }
 
   // ---- SpMV transpose: y = A^T * x -----------------------------------------
@@ -112,7 +112,8 @@ class SparseContext {
     const SpMat mat(input);
     DenseVector y(mat.cols());
     y.setZero();
-    multiply_impl(mat, x.derived(), y, Scalar(1), Scalar(0), cusparse_op_for_scalar(GpuOp::ConjTrans));
+    multiply_impl(mat, x.derived(), y, Scalar(1), Scalar(0),
+                  internal::to_cusparse_op_for_scalar<Scalar>(GpuOp::ConjTrans));
     return y;
   }
 
@@ -126,7 +127,7 @@ class SparseContext {
     const SpMat mat(input);
     const DenseMatrix rhs(X.derived());
 
-    const cusparseOperation_t cu_op = cusparse_op_for_scalar(op);
+    const cusparseOperation_t cu_op = internal::to_cusparse_op_for_scalar<Scalar>(op);
     const Index m = (op == GpuOp::NoTrans) ? mat.rows() : mat.cols();
     const Index k = (op == GpuOp::NoTrans) ? mat.cols() : mat.rows();
     eigen_assert(k == rhs.rows());
@@ -295,14 +296,6 @@ class SparseContext {
 
   // ---- Helpers --------------------------------------------------------------
 
-  // cuSPARSE rejects CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE for real scalar
-  // types; for real Scalar, ConjTrans is mathematically equivalent to Trans,
-  // so silently demote it. Complex Scalar passes through unchanged.
-  static cusparseOperation_t cusparse_op_for_scalar(GpuOp op) {
-    if (op == GpuOp::ConjTrans && !NumTraits<Scalar>::IsComplex) op = GpuOp::Trans;
-    return internal::to_cusparse_op(op);
-  }
-
   static void check_storage_index_bounds(Index rows, Index cols, Index nnz) {
     const Index max_storage_index = static_cast<Index>((std::numeric_limits<StorageIndex>::max)());
     eigen_assert(rows <= max_storage_index && cols <= max_storage_index && nnz <= max_storage_index &&
@@ -314,21 +307,29 @@ class SparseContext {
   }
 
   void upload_sparse(const SpMat& A) {
-    // cuSPARSE 12.0+ accepts CSC directly for both SpMV and SpMM.
-    // cuSPARSE 11.x: SpMM rejects CSC outright ("unsupported matrix format
-    // for matA (CSC)"), and SpMV with op=CONJUGATE_TRANSPOSE on CSC + complex
-    // silently degrades to plain TRANSPOSE. CSR works for everything on every
-    // version, so on 11.x we transpose-copy the user's ColMajor (CSC) input
-    // into a RowMajor (CSR) representation. The transpose cost is paid once
-    // per matrix change; in steady state (analyze once, factorize+solve many)
-    // the cost is dominated by the cuSPARSE call itself.
+    // cuSPARSE 12.0+ accepts CSC directly for both SpMV and SpMM. cuSPARSE
+    // 11.x SpMM rejects CSC ("unsupported matrix format for matA (CSC)") and
+    // SpMV with CONJUGATE_TRANSPOSE on CSC+complex silently demotes to
+    // TRANSPOSE. CSR works on every version, so on 11.x we transpose-copy
+    // the user's ColMajor input into a RowMajor (CSR) representation.
 #if CUSPARSE_VERSION >= 12000
-    const Index m = A.rows();
-    const Index n = A.cols();
-    const Index nnz = A.nonZeros();
+    upload_compressed_arrays(A.rows(), A.cols(), A.nonZeros(),
+                             /*outer_count=*/A.cols() + 1, A.outerIndexPtr(), A.innerIndexPtr(), A.valuePtr(),
+                             /*is_csr=*/false);
+#else
+    using CsrMat = SparseMatrix<Scalar, RowMajor, StorageIndex>;
+    const CsrMat csr(A);
+    upload_compressed_arrays(csr.rows(), csr.cols(), csr.nonZeros(),
+                             /*outer_count=*/csr.rows() + 1, csr.outerIndexPtr(), csr.innerIndexPtr(), csr.valuePtr(),
+                             /*is_csr=*/true);
+    // cudaMemcpyAsync from pageable host memory blocks the host until the
+    // source is consumed, so the CsrMat temporary's lifetime is sufficient.
+#endif
+  }
 
-    // CSC layout: outer = col offsets (n+1), inner = row indices (nnz).
-    const size_t outer_bytes = static_cast<size_t>(n + 1) * sizeof(StorageIndex);
+  void upload_compressed_arrays(Index m, Index n, Index nnz, Index outer_count, const StorageIndex* host_outer,
+                                const StorageIndex* host_inner, const Scalar* host_values, bool is_csr) {
+    const size_t outer_bytes = static_cast<size_t>(outer_count) * sizeof(StorageIndex);
     const size_t inner_bytes = static_cast<size_t>(nnz) * sizeof(StorageIndex);
     const size_t val_bytes = static_cast<size_t>(nnz) * sizeof(Scalar);
 
@@ -337,11 +338,10 @@ class SparseContext {
     ensure_buffer(d_values_, d_values_size_, val_bytes);
 
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_outerPtr_.get(), A.outerIndexPtr(), outer_bytes, cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_outerPtr_.get(), host_outer, outer_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_innerIdx_.get(), A.innerIndexPtr(), inner_bytes, cudaMemcpyHostToDevice, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_values_.get(), A.valuePtr(), val_bytes, cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_innerIdx_.get(), host_inner, inner_bytes, cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream_));
 
     if (m != cached_rows_ || n != cached_cols_ || nnz != cached_nnz_) {
       destroy_descriptors_checked();
@@ -349,58 +349,23 @@ class SparseContext {
       constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
       constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
 
-      EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
+      if (is_csr) {
+        EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
+                                               val_type));
+      } else {
+        EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
+                                               val_type));
+      }
       cached_rows_ = m;
       cached_cols_ = n;
       cached_nnz_ = nnz;
+    } else if (is_csr) {
+      EIGEN_CUSPARSE_CHECK(cusparseCsrSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
     } else {
       EIGEN_CUSPARSE_CHECK(cusparseCscSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
     }
-#else
-    // cuSPARSE < 12.0: upload as CSR. Eigen does the transpose-copy via the
-    // RowMajor SparseMatrix conversion constructor.
-    using CsrMat = SparseMatrix<Scalar, RowMajor, StorageIndex>;
-    const CsrMat csr(A);
-
-    const Index m = csr.rows();
-    const Index n = csr.cols();
-    const Index nnz = csr.nonZeros();
-
-    // CSR layout: outer = row offsets (m+1), inner = col indices (nnz).
-    const size_t outer_bytes = static_cast<size_t>(m + 1) * sizeof(StorageIndex);
-    const size_t inner_bytes = static_cast<size_t>(nnz) * sizeof(StorageIndex);
-    const size_t val_bytes = static_cast<size_t>(nnz) * sizeof(Scalar);
-
-    ensure_buffer(d_outerPtr_, d_outerPtr_size_, outer_bytes);
-    ensure_buffer(d_innerIdx_, d_innerIdx_size_, inner_bytes);
-    ensure_buffer(d_values_, d_values_size_, val_bytes);
-
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_outerPtr_.get(), csr.outerIndexPtr(), outer_bytes, cudaMemcpyHostToDevice, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_innerIdx_.get(), csr.innerIndexPtr(), inner_bytes, cudaMemcpyHostToDevice, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_values_.get(), csr.valuePtr(), val_bytes, cudaMemcpyHostToDevice, stream_));
-    // cudaMemcpyAsync from pageable host memory is synchronous on the host
-    // w.r.t. the call (the driver finishes reading before returning), so the
-    // CsrMat temporary's lifetime is sufficient.
-
-    if (m != cached_rows_ || n != cached_cols_ || nnz != cached_nnz_) {
-      destroy_descriptors_checked();
-
-      constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
-      constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
-
-      EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
-      cached_rows_ = m;
-      cached_cols_ = n;
-      cached_nnz_ = nnz;
-    } else {
-      EIGEN_CUSPARSE_CHECK(cusparseCsrSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
-    }
-#endif
   }
 
   // Destructor-only cleanup: there is no useful recovery path for failures.

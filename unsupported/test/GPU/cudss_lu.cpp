@@ -14,38 +14,16 @@
 #include "main.h"
 #include <Eigen/Sparse>
 #include <unsupported/Eigen/GPU>
+#include "gpu_test_helpers.h"
 
 using namespace Eigen;
 
-static void require_cudss_context() {
-  cudssHandle_t handle = nullptr;
-  const cudssStatus_t status = cudssCreate(&handle);
-  if (status != CUDSS_STATUS_SUCCESS) {
-    std::cout << "SKIP: cuDSS tests require an initialized cuDSS context. cudssCreate failed with status "
-              << static_cast<int>(status) << std::endl;
-    std::exit(77);
-  }
-  EIGEN_CUDSS_CHECK(cudssDestroy(handle));
-}
-
 // ---- Helper: build a random sparse non-singular general matrix ---------------
-
-namespace {
-template <typename Scalar, typename RealScalar>
-Scalar make_value(RealScalar re, RealScalar im, std::true_type /*is_complex*/) {
-  return Scalar(re, im);
-}
-template <typename Scalar, typename RealScalar>
-Scalar make_value(RealScalar re, RealScalar /*im*/, std::false_type /*is_complex*/) {
-  return Scalar(re);
-}
-}  // namespace
 
 template <typename Scalar>
 SparseMatrix<Scalar, ColMajor, int> make_general(Index n, double density = 0.1) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  using IsComplex = std::integral_constant<bool, NumTraits<Scalar>::IsComplex>;
 
   SpMat R(n, n);
   R.reserve(VectorXi::Constant(n, static_cast<int>(n * density) + 1));
@@ -54,7 +32,7 @@ SparseMatrix<Scalar, ColMajor, int> make_general(Index n, double density = 0.1) 
       if (i == j || (std::rand() / double(RAND_MAX)) < density) {
         const RealScalar re = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
         const RealScalar im = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
-        R.insert(i, j) = make_value<Scalar>(re, im, IsComplex{});
+        R.insert(i, j) = gpu_test::make_test_value<Scalar>(re, im);
       }
     }
   }
@@ -167,7 +145,7 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cudss_lu) {
-  require_cudss_context();
+  gpu_test::require_cudss_context();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());

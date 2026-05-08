@@ -41,6 +41,14 @@ constexpr cusparseOperation_t to_cusparse_op(GpuOp op) {
   }
 }
 
+// cuSPARSE rejects CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE for real scalar
+// types; for real Scalar, ConjTrans is mathematically equivalent to Trans,
+// so silently demote it. Complex Scalar passes through unchanged.
+template <typename Scalar>
+constexpr cusparseOperation_t to_cusparse_op_for_scalar(GpuOp op) {
+  return to_cusparse_op((op == GpuOp::ConjTrans && !NumTraits<Scalar>::IsComplex) ? GpuOp::Trans : op);
+}
+
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen

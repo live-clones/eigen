@@ -193,10 +193,7 @@ class SparseSolverBase {
 
     if (n_ == 0) return DenseMatrix(0, rhs.cols());
 
-    // Reuse cached d_b / d_x scratch across solves: the documented use case
-    // (analyze once, factorize once, solve many) would otherwise pay
-    // cudaMalloc/cudaFree per solve. Descriptor creation is cheap by
-    // comparison and is recreated per call since nrhs can vary.
+    // Reuse cached d_b/d_x scratch to avoid cudaMalloc/cudaFree per solve.
     const size_t rhs_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
     ensure_solve_buffer(d_b_solve_, d_b_solve_size_, rhs_bytes);
     ensure_solve_buffer(d_x_solve_, d_x_solve_size_, rhs_bytes);

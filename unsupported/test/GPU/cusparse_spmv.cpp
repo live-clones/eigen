@@ -14,38 +14,16 @@
 #include "main.h"
 #include <Eigen/Sparse>
 #include <unsupported/Eigen/GPU>
+#include "gpu_test_helpers.h"
 
 using namespace Eigen;
 
-static void require_cusparse_context() {
-  cusparseHandle_t handle = nullptr;
-  const cusparseStatus_t status = cusparseCreate(&handle);
-  if (status != CUSPARSE_STATUS_SUCCESS) {
-    std::cout << "SKIP: cuSPARSE tests require an initialized cuSPARSE context. cusparseCreate failed with status "
-              << static_cast<int>(status) << std::endl;
-    std::exit(77);
-  }
-  EIGEN_CUSPARSE_CHECK(cusparseDestroy(handle));
-}
-
 // ---- Helper: build a random sparse matrix -----------------------------------
-
-namespace {
-template <typename Scalar, typename RealScalar>
-Scalar make_value(RealScalar re, RealScalar im, std::true_type /*is_complex*/) {
-  return Scalar(re, im);
-}
-template <typename Scalar, typename RealScalar>
-Scalar make_value(RealScalar re, RealScalar /*im*/, std::false_type /*is_complex*/) {
-  return Scalar(re);
-}
-}  // namespace
 
 template <typename Scalar>
 SparseMatrix<Scalar, ColMajor, int> make_sparse(Index rows, Index cols, double density = 0.1) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  using IsComplex = std::integral_constant<bool, NumTraits<Scalar>::IsComplex>;
 
   SpMat R(rows, cols);
   R.reserve(VectorXi::Constant(cols, static_cast<int>(rows * density) + 1));
@@ -54,7 +32,7 @@ SparseMatrix<Scalar, ColMajor, int> make_sparse(Index rows, Index cols, double d
       if ((std::rand() / double(RAND_MAX)) < density) {
         const RealScalar re = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
         const RealScalar im = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
-        R.insert(i, j) = make_value<Scalar>(re, im, IsComplex{});
+        R.insert(i, j) = gpu_test::make_test_value<Scalar>(re, im);
       }
     }
   }
@@ -265,7 +243,7 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cusparse_spmv) {
-  require_cusparse_context();
+  gpu_test::require_cusparse_context();
 
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());

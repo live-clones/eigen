@@ -256,15 +256,11 @@ class FFT {
 
   // Plan key encoding: rank (1 bit) | type (4 bits) | dims.
   // cufftType uses 7 bits; the top 3 (precision discriminator) are redundant
-  // here since Scalar fixes the precision per FFT instance, so mask to the
-  // low 4 bits to avoid bleeding into the dim field — without the mask,
-  // e.g. plan_key_1d(5, C2C) and plan_key_1d(7, C2C) collide.
-  // Bit budget for 2D: cols gets 30 bits (5..34), rows gets 29 bits (35..63).
-  // Asserts catch the (impractical but possible) case of dims overflowing
-  // the field width.
+  // since Scalar fixes precision per FFT instance, so mask to 4 bits — without
+  // it, e.g. plan_key_1d(5, C2C) and plan_key_1d(7, C2C) collide.
   static constexpr int64_t kTypeMask = 0xF;
-  static constexpr int kCols2DBits = 30;
-  static constexpr int kRows2DBits = 29;
+  static constexpr int kCols2DBits = 30;  // bits 5..34
+  static constexpr int kRows2DBits = 29;  // bits 35..63
   static int64_t plan_key_1d(int n, cufftType type) { return (int64_t(n) << 5) | (int64_t(type & kTypeMask) << 1) | 0; }
 
   static int64_t plan_key_2d(int rows, int cols, cufftType type) {
