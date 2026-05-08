@@ -50,7 +50,7 @@ class SparseContext {
   }
 
   ~SparseContext() {
-    destroy_descriptors();
+    destroy_descriptors_unchecked();
     if (handle_) (void)cusparseDestroy(handle_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
@@ -63,7 +63,9 @@ class SparseContext {
   /** Compute y = A * x. Returns y as a new dense vector. */
   template <typename InputType, typename Rhs>
   DenseVector multiply(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
-    const SpMat mat(A.derived());
+    const InputType& input = A.derived();
+    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
+    const SpMat mat(input);
     DenseVector y(mat.rows());
     y.setZero();
     multiply_impl(mat, x.derived(), y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_NON_TRANSPOSE);
@@ -75,7 +77,9 @@ class SparseContext {
   void multiply(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x, MatrixBase<Dest>& y,
                 Scalar alpha = Scalar(1), Scalar beta = Scalar(0),
                 cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE) {
-    const SpMat mat(A.derived());
+    const InputType& input = A.derived();
+    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
+    const SpMat mat(input);
     multiply_impl(mat, x.derived(), y.derived(), alpha, beta, op);
   }
 
@@ -84,7 +88,9 @@ class SparseContext {
   /** Compute y = A^T * x. Returns y as a new dense vector. */
   template <typename InputType, typename Rhs>
   DenseVector multiplyT(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
-    const SpMat mat(A.derived());
+    const InputType& input = A.derived();
+    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
+    const SpMat mat(input);
     DenseVector y(mat.cols());
     y.setZero();
     multiply_impl(mat, x.derived(), y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_TRANSPOSE);
@@ -96,7 +102,9 @@ class SparseContext {
   /** Compute Y = A * X where X is a dense matrix (multiple RHS). Returns Y. */
   template <typename InputType, typename Rhs>
   DenseMatrix multiplyMat(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& X) {
-    const SpMat mat(A.derived());
+    const InputType& input = A.derived();
+    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
+    const SpMat mat(input);
     const DenseMatrix rhs(X.derived());
     eigen_assert(mat.cols() == rhs.rows());
 
@@ -199,8 +207,8 @@ class SparseContext {
         cudaMemcpyAsync(y.data(), d_y_.get(), y_size * sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
 
-    (void)cusparseDestroyDnVec(x_desc);
-    (void)cusparseDestroyDnVec(y_desc);
+    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(x_desc));
+    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(y_desc));
   }
 
   // ---- SpMM implementation --------------------------------------------------
@@ -255,11 +263,21 @@ class SparseContext {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(Y.data(), d_y_.get(), y_bytes, cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
 
-    (void)cusparseDestroyDnMat(x_desc);
-    (void)cusparseDestroyDnMat(y_desc);
+    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnMat(x_desc));
+    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnMat(y_desc));
   }
 
   // ---- Helpers --------------------------------------------------------------
+
+  static void check_storage_index_bounds(Index rows, Index cols, Index nnz) {
+    const Index max_storage_index = static_cast<Index>((std::numeric_limits<StorageIndex>::max)());
+    eigen_assert(rows <= max_storage_index && cols <= max_storage_index && nnz <= max_storage_index &&
+                 "gpu::SparseContext currently uses int StorageIndex; matrix dimensions or nonzeros exceed int range");
+    EIGEN_UNUSED_VARIABLE(rows);
+    EIGEN_UNUSED_VARIABLE(cols);
+    EIGEN_UNUSED_VARIABLE(nnz);
+    EIGEN_UNUSED_VARIABLE(max_storage_index);
+  }
 
   void upload_sparse(const SpMat& A) {
     const Index m = A.rows();
@@ -283,7 +301,7 @@ class SparseContext {
 
     // Recreate descriptor if shape changed.
     if (m != cached_rows_ || n != cached_cols_ || nnz != cached_nnz_) {
-      destroy_descriptors();
+      destroy_descriptors_checked();
 
       constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
       constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
@@ -300,9 +318,20 @@ class SparseContext {
     }
   }
 
-  void destroy_descriptors() {
+  // Destructor-only cleanup: there is no useful recovery path for failures.
+  void destroy_descriptors_unchecked() {
     if (spmat_desc_) {
       (void)cusparseDestroySpMat(spmat_desc_);
+      spmat_desc_ = nullptr;
+    }
+    cached_rows_ = -1;
+    cached_cols_ = -1;
+    cached_nnz_ = -1;
+  }
+
+  void destroy_descriptors_checked() {
+    if (spmat_desc_) {
+      EIGEN_CUSPARSE_CHECK(cusparseDestroySpMat(spmat_desc_));
       spmat_desc_ = nullptr;
     }
     cached_rows_ = -1;

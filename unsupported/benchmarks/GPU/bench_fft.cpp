@@ -4,11 +4,12 @@
 // including plan-amortized (reuse) and cold-start (new plan) scenarios.
 //
 // Usage:
-//   cmake --build build-bench-gpu --target bench_gpu_fft
-//   ./build-bench-gpu/bench_gpu_fft
+//   cmake --build build-bench-gpu --target bench_fft bench_fft_double
+//   ./build-bench-gpu/bench_fft
+//   ./build-bench-gpu/bench_fft_double
 //
 // Profiling:
-//   nsys profile --trace=cuda ./build-bench-gpu/bench_gpu_fft
+//   nsys profile --trace=cuda ./build-bench-gpu/bench_fft
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
@@ -33,8 +34,8 @@ static void cuda_warmup() {
   static bool done = false;
   if (!done) {
     void* p;
-    cudaMalloc(&p, 1);
-    cudaFree(p);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, 1));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
     done = true;
   }
 }
@@ -47,7 +48,7 @@ static void BM_GpuFFT_1D_C2C_Fwd(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   CVec x = CVec::Random(n);
-  GpuFFT<Scalar> fft;
+  gpu::FFT<Scalar> fft;
 
   // Warm up plan.
   CVec tmp = fft.fwd(x);
@@ -69,7 +70,7 @@ static void BM_GpuFFT_1D_C2C_Inv(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   CVec x = CVec::Random(n);
-  GpuFFT<Scalar> fft;
+  gpu::FFT<Scalar> fft;
   CVec X = fft.fwd(x);
 
   for (auto _ : state) {
@@ -89,7 +90,7 @@ static void BM_GpuFFT_1D_R2C_Fwd(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   RVec r = RVec::Random(n);
-  GpuFFT<Scalar> fft;
+  gpu::FFT<Scalar> fft;
 
   // Warm up plan.
   CVec tmp = fft.fwd(r);
@@ -111,7 +112,7 @@ static void BM_GpuFFT_1D_C2R_Inv(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   RVec r = RVec::Random(n);
-  GpuFFT<Scalar> fft;
+  gpu::FFT<Scalar> fft;
   CVec R = fft.fwd(r);
 
   for (auto _ : state) {
@@ -131,7 +132,7 @@ static void BM_GpuFFT_2D_C2C_Fwd(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);  // square n x n
   CMat A = CMat::Random(n, n);
-  GpuFFT<Scalar> fft;
+  gpu::FFT<Scalar> fft;
 
   // Warm up plan.
   CMat tmp = fft.fwd2d(A);
@@ -153,7 +154,7 @@ static void BM_GpuFFT_2D_C2C_Roundtrip(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   CMat A = CMat::Random(n, n);
-  GpuFFT<Scalar> fft;
+  gpu::FFT<Scalar> fft;
 
   // Warm up plans.
   CMat tmp = fft.inv2d(fft.fwd2d(A));
@@ -178,7 +179,7 @@ static void BM_GpuFFT_1D_ColdStart(benchmark::State& state) {
   CVec x = CVec::Random(n);
 
   for (auto _ : state) {
-    GpuFFT<Scalar> fft;  // new object = new plans
+    gpu::FFT<Scalar> fft;  // new object = new plans
     benchmark::DoNotOptimize(fft.fwd(x));
   }
   state.SetItemsProcessed(state.iterations() * n);

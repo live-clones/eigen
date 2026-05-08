@@ -17,6 +17,17 @@
 
 using namespace Eigen;
 
+static void require_cusparse_context() {
+  cusparseHandle_t handle = nullptr;
+  const cusparseStatus_t status = cusparseCreate(&handle);
+  if (status != CUSPARSE_STATUS_SUCCESS) {
+    std::cout << "SKIP: cuSPARSE tests require an initialized cuSPARSE context. cusparseCreate failed with status "
+              << static_cast<int>(status) << std::endl;
+    std::exit(77);
+  }
+  EIGEN_CUSPARSE_CHECK(cusparseDestroy(handle));
+}
+
 // ---- Helper: build a random sparse matrix -----------------------------------
 
 template <typename Scalar>
@@ -197,6 +208,8 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cusparse_spmv) {
+  require_cusparse_context();
+
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());

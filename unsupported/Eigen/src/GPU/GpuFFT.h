@@ -34,7 +34,7 @@
 
 #include "./CuFftSupport.h"
 #include "./CuBlasSupport.h"
-#include <unordered_map>
+#include <map>
 
 namespace Eigen {
 namespace gpu {
@@ -231,7 +231,7 @@ class FFT {
  private:
   cudaStream_t stream_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
-  std::unordered_map<int64_t, cufftHandle> plans_;
+  std::map<int64_t, cufftHandle> plans_;
   internal::DeviceBuffer d_in_;
   internal::DeviceBuffer d_out_;
   size_t d_in_size_ = 0;

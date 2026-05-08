@@ -79,7 +79,9 @@ class SparseSolverBase {
    * This phase is synchronous (blocks until complete). */
   template <typename InputType>
   Derived& analyzePattern(const SparseMatrixBase<InputType>& A) {
-    const SpMat csc(A.derived());
+    const InputType& input = A.derived();
+    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
+    const SpMat csc(input);
     eigen_assert(csc.rows() == csc.cols() && "GpuSparseSolver requires a square matrix");
     eigen_assert(csc.isCompressed() && "GpuSparseSolver requires a compressed sparse matrix");
 
@@ -140,7 +142,9 @@ class SparseSolverBase {
     // Convert to the same format used in analyzePattern.
     // Both temporaries must outlive the async memcpy (pageable H2D is actually
     // synchronous w.r.t. the host, but keep them alive for clarity).
-    const SpMat csc(A.derived());
+    const InputType& input = A.derived();
+    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
+    const SpMat csc(input);
     eigen_assert(csc.rows() == n_ && csc.cols() == n_);
 
     const Scalar* value_ptr;
@@ -200,8 +204,8 @@ class SparseSolverBase {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_x.get(), rhs_bytes, cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
 
-    (void)cudssMatrixDestroy(b_cudss);
-    (void)cudssMatrixDestroy(x_cudss);
+    EIGEN_CUDSS_CHECK(cudssMatrixDestroy(b_cudss));
+    EIGEN_CUDSS_CHECK(cudssMatrixDestroy(x_cudss));
 
     return X;
   }
@@ -262,6 +266,7 @@ class SparseSolverBase {
     }
   }
 
+  // Destructor-only cleanup: there is no useful recovery path for failures.
   void destroy_cudss_objects() {
     if (d_A_cudss_) {
       (void)cudssMatrixDestroy(d_A_cudss_);
@@ -293,6 +298,16 @@ class SparseSolverBase {
     upload_compressed(csc.outerIndexPtr(), csc.innerIndexPtr(), csc.valuePtr());
   }
 
+  static void check_storage_index_bounds(Index rows, Index cols, Index nnz) {
+    const Index max_storage_index = static_cast<Index>((std::numeric_limits<StorageIndex>::max)());
+    eigen_assert(rows <= max_storage_index && cols <= max_storage_index && nnz <= max_storage_index &&
+                 "gpu sparse solvers currently use int StorageIndex; matrix dimensions or nonzeros exceed int range");
+    EIGEN_UNUSED_VARIABLE(rows);
+    EIGEN_UNUSED_VARIABLE(cols);
+    EIGEN_UNUSED_VARIABLE(nnz);
+    EIGEN_UNUSED_VARIABLE(max_storage_index);
+  }
+
   void upload_compressed(const StorageIndex* outer, const StorageIndex* inner, const Scalar* values) {
     const size_t rowptr_bytes = static_cast<size_t>(n_ + 1) * sizeof(StorageIndex);
     const size_t colidx_bytes = static_cast<size_t>(nnz_) * sizeof(StorageIndex);
@@ -308,7 +323,7 @@ class SparseSolverBase {
   }
 
   void create_cudss_matrix() {
-    if (d_A_cudss_) (void)cudssMatrixDestroy(d_A_cudss_);
+    if (d_A_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_A_cudss_));
 
     constexpr cudaDataType_t idx_type = cudss_index_type<StorageIndex>::value;
     constexpr cudaDataType_t val_type = cuda_data_type<Scalar>::value;
@@ -340,8 +355,8 @@ class SparseSolverBase {
   }
 
   void create_placeholder_dense() {
-    if (d_x_cudss_) (void)cudssMatrixDestroy(d_x_cudss_);
-    if (d_b_cudss_) (void)cudssMatrixDestroy(d_b_cudss_);
+    if (d_x_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_x_cudss_));
+    if (d_b_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_b_cudss_));
     constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
     EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&d_x_cudss_, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
     EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&d_b_cudss_, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
