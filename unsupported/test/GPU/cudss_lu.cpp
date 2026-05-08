@@ -17,19 +17,44 @@
 
 using namespace Eigen;
 
+static void require_cudss_context() {
+  cudssHandle_t handle = nullptr;
+  const cudssStatus_t status = cudssCreate(&handle);
+  if (status != CUDSS_STATUS_SUCCESS) {
+    std::cout << "SKIP: cuDSS tests require an initialized cuDSS context. cudssCreate failed with status "
+              << static_cast<int>(status) << std::endl;
+    std::exit(77);
+  }
+  EIGEN_CUDSS_CHECK(cudssDestroy(handle));
+}
+
 // ---- Helper: build a random sparse non-singular general matrix ---------------
+
+namespace {
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar im, std::true_type /*is_complex*/) {
+  return Scalar(re, im);
+}
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar /*im*/, std::false_type /*is_complex*/) {
+  return Scalar(re);
+}
+}  // namespace
 
 template <typename Scalar>
 SparseMatrix<Scalar, ColMajor, int> make_general(Index n, double density = 0.1) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   using RealScalar = typename NumTraits<Scalar>::Real;
+  using IsComplex = std::integral_constant<bool, NumTraits<Scalar>::IsComplex>;
 
   SpMat R(n, n);
   R.reserve(VectorXi::Constant(n, static_cast<int>(n * density) + 1));
   for (Index j = 0; j < n; ++j) {
     for (Index i = 0; i < n; ++i) {
       if (i == j || (std::rand() / double(RAND_MAX)) < density) {
-        R.insert(i, j) = Scalar(std::rand() / double(RAND_MAX) - 0.5);
+        const RealScalar re = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        const RealScalar im = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        R.insert(i, j) = make_value<Scalar>(re, im, IsComplex{});
       }
     }
   }
@@ -114,16 +139,18 @@ void test_refactorize(Index n) {
   RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
   VERIFY((A * x1 - b).norm() / b.norm() < tol);
   VERIFY((A2 * x2 - b).norm() / b.norm() < tol);
-  VERIFY((x1 - x2).norm() > NumTraits<Scalar>::epsilon());
+  // Diagonal scaled 2x; x1 and x2 must differ by a substantial fraction.
+  VERIFY((x1 - x2).norm() > RealScalar(0.01) * x1.norm());
 }
 
 // ---- Empty ------------------------------------------------------------------
 
+template <typename Scalar>
 void test_empty() {
-  using SpMat = SparseMatrix<double, ColMajor, int>;
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   SpMat A(0, 0);
   A.makeCompressed();
-  gpu::SparseLU<double> lu(A);
+  gpu::SparseLU<Scalar> lu(A);
   VERIFY_IS_EQUAL(lu.info(), Success);
   VERIFY_IS_EQUAL(lu.rows(), 0);
   VERIFY_IS_EQUAL(lu.cols(), 0);
@@ -140,10 +167,14 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cudss_lu) {
+  require_cudss_context();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
-  CALL_SUBTEST_5(test_empty());
+  CALL_SUBTEST_5(test_empty<float>());
+  CALL_SUBTEST_5(test_empty<double>());
+  CALL_SUBTEST_5(test_empty<std::complex<float>>());
+  CALL_SUBTEST_5(test_empty<std::complex<double>>());
 }

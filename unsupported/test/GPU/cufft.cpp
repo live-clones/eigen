@@ -16,6 +16,20 @@
 
 using namespace Eigen;
 
+static void require_cufft_context() {
+  cufftHandle plan = 0;
+  // cufftCreate allocates a plan handle without configuring it; succeeds only
+  // when the cuFFT runtime is loadable. cufftPlan1d would also work but does
+  // more, so prefer the lightest probe.
+  const cufftResult status = cufftCreate(&plan);
+  if (status != CUFFT_SUCCESS) {
+    std::cout << "SKIP: cuFFT tests require a working cuFFT runtime. cufftCreate failed with status "
+              << static_cast<int>(status) << std::endl;
+    std::exit(77);
+  }
+  EIGEN_CUFFT_CHECK(cufftDestroy(plan));
+}
+
 // ---- 1D C2C roundtrip: inv(fwd(x)) ≈ x -------------------------------------
 
 template <typename Scalar>
@@ -182,6 +196,7 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cufft) {
+  require_cufft_context();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());

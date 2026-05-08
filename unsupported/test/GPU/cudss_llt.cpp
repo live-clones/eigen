@@ -17,20 +17,48 @@
 
 using namespace Eigen;
 
+static void require_cudss_context() {
+  cudssHandle_t handle = nullptr;
+  const cudssStatus_t status = cudssCreate(&handle);
+  if (status != CUDSS_STATUS_SUCCESS) {
+    std::cout << "SKIP: cuDSS tests require an initialized cuDSS context. cudssCreate failed with status "
+              << static_cast<int>(status) << std::endl;
+    std::exit(77);
+  }
+  EIGEN_CUDSS_CHECK(cudssDestroy(handle));
+}
+
 // ---- Helper: build a random sparse SPD matrix -------------------------------
+
+namespace {
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar im, std::true_type /*is_complex*/) {
+  return Scalar(re, im);
+}
+template <typename Scalar, typename RealScalar>
+Scalar make_value(RealScalar re, RealScalar /*im*/, std::false_type /*is_complex*/) {
+  return Scalar(re);
+}
+}  // namespace
 
 template <typename Scalar>
 SparseMatrix<Scalar, ColMajor, int> make_spd(Index n, double density = 0.1) {
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   using RealScalar = typename NumTraits<Scalar>::Real;
+  using IsComplex = std::integral_constant<bool, NumTraits<Scalar>::IsComplex>;
 
   // Uses the global std::rand state seeded by the test framework (g_seed).
+  // Off-diagonal entries carry nonzero imaginary parts for complex Scalar so
+  // the cuDSS HPD path (CUDSS_MTYPE_HPD) is genuinely exercised; A = R^H * R
+  // is Hermitian regardless of R, and the +nI shift keeps the diagonal real.
   SpMat R(n, n);
   R.reserve(VectorXi::Constant(n, static_cast<int>(n * density) + 1));
   for (Index j = 0; j < n; ++j) {
     for (Index i = 0; i < n; ++i) {
       if (i == j || (std::rand() / double(RAND_MAX)) < density) {
-        R.insert(i, j) = Scalar(std::rand() / double(RAND_MAX) - 0.5);
+        const RealScalar re = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        const RealScalar im = RealScalar(std::rand() / double(RAND_MAX) - 0.5);
+        R.insert(i, j) = make_value<Scalar>(re, im, IsComplex{});
       }
     }
   }
@@ -146,17 +174,20 @@ void test_refactorize(Index n) {
   VERIFY((A * x1 - b).norm() / b.norm() < tol);
   VERIFY((A2 * x2 - b).norm() / b.norm() < tol);
 
-  // Solutions should differ (A2 != A).
-  VERIFY((x1 - x2).norm() > NumTraits<Scalar>::epsilon());
+  // Solutions should differ meaningfully: diagonal was scaled 2x, so x1 vs x2
+  // should differ by a substantial fraction of x1's magnitude. A near-epsilon
+  // bound here would pass even if refactorize silently reused the stale factor.
+  VERIFY((x1 - x2).norm() > RealScalar(0.01) * x1.norm());
 }
 
 // ---- Empty matrix -----------------------------------------------------------
 
+template <typename Scalar>
 void test_empty() {
-  using SpMat = SparseMatrix<double, ColMajor, int>;
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
   SpMat A(0, 0);
   A.makeCompressed();
-  gpu::SparseLLT<double> llt(A);
+  gpu::SparseLLT<Scalar> llt(A);
   VERIFY_IS_EQUAL(llt.info(), Success);
   VERIFY_IS_EQUAL(llt.rows(), 0);
   VERIFY_IS_EQUAL(llt.cols(), 0);
@@ -195,10 +226,14 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cudss_llt) {
+  require_cudss_context();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
-  CALL_SUBTEST_5(test_empty());
+  CALL_SUBTEST_5(test_empty<float>());
+  CALL_SUBTEST_5(test_empty<double>());
+  CALL_SUBTEST_5(test_empty<std::complex<float>>());
+  CALL_SUBTEST_5(test_empty<std::complex<double>>());
 }
