@@ -85,7 +85,7 @@ class SparseContext {
     const InputType& input = A.derived();
     check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
     const SpMat mat(input);
-    multiply_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op(op));
+    multiply_impl(mat, x.derived(), y.derived(), alpha, beta, cusparse_op_for_scalar(op));
   }
 
   // ---- SpMV transpose: y = A^T * x -----------------------------------------
@@ -112,7 +112,7 @@ class SparseContext {
     const SpMat mat(input);
     DenseVector y(mat.cols());
     y.setZero();
-    multiply_impl(mat, x.derived(), y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE);
+    multiply_impl(mat, x.derived(), y, Scalar(1), Scalar(0), cusparse_op_for_scalar(GpuOp::ConjTrans));
     return y;
   }
 
@@ -126,7 +126,7 @@ class SparseContext {
     const SpMat mat(input);
     const DenseMatrix rhs(X.derived());
 
-    const cusparseOperation_t cu_op = internal::to_cusparse_op(op);
+    const cusparseOperation_t cu_op = cusparse_op_for_scalar(op);
     const Index m = (op == GpuOp::NoTrans) ? mat.rows() : mat.cols();
     const Index k = (op == GpuOp::NoTrans) ? mat.cols() : mat.rows();
     eigen_assert(k == rhs.rows());
@@ -239,12 +239,16 @@ class SparseContext {
                  cusparseOperation_t op) {
     eigen_assert(A.isCompressed());
 
-    const Index m = A.rows();
+    // For op != NON_TRANSPOSE, Y = op(A) * X. The dense X / Y descriptors must
+    // describe the *post-op* shapes: X has k_op rows (= input dim of op(A)),
+    // Y has m_op rows (= output dim of op(A)).
+    const bool transposed = (op != CUSPARSE_OPERATION_NON_TRANSPOSE);
+    const Index m_op = transposed ? A.cols() : A.rows();
+    const Index k_op = transposed ? A.rows() : A.cols();
     const Index n = X.cols();
-    const Index k = A.cols();
     const Index nnz = A.nonZeros();
 
-    if (m == 0 || n == 0 || k == 0 || nnz == 0) {
+    if (m_op == 0 || n == 0 || k_op == 0 || nnz == 0) {
       if (beta == Scalar(0))
         Y.setZero();
       else
@@ -254,9 +258,9 @@ class SparseContext {
 
     upload_sparse(A);
 
-    // Upload X to device.
-    const size_t x_bytes = static_cast<size_t>(k) * static_cast<size_t>(n) * sizeof(Scalar);
-    const size_t y_bytes = static_cast<size_t>(m) * static_cast<size_t>(n) * sizeof(Scalar);
+    // Upload X to device. X is k_op x n, Y is m_op x n (column-major).
+    const size_t x_bytes = static_cast<size_t>(k_op) * static_cast<size_t>(n) * sizeof(Scalar);
+    const size_t y_bytes = static_cast<size_t>(m_op) * static_cast<size_t>(n) * sizeof(Scalar);
     ensure_buffer(d_x_, d_x_size_, x_bytes);
     ensure_buffer(d_y_, d_y_size_, y_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_x_.get(), X.data(), x_bytes, cudaMemcpyHostToDevice, stream_));
@@ -268,8 +272,8 @@ class SparseContext {
     constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
     cusparseDnMatDescr_t x_desc = nullptr, y_desc = nullptr;
     // Eigen is column-major, so ld = rows.
-    EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&x_desc, k, n, k, d_x_.get(), dtype, CUSPARSE_ORDER_COL));
-    EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&y_desc, m, n, m, d_y_.get(), dtype, CUSPARSE_ORDER_COL));
+    EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&x_desc, k_op, n, k_op, d_x_.get(), dtype, CUSPARSE_ORDER_COL));
+    EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&y_desc, m_op, n, m_op, d_y_.get(), dtype, CUSPARSE_ORDER_COL));
 
     // Query workspace.
     size_t ws_size = 0;
@@ -290,6 +294,14 @@ class SparseContext {
   }
 
   // ---- Helpers --------------------------------------------------------------
+
+  // cuSPARSE rejects CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE for real scalar
+  // types; for real Scalar, ConjTrans is mathematically equivalent to Trans,
+  // so silently demote it. Complex Scalar passes through unchanged.
+  static cusparseOperation_t cusparse_op_for_scalar(GpuOp op) {
+    if (op == GpuOp::ConjTrans && !NumTraits<Scalar>::IsComplex) op = GpuOp::Trans;
+    return internal::to_cusparse_op(op);
+  }
 
   static void check_storage_index_bounds(Index rows, Index cols, Index nnz) {
     const Index max_storage_index = static_cast<Index>((std::numeric_limits<StorageIndex>::max)());
