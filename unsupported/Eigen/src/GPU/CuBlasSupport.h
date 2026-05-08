@@ -26,12 +26,6 @@
 
 namespace Eigen {
 namespace gpu {
-
-// ---- Operation enum ---------------------------------------------------------
-// Public flag for transpose/adjoint in BLAS- and solver-style calls.
-
-enum class GpuOp { NoTrans, Trans, ConjTrans };
-
 namespace internal {
 
 // ---- Error-checking macro ---------------------------------------------------
@@ -216,6 +210,22 @@ inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cubla
                                   std::complex<double>* C, int ldc) {
   return cublasZherk(h, uplo, trans, n, k, alpha, reinterpret_cast<const cuDoubleComplex*>(A), lda, beta,
                      reinterpret_cast<cuDoubleComplex*>(C), ldc);
+}
+
+// SCAL wrappers: x = alpha * x.
+// For complex x, alpha is real-valued (Csscal/Zdscal) — this matches the
+// 1/n inverse-FFT scaling pattern, where the scale is intrinsically real.
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, float* x, int incx) {
+  return cublasSscal(h, n, alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, double* x, int incx) {
+  return cublasDscal(h, n, alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, std::complex<float>* x, int incx) {
+  return cublasCsscal(h, n, alpha, reinterpret_cast<cuComplex*>(x), incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, std::complex<double>* x, int incx) {
+  return cublasZdscal(h, n, alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
 }
 
 // DGMM wrappers: C = A * diag(x)  (side=RIGHT) or C = diag(x) * A  (side=LEFT).
