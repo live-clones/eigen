@@ -570,9 +570,15 @@ General non-symmetric. Same API as `gpu::SparseLLT` (without `UpLo`).
 ### `gpu::FFT<Scalar>` -- FFT (cuFFT)
 
 Plans cached by (size, type) and reused. Inverse transforms scaled so
-`inv(fwd(x)) == x`. Supported scalars: `float`, `double`.
+`inv(fwd(x)) == x`. Supported scalars: `float`, `double`. Stream and cuBLAS
+handle borrowed from a `gpu::Context` (default: `Context::threadLocal()`),
+so by default the FFT shares a stream with other GPU operations on the same
+thread.
 
 ```cpp
+gpu::FFT()                              // bind to Context::threadLocal()
+gpu::FFT(gpu::Context& ctx)             // bind to an explicit Context
+
 // 1D transforms (host vectors in and out)
 ComplexVector      fwd(const MatrixBase<D>& x)           // C2C forward (complex input)
 ComplexVector      fwd(const MatrixBase<D>& x)           // R2C forward (real input, returns n/2+1)
@@ -583,7 +589,8 @@ RealVector         invReal(const MatrixBase<D>& X, Index n)  // C2R inverse, sca
 ComplexMatrix      fwd2(const MatrixBase<D>& A)         // 2D C2C forward
 ComplexMatrix      inv2(const MatrixBase<D>& A)         // 2D C2C inverse, scaled by 1/(rows*cols)
 
-cudaStream_t       stream()
+cudaStream_t       stream()             // borrowed from the bound Context
+gpu::Context&      context()            // the bound Context
 ```
 
 All FFT methods accept host data and return host data. Upload/download is
@@ -650,7 +657,7 @@ dispatching to cuBLAS.
 | `GpuSVD.h` | `GpuSolverContext.h` | Dense SVD decomposition |
 | `GpuEigenSolver.h` | `GpuSolverContext.h` | Self-adjoint eigenvalue decomposition |
 | `CuFftSupport.h` | `GpuSupport.h`, `<cufft.h>` | cuFFT error macro, type-dispatch wrappers |
-| `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h` | 1D/2D FFT with plan caching |
+| `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h`, `GpuContext.h` | 1D/2D FFT with plan caching |
 | `CuSparseSupport.h` | `GpuSupport.h`, `<cusparse.h>` | cuSPARSE error macro |
 | `GpuSparseContext.h` | `CuSparseSupport.h` | SpMV/SpMM via cuSPARSE |
 | `CuDssSupport.h` | `GpuSupport.h`, `<cudss.h>` | cuDSS error macro, type traits (optional) |
