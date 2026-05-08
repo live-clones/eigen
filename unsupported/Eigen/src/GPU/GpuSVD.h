@@ -41,6 +41,7 @@ class SVD {
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using PlainVector = Eigen::Matrix<Scalar, Dynamic, 1>;
   using RealVector = Eigen::Matrix<RealScalar, Dynamic, 1>;
 
   SVD() = default;
@@ -470,17 +471,15 @@ class SVD {
     // For lambda == 0 we mirror Eigen's SVDBase::_solve_impl: drop singular
     // values below S(0) * k * eps (numerical-rank truncation), so this
     // pseudoinverse solve agrees with CPU BDCSVD::solve on near-singular A.
-    PlainMatrix D(kk, 1);  // dgmm wants the diagonal in matrix scalar type
+    // dgmm wants the diagonal in the matrix scalar type — for complex Scalar
+    // the diagonal is still real, so we build the real values then cast.
     const RealScalar drop_threshold = S(0) * RealScalar(k) * NumTraits<RealScalar>::epsilon();
-    for (Index i = 0; i < kk; ++i) {
-      const RealScalar si = S(i);
-      RealScalar di;
-      if (lambda == RealScalar(0)) {
-        di = (si > drop_threshold) ? RealScalar(1) / si : RealScalar(0);
-      } else {
-        di = si / (si * si + lambda * lambda);
-      }
-      D(i, 0) = Scalar(di);
+    auto S_head = S.head(kk).array();
+    PlainVector D(kk);
+    if (lambda == RealScalar(0)) {
+      D = (S_head > drop_threshold).select(S_head.inverse(), RealScalar(0)).matrix().template cast<Scalar>();
+    } else {
+      D = (S_head / (S_head.square() + lambda * lambda)).matrix().template cast<Scalar>();
     }
 
     internal::DeviceBuffer d_D(static_cast<size_t>(kk) * sizeof(Scalar));
