@@ -34,7 +34,7 @@
 
 #include "./CuFftSupport.h"
 #include "./CuBlasSupport.h"
-#include <map>
+#include <unordered_map>
 
 namespace Eigen {
 namespace gpu {
@@ -231,7 +231,7 @@ class FFT {
  private:
   cudaStream_t stream_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
-  std::map<int64_t, cufftHandle> plans_;
+  std::unordered_map<int64_t, cufftHandle> plans_;
   internal::DeviceBuffer d_in_;
   internal::DeviceBuffer d_out_;
   size_t d_in_size_ = 0;
@@ -250,11 +250,16 @@ class FFT {
     }
   }
 
-  // Plan key encoding: rank (1 bit) | type (4 bits) | dims
-  static int64_t plan_key_1d(int n, cufftType type) { return (int64_t(n) << 5) | (int64_t(type) << 1) | 0; }
+  // Plan key encoding: rank (1 bit) | type (4 bits) | dims.
+  // cufftType uses 7 bits; the top 3 (precision discriminator) are redundant
+  // here since Scalar fixes the precision per FFT instance, so mask to the
+  // low 4 bits to avoid bleeding into the dim field — without the mask,
+  // e.g. plan_key_1d(5, C2C) and plan_key_1d(7, C2C) collide.
+  static constexpr int64_t kTypeMask = 0xF;
+  static int64_t plan_key_1d(int n, cufftType type) { return (int64_t(n) << 5) | (int64_t(type & kTypeMask) << 1) | 0; }
 
   static int64_t plan_key_2d(int rows, int cols, cufftType type) {
-    return (int64_t(rows) << 35) | (int64_t(cols) << 5) | (int64_t(type) << 1) | 1;
+    return (int64_t(rows) << 35) | (int64_t(cols) << 5) | (int64_t(type & kTypeMask) << 1) | 1;
   }
 
   cufftHandle get_plan_1d(int n, cufftType type) {
@@ -285,23 +290,13 @@ class FFT {
   }
 
   // Scale complex array on device using cuBLAS scal.
-  void scale_device(Complex* d_ptr, int n, Scalar alpha) { scale_complex(cublas_, d_ptr, n, alpha); }
+  void scale_device(Complex* d_ptr, int n, Scalar alpha) {
+    EIGEN_CUBLAS_CHECK(internal::cublasXscal(cublas_, n, &alpha, d_ptr, 1));
+  }
 
   // Scale real array on device using cuBLAS scal.
-  void scale_device_real(Scalar* d_ptr, int n, Scalar alpha) { scale_real(cublas_, d_ptr, n, alpha); }
-
-  // Type-dispatched cuBLAS scal wrappers (C++14 compatible).
-  static void scale_complex(cublasHandle_t h, std::complex<float>* p, int n, float a) {
-    EIGEN_CUBLAS_CHECK(cublasCsscal(h, n, &a, reinterpret_cast<cuComplex*>(p), 1));
-  }
-  static void scale_complex(cublasHandle_t h, std::complex<double>* p, int n, double a) {
-    EIGEN_CUBLAS_CHECK(cublasZdscal(h, n, &a, reinterpret_cast<cuDoubleComplex*>(p), 1));
-  }
-  static void scale_real(cublasHandle_t h, float* p, int n, float a) {
-    EIGEN_CUBLAS_CHECK(cublasSscal(h, n, &a, p, 1));
-  }
-  static void scale_real(cublasHandle_t h, double* p, int n, double a) {
-    EIGEN_CUBLAS_CHECK(cublasDscal(h, n, &a, p, 1));
+  void scale_device_real(Scalar* d_ptr, int n, Scalar alpha) {
+    EIGEN_CUBLAS_CHECK(internal::cublasXscal(cublas_, n, &alpha, d_ptr, 1));
   }
 };
 
