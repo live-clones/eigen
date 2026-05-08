@@ -58,25 +58,32 @@ struct cudss_spd_type<std::complex<double>> {
   static constexpr cudssMatrixType_t value = CUDSS_MTYPE_HPD;
 };
 
-// ---- Scalar → cudssMatrixType_t for symmetric/Hermitian ---------------------
+// ---- Scalar → cudssMatrixType_t for symmetric (real) / Hermitian (complex) --
+// Real:    SYMMETRIC (A = A^T)
+// Complex: HERMITIAN (A = A^H)
+//
+// cuDSS also supports CUDSS_MTYPE_SYMMETRIC for complex matrices (A = A^T,
+// no conjugation), but the LDLT solver here matches Eigen's SimplicialLDLT
+// semantic, which is Hermitian for complex. Complex symmetric (non-Hermitian)
+// would need a separate trait + solver mode and is not currently exposed.
 
 template <typename Scalar>
-struct cudss_symmetric_type;
+struct cudss_hermitian_type;
 
 template <>
-struct cudss_symmetric_type<float> {
+struct cudss_hermitian_type<float> {
   static constexpr cudssMatrixType_t value = CUDSS_MTYPE_SYMMETRIC;
 };
 template <>
-struct cudss_symmetric_type<double> {
+struct cudss_hermitian_type<double> {
   static constexpr cudssMatrixType_t value = CUDSS_MTYPE_SYMMETRIC;
 };
 template <>
-struct cudss_symmetric_type<std::complex<float>> {
+struct cudss_hermitian_type<std::complex<float>> {
   static constexpr cudssMatrixType_t value = CUDSS_MTYPE_HERMITIAN;
 };
 template <>
-struct cudss_symmetric_type<std::complex<double>> {
+struct cudss_hermitian_type<std::complex<double>> {
   static constexpr cudssMatrixType_t value = CUDSS_MTYPE_HERMITIAN;
 };
 
@@ -122,14 +129,6 @@ struct cudss_view_type<Upper, RowMajor> {
 };
 
 }  // namespace internal
-
-// ---- Ordering enum ----------------------------------------------------------
-
-enum class GpuSparseOrdering {
-  AMD,    // Default fill-reducing ordering
-  METIS,  // METIS nested dissection
-  RCM     // Reverse Cuthill-McKee
-};
 
 }  // namespace gpu
 }  // namespace Eigen

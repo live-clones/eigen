@@ -218,7 +218,9 @@ round-tripping through host memory.
 ### Sparse direct solvers (cuDSS)
 
 Requires cuDSS (separate install, CUDA 12.0+). Define `EIGEN_CUDSS` before
-including `unsupported/Eigen/GPU` and link with `-lcudss`.
+including `unsupported/Eigen/GPU` and link with `-lcudss -lcublas`. cuBLAS
+is a runtime dependency of cuDSS and is also used by the rest of this
+module (`DeviceMatrix`).
 
 ```cpp
 SparseMatrix<double> A = ...;  // symmetric positive definite
@@ -550,7 +552,6 @@ gpu::SparseLLT(const SparseMatrixBase<D>& A)               // Analyze + factoriz
 gpu::SparseLLT&      analyzePattern(const SparseMatrixBase<D>& A)  // Symbolic analysis (reusable)
 gpu::SparseLLT&      factorize(const SparseMatrixBase<D>& A)       // Numeric factorization
 gpu::SparseLLT&      compute(const SparseMatrixBase<D>& A)         // analyzePattern + factorize
-void               setOrdering(GpuSparseOrdering ord)             // AMD (default), METIS, or RCM
 
 DenseMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 
@@ -636,6 +637,28 @@ dispatching to cuBLAS.
   GPU module roll-out (MRs !2408, !2412, !2413, !2414, !2415) is in users'
   hands; if the convenience overloads cause more confusion than they save,
   narrow toward a single explicit `fromHost` / `toHost` boundary.
+
+- **cuDSS configuration knobs.** cuDSS exposes settings for accuracy /
+  robustness (e.g. matching, pivoting) and execution mode (e.g. hybrid
+  memory, hybrid execute). The current bindings use cuDSS defaults, which
+  are tuned for performance rather than maximum robustness — for example,
+  matching is off by default. We don't expose configuration controls yet;
+  a follow-up should add a `gpu::SparseSolverConfig` (or per-solver
+  setters) covering at least matching, pivot threshold, and reordering
+  algorithm pass-through, and consider switching the defaults toward
+  robustness once exposed.
+
+- **cuDSS threading layer for host-side reordering.** As of cuDSS 0.7.1
+  fill-reducing reordering runs on the CPU. cuDSS supports a "threading
+  layer" plugin that parallelises this stage; for reordering-dominated
+  problems it can materially close the gap with multithreaded CPU sparse
+  direct solvers. We don't currently configure a threading layer.
+
+- **Complex symmetric (non-Hermitian) sparse LDL^T.** `gpu::SparseLDLT`
+  treats complex inputs as Hermitian (matching `Eigen::SimplicialLDLT`).
+  cuDSS also supports `CUDSS_MTYPE_SYMMETRIC` for complex matrices
+  (A = A^T, no conjugation); exposing this would need a separate solver
+  mode.
 
 ## File layout
 
