@@ -537,6 +537,8 @@ bool               ready()                               // Non-blocking poll
 
 Requires cuDSS (CUDA 12.0+, `#define EIGEN_CUDSS`). Three-phase workflow
 with symbolic reuse. Accepts `SparseMatrix<Scalar, ColMajor, int>` (CSC).
+Matrix dimensions and nonzero count must fit in `int` (cuDSS limitation;
+debug builds assert).
 
 ```cpp
 gpu::SparseLLT()                                           // Default construct
@@ -588,7 +590,8 @@ the input scalar type (complex vs real).
 ### `gpu::SparseContext<Scalar>` -- SpMV/SpMM (cuSPARSE)
 
 Accepts `SparseMatrix<Scalar, ColMajor>`. All methods accept host data and
-return host data.
+return host data. Matrix dimensions and nonzero count must fit in `int`
+(cuSPARSE limitation; debug builds assert).
 
 ```cpp
 gpu::SparseContext()                                       // Creates own stream + cuSPARSE handle
