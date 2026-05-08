@@ -15,6 +15,10 @@
 // Eigen SparseMatrix<Scalar, ColMajor> (CSC) and performs SpMV/SpMM on the
 // GPU. RowMajor input is implicitly converted to ColMajor.
 //
+// Thread safety: not thread-safe. Concurrent multiply* calls on a single
+// SparseContext race on the cuSPARSE handle, the bound stream, and the
+// cached device buffers. Use one SparseContext per thread.
+//
 // Usage:
 //   SparseContext<double> ctx;
 //   VectorXd y = ctx.multiply(A, x);                  // y = A * x

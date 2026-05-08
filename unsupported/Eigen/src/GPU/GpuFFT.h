@@ -18,6 +18,10 @@
 //
 // cuFFT plans are cached by (size, type) and reused across calls.
 //
+// Thread safety: not thread-safe. Concurrent fwd/inv calls on a single FFT
+// instance race on the cached plans, the cuBLAS handle, and the bound
+// stream. Use one FFT instance per thread.
+//
 // Usage:
 //   FFT<float> fft;
 //   VectorXcf X = fft.fwd(x);         // 1D C2C or R2C
@@ -255,10 +259,19 @@ class FFT {
   // here since Scalar fixes the precision per FFT instance, so mask to the
   // low 4 bits to avoid bleeding into the dim field — without the mask,
   // e.g. plan_key_1d(5, C2C) and plan_key_1d(7, C2C) collide.
+  // Bit budget for 2D: cols gets 30 bits (5..34), rows gets 29 bits (35..63).
+  // Asserts catch the (impractical but possible) case of dims overflowing
+  // the field width.
   static constexpr int64_t kTypeMask = 0xF;
+  static constexpr int kCols2DBits = 30;
+  static constexpr int kRows2DBits = 29;
   static int64_t plan_key_1d(int n, cufftType type) { return (int64_t(n) << 5) | (int64_t(type & kTypeMask) << 1) | 0; }
 
   static int64_t plan_key_2d(int rows, int cols, cufftType type) {
+    eigen_assert(rows >= 0 && int64_t(rows) < (int64_t(1) << kRows2DBits) &&
+                 "FFT plan rows exceed plan-key bit budget");
+    eigen_assert(cols >= 0 && int64_t(cols) < (int64_t(1) << kCols2DBits) &&
+                 "FFT plan cols exceed plan-key bit budget");
     return (int64_t(rows) << 35) | (int64_t(cols) << 5) | (int64_t(type & kTypeMask) << 1) | 1;
   }
 

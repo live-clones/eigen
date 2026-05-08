@@ -15,6 +15,11 @@
 // cudssMatrixType_t and cudssMatrixViewType_t passed to cuDSS.
 // This CRTP base implements the entire workflow; derived classes
 // provide the matrix type/view via static constexpr members.
+//
+// Thread safety: not thread-safe. Concurrent calls (including concurrent
+// solve() calls on the same instance, even though solve() is const) race
+// on the cuDSS handle, the bound stream, and the cached scratch buffers.
+// Use one solver instance per thread, matching Eigen::SimplicialLLT.
 
 #ifndef EIGEN_GPU_SPARSE_SOLVER_BASE_H
 #define EIGEN_GPU_SPARSE_SOLVER_BASE_H
@@ -188,20 +193,24 @@ class SparseSolverBase {
 
     if (n_ == 0) return DenseMatrix(0, rhs.cols());
 
+    // Reuse cached d_b / d_x scratch across solves: the documented use case
+    // (analyze once, factorize once, solve many) would otherwise pay
+    // cudaMalloc/cudaFree per solve. Descriptor creation is cheap by
+    // comparison and is recreated per call since nrhs can vary.
     const size_t rhs_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
-    DeviceBuffer d_b(rhs_bytes);
-    DeviceBuffer d_x(rhs_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_b.get(), rhs.data(), rhs_bytes, cudaMemcpyHostToDevice, stream_));
+    ensure_solve_buffer(d_b_solve_, d_b_solve_size_, rhs_bytes);
+    ensure_solve_buffer(d_x_solve_, d_x_solve_size_, rhs_bytes);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_b_solve_.get(), rhs.data(), rhs_bytes, cudaMemcpyHostToDevice, stream_));
 
     constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
     cudssMatrix_t b_cudss = nullptr, x_cudss = nullptr;
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&b_cudss, n_, nrhs, n_, d_b.get(), dtype, CUDSS_LAYOUT_COL_MAJOR));
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&x_cudss, n_, nrhs, n_, d_x.get(), dtype, CUDSS_LAYOUT_COL_MAJOR));
+    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&b_cudss, n_, nrhs, n_, d_b_solve_.get(), dtype, CUDSS_LAYOUT_COL_MAJOR));
+    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&x_cudss, n_, nrhs, n_, d_x_solve_.get(), dtype, CUDSS_LAYOUT_COL_MAJOR));
 
     EIGEN_CUDSS_CHECK(cudssExecute(handle_, CUDSS_PHASE_SOLVE, config_, data_, d_A_cudss_, x_cudss, b_cudss));
 
     DenseMatrix X(n_, rhs.cols());
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_x.get(), rhs_bytes, cudaMemcpyDeviceToHost, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_x_solve_.get(), rhs_bytes, cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
 
     EIGEN_CUDSS_CHECK(cudssMatrixDestroy(b_cudss));
@@ -236,6 +245,12 @@ class SparseSolverBase {
   DeviceBuffer d_colIdx_;
   DeviceBuffer d_values_;
 
+  // ---- Cached scratch for solve() (mutable so const solve() can grow them) --
+  mutable DeviceBuffer d_b_solve_;
+  mutable DeviceBuffer d_x_solve_;
+  mutable size_t d_b_solve_size_ = 0;
+  mutable size_t d_x_solve_size_ = 0;
+
   // ---- State ----------------------------------------------------------------
   int64_t n_ = 0;
   int64_t nnz_ = 0;
@@ -253,6 +268,14 @@ class SparseSolverBase {
     EIGEN_CUDSS_CHECK(cudssCreate(&handle_));
     EIGEN_CUDSS_CHECK(cudssSetStream(handle_, stream_));
     EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
+  }
+
+  void ensure_solve_buffer(DeviceBuffer& buf, size_t& current_size, size_t needed) const {
+    if (needed > current_size) {
+      if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+      buf = DeviceBuffer(needed);
+      current_size = needed;
+    }
   }
 
   void sync_info() const {
