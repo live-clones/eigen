@@ -10,8 +10,13 @@
 
 // GPU FFT via cuFFT.
 //
-// Standalone GPU FFT class with plan caching. Supports 1D and 2D transforms:
+// FFT class with plan caching. Supports 1D and 2D transforms:
 // C2C (complex-to-complex), R2C (real-to-complex), C2R (complex-to-real).
+//
+// Stream and cuBLAS handle come from a gpu::Context — the default
+// constructor binds to Context::threadLocal() so an FFT instance shares a
+// stream with other GPU operations on the same thread by default. Pass an
+// explicit Context to bind to a different stream.
 //
 // Inverse transforms are scaled by 1/n (1D) or 1/(n*m) (2D) so that
 // inv(fwd(x)) == x, matching Eigen's FFT convention.
@@ -19,16 +24,19 @@
 // cuFFT plans are cached by (size, type) and reused across calls.
 //
 // Thread safety: not thread-safe. Concurrent fwd/inv calls on a single FFT
-// instance race on the cached plans, the cuBLAS handle, and the bound
-// stream. Use one FFT instance per thread.
+// instance race on the cached plans and the bound Context. Use one FFT
+// instance per thread.
 //
 // Usage:
-//   FFT<float> fft;
-//   VectorXcf X = fft.fwd(x);         // 1D C2C or R2C
-//   VectorXcf y = fft.inv(X);         // 1D C2C inverse
-//   VectorXf  r = fft.invReal(X, n);  // 1D C2R inverse
+//   FFT<float> fft;                  // shares the thread-local Context
+//   VectorXcf X = fft.fwd(x);        // 1D C2C or R2C
+//   VectorXcf y = fft.inv(X);        // 1D C2C inverse
+//   VectorXf  r = fft.invReal(X, n); // 1D C2R inverse
 //   MatrixXcf B = fft.fwd2(A);       // 2D C2C forward
 //   MatrixXcf C = fft.inv2(B);       // 2D C2C inverse
+//
+//   gpu::Context ctx;
+//   FFT<float> fft2(ctx);            // shares ctx's stream/cuBLAS
 
 #ifndef EIGEN_GPU_FFT_H
 #define EIGEN_GPU_FFT_H
@@ -38,7 +46,8 @@
 
 #include "./CuFftSupport.h"
 #include "./CuBlasSupport.h"
-#include <map>
+#include "./GpuContext.h"
+#include <unordered_map>
 
 namespace Eigen {
 namespace gpu {
@@ -52,16 +61,15 @@ class FFT {
   using RealVector = Matrix<Scalar, Dynamic, 1>;
   using ComplexMatrix = Matrix<Complex, Dynamic, Dynamic, ColMajor>;
 
-  FFT() {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
-    EIGEN_CUBLAS_CHECK(cublasCreate(&cublas_));
-    EIGEN_CUBLAS_CHECK(cublasSetStream(cublas_, stream_));
-  }
+  /** Construct an FFT bound to the thread-local default Context. */
+  FFT() : ctx_(&Context::threadLocal()) {}
+
+  /** Construct an FFT bound to the given Context. The Context must outlive
+   * this FFT instance; this object only borrows its stream and cuBLAS handle. */
+  explicit FFT(Context& ctx) : ctx_(&ctx) {}
 
   ~FFT() {
     for (auto& kv : plans_) (void)cufftDestroy(kv.second);
-    if (cublas_) (void)cublasDestroy(cublas_);
-    if (stream_) (void)cudaStreamDestroy(stream_);
   }
 
   FFT(const FFT&) = delete;
@@ -70,16 +78,15 @@ class FFT {
   // ---- 1D Complex-to-Complex ------------------------------------------------
 
   /** Forward 1D C2C FFT. */
-  template <typename Derived>
-  ComplexVector fwd(const MatrixBase<Derived>& x,
-                    typename std::enable_if<NumTraits<typename Derived::Scalar>::IsComplex>::type* = nullptr) {
+  template <typename Derived, std::enable_if_t<NumTraits<typename Derived::Scalar>::IsComplex>* = nullptr>
+  ComplexVector fwd(const MatrixBase<Derived>& x) {
     const ComplexVector input(x.derived());
     const int n = static_cast<int>(input.size());
     if (n == 0) return ComplexVector(0);
 
     ensure_buffers(n * sizeof(Complex), n * sizeof(Complex));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_in_.get(), input.data(), n * sizeof(Complex), cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_in_.get(), input.data(), n * sizeof(Complex), cudaMemcpyHostToDevice, ctx_->stream()));
 
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecC2C_dispatch(plan, static_cast<Complex*>(d_in_.get()),
@@ -87,8 +94,8 @@ class FFT {
 
     ComplexVector result(n);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(result.data(), d_out_.get(), n * sizeof(Complex), cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+        cudaMemcpyAsync(result.data(), d_out_.get(), n * sizeof(Complex), cudaMemcpyDeviceToHost, ctx_->stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
 
@@ -102,28 +109,28 @@ class FFT {
 
     ensure_buffers(n * sizeof(Complex), n * sizeof(Complex));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_in_.get(), input.data(), n * sizeof(Complex), cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_in_.get(), input.data(), n * sizeof(Complex), cudaMemcpyHostToDevice, ctx_->stream()));
 
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecC2C_dispatch(plan, static_cast<Complex*>(d_in_.get()),
                                                       static_cast<Complex*>(d_out_.get()), CUFFT_INVERSE));
 
     // Scale by 1/n.
-    scale_device(static_cast<Complex*>(d_out_.get()), n, Scalar(1) / Scalar(n));
+    const Scalar inv_n = Scalar(1) / Scalar(n);
+    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, &inv_n, static_cast<Complex*>(d_out_.get()), 1));
 
     ComplexVector result(n);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(result.data(), d_out_.get(), n * sizeof(Complex), cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+        cudaMemcpyAsync(result.data(), d_out_.get(), n * sizeof(Complex), cudaMemcpyDeviceToHost, ctx_->stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
 
   // ---- 1D Real-to-Complex ---------------------------------------------------
 
   /** Forward 1D R2C FFT. Returns n/2+1 complex values (half-spectrum). */
-  template <typename Derived>
-  ComplexVector fwd(const MatrixBase<Derived>& x,
-                    typename std::enable_if<!NumTraits<typename Derived::Scalar>::IsComplex>::type* = nullptr) {
+  template <typename Derived, std::enable_if_t<!NumTraits<typename Derived::Scalar>::IsComplex>* = nullptr>
+  ComplexVector fwd(const MatrixBase<Derived>& x) {
     const RealVector input(x.derived());
     const int n = static_cast<int>(input.size());
     if (n == 0) return ComplexVector(0);
@@ -131,16 +138,16 @@ class FFT {
     const int n_complex = n / 2 + 1;
     ensure_buffers(n * sizeof(Scalar), n_complex * sizeof(Complex));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_in_.get(), input.data(), n * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_in_.get(), input.data(), n * sizeof(Scalar), cudaMemcpyHostToDevice, ctx_->stream()));
 
     cufftHandle plan = get_plan_1d(n, internal::cufft_r2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecR2C_dispatch(plan, static_cast<Scalar*>(d_in_.get()), static_cast<Complex*>(d_out_.get())));
 
     ComplexVector result(n_complex);
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(result.data(), d_out_.get(), n_complex * sizeof(Complex), cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(result.data(), d_out_.get(), n_complex * sizeof(Complex),
+                                             cudaMemcpyDeviceToHost, ctx_->stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
 
@@ -159,20 +166,21 @@ class FFT {
 
     ensure_buffers(n_complex * sizeof(Complex), n * sizeof(Scalar));
     // cuFFT C2R may overwrite the input, so we copy to d_in_.
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_in_.get(), input.data(), n_complex * sizeof(Complex), cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_in_.get(), input.data(), n_complex * sizeof(Complex),
+                                             cudaMemcpyHostToDevice, ctx_->stream()));
 
     cufftHandle plan = get_plan_1d(n, internal::cufft_c2r_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(
         internal::cufftExecC2R_dispatch(plan, static_cast<Complex*>(d_in_.get()), static_cast<Scalar*>(d_out_.get())));
 
     // Scale by 1/n.
-    scale_device_real(static_cast<Scalar*>(d_out_.get()), n, Scalar(1) / Scalar(n));
+    const Scalar inv_n = Scalar(1) / Scalar(n);
+    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx_->cublasHandle(), n, &inv_n, static_cast<Scalar*>(d_out_.get()), 1));
 
     RealVector result(n);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(result.data(), d_out_.get(), n * sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+        cudaMemcpyAsync(result.data(), d_out_.get(), n * sizeof(Scalar), cudaMemcpyDeviceToHost, ctx_->stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
 
@@ -189,15 +197,16 @@ class FFT {
 
     const size_t total = static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Complex);
     ensure_buffers(total, total);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_in_.get(), input.data(), total, cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_in_.get(), input.data(), total, cudaMemcpyHostToDevice, ctx_->stream()));
 
     cufftHandle plan = get_plan_2d(rows, cols, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecC2C_dispatch(plan, static_cast<Complex*>(d_in_.get()),
                                                       static_cast<Complex*>(d_out_.get()), CUFFT_FORWARD));
 
     ComplexMatrix result(rows, cols);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(result.data(), d_out_.get(), total, cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(result.data(), d_out_.get(), total, cudaMemcpyDeviceToHost, ctx_->stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
 
@@ -212,7 +221,7 @@ class FFT {
 
     const size_t total = static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(Complex);
     ensure_buffers(total, total);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_in_.get(), input.data(), total, cudaMemcpyHostToDevice, stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_in_.get(), input.data(), total, cudaMemcpyHostToDevice, ctx_->stream()));
 
     cufftHandle plan = get_plan_2d(rows, cols, internal::cufft_c2c_type<Scalar>::value);
     EIGEN_CUFFT_CHECK(internal::cufftExecC2C_dispatch(plan, static_cast<Complex*>(d_in_.get()),
@@ -220,22 +229,28 @@ class FFT {
 
     // Scale by 1/(rows*cols).
     const int total_elems = rows * cols;
-    scale_device(static_cast<Complex*>(d_out_.get()), total_elems, Scalar(1) / Scalar(total_elems));
+    const Scalar inv_total = Scalar(1) / Scalar(total_elems);
+    EIGEN_CUBLAS_CHECK(
+        internal::cublasXscal(ctx_->cublasHandle(), total_elems, &inv_total, static_cast<Complex*>(d_out_.get()), 1));
 
     ComplexMatrix result(rows, cols);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(result.data(), d_out_.get(), total, cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(result.data(), d_out_.get(), total, cudaMemcpyDeviceToHost, ctx_->stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
 
   // ---- Accessors ------------------------------------------------------------
 
-  cudaStream_t stream() const { return stream_; }
+  /** The CUDA stream borrowed from the bound Context. */
+  cudaStream_t stream() const { return ctx_->stream(); }
+
+  /** The Context this FFT is bound to. */
+  Context& context() const { return *ctx_; }
 
  private:
-  cudaStream_t stream_ = nullptr;
-  cublasHandle_t cublas_ = nullptr;
-  std::map<int64_t, cufftHandle> plans_;
+  Context* ctx_;
+  std::unordered_map<int64_t, cufftHandle> plans_;
   internal::DeviceBuffer d_in_;
   internal::DeviceBuffer d_out_;
   size_t d_in_size_ = 0;
@@ -243,12 +258,12 @@ class FFT {
 
   void ensure_buffers(size_t in_bytes, size_t out_bytes) {
     if (in_bytes > d_in_size_) {
-      if (d_in_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+      if (d_in_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
       d_in_ = internal::DeviceBuffer(in_bytes);
       d_in_size_ = in_bytes;
     }
     if (out_bytes > d_out_size_) {
-      if (d_out_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+      if (d_out_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
       d_out_ = internal::DeviceBuffer(out_bytes);
       d_out_size_ = out_bytes;
     }
@@ -278,7 +293,7 @@ class FFT {
 
     cufftHandle plan;
     EIGEN_CUFFT_CHECK(cufftPlan1d(&plan, n, type, /*batch=*/1));
-    EIGEN_CUFFT_CHECK(cufftSetStream(plan, stream_));
+    EIGEN_CUFFT_CHECK(cufftSetStream(plan, ctx_->stream()));
     plans_[key] = plan;
     return plan;
   }
@@ -293,19 +308,9 @@ class FFT {
     // to get the correct 2D transform.
     cufftHandle plan;
     EIGEN_CUFFT_CHECK(cufftPlan2d(&plan, cols, rows, type));
-    EIGEN_CUFFT_CHECK(cufftSetStream(plan, stream_));
+    EIGEN_CUFFT_CHECK(cufftSetStream(plan, ctx_->stream()));
     plans_[key] = plan;
     return plan;
-  }
-
-  // Scale complex array on device using cuBLAS scal.
-  void scale_device(Complex* d_ptr, int n, Scalar alpha) {
-    EIGEN_CUBLAS_CHECK(internal::cublasXscal(cublas_, n, &alpha, d_ptr, 1));
-  }
-
-  // Scale real array on device using cuBLAS scal.
-  void scale_device_real(Scalar* d_ptr, int n, Scalar alpha) {
-    EIGEN_CUBLAS_CHECK(internal::cublasXscal(cublas_, n, &alpha, d_ptr, 1));
   }
 };
 
