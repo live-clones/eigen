@@ -26,7 +26,7 @@ code changes and without learning CUDA library APIs directly.
 
 **CPU and GPU coexist.** There is no global compile-time switch that replaces
 CPU implementations (unlike `EIGEN_USE_LAPACKE`). Users choose GPU solvers
-explicitly -- `gpu::LLT<double>` vs `Eigen::LLT<MatrixXd>` -- and both coexist in
+explicitly -- `gpu::LLT<double>` vs `LLT<MatrixXd>` -- and both coexist in
 the same binary. This also lets users keep the factored matrix on device across
 multiple solves, something impossible with compile-time replacement.
 
@@ -167,10 +167,43 @@ MatrixXd X2 = d_X2.toHost();
 gpu::LU<double> lu;
 lu.compute(d_A);
 auto d_Y = lu.solve(d_B, gpu::GpuOp::Trans);           // A^T Y = B
+
+// QR solve (overdetermined least squares)
+gpu::QR<double> qr(A);                // host matrix input
+MatrixXd X = qr.solve(B);           // Q^H * B via ormqr, then trsm on R
+
+// SVD
+gpu::SVD<double> svd(A, ComputeThinU | ComputeThinV);
+VectorXd S = svd.singularValues();
+MatrixXd U = svd.matrixU();
+MatrixXd VT = svd.matrixVT();
+MatrixXd X = svd.solve(B);          // pseudoinverse solve
+
+// SVD: device-side views (no D2H transfer; svd must outlive the views)
+auto d_S = svd.d_singularValues();   // DeviceMatrix view of singular values
+auto d_U = svd.d_matrixU();          // DeviceMatrix view of U
+auto d_VT = svd.d_matrixVT();        // DeviceMatrix view of V^T
+
+// Self-adjoint eigenvalue decomposition
+gpu::SelfAdjointEigenSolver<double> es(A);
+VectorXd eigenvals = es.eigenvalues();
+MatrixXd eigenvecs = es.eigenvectors();
+auto d_W = es.d_eigenvalues();        // DeviceMatrix view of eigenvalues
+auto d_V = es.d_eigenvectors();       // DeviceMatrix view of eigenvectors
 ```
 
 The cached API keeps the factored matrix on device, avoiding redundant
-host-device transfers and re-factorizations.
+host-device transfers and re-factorizations. The `d_*` accessors return
+non-owning `DeviceMatrix` views so downstream cuBLAS/cuSOLVER work can chain
+without round-tripping through host memory.
+
+### Precision control
+
+GEMM dispatch uses `cublasXgemm` (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
+cuBLAS may internally use tensor cores depending on the GPU architecture,
+matrix dimensions, and CUDA math mode settings. No Eigen-specific macros
+control this; use the standard `CUDA_MATH_MODE` environment variable or
+`cublasSetMathMode()` to configure tensor core behavior if needed.
 
 ### Stream control and async execution
 
@@ -221,15 +254,15 @@ h_x.get();                             // sync: factor + result complete
 
 | DeviceMatrix expression | Library call | Parameters |
 |---|---|---|
-| `C = A * B` | `cublasGemmEx` | transA=N, transB=N, alpha=1, beta=0 |
-| `C = A.adjoint() * B` | `cublasGemmEx` | transA=C, transB=N |
-| `C = A.transpose() * B` | `cublasGemmEx` | transA=T, transB=N |
-| `C = A * B.adjoint()` | `cublasGemmEx` | transA=N, transB=C |
-| `C = A * B.transpose()` | `cublasGemmEx` | transA=N, transB=T |
-| `C = alpha * A * B` | `cublasGemmEx` | alpha from LHS |
-| `C = A * (alpha * B)` | `cublasGemmEx` | alpha from RHS |
-| `C += A * B` | `cublasGemmEx` | alpha=1, beta=1 |
-| `C.device(ctx) -= A * B` | `cublasGemmEx` | alpha=-1, beta=1 |
+| `C = A * B` | `cublasXgemm` | transA=N, transB=N, alpha=1, beta=0 |
+| `C = A.adjoint() * B` | `cublasXgemm` | transA=C, transB=N |
+| `C = A.transpose() * B` | `cublasXgemm` | transA=T, transB=N |
+| `C = A * B.adjoint()` | `cublasXgemm` | transA=N, transB=C |
+| `C = A * B.transpose()` | `cublasXgemm` | transA=N, transB=T |
+| `C = alpha * A * B` | `cublasXgemm` | alpha from LHS |
+| `C = A * (alpha * B)` | `cublasXgemm` | alpha from RHS |
+| `C += A * B` | `cublasXgemm` | alpha=1, beta=1 |
+| `C.device(ctx) -= A * B` | `cublasXgemm` | alpha=-1, beta=1 |
 | `X = A.llt().solve(B)` | `cusolverDnXpotrf` + `Xpotrs` | uplo, n, nrhs |
 | `X = A.llt<Upper>().solve(B)` | same | uplo=Upper |
 | `X = A.lu().solve(B)` | `cusolverDnXgetrf` + `Xgetrs` | n, nrhs |
@@ -244,7 +277,9 @@ h_x.get();                             // sync: factor + result complete
 | `DeviceMatrix()` | -- | Empty (0x0) |
 | `DeviceMatrix(rows, cols)` | -- | Allocate uninitialized |
 | `fromHost(matrix, stream)` | yes | Upload from Eigen matrix |
-| `fromHostAsync(ptr, rows, cols, outerStride, stream)` | no | Async upload (caller manages lifetime) |
+| `fromHostAsync(ptr, rows, cols, stream)` | no | Async upload (caller manages lifetime) |
+| `adopt(ptr, rows, cols)` | -- | Owning wrapper over a device pointer (caller relinquishes ownership) |
+| `view(ptr, rows, cols)` | -- | Non-owning view over a device pointer (does not free on destruction) |
 | `toHost(stream)` | yes | Synchronous download |
 | `toHostAsync(stream)` | no | Returns `HostTransfer` future |
 | `clone(stream)` | no | Device-to-device deep copy |
@@ -295,6 +330,76 @@ GPU dense Cholesky (LL^T) via cuSOLVER. Caches factor on device.
 GPU dense partial-pivoting LU via cuSOLVER. Same pattern as `gpu::LLT`, plus a
 `gpu::GpuOp` parameter on `solve()` (`NoTrans`, `Trans`, `ConjTrans`).
 
+### `gpu::QR<Scalar>` API
+
+GPU dense QR decomposition via cuSOLVER (`geqrf`). Solve uses `ormqr` (apply
+Q^H) + `trsm` (back-substitute on R) -- Q is never formed explicitly.
+
+| Method | Description |
+|--------|-------------|
+| `gpu::QR()` | Default construct, then call `compute()` |
+| `gpu::QR(A)` | Construct and factorize from host matrix |
+| `compute(A)` | Upload + factorize |
+| `compute(DeviceMatrix)` | D2D copy + factorize |
+| `solve(host_matrix)` | Solve, return host matrix (syncs) |
+| `solve(DeviceMatrix)` | Solve, return `DeviceMatrix` (async) |
+| `matrixR()` | Download upper-triangular factor R to host (m >= n only) |
+| `info()` | Lazy sync |
+| `rows()`, `cols()`, `stream()` | Dimensions and CUDA stream |
+
+### `gpu::SVD<Scalar>` API
+
+GPU dense SVD via cuSOLVER (`gesvd`). Supports thin, full, and values-only
+modes via Eigen's `ComputeThinU | ComputeThinV`, `ComputeFullU | ComputeFullV`,
+or `0` (values only).
+
+| Method | Description |
+|--------|-------------|
+| `gpu::SVD()` | Default construct, then call `compute()` |
+| `gpu::SVD(A, options)` | Construct and compute (options default: `ComputeThinU \| ComputeThinV`) |
+| `compute(A, options)` | Compute from host matrix |
+| `compute(DeviceMatrix, options)` | Compute from device matrix |
+| `singularValues()` | Download singular values to host |
+| `matrixU()` | Download U to host (requires `ComputeThinU` or `ComputeFullU`) |
+| `matrixV()` | Download V to host (matches `JacobiSVD::matrixV()`) |
+| `matrixVT()` | Download V^T to host (requires `ComputeThinV` or `ComputeFullV`) |
+| `d_singularValues()` | `DeviceMatrix` view of singular values (zero-copy) |
+| `d_matrixU()` | `DeviceMatrix` view of U (zero-copy when m >= n) |
+| `d_matrixVT()` | `DeviceMatrix` view of V^T (zero-copy when m >= n) |
+| `solve(B)` | Pseudoinverse solve (returns host matrix) |
+| `solve(B, k)` | Truncated solve (top k singular triplets) |
+| `solve(B, lambda)` | Tikhonov regularized solve |
+| `rank(threshold)` | Count singular values above threshold |
+| `info()` | Lazy sync |
+| `rows()`, `cols()`, `stream()` | Dimensions and CUDA stream |
+
+Wide matrices (m < n) are handled by internally transposing via cuBLAS `geam`;
+in that case `d_matrixU()` and `d_matrixVT()` allocate an owning result via a
+single `cublasXgeam` adjoint pass. `d_singularValues()` is always zero-copy.
+
+### `gpu::SelfAdjointEigenSolver<Scalar>` API
+
+GPU symmetric/Hermitian eigenvalue decomposition via cuSOLVER (`syevd`).
+
+| Method | Description |
+|--------|-------------|
+| `gpu::SelfAdjointEigenSolver()` | Default construct, then call `compute()` |
+| `gpu::SelfAdjointEigenSolver(A, mode)` | Construct and compute (mode default: `ComputeEigenvectors`) |
+| `compute(A, mode)` | Compute from host matrix |
+| `compute(DeviceMatrix, mode)` | Compute from device matrix |
+| `eigenvalues()` | Download eigenvalues to host (ascending order) |
+| `eigenvectors()` | Download eigenvectors to host (columns) |
+| `d_eigenvalues()` | `DeviceMatrix` view of eigenvalues (zero-copy) |
+| `d_eigenvectors()` | `DeviceMatrix` view of eigenvectors (zero-copy, requires `ComputeEigenvectors`) |
+| `info()` | Lazy sync |
+| `rows()`, `cols()`, `stream()` | Dimensions and CUDA stream |
+
+`ComputeMode`: `gpu::SelfAdjointEigenSolver::EigenvaluesOnly` or
+`gpu::SelfAdjointEigenSolver::ComputeEigenvectors`.
+
+The `d_*` accessors return non-owning views into the solver's internal device
+buffers; the solver must outlive any view derived from it.
+
 ### `HostTransfer<Scalar>` API
 
 Future for async device-to-host transfer.
@@ -313,6 +418,18 @@ The caller must ensure operands don't alias the destination for GEMM, TRSM,
 SYMM/HEMM, and SYRK/HERK. Debug builds assert on these violations before
 dispatching to cuBLAS.
 
+## Future work
+
+- **Reassess host-input vs. device-input API surface.** Each solver currently
+  exposes both host-input (`compute(MatrixXd)`, `solve(MatrixXd)`) and
+  device-input (`compute(DeviceMatrix)`, `solve(DeviceMatrix)`) overloads, plus
+  host- and device-side accessors (`matrixU()` vs `d_matrixU()`). This eases
+  migration from CPU Eigen but may invite accidental host ↔ device round-trips
+  when users mix the two without realising the cost. Revisit after the initial
+  GPU module roll-out (MRs !2408, !2412, !2413, !2414, !2415) is in users'
+  hands; if the convenience overloads cause more confusion than they save,
+  narrow toward a single explicit `fromHost` / `toHost` boundary.
+
 ## File layout
 
 | File | Depends on | Contents |
@@ -326,8 +443,12 @@ dispatching to cuBLAS.
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>` | cuBLAS error macro, op/compute type maps |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
-| `GpuLLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
-| `GpuLU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
+| `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Shared solver context (stream, handles, scratch) |
+| `GpuLLT.h` | `GpuSolverContext.h` | Cached dense Cholesky factorization |
+| `GpuLU.h` | `GpuSolverContext.h` | Cached dense LU factorization |
+| `GpuQR.h` | `GpuSolverContext.h` | Dense QR decomposition |
+| `GpuSVD.h` | `GpuSolverContext.h` | Dense SVD decomposition |
+| `GpuEigenSolver.h` | `GpuSolverContext.h` | Self-adjoint eigenvalue decomposition |
 
 ## Building and testing
 
@@ -336,7 +457,8 @@ cmake -G Ninja -B build -S . \
   -DEIGEN_TEST_CUDA=ON \
   -DEIGEN_CUDA_COMPUTE_ARCH="70"
 
-cmake --build build --target cublas cusolver_llt cusolver_lu device_matrix
+cmake --build build --target cublas cusolver_llt cusolver_lu \
+  cusolver_qr cusolver_svd cusolver_eigen device_matrix
 ctest --test-dir build -L gpu --output-on-failure
 ```
 
