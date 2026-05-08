@@ -17,10 +17,12 @@
 //
 // Usage:
 //   SparseContext<double> ctx;
-//   VectorXd y = ctx.multiply(A, x);           // y = A * x
-//   ctx.multiply(A, x, y, 2.0, 1.0);           // y = 2*A*x + y
-//   VectorXd z = ctx.multiplyT(A, x);          // z = A^T * x
-//   MatrixXd Y = ctx.multiplyMat(A, X);        // Y = A * X (multiple RHS)
+//   VectorXd y = ctx.multiply(A, x);                  // y = A * x
+//   ctx.multiply(A, x, y, 2.0, 1.0);                  // y = 2*A*x + y
+//   ctx.multiply(A, x, y, 1.0, 0.0, gpu::GpuOp::ConjTrans);  // y = A^H * x
+//   VectorXd z = ctx.multiplyT(A, x);                 // z = A^T * x
+//   VectorXcd w = ctx.multiplyAdjoint(A, x);          // w = A^H * x (complex)
+//   MatrixXd Y = ctx.multiplyMat(A, X);               // Y = A * X (multiple RHS)
 
 #ifndef EIGEN_GPU_SPARSE_CONTEXT_H
 #define EIGEN_GPU_SPARSE_CONTEXT_H
@@ -75,12 +77,11 @@ class SparseContext {
   /** Compute y = alpha * op(A) * x + beta * y (in-place). */
   template <typename InputType, typename Rhs, typename Dest>
   void multiply(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x, MatrixBase<Dest>& y,
-                Scalar alpha = Scalar(1), Scalar beta = Scalar(0),
-                cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE) {
+                Scalar alpha = Scalar(1), Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) {
     const InputType& input = A.derived();
     check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
     const SpMat mat(input);
-    multiply_impl(mat, x.derived(), y.derived(), alpha, beta, op);
+    multiply_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op(op));
   }
 
   // ---- SpMV transpose: y = A^T * x -----------------------------------------
@@ -97,23 +98,40 @@ class SparseContext {
     return y;
   }
 
-  // ---- SpMM: Y = A * X (multiple RHS) --------------------------------------
+  // ---- SpMV adjoint: y = A^H * x -------------------------------------------
 
-  /** Compute Y = A * X where X is a dense matrix (multiple RHS). Returns Y. */
+  /** Compute y = A^H * x (conjugate transpose). For real Scalar this is equivalent to multiplyT. */
   template <typename InputType, typename Rhs>
-  DenseMatrix multiplyMat(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& X) {
+  DenseVector multiplyAdjoint(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
+    const InputType& input = A.derived();
+    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
+    const SpMat mat(input);
+    DenseVector y(mat.cols());
+    y.setZero();
+    multiply_impl(mat, x.derived(), y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE);
+    return y;
+  }
+
+  // ---- SpMM: Y = op(A) * X (multiple RHS) ----------------------------------
+
+  /** Compute Y = op(A) * X where X is a dense matrix (multiple RHS). Returns Y. */
+  template <typename InputType, typename Rhs>
+  DenseMatrix multiplyMat(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& X, GpuOp op = GpuOp::NoTrans) {
     const InputType& input = A.derived();
     check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
     const SpMat mat(input);
     const DenseMatrix rhs(X.derived());
-    eigen_assert(mat.cols() == rhs.rows());
 
-    const Index m = mat.rows();
+    const cusparseOperation_t cu_op = internal::to_cusparse_op(op);
+    const Index m = (op == GpuOp::NoTrans) ? mat.rows() : mat.cols();
+    const Index k = (op == GpuOp::NoTrans) ? mat.cols() : mat.rows();
+    eigen_assert(k == rhs.rows());
+
     const Index n = rhs.cols();
     if (m == 0 || n == 0 || mat.nonZeros() == 0) return DenseMatrix::Zero(m, n);
 
     DenseMatrix Y = DenseMatrix::Zero(m, n);
-    spmm_impl(mat, rhs, Y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_NON_TRANSPOSE);
+    spmm_impl(mat, rhs, Y, Scalar(1), Scalar(0), cu_op);
     return Y;
   }
 

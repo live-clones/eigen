@@ -26,12 +26,6 @@
 
 namespace Eigen {
 namespace gpu {
-
-// ---- Operation enum ---------------------------------------------------------
-// Public flag for transpose/adjoint in BLAS- and solver-style calls.
-
-enum class GpuOp { NoTrans, Trans, ConjTrans };
-
 namespace internal {
 
 // ---- Error-checking macro ---------------------------------------------------

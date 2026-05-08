@@ -259,8 +259,8 @@ VectorXcf R = fft.fwd(r);           // returns n/2+1 complex (half-spectrum)
 VectorXf  s = fft.invReal(R, n);    // C2R inverse, caller specifies n
 
 // 2D complex-to-complex
-MatrixXcf B = fft.fwd2d(A);         // 2D forward
-MatrixXcf C = fft.inv2d(B);         // 2D inverse (scaled by 1/(rows*cols))
+MatrixXcf B = fft.fwd2(A);         // 2D forward
+MatrixXcf C = fft.inv2(B);         // 2D inverse (scaled by 1/(rows*cols))
 
 // Plans are cached and reused across calls with the same size/type.
 ```
@@ -275,9 +275,12 @@ gpu::SparseContext<double> ctx;
 VectorXd y = ctx.multiply(A, x);            // y = A * x
 VectorXd z = ctx.multiplyT(A, x);           // z = A^T * x
 ctx.multiply(A, x, y, 2.0, 1.0);            // y = 2*A*x + y
+ctx.multiply(A, x, y, 1.0, 0.0,             // y = A^H * x (Hermitian SpMV)
+             gpu::GpuOp::ConjTrans);
 
 // Multiple RHS (SpMM)
-MatrixXd Y = ctx.multiplyMat(A, X);         // Y = A * X
+MatrixXd Y = ctx.multiplyMat(A, X);                       // Y = A * X
+MatrixXd Z = ctx.multiplyMat(A, X, gpu::GpuOp::Trans);    // Z = A^T * X
 ```
 
 ### Precision control
@@ -577,8 +580,8 @@ ComplexVector      inv(const MatrixBase<D>& X)           // C2C inverse, scaled 
 RealVector         invReal(const MatrixBase<D>& X, Index n)  // C2R inverse, scaled by 1/n
 
 // 2D transforms (host matrices in and out)
-ComplexMatrix      fwd2d(const MatrixBase<D>& A)         // 2D C2C forward
-ComplexMatrix      inv2d(const MatrixBase<D>& A)         // 2D C2C inverse, scaled by 1/(rows*cols)
+ComplexMatrix      fwd2(const MatrixBase<D>& A)         // 2D C2C forward
+ComplexMatrix      inv2(const MatrixBase<D>& A)         // 2D C2C inverse, scaled by 1/(rows*cols)
 
 cudaStream_t       stream()
 ```
@@ -598,9 +601,10 @@ gpu::SparseContext()                                       // Creates own stream
 
 DenseVector        multiply(A, x)                                       // y = A * x
 void               multiply(A, x, y, alpha=1, beta=0,                   // y = alpha*op(A)*x + beta*y
-                     op=CUSPARSE_OPERATION_NON_TRANSPOSE)
+                     op=GpuOp::NoTrans)
 DenseVector        multiplyT(A, x)                                      // y = A^T * x
-DenseMatrix        multiplyMat(A, X)                                    // Y = A * X (SpMM)
+DenseVector        multiplyAdjoint(A, x)                                // y = A^H * x
+DenseMatrix        multiplyMat(A, X, op=GpuOp::NoTrans)                 // Y = op(A) * X (SpMM)
 
 cudaStream_t       stream()
 ```

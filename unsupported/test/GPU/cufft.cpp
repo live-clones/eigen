@@ -97,7 +97,7 @@ void test_r2c_roundtrip(Index n) {
   VERIFY((s - r).norm() / r.norm() < tol);
 }
 
-// ---- 2D C2C roundtrip: inv2d(fwd2d(A)) ≈ A ---------------------------------
+// ---- 2D C2C roundtrip: inv2(fwd2(A)) ≈ A ---------------------------------
 
 template <typename Scalar>
 void test_2d_roundtrip(Index rows, Index cols) {
@@ -108,11 +108,11 @@ void test_2d_roundtrip(Index rows, Index cols) {
   Mat A = Mat::Random(rows, cols);
 
   gpu::FFT<Scalar> fft;
-  Mat B = fft.fwd2d(A);
+  Mat B = fft.fwd2(A);
   VERIFY_IS_EQUAL(B.rows(), rows);
   VERIFY_IS_EQUAL(B.cols(), cols);
 
-  Mat C = fft.inv2d(B);
+  Mat C = fft.inv2(B);
   VERIFY_IS_EQUAL(C.rows(), rows);
   VERIFY_IS_EQUAL(C.cols(), cols);
 
@@ -132,7 +132,7 @@ void test_2d_constant() {
   Mat A = Mat::Constant(rows, cols, Complex(2.0, 0.0));
 
   gpu::FFT<Scalar> fft;
-  Mat B = fft.fwd2d(A);
+  Mat B = fft.fwd2(A);
 
   // 2D FFT of constant c: B(0,0) = c*rows*cols, all others = 0.
   RealScalar tol = RealScalar(10) * NumTraits<Scalar>::epsilon() * RealScalar(rows * cols);

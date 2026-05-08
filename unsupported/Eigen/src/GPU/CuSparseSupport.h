@@ -30,6 +30,17 @@ namespace internal {
     EIGEN_UNUSED_VARIABLE(_s);                                                  \
   } while (0)
 
+constexpr cusparseOperation_t to_cusparse_op(GpuOp op) {
+  switch (op) {
+    case GpuOp::Trans:
+      return CUSPARSE_OPERATION_TRANSPOSE;
+    case GpuOp::ConjTrans:
+      return CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE;
+    default:
+      return CUSPARSE_OPERATION_NON_TRANSPOSE;
+  }
+}
+
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen

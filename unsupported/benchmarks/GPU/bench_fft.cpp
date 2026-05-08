@@ -135,10 +135,10 @@ static void BM_GpuFFT_2D_C2C_Fwd(benchmark::State& state) {
   gpu::FFT<Scalar> fft;
 
   // Warm up plan.
-  CMat tmp = fft.fwd2d(A);
+  CMat tmp = fft.fwd2(A);
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(fft.fwd2d(A));
+    benchmark::DoNotOptimize(fft.fwd2(A));
   }
   state.SetItemsProcessed(state.iterations() * n * n);
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Complex) * 2);
@@ -157,11 +157,11 @@ static void BM_GpuFFT_2D_C2C_Roundtrip(benchmark::State& state) {
   gpu::FFT<Scalar> fft;
 
   // Warm up plans.
-  CMat tmp = fft.inv2d(fft.fwd2d(A));
+  CMat tmp = fft.inv2(fft.fwd2(A));
 
   for (auto _ : state) {
-    CMat B = fft.fwd2d(A);
-    benchmark::DoNotOptimize(fft.inv2d(B));
+    CMat B = fft.fwd2(A);
+    benchmark::DoNotOptimize(fft.inv2(B));
   }
   state.SetItemsProcessed(state.iterations() * n * n * 2);  // fwd + inv
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Complex) * 4);

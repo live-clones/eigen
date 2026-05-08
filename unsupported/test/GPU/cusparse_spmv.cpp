@@ -127,6 +127,26 @@ void test_spmv_transpose(Index rows, Index cols) {
   VERIFY((y_gpu - y_cpu).norm() / (y_cpu.norm() + RealScalar(1)) < tol);
 }
 
+// ---- SpMV adjoint: y = A^H * x ----------------------------------------------
+
+template <typename Scalar>
+void test_spmv_adjoint(Index rows, Index cols) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(rows, cols);
+  Vec x = Vec::Random(rows);
+
+  gpu::SparseContext<Scalar> ctx;
+  Vec y_gpu = ctx.multiplyAdjoint(A, x);
+  Vec y_cpu = A.adjoint() * x;
+
+  RealScalar tol = RealScalar(10) * RealScalar((std::max)(rows, cols)) * NumTraits<Scalar>::epsilon();
+  VERIFY_IS_EQUAL(y_gpu.size(), cols);
+  VERIFY((y_gpu - y_cpu).norm() / (y_cpu.norm() + RealScalar(1)) < tol);
+}
+
 // ---- SpMM: Y = A * X (multiple RHS) ----------------------------------------
 
 template <typename Scalar>
@@ -144,6 +164,27 @@ void test_spmm(Index rows, Index cols, Index nrhs) {
 
   RealScalar tol = RealScalar(10) * RealScalar((std::max)(rows, cols)) * NumTraits<Scalar>::epsilon();
   VERIFY_IS_EQUAL(Y_gpu.rows(), rows);
+  VERIFY_IS_EQUAL(Y_gpu.cols(), nrhs);
+  VERIFY((Y_gpu - Y_cpu).norm() / (Y_cpu.norm() + RealScalar(1)) < tol);
+}
+
+// ---- SpMM transpose: Y = A^T * X --------------------------------------------
+
+template <typename Scalar>
+void test_spmm_transpose(Index rows, Index cols, Index nrhs) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(rows, cols);
+  Mat X = Mat::Random(rows, nrhs);
+
+  gpu::SparseContext<Scalar> ctx;
+  Mat Y_gpu = ctx.multiplyMat(A, X, gpu::GpuOp::Trans);
+  Mat Y_cpu = A.transpose() * X;
+
+  RealScalar tol = RealScalar(10) * RealScalar((std::max)(rows, cols)) * NumTraits<Scalar>::epsilon();
+  VERIFY_IS_EQUAL(Y_gpu.rows(), cols);
   VERIFY_IS_EQUAL(Y_gpu.cols(), nrhs);
   VERIFY((Y_gpu - Y_cpu).norm() / (Y_cpu.norm() + RealScalar(1)) < tol);
 }
@@ -215,7 +256,9 @@ void test_scalar() {
   CALL_SUBTEST(test_spmv<Scalar>(64, 128));  // wide
   CALL_SUBTEST(test_spmv_alpha_beta<Scalar>(64));
   CALL_SUBTEST(test_spmv_transpose<Scalar>(128, 64));
+  CALL_SUBTEST(test_spmv_adjoint<Scalar>(128, 64));
   CALL_SUBTEST(test_spmm<Scalar>(64, 64, 4));
+  CALL_SUBTEST(test_spmm_transpose<Scalar>(128, 64, 4));
   CALL_SUBTEST(test_identity<Scalar>(64));
   CALL_SUBTEST(test_reuse<Scalar>(64));
   CALL_SUBTEST(test_empty<Scalar>());

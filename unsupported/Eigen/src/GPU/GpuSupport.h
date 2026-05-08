@@ -28,6 +28,14 @@
 
 namespace Eigen {
 namespace gpu {
+
+// ---- Generic operation flag -------------------------------------------------
+// Public flag for transpose/adjoint in BLAS-, solver-, and sparse-style calls.
+// Each library's support header maps this to its own enum (cublasOperation_t,
+// cusparseOperation_t, etc.) via a small to_<lib>_op() helper.
+
+enum class GpuOp { NoTrans, Trans, ConjTrans };
+
 namespace internal {
 
 // ---- Error-checking macros --------------------------------------------------

@@ -23,8 +23,8 @@
 //   VectorXcf X = fft.fwd(x);         // 1D C2C or R2C
 //   VectorXcf y = fft.inv(X);         // 1D C2C inverse
 //   VectorXf  r = fft.invReal(X, n);  // 1D C2R inverse
-//   MatrixXcf B = fft.fwd2d(A);       // 2D C2C forward
-//   MatrixXcf C = fft.inv2d(B);       // 2D C2C inverse
+//   MatrixXcf B = fft.fwd2(A);       // 2D C2C forward
+//   MatrixXcf C = fft.inv2(B);       // 2D C2C inverse
 
 #ifndef EIGEN_GPU_FFT_H
 #define EIGEN_GPU_FFT_H
@@ -176,8 +176,8 @@ class FFT {
 
   /** Forward 2D C2C FFT. Input and output are rows x cols complex matrices. */
   template <typename Derived>
-  ComplexMatrix fwd2d(const MatrixBase<Derived>& A) {
-    static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "fwd2d() requires complex input");
+  ComplexMatrix fwd2(const MatrixBase<Derived>& A) {
+    static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "fwd2() requires complex input");
     const ComplexMatrix input(A.derived());
     const int rows = static_cast<int>(input.rows());
     const int cols = static_cast<int>(input.cols());
@@ -199,8 +199,8 @@ class FFT {
 
   /** Inverse 2D C2C FFT. Scaled by 1/(rows*cols). */
   template <typename Derived>
-  ComplexMatrix inv2d(const MatrixBase<Derived>& A) {
-    static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "inv2d() requires complex input");
+  ComplexMatrix inv2(const MatrixBase<Derived>& A) {
+    static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "inv2() requires complex input");
     const ComplexMatrix input(A.derived());
     const int rows = static_cast<int>(input.rows());
     const int cols = static_cast<int>(input.cols());
