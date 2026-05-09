@@ -30,7 +30,6 @@ set(Eigen_HEADERS
   StructuredMatrices
   Tensor
   TensorSymmetry
-  ThreadPool
   )
 
 if(EIGEN_INSTALL)
