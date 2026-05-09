@@ -1,6 +1,10 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
+# When adding a new umbrella header here, also add a corresponding
+# forwarding shim under unsupported/Eigen/ (and update the
+# Eigen_LegacyShim_HEADERS list in unsupported/Eigen/CMakeLists.txt) so
+# the legacy <unsupported/Eigen/...> include path keeps working.
 set(Eigen_HEADERS
   AdolcForward
   AlignedVector3
