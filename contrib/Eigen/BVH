@@ -26,7 +26,7 @@ namespace Eigen {
   *
   *
   * \code
-  * #include <unsupported/Eigen/BVH>
+  * #include <contrib/Eigen/BVH>
   * \endcode
   *
   * A bounding volume hierarchy (BVH) can accelerate many geometric queries.  This module provides a generic
