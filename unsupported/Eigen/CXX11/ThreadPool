@@ -4,15 +4,14 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 //
-// Forwarding header: the top-level unsupported/ directory was renamed
-// to contrib/ in Eigen 5.x, and the CXX11/ subdirectory no longer
-// exists at the new location. New code should use
-//   #include <contrib/Eigen/ThreadPool>
+// Forwarding header: ThreadPool was promoted to a core Eigen module in
+// Eigen 5.x. New code should use
+//   #include <Eigen/ThreadPool>
 // directly. This shim preserves the legacy include path.
 
 #ifndef EIGEN_UNSUPPORTED_CXX11_THREADPOOL_FORWARD_H
 #define EIGEN_UNSUPPORTED_CXX11_THREADPOOL_FORWARD_H
 
-#include "../../../contrib/Eigen/ThreadPool"  // IWYU pragma: export
+#include "../../../Eigen/ThreadPool"  // IWYU pragma: export
 
 #endif  // EIGEN_UNSUPPORTED_CXX11_THREADPOOL_FORWARD_H

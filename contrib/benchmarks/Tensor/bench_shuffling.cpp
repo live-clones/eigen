@@ -6,7 +6,7 @@
 
 #include <benchmark/benchmark.h>
 #include <contrib/Eigen/Tensor>
-#include <contrib/Eigen/ThreadPool>
+#include <Eigen/ThreadPool>
 
 using namespace Eigen;
 
