@@ -27,7 +27,7 @@
  *
  * \code
  * #define EIGEN_USE_GPU
- * #include <unsupported/Eigen/GPU>
+ * #include <contrib/Eigen/GPU>
  *
  * // CPU path (unchanged)
  * Eigen::LLT<Eigen::MatrixXd> llt_cpu(A);

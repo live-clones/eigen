@@ -6,8 +6,8 @@
 #define EIGEN_USE_THREADS
 
 #include <benchmark/benchmark.h>
-#include <unsupported/Eigen/Tensor>
-#include <unsupported/Eigen/ThreadPool>
+#include <contrib/Eigen/Tensor>
+#include <contrib/Eigen/ThreadPool>
 
 using namespace Eigen;
 

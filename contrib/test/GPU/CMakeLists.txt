@@ -1,4 +1,4 @@
-# GPU module tests. Included from unsupported/test/CMakeLists.txt inside the
+# GPU module tests. Included from contrib/test/CMakeLists.txt inside the
 # if(CUDA_FOUND AND EIGEN_TEST_CUDA) block.
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0

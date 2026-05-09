@@ -5,7 +5,7 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 
 using namespace Eigen;
 
