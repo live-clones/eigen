@@ -753,7 +753,6 @@ endif(EIGEN_BUILD_TESTING)
 # Other Build Configurations.
 #==============================================================================
 add_subdirectory(contrib)
-# Forwarding shims for the legacy <unsupported/Eigen/...> include paths.
 add_subdirectory(unsupported)
 
 if(EIGEN_BUILD_BLAS)
