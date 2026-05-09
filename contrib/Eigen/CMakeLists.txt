@@ -29,7 +29,6 @@ set(Eigen_HEADERS
   Splines
   Tensor
   TensorSymmetry
-  ThreadPool
   )
 
 install(FILES
