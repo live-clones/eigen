@@ -11,7 +11,7 @@
 #include "main.h"
 #include <Eigen/StdVector>
 #include <Eigen/Geometry>
-#include <unsupported/Eigen/BVH>
+#include <contrib/Eigen/BVH>
 
 namespace Eigen {
 

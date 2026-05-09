@@ -38,7 +38,7 @@ add_subdirectory(KroneckerProduct)
 add_subdirectory(StructuredMatrices)
 
 # GPU benchmarks have their own CMake project (needs CUDAToolkit).
-# They can also be built standalone: cmake -B build -S unsupported/benchmarks/GPU
+# They can also be built standalone: cmake -B build -S contrib/benchmarks/GPU
 find_package(CUDAToolkit QUIET)
 if(CUDAToolkit_FOUND)
   add_subdirectory(GPU)

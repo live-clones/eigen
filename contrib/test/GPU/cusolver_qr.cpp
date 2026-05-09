@@ -14,7 +14,7 @@
 #include "main.h"
 #include <Eigen/QR>
 #include <Eigen/SVD>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 #include "./gpu_test_helpers.h"
 
