@@ -48,7 +48,9 @@ namespace gpu {
  * independent streams.
  *
  * A lazily-created thread-local default is available via threadLocal() for
- * simple single-stream usage.
+ * simple single-stream usage. A single Context is not thread-safe — use one
+ * per thread, or external synchronization, since cuBLAS / cuSOLVER handles
+ * are not thread-safe per handle and cusolverHandle() lazy-init is racy.
  */
 class Context {
  public:
@@ -59,11 +61,7 @@ class Context {
   }
 
   ~Context() {
-    // cusolver_destroyer_ is set by cusolverHandle() the first time the
-    // cuSOLVER handle is created. Routing the destroy through the function
-    // pointer keeps cusolverDnDestroy out of TUs that never call
-    // cusolverHandle() (e.g. cuFFT-only consumers), so they don't need to
-    // link cuSOLVER.
+    // Indirect call keeps cusolverDnDestroy out of TUs that never call cusolverHandle().
     if (cusolver_destroyer_) cusolver_destroyer_(cusolver_);
     if (cublas_) (void)cublasDestroy(cublas_);
     if (stream_) (void)cudaStreamDestroy(stream_);
