@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#include <unsupported/Eigen/Polynomials>
+#include <contrib/Eigen/Polynomials>
 #include <iostream>
 
 using namespace Eigen;

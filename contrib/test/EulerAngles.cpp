@@ -12,7 +12,7 @@
 
 EIGEN_DISABLE_DEPRECATED_WARNING
 
-#include <unsupported/Eigen/EulerAngles>
+#include <contrib/Eigen/EulerAngles>
 
 using namespace Eigen;
 

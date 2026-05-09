@@ -17,7 +17,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
-#include <unsupported/Eigen/FFT>
+#include <contrib/Eigen/FFT>
 
 template <typename T>
 inline std::complex<T> RandomCpx() {

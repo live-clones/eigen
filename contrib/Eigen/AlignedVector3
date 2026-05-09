@@ -21,7 +21,7 @@ namespace Eigen {
  * \defgroup AlignedVector3_Module Aligned vector3 module
  *
  * \code
- * #include <unsupported/Eigen/AlignedVector3>
+ * #include <contrib/Eigen/AlignedVector3>
  * \endcode
  */
 //@{

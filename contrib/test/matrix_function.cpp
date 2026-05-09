@@ -9,7 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 
 // Variant of VERIFY_IS_APPROX which uses absolute error instead of
 // relative error.

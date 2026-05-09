@@ -16,7 +16,7 @@
 #include <iterator>
 #include <iostream>
 #include <Eigen/Core>
-#include <unsupported/Eigen/FFT>
+#include <contrib/Eigen/FFT>
 
 using namespace std;
 using namespace Eigen;

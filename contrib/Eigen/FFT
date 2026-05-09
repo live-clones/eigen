@@ -20,7 +20,7 @@
  * \defgroup FFT_Module Fast Fourier Transform module
  *
  * \code
- * #include <unsupported/Eigen/FFT>
+ * #include <contrib/Eigen/FFT>
  * \endcode
  *
  * This module provides Fast Fourier transformation, with a configurable backend

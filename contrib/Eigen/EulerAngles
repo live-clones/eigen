@@ -26,7 +26,7 @@ namespace Eigen {
  *
  * In order to use this module in your code, include this header:
  * \code
- * #include <unsupported/Eigen/EulerAngles>
+ * #include <contrib/Eigen/EulerAngles>
  * \endcode
  *
  * See \ref EulerAngles for more information.

@@ -22,7 +22,7 @@
  * \defgroup NonLinearOptimization_Module Non linear optimization module
  *
  * \code
- * #include <unsupported/Eigen/NonLinearOptimization>
+ * #include <contrib/Eigen/NonLinearOptimization>
  * \endcode
  *
  * This module provides implementation of two important algorithms in non linear

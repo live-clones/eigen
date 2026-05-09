@@ -15,7 +15,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 using namespace Eigen;
 

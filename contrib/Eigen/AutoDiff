@@ -25,7 +25,7 @@ namespace Eigen {
  * is a different method and has its own module in Eigen : \ref NumericalDiff_Module.
  *
  * \code
- * #include <unsupported/Eigen/AutoDiff>
+ * #include <contrib/Eigen/AutoDiff>
  * \endcode
  */
 //@{

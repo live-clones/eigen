@@ -13,7 +13,7 @@
 
 #include <Eigen/Sparse>
 #include <Eigen/IterativeLinearSolvers>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 using namespace Eigen;
 

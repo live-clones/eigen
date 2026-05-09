@@ -1,4 +1,4 @@
-# Eigen GPU Module (`unsupported/Eigen/GPU`)
+# Eigen GPU Module (`contrib/Eigen/GPU`)
 
 GPU-accelerated linear algebra for Eigen users, dispatching to NVIDIA CUDA
 Math Libraries (cuBLAS, cuSOLVER, cuFFT, cuSPARSE, cuDSS). Requires CUDA 11.4+;
@@ -19,7 +19,7 @@ like [Ceres](https://github.com/ceres-solver/ceres-solver/issues/1151) and
 [COLMAP](https://github.com/colmap/colmap/issues/4018) have open requests for
 GPU-accelerated sparse solvers, and third-party projects like
 [cholespy](https://github.com/rgl-epfl/cholespy) exist specifically because
-Eigen lacks them. The `unsupported/Eigen/GPU` module provides GPU sparse Cholesky, LDL^T,
+Eigen lacks them. The `contrib/Eigen/GPU` module provides GPU sparse Cholesky, LDL^T,
 and LU factorization via cuDSS, alongside dense solvers (cuSOLVER), matrix
 products (cuBLAS), FFT (cuFFT), and sparse matrix-vector products (cuSPARSE).
 
@@ -41,9 +41,9 @@ something impossible with compile-time replacement.
 Eigen. Here is a side-by-side comparison:
 
 ```cpp
-// ---- CPU (Eigen) ----               // ---- GPU (unsupported/Eigen/GPU) ----
+// ---- CPU (Eigen) ----               // ---- GPU (contrib/Eigen/GPU) ----
 #include <Eigen/Dense>                  #define EIGEN_USE_GPU
-                                        #include <unsupported/Eigen/GPU>
+                                        #include <contrib/Eigen/GPU>
 
 // Dense
 MatrixXd A = ...;                       auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
@@ -63,7 +63,7 @@ The GPU version reads like CPU Eigen with explicit upload/download for dense
 operations, and an almost identical API for sparse solvers. Unsupported
 expressions are compile errors.
 
-**Standalone module.** `unsupported/Eigen/GPU` does not modify or depend on Eigen's Core
+**Standalone module.** `contrib/Eigen/GPU` does not modify or depend on Eigen's Core
 expression template system (`MatrixBase`, `CwiseBinaryOp`, etc.).
 `DeviceMatrix` is not an Eigen expression type and does not inherit from
 `MatrixBase`. The expression layer is a thin compile-time dispatch where every
@@ -201,7 +201,7 @@ to link the others:
 cuBLAS is required by `DeviceMatrix` itself (every `Context` creates a cuBLAS
 handle eagerly) and is also a runtime dependency of cuDSS, so it is the one
 constant. cuDSS additionally requires `EIGEN_CUDSS` to be defined before
-including `unsupported/Eigen/GPU`.
+including `contrib/Eigen/GPU`.
 
 ## Usage
 
@@ -320,7 +320,7 @@ round-tripping through host memory.
 ### Sparse direct solvers (cuDSS)
 
 Requires cuDSS (separate install, CUDA 12.0+). Define `EIGEN_CUDSS` before
-including `unsupported/Eigen/GPU`; see [Linking](#eigen_gpu_linking) for link flags.
+including `contrib/Eigen/GPU`; see [Linking](#eigen_gpu_linking) for link flags.
 
 ```cpp
 SparseMatrix<double> A = ...;  // symmetric positive definite
@@ -995,7 +995,7 @@ ctest --test-dir build -R '^cudss_' --output-on-failure
 - **cuTENSOR for Tensor module.** Replace the hand-written GPU tensor
   contraction and reduction kernels (~2300 lines in
   `TensorContractionGpu.h` / `TensorReductionGpu.h`) with cuTENSOR dispatch,
-  following the same library-dispatch pattern used by `unsupported/Eigen/GPU`.
+  following the same library-dispatch pattern used by `contrib/Eigen/GPU`.
 - **Unified/zero-copy memory for Jetson.** Use `cudaMallocManaged` or
   `cudaHostAllocMapped` to eliminate `fromHost()` / `toHost()` copies on
   integrated GPUs (Jetson) where CPU and GPU share DRAM.

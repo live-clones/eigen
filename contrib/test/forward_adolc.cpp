@@ -12,7 +12,7 @@
 #include <Eigen/Dense>
 
 #define NUMBER_DIRECTIONS 16
-#include <unsupported/Eigen/AdolcForward>
+#include <contrib/Eigen/AdolcForward>
 
 template <typename Vector>
 EIGEN_DONT_INLINE typename Vector::Scalar foo(const Vector& p) {

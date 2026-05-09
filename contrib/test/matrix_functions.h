@@ -12,7 +12,7 @@
 #define EIGEN_UNSUPPORTED_TEST_MATRIX_FUNCTIONS_H
 
 #include "main.h"
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 
 // For complex matrices, any matrix is fine.
 template <typename MatrixType, int IsComplex = NumTraits<typename internal::traits<MatrixType>::Scalar>::IsComplex>

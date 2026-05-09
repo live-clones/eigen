@@ -15,7 +15,7 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SparseCore>
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 
 template <typename MatrixType>
 void selfadjointeigensolver_essential_check(const MatrixType& m) {

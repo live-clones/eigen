@@ -15,7 +15,7 @@
 #include <benchmark/benchmark.h>
 
 // EIGEN_USE_GPU is set by the CMake target (eigen_add_gpu_benchmark).
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 using namespace Eigen;
 

@@ -5,7 +5,7 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
 #include <Eigen/Sparse>
-#include <unsupported/Eigen/KroneckerProduct>
+#include <contrib/Eigen/KroneckerProduct>
 
 using namespace Eigen;
 

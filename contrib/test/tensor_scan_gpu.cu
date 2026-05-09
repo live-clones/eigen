@@ -15,7 +15,7 @@
 #define EIGEN_USE_GPU
 
 #include "main.h"
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 
 using Eigen::Tensor;
 typedef Tensor<float, 1>::DimensionPair DimPair;
