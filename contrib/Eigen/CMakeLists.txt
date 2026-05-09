@@ -34,5 +34,3 @@ install(FILES
   )
 
 install(DIRECTORY src DESTINATION ${INCLUDE_INSTALL_DIR}/contrib/Eigen COMPONENT Devel FILES_MATCHING PATTERN "*.h")
-
-add_subdirectory(CXX11)
