@@ -3,19 +3,19 @@
 Tensors are multidimensional arrays of elements. Elements are typically scalars,
 but more complex types such as strings are also supported.
 
-The Tensor module is part of Eigen's unsupported modules. While it is actively
+The Tensor module is part of Eigen's contrib modules. While it is actively
 used in production (e.g. in TensorFlow), its API may change without notice.
 
 To use the Tensor module, include the following header:
 
 ```cpp
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 ```
 
 ## Quick Start
 
 ```cpp
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 #include <iostream>
 
 int main() {
@@ -531,7 +531,7 @@ including the Tensor header:
 
 ```cpp
 #define EIGEN_USE_THREADS
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 
 // Create the Eigen ThreadPool.
 Eigen::ThreadPool pool(8 /* number of threads in pool */);
@@ -553,7 +553,7 @@ with CUDA or HIP APIs.
 
 ```cpp
 #define EIGEN_USE_GPU
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 
 // Allocate data on GPU.
 float* d_a;
@@ -1214,7 +1214,7 @@ Returns a tensor containing the inverse of the normal cumulative distribution fu
 
 ### Special Math Functions
 
-These require including `<unsupported/Eigen/SpecialFunctions>` in addition to
+These require including `<contrib/Eigen/SpecialFunctions>` in addition to
 the Tensor header.
 
 ### (Operation) lgamma()

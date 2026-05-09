@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 
 using namespace Eigen;
 

@@ -60,7 +60,7 @@ namespace Eigen {
  * rejected at compile time.
  *
  * \code
- * #include <unsupported/Eigen/SpecialFunctions>
+ * #include <contrib/Eigen/SpecialFunctions>
  * \endcode
  */
 //@{

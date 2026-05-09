@@ -22,7 +22,7 @@ namespace Eigen {
  * This module contains an experimental Kronecker product implementation.
  *
  * \code
- * #include <unsupported/Eigen/KroneckerProduct>
+ * #include <contrib/Eigen/KroneckerProduct>
  * \endcode
  */
 

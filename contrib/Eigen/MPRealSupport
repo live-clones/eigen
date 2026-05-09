@@ -23,7 +23,7 @@ namespace Eigen {
 /**
   * \defgroup MPRealSupport_Module MPFRC++ Support module
   * \code
-  * #include <unsupported/Eigen/MPRealSupport>
+  * #include <contrib/Eigen/MPRealSupport>
   * \endcode
   *
   * This module provides support for multi precision floating point numbers
@@ -38,7 +38,7 @@ namespace Eigen {
   *
 \code
 #include <iostream>
-#include <unsupported/Eigen/MPRealSupport>
+#include <contrib/Eigen/MPRealSupport>
 #include <Eigen/LU>
 using namespace mpfr;
 using namespace Eigen;

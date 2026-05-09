@@ -19,7 +19,7 @@ namespace Eigen {
  * \defgroup NumericalDiff_Module Numerical differentiation module
  *
  * \code
- * #include <unsupported/Eigen/NumericalDiff>
+ * #include <contrib/Eigen/NumericalDiff>
  * \endcode
  *
  * See http://en.wikipedia.org/wiki/Numerical_differentiation

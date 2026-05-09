@@ -17,7 +17,7 @@
 #include "main.h"
 #include <Eigen/Sparse>
 #include <Eigen/IterativeLinearSolvers>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 #include "gpu_test_helpers.h"
 
 using namespace Eigen;

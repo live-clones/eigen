@@ -19,7 +19,7 @@
 #define EIGEN_USE_SYCL
 
 #include "main.h"
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 
 template <typename DataType, int DataLayout, typename IndexType>
 static void test_simple_reverse(const Eigen::SyclDevice& sycl_device) {

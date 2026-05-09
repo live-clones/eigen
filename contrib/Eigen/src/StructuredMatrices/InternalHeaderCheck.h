@@ -3,5 +3,5 @@
 
 #ifndef EIGEN_STRUCTURED_MATRICES_MODULE_H
 #error \
-    "Please include unsupported/Eigen/StructuredMatrices instead of including headers inside the src directory directly."
+    "Please include contrib/Eigen/StructuredMatrices instead of including headers inside the src directory directly."
 #endif
