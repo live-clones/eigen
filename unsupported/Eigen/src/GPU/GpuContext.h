@@ -62,7 +62,7 @@ class Context {
 
   ~Context() {
     // Indirect call keeps cusolverDnDestroy out of TUs that never call cusolverHandle().
-    if (cusolver_destroyer_) cusolver_destroyer_(cusolver_);
+    if (cusolver_destroyer_) (void)cusolver_destroyer_(cusolver_);
     if (cublas_) (void)cublasDestroy(cublas_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
@@ -101,12 +101,12 @@ class Context {
   }
 
  private:
-  static void destroyCusolver(cusolverDnHandle_t h) { (void)cusolverDnDestroy(h); }
+  static cusolverStatus_t destroyCusolver(cusolverDnHandle_t h) { return cusolverDnDestroy(h); }
 
   cudaStream_t stream_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
   cusolverDnHandle_t cusolver_ = nullptr;
-  void (*cusolver_destroyer_)(cusolverDnHandle_t) = nullptr;
+  cusolverStatus_t (*cusolver_destroyer_)(cusolverDnHandle_t) = nullptr;
 };
 
 }  // namespace gpu
