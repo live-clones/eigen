@@ -31,8 +31,8 @@ namespace Eigen {
  * Here is an example:
  *
  * \code
- * // You need to add path_to_eigen/unsupported to your include path.
- * #include <unsupported/Eigen/OpenGLSupport>
+ * // You need to add path_to_eigen/contrib to your include path.
+ * #include <contrib/Eigen/OpenGLSupport>
  * // ...
  * Vector3f x, y;
  * Matrix3f rot;

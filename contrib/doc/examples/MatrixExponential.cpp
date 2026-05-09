@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 #include <iostream>
 
 using namespace Eigen;

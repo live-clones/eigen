@@ -11,7 +11,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
-#include <unsupported/Eigen/NNLS>
+#include <contrib/Eigen/NNLS>
 
 /// Check that 'x' solves the NNLS optimization problem `min ||A*x-b|| s.t. 0 <= x`.
 /// The \p tolerance parameter is the absolute tolerance on the gradient, A'*(A*x-b).

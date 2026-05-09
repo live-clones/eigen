@@ -6,7 +6,7 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-#include <unsupported/Eigen/SpecialFunctions>
+#include <contrib/Eigen/SpecialFunctions>
 
 using namespace Eigen;
 

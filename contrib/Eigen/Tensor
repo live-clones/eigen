@@ -29,7 +29,7 @@
  * objects.
  *
  * \code
- * #include <unsupported/Eigen/Tensor>
+ * #include <contrib/Eigen/Tensor>
  * \endcode
  *
  * Much of the documentation can be found \ref eigen_tensors "here".

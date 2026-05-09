@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "../../test/sparse_solver.h"
-#include <unsupported/Eigen/IterativeSolvers>
+#include <contrib/Eigen/IterativeSolvers>
 
 template <typename T>
 void test_dgmres_T() {

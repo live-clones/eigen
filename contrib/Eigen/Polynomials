@@ -32,7 +32,7 @@
  *
  * To use this module, add
  * \code
- * #include <unsupported/Eigen/Polynomials>
+ * #include <contrib/Eigen/Polynomials>
  * \endcode
  * at the start of your source file.
  */

@@ -20,7 +20,7 @@
 
 #include "main.h"
 #include "OffByOneScalar.h"
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 #include <stdint.h>
 #include <iostream>
 

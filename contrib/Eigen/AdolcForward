@@ -60,7 +60,7 @@ namespace Eigen {
  * the preprocessor token NUMBER_DIRECTIONS. The default is 2.
  *
  * \code
- * #include <unsupported/Eigen/AdolcForward>
+ * #include <contrib/Eigen/AdolcForward>
  * \endcode
  */
 //@{

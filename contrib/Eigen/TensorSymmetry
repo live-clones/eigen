@@ -23,7 +23,7 @@
  * Including this module will implicitly include the Tensor module.
  *
  * \code
- * #include <unsupported/Eigen/TensorSymmetry>
+ * #include <contrib/Eigen/TensorSymmetry>
  * \endcode
  */
 

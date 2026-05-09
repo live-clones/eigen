@@ -54,7 +54,7 @@ namespace Eigen {
  * - bessel_y1
  *
  * \code
- * #include <unsupported/Eigen/SpecialFunctions>
+ * #include <contrib/Eigen/SpecialFunctions>
  * \endcode
  */
 //@{
