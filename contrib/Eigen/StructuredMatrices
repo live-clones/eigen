@@ -58,7 +58,7 @@ namespace Eigen {
  * \c rank(), \c inverse() and \c determinant().
  *
  * \code
- * #include <unsupported/Eigen/StructuredMatrices>
+ * #include <contrib/Eigen/StructuredMatrices>
  * \endcode
  */
 

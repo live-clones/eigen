@@ -10,7 +10,7 @@
 
 #include "main.h"
 
-#include <unsupported/Eigen/Splines>
+#include <contrib/Eigen/Splines>
 
 namespace Eigen {
 

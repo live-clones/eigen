@@ -3,7 +3,7 @@
 
 file(GLOB snippets_SRCS "*.cpp")
 
-add_custom_target(unsupported_snippets)
+add_custom_target(contrib_snippets)
 
 foreach(snippet_src ${snippets_SRCS})
   get_filename_component(snippet ${snippet_src} NAME_WE)
@@ -23,7 +23,7 @@ foreach(snippet_src ${snippets_SRCS})
     COMMAND ${compile_snippet_target}
     ARGS >${CMAKE_CURRENT_BINARY_DIR}/${snippet}.out
   )
-  add_dependencies(unsupported_snippets ${compile_snippet_target})
+  add_dependencies(contrib_snippets ${compile_snippet_target})
   set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/${compile_snippet_src}
                               PROPERTIES OBJECT_DEPENDS ${snippet_src})
 endforeach(snippet_src)

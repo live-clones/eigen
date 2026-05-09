@@ -16,7 +16,7 @@
 #include <benchmark/benchmark.h>
 
 #include <Eigen/Sparse>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 #include <cusparse.h>
 
 using namespace Eigen;

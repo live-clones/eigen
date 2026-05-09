@@ -22,7 +22,7 @@
  * \defgroup LevenbergMarquardt_Module Levenberg-Marquardt module
  *
  * \code
- * #include <unsupported/Eigen/LevenbergMarquardt>
+ * #include <contrib/Eigen/LevenbergMarquardt>
  * \endcode
  *
  *

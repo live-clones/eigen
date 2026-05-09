@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #include "main.h"
-#include <unsupported/Eigen/NonLinearOptimization>
+#include <contrib/Eigen/NonLinearOptimization>
 
 // This disables some useless Warnings on MSVC.
 // It is intended to be done for this test only.

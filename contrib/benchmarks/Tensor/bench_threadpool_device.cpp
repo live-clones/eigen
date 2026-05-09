@@ -10,8 +10,8 @@
 #include <mutex>
 
 #include <benchmark/benchmark.h>
-#include <unsupported/Eigen/CXX11/ThreadPool>
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <Eigen/ThreadPool>
+#include <contrib/Eigen/Tensor>
 
 using Eigen::Index;
 using Eigen::TensorOpCost;
