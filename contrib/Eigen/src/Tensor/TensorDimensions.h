@@ -288,19 +288,19 @@ struct tensor_vsize_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
 namespace internal {
 
 template <typename DenseIndex, int NumDims>
-struct array_size<const DSizes<DenseIndex, NumDims> > {
+struct array_size<const DSizes<DenseIndex, NumDims>> {
   static constexpr ptrdiff_t value = NumDims;
 };
 template <typename DenseIndex, int NumDims>
-struct array_size<DSizes<DenseIndex, NumDims> > {
+struct array_size<DSizes<DenseIndex, NumDims>> {
   static constexpr ptrdiff_t value = NumDims;
 };
 template <typename std::ptrdiff_t... Indices>
-struct array_size<const Sizes<Indices...> > {
+struct array_size<const Sizes<Indices...>> {
   static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
 template <typename std::ptrdiff_t... Indices>
-struct array_size<Sizes<Indices...> > {
+struct array_size<Sizes<Indices...>> {
   static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
 template <std::ptrdiff_t n, typename std::ptrdiff_t... Indices>
