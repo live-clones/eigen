@@ -64,7 +64,7 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
-# AVX512-FP16 builds are split into official/unsupported because building all
+# AVX512-FP16 builds are split into official/contrib because building all
 # tests exceeds the 3-hour GitLab SaaS shared-runner timeout.
 .build:linux:cross:x86-64:gcc-13:avx512fp16:
   extends: build:linux:cross:x86-64:gcc-13:default
@@ -84,10 +84,10 @@ build:linux:cross:x86-64:gcc-13:avx512fp16:official:
   variables:
     EIGEN_CI_BUILD_TARGET: BuildOfficial
 
-build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported:
+build:linux:cross:x86-64:gcc-13:avx512fp16:contrib:
   extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
   variables:
-    EIGEN_CI_BUILD_TARGET: BuildUnsupported
+    EIGEN_CI_BUILD_TARGET: BuildContrib
 
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:
@@ -154,7 +154,7 @@ build:linux:docs:
 
 ######## Sanitizers ############################################################
 
-# ASAN/UBSAN builds are split into official/unsupported because the
+# ASAN/UBSAN builds are split into official/contrib because the
 # instrumented executables are too large to upload as a single artifact.
 .build:linux:cross:x86-64:clang-19:default:asan-ubsan:
   extends: .build:linux:cross:x86-64
@@ -176,17 +176,17 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:official:
   variables:
     EIGEN_CI_BUILD_TARGET: BuildOfficial
 
-build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
+build:linux:cross:x86-64:clang-19:default:asan-ubsan:contrib:
   extends: .build:linux:cross:x86-64:clang-19:default:asan-ubsan
   variables:
-    EIGEN_CI_BUILD_TARGET: BuildUnsupported
+    EIGEN_CI_BUILD_TARGET: BuildContrib
 
 ######## NVHPC #################################################################
 
 # NVHPC (nvc++) uses NVIDIA's HPC SDK container image with the compilers
 # pre-installed. We override EIGEN_CI_INSTALL to avoid trying to apt-get
 # install the compiler.
-# Split into official/unsupported because nvc++ is so slow that the full
+# Split into official/contrib because nvc++ is so slow that the full
 # build exceeds the 3-hour GitLab SaaS shared-runner timeout.
 .build:linux:x86-64:nvhpc-26.1:
   extends: .build:linux:cross:x86-64
@@ -208,10 +208,10 @@ build:linux:x86-64:nvhpc-26.1:default:official:
   variables:
     EIGEN_CI_BUILD_TARGET: BuildOfficial
 
-build:linux:x86-64:nvhpc-26.1:default:unsupported:
+build:linux:x86-64:nvhpc-26.1:default:contrib:
   extends: .build:linux:x86-64:nvhpc-26.1
   variables:
-    EIGEN_CI_BUILD_TARGET: BuildUnsupported
+    EIGEN_CI_BUILD_TARGET: BuildContrib
 
 ######## CUDA ##################################################################
 
