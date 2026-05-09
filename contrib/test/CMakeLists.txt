@@ -6,10 +6,10 @@ if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
   file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/split_test_helper.h)
 endif()
 
-set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Unsupported")
-add_custom_target(BuildUnsupported)
+set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Contrib")
+add_custom_target(BuildContrib)
 
-include_directories(../../test ../../unsupported
+include_directories(../../test ../../contrib
                     ${CMAKE_CURRENT_BINARY_DIR}/../../test)
 
 find_package (Threads)

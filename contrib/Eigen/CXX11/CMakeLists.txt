@@ -6,6 +6,6 @@ set(Eigen_CXX11_HEADERS Tensor TensorSymmetry ThreadPool)
 if(EIGEN_INSTALL)
   install(FILES
     ${Eigen_CXX11_HEADERS}
-    DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen/CXX11 COMPONENT Devel
+    DESTINATION ${INCLUDE_INSTALL_DIR}/contrib/Eigen/CXX11 COMPONENT Devel
     )
 endif()
