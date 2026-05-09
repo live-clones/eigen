@@ -8,7 +8,7 @@
 #include <benchmark/benchmark.h>
 #include <contrib/Eigen/SpecialFunctions>
 #include <contrib/Eigen/Tensor>
-#include <contrib/Eigen/ThreadPool>
+#include <Eigen/ThreadPool>
 
 using namespace Eigen;
 
