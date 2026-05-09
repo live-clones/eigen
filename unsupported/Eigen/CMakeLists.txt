@@ -1,7 +1,10 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
+#
+# Forwarding shims for the legacy <unsupported/Eigen/...> include paths.
+# The actual module headers live under ../../contrib/Eigen/.
 
-set(Eigen_HEADERS
+set(Eigen_LegacyShim_HEADERS
   AdolcForward
   AlignedVector3
   ArpackSupport
@@ -29,13 +32,9 @@ set(Eigen_HEADERS
   ThreadPool
   )
 
-if(EIGEN_INSTALL)
-  install(FILES
-    ${Eigen_HEADERS}
-    DESTINATION ${INCLUDE_INSTALL_DIR}/contrib/Eigen COMPONENT Devel
-    )
-
-  install(DIRECTORY src DESTINATION ${INCLUDE_INSTALL_DIR}/contrib/Eigen COMPONENT Devel FILES_MATCHING PATTERN "*.h")
-endif()
+install(FILES
+  ${Eigen_LegacyShim_HEADERS}
+  DESTINATION ${INCLUDE_INSTALL_DIR}/unsupported/Eigen COMPONENT Devel
+  )
 
 add_subdirectory(CXX11)
