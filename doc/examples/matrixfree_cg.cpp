@@ -5,7 +5,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/IterativeLinearSolvers>
-#include <unsupported/Eigen/IterativeSolvers>
+#include <contrib/Eigen/IterativeSolvers>
 
 class MatrixReplacement;
 using Eigen::SparseMatrix;

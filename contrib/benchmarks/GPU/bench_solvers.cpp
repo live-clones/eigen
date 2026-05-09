@@ -14,7 +14,7 @@
 #include <benchmark/benchmark.h>
 
 #include <Eigen/Cholesky>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 #include <Eigen/LU>
 
 using namespace Eigen;

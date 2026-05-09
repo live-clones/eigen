@@ -26,7 +26,7 @@
  *
  * To use this module, add
  * \code
- * #include <unsupported/Eigen/MatrixFunctions>
+ * #include <contrib/Eigen/MatrixFunctions>
  * \endcode
  * at the start of your source file.
  *
@@ -279,7 +279,7 @@ where \f$ T_1 \f$ is invertible. Then \f$ T^p \f$ is given by
 \warning Fractional power of a matrix with a non-semisimple zero
 eigenvalue is not well-defined. We introduce an assertion failure
 against inaccurate result, e.g. \code
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 #include <iostream>
 
 int main()

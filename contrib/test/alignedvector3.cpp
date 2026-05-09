@@ -11,7 +11,7 @@
 #define EIGEN_NO_STATIC_ASSERT
 
 #include "main.h"
-#include <unsupported/Eigen/AlignedVector3>
+#include <contrib/Eigen/AlignedVector3>
 
 namespace Eigen {
 

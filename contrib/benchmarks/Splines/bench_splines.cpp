@@ -5,7 +5,7 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-#include <unsupported/Eigen/Splines>
+#include <contrib/Eigen/Splines>
 
 using namespace Eigen;
 

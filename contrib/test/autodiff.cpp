@@ -9,7 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
-#include <unsupported/Eigen/AutoDiff>
+#include <contrib/Eigen/AutoDiff>
 
 template <typename Scalar>
 EIGEN_DONT_INLINE Scalar foo(const Scalar& x, const Scalar& y) {

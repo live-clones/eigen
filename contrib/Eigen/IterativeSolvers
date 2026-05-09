@@ -72,7 +72,7 @@
  * }
  * \enddot
  * \code
- * #include <unsupported/Eigen/IterativeSolvers>
+ * #include <contrib/Eigen/IterativeSolvers>
  * \endcode
  */
 

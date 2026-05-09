@@ -13,7 +13,7 @@
 #define EIGEN_USE_GPU
 #include "main.h"
 #include <Eigen/SVD>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 
 using namespace Eigen;
 

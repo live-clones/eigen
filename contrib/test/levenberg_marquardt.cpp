@@ -14,7 +14,7 @@
 #include <stdio.h>
 
 #include "main.h"
-#include <unsupported/Eigen/LevenbergMarquardt>
+#include <contrib/Eigen/LevenbergMarquardt>
 
 // This disables some useless Warnings on MSVC.
 // It is intended to be done for this test only.

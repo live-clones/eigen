@@ -2,7 +2,7 @@
 # Build separately from the main benchmark tree since they need CUDA toolchain.
 #
 # Usage:
-#   cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU \
+#   cmake -G Ninja -B build-bench-gpu -S contrib/benchmarks/GPU \
 #         -DCMAKE_CUDA_ARCHITECTURES=89
 #   cmake --build build-bench-gpu
 #
