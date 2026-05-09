@@ -6,6 +6,13 @@ New features:
 - ComplexQZ implementation [!1962]
 - Generic clang vector extension backend [!2051]
 
+Other changes:
+- The top-level `unsupported/` directory was renamed to `contrib/`. Existing
+  user code with `#include <unsupported/Eigen/...>` continues to compile
+  unchanged via forwarding header shims. The CMake subproject label and
+  build-group target were renamed accordingly: `Unsupported` → `Contrib`,
+  `BuildUnsupported` → `BuildContrib`.
+
 ## [5.0.1] - 2025-11-11
 
 A few bug-fixes from the master branch, including
