@@ -50,6 +50,8 @@ void quaternion(void) {
      Quaternion.h
   */
   using std::abs;
+  using std::cos;
+  using std::sin;
   typedef Matrix<Scalar, 3, 1> Vector3;
   typedef Matrix<Scalar, 3, 3> Matrix3;
   typedef Quaternion<Scalar, Options> Quaternionx;
@@ -177,6 +179,92 @@ void quaternion(void) {
   // test bug 369 - improper alignment.
   Quaternionx* q = new Quaternionx;
   delete q;
+
+  // Much of these tests are ported from ceres-solver/internal/ceres/rotation_test.cc
+  // zero rotation vector to quaternion
+  VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(Vector3::Zero()), Quaternionx::Identity());
+
+  // Small rotation vector to quaternion
+  {
+    Scalar theta = 1e-2;
+    Vector3 scaled_axis = Vector3::UnitX() * theta;
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(scaled_axis),
+                     Quaternionx(cos(theta / Scalar(2)), sin(theta / Scalar(2)), Scalar(0), Scalar(0)));
+  }
+
+  // Tiny rotation vector to quaternion
+  {
+    using std::sqrt;
+    const Scalar theta_base = (numext::numeric_limits<Scalar>::min)();
+    const Scalar theta = sqrt(theta_base);
+    Vector3 scaled_axis = Vector3::UnitX() * theta;
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(scaled_axis),
+                     Quaternionx(cos(theta / Scalar(2)), sin(theta / Scalar(2)), Scalar(0), Scalar(0)));
+  }
+
+  // x rotation to quaternion
+  {
+    using std::sqrt;
+    Vector3 scaled_axis = Vector3::UnitX() * Scalar(EIGEN_PI / 2);
+    Scalar sqrt2over2 = Scalar(0.5) * sqrt(Scalar(2));
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(scaled_axis),
+                     Quaternionx(sqrt2over2, sqrt2over2, Scalar(0), Scalar(0)));
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(scaled_axis),
+                     Quaternionx(AngleAxisx(Scalar(EIGEN_PI / 2), Vector3::UnitX())));
+  }
+
+  // Unit quaternion to rotation vector
+  {
+    VERIFY_IS_APPROX(Quaternionx::Identity().toScaledAxis(), Vector3::Zero());
+  }
+
+  // 90 degree rotation quaternion to rotation vector
+  {
+    VERIFY_IS_APPROX(Quaternionx(Scalar(0), Scalar(0), Scalar(1), Scalar(0)).toScaledAxis(),
+                     Scalar(EIGEN_PI) * Vector3::UnitY());
+  }
+
+  // 60 degree rotation quaternion to rotation vector
+  {
+    using std::sqrt;
+    VERIFY_IS_APPROX(Quaternionx(sqrt(3) / 2, 0.0, 0.0, 0.5).toScaledAxis(), Scalar(EIGEN_PI / 3) * Vector3::UnitZ());
+  }
+
+  // Small rotation quaternion to rotation vector
+  {
+    Scalar theta(1e-2);
+    VERIFY_IS_APPROX(Quaternionx(AngleAxisx(theta, Vector3::UnitX())).toScaledAxis(), Vector3::UnitX() * theta);
+  }
+
+  // Tiny rotation quaternion to rotation vector
+  {
+    using std::sqrt;
+    const Scalar theta_base = (numext::numeric_limits<Scalar>::min)();
+    const Scalar theta = sqrt(theta_base);
+    VERIFY_IS_APPROX(Quaternionx(AngleAxisx(theta, Vector3::UnitX())).toScaledAxis(), Vector3::UnitX() * theta);
+  }
+
+  // Round trip
+  {
+    using std::cos;
+    using std::sin;
+    static const int kNumOctants = 8;
+    // Test suite repetition randomizes the angle
+    const Scalar angle = internal::random<Scalar>(Scalar(0), Scalar(EIGEN_PI * 0.9));
+    for (auto theta : Vector<Scalar, kNumOctants>::LinSpaced(-Scalar(EIGEN_PI), Scalar(EIGEN_PI))) {
+      // Fudge the polar/azimuth angle of the axis
+      theta += internal::random<Scalar>(-Scalar(EIGEN_PI), Scalar(EIGEN_PI)) * Scalar(0.5 / kNumOctants);
+      for (auto phi : Vector<Scalar, kNumOctants>::LinSpaced(Scalar(0), Scalar(EIGEN_PI))) {
+        phi += internal::random<Scalar>(Scalar(0), Scalar(EIGEN_PI)) * Scalar(0.5 / kNumOctants);
+        Vector3 angle_axis = {
+            angle * sin(phi) * cos(theta),
+            angle * sin(phi) * sin(theta),
+            angle * cos(phi),
+        };
+        VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(angle_axis).toScaledAxis(), angle_axis);
+      }
+    }
+  }
 
   q1 = Quaternionx::UnitRandom();
   q2 = Quaternionx::UnitRandom();

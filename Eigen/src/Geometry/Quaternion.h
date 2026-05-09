@@ -171,6 +171,11 @@ class QuaternionBase : public RotationBase<Derived, 3> {
   template <typename Derived1, typename Derived2>
   EIGEN_DEVICE_FUNC Derived& setFromTwoVectors(const MatrixBase<Derived1>& a, const MatrixBase<Derived2>& b);
 
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC Derived& setFromScaledAxis(const MatrixBase<OtherDerived>& scaled_axis);
+
+  EIGEN_DEVICE_FUNC inline Vector3 toScaledAxis() const;
+
   template <class OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Quaternion<Scalar> operator*(const QuaternionBase<OtherDerived>& q) const;
   template <class OtherDerived>
@@ -380,6 +385,9 @@ class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
 
   template <typename Derived1, typename Derived2>
   EIGEN_DEVICE_FUNC static Quaternion FromTwoVectors(const MatrixBase<Derived1>& a, const MatrixBase<Derived2>& b);
+
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC static Quaternion FromScaledAxis(const MatrixBase<Derived>& sa);
 
   EIGEN_DEVICE_FUNC inline Coefficients& coeffs() { return m_coeffs; }
   EIGEN_DEVICE_FUNC inline const Coefficients& coeffs() const { return m_coeffs; }
@@ -708,6 +716,66 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(con
   return derived();
 }
 
+/** Sets \c *this to be a quaternion representing a rotation encoded by a rotation axis scaled by the rotation angle.
+ * When the angle is small, a series expansion is used to avoid precision loss.
+ *
+ * This is related to the SO(3) exponential map, transforming a vector in the Lie algebra so(3) to a rotation in the Lie
+ * group SO(3), represented as a quaternion here.
+ *
+ * \sa toScaledAxis()
+ */
+template <typename Derived>
+template <class OtherDerived>
+EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromScaledAxis(
+    const MatrixBase<OtherDerived>& scaled_axis) {
+  EIGEN_USING_STD(sin);
+  EIGEN_USING_STD(cos);
+  EIGEN_USING_STD(sqrt);
+
+  // Use stableNorm() to avoid precision loss when the angle is small.
+  const Scalar angle = scaled_axis.stableNorm();
+  if (internal::isMuchSmallerThan(angle, static_cast<Scalar>(1))) {
+    // First-order expansion of sin(x/2)/x and cos(x/2), respectively, to avoid precision loss when the angle is small.
+    this->w() = Scalar(1);
+    this->vec() = Scalar(0.5) * scaled_axis;
+    return derived();
+  }
+
+  const Scalar half_angle = Scalar(0.5) * angle;
+  this->w() = cos(half_angle);
+  this->vec() = sin(half_angle) / angle * scaled_axis;
+  return derived();
+}
+
+/** \returns the rotation axis of this quaternion scaled by the rotation angle, i.e., the inverse operation of
+ * setFromScaledAxis(). When the angle is small, a series expansion is used to avoid precision loss.
+ *
+ * This is related to the SO(3) logarithmic map, transforming a rotation in the Lie group SO(3), represented as a
+ * quaternion here, to a vector in the Lie algebra so(3).
+ *
+ * \sa setFromScaledAxis()
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC inline typename QuaternionBase<Derived>::Vector3 QuaternionBase<Derived>::toScaledAxis() const {
+  EIGEN_USING_STD(atan2);
+  EIGEN_USING_STD(sqrt);
+  // The quaternion must not be zero. If the quaternion is zero, the zero imaginary part causes the small angle branch
+  // to be taken, and the zero real part causes division by zero, leading to NaN output
+  eigen_assert(this->norm() > Scalar(0));
+
+  // Use stableNorm() to avoid precision loss when the angle is small.
+  const Scalar sin_ha = this->vec().stableNorm();
+  const Scalar cos_ha = this->w();
+
+  if (internal::isMuchSmallerThan(sin_ha, static_cast<Scalar>(1))) {
+    // First-order expansion of x/sin(x/2) to avoid precision loss when the angle is small.
+    return Scalar(2) * this->vec();
+  }
+
+  const Scalar half_angle = cos_ha < Scalar(0) ? atan2(-sin_ha, -cos_ha) : atan2(sin_ha, cos_ha);
+  return Scalar(2) * half_angle / sin_ha * this->vec();
+}
+
 /** \returns a random unit quaternion following a uniform distribution law on SO(3)
  *
  * \note The implementation is based on http://planning.cs.uiuc.edu/node198.html
@@ -768,6 +836,24 @@ EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::FromT
     const MatrixBase<Derived1>& a, const MatrixBase<Derived2>& b) {
   Quaternion quat;
   quat.setFromTwoVectors(a, b);
+  return quat;
+}
+
+/** Returns a quaternion representing a rotation encoded by a rotation axis scaled by the rotation angle. When the
+ * rotation angle is small, series expansion is used to avoid precision loss.
+ *
+ * This is related to the SO(3) exponential map, transforming a vector in the Lie algebra so(3) to a rotation in the Lie
+ * group SO(3), represented as a quaternion here.
+ *
+ * \note This can be used to implement SO(3)-aware attitude integration such as:
+ * \code Quaterniond q_next = q_curr * Quaterniond::FromScaledAxis(omega_b * dt) \endcode
+ */
+template <typename Scalar, int Options>
+template <typename Derived>
+EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::FromScaledAxis(
+    const MatrixBase<Derived>& sa) {
+  Quaternion quat;
+  quat.setFromScaledAxis(sa);
   return quat;
 }
 
