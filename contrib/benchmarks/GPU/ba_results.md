@@ -136,7 +136,7 @@ Downloaded from http://grail.cs.washington.edu/projects/bal/
 
 ```bash
 # Build
-cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU -DCMAKE_CUDA_ARCHITECTURES=89
+cmake -G Ninja -B build-bench-gpu -S contrib/benchmarks/GPU -DCMAKE_CUDA_ARCHITECTURES=89
 cmake --build build-bench-gpu --target bench_ba
 
 # Download BAL datasets

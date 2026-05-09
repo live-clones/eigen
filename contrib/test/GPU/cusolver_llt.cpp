@@ -15,7 +15,7 @@
 #define EIGEN_USE_GPU
 #include "main.h"
 #include <Eigen/Cholesky>
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 #include <atomic>
 #include <chrono>
 #include <thread>

@@ -20,7 +20,7 @@
 static const float error_threshold = 1e-8f;
 
 #include "main.h"
-#include <unsupported/Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
 
 using Eigen::Tensor;
 struct Generator1D {

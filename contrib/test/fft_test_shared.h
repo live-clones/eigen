@@ -19,7 +19,7 @@
 #include "main.h"
 
 #include <thread>
-#include <unsupported/Eigen/FFT>
+#include <contrib/Eigen/FFT>
 
 template <typename T>
 inline std::complex<T> RandomCpx() {

@@ -9,7 +9,7 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Dense>
-#include <unsupported/Eigen/StructuredMatrices>
+#include <contrib/Eigen/StructuredMatrices>
 
 using namespace Eigen;
 

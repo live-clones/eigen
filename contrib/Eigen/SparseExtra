@@ -40,7 +40,7 @@
  * matrices.
  *
  * \code
- * #include <unsupported/Eigen/SparseExtra>
+ * #include <contrib/Eigen/SparseExtra>
  * \endcode
  */
 

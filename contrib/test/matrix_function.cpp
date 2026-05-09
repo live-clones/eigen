@@ -9,7 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 
 // Returns a matrix with eigenvalues clustered around 0, 1 and 2.
 template <typename MatrixType>

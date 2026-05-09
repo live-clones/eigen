@@ -3,7 +3,7 @@
 
 file(GLOB examples_SRCS "*.cpp")
 
-add_custom_target(unsupported_examples)
+add_custom_target(contrib_examples)
 
 foreach(example_src ${examples_SRCS})
   get_filename_component(example ${example_src} NAME_WE)
@@ -18,7 +18,7 @@ foreach(example_src ${examples_SRCS})
     COMMAND example_${example}
     ARGS >${CMAKE_CURRENT_BINARY_DIR}/${example}.out
   )
-  add_dependencies(unsupported_examples example_${example})
+  add_dependencies(contrib_examples example_${example})
 endforeach(example_src)
 
 if(EIGEN_TEST_SYCL)

@@ -12,7 +12,7 @@
 
 #define EIGEN_USE_GPU
 #include "main.h"
-#include <unsupported/Eigen/GPU>
+#include <contrib/Eigen/GPU>
 #include "gpu_test_helpers.h"
 
 using namespace Eigen;
