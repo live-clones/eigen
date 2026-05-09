@@ -463,15 +463,15 @@ class MatrixBase : public DenseBase<Derived> {
   ///////// MatrixFunctions module /////////
 
   using StemFunction = typename internal::stem_function<Scalar>::type;
-#define EIGEN_MATRIX_FUNCTION(ReturnType, Name, Description)                                                        \
-  /** \returns an expression of the matrix Description of \c *this. \brief This function requires the <a            \
+#define EIGEN_MATRIX_FUNCTION(ReturnType, Name, Description)                                                \
+  /** \returns an expression of the matrix Description of \c *this. \brief This function requires the <a    \
    * href="contrib/group__MatrixFunctions__Module.html"> contrib MatrixFunctions module</a>. To compute the \
-   * coefficient-wise Description use ArrayBase::##Name . */                                                        \
+   * coefficient-wise Description use ArrayBase::##Name . */                                                \
   const ReturnType<Derived> Name() const;
-#define EIGEN_MATRIX_FUNCTION_1(ReturnType, Name, Description, Argument)                                            \
-  /** \returns an expression of the matrix Description of \c *this. \brief This function requires the <a            \
+#define EIGEN_MATRIX_FUNCTION_1(ReturnType, Name, Description, Argument)                                    \
+  /** \returns an expression of the matrix Description of \c *this. \brief This function requires the <a    \
    * href="contrib/group__MatrixFunctions__Module.html"> contrib MatrixFunctions module</a>. To compute the \
-   * coefficient-wise Description use ArrayBase::##Name . */                                                        \
+   * coefficient-wise Description use ArrayBase::##Name . */                                                \
   const ReturnType<Derived> Name(Argument) const;
 
   EIGEN_MATRIX_FUNCTION(MatrixExponentialReturnValue, exp, exponential)
