@@ -14,6 +14,7 @@
 
 #include "Cholesky"
 #include "Householder"
+#include "LU"  // for internal::partial_lu_inplace, used by RandColPivHouseholderQR
 
 #include "src/Core/util/DisableStupidWarnings.h"
 
