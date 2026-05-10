@@ -258,6 +258,11 @@ class FFT {
   size_t d_in_size_ = 0;
   size_t d_out_size_ = 0;
 
+  // Buffers grow but never shrink. The pre-realloc sync drains the *bound*
+  // Context's stream — including unrelated GEMMs/solves/`device(ctx) = ...`
+  // assignments queued on it — so callers running FFTs alongside other GPU
+  // work on the same Context should size up front (call fwd/inv with the
+  // largest expected n once) to avoid mid-pipeline stalls.
   void ensure_buffers(size_t in_bytes, size_t out_bytes) {
     if (in_bytes > d_in_size_) {
       if (d_in_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
