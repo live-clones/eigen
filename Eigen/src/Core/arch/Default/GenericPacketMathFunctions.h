@@ -491,13 +491,21 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   // range without special-casing.  The previous inline fast path clamped the
   // biased exponent m+127 at 0, flushing every subnormal exp(x) to zero
   // (e.g. expf(-88.0f) returned 0 instead of 6.05e-39).
+  //
+  // To minimize integer ops we fold the bias into the split:
+  //   biased_sum = m + 254                      (always nonnegative)
+  //   biased_hi  = biased_sum >> 1  =  m/2 + 127
+  //   biased_lo  = biased_sum - biased_hi = (m - m/2) + 127
+  // so each <<23 directly yields the float bit pattern for 2^(m/2) and
+  // 2^(m - m/2).
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  const PacketI cst_bias = pset1<PacketI>(127);
+  const PacketI cst_double_bias = pset1<PacketI>(254);
   const PacketI mi = pcast<Packet, PacketI>(m);
-  const PacketI mi_hi = parithmetic_shift_right<1>(mi);  // floor(m/2)
-  const PacketI mi_lo = psub(mi, mi_hi);                 // m - floor(m/2)
-  const Packet pow2_hi = preinterpret<Packet>(plogical_shift_left<23>(padd(mi_hi, cst_bias)));
-  const Packet pow2_lo = preinterpret<Packet>(plogical_shift_left<23>(padd(mi_lo, cst_bias)));
+  const PacketI biased_sum = padd(mi, cst_double_bias);
+  const PacketI biased_hi = plogical_shift_right<1>(biased_sum);  // m/2 + 127
+  const PacketI biased_lo = psub(biased_sum, biased_hi);          // (m - m/2) + 127
+  const Packet pow2_hi = preinterpret<Packet>(plogical_shift_left<23>(biased_hi));
+  const Packet pow2_lo = preinterpret<Packet>(plogical_shift_left<23>(biased_lo));
   y = pmul(pmul(y, pow2_hi), pow2_lo);
 
   if (!IsFinite) {
