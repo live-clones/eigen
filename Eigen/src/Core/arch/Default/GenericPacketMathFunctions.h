@@ -448,8 +448,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 // exp(r) is computed using a 6th order minimax polynomial approximation.
 template <typename Packet, bool IsFinite>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-
   const Packet cst_one = pset1<Packet>(1.0f);
   const Packet cst_exp_hi = pset1<Packet>(88.723f);
   const Packet cst_exp_lo = pset1<Packet>(-104.f);
@@ -485,14 +483,22 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   Packet y = pmadd(r, p_odd, p_even);
   y = pmadd(r2, y, p_low);
 
-  // Construct 2^m by directly manipulating the exponent bits.
-  // After clamping, m is in [-150, 128], so biased exponent m+127 is in [-23, 255].
-  // We only need the lower clamp to 0 (the upper bound 255 is exact).
+  // Construct the result y * 2^m via a 2-way exponent split.  Writing
+  //   2^m = 2^floor(m/2) * 2^(m - floor(m/2))
+  // keeps each constructed power-of-two within the normal float range (since
+  // |m| <= 150 after the input clamp implies each half lies in [-75, 65]), so
+  // the IEEE-correct rounding of normal*normal handles the subnormal output
+  // range without special-casing.  The previous inline fast path clamped the
+  // biased exponent m+127 at 0, flushing every subnormal exp(x) to zero
+  // (e.g. expf(-88.0f) returned 0 instead of 6.05e-39).
+  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   const PacketI cst_bias = pset1<PacketI>(127);
-  PacketI mi = pcast<Packet, PacketI>(m);
-  mi = pmax(padd(mi, cst_bias), pzero(mi));
-  const Packet pow2m = preinterpret<Packet>(plogical_shift_left<23>(mi));
-  y = pmul(y, pow2m);
+  const PacketI mi = pcast<Packet, PacketI>(m);
+  const PacketI mi_hi = parithmetic_shift_right<1>(mi);  // floor(m/2)
+  const PacketI mi_lo = psub(mi, mi_hi);                 // m - floor(m/2)
+  const Packet pow2_hi = preinterpret<Packet>(plogical_shift_left<23>(padd(mi_hi, cst_bias)));
+  const Packet pow2_lo = preinterpret<Packet>(plogical_shift_left<23>(padd(mi_lo, cst_bias)));
+  y = pmul(pmul(y, pow2_hi), pow2_lo);
 
   if (!IsFinite) {
     // Handle NaN: exp(nan) = nan. Use pmax to propagate NaN from input.
