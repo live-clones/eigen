@@ -1873,31 +1873,39 @@ EIGEN_STRONG_INLINE Packet8f pldexp<Packet8f>(const Packet8f& a, const Packet8f&
   return pldexp_generic(a, exponent);
 }
 
+// Build 2^k as Packet4d from a Packet4i holding the biased int32 exponent in
+// each lane.  AVX2 has a single-instruction widen+shift path; AVX-only must
+// split the 128-bit input into two halves, widen+shift each separately with
+// SSE intrinsics, and reassemble with vinsertf128.
+EIGEN_STRONG_INLINE Packet4d pldexp_avx_pow2_from_biased(const Packet4i& biased) {
+#ifdef EIGEN_VECTORIZE_AVX2
+  return _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(biased), 52));
+#else
+  __m128i lo = _mm_cvtepi32_epi64(biased);                              // SSE4.1: lower 2 int32 -> 2 int64
+  __m128i hi = _mm_cvtepi32_epi64(_mm_unpackhi_epi64(biased, biased));  // upper 2 int32 -> 2 int64
+  lo = _mm_slli_epi64(lo, 52);
+  hi = _mm_slli_epi64(hi, 52);
+  return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+#endif
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d& exponent) {
   // Clamp exponent to [-2099, 2099]
   const Packet4d max_exponent = pset1<Packet4d>(2099.0);
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // Split 2^e into four factors and multiply.
+  // 4-way split + depth-3 multiply tree; see pldexp_generic for derivation
+  // (including why the first multiply must be a*c1, not a*c2).
   const Packet4i bias = pset1<Packet4i>(1023);
-  Packet4i b = parithmetic_shift_right<2>(e);  // floor(e/4)
+  const Packet4i b = parithmetic_shift_right<2>(e);                          // floor(e/4)
+  const Packet4i b_remainder = psub(psub(e, b), padd(b, b));                 // e - 3b (depth 2)
+  const Packet4d c1 = pldexp_avx_pow2_from_biased(padd(b, bias));            // 2^b
+  const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(b_remainder, bias));  // 2^(e-3b)
 
-  // 2^b
-  Packet4i hi = vec4i_swizzle1(padd(b, bias), 0, 2, 1, 3);
-  Packet4i lo = _mm_slli_epi64(hi, 52);
-  hi = _mm_slli_epi64(_mm_srli_epi64(hi, 32), 52);
-  Packet4d c = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
-  Packet4d out = pmul(pmul(pmul(a, c), c), c);  // a * 2^(3b)
-
-  // 2^(e - 3b)
-  b = psub(psub(psub(e, b), b), b);  // e - 3b
-  hi = vec4i_swizzle1(padd(b, bias), 0, 2, 1, 3);
-  lo = _mm_slli_epi64(hi, 52);
-  hi = _mm_slli_epi64(_mm_srli_epi64(hi, 32), 52);
-  c = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
-  out = pmul(out, c);  // a * 2^e
-  return out;
+  const Packet4d c1_squared = pmul(c1, c1);
+  const Packet4d a_c1 = pmul(a, c1);
+  return pmul(pmul(a_c1, c1_squared), c2);  // a * 2^e
 }
 
 template <>
@@ -1908,12 +1916,7 @@ EIGEN_STRONG_INLINE Packet4d pldexp_fast<Packet4d>(const Packet4d& a, const Pack
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, min_exponent), max_exponent));
   const Packet4i bias = pset1<Packet4i>(1023);
 
-  // 2^e
-  Packet4i hi = vec4i_swizzle1(padd(e, bias), 0, 2, 1, 3);
-  const Packet4i lo = _mm_slli_epi64(hi, 52);
-  hi = _mm_slli_epi64(_mm_srli_epi64(hi, 32), 52);
-  const Packet4d c = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
-  return pmul(a, c);  // a * 2^e
+  return pmul(a, pldexp_avx_pow2_from_biased(padd(e, bias)));  // a * 2^e
 }
 
 template <>
