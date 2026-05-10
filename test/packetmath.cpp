@@ -1065,6 +1065,20 @@ void packetmath_real() {
     h.store(data2, internal::pexp(h.load(data1)));
     VERIFY_IS_APPROX(std::exp(std::numeric_limits<Scalar>::denorm_min()), data2[0]);
     VERIFY_IS_APPROX(std::exp(-std::numeric_limits<Scalar>::denorm_min()), data2[1]);
+
+    // pexp must produce subnormal outputs for inputs in
+    // [log(denorm_min), log(min)).
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+      const Scalar log_min = numext::log((std::numeric_limits<Scalar>::min)());
+      const Scalar log_denorm_min = numext::log(std::numeric_limits<Scalar>::denorm_min());
+      data1[0] = log_min - Scalar(0.5);                     // just inside subnormal cliff
+      data1[1] = Scalar(0.5) * (log_min + log_denorm_min);  // mid-subnormal
+      h.store(data2, internal::pexp(h.load(data1)));
+      VERIFY_IS_APPROX(numext::exp(data1[0]), data2[0]);
+      VERIFY_IS_APPROX(numext::exp(data1[1]), data2[1]);
+    }
+#endif
   }
 
   if (PacketTraits::HasTanh) {
