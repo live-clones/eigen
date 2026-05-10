@@ -440,8 +440,7 @@ build:linux:cross:loongarch64:gcc-14:default:
       -DEIGEN_TEST_LSX=on
 
 ######## MR Smoke Tests ########################################################
-# All builds run on arm64 runners using the slim arm64 smoketest image.
-# x86-64 targets are cross-compiled via g++-10-x86-64-linux-gnu / clang-14.
+# aarch64 targets are cross-compiled via g++-10-aarch64-linux-gnu / clang-14.
 # Tests run on their respective native runners (see test.linux.gitlab-ci.yml).
 
 build:linux:cross:x86-64:gcc-10:default:smoketest:

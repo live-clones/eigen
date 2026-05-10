@@ -34,7 +34,7 @@ build:docker:ubuntu-24.04-amd64-smoketest-build:
   extends: .build:docker:linux:amd64
   script:
     - docker buildx build --platform linux/amd64
-        -t $EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_BUILD
+        -t $EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD
         --push
         ci/docker/ubuntu-24.04-amd64-smoketest-build/
   rules:
