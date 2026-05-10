@@ -5380,7 +5380,8 @@ EIGEN_STRONG_INLINE Packet2d psqrt(const Packet2d& _x) {
 #endif  // EIGEN_ARCH_ARM64
 
 // Do we have fp16 and support Neon intrinsics?
-#if EIGEN_HAS_ARM64_FP16
+// NOTE: `EIGEN_HAS_ARM64_FP16` may be set on ARM32 targets as well; it only checks `__ARM_FP16_FORMAT_IEEE`.
+#if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 typedef float16x4_t Packet4hf;
 typedef float16x8_t Packet8hf;
 
@@ -6606,7 +6607,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 8>&
 
 #endif  // end EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
 
-#endif  // end EIGEN_HAS_ARM64_FP16
+#endif  // end EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 
 }  // end namespace internal
 
