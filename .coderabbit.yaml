@@ -109,10 +109,12 @@ reviews:
           tests that exercise its accuracy claims: random ill-conditioned
           inputs across a range of condition numbers, edge values, and
           matrices structured for the algorithm (Hilbert, Vandermonde,
-          Wilkinson, Frank, KMS / Toeplitz, rank-deficient, defective —
-          MATLAB's `gallery()` is the standard catalog; Higham's *Accuracy
-          and Stability of Numerical Algorithms* / *Functions of Matrices*
-          and Golub & van Loan are the references). For routines with a
+          Pascal, Wilkinson's W, Frank, Lehmer, KMS / Toeplitz, banded,
+          rank-deficient, defective / near-defective Jordan blocks,
+          positive-definite-but-barely — MATLAB's `gallery()` is the
+          standard catalog; Higham's *Accuracy and Stability of Numerical
+          Algorithms* / *Functions of Matrices* and Golub & van Loan are
+          the references). For routines with a
           LAPACK counterpart, match LAPACK's TESTING/ category coverage as
           the bar. Quantify accuracy in ULPs against a scalar reference,
           not just relative error. If such tests are missing, request them.
@@ -177,9 +179,10 @@ reviews:
           backend specialization usually shows up first in
           `test/packetmath.cpp` or `unsupported/test/special_packetmath.cpp`
           — flag PRs that add a packet op in one backend without the others.
-    - path: "Eigen/src/ThreadPool/**"
+    - path: "{Eigen/ThreadPool,Eigen/src/ThreadPool/**}"
       instructions: |
-        Eigen's work-stealing thread pool (`NonBlockingThreadPool`,
+        Eigen's work-stealing thread pool — umbrella header `Eigen/ThreadPool`
+        with sources under `Eigen/src/ThreadPool/` (`NonBlockingThreadPool`,
         `RunQueue`, `EventCount`, `ForkJoin`, `CoreThreadPoolDevice`). Backs
         `EIGEN_GEMM_THREADPOOL` and the Tensor module's `ThreadPoolDevice`.
         Originally developed for TensorFlow and still depended on there —
