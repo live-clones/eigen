@@ -92,7 +92,7 @@ struct CusolverParams {
   CusolverParams(CusolverParams&& o) noexcept : p(o.p) { o.p = nullptr; }
   CusolverParams& operator=(CusolverParams&& o) noexcept {
     if (this != &o) {
-      if (p) EIGEN_CUSOLVER_CHECK(cusolverDnDestroyParams(p));
+      if (p) (void)cusolverDnDestroyParams(p);  // swallow: noexcept context (mirrors dtor)
       p = o.p;
       o.p = nullptr;
     }

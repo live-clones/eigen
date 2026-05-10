@@ -151,7 +151,7 @@ void test_qr_solve_underdetermined(Index m, Index n, Index nrhs) {
 
   // Min-norm property: X ⟂ null(A), so X ∈ row space(A) = col space(A^H).
   // ||X|| <= ||X_any|| for any other solution. Compare to the SVD min-norm reference.
-  Mat X_svd = BDCSVD<Mat>(A, ComputeThinU | ComputeThinV).solve(B);
+  Mat X_svd = BDCSVD<Mat, ComputeThinU | ComputeThinV>(A).solve(B);
   // Both should have the same norm (up to rounding).
   VERIFY(numext::abs(X.norm() - X_svd.norm()) / X_svd.norm() <
          RealScalar(50) * RealScalar(n) * NumTraits<Scalar>::epsilon());

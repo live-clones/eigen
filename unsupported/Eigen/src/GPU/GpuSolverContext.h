@@ -83,14 +83,14 @@ struct GpuSolverContext {
 
   GpuSolverContext& operator=(GpuSolverContext&& o) noexcept {
     if (this != &o) {
-      // Drain pending work on the old stream before tearing it down so the
-      // upcoming move of d_scratch_ doesn't free buffers that an in-flight
-      // kernel is still touching. The asymmetric move-ctor doesn't need this —
-      // it constructs onto uninitialized storage.
-      if (stream_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      if (cublas_) EIGEN_CUBLAS_CHECK(cublasDestroy(cublas_));
-      if (cusolver_) EIGEN_CUSOLVER_CHECK(cusolverDnDestroy(cusolver_));
-      if (stream_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream_));
+      // Mirror the dtor: noexcept context, can't propagate. Drain the old stream
+      // first so the upcoming move of d_scratch_ doesn't free buffers an in-flight
+      // kernel is still touching; then swallow destroy errors (the EIGEN_CU*_CHECK
+      // macros are eigen_assert-based and would terminate from a noexcept body).
+      if (stream_) (void)cudaStreamSynchronize(stream_);
+      if (cublas_) (void)cublasDestroy(cublas_);
+      if (cusolver_) (void)cusolverDnDestroy(cusolver_);
+      if (stream_) (void)cudaStreamDestroy(stream_);
       stream_ = o.stream_;
       cusolver_ = o.cusolver_;
       cublas_ = o.cublas_;
