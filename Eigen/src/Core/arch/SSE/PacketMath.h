@@ -1799,15 +1799,19 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
   // Convert e to integer and swizzle to low-order bits.
   const Packet4i ei = vec4i_swizzle1(_mm_cvtpd_epi32(e), 0, 3, 1, 3);
 
-  // Split 2^e into four factors and multiply:
+  // Split 2^e into four factors and combine via a depth-3 multiply tree:
+  //   out = (a * c2) * (c1 * c1) * c1   where c1 = 2^b, c2 = 2^(e-3b).
+  // The naive a*c1*c1*c1*c2 is a chain of four dependent multiplies; the
+  // tree form lets c1*c1 run in parallel with a*c2 so the chain is only
+  // three deep.
   const Packet4i bias = _mm_set_epi32(0, 1023, 0, 1023);
-  Packet4i b = parithmetic_shift_right<2>(ei);                       // floor(e/4)
-  Packet2d c = _mm_castsi128_pd(_mm_slli_epi64(padd(b, bias), 52));  // 2^b
-  Packet2d out = pmul(pmul(pmul(a, c), c), c);                       // a * 2^(3b)
-  b = psub(psub(psub(ei, b), b), b);                                 // e - 3b
-  c = _mm_castsi128_pd(_mm_slli_epi64(padd(b, bias), 52));           // 2^(e - 3b)
-  out = pmul(out, c);                                                // a * 2^e
-  return out;
+  Packet4i b = parithmetic_shift_right<2>(ei);                                        // floor(e/4)
+  Packet4i b_remainder = psub(psub(psub(ei, b), b), b);                               // e - 3b
+  const Packet2d c1 = _mm_castsi128_pd(_mm_slli_epi64(padd(b, bias), 52));            // 2^b
+  const Packet2d c2 = _mm_castsi128_pd(_mm_slli_epi64(padd(b_remainder, bias), 52));  // 2^(e - 3b)
+  const Packet2d c1_squared = pmul(c1, c1);
+  const Packet2d a_c2 = pmul(a, c2);
+  return pmul(pmul(a_c2, c1_squared), c1);  // a * 2^e
 }
 
 // We specialize pldexp here, since the generic implementation uses Packet2l, which is not well

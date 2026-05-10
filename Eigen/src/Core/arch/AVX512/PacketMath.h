@@ -1477,26 +1477,30 @@ EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d&
   const Packet8d max_exponent = pset1<Packet8d>(2099.0);
   const Packet8i e = _mm512_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // Split 2^e into four factors and multiply.
+  // Split 2^e into four factors and combine via a depth-3 multiply tree:
+  //   out = (a * c2) * (c1 * c1) * c1   where c1 = 2^b, c2 = 2^(e-3b).
+  // The naive a*c1*c1*c1*c2 is a chain of four dependent multiplies; the
+  // tree form lets c1*c1 run in parallel with a*c2 so the chain is only
+  // three deep.
   const Packet8i bias = pset1<Packet8i>(1023);
-  Packet8i b = parithmetic_shift_right<2>(e);  // floor(e/4)
-
-  // 2^b
+  const Packet8i b = parithmetic_shift_right<2>(e);           // floor(e/4)
+  const Packet8i b_remainder = psub(psub(psub(e, b), b), b);  // e - 3b
   const Packet8i permute_idx = _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7);
+
+  // Build 2^b and 2^(e-3b) as Packet8d via the int32->int64 expansion trick.
   Packet8i hi = _mm256_permutevar8x32_epi32(padd(b, bias), permute_idx);
   Packet8i lo = _mm256_slli_epi64(hi, 52);
   hi = _mm256_slli_epi64(_mm256_srli_epi64(hi, 32), 52);
-  Packet8d c = _mm512_castsi512_pd(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1));
-  Packet8d out = pmul(pmul(pmul(a, c), c), c);  // a * 2^(3b)
+  const Packet8d c1 = _mm512_castsi512_pd(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1));
 
-  // 2^(e - 3b)
-  b = psub(psub(psub(e, b), b), b);  // e - 3b
-  hi = _mm256_permutevar8x32_epi32(padd(b, bias), permute_idx);
+  hi = _mm256_permutevar8x32_epi32(padd(b_remainder, bias), permute_idx);
   lo = _mm256_slli_epi64(hi, 52);
   hi = _mm256_slli_epi64(_mm256_srli_epi64(hi, 32), 52);
-  c = _mm512_castsi512_pd(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1));
-  out = pmul(out, c);  // a * 2^e
-  return out;
+  const Packet8d c2 = _mm512_castsi512_pd(_mm512_inserti64x4(_mm512_castsi256_si512(lo), hi, 1));
+
+  const Packet8d c1_squared = pmul(c1, c1);
+  const Packet8d a_c2 = pmul(a, c2);
+  return pmul(pmul(a_c2, c1_squared), c1);  // a * 2^e
 }
 
 #ifdef EIGEN_VECTORIZE_AVX512DQ
