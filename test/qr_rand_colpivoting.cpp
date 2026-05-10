@@ -247,6 +247,131 @@ void rqr_blocked_path() {
   VERIFY_IS_APPROX(qr.matrixQR(), qr2.matrixQR());
 }
 
+// Mirrors qr_rank_detection_stress from qr_colpivoting.cpp: many random
+// partial-isometry trials across aspect ratios. With configure_small (b=4)
+// most of these matrices engage the blocked path.
+template <typename MatrixType>
+void rqr_rank_detection_stress() {
+  const Index sizes[][2] = {{10, 10}, {20, 20}, {50, 50}, {100, 100}, {40, 10}, {100, 10}, {10, 40}, {10, 100}};
+  for (const auto& sz : sizes) {
+    const Index rows = sz[0], cols = sz[1];
+    const Index min_dim = (std::min)(rows, cols);
+    for (Index rank : {Index(1), (std::max)(Index(1), min_dim / 2), min_dim - 1}) {
+      if (rank >= min_dim) continue;
+      for (int trial = 0; trial < 10; ++trial) {
+        MatrixType m1;
+        createRandomPIMatrixOfRank(rank, rows, cols, m1);
+        RandColPivHouseholderQR<MatrixType> qr;
+        configure_small(qr);
+        qr.compute(m1);
+        VERIFY_IS_EQUAL(rank, qr.rank());
+      }
+    }
+  }
+}
+
+// Mirrors qr_threshold_efficiency: matrices with smallest SV well above
+// the rank-detection threshold must come back as full-rank.
+template <typename MatrixType>
+void rqr_threshold_efficiency() {
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  const Index sizes[][2] = {{10, 10}, {50, 50}, {100, 100}, {40, 10}, {10, 40}};
+  for (const auto& sz : sizes) {
+    const Index rows = sz[0], cols = sz[1];
+    const Index min_dim = (std::min)(rows, cols);
+    RealScalar sigma_min = RealScalar(400) * RealScalar(min_dim) * NumTraits<RealScalar>::epsilon();
+    RealVectorType svs = setupRangeSvs<RealVectorType>(min_dim, sigma_min, RealScalar(1));
+    MatrixType m1;
+    generateRandomMatrixSvs(svs, rows, cols, m1);
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(m1);
+    VERIFY_IS_EQUAL(min_dim, qr.rank());
+  }
+}
+
+// Mirrors qr_rank_gap_test: geometric signal SVs decaying to sigma_rank,
+// then noise SVs near eps. The clear gap at `rank` should be detected.
+template <typename MatrixType>
+void rqr_rank_gap_test() {
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  const Index sizes[][2] = {{20, 20}, {50, 50}, {100, 100}, {50, 20}, {20, 50}};
+  for (const auto& sz : sizes) {
+    const Index rows = sz[0], cols = sz[1];
+    const Index min_dim = (std::min)(rows, cols);
+    const Index rank = (std::max)(Index(1), min_dim / 2);
+    RealScalar sigma_rank = RealScalar(0.1);
+    RealScalar eps_level = NumTraits<RealScalar>::epsilon();
+    RealVectorType svs(min_dim);
+    for (Index i = 0; i < rank; ++i) {
+      RealScalar t = (rank > 1) ? RealScalar(i) / RealScalar(rank - 1) : RealScalar(0);
+      svs(i) = std::pow(sigma_rank, t);
+    }
+    for (Index i = rank; i < min_dim; ++i) svs(i) = eps_level * RealScalar(min_dim - i);
+    MatrixType m1;
+    generateRandomMatrixSvs(svs, rows, cols, m1);
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(m1);
+    VERIFY_IS_EQUAL(rank, qr.rank());
+  }
+}
+
+// SV-decay classes from the RQRCP/HQRRP papers' section 4.2: slow linear
+// decay, fast exponential decay, and a low-rank case. The papers' central
+// empirical claim is that the randomized strategy reports the same rank as
+// classical column pivoting on these distributions; we verify that here.
+template <typename MatrixType>
+void rqr_sv_decay_classes() {
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  const Index n = 60;
+
+  // Slow decay: linear from 1 to 0.01.
+  {
+    RealVectorType svs(n);
+    for (Index i = 0; i < n; ++i) svs(i) = RealScalar(1) - (RealScalar(0.99) * RealScalar(i)) / RealScalar(n - 1);
+    MatrixType m1;
+    generateRandomMatrixSvs(svs, n, n, m1);
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(m1);
+    ColPivHouseholderQR<MatrixType> cp(m1);
+    VERIFY_IS_EQUAL(qr.rank(), cp.rank());
+  }
+
+  // Fast exponential decay: sigma_i = exp(-c * i), c chosen so the tail
+  // hits roughly e^-20.
+  {
+    RealVectorType svs(n);
+    RealScalar c = RealScalar(20) / RealScalar(n);
+    for (Index i = 0; i < n; ++i) svs(i) = std::exp(-c * RealScalar(i));
+    MatrixType m1;
+    generateRandomMatrixSvs(svs, n, n, m1);
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(m1);
+    ColPivHouseholderQR<MatrixType> cp(m1);
+    VERIFY_IS_EQUAL(qr.rank(), cp.rank());
+  }
+
+  // Low-rank: rank-12 signal block at [1, 0.5], rest at machine eps.
+  {
+    const Index r = 12;
+    RealVectorType svs(n);
+    for (Index i = 0; i < r; ++i) svs(i) = RealScalar(1) - (RealScalar(0.5) * i) / RealScalar(r - 1);
+    for (Index i = r; i < n; ++i) svs(i) = NumTraits<RealScalar>::epsilon();
+    MatrixType m1;
+    generateRandomMatrixSvs(svs, n, n, m1);
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(m1);
+    VERIFY_IS_EQUAL(r, qr.rank());
+  }
+}
+
 EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(rqr<MatrixXf>());
@@ -282,4 +407,16 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
   CALL_SUBTEST_1(rqr_rank_in_late_block<MatrixXf>());
   CALL_SUBTEST_2(rqr_rank_in_late_block<MatrixXd>());
   CALL_SUBTEST_3(rqr_rank_in_late_block<MatrixXcd>());
+
+  CALL_SUBTEST_1(rqr_rank_detection_stress<MatrixXf>());
+  CALL_SUBTEST_2(rqr_rank_detection_stress<MatrixXd>());
+
+  CALL_SUBTEST_1(rqr_threshold_efficiency<MatrixXf>());
+  CALL_SUBTEST_2(rqr_threshold_efficiency<MatrixXd>());
+
+  CALL_SUBTEST_1(rqr_rank_gap_test<MatrixXf>());
+  CALL_SUBTEST_2(rqr_rank_gap_test<MatrixXd>());
+
+  CALL_SUBTEST_2(rqr_sv_decay_classes<MatrixXd>());
+  CALL_SUBTEST_3(rqr_sv_decay_classes<MatrixXcd>());
 }
