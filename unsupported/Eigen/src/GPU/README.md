@@ -106,8 +106,11 @@ expression objects that are evaluated when assigned.
 
 ### `gpu::Context`
 
-Every GPU operation needs a CUDA stream and library handles (cuBLAS,
-cuSOLVER). `gpu::Context` bundles these together.
+Every GPU operation needs a CUDA stream and library handles (cuBLAS eagerly,
+cuSOLVER lazily on first use). `gpu::Context` bundles these together. A
+single `Context` is not thread-safe -- use one per thread (or external
+synchronization), since the underlying cuBLAS and cuSOLVER handles are not
+thread-safe per handle.
 
 For simple usage, you don't need to create one -- a per-thread default context
 is created lazily on first use:
@@ -125,6 +128,26 @@ gpu::Context ctx1, ctx2;
 d_C1.device(ctx1) = d_A1 * d_B1;   // runs on stream 1
 d_C2.device(ctx2) = d_A2 * d_B2;   // runs on stream 2 (concurrently)
 ```
+
+### Linking
+
+The module is header-only, but each feature pulls in the corresponding NVIDIA
+library at link time. cuSOLVER is created lazily on first use, so a
+translation unit that only uses cuBLAS, cuFFT, cuSPARSE, or cuDSS does not
+need to link cuSOLVER:
+
+| Feature                                 | Link flags                |
+|-----------------------------------------|---------------------------|
+| `DeviceMatrix`, GEMM, TRSM, SYMM, SYRK  | `-lcublas`                |
+| Dense solvers (LLT, LU, QR, SVD, EVD)   | `-lcusolver -lcublas`     |
+| FFT (`gpu::FFT`)                        | `-lcufft -lcublas`        |
+| SpMV / SpMM (`gpu::SparseContext`)      | `-lcusparse -lcublas`     |
+| Sparse direct solvers (cuDSS)           | `-lcudss -lcublas`        |
+
+cuBLAS is required by `DeviceMatrix` itself (every `Context` creates a cuBLAS
+handle eagerly) and is also a runtime dependency of cuDSS, so it is the one
+constant. cuDSS additionally requires `EIGEN_CUDSS` to be defined before
+including `unsupported/Eigen/GPU`.
 
 ## Usage
 
@@ -218,9 +241,7 @@ round-tripping through host memory.
 ### Sparse direct solvers (cuDSS)
 
 Requires cuDSS (separate install, CUDA 12.0+). Define `EIGEN_CUDSS` before
-including `unsupported/Eigen/GPU` and link with `-lcudss -lcublas`. cuBLAS
-is a runtime dependency of cuDSS and is also used by the rest of this
-module (`DeviceMatrix`).
+including `unsupported/Eigen/GPU`; see [Linking](#linking) for link flags.
 
 ```cpp
 SparseMatrix<double> A = ...;  // symmetric positive definite
@@ -250,7 +271,12 @@ VectorXd x = lu.solve(b);
 ### FFT (cuFFT)
 
 ```cpp
-gpu::FFT<float> fft;
+gpu::FFT<float> fft;                // shares stream + cuBLAS with the
+                                    // thread-local default Context
+gpu::Context ctx;
+gpu::FFT<float> fft_on_ctx(ctx);    // share stream + cuBLAS with an
+                                    // explicit Context (e.g. for
+                                    // multi-stream pipelines)
 
 // 1D complex-to-complex
 VectorXcf X = fft.fwd(x);           // forward
@@ -398,18 +424,24 @@ Assignment   device(gpu::Context& ctx)                // Bind assignment to expl
 
 ### `gpu::Context`
 
-Unified GPU execution context owning a CUDA stream and library handles.
+Unified GPU execution context owning a CUDA stream and library handles. Not
+thread-safe -- use one `Context` per thread, or external synchronization
+across threads.
 
 ```cpp
-gpu::Context()                                             // Creates dedicated stream + handles
+gpu::Context()                                             // Creates dedicated stream + cuBLAS handle
+                                                           // (cuSOLVER handle created lazily on first
+                                                           // call to cusolverHandle())
 static gpu::Context& threadLocal()                         // Per-thread default (lazy-created)
 
 cudaStream_t       stream()
 cublasHandle_t     cublasHandle()
-cusolverDnHandle_t cusolverHandle()
+cusolverDnHandle_t cusolverHandle()                        // Lazy: creates the handle on first call
 ```
 
-Non-copyable, non-movable (owns library handles).
+Non-copyable, non-movable (owns library handles). Translation units that
+never call `cusolverHandle()` do not pull cuSOLVER symbols at link time --
+see [Linking](#linking).
 
 ### `gpu::LLT<Scalar, UpLo>` -- Dense Cholesky (cuSOLVER)
 
