@@ -1488,8 +1488,8 @@ EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d&
       _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b_remainder, bias)), 52));  // 2^(e-3b)
 
   const Packet8d c1_squared = pmul(c1, c1);
-  const Packet8d a_c2 = pmul(a, c2);
-  return pmul(pmul(a_c2, c1_squared), c1);  // a * 2^e
+  const Packet8d a_c1 = pmul(a, c1);
+  return pmul(pmul(a_c1, c1_squared), c2);  // a * 2^e
 }
 
 #ifdef EIGEN_VECTORIZE_AVX512DQ

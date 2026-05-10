@@ -114,8 +114,12 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   //     c2 = 2^(e - 3b)
   //   out = a * c1^3 * c2  (= a * 2^e)
   //
-  // Re-associate as (a * c2) * (c1 * c1) * c1 so c1*c1 runs in parallel with
-  // a*c2; the dependent-multiply chain is then 3 deep instead of 4.
+  // Re-associate as (a * c1) * (c1 * c1) * c2 so c1*c1 runs in parallel with
+  // a*c1; the dependent-multiply chain is 3 deep instead of 4.  Multiplying
+  // by c1 (the downscale factor) first is required for safety: for negative
+  // exponents the remainder factor c2 = 2^(e-3b) can be > 1 (e.g. e=-1 ->
+  // b=-1 -> c2=4), so a*c2 would overflow at |a| near max even when the
+  // final ldexp result is finite.
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename unpacket_traits<PacketI>::type ScalarI;
@@ -132,8 +136,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
   const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3*b)
   const Packet c1_squared = pmul(c1, c1);
-  const Packet a_c2 = pmul(a, c2);
-  return pmul(pmul(a_c2, c1_squared), c1);
+  const Packet a_c1 = pmul(a, c1);
+  return pmul(pmul(a_c1, c1_squared), c2);
 }
 
 // Explicitly multiplies
