@@ -16,7 +16,7 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
       cmake ninja-build git \
       gcc-10 g++-10 \
-      aarch64-linux-gnu-g++-10 \
+      g++-10-aarch64-linux-gnu \
       clang-14 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
