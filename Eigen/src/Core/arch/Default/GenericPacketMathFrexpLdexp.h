@@ -114,21 +114,14 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   //     c2 = 2^(e - 3b)
   //   out = a * c1^3 * c2  (= a * 2^e)
   //
-  // The naive evaluation a*c1*c1*c1*c2 is a chain of four dependent
-  // multiplies, ~4 * vmul-latency on the critical path.  Re-associate as
-  //   (a * c2) * (c1 * c1) * c1
-  // so the c1*c1 squaring runs in parallel with a*c2 and the chain is only
-  // three dependent multiplies deep, saving one mul of latency.  Op count
-  // is unchanged so this does not regress throughput-bound callers.
+  // Re-associate as (a * c2) * (c1 * c1) * c1 so c1*c1 runs in parallel with
+  // a*c2; the dependent-multiply chain is then 3 deep instead of 4.
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename unpacket_traits<PacketI>::type ScalarI;
   static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
                        ExponentBits = TotalBits - MantissaBits - 1;
 
-  // Materialize +max and -max as separate broadcasts so the clamp is just
-  //   pmin(pmax(exponent, neg_max), pos_max)
-  // rather than (pset1 + pnegate -> sign-bit xor) + pmax + pmin.
   constexpr Scalar max_exp_value = Scalar((ScalarI(1) << ExponentBits) + ScalarI(MantissaBits - 1));  // 278
   const Packet max_exponent = pset1<Packet>(max_exp_value);
   const Packet neg_max_exponent = pset1<Packet>(-max_exp_value);
@@ -138,7 +131,6 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   const PacketI b_remainder = pnmadd(pset1<PacketI>(3), b, e);                                         // e - 3b
   const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
   const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3*b)
-  // Tree multiply: depth 3 instead of 4.
   const Packet c1_squared = pmul(c1, c1);
   const Packet a_c2 = pmul(a, c2);
   return pmul(pmul(a_c2, c1_squared), c1);

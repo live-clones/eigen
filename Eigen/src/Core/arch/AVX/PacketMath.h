@@ -1879,19 +1879,12 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   const Packet4d max_exponent = pset1<Packet4d>(2099.0);
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // Split 2^e into four factors and combine via a depth-3 multiply tree:
-  //   out = (a * c2) * (c1 * c1) * c1   where c1 = 2^b, c2 = 2^(e-3b).
-  // The naive a*c1*c1*c1*c2 is a chain of four dependent multiplies; the
-  // tree form lets c1*c1 run in parallel with a*c2 so the chain is only
-  // three deep.
-  // Build 2^b and 2^(e-3b) as Packet4d.  The biased int32 exponent is widened
-  // to int64 with vpmovsxdq (the values are always >= 0 so sign-extension just
-  // zero-fills) and shifted into the double exponent field with vpsllq.  Two
-  // ops per factor versus the four-op manual swizzle+shift+insert that this
-  // code used historically.
+  // 4-way split + depth-3 multiply tree; see pldexp_generic for derivation.
+  // 2^b and 2^(e-3b) are built by widening the biased int32 exponent to int64
+  // with vpmovsxdq and shifting into the double exponent field with vpsllq.
   const Packet4i bias = pset1<Packet4i>(1023);
-  const Packet4i b = parithmetic_shift_right<2>(e);                                                      // floor(e/4)
-  const Packet4i b_remainder = psub(psub(psub(e, b), b), b);                                             // e - 3b
+  const Packet4i b = parithmetic_shift_right<2>(e);           // floor(e/4)
+  const Packet4i b_remainder = psub(psub(e, b), padd(b, b));  // e - 3b (depth 2)
   const Packet4d c1 = _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(padd(b, bias)), 52));  // 2^b
   const Packet4d c2 =
       _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(padd(b_remainder, bias)), 52));  // 2^(e-3b)
