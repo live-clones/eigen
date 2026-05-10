@@ -372,6 +372,139 @@ void rqr_sv_decay_classes() {
   }
 }
 
+// Suite of well-known matrices from the numerical linear algebra
+// literature that are commonly used to stress rank-revealing QR:
+//   - Hilbert    H[i,j] = 1/(i+j+1)               (Hilbert 1894; cond ~ exp(3.5n))
+//   - Vandermonde V[i,j] = x_i^j with x_i = i/n   (cond grows exponentially)
+//   - Kahan A = S K                               (Kahan 1966 counterexample;
+//                                                  HQRRP paper's "Matrix 4")
+//   - HQRRP Matrix 1 (fast exponential SV decay,  d_j = β^((j-1)/(n-1)),
+//                                                  β = 10^-5)
+//   - HQRRP Matrix 2 (S-shaped SV decay; high
+//                     plateau, knee, low plateau at 10^-6)
+//
+// Reconstruction must hold within a forgiving tolerance proportional to the
+// matrix conditioning. Where the matrix is unambiguously full-rank or has a
+// clear rank cutoff, we cross-check the reported rank against
+// ColPivHouseholderQR on the same input — the central empirical claim of
+// the RQRCP/HQRRP papers.
+template <typename MatrixType>
+void rqr_literature_matrices() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+
+  // 1. Hilbert (n = 10): full rank in theory; cond ~ 1e13 in double. Round-
+  // trip must hold to within cond(A) * eps; we use a generous bound.
+  {
+    const Index n = 10;
+    MatrixType H(n, n);
+    for (Index i = 0; i < n; ++i)
+      for (Index j = 0; j < n; ++j) H(i, j) = Scalar(RealScalar(1) / RealScalar(i + j + 1));
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(H);
+    MatrixType R = qr.matrixQR().template triangularView<Upper>();
+    MatrixType Q = qr.householderQ();
+    RealScalar err = (H - Q * R * qr.colsPermutation().inverse()).norm() / H.norm();
+    VERIFY(err < RealScalar(1e-10));
+    ColPivHouseholderQR<MatrixType> cp(H);
+    VERIFY_IS_EQUAL(qr.rank(), cp.rank());
+  }
+
+  // 2. Vandermonde with equispaced nodes (n = 12): also classically ill-
+  // conditioned. Same round-trip + rank-match check.
+  {
+    const Index n = 12;
+    MatrixType V(n, n);
+    for (Index i = 0; i < n; ++i) {
+      Scalar xi = Scalar(RealScalar(i + 1) / RealScalar(n));
+      Scalar p(1);
+      for (Index j = 0; j < n; ++j) {
+        V(i, j) = p;
+        p *= xi;
+      }
+    }
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(V);
+    MatrixType R = qr.matrixQR().template triangularView<Upper>();
+    MatrixType Q = qr.householderQ();
+    RealScalar err = (V - Q * R * qr.colsPermutation().inverse()).norm() / V.norm();
+    VERIFY(err < RealScalar(1e-9));
+    ColPivHouseholderQR<MatrixType> cp(V);
+    VERIFY_IS_EQUAL(qr.rank(), cp.rank());
+  }
+
+  // 3. Canonical (non-symmetrized) Kahan A = S K. HQRRP paper "Matrix 4",
+  // designed specifically to trip up classical column pivoting. Full rank;
+  // classical QRP gets the rank-k truncation error wrong, but the
+  // reconstruction round-trip and reported rank are still well-defined.
+  {
+    const Index n = 32;
+    RealScalar zeta = RealScalar(0.99999);
+    RealScalar phi = std::sqrt(RealScalar(1) - zeta * zeta);
+    MatrixType S = MatrixType::Zero(n, n);
+    MatrixType K = MatrixType::Zero(n, n);
+    RealScalar zpow(1);
+    for (Index i = 0; i < n; ++i) {
+      S(i, i) = Scalar(zpow);
+      zpow *= zeta;
+      K(i, i) = Scalar(1);
+      for (Index j = i + 1; j < n; ++j) K(i, j) = Scalar(-phi);
+    }
+    MatrixType A = S * K;
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(A);
+    MatrixType R = qr.matrixQR().template triangularView<Upper>();
+    MatrixType Q = qr.householderQ();
+    RealScalar err = (A - Q * R * qr.colsPermutation().inverse()).norm() / A.norm();
+    VERIFY(err < RealScalar(1e-10));
+    ColPivHouseholderQR<MatrixType> cp(A);
+    VERIFY_IS_EQUAL(qr.rank(), cp.rank());
+  }
+
+  // 4. HQRRP "Matrix 1": exponential SV decay d_j = beta^((j-1)/(n-1))
+  // with beta = 10^-5. All SVs are well above eps so rank should be n.
+  {
+    const Index n = 40;
+    RealVectorType svs(n);
+    RealScalar beta = RealScalar(1e-5);
+    for (Index j = 0; j < n; ++j) svs(j) = std::pow(beta, RealScalar(j) / RealScalar(n - 1));
+    MatrixType A;
+    generateRandomMatrixSvs(svs, n, n, A);
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(A);
+    ColPivHouseholderQR<MatrixType> cp(A);
+    VERIFY_IS_EQUAL(qr.rank(), cp.rank());
+  }
+
+  // 5. HQRRP "Matrix 2": S-shaped SV decay. High plateau (~1), sharp knee
+  // around k = n/2, low plateau (~10^-6). The rank-revealing pivot strategy
+  // should locate the knee.
+  {
+    const Index n = 40;
+    const Index knee = n / 2;
+    RealVectorType svs(n);
+    RealScalar lo = RealScalar(1e-6);
+    for (Index j = 0; j < n; ++j) {
+      // sigmoid centered at `knee`, scaled to [lo, 1]
+      RealScalar x = RealScalar(j - knee) * RealScalar(2);
+      RealScalar s = RealScalar(1) / (RealScalar(1) + std::exp(x));
+      svs(j) = lo + (RealScalar(1) - lo) * s;
+    }
+    MatrixType A;
+    generateRandomMatrixSvs(svs, n, n, A);
+    RandColPivHouseholderQR<MatrixType> qr;
+    configure_small(qr);
+    qr.compute(A);
+    ColPivHouseholderQR<MatrixType> cp(A);
+    VERIFY_IS_EQUAL(qr.rank(), cp.rank());
+  }
+}
+
 EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(rqr<MatrixXf>());
@@ -419,4 +552,6 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
 
   CALL_SUBTEST_2(rqr_sv_decay_classes<MatrixXd>());
   CALL_SUBTEST_3(rqr_sv_decay_classes<MatrixXcd>());
+
+  CALL_SUBTEST_2(rqr_literature_matrices<MatrixXd>());
 }
