@@ -139,10 +139,11 @@ void determine_pivots_on_sketch(MatrixBase<SketchDerived>& sketch, Index nsteps,
  * \tparam PermutationIndex_ the type of the permutation indices.
  *
  * Computes \f$ \mathbf{A} \mathbf{P} = \mathbf{Q} \mathbf{R} \f$ using the
- * randomized block-pivoted Householder algorithm of Martinsson, Quintana-Ortí,
- * Heavner, and van de Geijn (HQRRP, SIAM J. Sci. Comput. 39(2):C96–C115, 2017,
- * arXiv:1509.06820), independently co-discovered by Duersch and Gu (RQRCP,
- * SIAM J. Sci. Comput. 39(4):C263–C291, 2017).
+ * randomized block-pivoted Householder algorithm published independently by
+ * Duersch and Gu (RQRCP, SIAM J. Sci. Comput. 39(4):C263–C291, 2017,
+ * arXiv:1509.06820) and by Martinsson, Quintana-Ortí, Heavner, and van de
+ * Geijn (HQRRP, SIAM J. Sci. Comput. 39(2):C96–C115, 2017,
+ * arXiv:1512.02671 / FLAME Working Note #78).
  *
  * The classical Businger–Golub pivot scan is replaced by selecting blocks of
  * \c b pivots from a small Gaussian sketch \f$ \mathbf{Y} = \mathbf{G}
@@ -206,8 +207,8 @@ class RandColPivHouseholderQR : public SolverBase<RandColPivHouseholderQR<Matrix
   // multi-thread sweeps over b in {32..128}, p in {0..20}, n in
   // {1000, 2000, 4000} on Intel/AMD x86. b=48 was best or tied at every
   // size and thread count tested, and matches the panel size used by
-  // Eigen's unpivoted blocked HouseholderQR. p=5 is the paper's
-  // "very good" oversampling (Martinsson et al. Remark 1).
+  // Eigen's unpivoted blocked HouseholderQR. p=5 matches the HQRRP
+  // paper's "very good" oversampling (Remark 1).
   static constexpr Index kDefaultBlockSize = 48;
   static constexpr Index kDefaultOversampling = 5;
 
