@@ -284,6 +284,8 @@ Vectorization is abstracted through a "packet" layer. Each scalar type maps to a
 
 Packets are selected at compile time; the assignment loop splits into an aligned vectorized path plus a scalar remainder. New packet-math intrinsics get added in **every** backend that supports the type; `Default/` provides scalar fallbacks. `test/packetmath.cpp` (and `unsupported/test/special_packetmath.cpp`) exercises them across all enabled backends — failures there often indicate a missing or divergent specialization.
 
+**Guard intrinsics by ISA feature macro.** Even inside a backend directory, an intrinsic is only available when the corresponding ISA is enabled by the compiler — `arch/AVX/` is compiled when `EIGEN_VECTORIZE_AVX` is set, but AVX2 / FMA / AVX512* intrinsics within those files must each be guarded by their own `EIGEN_VECTORIZE_*` macro. Wrap AVX2 intrinsics in `#ifdef EIGEN_VECTORIZE_AVX2`, FMA in `#ifdef EIGEN_VECTORIZE_FMA`, AVX-512DQ in `#ifdef EIGEN_VECTORIZE_AVX512DQ`, etc., and provide a fallback for the un-guarded path. The full list of feature macros is set in `Eigen/src/Core/util/ConfigureVectorization.h`. The same discipline applies on other architectures (e.g. `EIGEN_VECTORIZE_NEON_FP16`, `EIGEN_VECTORIZE_VSX`) — never call an intrinsic without confirming its `EIGEN_VECTORIZE_*` gate is active. Missing guards typically compile fine on the developer's machine and break CI on a narrower ISA target.
+
 ### CUDA / HIP / SYCL
 
 Eigen has **two independent GPU stories**, and conflating them causes confusion:
