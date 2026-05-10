@@ -1884,20 +1884,17 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   // The naive a*c1*c1*c1*c2 is a chain of four dependent multiplies; the
   // tree form lets c1*c1 run in parallel with a*c2 so the chain is only
   // three deep.
+  // Build 2^b and 2^(e-3b) as Packet4d.  The biased int32 exponent is widened
+  // to int64 with vpmovsxdq (the values are always >= 0 so sign-extension just
+  // zero-fills) and shifted into the double exponent field with vpsllq.  Two
+  // ops per factor versus the four-op manual swizzle+shift+insert that this
+  // code used historically.
   const Packet4i bias = pset1<Packet4i>(1023);
-  const Packet4i b = parithmetic_shift_right<2>(e);           // floor(e/4)
-  const Packet4i b_remainder = psub(psub(psub(e, b), b), b);  // e - 3b
-
-  // Build 2^b and 2^(e-3b) as Packet4d via the int32->int64 expansion trick.
-  Packet4i hi = vec4i_swizzle1(padd(b, bias), 0, 2, 1, 3);
-  Packet4i lo = _mm_slli_epi64(hi, 52);
-  hi = _mm_slli_epi64(_mm_srli_epi64(hi, 32), 52);
-  const Packet4d c1 = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
-
-  hi = vec4i_swizzle1(padd(b_remainder, bias), 0, 2, 1, 3);
-  lo = _mm_slli_epi64(hi, 52);
-  hi = _mm_slli_epi64(_mm_srli_epi64(hi, 32), 52);
-  const Packet4d c2 = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+  const Packet4i b = parithmetic_shift_right<2>(e);                                                      // floor(e/4)
+  const Packet4i b_remainder = psub(psub(psub(e, b), b), b);                                             // e - 3b
+  const Packet4d c1 = _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(padd(b, bias)), 52));  // 2^b
+  const Packet4d c2 =
+      _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(padd(b_remainder, bias)), 52));  // 2^(e-3b)
 
   const Packet4d c1_squared = pmul(c1, c1);
   const Packet4d a_c2 = pmul(a, c2);
@@ -1912,11 +1909,9 @@ EIGEN_STRONG_INLINE Packet4d pldexp_fast<Packet4d>(const Packet4d& a, const Pack
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, min_exponent), max_exponent));
   const Packet4i bias = pset1<Packet4i>(1023);
 
-  // 2^e
-  Packet4i hi = vec4i_swizzle1(padd(e, bias), 0, 2, 1, 3);
-  const Packet4i lo = _mm_slli_epi64(hi, 52);
-  hi = _mm_slli_epi64(_mm_srli_epi64(hi, 32), 52);
-  const Packet4d c = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+  // 2^e: widen the biased int32 exponent to int64 (vpmovsxdq) and shift into
+  // the double exponent field.
+  const Packet4d c = _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(padd(e, bias)), 52));
   return pmul(a, c);  // a * 2^e
 }
 
