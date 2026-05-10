@@ -431,6 +431,8 @@ class ColPivHouseholderQR;
 template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
 class FullPivHouseholderQR;
 template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
+class RandColPivHouseholderQR;
+template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
 class CompleteOrthogonalDecomposition;
 template <typename MatrixType>
 class SVDBase;
