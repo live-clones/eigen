@@ -448,6 +448,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 // exp(r) is computed using a 6th order minimax polynomial approximation.
 template <typename Packet, bool IsFinite>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
+  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+
   const Packet cst_one = pset1<Packet>(1.0f);
   const Packet cst_exp_hi = pset1<Packet>(88.723f);
   const Packet cst_exp_lo = pset1<Packet>(-104.f);
@@ -483,14 +485,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   Packet y = pmadd(r, p_odd, p_even);
   y = pmadd(r2, y, p_low);
 
-  // Construct the result y * 2^m via a 2-way exponent split.  Writing
+  // Construct the result y * 2^m via a 2-way exponent split. Writing
   //   2^m = 2^floor(m/2) * 2^(m - floor(m/2))
   // keeps each constructed power-of-two within the normal float range (since
   // |m| <= 150 after the input clamp implies each half lies in [-75, 65]), so
   // the IEEE-correct rounding of normal*normal handles the subnormal output
-  // range without special-casing.  The previous inline fast path clamped the
-  // biased exponent m+127 at 0, flushing every subnormal exp(x) to zero
-  // (e.g. expf(-88.0f) returned 0 instead of 6.05e-39).
+  // range without special-casing.
   //
   // To minimize integer ops we fold the bias into the split:
   //   biased_sum = m + 254                      (always nonnegative)
@@ -498,7 +498,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   //   biased_lo  = biased_sum - biased_hi = (m - m/2) + 127
   // so each <<23 directly yields the float bit pattern for 2^(m/2) and
   // 2^(m - m/2).
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   const PacketI cst_double_bias = pset1<PacketI>(254);
   const PacketI mi = pcast<Packet, PacketI>(m);
   const PacketI biased_sum = padd(mi, cst_double_bias);
