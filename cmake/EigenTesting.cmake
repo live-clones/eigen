@@ -155,13 +155,9 @@ macro(ei_add_test_internal testname testname_with_suffix)
     add_sycl_to_target(TARGET ${targetname} SOURCES ${filename})
   endif(EIGEN_SYCL)
 
-  # Smoke-test registration.  ei_smoke_test_list is loaded once in
-  # EigenConfigureTesting.cmake; we attach the smoketest label and the
-  # buildsmoketests dependency here, in the same directory scope as
-  # add_test() / add_executable(), so the registration works for both the
-  # Official tree and the unsupported tree.  An entry matches if it is
-  # either the bare parent test name (e.g. "packetmath" → all packetmath_N)
-  # or the specific subtest name (e.g. "packetmath_2").
+  # Match on the parent test name (e.g. "packetmath" → all packetmath_N) or
+  # the specific subtest name (e.g. "packetmath_2"); see EigenConfigureTesting.cmake
+  # for why this lives here instead of in a post-hoc registration.
   if ("${testname_with_suffix}" IN_LIST ei_smoke_test_list OR "${testname}" IN_LIST ei_smoke_test_list)
     set_property(TEST ${testname_with_suffix} APPEND PROPERTY LABELS "smoketest")
     add_dependencies(buildsmoketests ${targetname})
@@ -750,8 +746,3 @@ macro(ei_split_testsuite num_splits)
     add_dependencies("${current_target}" "${curr_test}")
   endforeach()
 endmacro(ei_split_testsuite num_splits)
-
-# Smoke-test registration is inlined in ei_add_test_internal so that
-# set_property(TEST ...) and add_dependencies happen in the same directory
-# scope as add_test().  See the comment in ei_add_test_internal and in
-# EigenConfigureTesting.cmake.

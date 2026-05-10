@@ -553,8 +553,3 @@ if(MPFR_FOUND AND GMP_FOUND)
   target_link_libraries(ulp_accuracy ${MPFR_LIBRARIES} ${GMP_LIBRARIES})
   target_compile_definitions(ulp_accuracy PRIVATE EIGEN_HAS_MPFR)
 endif()
-
-# Smoke-test registration happens inside ei_add_test_internal (called by
-# every ei_add_test), so each test is labeled and added to buildsmoketests
-# in the same directory scope as its add_test() call.  The list itself is
-# loaded once in EigenConfigureTesting.cmake.
