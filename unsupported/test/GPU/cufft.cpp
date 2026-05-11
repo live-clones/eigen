@@ -165,6 +165,33 @@ void test_empty() {
   VERIFY_IS_EQUAL(y.size(), 0);
 }
 
+// ---- Explicit-Context ctor: stream and cuBLAS plumbing ----------------------
+// Verifies that FFT(Context&) actually binds to the supplied Context's stream
+// and cuBLAS handle (rather than falling back to Context::threadLocal()), and
+// that fwd/inv exercise both: fwd schedules the cuFFT plan on ctx.stream(),
+// inv additionally scales via ctx.cublasHandle().
+
+template <typename Scalar>
+void test_explicit_context(Index n) {
+  using Complex = std::complex<Scalar>;
+  using Vec = Matrix<Complex, Dynamic, 1>;
+  using RealScalar = Scalar;
+
+  // A fresh Context owns a distinct stream from the thread-local default.
+  gpu::Context ctx;
+  VERIFY(ctx.stream() != gpu::Context::threadLocal().stream());
+
+  gpu::FFT<Scalar> fft(ctx);
+  VERIFY(fft.stream() == ctx.stream());
+  VERIFY(&fft.context() == &ctx);
+
+  Vec x = Vec::Random(n);
+  Vec X = fft.fwd(x);
+  Vec y = fft.inv(X);
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((y - x).norm() / x.norm() < tol);
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
@@ -180,6 +207,7 @@ void test_scalar() {
   CALL_SUBTEST(test_2d_constant<Scalar>());
   CALL_SUBTEST(test_plan_reuse<Scalar>());
   CALL_SUBTEST(test_empty<Scalar>());
+  CALL_SUBTEST(test_explicit_context<Scalar>(64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cufft) {
