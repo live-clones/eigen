@@ -62,7 +62,7 @@ void test_svd_singular_values(Index m, Index n) {
   VERIFY_IS_EQUAL(svd.info(), Success);
 
   auto S_gpu = svd.singularValues();
-  auto S_cpu = BDCSVD<Mat>(A, 0).singularValues();
+  auto S_cpu = BDCSVD<Mat>(A).singularValues();
 
   // Weyl's perturbation bound (Higham, Accuracy and Stability of Numerical
   // Algorithms, 2nd ed., §10.2.3): |σ_i(A) - σ_i(A+δA)| ≤ ||δA||. Both cuSOLVER
@@ -101,7 +101,7 @@ void test_svd_solve(Index m, Index n, Index nrhs) {
   // constant. Across 6k trials over {float, double, complex<float>,
   // complex<double>} and {square, over-/underdetermined} shapes, the worst
   // observed err / (κ · u) is 5.3.
-  auto cpu_svd = BDCSVD<Mat>(A, ComputeThinU | ComputeThinV);
+  auto cpu_svd = BDCSVD<Mat, ComputeThinU | ComputeThinV>(A);
   Mat X_cpu = cpu_svd.solve(B);
   auto S = cpu_svd.singularValues();
   const RealScalar cond = S(0) / S(S.size() - 1);
@@ -126,7 +126,7 @@ void test_svd_solve_truncated(Index m, Index n) {
   Mat X_trunc = svd.solve(B, trunc);
 
   // Build CPU reference: truncated pseudoinverse.
-  auto cpu_svd = BDCSVD<Mat>(A, ComputeThinU | ComputeThinV);
+  auto cpu_svd = BDCSVD<Mat, ComputeThinU | ComputeThinV>(A);
   auto S = cpu_svd.singularValues();
   Mat U = cpu_svd.matrixU();
   Mat V = cpu_svd.matrixV();
@@ -156,7 +156,7 @@ void test_svd_solve_regularized(Index m, Index n) {
   Mat X_reg = svd.solve(B, lambda);
 
   // CPU reference: D_ii = S_i / (S_i^2 + lambda^2).
-  auto cpu_svd = BDCSVD<Mat>(A, ComputeThinU | ComputeThinV);
+  auto cpu_svd = BDCSVD<Mat, ComputeThinU | ComputeThinV>(A);
   auto S = cpu_svd.singularValues();
   Mat U = cpu_svd.matrixU();
   Mat V = cpu_svd.matrixV();
@@ -196,7 +196,7 @@ void test_svd_solve_rank_deficient(Index m, Index n, Index r) {
 
   // Reference: CPU BDCSVD with the same drop_threshold semantics (its default solve()
   // also drops near-zero singular values relative to S(0) * (m, n)_max * epsilon).
-  Mat X_cpu = BDCSVD<Mat>(A, ComputeThinU | ComputeThinV).solve(B);
+  Mat X_cpu = BDCSVD<Mat, ComputeThinU | ComputeThinV>(A).solve(B);
 
   // Both should produce the minimum-norm least-squares solution; compare via the
   // "useful" residual A^H r: zero up to the rank-r component plus rounding.
