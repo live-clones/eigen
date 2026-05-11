@@ -564,12 +564,17 @@ DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Cont
 }
 
 template <typename Scalar_>
-void DeviceMatrix<Scalar_>::setZero(Context& ctx) {
+void DeviceMatrix<Scalar_>::setZero(cudaStream_t stream) {
   if (sizeInBytes() > 0) {
-    waitReady(ctx.stream());
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(data_.get(), 0, sizeInBytes(), ctx.stream()));
-    recordReady(ctx.stream());
+    waitReady(stream);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(data_.get(), 0, sizeInBytes(), stream));
+    recordReady(stream);
   }
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::setZero(Context& ctx) {
+  setZero(ctx.stream());
 }
 
 template <typename Scalar_>

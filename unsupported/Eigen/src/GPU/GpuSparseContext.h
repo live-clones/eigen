@@ -351,18 +351,11 @@ class SparseContext {
     eigen_assert(d_x.rows() * d_x.cols() == x_size);
 
     if (m == 0 || n == 0 || cached_nnz_ == 0) {
-      // SpMV semantics: y = alpha*A*x + beta*y. With an empty A the alpha term
-      // vanishes, leaving y <- beta*y. beta == 0 zeros y on this stream; the
-      // beta != 0 case is rejected since SparseContext owns no cuBLAS handle
-      // for an in-place scale — callers in that regime should run the scale
-      // themselves (e.g. d_y *= beta) before the SpMV.
+      // Empty A reduces SpMV to y <- beta*y; SparseContext owns no cuBLAS
+      // handle for the scale, so beta != 0 must be done by the caller.
       eigen_assert(beta == Scalar(0) && "SpMV with empty A and beta != 0 is unsupported; scale d_y externally");
       if (d_y.rows() * d_y.cols() != y_size) d_y.resize(y_size, 1);
-      if (y_size > 0) {
-        d_y.waitReady(stream_);
-        EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_y.data(), 0, y_size * sizeof(Scalar), stream_));
-        d_y.recordReady(stream_);
-      }
+      d_y.setZero(stream_);
       return;
     }
 

@@ -516,6 +516,7 @@ class DeviceMatrix {
 
   /** Set all elements to zero. */
   void setZero(Context& ctx);
+  void setZero(cudaStream_t stream);
 
   /** this += alpha * x (cuBLAS axpy). Requires same total size. */
   void addScaled(Context& ctx, Scalar alpha, const DeviceMatrix& x);
