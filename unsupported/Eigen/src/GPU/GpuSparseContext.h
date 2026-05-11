@@ -87,19 +87,19 @@ class DeviceSparseView {
   using Scalar = Scalar_;
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
 
-  DeviceSparseView(SparseContext<Scalar>& ctx, const SpMat& A) : ctx_(ctx), A_(A) {}
+  DeviceSparseView(SparseContext<Scalar>& ctx, Index rows, Index cols) : ctx_(ctx), rows_(rows), cols_(cols) {}
 
   /** SpMV expression: d_A * d_x. Evaluated by DeviceMatrix::operator=. */
   SpMVExpr<Scalar> operator*(const DeviceMatrix<Scalar>& x) const { return SpMVExpr<Scalar>(*this, x); }
 
-  Index rows() const { return A_.rows(); }
-  Index cols() const { return A_.cols(); }
+  Index rows() const { return rows_; }
+  Index cols() const { return cols_; }
   const SparseContext<Scalar>& context() const { return ctx_; }
-  const SpMat& matrix() const { return A_; }
 
  private:
   SparseContext<Scalar>& ctx_;
-  const SpMat& A_;
+  Index rows_;
+  Index cols_;
 };
 
 template <typename Scalar_>
@@ -149,7 +149,7 @@ class SparseContext {
   DeviceSparseView<Scalar> deviceView(const SpMat& A) {
     eigen_assert(A.isCompressed());
     upload_sparse(A);
-    return DeviceSparseView<Scalar>(*this, A);
+    return DeviceSparseView<Scalar>(*this, A.rows(), A.cols());
   }
 
   // ---- SpMV: y = A * x (host vectors) --------------------------------------
@@ -351,9 +351,17 @@ class SparseContext {
     eigen_assert(d_x.rows() * d_x.cols() == x_size);
 
     if (m == 0 || n == 0 || cached_nnz_ == 0) {
-      d_y.resize(y_size, 1);
-      if (beta == Scalar(0)) {
-        d_y.setZero();
+      // SpMV semantics: y = alpha*A*x + beta*y. With an empty A the alpha term
+      // vanishes, leaving y <- beta*y. beta == 0 zeros y on this stream; the
+      // beta != 0 case is rejected since SparseContext owns no cuBLAS handle
+      // for an in-place scale — callers in that regime should run the scale
+      // themselves (e.g. d_y *= beta) before the SpMV.
+      eigen_assert(beta == Scalar(0) && "SpMV with empty A and beta != 0 is unsupported; scale d_y externally");
+      if (d_y.rows() * d_y.cols() != y_size) d_y.resize(y_size, 1);
+      if (y_size > 0) {
+        d_y.waitReady(stream_);
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_y.data(), 0, y_size * sizeof(Scalar), stream_));
+        d_y.recordReady(stream_);
       }
       return;
     }

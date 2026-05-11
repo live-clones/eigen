@@ -92,6 +92,7 @@ class DeviceScalar {
   // pattern in iterative solvers where one GpuContext owns all work.
 
   friend DeviceScalar operator/(const DeviceScalar& a, const DeviceScalar& b) {
+    eigen_assert(a.stream_ == b.stream_ && "DeviceScalar operator/: operands must share the same stream");
     DeviceScalar result(a.stream_);
     gpu::internal::device_scalar_div(a.devicePtr(), b.devicePtr(), result.devicePtr(), a.stream_);
     return result;

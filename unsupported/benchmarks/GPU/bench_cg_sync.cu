@@ -68,7 +68,7 @@ static void cuda_warmup() {
 //   ...
 //   p = z + beta * p;                     p *= beta; p += z;  [equivalent, no alloc]
 
-static void BM_CG_gpu::DeviceMatrixOps(benchmark::State& state) {
+static void BM_CG_DeviceMatrixOps(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
 
@@ -166,7 +166,7 @@ static void BM_CG_gpu::DeviceMatrixOps(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * 200);
 }
 
-BENCHMARK(BM_CG_gpu::DeviceMatrixOps)->RangeMultiplier(4)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_CG_DeviceMatrixOps)->RangeMultiplier(4)->Range(1 << 10, 1 << 20);
 
 // ==========================================================================
 // Raw cuBLAS device-pointer-mode CG (1 sync/iter) — performance lower bound
