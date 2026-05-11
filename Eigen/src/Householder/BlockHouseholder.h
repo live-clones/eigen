@@ -87,7 +87,7 @@ void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vec
     tmp = (T.template triangularView<Upper>().adjoint() * tmp).eval();
 
   // mat -= V * tmp, split along the same top/bottom partition.
-  mat.topRows(nbVecs) -= V_top.template triangularView<UnitLower>() * tmp;
+  mat.topRows(nbVecs).noalias() -= V_top.template triangularView<UnitLower>() * tmp;
   if (nbBelow > 0) {
     mat.bottomRows(nbBelow).noalias() -= vectors.bottomRows(nbBelow) * tmp;
   }
@@ -128,7 +128,7 @@ void apply_block_householder_on_the_right(MatrixType& mat, const VectorsType& ve
     tmp = (tmp * T.template triangularView<Upper>().adjoint()).eval();
 
   // mat -= tmp * V^*, split along the same partition.
-  mat.leftCols(nbVecs) -= tmp * V_top.template triangularView<UnitLower>().adjoint();
+  mat.leftCols(nbVecs).noalias() -= tmp * V_top.template triangularView<UnitLower>().adjoint();
   if (nbBelow > 0) {
     mat.rightCols(nbBelow).noalias() -= tmp * vectors.bottomRows(nbBelow).adjoint();
   }
