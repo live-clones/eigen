@@ -222,5 +222,7 @@ EIGEN_DECLARE_TEST(gpu_cg) {
   CALL_SUBTEST_1(test_gpu_cg_jacobi<double>(64));
   CALL_SUBTEST_1(test_gpu_cg_jacobi<double>(256));
   CALL_SUBTEST_2(test_gpu_cg<float>(64));
+  CALL_SUBTEST_2(test_gpu_cg<float>(256));
   CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(64));
+  CALL_SUBTEST_2(test_gpu_cg_jacobi<float>(256));
 }
