@@ -5380,8 +5380,7 @@ EIGEN_STRONG_INLINE Packet2d psqrt(const Packet2d& _x) {
 #endif  // EIGEN_ARCH_ARM64
 
 // Do we have fp16 and support Neon intrinsics?
-// NOTE: `EIGEN_HAS_ARM64_FP16` may be set on ARM32 targets as well; it only checks `__ARM_FP16_FORMAT_IEEE`.
-#if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
+#if EIGEN_HAS_ARM64_FP16
 typedef float16x4_t Packet4hf;
 typedef float16x8_t Packet8hf;
 
@@ -6196,7 +6195,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pconj(const Packet4hf& a) {
 }
 
 EIGEN_MAKE_HALF_BINOP(pmul, mul);
+
+#if EIGEN_ARCH_ARM64
 EIGEN_MAKE_HALF_BINOP(pdiv, div);
+#else
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pdiv(const Packet4hf& a, const Packet4hf& b) {
+  return vcvt_f16_f32(pdiv(vcvt_f32_f16(a), vcvt_f32_f16(b)));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf name(const Packet8hf& a, const Packet8hf& b) {
+  return vcombine_f16(pdiv(vget_low_f16(a), vget_low_f16(b)), pdiv(vget_high_f16(a), vget_high_f16(b)));
+}
+#endif
 
 #define EIGEN_MAKE_HALF_FMA(name, op)                                                                                \
   template <>                                                                                                        \
@@ -6301,7 +6312,19 @@ EIGEN_MAKE_HALF_UNOP(pfloor, rndm);
 EIGEN_MAKE_HALF_UNOP(pceil, rndp);
 EIGEN_MAKE_HALF_UNOP(pround, rnda);
 EIGEN_MAKE_HALF_UNOP(ptrunc, rnd);
+
+#if EIGEN_ARCH_ARM64
 EIGEN_MAKE_HALF_UNOP(psqrt, sqrt);
+#else
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psqrt(const Packet4hf& a) {
+  return vcvt_f16_f32(psqrt(vcvt_f32_f16(a)));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf name(const Packet8hf& a) {
+  return vcombine_f16(psqrt(vget_low_f16(a)), psqrt(vget_high_f16(a)));
+}
+#endif
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pand(const Packet8hf& a, const Packet8hf& b) {
