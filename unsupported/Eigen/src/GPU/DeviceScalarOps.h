@@ -36,7 +36,9 @@ inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
   cudaDeviceGetAttribute(&ctx.nMultiProcessorCount, cudaDevAttrMultiProcessorCount, ctx.nCudaDeviceId);
   cudaDeviceGetAttribute(&ctx.nMaxThreadsPerMultiProcessor, cudaDevAttrMaxThreadsPerMultiProcessor, ctx.nCudaDeviceId);
   cudaDeviceGetAttribute(&ctx.nMaxThreadsPerBlock, cudaDevAttrMaxThreadsPerBlock, ctx.nCudaDeviceId);
-  cudaDeviceGetAttribute(&ctx.nSharedMemPerBlock, cudaDevAttrMaxSharedMemoryPerBlock, ctx.nCudaDeviceId);
+  int shared_mem_per_block = 0;
+  cudaDeviceGetAttribute(&shared_mem_per_block, cudaDevAttrMaxSharedMemoryPerBlock, ctx.nCudaDeviceId);
+  ctx.nSharedMemPerBlock = static_cast<size_t>(shared_mem_per_block);
   cudaStreamGetFlags(stream, &ctx.nStreamFlags);
   return ctx;
 }
