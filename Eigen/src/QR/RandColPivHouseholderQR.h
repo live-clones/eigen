@@ -387,12 +387,8 @@ Index RandColPivHouseholderQR<MatrixType, PermutationIndex>::unblocked_pivoted_q
   const Index sub_rows = rows - row0;
   Index num_transpositions = 0;
 
-  Matrix<RealScalar, 1, Dynamic> norms_updated(ncols);
-  Matrix<RealScalar, 1, Dynamic> norms_direct(ncols);
-  for (Index j = 0; j < ncols; ++j) {
-    norms_direct.coeffRef(j) = m_qr.col(col0 + j).tail(sub_rows).norm();
-    norms_updated.coeffRef(j) = norms_direct.coeffRef(j);
-  }
+  Matrix<RealScalar, 1, Dynamic> norms_direct = m_qr.block(row0, col0, sub_rows, ncols).colwise().norm();
+  Matrix<RealScalar, 1, Dynamic> norms_updated = norms_direct;
   const RealScalar downdate_threshold = numext::sqrt(NumTraits<RealScalar>::epsilon());
 
   const Index size = (std::min)(sub_rows, ncols);
@@ -598,13 +594,7 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     }
 
     // Track maxpivot for ColPivHouseholderQR API parity.
-    {
-      using std::abs;
-      for (Index i = 0; i < b; ++i) {
-        RealScalar a = abs(m_qr.coeff(k + i, k + i));
-        if (a > this->m_maxpivot) this->m_maxpivot = a;
-      }
-    }
+    this->m_maxpivot = (std::max)(this->m_maxpivot, m_qr.diagonal().segment(k, b).cwiseAbs().maxCoeff());
 
     // Detect rank deficiency by scanning the panel's diagonal against
     // a relative threshold (max pivot seen so far times the default

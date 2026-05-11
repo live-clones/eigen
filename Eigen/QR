@@ -25,6 +25,7 @@
  *  - MatrixBase::householderQr()
  *  - MatrixBase::colPivHouseholderQr()
  *  - MatrixBase::fullPivHouseholderQr()
+ *  - MatrixBase::randColPivHouseholderQr()
  *
  * \code
  * #include <Eigen/QR>
