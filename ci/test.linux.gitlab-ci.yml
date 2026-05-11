@@ -529,7 +529,7 @@ test:linux:aarch64:gcc-10:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-arm64
+    - saas-linux-small-arm64
 
 test:linux:aarch64:clang-14:default:smoketest:
   extends: .test:linux:aarch64:clang-14:default
@@ -541,4 +541,4 @@ test:linux:aarch64:clang-14:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-arm64
+    - saas-linux-small-arm64
