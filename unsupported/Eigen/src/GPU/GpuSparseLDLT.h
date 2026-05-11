@@ -53,7 +53,7 @@ class SparseLDLT : public internal::SparseSolverBase<Scalar_, SparseLDLT<Scalar_
   }
 
   static constexpr bool needs_csr_conversion() { return false; }
-  static constexpr cudssMatrixType_t cudss_matrix_type() { return internal::cudss_symmetric_type<Scalar>::value; }
+  static constexpr cudssMatrixType_t cudss_matrix_type() { return internal::cudss_hermitian_type<Scalar>::value; }
   static constexpr cudssMatrixViewType_t cudss_matrix_view() {
     return internal::cudss_view_type<UpLo, ColMajor>::value;
   }

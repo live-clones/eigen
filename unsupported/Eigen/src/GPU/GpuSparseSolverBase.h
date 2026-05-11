@@ -63,11 +63,6 @@ class SparseSolverBase {
   SparseSolverBase(const SparseSolverBase&) = delete;
   SparseSolverBase& operator=(const SparseSolverBase&) = delete;
 
-  // ---- Configuration --------------------------------------------------------
-
-  /** Set the fill-reducing ordering algorithm. Must be called before compute/analyzePattern. */
-  void setOrdering(GpuSparseOrdering ordering) { ordering_ = ordering; }
-
   // ---- Factorization --------------------------------------------------------
 
   /** Symbolic analysis + numeric factorization. */
@@ -113,7 +108,6 @@ class SparseSolverBase {
       upload_csr_from_csc(csc);
     }
     create_cudss_matrix();
-    apply_ordering_config();
 
     if (data_) EIGEN_CUDSS_CHECK(cudssDataDestroy(handle_, data_));
     EIGEN_CUDSS_CHECK(cudssDataCreate(handle_, &data_));
@@ -254,7 +248,6 @@ class SparseSolverBase {
   mutable ComputationInfo info_ = InvalidInput;
   mutable bool info_synced_ = true;
   bool analysis_done_ = false;
-  GpuSparseOrdering ordering_ = GpuSparseOrdering::AMD;
 
  private:
   Derived& derived() { return static_cast<Derived&>(*this); }
@@ -277,7 +270,8 @@ class SparseSolverBase {
 
   void sync_info() const {
     if (!info_synced_) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
+      // cudssDataGet for CUDSS_DATA_INFO synchronizes the stream internally,
+      // so an explicit cudaStreamSynchronize would be redundant.
       int cudss_info = 0;
       EIGEN_CUDSS_CHECK(cudssDataGet(handle_, data_, CUDSS_DATA_INFO, &cudss_info, sizeof(cudss_info), nullptr));
       info_ = (cudss_info == 0) ? Success : NumericalIssue;
@@ -354,24 +348,10 @@ class SparseSolverBase {
                                            mtype, mview, CUDSS_BASE_ZERO));
   }
 
-  void apply_ordering_config() {
-    cudssAlgType_t alg;
-    switch (ordering_) {
-      case GpuSparseOrdering::AMD:
-        alg = CUDSS_ALG_DEFAULT;
-        break;
-      case GpuSparseOrdering::METIS:
-        alg = CUDSS_ALG_2;
-        break;
-      case GpuSparseOrdering::RCM:
-        alg = CUDSS_ALG_3;
-        break;
-      default:
-        alg = CUDSS_ALG_DEFAULT;
-        break;
-    }
-    EIGEN_CUDSS_CHECK(cudssConfigSet(config_, CUDSS_CONFIG_REORDERING_ALG, &alg, sizeof(alg)));
-  }
+  // TODO: expose a fill-reducing reordering choice. cuDSS's
+  // CUDSS_CONFIG_REORDERING_ALG accepts CUDSS_ALG_1/2/3, but their mapping to
+  // specific algorithms (AMD, METIS, RCM, ...) is not currently documented as
+  // stable across cuDSS releases, so we leave the cuDSS default in place.
 
   void create_placeholder_dense() {
     if (d_x_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_x_cudss_));

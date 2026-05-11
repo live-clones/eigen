@@ -106,8 +106,11 @@ expression objects that are evaluated when assigned.
 
 ### `gpu::Context`
 
-Every GPU operation needs a CUDA stream and library handles (cuBLAS,
-cuSOLVER). `gpu::Context` bundles these together.
+Every GPU operation needs a CUDA stream and library handles (cuBLAS eagerly,
+cuSOLVER lazily on first use). `gpu::Context` bundles these together. A
+single `Context` is not thread-safe -- use one per thread (or external
+synchronization), since the underlying cuBLAS and cuSOLVER handles are not
+thread-safe per handle.
 
 For simple usage, you don't need to create one -- a per-thread default context
 is created lazily on first use:
@@ -125,6 +128,26 @@ gpu::Context ctx1, ctx2;
 d_C1.device(ctx1) = d_A1 * d_B1;   // runs on stream 1
 d_C2.device(ctx2) = d_A2 * d_B2;   // runs on stream 2 (concurrently)
 ```
+
+### Linking
+
+The module is header-only, but each feature pulls in the corresponding NVIDIA
+library at link time. cuSOLVER is created lazily on first use, so a
+translation unit that only uses cuBLAS, cuFFT, cuSPARSE, or cuDSS does not
+need to link cuSOLVER:
+
+| Feature                                 | Link flags                |
+|-----------------------------------------|---------------------------|
+| `DeviceMatrix`, GEMM, TRSM, SYMM, SYRK  | `-lcublas`                |
+| Dense solvers (LLT, LU, QR, SVD, EVD)   | `-lcusolver -lcublas`     |
+| FFT (`gpu::FFT`)                        | `-lcufft -lcublas`        |
+| SpMV / SpMM (`gpu::SparseContext`)      | `-lcusparse -lcublas`     |
+| Sparse direct solvers (cuDSS)           | `-lcudss -lcublas`        |
+
+cuBLAS is required by `DeviceMatrix` itself (every `Context` creates a cuBLAS
+handle eagerly) and is also a runtime dependency of cuDSS, so it is the one
+constant. cuDSS additionally requires `EIGEN_CUDSS` to be defined before
+including `unsupported/Eigen/GPU`.
 
 ## Usage
 
@@ -218,7 +241,7 @@ round-tripping through host memory.
 ### Sparse direct solvers (cuDSS)
 
 Requires cuDSS (separate install, CUDA 12.0+). Define `EIGEN_CUDSS` before
-including `unsupported/Eigen/GPU` and link with `-lcudss`.
+including `unsupported/Eigen/GPU`; see [Linking](#linking) for link flags.
 
 ```cpp
 SparseMatrix<double> A = ...;  // symmetric positive definite
@@ -248,7 +271,12 @@ VectorXd x = lu.solve(b);
 ### FFT (cuFFT)
 
 ```cpp
-gpu::FFT<float> fft;
+gpu::FFT<float> fft;                // shares stream + cuBLAS with the
+                                    // thread-local default Context
+gpu::Context ctx;
+gpu::FFT<float> fft_on_ctx(ctx);    // share stream + cuBLAS with an
+                                    // explicit Context (e.g. for
+                                    // multi-stream pipelines)
 
 // 1D complex-to-complex
 VectorXcf X = fft.fwd(x);           // forward
@@ -396,18 +424,24 @@ Assignment   device(gpu::Context& ctx)                // Bind assignment to expl
 
 ### `gpu::Context`
 
-Unified GPU execution context owning a CUDA stream and library handles.
+Unified GPU execution context owning a CUDA stream and library handles. Not
+thread-safe -- use one `Context` per thread, or external synchronization
+across threads.
 
 ```cpp
-gpu::Context()                                             // Creates dedicated stream + handles
+gpu::Context()                                             // Creates dedicated stream + cuBLAS handle
+                                                           // (cuSOLVER handle created lazily on first
+                                                           // call to cusolverHandle())
 static gpu::Context& threadLocal()                         // Per-thread default (lazy-created)
 
 cudaStream_t       stream()
 cublasHandle_t     cublasHandle()
-cusolverDnHandle_t cusolverHandle()
+cusolverDnHandle_t cusolverHandle()                        // Lazy: creates the handle on first call
 ```
 
-Non-copyable, non-movable (owns library handles).
+Non-copyable, non-movable (owns library handles). Translation units that
+never call `cusolverHandle()` do not pull cuSOLVER symbols at link time --
+see [Linking](#linking).
 
 ### `gpu::LLT<Scalar, UpLo>` -- Dense Cholesky (cuSOLVER)
 
@@ -550,7 +584,6 @@ gpu::SparseLLT(const SparseMatrixBase<D>& A)               // Analyze + factoriz
 gpu::SparseLLT&      analyzePattern(const SparseMatrixBase<D>& A)  // Symbolic analysis (reusable)
 gpu::SparseLLT&      factorize(const SparseMatrixBase<D>& A)       // Numeric factorization
 gpu::SparseLLT&      compute(const SparseMatrixBase<D>& A)         // analyzePattern + factorize
-void               setOrdering(GpuSparseOrdering ord)             // AMD (default), METIS, or RCM
 
 DenseMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 
@@ -570,9 +603,15 @@ General non-symmetric. Same API as `gpu::SparseLLT` (without `UpLo`).
 ### `gpu::FFT<Scalar>` -- FFT (cuFFT)
 
 Plans cached by (size, type) and reused. Inverse transforms scaled so
-`inv(fwd(x)) == x`. Supported scalars: `float`, `double`.
+`inv(fwd(x)) == x`. Supported scalars: `float`, `double`. Stream and cuBLAS
+handle borrowed from a `gpu::Context` (default: `Context::threadLocal()`),
+so by default the FFT shares a stream with other GPU operations on the same
+thread.
 
 ```cpp
+gpu::FFT()                              // bind to Context::threadLocal()
+gpu::FFT(gpu::Context& ctx)             // bind to an explicit Context
+
 // 1D transforms (host vectors in and out)
 ComplexVector      fwd(const MatrixBase<D>& x)           // C2C forward (complex input)
 ComplexVector      fwd(const MatrixBase<D>& x)           // R2C forward (real input, returns n/2+1)
@@ -583,7 +622,8 @@ RealVector         invReal(const MatrixBase<D>& X, Index n)  // C2R inverse, sca
 ComplexMatrix      fwd2(const MatrixBase<D>& A)         // 2D C2C forward
 ComplexMatrix      inv2(const MatrixBase<D>& A)         // 2D C2C inverse, scaled by 1/(rows*cols)
 
-cudaStream_t       stream()
+cudaStream_t       stream()             // borrowed from the bound Context
+gpu::Context&      context()            // the bound Context
 ```
 
 All FFT methods accept host data and return host data. Upload/download is
@@ -625,10 +665,31 @@ dispatching to cuBLAS.
   device-input (`compute(DeviceMatrix)`, `solve(DeviceMatrix)`) overloads, plus
   host- and device-side accessors (`matrixU()` vs `d_matrixU()`). This eases
   migration from CPU Eigen but may invite accidental host ↔ device round-trips
-  when users mix the two without realising the cost. Revisit after the initial
-  GPU module roll-out (MRs !2408, !2412, !2413, !2414, !2415) is in users'
-  hands; if the convenience overloads cause more confusion than they save,
-  narrow toward a single explicit `fromHost` / `toHost` boundary.
+  when users mix the two without realising the cost. Revisit once the module
+  is in users' hands; if the convenience overloads cause more confusion than
+  they save, narrow toward a single explicit `fromHost` / `toHost` boundary.
+
+- **cuDSS configuration knobs.** cuDSS exposes settings for accuracy /
+  robustness (e.g. matching, pivoting) and execution mode (e.g. hybrid
+  memory, hybrid execute). The current bindings use cuDSS defaults, which
+  are tuned for performance rather than maximum robustness — for example,
+  matching is off by default. We don't expose configuration controls yet;
+  a follow-up should add a `gpu::SparseSolverConfig` (or per-solver
+  setters) covering at least matching, pivot threshold, and reordering
+  algorithm pass-through, and consider switching the defaults toward
+  robustness once exposed.
+
+- **cuDSS threading layer for host-side reordering.** As of cuDSS 0.7.1
+  fill-reducing reordering runs on the CPU. cuDSS supports a "threading
+  layer" plugin that parallelises this stage; for reordering-dominated
+  problems it can materially close the gap with multithreaded CPU sparse
+  direct solvers. We don't currently configure a threading layer.
+
+- **Complex symmetric (non-Hermitian) sparse LDL^T.** `gpu::SparseLDLT`
+  treats complex inputs as Hermitian (matching `Eigen::SimplicialLDLT`).
+  cuDSS also supports `CUDSS_MTYPE_SYMMETRIC` for complex matrices
+  (A = A^T, no conjugation); exposing this would need a separate solver
+  mode.
 
 ## File layout
 
@@ -650,7 +711,7 @@ dispatching to cuBLAS.
 | `GpuSVD.h` | `GpuSolverContext.h` | Dense SVD decomposition |
 | `GpuEigenSolver.h` | `GpuSolverContext.h` | Self-adjoint eigenvalue decomposition |
 | `CuFftSupport.h` | `GpuSupport.h`, `<cufft.h>` | cuFFT error macro, type-dispatch wrappers |
-| `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h` | 1D/2D FFT with plan caching |
+| `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h`, `GpuContext.h` | 1D/2D FFT with plan caching |
 | `CuSparseSupport.h` | `GpuSupport.h`, `<cusparse.h>` | cuSPARSE error macro |
 | `GpuSparseContext.h` | `CuSparseSupport.h` | SpMV/SpMM via cuSPARSE |
 | `CuDssSupport.h` | `GpuSupport.h`, `<cudss.h>` | cuDSS error macro, type traits (optional) |
