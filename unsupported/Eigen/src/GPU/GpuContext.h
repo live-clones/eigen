@@ -66,8 +66,9 @@ class Context {
   explicit Context(cudaStream_t stream) : stream_(stream), owns_stream_(false) { init_cublas(); }
 
   ~Context() {
-    if (cusparse_) (void)cusparseDestroy(cusparse_);
-    // Indirect call keeps cusolverDnDestroy out of TUs that never call cusolverHandle().
+    // Indirect calls keep cusolverDnDestroy / cusparseDestroy out of TUs that
+    // never call cusolverHandle() / cusparseHandle() (e.g. the cufft test).
+    if (cusparse_destroyer_) (void)cusparse_destroyer_(cusparse_);
     if (cusolver_destroyer_) (void)cusolver_destroyer_(cusolver_);
     if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
     if (cublas_) (void)cublasDestroy(cublas_);
@@ -138,19 +139,22 @@ class Context {
       cusparseStatus_t s2 = cusparseSetStream(cusparse_, stream_);
       eigen_assert(s2 == CUSPARSE_STATUS_SUCCESS && "cusparseSetStream failed");
       EIGEN_UNUSED_VARIABLE(s2);
+      cusparse_destroyer_ = &destroyCusparse;
     }
     return cusparse_;
   }
 
  private:
   static cusolverStatus_t destroyCusolver(cusolverDnHandle_t h) { return cusolverDnDestroy(h); }
+  static cusparseStatus_t destroyCusparse(cusparseHandle_t h) { return cusparseDestroy(h); }
 
   cudaStream_t stream_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
   cusolverDnHandle_t cusolver_ = nullptr;
   cusolverStatus_t (*cusolver_destroyer_)(cusolverDnHandle_t) = nullptr;
-  mutable cublasLtHandle_t cublas_lt_ = nullptr;   // lazy
-  mutable cusparseHandle_t cusparse_ = nullptr;    // lazy
+  mutable cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
+  mutable cusparseHandle_t cusparse_ = nullptr;   // lazy
+  mutable cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
   mutable internal::DeviceBuffer gemm_workspace_;  // lazy
   bool owns_stream_ = true;
 
