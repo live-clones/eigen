@@ -208,7 +208,9 @@ class DeviceMatrix {
     eigen_assert(n >= 0);
     size_t bytes = sizeInBytes();
     if (bytes > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(reinterpret_cast<void**>(&data_), bytes));
+      void* p = nullptr;
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+      data_.reset(static_cast<Scalar*>(p));
     }
   }
 
