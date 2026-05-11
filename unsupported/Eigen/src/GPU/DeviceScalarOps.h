@@ -25,42 +25,18 @@ namespace internal {
 // ---- NppStreamContext helper ------------------------------------------------
 
 inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
-  // Cache device attributes (constant for process lifetime) in a thread-local.
-  // Only the stream and its flags vary per call.
-  struct CachedDeviceInfo {
-    bool initialized = false;
-    int device_id = 0;
-    int cc_major = 0;
-    int cc_minor = 0;
-    int mp_count = 0;
-    int max_threads_per_mp = 0;
-    int max_threads_per_block = 0;
-    int shared_mem_per_block = 0;
-
-    void init() {
-      if (initialized) return;
-      cudaGetDevice(&device_id);
-      cudaDeviceGetAttribute(&cc_major, cudaDevAttrComputeCapabilityMajor, device_id);
-      cudaDeviceGetAttribute(&cc_minor, cudaDevAttrComputeCapabilityMinor, device_id);
-      cudaDeviceGetAttribute(&mp_count, cudaDevAttrMultiProcessorCount, device_id);
-      cudaDeviceGetAttribute(&max_threads_per_mp, cudaDevAttrMaxThreadsPerMultiProcessor, device_id);
-      cudaDeviceGetAttribute(&max_threads_per_block, cudaDevAttrMaxThreadsPerBlock, device_id);
-      cudaDeviceGetAttribute(&shared_mem_per_block, cudaDevAttrMaxSharedMemoryPerBlock, device_id);
-      initialized = true;
-    }
-  };
-  thread_local CachedDeviceInfo cached;
-  cached.init();
-
+  // NPP requires nCudaDeviceId / device attributes to match the device that
+  // owns 'stream' at this call. We query each time (cheap relative to the NPP
+  // launch itself) so multi-device or borrowed-stream callers stay correct.
   NppStreamContext ctx = {};
   ctx.hStream = stream;
-  ctx.nCudaDeviceId = cached.device_id;
-  ctx.nCudaDevAttrComputeCapabilityMajor = cached.cc_major;
-  ctx.nCudaDevAttrComputeCapabilityMinor = cached.cc_minor;
-  ctx.nMultiProcessorCount = cached.mp_count;
-  ctx.nMaxThreadsPerMultiProcessor = cached.max_threads_per_mp;
-  ctx.nMaxThreadsPerBlock = cached.max_threads_per_block;
-  ctx.nSharedMemPerBlock = cached.shared_mem_per_block;
+  cudaGetDevice(&ctx.nCudaDeviceId);
+  cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMajor, cudaDevAttrComputeCapabilityMajor, ctx.nCudaDeviceId);
+  cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMinor, cudaDevAttrComputeCapabilityMinor, ctx.nCudaDeviceId);
+  cudaDeviceGetAttribute(&ctx.nMultiProcessorCount, cudaDevAttrMultiProcessorCount, ctx.nCudaDeviceId);
+  cudaDeviceGetAttribute(&ctx.nMaxThreadsPerMultiProcessor, cudaDevAttrMaxThreadsPerMultiProcessor, ctx.nCudaDeviceId);
+  cudaDeviceGetAttribute(&ctx.nMaxThreadsPerBlock, cudaDevAttrMaxThreadsPerBlock, ctx.nCudaDeviceId);
+  cudaDeviceGetAttribute(&ctx.nSharedMemPerBlock, cudaDevAttrMaxSharedMemoryPerBlock, ctx.nCudaDeviceId);
   cudaStreamGetFlags(stream, &ctx.nStreamFlags);
   return ctx;
 }

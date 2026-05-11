@@ -117,8 +117,8 @@ expression objects that are evaluated when assigned.
 
 For BLAS Level-1 operations, `DeviceMatrix` also provides `dot()`, `norm()`,
 `squaredNorm()`, `setZero()`, `noalias()`, and arithmetic operators
-(`+=`, `-=`, `*=`) that dispatch to cuBLAS `axpy`, `nrm2`, `dot`, and
-`geam`. These are the operations needed by iterative solvers.
+(`+=`, `-=`, `*=`) that dispatch to cuBLAS `axpy`, `nrm2`, `dot`, `scal`,
+and `geam`. These are the operations needed by iterative solvers.
 
 ### `gpu::DeviceScalar<Scalar>`
 
