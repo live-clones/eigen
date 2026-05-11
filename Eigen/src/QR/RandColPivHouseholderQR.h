@@ -593,7 +593,6 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
           panel_ref, hc_ref, /*maxBlockSize=*/(std::min)(b, Index(48)), m_temp.data());
     }
 
-    // Track maxpivot for ColPivHouseholderQR API parity.
     this->m_maxpivot = (std::max)(this->m_maxpivot, m_qr.diagonal().segment(k, b).cwiseAbs().maxCoeff());
 
     // Detect rank deficiency by scanning the panel's diagonal against
