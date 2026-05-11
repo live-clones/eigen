@@ -422,11 +422,6 @@ class SparseContext {
     EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_desc, &beta, y_desc, dtype,
                                       CUSPARSE_SPMV_ALG_DEFAULT, d_workspace_.get()));
 
-    // Download result.
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(y.data(), d_y_.get(), y_size * sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-
     EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(x_desc));
     EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(y_desc));
   }
