@@ -113,7 +113,7 @@ Three profiling-driven optimizations reduced GPU CG time by **1.8x**
 
 ### Scaling plot data
 
-```
+```text
 # n        nnz_H       cpu_ms    gpu_ms    speedup
 23769      1793475     4006      1152      3.48
 60876      4791762     21498     3553      6.05
@@ -136,8 +136,8 @@ Downloaded from http://grail.cs.washington.edu/projects/bal/
 
 ```bash
 # Build
-cmake -G Ninja -B build-bench-gpu -S benchmarks/GPU -DCMAKE_CUDA_ARCHITECTURES=89
-cmake --build build-bench-gpu --target bench_gpu_ba
+cmake -G Ninja -B build-bench-gpu -S unsupported/benchmarks/GPU -DCMAKE_CUDA_ARCHITECTURES=89
+cmake --build build-bench-gpu --target bench_ba
 
 # Download BAL datasets
 wget http://grail.cs.washington.edu/projects/bal/data/ladybug/problem-49-7776-pre.txt.bz2
@@ -147,8 +147,8 @@ wget http://grail.cs.washington.edu/projects/bal/data/dubrovnik/problem-356-2267
 bunzip2 *.bz2
 
 # Run (one at a time)
-BAL_FILE=problem-49-7776-pre.txt ./build-bench-gpu/bench_gpu_ba --benchmark_repetitions=3
-BAL_FILE=problem-138-19878-pre.txt ./build-bench-gpu/bench_gpu_ba --benchmark_repetitions=3
-BAL_FILE=problem-646-73584-pre.txt ./build-bench-gpu/bench_gpu_ba --benchmark_repetitions=3
-BAL_FILE=problem-356-226730-pre.txt ./build-bench-gpu/bench_gpu_ba --benchmark_repetitions=3
+BAL_FILE=problem-49-7776-pre.txt ./build-bench-gpu/bench_ba --benchmark_repetitions=3
+BAL_FILE=problem-138-19878-pre.txt ./build-bench-gpu/bench_ba --benchmark_repetitions=3
+BAL_FILE=problem-646-73584-pre.txt ./build-bench-gpu/bench_ba --benchmark_repetitions=3
+BAL_FILE=problem-356-226730-pre.txt ./build-bench-gpu/bench_ba --benchmark_repetitions=3
 ```
