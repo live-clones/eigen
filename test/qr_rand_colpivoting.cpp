@@ -86,7 +86,7 @@ void rqr_fixedsize() {
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
   Matrix<Scalar, Rows, Cols> m1;
   createRandomPIMatrixOfRank(rank, Rows, Cols, m1);
-  RandColPivHouseholderQR<Matrix<Scalar, Rows, Cols> > qr;
+  RandColPivHouseholderQR<Matrix<Scalar, Rows, Cols>> qr;
   configure_small(qr);
   qr.compute(m1);
   VERIFY_IS_EQUAL(rank, qr.rank());
@@ -99,7 +99,7 @@ void rqr_fixedsize() {
   Matrix<Scalar, Rows, Cols> c = qr.householderQ() * r * qr.colsPermutation().inverse();
   VERIFY_IS_APPROX(m1, c);
 
-  check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2> >(m1, qr, Rows, Cols, Cols2);
+  check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2>>(m1, qr, Rows, Cols, Cols2);
 }
 
 // Round-trip verification on the Kahan matrix (the canonical
@@ -212,6 +212,122 @@ void rqr_empty_input() {
     VERIFY_IS_EQUAL(qr.rows(), rows);
     VERIFY_IS_EQUAL(qr.cols(), cols);
   }
+}
+
+template <typename MatrixType>
+void rcod() {
+  Index rows = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
+  Index cols = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
+  Index cols2 = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
+  Index rank = internal::random<Index>(1, (std::min)(rows, cols) - 1);
+
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
+  MatrixType matrix;
+  createRandomPIMatrixOfRank(rank, rows, cols, matrix);
+  RandCompleteOrthogonalDecomposition<MatrixType> cod;
+  cod.setBlockSize(4).setSeed(0x5eed);
+  cod.compute(matrix);
+  VERIFY(rank == cod.rank());
+  VERIFY(cols - cod.rank() == cod.dimensionOfKernel());
+  VERIFY(!cod.isInjective());
+  VERIFY(!cod.isInvertible());
+  VERIFY(!cod.isSurjective());
+
+  MatrixQType q = cod.householderQ();
+  VERIFY_IS_UNITARY(q);
+
+  MatrixType z = cod.matrixZ();
+  VERIFY_IS_UNITARY(z);
+
+  MatrixType t;
+  t.setZero(rows, cols);
+  t.topLeftCorner(rank, rank) = cod.matrixT().topLeftCorner(rank, rank).template triangularView<Upper>();
+
+  MatrixType c = q * t * z * cod.colsPermutation().inverse();
+  VERIFY_IS_APPROX(matrix, c);
+
+  check_solverbase<MatrixType, MatrixType>(matrix, cod, rows, cols, cols2);
+
+  MatrixType exact_solution = MatrixType::Random(cols, cols2);
+  MatrixType rhs = matrix * exact_solution;
+  MatrixType cod_solution = cod.solve(rhs);
+  JacobiSVD<MatrixType, ComputeThinU | ComputeThinV> svd(matrix);
+  MatrixType svd_solution = svd.solve(rhs);
+  VERIFY_IS_APPROX(cod_solution, svd_solution);
+
+  MatrixType pinv = cod.pseudoInverse();
+  VERIFY_IS_APPROX(cod_solution, pinv * rhs);
+
+  Index size = internal::random<Index>(2, 20);
+  matrix.setZero(size, size);
+  for (int i = 0; i < size; i++) {
+    matrix(i, i) = internal::random<Scalar>();
+  }
+  Scalar det = matrix.diagonal().prod();
+  RealScalar absdet = numext::abs(det);
+  RandCompleteOrthogonalDecomposition<MatrixType> cod2;
+  cod2.setBlockSize(4).setSeed(0xc0d2);
+  cod2.compute(matrix);
+  q = cod2.householderQ();
+  matrix = q * matrix * q.adjoint();
+  VERIFY_IS_APPROX(det, cod2.determinant());
+  VERIFY_IS_APPROX(absdet, cod2.absDeterminant());
+  VERIFY_IS_APPROX(numext::log(absdet), cod2.logAbsDeterminant());
+  VERIFY_IS_APPROX(numext::sign(det), cod2.signDeterminant());
+}
+
+template <typename MatrixType, int Cols2>
+void rcod_fixedsize() {
+  enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
+  typedef typename MatrixType::Scalar Scalar;
+  typedef RandCompleteOrthogonalDecomposition<Matrix<Scalar, Rows, Cols>> COD;
+  int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
+  Matrix<Scalar, Rows, Cols> matrix;
+  createRandomPIMatrixOfRank(rank, Rows, Cols, matrix);
+  COD cod;
+  cod.setBlockSize(4).setSeed(0xfed1);
+  cod.compute(matrix);
+  VERIFY(rank == cod.rank());
+  VERIFY(Cols - cod.rank() == cod.dimensionOfKernel());
+  VERIFY(cod.isInjective() == (rank == Rows));
+  VERIFY(cod.isSurjective() == (rank == Cols));
+  VERIFY(cod.isInvertible() == (cod.isInjective() && cod.isSurjective()));
+
+  check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2>>(matrix, cod, Rows, Cols, Cols2);
+
+  Matrix<Scalar, Cols, Cols2> exact_solution;
+  exact_solution.setRandom(Cols, Cols2);
+  Matrix<Scalar, Rows, Cols2> rhs = matrix * exact_solution;
+  Matrix<Scalar, Cols, Cols2> cod_solution = cod.solve(rhs);
+  JacobiSVD<MatrixType, ComputeFullU | ComputeFullV> svd(matrix);
+  Matrix<Scalar, Cols, Cols2> svd_solution = svd.solve(rhs);
+  VERIFY_IS_APPROX(cod_solution, svd_solution);
+
+  typename Inverse<COD>::PlainObject pinv = cod.pseudoInverse();
+  VERIFY_IS_APPROX(cod_solution, pinv * rhs);
+}
+
+template <typename MatrixType>
+void rcod_verify_assert() {
+  MatrixType tmp;
+
+  RandCompleteOrthogonalDecomposition<MatrixType> cod;
+  VERIFY_RAISES_ASSERT(cod.matrixQTZ())
+  VERIFY_RAISES_ASSERT(cod.solve(tmp))
+  VERIFY_RAISES_ASSERT(cod.transpose().solve(tmp))
+  VERIFY_RAISES_ASSERT(cod.adjoint().solve(tmp))
+  VERIFY_RAISES_ASSERT(cod.householderQ())
+  VERIFY_RAISES_ASSERT(cod.dimensionOfKernel())
+  VERIFY_RAISES_ASSERT(cod.isInjective())
+  VERIFY_RAISES_ASSERT(cod.isSurjective())
+  VERIFY_RAISES_ASSERT(cod.isInvertible())
+  VERIFY_RAISES_ASSERT(cod.pseudoInverse())
+  VERIFY_RAISES_ASSERT(cod.determinant())
+  VERIFY_RAISES_ASSERT(cod.absDeterminant())
+  VERIFY_RAISES_ASSERT(cod.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(cod.signDeterminant())
 }
 
 // Exercise the blocked path by using a matrix sufficiently larger than 2*b.
@@ -534,6 +650,12 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
     CALL_SUBTEST_3(rqr<MatrixXcd>());
     CALL_SUBTEST_4((rqr_fixedsize<Matrix<float, 8, 10>, 4>()));
     CALL_SUBTEST_5((rqr_fixedsize<Matrix<double, 12, 6>, 3>()));
+
+    CALL_SUBTEST_1(rcod<MatrixXf>());
+    CALL_SUBTEST_2(rcod<MatrixXd>());
+    CALL_SUBTEST_3(rcod<MatrixXcd>());
+    CALL_SUBTEST_4((rcod_fixedsize<Matrix<float, 8, 10>, 4>()));
+    CALL_SUBTEST_5((rcod_fixedsize<Matrix<double, 12, 6>, 3>()));
   }
 
   for (int i = 0; i < g_repeat; i++) {
@@ -549,6 +671,13 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
   CALL_SUBTEST_2(rqr_verify_assert<MatrixXd>());
   CALL_SUBTEST_6(rqr_verify_assert<MatrixXcf>());
   CALL_SUBTEST_3(rqr_verify_assert<MatrixXcd>());
+
+  CALL_SUBTEST_7(rcod_verify_assert<Matrix3f>());
+  CALL_SUBTEST_8(rcod_verify_assert<Matrix3d>());
+  CALL_SUBTEST_1(rcod_verify_assert<MatrixXf>());
+  CALL_SUBTEST_2(rcod_verify_assert<MatrixXd>());
+  CALL_SUBTEST_6(rcod_verify_assert<MatrixXcf>());
+  CALL_SUBTEST_3(rcod_verify_assert<MatrixXcd>());
 
   // Test problem-size constructor.
   CALL_SUBTEST_9(RandColPivHouseholderQR<MatrixXf>(10, 20));
