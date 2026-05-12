@@ -47,6 +47,23 @@ static void BM_ColPivHouseholderQR(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations());
 }
 
+// --- RandColPivHouseholderQR ---
+
+template <typename Scalar>
+static void BM_RandColPivHouseholderQR(benchmark::State& state) {
+  const Index rows = state.range(0);
+  const Index cols = state.range(1);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  Mat A = Mat::Random(rows, cols);
+  RandColPivHouseholderQR<Mat> qr(rows, cols);
+  qr.setSeed(0xbe9c4);
+  for (auto _ : state) {
+    do_compute(qr, A);
+    benchmark::DoNotOptimize(qr.matrixQR().data());
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+
 // --- FullPivHouseholderQR ---
 
 template <typename Scalar>
@@ -109,6 +126,7 @@ static void BM_HouseholderQR_Solve(benchmark::State& state) {
 // Register: float
 BENCHMARK(BM_HouseholderQR<float>) QR_SIZES ->Name("HouseholderQR_float");
 BENCHMARK(BM_ColPivHouseholderQR<float>) QR_SIZES ->Name("ColPivHouseholderQR_float");
+BENCHMARK(BM_RandColPivHouseholderQR<float>) QR_SIZES ->Name("RandColPivHouseholderQR_float");
 BENCHMARK(BM_FullPivHouseholderQR<float>) QR_SIZES ->Name("FullPivHouseholderQR_float");
 BENCHMARK(BM_COD<float>) QR_SIZES ->Name("COD_float");
 BENCHMARK(BM_HouseholderQR_Solve<float>) QR_SIZES ->Name("HouseholderQR_Solve_float");
@@ -116,6 +134,7 @@ BENCHMARK(BM_HouseholderQR_Solve<float>) QR_SIZES ->Name("HouseholderQR_Solve_fl
 // Register: double
 BENCHMARK(BM_HouseholderQR<double>) QR_SIZES ->Name("HouseholderQR_double");
 BENCHMARK(BM_ColPivHouseholderQR<double>) QR_SIZES ->Name("ColPivHouseholderQR_double");
+BENCHMARK(BM_RandColPivHouseholderQR<double>) QR_SIZES ->Name("RandColPivHouseholderQR_double");
 BENCHMARK(BM_FullPivHouseholderQR<double>) QR_SIZES ->Name("FullPivHouseholderQR_double");
 BENCHMARK(BM_COD<double>) QR_SIZES ->Name("COD_double");
 BENCHMARK(BM_HouseholderQR_Solve<double>) QR_SIZES ->Name("HouseholderQR_Solve_double");
