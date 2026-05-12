@@ -272,6 +272,7 @@ void rcod() {
   cod2.compute(matrix);
   q = cod2.householderQ();
   matrix = q * matrix * q.adjoint();
+  cod2.compute(matrix);
   VERIFY_IS_APPROX(det, cod2.determinant());
   VERIFY_IS_APPROX(absdet, cod2.absDeterminant());
   VERIFY_IS_APPROX(numext::log(absdet), cod2.logAbsDeterminant());
