@@ -117,7 +117,10 @@ reviews:
           the references). For routines with a
           LAPACK counterpart, match LAPACK's TESTING/ category coverage as
           the bar. Quantify accuracy in ULPs against a scalar reference,
-          not just relative error. If such tests are missing, request them.
+          not just relative error. Sollya / MPFR are the standard tools
+          for ground-truth and polynomial generation; prefer in-C++ MPFR
+          verification over a Python reference. If such tests are missing,
+          request them.
         - **Performance-sensitive changes ship with a benchmark** under
           `benchmarks/` or `unsupported/benchmarks/`. Don't defer to a
           follow-up MR.
