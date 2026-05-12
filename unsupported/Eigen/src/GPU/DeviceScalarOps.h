@@ -18,6 +18,8 @@
 #include <cuda_runtime.h>
 #include <npps_arithmetic_and_logical_operations.h>
 
+#include "./GpuSupport.h"  // EIGEN_CUDA_RUNTIME_CHECK
+
 namespace Eigen {
 namespace gpu {
 namespace internal {
@@ -30,7 +32,15 @@ inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
   // launch itself) so multi-device or borrowed-stream callers stay correct.
   NppStreamContext ctx = {};
   ctx.hStream = stream;
-  cudaGetDevice(&ctx.nCudaDeviceId);
+#if CUDART_VERSION >= 12050
+  // cudaStreamGetDevice returns the device that owns the stream regardless of
+  // the calling thread's current device — safe for borrowed streams.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamGetDevice(stream, &ctx.nCudaDeviceId));
+#else
+  // Older CUDA runtimes lack cudaStreamGetDevice. Callers using borrowed
+  // streams from a different device must cudaSetDevice() first.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGetDevice(&ctx.nCudaDeviceId));
+#endif
   cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMajor, cudaDevAttrComputeCapabilityMajor, ctx.nCudaDeviceId);
   cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMinor, cudaDevAttrComputeCapabilityMinor, ctx.nCudaDeviceId);
   cudaDeviceGetAttribute(&ctx.nMultiProcessorCount, cudaDevAttrMultiProcessorCount, ctx.nCudaDeviceId);

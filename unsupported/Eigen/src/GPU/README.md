@@ -137,6 +137,10 @@ Division between `DeviceScalar` values (real types only) is performed on
 device via NPP, avoiding extra synchronizations. Small device allocations
 (including `DeviceScalar`) are recycled through a thread-local
 `DeviceBufferPool` to avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
+Pool contract: recycled pointers are safe for same-thread, same-stream reuse
+(the typical iterative-solver pattern, where one `gpu::Context` drives all
+work). Mixing pooled buffers across threads or CUDA streams without external
+synchronization is not supported.
 
 ### `gpu::Context`
 
