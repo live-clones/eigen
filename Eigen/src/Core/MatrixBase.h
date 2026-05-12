@@ -375,6 +375,8 @@ class MatrixBase : public DenseBase<Derived> {
   template <typename PermutationIndex = DefaultPermutationIndex>
   inline FullPivHouseholderQR<PlainObject, PermutationIndex> fullPivHouseholderQr() const;
   template <typename PermutationIndex = DefaultPermutationIndex>
+  inline RandColPivHouseholderQR<PlainObject, PermutationIndex> randColPivHouseholderQr() const;
+  template <typename PermutationIndex = DefaultPermutationIndex>
   inline CompleteOrthogonalDecomposition<PlainObject, PermutationIndex> completeOrthogonalDecomposition() const;
 
   /////////// Eigenvalues module ///////////
