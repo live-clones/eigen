@@ -195,6 +195,25 @@ void rqr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
+// Regression: compute() on degenerate empty inputs (0-row or 0-col) must
+// not trigger integer division-by-zero in the auto-block-size heuristic
+// (UBSan caught one on MatrixXd(0, 3) at MR SHA c2860f27). The expected
+// behavior is that the unblocked path runs with no work and rank() == 0.
+template <typename MatrixType>
+void rqr_empty_input() {
+  const std::pair<Index, Index> cases[] = {{0, 3}, {3, 0}, {0, 0}};
+  for (const auto& dims : cases) {
+    const Index rows = dims.first;
+    const Index cols = dims.second;
+    MatrixType a(rows, cols);
+    RandColPivHouseholderQR<MatrixType> qr;
+    qr.compute(a);
+    VERIFY_IS_EQUAL(qr.rank(), Index(0));
+    VERIFY_IS_EQUAL(qr.rows(), rows);
+    VERIFY_IS_EQUAL(qr.cols(), cols);
+  }
+}
+
 // Exercise the blocked path by using a matrix sufficiently larger than 2*b.
 // At b=4 we need at least 8 columns to enter the blocked branch.
 // Stress the rank-detection threshold under the blocked path. With b=4
@@ -533,6 +552,10 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
 
   // Test problem-size constructor.
   CALL_SUBTEST_9(RandColPivHouseholderQR<MatrixXf>(10, 20));
+
+  CALL_SUBTEST_1(rqr_empty_input<MatrixXf>());
+  CALL_SUBTEST_2(rqr_empty_input<MatrixXd>());
+  CALL_SUBTEST_3(rqr_empty_input<MatrixXcd>());
 
   CALL_SUBTEST_1(rqr_kahan_matrix<MatrixXf>());
   CALL_SUBTEST_2(rqr_kahan_matrix<MatrixXd>());
