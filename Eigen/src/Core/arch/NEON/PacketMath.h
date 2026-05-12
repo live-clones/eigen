@@ -6307,11 +6307,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pcmp_lt_or_nan(const Packet8hf& 
                       pcmp_lt_or_nan(vget_high_f16(a), vget_high_f16(b)));
 }
 
+#if EIGEN_ARCH_ARMV8
 EIGEN_MAKE_HALF_UNOP(print, rndn);
 EIGEN_MAKE_HALF_UNOP(pfloor, rndm);
 EIGEN_MAKE_HALF_UNOP(pceil, rndp);
 EIGEN_MAKE_HALF_UNOP(pround, rnda);
 EIGEN_MAKE_HALF_UNOP(ptrunc, rnd);
+#endif
 
 #if EIGEN_ARCH_ARM64
 EIGEN_MAKE_HALF_UNOP(psqrt, sqrt);
