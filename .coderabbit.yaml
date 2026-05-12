@@ -9,18 +9,28 @@
 
 language: en-US
 
+# CodeRabbit caps tone_instructions at 250 chars. Keep the essential
+# focus areas here; the full reviewer guidance (provenance discipline,
+# numerical-tolerance policy, GPU caveats, etc.) lives in AGENTS.md
+# and is loaded via knowledge_base.code_guidelines.filePatterns below.
 tone_instructions: >-
-  Eigen, header-only C++14. Focus: correctness, numerical accuracy (SOTA;
-  flag regressions, defer few-ULP tradeoffs to humans), ABI, performance,
-  template metaprogramming pitfalls, missing tests, suspicious provenance
-  (blocks that look verbatim or paraphrased from sources with incompatible
-  licenses, or uncited implementations of named published algorithms —
-  LAPACK, LAWN, ACM TOMS, Higham, Golub & van Loan; not a substitute for
-  a plagiarism scanner, only flag visibly suspicious cases).
-  Skip style nits and C++17+.
+  Eigen, header-only C++14. Focus: correctness, numerical accuracy
+  (LAPACK-level; flag regressions), ABI, performance, template pitfalls,
+  missing tests, uncited published algorithms (LAPACK, LAWN, Higham,
+  Golub & van Loan). Skip style nits and C++17+.
 
 early_access: false
 enable_free_tier: true
+
+# Pull repo-level reviewer guidance from AGENTS.md (the agent-facing
+# condensation of CONTRIBUTING + wiki). Set explicitly because the
+# default filePatterns list may be inactive when no patterns are
+# specified by the user.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
 
 reviews:
   profile: chill
