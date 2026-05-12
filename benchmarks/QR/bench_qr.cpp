@@ -79,6 +79,23 @@ static void BM_COD(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations());
 }
 
+// --- RandCompleteOrthogonalDecomposition (RandCOD) ---
+
+template <typename Scalar>
+static void BM_RandCOD(benchmark::State& state) {
+  const Index rows = state.range(0);
+  const Index cols = state.range(1);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  Mat A = Mat::Random(rows, cols);
+  RandCompleteOrthogonalDecomposition<Mat> cod(rows, cols);
+  cod.setSeed(0xbe9c4);
+  for (auto _ : state) {
+    do_compute(cod, A);
+    benchmark::DoNotOptimize(cod.matrixQTZ().data());
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+
 // --- QR solve ---
 
 template <typename Scalar>
@@ -111,6 +128,7 @@ BENCHMARK(BM_HouseholderQR<float>) QR_SIZES ->Name("HouseholderQR_float");
 BENCHMARK(BM_ColPivHouseholderQR<float>) QR_SIZES ->Name("ColPivHouseholderQR_float");
 BENCHMARK(BM_FullPivHouseholderQR<float>) QR_SIZES ->Name("FullPivHouseholderQR_float");
 BENCHMARK(BM_COD<float>) QR_SIZES ->Name("COD_float");
+BENCHMARK(BM_RandCOD<float>) QR_SIZES ->Name("RandCOD_float");
 BENCHMARK(BM_HouseholderQR_Solve<float>) QR_SIZES ->Name("HouseholderQR_Solve_float");
 
 // Register: double
@@ -118,6 +136,7 @@ BENCHMARK(BM_HouseholderQR<double>) QR_SIZES ->Name("HouseholderQR_double");
 BENCHMARK(BM_ColPivHouseholderQR<double>) QR_SIZES ->Name("ColPivHouseholderQR_double");
 BENCHMARK(BM_FullPivHouseholderQR<double>) QR_SIZES ->Name("FullPivHouseholderQR_double");
 BENCHMARK(BM_COD<double>) QR_SIZES ->Name("COD_double");
+BENCHMARK(BM_RandCOD<double>) QR_SIZES ->Name("RandCOD_double");
 BENCHMARK(BM_HouseholderQR_Solve<double>) QR_SIZES ->Name("HouseholderQR_Solve_double");
 
 #undef QR_SIZES

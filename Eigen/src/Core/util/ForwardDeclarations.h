@@ -434,6 +434,12 @@ template <typename MatrixType, typename PermutationIndex = DefaultPermutationInd
 class RandColPivHouseholderQR;
 template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
 class CompleteOrthogonalDecomposition;
+template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
+class RandCompleteOrthogonalDecomposition;
+namespace internal {
+template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR>
+class CompleteOrthogonalDecompositionImpl;
+}
 template <typename MatrixType>
 class SVDBase;
 template <typename MatrixType, int Options = 0>

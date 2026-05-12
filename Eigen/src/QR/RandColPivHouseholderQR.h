@@ -309,6 +309,8 @@ class RandColPivHouseholderQR : public SolverBase<RandColPivHouseholderQR<Matrix
 #endif
 
  protected:
+  friend class internal::CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RandColPivHouseholderQR>;
+
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
   void computeInPlace();
