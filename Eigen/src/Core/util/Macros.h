@@ -766,19 +766,6 @@
 #error Eigen requires at least c++14 support.
 #endif
 
-// Does the compiler support C99?
-// Need to include <cmath> to make sure _GLIBCXX_USE_C99 gets defined
-#include <cmath>
-#ifndef EIGEN_HAS_C99_MATH
-#if ((defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901)) ||                                          \
-     (defined(__GNUC__) && defined(_GLIBCXX_USE_C99)) || (defined(_LIBCPP_VERSION) && !defined(_MSC_VER)) || \
-     (EIGEN_COMP_MSVC) || defined(SYCL_DEVICE_ONLY))
-#define EIGEN_HAS_C99_MATH 1
-#else
-#define EIGEN_HAS_C99_MATH 0
-#endif
-#endif
-
 // Does the compiler support std::hash?
 #ifndef EIGEN_HAS_STD_HASH
 // The std::hash struct is not labelled as a __device__ function and is not
