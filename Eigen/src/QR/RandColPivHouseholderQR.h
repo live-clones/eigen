@@ -162,15 +162,69 @@ class RandColPivHouseholderQR : public SolverBase<RandColPivHouseholderQR<Matrix
 
  private:
   // Default `m_blockSize == 0` means: let computeInPlace pick a size
-  // tuned to the input dimensions. The BQRRP paper recommends b ~= n/32
-  // for large square inputs and "as large as feasible" for small ones.
+  // tuned to the input dimensions and the host cache hierarchy.
   static constexpr Index kAutoBlockSize = 0;
 
-  // Heuristic block size for `m_blockSize == kAutoBlockSize`. Returns a
-  // value in roughly [48, 1024] that scales with `size`.
-  static Index computeAutoBlockSize(Index size) {
-    if (size < Index(192)) return Index(48);
-    return numext::mini(numext::maxi(Index(48), size / Index(32)), Index(1024));
+  // SIMD-kernel efficiency floor; smaller blocks degrade the panel-QR
+  // and trailing-GEMM kernels without speeding up the sketch.
+  static constexpr Index kKernelFloor = 48;
+  // Hard upper bound on the auto block size.
+  static constexpr Index kBlockCeiling = 1024;
+
+  // Minimum min(rows, cols) at which auto-block enters the blocked path.
+  // Below this, the per-compute sketch overhead (G fill, G*A, per-panel
+  // LU on the sketch) is not amortized by the trailing-GEMM savings vs.
+  // classical Businger-Golub pivoting. Empirically calibrated (Apple M4,
+  // double): n ~= 128 loses by ~1.5x, n >= 256 wins. Set above the
+  // kernel-efficiency floor so that `can_block` (size >= 2*b) cannot
+  // fire below it. A user who calls `setBlockSize(b > 0)` explicitly
+  // bypasses this gate.
+  static constexpr Index kAutoBlockedPathMinSize = 192;
+
+  // L2 cache size in bytes, from Eigen's shared cache-sizes singleton
+  // (which handles cross-platform detection plus user overrides via
+  // setCpuCacheSizes).
+  static Index defaultL2Bytes() {
+    std::ptrdiff_t l1, l2, l3;
+    internal::manage_caching_sizes(GetAction, &l1, &l2, &l3);
+    return Index(l2);
+  }
+
+  // Roofline-derived auto block size for `m_blockSize == kAutoBlockSize`.
+  // `size = min(rows, cols)` is passed in to avoid recomputing it.
+  //
+  // The dominant per-iteration cost is the trailing-update GEMM
+  // (compact-WY apply: C := C - V*T*V^T*C). With panel V resident in
+  // cache, the arithmetic intensity is
+  //    AI = 2*b / sizeof(Scalar)     [FLOPS / byte]
+  // which crosses the roofline ceiling AI_crit = peak_FLOPS / cache_BW
+  // at b roughly 2-3 on current hardware. That bound is dominated by the
+  // SIMD-kernel efficiency floor (~48); the roofline therefore gives no
+  // useful lower bound on b.
+  //
+  // The binding constraint is the cache-fit invariant: V must stay
+  // resident across the trailing sweep, otherwise the streamed re-reads
+  // drop us off the compute roof onto the DRAM-bandwidth side. That
+  // yields the upper bound
+  //    b * rows * sizeof(Scalar) <= L2 / 2     (half of L2; remainder
+  //                                              for the streamed C tile)
+  // BQRRP's recommended b ~= n/32 (paper Section 3.2) sits inside this
+  // window for matrices up to roughly 16 * L2 / (rows * sizeof(Scalar));
+  // beyond that, the cache bound binds and clamps b.
+  static Index computeAutoBlockSize(Index rows, Index size) {
+    // Degenerate empty inputs (0 rows or 0 cols): there is no work, and
+    // the cache-bound calculation below would divide by `rows`. Return 0
+    // so the caller's can_block check (b > 0) routes to the unblocked
+    // path, which handles empty matrices correctly.
+    if (rows <= 0 || size <= 0) return Index(0);
+    const Index scalar_bytes = Index(sizeof(Scalar));
+    const Index b_cache = numext::maxi(Index(1), (defaultL2Bytes() / Index(2)) / (rows * scalar_bytes));
+    const Index b_bqrrp = size / Index(32);
+
+    Index b = numext::maxi(Index(kKernelFloor), b_bqrrp);
+    b = numext::mini(b, numext::maxi(Index(kKernelFloor), b_cache));
+    b = numext::mini(b, Index(kBlockCeiling));
+    return b;
   }
 
   void init(Index rows, Index cols) {
@@ -481,14 +535,20 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
       cols == 0 ? RealScalar(0)
                 : numext::abs2<RealScalar>(max_initial_norm * NumTraits<RealScalar>::epsilon()) / RealScalar(rows);
 
-  const Index requested_b = (m_blockSize == kAutoBlockSize) ? computeAutoBlockSize(size) : m_blockSize;
+  const bool auto_block = (m_blockSize == kAutoBlockSize);
+  const Index requested_b = auto_block ? computeAutoBlockSize(rows, size) : m_blockSize;
   const Index b = (std::min)(requested_b, size);
 
-  // For very small problems the sketch overhead dominates; use the
-  // unblocked pivoted loop for the whole matrix instead. We also need at
-  // least two full blocks to make blocking worthwhile, and `rows > b`
-  // so the trailing update has a non-empty bottom portion.
-  const bool can_block = (b > 0) && (size >= 2 * b) && (rows > b);
+  // Gates for entering the blocked path:
+  //   - `b > 0` and `rows > b` for the trailing update to have work,
+  //   - `size >= 2*b` so at least two full blocks fit (one block + tail
+  //     is handled more efficiently by the unblocked path),
+  //   - in the auto-block path, an additional size threshold so the
+  //     sketch overhead is amortized by trailing-GEMM savings (see
+  //     kAutoBlockedPathMinSize). Users who pin a block size via
+  //     setBlockSize() bypass this — useful for tests that need to
+  //     exercise the blocked path on small inputs.
+  const bool can_block = (b > 0) && (size >= 2 * b) && (rows > b) && (!auto_block || size >= kAutoBlockedPathMinSize);
   if (!can_block) {
     num_transpositions += unblocked_pivoted_qr(0, 0, cols, threshold_helper);
     m_det_p = (num_transpositions % 2) ? -1 : 1;
