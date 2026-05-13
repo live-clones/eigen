@@ -6323,7 +6323,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psqrt(const Packet4hf& a) {
   return vcvt_f16_f32(psqrt(vcvt_f32_f16(a)));
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf name(const Packet8hf& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf psqrt(const Packet8hf& a) {
   return vcombine_f16(psqrt(vget_low_f16(a)), psqrt(vget_high_f16(a)));
 }
 #endif
