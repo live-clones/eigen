@@ -18,7 +18,7 @@
 #include <cuda_runtime.h>
 #include <npps_arithmetic_and_logical_operations.h>
 
-#include "./GpuSupport.h"  // EIGEN_CUDA_RUNTIME_CHECK
+#include "./GpuSupport.h"
 
 namespace Eigen {
 namespace gpu {
@@ -41,15 +41,15 @@ inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
   // streams from a different device must cudaSetDevice() first.
   EIGEN_CUDA_RUNTIME_CHECK(cudaGetDevice(&ctx.nCudaDeviceId));
 #endif
-  cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMajor, cudaDevAttrComputeCapabilityMajor, ctx.nCudaDeviceId);
-  cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMinor, cudaDevAttrComputeCapabilityMinor, ctx.nCudaDeviceId);
-  cudaDeviceGetAttribute(&ctx.nMultiProcessorCount, cudaDevAttrMultiProcessorCount, ctx.nCudaDeviceId);
-  cudaDeviceGetAttribute(&ctx.nMaxThreadsPerMultiProcessor, cudaDevAttrMaxThreadsPerMultiProcessor, ctx.nCudaDeviceId);
-  cudaDeviceGetAttribute(&ctx.nMaxThreadsPerBlock, cudaDevAttrMaxThreadsPerBlock, ctx.nCudaDeviceId);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMajor, cudaDevAttrComputeCapabilityMajor, ctx.nCudaDeviceId));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMinor, cudaDevAttrComputeCapabilityMinor, ctx.nCudaDeviceId));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceGetAttribute(&ctx.nMultiProcessorCount, cudaDevAttrMultiProcessorCount, ctx.nCudaDeviceId));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceGetAttribute(&ctx.nMaxThreadsPerMultiProcessor, cudaDevAttrMaxThreadsPerMultiProcessor, ctx.nCudaDeviceId));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceGetAttribute(&ctx.nMaxThreadsPerBlock, cudaDevAttrMaxThreadsPerBlock, ctx.nCudaDeviceId));
   int shared_mem_per_block = 0;
-  cudaDeviceGetAttribute(&shared_mem_per_block, cudaDevAttrMaxSharedMemoryPerBlock, ctx.nCudaDeviceId);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceGetAttribute(&shared_mem_per_block, cudaDevAttrMaxSharedMemoryPerBlock, ctx.nCudaDeviceId));
   ctx.nSharedMemPerBlock = static_cast<size_t>(shared_mem_per_block);
-  cudaStreamGetFlags(stream, &ctx.nStreamFlags);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamGetFlags(stream, &ctx.nStreamFlags));
   return ctx;
 }
 
