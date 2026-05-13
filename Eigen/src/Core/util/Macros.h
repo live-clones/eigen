@@ -899,14 +899,15 @@
 #endif
 #endif
 
-// EIGEN_ALWAYS_INLINE is the strongest, it has the effect of making the function inline and adding every possible
-// attribute to maximize inlining. This should only be used when really necessary: in particular,
-// it uses __attribute__((always_inline)) on GCC, which most of the time is useless and can severely harm compile times.
-// FIXME with the always_inline attribute,
+// EIGEN_ALWAYS_INLINE is the strongest default inline hint. It makes the function inline and, where supported,
+// adds attributes to maximize inlining. This should only be used when really necessary: in particular, the
+// __attribute__((always_inline)) used on GCC is often unnecessary and can severely harm compile times.
+#ifndef EIGEN_ALWAYS_INLINE
 #if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
 #define EIGEN_ALWAYS_INLINE __attribute__((always_inline)) inline
 #else
 #define EIGEN_ALWAYS_INLINE EIGEN_STRONG_INLINE
+#endif
 #endif
 
 // EIGEN_LAMBDA_ALWAYS_INLINE forces inlining of lambda functions.
@@ -914,18 +915,22 @@
 // On MSVC, [[msvc::forceinline]] cannot be applied to generic lambdas
 // (those with auto parameters), so we leave it empty and rely on the
 // optimizer to inline small lambda bodies at /O2.
+#ifndef EIGEN_LAMBDA_ALWAYS_INLINE
 #if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
 #define EIGEN_LAMBDA_ALWAYS_INLINE __attribute__((always_inline))
 #else
 #define EIGEN_LAMBDA_ALWAYS_INLINE
 #endif
+#endif
 
+#ifndef EIGEN_DONT_INLINE
 #if EIGEN_COMP_GNUC
 #define EIGEN_DONT_INLINE __attribute__((noinline))
 #elif EIGEN_COMP_MSVC
 #define EIGEN_DONT_INLINE __declspec(noinline)
 #else
 #define EIGEN_DONT_INLINE
+#endif
 #endif
 
 #if EIGEN_COMP_GNUC
