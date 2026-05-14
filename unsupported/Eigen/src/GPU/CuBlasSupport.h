@@ -59,44 +59,40 @@ constexpr cublasOperation_t to_cublas_op(GpuOp op) {
 //   - EIGEN_NO_CUDA_TENSOR_OPS: disables all tensor core usage. Uses pedantic
 //     compute types. For bit-exact reproducibility.
 
+// Single-precision (real or complex) and double-precision (real or complex) each
+// pick their compute type from one set of preprocessor switches; specializations
+// just dispatch to the right precision tag.
+namespace cuda_compute_type_detail {
+#if defined(EIGEN_NO_CUDA_TENSOR_OPS)
+constexpr cublasComputeType_t kFloat = CUBLAS_COMPUTE_32F_PEDANTIC;
+constexpr cublasComputeType_t kDouble = CUBLAS_COMPUTE_64F_PEDANTIC;
+#elif defined(EIGEN_CUDA_TF32)
+constexpr cublasComputeType_t kFloat = CUBLAS_COMPUTE_32F_FAST_TF32;
+constexpr cublasComputeType_t kDouble = CUBLAS_COMPUTE_64F;
+#else
+constexpr cublasComputeType_t kFloat = CUBLAS_COMPUTE_32F;
+constexpr cublasComputeType_t kDouble = CUBLAS_COMPUTE_64F;
+#endif
+}  // namespace cuda_compute_type_detail
+
 template <typename Scalar>
 struct cuda_compute_type;
 
 template <>
 struct cuda_compute_type<float> {
-#if defined(EIGEN_NO_CUDA_TENSOR_OPS)
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F_PEDANTIC;
-#elif defined(EIGEN_CUDA_TF32)
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F_FAST_TF32;
-#else
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F;
-#endif
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kFloat;
 };
 template <>
 struct cuda_compute_type<double> {
-#ifdef EIGEN_NO_CUDA_TENSOR_OPS
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_64F_PEDANTIC;
-#else
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_64F;
-#endif
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kDouble;
 };
 template <>
 struct cuda_compute_type<std::complex<float>> {
-#if defined(EIGEN_NO_CUDA_TENSOR_OPS)
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F_PEDANTIC;
-#elif defined(EIGEN_CUDA_TF32)
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F_FAST_TF32;
-#else
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F;
-#endif
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kFloat;
 };
 template <>
 struct cuda_compute_type<std::complex<double>> {
-#ifdef EIGEN_NO_CUDA_TENSOR_OPS
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_64F_PEDANTIC;
-#else
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_64F;
-#endif
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kDouble;
 };
 
 // ---- cublasLt GEMM dispatch -------------------------------------------------
@@ -231,7 +227,6 @@ class CublasLtPlanCache {
     e.transB = transB;
     e.use_cublaslt = false;
 
-    // Create descriptors.
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(&e.matmul_desc, compute, alpha_type));
     EIGEN_CUBLASLT_CHECK(
         cublasLtMatmulDescSetAttribute(e.matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &transA, sizeof(transA)));
@@ -249,7 +244,6 @@ class CublasLtPlanCache {
     EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&e.layout_B, dtype, b_rows, b_cols, ldb));
     EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&e.layout_C, dtype, m, n, ldc));
 
-    // Run heuristic.
     cublasLtMatmulPreference_t preference = nullptr;
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceCreate(&preference));
     size_t max_ws = kCublasLtMaxWorkspaceBytes;
