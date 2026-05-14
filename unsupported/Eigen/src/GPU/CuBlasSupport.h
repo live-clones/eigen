@@ -134,9 +134,10 @@ constexpr cublasGemmAlgo_t cuda_gemm_algo() {
 // Eliminates per-call descriptor creation and heuristic lookup overhead, which
 // can be 5-35% of total time for small/medium matrices.
 //
-// The cache uses a small fixed-size array with linear scan. GEMM shapes in
-// typical workloads (CG iteration, chained solves) have very low cardinality
-// (usually 1-3 distinct shapes), so a simple array beats a hash map.
+// The cache uses a small fixed-size array with linear scan and an LRU
+// eviction policy backed by a per-entry tick stamp. GEMM shapes in typical
+// workloads (CG iteration, chained solves) have very low cardinality (usually
+// 1-3 distinct shapes), so a simple array beats a hash map.
 
 struct CublasLtPlanEntry {
   int64_t m, n, k;
@@ -149,6 +150,10 @@ struct CublasLtPlanEntry {
   cublasLtMatmulAlgo_t algo;
   size_t workspace_size;
   bool use_cublaslt;  // false → cublasGemmEx fallback
+
+  // Per-entry tick stamp used for LRU eviction. Updated on hit (find) and
+  // on creation (insert). Zero means the slot is empty.
+  uint64_t last_used;
 };
 
 class CublasLtPlanCache {
@@ -162,60 +167,64 @@ class CublasLtPlanCache {
   CublasLtPlanCache(const CublasLtPlanCache&) = delete;
   CublasLtPlanCache& operator=(const CublasLtPlanCache&) = delete;
 
-  CublasLtPlanCache(CublasLtPlanCache&& o) noexcept : size_(o.size_) {
+  CublasLtPlanCache(CublasLtPlanCache&& o) noexcept : size_(o.size_), tick_(o.tick_) {
     for (int i = 0; i < o.size_; ++i) {
       entries_[i] = o.entries_[i];
       o.entries_[i].matmul_desc = nullptr;
       o.entries_[i].layout_A = o.entries_[i].layout_B = o.entries_[i].layout_C = nullptr;
     }
     o.size_ = 0;
+    o.tick_ = 0;
   }
 
   CublasLtPlanCache& operator=(CublasLtPlanCache&& o) noexcept {
     if (this != &o) {
       clear();
       size_ = o.size_;
+      tick_ = o.tick_;
       for (int i = 0; i < o.size_; ++i) {
         entries_[i] = o.entries_[i];
         o.entries_[i].matmul_desc = nullptr;
         o.entries_[i].layout_A = o.entries_[i].layout_B = o.entries_[i].layout_C = nullptr;
       }
       o.size_ = 0;
+      o.tick_ = 0;
     }
     return *this;
   }
 
-  /** Look up a cached plan. Returns nullptr on miss. */
+  /** Look up a cached plan. Returns nullptr on miss. Bumps the entry's LRU
+   * tick on hit; the linear scan is unchanged, so this stays O(n). */
   const CublasLtPlanEntry* find(int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
-                                cudaDataType_t dtype, cublasOperation_t transA, cublasOperation_t transB) const {
+                                cudaDataType_t dtype, cublasOperation_t transA, cublasOperation_t transB) {
     for (int i = 0; i < size_; ++i) {
-      const auto& e = entries_[i];
+      auto& e = entries_[i];
       if (e.m == m && e.n == n && e.k == k && e.lda == lda && e.ldb == ldb && e.ldc == ldc && e.dtype == dtype &&
           e.transA == transA && e.transB == transB) {
+        e.last_used = ++tick_;
         return &e;
       }
     }
     return nullptr;
   }
 
-  /** Insert a new entry, evicting the oldest if full. Returns pointer to the new entry. */
+  /** Insert a new entry, evicting the least-recently-used if full. */
   CublasLtPlanEntry* insert(cublasLtHandle_t lt_handle, int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
                             int64_t ldc, cudaDataType_t dtype, cublasComputeType_t compute, cudaDataType_t alpha_type,
                             cublasOperation_t transA, cublasOperation_t transB) {
-    // Evict oldest if full. The shift transfers descriptor ownership leftward;
-    // null the now-vacant trailing slot so it never aliases the descriptor that
-    // moved into entries_[size_-2].
-    if (size_ >= kMaxEntries) {
-      destroy_entry(entries_[0]);
-      for (int i = 1; i < size_; ++i) entries_[i - 1] = entries_[i];
-      entries_[size_ - 1].matmul_desc = nullptr;
-      entries_[size_ - 1].layout_A = nullptr;
-      entries_[size_ - 1].layout_B = nullptr;
-      entries_[size_ - 1].layout_C = nullptr;
-      --size_;
+    int slot;
+    if (size_ < kMaxEntries) {
+      slot = size_++;
+    } else {
+      // Single linear scan for the entry with the smallest tick. No array
+      // shift — the evicted slot is reused in place.
+      slot = 0;
+      for (int i = 1; i < size_; ++i) {
+        if (entries_[i].last_used < entries_[slot].last_used) slot = i;
+      }
+      destroy_entry(entries_[slot]);
     }
-
-    auto& e = entries_[size_];
+    auto& e = entries_[slot];
     e.m = m;
     e.n = n;
     e.k = k;
@@ -267,7 +276,7 @@ class CublasLtPlanCache {
       e.use_cublaslt = false;
     }
 
-    ++size_;
+    e.last_used = ++tick_;
     return &e;
   }
 
@@ -283,6 +292,7 @@ class CublasLtPlanCache {
   // EIGEN_NO_DEBUG builds).
   CublasLtPlanEntry entries_[kMaxEntries] = {};
   int size_ = 0;
+  uint64_t tick_ = 0;
 
   static void destroy_entry(CublasLtPlanEntry& e) {
     if (e.layout_C) cublasLtMatrixLayoutDestroy(e.layout_C);

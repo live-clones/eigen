@@ -645,7 +645,7 @@ cublasLtHandle_t   cublasLtHandle()                        // Lazy-initialized
 cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
 
 internal::DeviceBuffer*       gemmWorkspace()              // cublasLtMatmul scratch (lazy-grown per context)
-internal::CublasLtPlanCache*  gemmPlanCache()              // shape-keyed plan cache (per context, fixed-size ~8-entry FIFO)
+internal::CublasLtPlanCache*  gemmPlanCache()              // shape-keyed plan cache (per context, fixed-size ~8-entry LRU)
 ```
 
 Non-copyable, non-movable (owns library handles). Translation units that
