@@ -19,6 +19,7 @@
 //   SVD<double> svd(A, ComputeThinU | ComputeThinV);
 //   VectorXd S = svd.singularValues();
 //   MatrixXd U = svd.matrixU();       // m×k or m×m
+//   MatrixXd V = svd.matrixV();         // n×k or n×n (matches JacobiSVD)
 //   MatrixXd VT = svd.matrixVT();      // k×n or n×n (this is V^T)
 //   MatrixXd X = svd.solve(B);        // pseudoinverse
 //   MatrixXd X = svd.solve(B, k);     // truncated (top k triplets)
@@ -158,6 +159,10 @@ class SVD {
 
   Index rows() const { return transposed_ ? n_ : m_; }
   Index cols() const { return transposed_ ? m_ : n_; }
+
+  // TODO: Add device-side accessors (deviceU(), deviceVT(), deviceSingularValues())
+  // returning DeviceMatrix views of the internal buffers, so users can chain
+  // GPU operations without round-tripping through host memory.
 
   /** Singular values (always available). Downloads from device on each call. */
   RealVector singularValues() const {
