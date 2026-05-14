@@ -1,7 +1,7 @@
 // GEMM dispatch benchmark: measure DeviceMatrix GEMM throughput across sizes.
 //
-// Tests cublasLtMatmul with plan cache (current default) against raw
-// cublasGemmEx (direct call, no descriptor overhead) to verify no regression.
+// Compares cublasLtMatmul with plan cache against a raw cublasGemmEx call
+// (no descriptor overhead) to verify no regression.
 //
 // Usage:
 //   cmake --build build-bench-gpu --target bench_gemm
@@ -98,11 +98,7 @@ static void BM_Raw_CublasGemmEx(benchmark::State& state) {
   Scalar beta = Scalar(0);
   const int ni = static_cast<int>(n);
 
-#ifdef EIGEN_NO_CUDA_TENSOR_OPS
-  constexpr cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT;
-#else
-  constexpr cublasGemmAlgo_t algo = CUBLAS_GEMM_DEFAULT_TENSOR_OP;
-#endif
+  constexpr cublasGemmAlgo_t algo = gpu::internal::cuda_gemm_algo();
 
   // Warmup.
   for (int i = 0; i < 5; ++i) {
