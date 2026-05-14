@@ -32,9 +32,10 @@ inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
   // launch itself) so multi-device or borrowed-stream callers stay correct.
   NppStreamContext ctx = {};
   ctx.hStream = stream;
-#if CUDART_VERSION >= 12050
-  // cudaStreamGetDevice returns the device that owns the stream regardless of
-  // the calling thread's current device — safe for borrowed streams.
+#if CUDART_VERSION >= 12080
+  // cudaStreamGetDevice (added in CUDA 12.8) returns the device that owns the
+  // stream regardless of the calling thread's current device — safe for
+  // borrowed streams.
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamGetDevice(stream, &ctx.nCudaDeviceId));
 #else
   // Older CUDA runtimes lack cudaStreamGetDevice. Callers using borrowed

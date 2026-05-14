@@ -333,7 +333,14 @@ void test_scalar() {
   CALL_SUBTEST(test_spmv<Scalar>(64, 128));  // wide
   CALL_SUBTEST(test_spmv_alpha_beta<Scalar>(64));
   CALL_SUBTEST(test_spmv_transpose<Scalar>(128, 64));
+  // cuSPARSE < 12 cannot represent A^H * x for complex scalars with the
+  // CSR-of-A^T trick used by SparseContext; SparseContext asserts in that
+  // case. Real-scalar ConjTrans is demoted to Trans and works fine.
+#if !defined(CUSPARSE_VERSION) || CUSPARSE_VERSION >= 12000
   CALL_SUBTEST(test_spmv_adjoint<Scalar>(128, 64));
+#else
+  if (!NumTraits<Scalar>::IsComplex) CALL_SUBTEST(test_spmv_adjoint<Scalar>(128, 64));
+#endif
   CALL_SUBTEST(test_spmm<Scalar>(64, 64, 4));
   CALL_SUBTEST(test_spmm_transpose<Scalar>(128, 64, 4));
   CALL_SUBTEST(test_identity<Scalar>(64));

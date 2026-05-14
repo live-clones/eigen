@@ -18,6 +18,7 @@
 #include <Eigen/Sparse>
 #include <Eigen/IterativeLinearSolvers>
 #include <unsupported/Eigen/GPU>
+#include "gpu_test_helpers.h"
 
 using namespace Eigen;
 
@@ -216,6 +217,8 @@ void test_gpu_cg_jacobi(Index n) {
 }
 
 EIGEN_DECLARE_TEST(gpu_cg) {
+  gpu_test::require_cusparse_context();
+
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_gpu_cg<double>(64));
   CALL_SUBTEST_1(test_gpu_cg<double>(256));
