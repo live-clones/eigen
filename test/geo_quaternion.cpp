@@ -253,10 +253,10 @@ void quaternion(void) {
     Vector3 axis = Vector3(Scalar(1), Scalar(2), Scalar(3)).normalized();
     for (Scalar gap : {Scalar(1e-3), Scalar(1e-6)}) {
       Scalar theta = Scalar(EIGEN_PI) - gap;
-      Quaternionx q(AngleAxisx(theta, axis));
-      Vector3 sa = q.toScaledAxis();
+      Quaternionx near_pi_quat(AngleAxisx(theta, axis));
+      Vector3 sa = near_pi_quat.toScaledAxis();
       VERIFY_IS_APPROX(sa.stableNorm(), theta);
-      VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sa), q);
+      VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sa), near_pi_quat);
     }
   }
 
@@ -286,13 +286,13 @@ void quaternion(void) {
       Scalar theta = -Scalar(EIGEN_PI) + Scalar(2 * EIGEN_PI) * Scalar(octant) / Scalar(kNumOctants);
       Scalar phi = Scalar(EIGEN_PI) * Scalar(octant + 1) / Scalar(kNumOctants + 1);
       Vector3 sa(angle * sin(phi) * cos(theta), angle * sin(phi) * sin(theta), angle * cos(phi));
-      Quaternionx q = Quaternionx::FromScaledAxis(sa);
-      VERIFY_IS_APPROX(q.norm(), Scalar(1));
-      Vector3 sa_rt = q.toScaledAxis();
+      Quaternionx roundtrip_quat = Quaternionx::FromScaledAxis(sa);
+      VERIFY_IS_APPROX(roundtrip_quat.norm(), Scalar(1));
+      Vector3 sa_rt = roundtrip_quat.toScaledAxis();
       VERIFY_IS_APPROX(sa_rt, sa);
       // And the other direction (quaternion -> sa -> quaternion).
-      Quaternionx q2 = Quaternionx::FromScaledAxis(sa_rt);
-      VERIFY_IS_APPROX(q2, q);
+      Quaternionx roundtrip_quat2 = Quaternionx::FromScaledAxis(sa_rt);
+      VERIFY_IS_APPROX(roundtrip_quat2, roundtrip_quat);
     }
   }
 
