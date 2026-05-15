@@ -183,7 +183,7 @@ gpu::Context::setThreadLocal(&ctx);    // all threadLocal() calls return ctx
 gpu::Context::setThreadLocal(nullptr); // restore lazy-created default
 ```
 
-### Linking
+### Linking {#eigen_gpu_linking}
 
 The module is header-only, but each feature pulls in the corresponding NVIDIA
 library at link time. cuSOLVER, cuBLASLt, and cuSPARSE are created lazily on
@@ -320,7 +320,7 @@ round-tripping through host memory.
 ### Sparse direct solvers (cuDSS)
 
 Requires cuDSS (separate install, CUDA 12.0+). Define `EIGEN_CUDSS` before
-including `unsupported/Eigen/GPU`; see [Linking](#linking) for link flags.
+including `unsupported/Eigen/GPU`; see [Linking](#eigen_gpu_linking) for link flags.
 
 ```cpp
 SparseMatrix<double> A = ...;  // symmetric positive definite
@@ -637,7 +637,7 @@ cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
 
 Non-copyable, non-movable (owns library handles). Translation units that
 never call `cusolverHandle()` do not pull cuSOLVER symbols at link time --
-see [Linking](#linking).
+see [Linking](#eigen_gpu_linking).
 
 ### `gpu::LLT<Scalar, UpLo>` -- Dense Cholesky (cuSOLVER)
 
