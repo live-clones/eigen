@@ -50,7 +50,6 @@
 #include "./CuFftSupport.h"
 #include "./CuBlasSupport.h"
 #include "./GpuContext.h"
-#include <Eigen/src/Core/util/LruCache.h>
 
 namespace Eigen {
 namespace gpu {
@@ -73,18 +72,20 @@ class FFT {
    * constructed it, since it borrows a pointer into thread-local storage.
    * For cross-thread lifetimes, pass an explicit Context.
    *
-   * @param plan_cache_capacity max number of cuFFT plans to keep cached.
-   *   On overflow the least-recently-used plan is destroyed. */
+   * @param plan_cache_capacity max number of cuFFT plans to keep cached
+   *   (silently clamped to at least 1). On overflow the least-recently-used
+   *   plan is destroyed. */
   explicit FFT(std::size_t plan_cache_capacity = kDefaultCufftPlanCacheCapacity)
-      : ctx_(&Context::threadLocal()), plans_(plan_cache_capacity) {}
+      : ctx_(&Context::threadLocal()), plans_(plan_cache_capacity > 0 ? plan_cache_capacity : 1) {}
 
   /** Construct an FFT bound to the given Context. The Context must outlive
    * this FFT instance; this object only borrows its stream and cuBLAS handle.
    *
-   * @param plan_cache_capacity max number of cuFFT plans to keep cached.
-   *   On overflow the least-recently-used plan is destroyed. */
+   * @param plan_cache_capacity max number of cuFFT plans to keep cached
+   *   (silently clamped to at least 1). On overflow the least-recently-used
+   *   plan is destroyed. */
   explicit FFT(Context& ctx, std::size_t plan_cache_capacity = kDefaultCufftPlanCacheCapacity)
-      : ctx_(&ctx), plans_(plan_cache_capacity) {}
+      : ctx_(&ctx), plans_(plan_cache_capacity > 0 ? plan_cache_capacity : 1) {}
 
   // Destructor is implicit: ~LruCache destroys each CufftPlan, which calls
   // cufftDestroy via CufftPlan's destructor.
