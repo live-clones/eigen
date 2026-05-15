@@ -77,8 +77,11 @@ class LruCache {
   // Inserts (key, value), evicting the least-recently-used entry if the cache
   // is at capacity. If the key already exists, the existing value is replaced
   // (its destructor runs) and the slot is promoted to most-recently-used.
-  // Returns a pointer to the inserted value.
+  // Returns a pointer to the inserted value, or nullptr if capacity is 0
+  // (degenerate case — assert-firing in debug; the early return keeps release
+  // builds from dereferencing items_.back() on an empty list).
   Value* insert(const Key& key, Value value) {
+    if (capacity_ == 0) return nullptr;
     auto map_it = index_.find(key);
     if (map_it != index_.end()) {
       map_it->second->second = std::move(value);
