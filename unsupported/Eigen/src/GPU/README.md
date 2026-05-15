@@ -799,8 +799,10 @@ General non-symmetric. Same API as `gpu::SparseLLT` (without `UpLo`).
 
 ### `gpu::FFT<Scalar>` -- FFT (cuFFT)
 
-Plans cached by (size, type) and reused. Inverse transforms scaled so
-`inv(fwd(x)) == x`. Supported scalars: `float`, `double`. Stream and cuBLAS
+Plans cached by (size, type) in a bounded LRU (capacity
+`kCufftPlanCacheCapacity`, currently 8) and reused; the least-recently-used
+plan is destroyed via `cufftDestroy` on overflow. Inverse transforms scaled
+so `inv(fwd(x)) == x`. Supported scalars: `float`, `double`. Stream and cuBLAS
 handle borrowed from a `gpu::Context` (default: `Context::threadLocal()`),
 so by default the FFT shares a stream with other GPU operations on the same
 thread.

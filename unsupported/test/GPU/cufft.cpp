@@ -150,6 +150,37 @@ void test_plan_reuse() {
   }
 }
 
+// ---- LRU eviction stress: more distinct shapes than the cache holds ---------
+// Walks through 2 * kCufftPlanCacheCapacity distinct sizes (so the cache is
+// forced to evict and recreate plans), then revisits the smallest size. Two
+// things have to hold: every transform is still numerically correct, and
+// cufftDestroy on eviction must not have left dangling state behind on the
+// stream.
+
+template <typename Scalar>
+void test_plan_cache_eviction() {
+  using Complex = std::complex<Scalar>;
+  using Vec = Matrix<Complex, Dynamic, 1>;
+  using RealScalar = Scalar;
+
+  gpu::FFT<Scalar> fft;
+  const int num_shapes = static_cast<int>(2 * gpu::kCufftPlanCacheCapacity);
+  for (int k = 0; k < num_shapes; ++k) {
+    const Index n = 32 + 16 * k;  // 32, 48, 64, ... all distinct.
+    Vec x = Vec::Random(n);
+    Vec X = fft.fwd(x);
+    Vec y = fft.inv(X);
+    RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+    VERIFY((y - x).norm() / x.norm() < tol);
+  }
+  // Smallest shape has been evicted by now; re-creating it must succeed.
+  Vec x = Vec::Random(32);
+  Vec X = fft.fwd(x);
+  Vec y = fft.inv(X);
+  RealScalar tol = RealScalar(10) * RealScalar(32) * NumTraits<Scalar>::epsilon();
+  VERIFY((y - x).norm() / x.norm() < tol);
+}
+
 // ---- Empty ------------------------------------------------------------------
 
 template <typename Scalar>
@@ -206,6 +237,7 @@ void test_scalar() {
   CALL_SUBTEST(test_2d_roundtrip<Scalar>(16, 64));  // non-square
   CALL_SUBTEST(test_2d_constant<Scalar>());
   CALL_SUBTEST(test_plan_reuse<Scalar>());
+  CALL_SUBTEST(test_plan_cache_eviction<Scalar>());
   CALL_SUBTEST(test_empty<Scalar>());
   CALL_SUBTEST(test_explicit_context<Scalar>(64));
 }
