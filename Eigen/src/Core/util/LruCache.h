@@ -46,13 +46,15 @@ class LruCache {
 
   explicit LruCache(std::size_t capacity) : capacity_(capacity) {
     eigen_assert(capacity_ > 0 && "LruCache capacity must be positive");
+    // Pre-size the bucket array so the map never rehashes while filling. A
+    // rehash is otherwise guaranteed once load factor crosses ~1.0.
+    index_.reserve(capacity_);
   }
 
   LruCache(const LruCache&) = delete;
   LruCache& operator=(const LruCache&) = delete;
 
-  LruCache(LruCache&& o) noexcept
-      : capacity_(o.capacity_), items_(std::move(o.items_)), index_(std::move(o.index_)) {}
+  LruCache(LruCache&& o) noexcept : capacity_(o.capacity_), items_(std::move(o.items_)), index_(std::move(o.index_)) {}
 
   LruCache& operator=(LruCache&& o) noexcept {
     if (this != &o) {

@@ -186,9 +186,7 @@ static void test_complex_key() {
     bool operator==(const Key& o) const { return a == o.a && b == o.b; }
   };
   struct KeyHash {
-    std::size_t operator()(const Key& k) const noexcept {
-      return std::hash<int>{}(k.a) * 31u + std::hash<int>{}(k.b);
-    }
+    std::size_t operator()(const Key& k) const noexcept { return std::hash<int>{}(k.a) * 31u + std::hash<int>{}(k.b); }
   };
   LruCache<Key, int, KeyHash> cache(2);
   cache.insert(Key{1, 2}, 12);
