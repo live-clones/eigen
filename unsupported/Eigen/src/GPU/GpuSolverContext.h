@@ -38,7 +38,7 @@ struct GpuSolverContext {
   size_t scratch_size_ = 0;
   std::vector<char> h_workspace_;
   DeviceBuffer gemm_workspace_;  // grown lazily by cublaslt_gemm
-  CublasLtPlanCache gemm_plan_cache_;
+  CublasLtPlanCache gemm_plan_cache_{kCublasLtPlanCacheCapacity};
   ComputationInfo info_ = InvalidInput;
   PinnedHostBuffer pinned_info_{sizeof(int)};  // pinned host memory for async D2H of info word
   bool info_synced_ = true;
