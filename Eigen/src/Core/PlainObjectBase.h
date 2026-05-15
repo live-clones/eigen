@@ -454,6 +454,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase(const PlainObjectBase&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(Index size, Index rows, Index cols)
       : m_storage(size, rows, cols) {}
+#ifndef EIGEN_GPU_COMPILE_PHASE
+  EIGEN_STRONG_INLINE PlainObjectBase(Index size, Index rows, Index cols, byte_allocator alloc)
+      : m_storage(size, rows, cols, alloc) {}
+#endif
 
   /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
    *
