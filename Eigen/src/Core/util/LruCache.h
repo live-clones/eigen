@@ -46,13 +46,15 @@ class LruCache {
 
   explicit LruCache(std::size_t capacity) : capacity_(capacity) {
     eigen_assert(capacity_ > 0 && "LruCache capacity must be positive");
+    // Pre-size the bucket array so the map never rehashes while filling. A
+    // rehash is otherwise guaranteed once load factor crosses ~1.0.
+    index_.reserve(capacity_);
   }
 
   LruCache(const LruCache&) = delete;
   LruCache& operator=(const LruCache&) = delete;
 
-  LruCache(LruCache&& o) noexcept
-      : capacity_(o.capacity_), items_(std::move(o.items_)), index_(std::move(o.index_)) {}
+  LruCache(LruCache&& o) noexcept : capacity_(o.capacity_), items_(std::move(o.items_)), index_(std::move(o.index_)) {}
 
   LruCache& operator=(LruCache&& o) noexcept {
     if (this != &o) {
@@ -75,8 +77,8 @@ class LruCache {
   }
 
   // Inserts (key, value), evicting the least-recently-used entry if the cache
-  // is at capacity. If the key already exists, the existing value is replaced
-  // (its destructor runs) and the slot is promoted to most-recently-used.
+  // is at capacity. If the key already exists, the existing entry is destroyed
+  // and a new entry is inserted as most-recently-used.
   // Returns a pointer to the inserted value, or nullptr if capacity is 0
   // (degenerate case — assert-firing in debug; the early return keeps release
   // builds from dereferencing items_.back() on an empty list).
@@ -84,8 +86,10 @@ class LruCache {
     if (capacity_ == 0) return nullptr;
     auto map_it = index_.find(key);
     if (map_it != index_.end()) {
-      map_it->second->second = std::move(value);
-      items_.splice(items_.begin(), items_, map_it->second);
+      auto old_it = map_it->second;
+      items_.emplace_front(key, std::move(value));
+      map_it->second = items_.begin();
+      items_.erase(old_it);
       return &map_it->second->second;
     }
     if (items_.size() >= capacity_) {

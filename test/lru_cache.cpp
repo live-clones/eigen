@@ -29,15 +29,7 @@ struct DestructorTracer {
   DestructorTracer(const DestructorTracer&) = delete;
   DestructorTracer& operator=(const DestructorTracer&) = delete;
   DestructorTracer(DestructorTracer&& o) noexcept : id(o.id), sink(o.sink) { o.sink = nullptr; }
-  DestructorTracer& operator=(DestructorTracer&& o) noexcept {
-    if (this != &o) {
-      if (sink) sink->push_back(id);
-      id = o.id;
-      sink = o.sink;
-      o.sink = nullptr;
-    }
-    return *this;
-  }
+  DestructorTracer& operator=(DestructorTracer&&) = delete;
   ~DestructorTracer() {
     if (sink) sink->push_back(id);
   }
@@ -110,6 +102,30 @@ static void test_replace_existing_key() {
   VERIFY(cache.find(2) == nullptr);
   VERIFY(cache.find(3) != nullptr);
   VERIFY(cache.find(4) != nullptr);
+}
+
+static void test_replace_destroys_old_value() {
+  std::vector<int> destructions;
+  LruCache<int, DestructorTracer> cache(2);
+  cache.insert(1, DestructorTracer{1, &destructions});
+  cache.insert(2, DestructorTracer{2, &destructions});
+  destructions.clear();
+
+  // Replacement destroys the old entry and does not require Value to be
+  // move-assignable.
+  DestructorTracer* p = cache.insert(1, DestructorTracer{10, &destructions});
+  VERIFY(p != nullptr);
+  VERIFY_IS_EQUAL(p->id, 10);
+  VERIFY_IS_EQUAL(destructions.size(), std::size_t(1));
+  VERIFY_IS_EQUAL(destructions.front(), 1);
+
+  // Replacing 1 promoted it to MRU, so the next insert evicts 2.
+  destructions.clear();
+  cache.insert(3, DestructorTracer{3, &destructions});
+  VERIFY_IS_EQUAL(destructions.size(), std::size_t(1));
+  VERIFY_IS_EQUAL(destructions.front(), 2);
+  VERIFY(cache.find(1) != nullptr);
+  VERIFY(cache.find(3) != nullptr);
 }
 
 static void test_evicted_value_is_destroyed() {
@@ -186,9 +202,7 @@ static void test_complex_key() {
     bool operator==(const Key& o) const { return a == o.a && b == o.b; }
   };
   struct KeyHash {
-    std::size_t operator()(const Key& k) const noexcept {
-      return std::hash<int>{}(k.a) * 31u + std::hash<int>{}(k.b);
-    }
+    std::size_t operator()(const Key& k) const noexcept { return std::hash<int>{}(k.a) * 31u + std::hash<int>{}(k.b); }
   };
   LruCache<Key, int, KeyHash> cache(2);
   cache.insert(Key{1, 2}, 12);
@@ -204,6 +218,7 @@ EIGEN_DECLARE_TEST(lru_cache) {
   CALL_SUBTEST(test_lru_eviction());
   CALL_SUBTEST(test_hit_promotes_to_mru());
   CALL_SUBTEST(test_replace_existing_key());
+  CALL_SUBTEST(test_replace_destroys_old_value());
   CALL_SUBTEST(test_evicted_value_is_destroyed());
   CALL_SUBTEST(test_clear());
   CALL_SUBTEST(test_move_semantics());
