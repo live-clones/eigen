@@ -136,8 +136,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
       : m_leftImpl(op.lhsExpression(), device),
         m_rightImpl(op.rhsExpression(), device),
         m_device(device),
-        m_axis(op.axis()),
-        m_leftAxisSize(m_leftImpl.dimensions()[op.axis()]) {
+        m_axis(op.axis()) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
                              static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout) ||
                          NumDims == 1),
@@ -149,6 +148,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     EIGEN_STATIC_ASSERT((NumDims > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
 
     eigen_assert(0 <= m_axis && m_axis < NumDims);
+    m_leftAxisSize = m_leftImpl.dimensions()[m_axis];
     const Dimensions& lhs_dims = m_leftImpl.dimensions();
     const Dimensions& rhs_dims = m_rightImpl.dimensions();
     {
@@ -485,7 +485,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   TensorEvaluator<RightArgType, Device> m_rightImpl;
   const Device EIGEN_DEVICE_REF m_device;
   const Axis m_axis;
-  const Index m_leftAxisSize;
+  Index m_leftAxisSize;
 };
 
 // Eval as lvalue
