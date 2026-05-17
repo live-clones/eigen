@@ -201,7 +201,7 @@ bench:analyze:
 
 bench:store-results:
   stage: deploy
-  image: alpine:3.21
+  image: alpine:3.20
   needs:
     - job: bench:analyze
       artifacts: true
@@ -217,7 +217,7 @@ bench:store-results:
 
 bench:regression-gate:
   stage: deploy
-  image: alpine:3.21
+  image: alpine:3.20
   needs:
     - job: bench:analyze
       artifacts: true
