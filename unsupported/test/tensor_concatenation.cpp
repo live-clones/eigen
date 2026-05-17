@@ -10,6 +10,8 @@
 
 #include "main.h"
 
+#include <complex>
+
 #include <Eigen/Tensor>
 
 using Eigen::Tensor;
@@ -146,6 +148,34 @@ static void test_concatenation_as_lvalue() {
   }
 }
 
+// Regression test: assigning `abs(concat(a, b))` where `a`, `b` are complex
+// and the output is the corresponding real type used to assert (debug) or
+// corrupt the destination buffer (release) once concat enabled block
+// evaluation, because TensorCwiseUnaryOp forwards the assign's
+// real-scalar destination buffer to concat's complex-scalar block path.
+// is_arithmetic gates block access off for std::complex<T>, which keeps
+// this scalar-changing chain on the safe packet path.
+static void test_complex_concatenation_through_abs() {
+  Tensor<std::complex<float>, 2> a(2, 3);
+  Tensor<std::complex<float>, 2> b(2, 3);
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      a(i, j) = std::complex<float>(static_cast<float>(i + 1), static_cast<float>(j + 1));
+      b(i, j) = std::complex<float>(static_cast<float>(i + 5), static_cast<float>(j + 2));
+    }
+  }
+
+  Tensor<float, 2> out(4, 3);
+  out = a.concatenate(b, 0).abs();
+
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      VERIFY_IS_APPROX(out(i, j), std::abs(a(i, j)));
+      VERIFY_IS_APPROX(out(i + 2, j), std::abs(b(i, j)));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_concatenation) {
   CALL_SUBTEST(test_dimension_failures<ColMajor>());
   CALL_SUBTEST(test_dimension_failures<RowMajor>());
@@ -156,4 +186,5 @@ EIGEN_DECLARE_TEST(tensor_concatenation) {
   CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<ColMajor>());
   CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<RowMajor>());
   CALL_SUBTEST(test_concatenation_as_lvalue());
+  CALL_SUBTEST(test_complex_concatenation_through_abs());
 }
