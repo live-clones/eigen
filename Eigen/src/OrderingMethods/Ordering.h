@@ -105,12 +105,14 @@ class COLAMDOrdering {
   /** Compute the permutation vector \a perm from the sparse matrix \a mat. */
   template <typename MatrixType>
   void operator()(const MatrixType& mat, PermutationType& perm) const {
-    IndexVector outer_buf, inner_buf;
-    internal::SparsityPatternRef<StorageIndex> pat = internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);
-    const StorageIndex m = StorageIndex(pat.innerSize);
-    const StorageIndex n = StorageIndex(pat.outerSize);
+    typedef typename MatrixType::StorageIndex MatrixStorageIndex;
+    Matrix<MatrixStorageIndex, Dynamic, 1> outer_buf, inner_buf;
+    internal::SparsityPatternRef<MatrixStorageIndex> pat =
+        internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);
+    const StorageIndex m = internal::convert_index<StorageIndex>(pat.innerSize);
+    const StorageIndex n = internal::convert_index<StorageIndex>(pat.outerSize);
     StorageIndex nnz = 0;
-    for (Index j = 0; j < pat.outerSize; ++j) nnz += StorageIndex(pat.nonZeros(j));
+    for (Index j = 0; j < pat.outerSize; ++j) nnz += internal::convert_index<StorageIndex>(pat.nonZeros(j));
 
     StorageIndex Alen = internal::Colamd::recommended(nnz, m, n);
     double knobs[internal::Colamd::NKnobs];
@@ -124,9 +126,9 @@ class COLAMDOrdering {
     p(0) = 0;
     for (StorageIndex j = 0; j < n; ++j) {
       const Index nz = pat.nonZeros(j);
-      const StorageIndex* src = pat.inner + pat.outer[j];
-      std::copy_n(src, nz, A.data() + p(j));
-      p(j + 1) = StorageIndex(p(j) + nz);
+      const MatrixStorageIndex* src = pat.inner + pat.outer[j];
+      for (Index k = 0; k < nz; ++k) A(p(j) + k) = internal::convert_index<StorageIndex>(src[k]);
+      p(j + 1) = p(j) + internal::convert_index<StorageIndex>(nz);
     }
 
     StorageIndex info = internal::Colamd::compute_ordering(m, n, Alen, A.data(), p.data(), knobs, stats);

@@ -51,6 +51,26 @@ void test_colamd_uncompressed() {
   VERIFY_IS_EQUAL(perm_u.indices(), perm_c.indices());
 }
 
+void test_colamd_mixed_index_types() {
+  typedef SparseMatrix<double, ColMajor, int> SpMat;
+  const int n = 8;
+  SpMat A(n, n);
+  A.reserve(VectorXi::Constant(n, 3));
+  for (int j = 0; j < n; ++j) {
+    A.insert(j, j) = 2.0 + j;
+    if (j > 0) A.insert(j - 1, j) = -1.0;
+    if (j + 1 < n) A.insert(j + 1, j) = -1.0;
+  }
+  A.makeCompressed();
+
+  // COLAMDOrdering<StorageIndex> is a public API choice independent of the
+  // source matrix's StorageIndex.  Keep accepting mixed index types.
+  PermutationMatrix<Dynamic, Dynamic, long> perm;
+  COLAMDOrdering<long> ord;
+  ord(A, perm);
+  verify_is_permutation(perm);
+}
+
 template <typename Scalar>
 void test_amd_uncompressed() {
   typedef int Idx;
@@ -78,5 +98,6 @@ EIGEN_DECLARE_TEST(sparse_ordering) {
     CALL_SUBTEST_1(test_colamd_uncompressed<double>());
     CALL_SUBTEST_2(test_colamd_uncompressed<std::complex<double> >());
     CALL_SUBTEST_3(test_amd_uncompressed<double>());
+    CALL_SUBTEST_4(test_colamd_mixed_index_types());
   }
 }
