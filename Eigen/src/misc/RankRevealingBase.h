@@ -31,12 +31,16 @@ class RankRevealingBase {
   typedef typename internal::traits<Derived>::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(RankRevealingBase)
+
   RankRevealingBase()
       : m_usePrescribedThreshold(false),
         m_prescribedThreshold(RealScalar(0)),
         m_maxpivot(RealScalar(0)),
         m_nonzero_pivots(0) {}
 
+ public:
   /** Allows to prescribe a threshold to be used by certain methods, such as rank(),
    * who need to determine when pivots are to be considered nonzero. This is not used for the
    * decomposition itself.

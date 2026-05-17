@@ -215,6 +215,10 @@ class SkewSymmetricBase : public EigenBase<Derived> {
     EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(OtherDerived, DenseMatrixType);
     return lhs.toDenseMatrix() - rhs.derived();
   }
+
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SkewSymmetricBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(SkewSymmetricBase)
 };
 
 /** \class SkewSymmetricMatrix3

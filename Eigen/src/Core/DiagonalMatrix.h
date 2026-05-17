@@ -145,6 +145,10 @@ class DiagonalBase : public EigenBase<Derived> {
       const DiagonalBase<OtherDerived>& other) const {
     return (diagonal() - other.diagonal()).asDiagonal();
   }
+
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(DiagonalBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(DiagonalBase)
 };
 
 /** \class DiagonalMatrix

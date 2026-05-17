@@ -121,6 +121,8 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
  public:
   template <typename Derived_>
   friend struct internal::solve_assertion;
+  template <typename MatrixType>
+  friend class Transpose;
 
   typedef typename internal::traits<Derived>::MatrixType MatrixType;
   typedef typename MatrixType::Scalar Scalar;
@@ -313,6 +315,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
 
  protected:
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SVDBase)
 
   void _check_compute_assertions() const { eigen_assert(m_isInitialized && "SVD is not initialized."); }
 

@@ -54,6 +54,8 @@ class SparseMapBase<Derived, ReadOnlyAccessors> : public SparseCompressedBase<De
   using Base::operator=;
 
  protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SparseMapBase)
+
   typedef std::conditional_t<bool(internal::is_lvalue<Derived>::value), Scalar*, const Scalar*> ScalarPointer;
   typedef std::conditional_t<bool(internal::is_lvalue<Derived>::value), StorageIndex*, const StorageIndex*>
       IndexPointer;
@@ -193,6 +195,8 @@ class SparseMapBase<Derived, WriteAccessors> : public SparseMapBase<Derived, Rea
       : Base(size, nnz, innerIndexPtr, valuePtr) {}
 
  protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SparseMapBase)
+
   inline SparseMapBase() = default;
 };
 

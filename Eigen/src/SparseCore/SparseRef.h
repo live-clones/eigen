@@ -83,11 +83,13 @@ class SparseRefBase : public SparseMapBase<Derived> {
   typedef SparseMapBase<Derived> Base;
   EIGEN_SPARSE_PUBLIC_INTERFACE(SparseRefBase)
 
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SparseRefBase)
+
   SparseRefBase()
       : Base(RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime, ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime,
              0, 0, 0, 0, 0) {}
 
- protected:
   template <typename Expression>
   void construct(Expression& expr) {
     if (Expression::IsVectorAtCompileTime) {

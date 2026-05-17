@@ -51,6 +51,10 @@ class PermutationBase : public EigenBase<Derived> {
   typedef internal::traits<Derived> Traits;
   typedef EigenBase<Derived> Base;
 
+ protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(PermutationBase)
+  EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(PermutationBase)
+
  public:
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   typedef typename Traits::IndicesType IndicesType;
