@@ -98,25 +98,11 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
   variables:
     EIGEN_CI_INSTALL: g++-13
 
-.test:linux:x86-64:gcc-13:avx512fp16:
-  extends: .test:linux:x86-64:gcc-13:default
-  tags:
-    - eigen-runner
-    - linux
-    - x86-64
-    - avx512
-
-test:linux:x86-64:gcc-13:avx512fp16:official:
-  extends: .test:linux:x86-64:gcc-13:avx512fp16
-  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:official ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: Official
-
-test:linux:x86-64:gcc-13:avx512fp16:unsupported:
-  extends: .test:linux:x86-64:gcc-13:avx512fp16
-  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+# The corresponding test jobs (test:linux:x86-64:gcc-13:avx512fp16:{official,
+# unsupported}) are intentionally omitted: we do not currently have a runner
+# whose CPU supports AVX512-FP16, so running them produces wholesale SIGILL
+# failures.  The build:linux:cross:x86-64:gcc-13:avx512fp16:* jobs remain so
+# that AVX512-FP16 code paths are still compile-checked.
 
 # Clang-14 (modern stable)
 .test:linux:x86-64:clang-14:default:
