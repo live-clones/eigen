@@ -63,16 +63,19 @@ the `release::X.Y.Z` query links in `CHANGELOG.md` resolve.
 ```sh
 export GITLAB_PRIVATE_TOKEN=...
 
-# 1. Dump everything merged / closed since the last release (parallel).
+# 1. Dump everything that closed / was merged since the last release
+#    (parallel). The scripts filter by `updated_at` (closest available
+#    proxy for merge/close time), which can over-include — the human
+#    narrows down in step 3.
 python3 scripts/gitlab_api_mrs.py \
   --state merged \
-  --created_after  YYYY-MM-DD \
-  --created_before YYYY-MM-DD \
+  --updated_after  YYYY-MM-DD \
+  --updated_before YYYY-MM-DD \
   --related_issues --closes_issues > mrs.json &
 python3 scripts/gitlab_api_issues.py \
   --state closed \
-  --created_after  YYYY-MM-DD \
-  --created_before YYYY-MM-DD > issues.json &
+  --updated_after  YYYY-MM-DD \
+  --updated_before YYYY-MM-DD > issues.json &
 wait
 
 # 2. Map commits to their MRs / issues.
@@ -81,12 +84,14 @@ python3 scripts/git_commit_mrs_and_issues.py \
   --merge_requests_file mrs.json \
   --commits commits.txt > commit_map.json
 
-# 3. After deciding the included set, label them. The CHANGELOG links
-#    in sections 2c / 3c depend on these labels existing. Extract IIDs
-#    from the JSON dumps with `jq`:
+# 3. Decide the final included set and write it to filtered files
+#    (selected_mrs.json / selected_issues.json) — typically by walking
+#    `commit_map.json` and dropping anything out of scope. Then label
+#    only that set; the CHANGELOG label-query links in sections 2c / 3c
+#    depend on these labels.
 python3 scripts/gitlab_api_labeller.py release::X.Y.Z \
-  --mrs    $(jq -r '.[].iid' mrs.json) \
-  --issues $(jq -r '.[].iid' issues.json)
+  --mrs    $(jq -r '.[].iid' selected_mrs.json) \
+  --issues $(jq -r '.[].iid' selected_issues.json)
 ```
 
 ## 2. Major / minor release (`X.Y.0`)
