@@ -259,9 +259,8 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
       const bool is_power_of_two = isPowerOfTwo(line_len);
       const Index good_composite = is_power_of_two ? 0 : findGoodComposite(line_len);
       const Index log_len = is_power_of_two ? getLog2(line_len) : getLog2(good_composite);
-      // Real scalar; multiplying ComplexScalar by ComplexScalar(s, 0) would
-      // dispatch through libgcc's __mulsc3 / __muldc3 (NaN-aware), so use
-      // the real-multiply overload to keep the scale loop branch-free.
+      // Real, not ComplexScalar(s, 0): the latter would dispatch through
+      // libgcc __mulsc3/__muldc3 and re-introduce the NaN-check branch.
       const RealScalar div_factor = (FFTDir == FFT_REVERSE) ? RealScalar(1) / RealScalar(line_len) : RealScalar(1);
 
       // Scratch line buffer is only needed when we have to gather/scatter
@@ -393,7 +392,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     internal::conj_if<FFTDir == FFT_FORWARD> cj;
 
     for (Index i = 0; i < n; ++i) {
-      a[i] = cmul(line_buf[i], cj(pos_j_base_powered[i]));
+      a[i] = internal::pmul(line_buf[i], cj(pos_j_base_powered[i]));
     }
     for (Index i = n; i < m; ++i) {
       a[i] = ComplexScalar(0, 0);
@@ -403,7 +402,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     compute_1D_Butterfly<FFT_FORWARD>(a, m, log_m);
 
     for (Index i = 0; i < m; ++i) {
-      a[i] = cmul(a[i], b_fft[i]);
+      a[i] = internal::pmul(a[i], b_fft[i]);
     }
 
     scramble_FFT(a, m);
@@ -411,7 +410,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
     const RealScalar inv_m = RealScalar(1) / RealScalar(m);
     for (Index i = 0; i < n; ++i) {
-      line_buf[i] = cmul(a[i] * inv_m, cj(pos_j_base_powered[i]));
+      line_buf[i] = internal::pmul(a[i] * inv_m, cj(pos_j_base_powered[i]));
     }
   }
 
@@ -438,12 +437,17 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     data[0] += tmp;
   }
 
-  // Multiply by +/-i in closed form to avoid a generic complex multiply.
+  // Closed-form ±i multiplications: (re, im) * (0, ±1) without a generic
+  // complex multiply. Dispatched via mul_pm_i<Dir> at the radix-{4,8} leaves.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static ComplexScalar mul_neg_i(const ComplexScalar& c) {
     return ComplexScalar(c.imag(), -c.real());
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static ComplexScalar mul_pos_i(const ComplexScalar& c) {
     return ComplexScalar(-c.imag(), c.real());
+  }
+  template <int Dir>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static ComplexScalar mul_pm_i(const ComplexScalar& c) {
+    return (Dir == FFT_FORWARD) ? mul_neg_i(c) : mul_pos_i(c);
   }
 
   template <int Dir>
@@ -452,7 +456,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     tmp[0] = data[0] + data[1];
     tmp[1] = data[0] - data[1];
     tmp[2] = data[2] + data[3];
-    tmp[3] = (Dir == FFT_FORWARD) ? mul_neg_i(data[2] - data[3]) : mul_pos_i(data[2] - data[3]);
+    tmp[3] = mul_pm_i<Dir>(data[2] - data[3]);
     data[0] = tmp[0] + tmp[2];
     data[1] = tmp[1] + tmp[3];
     data[2] = tmp[0] - tmp[2];
@@ -467,26 +471,26 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     tmp_1[0] = data[0] + data[1];
     tmp_1[1] = data[0] - data[1];
     tmp_1[2] = data[2] + data[3];
-    tmp_1[3] = (Dir == FFT_FORWARD) ? mul_neg_i(data[2] - data[3]) : mul_pos_i(data[2] - data[3]);
+    tmp_1[3] = mul_pm_i<Dir>(data[2] - data[3]);
     tmp_1[4] = data[4] + data[5];
     tmp_1[5] = data[4] - data[5];
     tmp_1[6] = data[6] + data[7];
-    tmp_1[7] = (Dir == FFT_FORWARD) ? mul_neg_i(data[6] - data[7]) : mul_pos_i(data[6] - data[7]);
+    tmp_1[7] = mul_pm_i<Dir>(data[6] - data[7]);
     tmp_2[0] = tmp_1[0] + tmp_1[2];
     tmp_2[1] = tmp_1[1] + tmp_1[3];
     tmp_2[2] = tmp_1[0] - tmp_1[2];
     tmp_2[3] = tmp_1[1] - tmp_1[3];
     tmp_2[4] = tmp_1[4] + tmp_1[6];
-    // SQRT2DIV2 = sqrt(2)/2
+    // omega_8^1 = (sqrt(2)/2, -sqrt(2)/2) for forward.
     constexpr RealScalar kSqrt2Div2 = RealScalar(0.7071067811865476);
     if (Dir == FFT_FORWARD) {
-      tmp_2[5] = cmul(tmp_1[5] + tmp_1[7], ComplexScalar(kSqrt2Div2, -kSqrt2Div2));
+      tmp_2[5] = internal::pmul(tmp_1[5] + tmp_1[7], ComplexScalar(kSqrt2Div2, -kSqrt2Div2));
       tmp_2[6] = mul_neg_i(tmp_1[4] - tmp_1[6]);
-      tmp_2[7] = cmul(tmp_1[5] - tmp_1[7], ComplexScalar(-kSqrt2Div2, -kSqrt2Div2));
+      tmp_2[7] = internal::pmul(tmp_1[5] - tmp_1[7], ComplexScalar(-kSqrt2Div2, -kSqrt2Div2));
     } else {
-      tmp_2[5] = cmul(tmp_1[5] + tmp_1[7], ComplexScalar(kSqrt2Div2, kSqrt2Div2));
+      tmp_2[5] = internal::pmul(tmp_1[5] + tmp_1[7], ComplexScalar(kSqrt2Div2, kSqrt2Div2));
       tmp_2[6] = mul_pos_i(tmp_1[4] - tmp_1[6]);
-      tmp_2[7] = cmul(tmp_1[5] - tmp_1[7], ComplexScalar(-kSqrt2Div2, kSqrt2Div2));
+      tmp_2[7] = internal::pmul(tmp_1[5] - tmp_1[7], ComplexScalar(-kSqrt2Div2, kSqrt2Div2));
     }
     data[0] = tmp_2[0] + tmp_2[4];
     data[1] = tmp_2[1] + tmp_2[5];
@@ -496,17 +500,6 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     data[5] = tmp_2[1] - tmp_2[5];
     data[6] = tmp_2[2] - tmp_2[6];
     data[7] = tmp_2[3] - tmp_2[7];
-  }
-
-  // Naive complex multiplication. std::complex<T>::operator* is required by
-  // C99 / cppreference to handle NaN and inf inputs specially (libstdc++
-  // routes it through libgcc's __mulsc3/__muldc3), which adds a branch per
-  // multiply and prevents auto-vectorization. FFT inputs are always finite,
-  // so we shortcut to the textbook 4-mul / 2-add form. Measured to roughly
-  // halve scalar `butterfly_1D_merge` runtime on Intel Core i7-13700HX.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static ComplexScalar cmul(const ComplexScalar& x, const ComplexScalar& y) {
-    const RealScalar a = x.real(), b = x.imag(), c = y.real(), d = y.imag();
-    return ComplexScalar(a * c - b * d, a * d + b * c);
   }
 
   template <int Dir>
@@ -520,34 +513,44 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
     const ComplexScalar wp(wtemp, wpi);
     const ComplexScalar wp_one = wp + ComplexScalar(1, 0);
-    const ComplexScalar wp_one_2 = cmul(wp_one, wp_one);
-    const ComplexScalar wp_one_3 = cmul(wp_one_2, wp_one);
-    const ComplexScalar wp_one_4 = cmul(wp_one_3, wp_one);
+    const ComplexScalar wp_one_2 = internal::pmul(wp_one, wp_one);
+    const ComplexScalar wp_one_3 = internal::pmul(wp_one_2, wp_one);
+    const ComplexScalar wp_one_4 = internal::pmul(wp_one_3, wp_one);
     const Index n2 = n / 2;
     ComplexScalar w(1.0, 0.0);
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
-    // Host-side vector path. Process kBatch == max(4, CPacketSize) butterflies
-    // per iter via complex-packet math; each packet does CPacketSize complex
-    // multiplies as a single shuffle+mul+addsub (or fmaddsub with FMA), which
-    // is significantly cheaper than the per-component scalar `mulss`/`addss`
-    // the compiler emits from cmul. butterfly_1D_merge is only called for
-    // n >= 16, so n2 >= 8 and kBatch always divides n2 for the packet sizes
-    // we care about (1/2/4/8). Note: the class-level PacketReturnType keys
-    // off OutputScalar, which can be real (RealPart/ImagPart modes); the
-    // butterfly always operates on complex data, so resolve a complex packet
-    // type here directly.
+    // The class-level PacketReturnType keys off OutputScalar, which can be
+    // real for RealPart/ImagPart modes; resolve the complex packet here so
+    // the merge always vectorizes regardless of the output reduction.
     using CPacket = typename internal::packet_traits<ComplexScalar>::type;
     constexpr Index CPacketSize = internal::unpacket_traits<CPacket>::size;
     constexpr Index kBatch = (CPacketSize >= 4) ? CPacketSize : Index(4);
+    // butterfly_1D_merge is only called from compute_1D_Butterfly for n >= 16
+    // (n2 >= 8 >= kBatch for every realistic packet size), so the scalar
+    // fallback below is dead in non-GPU builds; keep it for GPU and any
+    // hypothetical larger packet size.
+    static_assert(kBatch == 4 || kBatch == 8, "Unhandled complex packet size in butterfly_1D_merge.");
     if (kBatch <= n2) {
-      EIGEN_ALIGN_MAX ComplexScalar tw_buf[kBatch];
-      // wp_one^kBatch for stepping the running twiddle once per iter.
-      ComplexScalar wp_one_batch = wp_one;
-      for (Index k = 1; k < kBatch; ++k) wp_one_batch = cmul(wp_one_batch, wp_one);
+      // Sized for the largest supported kBatch so plain `if`s on the
+      // constexpr kBatch can DCE the dead writes without an OOB compile.
+      constexpr Index kMaxBatch = 8;
+      alignas(alignof(CPacket)) ComplexScalar tw_buf[kMaxBatch];
+      // wp_one^kBatch for stepping the running twiddle.
+      const ComplexScalar wp_one_batch = (kBatch == 4) ? wp_one_4 : internal::pmul(wp_one_4, wp_one_4);
       for (Index i = 0; i < n2; i += kBatch) {
+        // Independent pmuls (no serial chain) so the load that feeds each
+        // iter's pmul isn't latency-bound on the twiddle-stepping recurrence.
         tw_buf[0] = w;
-        for (Index k = 1; k < kBatch; ++k) tw_buf[k] = cmul(tw_buf[k - 1], wp_one);
+        tw_buf[1] = internal::pmul(w, wp_one);
+        tw_buf[2] = internal::pmul(w, wp_one_2);
+        tw_buf[3] = internal::pmul(w, wp_one_3);
+        if (kBatch == 8) {
+          tw_buf[4] = internal::pmul(w, wp_one_4);
+          tw_buf[5] = internal::pmul(tw_buf[4], wp_one);
+          tw_buf[6] = internal::pmul(tw_buf[4], wp_one_2);
+          tw_buf[7] = internal::pmul(tw_buf[4], wp_one_3);
+        }
         for (Index k = 0; k < kBatch; k += CPacketSize) {
           CPacket pw = internal::pload<CPacket>(tw_buf + k);
           CPacket pa = internal::ploadu<CPacket>(data + i + k);
@@ -556,22 +559,22 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
           internal::pstoreu(data + i + k, internal::padd(pa, pt));
           internal::pstoreu(data + i + n2 + k, internal::psub(pa, pt));
         }
-        w = cmul(w, wp_one_batch);
+        w = internal::pmul(w, wp_one_batch);
       }
       return;
     }
 #endif
 
-    // Scalar fallback (also used on GPU and when PacketSize is too small).
+    // Scalar fallback (GPU build, or unrealistically large kBatch).
     for (Index i = 0; i < n2; i += 4) {
-      const ComplexScalar w1 = cmul(w, wp_one);
-      const ComplexScalar w2 = cmul(w, wp_one_2);
-      const ComplexScalar w3 = cmul(w, wp_one_3);
-      const ComplexScalar temp0 = cmul(data[i + n2], w);
-      const ComplexScalar temp1 = cmul(data[i + 1 + n2], w1);
-      const ComplexScalar temp2 = cmul(data[i + 2 + n2], w2);
-      const ComplexScalar temp3 = cmul(data[i + 3 + n2], w3);
-      w = cmul(w, wp_one_4);
+      const ComplexScalar w1 = internal::pmul(w, wp_one);
+      const ComplexScalar w2 = internal::pmul(w, wp_one_2);
+      const ComplexScalar w3 = internal::pmul(w, wp_one_3);
+      const ComplexScalar temp0 = internal::pmul(data[i + n2], w);
+      const ComplexScalar temp1 = internal::pmul(data[i + 1 + n2], w1);
+      const ComplexScalar temp2 = internal::pmul(data[i + 2 + n2], w2);
+      const ComplexScalar temp3 = internal::pmul(data[i + 3 + n2], w3);
+      w = internal::pmul(w, wp_one_4);
 
       data[i + n2] = data[i] - temp0;
       data[i] += temp0;
