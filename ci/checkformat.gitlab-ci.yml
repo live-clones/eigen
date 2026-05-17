@@ -3,7 +3,11 @@
 
 checkformat:clangformat:
   stage: checkformat
-  image: alpine:3.21
+  # Pinned to alpine:3.20: Alpine 3.21's clang17-extra-tools still ships
+  # clang-format-17 but no longer puts the git-clang-format wrapper script
+  # on PATH, so `git clang-format` fails. Bump in lockstep with whatever
+  # Alpine version next provides a working git-clang-format-17.
+  image: alpine:3.20
   only:
     - merge_requests
   allow_failure: true
