@@ -136,9 +136,9 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
 
   // Empirically tuned fp32 SME packed-panel budgets for Apple M4. These are
   // heuristic working-set limits, not generic ARM64 cache defaults
-  const Index sme_max_kc = static_cast<Index>(2048);
-  const Index sme_packed_rhs_budget_bytes = static_cast<Index>(32 * 1024 * 1024);
-  const Index sme_lhs_working_set_budget_bytes = static_cast<Index>(7 * 1024 * 1024);
+  constexpr Index sme_max_kc = static_cast<Index>(2048);
+  constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(32 * 1024 * 1024);
+  constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(7 * 1024 * 1024);
 
   // Keep kc large enough to amortize SME setup and accumulation, but cap very
   // deep products to avoid too many result store passes.
@@ -148,8 +148,7 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
   // unbounded blockB panel.
   Index nc = sme_packed_rhs_budget_bytes / (numext::maxi)(Index(1), k * Index(sizeof(RhsScalar)));
   nc = (nc / nr) * nr;
-  nc = (numext::mini)(n, (numext::maxi)(nr, nc));
-  n = nc;
+  n = (numext::mini)(n, (numext::maxi)(nr, nc));
 
   const Index block_b_hot_bytes = k * nr * Index(sizeof(RhsScalar));
   const Index min_lhs_bytes = mr * k * Index(sizeof(LhsScalar));
@@ -158,8 +157,7 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
                                   : min_lhs_bytes;
   Index mc = block_a_bytes / (k * Index(sizeof(LhsScalar)));
   mc = (mc / mr) * mr;
-  mc = (numext::mini)(m, (numext::maxi)(mr, mc));
-  m = mc;
+  m = (numext::mini)(m, (numext::maxi)(mr, mc));
 }
 #endif
 
