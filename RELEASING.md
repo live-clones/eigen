@@ -7,6 +7,20 @@ The mechanical steps below are the *what*. The decisions around them
 (timing, scope, what counts as a breaking change) are a maintainer call
 and intentionally not encoded here.
 
+## Versioning
+
+Eigen follows [Semantic Versioning 2.0.0](https://semver.org/) as of
+5.0 — see the transition table in [`CHANGELOG.md`](CHANGELOG.md) under
+the 5.0.0 entry. Versions are `MAJOR.MINOR.PATCH`:
+
+- Bump `MAJOR` for backward-incompatible API or ABI changes.
+- Bump `MINOR` for backward-compatible feature additions.
+- Bump `PATCH` for backward-compatible bug fixes only.
+
+The legacy `WORLD` field is frozen at `3` for posterity and plays no
+role in release decisions; `Eigen/Version` keeps the `#define
+EIGEN_WORLD_VERSION 3` line, but only `MAJOR`/`MINOR`/`PATCH` move.
+
 ## Scope
 
 Two flows are described:
