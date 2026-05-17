@@ -67,14 +67,14 @@ struct ThreadPoolDevice {
       char* dst_ptr = static_cast<char*>(dst);
       const size_t blocksize = (n + (num_threads - 1)) / num_threads;
       Barrier barrier(static_cast<int>(num_threads - 1));
-      // Launch the last 3 blocks on worker threads.
+      // Schedule blocks 1..num_threads-1 on worker threads.
       for (size_t i = 1; i < num_threads; ++i) {
         pool_->Schedule([n, i, src_ptr, dst_ptr, blocksize, &barrier] {
           ::memcpy(dst_ptr + i * blocksize, src_ptr + i * blocksize, numext::mini(blocksize, n - (i * blocksize)));
           barrier.Notify();
         });
       }
-      // Launch the first block on the main thread.
+      // Run the first block on the calling thread.
       ::memcpy(dst_ptr, src_ptr, blocksize);
       barrier.Wait();
     }
@@ -120,14 +120,10 @@ struct ThreadPoolDevice {
 
   template <class Function, class... Args>
   EIGEN_STRONG_INLINE void enqueue(Function&& f, Args&&... args) const {
-#if EIGEN_COMP_CXXVER >= 20
-    if constexpr (sizeof...(args) > 0) {
-      auto run_f = [f = std::forward<Function>(f), ... args = std::forward<Args>(args)]() { f(args...); };
-#else
     if (sizeof...(args) > 0) {
-      auto run_f = [f = std::forward<Function>(f), &args...]() { f(args...); };
-#endif
-      pool_->Schedule(std::move(run_f));
+      // std::bind decay-copies the arguments, so they outlive the deferred call
+      // even when the caller passed temporaries.
+      pool_->Schedule(std::bind(std::forward<Function>(f), std::forward<Args>(args)...));
     } else {
       pool_->Schedule(std::forward<Function>(f));
     }
@@ -148,8 +144,9 @@ struct ThreadPoolDevice {
                    std::function<void(Index, Index)> f) const {
     if (EIGEN_PREDICT_FALSE(n <= 0)) {
       return;
-      // Compute small problems directly in the caller thread.
-    } else if (n == 1 || numThreads() == 1 || CostModel::numThreads(n, cost, static_cast<int>(numThreads())) == 1) {
+    }
+    // Compute small problems directly in the caller thread.
+    if (n == 1 || numThreads() == 1 || CostModel::numThreads(n, cost, static_cast<int>(numThreads())) == 1) {
       f(0, n);
       return;
     }
