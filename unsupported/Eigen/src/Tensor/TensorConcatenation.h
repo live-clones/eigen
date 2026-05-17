@@ -106,18 +106,31 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     IsAligned = false,
     PacketAccess =
         TensorEvaluator<LeftArgType, Device>::PacketAccess && TensorEvaluator<RightArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = TensorEvaluator<LeftArgType, Device>::PreferBlockAccess ||
-                        TensorEvaluator<RightArgType, Device>::PreferBlockAccess,
+    // block() reads each operand's data() pointer directly, so both must
+    // expose raw storage.
+    BlockAccess = TensorEvaluator<LeftArgType, Device>::RawAccess && TensorEvaluator<RightArgType, Device>::RawAccess,
+    // Matches TensorShuffling / TensorBroadcasting / TensorPadding: bulk copy
+    // wins over the per-element coeff/packet path (which pays div/mod per
+    // access) at every size we benchmarked, so always prefer block.
+    PreferBlockAccess = true,
     RawAccess = false
   };
 
+  typedef std::remove_const_t<Scalar> ScalarNoConst;
+
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+
+  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
-      : m_leftImpl(op.lhsExpression(), device), m_rightImpl(op.rhsExpression(), device), m_axis(op.axis()) {
+      : m_leftImpl(op.lhsExpression(), device),
+        m_rightImpl(op.rhsExpression(), device),
+        m_device(device),
+        m_axis(op.axis()),
+        m_leftAxisSize(m_leftImpl.dimensions()[op.axis()]) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
                              static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout) ||
                          NumDims == 1),
@@ -183,6 +196,102 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   EIGEN_STRONG_INLINE void cleanup() {
     m_leftImpl.cleanup();
     m_rightImpl.cleanup();
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    // Target last-level cache: keeps both source slabs resident during the
+    // copy. Matches TensorPadding.
+    const size_t target_size = m_device.lastLevelCacheSize();
+    return internal::TensorBlockResourceRequirements::merge(
+        internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size),
+        internal::TensorBlockResourceRequirements::merge(m_leftImpl.getResourceRequirements(),
+                                                         m_rightImpl.getResourceRequirements()));
+  }
+
+  // Each TensorBlockIO::Copy collapses to a single memcpy whenever the
+  // operand slab is contiguous (concat axis outermost, or block covers all
+  // inner dims). Straddling blocks issue two copies, one per side.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool root_of_expr_ast = false) const {
+    static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
+
+    if (desc.size() == 0) {
+      return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
+    }
+
+    Index remaining = desc.offset();
+    DSizes<Index, NumDims> out_coords;
+    if (IsColMajor) {
+      for (int i = NumDims - 1; i > 0; --i) {
+        out_coords[i] = remaining / m_outputStrides[i];
+        remaining -= out_coords[i] * m_outputStrides[i];
+      }
+      out_coords[0] = remaining;
+    } else {
+      for (int i = 0; i < NumDims - 1; ++i) {
+        out_coords[i] = remaining / m_outputStrides[i];
+        remaining -= out_coords[i] * m_outputStrides[i];
+      }
+      out_coords[NumDims - 1] = remaining;
+    }
+
+    const Index axis_start = out_coords[m_axis];
+    const Index axis_size = desc.dimension(m_axis);
+    const Index axis_end = axis_start + axis_size;
+
+    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
+    typedef typename TensorBlockIO::Dst TensorBlockIODst;
+    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+
+    // Strided destination buffers are safe here because we only ever write
+    // dense slabs into them; allowing strided storage lets a root-of-AST
+    // assignment materialize directly into the output tensor.
+    typename TensorBlock::Storage block_storage =
+        TensorBlock::prepareStorage(desc, scratch, /*allow_strided_storage=*/root_of_expr_ast);
+
+    if (axis_start < m_leftAxisSize) {
+      const Index left_rows_in_block = numext::mini(m_leftAxisSize, axis_end) - axis_start;
+      DSizes<Index, NumDims> left_sub_dims = desc.dimensions();
+      left_sub_dims[m_axis] = left_rows_in_block;
+
+      Index left_src_offset = 0;
+      for (int i = 0; i < NumDims; ++i) {
+        left_src_offset += out_coords[i] * m_leftStrides[i];
+      }
+
+      typename TensorBlockIO::Dimensions left_strides(m_leftStrides);
+      TensorBlockIOSrc src(left_strides, m_leftImpl.data(), left_src_offset);
+      TensorBlockIODst dst(left_sub_dims, block_storage.strides(), block_storage.data(),
+                           /*dst_offset=*/0);
+      TensorBlockIO::Copy(dst, src);
+    }
+
+    if (axis_end > m_leftAxisSize) {
+      const Index right_rows_in_block = axis_end - numext::maxi(m_leftAxisSize, axis_start);
+      DSizes<Index, NumDims> right_sub_dims = desc.dimensions();
+      right_sub_dims[m_axis] = right_rows_in_block;
+
+      // Right operand has the same per-dim coords as out_coords except along
+      // the concat axis, where it starts at max(0, axis_start - left_size).
+      const Index right_axis_start = numext::maxi(Index(0), axis_start - m_leftAxisSize);
+      Index right_src_offset = right_axis_start * m_rightStrides[m_axis];
+      for (int i = 0; i < NumDims; ++i) {
+        if (i != m_axis) {
+          right_src_offset += out_coords[i] * m_rightStrides[i];
+        }
+      }
+
+      // Offset within the materialized buffer where the right-side slab starts.
+      const Index dst_axis_offset = numext::maxi(Index(0), m_leftAxisSize - axis_start);
+      const Index dst_offset = dst_axis_offset * block_storage.strides()[m_axis];
+
+      typename TensorBlockIO::Dimensions right_strides(m_rightStrides);
+      TensorBlockIOSrc src(right_strides, m_rightImpl.data(), right_src_offset);
+      TensorBlockIODst dst(right_sub_dims, block_storage.strides(), block_storage.data(), dst_offset);
+      TensorBlockIO::Copy(dst, src);
+    }
+
+    return block_storage.AsTensorMaterializedBlock();
   }
 
   // The per-dim integer div/mod in this loop are the obvious "slow" candidates,
@@ -367,7 +476,9 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   array<Index, NumDims> m_rightStrides;
   TensorEvaluator<LeftArgType, Device> m_leftImpl;
   TensorEvaluator<RightArgType, Device> m_rightImpl;
+  const Device EIGEN_DEVICE_REF m_device;
   const Axis m_axis;
+  const Index m_leftAxisSize;
 };
 
 // Eval as lvalue
@@ -392,9 +503,11 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
   typedef internal::TensorBlockNotImplemented TensorBlock;
   //===--------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorEvaluator(XprType& op, const Device& device) : Base(op, device) {
-    EIGEN_STATIC_ASSERT((static_cast<int>(Layout) == static_cast<int>(ColMajor)), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  }
+  // The ColMajor-only static_assert lives in coeffRef/writePacket rather than
+  // here so that passthrough evaluators (e.g. TensorSlicingOp's) can
+  // instantiate this type for RowMajor concat operands without ever calling
+  // its lvalue methods.
+  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
   typedef typename XprType::Index Index;
   typedef typename XprType::Scalar Scalar;
@@ -402,6 +515,7 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(Index index) const {
+    EIGEN_STATIC_ASSERT((static_cast<int>(Layout) == static_cast<int>(ColMajor)), YOU_MADE_A_PROGRAMMING_MISTAKE);
     // Collect dimension-wise indices (subs).
     array<Index, Base::NumDims> subs;
     for (int i = Base::NumDims - 1; i > 0; --i) {
@@ -430,6 +544,7 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
 
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
+    EIGEN_STATIC_ASSERT((static_cast<int>(Layout) == static_cast<int>(ColMajor)), YOU_MADE_A_PROGRAMMING_MISTAKE);
     const int packetSize = PacketType<CoeffReturnType, Device>::size;
     EIGEN_STATIC_ASSERT((packetSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
     eigen_assert(index + packetSize - 1 < this->dimensions().TotalSize());
