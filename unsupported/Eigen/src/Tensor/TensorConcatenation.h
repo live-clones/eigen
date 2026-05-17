@@ -18,7 +18,7 @@ namespace Eigen {
 
 namespace internal {
 template <typename Axis, typename LhsXprType, typename RhsXprType>
-struct traits<TensorConcatenationOp<Axis, LhsXprType, RhsXprType> > {
+struct traits<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>> {
   // Type promotion to handle the case where the types of the lhs and the rhs are different.
   typedef typename promote_storage_type<typename LhsXprType::Scalar, typename RhsXprType::Scalar>::ret Scalar;
   typedef typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
@@ -44,7 +44,7 @@ struct eval<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, Eigen::Dense> {
 
 template <typename Axis, typename LhsXprType, typename RhsXprType>
 struct nested<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, 1,
-              typename eval<TensorConcatenationOp<Axis, LhsXprType, RhsXprType> >::type> {
+              typename eval<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>>::type> {
   typedef TensorConcatenationOp<Axis, LhsXprType, RhsXprType> type;
 };
 
@@ -107,8 +107,15 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     PacketAccess =
         TensorEvaluator<LeftArgType, Device>::PacketAccess && TensorEvaluator<RightArgType, Device>::PacketAccess,
     // block() reads each operand's data() pointer directly, so both must
-    // expose raw storage.
-    BlockAccess = TensorEvaluator<LeftArgType, Device>::RawAccess && TensorEvaluator<RightArgType, Device>::RawAccess,
+    // expose raw storage. The is_arithmetic gate guards against
+    // TensorCwiseUnaryOp / TensorConversionOp callers that forward a
+    // destination buffer sized for a *different* scalar type (e.g.
+    // `abs(complex)` returns float, so the assign's destination buffer is
+    // float-sized; concat's prepareStorage would then misread it as complex
+    // storage). Non-arithmetic scalars (notably std::complex<T>) fall back to
+    // the packet/coeff path, which is type-safe.
+    BlockAccess = TensorEvaluator<LeftArgType, Device>::RawAccess && TensorEvaluator<RightArgType, Device>::RawAccess &&
+                  internal::is_arithmetic<std::remove_const_t<Scalar>>::value,
     // Matches TensorShuffling / TensorBroadcasting / TensorPadding: bulk copy
     // wins over the per-element coeff/packet path (which pays div/mod per
     // access) at every size we benchmarked, so always prefer block.

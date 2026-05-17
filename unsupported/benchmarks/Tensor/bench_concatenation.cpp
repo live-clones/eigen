@@ -108,8 +108,10 @@ static void BM_Concat2D_Chain(benchmark::State& state) {
   Tensor<Scalar, 2> dst(2 * M, N);
   A.setRandom();
   B.setRandom();
-  C.setRandom().abs();
-  D.setRandom().abs();
+  C.setRandom();
+  C = C.abs();
+  D.setRandom();
+  D = D.abs();
 
   for (auto _ : state) {
     dst = ((A.concatenate(B, 0) + C) * D).sqrt();
