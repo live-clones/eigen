@@ -121,9 +121,17 @@ struct ThreadPoolDevice {
   template <class Function, class... Args>
   EIGEN_STRONG_INLINE void enqueue(Function&& f, Args&&... args) const {
     if (sizeof...(args) > 0) {
-      // std::bind decay-copies the arguments, so they outlive the deferred call
-      // even when the caller passed temporaries.
+#if EIGEN_COMP_CXXVER >= 20
+      // C++20 pack-expansion init capture decay-copies args into a lambda
+      // small enough to fit in std::function's SBO for typical arg counts.
+      pool_->Schedule([f = std::forward<Function>(f), ... args = std::forward<Args>(args)]() { f(args...); });
+#else
+      // Pre-C++20 fallback: std::bind decay-copies the arguments so they
+      // outlive the deferred call even when the caller passes temporaries.
+      // The closure exceeds std::function's SBO and forces a heap allocation
+      // that the C++20 path above avoids.
       pool_->Schedule(std::bind(std::forward<Function>(f), std::forward<Args>(args)...));
+#endif
     } else {
       pool_->Schedule(std::forward<Function>(f));
     }
