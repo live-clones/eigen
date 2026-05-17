@@ -5,6 +5,10 @@
 #define EIGEN_USE_THREADS
 
 #include <atomic>
+#include <map>
+#include <memory>
+#include <mutex>
+
 #include <benchmark/benchmark.h>
 #include <unsupported/Eigen/CXX11/ThreadPool>
 #include <unsupported/Eigen/CXX11/Tensor>
@@ -14,11 +18,21 @@ using Eigen::TensorOpCost;
 using Eigen::ThreadPool;
 using Eigen::ThreadPoolDevice;
 
-// Fixed device built once per process; threads are reused across benchmarks.
+// Returns a per-thread-count singleton device, lazily created on first use.
+// Pools are reused across benchmark iterations so thread-creation cost does
+// not enter the measurement, and varying thread counts across benchmarks is
+// supported without later calls silently colliding with the first one.
 static ThreadPoolDevice& device(int threads) {
-  static ThreadPool* pool = new ThreadPool(threads);
-  static ThreadPoolDevice* dev = new ThreadPoolDevice(pool, threads);
-  (void)threads;
+  static std::mutex mu;
+  static std::map<int, std::unique_ptr<ThreadPool>> pools;
+  static std::map<int, std::unique_ptr<ThreadPoolDevice>> devs;
+  std::lock_guard<std::mutex> lock(mu);
+  auto it = devs.find(threads);
+  if (it != devs.end()) return *it->second;
+  auto pool = std::unique_ptr<ThreadPool>(new ThreadPool(threads));
+  auto* dev = new ThreadPoolDevice(pool.get(), threads);
+  pools.emplace(threads, std::move(pool));
+  devs.emplace(threads, std::unique_ptr<ThreadPoolDevice>(dev));
   return *dev;
 }
 
