@@ -72,14 +72,14 @@ void vectorwiseop_array(const ArrayType& m) {
   VERIFY_IS_APPROX(m2, m1.rowwise() / rowvec);
   VERIFY_IS_APPROX(m2.row(r), m1.row(r) / rowvec);
 
+  // Regression test for issue #1731: aliased rhs in compound rowwise/colwise op.
   m2 = m1;
-  // yes, there might be an aliasing issue there but ".rowwise() /="
-  // is supposed to evaluate " m2.colwise().sum()" into a temporary to avoid
-  // evaluating the reduction multiple times
-  if (ArrayType::RowsAtCompileTime > 2 || ArrayType::RowsAtCompileTime == Dynamic) {
-    m2.rowwise() /= m2.colwise().sum();
-    VERIFY_IS_APPROX(m2, m1.rowwise() / m1.colwise().sum());
-  }
+  m2.rowwise() /= m2.colwise().sum();
+  VERIFY_IS_APPROX(m2, m1.rowwise() / m1.colwise().sum());
+
+  m2 = m1;
+  m2.colwise() /= m2.rowwise().sum();
+  VERIFY_IS_APPROX(m2, m1.colwise() / m1.rowwise().sum());
 
   // all/any
   Array<bool, Dynamic, Dynamic> mb(rows, cols);
@@ -378,6 +378,8 @@ EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_1(vectorwiseop_array(Array22cd()));
   CALL_SUBTEST_2(vectorwiseop_array(Array<double, 3, 2>()));
   CALL_SUBTEST_3(vectorwiseop_array(ArrayXXf(3, 4)));
+  // Issue #1731: compile-time 2-row Array used to alias on rowwise() /= colwise().sum().
+  CALL_SUBTEST_3(vectorwiseop_array(Array<double, 2, Dynamic>(2, internal::random<int>(2, EIGEN_TEST_MAX_SIZE))));
   CALL_SUBTEST_4(vectorwiseop_matrix(Matrix4cf()));
   CALL_SUBTEST_5(vectorwiseop_matrix(Matrix4f()));
   CALL_SUBTEST_5(vectorwiseop_matrix(Vector4f()));

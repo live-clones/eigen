@@ -547,13 +547,19 @@ class VectorwiseOp {
 
   /////////// Artithmetic operators ///////////
 
+  // The broadcast (compound-)assignments below pre-evaluate the rhs into a
+  // small temporary.  Without this, `arr.rowwise() /= arr.colwise().sum()`
+  // would re-evaluate the partial reduction for every coefficient access of
+  // the rhs, mixing in already-updated values from `m_matrix` (issue #1731).
+
   /** Copies the vector \a other to each subvector of \c *this */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC ExpressionType& operator=(const DenseBase<OtherDerived>& other) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
     // eigen_assert((m_matrix.isNull()) == (other.isNull())); FIXME
-    return m_matrix = extendedTo(other.derived());
+    typename internal::eval<OtherDerived>::type other_eval(other.derived());
+    return m_matrix = extendedTo(other_eval);
   }
 
   /** Adds the vector \a other to each subvector of \c *this */
@@ -561,7 +567,8 @@ class VectorwiseOp {
   EIGEN_DEVICE_FUNC ExpressionType& operator+=(const DenseBase<OtherDerived>& other) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
-    return m_matrix += extendedTo(other.derived());
+    typename internal::eval<OtherDerived>::type other_eval(other.derived());
+    return m_matrix += extendedTo(other_eval);
   }
 
   /** Subtracts the vector \a other to each subvector of \c *this */
@@ -569,7 +576,8 @@ class VectorwiseOp {
   EIGEN_DEVICE_FUNC ExpressionType& operator-=(const DenseBase<OtherDerived>& other) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
-    return m_matrix -= extendedTo(other.derived());
+    typename internal::eval<OtherDerived>::type other_eval(other.derived());
+    return m_matrix -= extendedTo(other_eval);
   }
 
   /** Multiplies each subvector of \c *this by the vector \a other */
@@ -578,7 +586,8 @@ class VectorwiseOp {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
     EIGEN_STATIC_ASSERT_ARRAYXPR(ExpressionType)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
-    m_matrix *= extendedTo(other.derived());
+    typename internal::eval<OtherDerived>::type other_eval(other.derived());
+    m_matrix *= extendedTo(other_eval);
     return m_matrix;
   }
 
@@ -588,7 +597,8 @@ class VectorwiseOp {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
     EIGEN_STATIC_ASSERT_ARRAYXPR(ExpressionType)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
-    m_matrix /= extendedTo(other.derived());
+    typename internal::eval<OtherDerived>::type other_eval(other.derived());
+    m_matrix /= extendedTo(other_eval);
     return m_matrix;
   }
 
