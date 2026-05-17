@@ -239,8 +239,14 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     ComplexScalar* buf =
         write_to_out ? (ComplexScalar*)data : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * m_size);
 
-    for (Index i = 0; i < m_size; ++i) {
-      buf[i] = MakeComplex<std::is_same<InputScalar, RealScalar>::value>()(m_impl.coeff(i));
+    constexpr bool is_real_input = std::is_same<InputScalar, RealScalar>::value;
+    if (!is_real_input && m_impl.data() != nullptr) {
+      // Contiguous complex input — copy in one shot instead of N coeff() calls.
+      m_device.memcpy(buf, m_impl.data(), m_size * sizeof(ComplexScalar));
+    } else {
+      for (Index i = 0; i < m_size; ++i) {
+        buf[i] = MakeComplex<is_real_input>()(m_impl.coeff(i));
+      }
     }
 
     for (size_t i = 0; i < m_fft.size(); ++i) {
@@ -248,71 +254,73 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
       eigen_assert(dim >= 0 && dim < NumDims);
       Index line_len = m_dimensions[dim];
       eigen_assert(line_len >= 1);
-      ComplexScalar* line_buf = (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * line_len);
+      if (line_len == 1) continue;
+      const Index stride = m_strides[dim];
       const bool is_power_of_two = isPowerOfTwo(line_len);
       const Index good_composite = is_power_of_two ? 0 : findGoodComposite(line_len);
       const Index log_len = is_power_of_two ? getLog2(line_len) : getLog2(good_composite);
+      const ComplexScalar div_factor = (FFTDir == FFT_REVERSE)
+                                           ? ComplexScalar(RealScalar(1) / RealScalar(line_len), RealScalar(0))
+                                           : ComplexScalar(RealScalar(1), RealScalar(0));
+
+      // Scratch line buffer is only needed when we have to gather/scatter
+      // (stride != 1); for stride == 1 the FFT runs in place on `buf`.
+      ComplexScalar* line_buf =
+          (stride == 1) ? nullptr : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * line_len);
 
       ComplexScalar* a =
-          is_power_of_two ? NULL : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * good_composite);
-      ComplexScalar* b =
-          is_power_of_two ? NULL : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * good_composite);
+          is_power_of_two ? nullptr : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * good_composite);
+      ComplexScalar* b_fft =
+          is_power_of_two ? nullptr : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * good_composite);
       ComplexScalar* pos_j_base_powered =
-          is_power_of_two ? NULL : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * (line_len + 1));
+          is_power_of_two ? nullptr : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * (line_len + 1));
       if (!is_power_of_two) {
-        // Compute twiddle factors
-        //   t_n = exp(sqrt(-1) * pi * n^2 / line_len)
-        // for n = 0, 1,..., line_len-1.
-        // For n > 2 we use the recurrence t_n = t_{n-1}^2 / t_{n-2} * t_1^2
-
-        // The recurrence is correct in exact arithmetic, but causes
-        // numerical issues for large transforms, especially in
-        // single-precision floating point. Use direct computation instead.
-        // TODO(rmlarsen): Find a way to use Eigen's vectorized sin
-        // and cosine functions here.
-        for (int j = 0; j < line_len + 1; ++j) {
+        // Bluestein chirp factors t_n = exp(sqrt(-1) * pi * n^2 / line_len),
+        // n = 0..line_len. Computed in double for accuracy and cast down.
+        for (Index j = 0; j < line_len + 1; ++j) {
           double arg = ((EIGEN_PI * j) * j) / line_len;
           std::complex<double> tmp(numext::cos(arg), numext::sin(arg));
           pos_j_base_powered[j] = static_cast<ComplexScalar>(tmp);
         }
+        // The b-sequence and its forward FFT depend only on n, m, and the
+        // FFT direction — compute once and reuse for every line.
+        precompute_bluestein_b(b_fft, line_len, good_composite, log_len, pos_j_base_powered);
       }
 
       for (Index partial_index = 0; partial_index < m_size / line_len; ++partial_index) {
         const Index base_offset = getBaseOffsetFromIndex(partial_index, dim);
+        ComplexScalar* line_ptr = (stride == 1) ? &buf[base_offset] : line_buf;
 
-        // get data into line_buf
-        const Index stride = m_strides[dim];
-        if (stride == 1) {
-          m_device.memcpy(line_buf, &buf[base_offset], line_len * sizeof(ComplexScalar));
-        } else {
+        if (stride != 1) {
           Index offset = base_offset;
-          for (int j = 0; j < line_len; ++j, offset += stride) {
+          for (Index j = 0; j < line_len; ++j, offset += stride) {
             line_buf[j] = buf[offset];
           }
         }
 
-        // process the line
         if (is_power_of_two) {
-          processDataLineCooleyTukey(line_buf, line_len, log_len);
+          processDataLineCooleyTukey(line_ptr, line_len, log_len);
         } else {
-          processDataLineBluestein(line_buf, line_len, good_composite, log_len, a, b, pos_j_base_powered);
+          processDataLineBluestein(line_ptr, line_len, good_composite, log_len, a, b_fft, pos_j_base_powered);
         }
 
-        // write back
-        if (FFTDir == FFT_FORWARD && stride == 1) {
-          m_device.memcpy(&buf[base_offset], line_buf, line_len * sizeof(ComplexScalar));
+        if (stride == 1) {
+          if (FFTDir == FFT_REVERSE) {
+            for (Index j = 0; j < line_len; ++j) {
+              line_ptr[j] *= div_factor;
+            }
+          }
         } else {
           Index offset = base_offset;
-          const ComplexScalar div_factor = ComplexScalar(1.0 / line_len, 0);
-          for (int j = 0; j < line_len; ++j, offset += stride) {
+          for (Index j = 0; j < line_len; ++j, offset += stride) {
             buf[offset] = (FFTDir == FFT_FORWARD) ? line_buf[j] : line_buf[j] * div_factor;
           }
         }
       }
-      m_device.deallocate(line_buf);
+      if (line_buf) m_device.deallocate(line_buf);
       if (!is_power_of_two) {
         m_device.deallocate(a);
-        m_device.deallocate(b);
+        m_device.deallocate(b_fft);
         m_device.deallocate(pos_j_base_powered);
       }
     }
@@ -343,7 +351,26 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     return log2m;
   }
 
-  // Call Cooley Tukey algorithm directly, data length must be power of 2
+  // Build the b-sequence and forward-FFT it once per dim. It depends only on
+  // (line_len, good_composite, FFTDir), so the result is shared across all
+  // lines — the main win for batched non-power-of-two transforms.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void precompute_bluestein_b(ComplexScalar* b_fft, Index n, Index m, Index log_m,
+                                                                    const ComplexScalar* pos_j_base_powered) {
+    internal::conj_if<FFTDir == FFT_REVERSE> cj;
+    for (Index i = 0; i < n; ++i) {
+      b_fft[i] = cj(pos_j_base_powered[i]);
+    }
+    for (Index i = n; i < m - n; ++i) {
+      b_fft[i] = ComplexScalar(0, 0);
+    }
+    for (Index i = m - n; i < m; ++i) {
+      b_fft[i] = cj(pos_j_base_powered[m - i]);
+    }
+    scramble_FFT(b_fft, m);
+    compute_1D_Butterfly<FFT_FORWARD>(b_fft, m, log_m);
+  }
+
+  // Call Cooley Tukey algorithm directly; line_len must be a power of 2.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void processDataLineCooleyTukey(ComplexScalar* line_buf, Index line_len,
                                                                         Index log_len) {
     eigen_assert(isPowerOfTwo(line_len));
@@ -351,68 +378,39 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     compute_1D_Butterfly<FFTDir>(line_buf, line_len, log_len);
   }
 
-  // Call Bluestein's FFT algorithm, m is a good composite number greater than (2 * n - 1), used as the padding length
+  // Bluestein's algorithm: turn an arbitrary-length transform into three
+  // length-m power-of-two transforms (m = good_composite >= 2*line_len). The
+  // forward-FFT of b is taken as input (precomputed once per dim).
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void processDataLineBluestein(ComplexScalar* line_buf, Index line_len,
-                                                                      Index good_composite, Index log_len,
-                                                                      ComplexScalar* a, ComplexScalar* b,
+                                                                      Index good_composite, Index log_m,
+                                                                      ComplexScalar* a, const ComplexScalar* b_fft,
                                                                       const ComplexScalar* pos_j_base_powered) {
-    Index n = line_len;
-    Index m = good_composite;
-    ComplexScalar* data = line_buf;
+    const Index n = line_len;
+    const Index m = good_composite;
+    // Data-side chirp is conjugated for forward, not for reverse — opposite
+    // of the b-sequence conjugation in precompute_bluestein_b.
+    internal::conj_if<FFTDir == FFT_FORWARD> cj;
 
     for (Index i = 0; i < n; ++i) {
-      if (FFTDir == FFT_FORWARD) {
-        a[i] = data[i] * numext::conj(pos_j_base_powered[i]);
-      } else {
-        a[i] = data[i] * pos_j_base_powered[i];
-      }
+      a[i] = line_buf[i] * cj(pos_j_base_powered[i]);
     }
     for (Index i = n; i < m; ++i) {
       a[i] = ComplexScalar(0, 0);
     }
 
-    for (Index i = 0; i < n; ++i) {
-      if (FFTDir == FFT_FORWARD) {
-        b[i] = pos_j_base_powered[i];
-      } else {
-        b[i] = numext::conj(pos_j_base_powered[i]);
-      }
-    }
-    for (Index i = n; i < m - n; ++i) {
-      b[i] = ComplexScalar(0, 0);
-    }
-    for (Index i = m - n; i < m; ++i) {
-      if (FFTDir == FFT_FORWARD) {
-        b[i] = pos_j_base_powered[m - i];
-      } else {
-        b[i] = numext::conj(pos_j_base_powered[m - i]);
-      }
+    scramble_FFT(a, m);
+    compute_1D_Butterfly<FFT_FORWARD>(a, m, log_m);
+
+    for (Index i = 0; i < m; ++i) {
+      a[i] *= b_fft[i];
     }
 
     scramble_FFT(a, m);
-    compute_1D_Butterfly<FFT_FORWARD>(a, m, log_len);
+    compute_1D_Butterfly<FFT_REVERSE>(a, m, log_m);
 
-    scramble_FFT(b, m);
-    compute_1D_Butterfly<FFT_FORWARD>(b, m, log_len);
-
-    for (Index i = 0; i < m; ++i) {
-      a[i] *= b[i];
-    }
-
-    scramble_FFT(a, m);
-    compute_1D_Butterfly<FFT_REVERSE>(a, m, log_len);
-
-    // Do the scaling after ifft
-    for (Index i = 0; i < m; ++i) {
-      a[i] /= m;
-    }
-
+    const RealScalar inv_m = RealScalar(1) / RealScalar(m);
     for (Index i = 0; i < n; ++i) {
-      if (FFTDir == FFT_FORWARD) {
-        data[i] = a[i] * numext::conj(pos_j_base_powered[i]);
-      } else {
-        data[i] = a[i] * pos_j_base_powered[i];
-      }
+      line_buf[i] = (a[i] * inv_m) * cj(pos_j_base_powered[i]);
     }
   }
 
