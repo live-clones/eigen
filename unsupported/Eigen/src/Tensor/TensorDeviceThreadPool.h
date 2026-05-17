@@ -195,34 +195,17 @@ struct ThreadPoolDevice {
     // Compute block size and total count of blocks.
     ParallelForBlock block = CalculateParallelForBlock(n, cost, block_align);
 
-    ParallelForAsyncContext* const ctx = new ParallelForAsyncContext(block.count, std::move(f), std::move(done));
-
-    // Recursively divide size into halves until we reach block_size.
-    // Division code rounds mid to block_size, so we are guaranteed to get
-    // block_count leaves that do actual computations.
-    ctx->handle_range = [this, ctx, block](Index firstIdx, Index lastIdx) {
-      while (lastIdx - firstIdx > block.size) {
-        // Split into halves and schedule the second half on a different thread.
-        const Index midIdx = firstIdx + numext::div_ceil((lastIdx - firstIdx) / 2, block.size) * block.size;
-        pool_->Schedule([ctx, midIdx, lastIdx]() { ctx->handle_range(midIdx, lastIdx); });
-        lastIdx = midIdx;
-      }
-
-      // Single block or less, execute directly.
-      ctx->f(firstIdx, lastIdx);
-
-      // Delete async context if it was the last block.
-      if (ctx->count.fetch_sub(1) == 1) delete ctx;
-    };
+    ParallelForAsyncContext* const ctx =
+        new ParallelForAsyncContext(block.count, block.size, pool_, std::move(f), std::move(done));
 
     if (block.count <= numThreads()) {
       // Avoid a thread hop by running the root of the tree and one block on the
       // main thread.
-      ctx->handle_range(0, n);
+      handleRangeAsync(ctx, 0, n);
     } else {
       // Execute the root in the thread pool to avoid running work on more than
       // numThreads() threads.
-      pool_->Schedule([ctx, n]() { ctx->handle_range(0, n); });
+      pool_->Schedule([ctx, n]() { handleRangeAsync(ctx, 0, n); });
     }
   }
 
@@ -257,17 +240,29 @@ struct ThreadPoolDevice {
   // For parallelForAsync we must keep passed in closures on the heap, and
   // delete them only after `done` callback finished.
   struct ParallelForAsyncContext {
-    ParallelForAsyncContext(Index block_count, std::function<void(Index, Index)> block_f,
-                            std::function<void()> done_callback)
-        : count(block_count), f(std::move(block_f)), done(std::move(done_callback)) {}
+    ParallelForAsyncContext(Index block_count, Index block_size, ThreadPoolInterface* p,
+                            std::function<void(Index, Index)> block_f, std::function<void()> done_callback)
+        : count(block_count), granularity(block_size), pool(p), f(std::move(block_f)), done(std::move(done_callback)) {}
     ~ParallelForAsyncContext() { done(); }
 
     std::atomic<Index> count;
+    Index granularity;
+    ThreadPoolInterface* pool;
     std::function<void(Index, Index)> f;
     std::function<void()> done;
-
-    std::function<void(Index, Index)> handle_range;
   };
+
+  // Async counterpart of handleRange: no Barrier, deletes the heap-allocated
+  // context once the final block has run.
+  static void handleRangeAsync(ParallelForAsyncContext* ctx, Index firstIdx, Index lastIdx) {
+    while (lastIdx - firstIdx > ctx->granularity) {
+      const Index midIdx = firstIdx + numext::div_ceil((lastIdx - firstIdx) / 2, ctx->granularity) * ctx->granularity;
+      ctx->pool->Schedule([ctx, midIdx, lastIdx]() { handleRangeAsync(ctx, midIdx, lastIdx); });
+      lastIdx = midIdx;
+    }
+    ctx->f(firstIdx, lastIdx);
+    if (ctx->count.fetch_sub(1) == 1) delete ctx;
+  }
 
   struct ParallelForBlock {
     Index size;   // block size
