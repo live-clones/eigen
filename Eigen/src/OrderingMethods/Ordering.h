@@ -127,7 +127,7 @@ class COLAMDOrdering {
     for (StorageIndex j = 0; j < n; ++j) {
       const Index nz = pat.nonZeros(j);
       const MatrixStorageIndex* src = pat.inner + pat.outer[j];
-      for (Index k = 0; k < nz; ++k) A(p(j) + k) = internal::convert_index<StorageIndex>(src[k]);
+      copy_colamd_indices(src, nz, A.data() + p(j), std::is_same<MatrixStorageIndex, StorageIndex>());
       p(j + 1) = p(j) + internal::convert_index<StorageIndex>(nz);
     }
 
@@ -137,6 +137,17 @@ class COLAMDOrdering {
 
     perm.resize(n);
     for (StorageIndex i = 0; i < n; i++) perm.indices()(p(i)) = i;
+  }
+
+ private:
+  template <typename SrcStorageIndex>
+  static void copy_colamd_indices(const SrcStorageIndex* src, Index nz, StorageIndex* dst, std::true_type) {
+    std::copy_n(src, nz, dst);
+  }
+
+  template <typename SrcStorageIndex>
+  static void copy_colamd_indices(const SrcStorageIndex* src, Index nz, StorageIndex* dst, std::false_type) {
+    for (Index k = 0; k < nz; ++k) dst[k] = internal::convert_index<StorageIndex>(src[k]);
   }
 };
 
