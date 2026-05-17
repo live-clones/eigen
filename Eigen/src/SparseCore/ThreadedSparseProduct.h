@@ -129,6 +129,12 @@ EIGEN_STRONG_INLINE void run_dot_chunk(const Scalar* EIGEN_RESTRICT vals, const 
  * y[i] from a sum over x[inner[k]] reads, which would mis-compute if
  * y aliases x). Asserted in debug builds.
  *
+ * Layout: x and y are taken as Ref<const DenseVector> / Ref<DenseVector>.
+ * Plain vectors and unit-inner-stride views (e.g. a column of a ColMajor
+ * matrix, an unaligned Map of a contiguous buffer) bind without copying;
+ * a strided const input is copy-evaluated by Ref; a strided mutable output
+ * triggers a Ref runtime error.
+ *
  * \tparam SparseMatrixType A compressed Eigen::SparseMatrix<Scalar, Order, StorageIndex>.
  */
 template <typename SparseMatrixType_>
@@ -144,6 +150,15 @@ class ThreadedSparseProduct {
   // Opposite-storage-order mirror used by the conflict-free path for whichever
   // direction doesn't match A's native order.
   typedef SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex> MirrorType;
+
+  // The dot-product kernel walks x/y via raw `Scalar*` with unit inner
+  // stride; constraining the public API to `Ref` forces compatible layout
+  // (binding for plain matrices, vectors, and unit-stride Maps/Blocks;
+  // copy-evaluation for non-conforming const inputs; runtime error for
+  // non-conforming mutable outputs).
+  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  typedef Ref<const DenseVector> ConstVectorRef;
+  typedef Ref<DenseVector> MutableVectorRef;
 
   ThreadedSparseProduct() : m_mat(nullptr), m_pool(nullptr), m_mirror(nullptr) {}
 
@@ -184,24 +199,20 @@ class ThreadedSparseProduct {
   Index cols() const { return m_mat ? m_mat->cols() : Index(0); }
 
   /// Overwriting forward apply: y = A * x.
-  template <typename XDerived, typename YDerived>
-  void apply(const MatrixBase<XDerived>& x, MatrixBase<YDerived> const& y) const {
-    apply_impl<false, /*Overwrite=*/true>(x.derived(), const_cast<YDerived&>(y.derived()), Scalar(1));
+  void apply(const ConstVectorRef& x, MutableVectorRef y) const {
+    apply_impl<false, /*Overwrite=*/true>(x, y, Scalar(1));
   }
   /// Overwriting adjoint apply: y = A^H * x.
-  template <typename XDerived, typename YDerived>
-  void applyAdjoint(const MatrixBase<XDerived>& x, MatrixBase<YDerived> const& y) const {
-    apply_impl<true, /*Overwrite=*/true>(x.derived(), const_cast<YDerived&>(y.derived()), Scalar(1));
+  void applyAdjoint(const ConstVectorRef& x, MutableVectorRef y) const {
+    apply_impl<true, /*Overwrite=*/true>(x, y, Scalar(1));
   }
   /// Accumulating forward apply: y += alpha * A * x.
-  template <typename XDerived, typename YDerived>
-  void applyAddTo(const MatrixBase<XDerived>& x, MatrixBase<YDerived> const& y, const Scalar& alpha) const {
-    apply_impl<false, /*Overwrite=*/false>(x.derived(), const_cast<YDerived&>(y.derived()), alpha);
+  void applyAddTo(const ConstVectorRef& x, MutableVectorRef y, const Scalar& alpha) const {
+    apply_impl<false, /*Overwrite=*/false>(x, y, alpha);
   }
   /// Accumulating adjoint apply: y += alpha * A^H * x.
-  template <typename XDerived, typename YDerived>
-  void applyAdjointAddTo(const MatrixBase<XDerived>& x, MatrixBase<YDerived> const& y, const Scalar& alpha) const {
-    apply_impl<true, /*Overwrite=*/false>(x.derived(), const_cast<YDerived&>(y.derived()), alpha);
+  void applyAdjointAddTo(const ConstVectorRef& x, MutableVectorRef y, const Scalar& alpha) const {
+    apply_impl<true, /*Overwrite=*/false>(x, y, alpha);
   }
 
   /// Returns the thread pool used by this operator.
@@ -211,10 +222,9 @@ class ThreadedSparseProduct {
   bool hasMirror() const { return m_mirror.load(std::memory_order_acquire) != nullptr; }
 
  private:
-  template <bool Adjoint, bool Overwrite, typename XDerived, typename YDerived>
-  void apply_impl(const XDerived& x, YDerived& y, const Scalar& alpha) const {
+  template <bool Adjoint, bool Overwrite>
+  void apply_impl(const ConstVectorRef& x, MutableVectorRef& y, const Scalar& alpha) const {
     eigen_assert(m_mat && "ThreadedSparseProduct: matrix not set; call analyzePattern() first");
-    eigen_assert(x.cols() == 1 && y.cols() == 1 && "v1 supports only column-vector x and y");
     if (Adjoint) {
       eigen_assert(x.size() == m_mat->rows());
       eigen_assert(y.size() == m_mat->cols());
@@ -225,9 +235,8 @@ class ThreadedSparseProduct {
     // The kernel reads x and writes y concurrently across threads; aliasing
     // (x and y overlap) would mis-compute because some x[k] reads see y
     // writes from the same SpMV call. Cheap pointer-range check.
-    eigen_assert(
-        (x.derived().data() + x.size() <= y.derived().data() || y.derived().data() + y.size() <= x.derived().data()) &&
-        "ThreadedSparseProduct: x and y must not overlap");
+    eigen_assert((x.data() + x.size() <= y.data() || y.data() + y.size() <= x.data()) &&
+                 "ThreadedSparseProduct: x and y must not overlap");
     // Decide which storage to read from.
     //   Forward kernel iterates a RowMajor view of A; adjoint kernel iterates
     //   a ColMajor view of A. If A already has the required order, read it
@@ -250,15 +259,15 @@ class ThreadedSparseProduct {
   // Serial-fallback threshold; matches the same constant in SparseDenseProduct.h.
   static constexpr Index kThreadingThreshold = 20000;
 
-  template <bool Conjugate, bool Overwrite, typename XDerived, typename YDerived>
+  template <bool Conjugate, bool Overwrite>
   void run(const Scalar* vals, const StorageIndex* inner, const StorageIndex* outer, const StorageIndex* innerNnz,
-           Index outerSize, const std::vector<Index>& part, const XDerived& x, YDerived& y, const Scalar& alpha) const {
+           Index outerSize, const std::vector<Index>& part, const ConstVectorRef& x, MutableVectorRef& y,
+           const Scalar& alpha) const {
     const int T = static_cast<int>(part.size()) - 1;
     const Index total_nnz = m_mat->nonZeros();
-    const auto* xp = x.derived().data();
-    auto* yp = y.derived().data();
-    eigen_assert(x.derived().innerStride() == 1 && y.derived().innerStride() == 1 &&
-                 "ThreadedSparseProduct: dense operands must have unit inner stride");
+    // Ref construction already enforced unit inner stride for x/y.
+    const Scalar* xp = x.data();
+    Scalar* yp = y.data();
     if (T <= 1 || total_nnz < kThreadingThreshold) {
       internal::run_dot_chunk<Conjugate, Overwrite, Scalar, StorageIndex>(vals, inner, outer, innerNnz, xp, yp, 0,
                                                                           outerSize, alpha);
@@ -324,13 +333,24 @@ class ThreadedSparseProduct {
     return *m;
   }
 
+  // Thread count target.  Under OpenMP, respect Eigen::setNbThreads() /
+  // OMP_NUM_THREADS instead of the lazy default ThreadPool's size (which
+  // also avoids constructing that pool when OMP does the dispatch).
+  int target_thread_count() const {
+#ifdef EIGEN_HAS_OPENMP
+    return numext::maxi(1, Eigen::nbThreads());
+#else
+    return pool()->NumThreads();
+#endif
+  }
+
   // nnz-balanced partition of A's outer dim into T contiguous chunks, with
   // a guard against pathological skew: if more than half the partitions end
   // up empty (one hub outer holding most of the nnz), fall back to a single
   // serial chunk so the inner kernel doesn't pay parallel dispatch for no
   // parallel work.
   void build_partition(const StorageIndex* outer, Index outerSize, Index nnz, std::vector<Index>& part) const {
-    const int T = pool()->NumThreads();
+    const int T = target_thread_count();
     internal::compute_nnz_balanced_partition(outer, outerSize, nnz, T, part);
     int non_empty = 0;
     for (std::size_t t = 0; t + 1 < part.size(); ++t)

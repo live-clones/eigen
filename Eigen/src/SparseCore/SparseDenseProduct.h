@@ -199,10 +199,10 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     // The fast result pointer path requires contiguous ColMajor result layout.
     // Transpose<ColMajor> reports innerStride()==1 but is actually RowMajor, so check both.
     if (!(Res::Flags & RowMajorBit) && res.innerStride() == 1) {
-      typedef typename Res::Scalar ResScalar;
-      const Index m = res.rows();
       const Index n = lhs.outerSize();
 #ifdef EIGEN_HAS_OPENMP
+      typedef typename Res::Scalar ResScalar;
+      const Index m = res.rows();
       const Index threads = Eigen::nbThreads();
       // Per-thread scratch + reduction: the natural per-column partition would
       // race on the output (writes to y[inds[k]] are scattered across rows),
