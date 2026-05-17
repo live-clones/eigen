@@ -93,8 +93,14 @@ struct nested<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, 1,
  *
  * \brief Tensor FFT class.
  *
+ * \note Input values are required to be finite. Complex multiplications on the
+ * hot path use the naive (a+bi)(c+di) = (ac-bd) + (ad+bc)i form, which differs
+ * from C99 / cppreference complex multiplication for non-finite operands: an
+ * input containing +/-inf or NaN may produce NaN-laden output where the C99
+ * specification would have given a finite or infinite result. Callers that
+ * need NaN/inf propagation per Annex G must filter inputs first.
+ *
  * TODO:
- * Vectorize the Cooley Tukey and the Bluestein algorithm
  * Add support for multithreaded evaluation
  * Improve the performance on GPU
  */
@@ -242,7 +248,12 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     constexpr bool is_real_input = std::is_same<InputScalar, RealScalar>::value;
     if (!is_real_input && m_impl.data() != nullptr) {
       // Contiguous complex input — copy in one shot instead of N coeff() calls.
-      m_device.memcpy(buf, m_impl.data(), m_size * sizeof(ComplexScalar));
+      // `x = x.fft(...)` aliases input and output onto the same storage; in
+      // that case the data is already in `buf` and a memcpy would be self-
+      // overlapping (UB).
+      if (static_cast<const void*>(m_impl.data()) != static_cast<const void*>(buf)) {
+        m_device.memcpy(buf, m_impl.data(), m_size * sizeof(ComplexScalar));
+      }
     } else {
       for (Index i = 0; i < m_size; ++i) {
         buf[i] = MakeComplex<is_real_input>()(m_impl.coeff(i));
@@ -525,16 +536,13 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     // the merge always vectorizes regardless of the output reduction.
     using CPacket = typename internal::packet_traits<ComplexScalar>::type;
     constexpr Index CPacketSize = internal::unpacket_traits<CPacket>::size;
+    // Unrolled twiddle generation below covers complex packets with up to
+    // kMaxBatch lanes (SSE2/AVX/AVX-512). Larger complex packets (e.g. RVV
+    // with VLEN >= 1024 gives CPacketSize == 16 for std::complex<float>)
+    // fall through to the scalar loop.
+    constexpr Index kMaxBatch = 8;
     constexpr Index kBatch = (CPacketSize >= 4) ? CPacketSize : Index(4);
-    // butterfly_1D_merge is only called from compute_1D_Butterfly for n >= 16
-    // (n2 >= 8 >= kBatch for every realistic packet size), so the scalar
-    // fallback below is dead in non-GPU builds; keep it for GPU and any
-    // hypothetical larger packet size.
-    static_assert(kBatch == 4 || kBatch == 8, "Unhandled complex packet size in butterfly_1D_merge.");
-    if (kBatch <= n2) {
-      // Sized for the largest supported kBatch so plain `if`s on the
-      // constexpr kBatch can DCE the dead writes without an OOB compile.
-      constexpr Index kMaxBatch = 8;
+    if (CPacketSize <= kMaxBatch && kBatch <= n2) {
       alignas(alignof(CPacket)) ComplexScalar tw_buf[kMaxBatch];
       // wp_one^kBatch for stepping the running twiddle.
       const ComplexScalar wp_one_batch = (kBatch == 4) ? wp_one_4 : internal::pmul(wp_one_4, wp_one_4);
@@ -565,7 +573,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     }
 #endif
 
-    // Scalar fallback (GPU build, or unrealistically large kBatch).
+    // Scalar fallback (GPU build, or RVV with VLEN >= 1024 → CPacketSize > 8).
     for (Index i = 0; i < n2; i += 4) {
       const ComplexScalar w1 = internal::pmul(w, wp_one);
       const ComplexScalar w2 = internal::pmul(w, wp_one_2);
