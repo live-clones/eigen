@@ -89,7 +89,7 @@ class NNLS {
   typedef Matrix<Index, ColsAtCompileTime, 1> IndicesType;
 
   /** */
-  NNLS();
+  constexpr NNLS();
 
   /** \brief Constructs a NNLS solver and initializes it with the given system matrix @c A.
    * \param A Specifies the system matrix.
@@ -98,7 +98,7 @@ class NNLS {
    *        This is an absolute tolerance on the gradient of the Lagrangian, \f$A^T(Ax-b)-\lambda\f$
    *        (with Lagrange multipliers \f$\lambda\f$).
    */
-  NNLS(const MatrixType &A, Index max_iter = -1, Scalar tol = NumTraits<Scalar>::dummy_precision());
+  constexpr NNLS(const MatrixType &A, Index max_iter = -1, Scalar tol = NumTraits<Scalar>::dummy_precision());
 
   /** Initializes the solver with the matrix \a A for further solving NNLS problems.
    *
@@ -106,7 +106,7 @@ class NNLS {
    * we might, for instance, implement column reordering for faster matrix vector products.
    */
   template <typename MatrixDerived>
-  NNLS<MatrixType> &compute(const EigenBase<MatrixDerived> &A);
+  constexpr NNLS<MatrixType> &compute(const EigenBase<MatrixDerived> &A);
 
   /** \brief Solves the NNLS problem.
    *
@@ -115,23 +115,23 @@ class NNLS {
    * \returns The approximate solution vector \f$ x \f$. Use info() to determine if the solve was a success or not.
    * \sa info()
    */
-  const SolutionVectorType &solve(const RhsVectorType &b);
+  constexpr const SolutionVectorType &solve(const RhsVectorType &b);
 
   /** \brief Returns the solution if a problem was solved.
    * If not, an uninitialized vector may be returned. */
-  const SolutionVectorType &x() const { return x_; }
+  constexpr const SolutionVectorType &x() const { return x_; }
 
   /** \returns the tolerance threshold used by the stopping criteria.
    * \sa setTolerance()
    */
-  Scalar tolerance() const { return tolerance_; }
+  constexpr Scalar tolerance() const { return tolerance_; }
 
   /** Sets the tolerance threshold used by the stopping criteria.
    *
    * This is an absolute tolerance on the gradient of the Lagrangian, \f$A^T(Ax-b)-\lambda\f$
    * (with Lagrange multipliers \f$\lambda\f$).
    */
-  NNLS<MatrixType> &setTolerance(const Scalar &tolerance) {
+  constexpr NNLS<MatrixType> &setTolerance(const Scalar &tolerance) {
     tolerance_ = tolerance;
     return *this;
   }
@@ -139,32 +139,32 @@ class NNLS {
   /** \returns the max number of iterations.
    * It is either the value set by setMaxIterations or, by default, twice the number of columns of the matrix.
    */
-  Index maxIterations() const { return max_iter_ < 0 ? 2 * A_.cols() : max_iter_; }
+  constexpr Index maxIterations() const { return max_iter_ < 0 ? 2 * A_.cols() : max_iter_; }
 
   /** Sets the max number of iterations.
    * Default is twice the number of columns of the matrix.
    * The algorithm requires at least k iterations to produce a solution vector with k non-zero entries.
    */
-  NNLS<MatrixType> &setMaxIterations(Index maxIters) {
+  constexpr NNLS<MatrixType> &setMaxIterations(Index maxIters) {
     max_iter_ = maxIters;
     return *this;
   }
 
   /** \returns the number of iterations (least-squares solves) performed during the last solve */
-  Index iterations() const { return iterations_; }
+  constexpr Index iterations() const { return iterations_; }
 
   /** \returns Success if the iterations converged, and an error values otherwise. */
-  ComputationInfo info() const { return info_; }
+  constexpr ComputationInfo info() const { return info_; }
 
  private:
   /** \internal Adds the given index @c idx to the inactive set N and updates the QR decomposition of \f$A^N\f$. */
-  void moveToInactiveSet_(Index idx);
+  constexpr void moveToInactiveSet_(Index idx);
 
   /** \internal Removes the given index idx from the inactive set N and updates the QR decomposition of \f$A^N\f$. */
-  void moveToActiveSet_(Index idx);
+  constexpr void moveToActiveSet_(Index idx);
 
   /** \internal Solves the least-squares problem \f$\left\Vert y-A^Nx\right\Vert_2^2\f$. */
-  void solveInactiveSet_(const RhsVectorType &b);
+  constexpr void solveInactiveSet_(const RhsVectorType &b);
 
  private:
   typedef Matrix<Scalar, ColsAtCompileTime, ColsAtCompileTime> MatrixAtAType;
@@ -209,7 +209,7 @@ class NNLS {
  * ******************************************************************************************** */
 
 template <typename MatrixType>
-NNLS<MatrixType>::NNLS()
+constexpr NNLS<MatrixType>::NNLS()
     : max_iter_(-1),
       iterations_(0),
       info_(ComputationInfo::InvalidInput),
@@ -217,13 +217,13 @@ NNLS<MatrixType>::NNLS()
       tolerance_(NumTraits<Scalar>::dummy_precision()) {}
 
 template <typename MatrixType>
-NNLS<MatrixType>::NNLS(const MatrixType &A, Index max_iter, Scalar tol) : max_iter_(max_iter), tolerance_(tol) {
+constexpr NNLS<MatrixType>::NNLS(const MatrixType &A, Index max_iter, Scalar tol) : max_iter_(max_iter), tolerance_(tol) {
   compute(A);
 }
 
 template <typename MatrixType>
 template <typename MatrixDerived>
-NNLS<MatrixType> &NNLS<MatrixType>::compute(const EigenBase<MatrixDerived> &A) {
+constexpr NNLS<MatrixType> &NNLS<MatrixType>::compute(const EigenBase<MatrixDerived> &A) {
   // Ensure Scalar type is real. The non-negativity constraint doesn't obviously extend to complex numbers.
   EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL);
 
@@ -248,7 +248,7 @@ NNLS<MatrixType> &NNLS<MatrixType>::compute(const EigenBase<MatrixDerived> &A) {
 }
 
 template <typename MatrixType>
-const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(const RhsVectorType &b) {
+constexpr const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(const RhsVectorType &b) {
   // Initialize solver
   iterations_ = 0;
   info_ = ComputationInfo::NumericalIssue;
@@ -339,7 +339,7 @@ const typename NNLS<MatrixType>::SolutionVectorType &NNLS<MatrixType>::solve(con
 }
 
 template <typename MatrixType>
-void NNLS<MatrixType>::moveToInactiveSet_(Index idx) {
+constexpr void NNLS<MatrixType>::moveToInactiveSet_(Index idx) {
   // Update permutation matrix:
   std::swap(index_sets_(idx), index_sets_(numInactive_));
   numInactive_++;
@@ -350,7 +350,7 @@ void NNLS<MatrixType>::moveToInactiveSet_(Index idx) {
 }
 
 template <typename MatrixType>
-void NNLS<MatrixType>::moveToActiveSet_(Index idx) {
+constexpr void NNLS<MatrixType>::moveToActiveSet_(Index idx) {
   // swap index with last inactive one & reduce number of inactive columns
   std::swap(index_sets_(idx), index_sets_(numInactive_ - 1));
   numInactive_--;
@@ -362,7 +362,7 @@ void NNLS<MatrixType>::moveToActiveSet_(Index idx) {
 }
 
 template <typename MatrixType>
-void NNLS<MatrixType>::solveInactiveSet_(const RhsVectorType &b) {
+constexpr void NNLS<MatrixType>::solveInactiveSet_(const RhsVectorType &b) {
   eigen_assert(numInactive_ > 0);
 
   tempRhsVector_ = b;

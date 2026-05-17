@@ -540,7 +540,7 @@ struct functor_traits<scalar_sqrt_op<Scalar>> {
 // Boolean specialization to eliminate -Wimplicit-conversion-floating-point-to-bool warnings.
 template <>
 struct scalar_sqrt_op<bool> {
-  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline bool operator()(const bool& a) const { return a; }
+  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC constexpr bool operator()(const bool& a) const { return a; }
   template <typename Packet>
   EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
     return a;
@@ -856,7 +856,7 @@ struct functor_traits<scalar_square_op<Scalar>> {
 // Boolean specialization to avoid -Wint-in-bool-context warnings on GCC.
 template <>
 struct scalar_square_op<bool> {
-  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline bool operator()(const bool& a) const { return a; }
+  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC constexpr bool operator()(const bool& a) const { return a; }
   template <typename Packet>
   EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
     return a;
@@ -887,7 +887,7 @@ struct functor_traits<scalar_cube_op<Scalar>> {
 // Boolean specialization to avoid -Wint-in-bool-context warnings on GCC.
 template <>
 struct scalar_cube_op<bool> {
-  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline bool operator()(const bool& a) const { return a; }
+  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC constexpr bool operator()(const bool& a) const { return a; }
   template <typename Packet>
   EIGEN_DEPRECATED EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
     return a;
@@ -1198,7 +1198,7 @@ struct functor_traits<scalar_sign_op<Scalar>> {
 // Real-valued implementation.
 template <typename T, typename EnableIf = void>
 struct scalar_logistic_op_impl {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T operator()(const T& x) const { return packetOp(x); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr T operator()(const T& x) const { return packetOp(x); }
 
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& x) const {
@@ -1247,7 +1247,7 @@ struct scalar_logistic_op : scalar_logistic_op_impl<T> {};
  */
 template <>
 struct scalar_logistic_op<float> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float operator()(const float& x) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr float operator()(const float& x) const {
     // Truncate at the first point where the interpolant is exactly one.
     const float cst_exp_hi = 16.6355324f;
     const float e = numext::exp(numext::mini(x, cst_exp_hi));
@@ -1349,7 +1349,7 @@ struct scalar_unary_pow_op {
 
  private:
   const ExponentScalar m_exponent;
-  scalar_unary_pow_op() {}
+  constexpr scalar_unary_pow_op() = default;
 };
 
 template <typename T>
@@ -1369,13 +1369,13 @@ struct is_floating_exactly_representable {
 template <typename Scalar, typename ExponentScalar>
 struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, false, false> {
   template <bool IsExactlyRepresentable = is_floating_exactly_representable<ExponentScalar, Scalar>::value>
-  std::enable_if_t<IsExactlyRepresentable, void> check_is_representable() const {}
+  constexpr std::enable_if_t<IsExactlyRepresentable, void> check_is_representable() const {}
 
   // Issue a deprecation warning if we do a narrowing conversion on the exponent.
   template <bool IsExactlyRepresentable = is_floating_exactly_representable<ExponentScalar, Scalar>::value>
-  EIGEN_DEPRECATED std::enable_if_t<!IsExactlyRepresentable, void> check_is_representable() const {}
+  EIGEN_DEPRECATED constexpr std::enable_if_t<!IsExactlyRepresentable, void> check_is_representable() const {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE scalar_unary_pow_op(const ExponentScalar& exponent)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr scalar_unary_pow_op(const ExponentScalar& exponent)
       : m_exponent(static_cast<Scalar>(exponent)) {
     check_is_representable();
   }
@@ -1391,7 +1391,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, false, false> {
 
  private:
   const Scalar m_exponent;
-  scalar_unary_pow_op() {}
+  constexpr scalar_unary_pow_op() = default;
 };
 
 template <typename Scalar, typename ExponentScalar, bool BaseIsInteger>
@@ -1409,7 +1409,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, BaseIsInteger, true, false, f
 
  private:
   const ExponentScalar m_exponent;
-  scalar_unary_pow_op() {}
+  constexpr scalar_unary_pow_op() = default;
 };
 
 template <typename Scalar, typename ExponentScalar>

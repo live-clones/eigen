@@ -125,7 +125,9 @@ struct Vectorise<OutScalar, Device, true> {
   typedef typename Eigen::PacketType<OutScalar, Device>::type PacketReturnType;
 };
 
-static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index roundUp(Index x, Index y) { return ((((x) + (y)-1) / (y)) * (y)); }
+static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Index roundUp(Index x, Index y) {
+  return ((((x) + (y)-1) / (y)) * (y));
+}
 
 }  // namespace internal
 }  // namespace TensorSycl
@@ -217,7 +219,7 @@ struct Pair {
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Pair(const U& f, const V& s) : first(f), second(s) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void swap(Pair& rhs) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(Pair& rhs) {
     using numext::swap;
     swap(first, rhs.first);
     swap(second, rhs.second);

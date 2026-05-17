@@ -718,18 +718,18 @@ class generic_dense_assignment_kernel {
   }
 
   template <int StoreMode, int LoadMode, typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index row, Index col) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignPacket(Index row, Index col) {
     m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(row, col),
                                                m_src.template packet<LoadMode, Packet>(row, col));
   }
 
   template <int StoreMode, int LoadMode, typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index index) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignPacket(Index index) {
     m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(index), m_src.template packet<LoadMode, Packet>(index));
   }
 
   template <int StoreMode, int LoadMode, typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketByOuterInner(Index outer, Index inner) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignPacketByOuterInner(Index outer, Index inner) {
     Index row = rowIndexByOuterInner(outer, inner);
     Index col = colIndexByOuterInner(outer, inner);
     assignPacket<StoreMode, LoadMode, Packet>(row, col);
@@ -772,7 +772,7 @@ class generic_dense_assignment_kernel {
                                                         : outer;
   }
 
-  EIGEN_DEVICE_FUNC const Scalar* dstDataPtr() const { return m_dstExpr.data(); }
+  EIGEN_DEVICE_FUNC constexpr const Scalar* dstDataPtr() const { return m_dstExpr.data(); }
 
  protected:
   DstEvaluatorType& m_dst;
@@ -798,8 +798,9 @@ class restricted_packet_dense_assignment_kernel
   using AssignmentTraits = copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, 4>;
   using PacketType = typename AssignmentTraits::PacketType;
 
-  EIGEN_DEVICE_FUNC restricted_packet_dense_assignment_kernel(DstEvaluatorTypeT& dst, const SrcEvaluatorTypeT& src,
-                                                              const Functor& func, DstXprType& dstExpr)
+  EIGEN_DEVICE_FUNC constexpr restricted_packet_dense_assignment_kernel(DstEvaluatorTypeT& dst,
+                                                                        const SrcEvaluatorTypeT& src,
+                                                                        const Functor& func, DstXprType& dstExpr)
       : Base(dst, src, func, dstExpr) {}
 };
 
@@ -857,7 +858,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void call_dense_assignment_loop(
 }
 
 template <typename DstXprType, typename SrcXprType>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void call_dense_assignment_loop(DstXprType& dst, const SrcXprType& src) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void call_dense_assignment_loop(DstXprType& dst,
+                                                                                const SrcXprType& src) {
   call_dense_assignment_loop(dst, src, internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>());
 }
 
@@ -901,7 +903,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(Dst& dst, c
   call_assignment(dst, src, internal::assign_op<typename Dst::Scalar, typename Src::Scalar>());
 }
 template <typename Dst, typename Src>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_assignment(const Dst& dst, const Src& src) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(const Dst& dst, const Src& src) {
   call_assignment(dst, src, internal::assign_op<typename Dst::Scalar, typename Src::Scalar>());
 }
 
@@ -949,8 +951,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
 }
 
 template <typename Dst, typename Src, typename Func>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_restricted_packet_assignment_no_alias(Dst& dst, const Src& src,
-                                                                                      const Func& func) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_restricted_packet_assignment_no_alias(Dst& dst,
+                                                                                                const Src& src,
+                                                                                                const Func& func) {
   using DstEvaluatorType = evaluator<Dst>;
   using SrcEvaluatorType = evaluator<Src>;
   using Kernel = restricted_packet_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Func>;
@@ -989,7 +992,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias_no
 
 // forward declaration
 template <typename Dst, typename Src>
-EIGEN_DEVICE_FUNC void check_for_aliasing(const Dst& dst, const Src& src);
+EIGEN_DEVICE_FUNC constexpr void check_for_aliasing(const Dst& dst, const Src& src);
 
 // Generic Dense to Dense assignment
 // Note that the last template argument "Weak" is needed to make it possible to perform
@@ -1040,7 +1043,7 @@ struct Assignment<DstXprType, CwiseNullaryOp<scalar_zero_op<typename DstXprType:
 // both partial specialization+SFINAE without ambiguous specialization
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Weak>
 struct Assignment<DstXprType, SrcXprType, Functor, EigenBase2EigenBase, Weak> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& /*func*/) {
     Index dstRows = src.rows();
@@ -1054,7 +1057,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, EigenBase2EigenBase, Weak> {
   // NOTE The following two functions are templated to avoid their instantiation if not needed
   //      This is needed because some expressions supports evalTo only and/or have 'void' as scalar type.
   template <typename SrcScalarType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::add_assign_op<typename DstXprType::Scalar, SrcScalarType>& /*func*/) {
     Index dstRows = src.rows();
@@ -1066,7 +1069,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, EigenBase2EigenBase, Weak> {
   }
 
   template <typename SrcScalarType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::sub_assign_op<typename DstXprType::Scalar, SrcScalarType>& /*func*/) {
     Index dstRows = src.rows();

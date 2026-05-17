@@ -259,7 +259,7 @@ class CholmodBase : public SparseSolverBase<Derived> {
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
  public:
-  CholmodBase() : m_cholmodFactor(0), m_info(Success), m_factorizationIsOk(false), m_analysisIsOk(false) {
+  constexpr CholmodBase() : m_cholmodFactor(0), m_info(Success), m_factorizationIsOk(false), m_analysisIsOk(false) {
     EIGEN_STATIC_ASSERT((std::is_same<double, RealScalar>::value), CHOLMOD_SUPPORTS_DOUBLE_PRECISION_ONLY);
     m_shiftOffset[0] = m_shiftOffset[1] = 0.0;
     internal::cm_start<StorageIndex>(m_cholmod);
@@ -286,7 +286,7 @@ class CholmodBase : public SparseSolverBase<Derived> {
    * \returns \c Success if computation was successful,
    *          \c NumericalIssue if the matrix.appears to be negative.
    */
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");
     return m_info;
   }

@@ -80,7 +80,7 @@ class TensorExecutor {
                 "You must #define EIGEN_USE_THREADS, EIGEN_USE_GPU or "
                 "EIGEN_USE_SYCL before including Eigen headers.");
 
-  static EIGEN_STRONG_INLINE void run(const Expression& expr, const Device& device = DefaultDevice()) {
+  static EIGEN_STRONG_INLINE constexpr void run(const Expression& expr, const Device& device = DefaultDevice()) {
     TensorEvaluator<Expression, Device> evaluator(expr, device);
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
     if (needs_assign) {
@@ -109,7 +109,7 @@ class TensorExecutor<Expression, DefaultDevice, /*Vectorizable=*/true,
  public:
   typedef typename Expression::Index StorageIndex;
 
-  static EIGEN_STRONG_INLINE void run(const Expression& expr, const DefaultDevice& device = DefaultDevice()) {
+  static EIGEN_STRONG_INLINE constexpr void run(const Expression& expr, const DefaultDevice& device = DefaultDevice()) {
     TensorEvaluator<Expression, DefaultDevice> evaluator(expr, device);
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
     if (needs_assign) {
@@ -154,8 +154,8 @@ class TensorExecutor<Expression, DefaultDevice, Vectorizable,
 
   static constexpr int NumDims = traits<Expression>::NumDimensions;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(const Expression& expr,
-                                                        const DefaultDevice& device = DefaultDevice()) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(const Expression& expr,
+                                                                  const DefaultDevice& device = DefaultDevice()) {
     typedef TensorBlockMapper<NumDims, Evaluator::Layout, StorageIndex> TensorBlockMapper;
 
     typedef internal::TensorBlockDescriptor<NumDims, StorageIndex> TensorBlockDesc;
@@ -201,8 +201,9 @@ class TensorExecutor<Expression, DefaultDevice, Vectorizable,
 
 template <typename TensorBlockMapper>
 struct TensorExecutorTilingContext {
-  TensorExecutorTilingContext() = default;
-  TensorExecutorTilingContext(const TensorBlockMapper& b_mapper, const TensorOpCost& b_cost, size_t b_aligned_size)
+  constexpr TensorExecutorTilingContext() = default;
+  constexpr TensorExecutorTilingContext(const TensorBlockMapper& b_mapper, const TensorOpCost& b_cost,
+                                        size_t b_aligned_size)
       : block_mapper(b_mapper), cost(b_cost), aligned_blocksize(b_aligned_size) {}
 
   TensorBlockMapper block_mapper;  // navigate through blocks
@@ -213,7 +214,7 @@ struct TensorExecutorTilingContext {
 // Computes a block evaluation parameters, and allocates temporary memory buffer
 // for blocks. See TensorExecutor/TensorAsyncExecutor (Tiling=On) below.
 template <typename Evaluator, typename TensorBlockMapper, bool Vectorizable>
-TensorExecutorTilingContext<TensorBlockMapper> GetTensorExecutorTilingContext(const Evaluator& evaluator) {
+constexpr TensorExecutorTilingContext<TensorBlockMapper> GetTensorExecutorTilingContext(const Evaluator& evaluator) {
   // Query expression tree for desired block size/shape.
   TensorBlockResourceRequirements requirements = evaluator.getResourceRequirements();
 
@@ -233,7 +234,7 @@ TensorExecutorTilingContext<TensorBlockMapper> GetTensorExecutorTilingContext(co
 
 template <typename Evaluator, typename StorageIndex, bool Vectorizable>
 struct EvalRange {
-  static void run(Evaluator* evaluator_in, const StorageIndex firstIdx, const StorageIndex lastIdx) {
+  static constexpr void run(Evaluator* evaluator_in, const StorageIndex firstIdx, const StorageIndex lastIdx) {
     Evaluator evaluator = *evaluator_in;
     eigen_assert(lastIdx >= firstIdx);
     for (StorageIndex i = firstIdx; i < lastIdx; ++i) {
@@ -248,7 +249,7 @@ template <typename Evaluator, typename StorageIndex>
 struct EvalRange<Evaluator, StorageIndex, /*Vectorizable*/ true> {
   static constexpr int PacketSize = unpacket_traits<typename Evaluator::PacketReturnType>::size;
 
-  static void run(Evaluator* evaluator_in, const StorageIndex firstIdx, const StorageIndex lastIdx) {
+  static constexpr void run(Evaluator* evaluator_in, const StorageIndex firstIdx, const StorageIndex lastIdx) {
     Evaluator evaluator = *evaluator_in;
     eigen_assert(lastIdx >= firstIdx);
     StorageIndex i = firstIdx;
@@ -273,7 +274,7 @@ struct EvalRange<Evaluator, StorageIndex, /*Vectorizable*/ true> {
     }
   }
 
-  static StorageIndex alignBlockSize(StorageIndex size) {
+  static constexpr StorageIndex alignBlockSize(StorageIndex size) {
     // Align block size to packet size and account for unrolling in run above.
     if (size >= 16 * PacketSize) {
       return (size + 4 * PacketSize - 1) & ~(4 * PacketSize - 1);
@@ -288,7 +289,7 @@ class TensorExecutor<Expression, ThreadPoolDevice, Vectorizable, Tiling> {
  public:
   typedef typename Expression::Index StorageIndex;
 
-  static EIGEN_STRONG_INLINE void run(const Expression& expr, const ThreadPoolDevice& device) {
+  static EIGEN_STRONG_INLINE constexpr void run(const Expression& expr, const ThreadPoolDevice& device) {
     typedef TensorEvaluator<Expression, ThreadPoolDevice> Evaluator;
     typedef EvalRange<Evaluator, StorageIndex, Vectorizable> EvalRange;
 
@@ -321,7 +322,7 @@ class TensorExecutor<Expression, ThreadPoolDevice, Vectorizable,
   typedef internal::TensorBlockDescriptor<NumDims, IndexType> TensorBlockDesc;
   typedef internal::TensorBlockScratchAllocator<ThreadPoolDevice> TensorBlockScratch;
 
-  static EIGEN_STRONG_INLINE void run(const Expression& expr, const ThreadPoolDevice& device) {
+  static EIGEN_STRONG_INLINE constexpr void run(const Expression& expr, const ThreadPoolDevice& device) {
     Evaluator evaluator(expr, device);
 
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
@@ -358,7 +359,8 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
   typedef typename Expression::Index StorageIndex;
   typedef TensorEvaluator<Expression, ThreadPoolDevice> Evaluator;
 
-  static EIGEN_STRONG_INLINE void runAsync(const Expression& expr, const ThreadPoolDevice& device, DoneCallback done) {
+  static EIGEN_STRONG_INLINE constexpr void runAsync(const Expression& expr, const ThreadPoolDevice& device,
+                                                     DoneCallback done) {
     TensorAsyncExecutorContext* const ctx = new TensorAsyncExecutorContext(expr, device, std::move(done));
 
     const auto on_eval_subexprs = [ctx, &device](bool need_assign) -> void {
@@ -380,7 +382,7 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
 
  private:
   struct TensorAsyncExecutorContext {
-    TensorAsyncExecutorContext(const Expression& expr, const ThreadPoolDevice& thread_pool, DoneCallback done)
+    constexpr TensorAsyncExecutorContext(const Expression& expr, const ThreadPoolDevice& thread_pool, DoneCallback done)
         : evaluator(expr, thread_pool), on_done(std::move(done)) {}
 
     ~TensorAsyncExecutorContext() {
@@ -411,7 +413,8 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
   typedef internal::TensorBlockDescriptor<NumDims, IndexType> TensorBlockDesc;
   typedef internal::TensorBlockScratchAllocator<ThreadPoolDevice> TensorBlockScratch;
 
-  static EIGEN_STRONG_INLINE void runAsync(const Expression& expr, const ThreadPoolDevice& device, DoneCallback done) {
+  static EIGEN_STRONG_INLINE constexpr void runAsync(const Expression& expr, const ThreadPoolDevice& device,
+                                                     DoneCallback done) {
     TensorAsyncExecutorContext* const ctx = new TensorAsyncExecutorContext(expr, device, std::move(done));
 
     const auto on_eval_subexprs = [ctx](bool need_assign) -> void {
@@ -449,7 +452,7 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
 
  private:
   struct TensorAsyncExecutorContext {
-    TensorAsyncExecutorContext(const Expression& expr, const ThreadPoolDevice& thread_pool, DoneCallback done)
+    constexpr TensorAsyncExecutorContext(const Expression& expr, const ThreadPoolDevice& thread_pool, DoneCallback done)
         : device(thread_pool), evaluator(expr, thread_pool), on_done(std::move(done)) {}
 
     ~TensorAsyncExecutorContext() {
@@ -475,13 +478,13 @@ template <typename Expression, bool Vectorizable, TiledEvaluation Tiling>
 class TensorExecutor<Expression, GpuDevice, Vectorizable, Tiling> {
  public:
   typedef typename Expression::Index StorageIndex;
-  static void run(const Expression& expr, const GpuDevice& device);
+  static constexpr void run(const Expression& expr, const GpuDevice& device);
 };
 
 #if defined(EIGEN_GPUCC)
 // Returns 1 if lhs + rhs would overflow, -1 if it would underflow, otherwise 0.
 template <typename Index>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE int sum_will_overflow(Index lhs, Index rhs) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr int sum_will_overflow(Index lhs, Index rhs) {
   const Index highest = NumTraits<Index>::highest();
   const Index lowest = NumTraits<Index>::lowest();
   if (lhs > 0 && rhs > 0) {
@@ -496,7 +499,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE int sum_will_overflow(Index lhs, Index rhs
 // Returns lhs + rhs, saturating to the highest/lowest representable value on
 // overflow/underflow respectively.
 template <typename Index>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index saturate_add(Index lhs, Index rhs) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Index saturate_add(Index lhs, Index rhs) {
   const Index highest = NumTraits<Index>::highest();
   const Index lowest = NumTraits<Index>::lowest();
   int overflow = sum_will_overflow(lhs, rhs);
@@ -511,7 +514,7 @@ struct SafeStep {
   // lastIdx is one past the end of the possible indexes.
   // step_size is the value that will be added to the given index when the
   // functor is called.
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE SafeStep(Index lastIdx, Index step_size)
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr SafeStep(Index lastIdx, Index step_size)
       : can_overflow_(sum_will_overflow(lastIdx, step_size)), step_size_(step_size) {}
 
   // Adds step_size to index, saturating on overflow (if overflow is possible).
@@ -526,8 +529,8 @@ struct SafeStep {
 
 template <typename Evaluator, typename StorageIndex, bool Vectorizable>
 struct EigenMetaKernelEval {
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void run(Evaluator& eval, StorageIndex firstIdx, StorageIndex lastIdx,
-                                                        StorageIndex step_size) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void run(Evaluator& eval, StorageIndex firstIdx,
+                                                                  StorageIndex lastIdx, StorageIndex step_size) {
     SafeStep<StorageIndex> safe_step(lastIdx, step_size);
     for (StorageIndex i = firstIdx; i < lastIdx; i = safe_step(i)) {
       eval.evalScalar(i);
@@ -537,8 +540,8 @@ struct EigenMetaKernelEval {
 
 template <typename Evaluator, typename StorageIndex>
 struct EigenMetaKernelEval<Evaluator, StorageIndex, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void run(Evaluator& eval, StorageIndex firstIdx, StorageIndex lastIdx,
-                                                        StorageIndex step_size) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void run(Evaluator& eval, StorageIndex firstIdx,
+                                                                  StorageIndex lastIdx, StorageIndex step_size) {
     const StorageIndex PacketSize = unpacket_traits<typename Evaluator::PacketReturnType>::size;
     const StorageIndex vectorized_size = (lastIdx / PacketSize) * PacketSize;
     const StorageIndex vectorized_step_size = step_size * PacketSize;
@@ -566,8 +569,8 @@ __global__ void __launch_bounds__(1024) EigenMetaKernel(Evaluator eval, StorageI
 
 /*static*/
 template <typename Expression, bool Vectorizable, TiledEvaluation Tiling>
-EIGEN_STRONG_INLINE void TensorExecutor<Expression, GpuDevice, Vectorizable, Tiling>::run(const Expression& expr,
-                                                                                          const GpuDevice& device) {
+EIGEN_STRONG_INLINE constexpr void TensorExecutor<Expression, GpuDevice, Vectorizable, Tiling>::run(
+    const Expression& expr, const GpuDevice& device) {
   TensorEvaluator<Expression, GpuDevice> evaluator(expr, device);
   const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
   if (needs_assign) {
@@ -599,10 +602,13 @@ struct ExecExprFunctorKernel {
   Evaluator evaluator;
   const Index range;
   template <typename Scratch>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ExecExprFunctorKernel(const Scratch, Evaluator evaluator_, const Index range_)
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr ExecExprFunctorKernel(const Scratch, Evaluator evaluator_,
+                                                                        const Index range_)
       : evaluator(evaluator_), range(range_) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void operator()(cl::sycl::nd_item<1> itemID) const { compute(itemID); }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void operator()(cl::sycl::nd_item<1> itemID) const {
+    compute(itemID);
+  }
   template <bool is_vec = Evaluator::PacketAccess>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<!is_vec> compute(const cl::sycl::nd_item<1>& itemID) const {
     Index gId = static_cast<Index>(itemID.get_global_linear_id());
@@ -613,7 +619,8 @@ struct ExecExprFunctorKernel {
     }
   }
   template <bool is_vec = Evaluator::PacketAccess>
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<is_vec> compute(const cl::sycl::nd_item<1>& itemID) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr std::enable_if_t<is_vec> compute(
+      const cl::sycl::nd_item<1>& itemID) const {
     const Index vectorizedRange = (range / Evaluator::PacketSize) * Evaluator::PacketSize;
     Index gId = static_cast<Index>(itemID.get_global_linear_id());
     const Index step = Evaluator::PacketSize * itemID.get_global_range(0);
@@ -632,7 +639,7 @@ template <typename Expression, bool Vectorizable, TiledEvaluation Tiling>
 class TensorExecutor<Expression, Eigen::SyclDevice, Vectorizable, Tiling> {
  public:
   typedef typename Expression::Index Index;
-  static EIGEN_STRONG_INLINE void run(const Expression& expr, const Eigen::SyclDevice& dev) {
+  static EIGEN_STRONG_INLINE constexpr void run(const Expression& expr, const Eigen::SyclDevice& dev) {
     typedef Eigen::TensorEvaluator<Expression, Eigen::SyclDevice> Evaluator;
     Evaluator evaluator(expr, dev);
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);

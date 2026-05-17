@@ -158,8 +158,8 @@ class EulerSystem {
                                          BETA_AXIS_CANT_BE_EQUAL_TO_GAMMA_AXIS);
 
   template <typename Scalar>
-  static void CalcEulerAngles(EulerAngles<Scalar, EulerSystem>& res,
-                              const typename EulerAngles<Scalar, EulerSystem>::Matrix3& mat) {
+  static constexpr void CalcEulerAngles(EulerAngles<Scalar, EulerSystem>& res,
+                                        const typename EulerAngles<Scalar, EulerSystem>::Matrix3& mat) {
     res.angles() = mat.canonicalEulerAngles(AlphaAxisAbs - 1, BetaAxisAbs - 1, GammaAxisAbs - 1);
 
     if (IsAlphaOpposite) res.alpha() = -res.alpha();

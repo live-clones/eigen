@@ -73,7 +73,7 @@ class ComplexQZ {
    *
    * \returns A const reference to the matrix Q.
    */
-  const MatrixType& matrixQ() const {
+  constexpr const MatrixType& matrixQ() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Q;
@@ -83,7 +83,7 @@ class ComplexQZ {
    *
    * \returns A const reference to the matrix Z.
    */
-  const MatrixType& matrixZ() const {
+  constexpr const MatrixType& matrixZ() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Z;
@@ -93,7 +93,7 @@ class ComplexQZ {
    *
    * \returns A const reference to the matrix S.
    */
-  const MatrixType& matrixS() const {
+  constexpr const MatrixType& matrixS() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     return m_S;
   }
@@ -102,7 +102,7 @@ class ComplexQZ {
    *
    * \returns A const reference to the matrix S.
    */
-  const MatrixType& matrixT() const {
+  constexpr const MatrixType& matrixT() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     return m_T;
   }
@@ -115,7 +115,7 @@ class ComplexQZ {
    * especially when we aim to compute the decomposition of two sparse
    * matrices.
    */
-  ComplexQZ(Index n, bool computeQZ = true, unsigned int maxIters = 400)
+  constexpr ComplexQZ(Index n, bool computeQZ = true, unsigned int maxIters = 400)
       : m_n(n),
         m_S(n, n),
         m_T(n, n),
@@ -138,7 +138,7 @@ class ComplexQZ {
    * If input matrices are sparse, call the constructor that uses only the
    * size as input the computeSparse(...) method.
    */
-  ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true, unsigned int maxIters = 400)
+  constexpr ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true, unsigned int maxIters = 400)
       : m_n(A.rows()),
         m_maxIters(maxIters),
         m_computeQZ(computeQZ),
@@ -158,7 +158,7 @@ class ComplexQZ {
    * \param[in] B         Matrix B.
    * \param[in] computeQZ If false, the matrices Q and Z are not computed.
    */
-  void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
+  constexpr void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
 
   /** \brief Compute the decomposition of sparse complex input matrices.
    * Main difference to the compute(...) method is that it computes a
@@ -169,17 +169,17 @@ class ComplexQZ {
    * \param[in] computeQZ If false, the matrices Q and Z are not computed.
    */
   template <typename SparseMatrixType_>
-  void computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ = true);
+  constexpr void computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ = true);
 
   /** \brief Reports whether the last computation was successful.
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const { return m_info; }
+  constexpr ComputationInfo info() const { return m_info; }
 
   /** \brief number of performed QZ steps
    */
-  unsigned int iterations() const {
+  constexpr unsigned int iterations() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     return m_global_iter;
   }
@@ -196,37 +196,37 @@ class ComplexQZ {
   Vec m_ws;
 
   // Test if a Scalar is 0 up to a certain tolerance
-  static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
+  static constexpr bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
     return numext::abs(x) <= tol;
   }
 
-  void do_QZ_step(Index p, Index q);
+  constexpr void do_QZ_step(Index p, Index q);
 
-  inline Mat2 computeZk2(const Row2& b);
+  constexpr Mat2 computeZk2(const Row2& b);
 
   // This is basically taken from Eigen3::RealQZ
-  void hessenbergTriangular(const MatrixType& A, const MatrixType& B);
+  constexpr void hessenbergTriangular(const MatrixType& A, const MatrixType& B);
 
   // This function can be called when m_Q and m_Z are initialized and m_S, m_T
   // are in hessenberg-triangular form
-  void reduceHessenbergTriangular();
+  constexpr void reduceHessenbergTriangular();
 
   // Sparse variant of the above method.
   template <typename SparseMatrixType_>
-  void hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B);
+  constexpr void hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B);
 
-  void computeNorms();
+  constexpr void computeNorms();
 
-  Index findSmallSubdiagEntry(Index l);
-  Index findSmallDiagEntry(Index f, Index l);
+  constexpr Index findSmallSubdiagEntry(Index l);
+  constexpr Index findSmallDiagEntry(Index f, Index l);
 
-  void push_down_zero_ST(Index k, Index l);
+  constexpr void push_down_zero_ST(Index k, Index l);
 
-  void reduceDiagonal2x2block(Index i);
+  constexpr void reduceDiagonal2x2block(Index i);
 };
 
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
+constexpr void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
   m_computeQZ = computeQZ;
   m_n = A.rows();
 
@@ -246,7 +246,7 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
 
 // This is basically taken from Eigen3::RealQZ
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const MatrixType& B) {
+constexpr void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const MatrixType& B) {
   // Copy A and B, these will be the matrices on which we operate later
   m_S = A;
   m_T = B;
@@ -298,7 +298,8 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
 
 template <typename MatrixType>
 template <typename SparseMatrixType_>
-void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B) {
+constexpr void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& A,
+                                                                 const SparseMatrixType_& B) {
   m_S = A.toDense();
 
   SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<Index>> sparseQR;
@@ -359,7 +360,8 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 
 template <typename MatrixType>
 template <typename SparseMatrixType_>
-void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ) {
+constexpr void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B,
+                                                    bool computeQZ) {
   m_computeQZ = computeQZ;
   m_n = A.rows();
   eigen_assert(m_n == A.cols() && "A is not a square matrix");
@@ -374,7 +376,7 @@ void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const Spar
 }
 
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
+constexpr void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
   Index l = m_n - 1, f;
   unsigned int local_iter = 0;
   computeNorms();
@@ -410,7 +412,7 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
 }
 
 template <typename MatrixType_>
-inline typename ComplexQZ<MatrixType_>::Mat2 ComplexQZ<MatrixType_>::computeZk2(const Row2& b) {
+constexpr typename ComplexQZ<MatrixType_>::Mat2 ComplexQZ<MatrixType_>::computeZk2(const Row2& b) {
   Mat2 S;
   S << Scalar(0), Scalar(1), Scalar(1), Scalar(0);
   Vec2 bprime = S * b.adjoint();
@@ -423,7 +425,7 @@ inline typename ComplexQZ<MatrixType_>::Mat2 ComplexQZ<MatrixType_>::computeZk2(
 }
 
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
+constexpr void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
   // This is certainly not the most efficient way of doing this,
   // but a readable one.
   const auto a = [p, this](Index i, Index j) { return m_S(p + i - 1, p + j - 1); };
@@ -505,7 +507,7 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
 
 /** \internal we found an undesired non-zero at (i+1,i) on the subdiagonal of S and reduce the block */
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
+constexpr void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
   // We have found a non-zero on the subdiagonal and want to eliminate it
   Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
   if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
@@ -559,7 +561,7 @@ void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
 
 /** \internal We found a zero at T(k,k) and want to "push it down" to T(l,l) */
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
+constexpr void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   // Test Preconditions
 
   JacobiRotation<Scalar> J;
@@ -610,7 +612,7 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
 
 /** \internal Computes vector L1 norms of S and T when in Hessenberg-Triangular form already */
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::computeNorms() {
+constexpr void ComplexQZ<MatrixType_>::computeNorms() {
   const Index size = m_S.cols();
   m_normOfS = RealScalar(0);
   m_normOfT = RealScalar(0);
@@ -623,7 +625,7 @@ void ComplexQZ<MatrixType_>::computeNorms() {
 /** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0). Copied from Eigen3 RealQZ
  * implementation */
 template <typename MatrixType_>
-inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu) {
+constexpr Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu) {
   Index res = iu;
   while (res > 0) {
     RealScalar s = numext::abs(m_S.coeff(res - 1, res - 1)) + numext::abs(m_S.coeff(res, res));
@@ -638,7 +640,7 @@ inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu) {
 /** \internal Look for single small diagonal element T(res, res) for res between f and l, and return res (or f-1).
  * Copied from Eigen3 RealQZ implementation. */
 template <typename MatrixType_>
-inline Index ComplexQZ<MatrixType_>::findSmallDiagEntry(Index f, Index l) {
+constexpr Index ComplexQZ<MatrixType_>::findSmallDiagEntry(Index f, Index l) {
   Index res = l;
   while (res >= f) {
     if (numext::abs(m_T.coeff(res, res)) <= NumTraits<RealScalar>::epsilon() * m_normOfT) break;

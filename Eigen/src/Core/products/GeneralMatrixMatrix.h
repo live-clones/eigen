@@ -29,10 +29,11 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
   typedef gebp_traits<RhsScalar, LhsScalar> Traits;
 
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
-  static EIGEN_STRONG_INLINE void run(Index rows, Index cols, Index depth, const LhsScalar* lhs, Index lhsStride,
-                                      const RhsScalar* rhs, Index rhsStride, ResScalar* res, Index resIncr,
-                                      Index resStride, ResScalar alpha, level3_blocking<RhsScalar, LhsScalar>& blocking,
-                                      GemmParallelInfo<Index>* info = 0) {
+  static EIGEN_STRONG_INLINE constexpr void run(Index rows, Index cols, Index depth, const LhsScalar* lhs,
+                                                Index lhsStride, const RhsScalar* rhs, Index rhsStride, ResScalar* res,
+                                                Index resIncr, Index resStride, ResScalar alpha,
+                                                level3_blocking<RhsScalar, LhsScalar>& blocking,
+                                                GemmParallelInfo<Index>* info = 0) {
     // transpose the product such that the result is column major
     general_matrix_matrix_product<Index, RhsScalar, RhsStorageOrder == RowMajor ? ColMajor : RowMajor, ConjugateRhs,
                                   LhsScalar, LhsStorageOrder == RowMajor ? ColMajor : RowMajor, ConjugateLhs, ColMajor,
@@ -50,9 +51,10 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
   typedef gebp_traits<LhsScalar, RhsScalar> Traits;
 
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
-  static void run(Index rows, Index cols, Index depth, const LhsScalar* lhs_, Index lhsStride, const RhsScalar* rhs_,
-                  Index rhsStride, ResScalar* res_, Index resIncr, Index resStride, ResScalar alpha,
-                  level3_blocking<LhsScalar, RhsScalar>& blocking, GemmParallelInfo<Index>* info = 0) {
+  static constexpr void run(Index rows, Index cols, Index depth, const LhsScalar* lhs_, Index lhsStride,
+                            const RhsScalar* rhs_, Index rhsStride, ResScalar* res_, Index resIncr, Index resStride,
+                            ResScalar alpha, level3_blocking<LhsScalar, RhsScalar>& blocking,
+                            GemmParallelInfo<Index>* info = 0) {
     // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
     if (numext::is_exactly_zero(alpha)) return;
 
@@ -196,15 +198,16 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
 template <typename Scalar, typename Index, typename Gemm, typename Lhs, typename Rhs, typename Dest,
           typename BlockingType>
 struct gemm_functor {
-  gemm_functor(const Lhs& lhs, const Rhs& rhs, Dest& dest, const Scalar& actualAlpha, BlockingType& blocking)
+  constexpr gemm_functor(const Lhs& lhs, const Rhs& rhs, Dest& dest, const Scalar& actualAlpha, BlockingType& blocking)
       : m_lhs(lhs), m_rhs(rhs), m_dest(dest), m_actualAlpha(actualAlpha), m_blocking(blocking) {}
 
-  void initParallelSession(Index num_threads) const {
+  constexpr void initParallelSession(Index num_threads) const {
     m_blocking.initParallel(m_lhs.rows(), m_rhs.cols(), m_lhs.cols(), num_threads);
     m_blocking.allocateA();
   }
 
-  void operator()(Index row, Index rows, Index col = 0, Index cols = -1, GemmParallelInfo<Index>* info = 0) const {
+  constexpr void operator()(Index row, Index rows, Index col = 0, Index cols = -1,
+                            GemmParallelInfo<Index>* info = 0) const {
     if (cols == -1) cols = m_rhs.cols();
 
     Gemm::run(rows, cols, m_lhs.cols(), &m_lhs.coeffRef(row, 0), m_lhs.outerStride(), &m_rhs.coeffRef(0, col),
@@ -240,14 +243,14 @@ class level3_blocking {
   Index m_kc;
 
  public:
-  level3_blocking() : m_blockA(0), m_blockB(0), m_mc(0), m_nc(0), m_kc(0) {}
+  constexpr level3_blocking() : m_blockA(0), m_blockB(0), m_mc(0), m_nc(0), m_kc(0) {}
 
-  inline Index mc() const { return m_mc; }
-  inline Index nc() const { return m_nc; }
-  inline Index kc() const { return m_kc; }
+  constexpr Index mc() const { return m_mc; }
+  constexpr Index nc() const { return m_nc; }
+  constexpr Index kc() const { return m_kc; }
 
-  inline LhsScalar* blockA() { return m_blockA; }
-  inline RhsScalar* blockB() { return m_blockB; }
+  constexpr LhsScalar* blockA() { return m_blockA; }
+  constexpr RhsScalar* blockB() { return m_blockB; }
 };
 
 template <int StorageOrder, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth,
@@ -274,8 +277,8 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
 #endif
 
  public:
-  gemm_blocking_space(Index /*rows*/, Index /*cols*/, Index /*depth*/, Index /*num_threads*/,
-                      bool /*full_rows = false*/) {
+  constexpr gemm_blocking_space(Index /*rows*/, Index /*cols*/, Index /*depth*/, Index /*num_threads*/,
+                                bool /*full_rows = false*/) {
     this->m_mc = ActualRows;
     this->m_nc = ActualCols;
     this->m_kc = MaxDepth;
@@ -290,10 +293,10 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
 #endif
   }
 
-  void initParallel(Index, Index, Index, Index) {}
+  constexpr void initParallel(Index, Index, Index, Index) {}
 
-  inline void allocateA() {}
-  inline void allocateB() {}
+  constexpr void allocateA() {}
+  constexpr void allocateB() {}
   inline void allocateAll() {}
 };
 
@@ -310,7 +313,7 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
   Index m_sizeB;
 
  public:
-  gemm_blocking_space(Index rows, Index cols, Index depth, Index num_threads, bool l3_blocking) {
+  constexpr gemm_blocking_space(Index rows, Index cols, Index depth, Index num_threads, bool l3_blocking) {
     this->m_mc = Transpose ? cols : rows;
     this->m_nc = Transpose ? rows : cols;
     this->m_kc = depth;
@@ -327,7 +330,7 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
     m_sizeB = this->m_kc * this->m_nc;
   }
 
-  void initParallel(Index rows, Index cols, Index depth, Index num_threads) {
+  constexpr void initParallel(Index rows, Index cols, Index depth, Index num_threads) {
     this->m_mc = Transpose ? cols : rows;
     this->m_nc = Transpose ? rows : cols;
     this->m_kc = depth;
@@ -339,15 +342,15 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
     m_sizeB = this->m_kc * this->m_nc;
   }
 
-  void allocateA() {
+  constexpr void allocateA() {
     if (this->m_blockA == 0) this->m_blockA = aligned_new<LhsScalar>(m_sizeA);
   }
 
-  void allocateB() {
+  constexpr void allocateB() {
     if (this->m_blockB == 0) this->m_blockB = aligned_new<RhsScalar>(m_sizeB);
   }
 
-  void allocateAll() {
+  constexpr void allocateAll() {
     allocateA();
     allocateB();
   }
@@ -382,7 +385,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
   typedef generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode> lazyproduct;
 
   template <typename Dst>
-  static void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+  static constexpr void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=404 for a discussion and helper program
     // to determine the following heuristic.
     // EIGEN_GEMM_TO_COEFFBASED_THRESHOLD is typically defined to 20 in GeneralProduct.h,
@@ -398,7 +401,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
   }
 
   template <typename Dst>
-  static void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+  static constexpr void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if ((rhs.rows() + dst.rows() + dst.cols()) < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD && rhs.rows() > 0)
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>());
     else
@@ -406,7 +409,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
   }
 
   template <typename Dst>
-  static void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+  static constexpr void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if ((rhs.rows() + dst.rows() + dst.cols()) < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD && rhs.rows() > 0)
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>());
     else
@@ -414,7 +417,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
   }
 
   template <typename Dest>
-  static void scaleAndAddTo(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const Scalar& alpha) {
+  static constexpr void scaleAndAddTo(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const Scalar& alpha) {
     eigen_assert(dst.rows() == a_lhs.rows() && dst.cols() == a_rhs.cols());
     if (a_lhs.cols() == 0 || a_lhs.rows() == 0 || a_rhs.cols() == 0) return;
 

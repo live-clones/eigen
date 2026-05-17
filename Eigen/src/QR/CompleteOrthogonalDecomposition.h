@@ -89,13 +89,13 @@ class CompleteOrthogonalDecompositionImpl
   typedef RankRevealingQR_<MatrixType, PermutationIndex> RankRevealingQRType;
 
  public:
-  CompleteOrthogonalDecompositionImpl() : m_cpqr(), m_zCoeffs(), m_temp() {}
+  constexpr CompleteOrthogonalDecompositionImpl() : m_cpqr(), m_zCoeffs(), m_temp() {}
 
-  CompleteOrthogonalDecompositionImpl(Index rows, Index cols)
+  constexpr CompleteOrthogonalDecompositionImpl(Index rows, Index cols)
       : m_cpqr(rows, cols), m_zCoeffs((std::min)(rows, cols)), m_temp(cols) {}
 
   template <typename InputType>
-  explicit CompleteOrthogonalDecompositionImpl(const EigenBase<InputType>& matrix)
+  constexpr explicit CompleteOrthogonalDecompositionImpl(const EigenBase<InputType>& matrix)
       : m_cpqr(matrix.rows(), matrix.cols()),
         m_zCoeffs((std::min)(matrix.rows(), matrix.cols())),
         m_temp(matrix.cols()) {
@@ -103,65 +103,65 @@ class CompleteOrthogonalDecompositionImpl
   }
 
   template <typename InputType>
-  explicit CompleteOrthogonalDecompositionImpl(EigenBase<InputType>& matrix)
+  constexpr explicit CompleteOrthogonalDecompositionImpl(EigenBase<InputType>& matrix)
       : m_cpqr(matrix.derived()), m_zCoeffs((std::min)(matrix.rows(), matrix.cols())), m_temp(matrix.cols()) {
     computeInPlace();
   }
 
-  HouseholderSequenceType householderQ() const;
-  HouseholderSequenceType matrixQ() const { return m_cpqr.householderQ(); }
+  constexpr HouseholderSequenceType householderQ() const;
+  constexpr HouseholderSequenceType matrixQ() const { return m_cpqr.householderQ(); }
 
-  MatrixType matrixZ() const {
+  constexpr MatrixType matrixZ() const {
     MatrixType Z = MatrixType::Identity(m_cpqr.cols(), m_cpqr.cols());
     applyZOnTheLeftInPlace<false>(Z);
     return Z;
   }
 
-  const MatrixType& matrixQTZ() const { return m_cpqr.matrixQR(); }
-  const MatrixType& matrixT() const { return m_cpqr.matrixQR(); }
+  constexpr const MatrixType& matrixQTZ() const { return m_cpqr.matrixQR(); }
+  constexpr const MatrixType& matrixT() const { return m_cpqr.matrixQR(); }
 
   template <typename InputType>
-  CompleteOrthogonalDecompositionImpl& compute(const EigenBase<InputType>& matrix) {
+  constexpr CompleteOrthogonalDecompositionImpl& compute(const EigenBase<InputType>& matrix) {
     m_cpqr.compute(matrix);
     computeInPlace();
     return *this;
   }
 
-  const PermutationType& colsPermutation() const { return m_cpqr.colsPermutation(); }
+  constexpr const PermutationType& colsPermutation() const { return m_cpqr.colsPermutation(); }
 
-  typename MatrixType::Scalar determinant() const;
-  typename MatrixType::RealScalar absDeterminant() const;
-  typename MatrixType::RealScalar logAbsDeterminant() const;
-  typename MatrixType::Scalar signDeterminant() const;
+  constexpr typename MatrixType::Scalar determinant() const;
+  constexpr typename MatrixType::RealScalar absDeterminant() const;
+  constexpr typename MatrixType::RealScalar logAbsDeterminant() const;
+  constexpr typename MatrixType::Scalar signDeterminant() const;
 
-  inline Index rank() const { return m_cpqr.rank(); }
-  inline Index dimensionOfKernel() const { return m_cpqr.dimensionOfKernel(); }
-  inline bool isInjective() const { return m_cpqr.isInjective(); }
-  inline bool isSurjective() const { return m_cpqr.isSurjective(); }
-  inline bool isInvertible() const { return m_cpqr.isInvertible(); }
+  constexpr Index rank() const { return m_cpqr.rank(); }
+  constexpr Index dimensionOfKernel() const { return m_cpqr.dimensionOfKernel(); }
+  constexpr bool isInjective() const { return m_cpqr.isInjective(); }
+  constexpr bool isSurjective() const { return m_cpqr.isSurjective(); }
+  constexpr bool isInvertible() const { return m_cpqr.isInvertible(); }
 
-  inline Index rows() const { return m_cpqr.rows(); }
-  inline Index cols() const { return m_cpqr.cols(); }
+  constexpr Index rows() const { return m_cpqr.rows(); }
+  constexpr Index cols() const { return m_cpqr.cols(); }
 
-  inline const HCoeffsType& hCoeffs() const { return m_cpqr.hCoeffs(); }
-  const HCoeffsType& zCoeffs() const { return m_zCoeffs; }
+  constexpr const HCoeffsType& hCoeffs() const { return m_cpqr.hCoeffs(); }
+  constexpr const HCoeffsType& zCoeffs() const { return m_zCoeffs; }
 
-  CompleteOrthogonalDecompositionImpl& setThreshold(const RealScalar& threshold) {
+  constexpr CompleteOrthogonalDecompositionImpl& setThreshold(const RealScalar& threshold) {
     m_cpqr.setThreshold(threshold);
     return *this;
   }
 
-  CompleteOrthogonalDecompositionImpl& setThreshold(Default_t) {
+  constexpr CompleteOrthogonalDecompositionImpl& setThreshold(Default_t) {
     m_cpqr.setThreshold(Default);
     return *this;
   }
 
-  RealScalar threshold() const { return m_cpqr.threshold(); }
+  constexpr RealScalar threshold() const { return m_cpqr.threshold(); }
 
-  inline Index nonzeroPivots() const { return m_cpqr.nonzeroPivots(); }
-  inline RealScalar maxPivot() const { return m_cpqr.maxPivot(); }
+  constexpr Index nonzeroPivots() const { return m_cpqr.nonzeroPivots(); }
+  constexpr RealScalar maxPivot() const { return m_cpqr.maxPivot(); }
 
-  ComputationInfo info() const {
+  constexpr ComputationInfo info() const {
     eigen_assert(m_cpqr.m_isInitialized && "Decomposition is not initialized.");
     return Success;
   }
@@ -173,30 +173,30 @@ class CompleteOrthogonalDecompositionImpl
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
-  void _solve_impl(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl(const RhsType& rhs, DstType& dst) const;
 
   template <bool Conjugate, typename RhsType, typename DstType>
-  void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
+  constexpr void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const;
 #endif
 
  protected:
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
   template <bool Transpose_, typename Rhs>
-  void _check_solve_assertion(const Rhs& b) const {
+  constexpr void _check_solve_assertion(const Rhs& b) const {
     EIGEN_ONLY_USED_FOR_DEBUG(b);
     eigen_assert(m_cpqr.m_isInitialized && "CompleteOrthogonalDecomposition is not initialized.");
     eigen_assert((Transpose_ ? this->cols() : this->rows()) == b.rows() &&
                  "CompleteOrthogonalDecomposition::solve(): invalid number of rows of the right hand side matrix b");
   }
 
-  void computeInPlace();
+  constexpr void computeInPlace();
 
   template <bool Conjugate, typename Rhs>
-  void applyZOnTheLeftInPlace(Rhs& rhs) const;
+  constexpr void applyZOnTheLeftInPlace(Rhs& rhs) const;
 
   template <typename Rhs>
-  void applyZAdjointOnTheLeftInPlace(Rhs& rhs) const;
+  constexpr void applyZAdjointOnTheLeftInPlace(Rhs& rhs) const;
 
   RankRevealingQRType m_cpqr;
   HCoeffsType m_zCoeffs;
@@ -204,31 +204,31 @@ class CompleteOrthogonalDecompositionImpl
 };
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
-typename MatrixType::Scalar
+constexpr typename MatrixType::Scalar
 CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::determinant() const {
   return m_cpqr.determinant();
 }
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
-typename MatrixType::RealScalar
+constexpr typename MatrixType::RealScalar
 CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::absDeterminant() const {
   return m_cpqr.absDeterminant();
 }
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
-typename MatrixType::RealScalar
+constexpr typename MatrixType::RealScalar
 CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::logAbsDeterminant() const {
   return m_cpqr.logAbsDeterminant();
 }
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
-typename MatrixType::Scalar
+constexpr typename MatrixType::Scalar
 CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::signDeterminant() const {
   return m_cpqr.signDeterminant();
 }
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
-void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::computeInPlace() {
+constexpr void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::computeInPlace() {
   eigen_assert(m_cpqr.cols() <= NumTraits<PermutationIndex>::highest());
 
   const Index rank = m_cpqr.rank();
@@ -277,8 +277,8 @@ void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevea
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
 template <bool Conjugate, typename Rhs>
-void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::applyZOnTheLeftInPlace(
-    Rhs& rhs) const {
+constexpr void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex,
+                                                   RankRevealingQR_>::applyZOnTheLeftInPlace(Rhs& rhs) const {
   const Index cols = this->cols();
   const Index nrhs = rhs.cols();
   const Index rank = this->rank();
@@ -298,8 +298,8 @@ void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevea
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
 template <typename Rhs>
-void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::applyZAdjointOnTheLeftInPlace(
-    Rhs& rhs) const {
+constexpr void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex,
+                                                   RankRevealingQR_>::applyZAdjointOnTheLeftInPlace(Rhs& rhs) const {
   const Index cols = this->cols();
   const Index nrhs = rhs.cols();
   const Index rank = this->rank();
@@ -319,7 +319,7 @@ void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevea
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
 template <typename RhsType, typename DstType>
-void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::_solve_impl(
+constexpr void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::_solve_impl(
     const RhsType& rhs, DstType& dst) const {
   const Index rank = this->rank();
   if (rank == 0) {
@@ -348,8 +348,9 @@ void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevea
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
 template <bool Conjugate, typename RhsType, typename DstType>
-void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::_solve_impl_transposed(
-    const RhsType& rhs, DstType& dst) const {
+constexpr void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex,
+                                                   RankRevealingQR_>::_solve_impl_transposed(const RhsType& rhs,
+                                                                                             DstType& dst) const {
   const Index rank = this->rank();
 
   if (rank == 0) {
@@ -378,7 +379,8 @@ void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevea
 #endif
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
-typename CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::HouseholderSequenceType
+constexpr typename CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex,
+                                                       RankRevealingQR_>::HouseholderSequenceType
 CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::householderQ() const {
   return m_cpqr.householderQ();
 }
@@ -548,8 +550,8 @@ struct Assignment<DstXprType, Inverse<CompleteOrthogonalDecomposition<MatrixType
                   Dense2Dense> {
   typedef CompleteOrthogonalDecomposition<MatrixType, PermutationIndex> CodType;
   typedef Inverse<CodType> SrcXprType;
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
+  static constexpr void run(DstXprType& dst, const SrcXprType& src,
+                            const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
     typedef Matrix<typename CodType::Scalar, CodType::RowsAtCompileTime, CodType::RowsAtCompileTime, 0,
                    CodType::MaxRowsAtCompileTime, CodType::MaxRowsAtCompileTime>
         IdentityMatrixType;
@@ -570,8 +572,8 @@ struct Assignment<DstXprType, Inverse<RandCompleteOrthogonalDecomposition<Matrix
                   Dense2Dense> {
   typedef RandCompleteOrthogonalDecomposition<MatrixType, PermutationIndex> CodType;
   typedef Inverse<CodType> SrcXprType;
-  static void run(DstXprType& dst, const SrcXprType& src,
-                  const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
+  static constexpr void run(DstXprType& dst, const SrcXprType& src,
+                            const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
     typedef Matrix<typename CodType::Scalar, CodType::RowsAtCompileTime, CodType::RowsAtCompileTime, 0,
                    CodType::MaxRowsAtCompileTime, CodType::MaxRowsAtCompileTime>
         IdentityMatrixType;
@@ -587,7 +589,7 @@ struct Assignment<DstXprType, Inverse<RandCompleteOrthogonalDecomposition<Matrix
  */
 template <typename Derived>
 template <typename PermutationIndex>
-CompleteOrthogonalDecomposition<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
+constexpr CompleteOrthogonalDecomposition<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
 MatrixBase<Derived>::completeOrthogonalDecomposition() const {
   return CompleteOrthogonalDecomposition<PlainObject, PermutationIndex>(eval());
 }
