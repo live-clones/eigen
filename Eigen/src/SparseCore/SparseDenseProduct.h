@@ -199,21 +199,97 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     // The fast result pointer path requires contiguous ColMajor result layout.
     // Transpose<ColMajor> reports innerStride()==1 but is actually RowMajor, so check both.
     if (!(Res::Flags & RowMajorBit) && res.innerStride() == 1) {
-      for (Index c = 0; c < rhs.cols(); ++c) {
-        typename Res::Scalar* y = res.data() + c * res.outerStride();
-        for (Index j = 0; j < lhs.outerSize(); ++j) {
-          typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
-          const Index start = outer ? outer[j] : 0;
-          const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
-          Index k = start;
-          // 4-way unrolled scatter-add (no SIMD: writes are scattered)
-          for (; k + 3 < end; k += 4) {
-            y[inds[k]] += vals[k] * rhs_j;
-            y[inds[k + 1]] += vals[k + 1] * rhs_j;
-            y[inds[k + 2]] += vals[k + 2] * rhs_j;
-            y[inds[k + 3]] += vals[k + 3] * rhs_j;
+      typedef typename Res::Scalar ResScalar;
+      const Index m = res.rows();
+      const Index n = lhs.outerSize();
+#ifdef EIGEN_HAS_OPENMP
+      const Index threads = Eigen::nbThreads();
+      // Per-thread scratch + reduction: the natural per-column partition would
+      // race on the output (writes to y[inds[k]] are scattered across rows),
+      // so each thread accumulates into its own m-sized output buffer and the
+      // results are summed at the end. Activated above the same 20000-nnz
+      // threshold as the RowMajor kernel, plus a second gate on per-thread
+      // scratch size: `threads * m` scalars are touched by the reduction,
+      // and on tall / very-sparse matrices that can dwarf the SpMV cost --
+      // require avg nnz per row >= threads so the reduction can't dominate.
+      if (threads > 1 && mat.nonZeros() > 20000 && mat.nonZeros() >= Index(threads) * m) {
+        // Per-calling-thread persistent scratch (per template instantiation).
+        // Grows monotonically; reused across calls. The buffer is left at
+        // all-zeros after each call by folding the zero-out into the reduction
+        // step, which avoids a separate init pass on every SpMV. `thread_local`
+        // is required: two unrelated host threads concurrently calling
+        // y = A*x would otherwise race on this static buffer (and a reallocating
+        // grow on one would dangle the other's scratch_ptr).
+        thread_local static std::vector<ResScalar> scratch_buf;
+        const std::size_t need = static_cast<std::size_t>(threads) * static_cast<std::size_t>(m);
+        if (scratch_buf.size() < need) scratch_buf.assign(need, ResScalar(0));
+        ResScalar* scratch_ptr = scratch_buf.data();
+        // nnz-balanced column partition: each thread t owns the contiguous
+        // column range [part[t], part[t+1]). Deterministic mapping of j to
+        // thread (required for bit-reproducible reduction below) AND
+        // nnz-balanced load (dynamic scheduling would balance but break
+        // determinism; static round-robin would be deterministic but
+        // imbalanced on skewed matrices).
+        std::vector<Index> part(static_cast<std::size_t>(threads) + 1);
+        part[threads] = n;
+        part[0] = 0;
+        for (Index t = 1; t < threads; ++t) {
+          const Index target = (t * mat.nonZeros()) / threads;
+          part[t] = std::lower_bound(outer, outer + n + 1, StorageIndex(target)) - outer;
+        }
+        for (Index c = 0; c < rhs.cols(); ++c) {
+          typename Res::Scalar* y = res.data() + c * res.outerStride();
+#pragma omp parallel for schedule(static, 1) num_threads(threads)
+          for (Index t = 0; t < threads; ++t) {
+            ResScalar* yt = scratch_ptr + t * m;
+            const Index j_lo = part[t], j_hi = part[t + 1];
+            for (Index j = j_lo; j < j_hi; ++j) {
+              typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
+              const Index start = outer ? outer[j] : 0;
+              const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
+              Index k = start;
+              for (; k + 3 < end; k += 4) {
+                yt[inds[k]] += vals[k] * rhs_j;
+                yt[inds[k + 1]] += vals[k + 1] * rhs_j;
+                yt[inds[k + 2]] += vals[k + 2] * rhs_j;
+                yt[inds[k + 3]] += vals[k + 3] * rhs_j;
+              }
+              for (; k < end; ++k) yt[inds[k]] += vals[k] * rhs_j;
+            }
           }
-          for (; k < end; ++k) y[inds[k]] += vals[k] * rhs_j;
+          // Reduce per-thread buffers into y AND zero them, so the next call
+          // doesn't have to re-init. Each thread owns a contiguous row range,
+          // so the zero stores are independent.
+#pragma omp parallel for schedule(static) num_threads(threads)
+          for (Index i = 0; i < m; ++i) {
+            ResScalar s(0);
+            for (Index t = 0; t < threads; ++t) {
+              ResScalar* cell = scratch_ptr + t * m + i;
+              s += *cell;
+              *cell = ResScalar(0);
+            }
+            y[i] += s;
+          }
+        }
+      } else
+#endif
+      {
+        for (Index c = 0; c < rhs.cols(); ++c) {
+          typename Res::Scalar* y = res.data() + c * res.outerStride();
+          for (Index j = 0; j < n; ++j) {
+            typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
+            const Index start = outer ? outer[j] : 0;
+            const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
+            Index k = start;
+            // 4-way unrolled scatter-add (no SIMD: writes are scattered)
+            for (; k + 3 < end; k += 4) {
+              y[inds[k]] += vals[k] * rhs_j;
+              y[inds[k + 1]] += vals[k + 1] * rhs_j;
+              y[inds[k + 2]] += vals[k + 2] * rhs_j;
+              y[inds[k + 3]] += vals[k + 3] * rhs_j;
+            }
+            for (; k < end; ++k) y[inds[k]] += vals[k] * rhs_j;
+          }
         }
       }
     } else {
