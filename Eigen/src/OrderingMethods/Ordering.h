@@ -111,8 +111,13 @@ class COLAMDOrdering {
         internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);
     const StorageIndex m = internal::convert_index<StorageIndex>(pat.innerSize);
     const StorageIndex n = internal::convert_index<StorageIndex>(pat.outerSize);
-    StorageIndex nnz = 0;
-    for (Index j = 0; j < pat.outerSize; ++j) nnz += internal::convert_index<StorageIndex>(pat.nonZeros(j));
+    // Accumulate in Index — Eigen's contract is that any valid nnz fits there
+    // (mat.nonZeros() returns Index), so the sum can't overflow. One
+    // bounds-checked narrow to StorageIndex at the end catches the only real
+    // overflow case (total > StorageIndex range).
+    Index total_nnz = 0;
+    for (Index j = 0; j < pat.outerSize; ++j) total_nnz += pat.nonZeros(j);
+    const StorageIndex nnz = internal::convert_index<StorageIndex>(total_nnz);
 
     StorageIndex Alen = internal::Colamd::recommended(nnz, m, n);
     double knobs[internal::Colamd::NKnobs];
@@ -128,7 +133,7 @@ class COLAMDOrdering {
       const Index nz = pat.nonZeros(j);
       const MatrixStorageIndex* src = pat.inner + pat.outer[j];
       copy_colamd_indices(src, nz, A.data() + p(j), std::is_same<MatrixStorageIndex, StorageIndex>());
-      p(j + 1) = p(j) + internal::convert_index<StorageIndex>(nz);
+      p(j + 1) = p(j) + static_cast<StorageIndex>(nz);
     }
 
     StorageIndex info = internal::Colamd::compute_ordering(m, n, Alen, A.data(), p.data(), knobs, stats);
