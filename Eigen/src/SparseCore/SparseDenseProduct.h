@@ -212,7 +212,9 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
       // scratch size: `threads * m` scalars are touched by the reduction,
       // and on tall / very-sparse matrices that can dwarf the SpMV cost --
       // require avg nnz per row >= threads so the reduction can't dominate.
-      if (threads > 1 && mat.nonZeros() > 20000 && mat.nonZeros() >= Index(threads) * m) {
+      // `outer` is null for SparseVector lhs; the nnz-balanced partition needs
+      // the outer-index array, so fall back to the serial scatter below.
+      if (outer && threads > 1 && mat.nonZeros() > 20000 && mat.nonZeros() >= Index(threads) * m) {
         // Per-calling-thread persistent scratch (per template instantiation).
         // Grows monotonically; reused across calls. The buffer is left at
         // all-zeros after each call by folding the zero-out into the reduction

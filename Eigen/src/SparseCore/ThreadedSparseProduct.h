@@ -236,8 +236,11 @@ class ThreadedSparseProduct {
     }
     // The kernel reads x and writes y concurrently across threads; aliasing
     // (x and y overlap) would mis-compute because some x[k] reads see y
-    // writes from the same SpMV call. Cheap pointer-range check.
-    eigen_assert((x.data() + x.size() <= y.data() || y.data() + y.size() <= x.data()) &&
+    // writes from the same SpMV call. Cheap address-range check; cast to
+    // uintptr_t because comparing pointers from unrelated allocations is
+    // technically UB in C++.
+    eigen_assert((x.size() == 0 || y.size() == 0 || std::uintptr_t(x.data() + x.size()) <= std::uintptr_t(y.data()) ||
+                  std::uintptr_t(y.data() + y.size()) <= std::uintptr_t(x.data())) &&
                  "ThreadedSparseProduct: x and y must not overlap");
     // Decide which storage to read from.
     //   Forward kernel iterates a RowMajor view of A; adjoint kernel iterates
@@ -265,7 +268,16 @@ class ThreadedSparseProduct {
   void run(const Scalar* vals, const StorageIndex* inner, const StorageIndex* outer, const StorageIndex* innerNnz,
            Index outerSize, const std::vector<Index>& part, const ConstVectorRef& x, MutableVectorRef& y,
            const Scalar& alpha) const {
+    // OpenMP path doesn't use the cached partition (dynamic scheduling balances
+    // itself), so derive T fresh from the current Eigen::nbThreads() /
+    // OMP_NUM_THREADS at apply time -- otherwise `setNbThreads()` after
+    // analyzePattern() would be silently ignored. The ThreadPool path is
+    // bound to the partition built for a specific T at analyzePattern() time.
+#ifdef EIGEN_HAS_OPENMP
+    const int T = target_thread_count();
+#else
     const int T = static_cast<int>(part.size()) - 1;
+#endif
     const Index total_nnz = m_mat->nonZeros();
     // Ref construction already enforced unit inner stride for x/y.
     const Scalar* xp = x.data();
@@ -280,9 +292,7 @@ class ThreadedSparseProduct {
     // Prefer OpenMP for dispatch when available. Use dynamic scheduling
     // over rows with chunks sized so the OMP runtime gets ~4*T chunks to
     // distribute -- enough granularity to absorb residual nnz imbalance
-    // without blowing dispatch overhead. The pre-computed partition isn't
-    // useful here because dynamic scheduling self-balances; we keep it for
-    // the non-OMP path.
+    // without blowing dispatch overhead.
     const Index chunk = numext::maxi<Index>(Index(1), (outerSize + Index(T) * 4 - 1) / (Index(T) * 4));
 #pragma omp parallel for schedule(dynamic, chunk) num_threads(T)
     for (Index i = 0; i < outerSize; ++i) {
