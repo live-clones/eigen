@@ -8,6 +8,7 @@
 #include <Eigen/SparseCore>
 
 #include <random>
+#include <set>
 
 using namespace Eigen;
 
@@ -131,6 +132,11 @@ static void BM_Threaded_Forward(benchmark::State& state) {
   const MatrixKind kind = static_cast<MatrixKind>(state.range(0));
   const int n = static_cast<int>(state.range(1));
   const int threads = static_cast<int>(state.range(2));
+  // Make OpenMP team size match the requested thread count: under
+  // EIGEN_HAS_OPENMP the operator launches `omp parallel for num_threads(T)`
+  // where T = Eigen::nbThreads(), not the pool's size. Otherwise the
+  // reported "T" counter would not match the actual parallelism.
+  Eigen::setNbThreads(threads);
   SpMat A = make_matrix<SpMat>(kind, n);
   ThreadPool pool(threads);
   ThreadedSparseProduct<SpMat> op(A, &pool);
@@ -152,6 +158,11 @@ static void BM_Threaded_Adjoint(benchmark::State& state) {
   const MatrixKind kind = static_cast<MatrixKind>(state.range(0));
   const int n = static_cast<int>(state.range(1));
   const int threads = static_cast<int>(state.range(2));
+  // Make OpenMP team size match the requested thread count: under
+  // EIGEN_HAS_OPENMP the operator launches `omp parallel for num_threads(T)`
+  // where T = Eigen::nbThreads(), not the pool's size. Otherwise the
+  // reported "T" counter would not match the actual parallelism.
+  Eigen::setNbThreads(threads);
   SpMat A = make_matrix<SpMat>(kind, n);
   ThreadPool pool(threads);
   ThreadedSparseProduct<SpMat> op(A, &pool);
@@ -193,7 +204,9 @@ BENCHMARK_TEMPLATE(BM_Baseline_Forward, SpMatRowMajor)->Apply(BaselineArgs);
 BENCHMARK_TEMPLATE(BM_Baseline_Forward, SpMatColMajor)->Apply(BaselineArgs);
 BENCHMARK_TEMPLATE(BM_Baseline_Adjoint, SpMatRowMajor)->Apply(BaselineArgs);
 BENCHMARK_TEMPLATE(BM_Baseline_Adjoint, SpMatColMajor)->Apply(BaselineArgs);
-BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatRowMajor)->Apply(ThreadedArgs);
-BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatColMajor)->Apply(ThreadedArgs);
-BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatRowMajor)->Apply(ThreadedArgs);
-BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatColMajor)->Apply(ThreadedArgs);
+// Threaded benchmarks measure wall-clock latency: Google Benchmark's default
+// CPU-time mode sums across worker threads and would hide actual speedup.
+BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatRowMajor)->Apply(ThreadedArgs)->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatColMajor)->Apply(ThreadedArgs)->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatRowMajor)->Apply(ThreadedArgs)->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatColMajor)->Apply(ThreadedArgs)->UseRealTime();
