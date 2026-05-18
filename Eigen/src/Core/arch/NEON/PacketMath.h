@@ -6204,7 +6204,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pdiv(const Packet4hf& a, const P
   return vcvt_f16_f32(pdiv(vcvt_f32_f16(a), vcvt_f32_f16(b)));
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf name(const Packet8hf& a, const Packet8hf& b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pdiv(const Packet8hf& a, const Packet8hf& b) {
   return vcombine_f16(pdiv(vget_low_f16(a), vget_low_f16(b)), pdiv(vget_high_f16(a), vget_high_f16(b)));
 }
 #endif
