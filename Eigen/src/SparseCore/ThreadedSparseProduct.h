@@ -27,22 +27,24 @@ inline ThreadPool& default_threaded_sparse_pool() {
 // chunks. boundaries[t] = first outer index owned by partition t;
 // boundaries[T] = outerSize.
 //
-// The split uses std::lower_bound on the outer-index array. Each chunk's nnz
-// count differs from the ideal by at most max_nnz_per_outer.
+// The split uses std::lower_bound on the outer-index array. Targets are
+// monotonically increasing in t, so each search starts from the previous
+// boundary; total work is bounded by O(T + log outerSize) rather than
+// T * log(outerSize). Each chunk's nnz count differs from the ideal by at
+// most max_nnz_per_outer.
 template <typename StorageIndex>
 inline void compute_nnz_balanced_partition(const StorageIndex* outer, Index outerSize, Index total_nnz, int T,
                                            std::vector<Index>& boundaries) {
   boundaries.assign(T + 1, 0);
   boundaries[T] = outerSize;
   if (T <= 1 || outerSize == 0 || total_nnz == 0) return;
+  const StorageIndex* const last = outer + outerSize + 1;
+  const StorageIndex* lo = outer;
   for (int t = 1; t < T; ++t) {
     Index target = (static_cast<Index>(t) * total_nnz) / T;
-    boundaries[t] = std::lower_bound(outer, outer + outerSize + 1, static_cast<StorageIndex>(target)) - outer;
+    lo = std::lower_bound(lo, last, static_cast<StorageIndex>(target));
+    boundaries[t] = lo - outer;
   }
-  // Force monotonic non-decreasing (defensive; lower_bound on a non-decreasing
-  // array is already monotonic, but cheap to guarantee).
-  for (int t = 1; t <= T; ++t)
-    if (boundaries[t] < boundaries[t - 1]) boundaries[t] = boundaries[t - 1];
 }
 
 // Single-row dot-product kernel. Used as the body of a per-row OpenMP
