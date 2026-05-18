@@ -233,9 +233,15 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
         std::vector<Index> part(static_cast<std::size_t>(threads) + 1);
         part[threads] = n;
         part[0] = 0;
+        // Targets are monotonically increasing in t, so each lower_bound starts
+        // from the previous result; total work is O(T + log n) rather than
+        // T * log n.
+        const StorageIndex* const part_last = outer + n + 1;
+        const StorageIndex* part_lo = outer;
         for (Index t = 1; t < threads; ++t) {
           const Index target = (t * mat.nonZeros()) / threads;
-          part[t] = std::lower_bound(outer, outer + n + 1, StorageIndex(target)) - outer;
+          part_lo = std::lower_bound(part_lo, part_last, StorageIndex(target));
+          part[t] = part_lo - outer;
         }
         for (Index c = 0; c < rhs.cols(); ++c) {
           typename Res::Scalar* y = res.data() + c * res.outerStride();
