@@ -6538,7 +6538,21 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psignbit(const Packet4hf& a) {
   return vreinterpret_f16_s16(vshr_n_s16(vreinterpret_s16_f16(a), 15));
 }
 
-#define EIGEN_MAKE_HALF_REDUX(name, op)                                                                      \
+// NOTE: On AArch64, we can use horizontal vector reductions for `add`, `min`, and `max`.
+// However, the fallback through `predux<Packet${N}f>` is still necessary for `mul`.
+#define EIGEN_HALF_FOLD_REDUX(name, op)                                                      \
+  template <>                                                                                \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half name(const Packet4hf& a) {                      \
+    return half(name(vcvt_f32_f16(a)));                                                      \
+  }                                                                                          \
+  template <>                                                                                \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half name(const Packet8hf& a) {                      \
+    return half(name(p##op(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a))))); \
+  }                                                                                          \
+  static_assert(true, "Trailing semicolon required")
+
+#if EIGEN_ARCH_ARM64
+#define EIGEN_HALF_HORIZONTAL_REDUX(name, op)                                                                \
   template <>                                                                                                \
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half name(const Packet8hf& a) {                                      \
     return half(v##op##vq_f32(v##op##q_f32(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a))))); \
@@ -6548,20 +6562,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf psignbit(const Packet4hf& a) {
     return half(v##op##vq_f32(vcvt_f32_f16(a)));                                                             \
   }                                                                                                          \
   static_assert(true, "Trailing semicolon required")
+#else
+#define EIGEN_HALF_HORIZONTAL_REDUX(name, op) EIGEN_HALF_FOLD_REDUX(name, op)
+#endif
 
-EIGEN_MAKE_HALF_REDUX(predux, add);
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_mul(const Packet4hf& a) {
-  return half(predux_mul(vcvt_f32_f16(a)));
-}
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half predux_mul(const Packet8hf& a) {
-  return half(predux_mul<Packet4f>(pmul(vcvt_f32_f16(vget_low_f16(a)), vcvt_f32_f16(vget_high_f16(a)))));
-}
-
-EIGEN_MAKE_HALF_REDUX(predux_min, min);
-EIGEN_MAKE_HALF_REDUX(predux_max, max);
+EIGEN_HALF_HORIZONTAL_REDUX(predux, add);
+EIGEN_HALF_FOLD_REDUX(predux_mul, mul);
+EIGEN_HALF_HORIZONTAL_REDUX(predux_min, min);
+EIGEN_HALF_HORIZONTAL_REDUX(predux_max, max);
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet8hf& a) {
@@ -6571,8 +6579,6 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet4hf& a) {
   return vget_lane_u64(vreinterpret_u64_f16(a), 0);
 }
-
-#undef EIGEN_MAKE_HALF_REDUX
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 4>& kernel) {
   const float16x8x2_t zip16_1 = vzipq_f16(kernel.packet[0], kernel.packet[1]);
