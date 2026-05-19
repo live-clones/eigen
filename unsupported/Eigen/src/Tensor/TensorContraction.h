@@ -736,8 +736,8 @@ struct TensorContractionEvaluatorBase {
     using RightEvaluator = TensorEvaluator<EvalRightArgType, Device>;
     const int lhs_packet_size = internal::unpacket_traits<typename LeftEvaluator::PacketReturnType>::size;
     const int rhs_packet_size = internal::unpacket_traits<typename RightEvaluator::PacketReturnType>::size;
-    const int lhs_alignment = LeftEvaluator::IsAligned ? Aligned : Unaligned;
-    const int rhs_alignment = RightEvaluator::IsAligned ? Aligned : Unaligned;
+    constexpr int lhs_alignment = LeftEvaluator::IsAligned ? Aligned : Unaligned;
+    constexpr int rhs_alignment = RightEvaluator::IsAligned ? Aligned : Unaligned;
     using LhsMapper = internal::TensorContractionInputMapper<LhsScalar, Index, internal::Lhs, LeftEvaluator,
                                                              left_nocontract_t, contract_t, lhs_packet_size,
                                                              lhs_inner_dim_contiguous, false, lhs_alignment>;

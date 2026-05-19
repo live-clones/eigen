@@ -1613,7 +1613,7 @@ struct incbeta_cfe {
     Scalar ans;
     int n;
 
-    const int num_iters = (std::is_same<Scalar, float>::value) ? 100 : 300;
+    constexpr int num_iters = (std::is_same<Scalar, float>::value) ? 100 : 300;
     const Scalar thresh = (std::is_same<Scalar, float>::value) ? machep : Scalar(3) * machep;
     Scalar r = (std::is_same<Scalar, float>::value) ? zero : one;
 
