@@ -127,8 +127,9 @@ struct GpuSolverContext {
     return *this;
   }
 
-  /** cuBLASLt handle (lazy-initialized on first GEMM-via-cublasLt call). */
-  cublasLtHandle_t cublas_lt_handle() {
+  /** cuBLASLt handle (lazy-initialized on first GEMM-via-cublasLt call).
+   * Matches the camelCase accessor on gpu::Context for consistency. */
+  cublasLtHandle_t cublasLtHandle() {
     if (!cublas_lt_) {
       EIGEN_CUBLAS_CHECK(cublasLtCreate(&cublas_lt_));
     }

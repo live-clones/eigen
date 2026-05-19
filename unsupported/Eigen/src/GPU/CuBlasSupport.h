@@ -23,6 +23,7 @@
 #include "./GpuSupport.h"
 #include <cublas_v2.h>
 #include <cublasLt.h>
+#include <climits>
 #include <cstring>
 
 namespace Eigen {
@@ -206,6 +207,14 @@ class CublasLtPlanCache {
                             int64_t ldc, cudaDataType_t dtype, cublasComputeType_t compute, cudaDataType_t alpha_type,
                             cublasOperation_t transA, cublasOperation_t transB) {
     // Evict oldest if full.
+    //
+    // The shift is a bitwise copy that conceptually transfers descriptor
+    // ownership leftward — entries_[size_-1] is then a stale alias of
+    // entries_[size_-2]. We rely on the immediately following insert to
+    // overwrite that stale alias's pointer fields via cublasLtMatmulDescCreate
+    // / cublasLtMatrixLayoutCreate. Do not insert any code between the shift
+    // and the overwrite that observes the stale slot, or it will see a
+    // double-owned descriptor.
     if (size_ >= kMaxEntries) {
       destroy_entry(entries_[0]);
       for (int i = 1; i < size_; ++i) entries_[i - 1] = entries_[i];
@@ -322,6 +331,9 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
                                         needed, stream));
   } else {
     // Fallback: cublasGemmEx for shapes/types that cublasLt cannot handle.
+    // cublasGemmEx takes int dimensions; cublaslt_gemm itself supports int64_t.
+    eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
+                 "cublasGemmEx fallback: dimensions exceed int range");
     EIGEN_CUBLAS_CHECK(cublasGemmEx(cublas_handle, transA, transB, static_cast<int>(m), static_cast<int>(n),
                                     static_cast<int>(k), alpha, A, dtype, static_cast<int>(lda), B, dtype,
                                     static_cast<int>(ldb), beta, C, dtype, static_cast<int>(ldc), compute,
