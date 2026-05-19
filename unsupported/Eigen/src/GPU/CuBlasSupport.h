@@ -157,9 +157,7 @@ struct CublasLtPlanKey {
 struct CublasLtPlanKeyHash {
   std::size_t operator()(const CublasLtPlanKey& k) const noexcept {
     // boost-style hash_combine: mix each field into the rolling hash.
-    auto mix = [](std::size_t a, std::size_t b) {
-      return a ^ (b + 0x9e3779b97f4a7c15ULL + (a << 6) + (a >> 2));
-    };
+    auto mix = [](std::size_t a, std::size_t b) { return a ^ (b + 0x9e3779b97f4a7c15ULL + (a << 6) + (a >> 2)); };
     std::size_t r = std::hash<int64_t>{}(k.m);
     r = mix(r, std::hash<int64_t>{}(k.n));
     r = mix(r, std::hash<int64_t>{}(k.k));
@@ -185,10 +183,10 @@ class CublasLtPlanEntry {
   CublasLtPlanEntry(cublasLtHandle_t lt_handle, const CublasLtPlanKey& key, cublasComputeType_t compute,
                     cudaDataType_t alpha_type) {
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(&matmul_desc, compute, alpha_type));
-    EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &key.transA,
-                                                        sizeof(key.transA)));
-    EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSB, &key.transB,
-                                                        sizeof(key.transB)));
+    EIGEN_CUBLASLT_CHECK(
+        cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &key.transA, sizeof(key.transA)));
+    EIGEN_CUBLASLT_CHECK(
+        cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSB, &key.transB, sizeof(key.transB)));
 
     // Layout dimensions are the physical (rows, cols) of the column-major operand;
     // the leading dimension is the actual stride between columns (lda/ldb/ldc),
@@ -209,9 +207,8 @@ class CublasLtPlanEntry {
 
     cublasLtMatmulHeuristicResult_t result;
     int returned_results = 0;
-    cublasStatus_t heuristic_status =
-        cublasLtMatmulAlgoGetHeuristic(lt_handle, matmul_desc, layout_A, layout_B, layout_C, layout_C, preference, 1,
-                                       &result, &returned_results);
+    cublasStatus_t heuristic_status = cublasLtMatmulAlgoGetHeuristic(
+        lt_handle, matmul_desc, layout_A, layout_B, layout_C, layout_C, preference, 1, &result, &returned_results);
 
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceDestroy(preference));
 
