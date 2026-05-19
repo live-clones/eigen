@@ -209,8 +209,8 @@ class CublasLtPlanEntry {
 
     cublasLtMatmulPreference_t preference = nullptr;
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceCreate(&preference));
-    EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceSetAttribute(
-        preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &max_workspace_bytes, sizeof(max_workspace_bytes)));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                                              &max_workspace_bytes, sizeof(max_workspace_bytes)));
 
     cublasLtMatmulHeuristicResult_t result;
     int returned_results = 0;
@@ -221,8 +221,7 @@ class CublasLtPlanEntry {
 
     // cublasLtMatmulAlgoGetHeuristic can return CUBLAS_STATUS_SUCCESS overall while
     // marking individual results NOT_SUPPORTED via result.state, so gate on both.
-    if (heuristic_status == CUBLAS_STATUS_SUCCESS && returned_results > 0 &&
-        result.state == CUBLAS_STATUS_SUCCESS) {
+    if (heuristic_status == CUBLAS_STATUS_SUCCESS && returned_results > 0 && result.state == CUBLAS_STATUS_SUCCESS) {
       algo = result.algo;
       workspace_size = result.workspaceSize;
       use_cublaslt = true;
