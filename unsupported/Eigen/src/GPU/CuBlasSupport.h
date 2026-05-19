@@ -277,7 +277,11 @@ class CublasLtPlanCache {
   }
 
  private:
-  CublasLtPlanEntry entries_[kMaxEntries];
+  // Value-initialize so destroy_entry() sees null handles in any slot that an
+  // earlier insert() abandoned mid-construction (e.g., if cublasLt*Create
+  // fired an EIGEN_CUBLASLT_CHECK assertion that was compiled away in
+  // EIGEN_NO_DEBUG builds).
+  CublasLtPlanEntry entries_[kMaxEntries] = {};
   int size_ = 0;
 
   static void destroy_entry(CublasLtPlanEntry& e) {

@@ -112,8 +112,12 @@ static void BM_Raw_CublasGemmEx(benchmark::State& state) {
   if (cudaDeviceSynchronize() != cudaSuccess) abort();
 
   for (auto _ : state) {
-    cublasGemmEx(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, ni, ni, ni, &alpha, d_A.data(), dtype, ni, d_B.data(),
-                 dtype, ni, &beta, d_C.data(), dtype, ni, compute, algo);
+    cublasStatus_t s = cublasGemmEx(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, ni, ni, ni, &alpha, d_A.data(), dtype,
+                                    ni, d_B.data(), dtype, ni, &beta, d_C.data(), dtype, ni, compute, algo);
+    if (s != CUBLAS_STATUS_SUCCESS) {
+      state.SkipWithError("cublasGemmEx failed");
+      return;
+    }
     if (cudaDeviceSynchronize() != cudaSuccess) abort();
   }
 
