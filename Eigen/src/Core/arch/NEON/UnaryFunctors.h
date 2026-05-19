@@ -39,7 +39,7 @@ struct scalar_logistic_op<Eigen::half> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf packetOp(const Packet8hf& x) const {
     const scalar_logistic_op<float> float_op;
     return vcombine_f16(vcvt_f16_f32(float_op.packetOp(vcvt_f32_f16(vget_low_f16(x)))),
-                        vcvt_f16_f32(float_op.packetOp(vcvt_high_f32_f16(x))));
+                        vcvt_f16_f32(float_op.packetOp(vcvt_f32_f16(vget_high_f16(x)))));
   }
 };
 
