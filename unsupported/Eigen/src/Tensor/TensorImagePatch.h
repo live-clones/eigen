@@ -361,7 +361,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
 
     // Compute the remainder within the patch once, then derive both
     // patchOffset and depth from it without an extra division.
-    const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+    constexpr int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
     const Index patchRemainder = index - otherIndex * m_otherStride - patch2DIndex * m_patchStride;
     const Index patchOffset = patchRemainder / m_fastOutputDepth;
     const Index depth = patchRemainder - patchOffset * m_dimensions[depth_index];
@@ -397,7 +397,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
-    const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+    constexpr int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
     const Index lastIdx = index + PacketSize - 1;
 
     // Decompose index into (otherIndex, patch2DIndex, patchRemainder).

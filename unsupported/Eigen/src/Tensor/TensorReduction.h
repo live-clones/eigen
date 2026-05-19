@@ -835,7 +835,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       }
     } else if (PreservingInnerMostDims) {
       const Index firstIndex = firstInput(index);
-      const int innermost_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumOutputDims - 1;
+      constexpr int innermost_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumOutputDims - 1;
       // TBD: extend this to the n innermost dimensions that we preserve.
       if (((firstIndex % m_dimensions[innermost_dim]) + PacketSize - 1) < m_dimensions[innermost_dim]) {
         Op reducer(m_reducer);

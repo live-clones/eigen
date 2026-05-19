@@ -195,7 +195,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
     if (vectorized) {
       compute_cost *= 2;  // packet() computes two indices
     }
-    const int innerDim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : (NumDims - 1);
+    constexpr int innerDim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : (NumDims - 1);
     return m_impl.costPerCoeff(vectorized && m_inputStrides[innerDim] == 1) +
            // Computation is not vectorized per se, but it is done once per packet.
            TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);

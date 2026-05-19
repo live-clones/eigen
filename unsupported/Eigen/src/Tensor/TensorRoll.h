@@ -252,7 +252,7 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
     const typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
     CoeffReturnType* block_buffer = block_storage.data();
 
-    static const int inner_dim = is_col_major ? 0 : NumDims - 1;
+    static constexpr int inner_dim = is_col_major ? 0 : NumDims - 1;
     const Index inner_dim_size = it[0].size;
 
     while (it[NumDims - 1].count < it[NumDims - 1].size) {

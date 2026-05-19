@@ -423,7 +423,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       return Scalar(m_paddingValue);
     }
 
-    const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+    constexpr int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
     const Index depth = index - (index / m_fastOutputDepth) * m_dimensions[depth_index];
 
     const Index inputIndex = depth + origInputRow * m_rowInputStride + origInputCol * m_colInputStride +
@@ -502,7 +502,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
 
     if (inputPlanes[0] >= 0 && inputPlanes[1] < m_inputPlanes) {
       // no padding
-      const int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+      constexpr int depth_index = static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
       const Index depth = index - (index / m_fastOutputDepth) * m_dimensions[depth_index];
       const Index inputIndex = depth + inputRows[0] * m_rowInputStride + inputCols[0] * m_colInputStride +
                                m_planeInputStride * inputPlanes[0] + otherIndex * m_otherInputStride;
