@@ -21,7 +21,6 @@
 #include "./InternalHeaderCheck.h"
 
 #include "./GpuSupport.h"
-#include <Eigen/src/Core/util/LruCache.h>
 #include <cublas_v2.h>
 #include <cublasLt.h>
 #include <climits>
