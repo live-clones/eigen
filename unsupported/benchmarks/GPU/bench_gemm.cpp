@@ -9,6 +9,8 @@
 //
 // Profiling:
 //   nsys profile --trace=cuda ./build-bench-gpu/bench_gemm
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 
