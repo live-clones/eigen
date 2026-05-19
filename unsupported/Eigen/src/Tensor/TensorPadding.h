@@ -225,7 +225,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     }
 
     static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
-    const int inner_dim_idx = IsColMajor ? 0 : NumDims - 1;
+    constexpr int inner_dim_idx = IsColMajor ? 0 : NumDims - 1;
 
     Index offset = desc.offset();
 
@@ -342,7 +342,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
                                 // and equal to the block inner dimension
                                 (input_inner_dim_size == output_inner_dim_size);
 
-    const int squeeze_dim = IsColMajor ? inner_dim_idx + 1 : inner_dim_idx - 1;
+    constexpr int squeeze_dim = IsColMajor ? inner_dim_idx + 1 : inner_dim_idx - 1;
 
     // Maximum coordinate on a squeeze dimension that we can write to.
     const Index squeeze_max_coord =

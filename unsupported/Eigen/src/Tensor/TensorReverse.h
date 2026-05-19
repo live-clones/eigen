@@ -230,7 +230,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
     // access into the underlying tensor expression.
     static const bool isColMajor = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
-    static const Index inner_dim_idx = isColMajor ? 0 : NumDims - 1;
+    static constexpr Index inner_dim_idx = isColMajor ? 0 : NumDims - 1;
     const bool inner_dim_reversed = m_reverse[inner_dim_idx];
 
     // Offset in the output block.

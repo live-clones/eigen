@@ -288,7 +288,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     const Dimensions& left_dims = m_leftImpl.dimensions();
     const Index left_axis_size = left_dims[m_axis];
 
-    const int innermost = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    constexpr int innermost = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
     bool packet_in_single_inner_row = true;
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < NumDims; ++i) {

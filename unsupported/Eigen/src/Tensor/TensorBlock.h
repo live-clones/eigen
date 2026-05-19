@@ -1200,7 +1200,7 @@ class TensorBlockIO {
     IndexType input_stride = NumDims == 0 ? 1 : src.strides[src_dim_for_dst_stride1_dim];
     IndexType output_stride = NumDims == 0 ? 1 : dst.strides[dst_stride1_dim];
 
-    const int at_least_1_dim = NumDims <= 1 ? 1 : NumDims - 1;
+    constexpr int at_least_1_dim = NumDims <= 1 ? 1 : NumDims - 1;
     array<BlockIteratorState, at_least_1_dim> it;
 
     // Initialize block iterator state. Squeeze away any dimension of size 1.
@@ -1395,7 +1395,7 @@ class TensorBlockAssignment {
 
     // Initialize output inner dimension size based on a layout.
     const IndexType output_size = NumDims == 0 ? 1 : target.dims.TotalSize();
-    const int inner_dim_idx = is_col_major ? 0 : NumDims - 1;
+    constexpr int inner_dim_idx = is_col_major ? 0 : NumDims - 1;
     IndexType output_inner_dim_size = target.dims[inner_dim_idx];
 
     // Target inner dimension stride must be '1'.
