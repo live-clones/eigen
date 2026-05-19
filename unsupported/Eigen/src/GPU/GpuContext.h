@@ -70,6 +70,8 @@ class Context {
     // never call cusolverHandle() / cusparseHandle() (e.g. the cufft test).
     if (cusparse_destroyer_) (void)cusparse_destroyer_(cusparse_);
     if (cusolver_destroyer_) (void)cusolver_destroyer_(cusolver_);
+    // Release plan-cache descriptors before tearing down the cuBLASLt handle.
+    gemm_plan_cache_.clear();
     if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
     if (cublas_) (void)cublasDestroy(cublas_);
     if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
@@ -130,6 +132,10 @@ class Context {
    * Not thread-safe — all GEMM calls must be on this context's stream. */
   internal::DeviceBuffer* gemmWorkspace() const { return &gemm_workspace_; }
 
+  /** Plan cache for cublasLtMatmul (caches descriptors and selected algorithm
+   * by shape to avoid per-call overhead). Same thread-safety as workspace. */
+  internal::CublasLtPlanCache* gemmPlanCache() const { return &gemm_plan_cache_; }
+
   /** cuSPARSE handle (lazy-initialized on first call). */
   cusparseHandle_t cusparseHandle() const {
     if (!cusparse_) {
@@ -155,7 +161,8 @@ class Context {
   mutable cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
   mutable cusparseHandle_t cusparse_ = nullptr;   // lazy
   mutable cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
-  mutable internal::DeviceBuffer gemm_workspace_;  // lazy
+  mutable internal::DeviceBuffer gemm_workspace_;        // lazy
+  mutable internal::CublasLtPlanCache gemm_plan_cache_;  // lazy
   bool owns_stream_ = true;
 
   static Context*& tl_override_ptr() {
