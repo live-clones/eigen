@@ -161,8 +161,8 @@ class Context {
   mutable cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
   mutable cusparseHandle_t cusparse_ = nullptr;   // lazy
   mutable cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
-  mutable internal::DeviceBuffer gemm_workspace_;        // lazy
-  mutable internal::CublasLtPlanCache gemm_plan_cache_;  // lazy
+  mutable internal::DeviceBuffer gemm_workspace_;  // lazy
+  mutable internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
   bool owns_stream_ = true;
 
   static Context*& tl_override_ptr() {

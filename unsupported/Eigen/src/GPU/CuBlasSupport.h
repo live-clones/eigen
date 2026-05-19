@@ -21,10 +21,12 @@
 #include "./InternalHeaderCheck.h"
 
 #include "./GpuSupport.h"
+#include <Eigen/src/Core/util/LruCache.h>
 #include <cublas_v2.h>
 #include <cublasLt.h>
 #include <climits>
 #include <cstring>
+#include <utility>
 
 namespace Eigen {
 namespace gpu {
@@ -134,165 +136,146 @@ constexpr cublasGemmAlgo_t cuda_gemm_algo() {
 // Eliminates per-call descriptor creation and heuristic lookup overhead, which
 // can be 5-35% of total time for small/medium matrices.
 //
-// The cache uses a small fixed-size array with linear scan. GEMM shapes in
-// typical workloads (CG iteration, chained solves) have very low cardinality
-// (usually 1-3 distinct shapes), so a simple array beats a hash map.
+// Backed by Eigen::internal::LruCache. GEMM shapes in typical workloads (CG
+// iteration, chained solves) have very low cardinality (usually 1-3 distinct
+// shapes), so the cache is small.
 
-struct CublasLtPlanEntry {
+static constexpr std::size_t kCublasLtPlanCacheCapacity = 8;
+
+struct CublasLtPlanKey {
   int64_t m, n, k;
   int64_t lda, ldb, ldc;
   cudaDataType_t dtype;
   cublasOperation_t transA, transB;
 
-  cublasLtMatmulDesc_t matmul_desc;
-  cublasLtMatrixLayout_t layout_A, layout_B, layout_C;
-  cublasLtMatmulAlgo_t algo;
-  size_t workspace_size;
-  bool use_cublaslt;  // false → cublasGemmEx fallback
+  bool operator==(const CublasLtPlanKey& o) const {
+    return m == o.m && n == o.n && k == o.k && lda == o.lda && ldb == o.ldb && ldc == o.ldc && dtype == o.dtype &&
+           transA == o.transA && transB == o.transB;
+  }
 };
 
-class CublasLtPlanCache {
+struct CublasLtPlanKeyHash {
+  std::size_t operator()(const CublasLtPlanKey& k) const noexcept {
+    // boost-style hash_combine: mix each field into the rolling hash.
+    auto mix = [](std::size_t a, std::size_t b) {
+      return a ^ (b + 0x9e3779b97f4a7c15ULL + (a << 6) + (a >> 2));
+    };
+    std::size_t r = std::hash<int64_t>{}(k.m);
+    r = mix(r, std::hash<int64_t>{}(k.n));
+    r = mix(r, std::hash<int64_t>{}(k.k));
+    r = mix(r, std::hash<int64_t>{}(k.lda));
+    r = mix(r, std::hash<int64_t>{}(k.ldb));
+    r = mix(r, std::hash<int64_t>{}(k.ldc));
+    r = mix(r, std::hash<int>{}(static_cast<int>(k.dtype)));
+    r = mix(r, std::hash<int>{}(static_cast<int>(k.transA)));
+    r = mix(r, std::hash<int>{}(static_cast<int>(k.transB)));
+    return r;
+  }
+};
+
+// Move-only RAII wrapper for a cached cuBLASLt matmul plan: the descriptor,
+// three matrix layouts, and the heuristic-selected algorithm. Destruction
+// destroys all cuBLASLt handles, so the cache can manage entry lifetime via
+// LruCache's eviction.
+class CublasLtPlanEntry {
  public:
-  static constexpr int kMaxEntries = 8;
-
-  CublasLtPlanCache() = default;
-  ~CublasLtPlanCache() { clear(); }
-
-  // Non-copyable; movable so containing types (e.g. GpuSolverContext) can be moved.
-  CublasLtPlanCache(const CublasLtPlanCache&) = delete;
-  CublasLtPlanCache& operator=(const CublasLtPlanCache&) = delete;
-
-  CublasLtPlanCache(CublasLtPlanCache&& o) noexcept : size_(o.size_) {
-    for (int i = 0; i < o.size_; ++i) {
-      entries_[i] = o.entries_[i];
-      o.entries_[i].matmul_desc = nullptr;
-      o.entries_[i].layout_A = o.entries_[i].layout_B = o.entries_[i].layout_C = nullptr;
-    }
-    o.size_ = 0;
-  }
-
-  CublasLtPlanCache& operator=(CublasLtPlanCache&& o) noexcept {
-    if (this != &o) {
-      clear();
-      size_ = o.size_;
-      for (int i = 0; i < o.size_; ++i) {
-        entries_[i] = o.entries_[i];
-        o.entries_[i].matmul_desc = nullptr;
-        o.entries_[i].layout_A = o.entries_[i].layout_B = o.entries_[i].layout_C = nullptr;
-      }
-      o.size_ = 0;
-    }
-    return *this;
-  }
-
-  /** Look up a cached plan. Returns nullptr on miss. */
-  const CublasLtPlanEntry* find(int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
-                                cudaDataType_t dtype, cublasOperation_t transA, cublasOperation_t transB) const {
-    for (int i = 0; i < size_; ++i) {
-      const auto& e = entries_[i];
-      if (e.m == m && e.n == n && e.k == k && e.lda == lda && e.ldb == ldb && e.ldc == ldc && e.dtype == dtype &&
-          e.transA == transA && e.transB == transB) {
-        return &e;
-      }
-    }
-    return nullptr;
-  }
-
-  /** Insert a new entry, evicting the oldest if full. Returns pointer to the new entry. */
-  CublasLtPlanEntry* insert(cublasLtHandle_t lt_handle, int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
-                            int64_t ldc, cudaDataType_t dtype, cublasComputeType_t compute, cudaDataType_t alpha_type,
-                            cublasOperation_t transA, cublasOperation_t transB) {
-    // Evict oldest if full. The shift transfers descriptor ownership leftward;
-    // null the now-vacant trailing slot so it never aliases the descriptor that
-    // moved into entries_[size_-2].
-    if (size_ >= kMaxEntries) {
-      destroy_entry(entries_[0]);
-      for (int i = 1; i < size_; ++i) entries_[i - 1] = entries_[i];
-      entries_[size_ - 1].matmul_desc = nullptr;
-      entries_[size_ - 1].layout_A = nullptr;
-      entries_[size_ - 1].layout_B = nullptr;
-      entries_[size_ - 1].layout_C = nullptr;
-      --size_;
-    }
-
-    auto& e = entries_[size_];
-    e.m = m;
-    e.n = n;
-    e.k = k;
-    e.lda = lda;
-    e.ldb = ldb;
-    e.ldc = ldc;
-    e.dtype = dtype;
-    e.transA = transA;
-    e.transB = transB;
-    e.use_cublaslt = false;
-
-    EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(&e.matmul_desc, compute, alpha_type));
-    EIGEN_CUBLASLT_CHECK(
-        cublasLtMatmulDescSetAttribute(e.matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &transA, sizeof(transA)));
-    EIGEN_CUBLASLT_CHECK(
-        cublasLtMatmulDescSetAttribute(e.matmul_desc, CUBLASLT_MATMUL_DESC_TRANSB, &transB, sizeof(transB)));
+  // Build descriptors and run the heuristic. If the heuristic returns no
+  // usable algorithm, use_cublaslt stays false and the caller takes the
+  // cublasGemmEx fallback path.
+  CublasLtPlanEntry(cublasLtHandle_t lt_handle, const CublasLtPlanKey& key, cublasComputeType_t compute,
+                    cudaDataType_t alpha_type) {
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(&matmul_desc, compute, alpha_type));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &key.transA,
+                                                        sizeof(key.transA)));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSB, &key.transB,
+                                                        sizeof(key.transB)));
 
     // Layout dimensions are the physical (rows, cols) of the column-major operand;
     // the leading dimension is the actual stride between columns (lda/ldb/ldc),
     // which may exceed the active row count (e.g., a thin view of a wider buffer).
-    const int64_t a_rows = (transA == CUBLAS_OP_N) ? m : k;
-    const int64_t a_cols = (transA == CUBLAS_OP_N) ? k : m;
-    const int64_t b_rows = (transB == CUBLAS_OP_N) ? k : n;
-    const int64_t b_cols = (transB == CUBLAS_OP_N) ? n : k;
-    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&e.layout_A, dtype, a_rows, a_cols, lda));
-    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&e.layout_B, dtype, b_rows, b_cols, ldb));
-    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&e.layout_C, dtype, m, n, ldc));
+    const int64_t a_rows = (key.transA == CUBLAS_OP_N) ? key.m : key.k;
+    const int64_t a_cols = (key.transA == CUBLAS_OP_N) ? key.k : key.m;
+    const int64_t b_rows = (key.transB == CUBLAS_OP_N) ? key.k : key.n;
+    const int64_t b_cols = (key.transB == CUBLAS_OP_N) ? key.n : key.k;
+    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&layout_A, key.dtype, a_rows, a_cols, key.lda));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&layout_B, key.dtype, b_rows, b_cols, key.ldb));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&layout_C, key.dtype, key.m, key.n, key.ldc));
 
     cublasLtMatmulPreference_t preference = nullptr;
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceCreate(&preference));
-    size_t max_ws = kCublasLtMaxWorkspaceBytes;
+    std::size_t max_ws = kCublasLtMaxWorkspaceBytes;
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
                                                               &max_ws, sizeof(max_ws)));
 
     cublasLtMatmulHeuristicResult_t result;
     int returned_results = 0;
     cublasStatus_t heuristic_status =
-        cublasLtMatmulAlgoGetHeuristic(lt_handle, e.matmul_desc, e.layout_A, e.layout_B, e.layout_C, e.layout_C,
-                                       preference, 1, &result, &returned_results);
+        cublasLtMatmulAlgoGetHeuristic(lt_handle, matmul_desc, layout_A, layout_B, layout_C, layout_C, preference, 1,
+                                       &result, &returned_results);
 
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceDestroy(preference));
 
     if (heuristic_status == CUBLAS_STATUS_SUCCESS && returned_results > 0) {
-      e.algo = result.algo;
-      e.workspace_size = result.workspaceSize;
-      e.use_cublaslt = true;
-    } else {
-      e.workspace_size = 0;
-      e.use_cublaslt = false;
+      algo = result.algo;
+      workspace_size = result.workspaceSize;
+      use_cublaslt = true;
     }
-
-    ++size_;
-    return &e;
   }
 
-  void clear() {
-    for (int i = 0; i < size_; ++i) destroy_entry(entries_[i]);
-    size_ = 0;
+  ~CublasLtPlanEntry() { destroy(); }
+
+  CublasLtPlanEntry(const CublasLtPlanEntry&) = delete;
+  CublasLtPlanEntry& operator=(const CublasLtPlanEntry&) = delete;
+
+  CublasLtPlanEntry(CublasLtPlanEntry&& o) noexcept
+      : matmul_desc(o.matmul_desc),
+        layout_A(o.layout_A),
+        layout_B(o.layout_B),
+        layout_C(o.layout_C),
+        algo(o.algo),
+        workspace_size(o.workspace_size),
+        use_cublaslt(o.use_cublaslt) {
+    o.matmul_desc = nullptr;
+    o.layout_A = o.layout_B = o.layout_C = nullptr;
+    o.use_cublaslt = false;
   }
+
+  CublasLtPlanEntry& operator=(CublasLtPlanEntry&& o) noexcept {
+    if (this != &o) {
+      destroy();
+      matmul_desc = o.matmul_desc;
+      layout_A = o.layout_A;
+      layout_B = o.layout_B;
+      layout_C = o.layout_C;
+      algo = o.algo;
+      workspace_size = o.workspace_size;
+      use_cublaslt = o.use_cublaslt;
+      o.matmul_desc = nullptr;
+      o.layout_A = o.layout_B = o.layout_C = nullptr;
+      o.use_cublaslt = false;
+    }
+    return *this;
+  }
+
+  // Public read-side state for cublaslt_gemm().
+  cublasLtMatmulDesc_t matmul_desc = nullptr;
+  cublasLtMatrixLayout_t layout_A = nullptr;
+  cublasLtMatrixLayout_t layout_B = nullptr;
+  cublasLtMatrixLayout_t layout_C = nullptr;
+  cublasLtMatmulAlgo_t algo{};
+  std::size_t workspace_size = 0;
+  bool use_cublaslt = false;
 
  private:
-  // Value-initialize so destroy_entry() sees null handles in any slot that an
-  // earlier insert() abandoned mid-construction (e.g., if cublasLt*Create
-  // fired an EIGEN_CUBLASLT_CHECK assertion that was compiled away in
-  // EIGEN_NO_DEBUG builds).
-  CublasLtPlanEntry entries_[kMaxEntries] = {};
-  int size_ = 0;
-
-  static void destroy_entry(CublasLtPlanEntry& e) {
-    if (e.layout_C) cublasLtMatrixLayoutDestroy(e.layout_C);
-    if (e.layout_B) cublasLtMatrixLayoutDestroy(e.layout_B);
-    if (e.layout_A) cublasLtMatrixLayoutDestroy(e.layout_A);
-    if (e.matmul_desc) cublasLtMatmulDescDestroy(e.matmul_desc);
-    e.matmul_desc = nullptr;
-    e.layout_A = e.layout_B = e.layout_C = nullptr;
+  void destroy() noexcept {
+    if (layout_C) cublasLtMatrixLayoutDestroy(layout_C);
+    if (layout_B) cublasLtMatrixLayoutDestroy(layout_B);
+    if (layout_A) cublasLtMatrixLayoutDestroy(layout_A);
+    if (matmul_desc) cublasLtMatmulDescDestroy(matmul_desc);
   }
 };
+
+using CublasLtPlanCache = Eigen::internal::LruCache<CublasLtPlanKey, CublasLtPlanEntry, CublasLtPlanKeyHash>;
 
 // cublasLtMatmul GEMM with shape-keyed plan cache and lazy workspace.
 //
@@ -309,9 +292,10 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
 
   // Look up or create a cached plan for this shape (key includes leading dims so
   // strided views — e.g. SVD's thin VT/U slices — get distinct cache entries).
-  const CublasLtPlanEntry* entry = plan_cache->find(m, n, k, lda, ldb, ldc, dtype, transA, transB);
+  const CublasLtPlanKey key{m, n, k, lda, ldb, ldc, dtype, transA, transB};
+  CublasLtPlanEntry* entry = plan_cache->find(key);
   if (!entry) {
-    entry = plan_cache->insert(lt_handle, m, n, k, lda, ldb, ldc, dtype, compute, alpha_type, transA, transB);
+    entry = plan_cache->insert(key, CublasLtPlanEntry(lt_handle, key, compute, alpha_type));
   }
 
   if (entry->use_cublaslt) {
