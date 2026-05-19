@@ -39,6 +39,9 @@ struct GpuSolverContext {
   std::vector<char> h_workspace_;
   DeviceBuffer gemm_workspace_;  // grown lazily by cublaslt_gemm
   CublasLtPlanCache gemm_plan_cache_{kCublasLtPlanCacheCapacity};
+  // Workspace ceiling fed to the cublasLtMatmul heuristic at plan-creation time.
+  // See gpu::Context::setCublasLtMaxWorkspaceBytes() for semantics.
+  std::size_t cublaslt_max_workspace_bytes_ = kCublasLtMaxWorkspaceBytes;
   ComputationInfo info_ = InvalidInput;
   PinnedHostBuffer pinned_info_{sizeof(int)};  // pinned host memory for async D2H of info word
   bool info_synced_ = true;
@@ -79,6 +82,7 @@ struct GpuSolverContext {
         h_workspace_(std::move(o.h_workspace_)),
         gemm_workspace_(std::move(o.gemm_workspace_)),
         gemm_plan_cache_(std::move(o.gemm_plan_cache_)),
+        cublaslt_max_workspace_bytes_(o.cublaslt_max_workspace_bytes_),
         info_(o.info_),
         pinned_info_(std::move(o.pinned_info_)),
         info_synced_(o.info_synced_) {
@@ -113,6 +117,7 @@ struct GpuSolverContext {
       h_workspace_ = std::move(o.h_workspace_);
       gemm_workspace_ = std::move(o.gemm_workspace_);
       gemm_plan_cache_ = std::move(o.gemm_plan_cache_);
+      cublaslt_max_workspace_bytes_ = o.cublaslt_max_workspace_bytes_;
       info_ = o.info_;
       pinned_info_ = std::move(o.pinned_info_);
       info_synced_ = o.info_synced_;

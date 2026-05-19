@@ -118,7 +118,11 @@ struct cuda_compute_type<std::complex<double>> {
 
 // Maximum workspace the heuristic is allowed to consider. This is a preference
 // ceiling, not an allocation — actual allocation matches the selected algorithm.
-static constexpr size_t kCublasLtMaxWorkspaceBytes = 32 * 1024 * 1024;  // 32 MB
+// Override at compile time via EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES.
+#ifndef EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES
+#define EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES (32 * 1024 * 1024)  // 32 MB
+#endif
+static constexpr size_t kCublasLtMaxWorkspaceBytes = EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES;
 
 // cublasGemmEx fallback algorithm hint (used when cublasLt heuristic returns no results).
 constexpr cublasGemmAlgo_t cuda_gemm_algo() {
@@ -174,13 +178,18 @@ struct CublasLtPlanKeyHash {
 // three matrix layouts, and the heuristic-selected algorithm. Destruction
 // destroys all cuBLASLt handles, so the cache can manage entry lifetime via
 // LruCache's eviction.
+//
+// Move-only because each instance uniquely owns four cuBLASLt handles
+// (matmul_desc and three matrix layouts); copying would alias the handles
+// and cause double-destroy.
 class CublasLtPlanEntry {
  public:
   // Build descriptors and run the heuristic. If the heuristic returns no
   // usable algorithm, use_cublaslt stays false and the caller takes the
-  // cublasGemmEx fallback path.
+  // cublasGemmEx fallback path. `max_workspace_bytes` is the heuristic's
+  // workspace ceiling — see gpu::Context::setCublasLtMaxWorkspaceBytes().
   CublasLtPlanEntry(cublasLtHandle_t lt_handle, const CublasLtPlanKey& key, cublasComputeType_t compute,
-                    cudaDataType_t alpha_type) {
+                    cudaDataType_t alpha_type, std::size_t max_workspace_bytes) {
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(&matmul_desc, compute, alpha_type));
     EIGEN_CUBLASLT_CHECK(
         cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &key.transA, sizeof(key.transA)));
@@ -200,9 +209,8 @@ class CublasLtPlanEntry {
 
     cublasLtMatmulPreference_t preference = nullptr;
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceCreate(&preference));
-    std::size_t max_ws = kCublasLtMaxWorkspaceBytes;
-    EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-                                                              &max_ws, sizeof(max_ws)));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceSetAttribute(
+        preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &max_workspace_bytes, sizeof(max_workspace_bytes)));
 
     cublasLtMatmulHeuristicResult_t result;
     int returned_results = 0;
@@ -211,7 +219,10 @@ class CublasLtPlanEntry {
 
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceDestroy(preference));
 
-    if (heuristic_status == CUBLAS_STATUS_SUCCESS && returned_results > 0) {
+    // cublasLtMatmulAlgoGetHeuristic can return CUBLAS_STATUS_SUCCESS overall while
+    // marking individual results NOT_SUPPORTED via result.state, so gate on both.
+    if (heuristic_status == CUBLAS_STATUS_SUCCESS && returned_results > 0 &&
+        result.state == CUBLAS_STATUS_SUCCESS) {
       algo = result.algo;
       workspace_size = result.workspaceSize;
       use_cublaslt = true;
@@ -281,7 +292,8 @@ template <typename Scalar>
 void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cublasOperation_t transA,
                    cublasOperation_t transB, int64_t m, int64_t n, int64_t k, const Scalar* alpha, const Scalar* A,
                    int64_t lda, const Scalar* B, int64_t ldb, const Scalar* beta, Scalar* C, int64_t ldc,
-                   DeviceBuffer* workspace, CublasLtPlanCache* plan_cache, cudaStream_t stream) {
+                   DeviceBuffer* workspace, CublasLtPlanCache* plan_cache, std::size_t max_workspace_bytes,
+                   cudaStream_t stream) {
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
   constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
   constexpr cudaDataType_t alpha_type = cuda_data_type<Scalar>::value;
@@ -291,7 +303,7 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
   const CublasLtPlanKey key{m, n, k, lda, ldb, ldc, dtype, transA, transB};
   CublasLtPlanEntry* entry = plan_cache->find(key);
   if (!entry) {
-    entry = plan_cache->insert(key, CublasLtPlanEntry(lt_handle, key, compute, alpha_type));
+    entry = plan_cache->insert(key, CublasLtPlanEntry(lt_handle, key, compute, alpha_type, max_workspace_bytes));
   }
 
   if (entry->use_cublaslt) {

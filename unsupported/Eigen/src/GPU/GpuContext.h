@@ -136,6 +136,17 @@ class Context {
    * by shape to avoid per-call overhead). Same thread-safety as workspace. */
   internal::CublasLtPlanCache* gemmPlanCache() const { return &gemm_plan_cache_; }
 
+  /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
+   * Defaults to internal::kCublasLtMaxWorkspaceBytes (compile-time configurable via
+   * EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES). */
+  std::size_t cublasLtMaxWorkspaceBytes() const { return cublaslt_max_workspace_bytes_; }
+
+  /** Override the workspace ceiling for future plan-cache misses on this context.
+   * The cap is consulted at plan-creation time only; pre-existing cached plans
+   * keep the cap they were built with. Call gemmPlanCache()->clear() to force
+   * re-selection under the new cap. */
+  void setCublasLtMaxWorkspaceBytes(std::size_t bytes) { cublaslt_max_workspace_bytes_ = bytes; }
+
   /** cuSPARSE handle (lazy-initialized on first call). */
   cusparseHandle_t cusparseHandle() const {
     if (!cusparse_) {
@@ -163,6 +174,7 @@ class Context {
   mutable cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
   mutable internal::DeviceBuffer gemm_workspace_;  // lazy
   mutable internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
+  std::size_t cublaslt_max_workspace_bytes_ = internal::kCublasLtMaxWorkspaceBytes;
   bool owns_stream_ = true;
 
   static Context*& tl_override_ptr() {

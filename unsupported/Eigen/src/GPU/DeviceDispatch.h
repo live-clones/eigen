@@ -99,9 +99,9 @@ void dispatch_gemm(
   // at -O1+ otherwise optimise away the stores for complex types, leaving
   // cuBLAS with a dangling pointer.
   Scalar scalars[2] = {alpha_local, beta_val};
-  cublaslt_gemm<Scalar>(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &scalars[0], A.data(), lda,
-                        B.data(), ldb, &scalars[1], dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
-                        ctx.stream());
+  cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &scalars[0], A.data(), lda, B.data(),
+                ldb, &scalars[1], dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
+                ctx.cublasLtMaxWorkspaceBytes(), ctx.stream());
 
   dst.recordReady(ctx.stream());
 }
