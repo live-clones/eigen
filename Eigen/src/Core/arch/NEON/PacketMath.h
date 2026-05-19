@@ -6580,6 +6580,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet4hf& a) {
   return vget_lane_u64(vreinterpret_u64_f16(a), 0);
 }
 
+#undef EIGEN_HALF_FOLD_REDUX
+#undef EIGEN_HALF_HORIZONTAL_REDUX
+
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8hf, 4>& kernel) {
   const float16x8x2_t zip16_1 = vzipq_f16(kernel.packet[0], kernel.packet[1]);
   const float16x8x2_t zip16_2 = vzipq_f16(kernel.packet[2], kernel.packet[3]);
