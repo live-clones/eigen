@@ -54,7 +54,7 @@ cmake -S . -B build -G Ninja
 cmake --build build --target buildtests        # build all unit tests
 cmake --build build --target check             # build + run all tests
 cmake --build build --target buildsmoketests   # the smoke set CI gates MRs on
-ctest --test-dir build -j$(nproc) --output-on-failure
+ctest --test-dir build --parallel --output-on-failure
 ```
 
 Other useful targets: `BuildOfficial` (just `test/`), `BuildUnsupported` (just `unsupported/test/`), `buildtests_gpu`, `check_gpu`. Once configured, the build dir also exposes `./buildtests.sh <regex>` and `./check.sh <regex>` for narrowing by test-name regex.
