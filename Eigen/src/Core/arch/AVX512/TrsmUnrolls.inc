@@ -888,21 +888,19 @@ class gemm {
    *      for(startM = 0; startM < endM; startM++)
    *        for(startN = 0; startN < endN; startN++)
    **/
-  template <int64_t endM, int64_t endN, int64_t counter>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_setzero(
-      PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
-    constexpr int64_t counterReverse = endM * endN - counter;
-    constexpr int64_t startM = counterReverse / (endN);
-    constexpr int64_t startN = counterReverse % endN;
+  template <int64_t endM, int64_t endN, int64_t index>
+  static EIGEN_ALWAYS_INLINE void aux_setzero(PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
+    constexpr int64_t startM = index / (endN);
+    constexpr int64_t startN = index % endN;
 
     zmm.packet[startN * endM + startM] = pzero(zmm.packet[startN * endM + startM]);
-    aux_setzero<endM, endN, counter - 1>(zmm);
   }
 
-  template <int64_t endM, int64_t endN, int64_t counter>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_setzero(
-      PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
-    EIGEN_UNUSED_VARIABLE(zmm);
+  template <int64_t endM, int64_t endN, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_setzero_impl(std::integer_sequence<int64_t, indices...>,
+                                                   PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
+    int unused[] = {0, (aux_setzero<endM, endN, indices>(zmm), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -912,13 +910,13 @@ class gemm {
    *      for(startM = 0; startM < endM; startM++)
    *        for(startN = 0; startN < endN; startN++)
    **/
-  template <int64_t endM, int64_t endN, int64_t counter, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_updateC(
-      Scalar *C_arr, int64_t LDC, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
+  template <int64_t endM, int64_t endN, int64_t index, bool rem>
+  static EIGEN_ALWAYS_INLINE void aux_updateC(Scalar *C_arr, int64_t LDC,
+                                              PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                              int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    constexpr int64_t counterReverse = endM * endN - counter;
-    constexpr int64_t startM = counterReverse / (endN);
-    constexpr int64_t startN = counterReverse % endN;
+    constexpr int64_t startM = index / (endN);
+    constexpr int64_t startN = index % endN;
 
     EIGEN_IF_CONSTEXPR(rem)
     zmm.packet[startN * endM + startM] =
@@ -926,16 +924,15 @@ class gemm {
              zmm.packet[startN * endM + startM], remMask<PacketSize>(rem_));
     else zmm.packet[startN * endM + startM] =
         padd(ploadu<vec>(&C_arr[(startN)*LDC + startM * PacketSize]), zmm.packet[startN * endM + startM]);
-    aux_updateC<endM, endN, counter - 1, rem>(C_arr, LDC, zmm, rem_);
   }
 
-  template <int64_t endM, int64_t endN, int64_t counter, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_updateC(
-      Scalar *C_arr, int64_t LDC, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
-    EIGEN_UNUSED_VARIABLE(C_arr);
-    EIGEN_UNUSED_VARIABLE(LDC);
-    EIGEN_UNUSED_VARIABLE(zmm);
-    EIGEN_UNUSED_VARIABLE(rem_);
+  template <int64_t endM, int64_t endN, bool rem, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_updateC_impl(std::integer_sequence<int64_t, indices...>, Scalar *C_arr,
+                                                   int64_t LDC,
+                                                   PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                                   int64_t rem_ = 0) {
+    int unused[] = {0, (aux_updateC<endM, endN, indices, rem>(C_arr, LDC, zmm, rem_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -945,28 +942,27 @@ class gemm {
    *      for(startM = 0; startM < endM; startM++)
    *        for(startN = 0; startN < endN; startN++)
    **/
-  template <int64_t endM, int64_t endN, int64_t counter, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_storeC(
-      Scalar *C_arr, int64_t LDC, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
+  template <int64_t endM, int64_t endN, int64_t index, bool rem>
+  static EIGEN_ALWAYS_INLINE void aux_storeC(Scalar *C_arr, int64_t LDC,
+                                             PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                             int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    constexpr int64_t counterReverse = endM * endN - counter;
-    constexpr int64_t startM = counterReverse / (endN);
-    constexpr int64_t startN = counterReverse % endN;
+    constexpr int64_t startM = index / (endN);
+    constexpr int64_t startN = index % endN;
 
     EIGEN_IF_CONSTEXPR(rem)
     pstoreu<Scalar>(&C_arr[(startN)*LDC + startM * PacketSize], zmm.packet[startN * endM + startM],
                     remMask<PacketSize>(rem_));
     else pstoreu<Scalar>(&C_arr[(startN)*LDC + startM * PacketSize], zmm.packet[startN * endM + startM]);
-    aux_storeC<endM, endN, counter - 1, rem>(C_arr, LDC, zmm, rem_);
   }
 
-  template <int64_t endM, int64_t endN, int64_t counter, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_storeC(
-      Scalar *C_arr, int64_t LDC, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
-    EIGEN_UNUSED_VARIABLE(C_arr);
-    EIGEN_UNUSED_VARIABLE(LDC);
-    EIGEN_UNUSED_VARIABLE(zmm);
-    EIGEN_UNUSED_VARIABLE(rem_);
+  template <int64_t endM, int64_t endN, bool rem, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_storeC_impl(std::integer_sequence<int64_t, indices...>, Scalar *C_arr,
+                                                  int64_t LDC,
+                                                  PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                                  int64_t rem_ = 0) {
+    int unused[] = {0, (aux_storeC<endM, endN, indices, rem>(C_arr, LDC, zmm, rem_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -975,29 +971,27 @@ class gemm {
    * 1-D unroll
    *      for(startL = 0; startL < endL; startL++)
    **/
-  template <int64_t unrollM, int64_t unrollN, int64_t endL, int64_t counter, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_startLoadB(
-      Scalar *B_t, int64_t LDB, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
+  template <int64_t unrollM, int64_t unrollN, int64_t index, bool rem>
+  static EIGEN_ALWAYS_INLINE void aux_startLoadB(Scalar *B_t, int64_t LDB,
+                                                 PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                                 int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    constexpr int64_t counterReverse = endL - counter;
-    constexpr int64_t startL = counterReverse;
+    constexpr int64_t startL = index;
 
     EIGEN_IF_CONSTEXPR(rem)
     zmm.packet[unrollM * unrollN + startL] =
         ploadu<vec>(&B_t[(startL / unrollM) * LDB + (startL % unrollM) * PacketSize], remMask<PacketSize>(rem_));
     else zmm.packet[unrollM * unrollN + startL] =
         ploadu<vec>(&B_t[(startL / unrollM) * LDB + (startL % unrollM) * PacketSize]);
-
-    aux_startLoadB<unrollM, unrollN, endL, counter - 1, rem>(B_t, LDB, zmm, rem_);
   }
 
-  template <int64_t unrollM, int64_t unrollN, int64_t endL, int64_t counter, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_startLoadB(
-      Scalar *B_t, int64_t LDB, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
-    EIGEN_UNUSED_VARIABLE(B_t);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(zmm);
-    EIGEN_UNUSED_VARIABLE(rem_);
+  template <int64_t unrollM, int64_t unrollN, bool rem, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_startLoadB_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_t,
+                                                      int64_t LDB,
+                                                      PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                                      int64_t rem_ = 0) {
+    int unused[] = {0, (aux_startLoadB<unrollM, unrollN, indices, rem>(B_t, LDB, zmm, rem_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -1006,23 +1000,20 @@ class gemm {
    * 1-D unroll
    *      for(startB = 0; startB < endB; startB++)
    **/
-  template <bool isARowMajor, int64_t unrollM, int64_t unrollN, int64_t endB, int64_t counter, int64_t numLoad>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_startBCastA(
-      Scalar *A_t, int64_t LDA, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
-    constexpr int64_t counterReverse = endB - counter;
-    constexpr int64_t startB = counterReverse;
+  template <bool isARowMajor, int64_t unrollM, int64_t unrollN, int64_t index, int64_t numLoad>
+  static EIGEN_ALWAYS_INLINE void aux_startBCastA(Scalar *A_t, int64_t LDA,
+                                                  PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
+    constexpr int64_t startB = index;
 
     zmm.packet[unrollM * unrollN + numLoad + startB] = pload1<vec>(&A_t[idA<isARowMajor>(startB, 0, LDA)]);
-
-    aux_startBCastA<isARowMajor, unrollM, unrollN, endB, counter - 1, numLoad>(A_t, LDA, zmm);
   }
 
-  template <bool isARowMajor, int64_t unrollM, int64_t unrollN, int64_t endB, int64_t counter, int64_t numLoad>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_startBCastA(
-      Scalar *A_t, int64_t LDA, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
-    EIGEN_UNUSED_VARIABLE(A_t);
-    EIGEN_UNUSED_VARIABLE(LDA);
-    EIGEN_UNUSED_VARIABLE(zmm);
+  template <bool isARowMajor, int64_t unrollM, int64_t unrollN, int64_t numLoad, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_startBCastA_impl(std::integer_sequence<int64_t, indices...>, Scalar *A_t,
+                                                       int64_t LDA,
+                                                       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
+    int unused[] = {0, (aux_startBCastA<isARowMajor, unrollM, unrollN, indices, numLoad>(A_t, LDA, zmm), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -1032,14 +1023,14 @@ class gemm {
    * 1-D unroll
    *      for(startM = 0; startM < endM; startM++)
    **/
-  template <int64_t endM, int64_t counter, int64_t unrollN, int64_t currK, int64_t unrollK, int64_t numLoad,
+  template <int64_t endM, int64_t index, int64_t unrollN, int64_t currK, int64_t unrollK, int64_t numLoad,
             int64_t numBCast, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_loadB(
-      Scalar *B_t, int64_t LDB, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
+  static EIGEN_ALWAYS_INLINE void aux_loadB(Scalar *B_t, int64_t LDB,
+                                            PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                            int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
     if ((numLoad / endM + currK < unrollK)) {
-      constexpr int64_t counterReverse = endM - counter;
-      constexpr int64_t startM = counterReverse;
+      constexpr int64_t startM = index;
 
       EIGEN_IF_CONSTEXPR(rem) {
         zmm.packet[endM * unrollN + (startM + currK * endM) % numLoad] =
@@ -1049,19 +1040,17 @@ class gemm {
         zmm.packet[endM * unrollN + (startM + currK * endM) % numLoad] =
             ploadu<vec>(&B_t[(numLoad / endM + currK) * LDB + startM * PacketSize]);
       }
-
-      aux_loadB<endM, counter - 1, unrollN, currK, unrollK, numLoad, numBCast, rem>(B_t, LDB, zmm, rem_);
     }
   }
 
-  template <int64_t endM, int64_t counter, int64_t unrollN, int64_t currK, int64_t unrollK, int64_t numLoad,
-            int64_t numBCast, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_loadB(
-      Scalar *B_t, int64_t LDB, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t rem_ = 0) {
-    EIGEN_UNUSED_VARIABLE(B_t);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(zmm);
-    EIGEN_UNUSED_VARIABLE(rem_);
+  template <int64_t endM, int64_t unrollN, int64_t currK, int64_t unrollK, int64_t numLoad, int64_t numBCast, bool rem,
+            int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_loadB_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_t, int64_t LDB,
+                                                 PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                                 int64_t rem_ = 0) {
+    int unused[] = {
+        0, (aux_loadB<endM, indices, unrollN, currK, unrollK, numLoad, numBCast, rem>(B_t, LDB, zmm, rem_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -1072,16 +1061,15 @@ class gemm {
    *        for(startN = 0; startN < endN; startN++)
    *          for(startK = 0; startK < endK; startK++)
    **/
-  template <bool isARowMajor, int64_t endM, int64_t endN, int64_t endK, int64_t counter, int64_t numLoad,
+  template <bool isARowMajor, int64_t endM, int64_t endN, int64_t endK, int64_t index, int64_t numLoad,
             int64_t numBCast, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_microKernel(
-      Scalar *B_t, Scalar *A_t, int64_t LDB, int64_t LDA, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
-      int64_t rem_ = 0) {
+  static EIGEN_ALWAYS_INLINE void aux_microKernel(Scalar *B_t, Scalar *A_t, int64_t LDB, int64_t LDA,
+                                                  PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                                  int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    constexpr int64_t counterReverse = endM * endN * endK - counter;
-    constexpr int startK = counterReverse / (endM * endN);
-    constexpr int startN = (counterReverse / (endM)) % endN;
-    constexpr int startM = counterReverse % endM;
+    constexpr int startK = index / (endM * endN);
+    constexpr int startN = (index / (endM)) % endN;
+    constexpr int startM = index % endM;
 
     EIGEN_IF_CONSTEXPR(startK == 0 && startM == 0 && startN == 0) {
       gemm::template startLoadB<endM, endN, numLoad, rem>(B_t, LDB, zmm, rem_);
@@ -1111,20 +1099,18 @@ class gemm {
     EIGEN_IF_CONSTEXPR((startN == endN - 1) && (startM == endM - 1)) {
       gemm::template loadB<endM, endN, startK, endK, numLoad, numBCast, rem>(B_t, LDB, zmm, rem_);
     }
-    aux_microKernel<isARowMajor, endM, endN, endK, counter - 1, numLoad, numBCast, rem>(B_t, A_t, LDB, LDA, zmm, rem_);
   }
 
-  template <bool isARowMajor, int64_t endM, int64_t endN, int64_t endK, int64_t counter, int64_t numLoad,
-            int64_t numBCast, bool rem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_microKernel(
-      Scalar *B_t, Scalar *A_t, int64_t LDB, int64_t LDA, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
-      int64_t rem_ = 0) {
-    EIGEN_UNUSED_VARIABLE(B_t);
-    EIGEN_UNUSED_VARIABLE(A_t);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(LDA);
-    EIGEN_UNUSED_VARIABLE(zmm);
-    EIGEN_UNUSED_VARIABLE(rem_);
+  template <bool isARowMajor, int64_t endM, int64_t endN, int64_t endK, int64_t numLoad, int64_t numBCast, bool rem,
+            int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_microKernel_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_t,
+                                                       Scalar *A_t, int64_t LDB, int64_t LDA,
+                                                       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                                       int64_t rem_ = 0) {
+    int unused[] = {0, (aux_microKernel<isARowMajor, endM, endN, endK, indices, numLoad, numBCast, rem>(B_t, A_t, LDB,
+                                                                                                        LDA, zmm, rem_),
+                        0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /********************************************************
@@ -1133,7 +1119,7 @@ class gemm {
 
   template <int64_t endM, int64_t endN>
   static EIGEN_ALWAYS_INLINE void setzero(PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
-    aux_setzero<endM, endN, endM * endN>(zmm);
+    aux_setzero_impl<endM, endN>(std::make_integer_sequence<int64_t, endM * endN>{}, zmm);
   }
 
   /**
@@ -1144,7 +1130,7 @@ class gemm {
                                           PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
                                           int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    aux_updateC<endM, endN, endM * endN, rem>(C_arr, LDC, zmm, rem_);
+    aux_updateC_impl<endM, endN, rem>(std::make_integer_sequence<int64_t, endM * endN>{}, C_arr, LDC, zmm, rem_);
   }
 
   template <int64_t endM, int64_t endN, bool rem = false>
@@ -1152,7 +1138,7 @@ class gemm {
                                          PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
                                          int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    aux_storeC<endM, endN, endM * endN, rem>(C_arr, LDC, zmm, rem_);
+    aux_storeC_impl<endM, endN, rem>(std::make_integer_sequence<int64_t, endM * endN>{}, C_arr, LDC, zmm, rem_);
   }
 
   /**
@@ -1163,7 +1149,7 @@ class gemm {
                                              PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
                                              int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    aux_startLoadB<unrollM, unrollN, endL, endL, rem>(B_t, LDB, zmm, rem_);
+    aux_startLoadB_impl<unrollM, unrollN, rem>(std::make_integer_sequence<int64_t, endL>{}, B_t, LDB, zmm, rem_);
   }
 
   /**
@@ -1172,7 +1158,8 @@ class gemm {
   template <bool isARowMajor, int64_t unrollM, int64_t unrollN, int64_t endB, int64_t numLoad>
   static EIGEN_ALWAYS_INLINE void startBCastA(Scalar *A_t, int64_t LDA,
                                               PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
-    aux_startBCastA<isARowMajor, unrollM, unrollN, endB, endB, numLoad>(A_t, LDA, zmm);
+    aux_startBCastA_impl<isARowMajor, unrollM, unrollN, numLoad>(std::make_integer_sequence<int64_t, endB>{}, A_t, LDA,
+                                                                 zmm);
   }
 
   /**
@@ -1183,7 +1170,8 @@ class gemm {
                                         PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
                                         int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    aux_loadB<endM, endM, unrollN, currK, unrollK, numLoad, numBCast, rem>(B_t, LDB, zmm, rem_);
+    aux_loadB_impl<endM, unrollN, currK, unrollK, numLoad, numBCast, rem>(std::make_integer_sequence<int64_t, endM>{},
+                                                                          B_t, LDB, zmm, rem_);
   }
 
   /**
@@ -1215,8 +1203,8 @@ class gemm {
                                               PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
                                               int64_t rem_ = 0) {
     EIGEN_UNUSED_VARIABLE(rem_);
-    aux_microKernel<isARowMajor, endM, endN, endK, endM * endN * endK, numLoad, numBCast, rem>(B_t, A_t, LDB, LDA, zmm,
-                                                                                               rem_);
+    aux_microKernel_impl<isARowMajor, endM, endN, endK, numLoad, numBCast, rem>(
+        std::make_integer_sequence<int64_t, endM * endN * endK>{}, B_t, A_t, LDB, LDA, zmm, rem_);
   }
 };
 }  // namespace unrolls
