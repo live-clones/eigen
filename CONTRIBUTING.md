@@ -92,6 +92,8 @@ Naming conventions:
 - Internal implementation lives in the `Eigen::internal` namespace; public API stays in `Eigen::` or module namespaces.
 - Use `eigen_assert(cond)` for runtime preconditions (not raw `assert`); `EIGEN_STATIC_ASSERT(cond, MSG_TOKEN)` for compile-time conditions; `eigen_internal_assert` for internal-only invariants gated on `EIGEN_INTERNAL_DEBUGGING`.
 
+The canonical class layout is visible in any core header — `Eigen/src/Cholesky/LLT.h` is a good representative. Template parameters that get re-exported as public typedefs carry a trailing underscore (`template <typename MatrixType_, int UpLo_>` paired with `typedef MatrixType_ MatrixType;`), member variables use an `m_` prefix (`m_matrix`, `m_isInitialized`), implementation headers under `Eigen/src/...` begin with `// IWYU pragma: private` and `#include "./InternalHeaderCheck.h"`, header guards follow `EIGEN_<NAME>_H`, and implementation detail lives inside nested `namespace Eigen { namespace internal { ... } }`. Public classes carry Doxygen blocks (`\class`, `\brief`, `\tparam`, `\sa`) and link to runnable snippets from `doc/snippets/` via `\include` / `\verbinclude`. When in doubt, copy the style from a neighbouring file rather than inventing a new convention.
+
 ### License and SPDX/REUSE headers
 
 Every new source file must carry an inline copyright + license header. The `checkformat:reuse` CI job (`reuse lint`) blocks otherwise. Two header styles are in active use; pick whichever fits.
