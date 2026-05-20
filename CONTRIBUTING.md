@@ -11,13 +11,13 @@ This document is the human-facing on-ramp. For the deeper "how this codebase act
 - **CI pipelines:** <https://gitlab.com/libeigen/eigen/-/pipelines>
 - **API documentation (nightly):** <https://libeigen.gitlab.io/eigen/docs-nightly>
 - **Project site:** <https://libeigen.gitlab.io> (note: some pages predate current practice — when in doubt, prefer `AGENTS.md` and this file)
-- **Chat:** Discord, linked from the project site.
+- **Chat:** [Discord](https://discord.com/channels/777904510169382942/777904791136370758) — the primary support and discussion channel.
 
 ## Ways to contribute
 
 You don't have to write C++ to help.
 
-- **Answer questions** on Discord or [StackOverflow](https://stackoverflow.com/questions/tagged/eigen+or+eigen3). New users often ask things that point at gaps in our documentation — patches to fill those gaps are very welcome.
+- **Answer questions** on Discord. New users often ask things that point at gaps in our documentation — patches to fill those gaps are very welcome.
 - **Triage bugs.** Reproduce reports, ask reporters for missing details (compiler, OS, ISA, minimal example), and weigh in on issues labelled [`decision needed`](https://gitlab.com/libeigen/eigen/-/issues?label_name%5B%5D=decision+needed). Issues labelled [`contributions welcome`](https://gitlab.com/libeigen/eigen/-/issues?label_name%5B%5D=contributions+welcome) are good entry points.
 - **Run the test suite** on rarely-tested compilers, OSes, or architectures and report failures. The nightly matrix is visible in the CI pipelines link above.
 - **Improve documentation** — both the Doxygen reference (comments in headers) and the prose pages at <https://gitlab.com/libeigen/libeigen.gitlab.io>.
@@ -173,7 +173,7 @@ Some "unsupported" modules carry stability guarantees beyond what the name sugge
 
 ## Communication
 
-- **Discord** is the primary chat channel (link on the project site). Most informal design discussion happens there.
+- **Discord** is the primary chat channel ([link above](#where-eigen-lives)). Most informal design discussion happens there.
 - **GitLab issues** are the place for bug reports, feature requests, and threaded design discussions tied to a specific topic.
 - For larger contributions, **discuss the plan first** to avoid duplicated effort and to align on API decisions before implementation.
 
