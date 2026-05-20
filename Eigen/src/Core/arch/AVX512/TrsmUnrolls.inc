@@ -20,34 +20,26 @@ EIGEN_ALWAYS_INLINE int64_t idA(int64_t i, int64_t j, int64_t LDA) {
 /**
  * This namespace contains various classes used to generate compile-time unrolls which are
  * used throughout the trsm/gemm kernels. The unrolls are characterized as for-loops (1-D), nested
- * for-loops (2-D), or triple nested for-loops (3-D). Unrolls are generated using template recursion
+ * for-loops (2-D), or triple nested for-loops (3-D). Unrolls are generated using std::integer_sequence
  *
- * Example, the 2-D for-loop is unrolled recursively by first flattening to a 1-D loop.
+ * Example, the 2-D for-loop is unrolled by first flattening to a 1-D loop.
  *
  * for(startI = 0; startI < endI; startI++)             for(startC = 0; startC < endI*endJ; startC++)
  *   for(startJ = 0; startJ < endJ; startJ++)  ---->      startI = (startC)/(endJ)
  *     func(startI,startJ)                                startJ = (startC)%(endJ)
  *                                                        func(...)
  *
- * The 1-D loop can be unrolled recursively by using enable_if and defining an auxiliary function
- * with a template parameter used as a counter.
+ * The 1-D loop can be expanded by using an auxiliary function with a template parameter used as an index.
  *
- * template <endI, endJ, counter>
- * std::enable_if_t<(counter <= 0)>  <---- tail case.
- * aux_func {}
- *
- * template <endI, endJ, counter>
- * std::enable_if_t<(counter > 0)>   <---- actual for-loop
+ * template <endI, endJ, index>
  * aux_func {
- *   startC = endI*endJ - counter
+ *   startC = index
  *   startI = (startC)/(endJ)
  *   startJ = (startC)%(endJ)
  *   func(startI, startJ)
- *   aux_func<endI, endJ, counter-1>()
  * }
  *
- * Note: Additional wrapper functions are provided for aux_func which hides the counter template
- * parameter since counter usually depends on endI, endJ, etc...
+ * Note: Additional wrapper functions are provided for aux_func which build the integer_sequence from endI, endJ, etc.
  *
  * Conventions:
  * 1) endX: specifies the terminal value for the for-loop, (ex: for(startX = 0; startX < endX; startX++))
@@ -181,12 +173,10 @@ class trans {
     return padd(cPacket, zmmPacket);
   }
 
-  template <int64_t endN, int64_t counter, int64_t unrollN, int64_t packetIndexOffset, bool remM>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0 && endN <= PacketSize)> aux_storeC(
-      Scalar *C_arr, int64_t LDC, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t remM_ = 0) {
-    constexpr int64_t counterReverse = endN - counter;
-    constexpr int64_t startN = counterReverse;
-
+  template <int64_t startN, int64_t unrollN, int64_t packetIndexOffset, bool remM>
+  static EIGEN_ALWAYS_INLINE void aux_storeC(Scalar *C_arr, int64_t LDC,
+                                             PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
+                                             int64_t remM_ = 0) {
     vecHalf zmmPacket = aux_storeC_packet<startN, unrollN, packetIndexOffset>(zmm);
     EIGEN_IF_CONSTEXPR(remM) {
       pstoreu<Scalar>(C_arr + LDC * startN,
@@ -198,12 +188,20 @@ class trans {
     else {
       pstoreu<Scalar>(C_arr + LDC * startN, padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN), zmmPacket));
     }
-    aux_storeC<endN, counter - 1, unrollN, packetIndexOffset, remM>(C_arr, LDC, zmm, remM_);
   }
 
-  template <int64_t endN, int64_t counter, int64_t unrollN, int64_t packetIndexOffset, bool remM>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<!(counter > 0 && endN <= PacketSize)> aux_storeC(
-      Scalar *C_arr, int64_t LDC, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t remM_ = 0) {
+  template <int64_t endN, int64_t unrollN, int64_t packetIndexOffset, bool remM, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<(endN > 0 && endN <= PacketSize)> aux_storeC_impl(
+      std::integer_sequence<int64_t, indices...>, Scalar *C_arr, int64_t LDC,
+      PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t remM_ = 0) {
+    int unused[] = {0, (aux_storeC<indices, unrollN, packetIndexOffset, remM>(C_arr, LDC, zmm, remM_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
+
+  template <int64_t endN, int64_t unrollN, int64_t packetIndexOffset, bool remM, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<!(endN > 0 && endN <= PacketSize)> aux_storeC_impl(
+      std::integer_sequence<int64_t, indices...>, Scalar *C_arr, int64_t LDC,
+      PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t remM_ = 0) {
     EIGEN_UNUSED_VARIABLE(C_arr);
     EIGEN_UNUSED_VARIABLE(LDC);
     EIGEN_UNUSED_VARIABLE(zmm);
@@ -214,7 +212,8 @@ class trans {
   static EIGEN_ALWAYS_INLINE void storeC(Scalar *C_arr, int64_t LDC,
                                          PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm,
                                          int64_t remM_ = 0) {
-    aux_storeC<endN, endN, unrollN, packetIndexOffset, remM>(C_arr, LDC, zmm, remM_);
+    aux_storeC_impl<endN, unrollN, packetIndexOffset, remM>(
+        std::make_integer_sequence<int64_t, (endN > 0 ? endN : 0)>{}, C_arr, LDC, zmm, remM_);
   }
 
   /**
@@ -305,13 +304,10 @@ class transB {
    * 1-D unroll
    *      for(startN = 0; startN < endN; startN++)
    **/
-  template <int64_t endN, int64_t counter, int64_t packetIndexOffset, bool remM, int64_t remN_>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_loadB(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
-      int64_t remM_ = 0) {
-    constexpr int64_t counterReverse = endN - counter;
-    constexpr int64_t startN = counterReverse;
-
+  template <int64_t startN, int64_t packetIndexOffset, bool remM, int64_t remN_>
+  static EIGEN_ALWAYS_INLINE void aux_loadB(Scalar *B_arr, int64_t LDB,
+                                            PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
+                                            int64_t remM_ = 0) {
     EIGEN_IF_CONSTEXPR(remM) {
       ymm.packet[packetIndexOffset + startN] =
           ploadu<vecHalf>((const Scalar *)&B_arr[startN * LDB], remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
@@ -323,18 +319,14 @@ class transB {
       else ymm.packet[packetIndexOffset + startN] =
           ploadu<vecHalf>((const Scalar *)&B_arr[startN * LDB], remMask<EIGEN_AVX_MAX_NUM_ROW>(remN_));
     }
-
-    aux_loadB<endN, counter - 1, packetIndexOffset, remM, remN_>(B_arr, LDB, ymm, remM_);
   }
 
-  template <int64_t endN, int64_t counter, int64_t packetIndexOffset, bool remM, int64_t remN_>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_loadB(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
-      int64_t remM_ = 0) {
-    EIGEN_UNUSED_VARIABLE(B_arr);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(ymm);
-    EIGEN_UNUSED_VARIABLE(remM_);
+  template <int64_t packetIndexOffset, bool remM, int64_t remN_, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_loadB_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_arr, int64_t LDB,
+                                                 PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
+                                                 int64_t remM_ = 0) {
+    int unused[] = {0, (aux_loadB<indices, packetIndexOffset, remM, remN_>(B_arr, LDB, ymm, remM_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -343,12 +335,10 @@ class transB {
    * 1-D unroll
    *      for(startN = 0; startN < endN; startN++)
    **/
-  template <int64_t endN, int64_t counter, int64_t packetIndexOffset, bool remK, bool remM>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_storeB(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm, int64_t rem_ = 0) {
-    constexpr int64_t counterReverse = endN - counter;
-    constexpr int64_t startN = counterReverse;
-
+  template <int64_t startN, int64_t packetIndexOffset, bool remK, bool remM>
+  static EIGEN_ALWAYS_INLINE void aux_storeB(Scalar *B_arr, int64_t LDB,
+                                             PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
+                                             int64_t rem_ = 0) {
     EIGEN_IF_CONSTEXPR(remK || remM) {
       pstoreu<Scalar>(&B_arr[startN * LDB], ymm.packet[packetIndexOffset + startN],
                       remMask<EIGEN_AVX_MAX_NUM_ROW>(rem_));
@@ -356,17 +346,15 @@ class transB {
     else {
       pstoreu<Scalar>(&B_arr[startN * LDB], ymm.packet[packetIndexOffset + startN]);
     }
-
-    aux_storeB<endN, counter - 1, packetIndexOffset, remK, remM>(B_arr, LDB, ymm, rem_);
   }
 
-  template <int64_t endN, int64_t counter, int64_t packetIndexOffset, bool remK, bool remM>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_storeB(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm, int64_t rem_ = 0) {
-    EIGEN_UNUSED_VARIABLE(B_arr);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(ymm);
-    EIGEN_UNUSED_VARIABLE(rem_);
+  template <int64_t packetIndexOffset, bool remK, bool remM, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_storeB_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_arr,
+                                                  int64_t LDB,
+                                                  PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
+                                                  int64_t rem_ = 0) {
+    int unused[] = {0, (aux_storeB<indices, packetIndexOffset, remK, remM>(B_arr, LDB, ymm, rem_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -375,26 +363,25 @@ class transB {
    * 1-D unroll
    *      for(startN = 0; startN < endN; startN += EIGEN_AVX_MAX_NUM_ROW)
    **/
-  template <int64_t endN, int64_t counter, bool toTemp, bool remM, int64_t remN_>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_loadBBlock(
-      Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
-      PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm, int64_t remM_ = 0) {
-    constexpr int64_t counterReverse = endN - counter;
-    constexpr int64_t startN = counterReverse;
-    transB::template loadB<EIGEN_AVX_MAX_NUM_ROW, startN, false, (toTemp ? 0 : remN_)>(&B_temp[startN], LDB_, ymm);
-    aux_loadBBlock<endN, counter - EIGEN_AVX_MAX_NUM_ROW, toTemp, remM, remN_>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
-  }
-
-  template <int64_t endN, int64_t counter, bool toTemp, bool remM, int64_t remN_>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_loadBBlock(
-      Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
-      PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm, int64_t remM_ = 0) {
+  template <int64_t endN, int64_t blockIndex, bool toTemp, bool remM, int64_t remN_>
+  static EIGEN_ALWAYS_INLINE void aux_loadBBlock(Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
+                                                 PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
+                                                 int64_t remM_ = 0) {
     EIGEN_UNUSED_VARIABLE(B_arr);
     EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(B_temp);
-    EIGEN_UNUSED_VARIABLE(LDB_);
-    EIGEN_UNUSED_VARIABLE(ymm);
     EIGEN_UNUSED_VARIABLE(remM_);
+    constexpr int64_t startN = blockIndex * EIGEN_AVX_MAX_NUM_ROW;
+    transB::template loadB<EIGEN_AVX_MAX_NUM_ROW, startN, false, (toTemp ? 0 : remN_)>(&B_temp[startN], LDB_, ymm);
+  }
+
+  template <int64_t endN, bool toTemp, bool remM, int64_t remN_, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_loadBBlock_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_arr,
+                                                      int64_t LDB, Scalar *B_temp, int64_t LDB_,
+                                                      PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
+                                                      int64_t remM_ = 0) {
+    int unused[] = {0,
+                    (aux_loadBBlock<endN, indices, toTemp, remM, remN_>(B_arr, LDB, B_temp, LDB_, ymm, remM_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -403,12 +390,11 @@ class transB {
    * 1-D unroll
    *      for(startN = 0; startN < endN; startN += EIGEN_AVX_MAX_NUM_ROW)
    **/
-  template <int64_t endN, int64_t counter, bool toTemp, bool remM, int64_t remK_>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_storeBBlock(
-      Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
-      PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm, int64_t remM_ = 0) {
-    constexpr int64_t counterReverse = endN - counter;
-    constexpr int64_t startN = counterReverse;
+  template <int64_t endN, int64_t blockIndex, bool toTemp, bool remM, int64_t remK_>
+  static EIGEN_ALWAYS_INLINE void aux_storeBBlock(Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
+                                                  PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
+                                                  int64_t remM_ = 0) {
+    constexpr int64_t startN = blockIndex * EIGEN_AVX_MAX_NUM_ROW;
 
     EIGEN_IF_CONSTEXPR(toTemp) {
       transB::template storeB<EIGEN_AVX_MAX_NUM_ROW, startN, remK_ != 0, false>(&B_temp[startN], LDB_, ymm, remK_);
@@ -417,37 +403,33 @@ class transB {
       transB::template storeB<std::min(EIGEN_AVX_MAX_NUM_ROW, endN), startN, false, remM>(&B_arr[0 + startN * LDB], LDB,
                                                                                           ymm, remM_);
     }
-    aux_storeBBlock<endN, counter - EIGEN_AVX_MAX_NUM_ROW, toTemp, remM, remK_>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
   }
 
-  template <int64_t endN, int64_t counter, bool toTemp, bool remM, int64_t remK_>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_storeBBlock(
-      Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
+  template <int64_t endN, bool toTemp, bool remM, int64_t remK_, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_storeBBlock_impl(
+      std::integer_sequence<int64_t, indices...>, Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
       PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm, int64_t remM_ = 0) {
-    EIGEN_UNUSED_VARIABLE(B_arr);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(B_temp);
-    EIGEN_UNUSED_VARIABLE(LDB_);
-    EIGEN_UNUSED_VARIABLE(ymm);
-    EIGEN_UNUSED_VARIABLE(remM_);
+    int unused[] = {0,
+                    (aux_storeBBlock<endN, indices, toTemp, remM, remK_>(B_arr, LDB, B_temp, LDB_, ymm, remM_), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /********************************************************
-   * Wrappers for aux_XXXX to hide counter parameter
+   * Wrappers for aux_XXXX to build index sequences
    ********************************************************/
 
   template <int64_t endN, int64_t packetIndexOffset, bool remM, int64_t remN_>
   static EIGEN_ALWAYS_INLINE void loadB(Scalar *B_arr, int64_t LDB,
                                         PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
                                         int64_t remM_ = 0) {
-    aux_loadB<endN, endN, packetIndexOffset, remM, remN_>(B_arr, LDB, ymm, remM_);
+    aux_loadB_impl<packetIndexOffset, remM, remN_>(std::make_integer_sequence<int64_t, endN>{}, B_arr, LDB, ymm, remM_);
   }
 
   template <int64_t endN, int64_t packetIndexOffset, bool remK, bool remM>
   static EIGEN_ALWAYS_INLINE void storeB(Scalar *B_arr, int64_t LDB,
                                          PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
                                          int64_t rem_ = 0) {
-    aux_storeB<endN, endN, packetIndexOffset, remK, remM>(B_arr, LDB, ymm, rem_);
+    aux_storeB_impl<packetIndexOffset, remK, remM>(std::make_integer_sequence<int64_t, endN>{}, B_arr, LDB, ymm, rem_);
   }
 
   template <int64_t unrollN, bool toTemp, bool remM, int64_t remN_ = 0>
@@ -456,7 +438,9 @@ class transB {
                                              int64_t remM_ = 0) {
     EIGEN_IF_CONSTEXPR(toTemp) { transB::template loadB<unrollN, 0, remM, 0>(&B_arr[0], LDB, ymm, remM_); }
     else {
-      aux_loadBBlock<unrollN, unrollN, toTemp, remM, remN_>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
+      aux_loadBBlock_impl<unrollN, toTemp, remM, remN_>(
+          std::make_integer_sequence<int64_t, (unrollN + EIGEN_AVX_MAX_NUM_ROW - 1) / EIGEN_AVX_MAX_NUM_ROW>{}, B_arr,
+          LDB, B_temp, LDB_, ymm, remM_);
     }
   }
 
@@ -464,7 +448,9 @@ class transB {
   static EIGEN_ALWAYS_INLINE void storeBBlock(Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
                                               PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
                                               int64_t remM_ = 0) {
-    aux_storeBBlock<unrollN, unrollN, toTemp, remM, remK_>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
+    aux_storeBBlock_impl<unrollN, toTemp, remM, remK_>(
+        std::make_integer_sequence<int64_t, (unrollN + EIGEN_AVX_MAX_NUM_ROW - 1) / EIGEN_AVX_MAX_NUM_ROW>{}, B_arr,
+        LDB, B_temp, LDB_, ymm, remM_);
   }
 
   template <int64_t packetIndexOffset>
@@ -608,13 +594,11 @@ class trsm {
    *      for(startM = 0; startM < endM; startM++)
    *        for(startK = 0; startK < endK; startK++)
    **/
-  template <bool isFWDSolve, int64_t endM, int64_t endK, int64_t counter, bool krem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_loadRHS(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
-    constexpr int64_t counterReverse = endM * endK - counter;
-    constexpr int64_t startM = counterReverse / (endK);
-    constexpr int64_t startK = counterReverse % endK;
-
+  template <bool isFWDSolve, int64_t endK, int64_t index, bool krem>
+  static EIGEN_ALWAYS_INLINE void aux_loadRHS(Scalar *B_arr, int64_t LDB,
+                                              PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
+    constexpr int64_t startM = index / (endK);
+    constexpr int64_t startK = index % endK;
     constexpr int64_t packetIndex = startM * endK + startK;
     constexpr int64_t startM_ = isFWDSolve ? startM : -startM;
     const int64_t rhsIndex = (startK * PacketSize) + startM_ * LDB;
@@ -624,16 +608,14 @@ class trsm {
     else {
       RHSInPacket.packet[packetIndex] = ploadu<vec>(&B_arr[rhsIndex]);
     }
-    aux_loadRHS<isFWDSolve, endM, endK, counter - 1, krem>(B_arr, LDB, RHSInPacket, rem);
   }
 
-  template <bool isFWDSolve, int64_t endM, int64_t endK, int64_t counter, bool krem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_loadRHS(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
-    EIGEN_UNUSED_VARIABLE(B_arr);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(RHSInPacket);
-    EIGEN_UNUSED_VARIABLE(rem);
+  template <bool isFWDSolve, int64_t endK, bool krem, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_loadRHS_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_arr,
+                                                   int64_t LDB, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+                                                   int64_t rem = 0) {
+    int unused[] = {0, (aux_loadRHS<isFWDSolve, endK, indices, krem>(B_arr, LDB, RHSInPacket, rem), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -643,13 +625,11 @@ class trsm {
    *      for(startM = 0; startM < endM; startM++)
    *        for(startK = 0; startK < endK; startK++)
    **/
-  template <bool isFWDSolve, int64_t endM, int64_t endK, int64_t counter, bool krem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_storeRHS(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
-    constexpr int64_t counterReverse = endM * endK - counter;
-    constexpr int64_t startM = counterReverse / (endK);
-    constexpr int64_t startK = counterReverse % endK;
-
+  template <bool isFWDSolve, int64_t endK, int64_t index, bool krem>
+  static EIGEN_ALWAYS_INLINE void aux_storeRHS(Scalar *B_arr, int64_t LDB,
+                                               PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
+    constexpr int64_t startM = index / (endK);
+    constexpr int64_t startK = index % endK;
     constexpr int64_t packetIndex = startM * endK + startK;
     constexpr int64_t startM_ = isFWDSolve ? startM : -startM;
     const int64_t rhsIndex = (startK * PacketSize) + startM_ * LDB;
@@ -659,16 +639,14 @@ class trsm {
     else {
       pstoreu<Scalar>(&B_arr[rhsIndex], RHSInPacket.packet[packetIndex]);
     }
-    aux_storeRHS<isFWDSolve, endM, endK, counter - 1, krem>(B_arr, LDB, RHSInPacket, rem);
   }
 
-  template <bool isFWDSolve, int64_t endM, int64_t endK, int64_t counter, bool krem>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_storeRHS(
-      Scalar *B_arr, int64_t LDB, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
-    EIGEN_UNUSED_VARIABLE(B_arr);
-    EIGEN_UNUSED_VARIABLE(LDB);
-    EIGEN_UNUSED_VARIABLE(RHSInPacket);
-    EIGEN_UNUSED_VARIABLE(rem);
+  template <bool isFWDSolve, int64_t endK, bool krem, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_storeRHS_impl(std::integer_sequence<int64_t, indices...>, Scalar *B_arr,
+                                                    int64_t LDB, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+                                                    int64_t rem = 0) {
+    int unused[] = {0, (aux_storeRHS<isFWDSolve, endK, indices, krem>(B_arr, LDB, RHSInPacket, rem), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -679,20 +657,26 @@ class trsm {
    * 1-D unroll
    *      for(startK = 0; startK < endK; startK++)
    **/
-  template <int64_t currM, int64_t endK, int64_t counter>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0 && currM >= 0)> aux_divRHSByDiag(
-      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
-    constexpr int64_t counterReverse = endK - counter;
-    constexpr int64_t startK = counterReverse;
-
+  template <int64_t currM, int64_t endK, int64_t index>
+  static EIGEN_ALWAYS_INLINE void aux_divRHSByDiag(PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+                                                   PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
+    constexpr int64_t startK = index;
     constexpr int64_t packetIndex = currM * endK + startK;
     RHSInPacket.packet[packetIndex] = pmul(AInPacket.packet[currM], RHSInPacket.packet[packetIndex]);
-    aux_divRHSByDiag<currM, endK, counter - 1>(RHSInPacket, AInPacket);
   }
 
-  template <int64_t currM, int64_t endK, int64_t counter>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<!(counter > 0 && currM >= 0)> aux_divRHSByDiag(
-      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
+  template <int64_t currM, int64_t endK, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<(currM >= 0)> aux_divRHSByDiag_impl(
+      std::integer_sequence<int64_t, indices...>, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
+    int unused[] = {0, (aux_divRHSByDiag<currM, endK, indices>(RHSInPacket, AInPacket), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
+
+  template <int64_t currM, int64_t endK, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<(currM < 0)> aux_divRHSByDiag_impl(
+      std::integer_sequence<int64_t, indices...>, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
     EIGEN_UNUSED_VARIABLE(RHSInPacket);
     EIGEN_UNUSED_VARIABLE(AInPacket);
   }
@@ -704,15 +688,13 @@ class trsm {
    *      for(startM = initM; startM < endM; startM++)
    *        for(startK = 0; startK < endK; startK++)
    **/
-  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t initM, int64_t endM, int64_t endK,
-            int64_t counter, int64_t currentM>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_updateRHS(
-      Scalar *A_arr, int64_t LDA, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
-      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
-    constexpr int64_t counterReverse = (endM - initM) * endK - counter;
-    constexpr int64_t startM = initM + counterReverse / (endK);
-    constexpr int64_t startK = counterReverse % endK;
-
+  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t initM, int64_t endK, int64_t index,
+            int64_t currentM>
+  static EIGEN_ALWAYS_INLINE void aux_updateRHS(Scalar *A_arr, int64_t LDA,
+                                                PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+                                                PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
+    constexpr int64_t startM = initM + index / (endK);
+    constexpr int64_t startK = index % endK;
     // For each row of A, first update all corresponding RHS
     constexpr int64_t packetIndex = startM * endK + startK;
     EIGEN_IF_CONSTEXPR(currentM > 0) {
@@ -737,20 +719,17 @@ class trsm {
         else AInPacket.packet[startM] = pset1<vec>(A_arr[idA<isARowMajor>(-startM, -currentM, LDA)]);
       }
     }
-
-    aux_updateRHS<isARowMajor, isFWDSolve, isUnitDiag, initM, endM, endK, counter - 1, currentM>(
-        A_arr, LDA, RHSInPacket, AInPacket);
   }
 
-  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t initM, int64_t endM, int64_t endK,
-            int64_t counter, int64_t currentM>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_updateRHS(
-      Scalar *A_arr, int64_t LDA, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
-      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
-    EIGEN_UNUSED_VARIABLE(A_arr);
-    EIGEN_UNUSED_VARIABLE(LDA);
-    EIGEN_UNUSED_VARIABLE(RHSInPacket);
-    EIGEN_UNUSED_VARIABLE(AInPacket);
+  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t initM, int64_t endK, int64_t currentM,
+            int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_updateRHS_impl(std::integer_sequence<int64_t, indices...>, Scalar *A_arr,
+                                                     int64_t LDA, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+                                                     PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
+    int unused[] = {0, (aux_updateRHS<isARowMajor, isFWDSolve, isUnitDiag, initM, endK, indices, currentM>(
+                            A_arr, LDA, RHSInPacket, AInPacket),
+                        0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /**
@@ -759,13 +738,11 @@ class trsm {
    * 1-D unroll
    *      for(startM = 0; startM < endM; startM++)
    **/
-  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t endM, int64_t counter, int64_t numK>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0)> aux_triSolveMicroKernel(
-      Scalar *A_arr, int64_t LDA, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
-      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
-    constexpr int64_t counterReverse = endM - counter;
-    constexpr int64_t startM = counterReverse;
-
+  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t endM, int64_t index, int64_t numK>
+  static EIGEN_ALWAYS_INLINE void aux_triSolveMicroKernel(Scalar *A_arr, int64_t LDA,
+                                                          PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+                                                          PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
+    constexpr int64_t startM = index;
     constexpr int64_t currentM = startM;
     // Divides the right-hand side in row startM, by digonal value of A
     // broadcasted to AInPacket.packet[startM-1] in the previous iteration.
@@ -785,23 +762,21 @@ class trsm {
     // Handle division for the RHS corresponding to the final row of A.
     EIGEN_IF_CONSTEXPR(!isUnitDiag && startM == endM - 1)
     trsm::template divRHSByDiag<startM, numK>(RHSInPacket, AInPacket);
-
-    aux_triSolveMicroKernel<isARowMajor, isFWDSolve, isUnitDiag, endM, counter - 1, numK>(A_arr, LDA, RHSInPacket,
-                                                                                          AInPacket);
   }
 
-  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t endM, int64_t counter, int64_t numK>
-  static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter <= 0)> aux_triSolveMicroKernel(
-      Scalar *A_arr, int64_t LDA, PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
-      PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
-    EIGEN_UNUSED_VARIABLE(A_arr);
-    EIGEN_UNUSED_VARIABLE(LDA);
-    EIGEN_UNUSED_VARIABLE(RHSInPacket);
-    EIGEN_UNUSED_VARIABLE(AInPacket);
+  template <bool isARowMajor, bool isFWDSolve, bool isUnitDiag, int64_t endM, int64_t numK, int64_t... indices>
+  static EIGEN_ALWAYS_INLINE void aux_triSolveMicroKernel_impl(std::integer_sequence<int64_t, indices...>,
+                                                               Scalar *A_arr, int64_t LDA,
+                                                               PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
+                                                               PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
+    int unused[] = {0, (aux_triSolveMicroKernel<isARowMajor, isFWDSolve, isUnitDiag, endM, indices, numK>(
+                            A_arr, LDA, RHSInPacket, AInPacket),
+                        0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   /********************************************************
-   * Wrappers for aux_XXXX to hide counter parameter
+   * Wrappers for aux_XXXX to build index sequences
    ********************************************************/
 
   /**
@@ -811,7 +786,8 @@ class trsm {
   template <bool isFWDSolve, int64_t endM, int64_t endK, bool krem = false>
   static EIGEN_ALWAYS_INLINE void loadRHS(Scalar *B_arr, int64_t LDB,
                                           PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
-    aux_loadRHS<isFWDSolve, endM, endK, endM * endK, krem>(B_arr, LDB, RHSInPacket, rem);
+    aux_loadRHS_impl<isFWDSolve, endK, krem>(std::make_integer_sequence<int64_t, endM * endK>{}, B_arr, LDB,
+                                             RHSInPacket, rem);
   }
 
   /**
@@ -821,7 +797,8 @@ class trsm {
   template <bool isFWDSolve, int64_t endM, int64_t endK, bool krem = false>
   static EIGEN_ALWAYS_INLINE void storeRHS(Scalar *B_arr, int64_t LDB,
                                            PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket, int64_t rem = 0) {
-    aux_storeRHS<isFWDSolve, endM, endK, endM * endK, krem>(B_arr, LDB, RHSInPacket, rem);
+    aux_storeRHS_impl<isFWDSolve, endK, krem>(std::make_integer_sequence<int64_t, endM * endK>{}, B_arr, LDB,
+                                              RHSInPacket, rem);
   }
 
   /**
@@ -830,7 +807,7 @@ class trsm {
   template <int64_t currM, int64_t endK>
   static EIGEN_ALWAYS_INLINE void divRHSByDiag(PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
                                                PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
-    aux_divRHSByDiag<currM, endK, endK>(RHSInPacket, AInPacket);
+    aux_divRHSByDiag_impl<currM, endK>(std::make_integer_sequence<int64_t, endK>{}, RHSInPacket, AInPacket);
   }
 
   /**
@@ -842,8 +819,8 @@ class trsm {
   static EIGEN_ALWAYS_INLINE void updateRHS(Scalar *A_arr, int64_t LDA,
                                             PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
                                             PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
-    aux_updateRHS<isARowMajor, isFWDSolve, isUnitDiag, startM, endM, endK, (endM - startM) * endK, currentM>(
-        A_arr, LDA, RHSInPacket, AInPacket);
+    aux_updateRHS_impl<isARowMajor, isFWDSolve, isUnitDiag, startM, endK, currentM>(
+        std::make_integer_sequence<int64_t, (endM - startM) * endK>{}, A_arr, LDA, RHSInPacket, AInPacket);
   }
 
   /**
@@ -857,7 +834,8 @@ class trsm {
                                                       PacketBlock<vec, EIGEN_AVX_MAX_NUM_ACC> &RHSInPacket,
                                                       PacketBlock<vec, EIGEN_AVX_MAX_NUM_ROW> &AInPacket) {
     static_assert(numK >= 1 && numK <= 3, "numK out of range");
-    aux_triSolveMicroKernel<isARowMajor, isFWDSolve, isUnitDiag, endM, endM, numK>(A_arr, LDA, RHSInPacket, AInPacket);
+    aux_triSolveMicroKernel_impl<isARowMajor, isFWDSolve, isUnitDiag, endM, numK>(
+        std::make_integer_sequence<int64_t, endM>{}, A_arr, LDA, RHSInPacket, AInPacket);
   }
 };
 
@@ -1114,7 +1092,7 @@ class gemm {
   }
 
   /********************************************************
-   * Wrappers for aux_XXXX to hide counter parameter
+   * Wrappers for aux_XXXX to build index sequences
    ********************************************************/
 
   template <int64_t endM, int64_t endN>
