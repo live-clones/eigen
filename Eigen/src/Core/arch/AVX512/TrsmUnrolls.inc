@@ -149,50 +149,54 @@ class trans {
    * (endN <= PacketSize) is required to handle the fp32 case, see comments in transStoreC
    *
    **/
+  // Split packet indexing into overloads so C++14 compilers do not diagnose the
+  // unreachable upper-half branch for lower-half stores.
+  template <int64_t startN, int64_t unrollN, int64_t packetIndexOffset>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<(startN < EIGEN_AVX_MAX_NUM_ROW), vecHalf> aux_storeC_packet(
+      PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
+    return preinterpret<vecHalf>(zmm.packet[packetIndexOffset + (unrollN / PacketSize) * startN]);
+  }
+
+  template <int64_t startN, int64_t unrollN, int64_t packetIndexOffset>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<(startN >= EIGEN_AVX_MAX_NUM_ROW), vecHalf> aux_storeC_packet(
+      PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm) {
+    constexpr int64_t packetIndex = packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW);
+    // Reinterpret as __m512 for _mm512_shuffle_f32x4.
+    vecFullFloat zmm2vecFullFloat = preinterpret<vecFullFloat>(zmm.packet[packetIndex]);
+    // Swap lower and upper half of avx register.
+    zmm.packet[packetIndex] = preinterpret<vec>(_mm512_shuffle_f32x4(zmm2vecFullFloat, zmm2vecFullFloat, 0b01001110));
+    return preinterpret<vecHalf>(zmm.packet[packetIndex]);
+  }
+
+  template <int64_t startN>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<(startN < EIGEN_AVX_MAX_NUM_ROW), vecHalf> aux_storeC_add_rem(
+      const vecHalf &cPacket, const vecHalf &zmmPacket, int64_t remM_) {
+    return padd(cPacket, zmmPacket, remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
+  }
+
+  template <int64_t startN>
+  static EIGEN_ALWAYS_INLINE std::enable_if_t<(startN >= EIGEN_AVX_MAX_NUM_ROW), vecHalf> aux_storeC_add_rem(
+      const vecHalf &cPacket, const vecHalf &zmmPacket, int64_t remM_) {
+    EIGEN_UNUSED_VARIABLE(remM_);
+    return padd(cPacket, zmmPacket);
+  }
+
   template <int64_t endN, int64_t counter, int64_t unrollN, int64_t packetIndexOffset, bool remM>
   static EIGEN_ALWAYS_INLINE std::enable_if_t<(counter > 0 && endN <= PacketSize)> aux_storeC(
       Scalar *C_arr, int64_t LDC, PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &zmm, int64_t remM_ = 0) {
     constexpr int64_t counterReverse = endN - counter;
     constexpr int64_t startN = counterReverse;
 
-    EIGEN_IF_CONSTEXPR(startN < EIGEN_AVX_MAX_NUM_ROW) {
-      EIGEN_IF_CONSTEXPR(remM) {
-        pstoreu<Scalar>(
-            C_arr + LDC * startN,
-            padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN, remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_)),
-                 preinterpret<vecHalf>(zmm.packet[packetIndexOffset + (unrollN / PacketSize) * startN]),
-                 remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_)),
-            remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
-      }
-      else {
-        pstoreu<Scalar>(C_arr + LDC * startN,
-                        padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN),
-                             preinterpret<vecHalf>(zmm.packet[packetIndexOffset + (unrollN / PacketSize) * startN])));
-      }
+    vecHalf zmmPacket = aux_storeC_packet<startN, unrollN, packetIndexOffset>(zmm);
+    EIGEN_IF_CONSTEXPR(remM) {
+      pstoreu<Scalar>(C_arr + LDC * startN,
+                      aux_storeC_add_rem<startN>(
+                          ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN, remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_)),
+                          zmmPacket, remM_),
+                      remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
     }
-    else {  // This block is only needed for fp32 case
-      // Reinterpret as __m512 for _mm512_shuffle_f32x4
-      vecFullFloat zmm2vecFullFloat = preinterpret<vecFullFloat>(
-          zmm.packet[packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW)]);
-      // Swap lower and upper half of avx register.
-      zmm.packet[packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW)] =
-          preinterpret<vec>(_mm512_shuffle_f32x4(zmm2vecFullFloat, zmm2vecFullFloat, 0b01001110));
-
-      EIGEN_IF_CONSTEXPR(remM) {
-        pstoreu<Scalar>(
-            C_arr + LDC * startN,
-            padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN, remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_)),
-                 preinterpret<vecHalf>(
-                     zmm.packet[packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW)])),
-            remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
-      }
-      else {
-        pstoreu<Scalar>(
-            C_arr + LDC * startN,
-            padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN),
-                 preinterpret<vecHalf>(
-                     zmm.packet[packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW)])));
-      }
+    else {
+      pstoreu<Scalar>(C_arr + LDC * startN, padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN), zmmPacket));
     }
     aux_storeC<endN, counter - 1, unrollN, packetIndexOffset, remM>(C_arr, LDC, zmm, remM_);
   }
