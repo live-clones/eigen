@@ -78,6 +78,77 @@ struct AssignmentKind<DenseShape, SparseTriangularShape> {
   typedef Sparse2Dense Kind;
 };
 
+template <typename XprType>
+Index sparse_assignment_total_size(const XprType &src) {
+  const Index rows = src.rows();
+  const Index cols = src.cols();
+  const Index maxIndex = NumTraits<Index>::highest();
+
+  if (rows == 0 || cols == 0) {
+    return 0;
+  }
+  return rows <= maxIndex / cols ? rows * cols : maxIndex;
+}
+
+template <typename XprType>
+Index sparse_assignment_heuristic_reserve_size(const XprType &src) {
+  const Index maxSize = (std::max)(src.rows(), src.cols());
+  const Index maxIndex = NumTraits<Index>::highest();
+  const Index totalSize = sparse_assignment_total_size(src);
+  const Index vectorReserve = maxSize <= maxIndex / 2 ? 2 * maxSize : maxIndex;
+  return (std::min)(totalSize, vectorReserve);
+}
+
+inline Index scaled_sparse_assignment_reserve_size(Index count, Index numerator, Index denominator) {
+  eigen_internal_assert(denominator > 0);
+  if (count == 0 || numerator == 0) return 0;
+
+  const Index maxIndex = NumTraits<Index>::highest();
+  if (count > maxIndex / numerator) return maxIndex;
+
+  const Index product = count * numerator;
+  return product / denominator + Index(product % denominator != 0);
+}
+
+template <typename SrcXprType>
+struct use_exact_sparse_assignment_reserve : std::true_type {};
+
+template <typename SrcXprType>
+struct use_exact_sparse_assignment_reserve<const SrcXprType> : use_exact_sparse_assignment_reserve<SrcXprType> {};
+
+// SparseView over an index-based expression must scan the underlying dense coefficients to count non-zeros.
+// Use an estimated reserve there to avoid traversing the full source twice.
+template <typename ArgType>
+struct use_exact_sparse_assignment_reserve<SparseView<ArgType>>
+    : std::is_same<typename evaluator_traits<remove_all_t<ArgType>>::Kind, IteratorBased> {};
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size(const SrcXprType &, SrcEvaluatorType &srcEvaluator, Index outerEvaluationSize,
+                                     std::true_type) {
+  Index reserveSize = 0;
+  for (Index j = 0; j < outerEvaluationSize; ++j)
+    for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) reserveSize++;
+  return reserveSize;
+}
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &srcEvaluator, Index outerEvaluationSize,
+                                     std::false_type) {
+  const Index heuristicReserveSize = sparse_assignment_heuristic_reserve_size(src);
+  if (outerEvaluationSize <= 0) return heuristicReserveSize;
+
+  const Index sampleOuterSize = (std::min)(outerEvaluationSize, Index(8));
+  Index sampleReserveSize = 0;
+  for (Index j = 0; j < sampleOuterSize; ++j) {
+    for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) sampleReserveSize++;
+  }
+  if (sampleOuterSize == outerEvaluationSize) return sampleReserveSize;
+
+  const Index estimatedReserveSize =
+      scaled_sparse_assignment_reserve_size(sampleReserveSize, outerEvaluationSize, sampleOuterSize);
+  return (std::min)(sparse_assignment_total_size(src), (std::max)(heuristicReserveSize, estimatedReserveSize));
+}
+
 template <typename DstXprType, typename SrcXprType>
 void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
   typedef typename DstXprType::Scalar Scalar;
@@ -89,9 +160,8 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
   constexpr bool transpose = (DstEvaluatorType::Flags & RowMajorBit) != (SrcEvaluatorType::Flags & RowMajorBit);
   const Index outerEvaluationSize = (SrcEvaluatorType::Flags & RowMajorBit) ? src.rows() : src.cols();
 
-  Index reserveSize = 0;
-  for (Index j = 0; j < outerEvaluationSize; ++j)
-    for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) reserveSize++;
+  const Index reserveSize = sparse_assignment_reserve_size(src, srcEvaluator, outerEvaluationSize,
+                                                           use_exact_sparse_assignment_reserve<SrcXprType>());
 
   if ((!transpose) && src.isRValue()) {
     // eval without temporary
