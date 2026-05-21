@@ -175,7 +175,7 @@ void dgks_extreme_magnitudes() {
 
   // Tiny magnitude vector.
   {
-    RealScalar tiny = numext::sqrt(NumTraits<RealScalar>::lowest()) * RealScalar(10);
+    RealScalar tiny = numext::sqrt((std::numeric_limits<RealScalar>::min)()) * RealScalar(10);
     VectorType v = VectorType::Random(n) * tiny;
     RealScalar norm = internal::dgks_orthogonalize(Q, v, k);
     VERIFY((numext::isfinite)(norm));
