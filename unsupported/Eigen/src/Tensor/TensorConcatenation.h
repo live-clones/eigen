@@ -107,15 +107,11 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     PacketAccess =
         TensorEvaluator<LeftArgType, Device>::PacketAccess && TensorEvaluator<RightArgType, Device>::PacketAccess,
     // block() reads each operand's data() pointer directly, so both must
-    // expose raw storage. The is_arithmetic gate guards against
-    // TensorCwiseUnaryOp / TensorConversionOp callers that forward a
-    // destination buffer sized for a *different* scalar type (e.g.
-    // `abs(complex)` returns float, so the assign's destination buffer is
-    // float-sized; concat's prepareStorage would then misread it as complex
-    // storage). Non-arithmetic scalars (notably std::complex<T>) fall back to
-    // the packet/coeff path, which is type-safe.
-    BlockAccess = TensorEvaluator<LeftArgType, Device>::RawAccess && TensorEvaluator<RightArgType, Device>::RawAccess &&
-                  internal::is_arithmetic<std::remove_const_t<Scalar>>::value,
+    // expose raw storage. Scalar-changing block consumers
+    // (TensorCwiseUnaryOp, TensorConversionOp) drop the forwarded destination
+    // buffer before reaching us, so prepareStorage always sees either a
+    // matching-Scalar buffer or no buffer at all.
+    BlockAccess = TensorEvaluator<LeftArgType, Device>::RawAccess && TensorEvaluator<RightArgType, Device>::RawAccess,
     // Matches TensorShuffling / TensorBroadcasting / TensorPadding: bulk copy
     // wins over the per-element coeff/packet path (which pays div/mod per
     // access) at every size we benchmarked, so always prefer block.
@@ -243,7 +239,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     }
 
     const Index axis_start = out_coords[m_axis];
-    const Index axis_size = desc.dimension(m_axis);
+    const Index axis_size = desc.dimension(static_cast<int>(m_axis));
     const Index axis_end = axis_start + axis_size;
 
     typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
