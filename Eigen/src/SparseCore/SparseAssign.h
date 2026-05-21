@@ -137,6 +137,9 @@ Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &sr
   const Index heuristicReserveSize = sparse_assignment_heuristic_reserve_size(src);
   if (outerEvaluationSize <= 0) return heuristicReserveSize;
 
+  // Scan up to 8 outer slices and scale the per-slice nnz to the full size. Small enough that the
+  // sample's scan cost is negligible against the assignment itself, large enough to keep variance
+  // low at typical sparsities; the result is then clamped by total size and the heuristic floor.
   const Index sampleOuterSize = (std::min)(outerEvaluationSize, Index(8));
   Index sampleReserveSize = 0;
   for (Index j = 0; j < sampleOuterSize; ++j) {
