@@ -17,6 +17,37 @@ namespace Eigen {
 
 namespace internal {
 
+template <bool AccumCoeffs, typename MatrixType, typename VectorType, typename CoeffVectorType>
+typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize_impl(const MatrixType& Q, VectorType& v,
+                                                                               Index numCols, CoeffVectorType& coeffs,
+                                                                               Index maxIter) {
+  using Scalar = typename VectorType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  eigen_assert(numCols >= 0 && numCols <= Q.cols());
+  eigen_assert(v.size() == Q.rows());
+  eigen_assert(maxIter >= 0);
+
+  constexpr RealScalar kappa = RealScalar(0.70710678118654752440084);  // 1/sqrt(2)
+
+  RealScalar normBefore = v.stableNorm();
+  Vector<Scalar, Dynamic> h;
+
+  for (Index iter = 0; iter < maxIter; ++iter) {
+    auto Qblock = Q.leftCols(numCols);
+    h.noalias() = Qblock.adjoint() * v;
+    v -= Qblock * h;
+
+    EIGEN_IF_CONSTEXPR(AccumCoeffs) { coeffs += h; }
+
+    RealScalar normAfter = v.stableNorm();
+    if (normAfter >= kappa * normBefore) return normAfter;
+    normBefore = normAfter;
+  }
+
+  return normBefore;
+}
+
 /** \internal
  * \brief DGKS (Daniel-Gragg-Kaufman-Stewart) iterative reorthogonalization.
  *
@@ -34,8 +65,7 @@ namespace internal {
  * \param[in]  Q        Matrix whose first \a numCols columns are orthonormal
  * \param[in,out] v     Vector to orthogonalize (modified in place)
  * \param[in]  numCols  Number of columns of Q to orthogonalize against
- * \param[out] coeffs   Optional pointer to a vector that accumulates the
- *                       projection coefficients (Q^* v). May be null.
+ * \param[out] coeffs   Vector that accumulates the projection coefficients (Q^* v)
  * \param[in]  maxIter  Maximum number of reorthogonalization passes (default 2)
  *
  * \returns The stable norm of v after orthogonalization.
@@ -46,38 +76,10 @@ namespace internal {
  */
 template <typename MatrixType, typename VectorType, typename CoeffVectorType>
 typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(const MatrixType& Q, VectorType& v,
-                                                                         Index numCols, CoeffVectorType* coeffs,
-                                                                         Index maxIter = 2) {
-  typedef typename VectorType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-
-  eigen_assert(numCols >= 0 && numCols <= Q.cols());
-  eigen_assert(v.size() == Q.rows());
-  eigen_assert(maxIter >= 0);
-  if (coeffs) eigen_assert(coeffs->size() == numCols);
-
-  // DGKS threshold: 1/sqrt(2) ~= 0.7071
-  const RealScalar kappa = RealScalar(1) / numext::sqrt(RealScalar(2));
-
-  RealScalar normBefore = v.stableNorm();
-
-  for (Index iter = 0; iter < maxIter; ++iter) {
-    // CGS pass: compute projections and subtract.
-    auto Qblock = Q.leftCols(numCols);
-    Matrix<Scalar, Dynamic, 1> h = Qblock.adjoint() * v;
-    v -= Qblock * h;
-
-    if (coeffs) *coeffs += h;
-
-    RealScalar normAfter = v.stableNorm();
-
-    // If the norm did not drop significantly, orthogonality is sufficient.
-    if (normAfter >= kappa * normBefore) return normAfter;
-
-    normBefore = normAfter;
-  }
-
-  return normBefore;
+                                                                          Index numCols, CoeffVectorType& coeffs,
+                                                                          Index maxIter = 2) {
+  eigen_assert(coeffs.size() == numCols);
+  return dgks_orthogonalize_impl<true>(Q, v, numCols, coeffs, maxIter);
 }
 
 /** \internal
@@ -85,9 +87,10 @@ typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(const M
  */
 template <typename MatrixType, typename VectorType>
 typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(const MatrixType& Q, VectorType& v,
-                                                                         Index numCols, Index maxIter = 2) {
-  return dgks_orthogonalize(Q, v, numCols, static_cast<Matrix<typename VectorType::Scalar, Dynamic, 1>*>(nullptr),
-                            maxIter);
+                                                                          Index numCols, Index maxIter = 2) {
+  using Scalar = typename VectorType::Scalar;
+  Vector<Scalar, Dynamic> dummy;
+  return dgks_orthogonalize_impl<false>(Q, v, numCols, dummy, maxIter);
 }
 
 }  // end namespace internal

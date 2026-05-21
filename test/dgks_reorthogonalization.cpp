@@ -12,9 +12,9 @@
 
 template <typename Scalar>
 void dgks_basic_orthogonality() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 8;
   Index k = 5;
@@ -43,9 +43,9 @@ void dgks_basic_orthogonality() {
 
 template <typename Scalar>
 void dgks_coefficient_accumulation() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 6;
   Index k = 4;
@@ -58,7 +58,7 @@ void dgks_coefficient_accumulation() {
   VectorType v_orig = v;
   VectorType coeffs = VectorType::Zero(k);
 
-  RealScalar norm = internal::dgks_orthogonalize(Q, v, k, &coeffs);
+  RealScalar norm = internal::dgks_orthogonalize(Q, v, k, coeffs);
 
   // v_orig = Q * coeffs + v (residual), so Q * coeffs + v should reconstruct v_orig.
   VectorType reconstructed = Q * coeffs + v;
@@ -68,9 +68,9 @@ void dgks_coefficient_accumulation() {
 
 template <typename Scalar>
 void dgks_vector_in_span() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 6;
   Index k = 4;
@@ -90,9 +90,9 @@ void dgks_vector_in_span() {
 
 template <typename Scalar>
 void dgks_already_orthogonal() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 8;
   Index k = 5;
@@ -118,9 +118,9 @@ void dgks_already_orthogonal() {
 
 template <typename Scalar>
 void dgks_nearly_dependent() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 8;
   Index k = 4;
@@ -152,9 +152,9 @@ void dgks_nearly_dependent() {
 
 template <typename Scalar>
 void dgks_extreme_magnitudes() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 6;
   Index k = 4;
@@ -186,9 +186,9 @@ void dgks_extreme_magnitudes() {
 
 template <typename Scalar>
 void dgks_single_column() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 6;
 
@@ -205,9 +205,9 @@ void dgks_single_column() {
 
 template <typename Scalar>
 void dgks_zero_columns() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Vector<Scalar, Dynamic>;
 
   Index n = 6;
 
