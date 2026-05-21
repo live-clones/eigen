@@ -51,6 +51,11 @@ typename NumTraits<typename VectorType::Scalar>::Real dgks_orthogonalize(const M
   typedef typename VectorType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
+  eigen_assert(numCols >= 0 && numCols <= Q.cols());
+  eigen_assert(v.size() == Q.rows());
+  eigen_assert(maxIter >= 0);
+  if (coeffs) eigen_assert(coeffs->size() == numCols);
+
   // DGKS threshold: 1/sqrt(2) ~= 0.7071
   const RealScalar kappa = RealScalar(1) / numext::sqrt(RealScalar(2));
 
