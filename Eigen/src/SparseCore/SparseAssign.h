@@ -134,8 +134,16 @@ Index sparse_assignment_reserve_size(const SrcXprType &, SrcEvaluatorType &srcEv
 template <typename SrcXprType, typename SrcEvaluatorType>
 Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &srcEvaluator, Index outerEvaluationSize,
                                      std::false_type) {
+  const Index totalSize = sparse_assignment_total_size(src);
+  // For small dense sources, reserve the full possible size instead of spending another pass counting
+  // entries. The 1024-slot cap bounds transient over-reservation to ~12 KB per assignment while still
+  // letting common small-matrix shapes (up to 32x32) avoid mid-fill reallocation when the source is
+  // densely populated.
+  if (totalSize <= 1024) return totalSize;
+
   const Index heuristicReserveSize = sparse_assignment_heuristic_reserve_size(src);
-  if (outerEvaluationSize <= 0) return heuristicReserveSize;
+  // Avoid turning the sample into an almost-complete pre-scan for short, wide, or tall expressions.
+  if (outerEvaluationSize <= 8) return heuristicReserveSize;
 
   // Scan up to 8 outer slices and scale the per-slice nnz to the full size. Small enough that the
   // sample's scan cost is negligible against the assignment itself, large enough to keep variance
@@ -145,11 +153,10 @@ Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &sr
   for (Index j = 0; j < sampleOuterSize; ++j) {
     for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) sampleReserveSize++;
   }
-  if (sampleOuterSize == outerEvaluationSize) return sampleReserveSize;
 
   const Index estimatedReserveSize =
       scaled_sparse_assignment_reserve_size(sampleReserveSize, outerEvaluationSize, sampleOuterSize);
-  return (std::min)(sparse_assignment_total_size(src), (std::max)(heuristicReserveSize, estimatedReserveSize));
+  return (std::min)(totalSize, (std::max)(heuristicReserveSize, estimatedReserveSize));
 }
 
 template <typename DstXprType, typename SrcXprType>
