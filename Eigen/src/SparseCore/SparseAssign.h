@@ -122,13 +122,41 @@ template <typename ArgType>
 struct use_exact_sparse_assignment_reserve<SparseView<ArgType>>
     : std::is_same<typename evaluator_traits<remove_all_t<ArgType>>::Kind, IteratorBased> {};
 
+// Detect whether a const SrcXprType exposes a member nonZeros(). Concrete sparse storage classes
+// (SparseMatrix via SparseCompressedBase, SparseVector, SparseMap, SparseBlock, SparseTranspose)
+// do; sparse expressions such as CwiseBinaryOp / CwiseUnaryOp / Product / SparseTriangularView /
+// SparseView do not -- their evaluators only expose nonZerosEstimate().
+template <typename T, typename = void>
+struct has_member_nonZeros : std::false_type {};
+
+template <typename T>
+struct has_member_nonZeros<T, void_t<decltype(std::declval<const T &>().nonZeros())>> : std::true_type {};
+
 template <typename SrcXprType, typename SrcEvaluatorType>
-Index sparse_assignment_reserve_size(const SrcXprType &, SrcEvaluatorType &srcEvaluator, Index outerEvaluationSize,
-                                     std::true_type) {
+Index sparse_assignment_reserve_size_exact(const SrcXprType &, SrcEvaluatorType &srcEvaluator,
+                                           Index outerEvaluationSize, std::false_type /*has_member_nonZeros*/) {
   Index reserveSize = 0;
   for (Index j = 0; j < outerEvaluationSize; ++j)
     for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) reserveSize++;
   return reserveSize;
+}
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size_exact(const SrcXprType &src, SrcEvaluatorType &srcEvaluator,
+                                           Index outerEvaluationSize, std::true_type /*has_member_nonZeros*/) {
+  // O(1) for compressed SparseMatrix, O(outerSize) uncompressed -- both cheaper than the O(nnz)
+  // iteration fallback. SparseBlock for general (non-inner-panel) blocks reports Dynamic; iterate
+  // in that case.
+  const Index nz = src.nonZeros();
+  if (nz != Dynamic) return nz;
+  return sparse_assignment_reserve_size_exact(src, srcEvaluator, outerEvaluationSize, std::false_type{});
+}
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &srcEvaluator, Index outerEvaluationSize,
+                                     std::true_type) {
+  return sparse_assignment_reserve_size_exact(src, srcEvaluator, outerEvaluationSize,
+                                              has_member_nonZeros<SrcXprType>{});
 }
 
 template <typename SrcXprType, typename SrcEvaluatorType>
