@@ -524,11 +524,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
     const ComplexScalar wp(wtemp, wpi);
     const ComplexScalar wp_one = wp + ComplexScalar(1, 0);
-    const ComplexScalar wp_one_2 = internal::pmul(wp_one, wp_one);
-    const ComplexScalar wp_one_3 = internal::pmul(wp_one_2, wp_one);
-    const ComplexScalar wp_one_4 = internal::pmul(wp_one_3, wp_one);
     const Index n2 = n / 2;
-    ComplexScalar w(1.0, 0.0);
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
     // The class-level PacketReturnType keys off OutputScalar, which can be
@@ -536,44 +532,74 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     // the merge always vectorizes regardless of the output reduction.
     using CPacket = typename internal::packet_traits<ComplexScalar>::type;
     constexpr Index CPacketSize = internal::unpacket_traits<CPacket>::size;
-    // Unrolled twiddle generation below covers complex packets with up to
-    // kMaxBatch lanes (SSE2/AVX/AVX-512). Larger complex packets (e.g. RVV
-    // with VLEN >= 1024 gives CPacketSize == 16 for std::complex<float>)
-    // fall through to the scalar loop.
+    // A batch's twiddles are a broadcast of the running factor times a
+    // precomputed ramp wp_one^{0..kBatch-1}: one vector pmul per packet
+    // instead of a scalar cmul per lane plus a round-trip through scratch. The
+    // running factor advances by wp_one^kBatch per batch; kBatch >= 4 keeps
+    // that recurrence at the same stride — and thus the same accumulated
+    // rounding — as the original scalar code.
+    //
+    // Two cases fall through to the scalar loop. A 1-wide complex packet
+    // (CPacketSize == 1: Packet1cd, i.e. SSE2 std::complex<double>) carries no
+    // SIMD parallelism — the "vector" path is then scalar dressed in packet
+    // ops and loses to the hand-unrolled scalar fallback. Packets wider than
+    // kMaxBatch (e.g. RVV with VLEN >= 1024 gives CPacketSize == 16 for
+    // std::complex<float>) overflow the ramp.
     constexpr Index kMaxBatch = 8;
     constexpr Index kBatch = (CPacketSize >= 4) ? CPacketSize : Index(4);
-    if (CPacketSize <= kMaxBatch && kBatch <= n2) {
-      alignas(alignof(CPacket)) ComplexScalar tw_buf[kMaxBatch];
-      // wp_one^kBatch for stepping the running twiddle.
-      const ComplexScalar wp_one_batch = (kBatch == 4) ? wp_one_4 : internal::pmul(wp_one_4, wp_one_4);
-      for (Index i = 0; i < n2; i += kBatch) {
-        // Independent pmuls (no serial chain) so the load that feeds each
-        // iter's pmul isn't latency-bound on the twiddle-stepping recurrence.
-        tw_buf[0] = w;
-        tw_buf[1] = internal::pmul(w, wp_one);
-        tw_buf[2] = internal::pmul(w, wp_one_2);
-        tw_buf[3] = internal::pmul(w, wp_one_3);
-        if (kBatch == 8) {
-          tw_buf[4] = internal::pmul(w, wp_one_4);
-          tw_buf[5] = internal::pmul(tw_buf[4], wp_one);
-          tw_buf[6] = internal::pmul(tw_buf[4], wp_one_2);
-          tw_buf[7] = internal::pmul(tw_buf[4], wp_one_3);
-        }
+    if (CPacketSize >= 2 && CPacketSize <= kMaxBatch && kBatch <= n2) {
+      // ramp[k] = wp_one^k — built once, reused for every batch and every line.
+      alignas(alignof(CPacket)) ComplexScalar ramp[kMaxBatch];
+      ramp[0] = ComplexScalar(1, 0);
+      for (Index k = 1; k < kBatch; ++k) ramp[k] = internal::pmul(ramp[k - 1], wp_one);
+      const ComplexScalar wp_one_batch = internal::pmul(ramp[kBatch - 1], wp_one);
+      const ComplexScalar wp_one_2batch = internal::pmul(wp_one_batch, wp_one_batch);
+
+      // Two batches are processed per iteration with two independent running
+      // factors, so the w recurrence (one complex pmul of latency) is no
+      // longer the serial bottleneck — each chain advances only once per two
+      // batches and overlaps the butterfly work of the other.
+      ComplexScalar w(1, 0);
+      Index i = 0;
+      for (; i + 2 * kBatch <= n2; i += 2 * kBatch) {
+        const CPacket wv0 = internal::pset1<CPacket>(w);
+        const CPacket wv1 = internal::pset1<CPacket>(internal::pmul(w, wp_one_batch));
         for (Index k = 0; k < kBatch; k += CPacketSize) {
-          CPacket pw = internal::pload<CPacket>(tw_buf + k);
-          CPacket pa = internal::ploadu<CPacket>(data + i + k);
-          CPacket pb = internal::ploadu<CPacket>(data + i + n2 + k);
-          CPacket pt = internal::pmul(pw, pb);
+          const CPacket rk = internal::pload<CPacket>(ramp + k);
+          const CPacket pa0 = internal::ploadu<CPacket>(data + i + k);
+          const CPacket pb0 = internal::ploadu<CPacket>(data + i + n2 + k);
+          const CPacket pa1 = internal::ploadu<CPacket>(data + i + kBatch + k);
+          const CPacket pb1 = internal::ploadu<CPacket>(data + i + kBatch + n2 + k);
+          const CPacket pt0 = internal::pmul(internal::pmul(wv0, rk), pb0);
+          const CPacket pt1 = internal::pmul(internal::pmul(wv1, rk), pb1);
+          internal::pstoreu(data + i + k, internal::padd(pa0, pt0));
+          internal::pstoreu(data + i + n2 + k, internal::psub(pa0, pt0));
+          internal::pstoreu(data + i + kBatch + k, internal::padd(pa1, pt1));
+          internal::pstoreu(data + i + kBatch + n2 + k, internal::psub(pa1, pt1));
+        }
+        w = internal::pmul(w, wp_one_2batch);
+      }
+      // n2 is a power of two >= kBatch, so this tail runs at most once.
+      for (; i < n2; i += kBatch) {
+        const CPacket wv = internal::pset1<CPacket>(w);
+        for (Index k = 0; k < kBatch; k += CPacketSize) {
+          const CPacket pw = internal::pmul(wv, internal::pload<CPacket>(ramp + k));
+          const CPacket pa = internal::ploadu<CPacket>(data + i + k);
+          const CPacket pb = internal::ploadu<CPacket>(data + i + n2 + k);
+          const CPacket pt = internal::pmul(pw, pb);
           internal::pstoreu(data + i + k, internal::padd(pa, pt));
           internal::pstoreu(data + i + n2 + k, internal::psub(pa, pt));
         }
-        w = internal::pmul(w, wp_one_batch);
       }
       return;
     }
 #endif
 
     // Scalar fallback (GPU build, or RVV with VLEN >= 1024 → CPacketSize > 8).
+    const ComplexScalar wp_one_2 = internal::pmul(wp_one, wp_one);
+    const ComplexScalar wp_one_3 = internal::pmul(wp_one_2, wp_one);
+    const ComplexScalar wp_one_4 = internal::pmul(wp_one_3, wp_one);
+    ComplexScalar w(1.0, 0.0);
     for (Index i = 0; i < n2; i += 4) {
       const ComplexScalar w1 = internal::pmul(w, wp_one);
       const ComplexScalar w2 = internal::pmul(w, wp_one_2);
