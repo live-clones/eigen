@@ -202,18 +202,44 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
-    // Target last-level cache: keeps both source slabs resident during the
-    // copy. Matches TensorPadding.
-    const size_t target_size = m_device.lastLevelCacheSize();
+    // Target the L1 cache. A block straddling the concat axis is materialized
+    // into a merged scratch slab that the cwise consumer reads straight back;
+    // sizing the block to L1 keeps that round-trip out of the last-level
+    // cache. It also splits an otherwise cache-resident output into many
+    // blocks, so the off-axis ones qualify for the zero-copy view path in
+    // block(). Matches TensorBroadcasting, which likewise targets L1 for its
+    // materialized block path.
+    const size_t target_size = m_device.firstLevelCacheSize();
     return internal::TensorBlockResourceRequirements::merge(
         internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size),
         internal::TensorBlockResourceRequirements::merge(m_leftImpl.getResourceRequirements(),
                                                          m_rightImpl.getResourceRequirements()));
   }
 
-  // Each TensorBlockIO::Copy collapses to a single memcpy whenever the
-  // operand slab is contiguous (concat axis outermost, or block covers all
-  // inner dims). Straddling blocks issue two copies, one per side.
+  // True when a block of shape `block_dims` is a contiguous run of an operand
+  // whose shape is `operand_dims` -- i.e. it can be addressed as a plain
+  // pointer offset with no per-row stride walk. Mirrors the direct-access test
+  // in TensorMaterializedBlock::materialize().
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool isContiguousOperandSlab(const Dimensions& operand_dims,
+                                                                     const Dimensions& block_dims) const {
+    static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
+    int matching_inner_dims = 0;
+    for (int i = 0; i < NumDims; ++i) {
+      const int dim = IsColMajor ? i : NumDims - i - 1;
+      if (operand_dims[dim] != block_dims[dim]) break;
+      ++matching_inner_dims;
+    }
+    // Every dimension above the single partial dimension must be of size 1.
+    for (int i = matching_inner_dims + 1; i < NumDims; ++i) {
+      const int dim = IsColMajor ? i : NumDims - i - 1;
+      if (block_dims[dim] != 1) return false;
+    }
+    return true;
+  }
+
+  // Returns a zero-copy view when the block lies within a single operand and
+  // is contiguous there; otherwise materializes the slab(s) with
+  // TensorBlockIO::Copy, which collapses to a memcpy per contiguous slab.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool root_of_expr_ast = false) const {
     static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
@@ -241,6 +267,35 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     const Index axis_start = out_coords[m_axis];
     const Index axis_size = desc.dimension(static_cast<int>(m_axis));
     const Index axis_end = axis_start + axis_size;
+
+    // Fast path: a block that lies entirely within one operand and forms a
+    // contiguous run of its storage needs no copy at all -- return a view
+    // straight into A / B. This is what keeps a cwise expression that reads
+    // the concatenation (e.g. `(A.concatenate(B, axis) + C)`) streaming: a
+    // cwise consumer drops our destination buffer before calling block() (see
+    // TensorCwiseBinaryOp::block), so without the view the slab would be
+    // bounced through a scratch buffer and read straight back, doubling cache
+    // traffic. Straddling blocks still need the merged buffer materialized
+    // below.
+    if (axis_end <= m_leftAxisSize) {
+      if (isContiguousOperandSlab(m_leftImpl.dimensions(), desc.dimensions())) {
+        Index left_src_offset = 0;
+        for (int i = 0; i < NumDims; ++i) {
+          left_src_offset += out_coords[i] * m_leftStrides[i];
+        }
+        return TensorBlock(internal::TensorBlockKind::kView, m_leftImpl.data() + left_src_offset, desc.dimensions());
+      }
+    } else if (axis_start >= m_leftAxisSize) {
+      if (isContiguousOperandSlab(m_rightImpl.dimensions(), desc.dimensions())) {
+        Index right_src_offset = (axis_start - m_leftAxisSize) * m_rightStrides[m_axis];
+        for (int i = 0; i < NumDims; ++i) {
+          if (i != m_axis) {
+            right_src_offset += out_coords[i] * m_rightStrides[i];
+          }
+        }
+        return TensorBlock(internal::TensorBlockKind::kView, m_rightImpl.data() + right_src_offset, desc.dimensions());
+      }
+    }
 
     typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
     typedef typename TensorBlockIO::Dst TensorBlockIODst;
