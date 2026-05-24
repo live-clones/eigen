@@ -64,8 +64,17 @@ struct copy_using_evaluator_traits {
   static constexpr int RestrictedLinearSize = min_size_prefer_fixed(MaxSizeAtCompileTime, MaxPacketSize);
   static constexpr int OuterStride = outer_stride_at_compile_time<Dst>::value;
 
-  // TODO: distinguish between linear traversal and inner-traversal packet types.
-  using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize>::type;
+  // LinearVectorizedTraversal handles a partial-packet tail (scalar emits under
+  // complete unrolling, packet_segment under no-unrolling), so we can prefer a
+  // wider packet than find_best_packet's exact-divisor pick when that strictly
+  // reduces total op count -- e.g. N=9 float on AVX2 gets 1*Packet8f + 1 scalar
+  // instead of 2*Packet4f + 1 scalar. find_assign_linear_packet stays on the
+  // exact-divisor choice when the wider alternative is no better
+  // (e.g. N=6 double on AVX-512: 3*Packet2d ties with 1*Packet4d + 2 scalars,
+  // so Packet2d is kept and LLT/LDLT sub-vector kernels are not disturbed).
+  // InnerVectorizedTraversal still requires Size % PacketSize == 0, so its
+  // packet type continues to use find_best_packet.
+  using LinearPacketType = typename find_assign_linear_packet<DstScalar, RestrictedLinearSize>::type;
   using InnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize>::type;
 
   static constexpr int LinearPacketSize = unpacket_traits<LinearPacketType>::size;
