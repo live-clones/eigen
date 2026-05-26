@@ -210,8 +210,8 @@
 #endif
 #endif
 
-// The following (except #include <malloc.h> and _M_IX86_FP ??) can likely be
-// removed as gcc 4.1 and msvc 2008 are not supported anyways.
+// MSVC needs <malloc.h> for aligned allocation helpers, and 32-bit x86 uses
+// _M_IX86_FP to decide whether SSE2 is enabled.
 #if EIGEN_COMP_MSVC
 #include <malloc.h>  // for _aligned_malloc -- need it regardless of whether vectorization is enabled
 // a user reported that in 64-bit mode, MSVC doesn't care to define _M_IX86_FP.
