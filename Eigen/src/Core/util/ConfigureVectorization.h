@@ -307,7 +307,10 @@
 #define EIGEN_VECTORIZE_AVX512VL
 #endif
 #ifdef __AVX512FP16__
-#ifdef __AVX512VL__
+#if EIGEN_COMP_NVHPC
+// NVC++ exposes AVX512-FP16 inconsistently: older releases define the feature without _Float16/__m512h,
+// and 24.11-26.3 lower compare/blend intrinsics to unresolved __builtin_ia32_*ph* references.
+#elif defined(__AVX512VL__)
 #define EIGEN_VECTORIZE_AVX512FP16
 // Built-in _Float16.
 #define EIGEN_HAS_BUILTIN_FLOAT16 1
