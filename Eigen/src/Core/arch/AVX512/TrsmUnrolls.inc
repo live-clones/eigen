@@ -697,10 +697,10 @@ class trsm {
     constexpr int64_t startK = index % endK;
     // For each row of A, first update all corresponding RHS
     constexpr int64_t packetIndex = startM * endK + startK;
+    constexpr int64_t previousM = currentM > 0 ? currentM - 1 : 0;
     EIGEN_IF_CONSTEXPR(currentM > 0) {
-      RHSInPacket.packet[packetIndex] =
-          pnmadd(AInPacket.packet[startM], RHSInPacket.packet[(currentM - 1) * endK + startK],
-                 RHSInPacket.packet[packetIndex]);
+      RHSInPacket.packet[packetIndex] = pnmadd(AInPacket.packet[startM], RHSInPacket.packet[previousM * endK + startK],
+                                               RHSInPacket.packet[packetIndex]);
     }
 
     EIGEN_IF_CONSTEXPR(startK == endK - 1) {
