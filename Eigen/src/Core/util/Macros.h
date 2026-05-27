@@ -371,13 +371,11 @@
 
 /// \internal EIGEN_HAS_ARM64_FP16 set to 1 if the architecture provides an IEEE
 /// compliant Arm fp16 type
-#if EIGEN_ARCH_ARM_OR_ARM64
 #ifndef EIGEN_HAS_ARM64_FP16
-#if defined(__ARM_FP16_FORMAT_IEEE)
+#if EIGEN_ARCH_ARM64 && defined(__ARM_FP16_FORMAT_IEEE)
 #define EIGEN_HAS_ARM64_FP16 1
 #else
 #define EIGEN_HAS_ARM64_FP16 0
-#endif
 #endif
 #endif
 
