@@ -327,9 +327,9 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, Conj
                                            ResScalar* res, Index resIncr, ResScalar alpha);
 
   // Specialized path for when cols < full packet size.
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,
-                                                                 const RhsMapper& rhs, ResScalar* res, Index resIncr,
-                                                                 ResScalar alpha);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,
+                                                                   const RhsMapper& rhs, ResScalar* res, Index resIncr,
+                                                                   ResScalar alpha);
 
   // Templated helper that processes N rows in run_small_cols. N is a compile-time
   // constant; row-dimension unrolling is done inside flat helper loops.
@@ -351,9 +351,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
   if (numext::is_exactly_zero(alpha)) return;
 
   // When cols < full packet size, the main vectorized loops are empty.
-  // Dispatch to a separate noinline function to avoid polluting the icache.
-  // Only dispatch when cols is large enough that half or quarter packets can be used;
-  // otherwise the helper would just do scalar work with extra function call overhead.
+  // Use the sub-packet helper only when half or quarter packets can do useful work;
+  // otherwise it would just duplicate the scalar cleanup.
   enum {
     LhsPacketSize_ = Traits::LhsPacketSize,
     MinUsefulCols_ =
@@ -658,7 +657,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run_small_cols(Index rows, Index cols, const LhsMapper& alhs,
                                                        const RhsMapper& rhs, ResScalar* res, Index resIncr,
