@@ -179,7 +179,7 @@ EIGEN_STRONG_INLINE Packet2ul preinterpret<Packet2ul, Packet2l>(const Packet2l& 
   return Packet2ul(vreinterpretq_u64_s64(a));
 }
 
-#if EIGEN_HAS_ARM64_FP16
+#if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 template <>
 EIGEN_STRONG_INLINE Packet4hf preinterpret<Packet4hf, Packet4s>(const Packet4s& a) {
   return Packet4hf(vreinterpret_f16_s16(a));
@@ -213,7 +213,7 @@ template <>
 EIGEN_STRONG_INLINE Packet8us preinterpret<Packet8us, Packet8hf>(const Packet8hf& a) {
   return Packet8us(vreinterpretq_u16_f16(a));
 }
-#endif  // EIGEN_HAS_ARM64_FP16
+#endif  // EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 
 //==============================================================================
 // pcast, SrcType = float
@@ -269,7 +269,7 @@ EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
 }
 #endif  // EIGEN_ARCH_ARM64
 
-#if EIGEN_HAS_ARM64_FP16
+#if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 template <>
 struct type_casting_traits<float, half> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 2, TgtCoeffRatio = 1 };
@@ -289,7 +289,7 @@ template <>
 EIGEN_STRONG_INLINE Packet4hf pcast<Packet2f, Packet4hf>(const Packet2f& a, const Packet2f& b) {
   return vcvt_f16_f32(vcombine_f32(a, b));
 }
-#endif  // EIGEN_HAS_ARM64_FP16
+#endif  // EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 
 template <>
 struct type_casting_traits<float, numext::int32_t> {
@@ -406,7 +406,7 @@ EIGEN_STRONG_INLINE Packet4uc pcast<Packet4f, Packet4uc>(const Packet4f& a) {
   return static_cast<Packet4uc>(pcast<Packet4f, Packet4c>(a));
 }
 
-#if EIGEN_HAS_ARM64_FP16
+#if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 //==============================================================================
 // pcast, SrcType = half
 //==============================================================================
@@ -424,7 +424,7 @@ template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet4hf, Packet4f>(const Packet4hf& a) {
   return vcvt_f32_f16(a);
 }
-#endif  // EIGEN_HAS_ARM64_FP16
+#endif  // EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 
 //==============================================================================
 // pcast, SrcType = int8_t
