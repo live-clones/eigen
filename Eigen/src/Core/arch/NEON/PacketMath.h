@@ -5380,7 +5380,11 @@ EIGEN_STRONG_INLINE Packet2d psqrt(const Packet2d& _x) {
 #endif  // EIGEN_ARCH_ARM64
 
 // Do we have fp16 and support Neon intrinsics?
-#if EIGEN_HAS_ARM64_FP16
+// FIXME: This disables vectorization on ARMv7 even though FP16 vector operations should
+// be available with `__ARM_FEATURE_FP16_VECTOR_ARITHMETIC`.  However, since the internal
+// feature test macro `EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC` requires `EIGEN_ARCH_ARM64`
+// in addition to the ISA feature test, the guard here also only checks for ARM64.
+#if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 typedef float16x4_t Packet4hf;
 typedef float16x8_t Packet8hf;
 
