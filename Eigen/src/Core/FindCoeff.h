@@ -390,7 +390,7 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar findCoeff(const Den
  * In case \c *this contains NaN, NaNPropagation determines the behavior:
  *   NaNPropagation == PropagateFast : undefined
  *   NaNPropagation == PropagateNaN : result is NaN
- *   NaNPropagation == PropagateNumbers : result is maximum of elements that are not NaN
+ *   NaNPropagation == PropagateNumbers : result is minimum of elements that are not NaN
  * \warning the matrix must be not empty, otherwise an assertion is triggered.
  *
  * \sa DenseBase::minCoeff(Index*), DenseBase::maxCoeff(Index*,Index*), DenseBase::visit(), DenseBase::minCoeff()
@@ -411,7 +411,7 @@ EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar DenseBase<Derived>:
  * In case \c *this contains NaN, NaNPropagation determines the behavior:
  *   NaNPropagation == PropagateFast : undefined
  *   NaNPropagation == PropagateNaN : result is NaN
- *   NaNPropagation == PropagateNumbers : result is maximum of elements that are not NaN
+ *   NaNPropagation == PropagateNumbers : result is minimum of elements that are not NaN
  * \warning the matrix must be not empty, otherwise an assertion is triggered.
  *
  * \sa DenseBase::minCoeff(IndexType*,IndexType*), DenseBase::maxCoeff(IndexType*,IndexType*), DenseBase::visit(),
