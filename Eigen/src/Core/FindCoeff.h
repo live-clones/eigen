@@ -35,7 +35,7 @@ struct max_coeff_functor {
 
 template <typename Scalar>
 struct max_coeff_functor<Scalar, PropagateNaN, false> {
-  EIGEN_DEVICE_FUNC inline Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
+  EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
     return (candidate > incumbent) || ((candidate != candidate) && (incumbent == incumbent));
   }
   template <typename Packet>
@@ -80,7 +80,7 @@ struct min_coeff_functor {
 
 template <typename Scalar>
 struct min_coeff_functor<Scalar, PropagateNaN, false> {
-  EIGEN_DEVICE_FUNC inline Scalar compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
+  EIGEN_DEVICE_FUNC inline bool compareCoeff(const Scalar& incumbent, const Scalar& candidate) const {
     return (candidate < incumbent) || ((candidate != candidate) && (incumbent == incumbent));
   }
   template <typename Packet>
