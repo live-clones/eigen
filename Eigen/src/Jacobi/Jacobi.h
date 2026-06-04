@@ -17,6 +17,21 @@
 
 namespace Eigen {
 
+namespace internal {
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void jacobi_rotation_prevent_fp_speculation(Scalar&) {}
+
+#if EIGEN_COMP_CLANG && EIGEN_ARCH_ARM_OR_ARM64 && !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(EIGEN_GPUCC) && \
+    !defined(SYCL_DEVICE_ONLY) && !EIGEN_COMP_MSVC
+// Clang/AArch64 may speculate the guarded tau*tau below when floating-point exceptions are ignored.  A targeted
+// FP-register barrier keeps the multiply behind the range check without the stack spill of Eigen's generic barrier.
+EIGEN_STRONG_INLINE void jacobi_rotation_prevent_fp_speculation(float& value) { __asm__("" : "+w"(value)); }
+EIGEN_STRONG_INLINE void jacobi_rotation_prevent_fp_speculation(double& value) { __asm__("" : "+w"(value)); }
+#endif
+
+}  // namespace internal
+
 /** \ingroup Jacobi_Module
  * \jacobi_module
  * \class JacobiRotation
@@ -101,13 +116,21 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
     m_s = Scalar(0);
     return false;
   } else {
-    RealScalar tau = (x - z) / deno;
-    RealScalar w = sqrt(numext::abs2(tau) + RealScalar(1));
+    RealScalar delta = x - z;
+    RealScalar tau = delta / deno;
     RealScalar t;
-    if (tau > RealScalar(0)) {
-      t = RealScalar(1) / (tau + w);
+    if (EIGEN_PREDICT_FALSE(abs(tau) > sqrt((std::numeric_limits<RealScalar>::max)()))) {
+      // Here q = 1/tau is so small that sqrt(1 + q^2) rounds to 1. Compute the limiting form directly to avoid both
+      // overflowing tau^2 and discarding the corresponding nonzero rotation.
+      t = (deno / delta) * RealScalar(0.5);
     } else {
-      t = RealScalar(1) / (tau - w);
+      internal::jacobi_rotation_prevent_fp_speculation(tau);
+      RealScalar w = sqrt(numext::abs2(tau) + RealScalar(1));
+      if (tau > RealScalar(0)) {
+        t = RealScalar(1) / (tau + w);
+      } else {
+        t = RealScalar(1) / (tau - w);
+      }
     }
     RealScalar sign_t = t > RealScalar(0) ? RealScalar(1) : RealScalar(-1);
     RealScalar n = RealScalar(1) / sqrt(numext::abs2(t) + RealScalar(1));
