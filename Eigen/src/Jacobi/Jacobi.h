@@ -95,24 +95,40 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
   using std::abs;
   using std::sqrt;
 
-  RealScalar deno = RealScalar(2) * abs(y);
+  const RealScalar abs_y = abs(y);
+  const RealScalar deno = RealScalar(2) * abs_y;
   if (deno < (std::numeric_limits<RealScalar>::min)()) {
     m_c = Scalar(1);
     m_s = Scalar(0);
     return false;
   } else {
-    RealScalar tau = (x - z) / deno;
-    RealScalar w = sqrt(numext::abs2(tau) + RealScalar(1));
-    RealScalar t;
-    if (tau > RealScalar(0)) {
-      t = RealScalar(1) / (tau + w);
+    const RealScalar delta = x - z;
+    const RealScalar abs_delta = abs(delta);
+    // Form a ratio no greater than one before squaring it.
+    // abs(t) = numerator / denominator. Normalize the pair directly to save that division.
+    // numerator <= 1 and denominator <= 1 + sqrt(2).
+    RealScalar numerator;
+    RealScalar denominator;
+    if (abs_delta > deno) {
+      const RealScalar ratio = deno / abs_delta;
+      numerator = ratio;
+      denominator = sqrt(RealScalar(1) + numext::abs2(ratio)) + RealScalar(1);
     } else {
-      t = RealScalar(1) / (tau - w);
+      const RealScalar ratio = abs_delta / deno;
+      numerator = RealScalar(1);
+      denominator = sqrt(RealScalar(1) + numext::abs2(ratio)) + ratio;
     }
-    RealScalar sign_t = t > RealScalar(0) ? RealScalar(1) : RealScalar(-1);
-    RealScalar n = RealScalar(1) / sqrt(numext::abs2(t) + RealScalar(1));
-    m_s = -sign_t * (numext::conj(y) / abs(y)) * abs(t) * n;
-    m_c = n;
+    const RealScalar n = RealScalar(1) / sqrt(numext::abs2(numerator) + numext::abs2(denominator));
+    const RealScalar sine = numerator * n;
+    const RealScalar sign_t = delta > RealScalar(0) ? RealScalar(1) : RealScalar(-1);
+    EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
+      m_s = -sign_t * (numext::conj(y) / abs_y) * sine;
+    } else {
+      // A real phase needs no division. Independent divisions can become a SIMD divide with unused 0/0 lanes.
+      const RealScalar signed_sine = -sign_t * sine;
+      m_s = numext::real(y) < RealScalar(0) ? -signed_sine : signed_sine;
+    }
+    m_c = denominator * n;
     return true;
   }
 }
