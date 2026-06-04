@@ -101,13 +101,20 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
     m_s = Scalar(0);
     return false;
   } else {
-    RealScalar tau = (x - z) / deno;
-    RealScalar w = sqrt(numext::abs2(tau) + RealScalar(1));
+    RealScalar delta = x - z;
+    RealScalar tau = delta / deno;
     RealScalar t;
-    if (tau > RealScalar(0)) {
-      t = RealScalar(1) / (tau + w);
+    if (EIGEN_PREDICT_FALSE(abs(tau) > sqrt((std::numeric_limits<RealScalar>::max)()))) {
+      // Here q = 1/tau is so small that sqrt(1 + q^2) rounds to 1. Compute the limiting form directly to avoid both
+      // overflowing tau^2 and discarding the corresponding nonzero rotation.
+      t = (deno / delta) * RealScalar(0.5);
     } else {
-      t = RealScalar(1) / (tau - w);
+      RealScalar w = sqrt(numext::abs2(tau) + RealScalar(1));
+      if (tau > RealScalar(0)) {
+        t = RealScalar(1) / (tau + w);
+      } else {
+        t = RealScalar(1) / (tau - w);
+      }
     }
     RealScalar sign_t = t > RealScalar(0) ? RealScalar(1) : RealScalar(-1);
     RealScalar n = RealScalar(1) / sqrt(numext::abs2(t) + RealScalar(1));
