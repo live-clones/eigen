@@ -1385,6 +1385,7 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 // (-fschedule-insns, on at -O2/-O3) hoists loads past that limit, spilling ~20 vector regs and
 // ~halving GEMM throughput (~2.1x fp32 on Cortex-X925; spills 20 -> 2 with it off). Clang
 // allocates the same tile spill-free, so we keep nr=8 and just disable that GCC pass here.
+// This is a known bug in GCC: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100697
 // In-order cores can opt out via EIGEN_DONT_DISABLE_GEBP_INSN_SCHEDULING.
 #if EIGEN_COMP_GNUC_STRICT && EIGEN_ARCH_ARM64 && !defined(EIGEN_DONT_DISABLE_GEBP_INSN_SCHEDULING)
 #pragma GCC push_options
