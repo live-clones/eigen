@@ -95,23 +95,26 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
   using std::abs;
   using std::sqrt;
 
-  RealScalar deno = RealScalar(2) * abs(y);
+  const RealScalar abs_y = abs(y);
+  const RealScalar deno = RealScalar(2) * abs_y;
   if (deno < (std::numeric_limits<RealScalar>::min)()) {
     m_c = Scalar(1);
     m_s = Scalar(0);
     return false;
   } else {
-    RealScalar tau = (x - z) / deno;
-    RealScalar w = sqrt(numext::abs2(tau) + RealScalar(1));
-    RealScalar t;
-    if (tau > RealScalar(0)) {
-      t = RealScalar(1) / (tau + w);
-    } else {
-      t = RealScalar(1) / (tau - w);
-    }
-    RealScalar sign_t = t > RealScalar(0) ? RealScalar(1) : RealScalar(-1);
-    RealScalar n = RealScalar(1) / sqrt(numext::abs2(t) + RealScalar(1));
-    m_s = -sign_t * (numext::conj(y) / abs(y)) * abs(t) * n;
+    const RealScalar delta = x - z;
+    const RealScalar abs_delta = abs(delta);
+    // Form a ratio no greater than one before squaring it, so neither branch can overflow.
+    const bool delta_is_larger = abs_delta > deno;
+    const RealScalar smaller = delta_is_larger ? deno : abs_delta;
+    const RealScalar larger = delta_is_larger ? abs_delta : deno;
+    const RealScalar ratio = smaller / larger;
+    const RealScalar w = sqrt(RealScalar(1) + numext::abs2(ratio));
+    const RealScalar abs_t =
+        (delta_is_larger ? ratio : RealScalar(1)) / (w + (delta_is_larger ? RealScalar(1) : ratio));
+    const RealScalar sign_t = delta > RealScalar(0) ? RealScalar(1) : RealScalar(-1);
+    const RealScalar n = RealScalar(1) / sqrt(numext::abs2(abs_t) + RealScalar(1));
+    m_s = -sign_t * (numext::conj(y) / abs_y) * abs_t * n;
     m_c = n;
     return true;
   }
