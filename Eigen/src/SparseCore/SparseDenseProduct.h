@@ -201,7 +201,10 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     EIGEN_IF_CONSTEXPR(!(Res::Flags & RowMajorBit)) {
       if (res.innerStride() == 1) {
         const Index n = lhs.outerSize();
-#ifdef EIGEN_HAS_OPENMP
+        // The threaded scatter+reduce path relies on a thread_local scratch buffer for
+        // host-thread safety (see below), so it is only available where thread_local is
+        // usable; under EIGEN_AVOID_THREAD_LOCAL fall through to the serial scatter.
+#if defined(EIGEN_HAS_OPENMP) && !defined(EIGEN_AVOID_THREAD_LOCAL)
         typedef typename Res::Scalar ResScalar;
         const Index m = res.rows();
         const Index threads = Eigen::nbThreads();
@@ -282,7 +285,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
             for (Index i0 = 0; i0 < m; i0 += kReduceBlock) {
               const Index i1 = numext::mini(i0 + kReduceBlock, m);
               const Index len = i1 - i0;
-              ResScalar acc[kReduceBlock];
+              EIGEN_ALIGN_MAX ResScalar acc[kReduceBlock];
               for (Index ii = 0; ii < len; ++ii) acc[ii] = ResScalar(0);
               for (Index t = 0; t < threads; ++t) {
                 ResScalar* row = scratch_ptr + t * m + i0;

@@ -23,25 +23,25 @@ inline ThreadPool& default_threaded_sparse_pool() {
   return pool;
 }
 
-// nnz-balanced partition of an outer range [0, outerSize) into T contiguous
-// chunks. boundaries[t] = first outer index owned by partition t;
-// boundaries[T] = outerSize.
+// nnz-balanced partition of an outer range [0, outerSize) into numChunks
+// contiguous chunks. boundaries[t] = first outer index owned by partition t;
+// boundaries[numChunks] = outerSize.
 //
 // The split uses std::lower_bound on the outer-index array. Targets are
 // monotonically increasing in t, so each search starts from the previous
-// boundary; total work is bounded by O(T + log outerSize) rather than
-// T * log(outerSize). Each chunk's nnz count differs from the ideal by at
-// most max_nnz_per_outer.
+// boundary; total work is bounded by O(numChunks + log outerSize) rather than
+// numChunks * log(outerSize). Each chunk's nnz count differs from the ideal by
+// at most max_nnz_per_outer.
 template <typename StorageIndex>
-inline void compute_nnz_balanced_partition(const StorageIndex* outer, Index outerSize, Index total_nnz, int T,
+inline void compute_nnz_balanced_partition(const StorageIndex* outer, Index outerSize, Index totalNnz, int numChunks,
                                            std::vector<Index>& boundaries) {
-  boundaries.assign(T + 1, 0);
-  boundaries[T] = outerSize;
-  if (T <= 1 || outerSize == 0 || total_nnz == 0) return;
+  boundaries.assign(numChunks + 1, 0);
+  boundaries[numChunks] = outerSize;
+  if (numChunks <= 1 || outerSize == 0 || totalNnz == 0) return;
   const StorageIndex* const last = outer + outerSize + 1;
   const StorageIndex* lo = outer;
-  for (int t = 1; t < T; ++t) {
-    Index target = (static_cast<Index>(t) * total_nnz) / T;
+  for (int t = 1; t < numChunks; ++t) {
+    Index target = (static_cast<Index>(t) * totalNnz) / numChunks;
     lo = std::lower_bound(lo, last, static_cast<StorageIndex>(target));
     boundaries[t] = lo - outer;
   }
@@ -70,7 +70,7 @@ EIGEN_ALWAYS_INLINE void run_dot_row(const Scalar* EIGEN_RESTRICT vals, const St
     if (k < end) s1 += cj(vals[k]) * x[inner[k]];
   }
   const Scalar s = s0 + s1;
-  if (Overwrite)
+  EIGEN_IF_CONSTEXPR(Overwrite)
     y[i] = alpha * s;
   else
     y[i] += alpha * s;
@@ -130,6 +130,13 @@ EIGEN_STRONG_INLINE void run_dot_chunk(const Scalar* EIGEN_RESTRICT vals, const 
  * between x and y; callers must use distinct storage (the kernel writes
  * y[i] from a sum over x[inner[k]] reads, which would mis-compute if
  * y aliases x). Asserted in debug builds.
+ *
+ * Thread-safety: the const apply()/applyAdjoint()/applyAddTo()/applyAdjointAddTo()
+ * methods are safe to call concurrently on the same operator -- the lazy mirror
+ * is published through an atomic with double-checked locking. The non-const
+ * methods (analyzePattern()/compute()/refreshValues()) and destruction are NOT;
+ * they mutate or free the cached mirror, so they must not overlap any in-flight
+ * apply() (the same rule as calling any method concurrently with the destructor).
  *
  * Layout: x and y are taken as Ref<const DenseVector> / Ref<DenseVector>.
  * Plain vectors and unit-inner-stride views (e.g. a column of a ColMajor
@@ -335,12 +342,17 @@ class ThreadedSparseProduct {
       // storage-order mismatch in assignment and reorganizes the data
       // (a "structural transpose"); the logical matrix is preserved, no
       // conjugation. The kernel applies conj at use when needed.
-      MirrorType* built = new MirrorType(m_mat->rows(), m_mat->cols());
+      // Hold the mirror in a unique_ptr while building: the assignment,
+      // makeCompressed(), and build_partition() can all throw (bad_alloc), and a
+      // raw owning pointer would leak. Hand ownership to the atomic only once the
+      // mirror is fully built; on throw the buffer is freed and m_mirror stays
+      // null so a later call rebuilds cleanly.
+      std::unique_ptr<MirrorType> built(new MirrorType(m_mat->rows(), m_mat->cols()));
       *built = *m_mat;
       built->makeCompressed();
       build_partition(built->outerIndexPtr(), built->outerSize(), built->nonZeros(), m_adj_partition);
-      m_mirror.store(built, std::memory_order_release);
-      m = built;
+      m = built.get();
+      m_mirror.store(built.release(), std::memory_order_release);
     }
     return *m;
   }
