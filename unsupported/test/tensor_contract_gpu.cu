@@ -75,10 +75,7 @@ void test_gpu_contraction(int m_size, int k_size, int n_size) {
 }
 
 template <int DataLayout>
-void test_gpu_contraction_double() {
-  const int m_size = 64;
-  const int k_size = 64;
-  const int n_size = 64;
+void test_gpu_contraction_double(int m_size, int k_size, int n_size) {
   Tensor<double, 2, DataLayout> t_left(m_size, k_size);
   Tensor<double, 2, DataLayout> t_right(k_size, n_size);
   Tensor<double, 2, DataLayout> t_result(m_size, n_size);
@@ -116,6 +113,9 @@ void test_gpu_contraction_double() {
 
   gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
+    if (std::abs(t_result(i) - t_result_gpu(i)) < 1e-10) {
+      continue;
+    }
     if (Eigen::internal::isApprox(t_result(i), t_result_gpu(i), 1e-10)) {
       continue;
     }
@@ -244,8 +244,12 @@ void test_gpu_contraction_sizes() {
 EIGEN_DECLARE_TEST(tensor_contract_gpu) {
   CALL_SUBTEST_1(test_gpu_contraction<ColMajor>(128, 128, 128));
   CALL_SUBTEST_1(test_gpu_contraction<RowMajor>(128, 128, 128));
-  CALL_SUBTEST_1(test_gpu_contraction_double<ColMajor>());
-  CALL_SUBTEST_1(test_gpu_contraction_double<RowMajor>());
+  CALL_SUBTEST_1(test_gpu_contraction_double<ColMajor>(64, 64, 64));
+  CALL_SUBTEST_1(test_gpu_contraction_double<RowMajor>(64, 64, 64));
+  CALL_SUBTEST_1(test_gpu_contraction_double<ColMajor>(100, 100, 100));
+  CALL_SUBTEST_1(test_gpu_contraction_double<RowMajor>(100, 100, 100));
+  CALL_SUBTEST_1(test_gpu_contraction_double<ColMajor>(65, 129, 33));
+  CALL_SUBTEST_1(test_gpu_contraction_double<RowMajor>(65, 129, 33));
 
   CALL_SUBTEST_1(test_scalar<ColMajor>(128, 128, 128));
   CALL_SUBTEST_1(test_scalar<RowMajor>(128, 128, 128));

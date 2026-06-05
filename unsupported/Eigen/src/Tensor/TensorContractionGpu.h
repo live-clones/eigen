@@ -533,8 +533,14 @@ __launch_bounds__(512)
 }
 
 template <typename Scalar, typename Index, typename LhsMapper, typename RhsMapper, typename OutputMapper>
-__global__ void EigenContractionKernelNaive(const LhsMapper lhs, const RhsMapper rhs, const OutputMapper output,
-                                            const Index m_size, const Index n_size, const Index k_size) {
+__global__ void
+#if defined(EIGEN_HIPCC)
+__launch_bounds__(256, 1)
+#else
+__launch_bounds__(256)
+#endif
+    EigenContractionKernelNaive(const LhsMapper lhs, const RhsMapper rhs, const OutputMapper output, const Index m_size,
+                                const Index n_size, const Index k_size) {
   const Index row = static_cast<Index>(blockIdx.x) * static_cast<Index>(blockDim.x) + static_cast<Index>(threadIdx.x);
   const Index col = static_cast<Index>(blockIdx.y) * static_cast<Index>(blockDim.y) + static_cast<Index>(threadIdx.y);
 
