@@ -268,17 +268,30 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
               }
             }
             // Reduce per-thread buffers into y AND zero them, so the next call
-            // doesn't have to re-init. Each thread owns a contiguous row range,
-            // so the zero stores are independent.
+            // doesn't have to re-init. Process rows in cache-resident blocks: the
+            // natural [t*m+i] scratch layout makes the cross-thread read for a
+            // single row a stride-m gather (one cache line per thread, ~threads*m
+            // bytes apart, unvectorizable). Blocking lets each thread's stripe be
+            // swept as a unit-stride, vectorizable stream into a small per-block
+            // accumulator. Each thread owns a contiguous range of row blocks
+            // (static schedule) so the zero stores stay independent, and the
+            // accumulator is summed in the exact t = 0..threads-1 order, keeping
+            // the result bit-identical to the scalar reduction it replaces.
+            constexpr Index kReduceBlock = 512;
 #pragma omp parallel for schedule(static) num_threads(threads)
-            for (Index i = 0; i < m; ++i) {
-              ResScalar s(0);
+            for (Index i0 = 0; i0 < m; i0 += kReduceBlock) {
+              const Index i1 = numext::mini(i0 + kReduceBlock, m);
+              const Index len = i1 - i0;
+              ResScalar acc[kReduceBlock];
+              for (Index ii = 0; ii < len; ++ii) acc[ii] = ResScalar(0);
               for (Index t = 0; t < threads; ++t) {
-                ResScalar* cell = scratch_ptr + t * m + i;
-                s += *cell;
-                *cell = ResScalar(0);
+                ResScalar* row = scratch_ptr + t * m + i0;
+                for (Index ii = 0; ii < len; ++ii) {
+                  acc[ii] += row[ii];
+                  row[ii] = ResScalar(0);
+                }
               }
-              y[i] += s;
+              for (Index ii = 0; ii < len; ++ii) y[i0 + ii] += acc[ii];
             }
           }
         } else
