@@ -1076,6 +1076,9 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE T mini(const T& x, const T& y) {
   return y < x ? y : x;
 }
 #if !defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC)
+// Without relaxed constexpr, numeric GPU scalars keep fmin/fmax's number-preferring
+// NaN behavior. With relaxed constexpr, they use the constexpr ternary overloads,
+// matching std::min/std::max behavior and supporting custom less-comparable scalars.
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float mini(const float& x, const float& y) {
   return fminf(x, y);

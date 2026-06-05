@@ -368,10 +368,38 @@ void test_custom_less_scalar_minmax() {
   run_on_gpu(custom_less_scalar_minmax_test(), 1, in, out_gpu);
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
-  VERIFY_IS_EQUAL(out_ref(0), 1);
-  VERIFY_IS_EQUAL(out_ref(1), 2);
-  VERIFY_IS_EQUAL(out_gpu(0), 1);
-  VERIFY_IS_EQUAL(out_gpu(1), 2);
+  VERIFY_IS_EQUAL(out_ref(0), out_gpu(0));
+  VERIFY_IS_EQUAL(out_ref(1), out_gpu(1));
+#endif
+}
+
+struct float_nan_minmax_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    EIGEN_UNUSED_VARIABLE(i);
+    const float nan = in[0];
+    const float one = in[1];
+    out[0] = Eigen::numext::mini(nan, one);
+    out[1] = Eigen::numext::mini(one, nan);
+    out[2] = Eigen::numext::maxi(nan, one);
+    out[3] = Eigen::numext::maxi(one, nan);
+  }
+};
+
+void test_float_nan_minmax() {
+  Eigen::ArrayXf in(2), out_ref(4), out_gpu(4);
+  in << std::numeric_limits<float>::quiet_NaN(), 1.f;
+  out_ref.setConstant(-1.f);
+  out_gpu.setConstant(-1.f);
+
+  run_on_cpu(float_nan_minmax_test(), 1, in, out_ref);
+  run_on_gpu(float_nan_minmax_test(), 1, in, out_gpu);
+
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  VERIFY_IS_CWISE_EQUAL(out_ref, out_gpu);
+  VERIFY((numext::isnan)(out_ref(0)));
+  VERIFY_IS_EQUAL(out_ref(1), 1.f);
+  VERIFY((numext::isnan)(out_ref(2)));
+  VERIFY_IS_EQUAL(out_ref(3), 1.f);
 #endif
 }
 
@@ -468,6 +496,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   // numeric_limits
   CALL_SUBTEST(test_with_infs_nans(numeric_limits_test<Vector3f>(), 1, in, out));
   CALL_SUBTEST(test_custom_less_scalar_minmax());
+  CALL_SUBTEST(test_float_nan_minmax());
 
   // These tests require dynamic-sized matrix multiplication, which isn't currently
   // supported on GPU.
