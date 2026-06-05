@@ -198,20 +198,14 @@ class TriangularBase : public EigenBase<Derived> {
 
   template <typename OtherDerived,
             std::enable_if_t<int(Mode) == int(OtherDerived::Mode) && (int(Mode) & int(UnitDiag)) == 0, int> = 0>
-  EIGEN_DEVICE_FUNC inline auto operator+(const TriangularBase<OtherDerived>& other) const
-      -> decltype(internal::make_triangular_base_cwise_view<Mode>(
-          std::declval<const ExpressionType&>() +
-          std::declval<const typename internal::traits<OtherDerived>::ExpressionType&>())) {
+  EIGEN_DEVICE_FUNC inline auto operator+(const TriangularBase<OtherDerived>& other) const {
     return internal::make_triangular_base_cwise_view<Mode>(derived().nestedExpression() +
                                                            other.derived().nestedExpression());
   }
 
   template <typename OtherDerived,
             std::enable_if_t<int(Mode) == int(OtherDerived::Mode) && (int(Mode) & int(UnitDiag)) == 0, int> = 0>
-  EIGEN_DEVICE_FUNC inline auto operator-(const TriangularBase<OtherDerived>& other) const
-      -> decltype(internal::make_triangular_base_cwise_view<Mode>(
-          std::declval<const ExpressionType&>() -
-          std::declval<const typename internal::traits<OtherDerived>::ExpressionType&>())) {
+  EIGEN_DEVICE_FUNC inline auto operator-(const TriangularBase<OtherDerived>& other) const {
     return internal::make_triangular_base_cwise_view<Mode>(derived().nestedExpression() -
                                                            other.derived().nestedExpression());
   }
