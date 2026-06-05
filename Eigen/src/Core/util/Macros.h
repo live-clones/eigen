@@ -297,6 +297,25 @@
 #define EIGEN_GNUC_STRICT_LESS_THAN(x, y, z) 0
 #endif
 
+// Work around GCC PR tree-optimization/92420, which miscompiles some packetized complex arithmetic under -ffast-math.
+// The bug was introduced by GCC r238039, fixed on the GCC 8 branch by
+// https://gcc.gnu.org/g:785eda9390473e42f0e0b7199c42032a0432de68 and on the GCC 9 branch by
+// https://gcc.gnu.org/g:2d8ea3a0a6095a56b7c59c50b1068d602cde934a.
+// See also GitLab issues #1839 and #1840.
+#if defined(__FAST_MATH__) && EIGEN_COMP_GNUC_STRICT && EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0) && \
+    (EIGEN_GNUC_STRICT_LESS_THAN(8, 4, 0) ||                                                   \
+     (EIGEN_GNUC_STRICT_AT_LEAST(9, 0, 0) && EIGEN_GNUC_STRICT_LESS_THAN(9, 3, 0)))
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_BUG 1
+// Disable the affected loop vectorizer around the complex packet helpers.
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH \
+  _Pragma("GCC push_options") _Pragma("GCC optimize(\"no-tree-loop-vectorize\")")
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP _Pragma("GCC pop_options")
+#else
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_BUG 0
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
+#endif
+
 /// \internal EIGEN_COMP_CLANG_STRICT set to 1 if the compiler is really Clang and not a compatible compiler (e.g.,
 /// AppleClang, etc.)
 #if EIGEN_COMP_CLANG && !(EIGEN_COMP_CLANGAPPLE || EIGEN_COMP_CLANGICC || EIGEN_COMP_CLANGFCC || EIGEN_COMP_CLANGCPE)
@@ -371,13 +390,13 @@
 
 /// \internal EIGEN_HAS_ARM64_FP16 set to 1 if the architecture provides an IEEE
 /// compliant Arm fp16 type
-#if EIGEN_ARCH_ARM_OR_ARM64
 #ifndef EIGEN_HAS_ARM64_FP16
-#if defined(__ARM_FP16_FORMAT_IEEE)
+// NOTE: Older versions of Clang miscompile `__fp16` implicit conversions to `float`
+// on ARMv7 targets: <https://gitlab.com/libeigen/eigen/-/merge_requests/2273#note_3400347860>.
+#if EIGEN_ARCH_ARMV8 && defined(__ARM_FP16_FORMAT_IEEE)
 #define EIGEN_HAS_ARM64_FP16 1
 #else
 #define EIGEN_HAS_ARM64_FP16 0
-#endif
 #endif
 #endif
 
@@ -575,6 +594,14 @@
 #error "Eigen requires CUDA 11.4 or later."
 #endif
 
+// Native FP16 packet math intrinsics (e.g. __hfma2, h2exp, h2log) are only
+// declared by the CUDA headers when __CUDA_ARCH__ >= 530. Eigen's documented
+// floor is sm_70, so guard the device pass with a clear error rather than
+// surfacing as "identifier `__hfma2` is undefined" deep inside PacketMath.h.
+#if defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH < 700
+#error "Eigen requires CUDA compute capability >= 7.0 (sm_70). Compile with -arch=sm_70 or higher."
+#endif
+
 #if defined(__HIPCC__) && !defined(EIGEN_NO_HIP) && !defined(__SYCL_DEVICE_ONLY__)
 // Means the compiler is HIPCC (analogous to EIGEN_CUDACC, but for HIP)
 #define EIGEN_HIPCC __HIPCC__
@@ -621,6 +648,16 @@
 // If either EIGEN_CUDACC or EIGEN_HIPCC is defined, then define EIGEN_GPUCC
 //
 #define EIGEN_GPUCC
+// NOTE: Some platforms (e.g. SPIRV) artificially set the CUDA SDK version to 0,
+// and don't support FP16, so we need to check the version number here.
+#if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER >= 70500
+#define EIGEN_HAS_CUDA_FP16 1
+#elif defined(EIGEN_HIPCC)
+#define EIGEN_HAS_HIP_FP16 1
+#endif
+#if defined(EIGEN_HAS_CUDA_FP16) || defined(EIGEN_HAS_HIP_FP16)
+#define EIGEN_HAS_GPU_FP16 1
+#endif
 //
 // EIGEN_HIPCC implies the HIP compiler and is used to tweak Eigen code for use in HIP kernels
 // EIGEN_CUDACC implies the CUDA compiler and is used to tweak Eigen code for use in CUDA kernels

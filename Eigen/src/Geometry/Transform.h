@@ -249,6 +249,11 @@ class Transform {
         m_matrix);
   }
 
+  // These conversion ctors are intentionally `explicit`: keeping copy-init
+  // (`Transform t = rot;`) from compiling stops a Dim+1 x Dim+1 matrix
+  // from being silently materialized in function-call argument lists.
+  // Use direct-init (`Transform t(rot);`) or assignment (`Transform t; t = rot;`)
+  // instead. See bug #1209.
   EIGEN_DEVICE_FUNC inline explicit Transform(const TranslationType& t) {
     check_template_params();
     *this = t;
@@ -1424,7 +1429,7 @@ struct transform_left_product_impl<Other, Mode, Options, Dim, HDim, Dim, Dim> {
   typedef TransformType ResultType;
   static EIGEN_DEVICE_FUNC ResultType run(const Other& other, const TransformType& tr) {
     TransformType res;
-    if (Mode != int(AffineCompact)) res.matrix().row(Dim) = tr.matrix().row(Dim);
+    EIGEN_IF_CONSTEXPR(Mode != int(AffineCompact)) res.matrix().row(Dim) = tr.matrix().row(Dim);
     res.matrix().template topRows<Dim>().noalias() = other * tr.matrix().template topRows<Dim>();
     return res;
   }

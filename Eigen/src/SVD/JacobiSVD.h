@@ -591,8 +591,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
   // EIGEN_DEPRECATED // TODO(cantonios): re-enable after fixing a few 3p libraries that error on deprecation warnings.
   template <typename Derived>
   JacobiSVD(const MatrixBase<Derived>& matrix, unsigned int computationOptions) {
-    internal::check_svd_options_assertions<MatrixBase<Derived>, Options>(computationOptions, matrix.rows(),
-                                                                         matrix.cols());
+    internal::check_svd_options_assertions<MatrixType, Options>(computationOptions, matrix.rows(), matrix.cols());
     compute_impl(matrix, computationOptions);
   }
 
@@ -623,8 +622,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
   template <typename Derived>
   EIGEN_DEPRECATED_WITH_REASON("Options should be specified using the class template parameter.")
   JacobiSVD& compute(const MatrixBase<Derived>& matrix, unsigned int computationOptions) {
-    internal::check_svd_options_assertions<MatrixBase<Derived>, Options>(m_computationOptions, matrix.rows(),
-                                                                         matrix.cols());
+    internal::check_svd_options_assertions<MatrixType, Options>(m_computationOptions, matrix.rows(), matrix.cols());
     return compute_impl(matrix, computationOptions);
   }
 
@@ -841,7 +839,11 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     // For a complex matrix, some diagonal coefficients might note have been
     // treated by svd_precondition_2x2_block_to_be_real, and the imaginary part
     // of some diagonal entry might not be null.
-    if (NumTraits<Scalar>::IsComplex && abs(numext::imag(m_workMatrix.coeff(i, i))) > considerAsZero) {
+    bool diagonal_has_imaginary_part = false;
+    EIGEN_IF_CONSTEXPR(NumTraits<Scalar>::IsComplex) {
+      diagonal_has_imaginary_part = abs(numext::imag(m_workMatrix.coeff(i, i))) > considerAsZero;
+    }
+    if (diagonal_has_imaginary_part) {
       RealScalar a = abs(m_workMatrix.coeff(i, i));
       m_singularValues.coeffRef(i) = abs(a);
       if (computeU()) m_matrixU.col(i) *= m_workMatrix.coeff(i, i) / a;
@@ -1051,7 +1053,7 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
           const Scalar l22 = accum(kBlockSize, kBlockSize);
           auto Mq = m_workMatrix.template middleRows<kBlockSize>(q);
           auto Mp = m_workMatrix.row(p);
-          Matrix<Scalar, 1, Dynamic> Mp_save = Mp;
+          Matrix<Scalar, 1, Dynamic, RowMajor, 1, MaxDiagSizeAtCompileTime> Mp_save = Mp;
           Mp.noalias() = l21 * Mq + l22 * Mp_save;
           Mq = L11.template triangularView<Lower>() * Mq + l12 * Mp_save;
         }

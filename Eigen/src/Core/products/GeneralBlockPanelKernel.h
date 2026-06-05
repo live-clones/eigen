@@ -1380,6 +1380,18 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
   }
 }
 
+// Workaround a GCC/AArch64 register-allocation issue (through at least GCC 14.3): the float
+// kernel's mr=12 x nr=8 tile holds 24 of the 32 NEON registers, and GCC's pre-RA scheduler
+// (-fschedule-insns, on at -O2/-O3) hoists loads past that limit, spilling ~20 vector regs and
+// ~halving GEMM throughput (~2.1x fp32 on Cortex-X925; spills 20 -> 2 with it off). Clang
+// allocates the same tile spill-free, so we keep nr=8 and just disable that GCC pass here.
+// This is a known bug in GCC: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100697
+// In-order cores can opt out via EIGEN_DONT_DISABLE_GEBP_INSN_SCHEDULING.
+#if EIGEN_COMP_GNUC_STRICT && EIGEN_ARCH_ARM64 && !defined(EIGEN_DONT_DISABLE_GEBP_INSN_SCHEDULING)
+#pragma GCC push_options
+#pragma GCC optimize("no-schedule-insns")
+#define EIGEN_GEBP_DISABLED_INSN_SCHEDULING
+#endif
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
           bool ConjugateLhs, bool ConjugateRhs>
 EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, nr, ConjugateLhs,
@@ -1784,6 +1796,10 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
     }
   }
 }
+#ifdef EIGEN_GEBP_DISABLED_INSN_SCHEDULING
+#pragma GCC pop_options
+#undef EIGEN_GEBP_DISABLED_INSN_SCHEDULING
+#endif
 
 // pack a block of the lhs
 // The traversal is as follow (mr==4):
@@ -1846,9 +1862,9 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
   Index i = 0;
 
   // Pack 3 packets
-  if (Pack1 >= 3 * PacketSize) {
+  EIGEN_IF_CONSTEXPR(Pack1 >= 3 * PacketSize) {
     for (; i < peeled_mc3; i += 3 * PacketSize) {
-      if (PanelMode) count += (3 * PacketSize) * offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (3 * PacketSize) * offset;
 
       for (Index k = 0; k < depth; k++) {
         Packet A, B, C;
@@ -1862,13 +1878,13 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
         pstore(blockA + count, cj.pconj(C));
         count += PacketSize;
       }
-      if (PanelMode) count += (3 * PacketSize) * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (3 * PacketSize) * (stride - offset - depth);
     }
   }
   // Pack 2 packets
-  if (Pack1 >= 2 * PacketSize) {
+  EIGEN_IF_CONSTEXPR(Pack1 >= 2 * PacketSize) {
     for (; i < peeled_mc2; i += 2 * PacketSize) {
-      if (PanelMode) count += (2 * PacketSize) * offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (2 * PacketSize) * offset;
 
       for (Index k = 0; k < depth; k++) {
         Packet A, B;
@@ -1879,13 +1895,13 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
         pstore(blockA + count, cj.pconj(B));
         count += PacketSize;
       }
-      if (PanelMode) count += (2 * PacketSize) * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (2 * PacketSize) * (stride - offset - depth);
     }
   }
   // Pack 1 packets
-  if (Pack1 >= 1 * PacketSize) {
+  EIGEN_IF_CONSTEXPR(Pack1 >= 1 * PacketSize) {
     for (; i < peeled_mc1; i += 1 * PacketSize) {
-      if (PanelMode) count += (1 * PacketSize) * offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (1 * PacketSize) * offset;
 
       for (Index k = 0; k < depth; k++) {
         Packet A;
@@ -1893,13 +1909,13 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
         pstore(blockA + count, cj.pconj(A));
         count += PacketSize;
       }
-      if (PanelMode) count += (1 * PacketSize) * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (1 * PacketSize) * (stride - offset - depth);
     }
   }
   // Pack half packets
-  if (HasHalf && Pack1 >= HalfPacketSize) {
+  EIGEN_IF_CONSTEXPR(HasHalf && Pack1 >= HalfPacketSize) {
     for (; i < peeled_mc_half; i += HalfPacketSize) {
-      if (PanelMode) count += (HalfPacketSize)*offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (HalfPacketSize)*offset;
 
       for (Index k = 0; k < depth; k++) {
         HalfPacket A;
@@ -1907,13 +1923,13 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
         pstoreu(blockA + count, cj.pconj(A));
         count += HalfPacketSize;
       }
-      if (PanelMode) count += (HalfPacketSize) * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (HalfPacketSize) * (stride - offset - depth);
     }
   }
   // Pack quarter packets
-  if (HasQuarter && Pack1 >= QuarterPacketSize) {
+  EIGEN_IF_CONSTEXPR(HasQuarter && Pack1 >= QuarterPacketSize) {
     for (; i < peeled_mc_quarter; i += QuarterPacketSize) {
-      if (PanelMode) count += (QuarterPacketSize)*offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (QuarterPacketSize)*offset;
 
       for (Index k = 0; k < depth; k++) {
         QuarterPacket A;
@@ -1921,7 +1937,7 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
         pstoreu(blockA + count, cj.pconj(A));
         count += QuarterPacketSize;
       }
-      if (PanelMode) count += (QuarterPacketSize) * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += (QuarterPacketSize) * (stride - offset - depth);
     }
   }
   // Pack2 may be *smaller* than PacketSize—that happens for
@@ -1937,23 +1953,23 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
   // that case we use exactly Pack2 rows per group so the kernel's main
   // loop (which reads Pack2 = LhsProgress values via ploaddup) can
   // handle them; remaining rows fall through to the scalar loop below.
-  if (Pack2 < PacketSize && Pack2 > 1) {
+  EIGEN_IF_CONSTEXPR(Pack2 < PacketSize && Pack2 > 1) {
     const Index pack2_progress = (HasHalf || HasQuarter) ? last_lhs_progress : Pack2;
     const Index peeled = (HasHalf || HasQuarter) ? peeled_mc0 : (rows / Pack2) * Pack2;
     for (; i < peeled; i += pack2_progress) {
-      if (PanelMode) count += pack2_progress * offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += pack2_progress * offset;
 
       for (Index k = 0; k < depth; k++)
         for (Index w = 0; w < pack2_progress; w++) blockA[count++] = cj(lhs(i + w, k));
 
-      if (PanelMode) count += pack2_progress * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += pack2_progress * (stride - offset - depth);
     }
   }
   // Pack scalars
   for (; i < rows; i++) {
-    if (PanelMode) count += offset;
+    EIGEN_IF_CONSTEXPR(PanelMode) count += offset;
     for (Index k = 0; k < depth; k++) blockA[count++] = cj(lhs(i, k));
-    if (PanelMode) count += (stride - offset - depth);
+    EIGEN_IF_CONSTEXPR(PanelMode) count += (stride - offset - depth);
   }
 }
 
@@ -1996,7 +2012,7 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
     Index peeled_mc = gone_last ? Pack2 > 1 ? (rows / pack) * pack : 0 : i + (remaining_rows / pack) * pack;
     Index starting_pos = i;
     for (; i < peeled_mc; i += pack) {
-      if (PanelMode) count += pack * offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += pack * offset;
 
       Index k = 0;
       if (pack >= psize && psize >= QuarterPacketSize) {
@@ -2042,7 +2058,7 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
           for (; w < pack; ++w) blockA[count++] = cj(lhs(i + w, k));
       }
 
-      if (PanelMode) count += pack * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += pack * (stride - offset - depth);
     }
 
     pack -= psize;
@@ -2068,17 +2084,19 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
       // that case we use exactly Pack2 rows per group so the kernel's main
       // loop (which reads Pack2 = LhsProgress values via ploaddup) can
       // handle them; remaining rows fall through to the scalar loop below.
-      if (Pack2 < PacketSize && !gone_last) {
-        gone_last = true;
-        psize = pack = (HasHalf || HasQuarter) ? (left & ~1) : Pack2;
+      EIGEN_IF_CONSTEXPR(Pack2 < PacketSize) {
+        if (!gone_last) {
+          gone_last = true;
+          psize = pack = (HasHalf || HasQuarter) ? (left & ~1) : Pack2;
+        }
       }
     }
   }
 
   for (; i < rows; i++) {
-    if (PanelMode) count += offset;
+    EIGEN_IF_CONSTEXPR(PanelMode) count += offset;
     for (Index k = 0; k < depth; k++) blockA[count++] = cj(lhs(i, k));
-    if (PanelMode) count += (stride - offset - depth);
+    EIGEN_IF_CONSTEXPR(PanelMode) count += (stride - offset - depth);
   }
 }
 
@@ -2114,7 +2132,7 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
   EIGEN_IF_CONSTEXPR(nr >= 8) {
     for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
       // skip what we have before
-      if (PanelMode) count += 8 * offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * offset;
       const LinearMapper dm0 = rhs.getLinearMapper(0, j2 + 0);
       const LinearMapper dm1 = rhs.getLinearMapper(0, j2 + 1);
       const LinearMapper dm2 = rhs.getLinearMapper(0, j2 + 2);
@@ -2124,10 +2142,10 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
       const LinearMapper dm6 = rhs.getLinearMapper(0, j2 + 6);
       const LinearMapper dm7 = rhs.getLinearMapper(0, j2 + 7);
       Index k = 0;
-      if (PacketSize % 2 == 0 && PacketSize <= 8)  // 2 4 8
+      EIGEN_IF_CONSTEXPR(PacketSize % 2 == 0 && PacketSize <= 8)  // 2 4 8
       {
         for (; k < peeled_k; k += PacketSize) {
-          if (PacketSize == 2) {
+          EIGEN_IF_CONSTEXPR(PacketSize == 2) {
             PacketBlock<Packet, PacketSize == 2 ? 2 : PacketSize> kernel0, kernel1, kernel2, kernel3;
             kernel0.packet[0 % PacketSize] = dm0.template loadPacket<Packet>(k);
             kernel0.packet[1 % PacketSize] = dm1.template loadPacket<Packet>(k);
@@ -2152,7 +2170,8 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
             pstoreu(blockB + count + 6 * PacketSize, cj.pconj(kernel2.packet[1 % PacketSize]));
             pstoreu(blockB + count + 7 * PacketSize, cj.pconj(kernel3.packet[1 % PacketSize]));
             count += 8 * PacketSize;
-          } else if (PacketSize == 4) {
+          }
+          else EIGEN_IF_CONSTEXPR(PacketSize == 4) {
             PacketBlock<Packet, PacketSize == 4 ? 4 : PacketSize> kernel0, kernel1;
 
             kernel0.packet[0 % PacketSize] = dm0.template loadPacket<Packet>(k);
@@ -2175,7 +2194,8 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
             pstoreu(blockB + count + 6 * PacketSize, cj.pconj(kernel0.packet[3 % PacketSize]));
             pstoreu(blockB + count + 7 * PacketSize, cj.pconj(kernel1.packet[3 % PacketSize]));
             count += 8 * PacketSize;
-          } else if (PacketSize == 8) {
+          }
+          else EIGEN_IF_CONSTEXPR(PacketSize == 8) {
             PacketBlock<Packet, PacketSize == 8 ? 8 : PacketSize> kernel0;
 
             kernel0.packet[0 % PacketSize] = dm0.template loadPacket<Packet>(k);
@@ -2213,14 +2233,14 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
         count += 8;
       }
       // skip what we have after
-      if (PanelMode) count += 8 * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * (stride - offset - depth);
     }
   }
 
   EIGEN_IF_CONSTEXPR(nr >= 4) {
     for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
       // skip what we have before
-      if (PanelMode) count += 4 * offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * offset;
       const LinearMapper dm0 = rhs.getLinearMapper(0, j2 + 0);
       const LinearMapper dm1 = rhs.getLinearMapper(0, j2 + 1);
       const LinearMapper dm2 = rhs.getLinearMapper(0, j2 + 2);
@@ -2269,19 +2289,19 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
         count += 4;
       }
       // skip what we have after
-      if (PanelMode) count += 4 * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * (stride - offset - depth);
     }
   }
 
   // copy the remaining columns one at a time (nr==1)
   for (Index j2 = packet_cols4; j2 < cols; ++j2) {
-    if (PanelMode) count += offset;
+    EIGEN_IF_CONSTEXPR(PanelMode) count += offset;
     const LinearMapper dm0 = rhs.getLinearMapper(0, j2);
     for (Index k = 0; k < depth; k++) {
       blockB[count] = cj(dm0(k));
       count += 1;
     }
-    if (PanelMode) count += (stride - offset - depth);
+    EIGEN_IF_CONSTEXPR(PanelMode) count += (stride - offset - depth);
   }
 }
 
@@ -2303,8 +2323,8 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
     EIGEN_UNUSED_VARIABLE(stride);
     EIGEN_UNUSED_VARIABLE(offset);
     eigen_assert(((!PanelMode) && stride == 0 && offset == 0) || (PanelMode && stride >= depth && offset <= stride));
-    const bool HasHalf = (int)HalfPacketSize < (int)PacketSize;
-    const bool HasQuarter = (int)QuarterPacketSize < (int)HalfPacketSize;
+    constexpr bool HasHalf = (int)HalfPacketSize < (int)PacketSize;
+    constexpr bool HasQuarter = (int)QuarterPacketSize < (int)HalfPacketSize;
     conj_if<NumTraits<Scalar>::IsComplex && Conjugate> cj;
     Index packet_cols8 = nr >= 8 ? (cols / 8) * 8 : 0;
     Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
@@ -2313,19 +2333,21 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
     EIGEN_IF_CONSTEXPR(nr >= 8) {
       for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
         // skip what we have before
-        if (PanelMode) count += 8 * offset;
+        EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * offset;
         for (Index k = 0; k < depth; k++) {
-          if (PacketSize == 8) {
+          EIGEN_IF_CONSTEXPR(PacketSize == 8) {
             Packet A = rhs.template loadPacket<Packet>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
             count += PacketSize;
-          } else if (PacketSize == 4) {
+          }
+          else EIGEN_IF_CONSTEXPR(PacketSize == 4) {
             Packet A = rhs.template loadPacket<Packet>(k, j2);
             Packet B = rhs.template loadPacket<Packet>(k, j2 + 4);
             pstoreu(blockB + count, cj.pconj(A));
             pstoreu(blockB + count + PacketSize, cj.pconj(B));
             count += 2 * PacketSize;
-          } else {
+          }
+          else {
             const LinearMapper dm0 = rhs.getLinearMapper(k, j2);
             blockB[count + 0] = cj(dm0(0));
             blockB[count + 1] = cj(dm0(1));
@@ -2339,28 +2361,31 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
           }
         }
         // skip what we have after
-        if (PanelMode) count += 8 * (stride - offset - depth);
+        EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * (stride - offset - depth);
       }
     }
 
-    if (nr >= 4) {
+    EIGEN_IF_CONSTEXPR(nr >= 4) {
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         // skip what we have before
-        if (PanelMode) count += 4 * offset;
+        EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * offset;
         for (Index k = 0; k < depth; k++) {
-          if (PacketSize == 4) {
+          EIGEN_IF_CONSTEXPR(PacketSize == 4) {
             Packet A = rhs.template loadPacket<Packet>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
             count += PacketSize;
-          } else if (HasHalf && HalfPacketSize == 4) {
+          }
+          else EIGEN_IF_CONSTEXPR(HasHalf && HalfPacketSize == 4) {
             HalfPacket A = rhs.template loadPacket<HalfPacket>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
             count += HalfPacketSize;
-          } else if (HasQuarter && QuarterPacketSize == 4) {
+          }
+          else EIGEN_IF_CONSTEXPR(HasQuarter && QuarterPacketSize == 4) {
             QuarterPacket A = rhs.template loadPacket<QuarterPacket>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
             count += QuarterPacketSize;
-          } else {
+          }
+          else {
             const LinearMapper dm0 = rhs.getLinearMapper(k, j2);
             blockB[count + 0] = cj(dm0(0));
             blockB[count + 1] = cj(dm0(1));
@@ -2370,17 +2395,17 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
           }
         }
         // skip what we have after
-        if (PanelMode) count += 4 * (stride - offset - depth);
+        EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * (stride - offset - depth);
       }
     }
     // copy the remaining columns one at a time (nr==1)
     for (Index j2 = packet_cols4; j2 < cols; ++j2) {
-      if (PanelMode) count += offset;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += offset;
       for (Index k = 0; k < depth; k++) {
         blockB[count] = cj(rhs(k, j2));
         count += 1;
       }
-      if (PanelMode) count += stride - offset - depth;
+      EIGEN_IF_CONSTEXPR(PanelMode) count += stride - offset - depth;
     }
   }
 };

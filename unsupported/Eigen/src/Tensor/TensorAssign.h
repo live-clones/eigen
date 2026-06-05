@@ -65,7 +65,10 @@ class TensorAssignOp : public TensorBase<TensorAssignOp<LhsXprType, RhsXprType> 
   static constexpr int NumDims = Eigen::internal::traits<TensorAssignOp>::NumDimensions;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorAssignOp(LhsXprType& lhs, const RhsXprType& rhs)
-      : m_lhs_xpr(lhs), m_rhs_xpr(rhs) {}
+      : m_lhs_xpr(lhs), m_rhs_xpr(rhs) {
+    EIGEN_STATIC_ASSERT((internal::traits<LhsXprType>::NumDimensions == internal::traits<RhsXprType>::NumDimensions),
+                        Number_of_dimensions_must_match)
+  }
 
   /** \returns the nested expressions */
   EIGEN_DEVICE_FUNC internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {
@@ -157,8 +160,8 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
     m_leftImpl.coeffRef(i) = m_rightImpl.coeff(i);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalPacket(Index i) const {
-    const int LhsStoreMode = TensorEvaluator<LeftArgType, Device>::IsAligned ? Aligned : Unaligned;
-    const int RhsLoadMode = TensorEvaluator<RightArgType, Device>::IsAligned ? Aligned : Unaligned;
+    constexpr int LhsStoreMode = TensorEvaluator<LeftArgType, Device>::IsAligned ? Aligned : Unaligned;
+    constexpr int RhsLoadMode = TensorEvaluator<RightArgType, Device>::IsAligned ? Aligned : Unaligned;
     m_leftImpl.template writePacket<LhsStoreMode>(i, m_rightImpl.template packet<RhsLoadMode>(i));
   }
   EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index index) const { return m_leftImpl.coeff(index); }

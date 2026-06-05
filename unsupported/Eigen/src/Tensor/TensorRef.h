@@ -51,7 +51,7 @@ class TensorLazyEvaluatorReadOnly
   typedef typename Storage::Type EvaluatorPointerType;
   typedef TensorEvaluator<Expr, Device> EvalType;
 
-  TensorLazyEvaluatorReadOnly(const Expr& expr, const Device& device) : m_impl(expr, device), m_dummy(Scalar(0)) {
+  TensorLazyEvaluatorReadOnly(const Expr& expr, const Device& device) : m_impl(expr, device), m_dummy() {
     EIGEN_STATIC_ASSERT(
         internal::array_size<Dimensions>::value == internal::array_size<typename EvalType::Dimensions>::value,
         "Dimension sizes must match.");
@@ -194,12 +194,13 @@ class TensorRefBase : public TensorBase<Derived> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar coeff(const array<Index, NumIndices>& indices) const {
     const Dimensions& dims = this->dimensions();
     Index index = 0;
-    if (PlainObjectType::Options & RowMajor) {
+    EIGEN_IF_CONSTEXPR(PlainObjectType::Options & RowMajor) {
       index += indices[0];
       for (size_t i = 1; i < NumIndices; ++i) {
         index = index * dims[i] + indices[i];
       }
-    } else {
+    }
+    else {
       index += indices[NumIndices - 1];
       for (int i = NumIndices - 2; i >= 0; --i) {
         index = index * dims[i] + indices[i];
@@ -277,12 +278,13 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(const array<Index, NumIndices>& indices) {
     const Dimensions& dims = this->dimensions();
     Index index = 0;
-    if (PlainObjectType::Options & RowMajor) {
+    EIGEN_IF_CONSTEXPR(PlainObjectType::Options & RowMajor) {
       index += indices[0];
       for (size_t i = 1; i < NumIndices; ++i) {
         index = index * dims[i] + indices[i];
       }
-    } else {
+    }
+    else {
       index += indices[NumIndices - 1];
       for (int i = NumIndices - 2; i >= 0; --i) {
         index = index * dims[i] + indices[i];

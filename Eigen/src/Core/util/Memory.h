@@ -494,7 +494,7 @@ EIGEN_DEVICE_FUNC inline T* conditional_aligned_new_auto(std::size_t size) {
   if (size == 0) return nullptr;  // short-cut. Also fixes Bug 884
   check_size_for_overflow<T>(size);
   T* result = static_cast<T*>(conditional_aligned_malloc<Align>(sizeof(T) * size));
-  if (NumTraits<T>::RequireInitialization) {
+  EIGEN_IF_CONSTEXPR(NumTraits<T>::RequireInitialization) {
     EIGEN_TRY { default_construct_elements_of_array(result, size); }
     EIGEN_CATCH(...) {
       conditional_aligned_free<Align>(result);
@@ -506,7 +506,7 @@ EIGEN_DEVICE_FUNC inline T* conditional_aligned_new_auto(std::size_t size) {
 
 template <typename T, bool Align>
 EIGEN_DEVICE_FUNC inline T* conditional_aligned_realloc_new_auto(T* pts, std::size_t new_size, std::size_t old_size) {
-  if (NumTraits<T>::RequireInitialization) {
+  EIGEN_IF_CONSTEXPR(NumTraits<T>::RequireInitialization) {
     return conditional_aligned_realloc_new<T, Align>(pts, new_size, old_size);
   }
 
@@ -518,7 +518,7 @@ EIGEN_DEVICE_FUNC inline T* conditional_aligned_realloc_new_auto(T* pts, std::si
 
 template <typename T, bool Align>
 EIGEN_DEVICE_FUNC inline void conditional_aligned_delete_auto(T* ptr, std::size_t size) {
-  if (NumTraits<T>::RequireInitialization) destruct_elements_of_array<T>(ptr, size);
+  EIGEN_IF_CONSTEXPR(NumTraits<T>::RequireInitialization) destruct_elements_of_array<T>(ptr, size);
   conditional_aligned_free<Align>(ptr);
 }
 
@@ -673,10 +673,14 @@ class aligned_stack_memory_handler {
    **/
   EIGEN_DEVICE_FUNC aligned_stack_memory_handler(T* ptr, std::size_t size, bool dealloc)
       : m_ptr(ptr), m_size(size), m_deallocate(dealloc) {
-    if (NumTraits<T>::RequireInitialization && m_ptr) Eigen::internal::default_construct_elements_of_array(m_ptr, size);
+    EIGEN_IF_CONSTEXPR(NumTraits<T>::RequireInitialization) {
+      if (m_ptr) Eigen::internal::default_construct_elements_of_array(m_ptr, size);
+    }
   }
   EIGEN_DEVICE_FUNC ~aligned_stack_memory_handler() {
-    if (NumTraits<T>::RequireInitialization && m_ptr) Eigen::internal::destruct_elements_of_array<T>(m_ptr, m_size);
+    EIGEN_IF_CONSTEXPR(NumTraits<T>::RequireInitialization) {
+      if (m_ptr) Eigen::internal::destruct_elements_of_array<T>(m_ptr, m_size);
+    }
     if (m_deallocate) Eigen::internal::aligned_free(m_ptr);
   }
 
@@ -714,14 +718,16 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
       : object(ptr == 0 ? reinterpret_cast<Scalar*>(Eigen::internal::aligned_malloc(sizeof(Scalar) * xpr.size())) : ptr,
                xpr.rows(), xpr.cols()),
         m_deallocate(ptr == 0) {
-    if (NumTraits<Scalar>::RequireInitialization && object.data())
-      Eigen::internal::default_construct_elements_of_array(object.data(), object.size());
+    EIGEN_IF_CONSTEXPR(NumTraits<Scalar>::RequireInitialization) {
+      if (object.data()) Eigen::internal::default_construct_elements_of_array(object.data(), object.size());
+    }
     object = xpr;
   }
 
   EIGEN_DEVICE_FUNC ~local_nested_eval_wrapper() {
-    if (NumTraits<Scalar>::RequireInitialization && object.data())
-      Eigen::internal::destruct_elements_of_array(object.data(), object.size());
+    EIGEN_IF_CONSTEXPR(NumTraits<Scalar>::RequireInitialization) {
+      if (object.data()) Eigen::internal::destruct_elements_of_array(object.data(), object.size());
+    }
     if (m_deallocate) Eigen::internal::aligned_free(object.data());
   }
 
@@ -1262,13 +1268,17 @@ inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff
   const int GenuineIntel[] = {0x756e6547, 0x49656e69, 0x6c65746e};
   const int AuthenticAMD[] = {0x68747541, 0x69746e65, 0x444d4163};
   const int AMDisbetter_[] = {0x69444d41, 0x74656273, 0x21726574};  // "AMDisbetter!"
+  // Hygon Dhyana is a Zen-based joint-venture line that returns "HygonGenuine"
+  // and shares AMD's CPUID layout for cache descriptors (AMD Family 17h).
+  const int HygonGenuine[] = {0x6f677948, 0x6e65476e, 0x656e6975};  // "HygonGenuine"
 
   // identify the CPU vendor
   EIGEN_CPUID(abcd, 0x0, 0);
   int max_std_funcs = abcd[0];
   if (cpuid_is_vendor(abcd, GenuineIntel))
     queryCacheSizes_intel(l1, l2, l3, max_std_funcs);
-  else if (cpuid_is_vendor(abcd, AuthenticAMD) || cpuid_is_vendor(abcd, AMDisbetter_))
+  else if (cpuid_is_vendor(abcd, AuthenticAMD) || cpuid_is_vendor(abcd, AMDisbetter_) ||
+           cpuid_is_vendor(abcd, HygonGenuine))
     queryCacheSizes_amd(l1, l2, l3);
   else
     // by default let's use Intel's API

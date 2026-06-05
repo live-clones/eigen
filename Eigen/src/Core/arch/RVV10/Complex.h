@@ -19,6 +19,8 @@ namespace Eigen {
 
 namespace internal {
 
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+
 /********************************* float32 ************************************/
 
 #if 0
@@ -324,6 +326,11 @@ EIGEN_STRONG_INLINE Packet2Xcf pxor<Packet2Xcf>(const Packet2Xcf& a, const Packe
 template <>
 EIGEN_STRONG_INLINE Packet2Xcf pandnot<Packet2Xcf>(const Packet2Xcf& a, const Packet2Xcf& b) {
   return Packet2Xcf(pandnot<Packet2Xf>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xcf pnot<Packet2Xcf>(const Packet2Xcf& a) {
+  return Packet2Xcf(pnot<Packet2Xf>(a.v));
 }
 
 template <>
@@ -715,6 +722,11 @@ EIGEN_STRONG_INLINE Packet2Xcd pandnot<Packet2Xcd>(const Packet2Xcd& a, const Pa
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2Xcd pnot<Packet2Xcd>(const Packet2Xcd& a) {
+  return Packet2Xcd(pnot<Packet2Xd>(a.v));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xcd pload<Packet2Xcd>(const std::complex<double>* from) {
   Packet2Xd res = pload<Packet2Xd>(reinterpret_cast<const double*>(from));
   EIGEN_DEBUG_ALIGNED_LOAD return Packet2Xcd(res);
@@ -864,6 +876,8 @@ EIGEN_STRONG_INLINE Packet1Xcd predux_half(const Packet2Xcd& a) {
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2Xcd, Packet2Xd)
+
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 
 }  // end namespace internal
 

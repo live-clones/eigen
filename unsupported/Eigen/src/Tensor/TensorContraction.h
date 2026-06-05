@@ -377,6 +377,25 @@ class TensorContractionOp
   const OutputKernelType m_output_kernel;
 };
 
+namespace internal {
+template <bool TypesMatch, int StorageOrder, bool MatrixIsRight>
+struct GemvDirectDispatcher {
+  template <typename Evaluator, typename Scalar>
+  static bool run(const Evaluator* self, Scalar* buffer) {
+    self->template evalGemvDirect<StorageOrder, MatrixIsRight>(buffer);
+    return true;
+  }
+};
+
+template <int StorageOrder, bool MatrixIsRight>
+struct GemvDirectDispatcher<false, StorageOrder, MatrixIsRight> {
+  template <typename Evaluator, typename Scalar>
+  static bool run(const Evaluator*, Scalar*) {
+    return false;
+  }
+};
+}  // namespace internal
+
 template <typename Derived>
 struct TensorContractionEvaluatorBase {
   using Indices = typename internal::traits<Derived>::Indices;
@@ -447,7 +466,7 @@ struct TensorContractionEvaluatorBase {
     DSizes<Index, LDims> eval_left_dims;
     DSizes<Index, RDims> eval_right_dims;
     array<IndexPair<Index>, ContractDims> eval_op_indices;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       // For ColMajor, we keep using the existing dimensions
       for (int i = 0; i < LDims; i++) {
         eval_left_dims[i] = m_leftImpl.dimensions()[i];
@@ -460,7 +479,8 @@ struct TensorContractionEvaluatorBase {
         eval_op_indices[i].first = op.indices()[i].first;
         eval_op_indices[i].second = op.indices()[i].second;
       }
-    } else {
+    }
+    else {
       // For RowMajor, we need to reverse the existing dimensions
       for (int i = 0; i < LDims; i++) {
         eval_left_dims[i] = m_leftImpl.dimensions()[LDims - i - 1];
@@ -622,7 +642,7 @@ struct TensorContractionEvaluatorBase {
     }
 
     // If the layout is RowMajor, we need to reverse the m_dimensions
-    if (static_cast<int>(Layout) == static_cast<int>(RowMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(RowMajor)) {
       for (int i = 0, j = NumDims - 1; i < j; i++, j--) {
         numext::swap(m_dimensions[i], m_dimensions[j]);
       }
@@ -697,6 +717,8 @@ struct TensorContractionEvaluatorBase {
     //
     // Cases B/C/D require direct memory (data() != nullptr) on both impls.
     // Anything else falls back to evalGemm.
+    constexpr bool types_match = std::is_same<typename EvalLeftArgType::Scalar, Scalar>::value &&
+                                 std::is_same<typename EvalRightArgType::Scalar, Scalar>::value;
     if (this->m_j_size == 1) {
       if (lhs_inner_dim_contiguous) {
         this->template evalGemv<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(
@@ -704,17 +726,20 @@ struct TensorContractionEvaluatorBase {
         return;
       }
       if (m_lhs_contracted_dims_leading && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
-        evalGemvDirect<RowMajor, /*MatrixIsRight=*/false>(buffer);
-        return;
+        if (internal::GemvDirectDispatcher<types_match, RowMajor, false>::run(this, buffer)) {
+          return;
+        }
       }
     } else if (this->m_i_size == 1 && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
       if (m_rhs_contracted_dims_leading) {
-        evalGemvDirect<RowMajor, /*MatrixIsRight=*/true>(buffer);
-        return;
+        if (internal::GemvDirectDispatcher<types_match, RowMajor, true>::run(this, buffer)) {
+          return;
+        }
       }
       if (m_rhs_contracted_dims_trailing) {
-        evalGemvDirect<ColMajor, /*MatrixIsRight=*/true>(buffer);
-        return;
+        if (internal::GemvDirectDispatcher<types_match, ColMajor, true>::run(this, buffer)) {
+          return;
+        }
       }
     }
     this->template evalGemm<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(
@@ -736,8 +761,8 @@ struct TensorContractionEvaluatorBase {
     using RightEvaluator = TensorEvaluator<EvalRightArgType, Device>;
     const int lhs_packet_size = internal::unpacket_traits<typename LeftEvaluator::PacketReturnType>::size;
     const int rhs_packet_size = internal::unpacket_traits<typename RightEvaluator::PacketReturnType>::size;
-    const int lhs_alignment = LeftEvaluator::IsAligned ? Aligned : Unaligned;
-    const int rhs_alignment = RightEvaluator::IsAligned ? Aligned : Unaligned;
+    constexpr int lhs_alignment = LeftEvaluator::IsAligned ? Aligned : Unaligned;
+    constexpr int rhs_alignment = RightEvaluator::IsAligned ? Aligned : Unaligned;
     using LhsMapper = internal::TensorContractionInputMapper<LhsScalar, Index, internal::Lhs, LeftEvaluator,
                                                              left_nocontract_t, contract_t, lhs_packet_size,
                                                              lhs_inner_dim_contiguous, false, lhs_alignment>;
