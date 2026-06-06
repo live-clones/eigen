@@ -30,15 +30,9 @@ class counting_resource : public Eigen::memory_resource {
     ++m_dealloc_count;
     m_upstream->deallocate(p, bytes, alignment);
   }
-  bool do_is_equal(const
-#if EIGEN_HAS_CXX17_PMR
-                   std::pmr::memory_resource
-#else
-                   Eigen::memory_resource
-#endif
-                       & other) const noexcept override {
-    return this == &other;
-  }
+  // Eigen::memory_resource is std::pmr::memory_resource under C++17 and a
+  // standalone class otherwise; the same signature overrides do_is_equal in both.
+  bool do_is_equal(const Eigen::memory_resource& other) const noexcept override { return this == &other; }
 
  public:
   explicit counting_resource(Eigen::memory_resource* upstream = Eigen::new_delete_resource()) : m_upstream(upstream) {}

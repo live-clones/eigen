@@ -17,7 +17,10 @@
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
-// Detect C++17 PMR support.
+// Detect C++17 PMR support. When available, Eigen::memory_resource and
+// Eigen::monotonic_buffer_resource are plain aliases for the std::pmr types and
+// Eigen carries no resource implementation of its own. Only when <memory_resource>
+// is unavailable does Eigen fall back to its own hand-rolled implementations.
 #ifndef EIGEN_HAS_CXX17_PMR
 #if EIGEN_MAX_CPP_VER >= 17 && EIGEN_COMP_CXXVER >= 17
 #ifdef __has_include
@@ -31,15 +34,16 @@
 #endif
 #endif
 
-#if EIGEN_HAS_CXX17_PMR
-#include <memory_resource>
-#endif
-
 #ifndef EIGEN_GPU_COMPILE_PHASE
 
 #include <atomic>
 #include <cstddef>
-#include <memory>
+
+#if EIGEN_HAS_CXX17_PMR
+#include <memory_resource>
+#else
+#include <memory>  // std::align
+#endif
 
 namespace Eigen {
 
@@ -53,95 +57,75 @@ static constexpr std::size_t pmr_default_alignment =
 // Maximum alignment supported by handmade_aligned_malloc (offset stored in uint8_t).
 static constexpr std::size_t max_supported_alignment = 256;
 
-// Clamp alignment to the range [sizeof(void*), max_supported_alignment] and
-// ensure it is a power of two. Returns the clamped value.
-inline std::size_t clamp_alignment(std::size_t alignment) noexcept {
-  if (alignment < sizeof(void*)) alignment = sizeof(void*);
-  if (alignment > max_supported_alignment) alignment = max_supported_alignment;
+// Validate and normalize a requested alignment for handmade_aligned_malloc.
+// The alignment must be a power of two; anything the backend cannot satisfy
+// (above max_supported_alignment) is a hard error rather than a silent clamp.
+// Sub-word alignments are raised to sizeof(void*), which is always satisfiable.
+inline std::size_t clamp_alignment(std::size_t alignment) {
+  eigen_assert(alignment != 0 && (alignment & (alignment - 1)) == 0 && "alignment must be a power of two");
+  eigen_assert(alignment <= max_supported_alignment &&
+               "requested alignment exceeds the maximum supported by handmade_aligned_malloc (256)");
+  if (alignment < sizeof(void*)) return sizeof(void*);
   return alignment;
-}
-
-// Check whether a + b overflows std::size_t.
-inline bool size_add_overflows(std::size_t a, std::size_t b) noexcept {
-  return a > std::size_t(-1) - b;
-}
-
-// Check whether a * b overflows std::size_t.
-inline bool size_mul_overflows(std::size_t a, std::size_t b) noexcept {
-  return b != 0 && a > std::size_t(-1) / b;
 }
 
 }  // namespace internal
 
+#if EIGEN_HAS_CXX17_PMR
+
+// C++17 and later: use the standard PMR types directly. No inheritance, no
+// re-declared allocate() — a single type means there is no way to observe a
+// different default alignment depending on which static type you call through.
+using memory_resource = std::pmr::memory_resource;
+using monotonic_buffer_resource = std::pmr::monotonic_buffer_resource;
+
+#else  // !EIGEN_HAS_CXX17_PMR
+
+namespace internal {
+
+// Check whether a + b overflows std::size_t.
+inline bool size_add_overflows(std::size_t a, std::size_t b) noexcept { return a > std::size_t(-1) - b; }
+
+// Check whether a * b overflows std::size_t.
+inline bool size_mul_overflows(std::size_t a, std::size_t b) noexcept { return b != 0 && a > std::size_t(-1) / b; }
+
+}  // namespace internal
+
 /** \ingroup Core_Module
- * \brief Abstract interface for memory resources.
+ * \brief Abstract interface for memory resources (C++14 fallback).
  *
- * This class mirrors std::pmr::memory_resource. When compiling with C++17 and
- * \<memory_resource\> is available, Eigen::memory_resource inherits from
- * std::pmr::memory_resource, allowing Eigen resources to be used with standard
- * PMR containers (e.g. std::pmr::vector).
- *
- * \note When accessed through an Eigen::memory_resource pointer the default
- * alignment is EIGEN_DEFAULT_ALIGN_BYTES (SIMD-friendly). When accessed through
- * a std::pmr::memory_resource pointer (C++17 interop) the standard default of
- * alignof(max_align_t) applies. Both paths dispatch to the same virtual
- * do_allocate, so the returned memory satisfies whichever alignment was
- * requested.
+ * This is a minimal stand-in for std::pmr::memory_resource, used only when
+ * \<memory_resource\> is unavailable. When compiling with C++17 or later,
+ * Eigen::memory_resource is an alias for std::pmr::memory_resource instead.
  *
  * \note This class is not thread-safe. External synchronization is required
  * when a single resource is shared across threads.
  *
- * \note GPU/device memory is not covered by this class. GPU memory resources
- * (e.g. wrapping cudaMalloc / hipMalloc) can be implemented as host-side
- * memory_resource subclasses — virtual dispatch occurs on the host and the
- * returned pointers are device-accessible.
- *
  * \sa byte_allocator, monotonic_buffer_resource, new_delete_resource()
  */
-class memory_resource
-#if EIGEN_HAS_CXX17_PMR
-    : public std::pmr::memory_resource
-#endif
-{
+class memory_resource {
  public:
-  memory_resource() = default;
-  memory_resource(const memory_resource&) = default;
-  memory_resource& operator=(const memory_resource&) = default;
+  // Polymorphic base: only the destructor needs declaring (rule of zero
+  // otherwise). The implicitly-provided copy operations are sufficient.
   virtual ~memory_resource() = default;
 
   /** Allocate \a bytes bytes of memory with the given \a alignment. */
   void* allocate(std::size_t bytes, std::size_t alignment = internal::pmr_default_alignment) {
-#if EIGEN_HAS_CXX17_PMR
-    return std::pmr::memory_resource::allocate(bytes, alignment);
-#else
     return do_allocate(bytes, alignment);
-#endif
   }
 
   /** Deallocate memory previously obtained from allocate(). */
   void deallocate(void* p, std::size_t bytes, std::size_t alignment = internal::pmr_default_alignment) {
-#if EIGEN_HAS_CXX17_PMR
-    std::pmr::memory_resource::deallocate(p, bytes, alignment);
-#else
     do_deallocate(p, bytes, alignment);
-#endif
   }
 
   /** Returns true if memory allocated from \c *this can be deallocated from \a other and vice versa. */
-  bool is_equal(const memory_resource& other) const noexcept {
-#if EIGEN_HAS_CXX17_PMR
-    return std::pmr::memory_resource::is_equal(other);
-#else
-    return do_is_equal(other);
-#endif
-  }
+  bool is_equal(const memory_resource& other) const noexcept { return do_is_equal(other); }
 
-#if !EIGEN_HAS_CXX17_PMR
  private:
   virtual void* do_allocate(std::size_t bytes, std::size_t alignment) = 0;
   virtual void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) = 0;
   virtual bool do_is_equal(const memory_resource& other) const noexcept = 0;
-#endif
 };
 
 inline bool operator==(const memory_resource& a, const memory_resource& b) noexcept {
@@ -149,68 +133,8 @@ inline bool operator==(const memory_resource& a, const memory_resource& b) noexc
 }
 inline bool operator!=(const memory_resource& a, const memory_resource& b) noexcept { return !(a == b); }
 
-namespace internal {
-
-/** Default memory resource using Eigen's handmade aligned malloc/free.
- * Alignment is clamped to [sizeof(void*), 256] — the range supported by
- * handmade_aligned_malloc. */
-class new_delete_memory_resource final : public memory_resource {
-  void* do_allocate(std::size_t bytes, std::size_t alignment) override {
-    // C++ standard: allocate(0) must return a non-null pointer.
-    if (bytes == 0) bytes = 1;
-    alignment = clamp_alignment(alignment);
-    void* p = handmade_aligned_malloc(bytes, alignment);
-    if (!p) internal::throw_std_bad_alloc();
-    return p;
-  }
-
-  void do_deallocate(void* p, std::size_t /*bytes*/, std::size_t /*alignment*/) override {
-    handmade_aligned_free(p);
-  }
-
-  bool do_is_equal(const
-#if EIGEN_HAS_CXX17_PMR
-                   std::pmr::memory_resource
-#else
-                   memory_resource
-#endif
-                       & other) const noexcept override {
-    return this == &other;
-  }
-};
-
-inline std::atomic<memory_resource*>& default_resource_instance() noexcept {
-  static std::atomic<memory_resource*> instance{nullptr};
-  return instance;
-}
-
-}  // namespace internal
-
-/** Returns a pointer to the default new/delete memory resource using Eigen's aligned allocation. */
-inline memory_resource* new_delete_resource() noexcept {
-  static internal::new_delete_memory_resource instance;
-  return &instance;
-}
-
-/** Returns the current default memory resource. If none has been set, returns new_delete_resource().
- * \note Thread-safe (uses std::atomic). The returned pointer is valid until the next
- * call to set_default_resource(). Ownership is not transferred. */
-inline memory_resource* get_default_resource() noexcept {
-  memory_resource* r = internal::default_resource_instance().load(std::memory_order_acquire);
-  return r ? r : new_delete_resource();
-}
-
-/** Sets the default memory resource to \a r. Returns the previous default resource.
- * Pass nullptr to restore new_delete_resource() as the default.
- * \note Thread-safe (uses std::atomic). The caller is responsible for ensuring the
- * resource remains alive for the duration of its use as the default. */
-inline memory_resource* set_default_resource(memory_resource* r) noexcept {
-  memory_resource* prev = internal::default_resource_instance().exchange(r, std::memory_order_acq_rel);
-  return prev ? prev : new_delete_resource();
-}
-
 /** \ingroup Core_Module
- * \brief Arena-style memory resource that allocates monotonically.
+ * \brief Arena-style memory resource that allocates monotonically (C++14 fallback).
  *
  * Memory is allocated from contiguous blocks. Individual deallocations are
  * no-ops; all memory is released at once via release() or on destruction.
@@ -222,30 +146,28 @@ inline memory_resource* set_default_resource(memory_resource* r) noexcept {
  * An optional initial buffer (e.g. stack-allocated) can be provided to avoid
  * any upstream allocations for small workloads.
  *
- * \note Not thread-safe. Not copyable. Not movable.
+ * \note Not thread-safe. Not copyable. Not movable. When compiling with C++17
+ * or later, this is an alias for std::pmr::monotonic_buffer_resource instead.
  *
  * \sa memory_resource, byte_allocator
  */
 class monotonic_buffer_resource : public memory_resource {
  public:
   /** Construct with default upstream resource and no initial buffer. */
-  monotonic_buffer_resource() noexcept : monotonic_buffer_resource(0, get_default_resource()) {}
+  monotonic_buffer_resource() noexcept;
 
   /** Construct with explicit upstream resource. */
-  explicit monotonic_buffer_resource(memory_resource* upstream) noexcept
-      : monotonic_buffer_resource(0, upstream) {}
+  explicit monotonic_buffer_resource(memory_resource* upstream) noexcept;
 
   /** Construct with an initial size hint. The first upstream allocation will be at least \a initial_size bytes. */
-  explicit monotonic_buffer_resource(std::size_t initial_size) noexcept
-      : monotonic_buffer_resource(initial_size, get_default_resource()) {}
+  explicit monotonic_buffer_resource(std::size_t initial_size) noexcept;
 
   /** Construct with initial size hint and explicit upstream resource. */
   monotonic_buffer_resource(std::size_t initial_size, memory_resource* upstream) noexcept
       : m_upstream(upstream), m_initial_size(initial_size > 0 ? initial_size : 256) {}
 
   /** Construct with a user-provided initial buffer. */
-  monotonic_buffer_resource(void* buffer, std::size_t buffer_size) noexcept
-      : monotonic_buffer_resource(buffer, buffer_size, get_default_resource()) {}
+  monotonic_buffer_resource(void* buffer, std::size_t buffer_size) noexcept;
 
   /** Construct with a user-provided initial buffer and explicit upstream resource. */
   monotonic_buffer_resource(void* buffer, std::size_t buffer_size, memory_resource* upstream) noexcept
@@ -310,15 +232,7 @@ class monotonic_buffer_resource : public memory_resource {
     // Monotonic: individual deallocation is a no-op.
   }
 
-  bool do_is_equal(const
-#if EIGEN_HAS_CXX17_PMR
-                   std::pmr::memory_resource
-#else
-                   memory_resource
-#endif
-                       & other) const noexcept override {
-    return this == &other;
-  }
+  bool do_is_equal(const memory_resource& other) const noexcept override { return this == &other; }
 
   void* allocate_from_new_block(std::size_t bytes, std::size_t alignment) {
     const std::size_t hdr_align = alignment > alignof(block_header) ? alignment : alignof(block_header);
@@ -378,6 +292,75 @@ class monotonic_buffer_resource : public memory_resource {
   std::size_t m_current_offset = 0;
   block_header* m_block_head = nullptr;
 };
+
+#endif  // EIGEN_HAS_CXX17_PMR
+
+namespace internal {
+
+/** Default memory resource using Eigen's handmade aligned malloc/free.
+ *
+ * This resource is Eigen-owned in both the C++17 and the fallback path so that
+ * default matrix storage continues to route through Eigen's aligned allocator
+ * (honoring EIGEN_DEFAULT_ALIGN_BYTES and the EIGEN_RUNTIME_NO_MALLOC hooks),
+ * rather than going through std::pmr::new_delete_resource() / global operator new.
+ * It overrides only the virtual do_* members, so it does not redefine the public
+ * allocate() interface. */
+class new_delete_memory_resource final : public memory_resource {
+  void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+    // C++ standard: allocate(0) must return a non-null pointer.
+    if (bytes == 0) bytes = 1;
+    alignment = clamp_alignment(alignment);
+    void* p = handmade_aligned_malloc(bytes, alignment);
+    if (!p) throw_std_bad_alloc();
+    return p;
+  }
+
+  void do_deallocate(void* p, std::size_t /*bytes*/, std::size_t /*alignment*/) override { handmade_aligned_free(p); }
+
+  bool do_is_equal(const memory_resource& other) const noexcept override { return this == &other; }
+};
+
+inline std::atomic<memory_resource*>& default_resource_instance() noexcept {
+  static std::atomic<memory_resource*> instance{nullptr};
+  return instance;
+}
+
+}  // namespace internal
+
+/** Returns a pointer to the default new/delete memory resource using Eigen's aligned allocation. */
+inline memory_resource* new_delete_resource() noexcept {
+  static internal::new_delete_memory_resource instance;
+  return &instance;
+}
+
+/** Returns the current default memory resource. If none has been set, returns new_delete_resource().
+ * \note Thread-safe (uses std::atomic). The returned pointer is valid until the next
+ * call to set_default_resource(). Ownership is not transferred. */
+inline memory_resource* get_default_resource() noexcept {
+  memory_resource* r = internal::default_resource_instance().load(std::memory_order_acquire);
+  return r ? r : new_delete_resource();
+}
+
+/** Sets the default memory resource to \a r. Returns the previous default resource.
+ * Pass nullptr to restore new_delete_resource() as the default.
+ * \note Thread-safe (uses std::atomic). The caller is responsible for ensuring the
+ * resource remains alive for the duration of its use as the default. */
+inline memory_resource* set_default_resource(memory_resource* r) noexcept {
+  memory_resource* prev = internal::default_resource_instance().exchange(r, std::memory_order_acq_rel);
+  return prev ? prev : new_delete_resource();
+}
+
+#if !EIGEN_HAS_CXX17_PMR
+// Out-of-line constructors that depend on get_default_resource() (declared above).
+inline monotonic_buffer_resource::monotonic_buffer_resource() noexcept
+    : monotonic_buffer_resource(0, get_default_resource()) {}
+inline monotonic_buffer_resource::monotonic_buffer_resource(memory_resource* upstream) noexcept
+    : monotonic_buffer_resource(0, upstream) {}
+inline monotonic_buffer_resource::monotonic_buffer_resource(std::size_t initial_size) noexcept
+    : monotonic_buffer_resource(initial_size, get_default_resource()) {}
+inline monotonic_buffer_resource::monotonic_buffer_resource(void* buffer, std::size_t buffer_size) noexcept
+    : monotonic_buffer_resource(buffer, buffer_size, get_default_resource()) {}
+#endif
 
 /** \ingroup Core_Module
  * \brief Type-erased byte-level allocator for Eigen types.
