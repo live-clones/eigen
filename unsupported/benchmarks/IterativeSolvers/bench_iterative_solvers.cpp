@@ -1,11 +1,10 @@
-// Benchmarks for unsupported iterative solvers: GMRES, MINRES, IDRS, IDRSTABL, BiCGSTABL, DGMRES.
+// Benchmarks for iterative solvers: GMRES, MINRES, IDRS, IDRSTABL, BiCGSTABL, DGMRES.
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Sparse>
 #include <Eigen/IterativeLinearSolvers>
-#include <unsupported/Eigen/IterativeSolvers>
 
 using namespace Eigen;
 
