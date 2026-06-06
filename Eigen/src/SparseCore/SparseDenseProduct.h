@@ -198,7 +198,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const auto* innerNnz = mat.innerNonZeroPtr();
     // The fast result pointer path requires contiguous ColMajor result layout.
     // Transpose<ColMajor> reports innerStride()==1 but is actually RowMajor, so check both.
-    EIGEN_IF_CONSTEXPR(!(Res::Flags & RowMajorBit)) {
+    EIGEN_IF_CONSTEXPR (!(Res::Flags & RowMajorBit)) {
       if (res.innerStride() == 1) {
         const Index n = lhs.outerSize();
         // The threaded scatter+reduce path relies on a thread_local scratch buffer for

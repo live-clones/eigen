@@ -70,10 +70,11 @@ EIGEN_ALWAYS_INLINE void run_dot_row(const Scalar* EIGEN_RESTRICT vals, const St
     if (k < end) s1 += cj(vals[k]) * x[inner[k]];
   }
   const Scalar s = s0 + s1;
-  EIGEN_IF_CONSTEXPR(Overwrite)
+  EIGEN_IF_CONSTEXPR (Overwrite) {
     y[i] = alpha * s;
-  else
+  } else {
     y[i] += alpha * s;
+  }
 }
 
 // Dot-product-per-outer kernel. Used by both forward and adjoint paths; the
