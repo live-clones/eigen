@@ -373,23 +373,28 @@ test:linux:arm:clang-14:default:unsupported:
   tags:
     - saas-linux-medium-amd64
 
-.test:linux:sme:gcc-12:default:
+.test:linux:sme:gcc-14:default:
   extends: .test:linux:sme
-  needs: [ build:linux:cross:sme:gcc-12:default ]
+  needs: [ build:linux:cross:sme:gcc-14:default ]
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_BRANCH == "master"
   variables:
-    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++-12
-    EIGEN_CI_CROSS_INSTALL: g++-12-aarch64-linux-gnu qemu-user-static
+    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++-14
+    EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu qemu-user-static
 
-test:linux:sme:gcc-12:default:official:
-  extends: .test:linux:sme:gcc-12:default
-  script:
-    - export EIGEN_CTEST_ARGS="-j${EIGEN_CI_CTEST_JOBS}"
-    - ./scripts/check.in product_sme
+test:linux:sme:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default
+  variables:
+    # Run only product_sme from the prebuilt dir via the standard test flow
+    # (ci/scripts/test.linux.script.sh -> ctest -R ... --build-noclean). ctest
+    # invokes each test under the CMAKE_CROSSCOMPILING_EMULATOR baked in at
+    # configure time (qemu-aarch64 -cpu max,sme=on,sme2=on). The previous
+    # `./scripts/check.in product_sme` override ran from the repo root and
+    # called ./buildtests.sh, which only exists in ${EIGEN_CI_BUILDDIR}.
+    EIGEN_CI_CTEST_REGEX: product_sme
 
 ##### aarch64 ##################################################################
 
