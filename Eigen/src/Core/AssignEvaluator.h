@@ -79,6 +79,12 @@ struct copy_using_evaluator_traits {
 
   static constexpr int LinearPacketSize = unpacket_traits<LinearPacketType>::size;
   static constexpr int InnerPacketSize = unpacket_traits<InnerPacketType>::size;
+  // Use the exact-divisor packet size for the Inner-vs-Linear choice below, so
+  // find_assign_linear_packet's widening only changes the packet *within*
+  // LinearVectorizedTraversal and never flips an inner-vectorizable assignment
+  // onto the linear path (e.g. vectorization_logic Matrix57 on NEON int).
+  static constexpr int LinearTraversalPacketSize =
+      unpacket_traits<typename find_best_packet<DstScalar, RestrictedLinearSize>::type>::size;
 
  public:
   static constexpr int LinearRequiredAlignment = unpacket_traits<LinearPacketType>::alignment;
@@ -110,7 +116,7 @@ struct copy_using_evaluator_traits {
 
  public:
   static constexpr int Traversal = SizeAtCompileTime == 0 ? AllAtOnceTraversal
-                                   : (MayLinearVectorize && (LinearPacketSize > InnerPacketSize))
+                                   : (MayLinearVectorize && (LinearTraversalPacketSize > InnerPacketSize))
                                        ? LinearVectorizedTraversal
                                    : MayInnerVectorize  ? InnerVectorizedTraversal
                                    : MayLinearVectorize ? LinearVectorizedTraversal
