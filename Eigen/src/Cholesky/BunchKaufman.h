@@ -360,19 +360,13 @@ struct bunch_kaufman<Lower> {
       mat.coeffRef(i, kk) = numext::conj(mat.coeff(kp, i));
       mat.coeffRef(kp, i) = numext::conj(tmp);
     }
-    {
-      Scalar tmp = mat.coeff(kk, kk);
-      mat.coeffRef(kk, kk) = mat.coeff(kp, kp);
-      mat.coeffRef(kp, kp) = tmp;
-    }
+    numext::swap(mat.coeffRef(kk, kk), mat.coeffRef(kp, kp));
     EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
       mat.coeffRef(kp, kk) = numext::conj(mat.coeff(kp, kk));
     }
     if (kfirst > 0) mat.row(kk).head(kfirst).swap(mat.row(kp).head(kfirst));
     if (kstep == 2) {
-      Scalar tmp = mat.coeff(kfirst + 1, kfirst);
-      mat.coeffRef(kfirst + 1, kfirst) = mat.coeff(kp, kfirst);
-      mat.coeffRef(kp, kfirst) = tmp;
+      numext::swap(mat.coeffRef(kfirst + 1, kfirst), mat.coeffRef(kp, kfirst));
     }
   }
 
@@ -386,7 +380,7 @@ struct bunch_kaufman<Lower> {
   // Returns 0 on success, or the (1-based) index of the first exactly-zero pivot encountered.
   template <typename MatrixType, typename TranspositionType, typename SubDiagType>
   static Index unblocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag, Index k0 = 0) {
-    using std::abs;
+    using numext::abs;
     typedef typename MatrixType::Scalar Scalar;
     typedef typename MatrixType::RealScalar RealScalar;
     typedef typename TranspositionType::StorageIndex StorageIndex;
@@ -523,7 +517,7 @@ struct bunch_kaufman<Lower> {
   template <typename MatrixType, typename WorkspaceType, typename TranspositionType, typename SubDiagType>
   static Index partial_factor(MatrixType& mat, Index k0, Index nb, WorkspaceType& W, TranspositionType& transpositions,
                               SubDiagType& subdiag, Index& info) {
-    using std::abs;
+    using numext::abs;
     typedef typename MatrixType::Scalar Scalar;
     typedef typename MatrixType::RealScalar RealScalar;
     typedef typename TranspositionType::StorageIndex StorageIndex;
@@ -756,7 +750,7 @@ void BunchKaufman<MatrixType, UpLo_>::applyD(MatrixBase<Derived>& x) const {
 template <typename MatrixType, int UpLo_>
 template <bool Conjugate, typename Derived>
 void BunchKaufman<MatrixType, UpLo_>::solveInPlaceD(MatrixBase<Derived>& x) const {
-  using std::abs;
+  using numext::abs;
   const Index n = m_matrix.rows();
   // Use the pseudo-inverse of singular 1x1 blocks (see Eigen bug 241 for LDLT). The 2x2 blocks
   // produced by Bunch-Kaufman pivoting are non-singular by construction.
