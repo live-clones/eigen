@@ -447,15 +447,74 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
   }
 };
 
+// ===========================================================================
+// PROTOTYPE (#1688 follow-up): fused small fixed-size col-major matrix x vector.
+// Reads the rhs vector ONCE and broadcasts its lanes via register shuffles
+// instead of per-coefficient scalar reads, so a loop-carried v = M*v stays
+// register-resident and avoids the partial-packet store->scalar-reload stall
+// (#1688). The kernel reads all of rhs before writing dst, so it is alias-safe.
+//
+// NARROWLY GATED for the prototype: Matrix<double,3,3,ColMajor> * vec3 on
+// SSE2/AVX; everything else falls back to the coeff-based path unchanged. A
+// production version needs (a) a portable "broadcast lane i of a packet" packet
+// primitive across all backends, and (b) generalization to arbitrary small
+// fixed sizes / scalar types, plus the Quaternion::_transformVector twin.
+// ===========================================================================
+template <typename Dst, typename Lhs, typename Rhs>
+struct proto_matvec_enabled {
+  enum {
+    value =
+#if defined(EIGEN_VECTORIZE_SSE2)
+        std::is_same<typename Dst::Scalar, double>::value && std::is_same<typename Lhs::Scalar, double>::value &&
+        std::is_same<typename Rhs::Scalar, double>::value && int(Lhs::RowsAtCompileTime) == 3 &&
+        int(Lhs::ColsAtCompileTime) == 3 && int(Rhs::RowsAtCompileTime) == 3 && int(Rhs::ColsAtCompileTime) == 1 &&
+        int(Dst::RowsAtCompileTime) == 3 && int(Dst::ColsAtCompileTime) == 1 &&
+        !bool(int(evaluator<Lhs>::Flags) & RowMajorBit) && bool(int(evaluator<Lhs>::Flags) & PacketAccessBit) &&
+        bool(int(evaluator<Rhs>::Flags) & PacketAccessBit)
+#else
+        false
+#endif
+  };
+};
+
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode> {
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
+
+#if defined(EIGEN_VECTORIZE_SSE2)
+  template <typename Dst>
+  static EIGEN_STRONG_INLINE void evalTo_dispatch(Dst& dst, const Lhs& lhs, const Rhs& rhs, std::true_type) {
+    evaluator<Lhs> le(lhs);
+    evaluator<Rhs> re(rhs);
+    // rhs (v) read once: x,y as one Packet2d, z scalar. All lane broadcasts come
+    // from the loaded register (vunpcklpd/vunpckhpd), not scalar memory reads.
+    Packet2d vxy = re.template packet<Unaligned, Packet2d>(0, 0);
+    double vz = re.coeff(2, 0);
+    Packet2d bx = pbroadcast_lane<0>(vxy);  // [v0,v0]
+    Packet2d by = pbroadcast_lane<1>(vxy);  // [v1,v1]
+    Packet2d bz = pset1<Packet2d>(vz);      // [v2,v2]
+    // lhs columns (loop-invariant): rows 0,1 as Packet2d, row 2 scalar.
+    Packet2d c0 = le.template packet<Unaligned, Packet2d>(0, 0);
+    Packet2d c1 = le.template packet<Unaligned, Packet2d>(0, 1);
+    Packet2d c2 = le.template packet<Unaligned, Packet2d>(0, 2);
+    Packet2d oxy = pmadd(c2, bz, pmadd(c1, by, pmul(c0, bx)));
+    double oz = le.coeff(2, 0) * pfirst(vxy) + le.coeff(2, 1) * pfirst(by) + le.coeff(2, 2) * vz;
+    pstoreu(dst.data(), oxy);
+    dst.coeffRef(2) = oz;
+  }
+#endif
+
+  template <typename Dst>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo_dispatch(Dst& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                    std::false_type) {
+    call_assignment_no_alias(dst, lhs.lazyProduct(rhs), internal::assign_op<typename Dst::Scalar, Scalar>());
+  }
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     // Same as: dst.noalias() = lhs.lazyProduct(rhs);
     // but easier on the compiler side
-    call_assignment_no_alias(dst, lhs.lazyProduct(rhs), internal::assign_op<typename Dst::Scalar, Scalar>());
+    evalTo_dispatch(dst, lhs, rhs, bool_constant<bool(proto_matvec_enabled<Dst, Lhs, Rhs>::value)>());
   }
 
   template <typename Dst>
