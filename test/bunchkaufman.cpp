@@ -8,6 +8,11 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+// Enable Eigen's runtime malloc tracking so bunchkaufman_no_malloc() can assert that compute()
+// performs no heap allocation when the workspace is pre-allocated. (Malloc stays allowed by default;
+// only that one subtest toggles it off.) Must be defined before any Eigen header is included.
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include "main.h"
 #include <Eigen/Cholesky>
 #include <Eigen/QR>
@@ -293,6 +298,81 @@ void bunchkaufman(const MatrixType& m) {
   }
 }
 
+// Extreme-scale 2x2 pivot: an off-diagonal-only Hermitian 2x2 forces a single 2x2 pivot whose
+// determinant is det = -|off|^2. The scaled (det-free) 2x2 formulas must stay finite and correct when
+// |off| is huge or tiny. Regression for forming det = d11*d22 - |d21|^2 directly, which overflows to
+// +-inf for off=1e200 (solve then returns 0, residual 1) and underflows to 0 for off=1e-200 (solve
+// returns NaN/inf), and which also misclassifies the inertia. Requires a type that can hold 1e+-200,
+// so this is exercised for double / complex<double> only.
+template <typename Scalar>
+void bunchkaufman_extreme_scale() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, 2, 2> Mat2;
+  typedef Matrix<Scalar, 2, 1> Vec2;
+  const RealScalar tol = sqrt(test_precision<RealScalar>());
+  for (RealScalar mag : {pow(RealScalar(10), RealScalar(200)), pow(RealScalar(10), RealScalar(-200))}) {
+    const Scalar off = Scalar(mag);
+    Mat2 A;
+    A << Scalar(0), numext::conj(off), off, Scalar(0);
+    BunchKaufman<Mat2> bk(A);
+    VERIFY(bk.info() == Success);
+    VERIFY(!bk.isPositive());  // det < 0 => one positive and one negative eigenvalue
+    VERIFY(!bk.isNegative());
+    // Use the max-abs (infinity) relative norm throughout: the Frobenius norm (.norm()) squares the
+    // ~1e200 entries and would overflow/underflow even for a correct factorization.
+    VERIFY((A - bk.reconstructedMatrix()).cwiseAbs().maxCoeff() <= tol * A.cwiseAbs().maxCoeff());
+    // A x = b with b = [1,1]; the product A*x stays O(1), so its residual is safe to measure.
+    const Vec2 b(Scalar(1), Scalar(1));
+    const Vec2 x = bk.solve(b);
+    VERIFY((A * x - b).cwiseAbs().maxCoeff() <= tol);
+  }
+}
+
+// Extreme-scale factorization at the matrix level: a zero-diagonal Hermitian matrix (2x2 pivots
+// throughout, exercising both the unblocked and -- for n > blocksize -- the blocked trailing update)
+// scaled to an extreme magnitude. The factorization is scale-equivariant and must remain overflow-free;
+// the solve must stay backward stable. double / complex<double> only (1e+-175 overflows float).
+template <typename Scalar>
+void bunchkaufman_extreme_scale_large(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  const RealScalar tol = sqrt(test_precision<RealScalar>());
+  MatrixType M = MatrixType::Random(n, n);
+  MatrixType A = M + M.adjoint();
+  A.diagonal().setZero();
+  // 1e+-175 is past the squaring threshold (|entry|^2 over/underflows double), so the pre-fix code
+  // (which forms det = d11*d22 - |d21|^2) produces NaN/Inf here, while the scaled formulas stay exact.
+  for (RealScalar sigma : {pow(RealScalar(10), RealScalar(175)), pow(RealScalar(10), RealScalar(-175))}) {
+    const MatrixType As = A * Scalar(sigma);
+    BunchKaufman<MatrixType, Lower> bk(As);
+    VERIFY(bk.info() == Success);
+    // Max-abs relative reconstruction error (avoid .norm(), whose squaring overflows the ~1e175 entries).
+    VERIFY((As - bk.reconstructedMatrix()).cwiseAbs().maxCoeff() <= tol * As.cwiseAbs().maxCoeff());
+    // As*x stays O(1) for a unit-scale rhs, so its residual norm is safe to form.
+    const VectorType b = VectorType::Random(n);
+    const VectorType x = bk.solve(b);
+    VERIFY((As * x - b).norm() <= tol * b.norm());
+  }
+}
+
+// Regression: the size constructor must pre-allocate the panel workspace so that a subsequent compute()
+// on a problem of that size performs no heap allocation. n is chosen above the panel width so the
+// blocked path (the one that uses the workspace) runs. (Uses the default stack-allocation limit so the
+// trailing-update GEMM's small blocking buffers stay on the stack rather than the heap.)
+template <typename Scalar>
+void bunchkaufman_no_malloc() {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  const Index n = internal::bunch_kaufman_blocksize<Scalar>() + 36;
+  const MatrixType M = MatrixType::Random(n, n);
+  const MatrixType A = M + M.adjoint();
+  BunchKaufman<MatrixType> bk(n);  // pre-allocates m_matrix, m_transpositions, m_subdiag, m_workspace
+  internal::set_is_malloc_allowed(false);
+  bk.compute(A);
+  internal::set_is_malloc_allowed(true);
+  VERIFY(bk.info() == Success);
+}
+
 EIGEN_DECLARE_TEST(bunchkaufman) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(bunchkaufman(Matrix<double, 1, 1>()));
@@ -342,4 +422,16 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   CALL_SUBTEST_8(bunchkaufman_blocking_boundary<double>());
   CALL_SUBTEST_8(bunchkaufman_blocking_boundary<float>());
   CALL_SUBTEST_8(bunchkaufman_blocking_boundary<std::complex<double> >());
+
+  // Extreme-scale 2x2 pivots: the scaled (det-free) 2x2 formulas must not over/underflow.
+  CALL_SUBTEST_7(bunchkaufman_extreme_scale<double>());
+  CALL_SUBTEST_7(bunchkaufman_extreme_scale<std::complex<double> >());
+  CALL_SUBTEST_5(bunchkaufman_extreme_scale_large<double>(8));
+  CALL_SUBTEST_5(bunchkaufman_extreme_scale_large<double>(100));
+  CALL_SUBTEST_6(bunchkaufman_extreme_scale_large<std::complex<double> >(8));
+  CALL_SUBTEST_6(bunchkaufman_extreme_scale_large<std::complex<double> >(100));
+
+  // No-malloc regression: the size constructor pre-allocates the panel workspace.
+  CALL_SUBTEST_8(bunchkaufman_no_malloc<double>());
+  CALL_SUBTEST_8(bunchkaufman_no_malloc<std::complex<double> >());
 }
