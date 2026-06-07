@@ -554,6 +554,112 @@ void selfadjointeigensolver_structured_tridiagonal() {
   });
 }
 
+// Test the #UseBisection algorithm (SIMD Sturm-sequence spectral bisection) on the full
+// structured-tridiagonal catalog: compare against the QR path, exercise index/value range
+// subset selection, and verify absolute accuracy against matrices with known spectra.
+template <typename RealScalar>
+void selfadjointeigensolver_bisection() {
+  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar tiny = (std::numeric_limits<RealScalar>::min)();
+
+  // (a) Compare bisection against the QR path over every structured matrix, and exercise
+  // index- and value-range subset selection.
+  test::for_all_symmetric_tridiag_test_matrices<RealScalar>([&](const VectorType& diag, const VectorType& offdiag) {
+    const Index n = diag.size();
+
+    SelfAdjointEigenSolver<MatrixType> qr;
+    qr.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly);
+    if (qr.info() != Success) return;  // skip pathological inputs the QR path itself rejects
+    const VectorType w = qr.eigenvalues();
+
+    SelfAdjointEigenSolver<MatrixType> bz;
+    bz.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly | UseBisection);
+    VERIFY_IS_EQUAL(bz.info(), Success);
+    VERIFY_IS_EQUAL(bz.eigenvalues().size(), n);
+    for (Index i = 1; i < n; ++i) VERIFY(bz.eigenvalues()(i) >= bz.eigenvalues()(i - 1));
+
+    // Bisection has an absolute accuracy floor of ~pivmin (the smallest safe pivot),
+    // so the tolerance carries an absolute term in addition to the eps*||T|| term.
+    const RealScalar radius = w.cwiseAbs().maxCoeff();
+    const RealScalar tol = RealScalar(64) * RealScalar(n) * (eps * radius + tiny);
+    VERIFY((bz.eigenvalues() - w).cwiseAbs().maxCoeff() <= tol);
+
+    // Index-range subsets: the k smallest and the k largest.
+    if (n >= 4) {
+      const Index k = n / 3;
+      SelfAdjointEigenSolver<MatrixType> lo, hi;
+      lo.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly | UseBisection, EigenvalueRange::indices(0, k));
+      VERIFY_IS_EQUAL(lo.eigenvalues().size(), k);
+      VERIFY((lo.eigenvalues() - w.head(k)).cwiseAbs().maxCoeff() <= tol);
+      hi.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly | UseBisection, EigenvalueRange::indices(n - k, n));
+      VERIFY_IS_EQUAL(hi.eigenvalues().size(), k);
+      VERIFY((hi.eigenvalues() - w.tail(k)).cwiseAbs().maxCoeff() <= tol);
+    }
+
+    // Value-range subset [vl, vu) about the spectrum center. The count is compared strictly
+    // only when no eigenvalue sits within tol of a boundary (otherwise it is legitimately
+    // ambiguous which side the boundary eigenvalue falls on).
+    if (n >= 2 && radius > tiny) {
+      const RealScalar vl = -RealScalar(0.3) * radius, vu = RealScalar(0.3) * radius;
+      SelfAdjointEigenSolver<MatrixType> bv;
+      bv.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly | UseBisection,
+                                EigenvalueRange::values(double(vl), double(vu)));
+      for (Index i = 0; i < bv.eigenvalues().size(); ++i)
+        VERIFY(bv.eigenvalues()(i) >= vl - tol && bv.eigenvalues()(i) < vu + tol);
+      const bool clean = (w.array() - vl).abs().minCoeff() > tol && (w.array() - vu).abs().minCoeff() > tol;
+      if (clean) {
+        const Index expected = (w.array() >= vl && w.array() < vu).count();
+        VERIFY_IS_EQUAL(bv.eigenvalues().size(), expected);
+        if (expected > 0) {
+          Index first = 0;
+          while (first < n && w(first) < vl) ++first;
+          VERIFY((bv.eigenvalues() - w.segment(first, expected)).cwiseAbs().maxCoeff() <= tol);
+        }
+      }
+    }
+  });
+
+  // (b) Absolute-accuracy checks against matrices with known spectra (independent of QR).
+  const double pi = 3.14159265358979323846;
+  for (Index n : {7, 16, 33, 64}) {
+    VectorType d(n), e(n - 1), wexact(n);
+
+    // 1-2-1 Toeplitz: lambda_k = 2 - 2 cos(k*pi/(n+1)), ascending for k = 1..n.
+    test::tridiag_1_2_1(d, e);
+    SelfAdjointEigenSolver<MatrixType> b121;
+    b121.computeFromTridiagonal(d, e, EigenvaluesOnly | UseBisection);
+    for (Index k = 0; k < n; ++k) wexact(k) = RealScalar(2.0 - 2.0 * std::cos(double(k + 1) * pi / double(n + 1)));
+    VERIFY((b121.eigenvalues() - wexact).cwiseAbs().maxCoeff() <= RealScalar(64) * RealScalar(n) * eps * RealScalar(4));
+
+    // Clement / Kac: integer spectrum -(n-1), -(n-3), ..., (n-1).
+    test::tridiag_clement(d, e);
+    SelfAdjointEigenSolver<MatrixType> bcl;
+    bcl.computeFromTridiagonal(d, e, EigenvaluesOnly | UseBisection);
+    for (Index k = 0; k < n; ++k) wexact(k) = RealScalar(-(n - 1) + 2 * k);
+    VERIFY((bcl.eigenvalues() - wexact).cwiseAbs().maxCoeff() <= RealScalar(64) * RealScalar(n) * eps * RealScalar(n));
+
+    // Spectra exactly symmetric about 0: signed Wilkinson, Hermite, Legendre, [1,0,1] Toeplitz.
+    auto check_symmetric = [&](const VectorType& dd, const VectorType& ee) {
+      SelfAdjointEigenSolver<MatrixType> bs;
+      bs.computeFromTridiagonal(dd, ee, EigenvaluesOnly | UseBisection);
+      const VectorType s = bs.eigenvalues();
+      const RealScalar rad = s.cwiseAbs().maxCoeff();
+      const RealScalar tol = RealScalar(64) * RealScalar(n) * (eps * rad + tiny);
+      for (Index i = 0; i < n; ++i) VERIFY(numext::abs(s(i) + s(n - 1 - i)) <= tol);
+    };
+    test::tridiag_wilkinson_signed(d, e);
+    check_symmetric(d, e);
+    test::tridiag_hermite(d, e);
+    check_symmetric(d, e);
+    test::tridiag_legendre(d, e);
+    check_symmetric(d, e);
+    test::tridiag_toeplitz(d, e);  // default a = 1, b = 0
+    check_symmetric(d, e);
+  }
+}
+
 // Test with diagonal matrices (tridiagonalization is trivial).
 template <typename MatrixType>
 void selfadjointeigensolver_diagonal(const MatrixType& m) {
@@ -922,6 +1028,10 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     // structured tridiagonal hard cases from the literature
     CALL_SUBTEST_4(selfadjointeigensolver_structured_tridiagonal<double>());
     CALL_SUBTEST_3(selfadjointeigensolver_structured_tridiagonal<float>());
+
+    // Sturm-sequence spectral bisection (UseBisection) over the same catalog
+    CALL_SUBTEST_4(selfadjointeigensolver_bisection<double>());
+    CALL_SUBTEST_3(selfadjointeigensolver_bisection<float>());
 
     // wide dynamic range tridiagonal (per-block scaling regression)
     CALL_SUBTEST_4(selfadjointeigensolver_tridiagonal_wide_range<double>());

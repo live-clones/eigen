@@ -416,7 +416,11 @@ enum DecompositionOptions {
    * solve the generalized eigenproblem \f$ BAx = \lambda x \f$. */
   BAx_lx = 0x400,
   /** \internal */
-  GenEigMask = Ax_lBx | ABx_lx | BAx_lx
+  GenEigMask = Ax_lBx | ABx_lx | BAx_lx,
+  /** Used in SelfAdjointEigenSolver to select the Sturm-sequence spectral-bisection
+   * algorithm (instead of the default implicit-QR algorithm) when computing the
+   * eigenvalues of a symmetric tridiagonal matrix. */
+  UseBisection = 0x800
 };
 
 /** \ingroup enums

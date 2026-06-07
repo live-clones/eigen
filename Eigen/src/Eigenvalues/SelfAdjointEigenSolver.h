@@ -13,6 +13,7 @@
 #define EIGEN_SELFADJOINTEIGENSOLVER_H
 
 #include "./Tridiagonalization.h"
+#include "./TridiagonalBisection.h"
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -244,15 +245,24 @@ class SelfAdjointEigenSolver {
    *
    * \param[in] diag The vector containing the diagonal of the matrix.
    * \param[in] subdiag The subdiagonal of the matrix.
-   * \param[in] options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
+   * \param[in] options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly, optionally
+   *            combined with #UseBisection.
+   * \param[in] range When #UseBisection is set, selects which eigenvalues to compute
+   *            (see EigenvalueRange); ignored otherwise. Defaults to the whole spectrum.
    * \returns Reference to \c *this
    *
    * This function assumes that the matrix has been reduced to tridiagonal form.
    *
+   * By default the eigenvalues (and optionally eigenvectors) are computed with the implicit-QR
+   * algorithm. Passing #UseBisection instead selects a SIMD-accelerated Sturm-sequence spectral
+   * bisection (cf. LAPACK's xSTEBZ). Bisection currently supports #EigenvaluesOnly and can compute
+   * an arbitrary contiguous subset of the spectrum via \a range.
+   *
    * \sa compute(const MatrixType&, int) for more information
    */
   SelfAdjointEigenSolver& computeFromTridiagonal(const RealVectorType& diag, const SubDiagonalType& subdiag,
-                                                 int options = ComputeEigenvectors);
+                                                 int options = ComputeEigenvectors,
+                                                 const EigenvalueRange& range = EigenvalueRange::all());
 
   /** \brief Returns the eigenvectors of given matrix.
    *
@@ -429,7 +439,7 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
 
   EIGEN_USING_STD(abs);
   eigen_assert(matrix.cols() == matrix.rows());
-  eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
+  eigen_assert((options & ~(EigVecMask | GenEigMask | UseBisection)) == 0 && (options & EigVecMask) != EigVecMask &&
                "invalid option parameter");
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
   Index n = matrix.cols();
@@ -481,7 +491,9 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
 
 template <typename MatrixType>
 SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeFromTridiagonal(
-    const RealVectorType& diag, const SubDiagonalType& subdiag, int options) {
+    const RealVectorType& diag, const SubDiagonalType& subdiag, int options, const EigenvalueRange& range) {
+  eigen_assert((options & ~(EigVecMask | UseBisection)) == 0 && (options & EigVecMask) != EigVecMask &&
+               "invalid option parameter");
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
 
   m_eivalues = diag;
@@ -498,6 +510,19 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
       m_eigenvectorsOk = false;
       return *this;
     }
+  }
+
+  if (options & UseBisection) {
+    // SIMD Sturm-sequence spectral bisection. First cut: eigenvalues only.
+    // A future staged eigenvector pass (inverse iteration) will additionally retain the
+    // original diagonal here, since m_eivalues is overwritten with the eigenvalues below
+    // (m_subdiag is left untouched and still holds the pristine sub-diagonal).
+    eigen_assert(!computeEigenvectors && "UseBisection currently supports EigenvaluesOnly only");
+    internal::tridiagonal_bisection(diag, subdiag, range, RealScalar(0), m_eivalues);
+    m_info = Success;
+    m_isInitialized = true;
+    m_eigenvectorsOk = false;
+    return *this;
   }
 
   if (computeEigenvectors) {
