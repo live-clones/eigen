@@ -419,7 +419,7 @@ class CompleteOrthogonalDecomposition
   typedef internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, ColPivHouseholderQR> Base;
   using typename Base::RealScalar;
 
-  CompleteOrthogonalDecomposition() : Base() {}
+  CompleteOrthogonalDecomposition() = default;
   CompleteOrthogonalDecomposition(Index rows, Index cols) : Base(rows, cols) {}
 
   template <typename InputType>
@@ -486,7 +486,7 @@ class RandCompleteOrthogonalDecomposition
   typedef internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, RandColPivHouseholderQR> Base;
   using typename Base::RealScalar;
 
-  RandCompleteOrthogonalDecomposition() : Base() {}
+  RandCompleteOrthogonalDecomposition() = default;
   RandCompleteOrthogonalDecomposition(Index rows, Index cols) : Base(rows, cols) {}
 
   template <typename InputType>

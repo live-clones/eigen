@@ -172,7 +172,7 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
 
  public:
   /** Default constructor. */
-  ConjugateGradient() : Base() {}
+  ConjugateGradient() = default;
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -187,7 +187,7 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
   template <typename MatrixDerived>
   explicit ConjugateGradient(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
-  ~ConjugateGradient() {}
+  ~ConjugateGradient() = default;
 
   /** \internal */
   template <typename Rhs, typename Dest>

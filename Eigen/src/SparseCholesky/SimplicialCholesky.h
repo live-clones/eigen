@@ -111,7 +111,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
     derived().compute(matrix);
   }
 
-  ~SimplicialCholeskyBase() {}
+  ~SimplicialCholeskyBase() = default;
 
   Derived& derived() { return *static_cast<Derived*>(this); }
   const Derived& derived() const { return *static_cast<const Derived*>(this); }
@@ -416,7 +416,7 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
 
  public:
   /** Default constructor */
-  SimplicialLLT() : Base() {}
+  SimplicialLLT() = default;
   /** Constructs and performs the LLT factorization of \a matrix */
   explicit SimplicialLLT(const MatrixType& matrix) : Base(matrix) {}
 
@@ -499,7 +499,7 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
 
  public:
   /** Default constructor */
-  SimplicialLDLT() : Base() {}
+  SimplicialLDLT() = default;
 
   /** Constructs and performs the LLT factorization of \a matrix */
   explicit SimplicialLDLT(const MatrixType& matrix) : Base(matrix) {}
@@ -586,7 +586,7 @@ class SimplicialNonHermitianLLT
 
  public:
   /** Default constructor */
-  SimplicialNonHermitianLLT() : Base() {}
+  SimplicialNonHermitianLLT() = default;
 
   /** Constructs and performs the LLT factorization of \a matrix */
   explicit SimplicialNonHermitianLLT(const MatrixType& matrix) : Base(matrix) {}
@@ -671,7 +671,7 @@ class SimplicialNonHermitianLDLT
 
  public:
   /** Default constructor */
-  SimplicialNonHermitianLDLT() : Base() {}
+  SimplicialNonHermitianLDLT() = default;
 
   /** Constructs and performs the LLT factorization of \a matrix */
   explicit SimplicialNonHermitianLDLT(const MatrixType& matrix) : Base(matrix) {}
@@ -741,9 +741,9 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
   typedef internal::traits<SimplicialLLT<MatrixType, UpLo> > LLTTraits;
 
  public:
-  SimplicialCholesky() : Base(), m_LDLT(true) {}
+  SimplicialCholesky() = default;
 
-  explicit SimplicialCholesky(const MatrixType& matrix) : Base(), m_LDLT(true) { compute(matrix); }
+  explicit SimplicialCholesky(const MatrixType& matrix) { compute(matrix); }
 
   SimplicialCholesky& setMode(SimplicialCholeskyMode mode) {
     switch (mode) {
@@ -857,7 +857,7 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
   }
 
  protected:
-  bool m_LDLT;
+  bool m_LDLT = true;
 };
 
 template <typename Derived>

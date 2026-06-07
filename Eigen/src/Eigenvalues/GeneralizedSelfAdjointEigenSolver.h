@@ -62,7 +62,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * can only be used if \p MatrixType_ is a fixed-size matrix; use
    * GeneralizedSelfAdjointEigenSolver(Index) for dynamic-size matrices.
    */
-  GeneralizedSelfAdjointEigenSolver() : Base() {}
+  GeneralizedSelfAdjointEigenSolver() = default;
 
   /** \brief Constructor, pre-allocates memory for dynamic-size matrices.
    *

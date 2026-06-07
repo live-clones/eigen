@@ -63,7 +63,7 @@ class IterScaling {
     compute(matrix);
   }
 
-  ~IterScaling() {}
+  ~IterScaling() = default;
 
   /**
    * Compute the left and right diagonal matrices to scale the input matrix @p mat

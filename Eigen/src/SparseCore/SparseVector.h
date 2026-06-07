@@ -354,7 +354,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 #endif
 
   /** Destructor */
-  inline ~SparseVector() {}
+  inline ~SparseVector() = default;
 
   /** Overloaded for performance */
   Scalar sum() const;

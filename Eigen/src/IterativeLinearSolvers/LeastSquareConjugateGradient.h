@@ -162,7 +162,7 @@ class LeastSquaresConjugateGradient
 
  public:
   /** Default constructor. */
-  LeastSquaresConjugateGradient() : Base() {}
+  LeastSquaresConjugateGradient() = default;
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -177,7 +177,7 @@ class LeastSquaresConjugateGradient
   template <typename MatrixDerived>
   explicit LeastSquaresConjugateGradient(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
-  ~LeastSquaresConjugateGradient() {}
+  ~LeastSquaresConjugateGradient() = default;
 
   /** \internal */
   template <typename Rhs, typename Dest>

@@ -159,8 +159,8 @@ class RandomSetter {
   typedef typename SparseMatrixType::StorageIndex StorageIndex;
 
   struct ScalarWrapper {
-    ScalarWrapper() : value(0) {}
-    Scalar value;
+    ScalarWrapper() = default;
+    Scalar value = 0;
   };
   typedef typename MapTraits<ScalarWrapper>::KeyType KeyType;
   typedef typename MapTraits<ScalarWrapper>::Type HashMapType;

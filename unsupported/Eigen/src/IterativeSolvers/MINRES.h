@@ -206,7 +206,7 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
 
  public:
   /** Default constructor. */
-  MINRES() : Base() {}
+  MINRES() = default;
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -222,7 +222,7 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
   explicit MINRES(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
   /** Destructor. */
-  ~MINRES() {}
+  ~MINRES() = default;
 
   /** \internal */
   template <typename Rhs, typename Dest>

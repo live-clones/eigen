@@ -263,7 +263,7 @@ struct evaluator<Map<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, Str
   typedef evaluator<SparseCompressedBase<Map<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> > >
       Base;
   typedef Map<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
-  evaluator() : Base() {}
+  evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
 
@@ -274,7 +274,7 @@ struct evaluator<Map<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Option
       SparseCompressedBase<Map<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> > >
       Base;
   typedef Map<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
-  evaluator() : Base() {}
+  evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
 

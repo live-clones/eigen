@@ -145,7 +145,7 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
         m_isDeflAllocated(false),
         m_isDeflInitialized(false) {}
 
-  ~DGMRES() {}
+  ~DGMRES() = default;
 
   /** \internal */
   template <typename Rhs, typename Dest>

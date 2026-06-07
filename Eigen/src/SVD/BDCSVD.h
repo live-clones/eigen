@@ -191,7 +191,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
     compute_impl(matrix, computationOptions);
   }
 
-  ~BDCSVD() {}
+  ~BDCSVD() = default;
 
   /** \brief Method performing the decomposition of given matrix. Computes Thin/Full unitaries U/V if specified
    *         using the \a Options template parameter or the class constructor.

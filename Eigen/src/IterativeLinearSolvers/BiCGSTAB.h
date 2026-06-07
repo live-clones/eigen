@@ -185,7 +185,7 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
 
  public:
   /** Default constructor. */
-  BiCGSTAB() : Base() {}
+  BiCGSTAB() = default;
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -200,7 +200,7 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
   template <typename MatrixDerived>
   explicit BiCGSTAB(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
-  ~BiCGSTAB() {}
+  ~BiCGSTAB() = default;
 
   /** \internal */
   template <typename Rhs, typename Dest>
