@@ -562,6 +562,26 @@ void nmsub_test(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
   negate_test_impl<Scalar, Packet>::run_nmsub(data1, data2, ref, size);
 }
 
+// Recursively checks internal::pbroadcast_lane<Index>(p) for every compile-time
+// lane Index of Packet (splats lane Index across the packet).
+template <typename Packet, int Index>
+struct pbroadcast_lane_test {
+  static void run(const typename internal::unpacket_traits<Packet>::type* data1) {
+    typedef typename internal::unpacket_traits<Packet>::type Scalar;
+    const int PacketSize = internal::unpacket_traits<Packet>::size;
+    EIGEN_ALIGN_MAX Scalar ref[PacketSize];
+    EIGEN_ALIGN_MAX Scalar data2[PacketSize];
+    for (int i = 0; i < PacketSize; ++i) ref[i] = data1[Index];
+    internal::pstore(data2, internal::pbroadcast_lane<Index>(internal::pload<Packet>(data1)));
+    VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::pbroadcast_lane");
+    pbroadcast_lane_test<Packet, Index - 1>::run(data1);
+  }
+};
+template <typename Packet>
+struct pbroadcast_lane_test<Packet, -1> {
+  static void run(const typename internal::unpacket_traits<Packet>::type*) {}
+};
+
 template <typename Scalar, typename Packet>
 void packetmath() {
   typedef internal::packet_traits<Scalar> PacketTraits;
@@ -699,6 +719,8 @@ void packetmath() {
     internal::pstore(data2 + 1 * PacketSize, A1);
     VERIFY(test::areApprox(ref, data2, 2 * PacketSize) && "internal::pbroadcast2");
   }
+
+  pbroadcast_lane_test<Packet, PacketSize - 1>::run(data1);
 
   VERIFY(internal::isApprox(data1[0], internal::pfirst(internal::pload<Packet>(data1))) && "internal::pfirst");
 

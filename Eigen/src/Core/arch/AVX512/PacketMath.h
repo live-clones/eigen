@@ -3157,6 +3157,26 @@ EIGEN_STRONG_INLINE Packet8s plogical_shift_right(Packet8s a) {
   return _mm_srli_epi16(a, N);
 }
 
+// pbroadcast_lane: splat a compile-time lane via a full-width cross-lane permute.
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet16f> {
+  static EIGEN_STRONG_INLINE Packet16f run(const Packet16f& a) {
+    return _mm512_permutexvar_ps(_mm512_set1_epi32(Index), a);
+  }
+};
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet8d> {
+  static EIGEN_STRONG_INLINE Packet8d run(const Packet8d& a) {
+    return _mm512_permutexvar_pd(_mm512_set1_epi64(Index), a);
+  }
+};
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet16i> {
+  static EIGEN_STRONG_INLINE Packet16i run(const Packet16i& a) {
+    return _mm512_permutexvar_epi32(_mm512_set1_epi32(Index), a);
+  }
+};
+
 }  // end namespace internal
 
 }  // end namespace Eigen

@@ -3030,6 +3030,29 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
 
 /*---------------- end load/store segment support ----------------*/
 
+// pbroadcast_lane: splat a compile-time lane. Needs cross-128-bit-lane permutes,
+// so the fast path requires AVX2; on AVX1 the generic memory fallback is used.
+#ifdef EIGEN_VECTORIZE_AVX2
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet8f> {
+  static EIGEN_STRONG_INLINE Packet8f run(const Packet8f& a) {
+    return _mm256_permutevar8x32_ps(a, _mm256_set1_epi32(Index));
+  }
+};
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet4d> {
+  static EIGEN_STRONG_INLINE Packet4d run(const Packet4d& a) {
+    return _mm256_permute4x64_pd(a, _MM_SHUFFLE(Index, Index, Index, Index));
+  }
+};
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet8i> {
+  static EIGEN_STRONG_INLINE Packet8i run(const Packet8i& a) {
+    return _mm256_permutevar8x32_epi32(a, _mm256_set1_epi32(Index));
+  }
+};
+#endif
+
 }  // end namespace internal
 
 }  // end namespace Eigen
