@@ -325,10 +325,9 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
     Base::template _init2<T0, T1>(x, y);
   }
 
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
   /** Construct a dynamic matrix with given dimensions and allocator. */
-  EIGEN_STRONG_INLINE Matrix(Index rows, Index cols, byte_allocator alloc)
-      : Base(rows * cols, rows, cols, alloc) {}
+  EIGEN_STRONG_INLINE Matrix(Index rows, Index cols, byte_allocator alloc) : Base(rows * cols, rows, cols, alloc) {}
 #endif
 
 #else

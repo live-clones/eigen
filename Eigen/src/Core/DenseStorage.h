@@ -427,16 +427,18 @@ class DenseStorage_impl<T, Dynamic, Rows, Dynamic, Options> {
 template <typename T, int Options>
 class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
   static constexpr bool Align = (Options & DontAlign) == 0;
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
   byte_allocator m_allocator;
 #endif
   T* m_data = nullptr;
   Index m_rows = 0;
   Index m_cols = 0;
 
-  // Allocation helpers that dispatch to allocator when available.
+  // Allocation helpers. When the PMR DenseStorage integration is enabled they
+  // route through the byte_allocator; otherwise they use Eigen's default
+  // aligned allocation (the behavior for all default and GPU builds).
   EIGEN_STRONG_INLINE T* alloc_new(Index count) {
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
     if (count == 0) return nullptr;
     check_size_for_overflow<T>(count);
     T* result = static_cast<T*>(m_allocator.allocate(sizeof(T) * static_cast<std::size_t>(count)));
@@ -447,7 +449,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
 #endif
   }
   EIGEN_STRONG_INLINE void alloc_delete(T* ptr, Index count) {
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
     if (NumTraits<T>::RequireInitialization) destruct_elements_of_array(ptr, count);
     m_allocator.deallocate(ptr, sizeof(T) * static_cast<std::size_t>(count));
 #else
@@ -460,7 +462,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
   EIGEN_DEVICE_FUNC constexpr DenseStorage_impl() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(const DenseStorage_impl& other)
       :
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
         m_allocator(other.m_allocator),
 #endif
         m_data(nullptr),
@@ -475,7 +477,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
     m_data = alloc_new(size);
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
   }
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
   /** Construct with explicit allocator. */
   EIGEN_STRONG_INLINE DenseStorage_impl(Index size, Index rows, Index cols, byte_allocator alloc)
       : m_allocator(alloc), m_data(nullptr), m_rows(rows), m_cols(cols) {
@@ -485,7 +487,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
 #endif
   EIGEN_DEVICE_FUNC constexpr DenseStorage_impl(DenseStorage_impl&& other) noexcept
       :
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
         m_allocator(other.m_allocator),
 #endif
         m_data(other.m_data),
@@ -503,7 +505,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
     return *this;
   }
   EIGEN_DEVICE_FUNC constexpr DenseStorage_impl& operator=(DenseStorage_impl&& other) noexcept {
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
     // PMR semantics: if resources are equal, steal; otherwise copy.
     if (*m_allocator.resource() == *other.m_allocator.resource()) {
       this->swap(other);
@@ -521,13 +523,13 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
     numext::swap(m_data, other.m_data);
     numext::swap(m_rows, other.m_rows);
     numext::swap(m_cols, other.m_cols);
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
     // Only swap if resources are the same (PMR semantics).
     // swap() is called from move assignment which already checks resource equality.
 #endif
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void conservativeResize(Index size, Index rows, Index cols) {
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
     // No realloc through allocator — allocate new, copy, deallocate old.
     T* newData = alloc_new(size);
     Index copySize = numext::mini(size, this->size());
@@ -555,7 +557,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
   EIGEN_DEVICE_FUNC constexpr Index size() const { return m_rows * m_cols; }
   EIGEN_DEVICE_FUNC constexpr T* data() { return m_data; }
   EIGEN_DEVICE_FUNC constexpr const T* data() const { return m_data; }
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
   /** Returns the allocator used by this storage. */
   const byte_allocator& allocator() const { return m_allocator; }
 #endif
@@ -590,7 +592,7 @@ class DenseStorage : public internal::DenseStorage_impl<T, Size, Rows, Cols, Opt
   EIGEN_DEVICE_FUNC constexpr DenseStorage() = default;
   EIGEN_DEVICE_FUNC constexpr DenseStorage(const DenseStorage&) = default;
   EIGEN_DEVICE_FUNC constexpr DenseStorage(Index size, Index rows, Index cols) : Base(size, rows, cols) {}
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
   DenseStorage(Index size, Index rows, Index cols, byte_allocator alloc) : Base(size, rows, cols, alloc) {}
 #endif
   EIGEN_DEVICE_FUNC constexpr DenseStorage& operator=(const DenseStorage&) = default;
@@ -608,7 +610,7 @@ class DenseStorage<T, Size, Rows, Cols, Options, false>
   EIGEN_DEVICE_FUNC constexpr DenseStorage() = default;
   EIGEN_DEVICE_FUNC constexpr DenseStorage(const DenseStorage&) = default;
   EIGEN_DEVICE_FUNC constexpr DenseStorage(Index size, Index rows, Index cols) : Base(size, rows, cols) {}
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_PMR_DENSE_STORAGE_ACTIVE
   DenseStorage(Index size, Index rows, Index cols, byte_allocator alloc) : Base(size, rows, cols, alloc) {}
 #endif
   EIGEN_DEVICE_FUNC constexpr DenseStorage& operator=(const DenseStorage&) = default;

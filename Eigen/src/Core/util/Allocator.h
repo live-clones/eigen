@@ -34,6 +34,18 @@
 #endif
 #endif
 
+// Opt-in: integrate the PMR byte_allocator directly into fully-dynamic
+// DenseStorage. OFF by default, so default matrices carry no allocator member
+// and keep their original size and layout (sizeof(MatrixXd) is unchanged). The
+// PmrMatrix<> wrapper is the recommended opt-in path for per-object allocators;
+// this macro exists to enable the alternative DenseStorage-integration prototype.
+// Never active during GPU compilation (byte_allocator is host-only).
+#if defined(EIGEN_PMR_DENSE_STORAGE) && !defined(EIGEN_GPU_COMPILE_PHASE)
+#define EIGEN_PMR_DENSE_STORAGE_ACTIVE 1
+#else
+#define EIGEN_PMR_DENSE_STORAGE_ACTIVE 0
+#endif
+
 #ifndef EIGEN_GPU_COMPILE_PHASE
 
 #include <atomic>
@@ -51,8 +63,9 @@ namespace internal {
 
 // Minimum alignment for PMR allocations. When EIGEN_DEFAULT_ALIGN_BYTES is 0
 // (alignment disabled), fall back to max_align_t.
-static constexpr std::size_t pmr_default_alignment =
-    EIGEN_DEFAULT_ALIGN_BYTES > 0 ? static_cast<std::size_t>(EIGEN_DEFAULT_ALIGN_BYTES) : alignof(std::max_align_t);
+static constexpr std::size_t pmr_default_alignment = EIGEN_DEFAULT_ALIGN_BYTES > 0
+                                                         ? static_cast<std::size_t>(EIGEN_DEFAULT_ALIGN_BYTES)
+                                                         : alignof(std::max_align_t);
 
 // Maximum alignment supported by handmade_aligned_malloc (offset stored in uint8_t).
 static constexpr std::size_t max_supported_alignment = 256;
@@ -239,8 +252,7 @@ class monotonic_buffer_resource : public memory_resource {
     const std::size_t hdr_size = header_aligned_size(hdr_align);
 
     // Overflow-safe computation of minimum block size.
-    if (internal::size_add_overflows(hdr_size, bytes) ||
-        internal::size_add_overflows(hdr_size + bytes, alignment)) {
+    if (internal::size_add_overflows(hdr_size, bytes) || internal::size_add_overflows(hdr_size + bytes, alignment)) {
       internal::throw_std_bad_alloc();
     }
     const std::size_t min_block = hdr_size + bytes + alignment;

@@ -7,6 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Exercise the opt-in DenseStorage PMR integration (off by default elsewhere, so
+// default matrices keep their original layout). This must be defined before any
+// Eigen header is included so DenseStorage picks it up.
+#define EIGEN_PMR_DENSE_STORAGE
+
 #include "main.h"
 
 #include <cstdint>
@@ -403,16 +408,12 @@ static void test_empty_monotonic() {
   counting_resource counter;
 
   // Default-constructed, never used.
-  {
-    Eigen::monotonic_buffer_resource arena(&counter);
-  }
+  { Eigen::monotonic_buffer_resource arena(&counter); }
   VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
   counter.reset_counts();
 
   // With initial size, never used.
-  {
-    Eigen::monotonic_buffer_resource arena(1024, &counter);
-  }
+  { Eigen::monotonic_buffer_resource arena(1024, &counter); }
   VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
   counter.reset_counts();
 
