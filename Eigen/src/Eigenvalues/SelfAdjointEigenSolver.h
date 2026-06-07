@@ -258,6 +258,12 @@ class SelfAdjointEigenSolver {
    * bisection (cf. LAPACK's xSTEBZ). Bisection currently supports #EigenvaluesOnly and can compute
    * an arbitrary contiguous subset of the spectrum via \a range.
    *
+   * \note The eigenvalues of a complex Hermitian tridiagonal matrix depend only on the moduli of its
+   * off-diagonal entries: it is unitarily similar (via a diagonal phase matrix) to the real symmetric
+   * tridiagonal with the same diagonal and off-diagonals \f$ |\beta_k| \f$. So to compute them, pass
+   * \c subdiag.cwiseAbs() as the real sub-diagonal. The eigenvectors, by contrast, differ from the
+   * real ones by that diagonal phase and cannot be recovered this way.
+   *
    * \sa compute(const MatrixType&, int) for more information
    */
   SelfAdjointEigenSolver& computeFromTridiagonal(const RealVectorType& diag, const SubDiagonalType& subdiag,
