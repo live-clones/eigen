@@ -2123,6 +2123,24 @@ EIGEN_STRONG_INLINE __m128i float2half(__m128 f) {
 }
 #endif
 
+// pbroadcast_lane: splat a compile-time lane via a single register shuffle.
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet4f> {
+  static EIGEN_STRONG_INLINE Packet4f run(const Packet4f& a) {
+    return _mm_shuffle_ps(a, a, _MM_SHUFFLE(Index, Index, Index, Index));
+  }
+};
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet2d> {
+  static EIGEN_STRONG_INLINE Packet2d run(const Packet2d& a) { return _mm_shuffle_pd(a, a, (Index << 1) | Index); }
+};
+template <int Index>
+struct pbroadcast_lane_impl<Index, Packet4i> {
+  static EIGEN_STRONG_INLINE Packet4i run(const Packet4i& a) {
+    return _mm_shuffle_epi32(a, _MM_SHUFFLE(Index, Index, Index, Index));
+  }
+};
+
 }  // end namespace internal
 
 }  // end namespace Eigen

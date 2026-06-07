@@ -1000,6 +1000,28 @@ EIGEN_DEVICE_FUNC inline void pscatter_partial(Scalar* to, const Packet& from, I
   }
 }
 
+/** \internal \returns a packet whose lanes are all equal to the (compile-time)
+ * \a Index-th lane of \a a, e.g. pbroadcast_lane<2>({a0,a1,a2,a3}) == {a2,a2,a2,a2}.
+ *
+ * Unlike pload1/ploaddup (which read from memory) this broadcasts a lane of an
+ * already-loaded packet. Backends override pbroadcast_lane_impl with a single
+ * register shuffle/permute; the generic fallback round-trips through memory.
+ */
+template <int Index, typename Packet>
+struct pbroadcast_lane_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) {
+    typedef typename unpacket_traits<Packet>::type Scalar;
+    EIGEN_ALIGN_MAX Scalar elements[unpacket_traits<Packet>::size];
+    pstore<Scalar>(elements, a);
+    return pset1<Packet>(elements[Index]);
+  }
+};
+
+template <int Index, typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pbroadcast_lane(const Packet& a) {
+  return pbroadcast_lane_impl<Index, Packet>::run(a);
+}
+
 /** \internal tries to do cache prefetching of \a addr */
 template <typename Scalar>
 EIGEN_DEVICE_FUNC inline void prefetch(const Scalar* addr) {
