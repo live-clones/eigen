@@ -8,6 +8,16 @@
 //   - BM_bisect_sub_* : bisection of only the 10% smallest eigenvalues (an index-range subset,
 //                       a query QR cannot answer without computing the whole spectrum).
 // Suffix _f / _d selects float / double.
+//
+// When built with OpenMP, the bisection path parallelizes its independent per-eigenvalue bisections
+// across Eigen::nbThreads() threads (the QR path is serial). To measure thread scaling, run the
+// binary once per thread count via the environment, e.g.
+//     for t in 1 2 4 8; do OMP_NUM_THREADS=$t ./bench_tridiagonal_bisection \
+//         --benchmark_filter='BM_bisect_d/' --benchmark_repetitions=5; done
+// Do not call Eigen::setNbThreads() to sweep the thread count inside one process: it mutates a global,
+// so consecutive/interleaved runs at different thread counts overwrite each other's setting and the
+// measured scaling is meaningless. Keep thread selection in the environment (OMP_NUM_THREADS), one
+// process per data point.
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Eigenvalues>
@@ -43,13 +53,15 @@ void BM_qr_d(benchmark::State& s) { run<double>(s, kQrAll); }
 void BM_bisect_d(benchmark::State& s) { run<double>(s, kBisectAll); }
 void BM_bisect_sub_d(benchmark::State& s) { run<double>(s, kBisectSubset); }
 
-#define EIGEN_BENCH_SIZES ArgsProduct({{16, 32, 64, 128, 256, 512, 1024, 2048, 4096}})
+// Bisection parallelizes per-eigenvalue, so it keeps scaling to large n; include sizes up to 8192
+// (the QR path dominates wall time there but is the right serial baseline).
+#define EIGEN_BENCH_SIZES ArgsProduct({{16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192}})
 
-BENCHMARK(BM_qr_f)->EIGEN_BENCH_SIZES;
-BENCHMARK(BM_bisect_f)->EIGEN_BENCH_SIZES;
-BENCHMARK(BM_bisect_sub_f)->EIGEN_BENCH_SIZES;
-BENCHMARK(BM_qr_d)->EIGEN_BENCH_SIZES;
-BENCHMARK(BM_bisect_d)->EIGEN_BENCH_SIZES;
-BENCHMARK(BM_bisect_sub_d)->EIGEN_BENCH_SIZES;
+BENCHMARK(BM_qr_f)->EIGEN_BENCH_SIZES->UseRealTime();
+BENCHMARK(BM_bisect_f)->EIGEN_BENCH_SIZES->UseRealTime();
+BENCHMARK(BM_bisect_sub_f)->EIGEN_BENCH_SIZES->UseRealTime();
+BENCHMARK(BM_qr_d)->EIGEN_BENCH_SIZES->UseRealTime();
+BENCHMARK(BM_bisect_d)->EIGEN_BENCH_SIZES->UseRealTime();
+BENCHMARK(BM_bisect_sub_d)->EIGEN_BENCH_SIZES->UseRealTime();
 
 }  // namespace

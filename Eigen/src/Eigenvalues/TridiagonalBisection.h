@@ -155,6 +155,105 @@ void tridiagonal_sturm_counts(const RealScalar* alpha, const RealScalar* beta_sq
 
 /** \internal
  *
+ * Runs the (\c t_hi - \c t_lo) independent bisections for a contiguous block of
+ * target eigenvalue indices in lock-step, writing the converged shift midpoints
+ * (in the internally normalized scale) to \c out[0 .. t_hi-t_lo).
+ *
+ * This is the unit of parallel work in tridiagonal_bisection(): the bisections of
+ * two disjoint index blocks share no state, so each thread owns one block and the
+ * blocks communicate only at the join. The vectorized batch evaluator keeps every
+ * lane of every active bracket busy within a block.
+ *
+ * \param[in] alpha       normalized diagonal of T (length \c n).
+ * \param[in] beta_sq     normalized squared off-diagonal (length \c n-1).
+ * \param[in] n           dimension of T.
+ * \param[in] pivmin      smallest allowed pivot magnitude (see tridiagonal_sturm_counts()).
+ * \param[in] bracket_lo  lower end of the initial search bracket (count == 0 below it).
+ * \param[in] bracket_hi  upper end of the initial search bracket (count == n above it).
+ * \param[in] t_lo, t_hi  0-based target indices for this block, half-open [t_lo, t_hi).
+ * \param[in] max_iters   maximum number of bisection steps.
+ * \param[in] abs_tol     absolute width below which a bracket is considered converged.
+ * \param[out] out        converged midpoints for indices [t_lo, t_hi); length t_hi-t_lo.
+ */
+template <typename RealScalar>
+void tridiagonal_bisection_block(const RealScalar* alpha, const RealScalar* beta_sq, Index n, RealScalar pivmin,
+                                 RealScalar bracket_lo, RealScalar bracket_hi, Index t_lo, Index t_hi, int max_iters,
+                                 RealScalar abs_tol, RealScalar* out) {
+  typedef Array<RealScalar, Dynamic, 1> ArrayType;
+  const Index m = t_hi - t_lo;
+  if (m <= 0) return;
+
+  // The eigenvalue with 0-based index i is the value where count(x) crosses from <= i to > i.
+  ArrayType lower = ArrayType::Constant(m, bracket_lo);
+  ArrayType upper = ArrayType::Constant(m, bracket_hi);
+  const ArrayType targets = ArrayType::LinSpaced(m, RealScalar(t_lo), RealScalar(t_hi - 1));
+  ArrayType counts(m);
+  ArrayType mid = RealScalar(0.5) * (lower + upper);
+
+  // Each eigenvalue is recorded the iteration it first converges, using a per-element criterion that
+  // depends only on that element's own bracket. This makes the result independent of how the index
+  // range is grouped -- in particular bitwise identical for any number of threads -- because element
+  // i's converged value never depends on when its neighbors finish. (A single global convergence test
+  // would instead keep refining an already-converged eigenvalue until the slowest one in its group
+  // caught up, so the last bits would shift with the thread count.)
+  ArrayType result = mid;
+  Array<bool, Dynamic, 1> done = Array<bool, Dynamic, 1>::Constant(m, false);
+
+  // In the early iterations many eigenvalues still share a bracket, so their (sorted) midpoints are
+  // identical and the Sturm count need only be evaluated at the distinct values and scattered back.
+  // Once every midpoint is distinct the brackets only ever get finer, so we stop deduplicating and
+  // evaluate all midpoints directly, avoiding the per-iteration bookkeeping (and its unpredictable
+  // branch). Deduplication never changes the result: count(mid[i]) is unchanged. It only pays off
+  // when there are many more points than packets (otherwise the per-point kernel cost is too small
+  // to offset the bookkeeping), so the scratch is allocated only then.
+  constexpr int kPacketSize = unpacket_traits<typename packet_traits<RealScalar>::type>::size;
+  bool deduplicate = (m >= 64 * Index(kPacketSize));
+  ArrayType distinct, counts_distinct;
+  if (deduplicate) {
+    distinct.resize(m);
+    counts_distinct.resize(m);
+  }
+  for (int iter = 0; iter < max_iters; ++iter) {
+    if (deduplicate) {
+      const RealScalar* midp = mid.data();
+      RealScalar* distp = distinct.data();
+      Index nd = 0;
+      for (Index i = 0; i < m; ++i)
+        if (i == 0 || midp[i] != midp[i - 1]) distp[nd++] = midp[i];
+      tridiagonal_sturm_counts<RealScalar>(alpha, beta_sq, n, pivmin, distp, counts_distinct.data(), nd);
+      const RealScalar* cdp = counts_distinct.data();
+      RealScalar* cp = counts.data();
+      Index g = -1;
+      for (Index i = 0; i < m; ++i) {
+        if (i == 0 || midp[i] != midp[i - 1]) ++g;
+        cp[i] = cdp[g];
+      }
+      if (nd == m) deduplicate = false;  // all distinct: finer brackets stay distinct
+    } else {
+      tridiagonal_sturm_counts<RealScalar>(alpha, beta_sq, n, pivmin, mid.data(), counts.data(), m);
+    }
+    // count(mid) <= target  =>  eigenvalue is >= mid, raise the lower bound;
+    // otherwise the eigenvalue is < mid, so lower the upper bound.
+    const auto raise = (counts <= targets);
+    lower = raise.select(mid, lower);
+    upper = raise.select(upper, mid);
+    const ArrayType new_mid = RealScalar(0.5) * (lower + upper);
+    // Freeze each eigenvalue at the midpoint of its bracket the first time that bracket is tight
+    // enough (width within abs_tol) or stops moving. Already-frozen entries keep their value.
+    const auto converged = (new_mid == mid) || ((upper - lower) <= abs_tol);
+    result = done.select(result, converged.select(new_mid, result));
+    done = done || converged;
+    mid = new_mid;
+    if (done.all()) break;
+  }
+  // Any eigenvalue that did not converge within max_iters keeps its last midpoint.
+  result = done.select(result, mid);
+
+  for (Index i = 0; i < m; ++i) out[i] = result(i);
+}
+
+/** \internal
+ *
  * Computes a subset of the eigenvalues of a real symmetric tridiagonal matrix T
  * by Sturm-sequence spectral bisection (cf. LAPACK's xSTEBZ), accelerated by the
  * vectorized batch evaluator tridiagonal_sturm_counts().
@@ -258,61 +357,49 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   eivalues.derived().resize(m);
   if (m <= 0) return m < 0 ? 0 : m;
 
-  // Run m independent bisections in lock-step. The eigenvalue with 0-based index
-  // i is the value where count(x) crosses from <= i to > i.
-  ArrayType lower = ArrayType::Constant(m, bracket_lo);
-  ArrayType upper = ArrayType::Constant(m, bracket_hi);
-  const ArrayType targets = ArrayType::LinSpaced(m, RealScalar(t_lo), RealScalar(t_hi - 1));
-  ArrayType counts(m);
-  ArrayType mid = RealScalar(0.5) * (lower + upper);
-
-  // In the early iterations many eigenvalues still share a bracket, so their (sorted) midpoints are
-  // identical and the Sturm count need only be evaluated at the distinct values and scattered back.
-  // Once every midpoint is distinct the brackets only ever get finer, so we stop deduplicating and
-  // evaluate all midpoints directly, avoiding the per-iteration bookkeeping (and its unpredictable
-  // branch). Deduplication never changes the result: count(mid[i]) is unchanged. It only pays off
-  // when there are many more points than packets (otherwise the per-point kernel cost is too small
-  // to offset the bookkeeping), so the scratch is allocated only then.
-  constexpr int kPacketSize = unpacket_traits<typename packet_traits<RealScalar>::type>::size;
-  bool deduplicate = (m >= 64 * Index(kPacketSize));
-  ArrayType distinct, counts_distinct;
-  if (deduplicate) {
-    distinct.resize(m);
-    counts_distinct.resize(m);
-  }
   const int max_iters = NumTraits<RealScalar>::digits() + 2;
-  for (int iter = 0; iter < max_iters; ++iter) {
-    if (deduplicate) {
-      const RealScalar* midp = mid.data();
-      RealScalar* distp = distinct.data();
-      Index nd = 0;
-      for (Index i = 0; i < m; ++i)
-        if (i == 0 || midp[i] != midp[i - 1]) distp[nd++] = midp[i];
-      tridiagonal_sturm_counts<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin, distp, counts_distinct.data(), nd);
-      const RealScalar* cdp = counts_distinct.data();
-      RealScalar* cp = counts.data();
-      Index g = -1;
-      for (Index i = 0; i < m; ++i) {
-        if (i == 0 || midp[i] != midp[i - 1]) ++g;
-        cp[i] = cdp[g];
-      }
-      if (nd == m) deduplicate = false;  // all distinct: finer brackets stay distinct
-    } else {
-      tridiagonal_sturm_counts<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin, mid.data(), counts.data(), m);
+  ArrayType mid_all(m);
+  RealScalar* out = mid_all.data();
+  const RealScalar* alpha_p = alpha.data();
+  const RealScalar* beta_sq_p = beta_sq.data();
+
+  // The m eigenvalues are bisected independently, so the spectrum splits cleanly across threads with
+  // a single fork/join: thread t owns the contiguous index block [t_lo + lo, t_lo + hi) and writes
+  // its converged midpoints into the disjoint slice out[lo, hi). No communication until the join.
+#if defined(EIGEN_HAS_OPENMP)
+  int nthreads = 1;
+  // Don't nest inside an existing parallel region, and only fork when there is enough work to
+  // amortize the thread overhead while still leaving each thread a SIMD-friendly chunk of points.
+  if (omp_get_num_threads() == 1) {
+    constexpr Index kPacketSize = Index(unpacket_traits<typename packet_traits<RealScalar>::type>::size);
+    // One work unit ~ one Sturm step (a packet division); kMinTaskSize is the minimum per thread.
+    const double work = double(m) * double(n) * double(max_iters);
+    const double kMinTaskSize = 131072.0;
+    const Index work_threads = Index(work / kMinTaskSize);
+    const Index point_threads = m / (8 * kPacketSize);
+    const Index pb = numext::maxi(Index(1), numext::mini(work_threads, point_threads));
+    nthreads = int(numext::mini(pb, Index(Eigen::nbThreads())));
+  }
+  if (nthreads > 1) {
+#pragma omp parallel num_threads(nthreads)
+    {
+      const Index nt = omp_get_num_threads();
+      const Index tid = omp_get_thread_num();
+      // Balanced split: every thread gets floor(m/nt) or ceil(m/nt) consecutive indices, none empty.
+      const Index lo = tid * m / nt;
+      const Index hi = (tid + 1) * m / nt;
+      tridiagonal_bisection_block<RealScalar>(alpha_p, beta_sq_p, n, pivmin, bracket_lo, bracket_hi, t_lo + lo,
+                                              t_lo + hi, max_iters, abs_tol, out + lo);
     }
-    // count(mid) <= target  =>  eigenvalue is >= mid, raise the lower bound;
-    // otherwise the eigenvalue is < mid, so lower the upper bound.
-    const auto raise = (counts <= targets);
-    lower = raise.select(mid, lower);
-    upper = raise.select(upper, mid);
-    const ArrayType new_mid = RealScalar(0.5) * (lower + upper);
-    const bool converged = (((new_mid == mid) || ((upper - lower) <= abs_tol)).all());
-    mid = new_mid;
-    if (converged) break;
+  } else
+#endif
+  {
+    tridiagonal_bisection_block<RealScalar>(alpha_p, beta_sq_p, n, pivmin, bracket_lo, bracket_hi, t_lo, t_hi,
+                                            max_iters, abs_tol, out);
   }
 
   // Undo the normalization.
-  eivalues = (mid * scale).matrix();
+  eivalues = (mid_all * scale).matrix();
   return m;
 }
 
