@@ -258,6 +258,12 @@ class SelfAdjointEigenSolver {
    * bisection (cf. LAPACK's xSTEBZ). Bisection currently supports #EigenvaluesOnly and can compute
    * an arbitrary contiguous subset of the spectrum via \a range.
    *
+   * Besides subset selection, bisection is typically more accurate than the QR algorithm: it resolves
+   * each eigenvalue to about one unit in the last place of \f$ \|T\| \f$ independently of the others,
+   * whereas the QR forward error accumulates through its O(n) sweeps and grows with the matrix size.
+   * (Both are backward stable; this is absolute accuracy relative to \f$ \|T\| \f$, not high relative
+   * accuracy for eigenvalues much smaller than \f$ \|T\| \f$.)
+   *
    * \note The eigenvalues of a complex Hermitian tridiagonal matrix depend only on the moduli of its
    * off-diagonal entries: it is unitarily similar (via a diagonal phase matrix) to the real symmetric
    * tridiagonal with the same diagonal and off-diagonals \f$ |\beta_k| \f$. So to compute them, pass
@@ -500,6 +506,8 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
     const RealVectorType& diag, const SubDiagonalType& subdiag, int options, const EigenvalueRange& range) {
   eigen_assert((options & ~(EigVecMask | UseBisection)) == 0 && (options & EigVecMask) != EigVecMask &&
                "invalid option parameter");
+  eigen_assert((range.kind == EigenvalueRange::All || (options & UseBisection)) &&
+               "EigenvalueRange subset selection requires UseBisection; the QR path computes the full spectrum");
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
 
   m_eivalues = diag;
