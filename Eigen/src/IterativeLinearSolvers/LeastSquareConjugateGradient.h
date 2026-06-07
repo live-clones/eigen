@@ -31,7 +31,6 @@ template <typename MatrixType, typename Rhs, typename Dest, typename Preconditio
 EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x,
                                                        const Preconditioner& precond, Index& iters,
                                                        typename Dest::RealScalar& tol_error) {
-  using std::abs;
   using std::sqrt;
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
@@ -45,18 +44,18 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
   VectorType residual = rhs - mat * x;
   VectorType normal_residual = mat.adjoint() * residual;
 
-  RealScalar rhsNorm2 = (mat.adjoint() * rhs).squaredNorm();
-  if (rhsNorm2 == 0) {
+  RealScalar rhsNorm = (mat.adjoint() * rhs).stableNorm();
+  if (rhsNorm == 0) {
     x.setZero();
     iters = 0;
     tol_error = 0;
     return;
   }
-  RealScalar threshold = tol * tol * rhsNorm2;
-  RealScalar residualNorm2 = normal_residual.squaredNorm();
-  if (residualNorm2 < threshold) {
+  RealScalar threshold = tol * rhsNorm;
+  RealScalar residualNorm = normal_residual.stableNorm();
+  if (residualNorm < threshold) {
     iters = 0;
-    tol_error = sqrt(residualNorm2 / rhsNorm2);
+    tol_error = residualNorm / rhsNorm;
     return;
   }
 
@@ -74,8 +73,8 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
     residual -= alpha * tmp;                               // update residual
     normal_residual.noalias() = mat.adjoint() * residual;  // update residual of the normal equation
 
-    residualNorm2 = normal_residual.squaredNorm();
-    if (residualNorm2 < threshold) break;
+    residualNorm = normal_residual.stableNorm();
+    if (residualNorm < threshold) break;
 
     z = precond.solve(normal_residual);  // approximately solve for "A'A z = normal_residual"
 
@@ -85,7 +84,7 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
     p = z + beta * p;                   // update search direction
     i++;
   }
-  tol_error = sqrt(residualNorm2 / rhsNorm2);
+  tol_error = residualNorm / rhsNorm;
   iters = i;
 }
 
