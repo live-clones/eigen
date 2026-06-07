@@ -377,8 +377,9 @@ test:linux:arm:clang-14:default:unsupported:
   variables:
     EIGEN_CI_TARGET_ARCH: aarch64-sme
     EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
-  tags:
-    - saas-linux-medium-amd64
+  # Inherit the 2xlarge runner from .test:linux (same cost under GitLab's
+  # open-source program). The qemu-user run is single-threaded per subtest,
+  # so this is about cost-neutral consistency, not speed.
 
 .test:linux:sme:gcc-14:default:
   extends: .test:linux:sme
