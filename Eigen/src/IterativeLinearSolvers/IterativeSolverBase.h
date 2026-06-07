@@ -28,6 +28,15 @@ struct is_ref_compatible_impl : decltype(is_ref_compatible_test(std::declval<Mat
 template <typename MatrixType>
 struct is_ref_compatible : std::integral_constant<bool, is_ref_compatible_impl<remove_all_t<MatrixType>>::value> {};
 
+// Returns a \a rows x \a cols matrix whose columns are an orthonormal basis of a random subspace,
+// obtained by QR-orthonormalizing a random matrix. The IDR(s)-type solvers use this to build the
+// shadow space; the basis only has to be (almost surely) non-degenerate, so any random seed is fine.
+template <typename MatrixType>
+MatrixType random_orthonormal_basis(Index rows, Index cols) {
+  HouseholderQR<MatrixType> qr(MatrixType::Random(rows, cols));
+  return qr.householderQ() * MatrixType::Identity(rows, cols);
+}
+
 template <typename MatrixType, bool MatrixFree = !internal::is_ref_compatible<MatrixType>::value>
 class generic_matrix_wrapper;
 
