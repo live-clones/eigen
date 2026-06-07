@@ -17,7 +17,7 @@
 namespace Eigen {
 
 /** \ingroup IterativeLinearSolvers_Module
-  * \brief A preconditioner based on the digonal entries
+  * \brief A preconditioner based on the diagonal entries
   *
   * This class allows to approximately solve for A.x = b problems assuming A is a diagonal matrix.
   * In other words, this preconditioner neglects all off diagonal entries and, in Eigen's language, solves for:
@@ -63,7 +63,7 @@ class DiagonalPreconditioner {
   template <typename MatType>
   DiagonalPreconditioner& factorize(const MatType& mat) {
     m_invdiag.resize(mat.cols());
-    for (int j = 0; j < mat.outerSize(); ++j) {
+    for (Index j = 0; j < mat.outerSize(); ++j) {
       typename MatType::InnerIterator it(mat, j);
       while (it && it.index() != j) ++it;
       if (it && it.index() == j && it.value() != Scalar(0))
@@ -167,8 +167,6 @@ class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
   }
 
   ComputationInfo info() const { return Success; }
-
- protected:
 };
 
 /** \ingroup IterativeLinearSolvers_Module

@@ -57,7 +57,6 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
 
   VectorType v = VectorType::Zero(n), p = VectorType::Zero(n);
   VectorType y(n), z(n);
-  VectorType kt(n), ks(n);
 
   VectorType s(n), t(n);
 
@@ -212,8 +211,6 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
 
     m_info = (!ret) ? NumericalIssue : m_error <= Base::m_tolerance ? Success : NoConvergence;
   }
-
- protected:
 };
 
 }  // end namespace Eigen

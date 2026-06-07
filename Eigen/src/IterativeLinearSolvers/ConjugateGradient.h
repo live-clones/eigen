@@ -44,19 +44,19 @@ EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs,
 
   VectorType residual = rhs - mat * x;  // initial residual
 
-  RealScalar rhsNorm2 = rhs.squaredNorm();
-  if (rhsNorm2 == 0) {
+  RealScalar rhsNorm = rhs.stableNorm();
+  if (rhsNorm == 0) {
     x.setZero();
     iters = 0;
     tol_error = 0;
     return;
   }
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
-  RealScalar threshold = numext::maxi(RealScalar(tol * tol * rhsNorm2), considerAsZero);
-  RealScalar residualNorm2 = residual.squaredNorm();
-  if (residualNorm2 < threshold) {
+  RealScalar threshold = numext::maxi(RealScalar(tol * rhsNorm), considerAsZero);
+  RealScalar residualNorm = residual.stableNorm();
+  if (residualNorm < threshold) {
     iters = 0;
-    tol_error = numext::sqrt(residualNorm2 / rhsNorm2);
+    tol_error = residualNorm / rhsNorm;
     return;
   }
 
@@ -73,8 +73,8 @@ EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs,
     x += alpha * p;                      // update solution
     residual -= alpha * tmp;             // update residual
 
-    residualNorm2 = residual.squaredNorm();
-    if (residualNorm2 < threshold) break;
+    residualNorm = residual.stableNorm();
+    if (residualNorm < threshold) break;
 
     z = precond.solve(residual);  // approximately solve for "A z = residual"
 
@@ -84,7 +84,7 @@ EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs,
     p = z + beta * p;                        // update search direction
     i++;
   }
-  tol_error = numext::sqrt(residualNorm2 / rhsNorm2);
+  tol_error = residualNorm / rhsNorm;
   iters = i;
 }
 
@@ -213,8 +213,6 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
     internal::conjugate_gradient(SelfAdjointWrapper(row_mat), b, x, Base::m_preconditioner, m_iterations, m_error);
     m_info = m_error <= Base::m_tolerance ? Success : NoConvergence;
   }
-
- protected:
 };
 
 }  // end namespace Eigen
