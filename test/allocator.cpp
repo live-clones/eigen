@@ -670,6 +670,26 @@ static void test_pmr_matrix_move() {
 }
 
 // ---------------------------------------------------------------------------
+// 27. PmrMatrix wrapper — complex scalar (implicit-lifetime, not just trivially
+// destructible). Locks in that std::complex passes scalar_is_implicit_lifetime.
+// ---------------------------------------------------------------------------
+static void test_pmr_matrix_complex() {
+  using Cf = std::complex<float>;
+  counting_resource counter;
+  {
+    Eigen::PmrMatrix<Eigen::MatrixXcf> A(&counter, Eigen::MatrixXcf::Constant(4, 4, Cf(1.0f, 2.0f)));
+    Eigen::PmrMatrix<Eigen::MatrixXcf> B(&counter, 4, 4);
+    B = A * A;  // evaluated into B's arena-backed storage
+    VERIFY_IS_APPROX(
+        B,
+        (Eigen::MatrixXcf::Constant(4, 4, Cf(1.0f, 2.0f)) * Eigen::MatrixXcf::Constant(4, 4, Cf(1.0f, 2.0f))).eval());
+    VERIFY(B.resource() == &counter);
+  }
+  // No leak with a freeing resource.
+  VERIFY_IS_EQUAL(counter.alloc_count(), counter.dealloc_count());
+}
+
+// ---------------------------------------------------------------------------
 // Main test entry point
 // ---------------------------------------------------------------------------
 EIGEN_DECLARE_TEST(allocator) {
@@ -698,6 +718,7 @@ EIGEN_DECLARE_TEST(allocator) {
   CALL_SUBTEST(test_pmr_matrix_no_leak());
   CALL_SUBTEST(test_pmr_matrix_conflict());
   CALL_SUBTEST(test_pmr_matrix_move());
+  CALL_SUBTEST(test_pmr_matrix_complex());
 #if EIGEN_HAS_CXX17_PMR
   CALL_SUBTEST(test_cpp17_interop());
 #endif

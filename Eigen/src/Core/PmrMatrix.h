@@ -16,7 +16,7 @@
 #ifndef EIGEN_GPU_COMPILE_PHASE
 
 #include <new>          // placement new
-#include <type_traits>  // is_trivially_destructible
+#include <type_traits>  // implicit-lifetime scalar trait helpers
 
 namespace Eigen {
 
@@ -37,6 +37,24 @@ constexpr int pmr_map_options() {
 #else
   return Unaligned;
 #endif
+}
+
+// Approximates std::is_implicit_lifetime (C++23), following the construction in
+// P2674R1 (https://wg21.link/p2674r1). PmrMatrix creates its scalar elements
+// implicitly in raw storage (via Map; no element constructor is run), which is
+// only well defined for implicit-lifetime types. Trivial destructibility alone
+// is insufficient: e.g. a polymorphic type can have a trivial destructor yet
+// still needs its vtable established on construction, so it is not
+// implicit-lifetime and reading it back through the object pointer would be UB.
+template <typename T>
+constexpr bool scalar_is_implicit_lifetime() {
+  return std::is_scalar<T>::value ||
+#if EIGEN_COMP_CXXVER >= 17
+         std::is_aggregate<T>::value ||
+#endif
+         (std::is_trivially_destructible<T>::value &&
+          (std::is_trivially_default_constructible<T>::value || std::is_trivially_copy_constructible<T>::value ||
+           std::is_trivially_move_constructible<T>::value));
 }
 
 }  // namespace internal
@@ -70,7 +88,8 @@ constexpr int pmr_map_options() {
  * instance bound to its own resource.
  *
  * \tparam PlainObjectType the wrapped dense type, e.g. \c Eigen::MatrixXd. The scalar
- * type must be trivially destructible (element destructors are not run).
+ * type must be an implicit-lifetime type (arithmetic, \c std::complex, and similar
+ * trivially-constructible types qualify); element constructors and destructors are not run.
  *
  * \sa memory_resource, monotonic_buffer_resource, byte_allocator
  */
@@ -82,23 +101,21 @@ class PmrMatrix : public Map<PlainObjectType, internal::pmr_map_options()> {
   using Base::cols;
   using Base::rows;
 
-  static_assert(std::is_trivially_destructible<Scalar>::value,
-                "PmrMatrix requires a trivially destructible scalar type; element destructors are not run.");
+  static_assert(internal::scalar_is_implicit_lifetime<Scalar>(),
+                "PmrMatrix requires an implicit-lifetime scalar type: elements are created implicitly in raw "
+                "storage (no element constructor is run), which is only well defined for implicit-lifetime "
+                "types. Trivial destructibility alone is insufficient.");
 
   /** Construct a \a rows x \a cols matrix backed by \a resource (uninitialized, like Eigen). */
   PmrMatrix(memory_resource* resource, Index rows, Index cols)
-      : Base(allocate_raw(resource, rows, cols), rows, cols),
-        m_resource(resource),
-        m_data(this->data()),
-        m_capacity_bytes(byte_count(rows, cols)) {}
+      : Base(allocate_raw(resource, rows, cols), rows, cols), m_resource(resource), m_data(this->data()) {}
 
   /** Construct from a dense expression, evaluating it into \a resource-backed storage. */
   template <typename OtherDerived>
   PmrMatrix(memory_resource* resource, const DenseBase<OtherDerived>& expr)
       : Base(allocate_raw(resource, expr.rows(), expr.cols()), expr.rows(), expr.cols()),
         m_resource(resource),
-        m_data(this->data()),
-        m_capacity_bytes(byte_count(expr.rows(), expr.cols())) {
+        m_data(this->data()) {
     Base::operator=(expr.derived());
   }
 
@@ -106,19 +123,14 @@ class PmrMatrix : public Map<PlainObjectType, internal::pmr_map_options()> {
   PmrMatrix(const PmrMatrix& other)
       : Base(allocate_raw(other.m_resource, other.rows(), other.cols()), other.rows(), other.cols()),
         m_resource(other.m_resource),
-        m_data(this->data()),
-        m_capacity_bytes(byte_count(other.rows(), other.cols())) {
+        m_data(this->data()) {
     Base::operator=(other);
   }
 
   /** Move construction: steals storage; the moved-from object is left empty. */
   PmrMatrix(PmrMatrix&& other) noexcept
-      : Base(other.m_data, other.rows(), other.cols()),
-        m_resource(other.m_resource),
-        m_data(other.m_data),
-        m_capacity_bytes(other.m_capacity_bytes) {
+      : Base(other.m_data, other.rows(), other.cols()), m_resource(other.m_resource), m_data(other.m_data) {
     other.m_data = nullptr;
-    other.m_capacity_bytes = 0;
   }
 
   ~PmrMatrix() { release_storage(); }
@@ -136,10 +148,8 @@ class PmrMatrix : public Map<PlainObjectType, internal::pmr_map_options()> {
       release_storage();
       m_resource = other.m_resource;
       m_data = other.m_data;
-      m_capacity_bytes = other.m_capacity_bytes;
       reseat(m_data, other.rows(), other.cols());
       other.m_data = nullptr;
-      other.m_capacity_bytes = 0;
     }
     return *this;
   }
@@ -175,10 +185,12 @@ class PmrMatrix : public Map<PlainObjectType, internal::pmr_map_options()> {
     return static_cast<Scalar*>(resource->allocate(byte_count(rows, cols), kAllocAlign));
   }
 
+  // The allocation is always sized to rows()*cols(); the Map base dimensions are
+  // only updated (via reseat) after old storage is released, so the size needed to
+  // deallocate can be recomputed here rather than stored.
   void release_storage() noexcept {
-    if (m_data) m_resource->deallocate(m_data, m_capacity_bytes, kAllocAlign);
+    if (m_data) m_resource->deallocate(m_data, byte_count(this->rows(), this->cols()), kAllocAlign);
     m_data = nullptr;
-    m_capacity_bytes = 0;
   }
 
   // Re-point the Map base at new storage. Map is trivially destructible, so
@@ -189,7 +201,6 @@ class PmrMatrix : public Map<PlainObjectType, internal::pmr_map_options()> {
     Scalar* p = allocate_raw(m_resource, rows, cols);
     release_storage();
     m_data = p;
-    m_capacity_bytes = byte_count(rows, cols);
     reseat(p, rows, cols);
   }
 
@@ -201,7 +212,6 @@ class PmrMatrix : public Map<PlainObjectType, internal::pmr_map_options()> {
 
   memory_resource* m_resource;
   Scalar* m_data;
-  std::size_t m_capacity_bytes;
 };
 
 }  // namespace Eigen
