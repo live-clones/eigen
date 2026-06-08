@@ -139,8 +139,6 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
 
   IterativeSolverBase(IterativeSolverBase&&) = default;
 
-  ~IterativeSolverBase() {}
-
   /** Initializes the iterative solver for the sparsity pattern of the matrix \a A for further solving \c Ax=b problems.
    *
    * Currently, this function mostly calls analyzePattern on the preconditioner. In the future
