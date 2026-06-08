@@ -132,6 +132,10 @@ void tridiagonal_lagtf(RealScalar* d, RealScalar* du, RealScalar* dl, RealScalar
  * \f$ \lambda \f$ is intentionally a near-eigenvalue and \f$ U \f$ is nearly singular.
  *
  * \param[in]     d   diagonal of U (length \c n).
+ * \param[in]     rcp elementwise reciprocal \c 1/d (length \c n), precomputed once by the caller with
+ *                    an exact division and reused across the inverse-iteration solves. Entries for a
+ *                    vanishing pivot may be \c inf; they are only consumed on the fast path, which is
+ *                    not taken for such pivots.
  * \param[in]     du  first super-diagonal of U (length \c n-1).
  * \param[in]     dl  sub-diagonal multipliers of L (length \c n-1).
  * \param[in]     du2 second super-diagonal of U (length \c n-2).
@@ -140,8 +144,8 @@ void tridiagonal_lagtf(RealScalar* d, RealScalar* du, RealScalar* dl, RealScalar
  * \param[in]     n   dimension of T.
  */
 template <typename RealScalar>
-void tridiagonal_lagts(const RealScalar* d, const RealScalar* du, const RealScalar* dl, const RealScalar* du2,
-                       const Index* piv, RealScalar* b, Index n) {
+void tridiagonal_lagts(const RealScalar* d, const RealScalar* rcp, const RealScalar* du, const RealScalar* dl,
+                       const RealScalar* du2, const Index* piv, RealScalar* b, Index n) {
   using std::abs;
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
   const RealScalar sfmin = (std::numeric_limits<RealScalar>::min)();
@@ -155,18 +159,24 @@ void tridiagonal_lagts(const RealScalar* d, const RealScalar* du, const RealScal
   tol *= eps;
   if (numext::is_exactly_zero(tol)) tol = eps;
 
-  // Forward substitution: apply P then L^{-1}.
+  // Forward substitution: apply P then L^{-1}. Written branchlessly in the (data-dependent, roughly
+  // 50/50) pivot-interchange flag so a misprediction cannot stall the serial recurrence; both arms
+  // are evaluated and selected, reproducing the two branches bit for bit.
   for (Index k = 1; k < n; ++k) {
-    if (piv[k - 1] == 0) {
-      b[k] -= dl[k - 1] * b[k - 1];
-    } else {
-      const RealScalar temp = b[k - 1];
-      b[k - 1] = b[k];
-      b[k] = temp - dl[k - 1] * b[k];
-    }
+    const RealScalar dlk = dl[k - 1];
+    const RealScalar bkm1 = b[k - 1];
+    const RealScalar bk = b[k];
+    const bool interchange = piv[k - 1] != 0;
+    b[k - 1] = interchange ? bk : bkm1;
+    b[k] = interchange ? (bkm1 - dlk * bk) : (bk - dlk * bkm1);
   }
 
-  // Back substitution: solve U x = b, perturbing tiny pivots so the quotient cannot overflow.
+  // Back substitution: solve U x = b. Away from the singularity the pivot is safe and the quotient is
+  // a reciprocal multiply (rcp[k] = 1/d[k], exact and precomputed once for all the solves); only a
+  // dangerously small pivot -- the rare near-singular element of the deliberately singular system --
+  // falls back to the LAPACK xLAGTS perturbation/rescale with a true division. The guard is written so
+  // the fast path is taken exactly when the original would divide by the unperturbed pivot, and is
+  // virtually always predicted taken.
   for (Index k = n - 1; k >= 0; --k) {
     RealScalar temp;
     if (k <= n - 3)
@@ -175,29 +185,37 @@ void tridiagonal_lagts(const RealScalar* d, const RealScalar* du, const RealScal
       temp = b[k] - du[k] * b[k + 1];
     else
       temp = b[k];
-    RealScalar ak = d[k];
-    RealScalar pert = (ak >= RealScalar(0)) ? tol : -tol;
-    while (true) {
-      const RealScalar absak = abs(ak);
-      if (absak < RealScalar(1)) {
-        if (absak < sfmin) {
-          if (numext::is_exactly_zero(absak) || abs(temp) * sfmin > absak) {
-            ak += pert;
+    const RealScalar ak = d[k];
+    const RealScalar absak = abs(ak);
+    if (EIGEN_PREDICT_TRUE(absak >= RealScalar(1) || (absak >= sfmin && abs(temp) <= absak * bignum))) {
+      b[k] = temp * rcp[k];
+    } else {
+      // Tiny pivot: perturb (or rescale) exactly as LAPACK xLAGTS so the quotient cannot overflow.
+      RealScalar a = ak;
+      RealScalar t = temp;
+      RealScalar pert = (a >= RealScalar(0)) ? tol : -tol;
+      while (true) {
+        const RealScalar aa = abs(a);
+        if (aa < RealScalar(1)) {
+          if (aa < sfmin) {
+            if (numext::is_exactly_zero(aa) || abs(t) * sfmin > aa) {
+              a += pert;
+              pert *= RealScalar(2);
+              continue;
+            } else {
+              t *= bignum;
+              a *= bignum;
+            }
+          } else if (abs(t) > aa * bignum) {
+            a += pert;
             pert *= RealScalar(2);
             continue;
-          } else {
-            temp *= bignum;
-            ak *= bignum;
           }
-        } else if (abs(temp) > absak * bignum) {
-          ak += pert;
-          pert *= RealScalar(2);
-          continue;
         }
+        break;
       }
-      break;
+      b[k] = t / a;
     }
-    b[k] = temp / ak;
   }
 }
 
@@ -274,7 +292,9 @@ void tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& subd
   const int extra = 2;
 
   // Work arrays for the LU factors of T - lambda*I (reused across eigenvalues) and the iterate.
-  Matrix<RealScalar, Dynamic, 1> lu_d(n), lu_dl(n), lu_du(n), lu_du2(n), b(n);
+  // lu_rcp holds the exact reciprocal of the U diagonal, computed once per factorization and reused
+  // by the three inverse-iteration back-solves.
+  Matrix<RealScalar, Dynamic, 1> lu_d(n), lu_dl(n), lu_du(n), lu_du2(n), lu_rcp(n), b(n);
   Matrix<Index, Dynamic, 1> piv(n);
 
   Index gpind = 0;                 // index of the first eigenvector in the current cluster
@@ -295,6 +315,9 @@ void tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& subd
     lu_du.head(n - 1) = ssub;
     lu_dl.head(n - 1) = ssub;
     tridiagonal_lagtf<RealScalar>(lu_d.data(), lu_du.data(), lu_dl.data(), lu_du2.data(), piv.data(), xj, n);
+    // Exact reciprocals of the U diagonal (pdiv, not the approximate preciprocal of cwiseInverse());
+    // a vanishing pivot yields inf, which the back-solve fast path never consumes.
+    lu_rcp.array() = RealScalar(1) / lu_d.array();
 
     // Deterministic pseudo-random start vector (seeded per column for thread independence).
     inverse_iteration_rng rng(numext::uint64_t(j) + 1);
@@ -307,7 +330,8 @@ void tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& subd
       if (numext::is_exactly_zero(bmax)) break;  // degenerate iterate; accept as is
       const RealScalar scl = RealScalar(n) * onenrm * numext::maxi(eps, abs(lu_d[n - 1])) / bmax;
       b *= scl;
-      tridiagonal_lagts<RealScalar>(lu_d.data(), lu_du.data(), lu_dl.data(), lu_du2.data(), piv.data(), b.data(), n);
+      tridiagonal_lagts<RealScalar>(lu_d.data(), lu_rcp.data(), lu_du.data(), lu_dl.data(), lu_du2.data(), piv.data(),
+                                    b.data(), n);
 
       // Modified Gram-Schmidt against the already-accepted eigenvectors of this cluster.
       for (Index i = gpind; i < j; ++i) b -= b.dot(eivecs.col(i)) * eivecs.col(i);
