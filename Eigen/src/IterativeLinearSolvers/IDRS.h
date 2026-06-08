@@ -317,10 +317,10 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_S;
-  bool m_smoothing;
-  RealScalar m_angle;
-  bool m_residual;
+  Index m_S = 4;
+  bool m_smoothing = false;
+  RealScalar m_angle = RealScalar(0.7);
+  bool m_residual = false;
 
  public:
   /** Default constructor. */

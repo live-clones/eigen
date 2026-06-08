@@ -118,7 +118,7 @@ class Hyperplane {
     offset() = -parametrized.origin().dot(normal());
   }
 
-  EIGEN_DEVICE_FUNC ~Hyperplane() {}
+  EIGEN_DEVICE_FUNC ~Hyperplane() = default;
 
   /** \returns the dimension in which the plane holds */
   EIGEN_DEVICE_FUNC inline Index dim() const {

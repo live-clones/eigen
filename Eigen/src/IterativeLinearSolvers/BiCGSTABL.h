@@ -291,7 +291,7 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_L;
+  Index m_L = 2;
 
  public:
   typedef MatrixType_ MatrixType;

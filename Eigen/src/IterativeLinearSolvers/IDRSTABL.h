@@ -421,8 +421,8 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_L;
-  Index m_S;
+  Index m_L = 2;
+  Index m_S = 4;
 
  public:
   typedef MatrixType_ MatrixType;
