@@ -14,6 +14,7 @@
 
 #include "./Tridiagonalization.h"
 #include "./TridiagonalBisection.h"
+#include "./TridiagonalInverseIteration.h"
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -615,6 +616,83 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
   return *this;
 }
 
+namespace internal {
+/** \internal
+ *
+ * Rayleigh-Ritz refinement of clustered eigenvectors produced by inverse iteration. Within a
+ * cluster (consecutive eigenvalues closer than \c 1e-3 * ||T||, matching the inverse-iteration
+ * grouping) the computed vectors form an orthonormal basis of the invariant subspace, but they are
+ * an arbitrary basis, so each \f$ (\lambda_i, v_i) \f$ pair carries a residual up to the cluster's
+ * eigenvalue spread. For each such cluster of size \f$ c > 1 \f$ this forms the \f$ c \times c \f$
+ * Rayleigh quotient \f$ B = V_c^\top T V_c \f$ (using the tridiagonal structure for \f$ T V_c \f$),
+ * diagonalizes it, and rotates the basis into the Ritz vectors \f$ V_c Q \f$ with the (more
+ * accurate) Ritz values, recovering near-machine-precision residuals.
+ *
+ * A cluster is refined only when its vectors are not already accurate (worst residual above a small
+ * multiple of eps). A group that is well separated relative to the working precision -- the common
+ * case in double precision, where \c 1e-3 * ||T|| spans many representable eigenvalues -- has
+ * individual inverse-iteration vectors that are *better* than any subspace-based Ritz basis, so
+ * refining it would increase the residual; such groups, singleton clusters, and a fully
+ * non-degenerate spectrum are left untouched.
+ *
+ * Only the eigenvectors are refined; the eigenvalues are left as supplied (within a degenerate
+ * cluster they already agree with the Ritz values to a few ulp, and keeping them preserves the
+ * contract that the returned vectors correspond to the given eigenvalues).
+ *
+ * \param[in]     diag    diagonal of T (length \c n).
+ * \param[in]     subdiag sub-diagonal of T (length \c n-1).
+ * \param[in]     eivals  the cluster eigenvalues, non-decreasing (length \c m); read, not modified.
+ * \param[in,out] eivecs  the \c n x \c m eigenvectors, refined in place.
+ */
+template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
+void tridiagonal_rayleigh_ritz_refine(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
+                                      EivecType& eivecs) {
+  typedef typename DiagType::Scalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, Dynamic> DenseType;
+  using std::abs;
+  const Index n = diag.size();
+  const Index m = eivals.size();
+  if (n < 2 || m < 2) return;
+
+  // Inf-norm of T and the cluster threshold, matching tridiagonal_inverse_iteration()'s grouping.
+  RealScalar onenrm = abs(diag[0]) + abs(subdiag[0]);
+  onenrm = numext::maxi(onenrm, abs(diag[n - 1]) + abs(subdiag[n - 2]));
+  for (Index i = 1; i < n - 1; ++i) onenrm = numext::maxi(onenrm, abs(subdiag[i - 1]) + abs(diag[i]) + abs(subdiag[i]));
+  const RealScalar ortol = RealScalar(1e-3) * onenrm;
+  if (!(ortol > RealScalar(0))) return;  // T == 0: nothing to refine
+  const RealScalar inv_onenrm = RealScalar(1) / onenrm;
+  const RealScalar refine_threshold = RealScalar(16) * NumTraits<RealScalar>::epsilon();
+
+  SelfAdjointEigenSolver<DenseType> block_solver;
+  Index s = 0;
+  while (s < m) {
+    Index t = s;
+    while (t + 1 < m && (eivals[t + 1] - eivals[t]) < ortol) ++t;
+    const Index c = t - s + 1;
+    if (c > 1) {
+      // Project T onto the cluster basis. T V_c via the tridiagonal structure:
+      //   (T V_c)(i,:) = e_{i-1} V_c(i-1,:) + d_i V_c(i,:) + e_i V_c(i+1,:).
+      const DenseType Vc = eivecs.middleCols(s, c);  // copy so the write-back below cannot alias
+      DenseType TVc = diag.asDiagonal() * Vc;
+      TVc.topRows(n - 1).noalias() += subdiag.asDiagonal() * Vc.bottomRows(n - 1);
+      TVc.bottomRows(n - 1).noalias() += subdiag.asDiagonal() * Vc.topRows(n - 1);
+      // Worst per-vector residual in the cluster (scaled by 1/||T|| so it cannot overflow). Skip the
+      // refinement when the cluster is already at machine precision -- refining it would only add the
+      // subspace error to vectors that are individually more accurate.
+      const RealScalar cluster_resid =
+          ((TVc - Vc * eivals.segment(s, c).asDiagonal()) * inv_onenrm).colwise().norm().maxCoeff();
+      if (cluster_resid > refine_threshold) {
+        DenseType B = Vc.transpose() * TVc;
+        B = (RealScalar(0.5) * (B + B.transpose())).eval();  // enforce exact symmetry
+        block_solver.compute(B, ComputeEigenvectors);
+        eivecs.middleCols(s, c).noalias() = Vc * block_solver.eigenvectors();
+      }
+    }
+    s = t + 1;
+  }
+}
+}  // namespace internal
+
 template <typename MatrixType>
 SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeEigenvectors(
     const RealVectorType& diag, const SubDiagonalType& subdiag, const RealVectorType& eigenvalues) {
@@ -629,6 +707,9 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeE
   m_eivalues = eigenvalues;
   m_eivec.resize(n, m);
   internal::tridiagonal_inverse_iteration(diag, subdiag, eigenvalues, m_eivec);
+  // Refine the eigenvectors of any genuinely degenerate cluster (Rayleigh-Ritz). The eigenvalues are
+  // left unchanged, and a non-degenerate spectrum is untouched.
+  internal::tridiagonal_rayleigh_ritz_refine(diag, subdiag, m_eivalues, m_eivec);
 
   m_info = Success;
   m_isInitialized = true;
