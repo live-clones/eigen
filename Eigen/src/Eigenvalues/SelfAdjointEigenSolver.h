@@ -914,22 +914,12 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
   // Wilkinson Shift.
   RealScalar td = (diag[end - 1] - diag[end]) * RealScalar(0.5);
   RealScalar e = subdiag[end - 1];
-  // Note that thanks to scaling, e^2 or td^2 cannot overflow, however they can still
-  // underflow thus leading to inf/NaN values when using the following commented code:
-  //   RealScalar e2 = numext::abs2(subdiag[end-1]);
-  //   RealScalar mu = diag[end] - e2 / (td + (td>0 ? 1 : -1) * sqrt(td*td + e2));
-  // This explain the following, somewhat more complicated, version:
   RealScalar mu = diag[end];
   if (numext::is_exactly_zero(td)) {
     mu -= numext::abs(e);
-  } else if (!numext::is_exactly_zero(e)) {
-    const RealScalar e2 = numext::abs2(e);
-    const RealScalar h = numext::hypot(td, e);
-    if (numext::is_exactly_zero(e2)) {
-      mu -= e / ((td + (td > RealScalar(0) ? h : -h)) / e);
-    } else {
-      mu -= e2 / (td + (td > RealScalar(0) ? h : -h));
-    }
+  } else {
+    RealScalar h = numext::hypot(td, e);
+    mu -= e * (e / (td + (td > RealScalar(0) ? h : -h)));
   }
 
   RealScalar x = diag[start] - mu;
