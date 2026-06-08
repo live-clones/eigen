@@ -42,7 +42,6 @@ class aligned_allocator_indirection : public EIGEN_ALIGNED_ALLOCATOR<T> {
   aligned_allocator_indirection(const aligned_allocator_indirection<U>&) {}
   template <class U>
   aligned_allocator_indirection(const EIGEN_ALIGNED_ALLOCATOR<U>&) {}
-  ~aligned_allocator_indirection() {}
 };
 
 #if EIGEN_COMP_MSVC
