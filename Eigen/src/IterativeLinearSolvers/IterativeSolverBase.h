@@ -81,7 +81,7 @@ class generic_matrix_wrapper<MatrixType, true> {
 
   enum { MatrixFree = true };
 
-  generic_matrix_wrapper() : mp_matrix(0) {}
+  generic_matrix_wrapper() = default;
 
   generic_matrix_wrapper(const MatrixType& mat) : mp_matrix(&mat) {}
 
@@ -90,7 +90,7 @@ class generic_matrix_wrapper<MatrixType, true> {
   void grab(const MatrixType& mat) { mp_matrix = &mat; }
 
  protected:
-  const ActualMatrixType* mp_matrix;
+  const ActualMatrixType* mp_matrix = nullptr;
 };
 
 }  // namespace internal
