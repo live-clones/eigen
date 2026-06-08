@@ -658,6 +658,87 @@ void selfadjointeigensolver_bisection() {
     test::tridiag_toeplitz(d, e);  // default a = 1, b = 0
     check_symmetric(d, e);
   }
+
+  // (c) Eigenvectors by inverse iteration (LAPACK xSTEIN analog) over the structured catalog:
+  // staged (eigenvalues-only bisection followed by computeEigenvectors()) and the direct API.
+  test::for_all_symmetric_tridiag_test_matrices<RealScalar>([&](const VectorType& diag, const VectorType& offdiag) {
+    const Index n = diag.size();
+
+    // Dense form of T for residual / reconstruction checks.
+    MatrixType T = MatrixType::Zero(n, n);
+    T.diagonal() = diag;
+    if (n > 1) {
+      T.diagonal(-1) = offdiag;
+      T.diagonal(1) = offdiag;
+    }
+    RealScalar scale = T.cwiseAbs().maxCoeff();
+    if (!(numext::isfinite)(scale)) return;  // skip non-finite inputs, like the eigenvalue path
+    if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
+
+    SelfAdjointEigenSolver<MatrixType> es;
+    es.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly | UseBisection);
+    if (es.info() != Success) return;
+    es.computeEigenvectors();  // staged inverse-iteration pass
+    VERIFY_IS_EQUAL(es.info(), Success);
+    const VectorType w = es.eigenvalues();
+    const MatrixType V = es.eigenvectors();
+    VERIFY_IS_EQUAL(V.rows(), n);
+    VERIFY_IS_EQUAL(V.cols(), n);
+
+    const RealScalar tol = RealScalar(128) * RealScalar(n) * (eps * scale + tiny);
+    const RealScalar otol = RealScalar(128) * RealScalar(n) * eps;
+    // Per-column residual; stableNorm() since the catalog includes near-overflow entries.
+    for (Index i = 0; i < n; ++i) VERIFY((T * V.col(i) - w(i) * V.col(i)).stableNorm() <= tol);
+    // Orthonormality and full-spectrum reconstruction (the latter in scaled coordinates so the
+    // extreme-magnitude catalog entries cannot overflow the products).
+    VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <= otol);
+    const RealScalar recon =
+        ((V * (w / scale).asDiagonal() * V.transpose()) - (T / scale)).cwiseAbs().maxCoeff() * scale;
+    VERIFY(recon <= tol);
+
+    // The direct API reproduces the staged result exactly (same eigenvalues -> same deterministic vectors).
+    SelfAdjointEigenSolver<MatrixType> dir;
+    dir.computeEigenvectors(diag, offdiag, w);
+    VERIFY_IS_EQUAL(dir.eigenvectors().rows(), n);
+    VERIFY_IS_EQUAL(dir.eigenvectors().cols(), n);
+    VERIFY_IS_EQUAL((dir.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
+
+    // Index-subset eigenvectors: the bisection range selects a band, inverse iteration produces just
+    // those columns; check residual and that they are orthonormal among themselves.
+    if (n >= 4) {
+      const Index il = n / 4, iu = n - n / 4;
+      SelfAdjointEigenSolver<MatrixType> sub;
+      sub.computeFromTridiagonal(diag, offdiag, EigenvaluesOnly | UseBisection, EigenvalueRange::indices(il, iu));
+      sub.computeEigenvectors();
+      const MatrixType Vs = sub.eigenvectors();
+      const VectorType ws = sub.eigenvalues();
+      VERIFY_IS_EQUAL(Vs.rows(), n);
+      VERIFY_IS_EQUAL(Vs.cols(), iu - il);
+      for (Index k = 0; k < iu - il; ++k) VERIFY((T * Vs.col(k) - ws(k) * Vs.col(k)).stableNorm() <= tol);
+      VERIFY((Vs.transpose() * Vs - MatrixType::Identity(iu - il, iu - il)).cwiseAbs().maxCoeff() <= otol);
+    }
+  });
+
+  // (d) Closed-form 1-2-1 Toeplitz eigenvectors: v_k(j) = sin(j*(n-k)*pi/(n+1)) for the k-th
+  // (ascending) eigenvalue. An analytic, solver-independent check of the inverse-iteration vectors.
+  {
+    for (Index n : {5, 16, 33, 64}) {
+      VectorType d(n), e(n - 1);
+      test::tridiag_1_2_1(d, e);
+      SelfAdjointEigenSolver<MatrixType> es;
+      es.computeFromTridiagonal(d, e, EigenvaluesOnly | UseBisection);
+      es.computeEigenvectors();
+      const MatrixType V = es.eigenvectors();
+      for (Index k = 0; k < n; ++k) {
+        VectorType exact(n);
+        for (Index j = 0; j < n; ++j)
+          exact(j) = RealScalar(std::sin(double(j + 1) * double(n - k) * pi / double(n + 1)));
+        exact.normalize();
+        const RealScalar err = (std::min)((V.col(k) - exact).norm(), (V.col(k) + exact).norm());
+        VERIFY(err <= RealScalar(256) * RealScalar(n) * eps);
+      }
+    }
+  }
 }
 
 // Test with diagonal matrices (tridiagonalization is trivial).

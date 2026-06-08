@@ -132,6 +132,7 @@ class SelfAdjointEigenSolver {
         m_workspace(),
         m_eivalues(),
         m_subdiag(),
+        m_bisectionDiag(),
         m_hcoeffs(),
         m_info(InvalidInput),
         m_isInitialized(false),
@@ -154,6 +155,7 @@ class SelfAdjointEigenSolver {
         m_workspace(size),
         m_eivalues(size),
         m_subdiag(size > 1 ? size - 1 : 1),
+        m_bisectionDiag(),
         m_hcoeffs(size > 1 ? size - 1 : 1),
         m_isInitialized(false),
         m_eigenvectorsOk(false) {}
@@ -180,6 +182,7 @@ class SelfAdjointEigenSolver {
         m_workspace(matrix.cols()),
         m_eivalues(matrix.cols()),
         m_subdiag(matrix.rows() > 1 ? matrix.rows() - 1 : 1),
+        m_bisectionDiag(),
         m_hcoeffs(matrix.cols() > 1 ? matrix.cols() - 1 : 1),
         m_isInitialized(false),
         m_eigenvectorsOk(false) {
@@ -275,6 +278,52 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver& computeFromTridiagonal(const RealVectorType& diag, const SubDiagonalType& subdiag,
                                                  int options = ComputeEigenvectors,
                                                  const EigenvalueRange& range = EigenvalueRange::all());
+
+  /** \brief Computes eigenvectors of a tridiagonal matrix by inverse iteration from known eigenvalues.
+   *
+   * \param[in] diag        The diagonal of the symmetric tridiagonal matrix \f$ T \f$ (length \c n).
+   * \param[in] subdiag     The sub-diagonal of \f$ T \f$ (length \c n-1).
+   * \param[in] eigenvalues The eigenvalues whose eigenvectors are wanted, in non-decreasing order
+   *            (e.g. the output of computeFromTridiagonal() with #UseBisection). Length \c m \f$\le\f$ \c n.
+   * \returns Reference to \c *this
+   *
+   * Computes an eigenvector of \f$ T \f$ for each supplied eigenvalue by inverse iteration (LAPACK's
+   * xSTEIN, built on the xLAGTF / xLAGTS factorization and overflow-safe solve of the deliberately
+   * near-singular \f$ T - \lambda I \f$), reorthogonalizing within tight clusters so that a degenerate
+   * cluster yields an orthonormal basis. After the call, eigenvectors() returns the \c n x \c m matrix
+   * whose column \c j is a unit-norm eigenvector for \c eigenvalues[j], and eigenvalues() returns the
+   * supplied eigenvalues.
+   *
+   * This is the natural companion to the #UseBisection eigenvalue path, which can resolve an arbitrary
+   * subset of the spectrum: pass that subset here to obtain just those eigenvectors. The eigenvectors
+   * are those of the tridiagonal \f$ T \f$ itself; recovering eigenvectors of a dense matrix
+   * additionally requires the Householder back-transform performed by compute().
+   *
+   * \note Only real symmetric tridiagonal matrices are supported. The eigenvalues must be sorted in
+   * non-decreasing order, as the cluster reorthogonalization relies on it.
+   *
+   * \sa computeFromTridiagonal(), eigenvectors()
+   */
+  SelfAdjointEigenSolver& computeEigenvectors(const RealVectorType& diag, const SubDiagonalType& subdiag,
+                                              const RealVectorType& eigenvalues);
+
+  /** \brief Computes eigenvectors after an eigenvalues-only bisection solve.
+   *
+   * \returns Reference to \c *this
+   *
+   * Convenience overload that completes a two-stage solve: call it after
+   * \c computeFromTridiagonal(diag, subdiag, EigenvaluesOnly | UseBisection) to compute the
+   * eigenvectors for the eigenvalues just found, by inverse iteration. It forwards to
+   * computeEigenvectors(const RealVectorType&, const SubDiagonalType&, const RealVectorType&) with the
+   * tridiagonal and eigenvalues retained from that call.
+   *
+   * \pre The most recent computation was an eigenvalues-only #UseBisection solve via
+   * computeFromTridiagonal(); otherwise the retained tridiagonal is unavailable.
+   *
+   * \sa computeFromTridiagonal(), computeEigenvectors(const RealVectorType&, const SubDiagonalType&, const
+   * RealVectorType&)
+   */
+  SelfAdjointEigenSolver& computeEigenvectors();
 
   /** \brief Returns the eigenvectors of given matrix.
    *
@@ -411,6 +460,7 @@ class SelfAdjointEigenSolver {
   VectorType m_workspace;
   RealVectorType m_eivalues;
   typename TridiagonalizationType::SubDiagonalType m_subdiag;
+  RealVectorType m_bisectionDiag;
   typename TridiagonalizationType::CoeffVectorType m_hcoeffs;
   ComputationInfo m_info;
   bool m_isInitialized;
@@ -456,6 +506,7 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
   Index n = matrix.cols();
   m_eivalues.resize(n, 1);
+  m_bisectionDiag.resize(0);  // invalidate any retained tridiagonal from a prior bisection solve
 
   if (n == 1) {
     m_eivec = matrix;
@@ -512,6 +563,7 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
 
   m_eivalues = diag;
   m_subdiag = subdiag;
+  m_bisectionDiag.resize(0);  // set below only on the bisection path; empty otherwise
 
   // Check for Inf/NaN in the input.
   {
@@ -527,11 +579,13 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
   }
 
   if (options & UseBisection) {
-    // SIMD Sturm-sequence spectral bisection. First cut: eigenvalues only.
-    // A future staged eigenvector pass (inverse iteration) will additionally retain the
-    // original diagonal here, since m_eivalues is overwritten with the eigenvalues below
-    // (m_subdiag is left untouched and still holds the pristine sub-diagonal).
-    eigen_assert(!computeEigenvectors && "UseBisection currently supports EigenvaluesOnly only");
+    // SIMD Sturm-sequence spectral bisection computes eigenvalues only; eigenvectors are obtained
+    // in a separate inverse-iteration pass via computeEigenvectors(). Retain the original diagonal
+    // (m_eivalues is overwritten with the eigenvalues below, and m_subdiag still holds the pristine
+    // sub-diagonal) so the no-argument computeEigenvectors() can re-form T.
+    eigen_assert(!computeEigenvectors &&
+                 "UseBisection computes eigenvalues only; call computeEigenvectors() afterwards for the vectors");
+    m_bisectionDiag = diag;
     internal::tridiagonal_bisection(diag, subdiag, range, RealScalar(0), m_eivalues);
     m_info = Success;
     m_isInitialized = true;
@@ -550,6 +604,35 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
   m_isInitialized = true;
   m_eigenvectorsOk = computeEigenvectors;
   return *this;
+}
+
+template <typename MatrixType>
+SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeEigenvectors(
+    const RealVectorType& diag, const SubDiagonalType& subdiag, const RealVectorType& eigenvalues) {
+  static_assert(NumTraits<Scalar>::IsComplex == 0,
+                "computeEigenvectors() by inverse iteration is implemented for real symmetric tridiagonal matrices "
+                "only; use compute()/computeFromTridiagonal() with ComputeEigenvectors for complex Hermitian inputs.");
+  const Index n = diag.size();
+  const Index m = eigenvalues.size();
+  eigen_assert(subdiag.size() == (n > 0 ? n - 1 : 0) && "sub-diagonal must have one fewer entry than the diagonal");
+  eigen_assert(m <= n && "cannot request more eigenvectors than the size of the matrix");
+
+  m_eivalues = eigenvalues;
+  m_eivec.resize(n, m);
+  internal::tridiagonal_inverse_iteration(diag, subdiag, eigenvalues, m_eivec);
+
+  m_info = Success;
+  m_isInitialized = true;
+  m_eigenvectorsOk = true;
+  return *this;
+}
+
+template <typename MatrixType>
+SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeEigenvectors() {
+  eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
+  eigen_assert(!m_eigenvectorsOk && m_bisectionDiag.size() == m_subdiag.size() + 1 &&
+               "computeEigenvectors() must follow an eigenvalues-only computeFromTridiagonal(..., UseBisection) call");
+  return computeEigenvectors(m_bisectionDiag, m_subdiag, m_eivalues);
 }
 
 namespace internal {
