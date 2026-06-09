@@ -936,7 +936,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(NoAlias<Dst
 }
 
 template <typename Dst, typename Src, typename Func>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Dst& dst, const Src& src,
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void call_assignment_no_alias(Dst& dst, const Src& src,
                                                                               const Func& func) {
   enum {
     NeedToTranspose = ((int(Dst::RowsAtCompileTime) == 1 && int(Src::ColsAtCompileTime) == 1) ||

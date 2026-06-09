@@ -126,8 +126,13 @@ struct product_evaluator<Product<Lhs, Rhs, Options>, ProductTag, LhsShape, RhsSh
 template <typename DstXprType, typename Lhs, typename Rhs, int Options, typename Scalar>
 struct Assignment<DstXprType, Product<Lhs, Rhs, Options>, internal::assign_op<Scalar, Scalar>, Dense2Dense,
                   std::enable_if_t<(Options == DefaultProduct || Options == AliasFreeProduct)>> {
+<<<<<<< upstream
   using SrcXprType = Product<Lhs, Rhs, Options>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
+=======
+  typedef Product<Lhs, Rhs, Options> SrcXprType;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void run(DstXprType& dst, const SrcXprType& src,
+>>>>>>> inline_change
                                                         const internal::assign_op<Scalar, Scalar>&) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
@@ -203,7 +208,7 @@ struct evaluator_assume_aliasing<
 template <typename DstXprType, typename OtherXpr, typename ProductType, typename Func1, typename Func2>
 struct assignment_from_xpr_op_product {
   template <typename SrcXprType, typename InitialFunc>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void run(DstXprType& dst, const SrcXprType& src,
                                                         const InitialFunc& /*func*/) {
     call_assignment_no_alias(dst, src.lhs(), Func1());
     call_assignment_no_alias(dst, src.rhs(), Func2());
@@ -399,7 +404,7 @@ struct generic_product_impl_base {
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dst>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     dst.setZero();
     scaleAndAddTo(dst, lhs, rhs, Scalar(1));
   }
@@ -415,7 +420,7 @@ struct generic_product_impl_base {
   }
 
   template <typename Dst>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs,
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs,
                                                                   const Scalar& alpha) {
     Derived::scaleAndAddTo(dst, lhs, rhs, alpha);
   }
@@ -431,7 +436,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
   using MatrixType = internal::remove_all_t<std::conditional_t<int(Side) == OnTheRight, LhsNested, RhsNested>>;
 
   template <typename Dest>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
                                                                   const Scalar& alpha) {
     // Fallback to inner product if both the lhs and rhs is a runtime vector.
     if (lhs.rows() == 1 && rhs.cols() == 1) {

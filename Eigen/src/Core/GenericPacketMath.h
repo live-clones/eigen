@@ -1413,25 +1413,25 @@ struct pmadd_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value && NumTraits
 // Multiply-add instructions.
 /** \internal \returns a * b + c (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pmadd(const Packet& a, const Packet& b, const Packet& c) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pmadd(const Packet& a, const Packet& b, const Packet& c) {
   return pmadd_impl<Packet>::pmadd(a, b, c);
 }
 
 /** \internal \returns a * b - c (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pmsub(const Packet& a, const Packet& b, const Packet& c) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pmsub(const Packet& a, const Packet& b, const Packet& c) {
   return pmadd_impl<Packet>::pmsub(a, b, c);
 }
 
 /** \internal \returns -(a * b) + c (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
   return pmadd_impl<Packet>::pnmadd(a, b, c);
 }
 
 /** \internal \returns -(a * b + c) (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
   return pmadd_impl<Packet>::pnmsub(a, b, c);
 }
 
@@ -1440,7 +1440,7 @@ EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const P
 // NOTE: this function must really be templated on the packet type (think about different packet types for the same
 // scalar type)
 template <typename Packet>
-inline void pstore1(typename unpacket_traits<Packet>::type* to, const typename unpacket_traits<Packet>::type& a) {
+EIGEN_ALWAYS_INLINE void pstore1(typename unpacket_traits<Packet>::type* to, const typename unpacket_traits<Packet>::type& a) {
   pstore(to, pset1<Packet>(a));
 }
 

@@ -175,7 +175,7 @@ struct gemv_static_vector_if;
 
 template <typename Scalar, int Size, int MaxSize>
 struct gemv_static_vector_if<Scalar, Size, MaxSize, false> {
-  EIGEN_DEVICE_FUNC constexpr Scalar* data() {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Scalar* data() {
     eigen_internal_assert(false && "should never be called");
     return 0;
   }
@@ -183,19 +183,19 @@ struct gemv_static_vector_if<Scalar, Size, MaxSize, false> {
 
 template <typename Scalar, int Size>
 struct gemv_static_vector_if<Scalar, Size, Dynamic, true> {
-  EIGEN_DEVICE_FUNC constexpr Scalar* data() { return 0; }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Scalar* data() { return 0; }
 };
 
 template <typename Scalar, int Size, int MaxSize>
 struct gemv_static_vector_if<Scalar, Size, MaxSize, true> {
 #if EIGEN_MAX_STATIC_ALIGN_BYTES != 0
   internal::plain_array<Scalar, internal::min_size_prefer_fixed(Size, MaxSize), 0, AlignedMax> m_data;
-  constexpr Scalar* data() { return m_data.array; }
+  EIGEN_ALWAYS_INLINE constexpr Scalar* data() { return m_data.array; }
 #else
   // Some architectures cannot align on the stack,
   // => let's manually enforce alignment by allocating more data and return the address of the first aligned element.
   internal::plain_array<Scalar, internal::min_size_prefer_fixed(Size, MaxSize) + EIGEN_MAX_ALIGN_BYTES, 0> m_data;
-  constexpr Scalar* data() {
+  EIGEN_ALWAYS_INLINE constexpr Scalar* data() {
     return reinterpret_cast<Scalar*>((std::uintptr_t(m_data.array) & ~(std::size_t(EIGEN_MAX_ALIGN_BYTES - 1))) +
                                      EIGEN_MAX_ALIGN_BYTES);
   }
@@ -206,7 +206,7 @@ struct gemv_static_vector_if<Scalar, Size, MaxSize, true> {
 template <int StorageOrder, bool BlasCompatible>
 struct gemv_dense_selector<OnTheLeft, StorageOrder, BlasCompatible> {
   template <typename Lhs, typename Rhs, typename Dest>
-  static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
+  static EIGEN_ALWAYS_INLINE void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
     Transpose<Dest> destT(dest);
     enum { OtherStorageOrder = StorageOrder == RowMajor ? ColMajor : RowMajor };
     gemv_dense_selector<OnTheRight, OtherStorageOrder, BlasCompatible>::run(rhs.transpose(), lhs.transpose(), destT,
@@ -217,7 +217,7 @@ struct gemv_dense_selector<OnTheLeft, StorageOrder, BlasCompatible> {
 template <>
 struct gemv_dense_selector<OnTheRight, ColMajor, true> {
   template <typename Lhs, typename Rhs, typename Dest>
-  static inline void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
+  static EIGEN_ALWAYS_INLINE void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
     typedef typename Lhs::Scalar LhsScalar;
     typedef typename Rhs::Scalar RhsScalar;
     typedef typename Dest::Scalar ResScalar;
@@ -305,7 +305,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
 template <>
 struct gemv_dense_selector<OnTheRight, RowMajor, true> {
   template <typename Lhs, typename Rhs, typename Dest>
-  static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
+  static EIGEN_ALWAYS_INLINE void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
     typedef typename Lhs::Scalar LhsScalar;
     typedef typename Rhs::Scalar RhsScalar;
     typedef typename Dest::Scalar ResScalar;
@@ -360,7 +360,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
 template <>
 struct gemv_dense_selector<OnTheRight, ColMajor, false> {
   template <typename Lhs, typename Rhs, typename Dest>
-  static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
+  static EIGEN_ALWAYS_INLINE void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
     EIGEN_STATIC_ASSERT((!nested_eval<Lhs, 1>::Evaluate),
                         EIGEN_INTERNAL_COMPILATION_ERROR_OR_YOU_MADE_A_PROGRAMMING_MISTAKE);
     // TODO: if rhs is large enough it might be beneficial to make sure that dest is sequentially stored in memory,
@@ -374,7 +374,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, false> {
 template <>
 struct gemv_dense_selector<OnTheRight, RowMajor, false> {
   template <typename Lhs, typename Rhs, typename Dest>
-  static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
+  static EIGEN_ALWAYS_INLINE void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
     EIGEN_STATIC_ASSERT((!nested_eval<Lhs, 1>::Evaluate),
                         EIGEN_INTERNAL_COMPILATION_ERROR_OR_YOU_MADE_A_PROGRAMMING_MISTAKE);
     typename nested_eval<Rhs, Lhs::RowsAtCompileTime>::type actual_rhs(rhs);
@@ -398,7 +398,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, false> {
  */
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Product<Derived, OtherDerived> MatrixBase<Derived>::operator*(
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Product<Derived, OtherDerived> MatrixBase<Derived>::operator*(
     const MatrixBase<OtherDerived>& other) const {
   // A note regarding the function declaration: In MSVC, this function will sometimes
   // not be inlined since DenseStorage is an unwindable object for dynamic
@@ -439,7 +439,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Product<Derived, OtherDerived> Matri
  */
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Product<Derived, OtherDerived, LazyProduct>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Product<Derived, OtherDerived, LazyProduct>
 MatrixBase<Derived>::lazyProduct(const MatrixBase<OtherDerived>& other) const {
   enum {
     ProductIsValid = Derived::ColsAtCompileTime == Dynamic || OtherDerived::RowsAtCompileTime == Dynamic ||
