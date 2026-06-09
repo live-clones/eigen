@@ -56,6 +56,15 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
   VectorType v(VectorType::Zero(N));  // initialize v
   VectorType v_new(rhs - mat * x);    // initialize v_new
   RealScalar residualNorm(v_new.stableNorm());
+  if (residualNorm == 0 || residualNorm < threshold) {
+    iters = 0;
+    tol_error = residualNorm / rhsNorm;
+    return;
+  }
+
+  // Keep the quadratic Lanczos terms representable for very small or large residuals.
+  const RealScalar residualScale = internal::iterative_solver_scaling_factor(residualNorm);
+  v_new /= residualScale;
   VectorType w(N);                         // will be initialized inside loop
   VectorType w_new(precond.solve(v_new));  // initialize w_new
   RealScalar beta_new2(v_new.dot(w_new));
@@ -112,7 +121,7 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
     p_oold = p_old;
     p_old = p;
     p.noalias() = (w - r2 * p_old - r3 * p_oold) / r1;  // IS NOALIAS REQUIRED?
-    x += beta_one * c * eta * p;
+    x += (residualScale * beta_one * c * eta) * p;
 
     /* Update the estimated residual norm. Note that this is the estimated
     residual; the real residual |Ax-b| may be slightly larger. */

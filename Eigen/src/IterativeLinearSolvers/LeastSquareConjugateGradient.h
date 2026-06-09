@@ -43,8 +43,9 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
 
   VectorType residual = rhs - mat * x;
   VectorType normal_residual = mat.adjoint() * residual;
+  VectorType normal_rhs = mat.adjoint() * rhs;
 
-  RealScalar rhsNorm = (mat.adjoint() * rhs).stableNorm();
+  RealScalar rhsNorm = normal_rhs.stableNorm();
   if (rhsNorm == 0) {
     x.setZero();
     iters = 0;
@@ -53,11 +54,16 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
   }
   RealScalar threshold = tol * rhsNorm;
   RealScalar residualNorm = normal_residual.stableNorm();
-  if (residualNorm < threshold) {
+  if (residualNorm == 0 || residualNorm < threshold) {
     iters = 0;
     tol_error = residualNorm / rhsNorm;
     return;
   }
+
+  // Keep the quadratic recurrence terms representable for very small or large residuals.
+  const RealScalar residualScale = internal::iterative_solver_scaling_factor(residualNorm);
+  normal_residual /= residualScale;
+  threshold /= residualScale;
 
   VectorType p(n);
   p = precond.solve(normal_residual);  // initial search direction
@@ -69,9 +75,10 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
     tmp.noalias() = mat * p;
 
     Scalar alpha = absNew / tmp.squaredNorm();             // the amount we travel on dir
-    x += alpha * p;                                        // update solution
-    residual -= alpha * tmp;                               // update residual
+    x += (residualScale * alpha) * p;                      // update solution
+    residual -= (residualScale * alpha) * tmp;             // update residual
     normal_residual.noalias() = mat.adjoint() * residual;  // update residual of the normal equation
+    normal_residual /= residualScale;
 
     residualNorm = normal_residual.stableNorm();
     if (residualNorm < threshold) break;
@@ -84,7 +91,7 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
     p = z + beta * p;                   // update search direction
     i++;
   }
-  tol_error = residualNorm / rhsNorm;
+  tol_error = residualNorm / (rhsNorm / residualScale);
   iters = i;
 }
 
