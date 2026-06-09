@@ -81,22 +81,22 @@ struct inner_product_evaluator {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_size.value(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar coeff(Index index) const {
     return m_func.coeff(m_lhs.coeff(index), m_rhs.coeff(index));
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& value, Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar coeff(const Scalar& value, Index index) const {
     return m_func.coeff(value, m_lhs.coeff(index), m_rhs.coeff(index));
   }
 
   template <typename PacketType, int LhsMode = LhsAlignment, int RhsMode = RhsAlignment>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketType packet(Index index) const {
     return m_func.packet(m_lhs.template packet<LhsMode, PacketType>(index),
                          m_rhs.template packet<RhsMode, PacketType>(index));
   }
 
   template <typename PacketType, int LhsMode = LhsAlignment, int RhsMode = RhsAlignment>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(const PacketType& value, Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketType packet(const PacketType& value, Index index) const {
     return m_func.packet(value, m_lhs.template packet<LhsMode, PacketType>(index),
                          m_rhs.template packet<RhsMode, PacketType>(index));
   }
@@ -114,7 +114,7 @@ struct inner_product_impl;
 template <typename Evaluator>
 struct inner_product_impl<Evaluator, false> {
   using Scalar = typename Evaluator::Scalar;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Evaluator& eval) {
     const Index size = eval.size();
     if (size == 0) return Scalar(0);
 
@@ -134,7 +134,7 @@ struct inner_product_impl<Evaluator, true> {
   using Scalar = typename Evaluator::Scalar;
   using Packet = typename Evaluator::Packet;
   static constexpr int PacketSize = unpacket_traits<Packet>::size;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Evaluator& eval) {
     const UnsignedIndex size = static_cast<UnsignedIndex>(eval.size());
     if (size < PacketSize) return inner_product_impl<Evaluator, false>::run(eval);
 

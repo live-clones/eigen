@@ -21,14 +21,14 @@ namespace internal {
 template <typename Derived, typename Scalar = typename traits<Derived>::Scalar>
 struct squared_norm_impl {
   using Real = typename NumTraits<Scalar>::Real;
-  static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Real run(const Derived& a) {
+  static EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE Real run(const Derived& a) {
     return a.realView().cwiseAbs2().sum();
   }
 };
 
 template <typename Derived>
 struct squared_norm_impl<Derived, bool> {
-  static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool run(const Derived& a) { return a.any(); }
+  static EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool run(const Derived& a) { return a.any(); }
 };
 
 }  // end namespace internal
@@ -46,7 +46,7 @@ struct squared_norm_impl<Derived, bool> {
  */
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE
+EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE
     typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
                                   typename internal::traits<OtherDerived>::Scalar>::ReturnType
     MatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const {
@@ -62,7 +62,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE
  * \sa dot(), norm(), lpNorm()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE typename NumTraits<typename internal::traits<Derived>::Scalar>::Real
+EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE typename NumTraits<typename internal::traits<Derived>::Scalar>::Real
 MatrixBase<Derived>::squaredNorm() const {
   return internal::squared_norm_impl<Derived>::run(derived());
 }
@@ -74,7 +74,7 @@ MatrixBase<Derived>::squaredNorm() const {
  * \sa lpNorm(), dot(), squaredNorm()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename NumTraits<typename internal::traits<Derived>::Scalar>::Real
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename NumTraits<typename internal::traits<Derived>::Scalar>::Real
 MatrixBase<Derived>::norm() const {
   return numext::sqrt(squaredNorm());
 }

@@ -44,12 +44,12 @@ struct general_matrix_vector_product;
 
 template <typename From, typename To>
 struct get_factor {
-  EIGEN_DEVICE_FUNC constexpr static EIGEN_STRONG_INLINE To run(const From& x) { return To(x); }
+  EIGEN_DEVICE_FUNC constexpr static EIGEN_ALWAYS_INLINE To run(const From& x) { return To(x); }
 };
 
 template <typename Scalar>
 struct get_factor<Scalar, typename NumTraits<Scalar>::Real> {
-  EIGEN_DEVICE_FUNC constexpr static EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real run(const Scalar& x) {
+  EIGEN_DEVICE_FUNC constexpr static EIGEN_ALWAYS_INLINE typename NumTraits<Scalar>::Real run(const Scalar& x) {
     return numext::real(x);
   }
 };
@@ -240,9 +240,9 @@ class blas_data_mapper<Scalar, Index, StorageOrder, AlignmentType, 1> {
     return pgather<Scalar, SubPacket>(&operator()(i, j), m_stride);
   }
 
-  EIGEN_DEVICE_FUNC constexpr const Index stride() const { return m_stride; }
-  EIGEN_DEVICE_FUNC constexpr const Index incr() const { return 1; }
-  EIGEN_DEVICE_FUNC constexpr const Scalar* data() const { return m_data; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE const Index stride() const { return m_stride; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE const Index incr() const { return 1; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE const Scalar* data() const { return m_data; }
 
   EIGEN_DEVICE_FUNC Index firstAligned(Index size) const {
     if (std::uintptr_t(m_data) % sizeof(Scalar)) {
@@ -432,9 +432,9 @@ class blas_data_mapper {
     spb.store(this, i, j, block);
   }
 
-  EIGEN_DEVICE_FUNC constexpr const Index stride() const { return m_stride; }
-  EIGEN_DEVICE_FUNC constexpr const Index incr() const { return m_incr.value(); }
-  EIGEN_DEVICE_FUNC constexpr Scalar* data() const { return m_data; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE const Index stride() const { return m_stride; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE const Index incr() const { return m_incr.value(); }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE Scalar* data() const { return m_data; }
 
  protected:
   Scalar* EIGEN_RESTRICT m_data;
@@ -477,8 +477,8 @@ struct blas_traits {
   };
   typedef std::conditional_t<bool(HasUsableDirectAccess), ExtractType, typename ExtractType_::PlainObject>
       DirectLinearAccessType;
-  EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC ExtractType extract(const XprType& x) { return x; }
-  EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC const Scalar extractScalarFactor(const XprType&) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC ExtractType extract(const XprType& x) { return x; }
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC const Scalar extractScalarFactor(const XprType&) {
     return Scalar(1);
   }
 };
@@ -491,8 +491,8 @@ struct blas_traits<CwiseUnaryOp<scalar_conjugate_op<Scalar>, NestedXpr> > : blas
   typedef typename Base::ExtractType ExtractType;
 
   enum { IsComplex = NumTraits<Scalar>::IsComplex, NeedToConjugate = Base::NeedToConjugate ? 0 : IsComplex };
-  EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.nestedExpression()); }
-  EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE ExtractType extract(const XprType& x) { return Base::extract(x.nestedExpression()); }
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE Scalar extractScalarFactor(const XprType& x) {
     return conj(Base::extractScalarFactor(x.nestedExpression()));
   }
 };
@@ -507,10 +507,10 @@ struct blas_traits<
   typedef CwiseBinaryOp<scalar_product_op<Scalar>, const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain>, NestedXpr>
       XprType;
   typedef typename Base::ExtractType ExtractType;
-  EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC ExtractType extract(const XprType& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC ExtractType extract(const XprType& x) {
     return Base::extract(x.rhs());
   }
-  EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC Scalar extractScalarFactor(const XprType& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC Scalar extractScalarFactor(const XprType& x) {
     return x.lhs().functor().m_other * Base::extractScalarFactor(x.rhs());
   }
 };
@@ -523,8 +523,8 @@ struct blas_traits<
   typedef CwiseBinaryOp<scalar_product_op<Scalar>, NestedXpr, const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain> >
       XprType;
   typedef typename Base::ExtractType ExtractType;
-  EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.lhs()); }
-  EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE ExtractType extract(const XprType& x) { return Base::extract(x.lhs()); }
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE Scalar extractScalarFactor(const XprType& x) {
     return Base::extractScalarFactor(x.lhs()) * x.rhs().functor().m_other;
   }
 };
@@ -540,8 +540,8 @@ struct blas_traits<CwiseUnaryOp<scalar_opposite_op<Scalar>, NestedXpr> > : blas_
   typedef blas_traits<NestedXpr> Base;
   typedef CwiseUnaryOp<scalar_opposite_op<Scalar>, NestedXpr> XprType;
   typedef typename Base::ExtractType ExtractType;
-  EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.nestedExpression()); }
-  EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE ExtractType extract(const XprType& x) { return Base::extract(x.nestedExpression()); }
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE Scalar extractScalarFactor(const XprType& x) {
     return -Base::extractScalarFactor(x.nestedExpression());
   }
 };
@@ -558,10 +558,10 @@ struct blas_traits<Transpose<NestedXpr> > : blas_traits<NestedXpr> {
   typedef std::conditional_t<bool(Base::HasUsableDirectAccess), ExtractType, typename ExtractType::PlainObject>
       DirectLinearAccessType;
   enum { IsTransposed = Base::IsTransposed ? 0 : 1 };
-  EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE ExtractType extract(const XprType& x) {
     return ExtractType(Base::extract(x.nestedExpression()));
   }
-  EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE Scalar extractScalarFactor(const XprType& x) {
     return Base::extractScalarFactor(x.nestedExpression());
   }
 };
@@ -578,7 +578,7 @@ struct extract_data_selector {
 
 template <typename T>
 struct extract_data_selector<T, false> {
-  EIGEN_DEVICE_FUNC constexpr static typename T::Scalar* run(const T&) { return 0; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE static typename T::Scalar* run(const T&) { return 0; }
 };
 
 template <typename T>

@@ -244,10 +244,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   }
 
   /** \returns a const pointer to the data array of this matrix */
-  EIGEN_DEVICE_FUNC constexpr const Scalar* data() const { return m_storage.data(); }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const Scalar* data() const { return m_storage.data(); }
 
   /** \returns a pointer to the data array of this matrix */
-  EIGEN_DEVICE_FUNC constexpr Scalar* data() { return m_storage.data(); }
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr Scalar* data() { return m_storage.data(); }
 
   /** Resizes \c *this to a \a rows x \a cols matrix.
    *
@@ -265,7 +265,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * \sa resize(Index) for vectors, resize(NoChange_t, Index), resize(Index, NoChange_t)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize(Index rows, Index cols) {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void resize(Index rows, Index cols) {
     eigen_assert(internal::check_implication(RowsAtCompileTime != Dynamic, rows == RowsAtCompileTime) &&
                  internal::check_implication(ColsAtCompileTime != Dynamic, cols == ColsAtCompileTime) &&
                  internal::check_implication(RowsAtCompileTime == Dynamic && MaxRowsAtCompileTime != Dynamic,
@@ -298,7 +298,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * \sa resize(Index,Index), resize(NoChange_t, Index), resize(Index, NoChange_t)
    */
-  EIGEN_DEVICE_FUNC constexpr void resize(Index size) {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void resize(Index size) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(PlainObjectBase)
     eigen_assert(((SizeAtCompileTime == Dynamic && (MaxSizeAtCompileTime == Dynamic || size <= MaxSizeAtCompileTime)) ||
                   SizeAtCompileTime == size) &&

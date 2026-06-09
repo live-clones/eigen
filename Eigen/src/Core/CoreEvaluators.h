@@ -1197,7 +1197,7 @@ struct mapbase_evaluator : evaluator_base<Derived> {
     return m_data[col * colStride() + row * rowStride()];
   }
 
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE CoeffReturnType coeff(Index index) const {
     return m_data[index * m_innerStride.value()];
   }
 
@@ -1205,7 +1205,7 @@ struct mapbase_evaluator : evaluator_base<Derived> {
     return m_data[col * colStride() + row * rowStride()];
   }
 
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE Scalar& coeffRef(Index index) {
     return m_data[index * m_innerStride.value()];
   }
 
@@ -1216,7 +1216,7 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketType packet(Index index) const {
     return ploadt<PacketType, LoadMode>(m_data + index * m_innerStride.value());
   }
 
