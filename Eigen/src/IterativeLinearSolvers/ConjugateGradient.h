@@ -60,6 +60,11 @@ EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs,
     return;
   }
 
+  // Keep the quadratic recurrence terms representable for very small or large residuals.
+  const RealScalar residualScale = internal::iterative_solver_scaling_factor(residualNorm);
+  residual /= residualScale;
+  threshold /= residualScale;
+
   VectorType p(n);
   p = precond.solve(residual);  // initial search direction
 
@@ -70,7 +75,7 @@ EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs,
     tmp.noalias() = mat * p;  // the bottleneck of the algorithm
 
     Scalar alpha = absNew / p.dot(tmp);  // the amount we travel on dir
-    x += alpha * p;                      // update solution
+    x += (residualScale * alpha) * p;    // update solution
     residual -= alpha * tmp;             // update residual
 
     residualNorm = residual.stableNorm();
@@ -84,7 +89,7 @@ EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs,
     p = z + beta * p;                        // update search direction
     i++;
   }
-  tol_error = residualNorm / rhsNorm;
+  tol_error = residualNorm / (rhsNorm / residualScale);
   iters = i;
 }
 

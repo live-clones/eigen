@@ -37,6 +37,14 @@ MatrixType random_orthonormal_basis(Index rows, Index cols) {
   return qr.householderQ() * MatrixType::Identity(rows, cols);
 }
 
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC RealScalar iterative_solver_scaling_factor(RealScalar norm) {
+  // Scale only when forming a quadratic recurrence term from norm may underflow or overflow.
+  const RealScalar sqrtMin = numext::sqrt((std::numeric_limits<RealScalar>::min)());
+  const RealScalar sqrtMax = numext::sqrt((std::numeric_limits<RealScalar>::max)());
+  return norm < sqrtMin || norm > sqrtMax ? norm : RealScalar(1);
+}
+
 template <typename MatrixType, bool MatrixFree = !internal::is_ref_compatible<MatrixType>::value>
 class generic_matrix_wrapper;
 
