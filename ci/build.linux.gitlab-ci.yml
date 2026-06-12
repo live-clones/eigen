@@ -494,8 +494,24 @@ build:linux:riscv64:gcc-14:rvv:
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=rv64gc_v_zfh_zvfh;-mrvv-vector-bits=256;-DEIGEN_RISCV64_USE_RVV10
 
+build:linux:riscv64:clang-14:default:
+  extends: .build:linux:riscv64
+  variables:
+    EIGEN_CI_C_COMPILER: clang-14
+    EIGEN_CI_CXX_COMPILER: clang++-14
+    EIGEN_CI_INSTALL: clang-14 g++-14
+
 build:linux:riscv64:gcc-14:default:smoketest:
   extends: build:linux:riscv64:gcc-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_BUILD}
+  variables:
+    EIGEN_CI_SKIP_APT: "true"
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+build:linux:riscv64:clang-14:default:smoketest:
+  extends: build:linux:riscv64:clang-14:default
   image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
