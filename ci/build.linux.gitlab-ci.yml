@@ -475,10 +475,12 @@ build:linux:cross:loongarch64:gcc-14:default:
 
 .build:linux:riscv64:
   extends: .build:linux:cross
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_TARGET_ARCH: riscv64
     EIGEN_CI_C_COMPILER: gcc-14
     EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_SKIP_APT: "true"
   tags:
     - riscv
   allow_failure: true
