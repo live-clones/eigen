@@ -92,10 +92,11 @@ EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const 
   const Packet one_p = pset1<Packet>(RealScalar(1));
 
   Packet x[kUnroll], q[kUnroll], c[kUnroll];
+  const Packet alpha_0 = pset1<Packet>(alpha[0]);
   EIGEN_UNROLL_LOOP
   for (int k = 0; k < kUnroll; ++k) {
     x[k] = ploadu<Packet>(eval_points + start + k * kPacketSize);
-    q[k] = psub(pset1<Packet>(alpha[0]), x[k]);
+    q[k] = psub(alpha_0, x[k]);
     const Packet mask = pcmp_le(q[k], pivmin_p);
     c[k] = pand(one_p, mask);
     q[k] = pselect(mask, pmin(q[k], neg_pivmin_p), q[k]);
@@ -255,10 +256,9 @@ void tridiagonal_bisection_block(const RealScalar* alpha, const RealScalar* beta
     mid = new_mid;
     if (done.all()) break;
   }
-  // Any eigenvalue that did not converge within max_iters keeps its last midpoint.
-  result = done.select(result, mid);
-
-  for (Index i = 0; i < m; ++i) out[i] = result(i);
+  // Any eigenvalue that did not converge within max_iters keeps its last midpoint, written straight
+  // into the caller's output (no aliasing temporary: select is coefficient-wise and out is disjoint).
+  Eigen::Map<ArrayType>(out, m) = done.select(result, mid);
 }
 
 /** \internal
@@ -369,7 +369,17 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // Effective tolerance and outward expansion of the bracket so that
   // count(lambda_min) == 0 and count(lambda_max) == n (cf. LAPACK xSTEBZ).
   const RealScalar tnorm = numext::maxi(numext::abs(lambda_min), numext::abs(lambda_max));
+  // Convergence tolerance: refine each bracket to ~1 ulp of ||T||. This is the role of xSTEBZ's
+  // relative tolerance (it stops once b - a < RELFAC * ulp * max(|a|, |b|), RELFAC = 2), here
+  // specialized to the matrix norm tnorm and folded together with any absolute tolerance the caller
+  // requested.
   abs_tol = numext::maxi(abs_tol, eps * tnorm);
+  // Widen the Gershgorin bracket so that, despite rounding in the Sturm recurrence, count() really does
+  // reach 0 at lambda_min and n at lambda_max. The n*eps*tnorm term bounds the worst-case count error
+  // accumulated over the n recurrence steps; the 2*pivmin term covers the pivot floor. The 2.1 prefactor
+  // is xSTEBZ's FUDGE factor: ideally 1 would suffice, but it is taken slightly larger to stay robust on
+  // sloppy arithmetic, and (per xSTEBZ) widening the bracket this way only loosens the initial search
+  // interval -- it has no effect on the accuracy of the converged eigenvalues.
   const RealScalar expand = RealScalar(2.1) * (RealScalar(n) * eps * tnorm + RealScalar(2) * pivmin);
   lambda_min -= expand;
   lambda_max += expand;
@@ -415,7 +425,7 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   if (omp_get_num_threads() == 1) {
     constexpr Index kPacketSize = Index(unpacket_traits<typename packet_traits<RealScalar>::type>::size);
     // One work unit ~ one Sturm step (a packet division); kMinTaskSize is the minimum per thread.
-    const double work = double(m) * double(n) * double(max_iters);
+    const double work = m * n * max_iters;
     const double kMinTaskSize = 131072.0;
     const Index work_threads = Index(work / kMinTaskSize);
     const Index point_threads = m / (8 * kPacketSize);

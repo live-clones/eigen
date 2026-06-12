@@ -70,10 +70,10 @@ class TridiagonalEigenSolver {
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
 
   /** \brief Default constructor. Call computeEigenvalues() before querying any result. */
-  TridiagonalEigenSolver() : m_eivalues(), m_info(InvalidInput), m_isInitialized(false) {}
+  TridiagonalEigenSolver() = default;
 
   /** \brief Constructor pre-allocating room for the eigenvalues of a matrix of dimension \a size. */
-  explicit TridiagonalEigenSolver(Index size) : m_eivalues(size), m_info(InvalidInput), m_isInitialized(false) {}
+  explicit TridiagonalEigenSolver(Index size) : m_eivalues(size) {}
 
   /** \brief Computes the selected eigenvalues of a real symmetric tridiagonal matrix.
    *
@@ -115,8 +115,8 @@ class TridiagonalEigenSolver {
 
  protected:
   VectorType m_eivalues;
-  ComputationInfo m_info;
-  bool m_isInitialized;
+  ComputationInfo m_info = InvalidInput;
+  bool m_isInitialized = false;
 };
 
 template <typename Scalar_>
