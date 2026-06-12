@@ -171,10 +171,13 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void general_matrix_vector_product<
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC inline void
-general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
-                              Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
-                                            ResScalar* res, Index resIncr, RhsScalar alpha) {
+EIGEN_DEVICE_FUNC void general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLhs, RhsScalar,
+                                                     RhsMapper, ConjugateRhs, Version>::run(Index rows, Index cols,
+                                                                                            const LhsMapper& alhs,
+                                                                                            const RhsMapper& rhs,
+                                                                                            ResScalar* res,
+                                                                                            Index resIncr,
+                                                                                            RhsScalar alpha) {
   EIGEN_UNUSED_VARIABLE(resIncr);
   eigen_internal_assert(resIncr == 1);
 
@@ -306,8 +309,8 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, Conj
   typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
   typedef typename QuarterTraits::ResPacket ResPacketQuarter;
 
-  EIGEN_DEVICE_FUNC static inline void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
-                                           ResScalar* res, Index resIncr, ResScalar alpha);
+  EIGEN_DEVICE_FUNC static void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs, ResScalar* res,
+                                    Index resIncr, ResScalar alpha);
 
   // Specialized path for when cols < full packet size.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,

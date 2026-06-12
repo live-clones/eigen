@@ -35,7 +35,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_sum_op : binary_op_base<LhsScalar, RhsScalar> {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_sum_op>::ReturnType result_type;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_sum_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_sum_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -46,7 +46,7 @@ struct scalar_sum_op : binary_op_base<LhsScalar, RhsScalar> {
     return internal::padd(a, b);
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type predux(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type predux(const Packet& a) const {
     return internal::predux(a);
   }
 };
@@ -75,7 +75,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_product_op : binary_op_base<LhsScalar, RhsScalar> {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_product_op>::ReturnType result_type;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_product_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_product_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -86,7 +86,7 @@ struct scalar_product_op : binary_op_base<LhsScalar, RhsScalar> {
     return internal::pmul(a, b);
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type predux(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type predux(const Packet& a) const {
     return internal::predux_mul(a);
   }
 };
@@ -151,7 +151,7 @@ struct scalar_min_op : binary_op_base<LhsScalar, RhsScalar> {
     return internal::pmin<NaNPropagation>(a, b);
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type predux(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr result_type predux(const Packet& a) const {
     return internal::predux_min<NaNPropagation>(a);
   }
 };
@@ -368,7 +368,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_difference_op : binary_op_base<LhsScalar, RhsScalar> {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_difference_op>::ReturnType result_type;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -417,7 +417,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_quotient_op : binary_op_base<LhsScalar, RhsScalar> {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_quotient_op>::ReturnType result_type;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_quotient_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_quotient_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
@@ -646,7 +646,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_absolute_difference_op : binary_op_base<LhsScalar, RhsScalar> {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_absolute_difference_op>::ReturnType result_type;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
-  scalar_absolute_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+  constexpr scalar_absolute_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
