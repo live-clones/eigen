@@ -193,7 +193,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
   // FIXME: check that the dimensions of other match the dimensions of *this.
   // Unfortunately this isn't possible yet when the rhs is an expression.
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorFixedSize)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorFixedSize)
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool checkIndexRange(const array<Index, NumIndices>& /*indices*/) const {
