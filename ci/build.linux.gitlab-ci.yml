@@ -497,13 +497,13 @@ build:linux:riscv64:gcc-14:rvv:
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=rv64gc_v_zfh_zvfh;-mrvv-vector-bits=256;-DEIGEN_RISCV64_USE_RVV10
 
-build:linux:riscv64:clang-14:default:
+build:linux:riscv64:clang-18:default:
   extends: .build:linux:riscv64
   variables:
-    EIGEN_CI_INSTALL: clang-14
-    EIGEN_CI_C_COMPILER: clang-14
-    EIGEN_CI_CXX_COMPILER: clang++-14
-    EIGEN_CI_CROSS_INSTALL: g++-14-riscv64-linux-gnu clang-14
+    EIGEN_CI_INSTALL: clang-18
+    EIGEN_CI_C_COMPILER: clang-18
+    EIGEN_CI_CXX_COMPILER: clang++-18
+    EIGEN_CI_CROSS_INSTALL: g++-14-riscv64-linux-gnu clang-18
 
 build:linux:riscv64:gcc-14:default:smoketest:
   extends: build:linux:riscv64:gcc-14:default
@@ -514,8 +514,8 @@ build:linux:riscv64:gcc-14:default:smoketest:
   tags:
     - saas-linux-medium-amd64
 
-build:linux:riscv64:clang-14:default:smoketest:
-  extends: build:linux:riscv64:clang-14:default
+build:linux:riscv64:clang-18:default:smoketest:
+  extends: build:linux:riscv64:clang-18:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:

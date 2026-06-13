@@ -17,6 +17,6 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
       cmake ninja-build git \
       gcc-14 g++-14 \
-      clang-14 \
+      clang-18 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
