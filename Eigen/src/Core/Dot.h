@@ -31,6 +31,371 @@ struct squared_norm_impl<Derived, bool> {
   static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool run(const Derived& a) { return a.any(); }
 };
 
+template <typename T>
+struct has_direct_data_and_stride {
+  static constexpr bool value = bool(traits<T>::Flags & DirectAccessBit);
+};
+
+template <typename T, typename Enable = void>
+struct clean_dot_xpr_helper {
+  using type = T;
+  static constexpr bool direct_access = has_direct_data_and_stride<T>::value;
+  static constexpr bool linear_access = has_direct_data_and_stride<T>::value;
+  static constexpr bool conj_lhs = true;
+  static constexpr bool conj_rhs = false;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const T& get(const T& xpr) { return xpr; }
+};
+
+template <typename Scalar, typename Xpr>
+struct clean_dot_xpr_helper<CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>> {
+  using type = Xpr;
+  static constexpr bool direct_access = has_direct_data_and_stride<Xpr>::value;
+  static constexpr bool linear_access = has_direct_data_and_stride<Xpr>::value;
+  static constexpr bool conj_lhs = false;
+  static constexpr bool conj_rhs = true;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const Xpr& get(const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>& xpr) { return xpr.nestedExpression(); }
+};
+
+template <typename Scalar, typename Xpr>
+struct clean_dot_xpr_helper<const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>> {
+  using type = Xpr;
+  static constexpr bool direct_access = has_direct_data_and_stride<Xpr>::value;
+  static constexpr bool linear_access = has_direct_data_and_stride<Xpr>::value;
+  static constexpr bool conj_lhs = false;
+  static constexpr bool conj_rhs = true;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr const Xpr& get(const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Xpr>& xpr) { return xpr.nestedExpression(); }
+};
+
+template <typename PacketCplx, bool Vectorizable>
+struct get_as_real {
+  using type = PacketCplx;
+};
+
+template <typename PacketCplx>
+struct get_as_real<PacketCplx, true> {
+  using type = typename unpacket_traits<PacketCplx>::as_real;
+};
+
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs, typename Enable = void>
+struct generic_dot_impl_helper {
+  using ResultType = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ResultType run(const LhsScalar* lhs, const RhsScalar* rhs, Index size) {
+    ResultType res(0);
+    for (Index i = 0; i < size; ++i) {
+      if constexpr (ConjLhs && ConjRhs) {
+        res += numext::conj(lhs[i]) * numext::conj(rhs[i]);
+      } else if constexpr (ConjLhs) {
+        res += numext::conj(lhs[i]) * rhs[i];
+      } else if constexpr (ConjRhs) {
+        res += lhs[i] * numext::conj(rhs[i]);
+      } else {
+        res += lhs[i] * rhs[i];
+      }
+    }
+    return res;
+  }
+};
+
+// Specialization for Same-Type Vectorizable (LhsScalar == RhsScalar)
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs>
+struct generic_dot_impl_helper<LhsScalar, RhsScalar, ConjLhs, ConjRhs,
+    std::enable_if_t<internal::is_same<LhsScalar, RhsScalar>::value>> {
+  using ResultType = LhsScalar;
+  using Packet = typename packet_traits<ResultType>::type;
+  static constexpr bool Vectorizable = packet_traits<ResultType>::Vectorizable &&
+                                       packet_traits<ResultType>::HasAdd &&
+                                       packet_traits<ResultType>::HasMul;
+  static constexpr int PacketSize = unpacket_traits<Packet>::size;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ResultType run(const LhsScalar* lhs, const RhsScalar* rhs, Index size) {
+    if constexpr (Vectorizable) {
+      if (size < PacketSize) {
+        ResultType res(0);
+        for (Index i = 0; i < size; ++i) {
+          if constexpr (ConjLhs && ConjRhs) {
+            res += numext::conj(lhs[i]) * numext::conj(rhs[i]);
+          } else if constexpr (ConjLhs) {
+            res += numext::conj(lhs[i]) * rhs[i];
+          } else if constexpr (ConjRhs) {
+            res += lhs[i] * numext::conj(rhs[i]);
+          } else {
+            res += lhs[i] * rhs[i];
+          }
+        }
+        return res;
+      }
+
+      Index numPackets = size / PacketSize;
+      Index quadPackets = numPackets / 4;
+      Index remPackets = numPackets % 4;
+
+      conj_helper<Packet, Packet, ConjLhs, ConjRhs> cj;
+      Packet acc0, acc1, acc2, acc3;
+      acc0 = cj.pmul(ploadu<Packet>(lhs + 0 * PacketSize), ploadu<Packet>(rhs + 0 * PacketSize));
+
+      if (numPackets >= 2) {
+        acc1 = cj.pmul(ploadu<Packet>(lhs + 1 * PacketSize), ploadu<Packet>(rhs + 1 * PacketSize));
+      }
+      if (numPackets >= 3) {
+        acc2 = cj.pmul(ploadu<Packet>(lhs + 2 * PacketSize), ploadu<Packet>(rhs + 2 * PacketSize));
+      }
+      if (numPackets >= 4) {
+        acc3 = cj.pmul(ploadu<Packet>(lhs + 3 * PacketSize), ploadu<Packet>(rhs + 3 * PacketSize));
+
+        Index i = 4 * PacketSize;
+        for (Index q = 1; q < quadPackets; ++q) {
+          acc0 = cj.pmadd(ploadu<Packet>(lhs + i + 0 * PacketSize), ploadu<Packet>(rhs + i + 0 * PacketSize), acc0);
+          acc1 = cj.pmadd(ploadu<Packet>(lhs + i + 1 * PacketSize), ploadu<Packet>(rhs + i + 1 * PacketSize), acc1);
+          acc2 = cj.pmadd(ploadu<Packet>(lhs + i + 2 * PacketSize), ploadu<Packet>(rhs + i + 2 * PacketSize), acc2);
+          acc3 = cj.pmadd(ploadu<Packet>(lhs + i + 3 * PacketSize), ploadu<Packet>(rhs + i + 3 * PacketSize), acc3);
+          i += 4 * PacketSize;
+        }
+
+        if (remPackets >= 1) {
+          acc0 = cj.pmadd(ploadu<Packet>(lhs + i + 0 * PacketSize), ploadu<Packet>(rhs + i + 0 * PacketSize), acc0);
+        }
+        if (remPackets >= 2) {
+          acc1 = cj.pmadd(ploadu<Packet>(lhs + i + 1 * PacketSize), ploadu<Packet>(rhs + i + 1 * PacketSize), acc1);
+        }
+        if (remPackets >= 3) {
+          acc2 = cj.pmadd(ploadu<Packet>(lhs + i + 2 * PacketSize), ploadu<Packet>(rhs + i + 2 * PacketSize), acc2);
+        }
+
+        acc2 = padd(acc2, acc3);
+      }
+
+      if (numPackets >= 3) acc1 = padd(acc1, acc2);
+      if (numPackets >= 2) acc0 = padd(acc0, acc1);
+
+      ResultType res = predux(acc0);
+      Index packet_end = numPackets * PacketSize;
+      for (Index i = packet_end; i < size; ++i) {
+        if constexpr (ConjLhs && ConjRhs) {
+          res += numext::conj(lhs[i]) * numext::conj(rhs[i]);
+        } else if constexpr (ConjLhs) {
+          res += numext::conj(lhs[i]) * rhs[i];
+        } else if constexpr (ConjRhs) {
+          res += lhs[i] * numext::conj(rhs[i]);
+        } else {
+          res += lhs[i] * rhs[i];
+        }
+      }
+      return res;
+    }
+    ResultType res(0);
+    for (Index i = 0; i < size; ++i) {
+      if constexpr (ConjLhs && ConjRhs) {
+        res += numext::conj(lhs[i]) * numext::conj(rhs[i]);
+      } else if constexpr (ConjLhs) {
+        res += numext::conj(lhs[i]) * rhs[i];
+      } else if constexpr (ConjRhs) {
+        res += lhs[i] * numext::conj(rhs[i]);
+      } else {
+        res += lhs[i] * rhs[i];
+      }
+    }
+    return res;
+  }
+};
+
+// Specialization for Real LHS and Complex RHS
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs>
+struct generic_dot_impl_helper<LhsScalar, RhsScalar, ConjLhs, ConjRhs,
+    std::enable_if_t<!NumTraits<LhsScalar>::IsComplex && NumTraits<RhsScalar>::IsComplex>> {
+  using ResultType = RhsScalar;
+  using PacketCplx = typename packet_traits<ResultType>::type;
+  static constexpr bool Vectorizable = packet_traits<ResultType>::Vectorizable &&
+                                       packet_traits<ResultType>::HasAdd &&
+                                       packet_traits<ResultType>::HasMul;
+  using PacketReal = typename get_as_real<PacketCplx, Vectorizable>::type;
+  static constexpr int PacketSize = unpacket_traits<PacketCplx>::size;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ResultType run(const LhsScalar* lhs, const RhsScalar* rhs, Index size) {
+    if constexpr (Vectorizable) {
+      if (size < PacketSize) {
+        ResultType res(0);
+        for (Index i = 0; i < size; ++i) {
+          if constexpr (ConjRhs) {
+            res += lhs[i] * numext::conj(rhs[i]);
+          } else {
+            res += lhs[i] * rhs[i];
+          }
+        }
+        return res;
+      }
+
+      Index numPackets = size / PacketSize;
+      Index quadPackets = numPackets / 4;
+      Index remPackets = numPackets % 4;
+
+      conj_helper<PacketReal, PacketCplx, false, false> cj;
+      auto load_rhs = [](const RhsScalar* ptr) EIGEN_LAMBDA_ALWAYS_INLINE {
+        if constexpr (ConjRhs) {
+          return pconj(ploadu<PacketCplx>(ptr));
+        } else {
+          return ploadu<PacketCplx>(ptr);
+        }
+      };
+
+      PacketCplx acc0, acc1, acc2, acc3;
+      acc0 = cj.pmul(ploaddup<PacketReal>(lhs + 0 * PacketSize), load_rhs(rhs + 0 * PacketSize));
+
+      if (numPackets >= 2) {
+        acc1 = cj.pmul(ploaddup<PacketReal>(lhs + 1 * PacketSize), load_rhs(rhs + 1 * PacketSize));
+      }
+      if (numPackets >= 3) {
+        acc2 = cj.pmul(ploaddup<PacketReal>(lhs + 2 * PacketSize), load_rhs(rhs + 2 * PacketSize));
+      }
+      if (numPackets >= 4) {
+        acc3 = cj.pmul(ploaddup<PacketReal>(lhs + 3 * PacketSize), load_rhs(rhs + 3 * PacketSize));
+
+        Index i = 4 * PacketSize;
+        for (Index q = 1; q < quadPackets; ++q) {
+          acc0 = cj.pmadd(ploaddup<PacketReal>(lhs + i + 0 * PacketSize), load_rhs(rhs + i + 0 * PacketSize), acc0);
+          acc1 = cj.pmadd(ploaddup<PacketReal>(lhs + i + 1 * PacketSize), load_rhs(rhs + i + 1 * PacketSize), acc1);
+          acc2 = cj.pmadd(ploaddup<PacketReal>(lhs + i + 2 * PacketSize), load_rhs(rhs + i + 2 * PacketSize), acc2);
+          acc3 = cj.pmadd(ploaddup<PacketReal>(lhs + i + 3 * PacketSize), load_rhs(rhs + i + 3 * PacketSize), acc3);
+          i += 4 * PacketSize;
+        }
+
+        if (remPackets >= 1) {
+          acc0 = cj.pmadd(ploaddup<PacketReal>(lhs + i + 0 * PacketSize), load_rhs(rhs + i + 0 * PacketSize), acc0);
+        }
+        if (remPackets >= 2) {
+          acc1 = cj.pmadd(ploaddup<PacketReal>(lhs + i + 1 * PacketSize), load_rhs(rhs + i + 1 * PacketSize), acc1);
+        }
+        if (remPackets >= 3) {
+          acc2 = cj.pmadd(ploaddup<PacketReal>(lhs + i + 2 * PacketSize), load_rhs(rhs + i + 2 * PacketSize), acc2);
+        }
+
+        acc2 = padd(acc2, acc3);
+      }
+
+      if (numPackets >= 3) acc1 = padd(acc1, acc2);
+      if (numPackets >= 2) acc0 = padd(acc0, acc1);
+
+      ResultType res = predux(acc0);
+      Index packet_end = numPackets * PacketSize;
+      for (Index i = packet_end; i < size; ++i) {
+        if constexpr (ConjRhs) {
+          res += lhs[i] * numext::conj(rhs[i]);
+        } else {
+          res += lhs[i] * rhs[i];
+        }
+      }
+      return res;
+    }
+    ResultType res(0);
+    for (Index i = 0; i < size; ++i) {
+      if constexpr (ConjRhs) {
+        res += lhs[i] * numext::conj(rhs[i]);
+      } else {
+        res += lhs[i] * rhs[i];
+      }
+    }
+    return res;
+  }
+};
+
+// Specialization for Complex LHS and Real RHS
+template <typename LhsScalar, typename RhsScalar, bool ConjLhs, bool ConjRhs>
+struct generic_dot_impl_helper<LhsScalar, RhsScalar, ConjLhs, ConjRhs,
+    std::enable_if_t<NumTraits<LhsScalar>::IsComplex && !NumTraits<RhsScalar>::IsComplex>> {
+  using ResultType = LhsScalar;
+  using PacketCplx = typename packet_traits<ResultType>::type;
+  static constexpr bool Vectorizable = packet_traits<ResultType>::Vectorizable &&
+                                       packet_traits<ResultType>::HasAdd &&
+                                       packet_traits<ResultType>::HasMul;
+  using PacketReal = typename get_as_real<PacketCplx, Vectorizable>::type;
+  static constexpr int PacketSize = unpacket_traits<PacketCplx>::size;
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE ResultType run(const LhsScalar* lhs, const RhsScalar* rhs, Index size) {
+    if constexpr (Vectorizable) {
+      if (size < PacketSize) {
+        ResultType res(0);
+        for (Index i = 0; i < size; ++i) {
+          if constexpr (ConjLhs) {
+            res += numext::conj(lhs[i]) * rhs[i];
+          } else {
+            res += lhs[i] * rhs[i];
+          }
+        }
+        return res;
+      }
+
+      Index numPackets = size / PacketSize;
+      Index quadPackets = numPackets / 4;
+      Index remPackets = numPackets % 4;
+
+      conj_helper<PacketCplx, PacketReal, false, false> cj;
+      auto load_lhs = [](const LhsScalar* ptr) EIGEN_LAMBDA_ALWAYS_INLINE {
+        if constexpr (ConjLhs) {
+          return pconj(ploadu<PacketCplx>(ptr));
+        } else {
+          return ploadu<PacketCplx>(ptr);
+        }
+      };
+
+      PacketCplx acc0, acc1, acc2, acc3;
+      acc0 = cj.pmul(load_lhs(lhs + 0 * PacketSize), ploaddup<PacketReal>(rhs + 0 * PacketSize));
+
+      if (numPackets >= 2) {
+        acc1 = cj.pmul(load_lhs(lhs + 1 * PacketSize), ploaddup<PacketReal>(rhs + 1 * PacketSize));
+      }
+      if (numPackets >= 3) {
+        acc2 = cj.pmul(load_lhs(lhs + 2 * PacketSize), ploaddup<PacketReal>(rhs + 2 * PacketSize));
+      }
+      if (numPackets >= 4) {
+        acc3 = cj.pmul(load_lhs(lhs + 3 * PacketSize), ploaddup<PacketReal>(rhs + 3 * PacketSize));
+
+        Index i = 4 * PacketSize;
+        for (Index q = 1; q < quadPackets; ++q) {
+          acc0 = cj.pmadd(load_lhs(lhs + i + 0 * PacketSize), ploaddup<PacketReal>(rhs + i + 0 * PacketSize), acc0);
+          acc1 = cj.pmadd(load_lhs(lhs + i + 1 * PacketSize), ploaddup<PacketReal>(rhs + i + 1 * PacketSize), acc1);
+          acc2 = cj.pmadd(load_lhs(lhs + i + 2 * PacketSize), ploaddup<PacketReal>(rhs + i + 2 * PacketSize), acc2);
+          acc3 = cj.pmadd(load_lhs(lhs + i + 3 * PacketSize), ploaddup<PacketReal>(rhs + i + 3 * PacketSize), acc3);
+          i += 4 * PacketSize;
+        }
+
+        if (remPackets >= 1) {
+          acc0 = cj.pmadd(load_lhs(lhs + i + 0 * PacketSize), ploaddup<PacketReal>(rhs + i + 0 * PacketSize), acc0);
+        }
+        if (remPackets >= 2) {
+          acc1 = cj.pmadd(load_lhs(lhs + i + 1 * PacketSize), ploaddup<PacketReal>(rhs + i + 1 * PacketSize), acc1);
+        }
+        if (remPackets >= 3) {
+          acc2 = cj.pmadd(load_lhs(lhs + i + 2 * PacketSize), ploaddup<PacketReal>(rhs + i + 2 * PacketSize), acc2);
+        }
+
+        acc2 = padd(acc2, acc3);
+      }
+
+      if (numPackets >= 3) acc1 = padd(acc1, acc2);
+      if (numPackets >= 2) acc0 = padd(acc0, acc1);
+
+      ResultType res = predux(acc0);
+      Index packet_end = numPackets * PacketSize;
+      for (Index i = packet_end; i < size; ++i) {
+        if constexpr (ConjLhs) {
+          res += numext::conj(lhs[i]) * rhs[i];
+        } else {
+          res += lhs[i] * rhs[i];
+        }
+      }
+      return res;
+    }
+    ResultType res(0);
+    for (Index i = 0; i < size; ++i) {
+      if constexpr (ConjLhs) {
+        res += numext::conj(lhs[i]) * rhs[i];
+      } else {
+        res += lhs[i] * rhs[i];
+      }
+    }
+    return res;
+  }
+};
+
 }  // end namespace internal
 
 /** \fn MatrixBase::dot
@@ -50,6 +415,23 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE
     typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
                                   typename internal::traits<OtherDerived>::Scalar>::ReturnType
     MatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const {
+  using LhsScalar = typename internal::traits<Derived>::Scalar;
+  using RhsScalar = typename internal::traits<OtherDerived>::Scalar;
+  if constexpr (internal::clean_dot_xpr_helper<Derived>::direct_access &&
+                internal::clean_dot_xpr_helper<OtherDerived>::direct_access &&
+                internal::clean_dot_xpr_helper<Derived>::linear_access &&
+                internal::clean_dot_xpr_helper<OtherDerived>::linear_access &&
+                internal::inner_stride_at_compile_time<typename internal::clean_dot_xpr_helper<Derived>::type>::value != 1) {
+    const auto& lhs_clean = internal::clean_dot_xpr_helper<Derived>::get(derived());
+    const auto& rhs_clean = internal::clean_dot_xpr_helper<OtherDerived>::get(other.derived());
+    if (lhs_clean.innerStride() == 1 && rhs_clean.innerStride() == 1 &&
+        (bool(Derived::IsVectorAtCompileTime) || lhs_clean.rows() == 1 || lhs_clean.cols() == 1) &&
+        (bool(OtherDerived::IsVectorAtCompileTime) || rhs_clean.rows() == 1 || rhs_clean.cols() == 1)) {
+      return internal::generic_dot_impl_helper<LhsScalar, RhsScalar, internal::clean_dot_xpr_helper<Derived>::conj_lhs,
+                                               internal::clean_dot_xpr_helper<OtherDerived>::conj_rhs>::run(
+          lhs_clean.data(), rhs_clean.data(), lhs_clean.size());
+    }
+  }
   return internal::dot_impl<Derived, OtherDerived>::run(derived(), other.derived());
 }
 
