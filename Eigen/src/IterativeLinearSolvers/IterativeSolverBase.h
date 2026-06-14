@@ -26,7 +26,7 @@ template <typename MatrixType>
 struct is_ref_compatible_impl : decltype(is_ref_compatible_test(std::declval<MatrixType&>())) {};
 
 template <typename MatrixType>
-struct is_ref_compatible : std::integral_constant<bool, is_ref_compatible_impl<remove_all_t<MatrixType>>::value> {};
+struct is_ref_compatible : bool_constant<is_ref_compatible_impl<remove_all_t<MatrixType>>::value> {};
 
 // Returns a \a rows x \a cols matrix whose columns are an orthonormal basis of a random subspace,
 // obtained by QR-orthonormalizing a random matrix. The IDR(s)-type solvers use this to build the
