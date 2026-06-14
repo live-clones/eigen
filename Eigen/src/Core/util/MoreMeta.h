@@ -281,7 +281,7 @@ constexpr auto arg_sum(Ts... ts) {
 // an infinite loop)
 template <typename Reducer, typename T, std::size_t N, std::size_t n = N - 1>
 struct h_array_reduce {
-  EIGEN_DEVICE_FUNC constexpr static auto run(array<T, N> arr, T identity) {
+  EIGEN_DEVICE_FUNC constexpr static auto run(const array<T, N>& arr, T identity) {
     return Reducer::run(h_array_reduce<Reducer, T, N, n - 1>::run(arr, identity), array_get<n>(arr));
   }
 };
