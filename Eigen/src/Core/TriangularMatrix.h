@@ -837,15 +837,15 @@ struct AssignmentKind<TriangularShape, DenseShape> {
 };
 
 template <typename Shape>
-struct is_dense_structured_shape : std::integral_constant<bool, std::is_same<Shape, TriangularShape>::value ||
-                                                                    std::is_same<Shape, SelfAdjointShape>::value> {};
+struct is_dense_structured_shape
+    : bool_constant<std::is_same<Shape, TriangularShape>::value || std::is_same<Shape, SelfAdjointShape>::value> {};
 
 template <typename Lhs, typename Rhs>
 struct is_dense_structured_diagonal_product
-    : std::integral_constant<bool, (is_dense_structured_shape<typename evaluator_traits<Lhs>::Shape>::value &&
-                                    std::is_same<typename evaluator_traits<Rhs>::Shape, DiagonalShape>::value) ||
-                                       (std::is_same<typename evaluator_traits<Lhs>::Shape, DiagonalShape>::value &&
-                                        is_dense_structured_shape<typename evaluator_traits<Rhs>::Shape>::value)> {};
+    : bool_constant<(is_dense_structured_shape<typename evaluator_traits<Lhs>::Shape>::value &&
+                     std::is_same<typename evaluator_traits<Rhs>::Shape, DiagonalShape>::value) ||
+                    (std::is_same<typename evaluator_traits<Lhs>::Shape, DiagonalShape>::value &&
+                     is_dense_structured_shape<typename evaluator_traits<Rhs>::Shape>::value)> {};
 
 template <typename DstXprType, typename SrcXprType, typename Functor>
 struct Assignment<DstXprType, SrcXprType, Functor, Triangular2Triangular> {
