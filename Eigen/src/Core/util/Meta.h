@@ -349,6 +349,8 @@ struct scalar_product_traits {
 
 /** \internal Obtains a POD type suitable to use as storage for an object of a size
  * of at most Len bytes, aligned as specified by \c Align.
+ *
+ * Keep this helper instead of std::aligned_storage_t deprecated in C++23.
  */
 template <unsigned Len, unsigned Align>
 struct aligned_storage {
