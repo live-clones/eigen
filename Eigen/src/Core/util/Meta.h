@@ -91,8 +91,12 @@ namespace internal {
  * we however don't want to add a dependency to Boost.
  */
 
+#if EIGEN_MAX_CPP_VER >= 17 && EIGEN_COMP_CXXVER >= 17
+using std::bool_constant;
+#else
 template <bool Condition>
 using bool_constant = std::integral_constant<bool, Condition>;
+#endif
 
 // Deprecated compatibility aliases. Third-party libraries rely on these, but new code should use std:: directly.
 using std::conditional;
@@ -457,7 +461,7 @@ constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
 
 // true if T can be considered as an integral index (i.e., an integral type or enum)
 template <typename T>
-struct is_valid_index_type : std::integral_constant<bool, std::is_integral<T>::value || std::is_enum<T>::value> {};
+using is_valid_index_type = bool_constant<std::is_integral<T>::value || std::is_enum<T>::value>;
 
 template <typename A, typename B>
 constexpr void plain_enum_asserts(A, B) {

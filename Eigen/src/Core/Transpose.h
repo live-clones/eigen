@@ -356,12 +356,12 @@ namespace internal {
 
 template <bool DestIsTransposed, typename OtherDerived>
 struct check_transpose_aliasing_compile_time_selector
-    : std::integral_constant<bool, bool(blas_traits<OtherDerived>::IsTransposed) != DestIsTransposed> {};
+    : bool_constant<bool(blas_traits<OtherDerived>::IsTransposed) != DestIsTransposed> {};
 
 template <bool DestIsTransposed, typename BinOp, typename DerivedA, typename DerivedB>
 struct check_transpose_aliasing_compile_time_selector<DestIsTransposed, CwiseBinaryOp<BinOp, DerivedA, DerivedB> >
-    : std::integral_constant<bool, bool(blas_traits<DerivedA>::IsTransposed) != DestIsTransposed ||
-                                       bool(blas_traits<DerivedB>::IsTransposed) != DestIsTransposed> {};
+    : bool_constant<bool(blas_traits<DerivedA>::IsTransposed) != DestIsTransposed ||
+                    bool(blas_traits<DerivedB>::IsTransposed) != DestIsTransposed> {};
 
 template <typename Scalar, bool DestIsTransposed, typename OtherDerived>
 struct check_transpose_aliasing_run_time_selector {
