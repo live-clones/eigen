@@ -450,13 +450,8 @@ constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const doub
 namespace internal {
 
 template <typename Scalar>
-struct is_identically_zero_impl {
-  static constexpr bool run(const Scalar& s) { return numext::is_exactly_zero(s); }
-};
-
-template <typename Scalar>
 constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
-  return is_identically_zero_impl<Scalar>::run(s);
+  return numext::is_exactly_zero(s);
 }
 
 // true if T can be considered as an integral index (i.e., an integral type or enum)
