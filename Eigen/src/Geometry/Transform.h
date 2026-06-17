@@ -429,7 +429,7 @@ class Transform {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename internal::transform_right_product_impl<Transform,
                                                                                               OtherDerived>::ResultType
-  operator*(const EigenBase<OtherDerived>& other) const {
+  operator*(const MatrixBase<OtherDerived>& other) const {
     return internal::transform_right_product_impl<Transform, OtherDerived>::run(*this, other.derived());
   }
 
@@ -443,7 +443,7 @@ class Transform {
   template <typename OtherDerived>
   friend EIGEN_DEVICE_FUNC inline const typename internal::transform_left_product_impl<OtherDerived, Mode, Options,
                                                                                        Dim_, Dim_ + 1>::ResultType
-  operator*(const EigenBase<OtherDerived>& a, const Transform& b) {
+  operator*(const MatrixBase<OtherDerived>& a, const Transform& b) {
     return internal::transform_left_product_impl<OtherDerived, Mode, Options, Dim, HDim>::run(a.derived(), b);
   }
 
@@ -478,7 +478,7 @@ class Transform {
   }
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline Transform& operator*=(const EigenBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC inline Transform& operator*=(const MatrixBase<OtherDerived>& other) {
     return *this = *this * other;
   }
 
@@ -1270,7 +1270,7 @@ struct transform_construct_from_matrix<Other, AffineCompact, Options, Dim, HDim,
 };
 
 /**********************************************************
-***   Specializations of operator* with rhs EigenBase   ***
+***   Specializations of operator* with rhs MatrixBase  ***
 **********************************************************/
 
 template <int LhsMode, int RhsMode>
