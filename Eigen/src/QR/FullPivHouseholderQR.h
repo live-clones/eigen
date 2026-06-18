@@ -187,6 +187,7 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
    *
    * \returns the exact or least-square solution if the rank is greater or equal to the number of columns of A,
    * and an arbitrary solution otherwise.
+   * For overdetermined systems, the least-square solution minimizes the Euclidean norm \f$ \Vert A x - b \Vert \f$.
    *
    * \note_about_checking_solutions
    *

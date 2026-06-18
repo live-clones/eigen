@@ -81,8 +81,8 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>Slow (no blocking)</td>
         <td>Proven</td>
         <td>Yes</td>
-        <td>Orthogonalization</td>
-        <td>Yes</td>
+        <td>Orthogonalization, least squares for overdetermined systems</td>
+        <td>Yes (and does least squares)</td>
         <td>Average</td>
         <td>-</td>
     </tr>
