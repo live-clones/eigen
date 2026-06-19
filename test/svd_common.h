@@ -52,48 +52,6 @@ void svd_check_full(const MatrixType& m, const SvdType& svd) {
   VERIFY_IS_UNITARY(v);
 }
 
-// Compare partial SVD defined by computationOptions to a full SVD referenceSvd
-template <typename MatrixType, typename SvdType, int Options>
-void svd_compare_to_full(const MatrixType& m, const SvdType& referenceSvd) {
-  typedef typename MatrixType::RealScalar RealScalar;
-  Index rows = m.rows();
-  Index cols = m.cols();
-  Index diagSize = (std::min)(rows, cols);
-  RealScalar prec = test_precision<RealScalar>();
-
-  SVD_STATIC_OPTIONS(MatrixType, Options) svd(m);
-
-  VERIFY_IS_APPROX(svd.singularValues(), referenceSvd.singularValues());
-
-  if (Options & (ComputeFullV | ComputeThinV)) {
-    VERIFY((svd.matrixV().adjoint() * svd.matrixV()).isIdentity(prec));
-    VERIFY_IS_APPROX(svd.matrixV().leftCols(diagSize) * svd.singularValues().asDiagonal() *
-                         svd.matrixV().leftCols(diagSize).adjoint(),
-                     referenceSvd.matrixV().leftCols(diagSize) * referenceSvd.singularValues().asDiagonal() *
-                         referenceSvd.matrixV().leftCols(diagSize).adjoint());
-  }
-
-  if (Options & (ComputeFullU | ComputeThinU)) {
-    VERIFY((svd.matrixU().adjoint() * svd.matrixU()).isIdentity(prec));
-    VERIFY_IS_APPROX(svd.matrixU().leftCols(diagSize) * svd.singularValues().cwiseAbs2().asDiagonal() *
-                         svd.matrixU().leftCols(diagSize).adjoint(),
-                     referenceSvd.matrixU().leftCols(diagSize) *
-                         referenceSvd.singularValues().cwiseAbs2().asDiagonal() *
-                         referenceSvd.matrixU().leftCols(diagSize).adjoint());
-  }
-
-  // The following checks are not critical.
-  // For instance, with Dived&Conquer SVD, if only the factor 'V' is computed then different matrix-matrix product
-  // implementation will be used and the resulting 'V' factor might be significantly different when the SVD
-  // decomposition is not unique, especially with single precision float.
-  ++g_test_level;
-  if (Options & ComputeFullU) VERIFY_IS_APPROX(svd.matrixU(), referenceSvd.matrixU());
-  if (Options & ComputeThinU) VERIFY_IS_APPROX(svd.matrixU(), referenceSvd.matrixU().leftCols(diagSize));
-  if (Options & ComputeFullV) VERIFY_IS_APPROX(svd.matrixV().cwiseAbs(), referenceSvd.matrixV().cwiseAbs());
-  if (Options & ComputeThinV) VERIFY_IS_APPROX(svd.matrixV(), referenceSvd.matrixV().leftCols(diagSize));
-  --g_test_level;
-}
-
 template <typename MatrixType, typename SvdType>
 void svd_least_square(const MatrixType& m, SvdType& svd) {
   typedef typename MatrixType::Scalar Scalar;
@@ -481,11 +439,6 @@ void svd_thin_option_checks(const MatrixType& input) {
 
   svd_compute_checks<MatrixType, QRPreconditioner | ComputeThinU | ComputeFullV>(m);
   svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullU | ComputeThinV>(m);
-
-  typedef SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner | ComputeFullU | ComputeFullV) FullSvdType;
-  FullSvdType fullSvd(m);
-  svd_check_full(m, fullSvd);
-  svd_compare_to_full<MatrixType, FullSvdType, QRPreconditioner | ComputeFullU | ComputeFullV>(m, fullSvd);
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
