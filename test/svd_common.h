@@ -286,28 +286,6 @@ void svd_underoverflow() {
   CALL_SUBTEST(svd_check_full(M3, svd3));
 }
 
-template <typename MatrixType>
-void svd_all_trivial_2x2(void (*cb)(const MatrixType&)) {
-  MatrixType M;
-  VectorXd value_set(3);
-  value_set << 0, 1, -1;
-  Array4i id(0, 0, 0, 0);
-  int k = 0;
-  do {
-    M << value_set(id(0)), value_set(id(1)), value_set(id(2)), value_set(id(3));
-
-    cb(M);
-
-    id(k)++;
-    if (id(k) >= value_set.size()) {
-      while (k < 3 && id(k) >= value_set.size()) id(++k)++;
-      id.head(k).setZero();
-      k = 0;
-    }
-
-  } while ((id < int(value_set.size())).all());
-}
-
 template <typename>
 void svd_preallocate() {
   Vector3f v(3.f, 2.f, 1.f);
