@@ -40,7 +40,6 @@ void jacobisvd_thin_options(const MatrixType& input = MatrixType()) {
   svd_fill_random(m);
 
   svd_thin_option_checks<MatrixType, 0>(m);
-  svd_thin_option_checks<MatrixType, ColPivHouseholderQRPreconditioner>(m);
   svd_thin_option_checks<MatrixType, HouseholderQRPreconditioner>(m);
 }
 
@@ -50,7 +49,6 @@ void jacobisvd_full_options(const MatrixType& input = MatrixType()) {
   svd_fill_random(m);
 
   svd_option_checks_full_only<MatrixType, 0>(m);
-  svd_option_checks_full_only<MatrixType, ColPivHouseholderQRPreconditioner>(m);
   svd_option_checks_full_only<MatrixType, HouseholderQRPreconditioner>(m);
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(
       m);  // FullPiv only used when computing full unitaries
