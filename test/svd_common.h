@@ -185,6 +185,34 @@ void svd_test_solvers(const MatrixType& m, const SolverType& solver) {
   check_solverbase<CMatrixType, MatrixType>(m, solver, rows, cols, cols2);
 }
 
+template <typename MatrixType, int Options,
+          bool HasQrPreconditioner = (Options & internal::QRPreconditionerBits) != NoQRPreconditioner>
+struct svd_min_norm_if {
+  static void run(const MatrixType& m) { svd_min_norm<MatrixType, Options>(m); }
+};
+
+template <typename MatrixType, int Options>
+struct svd_min_norm_if<MatrixType, Options, false> {
+  static void run(const MatrixType&) {}
+};
+
+template <typename MatrixType, int Options, typename SVDType,
+          bool ComputesBothUnitaries =
+              (Options & (ComputeThinU | ComputeFullU)) != 0 && (Options & (ComputeThinV | ComputeFullV)) != 0>
+struct svd_solver_checks_if {
+  static void run(const MatrixType&, SVDType&) {}
+};
+
+template <typename MatrixType, int Options, typename SVDType>
+struct svd_solver_checks_if<MatrixType, Options, SVDType, true> {
+  static void run(const MatrixType& m, SVDType& staticSvd) {
+    svd_test_solvers(m, staticSvd);
+    svd_least_square(m, staticSvd);
+    // svd_min_norm generates non-square matrices so it can't be used with NoQRPreconditioner.
+    svd_min_norm_if<MatrixType, Options>::run(m);
+  }
+};
+
 // work around stupid msvc error when constructing at compile time an expression that involves
 // a division by zero, even if the numeric type has floating point
 template <typename Scalar>
@@ -397,12 +425,7 @@ void svd_compute_checks(const MatrixType& m) {
   if (staticSvd.computeU()) VERIFY(staticSvd.matrixU().isUnitary());
   if (staticSvd.computeV()) VERIFY(staticSvd.matrixV().isUnitary());
 
-  if (staticSvd.computeU() && staticSvd.computeV()) {
-    svd_test_solvers(m, staticSvd);
-    svd_least_square(m, staticSvd);
-    // svd_min_norm generates non-square matrices so it can't be used with NoQRPreconditioner
-    if ((Options & internal::QRPreconditionerBits) != NoQRPreconditioner) svd_min_norm<MatrixType, Options>(m);
-  }
+  svd_solver_checks_if<MatrixType, Options, SVDType>::run(m, staticSvd);
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
