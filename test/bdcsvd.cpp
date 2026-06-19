@@ -216,10 +216,10 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_5((bdcsvd_verify_assert<Matrix<std::complex<double>, 6, 9>>()));
   CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
 
-  CALL_SUBTEST_7((svd_all_trivial_2x2(bdcsvd_thin_options<Matrix2cd>)));
-  CALL_SUBTEST_8((svd_all_trivial_2x2(bdcsvd_full_options<Matrix2cd>)));
-  CALL_SUBTEST_9((svd_all_trivial_2x2(bdcsvd_thin_options<Matrix2d>)));
-  CALL_SUBTEST_10((svd_all_trivial_2x2(bdcsvd_full_options<Matrix2d>)));
+  CALL_SUBTEST_7((bdcsvd_thin_options<Matrix2cd>()));
+  CALL_SUBTEST_8((bdcsvd_full_options<Matrix2cd>()));
+  CALL_SUBTEST_9((bdcsvd_thin_options<Matrix2d>()));
+  CALL_SUBTEST_10((bdcsvd_full_options<Matrix2d>()));
 
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), c = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);

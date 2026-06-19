@@ -152,8 +152,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_9((jacobisvd_verify_assert<MatrixXf>(MatrixXf(10, 12))));
   CALL_SUBTEST_10((jacobisvd_verify_assert<MatrixXcd>(MatrixXcd(7, 5))));
 
-  CALL_SUBTEST_11(svd_all_trivial_2x2(jacobisvd_thin_options<Matrix2cd>));
-  CALL_SUBTEST_12(svd_all_trivial_2x2(jacobisvd_thin_options<Matrix2d>));
+  CALL_SUBTEST_11((jacobisvd_thin_options<Matrix2cd>()));
+  CALL_SUBTEST_12((jacobisvd_thin_options<Matrix2d>()));
 
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, 30), c = internal::random<int>(1, 30);
