@@ -94,8 +94,8 @@ void svd_compare_to_full(const MatrixType& m, const SvdType& referenceSvd) {
   --g_test_level;
 }
 
-template <typename SvdType, typename MatrixType>
-void svd_least_square(const MatrixType& m) {
+template <typename MatrixType, typename SvdType>
+void svd_least_square(const MatrixType& m, SvdType& svd) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   Index rows = m.rows();
@@ -107,7 +107,6 @@ void svd_least_square(const MatrixType& m) {
   typedef Matrix<Scalar, ColsAtCompileTime, Dynamic> SolutionType;
 
   RhsType rhs = RhsType::Random(rows, internal::random<Index>(1, cols));
-  SvdType svd(m);
 
   if (std::is_same<RealScalar, double>::value)
     svd.setThreshold(RealScalar(1e-8));
@@ -153,6 +152,7 @@ void svd_least_square(const MatrixType& m) {
       if (std::is_same<RealScalar, float>::value) --g_test_level;
     }
   }
+  svd.setThreshold(Default);
 }
 
 // check minimal norm solutions, the input matrix m is only used to recover problem size
@@ -463,7 +463,7 @@ void svd_compute_checks(const MatrixType& m) {
 
   if (staticSvd.computeU() && staticSvd.computeV()) {
     svd_test_solvers(m, staticSvd);
-    svd_least_square<SVDType, MatrixType>(m);
+    svd_least_square(m, staticSvd);
     // svd_min_norm generates non-square matrices so it can't be used with NoQRPreconditioner
     if ((Options & internal::QRPreconditionerBits) != NoQRPreconditioner) svd_min_norm<MatrixType, Options>(m);
   }
