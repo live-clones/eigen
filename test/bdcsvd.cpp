@@ -49,6 +49,8 @@ void compare_bdc_jacobi(const MatrixType& a = MatrixType(), int algoswap = 16, b
   VERIFY_IS_APPROX(bdc_svd.singularValues(), jacobi_svd.singularValues());
 }
 
+#if defined(EIGEN_TEST_PART_46) || defined(EIGEN_TEST_PART_47) || defined(EIGEN_TEST_PART_48) || \
+    defined(EIGEN_TEST_PART_49) || defined(EIGEN_TEST_PART_ALL)
 // Verifies total deflation is **not** triggered.
 void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
   MatrixXd m(4, 3);
@@ -63,6 +65,7 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
   }
   compare_bdc_jacobi(m, algoswap, false);
 }
+#endif
 
 template <typename MatrixType>
 void bdcsvd_thin_options(const MatrixType& input = MatrixType()) {
@@ -172,6 +175,7 @@ void bdcsvd_bidiagonal_hard_cases() {
   }
 }
 
+#if defined(EIGEN_TEST_PART_6) || defined(EIGEN_TEST_PART_ALL)
 void bdcsvd_mixed_option_enum_regression() {
   using NoQrFullSVD = BDCSVD<MatrixXd, NoQRPreconditioner | ComputeFullU | ComputeFullV>;
   using ReversedMixedSVD = BDCSVD<MatrixXd, ComputeThinU | DisableQRDecomposition | ComputeFullV>;
@@ -182,7 +186,9 @@ void bdcsvd_mixed_option_enum_regression() {
   STATIC_CHECK((int(ReversedMixedSVD::QRDecomposition) == int(DisableQRDecomposition)));
   STATIC_CHECK((ReversedMixedSVD::ComputationOptions == (ComputeThinU | ComputeFullV)));
 }
+#endif
 
+#if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
 void bdcsvd_public_missing_predecessor() {
   Matrix<double, 6, 6> matrix = Matrix<double, 6, 6>::Zero();
   const double kSubnormal1040 = std::numeric_limits<double>::denorm_min() * 17179869184.0;  // 2^-1040
@@ -201,6 +207,7 @@ void bdcsvd_public_missing_predecessor() {
 
   VERIFY(svd.info() == NumericalIssue);
 }
+#endif
 
 #if defined(EIGEN_TEST_PART_54) || defined(EIGEN_TEST_PART_ALL)
 void bdcsvd_fast_math_regression_1588() {
