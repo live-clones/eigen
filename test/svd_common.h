@@ -341,14 +341,12 @@ void svd_preallocate() {
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
-void svd_verify_assert_full_only(const MatrixType& input = MatrixType()) {
+void svd_verify_assert_full_only(const MatrixType& m) {
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime };
 
   typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1> RhsType;
-  RhsType rhs = RhsType::Zero(input.rows());
+  RhsType rhs = RhsType::Zero(m.rows());
   EIGEN_UNUSED_VARIABLE(rhs);  // Only used if asserts are enabled.
-  MatrixType m(input.rows(), input.cols());
-  svd_fill_random(m);
 
   SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner) svd0;
   VERIFY_RAISES_ASSERT((svd0.matrixU()));
@@ -372,13 +370,11 @@ void svd_verify_assert_full_only(const MatrixType& input = MatrixType()) {
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
-void svd_verify_assert(const MatrixType& input = MatrixType()) {
+void svd_verify_assert(const MatrixType& m) {
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime };
   typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1> RhsType;
-  RhsType rhs = RhsType::Zero(input.rows());
+  RhsType rhs = RhsType::Zero(m.rows());
   EIGEN_UNUSED_VARIABLE(rhs);  // Only used if asserts are enabled.
-  MatrixType m(input.rows(), input.cols());
-  svd_fill_random(m);
 
   SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner | ComputeThinU) svdThinU(m);
   VERIFY_RAISES_ASSERT((svdThinU.matrixV()));
@@ -443,6 +439,8 @@ void svd_thin_full_option_checks(const MatrixType& input) {
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
 
+  svd_verify_assert<MatrixType, QRPreconditioner>(m);
+
   svd_compute_checks<MatrixType, QRPreconditioner>(m);
   svd_compute_checks<MatrixType, QRPreconditioner | ComputeThinU>(m);
   svd_compute_checks<MatrixType, QRPreconditioner | ComputeThinV>(m);
@@ -458,6 +456,7 @@ template <typename MatrixType, int QRPreconditioner = 0>
 void svd_option_checks_full_only(const MatrixType& input) {
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
+  svd_verify_assert_full_only<MatrixType, QRPreconditioner>(m);
   svd_full_option_checks<MatrixType, QRPreconditioner>(m);
 }
 
