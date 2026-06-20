@@ -429,7 +429,17 @@ void svd_compute_checks(const MatrixType& m) {
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
-void svd_thin_option_checks(const MatrixType& input) {
+void svd_full_option_checks(const MatrixType& m) {
+  svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullU>(m);
+  svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullV>(m);
+  svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullU | ComputeFullV>(m);
+
+  SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner | ComputeFullU | ComputeFullV) fullSvd(m);
+  svd_check_full(m, fullSvd);
+}
+
+template <typename MatrixType, int QRPreconditioner = 0>
+void svd_thin_full_option_checks(const MatrixType& input) {
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
 
@@ -440,18 +450,15 @@ void svd_thin_option_checks(const MatrixType& input) {
 
   svd_compute_checks<MatrixType, QRPreconditioner | ComputeThinU | ComputeFullV>(m);
   svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullU | ComputeThinV>(m);
+
+  svd_full_option_checks<MatrixType, QRPreconditioner>(m);
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
 void svd_option_checks_full_only(const MatrixType& input) {
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
-  svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullU>(m);
-  svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullV>(m);
-  svd_compute_checks<MatrixType, QRPreconditioner | ComputeFullU | ComputeFullV>(m);
-
-  SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner | ComputeFullU | ComputeFullV) fullSvd(m);
-  svd_check_full(m, fullSvd);
+  svd_full_option_checks<MatrixType, QRPreconditioner>(m);
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
