@@ -123,15 +123,15 @@ void svd_min_norm(const MatrixType& m) {
 
   typedef Matrix<Scalar, ColsAtCompileTime, Dynamic> SolutionType;
 
-  // generate a full-rank m x n problem with m<n
-  enum {
-    RankAtCompileTime2 = ColsAtCompileTime == Dynamic ? Dynamic : (ColsAtCompileTime) / 2 + 1,
-    RowsAtCompileTime3 = ColsAtCompileTime == Dynamic ? Dynamic : ColsAtCompileTime + 1
-  };
+  // Generate a full-rank m x n problem with m<n. Keep fixed columns from the
+  // caller, but do not encode generated row counts into the helper matrix types.
+  // Otherwise fixed-column callers instantiate extra fully fixed SVD shapes.
+  constexpr int RankAtCompileTime2 = Dynamic;
+  constexpr int RowsAtCompileTime3 = Dynamic;
   typedef Matrix<Scalar, RankAtCompileTime2, ColsAtCompileTime> MatrixType2;
   typedef Matrix<Scalar, RankAtCompileTime2, 1> RhsType2;
   typedef Matrix<Scalar, ColsAtCompileTime, RankAtCompileTime2> MatrixType2T;
-  Index rank = RankAtCompileTime2 == Dynamic ? internal::random<Index>(1, cols) : Index(RankAtCompileTime2);
+  Index rank = ColsAtCompileTime == Dynamic ? internal::random<Index>(1, cols) : Index(ColsAtCompileTime / 2 + 1);
   MatrixType2 m2(rank, cols);
   m2.setRandom();
   if (SVD_FOR_MIN_NORM(MatrixType2)(m2).setThreshold(test_precision<Scalar>()).rank() != rank) {
@@ -157,7 +157,8 @@ void svd_min_norm(const MatrixType& m) {
   // Now check with a rank deficient matrix
   typedef Matrix<Scalar, RowsAtCompileTime3, ColsAtCompileTime> MatrixType3;
   typedef Matrix<Scalar, RowsAtCompileTime3, 1> RhsType3;
-  Index rows3 = RowsAtCompileTime3 == Dynamic ? internal::random<Index>(rank + 1, 2 * cols) : Index(RowsAtCompileTime3);
+  Index rows3 =
+      ColsAtCompileTime == Dynamic ? internal::random<Index>(rank + 1, 2 * cols) : Index(ColsAtCompileTime + 1);
   Matrix<Scalar, RowsAtCompileTime3, Dynamic> C = Matrix<Scalar, RowsAtCompileTime3, Dynamic>::Random(rows3, rank);
   MatrixType3 m3 = C * m2;
   RhsType3 rhs3 = C * rhs2;
