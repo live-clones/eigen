@@ -70,12 +70,16 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
 template <typename MatrixType>
 void bdcsvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
+  svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(input);
 }
 
 template <typename MatrixType>
-void bdcsvd_verify_assert(const MatrixType& input = MatrixType()) {
-  svd_verify_assert<MatrixType>(input);
-  svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(input);
+void bdcsvd_asserts(const MatrixType& input = MatrixType()) {
+  MatrixType m(input.rows(), input.cols());
+  svd_fill_random(m);
+
+  svd_verify_assert<MatrixType>(m);
+  svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(m);
 }
 
 template <typename MatrixType>
@@ -227,11 +231,11 @@ void bdcsvd_fast_math_regression_1588() {
 #endif
 
 EIGEN_DECLARE_TEST(bdcsvd) {
-  CALL_SUBTEST_1((bdcsvd_verify_assert<Matrix3f>()));
-  CALL_SUBTEST_2((bdcsvd_verify_assert<Matrix4d>()));
-  CALL_SUBTEST_3((bdcsvd_verify_assert<Matrix<float, 10, 7>>()));
-  CALL_SUBTEST_4((bdcsvd_verify_assert<Matrix<float, 7, 10>>()));
-  CALL_SUBTEST_5((bdcsvd_verify_assert<Matrix<std::complex<double>, 6, 9>>()));
+  CALL_SUBTEST_1((bdcsvd_asserts<Matrix3f>()));
+  CALL_SUBTEST_2((bdcsvd_asserts<Matrix4d>()));
+  CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
+  CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
+  CALL_SUBTEST_5((bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>()));
   CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
