@@ -23,14 +23,13 @@ BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex> denseToBl
   using BSM = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
   using Triplet = typename BSM::TripletType;
 
-  const Index bRows = dense.rows() / BlockRows;
-  const Index bCols = dense.cols() / BlockCols;
+  Index bRows = dense.rows() / BlockRows;
+  Index bCols = dense.cols() / BlockCols;
 
   std::vector<Triplet> triplets;
   for (Index bi = 0; bi < bRows; ++bi) {
     for (Index bj = 0; bj < bCols; ++bj) {
-      const Matrix<Scalar, BlockRows, BlockCols> tile =
-          dense.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols);
+      Matrix<Scalar, BlockRows, BlockCols> tile = dense.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols);
       if (tile.squaredNorm() > 0) triplets.emplace_back(StorageIndex(bi), StorageIndex(bj), tile);
     }
   }
@@ -51,8 +50,8 @@ void test_block_sparse(int bRows, int bCols) {
   using SpMat = SparseMatrix<Scalar, Options, StorageIndex>;
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
 
-  const int rows = bRows * BlockRows;
-  const int cols = bCols * BlockCols;
+  int rows = bRows * BlockRows;
+  int cols = bCols * BlockCols;
 
   // Build two random dense matrices with a coarse block structure.
   DenseMat dA = DenseMat::Zero(rows, cols);
@@ -146,7 +145,7 @@ void test_block_sparse(int bRows, int bCols) {
 
   // ---- Scalar multiplication ----------------------------------------------
   {
-    const Scalar s = Scalar(3.14);
+    Scalar s = Scalar(3.14);
     BSM C = A * s;
     VERIFY_IS_APPROX(DenseMat(C.toSparse()), dA * s);
 
@@ -206,8 +205,8 @@ void test_block_sparse_product(int bM, int bK, int bN) {
   using BSMA = BlockSparseMatrix<Scalar, Options, B, B, StorageIndex>;
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
 
-  const int rowsA = bM * B, colsA = bK * B;
-  const int colsB = bN * B;
+  int rowsA = bM * B, colsA = bK * B;
+  int colsB = bN * B;
 
   DenseMat dA = DenseMat::Zero(rowsA, colsA);
   DenseMat dB = DenseMat::Zero(colsA, colsB);
@@ -240,8 +239,8 @@ void test_block_sparse_dense_product(int bRows, int bCols) {
   using DenseVec = Matrix<Scalar, Dynamic, 1>;
   using RowVec = Matrix<Scalar, 1, Dynamic>;
 
-  const int rows = bRows * BlockRows;
-  const int cols = bCols * BlockCols;
+  int rows = bRows * BlockRows;
+  int cols = bCols * BlockCols;
 
   DenseMat dA = DenseMat::Zero(rows, cols);
   for (int bi = 0; bi < bRows; ++bi)
@@ -288,7 +287,7 @@ void test_nonsquare_block_product() {
   using BSMB = BlockSparseMatrix<Scalar, ColMajor, BC, BC2, StorageIndex>;
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
 
-  const int bM = 4, bK = 3, bN = 5;
+  int bM = 4, bK = 3, bN = 5;
   DenseMat dA = DenseMat::Zero(bM * BR, bK * BC);
   DenseMat dB = DenseMat::Zero(bK * BC, bN * BC2);
 
@@ -319,7 +318,7 @@ void test_block_sparse_transpose(int bRows, int bCols) {
   using BSMT = BlockSparseMatrix<Scalar, Options, BlockCols, BlockRows, StorageIndex>;
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
 
-  const int rows = bRows * BlockRows, cols = bCols * BlockCols;
+  int rows = bRows * BlockRows, cols = bCols * BlockCols;
   DenseMat dA = DenseMat::Zero(rows, cols);
   for (int bi = 0; bi < bRows; ++bi)
     for (int bj = 0; bj < bCols; ++bj)
@@ -351,7 +350,7 @@ void test_block_sparse_triangular(int bN) {
   using BSM = BlockSparseMatrix<Scalar, Options, B, B, StorageIndex>;
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
 
-  const int N = bN * B;
+  int N = bN * B;
   DenseMat dA = DenseMat::Zero(N, N);
   for (int bi = 0; bi < bN; ++bi)
     for (int bj = 0; bj < bN; ++bj)
@@ -447,7 +446,7 @@ void test_block_sparse_triangular_solve(int bN) {
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
-  const int N = bN * B;
+  int N = bN * B;
 
   // Build a dense lower-block-triangular matrix.
   // Diagonal blocks are lower triangular with non-zero diagonal.
@@ -563,7 +562,7 @@ void test_block_sparse_selfadjoint(int bN) {
   using BSM = BlockSparseMatrix<Scalar, Options, B, B, StorageIndex>;
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
 
-  const int N = bN * B;
+  int N = bN * B;
 
   // Build a Hermitian dense matrix (stored upper triangle only).
   DenseMat dFull = DenseMat::Zero(N, N);
