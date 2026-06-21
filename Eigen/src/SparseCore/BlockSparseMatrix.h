@@ -338,7 +338,7 @@ class BlockSparseMatrix
    */
   void setIdentity() {
     EIGEN_STATIC_ASSERT(BlockRows_ == BlockCols_, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
-    const Index n = (std::min)(m_blockOuterSize, m_blockInnerSize);
+    Index n = (std::min)(m_blockOuterSize, m_blockInnerSize);
     m_outerIndex.resize(m_blockOuterSize + 1);
     resizeBlockStorage_(n);
     for (Index i = 0; i <= m_blockOuterSize; ++i) m_outerIndex(i) = StorageIndex((std::min)(i, n));
@@ -557,10 +557,10 @@ class BlockSparseMatrix
     // but computed directly from the block values — no scalar-level SparseMatrix
     // materialization of either operand.  Explicit zero blocks contribute 0 to
     // every norm, so the result is independent of structural differences.
-    const RealScalar n2a = m_values.head(nonZeros()).matrix().squaredNorm();
-    const RealScalar n2b = other.m_values.head(other.nonZeros()).matrix().squaredNorm();
-    const BlockSparseMatrix diff = *this - other;
-    const RealScalar d2 = diff.m_values.head(diff.nonZeros()).matrix().squaredNorm();
+    RealScalar n2a = m_values.head(nonZeros()).matrix().squaredNorm();
+    RealScalar n2b = other.m_values.head(other.nonZeros()).matrix().squaredNorm();
+    BlockSparseMatrix diff = *this - other;
+    RealScalar d2 = diff.m_values.head(diff.nonZeros()).matrix().squaredNorm();
     return d2 <= prec * prec * numext::mini(n2a, n2b);
   }
 
@@ -680,7 +680,7 @@ class BlockSparseMatrix
   // duplicated, and unused tail capacity is neither copied nor evaluated.
   template <typename F>
   BlockSparseMatrix withValues_(F f) const {
-    const Index nnz = nonZeroBlocks();
+    Index nnz = nonZeroBlocks();
     BlockSparseMatrix result(blockRows(), blockCols());
     result.m_outerIndex = m_outerIndex;
     result.m_innerIndex = m_innerIndex.head(nnz);
@@ -1373,7 +1373,7 @@ class BlockSparseTriangularView {
     EIGEN_STATIC_ASSERT(BlockRows == BlockCols, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
     constexpr int DiagMode = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
-    const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
+    Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
     eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
 
     const StorageIndex* innerPtr = m_matrix.innerIndexPtr();
@@ -1419,7 +1419,7 @@ class BlockSparseTriangularView {
     EIGEN_STATIC_ASSERT(BlockRows == BlockCols, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
     constexpr int DiagMode = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
-    const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
+    Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
     eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
 
     const StorageIndex* innerPtr = m_matrix.innerIndexPtr();
@@ -1724,8 +1724,8 @@ struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
     const typename Lhs::StorageIndex* innerPtr = lhs.innerIndexPtr();
     // Branch on alpha before the loop: alpha==1 and alpha==-1 avoid creating a
     // CwiseUnaryOp<scalar_multiple, B×B_block>, which defeats SIMD for complex scalars.
-    const bool a1 = (alpha == Scalar(1));
-    const bool am1 = (alpha == Scalar(-1));
+    bool a1 = (alpha == Scalar(1));
+    bool am1 = (alpha == Scalar(-1));
     for (Eigen::Index out = 0; out < lhs.blockOuterSize(); ++out) {
       for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
         Eigen::Index inner = innerPtr[id];
@@ -1765,8 +1765,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>
     constexpr int BC = Rhs::BlockCols;
     const typename Rhs::StorageIndex* outerPtr = rhs.outerIndexPtr();
     const typename Rhs::StorageIndex* innerPtr = rhs.innerIndexPtr();
-    const bool a1 = (alpha == Scalar(1));
-    const bool am1 = (alpha == Scalar(-1));
+    bool a1 = (alpha == Scalar(1));
+    bool am1 = (alpha == Scalar(-1));
     for (Eigen::Index out = 0; out < rhs.blockOuterSize(); ++out) {
       for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
         Eigen::Index inner = innerPtr[id];
